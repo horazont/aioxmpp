@@ -1,4 +1,5 @@
 import asyncio
+import functools
 import logging
 
 import lxml.builder
@@ -41,7 +42,6 @@ class XMLStream(asyncio.Protocol):
 
     def __init__(self,
                  to,
-                 stream_plugins=[],
                  mode="client",
                  **kwargs):
         super().__init__(**kwargs)
@@ -55,7 +55,8 @@ class XMLStream(asyncio.Protocol):
             raise ValueError("Invalid value for mode argument: {}".format(mode))
 
         self._to = to
-        self._stream_plugins = stream_plugins
+        self._stream_level_node_callbacks = []
+        self._died = asyncio.Event()
 
     def _send_header(self):
         self.send_raw(
@@ -89,15 +90,12 @@ class XMLStream(asyncio.Protocol):
 
     def _start_stream(self, node):
         self._stream_root = node
-        self.add_stream_level_node_callback(
-            "{http://etherx.jabber.org/streams}features",
-            self._process_stream_features)
 
     def _process_stream_level_node(self, node):
         to_remove = set()
         try:
-            for tag, callback in self._stream_level_node_callbacks:
-                if node.getparent().find(tag) == node:
+            for tag, callback in reversed(self._stream_level_node_callbacks):
+                if node.getparent().find(tag) is node:
                     result = callback(self, node)
                     if not result:
                         to_remove.append(((is_plain, tag), callback))
@@ -113,23 +111,13 @@ class XMLStream(asyncio.Protocol):
                 if row in to_remove:
                    del self._stream_level_node_callbacks[i]
 
-    def _process_stream_features(self, _, node):
-        for plugin in self._stream_plugins:
-            feature_node = node.find(plugin.feature)
-            if feature_node is None:
-                continue
-
-            if plugin.start(self, feature_node):
-                # abort processing
-                return
-
     def connection_made(self, using_transport):
         self._transport = using_transport
         self._parser = make_xmlstream_parser()
         self._send_root, self.E = make_xmlstream_sender(
             self._namespace)
         self._send_header()
-        self._stream_level_node_callbacks = []
+        self._died.clear()
 
     def data_received(self, blob):
         logger.debug("RECV %s", blob)
@@ -159,11 +147,12 @@ class XMLStream(asyncio.Protocol):
                 self._close_parser()
         finally:
             self._transport = None
+            self._died.set()
             del self._send_root
             del self.E
             del self._parser
             del self._stream_root
-            del self._stream_level_node_callbacks
+            self._stream_level_node_callbacks = []
 
     def starttls_engaged(self, transport):
         logger.info("STARTTLS engaged, resetting stream")
@@ -188,6 +177,49 @@ class XMLStream(asyncio.Protocol):
         except ValueError:
             return False
         return True
+
+    @asyncio.coroutine
+    def send_and_wait_for(self,
+                          node_to_send,
+                          *tokens,
+                          timeout=None):
+        ev = asyncio.Event()
+        pass_node = None
+        pass_value = None
+        def callback(return_value, self, node):
+            nonlocal pass_node, pass_value
+            pass_value = return_value
+            pass_node = node
+            ev.set()
+            return False
+
+        for qualifier, return_value in tokens:
+            self.add_stream_level_node_callback(
+                qualifier,
+                functools.partial(callback, return_value))
+
+        self.send_node(node_to_send)
+
+        received = asyncio.async(ev.wait())
+        died = asyncio.async(self._died.wait())
+
+        done, pending = yield from asyncio.wait(
+            [
+                received,
+                died
+            ],
+            timeout=timeout,
+            return_when=asyncio.FIRST_COMPLETED)
+
+        if not done:
+            raise TimeoutError("Timeout")
+        if died in done:
+            raise ConnectionError("Disconnected")
+
+        for future in pending:
+            future.cancel()
+
+        return pass_node, pass_value
 
     def send_raw(self, buf):
         logger.debug("SEND %s", buf)

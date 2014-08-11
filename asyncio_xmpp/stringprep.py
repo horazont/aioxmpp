@@ -4,9 +4,17 @@ Stringprep support
 
 This module implements the SASLprep (`RFC 4013`_), Nodeprep (`RFC 6122`_) and Resourceprep (`RFC 6122`_) stringprep profiles.
 
-.. autofunction:: prep
+.. autofunction:: saslprep
 
+.. autofunction:: nodeprep
+
+.. autofunction:: resourceprep
+
+.. autofunction:: nameprep
+
+.. _RFC 3454: https://tools.ietf.org/html/rfc3454
 .. _RFC 4013: https://tools.ietf.org/html/rfc4013
+.. _RFC 6122: https://tools.ietf.org/html/rfc6122
 
 """
 
@@ -162,10 +170,14 @@ def _nodeprep_do_mapping(chars):
                 chars[i:i+1] = list(replacement)
             i += len(replacement)
 
+def _nameprep_do_mapping(chars):
+    return _nodeprep_do_mapping(chars)
+
 def nodeprep(string, allow_unassigned=False):
     """
-    Process the given *string* using the Nodeprep profile. In the error cases
-    defined in `RFC 3454`_ (stringprep), a :class:`ValueError` is raised.
+    Process the given *string* using the Nodeprep (`RFC 6122`_) profile. In the
+    error cases defined in `RFC 3454`_ (stringprep), a :class:`ValueError` is
+    raised.
     """
 
     chars = list(string)
@@ -202,8 +214,9 @@ def _resourceprep_do_mapping(chars):
 
 def resourceprep(string, allow_unassigned=False):
     """
-    Process the given *string* using the Nodeprep profile. In the error cases
-    defined in `RFC 3454`_ (stringprep), a :class:`ValueError` is raised.
+    Process the given *string* using the Resourceprep (`RFC 6122`_) profile. In
+    the error cases defined in `RFC 3454`_ (stringprep), a :class:`ValueError`
+    is raised.
     """
 
     chars = list(string)
@@ -224,5 +237,41 @@ def resourceprep(string, allow_unassigned=False):
             stringprep.in_table_c9,
         ))
     check_bidi(chars)
+
+    return "".join(chars)
+
+
+def nameprep(string, allow_unassigned=False):
+    """
+    Process the given *string* using the Nameprep (`RFC 3491`_) profile. In the
+    error cases defined in `RFC 3454`_ (stringprep), a :class:`ValueError` is
+    raised.
+    """
+
+    chars = list(string)
+    _nodeprep_do_mapping(chars)
+    do_normalization(chars)
+    check_prohibited_output(
+        chars,
+        (
+            stringprep.in_table_c12,
+            stringprep.in_table_c22,
+            stringprep.in_table_c3,
+            stringprep.in_table_c4,
+            stringprep.in_table_c5,
+            stringprep.in_table_c6,
+            stringprep.in_table_c7,
+            stringprep.in_table_c8,
+            stringprep.in_table_c9,
+        ))
+    check_bidi(chars)
+
+    if not allow_unassigned:
+        check_unassigned(
+            chars,
+            (
+                stringprep.in_table_a1,
+            )
+        )
 
     return "".join(chars)
