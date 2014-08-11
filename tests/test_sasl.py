@@ -76,6 +76,35 @@ class SASLStateMachineMock(sasl.SASLStateMachine):
             self._action_sequence,
             "Not all actions performed")
 
+class TestPLAIN(unittest.TestCase):
+    def test_rfc(self):
+        user = "tim"
+        password = "tanstaaftanstaaf"
+
+        smmock = SASLStateMachineMock(
+            self,
+            [
+                ("auth;PLAIN",
+                 base64.b64encode(b"\0tim\0tanstaaftanstaaf"),
+                 "success",
+                 None)
+            ])
+
+        @asyncio.coroutine
+        def provide_credentials(*args):
+            return user, password
+
+        def run():
+            plain = sasl.PLAIN(provide_credentials)
+            result = yield from plain.authenticate(
+                smmock,
+                "PLAIN")
+            self.assertTrue(result)
+
+        asyncio.get_event_loop().run_until_complete(run())
+
+        smmock.finalize()
+
 class TestSCRAM(unittest.TestCase):
     def test_rfc(self):
         hashfun_factory = hashlib.sha1
@@ -127,16 +156,19 @@ class TestSCRAM(unittest.TestCase):
                  "success",
                  base64.b64encode(
                      b"v="+base64.b64encode(server_signature)))
-            ],
-            None)
+            ])
 
         @asyncio.coroutine
         def provide_credentials(*args):
             return ("user", "pencil")
 
-        scram = sasl.SCRAM(provide_credentials)
-        asyncio.get_event_loop().run_until_complete(scram.authenticate(
-            smmock,
-            ("SCRAM-SHA-1", "sha1")))
+        def run():
+            scram = sasl.SCRAM(provide_credentials)
+            result = yield from scram.authenticate(
+                smmock,
+                ("SCRAM-SHA-1", "sha1"))
+            self.assertTrue(result)
+
+        asyncio.get_event_loop().run_until_complete(run())
 
         smmock.finalize()

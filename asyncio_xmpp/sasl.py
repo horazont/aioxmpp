@@ -224,6 +224,32 @@ class SASLMechanism(metaclass=abc.ABCMeta):
         exception instead of returning :data:`False`.
         """
 
+class PLAIN(SASLMechanism):
+    def __init__(self, credential_provider):
+        super().__init__()
+        self._credential_provider = credential_provider
+
+    @classmethod
+    def any_supported(cls, mechanisms):
+        if "PLAIN" in mechanisms:
+            return "PLAIN"
+        return None
+
+    @asyncio.coroutine
+    def authenticate(self, sm, mechanism):
+        username, password = yield from self._credential_provider()
+        username = saslprep(username).encode("utf8")
+        password = saslprep(password).encode("utf8")
+
+        if b'\0' in username or b'\0' in password:
+            raise ValueError("Username and password must not contain NUL")
+
+        yield from sm.initiate(
+            mechanism="PLAIN",
+            payload=b"\0"+username+b"\0"+password)
+
+        return True
+
 class SCRAM(SASLMechanism):
     def __init__(self, credential_provider):
         super().__init__()
@@ -292,9 +318,11 @@ class SCRAM(SASLMechanism):
             hashfun_factory = functools.partial(hashlib.new, hashfun_name)
         digest_size = hashfun_factory().digest_size
 
+        # this is pretty much a verbatim implementation of RFC 5802.
+
         # we don’t support channel binding
         gs2_header = b"n,,"
-        username, password = yield from self._credential_provider(sm.xmlstream)
+        username, password = yield from self._credential_provider()
         username = saslprep(username).encode("utf8")
         password = saslprep(password).encode("utf8")
 
