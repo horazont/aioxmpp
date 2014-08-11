@@ -225,6 +225,12 @@ class SASLMechanism(metaclass=abc.ABCMeta):
         """
 
 class PLAIN(SASLMechanism):
+    """
+    The ``PLAIN`` SASL mechanism (see RFC 4616).
+
+    *credential_provider* must be coroutine which returns a ``(user, password)``
+    tuple.
+    """
     def __init__(self, credential_provider):
         super().__init__()
         self._credential_provider = credential_provider
@@ -251,6 +257,13 @@ class PLAIN(SASLMechanism):
         return True
 
 class SCRAM(SASLMechanism):
+    """
+    The SCRAM SASL mechanism (see RFC 5802).
+
+    *credential_provider* must be coroutine which returns a ``(user, password)``
+    tuple.
+    """
+
     def __init__(self, credential_provider):
         super().__init__()
         self._credential_provider = credential_provider
