@@ -1,6 +1,6 @@
 import unittest
 
-from .stringprep import saslprep, nodeprep, resourceprep
+from asyncio_xmpp.stringprep import saslprep, nodeprep, resourceprep
 
 class TestSASLprep(unittest.TestCase):
     def test_map_to_nothing_rfcx(self):
