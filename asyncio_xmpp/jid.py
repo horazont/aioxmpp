@@ -41,12 +41,13 @@ class JID:
         self.__localpart = localpart
         self.__domainpart = domainpart
         self.__resource = resource
+        self.__hash = None
 
     @property
     def bare(self):
         if self.is_bare:
             return self
-        return JID(self.__localpart, self.__domainpart)
+        return JID(self.__localpart, self.__domainpart, None)
 
     @property
     def localpart(self):

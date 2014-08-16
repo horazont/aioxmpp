@@ -1,15 +1,36 @@
 import asyncio
+import binascii
+import random
 
 from . import jid
-from .utils import etree, namespaces
+from .utils import etree, namespaces, split_tag
 
 class StanzaMeta(type):
     pass
 
-class Stanza(etree.ElementBase):
+class StanzaElementBase(etree.ElementBase):
+    def __init__(self, *args, nsmap=None, **kwargs):
+        if nsmap is None:
+            nsmap = {}
+        else:
+            nsmap = dict(nsmap)
+        ns, _ = split_tag(self.TAG)
+        if ns is not None:
+            nsmap[None] = ns
+        super().__init__(*args, nsmap=nsmap, **kwargs)
+
+class Stanza(StanzaElementBase):
     @property
     def id(self):
-        return self.get("id")
+        idstr = self.get("id")
+        if idstr is None:
+            idstr = binascii.b2a_base64(random.getrandbits(
+                120
+            ).to_bytes(
+                120//8, 'little'
+            )).decode("ascii").strip()
+            self.set("id", idstr)
+        return idstr
 
     @id.setter
     def id(self, value):
@@ -17,7 +38,10 @@ class Stanza(etree.ElementBase):
 
     @property
     def from_(self):
-        return jid.JID.fromstr(self.get("from"))
+        jidstr = self.get("from")
+        if jidstr is None:
+            return None
+        return jid.JID.fromstr(jidstr)
 
     @from_.setter
     def from_(self, value):
@@ -25,7 +49,10 @@ class Stanza(etree.ElementBase):
 
     @property
     def to(self):
-        return jid.JID.fromstr(self.get("to"))
+        jidstr = self.get("to")
+        if jidstr is None:
+            return None
+        return jid.JID.fromstr(jidstr)
 
     @to.setter
     def to(self, value):
@@ -77,7 +104,16 @@ class IQ(Stanza):
             self.remove(0)
         self.append(value)
 
-    def make_reply(self, type):
+    def make_reply(self, error=False):
+        """
+        Return a new :class:`IQ` instance. The instance has :attr:`from_` and
+        :attr:`to` swapped, but share the same :attr:`id`.
+
+        The type is set to ``"result"`` if *error* is :data:`False`, else it is
+        set to ``"error"`` and :attr:`data` is initialized with a new
+        :class:`Error` instance.
+        """
+
         if self.type not in {"set", "get"}:
             raise ValueError("Cannot construct reply to iq@type={!r}".format(
                 type))
@@ -86,7 +122,11 @@ class IQ(Stanza):
         obj.from_ = self.to
         obj.to = self.from_
         obj.id = self.id
-        obj.type = type
+        if error:
+            obj.type = "error"
+            obj.data = Error()
+        else:
+            obj.type = "result"
 
         return obj
 
@@ -127,9 +167,6 @@ class Error(etree.ElementBase):
 
     def _init(self):
         super()._init()
-        if len(self) > 3:
-            raise ValueError("Malformed error element (too many children)")
-
         condition_el = None
         text_el = None
         data_el = None

@@ -97,10 +97,12 @@ class SASLStateMachine:
     @asyncio.coroutine
     def _send_sasl_node_and_wait_for(self, node):
         node, state = yield from self.xmlstream.send_and_wait_for(
-            node,
-            ("{urn:ietf:params:xml:ns:xmpp-sasl}challenge", "challenge"),
-            ("{urn:ietf:params:xml:ns:xmpp-sasl}failure", "failure"),
-            ("{urn:ietf:params:xml:ns:xmpp-sasl}success", "success"),
+            [node],
+            [
+                ("{urn:ietf:params:xml:ns:xmpp-sasl}challenge", "challenge"),
+                ("{urn:ietf:params:xml:ns:xmpp-sasl}failure", "failure"),
+                ("{urn:ietf:params:xml:ns:xmpp-sasl}success", "success"),
+            ],
             timeout=self.timeout
         )
 
@@ -120,7 +122,7 @@ class SASLStateMachine:
         else:
             payload = None
 
-        return state, node.text
+        return state, payload
 
     @asyncio.coroutine
     def _send_response(self, payload):
@@ -243,170 +245,178 @@ class PLAIN(SASLMechanism):
 
     @asyncio.coroutine
     def authenticate(self, sm, mechanism):
-        username, password = yield from self._credential_provider()
-        username = saslprep(username).encode("utf8")
-        password = saslprep(password).encode("utf8")
+       logger.info("attempting PLAIN mechanism")
+       username, password = yield from self._credential_provider()
+       username = saslprep(username).encode("utf8")
+       password = saslprep(password).encode("utf8")
 
-        if b'\0' in username or b'\0' in password:
-            raise ValueError("Username and password must not contain NUL")
+       if b'\0' in username or b'\0' in password:
+           raise ValueError("Username and password must not contain NUL")
 
-        yield from sm.initiate(
-            mechanism="PLAIN",
-            payload=b"\0"+username+b"\0"+password)
+       yield from sm.initiate(
+           mechanism="PLAIN",
+           payload=b"\0"+username+b"\0"+password)
 
-        return True
+       return True
 
 class SCRAM(SASLMechanism):
-    """
-    The SCRAM SASL mechanism (see RFC 5802).
+   """
+   The SCRAM SASL mechanism (see RFC 5802).
 
-    *credential_provider* must be coroutine which returns a ``(user, password)``
-    tuple.
-    """
+   *credential_provider* must be coroutine which returns a ``(user, password)``
+   tuple.
+   """
 
-    def __init__(self, credential_provider):
-        super().__init__()
-        self._credential_provider = credential_provider
-        self.nonce_length = 15
+   def __init__(self, credential_provider):
+       super().__init__()
+       self._credential_provider = credential_provider
+       self.nonce_length = 15
 
-    _supported_hashalgos = {
-        # the second argument is for preference ordering (highest first)
-        # if anyone has a better hash ordering suggestion, I’m open for it
-        # a value of 1 is added if the -PLUS variant is used
-        # -- JWI
-        "SHA-1": ("sha1", 1),
-        "SHA-224": ("sha224", 224),
-        "SHA-512": ("sha512", 512),
-        "SHA-384": ("sha384", 384),
-        "SHA-256": ("sha256", 256),
-    }
+   _supported_hashalgos = {
+       # the second argument is for preference ordering (highest first)
+       # if anyone has a better hash ordering suggestion, I’m open for it
+       # a value of 1 is added if the -PLUS variant is used
+       # -- JWI
+       "SHA-1": ("sha1", 1),
+       "SHA-224": ("sha224", 224),
+       "SHA-512": ("sha512", 512),
+       "SHA-384": ("sha384", 384),
+       "SHA-256": ("sha256", 256),
+   }
 
-    @classmethod
-    def any_supported(cls, mechanisms):
-        supported = []
-        for mechanism in mechanisms:
-            if not mechanism.startswith("SCRAM-"):
-                continue
-            if mechanism.endswith("-PLUS"):
-                # channel binding is not supported
-                continue
+   @classmethod
+   def any_supported(cls, mechanisms):
+       supported = []
+       for mechanism in mechanisms:
+           if not mechanism.startswith("SCRAM-"):
+               continue
+           if mechanism.endswith("-PLUS"):
+               # channel binding is not supported
+               continue
 
-            mechanism = mechanism[6:]
+           hashfun_key = mechanism[6:]
 
-            try:
-                hashfun_name, quality = self._supported_hashalgos[mechanism]
-            except KeyError:
-                continue
+           try:
+               hashfun_name, quality = cls._supported_hashalgos[hashfun_key]
+           except KeyError:
+               continue
 
-            supported.append(((1, quality+int(plus)), (mechanism, hashfun_name,)))
+           supported.append(((1, quality), (mechanism, hashfun_name,)))
 
-        if not supported:
-            return None
-        supported.sort()
+       if not supported:
+           return None
+       supported.sort()
 
-        return supported.pop()
+       return supported.pop()[1]
 
-    def parse_message(self, msg):
-        parts = (
-            part
-            for part in msg.split(b",")
-            if part)
+   def parse_message(self, msg):
+       parts = (
+           part
+           for part in msg.split(b",")
+           if part)
 
-        for part in parts:
-            key, _, value = part.partition(b"=")
-            if len(key) > 1 or key == b"m":
-                raise Exception("SCRAM protocol violation / unknown "
-                                "future extension")
-            if key == b"n" or key == b"a":
-                value = value.replace(b"=2C", b",").replace(b"=3D", b"=")
+       for part in parts:
+           key, _, value = part.partition(b"=")
+           if len(key) > 1 or key == b"m":
+               raise Exception("SCRAM protocol violation / unknown "
+                               "future extension")
+           if key == b"n" or key == b"a":
+               value = value.replace(b"=2C", b",").replace(b"=3D", b"=")
 
-            yield key, value
+           yield key, value
 
-    @asyncio.coroutine
-    def authenticate(self, sm, token):
-        mechanism, hashfun_name, = token
-        try:
-            hashfun_factory = getattr(hashlib, hashfun_name)
-        except AttributeError:
-            hashfun_factory = functools.partial(hashlib.new, hashfun_name)
-        digest_size = hashfun_factory().digest_size
+   @asyncio.coroutine
+   def authenticate(self, sm, token):
+       mechanism, hashfun_name, = token
+       logger.info("attempting %s mechanism (using %s hashfun)",
+                   mechanism,
+                   hashfun_name)
+       try:
+           hashfun_factory = getattr(hashlib, hashfun_name)
+       except AttributeError:
+           hashfun_factory = functools.partial(hashlib.new, hashfun_name)
+       digest_size = hashfun_factory().digest_size
 
-        # this is pretty much a verbatim implementation of RFC 5802.
+       # this is pretty much a verbatim implementation of RFC 5802.
 
-        # we don’t support channel binding
-        gs2_header = b"n,,"
-        username, password = yield from self._credential_provider()
-        username = saslprep(username).encode("utf8")
-        password = saslprep(password).encode("utf8")
+       # we don’t support channel binding
+       gs2_header = b"n,,"
+       username, password = yield from self._credential_provider()
+       username = saslprep(username).encode("utf8")
+       password = saslprep(password).encode("utf8")
 
-        our_nonce = base64.b64encode(_system_random.getrandbits(
-            self.nonce_length*8
-        ).to_bytes(
-            self.nonce_length, "little"
-        ))
+       our_nonce = base64.b64encode(_system_random.getrandbits(
+           self.nonce_length*8
+       ).to_bytes(
+           self.nonce_length, "little"
+       ))
 
-        auth_message = b"n="+username+b",r="+our_nonce
-        _, payload = yield from sm.initiate(
-            mechanism,
-            gs2_header+auth_message)
+       auth_message = b"n="+username+b",r="+our_nonce
+       _, payload = yield from sm.initiate(
+           mechanism,
+           gs2_header+auth_message)
 
-        auth_message += b","+payload
+       auth_message += b","+payload
 
-        payload = dict(self.parse_message(payload))
+       payload = dict(self.parse_message(payload))
 
-        try:
-            iteration_count = int(payload[b"i"])
-            nonce = payload[b"r"]
-            salt = base64.b64decode(payload[b"s"])
-        except (ValueError, KeyError):
-            logger.warn("Malformed server message: {!r}".format(payload))
-            yield from sm.abort()
+       try:
+           iteration_count = int(payload[b"i"])
+           nonce = payload[b"r"]
+           salt = base64.b64decode(payload[b"s"])
+       except (ValueError, KeyError):
+           logger.warn("Malformed server message: {!r}".format(payload))
+           yield from sm.abort()
 
-        if not nonce.startswith(our_nonce):
-            logger.warn("Server nonce doesn't fit our nonce (aborting SASL)")
-            yield from sm.abort()
+       if not nonce.startswith(our_nonce):
+           logger.warn("Server nonce doesn't fit our nonce (aborting SASL)")
+           yield from sm.abort()
 
-        salted_password = pbkdf2(
-            hashfun_factory,
-            password,
-            salt,
-            iteration_count,
-            digest_size)
+       salted_password = pbkdf2(
+           hashfun_factory,
+           password,
+           salt,
+           iteration_count,
+           digest_size)
 
-        client_key = hmac.new(
-            salted_password,
-            b"Client Key",
-            hashfun_factory).digest()
+       client_key = hmac.new(
+           salted_password,
+           b"Client Key",
+           hashfun_factory).digest()
 
-        stored_key = hashfun_factory(client_key).digest()
+       stored_key = hashfun_factory(client_key).digest()
 
-        reply = b"c="+base64.b64encode(b"n,,")+b",r="+nonce
+       reply = b"c="+base64.b64encode(b"n,,")+b",r="+nonce
 
-        auth_message += b","+reply
+       auth_message += b","+reply
 
-        client_proof = (
-            int.from_bytes(
-                hmac.new(
-                    stored_key,
-                    auth_message,
-                    hashfun_factory).digest(),
-                "big") ^
-            int.from_bytes(client_key, "big")).to_bytes(digest_size, "big")
+       client_proof = (
+           int.from_bytes(
+               hmac.new(
+                   stored_key,
+                   auth_message,
+                   hashfun_factory).digest(),
+               "big") ^
+           int.from_bytes(client_key, "big")).to_bytes(digest_size, "big")
 
-        _, payload = yield from sm.response(
-            reply+b",p="+base64.b64encode(client_proof))
+       state, payload = yield from sm.response(
+           reply+b",p="+base64.b64encode(client_proof))
 
-        server_signature = hmac.new(
-            hmac.new(
-                salted_password,
-                b"Server Key",
-                hashfun_factory).digest(),
-            auth_message,
-            hashfun_factory).digest()
+       if state != "success":
+           raise Exception("SCRAM protocol violation")
 
-        payload = dict(self.parse_message(payload))
-        if base64.b64decode(payload[b"v"]) != server_signature:
-            raise Exception("Authentication successful, but server signature "
-                            "invalid")
+       server_signature = hmac.new(
+           hmac.new(
+               salted_password,
+               b"Server Key",
+               hashfun_factory).digest(),
+           auth_message,
+           hashfun_factory).digest()
 
-        return True
+       payload = dict(self.parse_message(payload))
+
+       if base64.b64decode(payload[b"v"]) != server_signature:
+           raise Exception("Authentication successful, but server signature "
+                           "invalid")
+
+       return True

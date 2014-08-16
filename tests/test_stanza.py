@@ -98,6 +98,27 @@ class TestError(unittest.TestCase):
             self.assertEqual("{jabber:client}data",
                              err.application_defined_condition.tag)
 
+    def test_foo(self):
+        # we have to correctly parse even totally mixed up elements
+        lookup = etree.ElementNamespaceClassLookup()
+        lookup.get_namespace("jabber:server")["error"] = stanza.Error
+        parser = etree.XMLParser()
+        parser.set_element_class_lookup(lookup)
+
+        err = etree.fromstring(
+            b"<error xmlns='jabber:server' type='modify'><bad-request xmlns='"
+            b"urn:ietf:params:xml:ns:xmpp-stanzas'/><text xmlns='urn:ietf:par"
+            b"ams:xml:ns:xmpp-stanzas'>Invalid IQ type or incorrect number of"
+            b" children</text></error>",
+            parser=parser)
+
+        self.assertEqual(
+            err.condition,
+            "bad-request")
+        self.assertEqual(
+            err.text,
+            "Invalid IQ type or incorrect number of children")
+
     def test_detect_errors_in_xmltext(self):
         # but we reject malformed elements
         lookup = etree.ElementNamespaceClassLookup()

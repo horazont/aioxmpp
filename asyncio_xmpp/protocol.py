@@ -4,24 +4,37 @@ import logging
 
 import lxml.builder
 
+from . import stanza, plugins
+
 from .utils import *
 
 logger = logging.getLogger(__name__)
 
 def make_xmlstream_parser():
+    lookup = etree.ElementNamespaceClassLookup()
+
+    for ns in [lookup.get_namespace("jabber:client"),
+               lookup.get_namespace("jabber:server")]:
+        ns["iq"] = stanza.IQ
+        ns["presence"] = stanza.Presence
+        ns["error"] = stanza.Error
+        ns["message"] = stanza.Message
+
+    plugins.rfc6120.register(lookup)
+
     parser = etree.XMLPullParser(
         ('start', 'end'),
         resolve_entities=False
     )
-    return parser
+    parser.set_element_class_lookup(lookup)
+    return lookup, parser
 
-def make_xmlstream_sender(namespace):
+def make_xmlstream_sender(parser, namespace):
     nsmap = {
-        "stream": namespaces.xmlstream,
         None: namespace
     }
 
-    root = etree.Element(
+    root = parser.makeelement(
         "{{{}}}stream".format(namespaces.xmlstream),
         nsmap=nsmap)
 
@@ -41,6 +54,7 @@ class XMLStream(asyncio.Protocol):
         stream_ns=namespaces.xmlstream)
 
     def __init__(self,
+                 event_loop,
                  to,
                  mode="client",
                  **kwargs):
@@ -48,6 +62,7 @@ class XMLStream(asyncio.Protocol):
         self._transport = None
         self._parser = None
         self._send_tree = None
+        self._loop = event_loop
 
         try:
             self._namespace, = self.MODEMAP[mode]
@@ -57,6 +72,7 @@ class XMLStream(asyncio.Protocol):
         self._to = to
         self._stream_level_node_callbacks = []
         self._died = asyncio.Event()
+        self._died.set()
 
     def _send_header(self):
         self.send_raw(
@@ -72,7 +88,11 @@ class XMLStream(asyncio.Protocol):
                 to=self._to).encode("utf8"))
 
     def _close_parser(self):
-        self._parser.close()
+        try:
+            self._parser.close()
+        except lxml.etree.XMLSyntaxError:
+            # ignore errors on closing
+            pass
         self._process_events()
         self._parser = None
 
@@ -83,10 +103,9 @@ class XMLStream(asyncio.Protocol):
             elif ev == "end":
                 if node.getparent() != self._stream_root:
                     continue
-                try:
-                    self._process_stream_level_node(node)
-                finally:
-                    node.getparent().remove(node)
+                node.getparent().remove(node)
+
+                self._process_stream_level_node(node)
 
     def _start_stream(self, node):
         self._stream_root = node
@@ -95,7 +114,7 @@ class XMLStream(asyncio.Protocol):
         to_remove = set()
         try:
             for tag, callback in reversed(self._stream_level_node_callbacks):
-                if node.getparent().find(tag) is node:
+                if node.tag == tag:
                     result = callback(self, node)
                     if not result:
                         to_remove.append(((is_plain, tag), callback))
@@ -113,11 +132,7 @@ class XMLStream(asyncio.Protocol):
 
     def connection_made(self, using_transport):
         self._transport = using_transport
-        self._parser = make_xmlstream_parser()
-        self._send_root, self.E = make_xmlstream_sender(
-            self._namespace)
-        self._send_header()
-        self._died.clear()
+        self.reset_stream()
 
     def data_received(self, blob):
         logger.debug("RECV %s", blob)
@@ -148,15 +163,14 @@ class XMLStream(asyncio.Protocol):
         finally:
             self._transport = None
             self._died.set()
-            del self._send_root
-            del self.E
-            del self._parser
-            del self._stream_root
+            self._send_root = None
+            self.E = None
+            self._parser = None
+            self._stream_root = None
             self._stream_level_node_callbacks = []
 
     def starttls_engaged(self, transport):
-        logger.info("STARTTLS engaged, resetting stream")
-        self.connection_made(transport)
+        pass
 
     # public API
 
@@ -178,11 +192,19 @@ class XMLStream(asyncio.Protocol):
             return False
         return True
 
+    def reset_stream(self):
+        self._lookup, self._parser = make_xmlstream_parser()
+        self._send_root, self.E = make_xmlstream_sender(
+            self._parser,
+            self._namespace)
+        self._send_header()
+        self._died.clear()
+
     @asyncio.coroutine
-    def send_and_wait_for(self,
-                          node_to_send,
-                          *tokens,
-                          timeout=None):
+    def _send_andor_wait_for(self,
+                             nodes_to_send,
+                             tokens,
+                             timeout=None):
         ev = asyncio.Event()
         pass_node = None
         pass_value = None
@@ -198,7 +220,8 @@ class XMLStream(asyncio.Protocol):
                 qualifier,
                 functools.partial(callback, return_value))
 
-        self.send_node(node_to_send)
+        for node in nodes_to_send:
+            self.send_node(node)
 
         received = asyncio.async(ev.wait())
         died = asyncio.async(self._died.wait())
@@ -221,6 +244,20 @@ class XMLStream(asyncio.Protocol):
 
         return pass_node, pass_value
 
+    @asyncio.coroutine
+    def send_and_wait_for(self,
+                          nodes_to_send,
+                          tokens,
+                          timeout=None):
+        return self._send_andor_wait_for(nodes_to_send,
+                                         tokens,
+                                         timeout=timeout)
+
+    @asyncio.coroutine
+    def wait_for(self, tokens, timeout=None):
+        return self._send_andor_wait_for([], tokens,
+                                         timeout=timeout)
+
     def send_raw(self, buf):
         logger.debug("SEND %s", buf)
         self._transport.write(buf)
@@ -231,3 +268,18 @@ class XMLStream(asyncio.Protocol):
                              encoding="utf8",
                              xml_declaration=False)
         self.send_raw(buf)
+
+    def make_iq(self):
+        return etree.fromstring(
+            b"""<iq xmlns="jabber:client" />""",
+            parser=self._parser)
+
+    def make_message(self):
+        return etree.fromstring(
+            b"""<message xmlns="jabber:client" />""",
+            parser=self._parser)
+
+    def make_presence(self):
+        return etree.fromstring(
+            b"""<presence xmlns="jabber:client" />""",
+            parser=self._parser)
