@@ -9,6 +9,7 @@ import operator
 import random
 
 from .stringprep import saslprep
+from . import utils
 
 logger = logging.getLogger(__name__)
 
@@ -96,15 +97,17 @@ class SASLStateMachine:
 
     @asyncio.coroutine
     def _send_sasl_node_and_wait_for(self, node):
-        node, state = yield from self.xmlstream.send_and_wait_for(
+        node = yield from self.xmlstream.send_and_wait_for(
             [node],
             [
-                ("{urn:ietf:params:xml:ns:xmpp-sasl}challenge", "challenge"),
-                ("{urn:ietf:params:xml:ns:xmpp-sasl}failure", "failure"),
-                ("{urn:ietf:params:xml:ns:xmpp-sasl}success", "success"),
+                "{urn:ietf:params:xml:ns:xmpp-sasl}challenge",
+                "{urn:ietf:params:xml:ns:xmpp-sasl}failure",
+                "{urn:ietf:params:xml:ns:xmpp-sasl}success",
             ],
             timeout=self.timeout
         )
+
+        _, state = utils.split_tag(node.tag)
 
         self._state = state
 
