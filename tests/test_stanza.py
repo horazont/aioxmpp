@@ -156,3 +156,19 @@ class TestError(unittest.TestCase):
                 b'<foo />'
                 b'</error>',
                 parser=parser)
+
+    def test_make_exception(self):
+        err = stanza.Error()
+        err.application_defined_condition = self.appdef
+        err.text = "foo"
+
+        exc = err.make_exception()
+        self.assertEqual(
+            exc.error_tag,
+            err.condition)
+        self.assertEqual(
+            exc.text,
+            err.text)
+        self.assertEqual(
+            exc.application_defined_condition,
+            err.application_defined_condition.tag)

@@ -2,7 +2,7 @@ import asyncio
 import binascii
 import random
 
-from . import jid
+from . import jid, errors
 from .utils import etree, namespaces, split_tag
 
 class StanzaMeta(type):
@@ -292,3 +292,9 @@ class Error(etree.ElementBase):
         existing = self.application_defined_condition
         if existing is not None:
             del self[-1]
+
+    def make_exception(self):
+        return errors.XMPPError(
+            self.condition,
+            text=self.text,
+            application_defined_condition=self.application_defined_condition.tag)
