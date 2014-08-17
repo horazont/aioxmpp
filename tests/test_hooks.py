@@ -124,5 +124,5 @@ class TestNodeHooks(unittest.TestCase):
             self._hooks.remove_future("foo", f)
 
     def tearDown(self):
-        del self._loop
         del self._hooks
+        del self._loop
