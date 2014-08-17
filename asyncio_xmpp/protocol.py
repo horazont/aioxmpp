@@ -4,7 +4,7 @@ import logging
 
 import lxml.builder
 
-from . import stanza, plugins
+from . import stanza, plugins, hooks, errors, utils
 
 from .utils import *
 
@@ -43,6 +43,13 @@ def make_xmlstream_sender(parser, namespace):
         nsmap=nsmap,
         makeelement=root.makeelement)
 
+class SendStreamError(Exception):
+    def __init__(self, error_tag, text=None):
+        super().__init__("Going to send a stream:error (seeing this exception is"
+                         " a bug")
+        self.error_tag = error_tag
+        self.text = text
+
 class XMLStream(asyncio.Protocol):
     MODEMAP = {
         "client": (
@@ -54,30 +61,193 @@ class XMLStream(asyncio.Protocol):
         stream_ns=namespaces.xmlstream)
 
     def __init__(self,
-                 event_loop,
                  to,
                  mode="client",
+                 *,
+                 loop=None,
                  **kwargs):
         super().__init__(**kwargs)
-        self._transport = None
-        self._parser = None
-        self._send_tree = None
-        self._loop = event_loop
-
+        # client info
+        self._to = to
         try:
             self._namespace, = self.MODEMAP[mode]
         except KeyError:
             raise ValueError("Invalid value for mode argument: {}".format(mode))
 
-        self._to = to
-        self._stream_level_node_callbacks = []
+        # transmitter state
+        self._tx_tree_root = None
+        self.E = None
+
+        # receiver state
+        self._rx_parser = None
+        self._rx_lookup = None
+        self._rx_stream_root = None
+        self._rx_stream_id = None
+
+        # asyncio state
+        self._transport = None
+        self._loop = loop
+
+        # connection state
+        self._stream_level_node_hooks = hooks.NodeHooks()
         self._died = asyncio.Event()
         self._died.set()
+        self._closing = False
 
-    def _send_header(self):
-        self.send_raw(
+        # callbacks
+        self.on_stream_error = None
+
+    def _rx_close(self):
+        """
+        Close the parser and reset any receiving state.
+
+        This may trigger the call of node event handlers.
+        """
+        if self._rx_parser is None:
+            return
+
+        try:
+            self._rx_parser.close()
+        except lxml.etree.XMLSyntaxError:
+            # ignore errors on closing
+            pass
+        self._rx_process()
+        self._rx_parser = None
+        self._rx_stream_root = None
+        self._rx_stream_id = None
+
+    def _rx_end_of_stream(self):
+        """
+        Handle </stream:stream> being received from the remote end.
+        """
+        if not self._closing:
+            self.close()
+            return
+
+        self._rx_close()
+
+    def _rx_feed(self, blob):
+        try:
+            self._rx_parser.feed(blob)
+            self._rx_process()
+        except lxml.etree.XMLSyntaxError as err:
+            raise SendStreamError(
+                "not-well-formed",
+                text=str(err))
+        except ValueError as err:
+            # ValueError is raised by ElementBase subclasses upon content
+            # validation
+            # As these are only instanciated for the stream level nodes here,
+            # treating ValueErrors as critical is sane
+            raise SendStreamError(
+                "invalid-xml",
+                str(err))
+
+    def _rx_process(self):
+        """
+        Process any pending SAX events produced by the receiving parser.
+        """
+        for ev, node in self._rx_parser.read_events():
+            if ev == "start" and node.tag == self.stream_header_tag:
+                self._rx_start_stream(node)
+            elif ev == "end":
+                if node.getparent() is None:
+                    # stream root
+                    self._rx_end_of_stream()
+                    break
+                if node.getparent() != self._rx_stream_root:
+                    continue
+                node.getparent().remove(node)
+
+                self._rx_process_stream_level_node(node)
+
+    def _rx_process_stream_level_node(self, node):
+        try:
+            self._stream_level_node_hooks.unicast(node.tag, node)
+        except KeyError:
+            if node.tag == "{{{}}}error".format(
+                    namespaces.xmlstream):
+                self._rx_stream_error(node)
+            else:
+                raise SendStreamError("unsupported-stanza-type")
+
+    def _rx_reset(self):
+        self._rx_lookup, self._rx_parser = make_xmlstream_parser()
+        self._rx_stream_root = None
+        self._rx_stream_id = None
+
+    def _rx_start_stream(self, node):
+        if self._rx_stream_root is not None:
+            # duplicate <stream:stream>
+            raise SendStreamError("unsupported-stanza-type")
+        version = node.get("version")
+        if version is None:
+            raise SendStreamError("unsupported-version")
+        try:
+            version = tuple(map(int, version.split(".")))
+        except (ValueError, TypeError):
+            raise SendStreamError("unsupported-version")
+
+        if version[0] != 1:
+            raise SendStreamError("unsupported-version")
+
+        self._rx_stream_root = node
+        self._rx_stream_id = node.get("id")
+
+    def _rx_stream_error(self, node):
+        TEXT_TAG = "{{{}}}text".format(namespaces.streams)
+
+        error_tag = None
+        text = None
+        application_defined_condition = None
+        for child in node:
+            ns, name = utils.split_tag(child.tag)
+            if child.tag == TEXT_TAG:
+                text = text or child.text
+            elif ns != namespaces.streams:
+                application_defined_condition = (
+                    application_defined_condition or name)
+            else:
+                error_tag = error_tag or name
+
+        err = errors.StreamError(
+            error_tag,
+            text=text,
+            application_defined_condition=application_defined_condition)
+
+        self._stream_level_node_hooks.broadcast_error(err)
+
+        if self.on_stream_error:
+            self.on_stream_error(err)
+        else:
+            logger.error("remote sent %s", str(err))
+
+    def _tx_close(self):
+        if self._tx_tree_root is None:
+            return
+        self._tx_send_footer()
+        self._tx_tree_root = None
+        self.E = None
+
+    def _tx_reset(self):
+        self._tx_tree_root, self.E = make_xmlstream_sender(
+            self._rx_parser,
+            self._namespace)
+        self._tx_makeelement = self._tx_tree_root.makeelement
+
+    def _tx_send_footer(self):
+        self._tx_send_raw(b"</stream:stream>")
+
+    def _tx_send_header(self):
+        """
+        Send a stream header over the wire, using the configuration supplied in
+        the constructor.
+
+        Raises :class:`ConnectionError` if not connected to a transport.
+        """
+        self._tx_send_raw(
             b"""<?xml version="1.0" ?>\n""")
-        self.send_raw(
+        self._tx_send_raw(
             "<stream:stream"
             " xmlns='{ns}'"
             " xmlns:stream='{stream_ns}'"
@@ -87,48 +257,26 @@ class XMLStream(asyncio.Protocol):
                 stream_ns=namespaces.xmlstream,
                 to=self._to).encode("utf8"))
 
-    def _close_parser(self):
-        try:
-            self._parser.close()
-        except lxml.etree.XMLSyntaxError:
-            # ignore errors on closing
-            pass
-        self._process_events()
-        self._parser = None
+    def _tx_send_node(self, node):
+        self._tx_send_raw(
+            etree.tostring(node,
+                           method="xml",
+                           encoding="utf8",
+                           xml_declaration=False)
+        )
 
-    def _process_events(self):
-        for ev, node in self._parser.read_events():
-            if ev == "start" and node.tag == self.stream_header_tag:
-                self._start_stream(node)
-            elif ev == "end":
-                if node.getparent() != self._stream_root:
-                    continue
-                node.getparent().remove(node)
+    def _tx_send_raw(self, blob):
+        """
+        Send the given raw *blob* using the underlying transport.
 
-                self._process_stream_level_node(node)
+        Raises :class:`ConnectionError` if not connected to a transport.
+        """
+        if self._transport is None:
+            raise ConnectionError("Not connected")
+        logger.debug("SEND %s", blob)
+        self._transport.write(blob)
 
-    def _start_stream(self, node):
-        self._stream_root = node
-
-    def _process_stream_level_node(self, node):
-        to_remove = set()
-        try:
-            for tag, callback in reversed(self._stream_level_node_callbacks):
-                if node.tag == tag:
-                    result = callback(self, node)
-                    if not result:
-                        to_remove.append(((is_plain, tag), callback))
-        finally:
-            if not to_remove:
-                return
-
-            reversed_enumerated_callbacks = reversed(
-                list(
-                    enumerate(
-                        self._stream_level_node_callbacks)))
-            for i, row in reversed_enumerated_callbacks:
-                if row in to_remove:
-                   del self._stream_level_node_callbacks[i]
+    # asyncio Protocol implementation
 
     def connection_made(self, using_transport):
         self._transport = using_transport
@@ -136,16 +284,14 @@ class XMLStream(asyncio.Protocol):
 
     def data_received(self, blob):
         logger.debug("RECV %s", blob)
-        self._parser.feed(blob)
         try:
-            self._process_events()
-        except:
-            logger.exception("during data_received")
-            raise
+            self._rx_feed(blob)
+        except SendStreamError as err:
+            self.stream_error(err.error_tag, err.text)
 
     def eof_received(self):
         try:
-            self._close_parser()
+            self.close()
         except:
             logger.exception("during eof_received")
             raise
@@ -158,128 +304,122 @@ class XMLStream(asyncio.Protocol):
 
     def connection_lost(self, exc):
         try:
-            if self._parser:
+            if self._rx_parser:
                 self._close_parser()
         finally:
             self._transport = None
             self._died.set()
             self._send_root = None
             self.E = None
-            self._parser = None
+            self._rx_parser = None
             self._stream_root = None
-            self._stream_level_node_callbacks = []
+            self._stream_level_node_hooks.close_all(
+                ConnectionError("Disconnected"))
 
     def starttls_engaged(self, transport):
         pass
 
     # public API
 
-    def add_stream_level_node_callback(self,
-                                       lxml_qualifier,
-                                       callback):
-        self._stream_level_node_callbacks.append(
-            (lxml_qualifier, callback)
-        )
-
-    def remove_stream_level_node_callback(self,
-                                          lxml_qualifier,
-                                          callback):
-        try:
-            self._stream_level_node_callbacks.remove(
-                (lxml_qualifier, callback)
-            )
-        except ValueError:
-            return False
-        return True
+    def close(self):
+        self._rx_close()
+        self._tx_close()
 
     def reset_stream(self):
-        self._lookup, self._parser = make_xmlstream_parser()
-        self._send_root, self.E = make_xmlstream_sender(
-            self._parser,
-            self._namespace)
-        self._send_header()
+        self._rx_reset()
+        self._tx_reset()
+        self._tx_send_header()
         self._died.clear()
 
     @asyncio.coroutine
     def _send_andor_wait_for(self,
                              nodes_to_send,
-                             tokens,
-                             timeout=None):
-        ev = asyncio.Event()
-        pass_node = None
-        pass_value = None
-        def callback(return_value, self, node):
-            nonlocal pass_node, pass_value
-            pass_value = return_value
-            pass_node = node
-            ev.set()
-            return False
+                             tags,
+                             timeout=None,
+                             critical_timeout=True):
 
-        for qualifier, return_value in tokens:
-            self.add_stream_level_node_callback(
-                qualifier,
-                functools.partial(callback, return_value))
+        futures = []
+        for tag in tags:
+            f = asyncio.Future()
+            futures.append((tag, f))
+            self._stream_level_node_hooks.add_future(tag, f)
 
         for node in nodes_to_send:
             self.send_node(node)
 
-        received = asyncio.async(ev.wait())
-        died = asyncio.async(self._died.wait())
-
         done, pending = yield from asyncio.wait(
-            [
-                received,
-                died
-            ],
+            [f for _, f in futures],
             timeout=timeout,
             return_when=asyncio.FIRST_COMPLETED)
 
-        if not done:
-            raise TimeoutError("Timeout")
-        if died in done:
-            raise ConnectionError("Disconnected")
-
-        for future in pending:
+        # first cancel futures, then retrieve result (result may be an
+        # Exception)
+        for tag, future in futures:
+            if future not in pending:
+                continue
             future.cancel()
+            try:
+                self._stream_level_node_hooks.remove_future(tag, future)
+            except KeyError:
+                # defensive guard against a maybe race condition
+                # (I guess that in some cases, asyncio.wait may catch only one
+                # future, but more than one has been fulfilled)
+                pass
 
-        return pass_node, pass_value
+        if not done:
+            if critical_timeout:
+                self.stream_error("connection-timeout", None)
+                raise ConnectionError("Disconnected")
+            raise TimeoutError("Timeout")
+
+        result = next(iter(done)).result()
+        return result
 
     @asyncio.coroutine
     def send_and_wait_for(self,
                           nodes_to_send,
                           tokens,
-                          timeout=None):
-        return self._send_andor_wait_for(nodes_to_send,
-                                         tokens,
-                                         timeout=timeout)
+                          timeout=None,
+                          critical_timeout=True):
+        return self._send_andor_wait_for(
+            nodes_to_send,
+            tokens,
+            timeout=timeout,
+            critical_timeout=critical_timeout)
 
-    @asyncio.coroutine
-    def wait_for(self, tokens, timeout=None):
-        return self._send_andor_wait_for([], tokens,
-                                         timeout=timeout)
+    def stream_error(self, tag, text):
+        node = self._tx_makeelement(
+            "{{{}}}error".format(namespaces.xmlstream),
+            nsmap={
+                "stream": namespaces.xmlstream,
+                None: namespaces.streams
+            })
+        node.append(
+            node.makeelement("{{{}}}{}".format(namespaces.streams, tag)))
+        if text:
+            text_node = node.makeelement(
+                "{{{}}}text".format(namespaces.streams))
+            text_node.text = text
+            node.append(text_node)
+        self._tx_send_node(node)
+        del node
+        self.close()
 
-    def send_raw(self, buf):
-        logger.debug("SEND %s", buf)
-        self._transport.write(buf)
-
-    def send_node(self, node):
-        buf = etree.tostring(node,
-                             method="xml",
-                             encoding="utf8",
-                             xml_declaration=False)
-        self.send_raw(buf)
+    @property
+    def stream_level_hooks(self):
+        return self._stream_level_node_hooks
 
     def make_iq(self):
         return etree.fromstring(
             b"""<iq xmlns="jabber:client" />""",
-            parser=self._parser)
+            parser=self._rx_parser)
 
     def make_message(self):
         return etree.fromstring(
             b"""<message xmlns="jabber:client" />""",
-            parser=self._parser)
+            parser=self._rx_parser)
 
     def make_presence(self):
         return etree.fromstring(
             b"""<presence xmlns="jabber:client" />""",
-            parser=self._parser)
+            parser=self._rx_parser)
