@@ -13,6 +13,7 @@ namespaces.client = "jabber:client"
 namespaces.starttls = "urn:ietf:params:xml:ns:xmpp-tls"
 namespaces.sasl = "urn:ietf:params:xml:ns:xmpp-sasl"
 namespaces.stanzas = "urn:ietf:params:xml:ns:xmpp-stanzas"
+namespaces.streams = "urn:ietf:params:xml:ns:xmpp-streams"
 
 def split_tag(tag):
     prefix, _, suffix = tag.partition("}")
