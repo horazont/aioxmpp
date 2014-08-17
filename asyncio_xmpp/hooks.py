@@ -1,6 +1,5 @@
 import asyncio
 
-
 class NodeHooks:
     def __init__(self, *, loop=None):
         super().__init__()

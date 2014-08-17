@@ -1,12 +1,12 @@
 import asyncio
 import unittest
 
-import asyncio_xmpp.node_hooks as node_hooks
+import asyncio_xmpp.hooks as hooks
 
 class TestNodeHooks(unittest.TestCase):
     def setUp(self):
         self._loop = asyncio.get_event_loop()
-        self._hooks = node_hooks.NodeHooks(loop=self._loop)
+        self._hooks = hooks.NodeHooks(loop=self._loop)
 
     def test_hook_via_future(self):
         f = asyncio.Future()
