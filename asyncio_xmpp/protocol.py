@@ -13,8 +13,7 @@ logger = logging.getLogger(__name__)
 def make_xmlstream_parser():
     lookup = etree.ElementNamespaceClassLookup()
 
-    for ns in [lookup.get_namespace("jabber:client"),
-               lookup.get_namespace("jabber:server")]:
+    for ns in [lookup.get_namespace("jabber:client")]:
         ns["iq"] = stanza.IQ
         ns["presence"] = stanza.Presence
         ns["error"] = stanza.Error
@@ -169,7 +168,9 @@ class XMLStream(asyncio.Protocol):
                     namespaces.xmlstream):
                 self._rx_stream_error(node)
             else:
-                raise SendStreamError("unsupported-stanza-type")
+                raise SendStreamError(
+                    "unsupported-stanza-type",
+                    text="no handler for {}".format(node.tag))
 
     def _rx_reset(self):
         self._rx_lookup, self._rx_parser = make_xmlstream_parser()
@@ -304,8 +305,7 @@ class XMLStream(asyncio.Protocol):
 
     def connection_lost(self, exc):
         try:
-            if self._rx_parser:
-                self._close_parser()
+            self.close()
         finally:
             self._transport = None
             self._died.set()
@@ -324,6 +324,21 @@ class XMLStream(asyncio.Protocol):
     def close(self):
         self._rx_close()
         self._tx_close()
+
+    def make_iq(self):
+        return etree.fromstring(
+            b"""<iq xmlns="jabber:client" />""",
+            parser=self._rx_parser)
+
+    def make_message(self):
+        return etree.fromstring(
+            b"""<message xmlns="jabber:client" />""",
+            parser=self._rx_parser)
+
+    def make_presence(self):
+        return etree.fromstring(
+            b"""<presence xmlns="jabber:client" />""",
+            parser=self._rx_parser)
 
     def reset_stream(self):
         self._rx_reset()
@@ -387,6 +402,17 @@ class XMLStream(asyncio.Protocol):
             timeout=timeout,
             critical_timeout=critical_timeout)
 
+    @asyncio.coroutine
+    def wait_for(self, tokens, timeout=None, critical_timeout=True):
+        return self._send_andor_wait_for(
+            [],
+            tokens,
+            timeout=timeout,
+            critical_timeout=critical_timeout)
+
+    def send_node(self, node):
+        self._tx_send_node(node)
+
     def stream_error(self, tag, text):
         node = self._tx_makeelement(
             "{{{}}}error".format(namespaces.xmlstream),
@@ -408,18 +434,3 @@ class XMLStream(asyncio.Protocol):
     @property
     def stream_level_hooks(self):
         return self._stream_level_node_hooks
-
-    def make_iq(self):
-        return etree.fromstring(
-            b"""<iq xmlns="jabber:client" />""",
-            parser=self._rx_parser)
-
-    def make_message(self):
-        return etree.fromstring(
-            b"""<message xmlns="jabber:client" />""",
-            parser=self._rx_parser)
-
-    def make_presence(self):
-        return etree.fromstring(
-            b"""<presence xmlns="jabber:client" />""",
-            parser=self._rx_parser)
