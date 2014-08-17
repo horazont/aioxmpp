@@ -91,7 +91,7 @@ class TestXMLStream(unittest.TestCase):
         self._mock.mock_data_received(
             b'<?xml version="1.0" ?>\n'
             b'<stream:stream xmlns:stream="http://etherx.jabber.org/streams"'
-            b' xmlns="jabber:server"'
+            b' xmlns="jabber:client"'
             b' from="localhost.localdomain"'
             b' version="1.0"'
             b' id="foobar">')
@@ -140,6 +140,7 @@ class TestXMLStream(unittest.TestCase):
             b' xmlns:stream="http://etherx.jabber.org/streams"'
             b' xmlns="urn:ietf:params:xml:ns:xmpp-streams">'
             b'<unsupported-stanza-type/>'
+            b'<text>no handler for {jabber:client}foo</text>'
             b'</stream:error>'
             b"</stream:stream>")
 
@@ -151,7 +152,7 @@ class TestXMLStream(unittest.TestCase):
         self._mock_stream_header()
         mock.mock_data_received(
             b'<stream:stream xmlns:stream="http://etherx.jabber.org/streams"'
-            b' xmlns="jabber:server"'
+            b' xmlns="jabber:client"'
             b' from="localhost.localdomain"'
             b' version="1.0"'
             b' id="foobar">')
@@ -179,7 +180,7 @@ class TestXMLStream(unittest.TestCase):
         mock.mock_data_received(
             b'<?xml version="1.0" ?>'
             b'<stream:stream xmlns:stream="http://etherx.jabber.org/streams"'
-            b' xmlns="jabber:server"'
+            b' xmlns="jabber:client"'
             b' from="localhost.localdomain"'
             b' version="2.0"'
             b' id="foobar">')
@@ -207,7 +208,7 @@ class TestXMLStream(unittest.TestCase):
         mock.mock_data_received(
             b'<?xml version="1.0" ?>'
             b'<stream:stream xmlns:stream="http://etherx.jabber.org/streams"'
-            b' xmlns="jabber:server"'
+            b' xmlns="jabber:client"'
             b" version='foobar'"
             b' from="localhost.localdomain"'
             b' id="foobar">')
@@ -235,7 +236,7 @@ class TestXMLStream(unittest.TestCase):
         mock.mock_data_received(
             b'<?xml version="1.0" ?>'
             b'<stream:stream xmlns:stream="http://etherx.jabber.org/streams"'
-            b' xmlns="jabber:server"'
+            b' xmlns="jabber:client"'
             b' from="localhost.localdomain"'
             b' id="foobar">')
 
