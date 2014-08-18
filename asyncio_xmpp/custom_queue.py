@@ -20,7 +20,6 @@ class AsyncDeque:
     @asyncio.coroutine
     def pop(self):
         while not self._data:
-            print("wait")
             yield from self._non_empty.wait()
         result = self._data.pop()
         if not self._data:
@@ -30,7 +29,6 @@ class AsyncDeque:
     @asyncio.coroutine
     def popleft(self):
         while not self._data:
-            print("wait")
             yield from self._non_empty.wait()
         result = self._data.popleft()
         if not self._data:
