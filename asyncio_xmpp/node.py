@@ -581,7 +581,9 @@ class Client:
 
     def _dispatch_target(self, msg, target):
         to_call, to_push = target
-        for callback in to_call:
+        to_call_copy = to_call.copy()
+        to_call.clear()
+        for callback in to_call_copy:
             self._loop.call_soon(callback, msg)
         some_failed = False
         for queue in to_push:
