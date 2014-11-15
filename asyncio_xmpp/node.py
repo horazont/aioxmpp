@@ -2,8 +2,11 @@
 XMPP client basement
 ####################
 """
+
+import abc
 import asyncio
 import binascii
+import hashlib
 import logging
 import random
 import ssl
@@ -11,7 +14,7 @@ import ssl
 from datetime import datetime, timedelta
 
 from . import network, jid, protocol, stream_plugin, ssl_wrapper, sasl, stanza
-from . import plugins, custom_queue
+from . import plugins, custom_queue, stream_worker
 from .utils import *
 
 logger = logging.getLogger(__name__)
@@ -86,21 +89,21 @@ class Client:
     def __init__(self,
                  client_jid,
                  password_provider,
-                 negotiation_timeout=15,
-                 ping_timeout=30,
+                 negotiation_timeout=timedelta(seconds=15),
+                 ping_timeout=timedelta(seconds=30),
                  require_tls=True,
                  ssl_context_factory=default_ssl_context,
                  override_addr=None,
                  loop=None,
                  max_auth_attempts=3,
                  max_reconnect_attempts=3,
-                 reconnect_interval_start=timedelta(seconds=5)):
+                 reconnect_interval_start=timedelta(seconds=5),
+                 use_sm=True):
         super().__init__()
         self._client_jid = jid.JID.fromstr(client_jid)
         self._loop = loop
         self._password_provider = password_provider
         self._negotiation_timeout = negotiation_timeout
-        self._ping_timeout = ping_timeout
         self._require_tls = require_tls
         self._ssl_context_factory = ssl_context_factory
         self._override_addr = override_addr
@@ -109,39 +112,39 @@ class Client:
         self._reconnect_interval_start = reconnect_interval_start
         self._xmlstream = None
         self._ssl_wrapper = None
-        self._active_queue = custom_queue.AsyncDeque(loop=self._loop)
-        self._hold_queue = list()
+
+        # stream management state
+        self._use_sm = use_sm
+        self._sm_queue = asyncio.Queue()
 
         self._callback_registry = {
             "connecting": [],
             "connection_made": [],
             "connection_lost": [],
             "connection_failed": [],
+            "internal_error": [],
             "closed": []
         }
 
-        self._incoming_queue = asyncio.Queue()
+        self.disconnect_event = asyncio.Event()
+        self.disconnect_event.set()
 
-        self._iq_callbacks = {}
-        self._message_callbacks = {}
-        self._presence_callbacks = {}
+        self._stanza_broker = stream_worker.StanzaBroker(
+            self._loop,
+            self.disconnect_event,
+            ping_timeout,
+            self._handle_ping_timeout)
 
-        self._disconnect_event = asyncio.Event()
-        self._disconnect_event.set()
-
-        self._stanza_broker_task = None
         self._worker_task = asyncio.async(
             self._worker(),
             loop=self._loop)
 
     @asyncio.coroutine
-    def _connect(self):
+    def _connect_xmlstream(self):
         """
-        Establish the connection to the server and perform stream
-        negotiation. Return after the last step of stream negotiation has been
-        handled and stanzas can be sent for general use.
+        Handle the establishment of the low-level connection. Return the
+        transport and the xmlstream as tuple.
         """
-
         if self._override_addr:
             record_iterable = [self._override_addr]
             logger.info("user-provided address is used: %s", self._override_addr)
@@ -168,35 +171,68 @@ class Client:
             raise OSError("Failed to connect to {}".format(
                 self._client_jid.domainpart))
 
+        return wrapper, wrapper._protocol
+
+    @asyncio.coroutine
+    def _connect(self):
+        """
+        Establish the connection to the server and perform stream
+        negotiation. Return after the last step of stream negotiation has been
+        handled and stanzas can be sent for general use.
+        """
+        wrapper, xmlstream = yield from self._connect_xmlstream()
         self._ssl_wrapper = wrapper
-        self._xmlstream = wrapper._protocol
+        self._xmlstream = xmlstream
+        self._stanza_broker.setup(xmlstream)
+
         future = self._xmlstream.__features_future
         del self._xmlstream.__features_future
 
-        self._disconnect_event.clear()
+        self.disconnect_event.clear()
+        self._stanza_broker.start().add_done_callback(
+            self._task_done_handler)
 
-        self._stanza_broker_task = asyncio.async(
-            self._worker_stanza_broker(),
-            loop=self._loop)
-
+        logger.debug("negotiating stream")
         try:
             node = yield from future
             yield from self._negotiate_stream(node)
-        except Exception as err:
-            logger.exception("stream negotiation failed")
-            self._disconnect_event.set()
-            self._ssl_wrapper.close()
+        except:
+            self.disconnect_event.set()
+            self._stanza_broker.stop()
+            self._xmlstream.close()
             self._ssl_wrapper = None
             self._xmlstream = None
-            self._stanza_broker_task.cancel()
-            self._stanza_broker_task = None
             raise
+
+        self._stanza_broker.start_liveness_handler()
+
+    def _dispatch_target(self, msg, target):
+        to_call, to_push = target
+        to_call_copy = to_call.copy()
+        to_call.clear()
+        for callback in to_call_copy:
+            self._loop.call_soon(callback, msg)
+        some_failed = False
+        for queue in to_push:
+            try:
+                queue.put_nowait(msg)
+            except asyncio.QueueFull:
+                some_failed = True
+        if some_failed:
+            logger.warn("stanza not pushed to all queues: {}".format(msg))
 
     @asyncio.coroutine
     def _fire_callback(self, callback_name, *args, **kwargs):
+        logger.debug("firing event: %s (args=%r, kwargs=%r)",
+                     callback_name, args, kwargs)
         callbacks = list(self._callback_registry[callback_name])
         for callback in callbacks:
             yield from callback(*args, **kwargs)
+
+    @asyncio.coroutine
+    def _handle_ping_timeout(self):
+        logger.warn("ping timeout, disconnecting")
+        yield from self.disconnect()
 
     @asyncio.coroutine
     def _negotiate_stream(self, features_node):
@@ -214,7 +250,7 @@ class Client:
         starttls_node = features_node.find("{{{}}}starttls".format(
             namespaces.starttls))
         if starttls_node is None:
-            if starttls_required:
+            if self._require_tls:
                 raise StreamNegotiationFailure(
                     "STARTTLS not supported by remote end")
             tls_engaged = False
@@ -237,8 +273,6 @@ class Client:
 
         yield from self._negotiate_stream_auth(mechanisms_node)
         features_node = yield from self._reset_stream_and_get_new_features()
-
-        self._register_stanza_queues()
 
         yield from self._negotiate_stream_features(features_node)
 
@@ -370,9 +404,29 @@ class Client:
         Negotiate any further stream features, after STARTTLS and SASL have been
         negotiated, using the stream:features node from *features_node*.
 
-        The default implementation only negotiates resource binding, using the
-        jid passed to :meth:`connect`.
+        The default implementation negotiates (or possibly resumes) Stream
+        Management and performs resource binding (if no session was resumed).
+
+        Return :data:`True` if a Stream Management session was resumed (thus, no
+        further stream feature negotiation should happen) and :data:`False`
+        otherwise.
         """
+
+        sm_node = features_node.find("{{{}}}sm".format(
+            namespaces.stream_management))
+
+        # check for _sm_id, as that’s whats needed for resumption
+        if self._stanza_broker.sm_session_id is not None:
+            # we are resuming a stream-management session
+            success = yield from self._resume_stream_management(sm_node)
+            if success:
+                return True
+
+        bind_node = features_node.find("{{{}}}bind".format(
+            namespaces.bind))
+        if bind_node is None:
+            raise StreamNegotiationFailure("Server does not support resource "
+                                           "binding")
 
         bind = self._xmlstream.make_iq()
         bind.type = "set"
@@ -381,33 +435,126 @@ class Client:
             bind.data.resource = self._client_jid.resource
         reply = yield from self.send_iq_and_wait(
             bind,
-            timeout=self._negotiation_timeout)
+            timeout=self._negotiation_timeout.total_seconds())
         self._client_jid = reply.data.jid
         logger.info("bound to JID: %s", self._client_jid)
 
-    def _register_stanza_queues(self):
-        self._xmlstream.stream_level_hooks.add_queue(
-            "{jabber:client}iq",
-            self._incoming_queue)
-        self._xmlstream.stream_level_hooks.add_queue(
-            "{jabber:client}message",
-            self._incoming_queue)
-        self._xmlstream.stream_level_hooks.add_queue(
-            "{jabber:client}presence",
-            self._incoming_queue)
+        if self._use_sm:
+            try:
+                yield from self._negotiate_stream_management(sm_node)
+            except StreamNegotiationFailure as err:
+                # this is not neccessarily fatal
+                logger.warn(err)
+
+        return False
+
+    @asyncio.coroutine
+    def _negotiate_stream_management(self, feature_node):
+        if feature_node is None:
+            logger.info("server is not willing to do sm")
+            self._stanza_broker.sm_reset()
+            return
+
+        with self._stanza_broker.sm_init() as ctx:
+            node = yield from self._xmlstream.send_and_wait_for(
+                [
+                    self._xmlstream.E("{{{}}}enable".format(
+                        namespaces.stream_management))
+                ],
+                [
+                    "{{{}}}enabled".format(namespaces.stream_management),
+                    "{{{}}}failed".format(namespaces.stream_management)
+                ])
+
+            if node.tag.endswith("}failed"):
+                logger.error("sm negotiation failed")
+                raise StreamNegotiationFailure(
+                    "Could not negotiate stream management")
+
+        if node.get("resume", "").lower() in {"true", "1"}:
+            ctx.set_session_id(sm_id)
 
     def _reset_stream_and_get_new_features(self):
-        future = asyncio.async(
-            self._xmlstream.wait_for(
-                [
-                    "{http://etherx.jabber.org/streams}features",
-                ],
-                timeout=self._negotiation_timeout
-            ),
-            loop=self._loop)
+        future = self._xmlstream.wait_for(
+            [
+                "{http://etherx.jabber.org/streams}features",
+            ],
+            timeout=self._negotiation_timeout.total_seconds()
+        )
         self._xmlstream.reset_stream()
         node = yield from future
         return node
+
+    @asyncio.coroutine
+    def _resume_stream_management(self, feature_node):
+        if feature_node is None:
+            # we previously had an SM session, but the server doesn’t support SM
+            # anymore. this sucks
+            logger.warn("sorry, have to quit SM -- server won’t play along"
+                        " anymore")
+            self._stanza_broker.sm_reset()
+            return False
+
+        node = yield from self._xmlstream.send_and_wait_for(
+            [
+                self._xmlstream.E(
+                    "{{{}}}resume".format(namespaces.stream_management),
+                    h=str(self._acked_remote_ctr),
+                    previd=self._sm_id)
+            ],
+            [
+                "{{{}}}resumed".format(namespaces.stream_management),
+                "{{{}}}failed".format(namespaces.stream_management)
+            ])
+
+        if node.tag.endswith("}failed"):
+            logger.error("stream management resumption failed")
+            self._stanza_broker.sm_reset()
+            return False
+
+        try:
+            acked_ctr = int(node.get("h"))
+            if acked_ctr < 0:
+                raise ValueError("must be non-negative")
+        except ValueError as err:
+            logger.error("received incorrect counter value on resumption: "
+                         "%r (%s)",
+                         node.get("h"), err)
+            self._stanza_broker.sm_reset()
+            raise StreamNegotiationFailure("Stream management counter has"
+                                           " invalid value")
+
+        self._stanza_broker.sm_resume(acked_ctr)
+
+        return True
+
+    def _starttls_check_peer(self, transport):
+        pass
+        # base_transport = transport.get_extra_info("transport")
+        # ssl_sock = base_transport.get_extra_info("socket")
+        # cert = ssl_sock.getpeercert(binary_form=True)
+        # for hashfun_name in ["sha256", "sha1", "sha512"]:
+        #     hashfun = hashlib.new(hashfun_name)
+        #     hashfun.update(cert)
+        #     print(binascii.b2a_hex(hashfun.digest()).decode("ascii"))
+
+    def _task_done_handler(self, future):
+        import traceback
+        if future.cancelled():
+            return
+        exc = future.exception()
+        if exc:
+            logger.error("A task terminated unexpectedly: %s",
+                         "".join(
+                             traceback.format_exception(
+                                 type(exc),
+                                 exc,
+                                 exc.__traceback__)))
+            # FIXME: do something sensible here.
+            self._fire_callback("internal_error", exc)
+            asyncio.async(
+                self.disconnect(),
+                loop=self._loop)
 
     @asyncio.coroutine
     def _worker(self):
@@ -416,7 +563,7 @@ class Client:
         responsible for sending all state events events.
         """
         while True:
-            self._disconnect_event.clear()
+            self.disconnect_event.clear()
             nattempt = 0
             abort = False
 
@@ -439,10 +586,10 @@ class Client:
                     abort = True
                     yield from self._fire_callback(
                         "connection_failed", err)
-                except ConnectionError as err:
-                    yield from self._fire_callback(
-                        "connection_failed", err)
-                except OSError as err:
+                except StreamNegotiationFailure as err:
+                    yield from self._fire_callback("connection_failed", err)
+                except Exception as err:
+                    logger.exception("unexpected connection error")
                     yield from self._fire_callback("connection_failed", err)
                 else:
                     break
@@ -456,171 +603,46 @@ class Client:
                 break
 
             yield from self._fire_callback("connection_made")
-            yield from self._disconnect_event.wait()
+            yield from self.disconnect_event.wait()
             yield from self._fire_callback("connection_lost")
+
+            yield from self.disconnect()
 
             if self._max_reconnect_attempts == 0:
                 break
-
-        yield from self.close()
-
-    @asyncio.coroutine
-    def _worker_stanza_broker(self):
-        disconnect_future = asyncio.async(
-            self._disconnect_event.wait(),
-            loop=self._loop)
-        outgoing_stanza_future = asyncio.async(
-            self._active_queue.popleft(),
-            loop=self._loop)
-        incoming_stanza_future = asyncio.async(
-            self._incoming_queue.get(),
-            loop=self._loop)
-
-        while True:
-            done, pending = yield from asyncio.wait(
-                [
-                    disconnect_future,
-                    outgoing_stanza_future,
-                    incoming_stanza_future
-                ],
-                loop=self._loop,
-                return_when=asyncio.FIRST_COMPLETED)
-
-            if disconnect_future in done:
-                # disconnect for any reason
-                if stanza_future in done:
-                    self._active_queue.appendleft(stanza_future.result())
-                break
-
-            if outgoing_stanza_future in done:
-                stanza = outgoing_stanza_future.result()
-                self._xmlstream.send_node(stanza)
-                outgoing_stanza_future = asyncio.async(
-                    self._active_queue.popleft(),
-                    loop=self._loop)
-
-            if incoming_stanza_future in done:
-                stanza = incoming_stanza_future.result()
-                tag = stanza.tag
-                if tag.endswith("}iq"):
-                    self._loop.call_soon(self._stanza_iq, stanza)
-                elif tag.endswith("}message"):
-                    self._loop.call_soon(self._stanza_message, stanza)
-                elif tag.endswith("}presence"):
-                    self._loop.call_soon(self._stanza_presence, stanza)
-                else:
-                    # contents have been filtered by XMLStream
-                    assert False
-
-                incoming_stanza_future = asyncio.async(
-                    self._incoming_queue.get(),
-                    loop=self._loop)
 
     def _xmlstream_factory(self):
         proto = protocol.XMLStream(
             to=self._client_jid.domainpart,
             loop=self._loop)
-        proto.__features_future = asyncio.async(
-            proto.wait_for(
-                [
-                    "{http://etherx.jabber.org/streams}features",
-                ],
-                timeout=self._negotiation_timeout),
-            loop=self._loop)
+        proto.__features_future = proto.wait_for(
+            [
+                "{http://etherx.jabber.org/streams}features",
+            ],
+            timeout=self._negotiation_timeout.total_seconds())
+        proto.on_starttls_engaged = self._starttls_check_peer
         return ssl_wrapper.STARTTLSableTransportProtocol(self._loop, proto)
 
-    def _stanza_iq(self, iq):
-        target = self._iq_callbacks.pop((iq.id, iq.from_, iq.type), None)
-
-        if target is None and iq.type in {"result", "error"}:
-            target = self._iq_callbacks.pop((iq.id, iq.from_, None), None)
-
-        if target is None and iq.type in {"set", "get"}:
-            reply = iq.make_reply("error")
-            reply.error.condition = "feature-not-implemented"
-            self.send_stanza(reply)
-            return
-
-        self._dispatch_target(iq, target)
-
-    def _stanza_presence(self, presence):
-        target = self._presence_callbacks.pop(
-            (presence.id, presence.from_), None)
-
-        if target is None:
-            target = self._presence_callbacks.pop(
-                (None, presence.from_), None)
-
-        if target is None:
-            target = self._presence_callbacks.pop(
-                (None, presence.from_.bare), None)
-
-        if target is None:
-            logger.warn("failed to handle presence: {}".format(presence))
-            return
-
-        self._dispatch_target(target)
-
-    def _stanza_message(self, msg):
-        target = self._message_callbacks.pop((msg.type, msg.from_), None)
-        if target is None:
-            target = self._message_callbacks.pop((msg.type, msg.from_.bare),
-                                                 None)
-        if target is None:
-            target = self._message_callbacks.pop((None, msg.from_), None)
-        if target is None:
-            target = self._message_callbacks.pop((None, msg.from_.bare), None)
-        if target is None:
-            target = self._message_callbacks.pop((msg.type, None), None)
-
-        if target is None:
-            logger.warn("failed to handle message: {}".format(msg))
-            return
-
-        self._dispatch_target(msg, target)
-
-    def _dispatch_target(self, msg, target):
-        to_call, to_push = target
-        to_call_copy = to_call.copy()
-        to_call.clear()
-        for callback in to_call_copy:
-            self._loop.call_soon(callback, msg)
-        some_failed = False
-        for queue in to_push:
-            try:
-                queue.put_nowait(msg)
-            except asyncio.QueueFull:
-                some_failed = True
-        if some_failed:
-            logger.warn("message not pushed to all queues: {}".format(msg))
+    @asyncio.coroutine
+    def disconnect(self):
+        if self._xmlstream is not None:
+            self._stanza_broker.stop()
+            self._xmlstream.close()
+            self._xmlstream = None
+            self._ssl_wrapper.close()
+            self._ssl_wrapper = None
+        self.disconnect_event.set()
 
     @asyncio.coroutine
     def close(self):
-        if self._xmlstream is not None:
-            self._ssl_wrapper.close()
-            self._ssl_wrapper = None
-            self._xmlstream = None
-        self._disconnect_event.set()
-
-    def send_stanza(self, stanza):
-        self.send_stanzas([stanza])
-
-    def send_stanzas(self, stanzas):
-        self._active_queue.extend(stanzas)
+        self._max_reconnect_attempts = 0
+        yield from self.disconnect()
 
     @asyncio.coroutine
-    def _send_and_wait(self,
-                       stanzas,
-                       reply_event,
-                       timeout):
+    def _wait_for_reply_future(self, reply_future, timeout):
         disconnect_future = asyncio.async(
-            self._disconnect_event.wait(),
+            self.disconnect_event.wait(),
             loop=self._loop)
-        reply_future = asyncio.async(
-            reply_event.wait(),
-            loop=self._loop)
-
-        self.send_stanzas(stanzas)
 
         done, pending = yield from asyncio.wait(
             [
@@ -643,19 +665,37 @@ class Client:
         raise TimeoutError()
 
     @asyncio.coroutine
+    def _send_token_and_wait(self, token, timeout):
+        self._stanza_broker.enqueue_token(token)
+        return (yield from self._wait_for_reply_future(token.response_future,
+                                                       timeout))
+
+    @asyncio.coroutine
     def send_iq_and_wait(self, iq, timeout):
-        ev = asyncio.Event()
-        reply = None
-        def callback(node):
-            nonlocal reply
-            ev.set()
-            reply = node
+        future = asyncio.Future()
 
-        to_call, _ = self._iq_callbacks.setdefault(
-            (iq.id, iq.to, None),
-            ([], []))
-        to_call.append(callback)
+        token = self._stanza_broker.make_stanza_token(
+            iq,
+            response_future=future)
 
-        yield from self._send_and_wait([iq], ev, timeout)
+        yield from self._send_token_and_wait(token, timeout)
 
-        return reply
+        return future.result()
+
+    def register_callback(self, at, cb):
+        cblist = self._callback_registry[at]
+        cblist.append(cb)
+
+    def make_iq(self, *,
+                sent_callback=None, ack_callback=None,
+                response_future=None,
+                **kwargs):
+        iq = self._xmlstream.make_iq(**kwargs)
+        token = StanzaToken(
+            iq,
+            sent_callback=sent_callback,
+            ack_callback=ack_callback,
+            response_future=response_future,
+            abort_impl=self._queued_stanza_abort,
+            resend_impl=self._queued_stanza_resend)
+        return token

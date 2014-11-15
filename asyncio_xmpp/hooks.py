@@ -94,7 +94,7 @@ class NodeHooks:
         try:
             futures.remove(future)
         except ValueError:
-            raise KeyError(key)
+            raise KeyError(key) from None
 
     def remove_queue(self, key, queue):
         """
@@ -107,7 +107,7 @@ class NodeHooks:
         try:
             queues.remove(queue)
         except ValueError:
-            raise KeyError(key)
+            raise KeyError(key) from None
 
     def unicast(self, key, value):
         """

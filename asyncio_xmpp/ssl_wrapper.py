@@ -74,3 +74,8 @@ class STARTTLSableTransportProtocol(FlexibleTransportProtocol):
             self._protocol.starttls_engaged(self)
         else:
             super().connection_made(transport)
+
+    def get_extra_info(self, name, default=None):
+        if name == "transport":
+            return self._transport
+        return default

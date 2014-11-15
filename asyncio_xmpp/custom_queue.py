@@ -9,6 +9,9 @@ class AsyncDeque:
         self._non_empty = asyncio.Event()
         self._non_empty.clear()
 
+    def __contains__(self, item):
+        return item in self._data
+
     def append(self, value):
         self._data.append(value)
         self._non_empty.set()
@@ -16,6 +19,21 @@ class AsyncDeque:
     def appendleft(self, value):
         self._data.appendleft(value)
         self._non_empty.set()
+
+    def clear(self):
+        self._data.clear()
+        self._non_empty.clear()
+
+    def extend(self, value):
+        self._data.extend(value)
+        self._non_empty.set()
+
+    def extendleft(self, value):
+        self._data.extend(value)
+        self._non_empty.set()
+
+    def empty(self):
+        return bool(self._data)
 
     @asyncio.coroutine
     def pop(self):
@@ -35,17 +53,5 @@ class AsyncDeque:
             self._non_empty.clear()
         return result
 
-    def extend(self, value):
-        self._data.extend(value)
-        self._non_empty.set()
-
-    def extendleft(self, value):
-        self._data.extend(value)
-        self._non_empty.set()
-
-    def empty(self):
-        return bool(self._data)
-
-    def clear(self):
-        self._data.clear()
-        self._non_empty.clear()
+    def remove(self, item):
+        self._data.remove(item)

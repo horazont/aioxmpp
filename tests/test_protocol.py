@@ -7,7 +7,7 @@ import asyncio_xmpp.errors as errors
 class TransportMock(asyncio.ReadTransport, asyncio.WriteTransport):
     def __init__(self, protocol):
         super().__init__()
-        self._closed = False
+        self.closed = False
         self._eof = False
         self._written = b""
         self._protocol = protocol
@@ -17,12 +17,12 @@ class TransportMock(asyncio.ReadTransport, asyncio.WriteTransport):
             raise ConnectionError("Write connection already closed")
 
     def _require_open(self):
-        if self._closed:
+        if self.closed:
             raise ConnectionError("Underlying connection closed")
 
     def close(self):
         self._require_open()
-        self._closed = True
+        self.closed = True
         self._eof = True
 
     def get_extra_info(self, name, default=None):
@@ -108,6 +108,7 @@ class TestXMLStream(unittest.TestCase):
         mock.mock_eof_received()
         mock.mock_connection_lost(None)
         self.assertTrue(proto._died.is_set())
+        self.assertTrue(mock.closed)
 
         self.assertSequenceEqual(
             mock.mock_buffer()[0],
@@ -127,6 +128,7 @@ class TestXMLStream(unittest.TestCase):
         mock.mock_data_received(b"<foo />")
         mock.mock_eof_received()
         mock.mock_connection_lost(None)
+        self.assertTrue(mock.closed)
 
         self.assertSequenceEqual(
             mock.mock_buffer()[0],
@@ -156,6 +158,7 @@ class TestXMLStream(unittest.TestCase):
             b' from="localhost.localdomain"'
             b' version="1.0"'
             b' id="foobar">')
+        self.assertTrue(mock.closed)
 
         self.assertSequenceEqual(
             mock.mock_buffer()[0],
@@ -184,6 +187,7 @@ class TestXMLStream(unittest.TestCase):
             b' from="localhost.localdomain"'
             b' version="2.0"'
             b' id="foobar">')
+        self.assertTrue(mock.closed)
 
         self.assertSequenceEqual(
             mock.mock_buffer()[0],
@@ -212,6 +216,7 @@ class TestXMLStream(unittest.TestCase):
             b" version='foobar'"
             b' from="localhost.localdomain"'
             b' id="foobar">')
+        self.assertTrue(mock.closed)
 
         self.assertSequenceEqual(
             mock.mock_buffer()[0],
@@ -239,6 +244,7 @@ class TestXMLStream(unittest.TestCase):
             b' xmlns="jabber:client"'
             b' from="localhost.localdomain"'
             b' id="foobar">')
+        self.assertTrue(mock.closed)
 
         self.assertSequenceEqual(
             mock.mock_buffer()[0],
@@ -263,6 +269,7 @@ class TestXMLStream(unittest.TestCase):
         mock.mock_data_received(b"<foo <bar />")
         mock.mock_eof_received()
         mock.mock_connection_lost(None)
+        self.assertTrue(mock.closed)
 
         self.assertSequenceEqual(
             mock.mock_buffer()[0],
@@ -299,6 +306,8 @@ class TestXMLStream(unittest.TestCase):
         with self.assertRaises(ConnectionError):
             loop.run_until_complete(task())
 
+        self.assertTrue(mock.closed)
+
         self.assertSequenceEqual(
             mock.mock_buffer()[0],
             b"""<?xml version="1.0" ?>\n"""
@@ -331,6 +340,8 @@ class TestXMLStream(unittest.TestCase):
             yield from asyncio.wait_for(f, 0, loop=loop)
 
         loop.run_until_complete(task())
+
+        self.assertTrue(mock.closed)
 
     def test_stream_level_element_hooks_success(self):
         proto, mock, loop = self._proto, self._mock, self._loop
@@ -383,3 +394,4 @@ class TestXMLStream(unittest.TestCase):
             cm.exception.text,
             "foobar")
         self.assertIsNone(cm.exception.application_defined_condition)
+        self.assertTrue(mock.closed)

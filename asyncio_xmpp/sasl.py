@@ -256,9 +256,15 @@ class PLAIN(SASLMechanism):
        if b'\0' in username or b'\0' in password:
            raise ValueError("Username and password must not contain NUL")
 
-       yield from sm.initiate(
+       state, _ = yield from sm.initiate(
            mechanism="PLAIN",
            payload=b"\0"+username+b"\0"+password)
+
+       if state == "failure":
+           return False
+
+       if state != "success":
+           raise Exception("SASL protocol violation")
 
        return True
 

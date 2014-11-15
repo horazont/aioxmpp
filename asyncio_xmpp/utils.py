@@ -4,7 +4,8 @@ import lxml.etree as etree
 
 __all__ = [
     "etree",
-    "namespaces"
+    "namespaces",
+    "split_tag"
 ]
 
 namespaces = types.SimpleNamespace()
@@ -14,6 +15,8 @@ namespaces.starttls = "urn:ietf:params:xml:ns:xmpp-tls"
 namespaces.sasl = "urn:ietf:params:xml:ns:xmpp-sasl"
 namespaces.stanzas = "urn:ietf:params:xml:ns:xmpp-stanzas"
 namespaces.streams = "urn:ietf:params:xml:ns:xmpp-streams"
+namespaces.stream_management = "urn:xmpp:sm:3"
+namespaces.bind = "urn:ietf:params:xml:ns:xmpp-bind"
 
 def split_tag(tag):
     prefix, _, suffix = tag.partition("}")

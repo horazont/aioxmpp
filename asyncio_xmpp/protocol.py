@@ -1,32 +1,23 @@
 import asyncio
+import copy
 import functools
 import logging
 
 import lxml.builder
 
-from . import stanza, plugins, hooks, errors, utils
+from . import stanza, hooks, errors, utils, xml
 
 from .utils import *
 
 logger = logging.getLogger(__name__)
 
 def make_xmlstream_parser():
-    lookup = etree.ElementNamespaceClassLookup()
-
-    for ns in [lookup.get_namespace("jabber:client")]:
-        ns["iq"] = stanza.IQ
-        ns["presence"] = stanza.Presence
-        ns["error"] = stanza.Error
-        ns["message"] = stanza.Message
-
-    plugins.rfc6120.register(lookup)
-
     parser = etree.XMLPullParser(
         ('start', 'end'),
         resolve_entities=False
     )
-    parser.set_element_class_lookup(lookup)
-    return lookup, parser
+    parser.set_element_class_lookup(xml.lookup)
+    return parser
 
 def make_xmlstream_sender(parser, namespace):
     nsmap = {
@@ -45,7 +36,7 @@ def make_xmlstream_sender(parser, namespace):
 class SendStreamError(Exception):
     def __init__(self, error_tag, text=None):
         super().__init__("Going to send a stream:error (seeing this exception is"
-                         " a bug")
+                         " a bug)")
         self.error_tag = error_tag
         self.text = text
 
@@ -79,9 +70,11 @@ class XMLStream(asyncio.Protocol):
 
         # receiver state
         self._rx_parser = None
-        self._rx_lookup = None
         self._rx_stream_root = None
         self._rx_stream_id = None
+        self._template_iq = None
+        self._template_message = None
+        self._template_presence = None
 
         # asyncio state
         self._transport = None
@@ -95,6 +88,8 @@ class XMLStream(asyncio.Protocol):
 
         # callbacks
         self.on_stream_error = None
+        self.on_starttls_engaged = None
+        self.on_connection_lost = None
 
     def _rx_close(self):
         """
@@ -110,6 +105,7 @@ class XMLStream(asyncio.Protocol):
         except lxml.etree.XMLSyntaxError:
             # ignore errors on closing
             pass
+        self._transport.close()
         self._rx_process()
         self._rx_parser = None
         self._rx_stream_root = None
@@ -133,14 +129,6 @@ class XMLStream(asyncio.Protocol):
             raise SendStreamError(
                 "not-well-formed",
                 text=str(err))
-        except ValueError as err:
-            # ValueError is raised by ElementBase subclasses upon content
-            # validation
-            # As these are only instanciated for the stream level nodes here,
-            # treating ValueErrors as critical is sane
-            raise SendStreamError(
-                "invalid-xml",
-                str(err))
 
     def _rx_process(self):
         """
@@ -158,6 +146,19 @@ class XMLStream(asyncio.Protocol):
                     continue
                 node.getparent().remove(node)
 
+                if hasattr(node, "validate"):
+                    try:
+                        node.validate()
+                    except ValueError as err:
+                        # ValueError is raised by ElementBase subclasses upon
+                        # content validation
+                        # As these are only instanciated for the stream level
+                        # nodes here, treating ValueErrors as critical is sane
+                        raise SendStreamError(
+                            "invalid-xml",
+                            str(err))
+
+
                 self._rx_process_stream_level_node(node)
 
     def _rx_process_stream_level_node(self, node):
@@ -173,9 +174,18 @@ class XMLStream(asyncio.Protocol):
                     text="no handler for {}".format(node.tag))
 
     def _rx_reset(self):
-        self._rx_lookup, self._rx_parser = make_xmlstream_parser()
+        self._rx_parser = make_xmlstream_parser()
         self._rx_stream_root = None
         self._rx_stream_id = None
+        self._template_iq = etree.fromstring(
+            """<iq xmlns="jabber:client" type="get" />""",
+            parser=self._rx_parser)
+        self._template_message = etree.fromstring(
+            """<message xmlns="jabber:client" />""",
+            parser=self._rx_parser)
+        self._template_presence = etree.fromstring(
+            """<presence xmlns="jabber:client" />""",
+            parser=self._rx_parser)
 
     def _rx_start_stream(self, node):
         if self._rx_stream_root is not None:
@@ -222,6 +232,7 @@ class XMLStream(asyncio.Protocol):
             self.on_stream_error(err)
         else:
             logger.error("remote sent %s", str(err))
+            self.close()
 
     def _tx_close(self):
         if self._tx_tree_root is None:
@@ -229,6 +240,8 @@ class XMLStream(asyncio.Protocol):
         self._tx_send_footer()
         self._tx_tree_root = None
         self.E = None
+        if self._transport.can_write_eof():
+            self._transport.write_eof()
 
     def _tx_reset(self):
         self._tx_tree_root, self.E = make_xmlstream_sender(
@@ -277,6 +290,22 @@ class XMLStream(asyncio.Protocol):
         logger.debug("SEND %s", blob)
         self._transport.write(blob)
 
+    # internal helpers
+
+    def _make_from_template(self,
+                            template, *,
+                            from_=None,
+                            to=None,
+                            id=None):
+        stanza = copy.copy(template)
+        if from_:
+            stanza.from_ = from_
+        if to:
+            stanza.to = to
+        if id:
+            stanza.id = id
+        return stanza
+
     # asyncio Protocol implementation
 
     def connection_made(self, using_transport):
@@ -317,28 +346,28 @@ class XMLStream(asyncio.Protocol):
                 ConnectionError("Disconnected"))
 
     def starttls_engaged(self, transport):
-        pass
+        if self.on_starttls_engaged:
+            self.on_starttls_engaged(transport)
 
     # public API
 
     def close(self):
-        self._rx_close()
         self._tx_close()
+        self._rx_close()
 
-    def make_iq(self):
-        return etree.fromstring(
-            b"""<iq xmlns="jabber:client" />""",
-            parser=self._rx_parser)
+    def make_iq(self, *, type="get",
+                **kwargs):
+        iq = self._make_from_template(self._template_iq, **kwargs)
+        iq.type = type
+        return iq
 
-    def make_message(self):
-        return etree.fromstring(
-            b"""<message xmlns="jabber:client" />""",
-            parser=self._rx_parser)
+    def make_message(self, **kwargs):
+        return self._make_from_template(self._template_message,
+                                        **kwargs)
 
     def make_presence(self):
-        return etree.fromstring(
-            b"""<presence xmlns="jabber:client" />""",
-            parser=self._rx_parser)
+        return self._make_from_template(self._template_presence,
+                                        **kwargs)
 
     def reset_stream(self):
         self._rx_reset()
@@ -346,13 +375,12 @@ class XMLStream(asyncio.Protocol):
         self._tx_send_header()
         self._died.clear()
 
-    @asyncio.coroutine
     def _send_andor_wait_for(self,
                              nodes_to_send,
                              tags,
                              timeout=None,
                              critical_timeout=True):
-
+        # print("send_andor_wait_for {} {}".format(nodes_to_send, tags))
         futures = []
         for tag in tags:
             f = asyncio.Future()
@@ -360,35 +388,43 @@ class XMLStream(asyncio.Protocol):
             self._stream_level_node_hooks.add_future(tag, f)
 
         for node in nodes_to_send:
+            # print("sending node {}".format(node))
             self.send_node(node)
+            # print("sent node")
 
-        done, pending = yield from asyncio.wait(
-            [f for _, f in futures],
-            timeout=timeout,
-            return_when=asyncio.FIRST_COMPLETED)
+        @asyncio.coroutine
+        def waiter_task(futures, timeout, critical_timeout):
+            done, pending = yield from asyncio.wait(
+                [f for _, f in futures],
+                timeout=timeout,
+                return_when=asyncio.FIRST_COMPLETED)
 
-        # first cancel futures, then retrieve result (result may be an
-        # Exception)
-        for tag, future in futures:
-            if future not in pending:
-                continue
-            future.cancel()
-            try:
-                self._stream_level_node_hooks.remove_future(tag, future)
-            except KeyError:
-                # defensive guard against a maybe race condition
-                # (I guess that in some cases, asyncio.wait may catch only one
-                # future, but more than one has been fulfilled)
-                pass
+            # first cancel futures, then retrieve result (result may be an
+            # Exception)
+            for tag, future in futures:
+                if future not in pending:
+                    continue
+                future.cancel()
+                try:
+                    self._stream_level_node_hooks.remove_future(tag, future)
+                except KeyError:
+                    # defensive guard against a maybe race condition
+                    # (I guess that in some cases, asyncio.wait may catch only
+                    # one future, but more than one has been fulfilled)
+                    pass
 
-        if not done:
-            if critical_timeout:
-                self.stream_error("connection-timeout", None)
-                raise ConnectionError("Disconnected")
-            raise TimeoutError("Timeout")
+            if not done:
+                if critical_timeout:
+                    self.stream_error("connection-timeout", None)
+                    raise ConnectionError("Disconnected")
+                raise TimeoutError("Timeout")
 
-        result = next(iter(done)).result()
-        return result
+            result = next(iter(done)).result()
+            return result
+
+        return asyncio.async(
+            waiter_task(futures, timeout, critical_timeout),
+            loop=self._loop)
 
     @asyncio.coroutine
     def send_and_wait_for(self,
@@ -402,7 +438,6 @@ class XMLStream(asyncio.Protocol):
             timeout=timeout,
             critical_timeout=critical_timeout)
 
-    @asyncio.coroutine
     def wait_for(self, tokens, timeout=None, critical_timeout=True):
         return self._send_andor_wait_for(
             [],

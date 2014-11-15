@@ -20,17 +20,22 @@ class StanzaElementBase(etree.ElementBase):
         super().__init__(*args, nsmap=nsmap, **kwargs)
 
 class Stanza(StanzaElementBase):
-    @property
-    def id(self):
-        idstr = self.get("id")
-        if idstr is None:
+    def validate(self):
+        if not self.id:
+            raise ValueError("Stanza requires valid id")
+
+    def autoset_id(self):
+        if self.id is None:
             idstr = binascii.b2a_base64(random.getrandbits(
                 120
             ).to_bytes(
                 120//8, 'little'
             )).decode("ascii").strip()
             self.set("id", idstr)
-        return idstr
+
+    @property
+    def id(self):
+        return self.get("id")
 
     @id.setter
     def id(self, value):
@@ -80,6 +85,23 @@ class IQ(Stanza):
     TAG = "{jabber:client}iq"
     _VALID_TYPES = {"set", "get", "error", "result"}
 
+    def validate(self):
+        super().validate()
+        if self.type not in self._VALID_TYPES:
+            raise ValueError("Incorrect iq@type: {}".format(self.type))
+        if self.type in {"set", "get"}:
+            if self.data is None:
+                raise ValueError("iq with type 'set' or 'get' must have "
+                                 "exactly one non-error child")
+        elif self.type == "result":
+            if len(self) > 1 or self.error is not None:
+                raise ValueError("iq with type 'result' must have zero or"
+                                 " one non-error child")
+        elif self.type == "error":
+            if self.error is None:
+                raise ValueError("iq with type 'error' must have one error "
+                                 "child")
+
     @property
     def type(self):
         return self.get("type")
@@ -94,15 +116,42 @@ class IQ(Stanza):
     @property
     def data(self):
         try:
-            return self[0]
-        except IndexError:
+            return next(iter(
+                node
+                for node in self
+                if node.tag != Error.TAG))
+        except StopIteration:
             return None
 
     @data.setter
     def data(self, value):
-        if len(self):
-            self.remove(0)
+        del self.data
         self.append(value)
+
+    @data.deleter
+    def data(self):
+        data = self.data
+        if data is not None:
+            self.remove(data)
+
+    @property
+    def error(self):
+        return self.find(Error.TAG)
+
+    @error.setter
+    def error(self, value):
+        if self.type != "error":
+            raise ValueError("Error cannot be attached to an IQ of type "
+                             "{}".format(self.type))
+
+        del self.error
+        self.append(error)
+
+    @error.deleter
+    def error(self):
+        error = self.error
+        if error is not None:
+            self.remove(error)
 
     def make_reply(self, error=False):
         """
@@ -298,3 +347,106 @@ class Error(etree.ElementBase):
             self.condition,
             text=self.text,
             application_defined_condition=self.application_defined_condition.tag)
+
+
+class QueueState:
+    ACTIVE = 0
+    UNACKED = 1
+    SENT_WITHOUT_ACK = 2
+    ABORTED = 3
+    ACKED = 4
+
+class StanzaToken:
+    """
+    Token to represent a stanza which is inside or has gone through the queues
+    of a :class:`Client`.
+
+    The constructor is considered an implementation detail. It is called by the
+    :class:`Client` object. Instances of :class:`StanzaToken` can be obtained by
+    the respective methods of :class:`Client`. **TODO:** which methods
+
+    A stanza can have one out of five states:
+
+    * :attr:`~QueueState.ACTIVE`: The stanza is queued for sending and has not
+      been sent yet. New stanzas are in this state.
+    * :attr:`~QueueState.UNACKED`: The stanza has been handed over to the
+      transport layer, but no confirmation from the remote side has been
+      received yet. Nevertheless, Stream Management is available.
+    * :attr:`~QueueState.SENT_WITHOUT_ACK`: The stanza has been handed over to
+      the transport layer, but stream management is not
+      available. Alternatively, a stanza which was previously ``UNACKED`` can
+      end up in this state if the connection gets interrupted and stream
+      management session resumption fails. This is a final state, as the stanza
+      is removed from all queues when it enters this state.
+    * :attr:`~QueueState.ABORTED`: The stanza has been aborted by the
+      application. This is a final state, as the stanza is removed from all
+      queues when it enters this state.
+    * :attr:`~QueueState.ACKED`: A stream management confirmation of the
+      reception of this stanza has been received. This is a final state, as the
+      stanza is removed from all queues when it enters this state.
+    """
+
+    def __init__(self, stanza,
+                 sent_callback=None,
+                 ack_callback=None,
+                 response_future=None,
+                 abort_impl=None,
+                 resend_impl=None):
+        self._abort_impl = abort_impl
+        self._resend_impl = resend_impl
+        self._stanza = stanza
+        self._state = QueueState.ACTIVE
+        self._last_sent = None
+        self.ack_callback = ack_callback
+        self.sent_callback = sent_callback
+        self.response_future = response_future
+
+    def abort(self):
+        """
+        Abort sending a stanza. Depending on the current state of the stanza,
+        this has different meanings:
+
+        * If the stanza is in *active* state, it won’t be send and silently
+          dropped from the *active* queue.
+        * If the stanza is in *unacked* state, it won’t be resent on session
+          resumption (but it may nevertheless have been received by the remote
+          party already). The behaviour which encurs when an *unacked, aborted*
+          stanza is acked by the remote side is still to be specified.
+
+        In any other state, calling this method has no effect.
+        """
+        if not hasattr(self._abort_impl, "__call__"):
+            raise NotImplementedError("Stanza abortion is not supported by "
+                                      "the object which supplied the stanza "
+                                      "token")
+
+        self._state = self._abort_impl(self)
+
+    def resend(self):
+        """
+        For a stanza *sent without ack* or *aborted*, re-submit it to the active
+        queue. If the stanza is already in the *active* queue or if it is
+        *unacked*, do nothing.
+        """
+        if not hasattr(self._resend_impl, "__call__"):
+           raise NotImplementedError("Stanza resending is not supported by "
+                                     "the object which supplied the stanza "
+                                     "token")
+
+        self._state = self._resend_impl(self)
+
+    @property
+    def state(self):
+        return self._state
+
+    @property
+    def stanza(self):
+        return self._stanza
+
+    @property
+    def last_sent(self):
+        """
+        Return the timestamp at which this stanza was last attempted to be sent
+        over the stream.
+        """
+        return self._last_sent
