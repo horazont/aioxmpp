@@ -373,3 +373,27 @@ class TestClient(unittest.TestCase):
         self._simply_run_client(transport, stream)
 
         stream.mock_finalize()
+
+    def test_iq_silence_for_errornous_result(self):
+        transport, stream = self._make_stream()
+
+        probeiq = stream.E("{jabber:client}iq")
+        probeiq.type = "result"
+        probeiq.data = stream.E("{foo}data")
+        probeiq.to = "test@example.com/foo"
+        probeiq.from_ = "foo@example.com/bar"
+        probeiq.autoset_id()
+
+        self._prepend_actions_up_to_binding(
+            stream,
+            [
+                probeiq
+            ],
+            [
+                ("!close", None),
+            ]
+        )
+
+        self._simply_run_client(transport, stream)
+
+        stream.mock_finalize()
