@@ -145,7 +145,7 @@ class IQ(Stanza):
                              "{}".format(self.type))
 
         del self.error
-        self.append(error)
+        self.append(value)
 
     @error.deleter
     def error(self):
@@ -168,12 +168,15 @@ class IQ(Stanza):
                 type))
 
         obj = IQ()
+        # hack to associate the IQ with the correct parser
+        self.append(obj)
+        self.remove(obj)
         obj.from_ = self.to
         obj.to = self.from_
         obj.id = self.id
         if error:
             obj.type = "error"
-            obj.data = Error()
+            obj.error = Error()
         else:
             obj.type = "result"
 

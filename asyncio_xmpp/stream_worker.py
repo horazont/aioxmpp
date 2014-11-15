@@ -205,8 +205,13 @@ class StanzaBroker(StreamWorker):
                     ("request",) + split_tag(tag))
             except KeyError as err:
                 # FIXME: reply with error
-                logger.warn("no handler for %s (%s); FIXME: reply with error",
-                            err, iq)
+                logger.warn("no handler for %s (%s)", err, iq)
+                response = iq.make_reply(error=True)
+                response.error.type = "cancel"
+                response.error.condition = "feature-not-implemented"
+                response.error.text = ("No handler registered for this request "
+                                       "pattern")
+                self.enqueue_token(self.make_stanza_token(response))
             else:
                 self._dispatch_target(iq, token)
 
@@ -373,6 +378,7 @@ class StanzaBroker(StreamWorker):
 
                 incoming_futures[i] = future_from_queue(queue,
                                                         self._loop)
+
 
     # StanzaBroker interface
 
