@@ -74,7 +74,8 @@ class StanzaBrokerSMInitializer:
 class StanzaBroker(StreamWorker):
     def __init__(self, loop, shared_disconnect_event,
                  ping_timeout,
-                 ping_timeout_callback):
+                 ping_timeout_callback,
+                 stanza_callbacks):
         super().__init__(loop, shared_disconnect_event)
         self._acked_remote_ctr = 0
         self._interrupt = asyncio.Event()
@@ -82,13 +83,15 @@ class StanzaBroker(StreamWorker):
         self._sm_enabled = False
         self._unacked_ctr_base = 0
 
-        self._iq_callbacks = {}
-        self._message_callbacks = {}
-        self._presence_callbacks = {}
+        self._iq_response_tokens = {}
 
         self._callbacks = {
             "opportunistic_send": set()
         }
+
+        (self._iq_request_callback,
+         self._message_callback,
+         self._presence_callback) = stanza_callbacks
 
         # this is exchanged for a StreamManagementLivenessHandler when sm is
         # enabled
@@ -125,12 +128,7 @@ class StanzaBroker(StreamWorker):
 
     def _queued_stanza_abort(self, stanza_token):
         try:
-            self._active_queue.remove(stanza_token)
-        except ValueError:
-            pass
-
-        try:
-            self._hold_queue.remove(stanza_token)
+            self.active_queue.remove(stanza_token)
         except ValueError:
             pass
 
@@ -139,8 +137,7 @@ class StanzaBroker(StreamWorker):
     def _queued_stanza_resend(self, stanza_token):
         if stanza_token.state in {QueueState.SEND_WITHOUT_ACK,
                                   QueueState.ABORTED}:
-            self._hold_queue.remove(stanza_token)
-            self._send_stanza_by_token(stanza_token)
+            self.enqueue_token(stanza_token)
             return QueueState.ACTIVE
         return stanza_token._state
 
@@ -156,6 +153,8 @@ class StanzaBroker(StreamWorker):
     def _send_token_noqueue(self, token):
         token._last_sent = datetime.utcnow()
         self.xmlstream.send_node(token._stanza)
+        if token.sent_callback:
+            token.sent_callback()
 
     def _sm_reset(self, enabled=False, id=None):
         restart = False
@@ -188,68 +187,15 @@ class StanzaBroker(StreamWorker):
     def _stanza_iq(self, iq):
         if iq.type in {"result", "error"}:
             try:
-                token = self._iq_callbacks.pop(("response", iq.id, iq.from_))
+                token = self._iq_response_tokens.pop((iq.id, iq.from_))
             except KeyError:
-                logger.warn("unexpected response: type=%s, id=%r, data=%s",
+                logger.warn("unexpected iq response: type=%s, id=%r, data=%s",
                             iq.type, iq.id, iq.data)
             else:
                 token.response_future.set_result(iq)
-        else:
-            # handle this, or reply with error
-            if iq.data is not None:
-                tag = iq.data.tag
-            else:
-                tag = iq.tag
-            try:
-                target = self._iq_callbacks.pop(
-                    ("request",) + split_tag(tag))
-            except KeyError as err:
-                # FIXME: reply with error
-                logger.warn("no handler for %s (%s)", err, iq)
-                response = iq.make_reply(error=True)
-                response.error.type = "cancel"
-                response.error.condition = "feature-not-implemented"
-                response.error.text = ("No handler registered for this request "
-                                       "pattern")
-                self.enqueue_token(self.make_stanza_token(response))
-            else:
-                self._dispatch_target(iq, token)
-
-    def _stanza_message(self, msg):
-        target = self._message_callbacks.pop((msg.type, msg.from_), None)
-        if target is None:
-            target = self._message_callbacks.pop((msg.type, msg.from_.bare),
-                                                 None)
-        if target is None:
-            target = self._message_callbacks.pop((None, msg.from_), None)
-        if target is None:
-            target = self._message_callbacks.pop((None, msg.from_.bare), None)
-        if target is None:
-            target = self._message_callbacks.pop((msg.type, None), None)
-
-        if target is None:
-            logger.warn("failed to handle message: {}".format(msg))
             return
 
-        self._dispatch_target(msg, target)
-
-    def _stanza_presence(self, presence):
-        target = self._presence_callbacks.pop(
-            (presence.id, presence.from_), None)
-
-        if target is None:
-            target = self._presence_callbacks.pop(
-                (None, presence.from_), None)
-
-        if target is None:
-            target = self._presence_callbacks.pop(
-                (None, presence.from_.bare), None)
-
-        if target is None:
-            logger.warn("failed to handle presence: {}".format(presence))
-            return
-
-        self._dispatch_target(target)
+        self._loop.call_soon(self._iq_request_callbacks, iq)
 
     # StreamWorker interface
 
@@ -317,8 +263,8 @@ class StanzaBroker(StreamWorker):
 
         incoming_handlers = [
             self._stanza_iq,
-            self._stanza_message,
-            self._stanza_presence
+            self._message_callback,
+            self._presence_callback
         ]
 
         while True:
@@ -333,6 +279,7 @@ class StanzaBroker(StreamWorker):
                 futures_to_wait_for,
                 loop=self._loop,
                 return_when=asyncio.FIRST_COMPLETED)
+            logger.debug("%r", done)
 
             if interrupt_future in done:
                 logger.debug("received interrupt")
@@ -342,7 +289,7 @@ class StanzaBroker(StreamWorker):
                     loop=self._loop)
 
             if disconnect_future in done:
-                if outgoing_stanza_future in done:
+                if outgoingstanza_future in done:
                     # re-queue that stanza
                     self.active_queue.appendleft(
                         outgoing_stanza_future.result())
@@ -369,15 +316,16 @@ class StanzaBroker(StreamWorker):
             for i, (future, queue, handler) in enumerate(
                     zip(incoming_futures, incoming_queues, incoming_handlers)):
                 if future not in done:
-                    break
+                    continue
 
                 received_stanza = future.result()
                 self._loop.call_soon(handler, received_stanza)
                 if self._sm_enabled:
                     self._acked_remote_ctr += 1
 
-                incoming_futures[i] = future_from_queue(queue,
-                                                        self._loop)
+                incoming_futures[i] = future_from_queue(
+                    queue,
+                    self._loop)
 
 
     # StanzaBroker interface
@@ -392,7 +340,11 @@ class StanzaBroker(StreamWorker):
             # IQ stanza, register handlers
             iq = token._stanza
             if iq.type in {"set", "get"}:
-                self._iq_callbacks[('response', iq.id, iq.from_)] = token
+                self._iq_response_tokens[iq.id, iq.from_] = token
+        else:
+            if token.response_future:
+                raise ValueError("Response future is not supported for "
+                                 "{}".format(token._stanza))
 
         self.active_queue.append(token)
 

@@ -361,13 +361,18 @@ class XMLStream(asyncio.Protocol):
         iq.type = type
         return iq
 
-    def make_message(self, **kwargs):
-        return self._make_from_template(self._template_message,
-                                        **kwargs)
+    def make_message(self, *, type="chat", **kwargs):
+        message = self._make_from_template(self._template_message,
+                                           **kwargs)
+        message.type = type
+        return message
 
-    def make_presence(self):
-        return self._make_from_template(self._template_presence,
-                                        **kwargs)
+    def make_presence(self, *, type=None, **kwargs):
+        presence = self._make_from_template(
+            self._template_presence,
+            **kwargs)
+        presence.type = type
+        return presence
 
     def reset_stream(self):
         self._rx_reset()

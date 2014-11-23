@@ -126,6 +126,10 @@ class Client:
             "closed": []
         }
 
+        self._iq_request_callbacks = {}
+        self._message_callbacks = {}
+        self._presence_callbacks = {}
+
         self.disconnect_event = asyncio.Event()
         self.disconnect_event.set()
 
@@ -133,7 +137,10 @@ class Client:
             self._loop,
             self.disconnect_event,
             ping_timeout,
-            self._handle_ping_timeout)
+            self._handle_ping_timeout,
+            (self._handle_iq_request,
+             self._handle_message,
+             self._handle_presence))
 
         self._worker_task = asyncio.async(
             self._worker(),
@@ -206,14 +213,31 @@ class Client:
 
         self._stanza_broker.start_liveness_handler()
 
-    def _dispatch_target(self, msg, target):
-        to_call, to_push = target
-        to_call_copy = to_call.copy()
-        to_call.clear()
-        for callback in to_call_copy:
+    def _dispatch_stanza(self, callback_map, keys, stanza):
+        for key in keys:
+            try:
+                cbs, queues = callback_map[key]
+                if not cbs and not queues:
+                    del callback_map[key]
+                    continue
+            except KeyError:
+                continue
+
+            self._dispatch_target(stanza, cbs, queues)
+            if not queues and not cbs:
+                del callback_map[key]
+            break
+        else:
+            return False
+        return True
+
+    def _dispatch_target(self, msg, cbs, queues):
+        to_call = cbs.copy()
+        cbs.clear()
+        for callback in to_call:
             self._loop.call_soon(callback, msg)
         some_failed = False
-        for queue in to_push:
+        for queue in queues:
             try:
                 queue.put_nowait(msg)
             except asyncio.QueueFull:
@@ -233,6 +257,57 @@ class Client:
     def _handle_ping_timeout(self):
         logger.warn("ping timeout, disconnecting")
         yield from self.disconnect()
+
+    def _handle_iq_request(self, iq):
+        # handle this, or reply with error
+        if iq.data is not None:
+            tag = iq.data.tag
+        else:
+            tag = iq.tag
+
+        namespace, local = split_tag(tag)
+
+        keys = [
+            (namespace, local, iq.type_),
+            (namespace, local, None),
+        ]
+
+
+        if not self._dispatch_stanza(self._iq_request_callbacks, keys, iq):
+            logger.warn("no handler for %s (%s)", err, iq)
+            response = iq.make_reply(error=True)
+            response.error.type = "cancel"
+            response.error.condition = "feature-not-implemented"
+            response.error.text = ("No handler registered for this request"
+                                   " pattern")
+            self.enqueue_stanza(self.make_stanza_token(response))
+
+    def _handle_message(self, message):
+        from_ = message.from_
+        id = message.id
+        type = message.type
+
+        keys = [
+            (str(from_), type),
+            (str(from_.bare), type),
+            (None, type),
+        ]
+        if not self._dispatch_stanza(self._message_callbacks, keys, message):
+            logger.warn("unhandled message stanza: %r", message)
+            return
+
+    def _handle_presence(self, presence):
+        from_ = presence.from_
+        id = presence.id
+        type = presence.type
+
+        keys = [
+            (type, )
+        ]
+
+        if not self._dispatch_stanza(self._presence_callbacks, keys, presence):
+            logger.warn("unhandled presence stanza: %r", presence)
+            return
 
     @asyncio.coroutine
     def _negotiate_stream(self, features_node):
@@ -682,20 +757,40 @@ class Client:
 
         return future.result()
 
+    @property
+    def client_jid(self):
+        return self._client_jid
+
     def register_callback(self, at, cb):
         cblist = self._callback_registry[at]
         cblist.append(cb)
 
-    def make_iq(self, *,
-                sent_callback=None, ack_callback=None,
-                response_future=None,
-                **kwargs):
+    def make_iq(self, **kwargs):
         iq = self._xmlstream.make_iq(**kwargs)
-        token = StanzaToken(
-            iq,
-            sent_callback=sent_callback,
-            ack_callback=ack_callback,
-            response_future=response_future,
-            abort_impl=self._queued_stanza_abort,
-            resend_impl=self._queued_stanza_resend)
         return token
+
+    def make_presence(self, **kwargs):
+        presence = self._xmlstream.make_presence(**kwargs)
+        return presence
+
+    def make_message(self, **kwargs):
+        message = self._xmlstream.make_message(**kwargs)
+        return message
+
+    def enqueue_stanza(self, stanza, **kwargs):
+        self._stanza_broker.enqueue_token(
+            self._stanza_broker.make_stanza_token(stanza), **kwargs)
+
+    def add_presence_queue(self, queue, type):
+        cbs, queues = self._presence_callbacks.setdefault(
+            (type,),
+            ([], set())
+        )
+        queues.add(queue)
+
+    def add_message_queue(self, queue, type="chat", from_=None):
+        cbs, queues = self._message_callbacks.setdefault(
+            (from_, type),
+            ([], set())
+        )
+        queues.add(queue)

@@ -21,8 +21,7 @@ class StanzaElementBase(etree.ElementBase):
 
 class Stanza(StanzaElementBase):
     def validate(self):
-        if not self.id:
-            raise ValueError("Stanza requires valid id")
+        pass
 
     def autoset_id(self):
         if self.id is None:
@@ -39,7 +38,13 @@ class Stanza(StanzaElementBase):
 
     @id.setter
     def id(self, value):
-        self.set("id", value)
+        if value is None:
+            try:
+                del self.attrib["id"]
+            except KeyError:
+                pass
+        else:
+            self.set("id", value)
 
     @property
     def from_(self):
@@ -74,12 +79,58 @@ class Message(Stanza):
     def type(self, value):
         self.set("type", value)
 
+    def make_reply(self, type=None):
+        obj = Message()
+        # hack to associate the IQ with the correct parser
+        self.append(obj)
+        self.remove(obj)
+        if self.to:
+            obj.from_ = self.to
+        if self.from_:
+            obj.to = self.from_
+        obj.id = self.id
+        obj.type = type or self.type
+        return obj
+
 class Presence(Stanza):
     TAG = "{jabber:client}presence"
+    _VALID_TYPES = {None, "unavailable",
+                    "subscribe", "subscribed",
+                    "unsubscribe", "unsubscribed"}
+
+    @property
+    def type(self):
+        return self.get("type")
+
+    @type.setter
+    def type(self, value):
+        if value not in self._VALID_TYPES:
+            raise ValueError("Incorrect presence@type: {}".format(value))
+
+        if value is None:
+            try:
+                del self.attrib["type"]
+            except KeyError:
+                pass
+        else:
+            self.set("type", value)
 
     @Stanza.to.deleter
     def to(self):
         del self.attrib["to"]
+
+    def make_reply(self, type=None):
+        obj = Presence()
+        # hack to associate the IQ with the correct parser
+        self.append(obj)
+        self.remove(obj)
+        if self.to:
+            obj.from_ = self.to
+        if self.from_:
+            obj.to = self.from_
+        obj.id = self.id
+        obj.type = type or self.type
+        return obj
 
 class IQ(Stanza):
     TAG = "{jabber:client}iq"
