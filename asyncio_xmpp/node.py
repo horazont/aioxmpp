@@ -171,10 +171,10 @@ class Client:
                     port=port)
                 break
             except OSError as err:
-                logger.warn("low-level connection attempt failed: %s", err)
+                logger.warning("low-level connection attempt failed: %s", err)
         else:
-            logger.warn("out of options to reach server for %s",
-                        self._client_jid)
+            logger.warning("out of options to reach server for %s",
+                           self._client_jid)
             raise OSError("Failed to connect to {}".format(
                 self._client_jid.domainpart))
 
@@ -243,7 +243,7 @@ class Client:
             except asyncio.QueueFull:
                 some_failed = True
         if some_failed:
-            logger.warn("stanza not pushed to all queues: {}".format(msg))
+            logger.warning("stanza not pushed to all queues: {}".format(msg))
 
     @asyncio.coroutine
     def _fire_callback(self, callback_name, *args, **kwargs):
@@ -255,7 +255,7 @@ class Client:
 
     @asyncio.coroutine
     def _handle_ping_timeout(self):
-        logger.warn("ping timeout, disconnecting")
+        logger.warning("ping timeout, disconnecting")
         yield from self.disconnect()
 
     def _handle_iq_request(self, iq):
@@ -293,7 +293,7 @@ class Client:
             (None, type),
         ]
         if not self._dispatch_stanza(self._message_callbacks, keys, message):
-            logger.warn("unhandled message stanza: %r", message)
+            logger.warning("unhandled message stanza: %r", message)
             return
 
     def _handle_presence(self, presence):
@@ -306,7 +306,7 @@ class Client:
         ]
 
         if not self._dispatch_stanza(self._presence_callbacks, keys, presence):
-            logger.warn("unhandled presence stanza: %r", presence)
+            logger.warning("unhandled presence stanza: %r", presence)
             return
 
     @asyncio.coroutine
@@ -519,7 +519,7 @@ class Client:
                 yield from self._negotiate_stream_management(sm_node)
             except StreamNegotiationFailure as err:
                 # this is not neccessarily fatal
-                logger.warn(err)
+                logger.warning(err)
 
         return False
 
@@ -565,8 +565,8 @@ class Client:
         if feature_node is None:
             # we previously had an SM session, but the server doesn’t support SM
             # anymore. this sucks
-            logger.warn("sorry, have to quit SM -- server won’t play along"
-                        " anymore")
+            logger.warning("sorry, have to quit SM -- server won’t play along"
+                           " anymore")
             self._stanza_broker.sm_reset()
             return False
 
