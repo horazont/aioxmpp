@@ -79,6 +79,18 @@ class Message(Stanza):
     def type(self, value):
         self.set("type", value)
 
+    @property
+    def body(self):
+        body = self.find("{jabber:client}body")
+        if body is None:
+            body = etree.SubElement(self, "{jabber:client}body")
+        return body
+
+    @body.deleter
+    def body(self):
+        body = self.body
+        self.remove(body)
+
     def make_reply(self, type=None):
         obj = Message()
         # hack to associate the IQ with the correct parser
