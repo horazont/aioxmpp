@@ -268,19 +268,19 @@ class Client:
         namespace, local = split_tag(tag)
 
         keys = [
-            (namespace, local, iq.type_),
+            (namespace, local, iq.type),
             (namespace, local, None),
         ]
 
 
         if not self._dispatch_stanza(self._iq_request_callbacks, keys, iq):
-            logger.warn("no handler for %s (%s)", err, iq)
+            logger.warning("no handler for %s ({%s}%s)", iq, namespace, local)
             response = iq.make_reply(error=True)
             response.error.type = "cancel"
             response.error.condition = "feature-not-implemented"
             response.error.text = ("No handler registered for this request"
                                    " pattern")
-            self.enqueue_stanza(self.make_stanza_token(response))
+            self.enqueue_stanza(response)
 
     def _handle_message(self, message):
         from_ = message.from_

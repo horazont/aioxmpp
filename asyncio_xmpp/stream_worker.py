@@ -195,7 +195,7 @@ class StanzaBroker(StreamWorker):
                 token.response_future.set_result(iq)
             return
 
-        self._loop.call_soon(self._iq_request_callbacks, iq)
+        self._loop.call_soon(self._iq_request_callback, iq)
 
     # StreamWorker interface
 
