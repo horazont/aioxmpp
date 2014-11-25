@@ -50,7 +50,7 @@ class TestError(unittest.TestCase):
         err.application_defined_condition = self.appdef
         self.assertEqual(len(err), 2)
         self.assertIs(err[-1], self.appdef)
-        with self.assertRaises(ValueError):
+        with self.assertRaises(TypeError):
             err.application_defined_condition = None
 
         del err.application_defined_condition
@@ -119,6 +119,20 @@ class TestError(unittest.TestCase):
             err.text,
             "Invalid IQ type or incorrect number of children")
 
+        err = etree.fromstring(
+            b"<error xmlns='jabber:server' type='cancel'><remote-server-not-f"
+            b"ound xmlns='urn:ietf:params:xml:ns:xmpp-stanzas'/></error>",
+            parser=parser)
+
+        err = etree.fromstring(
+            b"<error xmlns='jabber:server' type='cancel'><not-allowed xmlns='"
+            b"urn:ietf:params:xml:ns:xmpp-stanzas'/><text xmlns='urn:ietf:par"
+            b"ams:xml:ns:xmpp-stanzas'>Communication with remote domains is n"
+            b"ot enabled</text></error>",
+            parser=parser)
+
+        print(err.condition)
+
     def test_detect_errors_in_xmltext(self):
         # but we reject malformed elements
         lookup = etree.ElementNamespaceClassLookup()
@@ -129,6 +143,7 @@ class TestError(unittest.TestCase):
         # but we insert undefined condition in empty error elements implicitly
         err = etree.fromstring(b'<error xmlns="jabber:client" />',
                                parser=parser)
+        err.validate()
         self.assertEqual(
             err.condition,
             "undefined-condition")
@@ -139,7 +154,7 @@ class TestError(unittest.TestCase):
                 b'<bad-request xmlns="urn:ietf:params:xml:ns:xmpp-stanzas" />'
                 b'<bad-request xmlns="urn:ietf:params:xml:ns:xmpp-stanzas" />'
                 b'</error>',
-                parser=parser)
+                parser=parser).validate()
 
         with self.assertRaises(ValueError):
             etree.fromstring(
@@ -147,7 +162,7 @@ class TestError(unittest.TestCase):
                 b'<text xmlns="urn:ietf:params:xml:ns:xmpp-stanzas">foo</text>'
                 b'<text xmlns="urn:ietf:params:xml:ns:xmpp-stanzas">foo</text>'
                 b'</error>',
-                parser=parser)
+                parser=parser).validate()
 
         with self.assertRaises(ValueError):
             etree.fromstring(
@@ -155,7 +170,7 @@ class TestError(unittest.TestCase):
                 b'<data />'
                 b'<foo />'
                 b'</error>',
-                parser=parser)
+                parser=parser).validate()
 
     def test_make_exception(self):
         err = stanza.Error()

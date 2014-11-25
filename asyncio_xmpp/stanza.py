@@ -1,9 +1,85 @@
 import asyncio
 import binascii
+import collections.abc
+import functools
+import logging
+import operator
 import random
 
 from . import jid, errors
 from .utils import etree, namespaces, split_tag
+
+logger = logging.getLogger(__name__)
+
+def iterator_has_more_than(iterable, n_elements):
+    try:
+        return len(iterable) > n_elements
+    except:
+        pass
+
+    iterator = iter(iterable)
+    for i in range(n_elements+1):
+        try:
+            next(iterator)
+        except StopIteration:
+            return False
+    return True
+
+class xml_attribute:
+    def __init__(self, key):
+        self._key = key
+
+    def __get__(self, instance, type_):
+        if instance is None:
+            return self
+
+        return instance.get(self._key)
+
+    def __set__(self, instance, value):
+        if value is None:
+            return self.__delete__(instance)
+
+        instance.set(self._key, value)
+
+    def __delete__(self, instance):
+        try:
+            del instance.attrib[self._key]
+        except KeyError:
+            pass
+
+class xml_jid_attribute(xml_attribute):
+    def __get__(self, instance, type_):
+        if instance is None:
+            return self
+
+        value = super().__get__(instance, type_)
+        if value is None:
+            return None
+        return jid.JID.fromstr(value)
+
+    def __set__(self, instance, value):
+        if value is None:
+            return super().__set__(instance, value)
+
+        return super().__set__(instance, str(value))
+
+class xml_enum_attribute(xml_attribute):
+    def __init__(self, key, options):
+        super().__init__(key)
+        self._options = options
+
+    def __set__(self, instance, value):
+        if value is None:
+            return super().__set__(instance, value)
+
+        if value not in self._options:
+            _, localname = split_tag(instance.tag)
+            raise ValueError("Invalid value for {localname}@{key}: {}".format(
+                value,
+                localname=localname,
+                key=self._key))
+
+        return super().__set__(instance, str(value))
 
 class StanzaMeta(type):
     pass
@@ -32,52 +108,14 @@ class Stanza(StanzaElementBase):
             )).decode("ascii").strip()
             self.set("id", idstr)
 
-    @property
-    def id(self):
-        return self.get("id")
-
-    @id.setter
-    def id(self, value):
-        if value is None:
-            try:
-                del self.attrib["id"]
-            except KeyError:
-                pass
-        else:
-            self.set("id", value)
-
-    @property
-    def from_(self):
-        jidstr = self.get("from")
-        if jidstr is None:
-            return None
-        return jid.JID.fromstr(jidstr)
-
-    @from_.setter
-    def from_(self, value):
-        self.set("from", str(value))
-
-    @property
-    def to(self):
-        jidstr = self.get("to")
-        if jidstr is None:
-            return None
-        return jid.JID.fromstr(jidstr)
-
-    @to.setter
-    def to(self, value):
-        self.set("to", str(value))
+    id = xml_attribute("id")
+    from_ = xml_jid_attribute("from")
+    to = xml_jid_attribute("to")
 
 class Message(Stanza):
     TAG = "{jabber:client}message"
 
-    @property
-    def type(self):
-        return self.get("type")
-
-    @type.setter
-    def type(self, value):
-        self.set("type", value)
+    type = xml_attribute("type")
 
     @property
     def body(self):
@@ -106,30 +144,11 @@ class Message(Stanza):
 
 class Presence(Stanza):
     TAG = "{jabber:client}presence"
-    _VALID_TYPES = {None, "unavailable",
+    _VALID_TYPES = {"unavailable",
                     "subscribe", "subscribed",
                     "unsubscribe", "unsubscribed"}
 
-    @property
-    def type(self):
-        return self.get("type")
-
-    @type.setter
-    def type(self, value):
-        if value not in self._VALID_TYPES:
-            raise ValueError("Incorrect presence@type: {}".format(value))
-
-        if value is None:
-            try:
-                del self.attrib["type"]
-            except KeyError:
-                pass
-        else:
-            self.set("type", value)
-
-    @Stanza.to.deleter
-    def to(self):
-        del self.attrib["to"]
+    type = xml_enum_attribute("type", _VALID_TYPES)
 
     def make_reply(self, type=None):
         obj = Presence()
@@ -165,16 +184,7 @@ class IQ(Stanza):
                 raise ValueError("iq with type 'error' must have one error "
                                  "child")
 
-    @property
-    def type(self):
-        return self.get("type")
-
-    @type.setter
-    def type(self, value):
-        if value not in self._VALID_TYPES:
-            raise ValueError("Incorrect iq@type: {}".format(value))
-
-        self.set("type", value)
+    type = xml_enum_attribute("type", _VALID_TYPES)
 
     @property
     def data(self):
@@ -250,99 +260,98 @@ class Error(etree.ElementBase):
     TAG = "{jabber:client}error"
     _VALID_TYPES = {"auth", "cancel", "continue", "modify", "wait"}
     _TEXT_ELEMENT = "{{{}}}text".format(namespaces.stanzas)
-    _VALID_CONDITIONS = frozenset(
-        "{{{}}}{}".format(
-            namespaces.stanzas,
-            condition)
-        for condition in [
-                "bad-request",
-                "conflict",
-                "feature-not-implemented",
-                "forbidden",
-                "gone",
-                "internal-server-error",
-                "item-not-found",
-                "jid-malformed",
-                "not-acceptable",
-                "not-allowed",
-                "not-authorized",
-                "policy-violation",
-                "recipient-unavailable",
-                "redirect",
-                "registration-required",
-                "remote-server-not-found",
-                "remote-server-timeout",
-                "resource-constraint",
-                "service-unavailable",
-                "subscription-required",
-                "undefined-condition",
-                "unexpected-request",
-        ]
+    _VALID_CONDITIONS = frozenset((
+        "bad-request",
+        "conflict",
+        "feature-not-implemented",
+        "forbidden",
+        "gone",
+        "internal-server-error",
+        "item-not-found",
+        "jid-malformed",
+        "not-acceptable",
+        "not-allowed",
+        "not-authorized",
+        "policy-violation",
+        "recipient-unavailable",
+        "redirect",
+        "registration-required",
+        "remote-server-not-found",
+        "remote-server-timeout",
+        "resource-constraint",
+        "service-unavailable",
+        "subscription-required",
+        "undefined-condition",
+        "unexpected-request",
+    ))
+
+    _VALID_CONDITION_ELEMENTS = frozenset(
+        "{{{}}}{}".format(namespaces.stanzas, condition)
+        for condition in _VALID_CONDITIONS
     )
+    _NON_APPDEF_ELEMENTS = _VALID_CONDITION_ELEMENTS | {_TEXT_ELEMENT}
+    _CONDITION_FILTER = "{{{}}}*".format(namespaces.stanzas)
 
-    def _init(self):
-        super()._init()
-        condition_el = None
-        text_el = None
-        data_el = None
-        for item in self:
-            if item.tag in self._VALID_CONDITIONS:
-                if condition_el is not None:
-                    raise ValueError("Malformed error element "
-                                     "(multiple conditions)")
-                condition_el = item
-                continue
-            if item.tag == self._TEXT_ELEMENT:
-                if text_el is not None:
-                    raise ValueError("Malformed error element "
-                                     "(multiple texts)")
-                text_el = item
-                continue
-            if not item.tag.startswith("{{{}}}".format(namespaces.stanzas)):
-                if data_el is not None:
-                    raise ValueError("Malformed error element "
-                                     "(multiple application defined conditions)")
-                data_el = item
-                continue
-            raise ValueError("Malformed error element (unspecified condition)")
+    type = xml_enum_attribute("type", _VALID_TYPES)
 
-        if condition_el is None:
-            condition_el = self.makeelement(
-                "{urn:ietf:params:xml:ns:xmpp-stanzas}undefined-condition")
-            self.insert(0, condition_el)
-        else:
-            self.remove(condition_el)
-            self.insert(0, condition_el)
-        if text_el is not None and data_el is not None:
-            self.remove(text_el)
-            self.insert(1, text_el)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.condition = "undefined-condition"
 
-    @property
-    def type(self):
-        return self.get("type")
+    def _iter_condition_elements(self):
+        return (el for el in self.iterchildren(self._CONDITION_FILTER)
+                if el.tag in self._VALID_CONDITION_ELEMENTS)
 
-    @type.setter
-    def type(self, value):
-        if value not in self._VALID_TYPES:
-            raise ValueError("Not a valid error@type: {!r}".format(value))
+    def _iter_text_elements(self):
+        return self.iterchildren(self._TEXT_ELEMENT)
 
-        self.set("type", value)
+    def _iter_appdef_elements(self):
+        return (el for el in self.iterchildren()
+                if el.tag not in self._NON_APPDEF_ELEMENTS)
+
+    def validate(self):
+        if self.condition is None:
+            self.condition = "undefined-condition"
+
+        if iterator_has_more_than(self._iter_condition_elements(), 1):
+            raise ValueError("Malformed error element "
+                             "(multiple conditions)")
+
+        if iterator_has_more_than(self._iter_text_elements(), 1):
+            raise ValueError("Malformed error element "
+                             "(multiple texts)")
+
+        if iterator_has_more_than(self._iter_appdef_elements(), 1):
+            raise ValueError("Malformed error element "
+                             "(multiple application defined conditions)")
+
 
     @property
     def condition(self):
-        el = self[0]
-        if el.tag not in self._VALID_CONDITIONS:
-            raise ValueError("Malformed error element")
-
-        return el.tag[len(namespaces.stanzas)+2:]
+        try:
+            el = next(self._iter_condition_elements())
+        except StopIteration:
+            return None
+        else:
+            return split_tag(el.tag)[1]
 
     @condition.setter
     def condition(self, value):
-        tag = "{{{}}}{}".format(namespaces.stanzas, value)
-        if tag not in self._VALID_CONDITIONS:
-            raise ValueError("Invalid error condition: {}".format(value))
-        el = self[0]
-        el.tag = tag
+        existing = self.condition
+        if value not in self._VALID_CONDITIONS:
+            raise ValueError("{!r} is not a valid error condition".format(
+                value))
+
+        if existing == value:
+            return
+
+        value = "{{{}}}{}".format(namespaces.stanzas, value)
+        if existing is not None:
+            self.find("{{{}}}{}".format(
+                namespaces.stanzas,
+                existing)).tag = value
+        else:
+            self.insert(0, self.makeelement(value))
 
     def _find_text_element(self):
         el = self.find(self._TEXT_ELEMENT)
@@ -389,30 +398,33 @@ class Error(etree.ElementBase):
 
     @property
     def application_defined_condition(self):
-        el = self[-1]
-        if el.tag not in self._VALID_CONDITIONS and el.tag != self._TEXT_ELEMENT:
-            return el
-        return None
+        try:
+            return next(iter(self._iter_appdef_elements()))
+        except StopIteration:
+            return None
 
     @application_defined_condition.setter
     def application_defined_condition(self, value):
         existing = self.application_defined_condition
-        if existing is None:
-            self.append(value)
-        else:
-            self[-1] = value
+        if existing is not None:
+            self.remove(existing)
+        self.append(value)
 
     @application_defined_condition.deleter
     def application_defined_condition(self):
         existing = self.application_defined_condition
         if existing is not None:
-            del self[-1]
+            self.remove(existing)
 
     def make_exception(self):
-        return errors.XMPPError(
+        cls = errors.error_type_map.get(
+            self.type,
+            errors.XMPPError)
+
+        return cls(
             self.condition,
             text=self.text,
-            application_defined_condition=self.application_defined_condition.tag)
+            application_defined_condition=self.application_defined_condition)
 
 
 class QueueState:
@@ -516,3 +528,82 @@ class StanzaToken:
         over the stream.
         """
         return self._last_sent
+
+
+class ChildrenSetProxy(collections.abc.MutableSet):
+    def __init__(self, node, selector):
+        self._node = node
+        self._selector = selector
+
+    def _iter_nodes(self):
+        return self._node.iterchildren(self._selector)
+
+    def __iter__(self):
+        return self._iter_nodes()
+
+    def __len__(self):
+        return sum(1 for node in self._iter_nodes())
+
+    def __contains__(self, other_node):
+        return other_node.tag == self._selector and other_node in self._node
+
+    def add(self, node):
+        if node in self:
+            return
+        self._node.append(node)
+
+    def remove(self, node):
+        try:
+            self._node.remove(node)
+        except ValueError:
+            raise KeyError(node) from None
+
+    def discard(self, node):
+        try:
+            self.remove(node)
+        except KeyError:
+            pass
+
+    def clear(self):
+        for node in list(self._iter_nodes()):
+            self._node.remove(node)
+
+class TransformedChildrenSetProxy(ChildrenSetProxy):
+    def __init__(self, node, selector,
+                 constructor_func,
+                 map_func):
+        super().__init__(node, selector)
+        self._constructor_func = constructor_func
+        self._map_func = map_func
+
+    def __iter__(self):
+        return map(self._map_func, self._iter_nodes())
+
+    def __contains__(self, key):
+        return any(self._test_func(node, key)
+                   for node in self._iter_nodes())
+
+    def add(self, key):
+        if key in self:
+            return
+
+        self._constructor_func(
+            self._node,
+            key)
+
+    def remove(self, key):
+        for node in self._iter_nodes():
+            if self._map_func(node) == key:
+                self.remove(node)
+                return
+        raise KeyError(key)
+
+    def discard(self, key):
+        try:
+            self.remove(key)
+        except KeyError:
+            pass
+
+    def clear(self):
+        for node in list(self._iter_nodes()):
+            self._node.remove(node)
