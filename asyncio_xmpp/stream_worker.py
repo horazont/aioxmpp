@@ -633,9 +633,9 @@ class StreamManagementLivenessHandler(LivenessHandler):
             if request_future in done:
                 logger.debug("received ack request")
                 # remote side requests ack
-                ack_node = self._xmlstream.E(
+                ack_node = self.xmlstream.E(
                     "{{{}}}a".format(namespaces.stream_management),
-                    h=str(self._acked_remote_ctr))
+                    h=str(self.stanza_broker._acked_remote_ctr))
                 self.xmlstream.send_node(ack_node)
 
                 request_future = future_from_queue(self.request_queue,
