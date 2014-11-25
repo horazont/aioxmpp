@@ -191,6 +191,8 @@ class StanzaBroker(StreamWorker):
             except KeyError:
                 logger.warn("unexpected iq response: type=%s, id=%r, data=%s",
                             iq.type, iq.id, iq.data)
+                logger.debug("current token map: %r",
+                             self._iq_response_tokens)
             else:
                 token.response_future.set_result(iq)
             return
