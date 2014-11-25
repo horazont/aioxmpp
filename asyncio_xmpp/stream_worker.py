@@ -340,7 +340,7 @@ class StanzaBroker(StreamWorker):
             # IQ stanza, register handlers
             iq = token._stanza
             if iq.type in {"set", "get"}:
-                self._iq_response_tokens[iq.id, iq.from_] = token
+                self._iq_response_tokens[iq.id, iq.to] = token
         else:
             if token.response_future:
                 raise ValueError("Response future is not supported for "

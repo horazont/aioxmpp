@@ -767,7 +767,7 @@ class Client:
 
     def make_iq(self, **kwargs):
         iq = self._xmlstream.make_iq(**kwargs)
-        return token
+        return iq
 
     def make_presence(self, **kwargs):
         presence = self._xmlstream.make_presence(**kwargs)
@@ -779,7 +779,8 @@ class Client:
 
     def enqueue_stanza(self, stanza, **kwargs):
         self._stanza_broker.enqueue_token(
-            self._stanza_broker.make_stanza_token(stanza), **kwargs)
+            self._stanza_broker.make_stanza_token(stanza, **kwargs)
+        )
 
     def add_presence_queue(self, queue, type):
         cbs, queues = self._presence_callbacks.setdefault(
