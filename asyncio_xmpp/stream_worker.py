@@ -464,9 +464,10 @@ class PingLivenessHandler(LivenessHandler):
     def perform_request(self):
         self.response_future = asyncio.Future()
         token = self.stanza_broker.make_stanza_token(
-            self.xmlstream.make_iq(type="get"),
+            self.xmlstream.tx_context.make_iq(type="get"),
             response_future=self.response_future
         )
+        token.stanza.autoset_id()
         token.stanza.data = plugins.xep0199.Ping()
         self.passive_request_until = None
         self.sent_ping_timeout = datetime.utcnow() + \

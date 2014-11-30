@@ -172,6 +172,7 @@ class TestXMLStream(unittest.TestCase):
             b' xmlns:stream="http://etherx.jabber.org/streams"'
             b' xmlns="urn:ietf:params:xml:ns:xmpp-streams">'
             b'<unsupported-stanza-type/>'
+            b'<text>Duplicate stream header</text>'
             b'</stream:error>'
             b"</stream:stream>")
 
@@ -201,10 +202,11 @@ class TestXMLStream(unittest.TestCase):
             b' xmlns:stream="http://etherx.jabber.org/streams"'
             b' xmlns="urn:ietf:params:xml:ns:xmpp-streams">'
             b'<unsupported-version/>'
+            b'<text>Unsupported version</text>'
             b'</stream:error>'
             b"</stream:stream>")
 
-    def test_error_on_missing_version(self):
+    def test_error_on_malformed_version(self):
         proto, mock = self._proto, self._mock
 
         self.assertTrue(proto._died.is_set())
@@ -230,10 +232,11 @@ class TestXMLStream(unittest.TestCase):
             b' xmlns:stream="http://etherx.jabber.org/streams"'
             b' xmlns="urn:ietf:params:xml:ns:xmpp-streams">'
             b'<unsupported-version/>'
+            b'<text>Malformed version</text>'
             b'</stream:error>'
             b"</stream:stream>")
 
-    def test_error_on_incorrect_version(self):
+    def test_error_on_missing_version(self):
         proto, mock = self._proto, self._mock
 
         self.assertTrue(proto._died.is_set())
@@ -258,6 +261,7 @@ class TestXMLStream(unittest.TestCase):
             b' xmlns:stream="http://etherx.jabber.org/streams"'
             b' xmlns="urn:ietf:params:xml:ns:xmpp-streams">'
             b'<unsupported-version/>'
+            b'<text>Missing version tag</text>'
             b'</stream:error>'
             b"</stream:stream>")
 

@@ -7,6 +7,7 @@ import asyncio_xmpp.hooks as hooks
 import asyncio_xmpp.node as node
 import asyncio_xmpp.stanza as stanza
 import asyncio_xmpp.plugins.rfc6120 as rfc6120
+import asyncio_xmpp.xml as xml
 
 from asyncio_xmpp.utils import *
 
@@ -31,7 +32,8 @@ class SSLWrapperMock:
         pass
 
 class XMLStreamMock:
-    def __init__(self, tester, *, loop=None):
+    def __init__(self, tester, *,
+                 loop=None):
         super().__init__()
         self._closed = False
         self._loop = loop or asyncio.get_event_loop()
@@ -39,10 +41,8 @@ class XMLStreamMock:
         self._action_sequence = list()
         self._stream_level_node_hooks = hooks.NodeHooks()
         protocol.XMLStream._rx_reset(self)
-        tree_root, self.E = protocol.make_xmlstream_sender(
-            self._rx_parser,
-            "jabber:client")
-        self._tx_makeelement = tree_root.makeelement
+        self._tx_context = xml.XMLStreamSenderContext("jabber:client")
+        self.E = self._tx_context.E
 
         self.done_event = asyncio.Event(loop=loop)
         self.done_event.clear()
@@ -122,8 +122,6 @@ class XMLStreamMock:
     wait_for = protocol.XMLStream.wait_for
     send_and_wait_for = protocol.XMLStream.send_and_wait_for
     stream_error = protocol.XMLStream.stream_error
-    _make_from_template = protocol.XMLStream._make_from_template
-    make_iq = protocol.XMLStream.make_iq
 
 class TestableClient(node.Client):
     # this merely overrides the construction of the xmlstream so that we can

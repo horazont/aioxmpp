@@ -130,7 +130,7 @@ class SASLStateMachine:
     @asyncio.coroutine
     def _send_response(self, payload):
         return self._send_sasl_node_and_wait_for(
-            self.xmlstream.E(
+            self.xmlstream.tx_context(
                 "{urn:ietf:params:xml:ns:xmpp-sasl}response",
                 base64.b64encode(payload)))
 
@@ -148,7 +148,7 @@ class SASLStateMachine:
         if self._state != "initial":
             raise ValueError("initiate has already been called")
 
-        node = self.xmlstream.E(
+        node = self.xmlstream.tx_context(
             "{urn:ietf:params:xml:ns:xmpp-sasl}auth",
             mechanism=mechanism)
         if payload is not None:
@@ -171,7 +171,7 @@ class SASLStateMachine:
             raise ValueError("No challenge has been made or negotiation failed")
 
         result = yield from self._send_sasl_node_and_wait_for(
-            self.xmlstream.E(
+            self.xmlstream.tx_context(
                 "{urn:ietf:params:xml:ns:xmpp-sasl}response",
                 base64.b64encode(payload).decode("ascii")))
         return result
@@ -187,7 +187,7 @@ class SASLStateMachine:
 
         try:
             next_state, payload = yield from self._send_sasl_node_and_wait_for(
-                self.xmlstream.E(
+                self.xmlstream.tx_context(
                     "{urn:ietf:params:xml:ns:xmpp-sasl}abort")
             )
         except SASLFailure as err:

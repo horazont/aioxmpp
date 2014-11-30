@@ -11,35 +11,6 @@ from .utils import *
 
 logger = logging.getLogger(__name__)
 
-def make_xmlstream_parser():
-    parser = etree.XMLPullParser(
-        ('start', 'end'),
-        resolve_entities=False
-    )
-    parser.set_element_class_lookup(xml.lookup)
-    return parser
-
-def make_xmlstream_sender(parser, namespace):
-    nsmap = {
-        None: namespace
-    }
-
-    root = parser.makeelement(
-        "{{{}}}stream".format(namespaces.xmlstream),
-        nsmap=nsmap)
-
-    return root, lxml.builder.ElementMaker(
-        namespace=namespace,
-        nsmap=nsmap,
-        makeelement=root.makeelement)
-
-class SendStreamError(Exception):
-    def __init__(self, error_tag, text=None):
-        super().__init__("Going to send a stream:error (seeing this exception is"
-                         " a bug)")
-        self.error_tag = error_tag
-        self.text = text
-
 class XMLStream(asyncio.Protocol):
     MODEMAP = {
         "client": (
@@ -55,6 +26,7 @@ class XMLStream(asyncio.Protocol):
                  mode="client",
                  *,
                  loop=None,
+                 tx_context=xml.default_tx_context,
                  **kwargs):
         super().__init__(**kwargs)
         # client info
@@ -64,17 +36,11 @@ class XMLStream(asyncio.Protocol):
         except KeyError:
             raise ValueError("Invalid value for mode argument: {}".format(mode))
 
-        # transmitter state
-        self._tx_tree_root = None
-        self.E = None
+        # sender utils
+        self.tx_context = tx_context
 
         # receiver state
-        self._rx_parser = None
-        self._rx_stream_root = None
-        self._rx_stream_id = None
-        self._template_iq = None
-        self._template_message = None
-        self._template_presence = None
+        self._rx_context = None
 
         # asyncio state
         self._transport = None
@@ -97,19 +63,16 @@ class XMLStream(asyncio.Protocol):
 
         This may trigger the call of node event handlers.
         """
-        if self._rx_parser is None:
+        if self._rx_context is None:
             return
 
         try:
-            self._rx_parser.close()
+            self._rx_context.close()
         except lxml.etree.XMLSyntaxError:
             # ignore errors on closing
             pass
         self._transport.close()
-        self._rx_process()
-        self._rx_parser = None
-        self._rx_stream_root = None
-        self._rx_stream_id = None
+        self._rx_context = None
 
     def _rx_end_of_stream(self):
         """
@@ -123,10 +86,10 @@ class XMLStream(asyncio.Protocol):
 
     def _rx_feed(self, blob):
         try:
-            self._rx_parser.feed(blob)
+            self._rx_context.feed(blob)
             self._rx_process()
         except lxml.etree.XMLSyntaxError as err:
-            raise SendStreamError(
+            raise errors.SendStreamError(
                 "not-well-formed",
                 text=str(err))
 
@@ -134,18 +97,16 @@ class XMLStream(asyncio.Protocol):
         """
         Process any pending SAX events produced by the receiving parser.
         """
-        for ev, node in self._rx_parser.read_events():
-            if ev == "start" and node.tag == self.stream_header_tag:
-                self._rx_start_stream(node)
-            elif ev == "end":
-                if node.getparent() is None:
-                    # stream root
-                    self._rx_end_of_stream()
-                    break
-                if node.getparent() != self._rx_stream_root:
-                    continue
-                node.getparent().remove(node)
 
+        if not self._rx_context.ready:
+            if not self._rx_context.start():
+                return
+
+        for node in self._rx_context.read_stream_level_nodes():
+            logger.debug("node recv’d: %s", node)
+            if node is None:
+                self._rx_end_of_stream()
+            else:
                 if hasattr(node, "validate"):
                     try:
                         node.validate()
@@ -154,10 +115,9 @@ class XMLStream(asyncio.Protocol):
                         # content validation
                         # As these are only instanciated for the stream level
                         # nodes here, treating ValueErrors as critical is sane
-                        raise SendStreamError(
+                        raise errors.SendStreamError(
                             "invalid-xml",
                             str(err))
-
 
                 self._rx_process_stream_level_node(node)
 
@@ -169,41 +129,12 @@ class XMLStream(asyncio.Protocol):
                     namespaces.xmlstream):
                 self._rx_stream_error(node)
             else:
-                raise SendStreamError(
+                raise errors.SendStreamError(
                     "unsupported-stanza-type",
                     text="no handler for {}".format(node.tag))
 
     def _rx_reset(self):
-        self._rx_parser = make_xmlstream_parser()
-        self._rx_stream_root = None
-        self._rx_stream_id = None
-        self._template_iq = etree.fromstring(
-            """<iq xmlns="jabber:client" type="get" />""",
-            parser=self._rx_parser)
-        self._template_message = etree.fromstring(
-            """<message xmlns="jabber:client" />""",
-            parser=self._rx_parser)
-        self._template_presence = etree.fromstring(
-            """<presence xmlns="jabber:client" />""",
-            parser=self._rx_parser)
-
-    def _rx_start_stream(self, node):
-        if self._rx_stream_root is not None:
-            # duplicate <stream:stream>
-            raise SendStreamError("unsupported-stanza-type")
-        version = node.get("version")
-        if version is None:
-            raise SendStreamError("unsupported-version")
-        try:
-            version = tuple(map(int, version.split(".")))
-        except (ValueError, TypeError):
-            raise SendStreamError("unsupported-version")
-
-        if version[0] != 1:
-            raise SendStreamError("unsupported-version")
-
-        self._rx_stream_root = node
-        self._rx_stream_id = node.get("id")
+        self._rx_context = xml.XMLStreamReceiverContext()
 
     def _rx_stream_error(self, node):
         TEXT_TAG = "{{{}}}text".format(namespaces.streams)
@@ -235,19 +166,12 @@ class XMLStream(asyncio.Protocol):
             self.close()
 
     def _tx_close(self):
-        if self._tx_tree_root is None:
-            return
         self._tx_send_footer()
-        self._tx_tree_root = None
-        self.E = None
         if self._transport.can_write_eof():
             self._transport.write_eof()
 
     def _tx_reset(self):
-        self._tx_tree_root, self.E = make_xmlstream_sender(
-            self._rx_parser,
-            self._namespace)
-        self._tx_makeelement = self._tx_tree_root.makeelement
+        pass
 
     def _tx_send_footer(self):
         self._tx_send_raw(b"</stream:stream>")
@@ -290,22 +214,6 @@ class XMLStream(asyncio.Protocol):
         logger.debug("SEND %s", blob)
         self._transport.write(blob)
 
-    # internal helpers
-
-    def _make_from_template(self,
-                            template, *,
-                            from_=None,
-                            to=None,
-                            id=None):
-        stanza = copy.copy(template)
-        if from_:
-            stanza.from_ = from_
-        if to:
-            stanza.to = to
-        if id:
-            stanza.id = id
-        return stanza
-
     # asyncio Protocol implementation
 
     def connection_made(self, using_transport):
@@ -316,7 +224,7 @@ class XMLStream(asyncio.Protocol):
         logger.debug("RECV %s", blob)
         try:
             self._rx_feed(blob)
-        except SendStreamError as err:
+        except errors.SendStreamError as err:
             self.stream_error(err.error_tag, err.text)
 
     def eof_received(self):
@@ -340,8 +248,7 @@ class XMLStream(asyncio.Protocol):
             self._died.set()
             self._send_root = None
             self.E = None
-            self._rx_parser = None
-            self._stream_root = None
+            self._rx_context = None
             self._stream_level_node_hooks.close_all(
                 ConnectionError("Disconnected"))
 
@@ -352,27 +259,11 @@ class XMLStream(asyncio.Protocol):
     # public API
 
     def close(self):
+        if self._closing:
+            return
+        self._closing = True
         self._tx_close()
         self._rx_close()
-
-    def make_iq(self, *, type="get",
-                **kwargs):
-        iq = self._make_from_template(self._template_iq, **kwargs)
-        iq.type = type
-        return iq
-
-    def make_message(self, *, type="chat", **kwargs):
-        message = self._make_from_template(self._template_message,
-                                           **kwargs)
-        message.type = type
-        return message
-
-    def make_presence(self, *, type=None, **kwargs):
-        presence = self._make_from_template(
-            self._template_presence,
-            **kwargs)
-        presence.type = type
-        return presence
 
     def reset_stream(self):
         self._rx_reset()
@@ -454,7 +345,7 @@ class XMLStream(asyncio.Protocol):
         self._tx_send_node(node)
 
     def stream_error(self, tag, text):
-        node = self._tx_makeelement(
+        node = self.tx_context.makeelement(
             "{{{}}}error".format(namespaces.xmlstream),
             nsmap={
                 "stream": namespaces.xmlstream,

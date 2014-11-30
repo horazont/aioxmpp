@@ -19,6 +19,13 @@ class XMPPWarning(UserWarning):
         self.text = text
         self.application_defined_condition = application_defined_condition
 
+class SendStreamError(Exception):
+    def __init__(self, error_tag, text=None):
+        super().__init__("Going to send a stream:error (seeing this exception is"
+                         " a bug)")
+        self.error_tag = error_tag
+        self.text = text
+
 class XMPPError(Exception):
     def __init__(self,
                  error_tag,

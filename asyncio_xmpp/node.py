@@ -14,7 +14,7 @@ import ssl
 from datetime import datetime, timedelta
 
 from . import network, jid, protocol, stream_plugin, ssl_wrapper, sasl, stanza
-from . import plugins, custom_queue, stream_worker
+from . import plugins, custom_queue, stream_worker, xml
 from .utils import *
 
 logger = logging.getLogger(__name__)
@@ -113,9 +113,10 @@ class Client:
         self._xmlstream = None
         self._ssl_wrapper = None
 
+        self._tx_context = xml.default_tx_context
+
         # stream management state
         self._use_sm = use_sm
-        self._sm_queue = asyncio.Queue()
 
         self._callback_registry = {
             "connecting": [],
@@ -366,7 +367,7 @@ class Client:
 
         node = yield from self._xmlstream.send_and_wait_for(
             [
-                self._xmlstream.E("{{{}}}starttls".format(namespaces.starttls))
+                self._tx_context("{{{}}}starttls".format(namespaces.starttls))
             ],
             [
                 "{urn:ietf:params:xml:ns:xmpp-tls}proceed",
@@ -503,7 +504,7 @@ class Client:
             raise StreamNegotiationFailure("Server does not support resource "
                                            "binding")
 
-        bind = self._xmlstream.make_iq()
+        bind = self.make_iq()
         bind.type = "set"
         bind.data = plugins.rfc6120.Bind()
         if self._client_jid.resource is not None:
@@ -533,7 +534,7 @@ class Client:
         with self._stanza_broker.sm_init() as ctx:
             node = yield from self._xmlstream.send_and_wait_for(
                 [
-                    self._xmlstream.E("{{{}}}enable".format(
+                    self._tx_context("{{{}}}enable".format(
                         namespaces.stream_management))
                 ],
                 [
@@ -572,7 +573,7 @@ class Client:
 
         node = yield from self._xmlstream.send_and_wait_for(
             [
-                self._xmlstream.E(
+                self._tx_context(
                     "{{{}}}resume".format(namespaces.stream_management),
                     h=str(self._acked_remote_ctr),
                     previd=self._sm_id)
@@ -689,7 +690,8 @@ class Client:
     def _xmlstream_factory(self):
         proto = protocol.XMLStream(
             to=self._client_jid.domainpart,
-            loop=self._loop)
+            loop=self._loop,
+            tx_context=self._tx_context)
         proto.__features_future = proto.wait_for(
             [
                 "{http://etherx.jabber.org/streams}features",
@@ -766,15 +768,15 @@ class Client:
         cblist.append(cb)
 
     def make_iq(self, **kwargs):
-        iq = self._xmlstream.make_iq(**kwargs)
+        iq = self._tx_context.make_iq(**kwargs)
         return iq
 
     def make_presence(self, **kwargs):
-        presence = self._xmlstream.make_presence(**kwargs)
+        presence = self._tx_context.make_presence(**kwargs)
         return presence
 
     def make_message(self, **kwargs):
-        message = self._xmlstream.make_message(**kwargs)
+        message = self._tx_context.make_message(**kwargs)
         return message
 
     def enqueue_stanza(self, stanza, **kwargs):
