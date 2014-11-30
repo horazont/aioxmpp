@@ -2,7 +2,7 @@ def format_error_text(
         error_tag,
         text=None,
         application_defined_condition=None):
-    if application_defined_condition:
+    if application_defined_condition is not None:
         error_tag += "/{}".format(application_defined_condition.tag)
     if text:
         error_tag += " ({})".format(text)

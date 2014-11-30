@@ -184,6 +184,6 @@ class TestError(unittest.TestCase):
         self.assertEqual(
             exc.text,
             err.text)
-        self.assertEqual(
+        self.assertIs(
             exc.application_defined_condition,
-            err.application_defined_condition.tag)
+            err.application_defined_condition)
