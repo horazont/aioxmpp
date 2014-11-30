@@ -526,7 +526,7 @@ class PingLivenessHandler(LivenessHandler):
                 if now > self.sent_ping_timeout:
                     # ping timeout
                     logger.debug("ping timeout")
-                    yield from self.stanza_broker.ping_timeout_callback
+                    yield from self.stanza_broker.ping_timeout_callback()
                     break
             elif self.passive_request_until:
                 if now > self.passive_request_until:
