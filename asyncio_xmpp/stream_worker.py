@@ -126,6 +126,24 @@ class StanzaBroker(StreamWorker):
         for token in to_hold:
             token._state = stanza.QueueState.SENT_WITHOUT_ACK
 
+    def _prepare_token(self, token):
+        if token._stanza is None:
+            raise ValueError("Cannot send token without stanza")
+        token._stanza.autoset_id()
+        token._stanza.validate()
+
+        if token._stanza.tag.endswith("}iq"):
+            # IQ stanza, register handlers
+            iq = token._stanza
+            if iq.type in {"set", "get"}:
+                logger.debug("registering response handler for %r",
+                             token._stanza)
+                self._iq_response_tokens[iq.id, iq.to] = token
+        else:
+            if token.response_future:
+                raise ValueError("Response future is not supported for "
+                                 "{}".format(token._stanza))
+
     def _queued_stanza_abort(self, stanza_token):
         try:
             self.active_queue.remove(stanza_token)
@@ -309,6 +327,12 @@ class StanzaBroker(StreamWorker):
                     # opportunistic send
                     for fn in self._callbacks["opportunistic_send"]:
                         for token in fn():
+                            try:
+                                self._prepare_token(token)
+                            except:
+                                logger.exception("during opportunistic "
+                                                 "send (ignored)")
+                                continue
                             self._send_token(token)
 
                 outgoing_stanza_future = asyncio.async(
@@ -333,21 +357,7 @@ class StanzaBroker(StreamWorker):
     # StanzaBroker interface
 
     def enqueue_token(self, token):
-        if token._stanza is None:
-            raise ValueError("Cannot send token without stanza")
-        token._stanza.autoset_id()
-        token._stanza.validate()
-
-        if token._stanza.tag.endswith("}iq"):
-            # IQ stanza, register handlers
-            iq = token._stanza
-            if iq.type in {"set", "get"}:
-                self._iq_response_tokens[iq.id, iq.to] = token
-        else:
-            if token.response_future:
-                raise ValueError("Response future is not supported for "
-                                 "{}".format(token._stanza))
-
+        self._prepare_token(token)
         self.active_queue.append(token)
 
     def make_stanza_token(self, for_stanza, **kwargs):
