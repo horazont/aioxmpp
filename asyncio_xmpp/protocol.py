@@ -1,3 +1,16 @@
+"""
+:mod:`asyncio_xmpp.protocol` --- :class:`asyncio.Protocol` implementation for an xmlstream
+##########################################################################################
+
+The :class:`.XMLStream` lass provides an high-level interface to an XMPP
+xmlstream. The corresponding section in the user guide can be found at
+:ref:`ug-xmlstream`.
+
+.. autoclass:: XMLStream(to, [mode=Mode.C2S], *, [loop], [tx_context])
+   :members:
+
+"""
+
 import asyncio
 import copy
 import functools
@@ -5,25 +18,50 @@ import logging
 
 import lxml.builder
 
+from enum import Enum
+
 from . import stanza, hooks, errors, utils, xml
 
 from .utils import *
 
 logger = logging.getLogger(__name__)
 
+class Mode(Enum):
+    """
+    Mode for an XML stream, which can be either client-to-server or server-to-server.
+    """
+
+    #: client-to-server mode (uses the ``jabber:client`` namespace)
+    C2S = namespaces.client
+    CLIENT = namespaces.client
+
+    def __repr__(self):
+        return ".".join([type(self).__qualname__, self.name])
+
 class XMLStream(asyncio.Protocol):
-    MODEMAP = {
-        "client": (
-            namespaces.client,
-        )
-    }
+    """
+    Provide an element-level interface to an XML stream. The stream header is
+    configured in the constructor. *to* is the corresponding stream header
+    attribute. *mode* must be a :class:`Mode` value which determines the mode of
+    the stream, either client-to-server or server-to-server. The default is
+    client-to-server (:attr:`Mode.C2S`).
+
+    *tx_context* must be an :class:`~asyncio_xmpp.xml.XMLStreamSenderContext`
+    with appropriate default namespace for this type of xml stream (either
+    client or server). The default is usable for client streams, but not for
+    server streams.
+
+    *loop* must be an :class:`asyncio.BaseEventLoop` or :data:`None`. It is used
+    in any calls to the :mod:`asyncio` module where usage of an explicit event
+    loop argument is supported.
+    """
 
     stream_header_tag = "{{{stream_ns}}}stream".format(
         stream_ns=namespaces.xmlstream)
 
     def __init__(self,
                  to,
-                 mode="client",
+                 mode=Mode.C2S,
                  *,
                  loop=None,
                  tx_context=xml.default_tx_context,
@@ -31,10 +69,7 @@ class XMLStream(asyncio.Protocol):
         super().__init__(**kwargs)
         # client info
         self._to = to
-        try:
-            self._namespace, = self.MODEMAP[mode]
-        except KeyError:
-            raise ValueError("Invalid value for mode argument: {}".format(mode))
+        self._namespace = mode.value
 
         # sender utils
         self.tx_context = tx_context

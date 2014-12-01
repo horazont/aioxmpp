@@ -83,7 +83,7 @@ class TestXMLStream(unittest.TestCase):
         self._loop = asyncio.get_event_loop()
         self._proto = protocol.XMLStream(
             to="localhost.localdomain",
-            mode="client",
+            mode=protocol.Mode.C2S,
             loop=self._loop)
         self._mock = TransportMock(self._proto)
 
