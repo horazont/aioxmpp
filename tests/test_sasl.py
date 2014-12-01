@@ -7,6 +7,7 @@ import unittest
 import lxml.builder
 
 import asyncio_xmpp.sasl as sasl
+import asyncio_xmpp.xml as xml
 
 
 class RNGMock:
@@ -20,7 +21,8 @@ class RNGMock:
 
 class XMLStreamMock:
     def __init__(self):
-        self.E = lxml.builder.ElementMaker()
+        self.tx_context = xml.default_tx_context
+        self.E = self.tx_context
 
 sasl._system_random = RNGMock(b"foo")
 

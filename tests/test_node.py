@@ -41,8 +41,8 @@ class XMLStreamMock:
         self._action_sequence = list()
         self._stream_level_node_hooks = hooks.NodeHooks()
         protocol.XMLStream._rx_reset(self)
-        self._tx_context = xml.XMLStreamSenderContext("jabber:client")
-        self.E = self._tx_context.E
+        self.tx_context = xml.default_tx_context
+        self.E = self.tx_context
 
         self.done_event = asyncio.Event(loop=loop)
         self.done_event.clear()
