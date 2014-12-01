@@ -4,6 +4,78 @@ import unittest
 import asyncio_xmpp.protocol as protocol
 import asyncio_xmpp.errors as errors
 
+class Test_State(unittest.TestCase):
+    def test_UNCONNECTED(self):
+        state = protocol._State.UNCONNECTED
+        self.assertFalse(state.rx_open)
+        self.assertFalse(state.tx_open)
+        self.assertFalse(state.connected)
+        self.assertFalse(state.stream_usable)
+
+        self.assertEqual(state, state.with_closed_tx())
+        self.assertEqual(state, state.with_closed_rx())
+
+    def test_CONNECTED(self):
+        state = protocol._State.CONNECTED
+        self.assertTrue(state.rx_open)
+        self.assertTrue(state.tx_open)
+        self.assertTrue(state.connected)
+        self.assertFalse(state.stream_usable)
+
+        self.assertEqual(protocol._State.TX_CLOSED_RX_OPEN,
+                         state.with_closed_tx())
+        self.assertEqual(protocol._State.TX_OPEN_RX_CLOSED,
+                         state.with_closed_rx())
+
+    def test_STREAM_HEADER_RECEIVED(self):
+        state = protocol._State.STREAM_HEADER_RECEIVED
+        self.assertTrue(state.rx_open)
+        self.assertTrue(state.tx_open)
+        self.assertTrue(state.connected)
+        self.assertTrue(state.stream_usable)
+
+        self.assertEqual(protocol._State.TX_CLOSED_RX_OPEN,
+                         state.with_closed_tx())
+        self.assertEqual(protocol._State.TX_OPEN_RX_CLOSED,
+                         state.with_closed_rx())
+
+    def test_TX_CLOSED_RX_OPEN(self):
+        state = protocol._State.TX_CLOSED_RX_OPEN
+        self.assertTrue(state.rx_open)
+        self.assertFalse(state.tx_open)
+        self.assertFalse(state.connected)
+        self.assertFalse(state.stream_usable)
+
+        self.assertEqual(protocol._State.TX_CLOSED_RX_OPEN,
+                         state.with_closed_tx())
+        self.assertEqual(protocol._State.CLOSING,
+                         state.with_closed_rx())
+
+    def test_TX_OPEN_RX_CLOSED(self):
+        state = protocol._State.TX_OPEN_RX_CLOSED
+        self.assertFalse(state.rx_open)
+        self.assertTrue(state.tx_open)
+        self.assertFalse(state.connected)
+        self.assertFalse(state.stream_usable)
+
+        self.assertEqual(protocol._State.CLOSING,
+                         state.with_closed_tx())
+        self.assertEqual(protocol._State.TX_OPEN_RX_CLOSED,
+                         state.with_closed_rx())
+
+    def test_CLOSING(self):
+        state = protocol._State.CLOSING
+        self.assertFalse(state.rx_open)
+        self.assertFalse(state.tx_open)
+        self.assertFalse(state.connected)
+        self.assertFalse(state.stream_usable)
+
+        self.assertEqual(protocol._State.CLOSING,
+                         state.with_closed_tx())
+        self.assertEqual(protocol._State.CLOSING,
+                         state.with_closed_rx())
+
+
 class TransportMock(asyncio.ReadTransport, asyncio.WriteTransport):
     def __init__(self, protocol):
         super().__init__()
@@ -99,15 +171,12 @@ class TestXMLStream(unittest.TestCase):
     def test_disconnect_cleanly(self):
         proto, mock = self._proto, self._mock
 
-        self.assertTrue(proto._died.is_set())
         mock.mock_connection_made()
         self._mock_stream_header()
-        self.assertFalse(proto._died.is_set())
         mock.mock_data_received(
             b'</stream:stream>')
         mock.mock_eof_received()
         mock.mock_connection_lost(None)
-        self.assertTrue(proto._died.is_set())
         self.assertTrue(mock.closed)
 
         self.assertSequenceEqual(
@@ -149,7 +218,6 @@ class TestXMLStream(unittest.TestCase):
     def test_error_on_duplicate_stream_header(self):
         proto, mock = self._proto, self._mock
 
-        self.assertTrue(proto._died.is_set())
         mock.mock_connection_made()
         self._mock_stream_header()
         mock.mock_data_received(
@@ -179,7 +247,6 @@ class TestXMLStream(unittest.TestCase):
     def test_error_on_unsupported_version(self):
         proto, mock = self._proto, self._mock
 
-        self.assertTrue(proto._died.is_set())
         mock.mock_connection_made()
         mock.mock_data_received(
             b'<?xml version="1.0" ?>'
@@ -209,7 +276,6 @@ class TestXMLStream(unittest.TestCase):
     def test_error_on_malformed_version(self):
         proto, mock = self._proto, self._mock
 
-        self.assertTrue(proto._died.is_set())
         mock.mock_connection_made()
         mock.mock_data_received(
             b'<?xml version="1.0" ?>'
@@ -239,7 +305,6 @@ class TestXMLStream(unittest.TestCase):
     def test_error_on_missing_version(self):
         proto, mock = self._proto, self._mock
 
-        self.assertTrue(proto._died.is_set())
         mock.mock_connection_made()
         mock.mock_data_received(
             b'<?xml version="1.0" ?>'

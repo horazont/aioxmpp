@@ -15,6 +15,7 @@ import asyncio
 import copy
 import functools
 import logging
+import warnings
 
 import lxml.builder
 
@@ -37,6 +38,85 @@ class Mode(Enum):
 
     def __repr__(self):
         return ".".join([type(self).__qualname__, self.name])
+
+class _State(Enum):
+    """
+    The values are bitmasks with internal definition. Do not change light
+    heartedly. Use of the value outside any methods of this class MUST NOT
+    happen.
+    """
+
+    #: connection_made not called yet
+    UNCONNECTED = 0x00
+
+    #: connection_made has been called, but stream header not yet received
+    #: (stream not usable yet)
+    CONNECTED = 0x01
+
+    #: stream header has been received, stream is usable
+    STREAM_HEADER_RECEIVED = 0x03
+
+    #: </stream:stream> sent and write_eof() on transport called, but
+    #: </stream:stream> not received
+    TX_CLOSED_RX_OPEN = 0x10
+
+    #: </stream:stream> received, but </stream:stream> not sent yet, underlying
+    #: transport still fully open
+    TX_OPEN_RX_CLOSED = 0x20
+
+    #: both sides have been terminated, we are waiting for connection_lost
+    CLOSING = 0x40
+
+    @property
+    def rx_open(self):
+        """
+        :data:`True` if the receiving side of the transport is still usable,
+        :data:`False` otherwise.
+        """
+        return (bool(self.value & _State.TX_CLOSED_RX_OPEN.value) or
+                self.connected)
+
+    @property
+    def tx_open(self):
+        """
+        :data:`True` if the sending side of the transport is still usable,
+        :data:`False` otherwise.
+        """
+        return (bool(self.value & _State.TX_OPEN_RX_CLOSED.value) or
+                self.connected)
+
+    @property
+    def connected(self):
+        """
+        :data:`True` if the transport is still fully open, :data:`False`
+        otherwise.
+        """
+        return bool(self.value & _State.CONNECTED.value)
+
+    @property
+    def stream_usable(self):
+        """
+        :data:`True` if the stream is usable, :data:`False` otherwise.
+        """
+        bitmask = _State.STREAM_HEADER_RECEIVED.value
+        return bool((self.value & bitmask) == bitmask)
+
+    def with_closed_rx(self):
+        if self == _State.TX_CLOSED_RX_OPEN:
+            return _State.CLOSING
+        elif not self.connected:
+            return self
+        else:
+            return _State.TX_OPEN_RX_CLOSED
+
+    def with_closed_tx(self):
+        if self == _State.TX_OPEN_RX_CLOSED:
+            return _State.CLOSING
+        elif not self.connected:
+            return self
+        else:
+            return _State.TX_CLOSED_RX_OPEN
+
 
 class XMLStream(asyncio.Protocol):
     """
@@ -67,6 +147,9 @@ class XMLStream(asyncio.Protocol):
                  tx_context=xml.default_tx_context,
                  **kwargs):
         super().__init__(**kwargs)
+        # main state
+        self._state = _State.UNCONNECTED
+
         # client info
         self._to = to
         self._namespace = mode.value
@@ -83,8 +166,6 @@ class XMLStream(asyncio.Protocol):
 
         # connection state
         self._stream_level_node_hooks = hooks.NodeHooks()
-        self._died = asyncio.Event()
-        self._died.set()
         self._closing = False
 
         # callbacks
@@ -92,32 +173,45 @@ class XMLStream(asyncio.Protocol):
         self.on_starttls_engaged = None
         self.on_connection_lost = None
 
-    def _rx_close(self):
-        """
-        Close the parser and reset any receiving state.
+    def _invalid_transition(self, via=None, to=None):
+        via_text = (" via {}".format(via)) if via is not None else ""
+        to_text = (" to {}".format(to)) if to is not None else ""
+        msg = "Invalid state transition (from {}{}{})".format(
+            self._state,
+            via_text,
+            to_text
+        )
+        logger.error(msg)
+        raise RuntimeError(msg)
 
-        This may trigger the call of node event handlers.
-        """
-        if self._rx_context is None:
+    def _invalid_state(self, what, exc=RuntimeError):
+        msg = "{what} (invalid in state {state})".format(
+            what=what,
+            state=self._state)
+        logger.error(msg)
+        # raising is optional :)
+        return exc(msg)
+
+    def _rx_close(self):
+        if not self._state.rx_open:
             return
 
         try:
             self._rx_context.close()
         except lxml.etree.XMLSyntaxError:
-            # ignore errors on closing
             pass
+
+        self._state = self._state.with_closed_rx()
         self._transport.close()
         self._rx_context = None
 
     def _rx_end_of_stream(self):
-        """
-        Handle </stream:stream> being received from the remote end.
-        """
-        if not self._closing:
+        if self._state.stream_usable:
             self.close()
-            return
-
-        self._rx_close()
+        elif self._state.connected:
+            self._invalid_state("received end of stream before header")
+        else:
+            raise self._invalid_state("received end of stream")
 
     def _rx_feed(self, blob):
         try:
@@ -136,6 +230,7 @@ class XMLStream(asyncio.Protocol):
         if not self._rx_context.ready:
             if not self._rx_context.start():
                 return
+            self._state = _State.STREAM_HEADER_RECEIVED
 
         for node in self._rx_context.read_stream_level_nodes():
             logger.debug("node recv’d: %s", node)
@@ -196,17 +291,20 @@ class XMLStream(asyncio.Protocol):
 
         if self.on_stream_error:
             self.on_stream_error(err)
-        else:
-            logger.error("remote sent %s", str(err))
-            self.close()
+        logger.error("remote sent %s", str(err))
+        self.close()
 
     def _tx_close(self):
+        if not self._state.tx_open:
+            return
+
         self._tx_send_footer()
         if self._transport.can_write_eof():
             self._transport.write_eof()
+        self._state = self._state.with_closed_tx()
 
     def _tx_reset(self):
-        pass
+        self._tx_send_header()
 
     def _tx_send_footer(self):
         self._tx_send_raw(b"</stream:stream>")
@@ -244,18 +342,28 @@ class XMLStream(asyncio.Protocol):
 
         Raises :class:`ConnectionError` if not connected to a transport.
         """
-        if self._transport is None:
-            raise ConnectionError("Not connected")
+        if not self._state.tx_open:
+            raise self._invalid_state("attempt to transmit data",
+                                      exc=ConnectionError)
+
         logger.debug("SEND %s", blob)
         self._transport.write(blob)
 
     # asyncio Protocol implementation
 
     def connection_made(self, using_transport):
+        if self._state != _State.UNCONNECTED:
+            raise self._invalid_transition(via="connection_made")
+
         self._transport = using_transport
+        self._state = _State.CONNECTED
         self.reset_stream()
 
     def data_received(self, blob):
+        if not self._state.rx_open:
+            self._invalid_state("received data")
+            return
+
         logger.debug("RECV %s", blob)
         try:
             self._rx_feed(blob)
@@ -263,27 +371,38 @@ class XMLStream(asyncio.Protocol):
             self.stream_error(err.error_tag, err.text)
 
     def eof_received(self):
+        if self._state == _State.UNCONNECTED:
+            self._invalid_state("received eof")
+            return
+
         try:
-            self.close()
+            if self._state.connected:
+                self.close()
+                return
+            if self._state.rx_open:
+                self._rx_close()
         except:
             logger.exception("during eof_received")
             raise
 
     def pause_writing(self):
-        pass
+        logger.warn("pause_writing not implemented")
 
     def resume_writing(self):
-        pass
+        logger.warn("resume_writing not implemented")
 
     def connection_lost(self, exc):
+        if self._state == _State.UNCONNECTED:
+            raise self._invalid_transition(via="connection_lost")
         try:
-            self.close()
+            if self._state != _State.CLOSING:
+                # cannot send anything anymore, assume closed tx
+                self._state = self._state.with_closed_tx()
+                self.close()
+            self._state = _State.UNCONNECTED
         finally:
-            self._transport = None
-            self._died.set()
-            self._send_root = None
-            self.E = None
             self._rx_context = None
+            self._transport = None
             self._stream_level_node_hooks.close_all(
                 ConnectionError("Disconnected"))
 
@@ -294,17 +413,20 @@ class XMLStream(asyncio.Protocol):
     # public API
 
     def close(self):
-        if self._closing:
+        if self._state == _State.UNCONNECTED:
+            warnings.warn("trying to close an unconnected stream")
             return
-        self._closing = True
+
         self._tx_close()
         self._rx_close()
 
     def reset_stream(self):
+        if not self._state.connected:
+            raise self._invalid_transition(via="reset_stream",
+                                           to=_State.CONNECTED)
         self._rx_reset()
         self._tx_reset()
-        self._tx_send_header()
-        self._died.clear()
+        self._state = _State.CONNECTED
 
     def _send_andor_wait_for(self,
                              nodes_to_send,
