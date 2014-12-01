@@ -499,6 +499,9 @@ class XMLStream(asyncio.Protocol):
             critical_timeout=critical_timeout)
 
     def send_node(self, node):
+        if not self._state.stream_usable:
+            raise ConnectionError("Stream is not usable (state is {})".format(
+                self._state))
         self._tx_send_node(node)
 
     def stream_error(self, tag, text):
