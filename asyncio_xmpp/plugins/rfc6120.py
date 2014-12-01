@@ -1,5 +1,7 @@
 import asyncio_xmpp.stanza as stanza
 import asyncio_xmpp.jid as jid
+import asyncio_xmpp.xml as xml
+
 from asyncio_xmpp.utils import *
 
 namespaces.bind = "urn:ietf:params:xml:ns:xmpp-bind"
@@ -58,3 +60,5 @@ class Bind(stanza.StanzaElementBase):
 def register(lookup):
     ns = lookup.get_namespace(namespaces.bind)
     ns["bind"] = Bind
+
+register(xml.lookup)

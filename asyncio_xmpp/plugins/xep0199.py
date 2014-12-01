@@ -4,6 +4,7 @@ XEP-0199: XMPP Ping support
 """
 
 import asyncio_xmpp.stanza as stanza
+import asyncio_xmpp.xml as xml
 
 from asyncio_xmpp.utils import *
 
@@ -20,3 +21,5 @@ class Ping(stanza.StanzaElementBase):
 def register(lookup):
     ns = lookup.get_namespace(namespaces.xep0199_ping)
     ns["ping"] = Ping
+
+register(xml.lookup)

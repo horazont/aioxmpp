@@ -3,7 +3,7 @@ import copy
 
 import lxml.builder
 
-from . import plugins, stanza, errors
+from . import stanza, errors
 from .utils import *
 
 __all__ = ["lookup"]
@@ -16,10 +16,6 @@ for ns in [lookup.get_namespace("jabber:client"),
     ns["presence"] = stanza.Presence
     ns["error"] = stanza.Error
     ns["message"] = stanza.Message
-
-plugins.rfc6120.register(lookup)
-plugins.xep0199.register(lookup)
-plugins.xep0030.register(lookup)
 
 def configure_xmpp_parser(parser):
     """
