@@ -7,6 +7,10 @@ This module provides different implementations of the security layer (TLS+SASL).
 These are coupled, as different SASL features might need different TLS features
 (such as channel binding or client cert authentication).
 
+.. autofunction:: tls_with_password_based_authentication(password_provider, [ssl_context_factory], [max_auth_attempts=3])
+
+.. autofunction:: security_layer
+
 .. autofunction:: negotiate_stream_security
 
 Partial security providers
@@ -47,9 +51,11 @@ used:
 """
 import abc
 import asyncio
+import functools
 import logging
+import ssl
 
-from . import errors, sasl
+from . import errors, sasl, stream_elements
 from .utils import *
 
 logger = logging.getLogger(__name__)
@@ -62,8 +68,7 @@ class STARTTLSProvider:
 
     *ssl_context_factory* must be a callable returning a valid
     :class:`ssl.SSLContext` object. It is called without
-    arguments. *server_hostname* must be the host name to validate the
-    certificate against.
+    arguments.
 
     *require_starttls* can be set to :data:`False` to allow stream negotiation
     to continue even if STARTTLS fails before it has been started (the stream is
@@ -81,20 +86,19 @@ class STARTTLSProvider:
 
     """
 
-    def __init__(self, ssl_context_factory, server_hostname, *,
+    def __init__(self, ssl_context_factory, *,
                  require_starttls=True, **kwargs):
         super().__init__(**kwargs)
         self._ssl_context_factory = ssl_context_factory
-        self._server_hostname = server_hostname
         self._required = require_starttls
 
     def _fail_if_required(self, msg):
         if self._required:
             raise errors.TLSFailure(msg)
-        return False
+        return None
 
     @asyncio.coroutine
-    def execute(self, features, xmlstream):
+    def execute(self, client_jid, features, xmlstream):
         """
         Perform STARTTLS negotiation. If successful, a ``(tls_transport,
         new_features)`` pair is returned. Otherwise, if STARTTLS failed
@@ -135,29 +139,43 @@ class STARTTLSProvider:
             try:
                 tls_transport, _ = yield from xmlstream.transport.starttls(
                     ssl_context=self._ssl_context_factory(),
-                    server_hostname=self._server_hostname)
+                    server_hostname=client_jid.domainpart)
             except Exception as err:
                 logger.exception("STARTTLS failed:")
                 raise errors.TLSFailure("TLS connection failed: {}".format(err))
-            new_features = yield from xmlstream.reset_stream_and_get_features()
-            return tls_transport, new_features
+            return tls_transport
 
         return self._fail_if_required("STARTTLS failed on remote side")
 
 class SASLProvider:
-    def __init__(self, jid, **kwargs):
-        super().__init__(**kwargs)
-        self._jid = jid.bare if hasattr("jid", "bare") else str(jid)
-
     def _find_supported(self, features, mechanism_classes):
+        """
+        Return a supported SASL mechanism class, by looking the given
+        stream features *features*.
+
+        If SASL is not supported at all, :class:`~.errors.SASLFailure` is
+        raised. If no matching mechanism is found, ``(None, None)`` is
+        returned. Otherwise, a pair consisting of the mechanism class and the
+        value returned by the respective
+        :meth:`~.sasl.SASLMechanism.any_supported` method is returned.
+        """
+
         try:
             mechanisms = features.require_feature("{{{}}}mechanisms".format(
                 namespaces.sasl))
         except KeyError:
-            raise SASLFailure("Remote side does not support SASL") from None
+            logger.error("No sasl mechanisms: %r", list(features))
+            raise errors.SASLFailure("Remote side does not support SASL") from None
 
-        for our_mechanism in self._mechansim_classes:
-            token = our_mechanism.any_supported(mechanisms)
+        remote_mechanism_list = [
+            mechanism.text
+            for mechanism in mechanisms.iterchildren("{{{}}}mechanism".format(
+                    namespaces.sasl))
+            if mechanism.text
+        ]
+
+        for our_mechanism in mechanism_classes:
+            token = our_mechanism.any_supported(remote_mechanism_list)
             if token is not None:
                 return our_mechanism, token
 
@@ -165,12 +183,20 @@ class SASLProvider:
 
     @asyncio.coroutine
     def _execute(self, xmlstream, mechanism, token):
+        """
+        Execute SASL negotiation using the given *mechanism* instance and
+        *token* on the *xmlstream*.
+        """
         sm = sasl.SASLStateMachine(xmlstream)
         yield from mechanism.authenticate(sm, token)
 
     @abc.abstractmethod
     @asyncio.coroutine
-    def execute(self, features, xmlstream, tls_transport):
+    def execute(self,
+                client_jid,
+                features,
+                xmlstream,
+                tls_transport):
         """
         Perform SASL negotiation. The implementation depends on the specific
         :class:`SASLProvider` subclass in use.
@@ -192,7 +218,7 @@ class PasswordSASLProvider(SASLProvider):
     *jid* must be a :class:`~.jid.JID` object for the
     client. *password_provider* must be a coroutine which is called with the jid
     as first and the number of attempt as second argument. It must return the
-    password to us, or :data:`None` to abort. In that case, an
+    password to use, or :data:`None` to abort. In that case, an
     :class:`errors.AuthenticationFailure` error will be raised.
 
     At most *max_auth_attempts* will be carried out. If all fail, the
@@ -203,38 +229,47 @@ class PasswordSASLProvider(SASLProvider):
     been negotiated, :class:`~.sasl.PLAIN` is also supported.
     """
 
-    def __init__(self, jid, password_provider, *,
+    def __init__(self, password_provider, *,
                  max_auth_attempts=3, **kwargs):
-        super().__init__(jid, **kwargs)
+        super().__init__(**kwargs)
         self._password_provider = password_provider
-        self._nattempt = 0
         self._max_auth_attempts = max_auth_attempts
 
     @asyncio.coroutine
-    def _credential_provider(self):
-        password = yield from self._password_provider(self._jid, self._nattempt)
-        if password is None:
-            self._password_signalled_abort = True
-            raise errors.AuthenticationFailure("Authentication aborted by user")
-        return self._jid.localpart, password
+    def execute(self,
+                client_jid,
+                features,
+                xmlstream,
+                tls_transport):
+        client_jid = client_jid.bare
 
-    @asyncio.coroutine
-    def execute(self, features, xmlstream, tls_transport):
-        self._password_signalled_abort = False
+        password_signalled_abort = False
+        nattempt = 0
+
+        @asyncio.coroutine
+        def credential_provider():
+            nonlocal password_signalled_abort, nattempt
+            password = yield from self._password_provider(
+                client_jid, nattempt)
+            if password is None:
+                password_signalled_abort = True
+                raise errors.AuthenticationFailure(
+                    "Authentication aborted by user")
+            return client_jid.localpart, password
 
         classes = [
             sasl.SCRAM
         ]
-        if xmlstream.tls_engaged:
+        if tls_transport is not None:
             classes.append(sasl.PLAIN)
 
         mechanism_class, token = self._find_supported(features, classes)
         if mechanism_class is None:
             return False
 
-        mechanism = mechanism_class(self._credential_provider)
+        mechanism = mechanism_class(credential_provider)
         last_auth_error = None
-        for i in range(self._max_auth_attempts):
+        for nattempt in range(self._max_auth_attempts):
             try:
                 yield from self._execute(xmlstream, mechanism, token)
             except sasl.AuthenticationError as err:
@@ -251,9 +286,13 @@ class PasswordSASLProvider(SASLProvider):
 
         return True
 
+def default_ssl_context():
+    ctx = ssl.SSLContext(ssl.PROTOCOL_TLSv1)
+    return ctx
+
 @asyncio.coroutine
 def negotiate_stream_security(tls_provider, sasl_providers,
-                              features, xmlstream):
+                              negotiation_timeout, jid, features, xmlstream):
     """
     Negotiate stream security for the given *xmlstream*. For this to work,
     *features* must be the most recent
@@ -288,24 +327,24 @@ def negotiate_stream_security(tls_provider, sasl_providers,
     respectively.
     """
 
-    tls_transport = None
-    result = yield from self._tls_provider.execute(
-        features, xmlstream)
+    tls_transport = yield from tls_provider.execute(jid, features, xmlstream)
 
-    if result:
-        tls_transport, features = result
+    if tls_transport is not None:
+        features = yield from xmlstream.reset_stream_and_get_features(
+            timeout=negotiation_timeout)
 
     last_auth_error = None
-    for sasl_provider in self._sasl_providers:
+    for sasl_provider in sasl_providers:
         try:
             result = yield from sasl_provider.execute(
-                features, tls_transport, xmlstream)
+                jid, features, xmlstream, tls_transport)
         except errors.AuthenticationFailure as err:
             last_auth_error = err
             continue
 
-        if result is not False:
-            features = result
+        if result:
+            features = yield from xmlstream.reset_stream_and_get_features(
+                timeout=negotiation_timeout)
             break
     else:
         if last_auth_error:
@@ -314,3 +353,53 @@ def negotiate_stream_security(tls_provider, sasl_providers,
             raise errors.SASLFailure("No common mechanisms")
 
     return tls_transport, features
+
+def security_layer(tls_provider, sasl_providers):
+    """
+    .. seealso::
+
+       Use this function only if you need more customization than provided by
+       :func:`tls_with_password_based_authentication`.
+
+    Return a partially applied :func:`negotiate_stream_security` function, where
+    the *tls_provider* and *sasl_providers* arguments are already bound.
+
+    The return value can be passed to the constructor of :class:`~.node.Client`.
+
+    Some very basic checking on the input is also performed.
+    """
+
+    tls_provider.execute  # check that tls_provider has execute method
+    sasl_providers = list(sasl_providers)
+    if not sasl_providers:
+        raise ValueError("At least one SASL provider must be given.")
+    for sasl_provider in sasl_providers:
+        sasl_provider.execute  # check that sasl_provider has execute method
+
+    return functools.partial(negotiate_stream_security,
+                             tls_provider, sasl_providers)
+
+
+def tls_with_password_based_authentication(
+        password_provider,
+        ssl_context_factory=default_ssl_context,
+        max_auth_attempts=3):
+    """
+    Produce a commonly used security layer, which uses TLS and password
+    authentication. If *ssl_context_factory* is not provided, an SSL context
+    with TLSv1+ is used.
+
+    *password_provider* must be a coroutine which is called with the jid
+    as first and the number of attempt as second argument. It must return the
+    password to us, or :data:`None` to abort.
+
+    Return a security layer which can be passed to :class:`~.node.Client`.
+    """
+
+    return security_layer(
+        tls_provider=STARTTLSProvider(ssl_context_factory,
+                                      require_starttls=True),
+        sasl_providers=[PasswordSASLProvider(
+            password_provider,
+            max_auth_attempts=max_auth_attempts)]
+    )

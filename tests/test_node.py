@@ -8,6 +8,8 @@ import asyncio_xmpp.node as node
 import asyncio_xmpp.stanza as stanza
 import asyncio_xmpp.plugins.rfc6120 as rfc6120
 import asyncio_xmpp.xml as xml
+import asyncio_xmpp.security_layer as security_layer
+import asyncio_xmpp.errors as errors
 
 from asyncio_xmpp.utils import *
 
@@ -27,6 +29,7 @@ class SSLWrapperMock:
                           "Unexpected starttls attempt by the client")
         hostname = to_recv[10:] or None
         tester.assertEqual(server_hostname, hostname)
+        return self, None
 
     def close(self):
         pass
@@ -39,6 +42,7 @@ class XMLStreamMock:
         self._loop = loop or asyncio.get_event_loop()
         self._tester = tester
         self._action_sequence = list()
+        self._transport = None
         self._stream_level_node_hooks = hooks.NodeHooks()
         protocol.XMLStream._rx_reset(self)
         self.tx_context = xml.default_tx_context
@@ -49,15 +53,22 @@ class XMLStreamMock:
 
     def connection_made(self, transport):
         self._closed = False
+        self._transport = transport
 
     def close(self):
         self._tester.assertFalse(self._closed)
         self._tester.assertTrue(self._action_sequence)
         to_recv, to_send = self._action_sequence.pop(0)
-        self._tester.assertEqual(to_recv, "!close")
+        self._tester.assertEqual(
+            to_recv, "!close",
+            msg="Expected client to send {}".format(
+                etree.tostring(to_recv) if not isinstance(to_recv, str) else "")
+        )
         self._tester.assertFalse(to_send)
         self.done_event.set()
         self._closed = True
+        if self.on_connection_lost:
+            self.on_connection_lost(None)
 
     def reset_stream(self):
         self._tester.assertFalse(self._closed)
@@ -90,7 +101,8 @@ class XMLStreamMock:
         # print("foo", node)
         self._tester.assertNotEqual(
             to_recv, "!close",
-            "Unexpected node sent by the client")
+            "Unexpected node sent by the client: {}".format(
+                etree.tostring(node)))
         # print("bar")
         # XXX: this needs to be done better. maybe we need a comparision method
         # on stanzas.
@@ -122,19 +134,29 @@ class XMLStreamMock:
     wait_for = protocol.XMLStream.wait_for
     send_and_wait_for = protocol.XMLStream.send_and_wait_for
     stream_error = protocol.XMLStream.stream_error
+    transport = protocol.XMLStream.transport
+    reset_stream_and_get_features = \
+        protocol.XMLStream.reset_stream_and_get_features
 
 class TestableClient(node.Client):
     # this merely overrides the construction of the xmlstream so that we can
     # hook our mockable stream into it
 
     def __init__(self, mocked_transport, mocked_stream,
-                 client_jid, password, *args, **kwargs):
+                 client_jid, password, *args,
+                 initial_node=None,
+                 **kwargs):
         self.__mocked_transport = mocked_transport
         self.__mocked_stream = mocked_stream
+        self.__initial_node = initial_node
         @asyncio.coroutine
         def password_provider(*args):
             return password
-        super().__init__(client_jid, password_provider, *args, **kwargs)
+        super().__init__(
+            client_jid,
+            security_layer.tls_with_password_based_authentication(
+                password_provider),
+            *args, **kwargs)
 
     @asyncio.coroutine
     def _connect_xmlstream(self):
@@ -144,6 +166,9 @@ class TestableClient(node.Client):
                     "{http://etherx.jabber.org/streams}features",
                 ],
                 timeout=1)
+        self.__mocked_stream.mock_receive_node(self.__initial_node)
+        self.__mocked_stream.on_connection_lost = \
+            self._handle_xmlstream_connection_lost
         return self.__mocked_transport, self.__mocked_stream
 
 class TestClient(unittest.TestCase):
@@ -246,42 +271,21 @@ class TestClient(unittest.TestCase):
             transport, stream,
             client_jid,
             password,
+            max_reconnect_attempts=1,
+            initial_node=initial_node,
             loop=self._loop)
 
-        @asyncio.coroutine
-        def catch_error(err):
-            nonlocal connection_err
-            connection_err = err
-            done.set()
+        try:
+            yield from asyncio.wait_for(
+                client.connect(),
+                timeout=10)
+            yield from asyncio.wait_for(
+                stream.done_event.wait(),
+                timeout=2)
+        except TimeoutError:
+            raise TimeoutError("Test timed out") from None
 
-        client.register_callback(
-            "connecting",
-            asyncio.coroutine(lambda x: connecting.set()))
-        client.register_callback(
-            "connection_failed",
-            catch_error)
-        client.register_callback(
-            "connection_made",
-            asyncio.coroutine(lambda: done.set()))
-
-        yield from connecting.wait()
-
-        stream.mock_receive_node(initial_node)
-
-        _, pending = yield from asyncio.wait(
-            [
-                done.wait(),
-                stream.done_event.wait()
-            ],
-            timeout=10)
-        if pending:
-            raise TimeoutError("Test timed out")
-
-        yield from client.close()
-
-        if isinstance(connection_err, AssertionError):
-            raise connection_err
-        return connection_err
+        yield from client.disconnect()
 
     def _simply_run_client(self, transport, stream):
         @asyncio.coroutine
@@ -313,13 +317,12 @@ class TestClient(unittest.TestCase):
 
         @asyncio.coroutine
         def task():
-            err = yield from self._run_client(
-                stream.E("{{{}}}features".format(namespaces.xmlstream)),
-                transport,
-                stream
-            )
-            self.assertIsInstance(err,
-                                  node.StreamNegotiationFailure)
+            with self.assertRaises(errors.TLSFailure):
+                err = yield from self._run_client(
+                    stream.E("{{{}}}features".format(namespaces.xmlstream)),
+                    transport,
+                    stream
+                )
 
         self._run_until_complete_and_catch_errors(task())
 

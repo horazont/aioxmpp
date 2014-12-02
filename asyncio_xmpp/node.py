@@ -1,11 +1,25 @@
 """
-XMPP client basement
-####################
+:mod:`~asyncio_xmpp.node` --- Basement for XMPP peers
+#####################################################
+
+.. currentmodule:: asyncio_xmpp.node
+
+.. note::
+
+   Currently, only an implementation for an XMPP client exists.
+
+.. autoclass:: Client(client_jid, security_layer, *, [negotiatgion_timeout], [ping_timeout], [override_addr], [max_reconnect_attempts], [reconnect_interval_start], [use_sm], [loop])
+
+.. rubric:: Footnotes
+
+.. [#xep0199] See also `XEP-0198 --- Stream Management <https://xmpp.org/extensions/xep-0198.html>`_
+
 """
 
 import abc
 import asyncio
 import binascii
+import contextlib
 import hashlib
 import logging
 import random
@@ -14,131 +28,174 @@ import ssl
 from datetime import datetime, timedelta
 
 from . import network, jid, protocol, stream_plugin, ssl_wrapper, sasl, stanza
-from . import plugins, custom_queue, stream_worker, xml, errors
+from . import custom_queue, stream_worker, xml, errors
 from .utils import *
+
+from .plugins import rfc6120
 
 logger = logging.getLogger(__name__)
 
-def default_ssl_context():
-    ctx = ssl.SSLContext(ssl.PROTOCOL_TLSv1)
-    return ctx
-
 class Client:
     """
-    Manage an XMPP client.
+    Provide an XMPP client.
 
-    Connects to the appropriate server using the given *client_jid*. If
-    *override_addr* is given, it must be a tuple pointing to the hostname and
-    port to connect to. Otherwise, the RFC specified process of picking the
-    destination host and port is used.
+    *client_jid* must be a string or a :class:`~.jid.JID` with a valid JID. It
+    may be either a bare or a full jid (including a resource part). If a full
+    jid is specified, the client will attempt to bind to the given resource. If
+    that fails or a bare jid has been specified, the resource suggested by the
+    server is used.
 
-    For authentication, the *password_provider* coroutine is called with two
-    arguments: The JID provided through *client_jid* and the number of the
-    authentication attempt (up to *max_auth_attempts* attempts are made to
-    authenticate before aborting). If authentication fails more than
-    *max_auth_attempts* times, the connection fails.
+    *security_layer* specifies which security features are enabled. To create an
+    object suitable for this argument, see
+    :mod:`asyncio_xmpp.security_layer` and the functions referenced there.
 
-    During stream negotiation, up to *negotiation_timeout* seconds of time may
-    pass between sending a stream negotiation command and receiving the reply
-    from the server. If the timeout is surpassed, the connection fails.
+    *negotiation_timeout*, *max_reconnect_attempts*, *reconnect_interval_start*,
+    *use_sm* and *ping_timeout* are initial values for the respective
+    attributes.
 
-    If *require_tls* is :data:`True`, ``STARTTLS`` is required upon connecting
-    and a failure in ``STARTTLS`` negotiation will make the connection fail. The
-    *ssl_context_factory* is called without arguments to provide a
-    :class:`ssl.SSLContext` object for the connection.
+    *loop* must be an :class:`asyncio.BaseEventLoop` or :data:`None`. In the
+    latter case, the current event loop is used.
 
-    As long as the object exists and :meth:`close` has not been called, it will
-    maintain an open connection to the server, as far as possible. Reconnects
-    will be handled under the cover.
+    .. attribute:: max_reconnect_attempts
 
-    If the connection fails for a reason different than authentication or
-    unsupported features on the remote side, the following procedure is engaged:
+       The maximum number of reconnect attempts before the
+       :meth:`stay_connected` or :meth:`connect` method exits with an
+       error. Note that for :meth:`stay_connected`, the reconnect counter is
+       reset whenever a connection was successful (including stream
+       negotiation).
 
-    * The ``connection_lost`` event is fired.
-    * Up to *max_reconnect_attempts* times, the client attempts to re-establish
-      the connection. Each time an attempt is made, the ``connecting`` event is
-      fired. The time between reconnect attempts starts with
-      *reconnect_interval_start* and is doubled for each attempt, to take load
-      off a possibly overloaded server.
+    .. autoattribute:: ping_timeout
 
-      For each failed attempt, a ``connection_failed`` event is fired, with the
-      exception which occured as argument.
+    .. attribute:: negotiation_timeout
 
-      If *max_reconnect_attempts* is :data:`None`, reconnection is attempted
-      indefinietly.
-    * If the maximum reconnection attempts has been reached, reconnecting is
-      stopped. No more ``connecting`` events will be fired. The client moves
-      into ``closed`` state.
+       A :class:`datetime.timedelta` which specifies the timeout to apply for
+       each transaction during stream negotiation. This is the maximum time the
+       server has to send new stream features after the stream has been reset.
 
-    No matter what, unless the object is destroyed, stream management
-    information is preserved to be able to re-engage a previous session if
-    possible in any way. If stream management can not be resumed, outgoing
-    stanzas are put in the *hold* queue.
+    .. attribute:: reconnect_interval_start
 
-    The client uses the given :mod:`asyncio` event *loop*, but if none is given,
-    it uses the current default :mod:`asyncio` loop.
+       A :class:`datetime.timedelta` which specifies the initial time to wait
+       before reconneting after a connection attempt failed. With each
+       connection attempt, the time to wait is doubled, implementing exponential
+       back off.
+
+    .. attribute:: use_sm
+
+       A boolean value to indicate whether the use of Stream
+       Management [#xep0199]_ is to be used, if available. It is generally
+       recommended to have this set to :data:`True`.
+
+    The following three methods are used to manage the state of the connection.
+
+    .. automethod:: stay_connected([override_addr])
+
+    .. automethod:: connect([override_addr])
+
+    .. automethod:: disconnect
+
+    To get notified about connection-related events, the following two methods
+    can be used to register and unregister callbacks:
+
+    .. automethod:: register_callback
+
+    .. automethod:: unregister_callback
+
+    For sending and receiving stanzas, there are several helper functions. First
+    of all, stanzas need to be constructed to be sent.
+
+    .. note::
+
+       Always use these methods instead of the constructors of the classes in
+       :mod:`asyncio_xmpp.stanza`. The advantage is that these methods ensure
+       that the correct lxml context is used, allowing consistent access to the
+       fancy classes around the XML elements.
+
+    .. automethod:: make_iq(*, [to], [from_], [type])
+
+    .. automethod:: make_presence(*, [to], [from_], [type])
+
+    .. automethod:: make_message(*, [to], [from_], [type])
+
+    To send stanzas, use :meth:`enqueue_stanza`.
+
+    .. automethod:: enqueue_stanza
+
+    There is a shorthand function to send an IQ stanza and wait for a reply:
+
+    .. automethod:: send_iq_and_wait
+
     """
 
     def __init__(self,
                  client_jid,
-                 password_provider,
+                 security_layer,
+                 *,
                  negotiation_timeout=timedelta(seconds=15),
                  ping_timeout=timedelta(seconds=30),
-                 require_tls=True,
-                 ssl_context_factory=default_ssl_context,
-                 override_addr=None,
-                 loop=None,
-                 max_auth_attempts=3,
                  max_reconnect_attempts=3,
                  reconnect_interval_start=timedelta(seconds=5),
-                 use_sm=True):
+                 use_sm=True,
+                 loop=None):
         super().__init__()
+        self._loop = loop or asyncio.get_event_loop()
         self._client_jid = jid.JID.fromstr(client_jid)
-        self._loop = loop
-        self._password_provider = password_provider
-        self._negotiation_timeout = negotiation_timeout
-        self._require_tls = require_tls
-        self._ssl_context_factory = ssl_context_factory
-        self._override_addr = override_addr
-        self._max_auth_attempts = max_auth_attempts
-        self._max_reconnect_attempts = max_reconnect_attempts
-        self._reconnect_interval_start = reconnect_interval_start
-        self._xmlstream = None
-        self._ssl_wrapper = None
+        self._security_layer = security_layer
+
+        self._requset_disconnect = asyncio.Event()
+        self._disconnect_event = asyncio.Event()
+        self._override_addr = None
 
         self._tx_context = xml.default_tx_context
 
-        # stream management state
-        self._use_sm = use_sm
-
-        self._callback_registry = {
-            "connecting": [],
-            "connection_made": [],
-            "connection_lost": [],
-            "connection_failed": [],
-            "internal_error": [],
-            "closed": []
+        self._callbacks = {
+            "connecting": set(),
+            "connection_made": set(),
+            "connection_lost": set(),
+            "connection_failed": set(),
         }
 
         self._iq_request_callbacks = {}
         self._message_callbacks = {}
         self._presence_callbacks = {}
 
-        self.disconnect_event = asyncio.Event()
-        self.disconnect_event.set()
+        self._disconnecting = False
+
+        self.negotiation_timeout = negotiation_timeout
+        self.max_reconnect_attempts = max_reconnect_attempts
+        self.reconnect_interval_start = reconnect_interval_start
+        self.use_sm = use_sm
 
         self._stanza_broker = stream_worker.StanzaBroker(
             self._loop,
-            self.disconnect_event,
+            self._disconnect_event,
             ping_timeout,
             self._handle_ping_timeout,
             (self._handle_iq_request,
              self._handle_message,
              self._handle_presence))
 
-        self._worker_task = asyncio.async(
-            self._worker(),
-            loop=self._loop)
+    def _fire_callback(self, name, *args):
+        logger.debug("firing event %r with arguments %r",
+                     name, args)
+        for cb in self._callbacks[name]:
+            self._loop.call_soon(cb, *args)
+
+    def _service_done_handler(self, task):
+        try:
+            task.result()
+        except asyncio.CancelledError:
+            # this is requested and thus fine
+            pass
+        except Exception as err:
+            logger.exception("Task %s failed", task)
+            self._mark_stream_dead()
+        else:
+            logger.error("Task %s unexpectedly exited")
+            self._mark_stream_dead()
+
+    # ################ #
+    # Connection setup
+    # ################ #
 
     @asyncio.coroutine
     def _connect_xmlstream(self):
@@ -163,6 +220,9 @@ class Client:
                     self._xmlstream_factory,
                     host=host,
                     port=port)
+                xmlstream = wrapper._protocol
+                xmlstream.on_connection_lost = \
+                    self._handle_xmlstream_connection_lost
                 break
             except OSError as err:
                 logger.warning("low-level connection attempt failed: %s", err)
@@ -172,10 +232,10 @@ class Client:
             raise OSError("Failed to connect to {}".format(
                 self._client_jid.domainpart))
 
-        return wrapper, wrapper._protocol
+        return wrapper, xmlstream
 
     @asyncio.coroutine
-    def _connect(self):
+    def _connect_once(self):
         """
         Establish the connection to the server and perform stream
         negotiation. Return after the last step of stream negotiation has been
@@ -189,16 +249,14 @@ class Client:
         future = self._xmlstream.__features_future
         del self._xmlstream.__features_future
 
-        self.disconnect_event.clear()
-        self._stanza_broker.start().add_done_callback(
-            self._task_done_handler)
+        self._disconnect_event.clear()
 
         logger.debug("negotiating stream")
         try:
             node = yield from future
             yield from self._negotiate_stream(node)
         except:
-            self.disconnect_event.set()
+            self._disconnect_event.set()
             self._stanza_broker.stop()
             self._xmlstream.close()
             self._ssl_wrapper = None
@@ -207,281 +265,89 @@ class Client:
 
         self._stanza_broker.start_liveness_handler()
 
-    def _dispatch_stanza(self, callback_map, keys, stanza):
-        for key in keys:
-            try:
-                cbs, queues = callback_map[key]
-                if not cbs and not queues:
-                    del callback_map[key]
-                    continue
-            except KeyError:
-                continue
+    @asyncio.coroutine
+    def _connect(self):
+        """
+        Try to connect to the XMPP server using at most
+        :attr:`max_reconnect_attempts` attempts. Raise :class:`ConnectionError`
+        if reconnection fails more often than that, except if disconnect has
+        been requested by the user.
+        """
 
-            self._dispatch_target(stanza, cbs, queues)
-            if not queues and not cbs:
-                del callback_map[key]
-            break
-        else:
+        last_error = None
+        nattempt = 0
+        while (self.max_reconnect_attempts is None or
+               self.max_reconnect_attempts > nattempt):
+            if nattempt > 0:
+                wait_time = (self.reconnect_interval_start.total_seconds() *
+                             (2**(nattempt-1)))
+                logger.debug("connection attempt number %d failed, sleeping %d"
+                             " seconds before the next attempt",
+                             nattempt+1,
+                             wait_time)
+                try:
+                    yield from asyncio.wait_for(self._request_disconnect.wait())
+                except asyncio.TimeoutError:
+                    pass
+                else:
+                    return False
+
+            self._fire_callback("connecting")
+            try:
+                yield from self._connect_once()
+            except errors.AuthenticationFailure as err:
+                self._fire_callback("connection_failed", nattempt, err, True)
+                raise
+            except OSError as err:
+                last_error = err
+                logger.exception("connection failed:")
+                self._fire_callback("connection_failed", nattempt, err, False)
+            else:
+                return True
+
+            nattempt += 1
+
+        if self._request_disconnect.is_set():
             return False
-        return True
 
-    def _dispatch_target(self, msg, cbs, queues):
-        to_call = cbs.copy()
-        cbs.clear()
-        for callback in to_call:
-            self._loop.call_soon(callback, msg)
-        some_failed = False
-        for queue in queues:
-            try:
-                queue.put_nowait(msg)
-            except asyncio.QueueFull:
-                some_failed = True
-        if some_failed:
-            logger.warning("stanza not pushed to all queues: {}".format(msg))
+        if last_error:
+            raise last_error
+        raise ConnectionError("Connection terminated")
 
-    @asyncio.coroutine
-    def _fire_callback(self, callback_name, *args, **kwargs):
-        logger.debug("firing event: %s (args=%r, kwargs=%r)",
-                     callback_name, args, kwargs)
-        callbacks = list(self._callback_registry[callback_name])
-        for callback in callbacks:
-            yield from callback(*args, **kwargs)
+    def _starttls_check_peer(self, tls_transport):
+        pass
 
-    @asyncio.coroutine
-    def _handle_ping_timeout(self):
-        logger.warning("ping timeout, disconnecting")
-        yield from self.disconnect()
+    def _xmlstream_factory(self):
+        proto = protocol.XMLStream(
+            to=self._client_jid.domainpart,
+            loop=self._loop,
+            tx_context=self._tx_context)
+        proto.__features_future = proto.wait_for(
+            [
+                "{http://etherx.jabber.org/streams}features",
+            ],
+            timeout=self.negotiation_timeout.total_seconds())
+        proto.on_starttls_engaged = self._starttls_check_peer
+        return ssl_wrapper.STARTTLSableTransportProtocol(self._loop, proto)
 
-    def _handle_iq_request(self, iq):
-        # handle this, or reply with error
-        if iq.data is not None:
-            tag = iq.data.tag
-        else:
-            tag = iq.tag
-
-        namespace, local = split_tag(tag)
-
-        keys = [
-            (namespace, local, iq.type),
-            (namespace, local, None),
-        ]
-
-
-        if not self._dispatch_stanza(self._iq_request_callbacks, keys, iq):
-            logger.warning("no handler for %s ({%s}%s)", iq, namespace, local)
-            response = iq.make_reply(error=True)
-            response.error.type = "cancel"
-            response.error.condition = "feature-not-implemented"
-            response.error.text = ("No handler registered for this request"
-                                   " pattern")
-            self.enqueue_stanza(response)
-
-    def _handle_message(self, message):
-        from_ = message.from_
-        id = message.id
-        type = message.type
-
-        keys = [
-            (str(from_), type),
-            (str(from_.bare), type),
-            (None, type),
-        ]
-        if not self._dispatch_stanza(self._message_callbacks, keys, message):
-            logger.warning("unhandled message stanza: %r", message)
-            return
-
-    def _handle_presence(self, presence):
-        from_ = presence.from_
-        id = presence.id
-        type = presence.type
-
-        keys = [
-            (type, )
-        ]
-
-        if not self._dispatch_stanza(self._presence_callbacks, keys, presence):
-            logger.warning("unhandled presence stanza: %r", presence)
-            return
+    # ################## #
+    # Stream negotiation #
+    # ################## #
 
     @asyncio.coroutine
     def _negotiate_stream(self, features_node):
         """
-        Handle stream negotiation, by calling
-        :meth:`_negotiate_stream_starttls`, :meth:`_negotiate_stream_auth` and
-        :meth:`_negotiate_stream_features` accordingly.
+        Handle stream negotiation, by first establishing the security layer and
+        then negotiate the remaining stream features.
         """
-        # steps to do:
-        # 1. negotiate STARTTLS if required and available (fail if not available
-        #    but required)
-        # 2. authenticate
-        # 3. all other stream features
+        _, features_node = yield from self._security_layer(
+            self.negotiation_timeout.total_seconds(),
+            self._client_jid, features_node, self._xmlstream)
 
-        starttls_node = features_node.find("{{{}}}starttls".format(
-            namespaces.starttls))
-        if starttls_node is None:
-            if self._require_tls:
-                raise errors.StreamNegotiationFailure(
-                    "STARTTLS not supported by remote end")
-            tls_engaged = False
-        else:
-            tls_engaged = yield from self._negotiate_stream_starttls(
-                starttls_node)
-            if not tls_engaged:
-                raise errors.StreamNegotiationFailure(
-                    "STARTTLS required, but negotiation failed")
+        self._stanza_broker.start().add_done_callback(
+            self._service_done_handler)
 
-        self._tls_engaged = tls_engaged
-
-        if tls_engaged:
-            features_node = yield from self._xmlstream.reset_stream_and_get_features()
-
-        mechanisms_node = features_node.find("{{{}}}mechanisms".format(
-            namespaces.sasl))
-        if mechanisms_node is None:
-            raise errors.StreamNegotiationFailure("No authentication supported")
-
-        yield from self._negotiate_stream_auth(mechanisms_node)
-        features_node = yield from self._xmlstream.reset_stream_and_get_new_features()
-
-        yield from self._negotiate_stream_features(features_node)
-
-    @asyncio.coroutine
-    def _negotiate_stream_starttls(self, starttls_node):
-        """
-        Negotiate STARTTLS with the remote side, using the information from
-        *starttls_node*. Return :data:`True` if STARTTLS negotiation was
-        successful, :data:`False` if negotiation failed, but the stream is still
-        usable.
-
-        Raise an appropriate exception if negotiation failed irrecoverably.
-
-        This is called during :meth:`connect`, if the server offers STARTTLS.
-        """
-
-        node = yield from self._xmlstream.send_and_wait_for(
-            [
-                self._tx_context("{{{}}}starttls".format(namespaces.starttls))
-            ],
-            [
-                "{urn:ietf:params:xml:ns:xmpp-tls}proceed",
-                "{urn:ietf:params:xml:ns:xmpp-tls}failure",
-            ]
-        )
-
-        status = node.tag.endswith("}proceed")
-
-        if status:
-            logger.info("engaging STARTTLS")
-            try:
-                yield from self._ssl_wrapper.starttls(
-                    ssl_context=self._ssl_context_factory(),
-                    server_hostname=self._client_jid.domainpart)
-            except Exception as err:
-                logger.exception("STARTTLS failed")
-                raise errors.StreamNegotiationFailure(
-                    "STARTTLS failed on our side")
-            return True
-        else:
-            return False
-
-    @asyncio.coroutine
-    def _negotiate_stream_auth(self, sasl_mechanisms_node):
-        """
-        Negotiate authentication with the remote side, using the information
-        from the *sasl_mechanisms_node*.
-
-        The default implementation will attempt SCRAM and (only on TLS secured
-        transports) PLAIN authentication using the *password_provider* passed to
-        :meth:`connect`.
-
-        Authentication is retried using the credentials from *password_provider*
-        until the stream is terminated by the remote end or *password_provider*
-        returns :data:`None` or more than *max_auth_attempts* attempts were
-        made.
-
-        For each new retry (that is, starting again with the first SASL
-        mechanism supported), a new password request is sent to the
-        *password_provider*.
-
-        To apply custom authentication methods, subclassing is the preferred
-        method, as it is assumed that you will also need to customize other
-        parts of the negotiation process (e.g. the TLS part for SASL EXTERNAL).
-
-        Raise an appropriate exception if authentication fails irrecoverably
-        (e.g. after a certain amount of retries has failed).
-
-        This is called during :meth:`connect`, if the server offers SASL
-        authentication.
-        """
-
-        cached_password = None
-        nattempt = 0
-        @asyncio.coroutine
-        def credential_provider():
-            nonlocal cached_password, nattempt
-            if cached_password is None:
-                cached_password = yield from self._password_provider(
-                    self._client_jid,
-                    nattempt)
-            return self._client_jid.localpart, cached_password
-
-        mechanisms = [
-            sasl.SCRAM(credential_provider)
-        ]
-
-        if self._tls_engaged:
-            mechanisms.append(
-                sasl.PLAIN(credential_provider))
-
-        remote_mechanisms = frozenset(
-            node.text
-            for node in sasl_mechanisms_node.iter("{{{}}}mechanism".format(
-                    namespaces.sasl))
-        )
-
-        if not remote_mechanisms:
-            raise errors.StreamNegotiationFailure(
-                "Remote didn’t advertise any SASL mechanism")
-
-        for i in range(self._max_auth_attempts):
-            nattempt = i
-            made_attempt = False
-            for mechanism in mechanisms:
-                token = mechanism.any_supported(remote_mechanisms)
-                if token is None:
-                    continue
-
-                made_attempt = True
-                sm = sasl.SASLStateMachine(self._xmlstream)
-                success = yield from mechanism.authenticate(sm, token)
-                if success:
-                    break
-            if success:
-                break
-
-            cached_password = None
-
-            if not made_attempt:
-                raise errors.StreamNegotiationFailure(
-                    "No supported SASL mechanism available")
-        else:
-            raise errors.StreamNegotiationFailure("Authentication failed")
-
-    @asyncio.coroutine
-    def _negotiate_stream_features(self, features_node):
-        """
-        Negotiate any further stream features, after STARTTLS and SASL have been
-        negotiated, using the stream:features node from *features_node*.
-
-        The default implementation negotiates (or possibly resumes) Stream
-        Management and performs resource binding (if no session was resumed).
-
-        Return :data:`True` if a Stream Management session was resumed (thus, no
-        further stream feature negotiation should happen) and :data:`False`
-        otherwise.
-        """
-
-        sm_node = features_node.find("{{{}}}sm".format(
+        sm_node = features_node.get_feature("{{{}}}sm".format(
             namespaces.stream_management))
 
         # check for _sm_id, as that’s whats needed for resumption
@@ -491,7 +357,7 @@ class Client:
             if success:
                 return True
 
-        bind_node = features_node.find("{{{}}}bind".format(
+        bind_node = features_node.get_feature("{{{}}}bind".format(
             namespaces.bind))
         if bind_node is None:
             raise errors.StreamNegotiationFailure(
@@ -499,23 +365,21 @@ class Client:
 
         bind = self.make_iq()
         bind.type = "set"
-        bind.data = plugins.rfc6120.Bind()
+        bind.data = rfc6120.Bind()
         if self._client_jid.resource is not None:
             bind.data.resource = self._client_jid.resource
         reply = yield from self.send_iq_and_wait(
             bind,
-            timeout=self._negotiation_timeout.total_seconds())
+            timeout=self.negotiation_timeout.total_seconds())
         self._client_jid = reply.data.jid
         logger.info("bound to JID: %s", self._client_jid)
 
-        if self._use_sm:
+        if self.use_sm:
             try:
                 yield from self._negotiate_stream_management(sm_node)
             except errors.StreamNegotiationFailure as err:
                 # this is not neccessarily fatal
                 logger.warning(err)
-
-        return False
 
     @asyncio.coroutine
     def _negotiate_stream_management(self, feature_node):
@@ -586,121 +450,170 @@ class Client:
 
         return True
 
-    def _starttls_check_peer(self, transport):
-        pass
-        # base_transport = transport.get_extra_info("transport")
-        # ssl_sock = base_transport.get_extra_info("socket")
-        # cert = ssl_sock.getpeercert(binary_form=True)
-        # for hashfun_name in ["sha256", "sha1", "sha512"]:
-        #     hashfun = hashlib.new(hashfun_name)
-        #     hashfun.update(cert)
-        #     print(binascii.b2a_hex(hashfun.digest()).decode("ascii"))
+    # ###################### #
+    # Connection maintenance #
+    # ###################### #
 
-    def _task_done_handler(self, future):
-        import traceback
-        if future.cancelled():
-            return
-        exc = future.exception()
-        if exc:
-            logger.error("A task terminated unexpectedly: %s",
-                         "".join(
-                             traceback.format_exception(
-                                 type(exc),
-                                 exc,
-                                 exc.__traceback__)))
-            # FIXME: do something sensible here.
-            self._fire_callback("internal_error", exc)
-            asyncio.async(
-                self.disconnect(),
-                loop=self._loop)
+    def _disconnect(self, exc=None):
+        self._disconnecting = True
+        self._stanza_broker.stop()
+        self._xmlstream.close()
 
-    @asyncio.coroutine
-    def _worker(self):
-        """
-        Worker coroutine which keeps the stream alive and is directly
-        responsible for sending all state events events.
-        """
-        while True:
-            self.disconnect_event.clear()
-            nattempt = 0
-            abort = False
-
-            while self._max_reconnect_attempts is None or (
-                    self._max_reconnect_attempts > nattempt):
-
-                if nattempt > 0:
-                    wait_time = (self._reconnect_interval_start.total_seconds() *
-                                 (2**(nattempt-1)))
-                    logger.debug("attempt no. %d failed, sleeping %d seconds until"
-                                 " next attempt",
-                                 nattempt+1,
-                                 wait_time)
-                    yield from asyncio.sleep(wait_time)
-
-                yield from self._fire_callback("connecting", nattempt)
-                try:
-                    yield from self._connect()
-                except errors.AuthenticationFailure as err:
-                    abort = True
-                    yield from self._fire_callback(
-                        "connection_failed", err)
-                except errors.StreamNegotiationFailure as err:
-                    yield from self._fire_callback("connection_failed", err)
-                except Exception as err:
-                    logger.exception("unexpected connection error")
-                    yield from self._fire_callback("connection_failed", err)
-                else:
-                    break
-
-                nattempt += 1
-
-            else:
-                abort = True
-
-            if abort:
-                break
-
-            yield from self._fire_callback("connection_made")
-            yield from self.disconnect_event.wait()
-            yield from self._fire_callback("connection_lost")
-
-            yield from self.disconnect()
-
-            if self._max_reconnect_attempts == 0:
-                break
-
-    def _xmlstream_factory(self):
-        proto = protocol.XMLStream(
-            to=self._client_jid.domainpart,
-            loop=self._loop,
-            tx_context=self._tx_context)
-        proto.__features_future = proto.wait_for(
-            [
-                "{http://etherx.jabber.org/streams}features",
-            ],
-            timeout=self._negotiation_timeout.total_seconds())
-        proto.on_starttls_engaged = self._starttls_check_peer
-        return ssl_wrapper.STARTTLSableTransportProtocol(self._loop, proto)
-
-    @asyncio.coroutine
-    def disconnect(self):
-        if self._xmlstream is not None:
+    def _handle_xmlstream_connection_lost(self, exc):
+        if not self._disconnecting:
             self._stanza_broker.stop()
-            self._xmlstream.close()
-            self._xmlstream = None
-            self._ssl_wrapper.close()
-            self._ssl_wrapper = None
-        self.disconnect_event.set()
+        self._fire_callback("connection_lost", exc)
+        self._disconnect_event.set()
 
     @asyncio.coroutine
-    def close(self):
-        self._max_reconnect_attempts = 0
-        yield from self.disconnect()
+    def _handle_ping_timeout(self):
+        logger.warning("ping timeout, disconnecting")
+        self._mark_stream_dead()
+
+    # ############### #
+    # Stanza handling #
+    # ############### #
+
+    def _dispatch_stanza(self, callback_map, keys, stanza):
+        for key in keys:
+            try:
+                cbs, queues = callback_map[key]
+                if not cbs and not queues:
+                    del callback_map[key]
+                    continue
+            except KeyError:
+                continue
+
+            self._dispatch_target(stanza, cbs, queues)
+            if not queues and not cbs:
+                del callback_map[key]
+            break
+        else:
+            return False
+        return True
+
+    def _dispatch_target(self, msg, cbs, queues):
+        to_call = cbs.copy()
+        cbs.clear()
+        for callback in to_call:
+            self._loop.call_soon(callback, msg)
+        some_failed = False
+        for queue in queues:
+            try:
+                queue.put_nowait(msg)
+            except asyncio.QueueFull:
+                some_failed = True
+        if some_failed:
+            logger.warning("stanza not pushed to all queues: {}".format(msg))
+
+    def _handle_iq_request(self, iq):
+        # handle this, or reply with error
+        if iq.data is not None:
+            tag = iq.data.tag
+        else:
+            tag = iq.tag
+
+        namespace, local = split_tag(tag)
+
+        keys = [
+            (namespace, local, iq.type),
+            (namespace, local, None),
+        ]
+
+
+        if not self._dispatch_stanza(self._iq_request_callbacks, keys, iq):
+            logger.warning("no handler for %s ({%s}%s)", iq, namespace, local)
+            response = iq.make_reply(error=True)
+            response.error.type = "cancel"
+            response.error.condition = "feature-not-implemented"
+            response.error.text = ("No handler registered for this request"
+                                   " pattern")
+            self.enqueue_stanza(response)
+
+    def _handle_message(self, message):
+        from_ = message.from_
+        id = message.id
+        type = message.type
+
+        keys = [
+            (str(from_), type),
+            (str(from_.bare), type),
+            (None, type),
+        ]
+        if not self._dispatch_stanza(self._message_callbacks, keys, message):
+            logger.warning("unhandled message stanza: %r", message)
+            return
+
+    def _handle_presence(self, presence):
+        from_ = presence.from_
+        id = presence.id
+        type = presence.type
+
+        keys = [
+            (type, )
+        ]
+
+        if not self._dispatch_stanza(self._presence_callbacks, keys, presence):
+            logger.warning("unhandled presence stanza: %r", presence)
+            return
+
+    # ############### #
+    # Stanza services #
+    # ############### #
+
+    def enqueue_stanza(self, stanza, **kwargs):
+        """
+        Enqueue a stanza for sending. For this, it is wrapped into a
+        :class:`~.stanza.StanzaToken`. The keyword arguments are forwarded to
+        the :class:`~.stanza.StanzaToken` constructor. The token is returned.
+
+        .. note::
+
+           The *_impl*-arguments of the constructor are overriden by the stanza
+           broker, and attempting to set them will result in a
+           :class:`TypeError`.
+
+        .. seealso::
+
+           See the documentation of
+           :meth:`.stream_worker.StanzaBroker.make_stanza_token` and
+           :meth:`~.stream_worker.StanzaBroker.enqueue_token` for details.
+
+        """
+        token = self._stanza_broker.make_stanza_token(stanza, **kwargs)
+        self._stanza_broker.enqueue_token(token)
+
+    def make_iq(self, **kwargs):
+        """
+        Create and return a new :class:`~.stanza.IQ` stanza. The attributes
+        *to*, *from_* and *type* are initialized with the value of the keyword
+        respective argument, if set.
+        """
+        iq = self._tx_context.make_iq(**kwargs)
+        return iq
+
+    def make_presence(self, **kwargs):
+        """
+        Create and return a new :class:`~.stanza.Presence` stanza. The
+        attributes *to*, *from_* and *type* are initialized with the value of
+        the keyword respective argument, if set.
+        """
+        presence = self._tx_context.make_presence(**kwargs)
+        return presence
+
+    def make_message(self, **kwargs):
+        """
+        Create and return a new :class:`~.stanza.Message` stanza. The attributes
+        *to*, *from_* and *type* are initialized with the value of the keyword
+        respective argument, if set.
+        """
+        message = self._tx_context.make_message(**kwargs)
+        return message
 
     @asyncio.coroutine
     def _wait_for_reply_future(self, reply_future, timeout):
         disconnect_future = asyncio.async(
-            self.disconnect_event.wait(),
+            self._request_disconnect.wait(),
             loop=self._loop)
 
         done, pending = yield from asyncio.wait(
@@ -726,11 +639,20 @@ class Client:
     @asyncio.coroutine
     def _send_token_and_wait(self, token, timeout):
         self._stanza_broker.enqueue_token(token)
-        return (yield from self._wait_for_reply_future(token.response_future,
-                                                       timeout))
+        return (yield from self._wait_for_reply_future(
+            token.response_future,
+            timeout))
 
     @asyncio.coroutine
     def send_iq_and_wait(self, iq, timeout):
+        """
+        Send an IQ stanza and wait for a reply, for at most *timeout*
+        seconds. Return the result stanza, if it arrives in time. Otherwise,
+        :class:`TimeoutError` is raised.
+
+        If the connection terminated by the user while waiting for the reply,
+        :class:`ConnectionError` is raised.
+        """
         future = asyncio.Future()
 
         token = self._stanza_broker.make_stanza_token(
@@ -741,41 +663,147 @@ class Client:
 
         return future.result()
 
+    # other stuff
+
     @property
     def client_jid(self):
         return self._client_jid
 
-    def register_callback(self, at, cb):
-        cblist = self._callback_registry[at]
-        cblist.append(cb)
+    @asyncio.coroutine
+    def connect(self, override_addr=None):
+        """
+        Try to connect to the XMPP server. At most
+        :attr:`max_reconnect_attempts` are made, and authentication failures
+        propagating outwards the :attr:`security_layer` are fatal immediately
+        (as normally, the security layer takes care of repeating a password
+        request if neccessary).
 
-    def make_iq(self, **kwargs):
-        iq = self._tx_context.make_iq(**kwargs)
-        return iq
+        If *override_addr* is given, it must be a pair of hostname and port
+        number to connect to. In that case, DNS lookups are skipped (even for
+        reconnects).
+        """
 
-    def make_presence(self, **kwargs):
-        presence = self._tx_context.make_presence(**kwargs)
-        return presence
+        if override_addr:
+            self._override_addr = override_addr
 
-    def make_message(self, **kwargs):
-        message = self._tx_context.make_message(**kwargs)
-        return message
+        return (yield from self._connect())
 
-    def enqueue_stanza(self, stanza, **kwargs):
-        self._stanza_broker.enqueue_token(
-            self._stanza_broker.make_stanza_token(stanza, **kwargs)
-        )
+    @asyncio.coroutine
+    def disconnect(self):
+        """
+        If connected, start to disconnect and wait until the connection has
+        closed down completely.
 
-    def add_presence_queue(self, queue, type):
-        cbs, queues = self._presence_callbacks.setdefault(
-            (type,),
-            ([], set())
-        )
-        queues.add(queue)
+        Otherwise, set a flag to abort any connection attempts in progress. Note
+        that these may still return successfully if the flag is not checked in
+        time. These connections are not terminated.
+        """
+        self._request_disconnect.set()
+        if not self._xmlstream:
+            return
+        self._disconnect()
+        yield from self._disconnect_event.wait()
 
-    def add_message_queue(self, queue, type="chat", from_=None):
-        cbs, queues = self._message_callbacks.setdefault(
-            (from_, type),
-            ([], set())
-        )
-        queues.add(queue)
+    @property
+    def ping_timeout(self):
+        """
+        A :class:`datetime.timedelta` which describes the interval after which
+        the XML stream is considered dead, if no reply arrives from the server
+        to a request it must respond to.
+
+        .. seealso::
+
+           This is used and enforced by the respective
+           :class:`~.stream_worker.LivenessHandler` implementation in use. See
+           the documentation there for more details.
+
+        """
+        return self._stanza_broker.ping_timeout
+
+    @ping_timeout.setter
+    def ping_timeout(self, value):
+        self._stanza_broker.ping_timeout = value
+
+    def register_callback(self, event_name, callback):
+        """
+        Register the given *callback* for the connection event *event_name*.
+
+        The following events and signatures exist:
+
+        .. function:: connecting()
+
+           This event is called when the connection is about to be
+           established. This is followed by either :func:`connection_made` or
+           :func:`connection_failed`.
+
+        .. function:: connection_made()
+
+           This event fires when the connection has been fully established and
+           stanzas can be sent. Useful to send initial presence.
+
+        .. function:: connection_lost([exc=None])
+
+           Whenever the connection is lost (after it has been established) this
+           event is fired. If the connection was lost due to an error, *exc* is
+           the exception which caused the connection to fail.
+
+        .. function:: connection_failed(nattempt, exc, [fatal=False])
+
+           If a connection attempt has failed, this event is fired. *nattempt*
+           here is the number of the attempt which was made (starting at
+           0). *exc* is the exception which caused the connection to fail.
+
+           Depending on the error, *fatal* is either :data:`True` or
+           :data:`False`. If it is true, the connection will not be reattempted
+           and :meth:`stay_connected` will return.
+        """
+        self._callbacks[event_name].add(callback)
+
+    @property
+    def security_layer(self):
+        return self._security_layer
+
+    @asyncio.coroutine
+    def stay_connected(self, override_addr=None):
+        """
+        Connect to the XMPP server and stay connected as long as possible. If
+        the connection fails, a reconnect is attempted until the reconnect
+        counter reaches :attr:`max_reconnect_attempts`.
+
+        If the connection is closed cleanly, the function returns. If the
+        connection fails and the maximum amount of reconnects fails too, a
+        :class:`ConnectionError` is raised.
+
+        If stream negotiation fails for any reason, that error is propagated.
+
+        If *override_addr* is given, it must be a pair of hostname and port
+        number to connect to. In that case, DNS lookups are skipped (even for
+        reconnects).
+        """
+        self._request_disconnect.clear()
+
+        if override_addr:
+            self._override_addr = override_addr
+
+        while True:
+            connected = yield from self._connect()
+            if not connected:
+                # disconnect as requested by user
+                return
+
+            yield from self._disconnect_event.wait()
+
+            if request_disconnect_event.is_set():
+                return
+
+    def unregister_callback(self, event_name, callback):
+        """
+        Un-register a *callback* previously registered for the event called
+        *event_name*.
+
+        This function never raises.
+        """
+        try:
+            self._callbacks[event_name].discard(callback)
+        except KeyError:
+            pass

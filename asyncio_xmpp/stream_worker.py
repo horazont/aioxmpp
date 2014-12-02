@@ -309,7 +309,7 @@ class StanzaBroker(StreamWorker):
                     loop=self._loop)
 
             if disconnect_future in done:
-                if outgoingstanza_future in done:
+                if outgoing_stanza_future in done:
                     # re-queue that stanza
                     self.active_queue.appendleft(
                         outgoing_stanza_future.result())

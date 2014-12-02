@@ -55,11 +55,11 @@ class STARTTLSableTransportProtocol(FlexibleTransportProtocol):
         self._loop.remove_writer(sock_fd)
 
         self._starttls_state = True
-        yield from self._loop.create_connection(
+        return (yield from self._loop.create_connection(
             lambda: self,
             sock=sock,
             ssl=ssl_context,
-            server_hostname=server_hostname)
+            server_hostname=server_hostname))
 
     def connection_lost(self, exc):
         if self._starttls_state:

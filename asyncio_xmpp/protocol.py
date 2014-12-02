@@ -405,6 +405,8 @@ class XMLStream(asyncio.Protocol):
             self._transport = None
             self._stream_level_node_hooks.close_all(
                 ConnectionError("Disconnected"))
+            if self.on_connection_lost:
+                self.on_connection_lost(exc)
 
     def starttls_engaged(self, transport):
         if self.on_starttls_engaged:
@@ -483,6 +485,8 @@ class XMLStream(asyncio.Protocol):
 
             if not done:
                 if critical_timeout:
+                    logger.warn("critical timeout while waiting for any of %r",
+                                tags)
                     self.stream_error("connection-timeout", None)
                     raise ConnectionError("Disconnected")
                 raise TimeoutError("Timeout")
@@ -490,9 +494,7 @@ class XMLStream(asyncio.Protocol):
             result = next(iter(done)).result()
             return result
 
-        return asyncio.async(
-            waiter_task(futures, timeout, critical_timeout),
-            loop=self._loop)
+        return waiter_task(futures, timeout, critical_timeout)
 
     @asyncio.coroutine
     def send_and_wait_for(self,
