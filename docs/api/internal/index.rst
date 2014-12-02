@@ -9,5 +9,6 @@ Internal tools
    merge_transport
    network
    ssl_wrapper
+   stream_worker
    stringprep
    xml

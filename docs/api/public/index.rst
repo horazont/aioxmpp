@@ -8,6 +8,5 @@ Main public API
    security_layer
    sasl
    protocol
-   stream_worker
    errors
    jid

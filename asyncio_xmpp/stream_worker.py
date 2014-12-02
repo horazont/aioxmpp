@@ -1,6 +1,37 @@
 """
-Stream worker
-#############
+:mod:`~asyncio_xmpp.stream_worker` --- Long-running tasks working on top of the XML stream
+##########################################################################################
+
+These classes implement the basic tasks running on top of a stream. These are:
+
+* The stanza broker, which is responsible for receiving and sending stanzas, as
+  well as counting Stream Management counters, and
+* The liveness handler, which makes in regular intervals makes sure that the
+  server is still reachable. If Stream Management is in use, the liveness
+  handler also takes care of replying to Stream Management requests (and uses SM
+  ack-requests instead of XMPP Ping for pinging the server).
+
+Specific classes in direct use
+==============================
+
+.. autoclass:: StanzaBroker
+   :members:
+
+.. autoclass:: PingLivenessHandler
+   :members:
+
+.. autoclass:: StreamManagementLivenessHandler
+   :members:
+
+Base classes
+============
+
+.. autoclass:: StreamWorker
+   :members:
+
+.. autoclass:: LivenessHandler
+   :members:
+
 """
 import abc
 import asyncio
@@ -72,6 +103,29 @@ class StanzaBrokerSMInitializer:
         self.broker._sm_id = id
 
 class StanzaBroker(StreamWorker):
+    """
+    Manage sending and receiving of stanzas.
+
+    :param loop: Event loop to use
+    :param shared_disconnect_event: Event to be notified of XML stream
+        disconnection
+    :param ping_timeout: passed to the liveness handler
+    :param ping_timeout_callback: coroutine called by the liveness handler on
+        ping timeout
+    :param stanza_callbacks: triple of three callables, one for IQ requests, one
+        for messages and one for presence.
+    :type loop: :class:`asyncio.BaseEventLoop`
+    :type shared_disconnect_event: :class:`asyncio.Event`
+    :type ping_timeout: :class:`datetime.timedelta`
+    :type ping_timeout_callback: coroutine
+    :type stanza_callbacks: triple of callables
+
+    .. seealso::
+
+       :class:`StreamWorker` for more methods.
+
+    """
+
     def __init__(self, loop, shared_disconnect_event,
                  ping_timeout,
                  ping_timeout_callback,
@@ -220,6 +274,11 @@ class StanzaBroker(StreamWorker):
     # StreamWorker interface
 
     def setup(self, xmlstream):
+        """
+        Set up the StanzaBroker to work with the given *xmlstream*. This
+        registers queues for the different stanza types and sets up the current
+        liveness handler (but does not start it yet).
+        """
         super().setup(xmlstream)
         xmlstream.stream_level_hooks.add_queue(
             "{jabber:client}iq",
@@ -233,6 +292,9 @@ class StanzaBroker(StreamWorker):
         self._liveness_handler.setup(self)
 
     def start_liveness_handler(self):
+        """
+        Start the current liveness handler.
+        """
         if self._liveness_handler_task is None:
             self._liveness_handler_task = self._liveness_handler.start()
             if self._task is not None:
@@ -241,10 +303,17 @@ class StanzaBroker(StreamWorker):
                 self._interrupt.set()
 
     def stop(self):
+        """
+        Stop the stanza broker and the liveness handler.
+        """
         self._liveness_handler.stop()
         super().stop()
 
     def teardown(self):
+        """
+        Tear down the liveness handler and remove all queues from the xml
+        stream.
+        """
         self._liveness_handler.teardown()
         self.xmlstream.stream_level_hooks.remove_queue(
             "{jabber:client}iq",
@@ -357,10 +426,29 @@ class StanzaBroker(StreamWorker):
     # StanzaBroker interface
 
     def enqueue_token(self, token):
+        """
+        Enqueue a stanza token for sending.
+
+        This makes sure the ID of the stanza to be sent is initialized. If the
+        stanza is an IQ and has a response future, it is registered so that a
+        response will be forwarded to the corresponding future.
+
+        The stanza is put into a queue which is handled by the stanza broker and
+        sent as soon as possible.
+        """
         self._prepare_token(token)
         self.active_queue.append(token)
 
     def make_stanza_token(self, for_stanza, **kwargs):
+        """
+        Construct a stanza token which works with this stream broker. The
+        keyword arguments are forwarded to the constructor of
+        :class:`~.stanza.StanzaToken`, but *abort_impl* and *resend_impl* are
+        set by this function. Thus, specifying these in the arguments to this
+        function results in a :class:`TypeError.
+
+        Return the stanza token.
+        """
         return stanza.StanzaToken(
             for_stanza,
             abort_impl=self._queued_stanza_abort,
@@ -369,15 +457,28 @@ class StanzaBroker(StreamWorker):
 
     @property
     def sm_enabled(self):
+        """
+        Boolean attribute which is true if stream management has been negotiated
+        successfully on the stream.
+        """
         return self._sm_enabled
 
     @property
     def sm_session_id(self):
+        """
+        If :attr:`sm_enabled` is true, this is the stream management ID which
+        was obtained during negotiation.
+        """
         if not self.sm_enabled:
             return None
         return self._sm_id
 
     def sm_resume(self, remote_counter):
+        """
+        Resume stream management. *remote_counter* must be an integer which is
+        equal to the remote counter received upon stream resumption.
+        """
+
         self._flush_unacked_to_acked(remote_counter)
         # do not resend aborted tokens
         to_resend = [token for token in self.unacked_queue
@@ -394,24 +495,61 @@ class StanzaBroker(StreamWorker):
         return StanzaBrokerSMInitializer(self)
 
     def sm_reset(self):
+        """
+        Disable and reset stream management state.
+        """
         self._sm_reset(False, None)
 
     def register_callback(self, cb, fn):
+        """
+        Register a function *fn* for the given *cb*. The following callbacks are
+        available:
+
+        .. function:: opportunistic_send()
+
+           Called whenever stanzas have been sent and the queue is empty. Return
+           an iterable of tokens which should be sent, too.
+
+        """
         fnset = self._callbacks[cb]
         fnset.add(fn)
 
     def unregister_callback(self, cb, fn):
-        self._callbacks[cb].remove(fn)
+        """
+        Remove a function *fn* from the callback registry for *cb*.
+
+        This raises :class:`KeyError` if the callback is undefined.
+        """
+        self._callbacks[cb].discard(fn)
 
 
 class LivenessHandler(StreamWorker):
     """
     A liveness handler takes care of ensuring that the stream is still alive,
-    and if not, calling the :meth:`Client._handle_ping_timeout` coroutine.
+    and if not, calls the corresponding ping timeout coroutine passed to the
+    :class:`StreamWorker`.
 
-    Liveness handlers are tightly coupled with the :class:`Client` class, and
-    generally need access to "protected" attributes, such as stream management
-    state.
+    Liveness handlers are tightly coupled with the :class:`StanzaBroker` class,
+    and generally need access to "protected" attributes, such as stream
+    management state.
+
+    The general idea of liveness handlers is to periodically "ping" the XML
+    stream peer. How this "ping" is implemented depends on the specific liveness
+    handler. The interval of inactivity until which a ping is sent is given by
+    the *ping_timeout* argument passed to the :class:`StanzaBroker`
+    constructor.
+
+    To save resources, the liveness handler will try to schedule sending the
+    "ping" together with other stanzas, by using the :func:`opportunistic_send`
+    callback provided by the :class:`StanzaBroker`. However, it will wait for at
+    most :attr:`passive_request_timeout`, after which sending is forced.
+
+    .. attribute:: passive_request_timeout
+
+       :class:`datetime.timedelta` which defines the maximum time the liveness
+       handler will wait for an opportunistic send event before forcing its
+       "ping" to be sent.
+
     """
 
     def __init__(self, loop, shared_disconnect_event):
@@ -428,6 +566,11 @@ class LivenessHandler(StreamWorker):
         return []
 
     def setup(self, stanza_broker):
+        """
+        Set up the liveness handler to work with the given *stanza_broker*. This
+        is generally overriden by subclasses. This method also registers the
+        opportunistic send callback.
+        """
         self.stanza_broker = stanza_broker
         super().setup(stanza_broker.xmlstream)
         self.stanza_broker.register_callback(
@@ -436,20 +579,17 @@ class LivenessHandler(StreamWorker):
 
     def start(self):
         """
-        After the connection has been established, this is called by the
-        client.
-
-        The default implementation spawns a task running :meth:`_worker` here
-        and resets the liveness indicator.
+        Reset the internal state and start the worker coroutine.
         """
         self.last_liveness_indicator = datetime.utcnow()
         self.passive_request_until = None
         return super().start()
 
-    def stop(self):
-        super().stop()
-
     def teardown(self):
+        """
+        Remove the callbacks and generally decouple from the xmlstream and the
+        stanza broker.
+        """
         self.stanza_broker.unregister_callback(
             "opportunistic_send",
             self._on_opportunistic_send)
@@ -458,9 +598,25 @@ class LivenessHandler(StreamWorker):
 
     @abc.abstractmethod
     def perform_request(self):
-        pass
+        """
+        It is called when the opportunistic send event is received and a passive
+        request has been scheduled.
+
+        Either send the required elements directly over the xml stream, or
+        return an iterable of nodes to be sent. If sending directly, this
+        function must return an empty iterable.
+
+        This must be implemented by subclasses.
+        """
 
 class PingLivenessHandler(LivenessHandler):
+    """
+    The ping liveness handler uses `XEP-0199
+    <https://xmpp.org/extensions/xep-0199.html>`_ pings to check for stream
+    liveness. Pings are sent periodically and whenever a reply (be it a "result"
+    or an "error") is received, the stream is considered alive.
+    """
+
     def perform_request(self):
         self.response_future = asyncio.Future()
         token = self.stanza_broker.make_stanza_token(
@@ -542,6 +698,15 @@ class PingLivenessHandler(LivenessHandler):
                     self.passive_request_until = now + self.passive_request_timeout
 
 class StreamManagementLivenessHandler(LivenessHandler):
+    """
+    The stream management liveness handler makes use of `XEP-0198
+    <https://xmpp.org/extensions/xep-0198.html>`_ stream management ack-requests
+    "ping" the peer.
+
+    In addition it takes care of handling stream management ack-requests from
+    the peer and replying to them correctly.
+    """
+
     def __init__(self, loop, shared_disconnect_event):
         super().__init__(loop, shared_disconnect_event)
         self.ack_pending = None
@@ -567,9 +732,6 @@ class StreamManagementLivenessHandler(LivenessHandler):
         super().teardown()
 
     def perform_request(self):
-        """
-        Send a stream management ack-request without going through queues.
-        """
         request = self.xmlstream.E("{{{}}}r".format(
             namespaces.stream_management))
         self.passive_request_until = None
@@ -579,12 +741,6 @@ class StreamManagementLivenessHandler(LivenessHandler):
 
     @asyncio.coroutine
     def worker(self):
-        """
-        Worker task to ensure that the stream is still alive. This
-        implementation uses the stream management features to provide liveness.
-        This is generally cheaper, because we will only ask for confirmations
-        whenever stanzas have been sent.
-        """
         logger = logging.getLogger(__name__ + ".liveness")
         logger.info("using stream management for liveness")
 
