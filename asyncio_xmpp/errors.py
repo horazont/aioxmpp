@@ -64,6 +64,37 @@ class StreamError(XMPPError, ConnectionError):
             super().format_text(*args, **kwargs)
         )
 
+class StreamNegotiationFailure(ConnectionError):
+    pass
+
+class SecurityNegotiationFailure(StreamNegotiationFailure):
+    def __init__(self, xmpp_error,
+                 kind="Security negotiation failure",
+                 text=None):
+        msg = "{}: {}".format(kind, xmpp_error)
+        if text:
+            msg += " ('{}')".format(text)
+        super().__init__(msg)
+        self.xmpp_error = xmpp_error
+        self.text = text
+
+class SASLFailure(SecurityNegotiationFailure):
+    def __init__(self, xmpp_error, text=None):
+        super().__init__(xmpp_error, text=text, kind="SASL failure")
+
+    def promote_to_authentication_failure(self):
+        return AuthenticationFailure(
+            xmpp_error=self.xmpp_error,
+            text=self.text)
+
+class TLSFailure(SecurityNegotiationFailure):
+    def __init__(self, xmpp_error, text=None):
+        super().__init__(xmpp_error, text=text, kind="TLS failure")
+
+class AuthenticationFailure(SecurityNegotiationFailure):
+    def __init__(self, xmpp_error, text=None):
+        super().__init__(xmpp_error, text=text, kind="Authentication failure")
+
 error_type_map = {
     "auth": XMPPAuthError,
     "modify": XMPPModifyError,

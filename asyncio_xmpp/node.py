@@ -14,17 +14,10 @@ import ssl
 from datetime import datetime, timedelta
 
 from . import network, jid, protocol, stream_plugin, ssl_wrapper, sasl, stanza
-from . import plugins, custom_queue, stream_worker, xml
+from . import plugins, custom_queue, stream_worker, xml, errors
 from .utils import *
 
 logger = logging.getLogger(__name__)
-
-class StreamNegotiationFailure(ConnectionError):
-    pass
-
-class AuthError(StreamNegotiationFailure):
-    # special case, as AuthErrors are treated as fatal (no-retry)
-    pass
 
 def default_ssl_context():
     ctx = ssl.SSLContext(ssl.PROTOCOL_TLSv1)
@@ -327,28 +320,28 @@ class Client:
             namespaces.starttls))
         if starttls_node is None:
             if self._require_tls:
-                raise StreamNegotiationFailure(
+                raise errors.StreamNegotiationFailure(
                     "STARTTLS not supported by remote end")
             tls_engaged = False
         else:
             tls_engaged = yield from self._negotiate_stream_starttls(
                 starttls_node)
             if not tls_engaged:
-                raise StreamNegotiationFailure(
+                raise errors.StreamNegotiationFailure(
                     "STARTTLS required, but negotiation failed")
 
         self._tls_engaged = tls_engaged
 
         if tls_engaged:
-            features_node = yield from self._reset_stream_and_get_new_features()
+            features_node = yield from self._xmlstream.reset_stream_and_get_features()
 
         mechanisms_node = features_node.find("{{{}}}mechanisms".format(
             namespaces.sasl))
         if mechanisms_node is None:
-            raise StreamNegotiationFailure("No authentication supported")
+            raise errors.StreamNegotiationFailure("No authentication supported")
 
         yield from self._negotiate_stream_auth(mechanisms_node)
-        features_node = yield from self._reset_stream_and_get_new_features()
+        features_node = yield from self._xmlstream.reset_stream_and_get_new_features()
 
         yield from self._negotiate_stream_features(features_node)
 
@@ -385,7 +378,7 @@ class Client:
                     server_hostname=self._client_jid.domainpart)
             except Exception as err:
                 logger.exception("STARTTLS failed")
-                raise StreamNegotiationFailure(
+                raise errors.StreamNegotiationFailure(
                     "STARTTLS failed on our side")
             return True
         else:
@@ -447,8 +440,8 @@ class Client:
         )
 
         if not remote_mechanisms:
-            raise StreamNegotiationFailure("Remote didn’t advertise any SASL "
-                                           "mechanism")
+            raise errors.StreamNegotiationFailure(
+                "Remote didn’t advertise any SASL mechanism")
 
         for i in range(self._max_auth_attempts):
             nattempt = i
@@ -469,10 +462,10 @@ class Client:
             cached_password = None
 
             if not made_attempt:
-                raise StreamNegotiationFailure("No supported SASL mechanism "
-                                               "available")
+                raise errors.StreamNegotiationFailure(
+                    "No supported SASL mechanism available")
         else:
-            raise StreamNegotiationFailure("Authentication failed")
+            raise errors.StreamNegotiationFailure("Authentication failed")
 
     @asyncio.coroutine
     def _negotiate_stream_features(self, features_node):
@@ -501,8 +494,8 @@ class Client:
         bind_node = features_node.find("{{{}}}bind".format(
             namespaces.bind))
         if bind_node is None:
-            raise StreamNegotiationFailure("Server does not support resource "
-                                           "binding")
+            raise errors.StreamNegotiationFailure(
+                "Server does not support resource binding")
 
         bind = self.make_iq()
         bind.type = "set"
@@ -518,7 +511,7 @@ class Client:
         if self._use_sm:
             try:
                 yield from self._negotiate_stream_management(sm_node)
-            except StreamNegotiationFailure as err:
+            except errors.StreamNegotiationFailure as err:
                 # this is not neccessarily fatal
                 logger.warning(err)
 
@@ -544,22 +537,11 @@ class Client:
 
             if node.tag.endswith("}failed"):
                 logger.error("sm negotiation failed")
-                raise StreamNegotiationFailure(
+                raise errors.StreamNegotiationFailure(
                     "Could not negotiate stream management")
 
         if node.get("resume", "").lower() in {"true", "1"}:
             ctx.set_session_id(sm_id)
-
-    def _reset_stream_and_get_new_features(self):
-        future = self._xmlstream.wait_for(
-            [
-                "{http://etherx.jabber.org/streams}features",
-            ],
-            timeout=self._negotiation_timeout.total_seconds()
-        )
-        self._xmlstream.reset_stream()
-        node = yield from future
-        return node
 
     @asyncio.coroutine
     def _resume_stream_management(self, feature_node):
@@ -597,8 +579,8 @@ class Client:
                          "%r (%s)",
                          node.get("h"), err)
             self._stanza_broker.sm_reset()
-            raise StreamNegotiationFailure("Stream management counter has"
-                                           " invalid value")
+            raise errors.StreamNegotiationFailure(
+                "Stream management counter has invalid value")
 
         self._stanza_broker.sm_resume(acked_ctr)
 
@@ -658,11 +640,11 @@ class Client:
                 yield from self._fire_callback("connecting", nattempt)
                 try:
                     yield from self._connect()
-                except AuthError as err:
+                except errors.AuthenticationFailure as err:
                     abort = True
                     yield from self._fire_callback(
                         "connection_failed", err)
-                except StreamNegotiationFailure as err:
+                except errors.StreamNegotiationFailure as err:
                     yield from self._fire_callback("connection_failed", err)
                 except Exception as err:
                     logger.exception("unexpected connection error")

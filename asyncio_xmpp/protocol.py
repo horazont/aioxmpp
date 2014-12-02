@@ -1,6 +1,6 @@
 """
-:mod:`asyncio_xmpp.protocol` --- :class:`asyncio.Protocol` implementation for an xmlstream
-##########################################################################################
+:mod:`protocol` --- :class:`asyncio.Protocol` implementation for an xmlstream
+#############################################################################
 
 The :class:`.XMLStream` lass provides an high-level interface to an XMPP
 xmlstream. The corresponding section in the user guide can be found at
@@ -428,6 +428,21 @@ class XMLStream(asyncio.Protocol):
         self._tx_reset()
         self._state = _State.CONNECTED
 
+    @asyncio.coroutine
+    def reset_stream_and_get_features(self, timeout):
+        future = self.wait_for(
+            [
+                "{{{}}}features".format(namespaces.xmlstream)
+            ],
+            timeout=timeout
+        )
+        try:
+            self.reset_stream()
+        except:
+            future.cancel()
+            raise
+        return (yield from future)
+
     def _send_andor_wait_for(self,
                              nodes_to_send,
                              tags,
@@ -525,3 +540,7 @@ class XMLStream(asyncio.Protocol):
     @property
     def stream_level_hooks(self):
         return self._stream_level_node_hooks
+
+    @property
+    def transport(self):
+        return self._transport

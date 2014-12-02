@@ -4,9 +4,10 @@ Main public API
 .. toctree::
    :maxdepth: 2
 
-   protocol
-   sasl
-   stream_worker
    node
+   security_layer
+   sasl
+   protocol
+   stream_worker
    errors
    jid

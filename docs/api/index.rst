@@ -1,7 +1,9 @@
 .. _api:
 
-API Reference
-#############
+The :mod:`asyncio_xmpp` package
+###############################
+
+.. module:: asyncio_xmpp
 
 The API reference provides the documented API of :mod:`asyncio_xmpp`.
 
@@ -9,4 +11,5 @@ The API reference provides the documented API of :mod:`asyncio_xmpp`.
    :maxdepth: 2
 
    public/index.rst
+   extension/index.rst
    internal/index.rst

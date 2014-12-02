@@ -9,7 +9,7 @@ import operator
 import random
 
 from .stringprep import saslprep
-from . import utils
+from . import utils, errors
 
 logger = logging.getLogger(__name__)
 
@@ -118,7 +118,7 @@ class SASLStateMachine:
                 text = text_node.text
             else:
                 text = None
-            raise SASLFailure(xmpp_error, text=text)
+            raise errors.SASLFailure(xmpp_error, text=text)
 
         if node.text is not None:
             payload = base64.b64decode(node.text.encode("ascii"))
@@ -196,8 +196,9 @@ class SASLStateMachine:
                 raise
             return "failure", None
         else:
-            raise Exception("Unexpected non-failure after abort: {}".format(
-                self._state))
+            raise errors.SASLError(
+                "Unexpected non-failure after abort: {}".format(self._state)
+            )
 
 class SASLMechanism(metaclass=abc.ABCMeta):
     """
@@ -221,12 +222,10 @@ class SASLMechanism(metaclass=abc.ABCMeta):
         """
         Execute the mechanism identified by *token* (the value which has been
         returned by :meth:`any_supported` before) using the given
-        :class:`SASLStateMachine` *sm*. Return :data:`True` if authentication
-        was successful. If other authentication methods shall continue trying,
-        return :data:`False`.
+        :class:`SASLStateMachine` *sm*.
 
-        If the stream is unusable after a failure, raise an appropriate
-        exception instead of returning :data:`False`.
+        If authentication fails, an appropriate exception is raised
+        (:class:`~.errors.AuthenticationFailure`).
         """
 
 class PLAIN(SASLMechanism):
@@ -408,11 +407,14 @@ class SCRAM(SASLMechanism):
                "big") ^
            int.from_bytes(client_key, "big")).to_bytes(digest_size, "big")
 
-       state, payload = yield from sm.response(
-           reply+b",p="+base64.b64encode(client_proof))
+       try:
+           state, payload = yield from sm.response(
+               reply+b",p="+base64.b64encode(client_proof))
+       except errors.SASLError as err:
+           raise err.promote_to_authentication_failure() from None
 
        if state != "success":
-           raise Exception("SCRAM protocol violation")
+           raise errors.SASLFailure("SCRAM protocol violation")
 
        server_signature = hmac.new(
            hmac.new(
@@ -425,7 +427,7 @@ class SCRAM(SASLMechanism):
        payload = dict(self.parse_message(payload))
 
        if base64.b64decode(payload[b"v"]) != server_signature:
-           raise Exception("Authentication successful, but server signature "
-                           "invalid")
+           raise errors.SASLFailure(
+               "Authentication successful, but server signature invalid")
 
        return True
