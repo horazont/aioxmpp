@@ -141,7 +141,7 @@ class Client:
         self._client_jid = jid.JID.fromstr(client_jid)
         self._security_layer = security_layer
 
-        self._requset_disconnect = asyncio.Event()
+        self._request_disconnect = asyncio.Event()
         self._disconnect_event = asyncio.Event()
         self._override_addr = None
 
