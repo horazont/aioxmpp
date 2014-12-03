@@ -120,6 +120,12 @@ class Client:
 
     .. automethod:: enqueue_stanza
 
+    To receive IQ requests with specific masks, use:
+
+    .. automethod:: iq_request_queue
+
+    .. automethod:: iq_request_queues
+
     There is a shorthand function to send an IQ stanza and wait for a reply:
 
     .. automethod:: send_iq_and_wait
@@ -558,6 +564,36 @@ class Client:
             logger.warning("unhandled presence stanza: %r", presence)
             return
 
+    # ####################### #
+    # Stanza queue management #
+    # ####################### #
+
+    def _add_iq_request_queue(self, namespace, localname, type, queue):
+        if type not in {"set", "get"}:
+            raise ValueError('IQ request queue must have type "get" or "set"'
+                             ' (got {!r})'.format(type))
+
+        cbs, queues = self._iq_request_callbacks.setdefault(
+            (namespace, localname, type),
+            ([], set())
+        )
+
+        if cbs or queues:
+            raise ValueError("Duplicate listener for {}".format(
+                (namespace, localname, type)))
+
+        queues.add(queue)
+
+    def _remove_iq_request_queue(self, namespace, localname, type, queue):
+        key = (namespace, localname, type)
+        cbs, queues = self._iq_request_callbacks[key]
+        try:
+            queues.remove(queue)
+        finally:
+            if not cbs and not queues:
+                del self._iq_request_callbacks[key]
+
+
     # ############### #
     # Stanza services #
     # ############### #
@@ -663,6 +699,81 @@ class Client:
         yield from self._send_token_and_wait(token, timeout)
 
         return future.result()
+
+    @contextlib.contextmanager
+    def iq_request_queues(self, *matcher_lists, queues=None):
+        """
+        Register an arbitrary amount of queues for arbitrary sets of IQ request
+        matchers.
+
+        .. _iq-request-matcher:
+
+        Each matcher list consists of triples (matchers) ``(namespace,
+        localname, type)``. *namespace* and *localpart* are matched against the
+        data element inside the IQ request. *type* must be either ``"set"`` or
+        ``"get"``, depending on which type of IQ to match.
+
+        For each matcher list, there must be exactly one queue in *queues*, or
+        *queues* must be :data:`None`. In the latter case, for each matcher list
+        one queue is created.
+
+        A contextmanager is returned. On enter, the queues are registered for
+        the respective IQ request events, and the tuple of queues is returned as
+        value. On exit, the queues are removed. This contextmanager does not
+        catch any errors.
+
+        If any of the matchers is already in use by another queue (or a matcher
+        is specified multiple times) a :class:`KeyError` is raised.
+
+        .. seealso::
+
+           :meth:`iq_request_queue` is a simplified version registering only one
+           queue.
+
+        """
+
+        if queues is None:
+            queues = tuple(asyncio.Queue()
+                           for ml in matcher_lists)
+        elif len(queues) != len(matcher_lists):
+            raise ValueError("There must be exactly as many queues as matcher "
+                             "lists")
+        else:
+            queues = tuple(queues)
+
+        with contextlib.ExitStack() as stack:
+            for queue, ml in zip(queues, matcher_lists):
+                for namespace, localname, type in ml:
+                    self._add_iq_request_queue(
+                        namespace,
+                        localname,
+                        type,
+                        queue)
+                    stack.callback(
+                        self._remove_iq_request_queue,
+                        namespace,
+                        localname,
+                        type,
+                        queue)
+
+            yield queues
+
+    @contextlib.contextmanager
+    def iq_request_queue(self, *matchers, queue=None):
+        """
+        This method is very similar to :meth:`iq_request_queues`, but instead of
+        matcher lists, it accepts only matchers and at most one queue.
+
+        The contextmanager returns only that queue instead of a tuple of
+        queues. Otherwise, the workings of the functions are the same.
+        """
+        if queue is not None:
+            queues = (queue,)
+        else:
+            queues = (asyncio.Queue(),)
+
+        with self.iq_request_queues(matchers, queues=queues) as (queue,):
+            yield queue
 
     # other stuff
 
