@@ -8,7 +8,7 @@ module from Python 3.4 (and
 Dependencies
 ------------
 
-* Python ≥ 3.4 (or Python = 3.3 with tulip)
+* Python ≥ 3.4 (or Python = 3.3 with tulip and enum34)
 * DNSPython
 
 Design goals
