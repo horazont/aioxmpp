@@ -303,6 +303,7 @@ class Client:
                 logger.exception("connection failed:")
                 self._fire_callback("connection_failed", nattempt, err, False)
             else:
+                self._fire_callback("connection_made")
                 return True
 
             nattempt += 1
