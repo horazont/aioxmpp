@@ -28,6 +28,10 @@ def iterator_has_more_than(iterable, n_elements):
 class xml_attribute:
     def __init__(self, key):
         self._key = key
+        self.__doc__ = \
+"""
+Direct access to the XML attribute ``{}``.
+""".format(key)
 
     def __get__(self, instance, type_):
         if instance is None:
@@ -48,6 +52,13 @@ class xml_attribute:
             pass
 
 class xml_jid_attribute(xml_attribute):
+    def __init__(self, key):
+        super().__init__(key)
+        self.__doc__ = \
+"""
+Access to the XML attribute ``{}`` as :class:`~.jid.JID`.
+""".format(key)
+
     def __get__(self, instance, type_):
         if instance is None:
             return self
@@ -67,6 +78,18 @@ class xml_enum_attribute(xml_attribute):
     def __init__(self, key, options):
         super().__init__(key)
         self._options = options
+        self.__doc__ = \
+"""
+Access to the XML attribute ``{}``. Allowed values are {}.
+
+.. note::
+
+   Values which are obtained from the XML are not validated against the
+   options.
+
+""".format(
+    key,
+    ", ".join("``{}``".format(value) for value in options))
 
     def __set__(self, instance, value):
         if value is None:

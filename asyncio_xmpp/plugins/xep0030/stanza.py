@@ -4,6 +4,14 @@ import asyncio_xmpp.stanza as stanza
 
 from asyncio_xmpp.utils import *
 
+__all__ = [
+    "InfoQuery",
+    "Identity",
+    "Feature",
+    "ItemQuery",
+    "Item",
+]
+
 namespaces.xep0030_disco_items = "http://jabber.org/protocol/disco#items"
 namespaces.xep0030_disco_info = "http://jabber.org/protocol/disco#info"
 
@@ -45,6 +53,11 @@ class Identity(stanza.StanzaElementBase):
     category = stanza.xml_attribute("category")
     type = stanza.xml_attribute("type")
     name = stanza.xml_attribute("name")
+
+class Feature(stanza.StanzaElementBase):
+    TAG = "{{{}}}feature".format(namespaces.xep0030_disco_info)
+
+    var = stanza.xml_attribute("var")
 
 class ItemQuery(stanza.StanzaElementBase):
     TAG = "{{{}}}query".format(namespaces.xep0030_disco_items)
