@@ -27,6 +27,8 @@ class SendStreamError(Exception):
         self.text = text
 
 class XMPPError(Exception):
+    TYPE = "cancel"
+
     def __init__(self,
                  error_tag,
                  text=None,
@@ -40,22 +42,22 @@ class XMPPError(Exception):
         self.application_defined_condition = application_defined_condition
 
 class XMPPWarning(XMPPError, UserWarning):
-    pass
+    TYPE = "continue"
 
 class XMPPAuthError(XMPPError, PermissionError):
-    pass
+    TYPE = "auth"
 
 class XMPPModifyError(XMPPError, ValueError):
-    pass
+    TYPE = "modify"
 
 class XMPPCancelError(XMPPError):
-    pass
+    TYPE = "cancel"
 
 class XMPPWaitError(XMPPError):
-    pass
+    TYPE = "wait"
 
 class XMPPContinueError(XMPPWarning):
-    pass
+    TYPE = "continue"
 
 class StreamError(XMPPError, ConnectionError):
     @classmethod

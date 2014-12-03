@@ -20,6 +20,7 @@ import abc
 import asyncio
 import binascii
 import contextlib
+import functools
 import hashlib
 import logging
 import random
@@ -122,9 +123,9 @@ class Client:
 
     To receive IQ requests with specific masks, use:
 
-    .. automethod:: iq_request_queue
+    .. automethod:: register_iq_request_coro
 
-    .. automethod:: iq_request_queues
+    .. automethod:: unregister_iq_request_coro
 
     There is a shorthand function to send an IQ stanza and wait for a reply:
 
@@ -160,7 +161,7 @@ class Client:
             "connection_failed": set(),
         }
 
-        self._iq_request_callbacks = {}
+        self._iq_request_coros = {}
         self._message_callbacks = {}
         self._presence_callbacks = {}
 
@@ -477,9 +478,22 @@ class Client:
         logger.warning("ping timeout, disconnecting")
         self._mark_stream_dead()
 
+    def _mark_stream_dead(self):
+        self._handle_xmlstream_connection_lost(ConnectionError(
+            "Stream died due to internal error or ping timeout")
+        )
+
     # ############### #
     # Stanza handling #
     # ############### #
+
+    @asyncio.coroutine
+    def _default_iq_request_handler(self, iq):
+        namespace, local = split_tag(iq.tag)
+        logger.warning("no handler for %s ({%s}%s)", iq, namespace, local)
+        raise errors.XMPPCancelError(
+            error_tag="feature-not-implemented",
+            text="No handler registered for this request pattern")
 
     def _dispatch_stanza(self, callback_map, keys, stanza):
         for key in keys:
@@ -518,24 +532,14 @@ class Client:
         if iq.data is not None:
             tag = iq.data.tag
         else:
-            tag = iq.tag
+            tag = None
 
-        namespace, local = split_tag(tag)
+        try:
+            coro = self._iq_request_coros[tag, iq.type]
+        except KeyError:
+            coro = self._default_iq_request_handler
 
-        keys = [
-            (namespace, local, iq.type),
-            (namespace, local, None),
-        ]
-
-
-        if not self._dispatch_stanza(self._iq_request_callbacks, keys, iq):
-            logger.warning("no handler for %s ({%s}%s)", iq, namespace, local)
-            response = iq.make_reply(error=True)
-            response.error.type = "cancel"
-            response.error.condition = "feature-not-implemented"
-            response.error.text = ("No handler registered for this request"
-                                   " pattern")
-            self.enqueue_stanza(response)
+        self._start_iq_handler_task(iq, coro)
 
     def _handle_message(self, message):
         from_ = message.from_
@@ -564,35 +568,54 @@ class Client:
             logger.warning("unhandled presence stanza: %r", presence)
             return
 
-    # ####################### #
-    # Stanza queue management #
-    # ####################### #
-
-    def _add_iq_request_queue(self, namespace, localname, type, queue):
-        if type not in {"set", "get"}:
-            raise ValueError('IQ request queue must have type "get" or "set"'
-                             ' (got {!r})'.format(type))
-
-        cbs, queues = self._iq_request_callbacks.setdefault(
-            (namespace, localname, type),
-            ([], set())
-        )
-
-        if cbs or queues:
-            raise ValueError("Duplicate listener for {}".format(
-                (namespace, localname, type)))
-
-        queues.add(queue)
-
-    def _remove_iq_request_queue(self, namespace, localname, type, queue):
-        key = (namespace, localname, type)
-        cbs, queues = self._iq_request_callbacks[key]
+    def _iq_handler_task_done(self, iq, task):
+        is_error = True
         try:
-            queues.remove(queue)
-        finally:
-            if not cbs and not queues:
-                del self._iq_request_callbacks[key]
+            try:
+                try:
+                    response_data = task.result()
+                    if not isinstance(response_data, stanza.Error):
+                        is_error = False
+                except errors.XMPPError as err:
+                    # just re-raise to outer handler
+                    raise
+                except Exception as err:
+                    logger.exception("IQ handler task raised non-XMPP"
+                                     " exception. returning generic error")
+                    raise errors.XMPPError(
+                        "internal-server-error",
+                        text=type(err).__name__
+                    )
+            except errors.XMPPError as err:
+                response_data = stanza.Error()
+                response_data.type = err.TYPE
+                response_data.condition = err.error_tag
+                response_data.text = err.text
+                if err.application_defined_condition:
+                    response_data.application_defined_condition = \
+                        err.application_defined_condition
+        except Exception as err:
+            logger.exception("While constructing an appropriate error stanza "
+                             "for an exception thrown by an IQ handler, the"
+                             " following exception occured:")
+            response_data = stanza.Error()
+            response_data.type = "cancel"
+            response_data.condition = "internal-server-error"
+            response_data.text = "giving up on deeply nested errors"
 
+        response = iq.make_reply()
+        if is_error:
+            response.type = "error"
+        if response_data is not None:
+            response.append(response_data)
+        self.enqueue_stanza(response)
+
+    def _start_iq_handler_task(self, iq, coro):
+        task = asyncio.async(coro(iq))
+        task.add_done_callback(functools.partial(
+            self._iq_handler_task_done,
+            iq
+        ))
 
     # ############### #
     # Stanza services #
@@ -647,6 +670,48 @@ class Client:
         message = self._tx_context.make_message(**kwargs)
         return message
 
+    def register_iq_request_coro(self, tag, type, coro):
+        """
+        Register a coroutine which is started (asynchronously) whenever an IQ
+        stanza with a data element of the given *tag* and the given IQ *type*
+        arrives.
+
+        The coroutine is started with the stanza as the only argument. It must
+        return one of the following (or raise):
+
+        * an :class:`~.stanza.Error` element, which is sent as only child in the
+          IQ ``"error"`` response.
+        * another :class:`lxml.etree._Element`, which is sent as only child in
+          the IQ ``"result"`` response.
+        * :data:`None`, if an empty ``"result"`` response shall be sent.
+
+        If the function raises an exception which is not an
+        :class:`~.errors.XMPPError`, it is converted to a generic error, which
+        is returned to the original sender.
+
+        If the function raises a :class:`~.errors.XMPPError`, this is equivalent
+        to returning the equivalent :class:`~.stanza.Error` element.
+
+        Only one coroutine may be registered for a tag-type combination at any
+        time. Attempting to register multiple coroutines for the same tag-type
+        combination will result in a :class:`ValueError`.
+        """
+
+        if not isinstance(tag, str) or not tag:
+            raise ValueError("Element tags must be non-empty strings")
+        if type not in {"set", "get"}:
+            raise ValueError('Coroutines can only be registered for "set" or '
+                             '"get" IQ stanzas (got {!r})'.format(type))
+
+        try:
+            existing = self._iq_request_coros[tag, type]
+        except KeyError:
+            self._iq_request_coros[tag, type] = coro
+        else:
+            raise ValueError("Another coroutine is already registered for "
+                             "IQs with data tag {!r} and type={!r}".format(
+                                 tag, type))
+
     @asyncio.coroutine
     def _wait_for_reply_future(self, reply_future, timeout):
         disconnect_future = asyncio.async(
@@ -700,80 +765,18 @@ class Client:
 
         return future.result()
 
-    @contextlib.contextmanager
-    def iq_request_queues(self, *matcher_lists, queues=None):
+    def unregister_iq_request_coro(self, tag, type, coro):
         """
-        Register an arbitrary amount of queues for arbitrary sets of IQ request
-        matchers.
-
-        .. _iq-request-matcher:
-
-        Each matcher list consists of triples (matchers) ``(namespace,
-        localname, type)``. *namespace* and *localpart* are matched against the
-        data element inside the IQ request. *type* must be either ``"set"`` or
-        ``"get"``, depending on which type of IQ to match.
-
-        For each matcher list, there must be exactly one queue in *queues*, or
-        *queues* must be :data:`None`. In the latter case, for each matcher list
-        one queue is created.
-
-        A contextmanager is returned. On enter, the queues are registered for
-        the respective IQ request events, and the tuple of queues is returned as
-        value. On exit, the queues are removed. This contextmanager does not
-        catch any errors.
-
-        If any of the matchers is already in use by another queue (or a matcher
-        is specified multiple times) a :class:`KeyError` is raised.
-
-        .. seealso::
-
-           :meth:`iq_request_queue` is a simplified version registering only one
-           queue.
-
+        Remove a coroutine which has previously registered for the given IQ data
+        *tag* and IQ stanza *type*.
         """
 
-        if queues is None:
-            queues = tuple(asyncio.Queue()
-                           for ml in matcher_lists)
-        elif len(queues) != len(matcher_lists):
-            raise ValueError("There must be exactly as many queues as matcher "
-                             "lists")
-        else:
-            queues = tuple(queues)
+        existing = self._iq_request_coros[tag, type]
+        if existing != coro:
+            raise ValueError("Coroutine does not match the registered "
+                             "coroutine")
+        del self._iq_request_coros[tag, type]
 
-        with contextlib.ExitStack() as stack:
-            for queue, ml in zip(queues, matcher_lists):
-                for namespace, localname, type in ml:
-                    self._add_iq_request_queue(
-                        namespace,
-                        localname,
-                        type,
-                        queue)
-                    stack.callback(
-                        self._remove_iq_request_queue,
-                        namespace,
-                        localname,
-                        type,
-                        queue)
-
-            yield queues
-
-    @contextlib.contextmanager
-    def iq_request_queue(self, *matchers, queue=None):
-        """
-        This method is very similar to :meth:`iq_request_queues`, but instead of
-        matcher lists, it accepts only matchers and at most one queue.
-
-        The contextmanager returns only that queue instead of a tuple of
-        queues. Otherwise, the workings of the functions are the same.
-        """
-        if queue is not None:
-            queues = (queue,)
-        else:
-            queues = (asyncio.Queue(),)
-
-        with self.iq_request_queues(matchers, queues=queues) as (queue,):
-            yield queue
 
     # other stuff
 
