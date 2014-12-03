@@ -6,9 +6,16 @@ Discovery server
 ================
 
 To automatically respond to service discovery requests and provide other
-services with a way to announce their features, the :class:`Service` is used:
+services with a way to announce their features, the :class:`DiscoInfoService` is
+used:
 
-.. autoclass:: Service
+.. note::
+
+   The ``disco#items`` query is not supported yet. The complexity (tree-like
+   structures) requires further thought on how to split the responsiblities and
+   who distributes the queries in which way.
+
+.. autoclass:: DiscoInfoService
 
 Client utilities
 ================
