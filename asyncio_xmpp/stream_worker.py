@@ -721,8 +721,11 @@ class StreamManagementLivenessHandler(LivenessHandler):
         self.xmlstream.stream_level_hooks.add_queue(
             "{{{}}}a".format(namespaces.stream_management),
             self.ack_queue)
+        self.E = self.xmlstream.tx_context.default_ns_builder(
+            namespaces.stream_management)
 
     def teardown(self):
+        del self.E
         self.xmlstream.stream_level_hooks.remove_queue(
             "{{{}}}r".format(namespaces.stream_management),
             self.request_queue)
@@ -732,8 +735,7 @@ class StreamManagementLivenessHandler(LivenessHandler):
         super().teardown()
 
     def perform_request(self):
-        request = self.xmlstream.E("{{{}}}r".format(
-            namespaces.stream_management))
+        request = self.E("r")
         self.passive_request_until = None
         self.ack_pending = datetime.utcnow()
         self.xmlstream.send_node(request)
@@ -800,8 +802,8 @@ class StreamManagementLivenessHandler(LivenessHandler):
             if request_future in done:
                 logger.debug("received ack request")
                 # remote side requests ack
-                ack_node = self.xmlstream.E(
-                    "{{{}}}a".format(namespaces.stream_management),
+                ack_node = self.E(
+                    "a",
                     h=str(self.stanza_broker._acked_remote_ctr))
                 self.xmlstream.send_node(ack_node)
 

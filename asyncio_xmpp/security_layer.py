@@ -110,6 +110,7 @@ class STARTTLSProvider:
         element are the new stream features received after STARTTLS
         negotiation.
         """
+        E = xmlstream.tx_context.default_ns_builder(namespaces.starttls)
 
         try:
             feature = features.require_feature(
@@ -123,8 +124,7 @@ class STARTTLSProvider:
 
         node = yield from xmlstream.send_and_wait_for(
             [
-                xmlstream.tx_context("{{{}}}starttls".format(
-                    namespaces.starttls))
+                E("starttls")
             ],
             [
                 "{{{}}}proceed".format(namespaces.starttls),

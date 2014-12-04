@@ -94,6 +94,8 @@ class SASLStateMachine:
         self.xmlstream = xmlstream
         self._state = "initial"
         self.timeout = None
+        self.E = self.xmlstream.tx_context.default_ns_builder(
+            utils.namespaces.sasl)
 
     @asyncio.coroutine
     def _send_sasl_node_and_wait_for(self, node):
@@ -130,9 +132,8 @@ class SASLStateMachine:
     @asyncio.coroutine
     def _send_response(self, payload):
         return self._send_sasl_node_and_wait_for(
-            self.xmlstream.tx_context(
-                "{urn:ietf:params:xml:ns:xmpp-sasl}response",
-                base64.b64encode(payload)))
+            self.E("response",
+                   base64.b64encode(payload)))
 
     @asyncio.coroutine
     def initiate(self, mechanism, payload=None):
@@ -148,9 +149,7 @@ class SASLStateMachine:
         if self._state != "initial":
             raise ValueError("initiate has already been called")
 
-        node = self.xmlstream.tx_context(
-            "{urn:ietf:params:xml:ns:xmpp-sasl}auth",
-            mechanism=mechanism)
+        node = self.E("auth", mechanism=mechanism)
         if payload is not None:
             node.text = base64.b64encode(payload)
 
@@ -171,9 +170,8 @@ class SASLStateMachine:
             raise ValueError("No challenge has been made or negotiation failed")
 
         result = yield from self._send_sasl_node_and_wait_for(
-            self.xmlstream.tx_context(
-                "{urn:ietf:params:xml:ns:xmpp-sasl}response",
-                base64.b64encode(payload).decode("ascii")))
+            self.E("response", base64.b64encode(payload).decode("ascii"))
+        )
         return result
 
     @asyncio.coroutine
@@ -187,8 +185,7 @@ class SASLStateMachine:
 
         try:
             next_state, payload = yield from self._send_sasl_node_and_wait_for(
-                self.xmlstream.tx_context(
-                    "{urn:ietf:params:xml:ns:xmpp-sasl}abort")
+                self.E("abort")
             )
         except SASLFailure as err:
             self._state = "failure"
