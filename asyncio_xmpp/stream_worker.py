@@ -170,7 +170,7 @@ class StanzaBroker(StreamWorker):
         del self.unacked_queue[:upto_index]
 
         for token in to_flush:
-            item._state = stanza.QueueState.ACKED
+            token._state = stanza.QueueState.ACKED
             if token.ack_callback:
                 token.ack_callback()
 
