@@ -333,7 +333,8 @@ class XMLStream(asyncio.Protocol):
             etree.tostring(node,
                            method="xml",
                            encoding="utf8",
-                           xml_declaration=False)
+                           xml_declaration=False,
+                           with_tail=False)
         )
 
     def _tx_send_raw(self, blob):
