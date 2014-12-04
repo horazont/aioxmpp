@@ -171,19 +171,20 @@ class XMLStreamSenderContext(XMLStreamContext):
         if override_parser:
             parser_options["__override"] = override_parser
 
-        self.nsmap = {
-            "stream": namespaces.xmlstream
-        }
+        self.nsmap = {}
         if default_namespace:
             self.nsmap[None] = default_namespace
             self._namespace_prefix = "{{{}}}".format(default_namespace)
         else:
             self._namespace_prefix = ""
 
+        root_nsmap = self.nsmap.copy()
+        root_nsmap["stream"] = namespaces.xmlstream
+
         super().__init__(parser_options=parser_options)
         self.root = self._parser.makeelement(
             "{{{}}}stream".format(namespaces.xmlstream),
-            nsmap=self.nsmap)
+            nsmap=root_nsmap)
         self.E = lxml.builder.ElementMaker(
             nsmap=self.nsmap,
             makeelement=self.makeelement)
@@ -215,6 +216,15 @@ class XMLStreamSenderContext(XMLStreamContext):
         return self._parser.makeelement(*args,
                                         nsmap=use_nsmap,
                                         **kwargs)
+
+    def default_ns_builder(self, namespace):
+        return self.custom_builder(namespace=namespace,
+                                   nsmap={None: namespace})
+
+    def custom_builder(self, **kwargs):
+        return lxml.builder.ElementMaker(
+            makeelement=self._parser.makeelement,
+            **kwargs)
 
     def _make_generic(self, localname, *,
                       to=None, from_=None,
