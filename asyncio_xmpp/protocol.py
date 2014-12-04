@@ -1,6 +1,6 @@
 """
-:mod:`protocol` --- :class:`asyncio.Protocol` implementation for an xmlstream
-#############################################################################
+:mod:`~asyncio_xmpp.protocol` --- :class:`asyncio.Protocol` implementation for an xmlstream
+###########################################################################################
 
 The :class:`.XMLStream` lass provides an high-level interface to an XMPP
 xmlstream. The corresponding section in the user guide can be found at
