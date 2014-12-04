@@ -152,18 +152,11 @@ class Message(Stanza):
         body = self.body
         self.remove(body)
 
-    def make_reply(self, type=None):
-        obj = Message()
-        # hack to associate the IQ with the correct parser
-        self.append(obj)
-        self.remove(obj)
-        if self.to:
-            obj.from_ = self.to
-        if self.from_:
-            obj.to = self.from_
-        obj.id = self.id
-        obj.type = type or self.type
-        return obj
+    def _make_reply(self, tx_context, type=None):
+        return tx_context.make_message(to=self.from_,
+                                       from_=self.to,
+                                       type=type or self.type,
+                                       id=self.id)
 
 class Presence(Stanza):
     TAG = "{jabber:client}presence"
@@ -173,18 +166,11 @@ class Presence(Stanza):
 
     type = xml_enum_attribute("type", _VALID_TYPES)
 
-    def make_reply(self, type=None):
-        obj = Presence()
-        # hack to associate the IQ with the correct parser
-        self.append(obj)
-        self.remove(obj)
-        if self.to:
-            obj.from_ = self.to
-        if self.from_:
-            obj.to = self.from_
-        obj.id = self.id
-        obj.type = type or self.type
-        return obj
+    def _make_reply(self, tx_context, type=None):
+        return tx_context.make_presence(to=self._from,
+                                        from_=self.to,
+                                        id=self.id,
+                                        type=type or self.type)
 
 class IQ(Stanza):
     TAG = "{jabber:client}iq"
@@ -249,7 +235,7 @@ class IQ(Stanza):
         if error is not None:
             self.remove(error)
 
-    def make_reply(self, error=False):
+    def _make_reply(self, tx_context, error=False):
         """
         Return a new :class:`IQ` instance. The instance has :attr:`from_` and
         :attr:`to` swapped, but share the same :attr:`id`.
@@ -263,13 +249,9 @@ class IQ(Stanza):
             raise ValueError("Cannot construct reply to iq@type={!r}".format(
                 type))
 
-        obj = IQ()
-        # hack to associate the IQ with the correct parser
-        self.append(obj)
-        self.remove(obj)
-        obj.from_ = self.to
-        obj.to = self.from_
-        obj.id = self.id
+        obj = tx_context.make_iq(from_=self.to,
+                                 to=self.from_,
+                                 id=self.id)
         if error:
             obj.type = "error"
             obj.error = Error()

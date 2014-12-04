@@ -218,7 +218,7 @@ class XMLStreamSenderContext(XMLStreamContext):
 
     def _make_generic(self, localname, *,
                       to=None, from_=None,
-                      type=None):
+                      type=None, id=None):
         el = self.E(self._namespace_prefix + localname)
         # verify that construction worked properly
         assert el.__class__ is not lxml.etree._Element
@@ -228,22 +228,27 @@ class XMLStreamSenderContext(XMLStreamContext):
             el.from_ = from_
         if type is not None:
             el.type = type
+        if id is not None:
+            el.id = id
         return el
 
-    def make_iq(self, *, to=None, from_=None, type=None):
+    def make_iq(self, *, to=None, from_=None, type=None, id=None):
         return self._make_generic("iq",
                                   to=to, from_=from_,
-                                  type=type)
+                                  type=type, id=id)
 
-    def make_message(self, *, to=None, from_=None, type=None):
+    def make_message(self, *, to=None, from_=None, type=None, id=None):
         return self._make_generic("message",
                                   to=to, from_=from_,
-                                  type=type)
+                                  type=type, id=id)
 
-    def make_presence(self, *, to=None, from_=None, type=None):
+    def make_presence(self, *, to=None, from_=None, type=None, id=None):
         return self._make_generic("presence",
                                   to=to, from_=from_,
-                                  type=type)
+                                  type=type, id=id)
+
+    def make_reply(self, stanza, **kwargs):
+        return stanza._make_reply(self, **kwargs)
 
 _new_parser = etree.XMLParser(**XMLStreamContext.DEFAULT_PARSER_OPTIONS)
 configure_xmpp_parser(_new_parser)

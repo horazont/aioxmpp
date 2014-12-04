@@ -604,7 +604,7 @@ class Client:
             response_data.condition = "internal-server-error"
             response_data.text = "giving up on deeply nested errors"
 
-        response = iq.make_reply()
+        response = self.tx_context.make_reply(iq)
         if is_error:
             response.type = "error"
         if response_data is not None:

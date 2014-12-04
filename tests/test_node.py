@@ -357,7 +357,7 @@ class TestClient(unittest.TestCase):
         err.text =("No handler registered for this request "
                    "pattern")
 
-        erriq = probeiq.make_reply(error=True)
+        erriq = stream.tx_context.make_reply(probeiq, error=True)
         erriq.error = err
 
         self._prepend_actions_up_to_binding(
