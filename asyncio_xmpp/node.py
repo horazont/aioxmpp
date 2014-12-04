@@ -152,7 +152,7 @@ class Client:
         self._disconnect_event = asyncio.Event()
         self._override_addr = None
 
-        self._tx_context = xml.default_tx_context
+        self.tx_context = xml.default_tx_context
 
         self._callbacks = {
             "connecting": set(),
@@ -329,7 +329,7 @@ class Client:
         proto = protocol.XMLStream(
             to=self._client_jid.domainpart,
             loop=self._loop,
-            tx_context=self._tx_context)
+            tx_context=self.tx_context)
         proto.__features_future = proto.wait_for(
             [
                 "{http://etherx.jabber.org/streams}features",
@@ -399,8 +399,9 @@ class Client:
         with self._stanza_broker.sm_init() as ctx:
             node = yield from self._xmlstream.send_and_wait_for(
                 [
-                    self._tx_context("{{{}}}enable".format(
-                        namespaces.stream_management))
+                    self.tx_context.makeelement(
+                        "{{{}}}enable".format(namespaces.stream_management),
+                        nsmap={None: namespaces.stream_management})
                 ],
                 [
                     "{{{}}}enabled".format(namespaces.stream_management),
@@ -427,7 +428,7 @@ class Client:
 
         node = yield from self._xmlstream.send_and_wait_for(
             [
-                self._tx_context(
+                self.tx_context(
                     "{{{}}}resume".format(namespaces.stream_management),
                     h=str(self._acked_remote_ctr),
                     previd=self._sm_id)
@@ -649,7 +650,7 @@ class Client:
         *to*, *from_* and *type* are initialized with the value of the keyword
         respective argument, if set.
         """
-        iq = self._tx_context.make_iq(**kwargs)
+        iq = self.tx_context.make_iq(**kwargs)
         return iq
 
     def make_presence(self, **kwargs):
@@ -658,7 +659,7 @@ class Client:
         attributes *to*, *from_* and *type* are initialized with the value of
         the keyword respective argument, if set.
         """
-        presence = self._tx_context.make_presence(**kwargs)
+        presence = self.tx_context.make_presence(**kwargs)
         return presence
 
     def make_message(self, **kwargs):
@@ -667,7 +668,7 @@ class Client:
         *to*, *from_* and *type* are initialized with the value of the keyword
         respective argument, if set.
         """
-        message = self._tx_context.make_message(**kwargs)
+        message = self.tx_context.make_message(**kwargs)
         return message
 
     def register_iq_request_coro(self, tag, type, coro):
