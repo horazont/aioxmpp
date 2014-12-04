@@ -36,13 +36,20 @@ class DiscoInfoService(base.Service):
     """
 
     def __init__(self, *nodes, **kwargs):
-        super().__init__(nodes, **kwargs)
+        super().__init__(*nodes, **kwargs)
 
         self._features = set()
         self._identities = collections.Counter()
         self._name = None
 
+    def _add_node(self, node):
         node.register_iq_request_coro(
+            stanza.InfoQuery.TAG,
+            "get",
+            self._handle_info_query)
+
+    def _remove_node(self, node):
+        node.unregister_iq_request_coro(
             stanza.InfoQuery.TAG,
             "get",
             self._handle_info_query)
