@@ -113,17 +113,23 @@ class StanzaElementBase(etree.ElementBase):
             nsmap = {}
         else:
             nsmap = dict(nsmap)
-        ns, _ = split_tag(self.TAG)
-        if ns is not None:
-            nsmap[None] = ns
+        if hasattr(self, "TAG"):
+            ns, _ = split_tag(self.TAG)
+            if ns is not None:
+                nsmap[None] = ns
         super().__init__(*args, nsmap=nsmap, **kwargs)
 
 class Stanza(StanzaElementBase):
+    def __setattr__(self, name, value):
+        if name in {"type", "id"}:
+            raise AttributeError("You are using deprecated attributes")
+        return super().__setattr__(name, value)
+
     def validate(self):
         pass
 
     def autoset_id(self):
-        if self.id is None:
+        if self.id_ is None:
             idstr = binascii.b2a_base64(random.getrandbits(
                 120
             ).to_bytes(
@@ -131,14 +137,14 @@ class Stanza(StanzaElementBase):
             )).decode("ascii").strip()
             self.set("id", idstr)
 
-    id = xml_attribute("id")
+    id_ = xml_attribute("id")
     from_ = xml_jid_attribute("from")
     to = xml_jid_attribute("to")
 
 class Message(Stanza):
     TAG = "{jabber:client}message"
 
-    type = xml_attribute("type")
+    type_ = xml_attribute("type")
 
     @property
     def body(self):
@@ -152,11 +158,11 @@ class Message(Stanza):
         body = self.body
         self.remove(body)
 
-    def _make_reply(self, tx_context, type=None):
+    def _make_reply(self, tx_context, type_=None):
         return tx_context.make_message(to=self.from_,
                                        from_=self.to,
-                                       type=type or self.type,
-                                       id=self.id)
+                                       type_=type_ or self.type_,
+                                       id_=self.id_)
 
 class Presence(Stanza):
     TAG = "{jabber:client}presence"
@@ -164,13 +170,13 @@ class Presence(Stanza):
                     "subscribe", "subscribed",
                     "unsubscribe", "unsubscribed"}
 
-    type = xml_enum_attribute("type", _VALID_TYPES)
+    type_ = xml_enum_attribute("type", _VALID_TYPES)
 
-    def _make_reply(self, tx_context, type=None):
+    def _make_reply(self, tx_context, type_=None):
         return tx_context.make_presence(to=self._from,
                                         from_=self.to,
-                                        id=self.id,
-                                        type=type or self.type)
+                                        id_=self.id_,
+                                        type_=type_ or self.type_)
 
 class IQ(Stanza):
     TAG = "{jabber:client}iq"
@@ -178,22 +184,22 @@ class IQ(Stanza):
 
     def validate(self):
         super().validate()
-        if self.type not in self._VALID_TYPES:
-            raise ValueError("Incorrect iq@type: {}".format(self.type))
-        if self.type in {"set", "get"}:
+        if self.type_ not in self._VALID_TYPES:
+            raise ValueError("Incorrect iq@type: {}".format(self.type_))
+        if self.type_ in {"set", "get"}:
             if self.data is None:
                 raise ValueError("iq with type 'set' or 'get' must have "
                                  "exactly one non-error child")
-        elif self.type == "result":
+        elif self.type_ == "result":
             if len(self) > 1 or self.error is not None:
                 raise ValueError("iq with type 'result' must have zero or"
                                  " one non-error child")
-        elif self.type == "error":
+        elif self.type_ == "error":
             if self.error is None:
                 raise ValueError("iq with type 'error' must have one error "
                                  "child")
 
-    type = xml_enum_attribute("type", _VALID_TYPES)
+    type_ = xml_enum_attribute("type", _VALID_TYPES)
 
     @property
     def data(self):
@@ -222,9 +228,9 @@ class IQ(Stanza):
 
     @error.setter
     def error(self, value):
-        if self.type != "error":
+        if self.type_ != "error":
             raise ValueError("Error cannot be attached to an IQ of type "
-                             "{}".format(self.type))
+                             "{}".format(self.type_))
 
         del self.error
         self.append(value)
@@ -238,25 +244,25 @@ class IQ(Stanza):
     def _make_reply(self, tx_context, error=False):
         """
         Return a new :class:`IQ` instance. The instance has :attr:`from_` and
-        :attr:`to` swapped, but share the same :attr:`id`.
+        :attr:`to` swapped, but share the same :attr:`id_`.
 
         The type is set to ``"result"`` if *error* is :data:`False`, else it is
         set to ``"error"`` and :attr:`data` is initialized with a new
         :class:`Error` instance.
         """
 
-        if self.type not in {"set", "get"}:
+        if self.type_ not in {"set", "get"}:
             raise ValueError("Cannot construct reply to iq@type={!r}".format(
                 type))
 
         obj = tx_context.make_iq(from_=self.to,
                                  to=self.from_,
-                                 id=self.id)
+                                 id_=self.id_)
         if error:
-            obj.type = "error"
+            obj.type_ = "error"
             obj.error = Error()
         else:
-            obj.type = "result"
+            obj.type_ = "result"
 
         return obj
 
@@ -297,7 +303,7 @@ class Error(etree.ElementBase):
     _NON_APPDEF_ELEMENTS = _VALID_CONDITION_ELEMENTS | {_TEXT_ELEMENT}
     _CONDITION_FILTER = "{{{}}}*".format(namespaces.stanzas)
 
-    type = xml_enum_attribute("type", _VALID_TYPES)
+    type_ = xml_enum_attribute("type", _VALID_TYPES)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -423,7 +429,7 @@ class Error(etree.ElementBase):
 
     def make_exception(self):
         cls = errors.error_type_map.get(
-            self.type,
+            self.type_,
             errors.XMPPError)
 
         return cls(

@@ -111,11 +111,11 @@ class Client:
        that the correct lxml context is used, allowing consistent access to the
        fancy classes around the XML elements.
 
-    .. automethod:: make_iq(*, [to], [from_], [type])
+    .. automethod:: make_iq(*, [to], [from_], [type_])
 
-    .. automethod:: make_presence(*, [to], [from_], [type])
+    .. automethod:: make_presence(*, [to], [from_], [type_])
 
-    .. automethod:: make_message(*, [to], [from_], [type])
+    .. automethod:: make_message(*, [to], [from_], [type_])
 
     To send stanzas, use :meth:`enqueue_stanza`.
 
@@ -372,7 +372,7 @@ class Client:
                 "Server does not support resource binding")
 
         bind = self.make_iq()
-        bind.type = "set"
+        bind.type_ = "set"
         bind.data = rfc6120.Bind()
         if self._client_jid.resource is not None:
             bind.data.resource = self._client_jid.resource
@@ -490,8 +490,9 @@ class Client:
 
     @asyncio.coroutine
     def _default_iq_request_handler(self, iq):
-        namespace, local = split_tag(iq.tag)
-        logger.warning("no handler for %s ({%s}%s)", iq, namespace, local)
+        logger.warning("no handler for iq data_tag=%r, type=%r",
+                       iq.data.tag if iq.data is not None else None,
+                       iq.type_)
         raise errors.XMPPCancelError(
             error_tag="feature-not-implemented",
             text="No handler registered for this request pattern")
@@ -536,7 +537,7 @@ class Client:
             tag = None
 
         try:
-            coro = self._iq_request_coros[tag, iq.type]
+            coro = self._iq_request_coros[tag, iq.type_]
         except KeyError:
             coro = self._default_iq_request_handler
 
@@ -544,13 +545,13 @@ class Client:
 
     def _handle_message(self, message):
         from_ = message.from_
-        id = message.id
-        type = message.type
+        id_ = message.id_
+        type_ = message.type_
 
         keys = [
-            (str(from_), type),
-            (str(from_.bare), type),
-            (None, type),
+            (str(from_), type_),
+            (str(from_.bare), type_),
+            (None, type_),
         ]
         if not self._dispatch_stanza(self._message_callbacks, keys, message):
             logger.warning("unhandled message stanza: %r", message)
@@ -558,11 +559,11 @@ class Client:
 
     def _handle_presence(self, presence):
         from_ = presence.from_
-        id = presence.id
-        type = presence.type
+        id_ = presence.id_
+        type_ = presence.type_
 
         keys = [
-            (type, )
+            (type_, )
         ]
 
         if not self._dispatch_stanza(self._presence_callbacks, keys, presence):
@@ -589,7 +590,7 @@ class Client:
                     )
             except errors.XMPPError as err:
                 response_data = stanza.Error()
-                response_data.type = err.TYPE
+                response_data.type_ = err.TYPE
                 response_data.condition = err.error_tag
                 response_data.text = err.text
                 if err.application_defined_condition:
@@ -600,13 +601,13 @@ class Client:
                              "for an exception thrown by an IQ handler, the"
                              " following exception occured:")
             response_data = stanza.Error()
-            response_data.type = "cancel"
+            response_data.type_ = "cancel"
             response_data.condition = "internal-server-error"
             response_data.text = "giving up on deeply nested errors"
 
         response = self.tx_context.make_reply(iq)
         if is_error:
-            response.type = "error"
+            response.type_ = "error"
         if response_data is not None:
             response.append(response_data)
         self.enqueue_stanza(response)
@@ -647,7 +648,7 @@ class Client:
     def make_iq(self, **kwargs):
         """
         Create and return a new :class:`~.stanza.IQ` stanza. The attributes
-        *to*, *from_* and *type* are initialized with the value of the keyword
+        *to*, *from_* and *type_* are initialized with the value of the keyword
         respective argument, if set.
         """
         iq = self.tx_context.make_iq(**kwargs)
@@ -656,7 +657,7 @@ class Client:
     def make_presence(self, **kwargs):
         """
         Create and return a new :class:`~.stanza.Presence` stanza. The
-        attributes *to*, *from_* and *type* are initialized with the value of
+        attributes *to*, *from_* and *type_* are initialized with the value of
         the keyword respective argument, if set.
         """
         presence = self.tx_context.make_presence(**kwargs)
@@ -665,16 +666,16 @@ class Client:
     def make_message(self, **kwargs):
         """
         Create and return a new :class:`~.stanza.Message` stanza. The attributes
-        *to*, *from_* and *type* are initialized with the value of the keyword
+        *to*, *from_* and *type_* are initialized with the value of the keyword
         respective argument, if set.
         """
         message = self.tx_context.make_message(**kwargs)
         return message
 
-    def register_iq_request_coro(self, tag, type, coro):
+    def register_iq_request_coro(self, tag, type_, coro):
         """
         Register a coroutine which is started (asynchronously) whenever an IQ
-        stanza with a data element of the given *tag* and the given IQ *type*
+        stanza with a data element of the given *tag* and the given IQ *type_*
         arrives.
 
         The coroutine is started with the stanza as the only argument. It must
@@ -700,18 +701,18 @@ class Client:
 
         if not isinstance(tag, str) or not tag:
             raise ValueError("Element tags must be non-empty strings")
-        if type not in {"set", "get"}:
+        if type_ not in {"set", "get"}:
             raise ValueError('Coroutines can only be registered for "set" or '
-                             '"get" IQ stanzas (got {!r})'.format(type))
+                             '"get" IQ stanzas (got {!r})'.format(type_))
 
         try:
-            existing = self._iq_request_coros[tag, type]
+            existing = self._iq_request_coros[tag, type_]
         except KeyError:
-            self._iq_request_coros[tag, type] = coro
+            self._iq_request_coros[tag, type_] = coro
         else:
             raise ValueError("Another coroutine is already registered for "
                              "IQs with data tag {!r} and type={!r}".format(
-                                 tag, type))
+                                 tag, type_))
 
     @asyncio.coroutine
     def _wait_for_reply_future(self, reply_future, timeout):
@@ -766,17 +767,17 @@ class Client:
 
         return future.result()
 
-    def unregister_iq_request_coro(self, tag, type, coro):
+    def unregister_iq_request_coro(self, tag, type_, coro):
         """
         Remove a coroutine which has previously registered for the given IQ data
-        *tag* and IQ stanza *type*.
+        *tag* and IQ stanza *type_*.
         """
 
-        existing = self._iq_request_coros[tag, type]
+        existing = self._iq_request_coros[tag, type_]
         if existing != coro:
             raise ValueError("Coroutine does not match the registered "
                              "coroutine")
-        del self._iq_request_coros[tag, type]
+        del self._iq_request_coros[tag, type_]
 
 
     # other stuff

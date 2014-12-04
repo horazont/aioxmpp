@@ -68,23 +68,23 @@ class DiscoInfoService(base.Service):
             raise KeyError(feature)
         self._features.add(feature)
 
-    def add_identity(self, category, type):
+    def add_identity(self, category, type_):
         """
-        Add an identity of *category* and *type*. Identities are counted, that
+        Add an identity of *category* and *type_*. Identities are counted, that
         is if multiple callers add the same identity and type, both must remove
         the identity again for it to vanish from the query.
 
         * ``category``: A non-empty string which serves as a category for the
           identity.
-        * ``type``: A non-empty string which serves as the type for the
+        * ``type_``: A non-empty string which serves as the type for the
           identity.
         """
 
         if not category or not isinstance(category, str):
             raise ValueError("Identity category must a non-empty string")
-        if not type or not isinstance(type, str):
+        if not type_ or not isinstance(type_, str):
             raise ValueError("Identity type must a non-empty string")
-        self._identities[category, type] += 1
+        self._identities[category, type_] += 1
 
     def remove_feature(self, feature):
         """
@@ -94,14 +94,14 @@ class DiscoInfoService(base.Service):
         """
         self._features.remove(feature)
 
-    def remove_identity(self, category, type):
+    def remove_identity(self, category, type_):
         """
         Remove an identity which has previously been added, identified by their
-        *category* and *type*.
+        *category* and *type_*.
 
         This never raises.
         """
-        identity = category, type
+        identity = category, type_
         ctr = self._identities[identity] - 1
         if ctr <= 0:
             del self._identities[identity]
@@ -139,10 +139,10 @@ class DiscoInfoService(base.Service):
             item.var = feature
             result.append(item)
 
-        for category, type in self._identities.keys():
+        for category, type_ in self._identities.keys():
             item = stanza.Identity()
             item.category = identity.category
-            item.type = identity.type
+            item.type_ = identity.type_
             if self._name:
                 item.name = self._name
 

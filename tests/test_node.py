@@ -114,10 +114,10 @@ class XMLStreamMock:
         if save_id is not None:
             node.set("id", save_id)
         for node_to_send in to_send:
-            if     (hasattr(node_to_send, "id") and hasattr(node, "id")
-                    and node_to_send.type in {"result", "error"}):
+            if     (hasattr(node_to_send, "id_") and hasattr(node, "id_")
+                    and node_to_send.type_ in {"result", "error"}):
                 # print(node_to_send)
-                node_to_send.id = node.id
+                node_to_send.id_ = node.id_
             self.mock_receive_node(node_to_send)
 
         if self._action_sequence and self._action_sequence[0][0] == "!close":
@@ -346,13 +346,13 @@ class TestClient(unittest.TestCase):
 
         probeiq = stream.E("{jabber:client}iq")
         probeiq.data = stream.E("{foo}data")
-        probeiq.type = "set"
+        probeiq.type_ = "set"
         probeiq.to = "test@example.com/foo"
         probeiq.from_ = "foo@example.com/bar"
         probeiq.autoset_id()
 
         err = stanza.Error()
-        err.type = "cancel"
+        err.type_ = "cancel"
         err.condition = "feature-not-implemented"
         err.text =("No handler registered for this request "
                    "pattern")
@@ -379,7 +379,7 @@ class TestClient(unittest.TestCase):
         transport, stream = self._make_stream()
 
         probeiq = stream.E("{jabber:client}iq")
-        probeiq.type = "result"
+        probeiq.type_ = "result"
         probeiq.data = stream.E("{foo}data")
         probeiq.to = "test@example.com/foo"
         probeiq.from_ = "foo@example.com/bar"

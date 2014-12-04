@@ -187,3 +187,16 @@ class TestError(unittest.TestCase):
         self.assertIs(
             exc.application_defined_condition,
             err.application_defined_condition)
+
+
+class TestStanza(unittest.TestCase):
+    def test_deprecated_attributes(self):
+        el = stanza.Stanza()
+        with self.assertRaises(AttributeError):
+            el.id = "foo"
+        with self.assertRaises(AttributeError):
+            el.type = "foo"
+        with self.assertRaises(AttributeError):
+            el.id
+        with self.assertRaises(AttributeError):
+            el.type

@@ -99,8 +99,8 @@ class StanzaBrokerSMInitializer:
         self.broker._unacked_ctr_base = 0
         self.broker._sm_reset(enabled=True)
 
-    def set_session_id(self, id):
-        self.broker._sm_id = id
+    def set_session_id(self, id_):
+        self.broker._sm_id = id_
 
 class StanzaBroker(StreamWorker):
     """
@@ -189,10 +189,11 @@ class StanzaBroker(StreamWorker):
         if token._stanza.tag.endswith("}iq"):
             # IQ stanza, register handlers
             iq = token._stanza
-            if iq.type in {"set", "get"}:
-                logger.debug("registering response handler for %r",
-                             token._stanza)
-                self._iq_response_tokens[iq.id, iq.to] = token
+            if iq.type_ in {"set", "get"}:
+                logger.debug("registering response handler for %r "
+                             "(id=%r, from=%r)",
+                             token._stanza, iq.id_, iq.from_)
+                self._iq_response_tokens[iq.id_, iq.to] = token
         else:
             if token.response_future:
                 raise ValueError("Response future is not supported for "
@@ -228,7 +229,7 @@ class StanzaBroker(StreamWorker):
         if token.sent_callback:
             token.sent_callback()
 
-    def _sm_reset(self, enabled=False, id=None):
+    def _sm_reset(self, enabled=False, id_=None):
         restart = False
         if self._sm_enabled ^ enabled:
             # state will change
@@ -247,7 +248,7 @@ class StanzaBroker(StreamWorker):
                     self._shared_disconnect_event)
             self._liveness_handler.setup(self)
 
-        self._sm_id = id
+        self._sm_id = id_
         self._sm_enabled = enabled
 
         if not enabled:
@@ -257,12 +258,13 @@ class StanzaBroker(StreamWorker):
             self.start_liveness_handler()
 
     def _stanza_iq(self, iq):
-        if iq.type in {"result", "error"}:
+        if iq.type_ in {"result", "error"}:
             try:
-                token = self._iq_response_tokens.pop((iq.id, iq.from_))
+                token = self._iq_response_tokens.pop((iq.id_, iq.from_ or None))
             except KeyError:
-                logger.warn("unexpected iq response: type=%s, id=%r, data=%s",
-                            iq.type, iq.id, iq.data)
+                logger.warn("unexpected iq response: "
+                            "from=%r, type=%s, id=%r, data=%s",
+                            iq.from_, iq.type_, iq.id_, iq.data)
                 logger.debug("current token map: %r",
                              self._iq_response_tokens)
             else:
@@ -620,7 +622,7 @@ class PingLivenessHandler(LivenessHandler):
     def perform_request(self):
         self.response_future = asyncio.Future()
         token = self.stanza_broker.make_stanza_token(
-            self.xmlstream.tx_context.make_iq(type="get"),
+            self.xmlstream.tx_context.make_iq(type_="get"),
             response_future=self.response_future
         )
         token.stanza.autoset_id()

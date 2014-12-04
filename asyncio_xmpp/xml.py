@@ -228,7 +228,7 @@ class XMLStreamSenderContext(XMLStreamContext):
 
     def _make_generic(self, localname, *,
                       to=None, from_=None,
-                      type=None, id=None):
+                      type_=None, id_=None):
         el = self.E(self._namespace_prefix + localname)
         # verify that construction worked properly
         assert el.__class__ is not lxml.etree._Element
@@ -236,26 +236,26 @@ class XMLStreamSenderContext(XMLStreamContext):
             el.to = to
         if from_ is not None:
             el.from_ = from_
-        if type is not None:
-            el.type = type
-        if id is not None:
-            el.id = id
+        if type_ is not None:
+            el.type_ = type_
+        if id_ is not None:
+            el.id_ = id_
         return el
 
-    def make_iq(self, *, to=None, from_=None, type=None, id=None):
+    def make_iq(self, *, to=None, from_=None, type_=None, id_=None):
         return self._make_generic("iq",
                                   to=to, from_=from_,
-                                  type=type, id=id)
+                                  type_=type_, id_=id_)
 
-    def make_message(self, *, to=None, from_=None, type=None, id=None):
+    def make_message(self, *, to=None, from_=None, type_=None, id_=None):
         return self._make_generic("message",
                                   to=to, from_=from_,
-                                  type=type, id=id)
+                                  type_=type_, id_=id_)
 
-    def make_presence(self, *, to=None, from_=None, type=None, id=None):
+    def make_presence(self, *, to=None, from_=None, type_=None, id_=None):
         return self._make_generic("presence",
                                   to=to, from_=from_,
-                                  type=type, id=id)
+                                  type_=type_, id_=id_)
 
     def make_reply(self, stanza, **kwargs):
         return stanza._make_reply(self, **kwargs)

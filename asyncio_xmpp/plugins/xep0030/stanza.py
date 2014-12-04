@@ -51,7 +51,7 @@ class Identity(stanza.StanzaElementBase):
     TAG = "{{{}}}identity".format(namespaces.xep0030_disco_info)
 
     category = stanza.xml_attribute("category")
-    type = stanza.xml_attribute("type")
+    type_ = stanza.xml_attribute("type")
     name = stanza.xml_attribute("name")
 
 class Feature(stanza.StanzaElementBase):
