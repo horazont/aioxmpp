@@ -159,10 +159,14 @@ class SSLWrapperMock:
 
         tester = self._protocol._tester
         tester.assertFalse(self._protocol._closed)
-        tester.assertTrue(self._protocol._action_sequence)
+        tester.assertTrue(self._protocol._action_sequence,
+                          "Unexpected client action (no actions left)")
         to_recv, to_send = self._protocol._action_sequence.pop(0)
-        tester.assertTrue(to_recv.startswith("!starttls@"),
+        tester.assertTrue(to_recv.startswith("!starttls"),
                           "Unexpected starttls attempt by the client")
+        tester.assertTrue(to_recv.startswith("!starttls@"),
+                          "starttls attempt syntax error ("
+                          "syntax is !starttls@hostname)")
         hostname = to_recv[10:] or None
         tester.assertEqual(server_hostname, hostname)
         return self, None
@@ -226,7 +230,8 @@ class XMLStreamMock:
 
     def close(self):
         self._tester.assertFalse(self._closed)
-        self._tester.assertTrue(self._action_sequence)
+        self._tester.assertTrue(self._action_sequence,
+                                "Unexpected client action (no actions left)")
         to_recv, to_send = self._action_sequence.pop(0)
         self._tester.assertEqual(
             to_recv, "!close",
@@ -241,7 +246,8 @@ class XMLStreamMock:
 
     def reset_stream(self):
         self._tester.assertFalse(self._closed)
-        self._tester.assertTrue(self._action_sequence)
+        self._tester.assertTrue(self._action_sequence,
+                                "Unexpected client action (no actions left)")
         to_recv, to_send = self._action_sequence.pop(0)
         self._tester.assertEqual(to_recv, "!reset")
         for node in to_send:
@@ -265,7 +271,8 @@ class XMLStreamMock:
 
     def _tx_send_node(self, node):
         self._tester.assertFalse(self._closed)
-        self._tester.assertTrue(self._action_sequence)
+        self._tester.assertTrue(self._action_sequence,
+                                "Unexpected client action (no actions left)")
         to_recv, to_send = self._action_sequence.pop(0)
         # print("foo", node)
         self._tester.assertNotEqual(
