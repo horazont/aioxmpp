@@ -13,163 +13,7 @@ import asyncio_xmpp.errors as errors
 
 from asyncio_xmpp.utils import *
 
-class SSLWrapperMock:
-    def __init__(self, loop, protocol):
-        super().__init__()
-        self._loop = loop
-        self._protocol = protocol
-
-    @asyncio.coroutine
-    def starttls(self, ssl_context=None, server_hostname=None):
-        tester = self._protocol._tester
-        tester.assertFalse(self._protocol._closed)
-        tester.assertTrue(self._protocol._action_sequence)
-        to_recv, to_send = self._protocol._action_sequence.pop(0)
-        tester.assertTrue(to_recv.startswith("!starttls@"),
-                          "Unexpected starttls attempt by the client")
-        hostname = to_recv[10:] or None
-        tester.assertEqual(server_hostname, hostname)
-        return self, None
-
-    def close(self):
-        pass
-
-class XMLStreamMock:
-    def __init__(self, tester, *,
-                 loop=None):
-        super().__init__()
-        self._closed = False
-        self._loop = loop or asyncio.get_event_loop()
-        self._tester = tester
-        self._action_sequence = list()
-        self._transport = None
-        self._stream_level_node_hooks = hooks.NodeHooks()
-        protocol.XMLStream._rx_reset(self)
-        self.tx_context = xml.default_tx_context
-        self.E = self.tx_context
-
-        self.done_event = asyncio.Event(loop=loop)
-        self.done_event.clear()
-
-    def connection_made(self, transport):
-        self._closed = False
-        self._transport = transport
-
-    def close(self):
-        self._tester.assertFalse(self._closed)
-        self._tester.assertTrue(self._action_sequence)
-        to_recv, to_send = self._action_sequence.pop(0)
-        self._tester.assertEqual(
-            to_recv, "!close",
-            msg="Expected client to send {}".format(
-                etree.tostring(to_recv) if not isinstance(to_recv, str) else "")
-        )
-        self._tester.assertFalse(to_send)
-        self.done_event.set()
-        self._closed = True
-        if self.on_connection_lost:
-            self.on_connection_lost(None)
-
-    def reset_stream(self):
-        self._tester.assertFalse(self._closed)
-        self._tester.assertTrue(self._action_sequence)
-        to_recv, to_send = self._action_sequence.pop(0)
-        self._tester.assertEqual(to_recv, "!reset")
-        for node in to_send:
-            self.mock_receive_node(node)
-
-    def define_actions(self, action_sequence):
-        self._action_sequence[:] = action_sequence
-
-    def mock_receive_node(self, node):
-        try:
-            self._stream_level_node_hooks.unicast(node.tag, node)
-        except KeyError:
-            raise AssertionError(
-                "Client has no listener for node sent by test: {}".format(node.tag)
-            ) from None
-
-    def mock_finalize(self):
-        self._tester.assertFalse(
-            self._action_sequence,
-            "Some expected actions were not performed")
-
-    def _tx_send_node(self, node):
-        self._tester.assertFalse(self._closed)
-        self._tester.assertTrue(self._action_sequence)
-        to_recv, to_send = self._action_sequence.pop(0)
-        # print("foo", node)
-        self._tester.assertNotEqual(
-            to_recv, "!close",
-            "Unexpected node sent by the client: {}".format(
-                etree.tostring(node)))
-        # print("bar")
-        # XXX: this needs to be done better. maybe we need a comparision method
-        # on stanzas.
-        if node.get("type") in {"set", "get"}:
-            save_id = node.attrib.pop("id", None)
-        else:
-            save_id = None
-        self._tester.assertTreeEqual(to_recv, node)
-        if save_id is not None:
-            node.set("id", save_id)
-        for node_to_send in to_send:
-            if     (hasattr(node_to_send, "id_") and hasattr(node, "id_")
-                    and node_to_send.type_ in {"result", "error"}):
-                # print(node_to_send)
-                node_to_send.id_ = node.id_
-            self.mock_receive_node(node_to_send)
-
-        if self._action_sequence and self._action_sequence[0][0] == "!close":
-            self.done_event.set()
-
-    def send_node(self, node):
-        self._tx_send_node(node)
-
-    @property
-    def stream_level_hooks(self):
-        return self._stream_level_node_hooks
-
-    _send_andor_wait_for = protocol.XMLStream._send_andor_wait_for
-    wait_for = protocol.XMLStream.wait_for
-    send_and_wait_for = protocol.XMLStream.send_and_wait_for
-    stream_error = protocol.XMLStream.stream_error
-    transport = protocol.XMLStream.transport
-    reset_stream_and_get_features = \
-        protocol.XMLStream.reset_stream_and_get_features
-
-class TestableClient(node.Client):
-    # this merely overrides the construction of the xmlstream so that we can
-    # hook our mockable stream into it
-
-    def __init__(self, mocked_transport, mocked_stream,
-                 client_jid, password, *args,
-                 initial_node=None,
-                 **kwargs):
-        self.__mocked_transport = mocked_transport
-        self.__mocked_stream = mocked_stream
-        self.__initial_node = initial_node
-        @asyncio.coroutine
-        def password_provider(*args):
-            return password
-        super().__init__(
-            client_jid,
-            security_layer.tls_with_password_based_authentication(
-                password_provider),
-            *args, **kwargs)
-
-    @asyncio.coroutine
-    def _connect_xmlstream(self):
-        self.__mocked_stream._Client__features_future = \
-            self.__mocked_stream.wait_for(
-                [
-                    "{http://etherx.jabber.org/streams}features",
-                ],
-                timeout=1)
-        self.__mocked_stream.mock_receive_node(self.__initial_node)
-        self.__mocked_stream.on_connection_lost = \
-            self._handle_xmlstream_connection_lost
-        return self.__mocked_transport, self.__mocked_stream
+from .mocks import TestableClient, XMLStreamMock
 
 class TestClient(unittest.TestCase):
     def assertTreeEqual(self, t1, t2, with_tail=False):
@@ -204,13 +48,9 @@ class TestClient(unittest.TestCase):
             raise err
 
     def _make_stream(self):
-        wrapper = SSLWrapperMock(
-            self._loop,
-            XMLStreamMock(
-                self,
-                loop=self._loop))
-        wrapper._protocol.connection_made(wrapper)
-        return wrapper, wrapper._protocol
+        return XMLStreamMock(
+            self,
+            loop=self._loop)
 
     def _prepend_actions_up_to_binding(self, stream,
                                        probe_stanzas,
@@ -260,7 +100,7 @@ class TestClient(unittest.TestCase):
         stream.define_actions(result)
 
     @asyncio.coroutine
-    def _run_client(self, initial_node, transport, stream,
+    def _run_client(self, initial_node, stream,
                     client_jid="test@example.com",
                     password="test",
                     *args, **kwargs):
@@ -268,7 +108,7 @@ class TestClient(unittest.TestCase):
         connection_err = None
 
         client = TestableClient(
-            transport, stream,
+            stream,
             client_jid,
             password,
             max_reconnect_attempts=1,
@@ -287,7 +127,7 @@ class TestClient(unittest.TestCase):
 
         yield from client.disconnect()
 
-    def _simply_run_client(self, transport, stream):
+    def _simply_run_client(self, stream):
         @asyncio.coroutine
         def task():
             features = stream.E(
@@ -299,7 +139,6 @@ class TestClient(unittest.TestCase):
             )
             err = yield from self._run_client(
                 features,
-                transport,
                 stream
             )
             if err is not None:
@@ -308,7 +147,7 @@ class TestClient(unittest.TestCase):
         self._run_until_complete_and_catch_errors(task())
 
     def test_require_starttls(self):
-        transport, stream = self._make_stream()
+        stream = self._make_stream()
         stream.define_actions(
             [
                 ("!close", None)
@@ -320,7 +159,6 @@ class TestClient(unittest.TestCase):
             with self.assertRaises(errors.TLSFailure):
                 err = yield from self._run_client(
                     stream.E("{{{}}}features".format(namespaces.xmlstream)),
-                    transport,
                     stream
                 )
 
@@ -329,7 +167,7 @@ class TestClient(unittest.TestCase):
         stream.mock_finalize()
 
     def test_negotiate_stream(self):
-        transport, stream = self._make_stream()
+        stream = self._make_stream()
 
         self._prepend_actions_up_to_binding(
             stream,
@@ -337,12 +175,12 @@ class TestClient(unittest.TestCase):
             [("!close", None),]
         )
 
-        self._simply_run_client(transport, stream)
+        self._simply_run_client(stream)
 
         stream.mock_finalize()
 
     def test_iq_error_response(self):
-        transport, stream = self._make_stream()
+        stream = self._make_stream()
 
         probeiq = stream.E("{jabber:client}iq")
         probeiq.data = stream.E("{foo}data")
@@ -371,12 +209,12 @@ class TestClient(unittest.TestCase):
             ]
         )
 
-        self._simply_run_client(transport, stream)
+        self._simply_run_client(stream)
 
         stream.mock_finalize()
 
     def test_iq_silence_for_errornous_result(self):
-        transport, stream = self._make_stream()
+        stream = self._make_stream()
 
         probeiq = stream.E("{jabber:client}iq")
         probeiq.type_ = "result"
@@ -395,6 +233,6 @@ class TestClient(unittest.TestCase):
             ]
         )
 
-        self._simply_run_client(transport, stream)
+        self._simply_run_client(stream)
 
         stream.mock_finalize()

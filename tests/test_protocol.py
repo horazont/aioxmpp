@@ -4,6 +4,8 @@ import unittest
 import asyncio_xmpp.protocol as protocol
 import asyncio_xmpp.errors as errors
 
+from .mocks import TransportMock
+
 class Test_State(unittest.TestCase):
     def test_UNCONNECTED(self):
         state = protocol._State.UNCONNECTED
@@ -74,80 +76,6 @@ class Test_State(unittest.TestCase):
                          state.with_closed_tx())
         self.assertEqual(protocol._State.CLOSING,
                          state.with_closed_rx())
-
-
-class TransportMock(asyncio.ReadTransport, asyncio.WriteTransport):
-    def __init__(self, protocol):
-        super().__init__()
-        self.closed = False
-        self._eof = False
-        self._written = b""
-        self._protocol = protocol
-
-    def _require_non_eof(self):
-        if self._eof:
-            raise ConnectionError("Write connection already closed")
-
-    def _require_open(self):
-        if self.closed:
-            raise ConnectionError("Underlying connection closed")
-
-    def close(self):
-        self._require_open()
-        self.closed = True
-        self._eof = True
-
-    def get_extra_info(self, name, default=None):
-        return default
-
-    def abort(self):
-        self.close()
-
-    def can_write_eof(self):
-        return True
-
-    def write(self, data):
-        self._require_non_eof()
-        self._written += data
-
-    def writelines(self, list_of_data):
-        self.write(b"".join(list_of_data))
-
-    def write_eof(self):
-        self._require_non_eof()
-        self._eof = True
-
-    def pause_reading(self):
-        pass
-
-    def resume_reading(self):
-        pass
-
-    def mock_connection_made(self):
-        self._protocol.connection_made(self)
-
-    def mock_eof_received(self):
-        self._protocol.eof_received()
-
-    def mock_connection_lost(self, exc):
-        self._protocol.connection_lost(exc)
-
-    def mock_data_received(self, data):
-        self._protocol.data_received(data)
-
-    def mock_pause_writing(self):
-        self._protocol.pause_writing()
-
-    def mock_resume_writing(self):
-        self._protocol.resume_writing()
-
-    def mock_buffer(self):
-        return self._written, self._eof
-
-    def mock_flush_buffer(self):
-        buffer = self._written
-        self._written = b""
-        return buffer
 
 class TestXMLStream(unittest.TestCase):
     def setUp(self):
