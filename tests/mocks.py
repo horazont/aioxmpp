@@ -26,6 +26,16 @@ import asyncio_xmpp.sasl as sasl
 
 from asyncio_xmpp.utils import *
 
+class BangSuccess(Exception):
+    """
+    This is raised by the ``"!success"`` string action. Can be used to
+    e.g. abort a SASL negotiation if the intent of the client is already clear
+    enough.
+    """
+
+    def __init__(self):
+        super().__init__("!success")
+
 def assertTreeEqual(tester, t1, t2, with_tail=False):
     tester.assertEqual(t1.tag, t2.tag)
     tester.assertEqual(t1.text, t2.text)
@@ -270,6 +280,10 @@ class XMLStreamMock:
         else:
             save_id = None
         assertTreeEqual(self._tester, to_recv, node)
+
+        if to_send == "!success":
+            raise BangSuccess()
+
         if save_id is not None:
             node.set("id", save_id)
         for node_to_send in to_send:
