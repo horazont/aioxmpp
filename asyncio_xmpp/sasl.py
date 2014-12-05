@@ -364,12 +364,14 @@ class SCRAM(SASLMechanism):
            nonce = payload[b"r"]
            salt = base64.b64decode(payload[b"s"])
        except (ValueError, KeyError):
-           logger.warn("Malformed server message: {!r}".format(payload))
            yield from sm.abort()
+           raise errors.SASLFailure(
+               "Malformed server message: {!r}".format(payload))
 
        if not nonce.startswith(our_nonce):
-           logger.warn("Server nonce doesn't fit our nonce (aborting SASL)")
            yield from sm.abort()
+           raise errors.SASLFailure(
+               "Server nonce doesn't fit our nonce")
 
        salted_password = pbkdf2(
            hashfun_factory,
