@@ -181,6 +181,20 @@ class SASLProvider:
 
         return None, None
 
+    AUTHENTICATION_FAILURES = {
+        "credentials-expired",
+        "account-disabled",
+        "invalid-authzid",
+        "not-authorized",
+        "temporary-auth-failure",
+    }
+
+    MECHANISM_REJECTED_FAILURES = {
+        "invalid-mechanism",
+        "mechanism-too-weak",
+        "encryption-required",
+    }
+
     @asyncio.coroutine
     def _execute(self, xmlstream, mechanism, token):
         """
@@ -188,7 +202,17 @@ class SASLProvider:
         *token* on the *xmlstream*.
         """
         sm = sasl.SASLStateMachine(xmlstream)
-        yield from mechanism.authenticate(sm, token)
+        try:
+            yield from mechanism.authenticate(sm, token)
+            return True
+        except errors.SASLFailure as err:
+            if err.xmpp_error in self.AUTHENTICATION_FAILURES:
+                raise errors.AuthenticationFailure(
+                    xmpp_error=err.xmpp_error,
+                    text=err.text)
+            elif err.xmpp_error in self.MECHANISM_REJECTED_FAILURES:
+                return False
+            raise
 
     @abc.abstractmethod
     @asyncio.coroutine
@@ -245,16 +269,21 @@ class PasswordSASLProvider(SASLProvider):
 
         password_signalled_abort = False
         nattempt = 0
+        cached_credentials = None
 
         @asyncio.coroutine
         def credential_provider():
-            nonlocal password_signalled_abort, nattempt
+            nonlocal password_signalled_abort, nattempt, cached_credentials
+            if cached_credentials is not None:
+                return client_jid.localpart, cached_credentials
+
             password = yield from self._password_provider(
                 client_jid, nattempt)
             if password is None:
                 password_signalled_abort = True
                 raise errors.AuthenticationFailure(
                     "Authentication aborted by user")
+            cached_credentials = password
             return client_jid.localpart, password
 
         classes = [
@@ -263,28 +292,37 @@ class PasswordSASLProvider(SASLProvider):
         if tls_transport is not None:
             classes.append(sasl.PLAIN)
 
-        mechanism_class, token = self._find_supported(features, classes)
-        if mechanism_class is None:
-            return False
+        while classes:
+            # go over all mechanisms available. some errors disable a mechanism
+            # (like encryption-required or mechansim-too-weak)
+            mechanism_class, token = self._find_supported(features, classes)
+            if mechanism_class is None:
+                return False
 
-        mechanism = mechanism_class(credential_provider)
-        last_auth_error = None
-        for nattempt in range(self._max_auth_attempts):
-            try:
-                yield from self._execute(xmlstream, mechanism, token)
-            except sasl.AuthenticationError as err:
-                if self._password_signalled_abort:
-                    # immediately re-raise
-                    raise
-                last_auth_error = err
-                # allow the user to re-try
-                continue
+            mechanism = mechanism_class(credential_provider)
+            last_auth_error = None
+            for nattempt in range(self._max_auth_attempts):
+                try:
+                    mechanism_worked = yield from self._execute(
+                        xmlstream, mechanism, token)
+                except errors.AuthenticationFailure as err:
+                    if password_signalled_abort:
+                        # immediately re-raise
+                        raise
+                    last_auth_error = err
+                    # allow the user to re-try
+                    cached_credentials = None
+                    continue
+                else:
+                    break
             else:
-                break
-        else:
-            raise last_auth_error
+                raise last_auth_error
 
-        return True
+            if mechanism_worked:
+               return True
+            classes.remove(mechanism_class)
+
+        return False
 
 def default_ssl_context():
     ctx = ssl.SSLContext(ssl.PROTOCOL_TLSv1)
