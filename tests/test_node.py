@@ -16,16 +16,6 @@ from asyncio_xmpp.utils import *
 from .mocks import TestableClient, XMLStreamMock
 
 class TestClient(unittest.TestCase):
-    def assertTreeEqual(self, t1, t2, with_tail=False):
-        self.assertEqual(t1.tag, t2.tag)
-        self.assertEqual(t1.text, t2.text)
-        self.assertDictEqual(dict(t1.attrib), dict(t2.attrib))
-        self.assertEqual(len(t1), len(t2))
-        for c1, c2 in zip(t1, t2):
-            self.assertTreeEqual(c1, c2, with_tail=True)
-        if with_tail:
-            self.assertEqual(t1.tail, t2.tail)
-
     def setUp(self):
         self._loop = asyncio.get_event_loop()
 

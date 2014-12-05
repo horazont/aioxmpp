@@ -22,8 +22,30 @@ import asyncio_xmpp.node as node
 import asyncio_xmpp.hooks as hooks
 import asyncio_xmpp.xml as xml
 import asyncio_xmpp.security_layer as security_layer
+import asyncio_xmpp.sasl as sasl
 
 from asyncio_xmpp.utils import *
+
+def assertTreeEqual(tester, t1, t2, with_tail=False):
+    tester.assertEqual(t1.tag, t2.tag)
+    tester.assertEqual(t1.text, t2.text)
+    tester.assertDictEqual(dict(t1.attrib), dict(t2.attrib))
+    tester.assertEqual(len(t1), len(t2))
+    for c1, c2 in zip(t1, t2):
+        assertTreeEqual(tester, c1, c2, with_tail=True)
+    if with_tail:
+        tester.assertEqual(t1.tail, t2.tail)
+
+class RNGMock:
+    def __init__(self, value):
+        self._value = value
+
+    def getrandbits(self, bitn):
+        if 8*(bitn//8) != bitn:
+            raise ValueError("Unsupported bit count")
+        return int.from_bytes(self._value[:bitn//8], "little")
+
+sasl._system_random = RNGMock(b"foo")
 
 class TransportMock(asyncio.ReadTransport, asyncio.WriteTransport):
     """
@@ -247,7 +269,7 @@ class XMLStreamMock:
             save_id = node.attrib.pop("id", None)
         else:
             save_id = None
-        self._tester.assertTreeEqual(to_recv, node)
+        assertTreeEqual(self._tester, to_recv, node)
         if save_id is not None:
             node.set("id", save_id)
         for node_to_send in to_send:

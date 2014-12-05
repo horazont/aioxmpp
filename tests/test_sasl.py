@@ -9,22 +9,12 @@ import lxml.builder
 import asyncio_xmpp.sasl as sasl
 import asyncio_xmpp.xml as xml
 
-
-class RNGMock:
-    def __init__(self, value):
-        self._value = value
-
-    def getrandbits(self, bitn):
-        if 8*(bitn//8) != bitn:
-            raise ValueError("Unsupported bit count")
-        return int.from_bytes(self._value[:bitn//8], "little")
+from . import mocks
 
 class XMLStreamMock:
     def __init__(self):
         self.tx_context = xml.default_tx_context
         self.E = self.tx_context
-
-sasl._system_random = RNGMock(b"foo")
 
 class SASLStateMachineMock(sasl.SASLStateMachine):
     def __init__(self, testobj, action_sequence, xmlstream=None):
