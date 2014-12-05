@@ -151,7 +151,10 @@ class SASLStateMachine:
 
         node = self.E("auth", mechanism=mechanism)
         if payload is not None:
-            node.text = base64.b64encode(payload)
+            if not payload:  # empty payload
+                node.text = "="
+            else:
+                node.text = base64.b64encode(payload)
 
         result = yield from self._send_sasl_node_and_wait_for(node)
         return result
