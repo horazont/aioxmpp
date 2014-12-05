@@ -307,6 +307,10 @@ class XMLStreamMock:
         self._tx_send_node(node)
 
     @property
+    def closed(self):
+        return self._closed
+
+    @property
     def stream_level_hooks(self):
         return self._stream_level_node_hooks
 
@@ -366,4 +370,5 @@ class TestableClient(node.Client):
         self.__mocked_stream.mock_receive_node(self.__initial_node)
         self.__mocked_stream.on_connection_lost = \
             self._handle_xmlstream_connection_lost
+        self.xmlstream = self.__mocked_stream
         return self.__mocked_transport, self.__mocked_stream

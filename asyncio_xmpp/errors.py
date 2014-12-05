@@ -89,6 +89,12 @@ class SASLFailure(SecurityNegotiationFailure):
             xmpp_error=self.xmpp_error,
             text=self.text)
 
+class SASLUnavailable(SASLFailure):
+    # we use this to tell the Client that SASL has not been available at all, or
+    # that we could not agree on mechansims.
+    # it might be helpful to notify the peer about this before dying.
+    pass
+
 class TLSFailure(SecurityNegotiationFailure):
     def __init__(self, xmpp_error, text=None):
         super().__init__(xmpp_error, text=text, kind="TLS failure")

@@ -265,7 +265,8 @@ class Client:
         except:
             self._disconnect_event.set()
             self._stanza_broker.stop()
-            self._xmlstream.close()
+            if not self._xmlstream.closed:
+                self._xmlstream.close()
             self._ssl_wrapper = None
             self._xmlstream = None
             raise
@@ -348,9 +349,44 @@ class Client:
         Handle stream negotiation, by first establishing the security layer and
         then negotiate the remaining stream features.
         """
-        _, features_node = yield from self._security_layer(
-            self.negotiation_timeout.total_seconds(),
-            self._client_jid, features_node, self._xmlstream)
+        try:
+            _, features_node = yield from self._security_layer(
+                self.negotiation_timeout.total_seconds(),
+                self._client_jid, features_node, self._xmlstream)
+        except errors.TLSFailure as err:
+            # This means that either TLS has failed to negotiate, or that TLS is
+            # not available.
+            # both stops us from continuing, let’s put a policy violation on the
+            # stream and let it bubble up.
+            self.xmlstream.stream_error(
+                "policy-violation",
+                str(err),
+                custom_error="{{{}}}tls-failure".format(namespaces.asyncio_xmpp)
+            )
+            raise
+        except errors.SASLUnavailable as err:
+            # special form of SASL error telling us that SASL failed due to
+            # mismatch of our and the servers preferences. we let the server
+            # know about that and re-raise
+            self.xmlstream.stream_error(
+                "policy-violation",
+                str(err),
+                custom_error="{{{}}}sasl-failure".format(
+                    namespaces.asyncio_xmpp)
+            )
+            raise
+        except errors.SASLFailure as err:
+            # other, generic SASL failure. this can be an issue e.g. with SCRAM,
+            # if the server replies with an odd value
+            self.xmlstream.stream_error(
+                "undefined-condition",
+                str(err),
+                custom_error="{{{}}}sasl-failure".format(namespaces.asyncio_xmpp)
+            )
+            raise
+        except Exception as err:
+            self.xmlstream.stream_error("internal-server-error")
+            raise
 
         self._stanza_broker.start().add_done_callback(
             self._service_done_handler)

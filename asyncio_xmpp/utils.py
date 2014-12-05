@@ -17,6 +17,7 @@ namespaces.stanzas = "urn:ietf:params:xml:ns:xmpp-stanzas"
 namespaces.streams = "urn:ietf:params:xml:ns:xmpp-streams"
 namespaces.stream_management = "urn:xmpp:sm:3"
 namespaces.bind = "urn:ietf:params:xml:ns:xmpp-bind"
+namespaces.asyncio_xmpp = "https://zombofant.net/xmlns/asyncio_xmpp#library"
 
 def split_tag(tag):
     prefix, _, suffix = tag.partition("}")

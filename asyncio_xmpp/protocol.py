@@ -27,6 +27,34 @@ from .utils import *
 
 logger = logging.getLogger(__name__)
 
+STREAM_ERROR_TAGS = {
+    "bad-format",
+    "bad-namespace-prefix",
+    "conflict",
+    "connection-timeout",
+    "host-gone",
+    "host-unknown",
+    "improper-addressing",
+    "internal-server-error",
+    "invalid-from",
+    "invalid-namespace",
+    "invalid-xml",
+    "not-authorized",
+    "not-well-formed",
+    "policy-violation",
+    "remote-connection-failed",
+    "reset",
+    "resource-constraint",
+    "restricted-xml",
+    "see-other-host",
+    "system-shutdown",
+    "undefined-condition",
+    "unsupported-encoding",
+    "unsupported-feature",
+    "unsupported-stanza-type",
+    "unsupported-version",
+}
+
 class Mode(Enum):
     """
     Mode for an XML stream, which can be either client-to-server or server-to-server.
@@ -423,6 +451,10 @@ class XMLStream(asyncio.Protocol):
         self._tx_close()
         self._rx_close()
 
+    @property
+    def closed(self):
+        return not self._state.connected
+
     def reset_stream(self):
         if not self._state.connected:
             raise self._invalid_transition(via="reset_stream",
@@ -522,7 +554,10 @@ class XMLStream(asyncio.Protocol):
                 self._state))
         self._tx_send_node(node)
 
-    def stream_error(self, tag, text):
+    def stream_error(self, tag, text, custom_error=None):
+        if tag not in STREAM_ERROR_TAGS:
+            raise ValueError("{!r} is not a valid stream error".format(tag))
+
         node = self.tx_context.makeelement(
             "{{{}}}error".format(namespaces.xmlstream),
             nsmap={
@@ -536,6 +571,11 @@ class XMLStream(asyncio.Protocol):
                 "{{{}}}text".format(namespaces.streams))
             text_node.text = text
             node.append(text_node)
+        if custom_error:
+            if not custom_error.startswith("{") or custom_error.startswith(
+                    "{"+namespaces.xmlstream+"}"):
+                raise ValueError("Custom error has incorrect namespace")
+            node.append(node.makeelement(custom_error))
         self._tx_send_node(node)
         del node
         self.close()

@@ -165,7 +165,8 @@ class SASLProvider:
                 namespaces.sasl))
         except KeyError:
             logger.error("No sasl mechanisms: %r", list(features))
-            raise errors.SASLFailure("Remote side does not support SASL") from None
+            raise errors.SASLUnavailable(
+                "Remote side does not support SASL") from None
 
         remote_mechanism_list = [
             mechanism.text
@@ -388,7 +389,7 @@ def negotiate_stream_security(tls_provider, sasl_providers,
         if last_auth_error:
             raise last_auth_error
         else:
-            raise errors.SASLFailure("No common mechanisms")
+            raise errors.SASLUnavailable("No common mechanisms")
 
     return tls_transport, features
 

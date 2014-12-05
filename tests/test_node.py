@@ -20,27 +20,24 @@ class TestClient(unittest.TestCase):
         self._loop = asyncio.get_event_loop()
 
     def _run_until_complete_and_catch_errors(self, future):
-        future = asyncio.async(future)
-        err = None
-        def handler(loop, ctx):
-            nonlocal err
-            future.cancel()
-            try:
-                err = ctx["exception"]
-            except KeyError:
-                err = ValueError(ctx["message"])
-        self._loop.set_exception_handler(handler)
-        try:
-            self._loop.run_until_complete(future)
-        except asyncio.CancelledError:
-            pass
-        if err is not None:
-            raise err
+        return self._loop.run_until_complete(asyncio.wait_for(
+            future,
+            timeout=2
+        ))
 
     def _make_stream(self):
-        return XMLStreamMock(
+        stream = XMLStreamMock(
             self,
             loop=self._loop)
+        stream.Estream = stream.tx_context.default_ns_builder(
+            namespaces.xmlstream)
+        stream.Eerror = stream.tx_context.default_ns_builder(
+            namespaces.streams)
+        stream.Estarttls = stream.tx_context.default_ns_builder(
+            namespaces.starttls)
+        stream.Esasl = stream.tx_context.default_ns_builder(
+            namespaces.sasl)
+        return stream
 
     def _prepend_actions_up_to_binding(self, stream,
                                        probe_stanzas,
@@ -140,6 +137,21 @@ class TestClient(unittest.TestCase):
         stream = self._make_stream()
         stream.define_actions(
             [
+                (
+                    (
+                        stream.Estream(
+                            "error",
+                            stream.Eerror("policy-violation"),
+                            stream.Eerror(
+                                "text",
+                                "TLS failure: STARTTLS not supported by peer"),
+                            stream.Eerror(
+                                "{{{}}}tls-failure".format(
+                                    namespaces.asyncio_xmpp)),
+                        )
+                    ),
+                    ()
+                ),
                 ("!close", None)
             ]
         )
@@ -155,6 +167,59 @@ class TestClient(unittest.TestCase):
         self._run_until_complete_and_catch_errors(task())
 
         stream.mock_finalize()
+
+    def _test_sasl_unavailable(self, stream, mechanisms, message):
+        initial_features = stream.Estream(
+            "features",
+            stream.Estarttls("starttls")
+        )
+
+        post_tls_features = stream.Estream("features")
+        if mechanisms is not None:
+            post_tls_features.append(mechanisms)
+
+        stream.define_actions(
+            [
+                (stream.Estarttls("starttls"),
+                 (stream.Estarttls("proceed"),)),
+                ("!starttls@example.com", None),
+                ("!reset", (post_tls_features,)),
+                (stream.Estream(
+                    "error",
+                    stream.Eerror("policy-violation"),
+                    stream.Eerror("text", message),
+                    stream.Eerror("{{{}}}sasl-failure".format(
+                        namespaces.asyncio_xmpp))),
+                 ()),
+                ("!close", None),
+            ]
+        )
+
+        with self.assertRaises(errors.SASLUnavailable) as ctx:
+            self._run_until_complete_and_catch_errors(
+                self._run_client(initial_features, stream)
+            )
+
+        self.assertEqual(
+            message,
+            str(ctx.exception))
+
+        stream.mock_finalize()
+
+    def test_sasl_unavailable_not_advertised_at_all(self):
+        stream = self._make_stream()
+        self._test_sasl_unavailable(
+            stream,
+            None,
+            "SASL failure: Remote side does not support SASL")
+
+    def test_sasl_unavailable_no_common_mechanisms(self):
+        stream = self._make_stream()
+        self._test_sasl_unavailable(
+            stream,
+            stream.Esasl("mechanisms"),
+            "SASL failure: No common mechanisms"
+        )
 
     def test_negotiate_stream(self):
         stream = self._make_stream()
