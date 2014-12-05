@@ -4,7 +4,7 @@
 
 This module provides a base class useful for plugin development.
 
-.. autoclass:: Service
+.. autoclass:: Service([node...], [loop=None], [logger=None])
 
 """
 
