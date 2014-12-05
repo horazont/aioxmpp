@@ -327,3 +327,77 @@ class TestPasswordSASLProvider(TestSecurityProvider):
                 self.client_jid,
                 initial_features,
                 True)
+
+
+class TestSecurityLayer(TestSecurityProvider):
+    def setUp(self):
+        super().setUp()
+        self.provider = security_layer.PasswordSASLProvider(
+            self.password_provider)
+        self.client_jid = jid.JID("user", "bar.invalid", None)
+        self.attempt_sequence = []
+        self.scram_initial_payload = base64.b64encode(
+            b"n,,n=user,r=Zm9vAAAAAAAAAAAAAAAA").decode("ascii")
+        self.plain_initial_payload = base64.b64encode(
+            b"\0user\0pencil").decode("ascii")
+
+    @asyncio.coroutine
+    def password_provider(self, client_jid, nattempt):
+        self.attempt_sequence.append(nattempt)
+        return "pencil"
+
+    def _fake_ssl_context(self):
+        return None
+
+    def _test_layer(self, layer, *args):
+        try:
+            return self.loop.run_until_complete(
+                asyncio.wait_for(
+                    layer(*args),
+                    timeout=2),
+            )
+        except asyncio.TimeoutError:
+            raise TimeoutError("Test timed out") from None
+
+
+    def test_negotiate_stream_security(self):
+        Etls = self.stream.tx_context.default_ns_builder(namespaces.starttls)
+        Esasl = self.stream.tx_context.default_ns_builder(namespaces.sasl)
+
+        layer = security_layer.security_layer(
+            tls_provider=security_layer.STARTTLSProvider(
+                self._fake_ssl_context),
+            sasl_providers=[
+                security_layer.PasswordSASLProvider(self.password_provider)
+            ])
+
+        initial_features = self.Estream(
+            "features",
+            Etls("starttls")
+        )
+
+        tls_features = self.Estream(
+            "features",
+            Esasl("mechanisms",
+                  Esasl("mechanism", "PLAIN")),
+        )
+
+        final_features = self.Estream(
+            "features")
+
+        self.stream.define_actions([
+            (Etls("starttls"), (Etls("proceed"),)),
+            ("!starttls@bar.invalid", None),
+            ("!reset", (tls_features,)),
+            (Esasl("auth",
+                   self.plain_initial_payload,
+                   mechanism="PLAIN"),
+             (Esasl("success"),)),
+            ("!reset", (final_features,))
+        ])
+
+        self.assertEqual(
+            (self.transport, final_features),
+            self._test_layer(layer, 1,
+                             self.client_jid, initial_features, self.stream),
+        )
