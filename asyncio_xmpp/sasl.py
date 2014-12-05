@@ -60,15 +60,6 @@ def pbkdf2(hashfun, input_data, salt, iterations, dklen):
 
     return result[:dklen]
 
-class SASLFailure(Exception):
-    def __init__(self, xmpp_error, text=None):
-        msg = "SASL failure: {}".format(xmpp_error)
-        if text:
-            msg += " ('{}')".format(text)
-        super().__init__(msg)
-        self.xmpp_error = xmpp_error
-        self.text = text
-
 class SASLStateMachine:
     """
     A state machine to reduce code duplication during SASL handshake.
@@ -84,7 +75,7 @@ class SASLStateMachine:
       :meth:`abort`)
 
     Note that, with the notable exception of :meth:`abort`, ``failure`` states
-    are never returned but thrown as :class:`SASLFailure` instead.
+    are never returned but thrown as :class:`errors.SASLFailure` instead.
 
     The initial state is never returned.
     """
@@ -190,7 +181,7 @@ class SASLStateMachine:
             next_state, payload = yield from self._send_sasl_node_and_wait_for(
                 self.E("abort")
             )
-        except SASLFailure as err:
+        except errors.SASLFailure as err:
             self._state = "failure"
             if err.xmpp_error != "aborted":
                 raise
