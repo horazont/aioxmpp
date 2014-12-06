@@ -1,6 +1,7 @@
 import asyncio
 import itertools
 import logging
+import random
 import socket
 
 import dns
@@ -8,32 +9,39 @@ import dns.resolver
 
 logger = logging.getLogger(__name__)
 
-def lookup_srv(record, attempts):
+def lookup_srv(record, attempts, resolver=None):
+    resolver = resolver or dns.resolver.get_default_resolver()
     for i in range(attempts):
         try:
-            answer = dns.resolver.query(
+            answer = resolver.query(
                 record,
-                dns.rdatatype.SRV)
+                dns.rdatatype.SRV,
+                tcp=i>0)
             break
-        except dns.resolver.Timeout:
+        except (TimeoutError, dns.resolver.Timeout):
             if i == 0:
-                logger.warn("DNS is timing out")
+                logger.warn("DNS is timing out, switching to TCP")
         except (dns.resolver.NXDOMAIN, dns.resolver.NoAnswer):
             return None
     else:
         raise TimeoutError("SRV query timed out")
 
     items = [
-        (rec.priority, rec.weight, (str(rec.target).rstrip("."), rec.port))
+        (rec.priority, rec.weight, (str(rec.target), rec.port))
         for rec in answer
     ]
 
-    if any(host == '.' for _, _, (host, _) in items):
-        raise ValueError("Protocol explicitly not supported.")
+    for i, (prio, weight, (host, port)) in enumerate(items):
+        if host == ".":
+            raise ValueError("Protocol explicitly not supported")
+
+        items[i] = (prio, weight, (host.rstrip("."), port))
 
     return items
 
-def group_and_order_srv_records(all_records):
+def group_and_order_srv_records(all_records, rng=None):
+    rng = rng or random
+
     all_records.sort()
 
     for priority, records in itertools.groupby(
@@ -41,17 +49,20 @@ def group_and_order_srv_records(all_records):
             lambda x: x[0]):
 
         records = list(records)
-        if len(records) == 1:
-            yield records[0][-1]
-            continue
-
         total_weight = sum(
             weight
             for _, weight, _ in records)
+
         while records:
-            value = random.randint(0, total_weight)
+            if len(records) == 1:
+                yield records[0][-1]
+                break
+
+            value = rng.randint(0, total_weight)
+            running_weight_sum = 0
             for i, (_, weight, addr) in enumerate(records):
-                if weight >= value:
+                running_weight_sum += weight
+                if running_weight_sum >= value:
                     yield addr
                     del records[i]
                     total_weight -= weight
