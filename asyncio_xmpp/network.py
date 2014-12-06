@@ -1,4 +1,5 @@
 import asyncio
+import functools
 import itertools
 import logging
 import random
@@ -9,9 +10,17 @@ import dns.resolver
 
 logger = logging.getLogger(__name__)
 
-def lookup_srv(record, attempts, resolver=None):
+def lookup_srv(domain, service, transport="tcp", nattempts=3, resolver=None):
+    if nattempts <= 0:
+        raise ValueError("Query cannot succeed with zero or less attempts")
+
+    record = ".".join([
+        "_"+service,
+        "_"+transport,
+        domain])
+
     resolver = resolver or dns.resolver.get_default_resolver()
-    for i in range(attempts):
+    for i in range(nattempts):
         try:
             answer = resolver.query(
                 record,
@@ -75,9 +84,12 @@ def find_xmpp_host_addr(loop, domain, attempts=3):
 
     items = yield from loop.run_in_executor(
         None,
-        lookup_srv,
-        "_xmpp-client._tcp."+domain.decode("ascii"),
-        attempts)
+        functools.partial(
+            lookup_srv,
+            service="xmpp-client",
+            domain=domain.decode("ascii"),
+            nattempts=attempts)
+    )
 
     if items is not None:
         return items

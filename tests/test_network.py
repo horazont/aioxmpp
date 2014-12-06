@@ -81,7 +81,7 @@ class Testlookup_srv(unittest.TestCase):
                 (0, 1, ("xmpp.foo.test", 5222)),
                 (2, 1, ("xmpp.bar.test", 5222)),
             ],
-            network.lookup_srv("_xmpp-client._tcp.foo.test.", 3,
+            network.lookup_srv("foo.test.", "xmpp-client",
                                resolver=self.resolver)
         )
 
@@ -108,7 +108,8 @@ class Testlookup_srv(unittest.TestCase):
         ])
 
         with self.assertRaises(TimeoutError):
-            network.lookup_srv("_xmpp-client._tcp.foo.test.", 2,
+            network.lookup_srv("foo.test.", "xmpp-client",
+                               nattempts=2,
                                resolver=self.resolver)
 
     def test_handle_no_answer(self):
@@ -125,7 +126,7 @@ class Testlookup_srv(unittest.TestCase):
         ])
 
         self.assertIsNone(
-            network.lookup_srv("_xmpp-client._tcp.foo.test.", 2,
+            network.lookup_srv("foo.test.", "xmpp-client",
                                resolver=self.resolver)
         )
 
@@ -143,7 +144,7 @@ class Testlookup_srv(unittest.TestCase):
         ])
 
         self.assertIsNone(
-            network.lookup_srv("_xmpp-client._tcp.foo.test.", 2,
+            network.lookup_srv("foo.test.", "xmpp-client",
                                resolver=self.resolver)
         )
 
@@ -166,7 +167,7 @@ class Testlookup_srv(unittest.TestCase):
 
         with self.assertRaisesRegexp(ValueError,
                                      "Protocol explicitly not supported"):
-            network.lookup_srv("_xmpp-client._tcp.foo.test.", 2,
+            network.lookup_srv("foo.test.", "xmpp-client",
                                resolver=self.resolver)
 
     def tearDown(self):
