@@ -326,7 +326,9 @@ class PasswordSASLProvider(SASLProvider):
         return False
 
 def default_ssl_context():
-    ctx = ssl.SSLContext(ssl.PROTOCOL_TLSv1)
+    ctx = ssl.SSLContext(ssl.PROTOCOL_SSLv23)
+    ctx.options |= ssl.OP_NO_SSLv2
+    ctx.options |= ssl.OP_NO_SSLv3
     return ctx
 
 @asyncio.coroutine
