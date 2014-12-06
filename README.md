@@ -11,6 +11,12 @@ Dependencies
 * Python ≥ 3.4 (or Python = 3.3 with tulip and enum34)
 * DNSPython
 
+Known problems
+--------------
+
+**Not secure at all**. The SSL handshake is currently not verifying
+anything. Don’t use this library until that is fixed.
+
 Design goals
 ------------
 
