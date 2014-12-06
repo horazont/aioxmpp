@@ -60,14 +60,14 @@ class Testlookup_srv(unittest.TestCase):
 
     def test_simple_lookup(self):
         records = [
-            MockSRVRecord(0, 1, "xmpp.foo.test.", 5222),
-            MockSRVRecord(2, 1, "xmpp.bar.test.", 5222),
+            MockSRVRecord(0, 1, b"xmpp.foo.test.", 5222),
+            MockSRVRecord(2, 1, b"xmpp.bar.test.", 5222),
         ]
 
         self.resolver.define_actions([
             (
                 (
-                    "_xmpp-client._tcp.foo.test.",
+                    b"_xmpp-client._tcp.foo.test.",
                     dns.rdatatype.SRV,
                     dns.rdataclass.IN,
                     False
@@ -81,7 +81,7 @@ class Testlookup_srv(unittest.TestCase):
                 (0, 1, ("xmpp.foo.test", 5222)),
                 (2, 1, ("xmpp.bar.test", 5222)),
             ],
-            network.lookup_srv("foo.test.", "xmpp-client",
+            network.lookup_srv(b"foo.test.", b"xmpp-client",
                                resolver=self.resolver)
         )
 
@@ -89,7 +89,7 @@ class Testlookup_srv(unittest.TestCase):
         self.resolver.define_actions([
             (
                 (
-                    "_xmpp-client._tcp.foo.test.",
+                    b"_xmpp-client._tcp.foo.test.",
                     dns.rdatatype.SRV,
                     dns.rdataclass.IN,
                     False
@@ -98,7 +98,7 @@ class Testlookup_srv(unittest.TestCase):
             ),
             (
                 (
-                    "_xmpp-client._tcp.foo.test.",
+                    b"_xmpp-client._tcp.foo.test.",
                     dns.rdatatype.SRV,
                     dns.rdataclass.IN,
                     True
@@ -108,7 +108,7 @@ class Testlookup_srv(unittest.TestCase):
         ])
 
         with self.assertRaises(TimeoutError):
-            network.lookup_srv("foo.test.", "xmpp-client",
+            network.lookup_srv(b"foo.test.", b"xmpp-client",
                                nattempts=2,
                                resolver=self.resolver)
 
@@ -116,7 +116,7 @@ class Testlookup_srv(unittest.TestCase):
         self.resolver.define_actions([
             (
                 (
-                    "_xmpp-client._tcp.foo.test.",
+                    b"_xmpp-client._tcp.foo.test.",
                     dns.rdatatype.SRV,
                     dns.rdataclass.IN,
                     False
@@ -126,7 +126,7 @@ class Testlookup_srv(unittest.TestCase):
         ])
 
         self.assertIsNone(
-            network.lookup_srv("foo.test.", "xmpp-client",
+            network.lookup_srv(b"foo.test.", b"xmpp-client",
                                resolver=self.resolver)
         )
 
@@ -134,7 +134,7 @@ class Testlookup_srv(unittest.TestCase):
         self.resolver.define_actions([
             (
                 (
-                    "_xmpp-client._tcp.foo.test.",
+                    b"_xmpp-client._tcp.foo.test.",
                     dns.rdatatype.SRV,
                     dns.rdataclass.IN,
                     False
@@ -144,19 +144,19 @@ class Testlookup_srv(unittest.TestCase):
         ])
 
         self.assertIsNone(
-            network.lookup_srv("foo.test.", "xmpp-client",
+            network.lookup_srv(b"foo.test.", b"xmpp-client",
                                resolver=self.resolver)
         )
 
     def test_handle_service_disabled(self):
         records = [
-            MockSRVRecord(0, 0, ".", 0)
+            MockSRVRecord(0, 0, b".", 0)
         ]
 
         self.resolver.define_actions([
             (
                 (
-                    "_xmpp-client._tcp.foo.test.",
+                    b"_xmpp-client._tcp.foo.test.",
                     dns.rdatatype.SRV,
                     dns.rdataclass.IN,
                     False
@@ -167,8 +167,37 @@ class Testlookup_srv(unittest.TestCase):
 
         with self.assertRaisesRegexp(ValueError,
                                      "Protocol explicitly not supported"):
-            network.lookup_srv("foo.test.", "xmpp-client",
+            network.lookup_srv(b"foo.test.", b"xmpp-client",
                                resolver=self.resolver)
+
+    def test_unicode(self):
+        records = [
+            MockSRVRecord(0, 1, b"xmpp.foo.test.", 5222),
+            MockSRVRecord(2, 1, b"xmpp.bar.test.", 5222),
+        ]
+
+        self.resolver.define_actions([
+            (
+                (
+                    b"_xmpp-client._tcp.xn--nicde-lua2b.test.",
+                    dns.rdatatype.SRV,
+                    dns.rdataclass.IN,
+                    False
+                ),
+                records
+            )
+        ])
+
+        self.assertSequenceEqual(
+            [
+                (0, 1, ("xmpp.foo.test", 5222)),
+                (2, 1, ("xmpp.bar.test", 5222)),
+            ],
+            network.lookup_srv("ünicöde.test.".encode("IDNA"),
+                               b"xmpp-client",
+                               resolver=self.resolver)
+        )
+
 
     def tearDown(self):
         del self.resolver

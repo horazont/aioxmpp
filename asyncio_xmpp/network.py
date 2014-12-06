@@ -10,22 +10,15 @@ import dns.resolver
 
 logger = logging.getLogger(__name__)
 
-def lookup_srv(domain, service, transport="tcp", nattempts=3, resolver=None):
+def repeated_query(qname, rdtype, nattempts, resolver=None):
     if nattempts <= 0:
         raise ValueError("Query cannot succeed with zero or less attempts")
 
-    record = ".".join([
-        "_"+service,
-        "_"+transport,
-        domain])
 
     resolver = resolver or dns.resolver.get_default_resolver()
     for i in range(nattempts):
         try:
-            answer = resolver.query(
-                record,
-                dns.rdatatype.SRV,
-                tcp=i>0)
+            answer = resolver.query(qname, rdtype, tcp=i>0)
             break
         except (TimeoutError, dns.resolver.Timeout):
             if i == 0:
@@ -35,16 +28,33 @@ def lookup_srv(domain, service, transport="tcp", nattempts=3, resolver=None):
     else:
         raise TimeoutError("SRV query timed out")
 
+    return answer
+
+def lookup_srv(domain, service, transport=b"tcp", nattempts=3, resolver=None):
+    record = b".".join([
+        b"_"+service,
+        b"_"+transport,
+        domain])
+
+    answer = repeated_query(
+        record,
+        dns.rdatatype.SRV,
+        nattempts=nattempts,
+        resolver=resolver)
+
+    if answer is None:
+        return None
+
     items = [
-        (rec.priority, rec.weight, (str(rec.target), rec.port))
+        (rec.priority, rec.weight, (rec.target, rec.port))
         for rec in answer
     ]
 
     for i, (prio, weight, (host, port)) in enumerate(items):
-        if host == ".":
+        if host == b".":
             raise ValueError("Protocol explicitly not supported")
 
-        items[i] = (prio, weight, (host.rstrip("."), port))
+        items[i] = (prio, weight, (host.rstrip(b".").decode("IDNA"), port))
 
     return items
 
@@ -86,8 +96,8 @@ def find_xmpp_host_addr(loop, domain, attempts=3):
         None,
         functools.partial(
             lookup_srv,
-            service="xmpp-client",
-            domain=domain.decode("ascii"),
+            service=b"xmpp-client",
+            domain=domain,
             nattempts=attempts)
     )
 
