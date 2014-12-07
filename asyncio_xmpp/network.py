@@ -106,3 +106,21 @@ def find_xmpp_host_addr(loop, domain, attempts=3):
         return items
 
     return [(0, 0, (domain, 5222))]
+
+@asyncio.coroutine
+def find_xmpp_host_tlsa(loop, domain, attempts=3, require_ad=True):
+    domain = domain.encode("IDNA")
+
+    items = yield from loop.run_in_executor(
+        None,
+        functools.partial(
+            lookup_tlsa,
+            domain=domain,
+            port=5222,
+            nattempts=attempts,
+            require_ad=require_ad)
+    )
+
+    if items is not None:
+        return items
+    return []

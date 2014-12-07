@@ -61,6 +61,62 @@ from .utils import *
 
 logger = logging.getLogger(__name__)
 
+class CertificateVerifier(metaclass=abc.ABCMeta):
+    def _callback_wrapper(self, conn, *args):
+        self.verify_callback(conn.get_app_data(), *args)
+
+    def setup_context(self, ctx):
+        ctx.set_verify(OpenSSL.SSL.VERIFY_PEER, self._callback_wrapper)
+
+    @abc.abstractmethod
+    def verify_callback(self, transport, x509, errno, errdepth, returncode):
+        return errno == 0
+
+    @abc.abstractmethod
+    @asyncio.coroutine
+    def _post_handshake_callback(self, transport):
+        pass
+
+    def post_handshake_callback(self, transport, cb):
+        def forward_result(task):
+            try:
+                task.result()
+            except BaseException as err:
+                cb(err)
+            else:
+                cb(None)
+
+        task = asyncio.async(self._post_handshake_callback(transport))
+        task.add_done_callback(forward_result)
+
+class PKIXCertificateVerifier(CertificateVerifier):
+    def verify_callback(self, *args):
+        return super().verify_callback(*args)
+
+    @asyncio.coroutine
+    def _post_handshake_callback(self, transport):
+        pass
+
+class ErrorRecordingVerifier(CertificateVerifier):
+    def __init__(self):
+        super().__init__()
+        self._errors = []
+
+    def _record_verify_info(self, x509, errno, depth):
+        self._errors.append((x509, errno, depth))
+
+    def verify_callback(self, transport, x509, errno, depth, returncode):
+        self._record_verify_info(x509, errno, depth)
+        return True
+
+    @asyncio.coroutine
+    def _post_handshake_callback(self, transport):
+        if self._errors:
+            raise errors.TLSFailure(
+                "Peer certificate verification failure: {}".format(
+                    ", ".join(map(str, self._errors))))
+
+
 class STARTTLSProvider:
     """
     A TLS provider to negotiate STARTTLS on an existing XML stream. This
@@ -87,9 +143,13 @@ class STARTTLSProvider:
 
     """
 
-    def __init__(self, ssl_context_factory, *,
+    def __init__(self,
+                 ssl_context_factory,
+                 certificate_verifier_factory=PKIXCertificateVerifier,
+                 *,
                  require_starttls=True, **kwargs):
         super().__init__(**kwargs)
+        self._certificate_verifier_factory = certificate_verifier_factory
         self._ssl_context_factory = ssl_context_factory
         self._required = require_starttls
 
@@ -138,9 +198,17 @@ class STARTTLSProvider:
         if proceed:
             logger.info("engaging STARTTLS")
             try:
-                # FIXME: use server_hostname
+                ctx = self._ssl_context_factory()
+                verifier = self._certificate_verifier_factory()
+                verifier.setup_context(ctx)
+                logger.debug("using certificate verifier: %s", verifier)
                 yield from xmlstream.transport.starttls(
-                    ssl_context=self._ssl_context_factory())
+                    ssl_context=ctx,
+                    post_handshake_callback=verifier.post_handshake_callback)
+            except errors.TLSFailure:
+                # no need to re-wrap that
+                logger.exception("STARTTLS failed:")
+                raise
             except Exception as err:
                 logger.exception("STARTTLS failed:")
                 raise errors.TLSFailure("TLS connection failed: {}".format(err))
@@ -428,7 +496,8 @@ def security_layer(tls_provider, sasl_providers):
 def tls_with_password_based_authentication(
         password_provider,
         ssl_context_factory=default_ssl_context,
-        max_auth_attempts=3):
+        max_auth_attempts=3,
+        certificate_verifier_factory=None):
     """
     Produce a commonly used security layer, which uses TLS and password
     authentication. If *ssl_context_factory* is not provided, an SSL context
@@ -441,9 +510,14 @@ def tls_with_password_based_authentication(
     Return a security layer which can be passed to :class:`~.node.Client`.
     """
 
+    tls_kwargs = {}
+    if certificate_verifier_factory is not None:
+        tls_kwargs["certificate_verifier_factory"] = certificate_verifier_factory
+
     return security_layer(
         tls_provider=STARTTLSProvider(ssl_context_factory,
-                                      require_starttls=True),
+                                      require_starttls=True,
+                                      **tls_kwargs),
         sasl_providers=[PasswordSASLProvider(
             password_provider,
             max_auth_attempts=max_auth_attempts)]
