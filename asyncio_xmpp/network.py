@@ -10,7 +10,7 @@ import dns.resolver
 
 logger = logging.getLogger(__name__)
 
-def repeated_query(qname, rdtype, nattempts, resolver=None):
+def repeated_query(qname, rdtype, nattempts=3, resolver=None):
     if nattempts <= 0:
         raise ValueError("Query cannot succeed with zero or less attempts")
 
@@ -18,7 +18,7 @@ def repeated_query(qname, rdtype, nattempts, resolver=None):
     resolver = resolver or dns.resolver.get_default_resolver()
     for i in range(nattempts):
         try:
-            answer = resolver.query(qname, rdtype, tcp=i>0)
+            answer = resolver.query(qname.decode("ascii"), rdtype, tcp=i>0)
             break
         except (TimeoutError, dns.resolver.Timeout):
             if i == 0:
@@ -30,7 +30,7 @@ def repeated_query(qname, rdtype, nattempts, resolver=None):
 
     return answer
 
-def lookup_srv(domain, service, transport=b"tcp", nattempts=3, resolver=None):
+def lookup_srv(domain, service, transport=b"tcp", **kwargs):
     record = b".".join([
         b"_"+service,
         b"_"+transport,
@@ -39,22 +39,23 @@ def lookup_srv(domain, service, transport=b"tcp", nattempts=3, resolver=None):
     answer = repeated_query(
         record,
         dns.rdatatype.SRV,
-        nattempts=nattempts,
-        resolver=resolver)
+        **kwargs)
 
     if answer is None:
         return None
 
     items = [
-        (rec.priority, rec.weight, (rec.target, rec.port))
+        (rec.priority, rec.weight, (str(rec.target), rec.port))
         for rec in answer
     ]
 
     for i, (prio, weight, (host, port)) in enumerate(items):
-        if host == b".":
+        if host == ".":
             raise ValueError("Protocol explicitly not supported")
 
-        items[i] = (prio, weight, (host.rstrip(b".").decode("IDNA"), port))
+        items[i] = (prio, weight, (
+            host.rstrip(".").encode("ascii").decode("IDNA"),
+            port))
 
     return items
 
