@@ -53,7 +53,8 @@ import abc
 import asyncio
 import functools
 import logging
-import ssl
+
+import OpenSSL.SSL
 
 from . import errors, sasl, stream_elements
 from .utils import *
@@ -137,13 +138,14 @@ class STARTTLSProvider:
         if proceed:
             logger.info("engaging STARTTLS")
             try:
-                tls_transport, _ = yield from xmlstream.transport.starttls(
+                # FIXME: use server_hostname
+                yield from xmlstream.transport.starttls(
                     ssl_context=self._ssl_context_factory(),
                     server_hostname=client_jid.domainpart)
             except Exception as err:
                 logger.exception("STARTTLS failed:")
                 raise errors.TLSFailure("TLS connection failed: {}".format(err))
-            return tls_transport
+            return xmlstream.transport
 
         return self._fail_if_required("STARTTLS failed on remote side")
 
@@ -325,10 +327,13 @@ class PasswordSASLProvider(SASLProvider):
 
         return False
 
+def default_verify_callback(conn, x509, errno, errdepth, returncode):
+    return errno == 0
+
 def default_ssl_context():
-    ctx = ssl.SSLContext(ssl.PROTOCOL_SSLv23)
-    ctx.options |= ssl.OP_NO_SSLv2
-    ctx.options |= ssl.OP_NO_SSLv3
+    ctx = OpenSSL.SSL.Context(OpenSSL.SSL.SSLv23_METHOD)
+    ctx.set_options(OpenSSL.SSL.OP_NO_SSLv2 | OpenSSL.SSL.OP_NO_SSLv3)
+    ctx.set_verify(OpenSSL.SSL.VERIFY_PEER, default_verify_callback)
     return ctx
 
 @asyncio.coroutine

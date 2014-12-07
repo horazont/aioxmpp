@@ -405,14 +405,13 @@ class XMLStream(asyncio.Protocol):
             return
 
         try:
-            if self._state.connected:
-                self.close()
-                return
             if self._state.rx_open:
                 self._rx_close()
         except:
             logger.exception("during eof_received")
             raise
+
+        return True
 
     def pause_writing(self):
         logger.warn("pause_writing not implemented")
@@ -437,7 +436,7 @@ class XMLStream(asyncio.Protocol):
             if self.on_connection_lost:
                 self.on_connection_lost(exc)
 
-    def starttls_engaged(self, transport):
+    def starttls_made(self, transport):
         if self.on_starttls_engaged:
             self.on_starttls_engaged(transport)
 

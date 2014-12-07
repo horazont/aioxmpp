@@ -28,7 +28,7 @@ import ssl
 
 from datetime import datetime, timedelta
 
-from . import network, jid, protocol, stream_plugin, ssl_wrapper, sasl, stanza
+from . import network, jid, protocol, stream_plugin, sasl, stanza, ssl_transport
 from . import custom_queue, stream_worker, xml, errors
 from .utils import *
 
@@ -223,11 +223,16 @@ class Client:
         for host, port in record_iterable:
             logger.info("trying to connect to %s at port %s", host, port)
             try:
-                _, wrapper = yield from self._loop.create_connection(
+                # _, wrapper = yield from self._loop.create_connection(
+                #     self._xmlstream_factory,
+                #     host=host,
+                #     port=port)
+                transport, xmlstream = yield from ssl_transport.create_starttls_connection(
+                    self._loop,
                     self._xmlstream_factory,
                     host=host,
-                    port=port)
-                xmlstream = wrapper._protocol
+                    port=port,
+                    use_starttls=True)
                 xmlstream.on_connection_lost = \
                     self._handle_xmlstream_connection_lost
                 break
@@ -239,7 +244,7 @@ class Client:
             raise OSError("Failed to connect to {}".format(
                 self._client_jid.domainpart))
 
-        return wrapper, xmlstream
+        return transport, xmlstream
 
     @asyncio.coroutine
     def _connect_once(self):
@@ -339,7 +344,7 @@ class Client:
             ],
             timeout=self.negotiation_timeout.total_seconds())
         proto.on_starttls_engaged = self._starttls_check_peer
-        return ssl_wrapper.STARTTLSableTransportProtocol(self._loop, proto)
+        return proto
 
     # ################## #
     # Stream negotiation #
@@ -948,7 +953,7 @@ class Client:
 
             yield from self._disconnect_event.wait()
 
-            if request_disconnect_event.is_set():
+            if self._request_disconnect.is_set():
                 return
 
     def unregister_callback(self, event_name, callback):
