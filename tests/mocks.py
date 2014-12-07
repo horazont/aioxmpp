@@ -370,5 +370,5 @@ class TestableClient(node.Client):
         self.__mocked_stream.mock_receive_node(self.__initial_node)
         self.__mocked_stream.on_connection_lost = \
             self._handle_xmlstream_connection_lost
-        self.xmlstream = self.__mocked_stream
+        self._xmlstream = self.__mocked_stream
         return self.__mocked_transport, self.__mocked_stream
