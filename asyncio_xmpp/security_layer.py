@@ -140,8 +140,7 @@ class STARTTLSProvider:
             try:
                 # FIXME: use server_hostname
                 yield from xmlstream.transport.starttls(
-                    ssl_context=self._ssl_context_factory(),
-                    server_hostname=client_jid.domainpart)
+                    ssl_context=self._ssl_context_factory())
             except Exception as err:
                 logger.exception("STARTTLS failed:")
                 raise errors.TLSFailure("TLS connection failed: {}".format(err))

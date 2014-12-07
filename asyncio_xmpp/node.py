@@ -232,7 +232,9 @@ class Client:
                     self._xmlstream_factory,
                     host=host,
                     port=port,
-                    use_starttls=True)
+                    use_starttls=True,
+                    peer_hostname=host,
+                    server_hostname=self._client_jid.domainpart)
                 xmlstream.on_connection_lost = \
                     self._handle_xmlstream_connection_lost
                 break

@@ -36,7 +36,7 @@ class TestSecurityProvider(unittest.TestCase):
 
 class TestSTARTTLSProvider(TestSecurityProvider):
     def _fake_ssl_context(self):
-        return None
+        return security_layer.default_ssl_context()
 
     def _test_provider(self, provider, client_jid, features):
         return super()._test_provider(provider, client_jid, features,
@@ -347,7 +347,7 @@ class TestSecurityLayer(TestSecurityProvider):
         return "pencil"
 
     def _fake_ssl_context(self):
-        return None
+        return security_layer.default_ssl_context()
 
     def _test_layer(self, layer, *args):
         try:

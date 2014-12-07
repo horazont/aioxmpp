@@ -13,7 +13,7 @@ from enum import Enum
 
 import OpenSSL.SSL
 
-logger = logging.getLogger()
+logger = logging.getLogger(__name__)
 
 class _State(Enum):
     RAW_OPEN               = 0x0000
@@ -52,7 +52,10 @@ class STARTTLSTransport(asyncio.Transport):
 
     def __init__(self, loop, rawsock, protocol, ssl_context,
                  waiter=None,
-                 use_starttls=False):
+                 use_starttls=False,
+                 post_handshake_callback=None,
+                 peer_hostname=None,
+                 server_hostname=None):
         if not use_starttls and not ssl_context:
             raise ValueError("Cannot have STARTTLS disabled (i.e. immediate TLS"
                              " connection) and without SSL context.")
@@ -74,7 +77,9 @@ class STARTTLSTransport(asyncio.Transport):
         self._extra.update(
             ssl_context=ssl_context,
             conn=None,
-            peername=self._rawsock.getpeername()
+            peername=self._rawsock.getpeername(),
+            peer_hostname=peer_hostname,
+            server_hostname=server_hostname
         )
 
         self._paused = False
@@ -83,6 +88,7 @@ class STARTTLSTransport(asyncio.Transport):
         self._tls_conn = None
         self._tls_read_wants_write = False
         self._tls_write_wants_read = False
+        self._tls_post_handshake_callback = post_handshake_callback
 
         self._state = None
         if not use_starttls:
@@ -162,7 +168,7 @@ class STARTTLSTransport(asyncio.Transport):
             self._loop.call_soon(self._waiter.set_result, None)
             self._waiter = None
 
-    def _initiate_tls(self, server_hostname=None):
+    def _initiate_tls(self):
         if self._state is not None and self._state != _State.RAW_OPEN:
             self._invalid_transition(via="_initiate_tls",
                                      to=_State.TLS_HANDSHAKING)
@@ -174,9 +180,11 @@ class STARTTLSTransport(asyncio.Transport):
             self._sock)
         self._tls_conn.set_connect_state()
         self._tls_conn.set_app_data(self)
-        if server_hostname is not None:
+        try:
             self._tls_conn.set_tlsext_host_name(
-                server_hostname.encode("IDNA"))
+                self._extra["server_hostname"].encode("IDNA"))
+        except KeyError:
+            pass
         self._sock = self._tls_conn
         self._extra.update(
             conn=self._tls_conn
@@ -218,6 +226,21 @@ class STARTTLSTransport(asyncio.Transport):
         self._extra.update(
             peercert=self._tls_conn.get_peer_certificate()
         )
+
+        if self._tls_post_handshake_callback:
+            self._tls_post_handshake_callback(
+                self,
+                self._tls_post_handshake)
+            self._tls_post_handshake_callback = None
+        else:
+            self._tls_post_handshake(None)
+
+    def _tls_post_handshake(self, exc):
+        if exc is not None:
+            self._fatal_error(exc, "Fatal error on post-handshake callback")
+            if self._waiter is not None:
+                self._waiter.set_exception(exc)
+            return
 
         self._tls_read_wants_write = False
         self._tls_write_wants_read = False
@@ -390,18 +413,24 @@ class STARTTLSTransport(asyncio.Transport):
             # normal non-TLS state, nothing left to transmit, close
             self._raw_shutdown()
 
+    def get_extra_info(self, name, default=None):
+        return self._extra.get(name, default)
+
     @asyncio.coroutine
-    def starttls(self, ssl_context=None, server_hostname=None):
+    def starttls(self, ssl_context=None,
+                 post_handshake_callback=None):
         if ssl_context is not None:
             self._ssl_context = ssl_context
             self._extra.update(
                 ssl_context=ssl_context
             )
+        if post_handshake_callback is not None:
+            self._tls_post_handshake_callback = post_handshake_callback
 
         if self._state != _State.RAW_OPEN or self._closing:
             raise self._invalid_state("starttls() called")
         self._waiter = asyncio.Future()
-        self._initiate_tls(server_hostname=server_hostname)
+        self._initiate_tls()
         try:
             yield from self._waiter
         finally:

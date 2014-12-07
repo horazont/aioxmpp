@@ -149,7 +149,7 @@ class SSLWrapperMock:
         self._protocol = protocol
 
     @asyncio.coroutine
-    def starttls(self, ssl_context=None, server_hostname=None):
+    def starttls(self, ssl_context=None, post_handshake_callback=None):
         """
         Override the STARTTLS sequence. Instead of actually starting a TLS
         transport on the existing socket, only make sure that the test expects
@@ -164,11 +164,6 @@ class SSLWrapperMock:
         to_recv, to_send = self._protocol._action_sequence.pop(0)
         tester.assertTrue(to_recv.startswith("!starttls"),
                           "Unexpected starttls attempt by the client")
-        tester.assertTrue(to_recv.startswith("!starttls@"),
-                          "starttls attempt syntax error ("
-                          "syntax is !starttls@hostname)")
-        hostname = to_recv[10:] or None
-        tester.assertEqual(server_hostname, hostname)
         return self, None
 
     def close(self):
