@@ -294,7 +294,9 @@ class Client:
                              nattempt+1,
                              wait_time)
                 try:
-                    yield from asyncio.wait_for(self._request_disconnect.wait())
+                    yield from asyncio.wait_for(
+                        self._request_disconnect.wait(),
+                        timeout=wait_time)
                 except asyncio.TimeoutError:
                     pass
                 else:
