@@ -3,6 +3,7 @@ import random
 import unittest
 
 import dns
+import dns.flags
 
 import asyncio_xmpp.network as network
 
@@ -15,16 +16,49 @@ MockSRVRecord = collections.namedtuple(
         "port"
     ])
 
+MockTLSARecord = collections.namedtuple(
+    "MockRecord",
+    [
+        "usage",
+        "selector",
+        "mtype",
+        "cert"
+    ])
+
+_MockMessage = collections.namedtuple(
+    "MockMessage",
+    [
+        "flags",
+    ])
+
+class MockMessage(_MockMessage):
+    def __new__(cls, flags=0):
+        return _MockMessage.__new__(cls, flags)
+
+class MockAnswer:
+    def __init__(self, records, **kwargs):
+        self.records = records
+        self.response = MockMessage(**kwargs)
+
+    def __iter__(self):
+        return iter(self.records)
+
 class MockResolver:
     def __init__(self, tester):
         self.actions = []
         self.tester = tester
+        self._flags = None
 
     def _get_key(self, qname, rdtype, rdclass, tcp):
         result = (qname, rdtype, rdclass)
         if self._strict_tcp:
             result = result + (bool(tcp),)
+        if self._flags is not None:
+            result += (self._flags,)
         return result
+
+    def set_flags(self, flags):
+        self._flags = flags
 
     def define_actions(self, action_sequence, strict_tcp=True):
         self._strict_tcp = strict_tcp
@@ -44,7 +78,8 @@ class MockResolver:
 
         next_key, response = self.actions.pop(0)
         self.tester.assertEqual(
-            key, next_key,
+            next_key,
+            key,
             "Client action mismatch")
         if isinstance(response, Exception):
             raise response
@@ -202,6 +237,42 @@ class Testlookup_srv(unittest.TestCase):
     def tearDown(self):
         del self.resolver
 
+class Testlookup_tlsa(unittest.TestCase):
+    def setUp(self):
+        self.resolver = MockResolver(self)
+
+    def test_require_ad(self):
+        records = [
+            MockTLSARecord(3, 0, 1, b"foo"),
+        ]
+
+        self.resolver.define_actions([
+            (
+                (
+                    "_5222._tcp.xmpp.foo.test.",
+                    dns.rdatatype.TLSA,
+                    dns.rdataclass.IN,
+                    False,
+                    dns.flags.AD | dns.flags.RD
+                ),
+                MockAnswer(
+                    records,
+                    flags=dns.flags.AD
+                )
+            )
+        ])
+
+        self.assertSequenceEqual(
+            [
+                (3, 0, 1, b"foo"),
+            ],
+            network.lookup_tlsa("xmpp.foo.test.".encode("IDNA"),
+                                5222,
+                                resolver=self.resolver)
+        )
+
+    def tearDown(self):
+        del self.resolver
 
 class Testgroup_and_order_srv_records(unittest.TestCase):
     def _test_monte_carlo_ex(self, hosts, records, N=100):

@@ -6,11 +6,12 @@ import random
 import socket
 
 import dns
+import dns.flags
 import dns.resolver
 
 logger = logging.getLogger(__name__)
 
-def repeated_query(qname, rdtype, nattempts=3, resolver=None):
+def repeated_query(qname, rdtype, nattempts=3, resolver=None, require_ad=False):
     if nattempts <= 0:
         raise ValueError("Query cannot succeed with zero or less attempts")
 
@@ -18,7 +19,18 @@ def repeated_query(qname, rdtype, nattempts=3, resolver=None):
     resolver = resolver or dns.resolver.get_default_resolver()
     for i in range(nattempts):
         try:
-            answer = resolver.query(qname.decode("ascii"), rdtype, tcp=i>0)
+            if require_ad:
+                resolver.set_flags(dns.flags.AD | dns.flags.RD)
+            else:
+                resolver.set_flags(None)
+            answer = resolver.query(
+                qname.decode("ascii"),
+                rdtype,
+                tcp=i>0,
+            )
+            if require_ad:
+                if not (answer.response.flags & dns.flags.AD):
+                    raise ValueError("DNSSEC validation not available")
             break
         except (TimeoutError, dns.resolver.Timeout):
             if i == 0:
@@ -56,6 +68,29 @@ def lookup_srv(domain, service, transport=b"tcp", **kwargs):
         items[i] = (prio, weight, (
             host.rstrip(".").encode("ascii").decode("IDNA"),
             port))
+
+    return items
+
+def lookup_tlsa(domain, port, transport=b"tcp", require_ad=True, **kwargs):
+    record = b".".join([
+        b"_"+str(port).encode("ascii"),
+        b"_"+transport,
+        domain
+    ])
+
+    answer = repeated_query(
+        record,
+        dns.rdatatype.TLSA,
+        require_ad=require_ad,
+        **kwargs)
+
+    if answer is None:
+        return None
+
+    items = [
+        (rec.usage, rec.selector, rec.mtype, rec.cert)
+        for rec in answer
+    ]
 
     return items
 

@@ -14,8 +14,8 @@ Dependencies
 Known problems
 --------------
 
-**Not secure at all**. The SSL handshake is currently not verifying
-anything. Don’t use this library until that is fixed.
+* DANE support is very limited. This is due to some limitations of PyOpenSSL or
+  my ability to find the correct functions in the (Py-)OpenSSL documentation...
 
 Design goals
 ------------
