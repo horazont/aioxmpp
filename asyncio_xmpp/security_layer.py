@@ -95,7 +95,7 @@ class STARTTLSProvider:
 
     def _fail_if_required(self, msg):
         if self._required:
-            raise errors.TLSFailure(msg)
+            raise errors.TLSUnavailable(msg)
         return None
 
     @asyncio.coroutine

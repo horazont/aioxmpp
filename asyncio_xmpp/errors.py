@@ -99,6 +99,9 @@ class TLSFailure(SecurityNegotiationFailure):
     def __init__(self, xmpp_error, text=None):
         super().__init__(xmpp_error, text=text, kind="TLS failure")
 
+class TLSUnavailable(TLSFailure):
+    pass
+
 class AuthenticationFailure(SecurityNegotiationFailure):
     def __init__(self, xmpp_error, text=None):
         super().__init__(xmpp_error, text=text, kind="Authentication failure")

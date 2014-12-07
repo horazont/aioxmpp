@@ -360,9 +360,8 @@ class Client:
             _, features_node = yield from self._security_layer(
                 self.negotiation_timeout.total_seconds(),
                 self._client_jid, features_node, self._xmlstream)
-        except errors.TLSFailure as err:
-            # This means that either TLS has failed to negotiate, or that TLS is
-            # not available.
+        except errors.TLSUnavailable as err:
+            # TLS is not available, but required
             # both stops us from continuing, let’s put a policy violation on the
             # stream and let it bubble up.
             self._xmlstream.stream_error(
@@ -390,6 +389,10 @@ class Client:
                 str(err),
                 custom_error="{{{}}}sasl-failure".format(namespaces.asyncio_xmpp)
             )
+            raise
+        except errors.TLSFailure as err:
+            # generic TLS error, stream is probably dead by now, do not send
+            # anything, but re-raise
             raise
         except Exception as err:
             self._xmlstream.stream_error("internal-server-error")
