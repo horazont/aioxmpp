@@ -58,6 +58,12 @@ class Client:
     *loop* must be an :class:`asyncio.BaseEventLoop` or :data:`None`. In the
     latter case, the current event loop is used.
 
+    .. attribute:: close_timeout
+
+       A :class:`datetime.timedelta` which specifies the maximum time an XML
+       stream may take to shut down. This is initialized to the same value as
+       *negotiation_timeout*.
+
     .. attribute:: max_reconnect_attempts
 
        The maximum number of reconnect attempts before the
@@ -169,6 +175,7 @@ class Client:
         self._disconnecting = False
 
         self.negotiation_timeout = negotiation_timeout
+        self.close_timeout = negotiation_timeout
         self.max_reconnect_attempts = max_reconnect_attempts
         self.reconnect_interval_start = reconnect_interval_start
         self.use_sm = use_sm
@@ -270,11 +277,11 @@ class Client:
         try:
             node = yield from future
             yield from self._negotiate_stream(node)
-        except:
+        except Exception as err:
             self._disconnect_event.set()
             self._stanza_broker.stop()
             if not self._xmlstream.closed:
-                self._xmlstream.close()
+                self._xmlstream.hard_close(err)
             self._ssl_wrapper = None
             self._xmlstream = None
             raise
@@ -522,7 +529,8 @@ class Client:
     def _disconnect(self, exc=None):
         self._disconnecting = True
         self._stanza_broker.stop()
-        self._xmlstream.close()
+        asyncio.async(self._xmlstream.close_and_wait(
+            timeout=self.close_timeout.total_seconds()))
 
     def _handle_xmlstream_connection_lost(self, exc):
         if not self._disconnecting:
@@ -536,9 +544,10 @@ class Client:
         self._mark_stream_dead()
 
     def _mark_stream_dead(self):
-        self._handle_xmlstream_connection_lost(ConnectionError(
+        err = ConnectionError(
             "Stream died due to internal error or ping timeout")
-        )
+        if not self._xmlstream.closed:
+            self._xmlstream.hard_close(err)
 
     # ############### #
     # Stanza handling #
