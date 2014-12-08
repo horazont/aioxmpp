@@ -12,13 +12,18 @@ class AsyncDeque:
     def __contains__(self, item):
         return item in self._data
 
+    def __len__(self):
+        return len(self._data)
+
     def append(self, value):
         self._data.append(value)
-        self._non_empty.set()
+        if self._data:
+            self._non_empty.set()
 
     def appendleft(self, value):
         self._data.appendleft(value)
-        self._non_empty.set()
+        if self._data:
+            self._non_empty.set()
 
     def clear(self):
         self._data.clear()
@@ -26,11 +31,13 @@ class AsyncDeque:
 
     def extend(self, value):
         self._data.extend(value)
-        self._non_empty.set()
+        if self._data:
+            self._non_empty.set()
 
     def extendleft(self, value):
         self._data.extend(value)
-        self._non_empty.set()
+        if self._data:
+            self._non_empty.set()
 
     def empty(self):
         return bool(self._data)
@@ -55,3 +62,5 @@ class AsyncDeque:
 
     def remove(self, item):
         self._data.remove(item)
+        if not self._data:
+            self._non_empty.clear()
