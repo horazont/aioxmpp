@@ -24,7 +24,8 @@ import functools
 import hashlib
 import logging
 import random
-import ssl
+
+import dns.resolver
 
 from datetime import datetime, timedelta
 
@@ -315,7 +316,7 @@ class Client:
             except errors.AuthenticationFailure as err:
                 self._fire_callback("connection_failed", nattempt, err, True)
                 raise
-            except OSError as err:
+            except (OSError, dns.resolver.NoNameservers) as err:
                 last_error = err
                 logger.exception("connection failed:")
                 self._fire_callback("connection_failed", nattempt, err, False)
