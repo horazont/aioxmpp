@@ -237,6 +237,7 @@ class StanzaBroker(StreamWorker):
                 restart = True
                 self._liveness_handler.stop()
                 self._liveness_handler.teardown()
+                self._liveness_handler_task = None
 
             if enabled:
                 self._liveness_handler = StreamManagementLivenessHandler(
@@ -309,6 +310,7 @@ class StanzaBroker(StreamWorker):
         Stop the stanza broker and the liveness handler.
         """
         self._liveness_handler.stop()
+        self._liveness_handler_task = None
         super().stop()
 
     def teardown(self):
@@ -358,71 +360,80 @@ class StanzaBroker(StreamWorker):
             self._presence_callback
         ]
 
-        while True:
-            futures_to_wait_for = incoming_futures.copy()
-            futures_to_wait_for.append(outgoing_stanza_future)
-            futures_to_wait_for.append(disconnect_future)
-            futures_to_wait_for.append(interrupt_future)
-            if self._liveness_handler_task is not None:
-                futures_to_wait_for.append(self._liveness_handler_task)
+        try:
+            while True:
+                futures_to_wait_for = incoming_futures.copy()
+                futures_to_wait_for.append(outgoing_stanza_future)
+                futures_to_wait_for.append(disconnect_future)
+                futures_to_wait_for.append(interrupt_future)
+                if self._liveness_handler_task is not None:
+                    futures_to_wait_for.append(self._liveness_handler_task)
 
-            done, _ = yield from asyncio.wait(
-                futures_to_wait_for,
-                loop=self._loop,
-                return_when=asyncio.FIRST_COMPLETED)
-            logger.debug("%r", done)
+                done, _ = yield from asyncio.wait(
+                    futures_to_wait_for,
+                    loop=self._loop,
+                    return_when=asyncio.FIRST_COMPLETED)
+                logger.debug("%r", done)
 
-            if interrupt_future in done:
-                logger.debug("received interrupt")
-                self._interrupt.clear()
-                interrupt_future = asyncio.async(
-                    self._interrupt.wait(),
-                    loop=self._loop)
+                if interrupt_future in done:
+                    logger.debug("received interrupt")
+                    self._interrupt.clear()
+                    interrupt_future = asyncio.async(
+                        self._interrupt.wait(),
+                        loop=self._loop)
 
-            if disconnect_future in done:
+                if disconnect_future in done:
+                    if outgoing_stanza_future in done:
+                        # re-queue that stanza
+                        self.active_queue.appendleft(
+                            outgoing_stanza_future.result())
+                    break
+
+                if self._liveness_handler_task in done:
+                    raise RuntimeError("Liveness handler terminated unexpectedly") \
+                        from self._liveness_handler_task.exception()
+
                 if outgoing_stanza_future in done:
-                    # re-queue that stanza
-                    self.active_queue.appendleft(
-                        outgoing_stanza_future.result())
-                break
+                    token = outgoing_stanza_future.result()
+                    self._send_token(token)
 
-            if self._liveness_handler_task in done:
-                raise RuntimeError("Liveness handler terminated unexpectedly") \
-                    from self._liveness_handler_task.exception()
+                    if self.active_queue.empty():
+                        # opportunistic send
+                        for fn in self._callbacks["opportunistic_send"]:
+                            for token in fn():
+                                try:
+                                    self._prepare_token(token)
+                                except:
+                                    logger.exception("during opportunistic "
+                                                     "send (ignored)")
+                                    continue
+                                self._send_token(token)
 
-            if outgoing_stanza_future in done:
-                token = outgoing_stanza_future.result()
-                self._send_token(token)
+                    outgoing_stanza_future = asyncio.async(
+                        self.active_queue.popleft(),
+                        loop=self._loop)
 
-                if self.active_queue.empty():
-                    # opportunistic send
-                    for fn in self._callbacks["opportunistic_send"]:
-                        for token in fn():
-                            try:
-                                self._prepare_token(token)
-                            except:
-                                logger.exception("during opportunistic "
-                                                 "send (ignored)")
-                                continue
-                            self._send_token(token)
+                for i, (future, queue, handler) in enumerate(
+                        zip(incoming_futures, incoming_queues, incoming_handlers)):
+                    if future not in done:
+                        continue
 
-                outgoing_stanza_future = asyncio.async(
-                    self.active_queue.popleft(),
-                    loop=self._loop)
+                    received_stanza = future.result()
+                    self._loop.call_soon(handler, received_stanza)
+                    if self._sm_enabled:
+                        self._acked_remote_ctr += 1
 
-            for i, (future, queue, handler) in enumerate(
-                    zip(incoming_futures, incoming_queues, incoming_handlers)):
-                if future not in done:
-                    continue
-
-                received_stanza = future.result()
-                self._loop.call_soon(handler, received_stanza)
-                if self._sm_enabled:
-                    self._acked_remote_ctr += 1
-
-                incoming_futures[i] = future_from_queue(
-                    queue,
-                    self._loop)
+                    incoming_futures[i] = future_from_queue(
+                        queue,
+                        self._loop)
+        except:
+            if outgoing_stanza_future.done() and not outgoing_stanza_future.exception():
+                self.active_queue.pushleft(outgoing_stanza_future.result())
+            else:
+                outgoing_stanza_future.cancel()
+            for fut in incoming_futures:
+                fut.cancel()
+            disconnect_future.cancel()
 
 
     # StanzaBroker interface
@@ -816,7 +827,7 @@ class StreamManagementLivenessHandler(LivenessHandler):
                 if (now - self.ack_pending) > ping_timeout:
                     logger.debug("ping timeout on ack request")
                     yield from self.stanza_broker.ping_timeout_callback()
-                    break
+                    self.ack_pending = None
             elif self.passive_request_until:
                 if now > self.passive_request_until:
                     logger.debug("request to send ack request is pending for too"
