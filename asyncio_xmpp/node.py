@@ -367,7 +367,7 @@ class Client:
             # TLS is not available, but required
             # both stops us from continuing, let’s put a policy violation on the
             # stream and let it bubble up.
-            self._xmlstream.stream_error(
+            yield from self._xmlstream.stream_error(
                 "policy-violation",
                 str(err),
                 custom_error="{{{}}}tls-failure".format(namespaces.asyncio_xmpp)
@@ -377,7 +377,7 @@ class Client:
             # special form of SASL error telling us that SASL failed due to
             # mismatch of our and the servers preferences. we let the server
             # know about that and re-raise
-            self._xmlstream.stream_error(
+            yield from self._xmlstream.stream_error(
                 "policy-violation",
                 str(err),
                 custom_error="{{{}}}sasl-failure".format(
@@ -387,7 +387,7 @@ class Client:
         except errors.SASLFailure as err:
             # other, generic SASL failure. this can be an issue e.g. with SCRAM,
             # if the server replies with an odd value
-            self._xmlstream.stream_error(
+            yield from self._xmlstream.stream_error(
                 "undefined-condition",
                 str(err),
                 custom_error="{{{}}}sasl-failure".format(namespaces.asyncio_xmpp)
@@ -398,8 +398,9 @@ class Client:
             # anything, but re-raise
             raise
         except Exception as err:
-            self._xmlstream.stream_error("internal-server-error",
-                                         "Internal server error")
+            yield from self._xmlstream.stream_error(
+                "internal-server-error",
+                "Internal server error")
             raise
 
         self._stanza_broker.start().add_done_callback(

@@ -195,6 +195,8 @@ class XMLStream(asyncio.Protocol):
         # connection state
         self._stream_level_node_hooks = hooks.NodeHooks()
         self._closing = False
+        self._waiter = None
+        self._conn_exc = None
 
         # callbacks
         self.on_stream_error = None
@@ -238,6 +240,8 @@ class XMLStream(asyncio.Protocol):
             self.close()
         elif self._state.connected:
             self._invalid_state("received end of stream before header")
+        elif self._state.rx_open:
+            self._rx_close()
         else:
             raise self._invalid_state("received end of stream")
 
@@ -320,7 +324,7 @@ class XMLStream(asyncio.Protocol):
         if self.on_stream_error:
             self.on_stream_error(err)
         logger.error("remote sent %s", str(err))
-        self.close()
+        self.hard_close(err)
 
     def _tx_close(self):
         if not self._state.tx_open:
@@ -378,6 +382,31 @@ class XMLStream(asyncio.Protocol):
         logger.debug("SEND %s", blob)
         self._transport.write(blob)
 
+    def _tx_stream_error(self, tag, text, custom_error=None):
+        if tag not in STREAM_ERROR_TAGS:
+            raise ValueError("{!r} is not a valid stream error".format(tag))
+
+        node = self.tx_context.makeelement(
+            "{{{}}}error".format(namespaces.xmlstream),
+            nsmap={
+                "stream": namespaces.xmlstream,
+                None: namespaces.streams
+            })
+        node.append(
+            node.makeelement("{{{}}}{}".format(namespaces.streams, tag)))
+        if text:
+            text_node = node.makeelement(
+                "{{{}}}text".format(namespaces.streams))
+            text_node.text = text
+            node.append(text_node)
+        if custom_error:
+            if not custom_error.startswith("{") or custom_error.startswith(
+                    "{"+namespaces.xmlstream+"}"):
+                raise ValueError("Custom error has incorrect namespace")
+            node.append(node.makeelement(custom_error))
+        self._tx_send_node(node)
+        del node
+
     # asyncio Protocol implementation
 
     def connection_made(self, using_transport):
@@ -386,6 +415,7 @@ class XMLStream(asyncio.Protocol):
 
         self._transport = using_transport
         self._state = _State.CONNECTED
+        self._conn_exc = None
         self.reset_stream()
 
     def data_received(self, blob):
@@ -397,7 +427,8 @@ class XMLStream(asyncio.Protocol):
         try:
             self._rx_feed(blob)
         except errors.SendStreamError as err:
-            self.stream_error(err.error_tag, err.text)
+            self._tx_stream_error(err.error_tag, err.text)
+            self.hard_close(ConnectionError("Stream error was sent: {}".format(err)))
 
     def eof_received(self):
         if self._state == _State.UNCONNECTED:
@@ -422,6 +453,7 @@ class XMLStream(asyncio.Protocol):
     def connection_lost(self, exc):
         if self._state == _State.UNCONNECTED:
             raise self._invalid_transition(via="connection_lost")
+        exc = exc or self._conn_exc
         try:
             if self._state != _State.CLOSING:
                 # cannot send anything anymore, assume closed tx
@@ -429,6 +461,12 @@ class XMLStream(asyncio.Protocol):
                 self.close()
             self._state = _State.UNCONNECTED
         finally:
+            if self._waiter is not None:
+                if exc:
+                    self._loop.call_soon(self._waiter.set_exception, exc)
+                else:
+                    self._loop.call_soon(self._waiter.set_result, None)
+                self._waiter = None
             self._rx_context = None
             self._transport = None
             self._stream_level_node_hooks.close_all(
@@ -442,13 +480,76 @@ class XMLStream(asyncio.Protocol):
 
     # public API
 
-    def close(self):
+    def hard_close(self, exc):
+        """
+        Force closing of the stream, without waiting for the remote side to
+        close the stream, too.
+        """
+        if self._state == _State.UNCONNECTED:
+            warnings.warn("trying to hard-close an unconnected stream")
+            return
+
+        self._conn_exc = exc
+        self._tx_close()
+        self._rx_close()
+
+    def close(self, *, waiter=None):
+        """
+        Close our side of the stream. The stream will remain open until the
+        remote side closes the stream, too.
+
+        If *waiter* is not :data:`None`, it must be a
+        :class:`asyncio.Future`. This future will receive either the result
+        :data:`None` (if the stream shuts down successfully) or an exception if
+        the stream terminates non-cleanly.
+        """
+
         if self._state == _State.UNCONNECTED:
             warnings.warn("trying to close an unconnected stream")
             return
 
-        self._tx_close()
-        self._rx_close()
+        self._waiter = waiter
+        if self._state.connected or self._state.tx_open:
+            self._tx_close()
+            return False
+        elif self._state.rx_open:
+            self._rx_close()
+            return True
+        else:
+            try:
+                raise self._invalid_state("close() called")
+            except Exception as err:
+                self._loop.call_soon(self._waiter.set_exception, err)
+                self._waiter = None
+                raise
+
+    @asyncio.coroutine
+    def close_and_wait(self, timeout=None):
+        """
+        Close and wait for the stream to be closed.
+
+        If *timeout* is not :data:`None` and the remote side takes longer than
+        that to reply, the stream is closed using :meth:`hard_close`.
+
+        This calls :meth:`close` with a *waiter* future internally.
+        """
+
+        logger.debug("closing stream and waiting for closure (timeout=%r)",
+                     timeout)
+        fut = asyncio.Future()
+        self.close(waiter=fut)
+        try:
+            if timeout is not None:
+                yield from asyncio.wait_for(fut, timeout=timeout)
+            else:
+                yield from fut
+        except asyncio.TimeoutError:
+            if not fut.done() or fut.cancelled():
+                logger.debug("timeout while closing, performing hard close")
+                # we have to guard against the case that the future raises a
+                # timeout error
+                self.hard_close(None)
+            raise
 
     @property
     def closed(self):
@@ -519,7 +620,7 @@ class XMLStream(asyncio.Protocol):
                 if critical_timeout:
                     logger.warn("critical timeout while waiting for any of %r",
                                 tags)
-                    self.stream_error("connection-timeout", None)
+                    yield from self.stream_error("connection-timeout", None)
                     raise ConnectionError("Disconnected")
                 raise TimeoutError("Timeout")
 
@@ -553,31 +654,13 @@ class XMLStream(asyncio.Protocol):
                 self._state))
         self._tx_send_node(node)
 
-    def stream_error(self, tag, text, custom_error=None):
-        if tag not in STREAM_ERROR_TAGS:
-            raise ValueError("{!r} is not a valid stream error".format(tag))
-
-        node = self.tx_context.makeelement(
-            "{{{}}}error".format(namespaces.xmlstream),
-            nsmap={
-                "stream": namespaces.xmlstream,
-                None: namespaces.streams
-            })
-        node.append(
-            node.makeelement("{{{}}}{}".format(namespaces.streams, tag)))
-        if text:
-            text_node = node.makeelement(
-                "{{{}}}text".format(namespaces.streams))
-            text_node.text = text
-            node.append(text_node)
-        if custom_error:
-            if not custom_error.startswith("{") or custom_error.startswith(
-                    "{"+namespaces.xmlstream+"}"):
-                raise ValueError("Custom error has incorrect namespace")
-            node.append(node.makeelement(custom_error))
-        self._tx_send_node(node)
-        del node
-        self.close()
+    @asyncio.coroutine
+    def stream_error(self, tag, text, custom_error=None, timeout=2):
+        self._tx_stream_error(tag, text, custom_error=custom_error)
+        try:
+            yield from self.close_and_wait(timeout=timeout)
+        except asyncio.TimeoutError:
+            pass
 
     @property
     def stream_level_hooks(self):

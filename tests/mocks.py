@@ -223,7 +223,10 @@ class XMLStreamMock:
         self._closed = False
         self._transport = transport
 
-    def close(self):
+    def hard_close(self, exc):
+        self.close()
+
+    def close(self, *, waiter=None):
         self._tester.assertFalse(self._closed)
         self._tester.assertTrue(self._action_sequence,
                                 "Unexpected client action (no actions left)")
@@ -236,6 +239,8 @@ class XMLStreamMock:
         self._tester.assertFalse(to_send)
         self.done_event.set()
         self._closed = True
+        if waiter is not None:
+            waiter.set_result(None)
         if self.on_connection_lost:
             self.on_connection_lost(None)
 
@@ -312,10 +317,12 @@ class XMLStreamMock:
     _send_andor_wait_for = protocol.XMLStream._send_andor_wait_for
     wait_for = protocol.XMLStream.wait_for
     send_and_wait_for = protocol.XMLStream.send_and_wait_for
+    _tx_stream_error = protocol.XMLStream._tx_stream_error
     stream_error = protocol.XMLStream.stream_error
     transport = protocol.XMLStream.transport
     reset_stream_and_get_features = \
         protocol.XMLStream.reset_stream_and_get_features
+    close_and_wait = protocol.XMLStream.close_and_wait
 
 
 class TestableClient(node.Client):
