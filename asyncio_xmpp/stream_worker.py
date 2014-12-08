@@ -815,7 +815,7 @@ class StreamManagementLivenessHandler(LivenessHandler):
             if self.ack_pending:
                 if (now - self.ack_pending) > ping_timeout:
                     logger.debug("ping timeout on ack request")
-                    yield from self.stanza_broker.ping_timeout_callback
+                    yield from self.stanza_broker.ping_timeout_callback()
                     break
             elif self.passive_request_until:
                 if now > self.passive_request_until:
