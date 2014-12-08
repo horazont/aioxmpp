@@ -235,14 +235,17 @@ class Client:
                 #     self._xmlstream_factory,
                 #     host=host,
                 #     port=port)
-                transport, xmlstream = yield from ssl_transport.create_starttls_connection(
-                    self._loop,
-                    self._xmlstream_factory,
-                    host=host,
-                    port=port,
-                    use_starttls=True,
-                    peer_hostname=host,
-                    server_hostname=self._client_jid.domainpart)
+                transport, xmlstream = yield from asyncio.wait_for(
+                    ssl_transport.create_starttls_connection(
+                        self._loop,
+                        self._xmlstream_factory,
+                        host=host,
+                        port=port,
+                        use_starttls=True,
+                        peer_hostname=host,
+                        server_hostname=self._client_jid.domainpart),
+                    timeout=self.negotiation_timeout.total_seconds()
+                )
                 xmlstream.on_connection_lost = \
                     self._handle_xmlstream_connection_lost
                 break
