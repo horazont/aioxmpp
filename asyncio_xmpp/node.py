@@ -398,7 +398,8 @@ class Client:
             # anything, but re-raise
             raise
         except Exception as err:
-            self._xmlstream.stream_error("internal-server-error")
+            self._xmlstream.stream_error("internal-server-error",
+                                         "Internal server error")
             raise
 
         self._stanza_broker.start().add_done_callback(
