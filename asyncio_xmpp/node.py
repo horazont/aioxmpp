@@ -414,6 +414,11 @@ class Client:
             success = yield from self._resume_stream_management(sm_node)
             if success:
                 return True
+        else:
+            if self._stanza_broker.sm_enabled:
+                logger.warning("had an sm session, but resumption was not"
+                               " supported")
+            logger.debug("no sm session to resume")
 
         bind_node = features_node.get_feature("{{{}}}bind".format(
             namespaces.bind))
