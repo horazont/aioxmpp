@@ -15,12 +15,12 @@ class AsyncDeque:
     def __len__(self):
         return len(self._data)
 
-    def append(self, value):
+    def put_nowait(self, value):
         self._data.append(value)
         if self._data:
             self._non_empty.set()
 
-    def appendleft(self, value):
+    def putleft_nowait(self, value):
         self._data.appendleft(value)
         if self._data:
             self._non_empty.set()
@@ -43,7 +43,7 @@ class AsyncDeque:
         return bool(self._data)
 
     @asyncio.coroutine
-    def pop(self):
+    def getright(self):
         while not self._data:
             yield from self._non_empty.wait()
         result = self._data.pop()
@@ -52,7 +52,7 @@ class AsyncDeque:
         return result
 
     @asyncio.coroutine
-    def popleft(self):
+    def get(self):
         while not self._data:
             yield from self._non_empty.wait()
         result = self._data.popleft()

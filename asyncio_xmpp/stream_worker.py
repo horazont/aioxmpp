@@ -154,9 +154,9 @@ class StanzaBroker(StreamWorker):
         self._liveness_handler_task = None
 
         self.active_queue = custom_queue.AsyncDeque(loop=self._loop)
-        self.incoming_iq_queue = asyncio.Queue()
-        self.incoming_message_queue = asyncio.Queue()
-        self.incoming_presence_queue = asyncio.Queue()
+        self.incoming_iq_queue = custom_queue.AsyncDeque(loop=self._loop)
+        self.incoming_message_queue = custom_queue.AsyncDeque(loop=self._loop)
+        self.incoming_presence_queue = custom_queue.AsyncDeque(loop=self._loop)
         self.unacked_queue = list()
 
         self.ping_timeout = ping_timeout
@@ -339,9 +339,8 @@ class StanzaBroker(StreamWorker):
             self._interrupt.wait(),
             loop=self._loop)
 
-        outgoing_stanza_future = asyncio.async(
-            self.active_queue.popleft(),
-            loop=self._loop)
+        outgoing_stanza_future = future_from_queue(
+            self.active_queue, self._loop)
 
         incoming_queues = [
             self.incoming_iq_queue,
@@ -383,10 +382,6 @@ class StanzaBroker(StreamWorker):
                         loop=self._loop)
 
                 if disconnect_future in done:
-                    if outgoing_stanza_future in done:
-                        # re-queue that stanza
-                        self.active_queue.appendleft(
-                            outgoing_stanza_future.result())
                     break
 
                 if self._liveness_handler_task in done:
@@ -410,7 +405,7 @@ class StanzaBroker(StreamWorker):
                                 self._send_token(token)
 
                     outgoing_stanza_future = asyncio.async(
-                        self.active_queue.popleft(),
+                        self.active_queue.get(),
                         loop=self._loop)
 
                 for i, (future, queue, handler) in enumerate(
@@ -426,13 +421,33 @@ class StanzaBroker(StreamWorker):
                     incoming_futures[i] = future_from_queue(
                         queue,
                         self._loop)
-        except:
-            if outgoing_stanza_future.done() and not outgoing_stanza_future.exception():
-                self.active_queue.pushleft(outgoing_stanza_future.result())
+        finally:
+            logger.debug("terminating ...")
+            if     (outgoing_stanza_future.done() and
+                    not outgoing_stanza_future.exception()):
+                logger.debug("rescueing stanza")
+                self.active_queue.putleft_nowait(outgoing_stanza_future.result())
+                logger.debug("rescued stanza")
             else:
+                logger.debug("killing outgoing_stanza_future")
                 outgoing_stanza_future.cancel()
-            for fut in incoming_futures:
-                fut.cancel()
+            for fut, queue in zip(incoming_futures, incoming_queues):
+                if (fut.done() and not fut.exception()):
+                    # re-insert stanza into incoming queue
+                    queue.putleft_nowait(fut.result())
+                else:
+                    fut.cancel()
+
+            # XXX: clear all incoming queues to avoid double stanza delivery on
+            # SM resumption. The other option would be to submit the stanzas to
+            # the handlers, but as we are most likely not connected anymore it
+            # does not make a whole lot of sense to do that
+            #
+            # FIXME: maybe we should only clear the queues if SM is enabled. on
+            # the other hand, most handlers will still not be able to do
+            # something sensible with this.
+            for queue in incoming_queues:
+                queue.clear()
             disconnect_future.cancel()
 
 
@@ -450,7 +465,7 @@ class StanzaBroker(StreamWorker):
         sent as soon as possible.
         """
         self._prepare_token(token)
-        self.active_queue.append(token)
+        self.active_queue.put_nowait(token)
 
     def make_stanza_token(self, for_stanza, **kwargs):
         """
