@@ -1,6 +1,7 @@
 import collections.abc
 
 import asyncio_xmpp.stanza as stanza
+from asyncio_xmpp.stanza_props import *
 
 from asyncio_xmpp.utils import *
 
@@ -45,19 +46,19 @@ class InfoQuery(stanza.StanzaElementBase):
             self,
             self._IDENTITY_NODE)
 
-    node = stanza.xml_attribute("node")
+    node = xmlattr()
 
 class Identity(stanza.StanzaElementBase):
     TAG = "{{{}}}identity".format(namespaces.xep0030_disco_info)
 
-    category = stanza.xml_attribute("category")
-    type_ = stanza.xml_attribute("type")
-    name = stanza.xml_attribute("name")
+    category = xmlattr()
+    type_ = xmlattr(name="type_")
+    name = xmlattr()
 
 class Feature(stanza.StanzaElementBase):
     TAG = "{{{}}}feature".format(namespaces.xep0030_disco_info)
 
-    var = stanza.xml_attribute("var")
+    var = xmlattr()
 
 class ItemQuery(stanza.StanzaElementBase):
     TAG = "{{{}}}query".format(namespaces.xep0030_disco_items)
@@ -72,5 +73,5 @@ class ItemQuery(stanza.StanzaElementBase):
 class Item(stanza.StanzaElementBase):
     TAG = "{{{}}}item".format(namespaces.xep0030_disco_items)
 
-    jid = stanza.xml_jid_attribute("jid")
-    name = stanza.xml_attribute("name")
+    jid = xmlattr(JIDType())
+    name = xmlattr()

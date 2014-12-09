@@ -6,8 +6,9 @@ import logging
 import operator
 import random
 
-from . import jid, errors
+from . import jid, errors, stanza_props
 from .utils import etree, namespaces, split_tag
+from .stanza_props import *
 
 logger = logging.getLogger(__name__)
 
@@ -25,89 +26,7 @@ def iterator_has_more_than(iterable, n_elements):
             return False
     return True
 
-class xml_attribute:
-    def __init__(self, key):
-        self._key = key
-        self.__doc__ = \
-"""
-Direct access to the XML attribute ``{}``.
-""".format(key)
-
-    def __get__(self, instance, type_):
-        if instance is None:
-            return self
-
-        return instance.get(self._key)
-
-    def __set__(self, instance, value):
-        if value is None:
-            return self.__delete__(instance)
-
-        instance.set(self._key, value)
-
-    def __delete__(self, instance):
-        try:
-            del instance.attrib[self._key]
-        except KeyError:
-            pass
-
-class xml_jid_attribute(xml_attribute):
-    def __init__(self, key):
-        super().__init__(key)
-        self.__doc__ = \
-"""
-Access to the XML attribute ``{}`` as :class:`~.jid.JID`.
-""".format(key)
-
-    def __get__(self, instance, type_):
-        if instance is None:
-            return self
-
-        value = super().__get__(instance, type_)
-        if value is None:
-            return None
-        return jid.JID.fromstr(value)
-
-    def __set__(self, instance, value):
-        if value is None:
-            return super().__set__(instance, value)
-
-        return super().__set__(instance, str(value))
-
-class xml_enum_attribute(xml_attribute):
-    def __init__(self, key, options):
-        super().__init__(key)
-        self._options = options
-        self.__doc__ = \
-"""
-Access to the XML attribute ``{}``. Allowed values are {}.
-
-.. note::
-
-   Values which are obtained from the XML are not validated against the
-   options.
-
-""".format(
-    key,
-    ", ".join("``{}``".format(value) for value in options))
-
-    def __set__(self, instance, value):
-        if value is None:
-            return super().__set__(instance, value)
-
-        if value not in self._options:
-            _, localname = split_tag(instance.tag)
-            raise ValueError("Invalid value for {localname}@{key}: {}".format(
-                value,
-                localname=localname,
-                key=self._key))
-
-        return super().__set__(instance, str(value))
-
-class StanzaMeta(type):
-    pass
-
-class StanzaElementBase(etree.ElementBase):
+class StanzaElementBase(etree.ElementBase, metaclass=stanza_props.StanzaMeta):
     def __init__(self, *args, nsmap=None, **kwargs):
         if nsmap is None:
             nsmap = {}
@@ -137,32 +56,22 @@ class Stanza(StanzaElementBase):
             )).decode("ascii").strip()
             self.set("id", idstr)
 
-    id_ = xml_attribute("id")
-    from_ = xml_jid_attribute("from")
-    to = xml_jid_attribute("to")
+    id_ = xmlattr(name="id")
+    from_ = xmlattr(JIDType(), name="from")
+    to = xmlattr(JIDType())
 
 class Message(Stanza):
     TAG = "{jabber:client}message"
 
-    type_ = xml_attribute("type")
-
-    @property
-    def body(self):
-        body = self.find("{jabber:client}body")
-        if body is None:
-            body = etree.SubElement(self, "{jabber:client}body")
-        return body
-
-    @body.deleter
-    def body(self):
-        body = self.body
-        self.remove(body)
+    type_ = xmlattr(name="type")
+    body = xmlchildtext()
 
     def _make_reply(self, tx_context, type_=None):
-        return tx_context.make_message(to=self.from_,
-                                       from_=self.to,
-                                       type_=type_ or self.type_,
-                                       id_=self.id_)
+        return tx_context.make_message(
+            to=self.from_,
+            from_=self.to,
+            type_=type_ or self.type_,
+            id_=self.id_)
 
 class Presence(Stanza):
     TAG = "{jabber:client}presence"
@@ -170,13 +79,14 @@ class Presence(Stanza):
                     "subscribe", "subscribed",
                     "unsubscribe", "unsubscribed"}
 
-    type_ = xml_enum_attribute("type", _VALID_TYPES)
+    type_ = xmlattr(EnumType(_VALID_TYPES), name="type")
 
     def _make_reply(self, tx_context, type_=None):
-        return tx_context.make_presence(to=self._from,
-                                        from_=self.to,
-                                        id_=self.id_,
-                                        type_=type_ or self.type_)
+        return tx_context.make_presence(
+            to=self._from,
+            from_=self.to,
+            id_=self.id_,
+            type_=type_ or self.type_)
 
 class IQ(Stanza):
     TAG = "{jabber:client}iq"
@@ -186,29 +96,22 @@ class IQ(Stanza):
         super().validate()
         if self.type_ not in self._VALID_TYPES:
             raise ValueError("Incorrect iq@type: {}".format(self.type_))
-        if self.type_ in {"set", "get"}:
+        if self.type_ in {"set", "get", "error"}:
             if self.data is None:
-                raise ValueError("iq with type 'set' or 'get' must have "
-                                 "exactly one non-error child")
+                raise ValueError("iq with type 'set', 'get' or 'error' must "
+                                 "have exactly one child")
         elif self.type_ == "result":
-            if len(self) > 1 or self.error is not None:
+            if len(self) > 1:
                 raise ValueError("iq with type 'result' must have zero or"
-                                 " one non-error child")
-        elif self.type_ == "error":
-            if self.error is None:
-                raise ValueError("iq with type 'error' must have one error "
-                                 "child")
+                                 " one children")
 
-    type_ = xml_enum_attribute("type", _VALID_TYPES)
+    type_ = xmlattr(EnumType(_VALID_TYPES), name="type")
 
     @property
     def data(self):
         try:
-            return next(iter(
-                node
-                for node in self
-                if node.tag != Error.TAG))
-        except StopIteration:
+            return self[0]
+        except IndexError:
             return None
 
     @data.setter
@@ -218,28 +121,9 @@ class IQ(Stanza):
 
     @data.deleter
     def data(self):
-        data = self.data
-        if data is not None:
-            self.remove(data)
+        del self[:]
 
-    @property
-    def error(self):
-        return self.find(Error.TAG)
-
-    @error.setter
-    def error(self, value):
-        if self.type_ != "error":
-            raise ValueError("Error cannot be attached to an IQ of type "
-                             "{}".format(self.type_))
-
-        del self.error
-        self.append(value)
-
-    @error.deleter
-    def error(self):
-        error = self.error
-        if error is not None:
-            self.remove(error)
+    error = data
 
     def _make_reply(self, tx_context, error=False):
         """
@@ -303,7 +187,7 @@ class Error(etree.ElementBase):
     _NON_APPDEF_ELEMENTS = _VALID_CONDITION_ELEMENTS | {_TEXT_ELEMENT}
     _CONDITION_FILTER = "{{{}}}*".format(namespaces.stanzas)
 
-    type_ = xml_enum_attribute("type", _VALID_TYPES)
+    type_ = xmlattr(EnumType(_VALID_TYPES), name="type")
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

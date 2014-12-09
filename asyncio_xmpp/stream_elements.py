@@ -1,4 +1,4 @@
-from .stanza import xml_attribute
+from .stanza_props import *
 from .utils import etree, namespaces, split_tag
 from .xml import lookup
 

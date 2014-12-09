@@ -1,3 +1,4 @@
+from asyncio_xmpp.stanza_props import *
 import asyncio_xmpp.stanza as stanza
 
 from asyncio_xmpp.utils import *
@@ -15,4 +16,4 @@ class PubSub(stanza.StanzaElementBase):
 class Create(stanza.StanzaElementBase):
     TAG = "{{{}}}create".format(namespaces.xep0060_pubsub)
 
-    node = stanza.xml_attribute("node")
+    node = xmlattr()
