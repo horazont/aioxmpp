@@ -90,6 +90,7 @@ class StanzaBrokerSMInitializer:
 
     def __enter__(self):
         self.broker._acked_remote_ctr = 0
+        return self
 
     def __exit__(self, exc_type, exc_value, traceback):
         if exc_type is not None:
@@ -482,6 +483,13 @@ class StanzaBroker(StreamWorker):
             abort_impl=self._queued_stanza_abort,
             resend_impl=self._queued_stanza_resend,
             **kwargs)
+
+    @property
+    def sm_acked_remote_ctr(self):
+        """
+        The counter which counts the amount of stanzas received by the peer.
+        """
+        return self._acked_remote_ctr
 
     @property
     def sm_enabled(self):

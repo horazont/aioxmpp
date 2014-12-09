@@ -467,6 +467,7 @@ class Client:
                 [
                     self.tx_context.makeelement(
                         "{{{}}}enable".format(namespaces.stream_management),
+                        resume="true",
                         nsmap={None: namespaces.stream_management})
                 ],
                 [
@@ -479,7 +480,9 @@ class Client:
                 raise errors.StreamNegotiationFailure(
                     "Could not negotiate stream management")
 
-        if node.get("resume", "").lower() in {"true", "1"}:
+        resume = node.get("resume")
+        sm_id = node.get("id")
+        if resume and resume.lower() in {"true", "1"} and sm_id:
             ctx.set_session_id(sm_id)
 
     @asyncio.coroutine
@@ -492,12 +495,14 @@ class Client:
             self._stanza_broker.sm_reset()
             return False
 
+        Esm = self.tx_context.default_ns_builder(namespaces.stream_management)
+
         node = yield from self._xmlstream.send_and_wait_for(
             [
-                self.tx_context(
-                    "{{{}}}resume".format(namespaces.stream_management),
-                    h=str(self._acked_remote_ctr),
-                    previd=self._sm_id)
+                Esm(
+                    "resume",
+                    h=str(self._stanza_broker.sm_acked_remote_ctr),
+                    previd=self._stanza_broker.sm_session_id)
             ],
             [
                 "{{{}}}resumed".format(namespaces.stream_management),
