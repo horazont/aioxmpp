@@ -6,9 +6,8 @@ Internal tools
 
    custom_queue
    hooks
-   merge_transport
    network
-   ssl_wrapper
+   ssl_transport
    stream_worker
    stringprep
    xml

@@ -245,5 +245,6 @@ texinfo_documents = [
 
 # Example configuration for intersphinx: refer to the Python standard library.
 intersphinx_mapping = {
-    'https://docs.python.org/3/': None
+    'https://docs.python.org/3/': None,
+    'https://pyopenssl.readthedocs.org/en/latest/': None
 }

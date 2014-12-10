@@ -2,6 +2,21 @@
 :mod:`ssl_transport` --- A transport for asyncio using :mod:`OpenSSL`
 #######################################################################
 
+This module provides a socket-based :class:`~asyncio.Transport` for
+:mod:`asyncio` which supports deferred TLS as used by the STARTTLS mechanism. In
+addition it uses :mod:`OpenSSL` instead of the built-in :mod:`ssl` module, to
+provide this and more sophisticated functionality.
+
+The following function can be used to create a connection using the
+:class:`STARTTLSTransport`, which itself is documented below:
+
+.. autofunction:: create_starttls_connection
+
+The transport implementation is documented below:
+
+.. autoclass:: STARTTLSTransport(loop, rawsock, protocol, ssl_context, [waiter=None], [use_starttls=False], [post_handshake_callback=None], [peer_hostname=None], [server_hostname=None])
+   :members:
+
 """
 
 import abc
@@ -48,6 +63,63 @@ class _State(Enum):
         return (self.value & 0x3) == 0
 
 class STARTTLSTransport(asyncio.Transport):
+    """
+    Create a new :class:`asyncio.Transport` which supports TLS and the deferred
+    starting of TLS using the :meth:`starttls` method.
+
+    *loop* must be a :class:`asyncio.BaseEventLoop` with support for
+    :meth:`BaseEventLoop.add_reader` as well as removal and the writer
+    complements.
+
+    *rawsock* must be a :class:`socket.socket` which will be used as the socket
+    for the transport. *protocol* must be a :class:`asyncio.Protocol` which will
+    be fed the data the transport receives.
+
+    *ssl_context* must be a :class:`OpenSSL.SSL.Context`. It will be used to
+    create the :class:`OpenSSL.SSL.Connection` when TLS is enabled on the
+    transport.
+
+    *use_starttls* must be a boolean value. If it is true, TLS is not enabled
+    immediately. Instead, the user must call :meth:`starttls` to enable TLS on
+    the transport. Until that point, the transport is unencrypted. If it is
+    false, the TLS handshake is started immediately. This is roughly equivalent
+    to calling :meth:`starttls` immediately.
+
+    *peer_hostname* must be either a :class:`str` or :data:`None`. It may be
+    used by certificate validators and must be the host name this transport
+    actually connected to. That might be (e.g. in the case of XMPP) different
+    from the actual domain name the transport communicates with (and for which
+    the service must have a valid certificate). This host name may be used by
+    certificate validators implementing e.g. DANE.
+
+    *server_hostname* must be either a :class:`str` or :data:`None`. It may be
+    used by certificate validators anrd must be the host name for which the peer
+    must have a valid certificate (if host name based certificate validation is
+    performed). *server_hostname* is also passed via the TLS Server Name
+    Indication (SNI) extension if it is given.
+
+    If host names are to be converted to :class:`bytes` by the transport, they
+    are encoded using the ``utf-8` codec.
+
+    If *waiter* is not :data:`None`, it must be a :class:`asyncio.Future`. After
+    the stream has been established, the futures result is set to a value of
+    :data:`None`. If any errors occur, the exception is set on the future.
+
+    If *use_starttls* is true, the future is fulfilled immediately after
+    construction, as there is no blocking process which needs to take place. If
+    *use_starttls* is false and thus TLS negotiation starts right away, the
+    future is fulfilled when TLS negotiation is complete.
+
+    *post_handshake_callback* may be a coroutine or :data:`None`. If it is not
+    :data:`None`, it is called asynchronously after the TLS handshake and blocks
+    the completion of the TLS handshake until it returns.
+
+    It can be used to perform blocking post-handshake certificate verification,
+    e.g. using DANE. The coroutine must not return a value. If it encounters an
+    error, an appropriate exception should be raised, which will propagate out
+    of :meth:`starttls` and/or passed to the *waiter* future.
+    """
+
     MAX_SIZE = 256 * 1024
 
     def __init__(self, loop, rawsock, protocol, ssl_context,
@@ -390,6 +462,10 @@ class STARTTLSTransport(asyncio.Transport):
     # public API
 
     def abort(self):
+        """
+        Immediately close the stream, without sending remaining buffers or
+        performing a proper shutdown.
+        """
         if self._state == _State.CLOSED:
             self._invalid_state("abort() called")
             return
@@ -397,9 +473,28 @@ class STARTTLSTransport(asyncio.Transport):
         self._force_close()
 
     def can_write_eof(self):
+        """
+        Return :data:`False`.
+
+        .. note::
+
+           Writing of EOF (i.e. closing the sending direction of the stream) is
+           theoretically possible. However, it was deemed by the author that the
+           case is rare enough to neglect it for the sake of implementation
+           simplicity.
+
+        """
         return False
 
     def close(self):
+        """
+        Close the stream. This performs a proper stream shutdown, except if the
+        stream is currently performing a TLS handshake. In that case, calling
+        :meth:`close` is equivalent to calling :meth:`abort`.
+
+        Otherwise, the transport waits until all buffers are transmitted.
+        """
+
         if self._state == _State.CLOSED:
             self._invalid_state("close() called")
             return
@@ -421,11 +516,35 @@ class STARTTLSTransport(asyncio.Transport):
             self._raw_shutdown()
 
     def get_extra_info(self, name, default=None):
+        """
+        The following extra information is available:
+
+        * ``socket``: the underlying :mod:`socket` object
+        * ``ssl_context``: the :class:`OpenSSL.SSL.Context` object to use (this
+          may be :data:`None` until :meth:`starttls` has been called)
+        * ``conn``: :class:`OpenSSL.SSL.Connection` object (:data:`None` if TLS
+          is not enabled (yet))
+        * ``peername``: return value of :meth:`socket.Socket.getpeername`
+        * ``peer_hostname``: The *peer_hostname* value passed to the constructor.
+        * ``server_hostname``: The *server_hostname* value passed to the constructor.
+
+        """
         return self._extra.get(name, default)
 
     @asyncio.coroutine
     def starttls(self, ssl_context=None,
                  post_handshake_callback=None):
+        """
+        Start a TLS stream on top of the socket. This is an invalid operation if
+        the stream is not in RAW_OPEN state.
+
+        If *ssl_context* is set, it overrides the *ssl_context* passed to the
+        constructor. If *post_handshake_callback* is set, it overrides the
+        *post_handshake_callback* passed to the constructor.
+        """
+        if self._state != _State.RAW_OPEN or self._closing:
+            raise self._invalid_state("starttls() called")
+
         if ssl_context is not None:
             self._ssl_context = ssl_context
             self._extra.update(
@@ -442,6 +561,11 @@ class STARTTLSTransport(asyncio.Transport):
             self._waiter = None
 
     def write(self, data):
+        """
+        Write data to the transport. This is an invalid operation if the stream
+        is not writable, that is, if it is closed. During TLS negotiation, the
+        data is buffered.
+        """
         if not isinstance(data, (bytes, bytearray, memoryview)):
             raise TypeError('data argument must be byte-ish (%r)',
                             type(data))
@@ -458,6 +582,9 @@ class STARTTLSTransport(asyncio.Transport):
         self._buffer.extend(data)
 
     def write_eof(self):
+        """
+        Writing the EOF has not been implemented, for the sake of simplicity.
+        """
         raise NotImplementedError("Cannot write_eof() on STARTTLS transport")
 
 @asyncio.coroutine
@@ -473,7 +600,28 @@ def create_starttls_connection(
         **kwargs):
     """
     This is roughly a copy of the asyncio implementation of
-    :meth:`asyncio.BaseEventLoop.create_connection`.
+    :meth:`asyncio.BaseEventLoop.create_connection`. It returns a pair
+    ``(transport, protocol)``, where *transport* is a newly created
+    :class:`STARTTLSTransport` instance. The keyword arguments are forwarded to
+    the constructor of :class:`STARTTLSTransport`.
+
+    *loop* must be a :class:`asyncio.BaseEventLoop`, with support for
+    :meth:`asyncio.BaseEventLoop.add_reader` and the corresponding writer and
+    removal functions for sockets.
+
+    *protocol_factory* must be a callable which (without any arguments) returns
+    a :class:`asyncio.Protocol` which will be connected to the STARTTLS
+    transport.
+
+    *host* and *port* must be a hostname and a port number, or both
+    :data:`None`. Both must be :data:`None`, if and only if *sock* is not
+    :data:`None`. In that case, *sock* is used instead of a newly created
+    socket. *sock* is put into non-blocking mode and must be a stream socket.
+
+    This coroutine returns when the stream is established. If *use_starttls* is
+    :data:`False`, this means that the full TLS handshake has to be finished for
+    this coroutine to return. Otherwise, no TLS handshake takes place. It must
+    be invoked using the :meth:`STARTTLSTransport.starttls` coroutine.
     """
 
     if host is not None and port is not None:
