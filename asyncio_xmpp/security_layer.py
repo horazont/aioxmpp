@@ -13,6 +13,21 @@ These are coupled, as different SASL features might need different TLS features
 
 .. autofunction:: negotiate_stream_security
 
+Certificate verifiers
+=====================
+
+To verify the peer certificate provided by the server, different
+:class:`CertificateVerifier`s are available:
+
+.. autoclass:: PKIXCertificateVerifier
+
+.. seealso:: :mod:`dane` provides DANE based verification.
+
+To implement your own verifiers, see the documentation at the base class for
+certificate verifiers:
+
+.. autoclass:: CertificateVerifier
+
 Partial security providers
 ==========================
 
@@ -62,6 +77,20 @@ from .utils import *
 logger = logging.getLogger(__name__)
 
 class CertificateVerifier(metaclass=abc.ABCMeta):
+    """
+    A certificate verifier hooks into the two mechanisms provided by
+    :class:`.ssl_transport.STARTTLSTransport` for certificate verification.
+
+    On the one hand, the verify callback provided by
+    :class:`OpenSSL.SSL.Context` is used and forwarded to
+    :meth:`verify_callback`. On the other hand, the post handshake coroutine is
+    set to :meth:`post_handshake_callback`. See the documentation of
+    :class:`.ssl_transport.STARTTLSTransport` for the semantics of that
+    coroutine.
+
+    This baseclass provides a bit of boilerplate.
+    """
+
     def _callback_wrapper(self, conn, *args):
         self.verify_callback(conn.get_app_data(), *args)
 
@@ -89,7 +118,18 @@ class _NullVerifier(CertificateVerifier):
         pass
 
 class PKIXCertificateVerifier(CertificateVerifier):
-    def verify_callback(self, *args):
+    """
+    This verifier enables the default PKIX based verification of certificates as
+    implemented by OpenSSL.
+
+    .. warning::
+
+       No additional checks are performed, in particular, the host name is not
+       matched against the host name. This is TBD.
+
+    """
+
+    def verify_callback(self, transport, x509, errno, errdepth, returncode):
         return super().verify_callback(*args)
 
     @asyncio.coroutine
@@ -131,14 +171,13 @@ class STARTTLSProvider:
     fatally broken if the STARTTLS command has been sent but SSL negotiation
     fails afterwards).
 
-    .. warning::
-
-       Certificate validation requires Python 3.4 to work properly!
+    *certificate_verifier_factory* must be a callable providing a
+    :class:`CertificateVerifer` instance which will hooked up to the transport
+    and the SSL context to perform certificate validation.
 
     .. note::
 
-       Support for DANE has not been implemented yet, as this also requires
-       Python 3.4 and the main developer does not have Python 3.4 yet.
+       Partial DANE support is provided by :mod:`dane`.
 
     """
 
