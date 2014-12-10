@@ -84,15 +84,22 @@ class CertificateVerifier(metaclass=abc.ABCMeta):
     On the one hand, the verify callback provided by
     :class:`OpenSSL.SSL.Context` is used and forwarded to
     :meth:`verify_callback`. On the other hand, the post handshake coroutine is
-    set to :meth:`post_handshake_callback`. See the documentation of
+    set to :meth:`post_handshake`. See the documentation of
     :class:`.ssl_transport.STARTTLSTransport` for the semantics of that
     coroutine.
+
+    In addition to these two hooks into the TLS handshake, a third coroutine
+    which is called before STARTTLS is intiiated is provided.
 
     This baseclass provides a bit of boilerplate.
     """
 
     def _callback_wrapper(self, conn, *args):
-        self.verify_callback(conn.get_app_data(), *args)
+        return self.verify_callback(conn.get_app_data(), *args)
+
+    @asyncio.coroutine
+    def pre_handshake(self, transport):
+        pass
 
     def setup_context(self, ctx):
         ctx.set_verify(OpenSSL.SSL.VERIFY_PEER, self._callback_wrapper)
@@ -103,7 +110,7 @@ class CertificateVerifier(metaclass=abc.ABCMeta):
 
     @abc.abstractmethod
     @asyncio.coroutine
-    def post_handshake_callback(self, transport):
+    def post_handshake(self, transport):
         pass
 
 class _NullVerifier(CertificateVerifier):
@@ -114,7 +121,7 @@ class _NullVerifier(CertificateVerifier):
         return True
 
     @asyncio.coroutine
-    def post_handshake_callback(self, transport):
+    def post_handshake(self, transport):
         pass
 
 class PKIXCertificateVerifier(CertificateVerifier):
@@ -133,7 +140,7 @@ class PKIXCertificateVerifier(CertificateVerifier):
         return super().verify_callback(*args)
 
     @asyncio.coroutine
-    def post_handshake_callback(self, transport):
+    def post_handshake(self, transport):
         pass
 
 class ErrorRecordingVerifier(CertificateVerifier):
@@ -149,7 +156,7 @@ class ErrorRecordingVerifier(CertificateVerifier):
         return True
 
     @asyncio.coroutine
-    def post_handshake_callback(self, transport):
+    def post_handshake(self, transport):
         if self._errors:
             raise errors.TLSFailure(
                 "Peer certificate verification failure: {}".format(
@@ -236,13 +243,14 @@ class STARTTLSProvider:
         if proceed:
             logger.info("engaging STARTTLS")
             try:
-                ctx = self._ssl_context_factory()
                 verifier = self._certificate_verifier_factory()
+                yield from verifier.pre_handshake(xmlstream.transport)
+                ctx = self._ssl_context_factory()
                 verifier.setup_context(ctx)
                 logger.debug("using certificate verifier: %s", verifier)
                 yield from xmlstream.transport.starttls(
                     ssl_context=ctx,
-                    post_handshake_callback=verifier.post_handshake_callback)
+                    post_handshake_callback=verifier.post_handshake)
             except errors.TLSFailure:
                 # no need to re-wrap that
                 logger.exception("STARTTLS failed:")
