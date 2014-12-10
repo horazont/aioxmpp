@@ -464,8 +464,10 @@ class STARTTLSTransport(asyncio.Transport):
 def create_starttls_connection(
         loop,
         protocol_factory,
-        host,
-        port,
+        host=None,
+        port=None,
+        *,
+        sock=None,
         ssl_context=None,
         use_starttls=False,
         **kwargs):
@@ -474,35 +476,40 @@ def create_starttls_connection(
     :meth:`asyncio.BaseEventLoop.create_connection`.
     """
 
-    host_addrs = yield from loop.getaddrinfo(
-        host, port,
-        family=socket.AF_INET6,
-        type=socket.SOCK_STREAM)
+    if host is not None and port is not None:
+        host_addrs = list((yield from loop.getaddrinfo(
+            host, port,
+            family=socket.AF_INET6,
+            type=socket.SOCK_STREAM)))
 
-    exceptions = []
+        exceptions = []
 
-    for family, type, proto, cname, address in host_addrs:
-        sock = None
-        try:
-            sock = socket.socket(family=family, type=type, proto=proto)
-            sock.setblocking(False)
-            yield from loop.sock_connect(sock, address)
-        except OSError as exc:
-            if sock is not None:
-                sock.close()
-            exceptions.append(exc)
+        for family, type, proto, cname, address in host_addrs:
+            sock = None
+            try:
+                sock = socket.socket(family=family, type=type, proto=proto)
+                sock.setblocking(False)
+                yield from loop.sock_connect(sock, address)
+            except OSError as exc:
+                if sock is not None:
+                    sock.close()
+                exceptions.append(exc)
+            else:
+                break
         else:
-            break
+            if len(exceptions) == 1:
+                raise exceptions[0]
+
+            model = str(exceptions[0])
+            if all(str(exc) == model for exc in exceptions):
+                raise exceptions[0]
+
+            raise OSError("Multiple exceptions: {}".format(
+                ", ".join(map(str, exceptions))))
+    elif sock is None:
+        raise ValueError("sock must not be None if host and/or port are None")
     else:
-        if len(exceptions) == 1:
-            raise exceptions[0]
-
-        model = str(exceptions[0])
-        if all(str(exc) == model for exc in exceptions):
-            raise exceptions[0]
-
-        raise OSError("Multiple exceptions: {}".format(
-            ", ".join(map(str, exceptions))))
+        sock.setblocking(False)
 
     protocol = protocol_factory()
     waiter = asyncio.Future(loop=loop)
