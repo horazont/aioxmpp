@@ -228,10 +228,17 @@ class STARTTLSTransport(asyncio.Transport):
         )
 
         if self._tls_post_handshake_callback:
-            self._tls_post_handshake_callback(
-                self,
-                self._tls_post_handshake)
+            task = asyncio.async(self._tls_post_handshake_callback(self))
+            task.add_done_callback(self._tls_post_handshake_done)
             self._tls_post_handshake_callback = None
+        else:
+            self._tls_post_handshake(None)
+
+    def _tls_post_handshake_done(self, task):
+        try:
+            task.result()
+        except BaseException as err:
+            self._tls_post_handshake(err)
         else:
             self._tls_post_handshake(None)
 
@@ -427,8 +434,6 @@ class STARTTLSTransport(asyncio.Transport):
         if post_handshake_callback is not None:
             self._tls_post_handshake_callback = post_handshake_callback
 
-        if self._state != _State.RAW_OPEN or self._closing:
-            raise self._invalid_state("starttls() called")
         self._waiter = asyncio.Future()
         self._initiate_tls()
         try:

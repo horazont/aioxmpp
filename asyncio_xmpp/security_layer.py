@@ -74,27 +74,26 @@ class CertificateVerifier(metaclass=abc.ABCMeta):
 
     @abc.abstractmethod
     @asyncio.coroutine
-    def _post_handshake_callback(self, transport):
+    def post_handshake_callback(self, transport):
         pass
 
-    def post_handshake_callback(self, transport, cb):
-        def forward_result(task):
-            try:
-                task.result()
-            except BaseException as err:
-                cb(err)
-            else:
-                cb(None)
+class _NullVerifier(CertificateVerifier):
+    def setup_context(self, ctx):
+        ctx.set_verify(OpenSSL.SSL.VERIFY_NONE, self._callback_wrapper)
 
-        task = asyncio.async(self._post_handshake_callback(transport))
-        task.add_done_callback(forward_result)
+    def verify_callback(self, *args):
+        return True
+
+    @asyncio.coroutine
+    def post_handshake_callback(self, transport):
+        pass
 
 class PKIXCertificateVerifier(CertificateVerifier):
     def verify_callback(self, *args):
         return super().verify_callback(*args)
 
     @asyncio.coroutine
-    def _post_handshake_callback(self, transport):
+    def post_handshake_callback(self, transport):
         pass
 
 class ErrorRecordingVerifier(CertificateVerifier):
@@ -110,7 +109,7 @@ class ErrorRecordingVerifier(CertificateVerifier):
         return True
 
     @asyncio.coroutine
-    def _post_handshake_callback(self, transport):
+    def post_handshake_callback(self, transport):
         if self._errors:
             raise errors.TLSFailure(
                 "Peer certificate verification failure: {}".format(

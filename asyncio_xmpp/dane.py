@@ -67,7 +67,7 @@ class DANECertifcateVerifier(security_layer.ErrorRecordingVerifier):
         ctx.set_verify(OpenSSL.SSL.VERIFY_NONE, self._callback_wrapper)
 
     @asyncio.coroutine
-    def _post_handshake_callback(self, transport):
+    def post_handshake_callback(self, transport):
         if self._allow_pkix and all(errno == 0 for _, errno, _ in self._errors):
             logger.debug("certificate passed through OpenSSL, no DANE used")
             return
