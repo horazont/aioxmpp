@@ -625,9 +625,9 @@ def create_starttls_connection(
     """
 
     if host is not None and port is not None:
-        host_addrs = list((yield from loop.getaddrinfo(
+        host_addrs = yield from loop.getaddrinfo(
             host, port,
-            type=socket.SOCK_STREAM)))
+            type=socket.SOCK_STREAM)
 
         exceptions = []
 
