@@ -194,7 +194,7 @@ class SASLStateMachine:
                 raise
             return "failure", None
         else:
-            raise errors.SASLError(
+            raise errors.SASLFailure(
                 "Unexpected non-failure after abort: {}".format(self._state)
             )
 
@@ -411,7 +411,7 @@ class SCRAM(SASLMechanism):
        try:
            state, payload = yield from sm.response(
                reply+b",p="+base64.b64encode(client_proof))
-       except errors.SASLError as err:
+       except errors.SASLFailure as err:
            raise err.promote_to_authentication_failure() from None
 
        if state != "success":
