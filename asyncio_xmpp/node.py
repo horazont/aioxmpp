@@ -159,6 +159,7 @@ class Client:
         self._loop = loop or asyncio.get_event_loop()
         self._client_jid = jid.JID.fromstr(client_jid)
         self._security_layer = security_layer
+        self._xmlstream = None
 
         self._request_disconnect = asyncio.Event()
         self._disconnect_event = asyncio.Event()
