@@ -141,7 +141,8 @@ class PKIXCertificateVerifier(CertificateVerifier):
     """
 
     def verify_callback(self, transport, x509, errno, errdepth, returncode):
-        return super().verify_callback(*args)
+        return super().verify_callback(
+            transport, x509, errno, errdepth, returncode)
 
     @asyncio.coroutine
     def post_handshake(self, transport):
