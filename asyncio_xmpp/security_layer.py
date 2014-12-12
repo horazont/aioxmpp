@@ -69,6 +69,10 @@ import asyncio
 import functools
 import logging
 
+import pyasn1
+import pyasn1.codec.der.decoder
+import pyasn1_modules.rfc2459
+
 import OpenSSL.SSL
 
 from . import errors, sasl, stream_elements
@@ -106,7 +110,7 @@ class CertificateVerifier(metaclass=abc.ABCMeta):
 
     @abc.abstractmethod
     def verify_callback(self, transport, x509, errno, errdepth, returncode):
-        return errno == 0
+        return returncode
 
     @abc.abstractmethod
     @asyncio.coroutine
@@ -141,7 +145,41 @@ class PKIXCertificateVerifier(CertificateVerifier):
 
     @asyncio.coroutine
     def post_handshake(self, transport):
-        pass
+        import ssl
+        cert = transport.get_extra_info("conn").get_peer_certificate()
+
+        fake_cert_structure = {
+            "subject": (
+                (("commonName", str(cert.get_subject().commonName)),),
+            )
+        }
+
+        for ext_idx in range(cert.get_extension_count()):
+            ext = cert.get_extension(ext_idx)
+            sn = ext.get_short_name()
+            if sn == b"subjectAltName":
+                data = pyasn1.codec.der.decoder.decode(
+                    ext.get_data(),
+                    asn1Spec=pyasn1_modules.rfc2459.SubjectAltName())[0]
+                for name in data:
+                    dNSName = name.getComponentByPosition(2)
+                    if dNSName is None:
+                        continue
+                    fake_cert_structure.setdefault(
+                        "subjectAltName",
+                        []).append((
+                            "DNS",
+                            str(dNSName)))
+
+        if     ("subjectAltName" in fake_cert_structure and
+                fake_cert_structure["subjectAltName"]):
+            del fake_cert_structure["subject"]
+
+        try:
+            ssl.match_hostname(fake_cert_structure,
+                               transport.get_extra_info("server_hostname"))
+        except ssl.CertificateError as err:
+            raise errors.TLSError(str(err))
 
 class ErrorRecordingVerifier(CertificateVerifier):
     def __init__(self):

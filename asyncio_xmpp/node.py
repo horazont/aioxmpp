@@ -987,6 +987,7 @@ class Client:
         if override_addr:
             self._override_addr = override_addr
 
+        print("waiting for disconnect")
         yield from self._disconnect_event.wait()
 
         while not self._request_disconnect.is_set():
