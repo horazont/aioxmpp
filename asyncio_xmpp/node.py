@@ -64,6 +64,11 @@ class Client:
        stream may take to shut down. This is initialized to the same value as
        *negotiation_timeout*.
 
+    .. attribute:: default_timeout
+
+       A :class:`datetime.timedelta` which specifies the default timeout to use
+       e.g. for IQ requests.
+
     .. attribute:: max_reconnect_attempts
 
        The maximum number of reconnect attempts before the
@@ -174,6 +179,7 @@ class Client:
 
         self._disconnecting = False
 
+        self.default_timeout = timedelta(seconds=10)
         self.negotiation_timeout = negotiation_timeout
         self.close_timeout = negotiation_timeout
         self.max_reconnect_attempts = max_reconnect_attempts
@@ -821,7 +827,7 @@ class Client:
             timeout))
 
     @asyncio.coroutine
-    def send_iq_and_wait(self, iq, timeout):
+    def send_iq_and_wait(self, iq, timeout=None):
         """
         Send an IQ stanza and wait for a reply, for at most *timeout*
         seconds. Return the result stanza, if it arrives in time. Otherwise,
@@ -829,6 +835,8 @@ class Client:
 
         If the connection terminated by the user while waiting for the reply,
         :class:`ConnectionError` is raised.
+
+        If *timeout* is :data:`None`, :attr:`default_timeout` is used.
         """
         future = asyncio.Future()
 
@@ -836,6 +844,8 @@ class Client:
             iq,
             response_future=future)
 
+        if timeout is None:
+            timeout = self.default_timeout.total_seconds()
         yield from self._send_token_and_wait(token, timeout)
 
         return future.result()
