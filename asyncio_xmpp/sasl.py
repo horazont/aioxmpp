@@ -8,6 +8,7 @@ import itertools
 import logging
 import operator
 import random
+import time
 
 from .stringprep import saslprep
 from . import utils, errors
@@ -376,11 +377,15 @@ class SCRAM(SASLMechanism):
            raise errors.SASLFailure(
                "Server nonce doesn't fit our nonce")
 
+       t0 = time.time()
+
        salted_password = pbkdf2(
            hashfun_name,
            password,
            salt,
            iteration_count)
+
+       logger.debug("pbkdf2 timing: %f seconds", time.time() - t0)
 
        client_key = hmac.new(
            salted_password,
@@ -402,6 +407,7 @@ class SCRAM(SASLMechanism):
                "big") ^
            int.from_bytes(client_key, "big")).to_bytes(digest_size, "big")
 
+       logger.debug("response generation time: %f seconds", time.time() - t0)
        try:
            state, payload = yield from sm.response(
                reply+b",p="+base64.b64encode(client_proof))
