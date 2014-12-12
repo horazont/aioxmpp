@@ -163,6 +163,7 @@ class Client:
 
         self._request_disconnect = asyncio.Event()
         self._disconnect_event = asyncio.Event()
+        self._disconnect_event.set()
         self._override_addr = None
 
         self.tx_context = xml.default_tx_context
@@ -986,16 +987,15 @@ class Client:
         if override_addr:
             self._override_addr = override_addr
 
-        while True:
+        yield from self._disconnect_event.wait()
+
+        while not self._request_disconnect.is_set():
             connected = yield from self._connect()
             if not connected:
                 # disconnect as requested by user
                 return
 
             yield from self._disconnect_event.wait()
-
-            if self._request_disconnect.is_set():
-                return
 
     def unregister_callback(self, event_name, callback):
         """
