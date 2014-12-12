@@ -11,12 +11,6 @@ Dependencies
 * Python ≥ 3.4 (or Python = 3.3 with tulip and enum34)
 * DNSPython
 
-Known problems
---------------
-
-* DANE support is very limited. This is due to some limitations of PyOpenSSL or
-  my ability to find the correct functions in the (Py-)OpenSSL documentation...
-
 Design goals
 ------------
 
