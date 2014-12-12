@@ -1,6 +1,7 @@
 import abc
 import asyncio
 import base64
+import functools
 import hashlib
 import hmac
 import itertools
@@ -15,50 +16,55 @@ logger = logging.getLogger(__name__)
 
 _system_random = random.SystemRandom()
 
-def pbkdf2(hashfun, input_data, salt, iterations, dklen):
-    """
-    Derivate a key from a password. *input_data* is taken as the bytes object
-    resembling the password (or other input). *hashfun* must be a callable
-    returning a :mod:`hashlib`-compatible hash function. *salt* is the salt to
-    be used in the PBKDF2 run, *iterations* the count of iterations. *dklen* is
-    the length in bytes of the key to be derived.
+try:
+    from hashlib import pbkdf2_hmac as pbkdf2
+except ImportError:
+    def pbkdf2(hashfun_name, input_data, salt, iterations, dklen=None):
+        """
+        Derivate a key from a password. *input_data* is taken as the bytes object
+        resembling the password (or other input). *hashfun* must be a callable
+        returning a :mod:`hashlib`-compatible hash function. *salt* is the salt to
+        be used in the PBKDF2 run, *iterations* the count of iterations. *dklen* is
+        the length in bytes of the key to be derived.
 
-    Return the derived key as :class:`bytes` object.
-    """
+        Return the derived key as :class:`bytes` object.
+        """
 
-    if dklen is not None and dklen <= 0:
-        raise ValueError("Invalid length for derived key: {}".format(dklen))
+        if dklen is not None and dklen <= 0:
+            raise ValueError("Invalid length for derived key: {}".format(dklen))
 
-    hlen = hashfun().digest_size
-    if dklen is None:
-        dklen = hlen
+        hashfun = lambda: hashlib.new(hashfun_name)
 
-    block_count = (dklen+(hlen-1)) // hlen
+        hlen = hashfun().digest_size
+        if dklen is None:
+            dklen = hlen
 
-    mac_base = hmac.new(input_data, None, hashfun)
+        block_count = (dklen+(hlen-1)) // hlen
 
-    def do_hmac(data):
-        mac = mac_base.copy()
-        mac.update(data)
-        return mac.digest()
+        mac_base = hmac.new(input_data, None, hashfun)
 
-    def calc_block(i):
-        u_prev = do_hmac(salt + i.to_bytes(4, "big"))
-        u_accum = u_prev
-        for k in range(1, iterations):
-            u_curr = do_hmac(u_prev)
-            u_accum = bytes(itertools.starmap(
-                operator.xor,
-                zip(u_accum, u_curr)))
-            u_prev = u_curr
+        def do_hmac(data):
+            mac = mac_base.copy()
+            mac.update(data)
+            return mac.digest()
 
-        return u_accum
+        def calc_block(i):
+            u_prev = do_hmac(salt + i.to_bytes(4, "big"))
+            u_accum = u_prev
+            for k in range(1, iterations):
+                u_curr = do_hmac(u_prev)
+                u_accum = bytes(itertools.starmap(
+                    operator.xor,
+                    zip(u_accum, u_curr)))
+                u_prev = u_curr
 
-    result = b"".join(
-        calc_block(i)
-        for i in range(1, block_count+1))
+            return u_accum
 
-    return result[:dklen]
+        result = b"".join(
+            calc_block(i)
+            for i in range(1, block_count+1))
+
+        return result[:dklen]
 
 class SASLStateMachine:
     """
@@ -330,13 +336,10 @@ class SCRAM(SASLMechanism):
        logger.info("attempting %s mechanism (using %s hashfun)",
                    mechanism,
                    hashfun_name)
-       try:
-           hashfun_factory = getattr(hashlib, hashfun_name)
-       except AttributeError:
-           hashfun_factory = functools.partial(hashlib.new, hashfun_name)
-       digest_size = hashfun_factory().digest_size
-
        # this is pretty much a verbatim implementation of RFC 5802.
+
+       hashfun_factory = functools.partial(hashlib.new, hashfun_name)
+       digest_size = hashfun_factory().digest_size
 
        # we don’t support channel binding
        gs2_header = b"n,,"
@@ -374,11 +377,10 @@ class SCRAM(SASLMechanism):
                "Server nonce doesn't fit our nonce")
 
        salted_password = pbkdf2(
-           hashfun_factory,
+           hashfun_name,
            password,
            salt,
-           iteration_count,
-           digest_size)
+           iteration_count)
 
        client_key = hmac.new(
            salted_password,

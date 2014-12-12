@@ -107,7 +107,7 @@ class TestSCRAM(unittest.TestCase):
         self.salt = b"QSXCR+Q6sek8bf92"
 
         self.salted_password = sasl.pbkdf2(
-            self.hashfun_factory,
+            "sha1",
             self.password,
             self.salt,
             4096,
