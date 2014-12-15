@@ -109,6 +109,8 @@ class JID:
         return hashvalue
 
     def __eq__(self, other):
+        if not isinstance(other, JID):
+            return NotImplemented
         return (self.__localpart,
                 self.__domainpart,
                 self.__resource) == (other.__localpart,
