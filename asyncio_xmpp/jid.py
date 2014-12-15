@@ -123,3 +123,11 @@ class JID:
                 self.__resource) != (other.__localpart,
                                      other.__domainpart,
                                      other.__resource)
+
+    def __repr__(self):
+        return "{!s}.{!s}(localpart={!r}, domainpart={!r}, resource={!r})".format(
+            type(self).__module__,
+            type(self).__qualname__,
+            self.__localpart,
+            self.__domainpart,
+            self.__resource)
