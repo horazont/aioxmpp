@@ -30,7 +30,7 @@ import dns.resolver
 from datetime import datetime, timedelta
 
 from . import network, jid, protocol, stream_plugin, sasl, stanza, ssl_transport
-from . import custom_queue, stream_worker, xml, errors, presence
+from . import custom_queue, stream_worker, xml, errors, presence, dataevent
 from .utils import *
 
 from .plugins import rfc6120
@@ -162,7 +162,7 @@ class AbstractClient:
         self._security_layer = security_layer
         self._xmlstream = None
 
-        self._disconnect_waiters = set()
+        self._disconnect_event = dataevent.DataEvent(loop=loop)
         self._request_disconnect = asyncio.Event(loop=loop)
 
         self._override_addr_once = False
@@ -182,8 +182,6 @@ class AbstractClient:
         self._iq_request_coros = {}
         self._message_callbacks = {}
         self._presence_callbacks = {}
-
-        self._disconnecting = False
 
         self.default_timeout = timedelta(seconds=10)
         self.negotiation_timeout = negotiation_timeout
@@ -221,18 +219,12 @@ class AbstractClient:
             self._mark_stream_dead()
 
     def _notify_disconnect(self, exc=None):
-        if exc is not None:
-            def notify(fut):
-                fut.set_exception(exc)
+        if self._disconnect_event.is_set():
+            return
+        if exc is None:
+            self._disconnect_event.set(None)
         else:
-            def notify(fut):
-                fut.set_result(None)
-
-        futures = frozenset(self._disconnect_waiters)
-        self._disconnect_waiters.clear()
-        for future in futures:
-            logger.debug("notifying %s due to disconnect", fut)
-            notify(fut)
+            self._disconnect_event.set_exception(exc)
 
     # ################ #
     # Connection setup
@@ -299,6 +291,8 @@ class AbstractClient:
 
         future = self._xmlstream.__features_future
         del self._xmlstream.__features_future
+
+        self._disconnect_event.clear()
 
         logger.debug("negotiating stream")
         try:
@@ -572,7 +566,7 @@ class AbstractClient:
             timeout=self.close_timeout.total_seconds()))
 
     def _handle_xmlstream_connection_lost(self, exc):
-        if not self._disconnecting:
+        if not self._disconnect_event.is_set():
             self._stanza_broker.stop()
         self._fire_callback("connection_lost", exc)
         self._notify_disconnect(exc)
@@ -896,9 +890,8 @@ class AbstractClient:
         return self._client_jid
 
     def disconnect_future(self):
-        fut = asyncio.Future()
-        fut.add_done_callback(self._disconnect_waiters.discard)
-        return fut
+        return asyncio.async(self._disconnect_event.wait(),
+                             loop=self._loop)
 
     @property
     def ping_timeout(self):
