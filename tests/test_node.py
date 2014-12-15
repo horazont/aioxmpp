@@ -10,20 +10,49 @@ import asyncio_xmpp.plugins.rfc6120 as rfc6120
 import asyncio_xmpp.xml as xml
 import asyncio_xmpp.security_layer as security_layer
 import asyncio_xmpp.errors as errors
+import asyncio_xmpp.presence as presence
 
 from asyncio_xmpp.utils import *
 
-from .mocks import TestableClient, XMLStreamMock
+from .mocks import TestableClient, XMLStreamMock, BangSuccess
 
 class TestClient(unittest.TestCase):
     def setUp(self):
         self._loop = asyncio.get_event_loop()
 
-    def _run_until_complete_and_catch_errors(self, future):
-        return self._loop.run_until_complete(asyncio.wait_for(
-            future,
-            timeout=2
-        ))
+    def _run_client(self, initial_features, stream,
+                    client_jid="test@example.com",
+                    password="test",
+                    *args, **kwargs):
+        client = TestableClient(
+            stream,
+            client_jid,
+            password,
+            max_reconnect_attempts=1,
+            initial_node=initial_features,
+            loop=self._loop)
+
+        @asyncio.coroutine
+        def run_test():
+            yield from asyncio.wait_for(
+                client.connect(),
+                timeout=2)
+
+        return run_test()
+
+    def _test_client(self, stream, initial_features=None, **kwargs):
+        if initial_features is None:
+            initial_features = stream.Estream(
+                "features",
+                stream.Estarttls(
+                    "starttls",
+                    stream.Estarttls("required")
+                )
+            )
+
+        self._loop.run_until_complete(
+            self._run_client(initial_features, stream, **kwargs)
+        )
 
     def _make_stream(self):
         stream = XMLStreamMock(
@@ -86,53 +115,6 @@ class TestClient(unittest.TestCase):
         result.extend(custom_actions)
         stream.define_actions(result)
 
-    @asyncio.coroutine
-    def _run_client(self, initial_node, stream,
-                    client_jid="test@example.com",
-                    password="test",
-                    *args, **kwargs):
-        connecting, done = asyncio.Event(), asyncio.Event()
-        connection_err = None
-
-        client = TestableClient(
-            stream,
-            client_jid,
-            password,
-            max_reconnect_attempts=1,
-            initial_node=initial_node,
-            loop=self._loop)
-
-        try:
-            yield from asyncio.wait_for(
-                client.connect(),
-                timeout=10)
-            yield from asyncio.wait_for(
-                stream.done_event.wait(),
-                timeout=2)
-        except TimeoutError:
-            raise TimeoutError("Test timed out") from None
-
-        yield from client.disconnect()
-
-    def _simply_run_client(self, stream):
-        @asyncio.coroutine
-        def task():
-            features = stream.E(
-                "{{{}}}features".format(namespaces.xmlstream),
-                stream.E(
-                    "{{{}}}starttls".format(namespaces.starttls),
-                    stream.E("{{{}}}required".format(namespaces.starttls))
-                )
-            )
-            err = yield from self._run_client(
-                features,
-                stream
-            )
-            if err is not None:
-                raise err
-
-        self._run_until_complete_and_catch_errors(task())
-
     def test_require_starttls(self):
         stream = self._make_stream()
         stream.define_actions(
@@ -156,15 +138,11 @@ class TestClient(unittest.TestCase):
             ]
         )
 
-        @asyncio.coroutine
-        def task():
-            with self.assertRaises(errors.TLSFailure):
-                err = yield from self._run_client(
-                    stream.E("{{{}}}features".format(namespaces.xmlstream)),
-                    stream
-                )
-
-        self._run_until_complete_and_catch_errors(task())
+        with self.assertRaises(errors.TLSFailure):
+            self._test_client(
+                stream,
+                stream.E("{{{}}}features".format(namespaces.xmlstream))
+            )
 
         stream.mock_finalize()
 
@@ -195,14 +173,11 @@ class TestClient(unittest.TestCase):
             ]
         )
 
-        with self.assertRaises(errors.SASLUnavailable) as ctx:
-            self._run_until_complete_and_catch_errors(
-                self._run_client(initial_features, stream)
+        with self.assertRaisesRegexp(errors.SASLFailure, message):
+            self._test_client(
+                stream,
+                initial_features
             )
-
-        self.assertEqual(
-            message,
-            str(ctx.exception))
 
         stream.mock_finalize()
 
@@ -227,67 +202,67 @@ class TestClient(unittest.TestCase):
         self._prepend_actions_up_to_binding(
             stream,
             [],
-            [("!close", None),]
+            []
         )
 
-        self._simply_run_client(stream)
+        self._test_client(stream)
 
         stream.mock_finalize()
 
-    def test_iq_error_response(self):
-        stream = self._make_stream()
+    # def test_iq_error_response(self):
+    #     stream = self._make_stream()
 
-        probeiq = stream.E("{jabber:client}iq")
-        probeiq.data = stream.E("{foo}data")
-        probeiq.type_ = "set"
-        probeiq.to = "test@example.com/foo"
-        probeiq.from_ = "foo@example.com/bar"
-        probeiq.autoset_id()
+    #     probeiq = stream.E("{jabber:client}iq")
+    #     probeiq.data = stream.E("{foo}data")
+    #     probeiq.type_ = "set"
+    #     probeiq.to = "test@example.com/foo"
+    #     probeiq.from_ = "foo@example.com/bar"
+    #     probeiq.autoset_id()
 
-        err = stanza.Error()
-        err.type_ = "cancel"
-        err.condition = "feature-not-implemented"
-        err.text =("No handler registered for this request "
-                   "pattern")
+    #     err = stanza.Error()
+    #     err.type_ = "cancel"
+    #     err.condition = "feature-not-implemented"
+    #     err.text =("No handler registered for this request "
+    #                "pattern")
 
-        erriq = stream.tx_context.make_reply(probeiq, error=True)
-        erriq.error = err
+    #     erriq = stream.tx_context.make_reply(probeiq, error=True)
+    #     erriq.error = err
 
-        self._prepend_actions_up_to_binding(
-            stream,
-            [
-                probeiq
-            ],
-            [
-                (erriq, []),
-                ("!close", None),
-            ]
-        )
+    #     self._prepend_actions_up_to_binding(
+    #         stream,
+    #         [
+    #             probeiq
+    #         ],
+    #         [
+    #             (erriq, "!success"),
+    #             ("!close", [])
+    #         ]
+    #     )
 
-        self._simply_run_client(stream)
+    #     self._test_client(stream)
 
-        stream.mock_finalize()
+    #     stream.mock_finalize()
 
-    def test_iq_silence_for_errornous_result(self):
-        stream = self._make_stream()
+    # def test_iq_silence_for_errornous_result(self):
+    #     stream = self._make_stream()
 
-        probeiq = stream.E("{jabber:client}iq")
-        probeiq.type_ = "result"
-        probeiq.data = stream.E("{foo}data")
-        probeiq.to = "test@example.com/foo"
-        probeiq.from_ = "foo@example.com/bar"
-        probeiq.autoset_id()
+    #     probeiq = stream.E("{jabber:client}iq")
+    #     probeiq.type_ = "result"
+    #     probeiq.data = stream.E("{foo}data")
+    #     probeiq.to = "test@example.com/foo"
+    #     probeiq.from_ = "foo@example.com/bar"
+    #     probeiq.autoset_id()
 
-        self._prepend_actions_up_to_binding(
-            stream,
-            [
-                probeiq
-            ],
-            [
-                ("!close", None),
-            ]
-        )
+    #     self._prepend_actions_up_to_binding(
+    #         stream,
+    #         [
+    #             probeiq
+    #         ],
+    #         [
+    #             ("!close", None),
+    #         ]
+    #     )
 
-        self._simply_run_client(stream)
+    #     self._test_client(stream)
 
-        stream.mock_finalize()
+    #     stream.mock_finalize()

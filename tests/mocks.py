@@ -334,12 +334,12 @@ class XMLStreamMock:
     close_and_wait = protocol.XMLStream.close_and_wait
 
 
-class TestableClient(node.Client):
+class TestableClient(node.UnmanagedClient):
     """
     This is not a mock in the classical sense, but a full
-    :class:`asyncio_xmpp.node.Client` class, with one exception: The XML stream
-    is not connected to an actual transport, but with the *mocked_transport* and
-    *mocked_stream* provided in the constructor.
+    :class:`asyncio_xmpp.node.UnmanagedClient` class, with one exception: The
+    XML stream is not connected to an actual transport, but with the
+    *mocked_transport* and *mocked_stream* provided in the constructor.
 
     If *mocked_transport* is :data:`None`, a new :class:`SSLWrapperMock` is
     created and used as transport. The ``connection_made`` event is always sent
@@ -372,7 +372,7 @@ class TestableClient(node.Client):
     @asyncio.coroutine
     def _connect_xmlstream(self):
         self.__mocked_stream.connection_made(self.__mocked_transport)
-        self.__mocked_stream._Client__features_future = \
+        self.__mocked_stream._AbstractClient__features_future = \
             self.__mocked_stream.wait_for(
                 [
                     "{http://etherx.jabber.org/streams}features",

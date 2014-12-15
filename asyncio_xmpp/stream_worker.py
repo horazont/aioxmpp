@@ -50,16 +50,23 @@ def future_from_queue(queue, loop):
         loop=loop)
 
 class StreamWorker(metaclass=abc.ABCMeta):
-    def __init__(self, loop, shared_disconnect_event):
+    def __init__(self, loop, disconnect_future_factory):
         super().__init__()
         self._loop = loop
-        self._shared_disconnect_event = shared_disconnect_event
+        self._disconnect_future_factory = disconnect_future_factory
         self._task = None
 
     def _disconnect_future(self):
-        return asyncio.async(
-            self._shared_disconnect_event.wait(),
-            loop=self._loop)
+        @asyncio.coroutine
+        def wrapper():
+            fut = self._disconnect_future_factory()
+            try:
+                yield from fut
+            except asyncio.CancelledError:
+                raise
+            except:
+                pass
+        return asyncio.async(wrapper(), loop=self._loop)
 
     def setup(self, xmlstream):
         self.xmlstream = xmlstream
@@ -108,15 +115,14 @@ class StanzaBroker(StreamWorker):
     Manage sending and receiving of stanzas.
 
     :param loop: Event loop to use
-    :param shared_disconnect_event: Event to be notified of XML stream
-        disconnection
+    :param disconnect_future_factory: A callable which returns a new :class:`asyncio.Future` each time it is called. These futures must be fulfilled when the stream gets disconnected, possibly with a corresponding exception.
     :param ping_timeout: passed to the liveness handler
     :param ping_timeout_callback: coroutine called by the liveness handler on
         ping timeout
     :param stanza_callbacks: triple of three callables, one for IQ requests, one
         for messages and one for presence.
     :type loop: :class:`asyncio.BaseEventLoop`
-    :type shared_disconnect_event: :class:`asyncio.Event`
+    :type disconnect_future_factory: callable returning :class:`asyncio.Future`
     :type ping_timeout: :class:`datetime.timedelta`
     :type ping_timeout_callback: coroutine
     :type stanza_callbacks: triple of callables
@@ -127,11 +133,11 @@ class StanzaBroker(StreamWorker):
 
     """
 
-    def __init__(self, loop, shared_disconnect_event,
+    def __init__(self, loop, disconnect_future_factory,
                  ping_timeout,
                  ping_timeout_callback,
                  stanza_callbacks):
-        super().__init__(loop, shared_disconnect_event)
+        super().__init__(loop, disconnect_future_factory)
         self._acked_remote_ctr = 0
         self._interrupt = asyncio.Event()
         self._sm_id = None
@@ -151,7 +157,7 @@ class StanzaBroker(StreamWorker):
         # this is exchanged for a StreamManagementLivenessHandler when sm is
         # enabled
         self._liveness_handler = PingLivenessHandler(
-            loop, shared_disconnect_event)
+            loop, disconnect_future_factory)
         self._liveness_handler_task = None
 
         self.active_queue = custom_queue.AsyncDeque(loop=self._loop)
@@ -243,11 +249,11 @@ class StanzaBroker(StreamWorker):
             if enabled:
                 self._liveness_handler = StreamManagementLivenessHandler(
                     self._loop,
-                    self._shared_disconnect_event)
+                    self._disconnect_future_factory)
             else:
                 self._liveness_handler = PingLivenessHandler(
                     self._loop,
-                    self._shared_disconnect_event)
+                    self._disconnect_future_factory)
             self._liveness_handler.setup(self)
 
         self._sm_id = id_
@@ -335,7 +341,7 @@ class StanzaBroker(StreamWorker):
     def worker(self):
         logger = logging.getLogger(__name__ + ".stanza_broker")
 
-        disconnect_future = self._disconnect_future()
+        disconnect_future = self._disconnect_future_factory()
         interrupt_future = asyncio.async(
             self._interrupt.wait(),
             loop=self._loop)
@@ -383,6 +389,10 @@ class StanzaBroker(StreamWorker):
                         loop=self._loop)
 
                 if disconnect_future in done:
+                    try:
+                        disconnect_future.result()
+                    except:
+                        pass
                     break
 
                 if self._liveness_handler_task in done:
@@ -391,6 +401,7 @@ class StanzaBroker(StreamWorker):
 
                 if outgoing_stanza_future in done:
                     token = outgoing_stanza_future.result()
+                    logger.debug("outgoing stanza to send: %r", token._stanza)
                     self._send_token(token)
 
                     if self.active_queue.empty():
@@ -588,8 +599,8 @@ class LivenessHandler(StreamWorker):
 
     """
 
-    def __init__(self, loop, shared_disconnect_event):
-        super().__init__(loop, shared_disconnect_event)
+    def __init__(self, loop, disconnect_future_factory):
+        super().__init__(loop, disconnect_future_factory)
         self.last_liveness_indicator = datetime.utcnow()
         self.passive_request_timeout = timedelta(seconds=10)
         self.passive_request_until = None
@@ -681,7 +692,7 @@ class PingLivenessHandler(LivenessHandler):
         logger = logging.getLogger(__name__ + ".liveness")
         logger.info("using xmpp ping for liveness")
 
-        disconnect_future = self._disconnect_future()
+        disconnect_future = self._disconnect_future_factory()
 
         now = datetime.utcnow()
         while True:
@@ -707,6 +718,10 @@ class PingLivenessHandler(LivenessHandler):
             now = datetime.utcnow()
 
             if disconnect_future in done:
+                try:
+                    disconnect_future.result()
+                except:
+                    pass
                 break
 
             if self.response_future in done:
@@ -743,8 +758,8 @@ class StreamManagementLivenessHandler(LivenessHandler):
     the peer and replying to them correctly.
     """
 
-    def __init__(self, loop, shared_disconnect_event):
-        super().__init__(loop, shared_disconnect_event)
+    def __init__(self, loop, disconnect_future_factory):
+        super().__init__(loop, disconnect_future_factory)
         self.ack_pending = None
 
     def setup(self, stanza_broker):
@@ -782,7 +797,7 @@ class StreamManagementLivenessHandler(LivenessHandler):
         logger = logging.getLogger(__name__ + ".liveness")
         logger.info("using stream management for liveness")
 
-        disconnect_future = self._disconnect_future()
+        disconnect_future = self._disconnect_future_factory()
         request_future = future_from_queue(self.request_queue,
                                            self._loop)
         ack_future = future_from_queue(self.ack_queue,
@@ -814,6 +829,10 @@ class StreamManagementLivenessHandler(LivenessHandler):
             now = datetime.utcnow()
 
             if disconnect_future in done:
+                try:
+                    disconnect_future.result()
+                except:
+                    pass
                 self._sm_queue.clear()
                 break
 

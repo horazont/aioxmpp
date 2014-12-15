@@ -30,16 +30,22 @@ import dns.resolver
 from datetime import datetime, timedelta
 
 from . import network, jid, protocol, stream_plugin, sasl, stanza, ssl_transport
-from . import custom_queue, stream_worker, xml, errors
+from . import custom_queue, stream_worker, xml, errors, presence
 from .utils import *
 
 from .plugins import rfc6120
 
 logger = logging.getLogger(__name__)
 
-class Client:
+class AbstractClient:
     """
-    Provide an XMPP client.
+    Provide an XMPP client. Do not instanciate this class directly. Instead, use
+    one of the subclasses from the list below. Do however read this
+    documentation, as it provides all the methods, attributes and arguments
+    common to both implementations.
+
+    * :class:`PresenceManagedClient` – keeps and holds a presence state as far
+      as possible.
 
     *client_jid* must be a string or a :class:`~.jid.JID` with a valid JID. It
     may be either a bare or a full jid (including a resource part). If a full
@@ -98,14 +104,6 @@ class Client:
        Management [#xep0199]_ is to be used, if available. It is generally
        recommended to have this set to :data:`True`.
 
-    The following three methods are used to manage the state of the connection.
-
-    .. automethod:: stay_connected([override_addr])
-
-    .. automethod:: connect([override_addr])
-
-    .. automethod:: disconnect
-
     To get notified about connection-related events, the following two methods
     can be used to register and unregister callbacks:
 
@@ -122,6 +120,9 @@ class Client:
        :mod:`asyncio_xmpp.stanza`. The advantage is that these methods ensure
        that the correct lxml context is used, allowing consistent access to the
        fancy classes around the XML elements.
+
+       Not using these will result in funny :class:`AttributeError` exceptions,
+       so beware.
 
     .. automethod:: make_iq(*, [to], [from_], [type_])
 
@@ -161,9 +162,10 @@ class Client:
         self._security_layer = security_layer
         self._xmlstream = None
 
-        self._request_disconnect = asyncio.Event()
-        self._disconnect_event = asyncio.Event()
-        self._disconnect_event.set()
+        self._disconnect_waiters = set()
+        self._request_disconnect = asyncio.Event(loop=loop)
+
+        self._override_addr_once = False
         self._override_addr = None
 
         self.tx_context = xml.default_tx_context
@@ -173,6 +175,8 @@ class Client:
             "connection_made": set(),
             "connection_lost": set(),
             "connection_failed": set(),
+            "session_started": set(),
+            "session_ended": set()
         }
 
         self._iq_request_coros = {}
@@ -190,7 +194,7 @@ class Client:
 
         self._stanza_broker = stream_worker.StanzaBroker(
             self._loop,
-            self._disconnect_event,
+            self.disconnect_future,
             ping_timeout,
             self._handle_ping_timeout,
             (self._handle_iq_request,
@@ -211,10 +215,24 @@ class Client:
             pass
         except Exception as err:
             logger.exception("Task %s failed", task)
-            self._mark_stream_dead()
+            self._mark_stream_dead(err)
         else:
             logger.error("Task %s unexpectedly exited")
             self._mark_stream_dead()
+
+    def _notify_disconnect(self, exc=None):
+        if exc is not None:
+            def notify(fut):
+                fut.set_exception(exc)
+        else:
+            def notify(fut):
+                fut.set_result(None)
+
+        futures = frozenset(self._disconnect_waiters)
+        self._disconnect_waiters.clear()
+        for future in futures:
+            logger.debug("notifying %s due to disconnect", fut)
+            notify(fut)
 
     # ################ #
     # Connection setup
@@ -282,14 +300,12 @@ class Client:
         future = self._xmlstream.__features_future
         del self._xmlstream.__features_future
 
-        self._disconnect_event.clear()
-
         logger.debug("negotiating stream")
         try:
             node = yield from future
             yield from self._negotiate_stream(node)
         except Exception as err:
-            self._disconnect_event.set()
+            self._notify_disconnect(exc=err)
             self._stanza_broker.stop()
             if not self._xmlstream.closed:
                 self._xmlstream.hard_close(err)
@@ -456,12 +472,8 @@ class Client:
         self._client_jid = reply.data.jid
         logger.info("bound to JID: %s", self._client_jid)
 
-        if self.use_sm:
-            try:
-                yield from self._negotiate_stream_management(sm_node)
-            except errors.StreamNegotiationFailure as err:
-                # this is not neccessarily fatal
-                logger.warning(err)
+        yield from self._post_resource_binding(features_node)
+        self._fire_callback("session_started")
 
     @asyncio.coroutine
     def _negotiate_stream_management(self, feature_node):
@@ -538,6 +550,17 @@ class Client:
 
         return True
 
+    @asyncio.coroutine
+    def _post_resource_binding(self, features_node):
+        if self.use_sm:
+            sm_node = features_node.get_feature("{{{}}}sm".format(
+                namespaces.stream_management))
+            try:
+                yield from self._negotiate_stream_management(sm_node)
+            except errors.StreamNegotiationFailure as err:
+                # this is not neccessarily fatal
+                logger.warning(err)
+
     # ###################### #
     # Connection maintenance #
     # ###################### #
@@ -552,16 +575,17 @@ class Client:
         if not self._disconnecting:
             self._stanza_broker.stop()
         self._fire_callback("connection_lost", exc)
-        self._disconnect_event.set()
+        self._notify_disconnect(exc)
 
     @asyncio.coroutine
     def _handle_ping_timeout(self):
         logger.warning("ping timeout, disconnecting")
         self._mark_stream_dead()
 
-    def _mark_stream_dead(self):
-        err = ConnectionError(
+    def _mark_stream_dead(self, exc=None):
+        err = exc or ConnectionError(
             "Stream died due to internal error or ping timeout")
+        self._notify_disconnect(exc)
         if not self._xmlstream.closed:
             self._xmlstream.hard_close(err)
 
@@ -817,7 +841,7 @@ class Client:
             return
 
         if disconnect_future in done:
-            raise ConnectionError("Disconnected")
+            raise ConnectionError("Disconnected at users request")
 
         raise TimeoutError()
 
@@ -871,40 +895,10 @@ class Client:
     def client_jid(self):
         return self._client_jid
 
-    @asyncio.coroutine
-    def connect(self, override_addr=None):
-        """
-        Try to connect to the XMPP server. At most
-        :attr:`max_reconnect_attempts` are made, and authentication failures
-        propagating outwards the :attr:`security_layer` are fatal immediately
-        (as normally, the security layer takes care of repeating a password
-        request if neccessary).
-
-        If *override_addr* is given, it must be a pair of hostname and port
-        number to connect to. In that case, DNS lookups are skipped (even for
-        reconnects).
-        """
-
-        if override_addr:
-            self._override_addr = override_addr
-
-        return (yield from self._connect())
-
-    @asyncio.coroutine
-    def disconnect(self):
-        """
-        If connected, start to disconnect and wait until the connection has
-        closed down completely.
-
-        Otherwise, set a flag to abort any connection attempts in progress. Note
-        that these may still return successfully if the flag is not checked in
-        time. These connections are not terminated.
-        """
-        self._request_disconnect.set()
-        if not self._xmlstream:
-            return
-        self._disconnect()
-        yield from self._disconnect_event.wait()
+    def disconnect_future(self):
+        fut = asyncio.Future()
+        fut.add_done_callback(self._disconnect_waiters.discard)
+        return fut
 
     @property
     def ping_timeout(self):
@@ -958,45 +952,30 @@ class Client:
            Depending on the error, *fatal* is either :data:`True` or
            :data:`False`. If it is true, the connection will not be reattempted
            and :meth:`stay_connected` will return.
+
+        .. function:: session_started()
+
+           A new session has been started. Either this is a fresh connection, or
+           stream management resumption was not possible for whatever
+           reason. Initial presence has just been sent, the resource is bound
+           and anything is possible now.
+
+        .. function:: session_ended()
+
+           The session has ended. This can happen if a stream management session
+           failed to resume or if a connection without resumable stream
+           management terminates.
+
+           Do not assume that any stanzas can be sent during this callback. This
+           callback can be used to clear client state which needs to be
+           re-synced after a reconnect.
+
         """
         self._callbacks[event_name].add(callback)
 
     @property
     def security_layer(self):
         return self._security_layer
-
-    @asyncio.coroutine
-    def stay_connected(self, override_addr=None):
-        """
-        Connect to the XMPP server and stay connected as long as possible. If
-        the connection fails, a reconnect is attempted until the reconnect
-        counter reaches :attr:`max_reconnect_attempts`.
-
-        If the connection is closed cleanly, the function returns. If the
-        connection fails and the maximum amount of reconnects fails too, a
-        :class:`ConnectionError` is raised.
-
-        If stream negotiation fails for any reason, that error is propagated.
-
-        If *override_addr* is given, it must be a pair of hostname and port
-        number to connect to. In that case, DNS lookups are skipped (even for
-        reconnects).
-        """
-        self._request_disconnect.clear()
-
-        if override_addr:
-            self._override_addr = override_addr
-
-        print("waiting for disconnect")
-        yield from self._disconnect_event.wait()
-
-        while not self._request_disconnect.is_set():
-            connected = yield from self._connect()
-            if not connected:
-                # disconnect as requested by user
-                return
-
-            yield from self._disconnect_event.wait()
 
     def unregister_callback(self, event_name, callback):
         """
@@ -1009,3 +988,178 @@ class Client:
             self._callbacks[event_name].discard(callback)
         except KeyError:
             pass
+
+
+class UnmanagedClient(AbstractClient):
+    @asyncio.coroutine
+    def connect(self, override_addr=None):
+        """
+        Try to connect to the XMPP server. At most
+        :attr:`max_reconnect_attempts` are made, and authentication failures
+        propagating outwards the :attr:`security_layer` are fatal immediately
+        (as normally, the security layer takes care of repeating a password
+        request if neccessary).
+
+        If *override_addr* is given, it must be a pair of hostname and port
+        number to connect to. In that case, DNS lookups are skipped (even for
+        reconnects).
+        """
+
+        if override_addr:
+            self._override_addr = override_addr
+
+        return (yield from self._connect())
+
+    def disconnect(self):
+        """
+        If connected, start to disconnect and wait until the connection has
+        closed down completely.
+
+        Otherwise, set a flag to abort any connection attempts in progress. Note
+        that these may still return successfully if the flag is not checked in
+        time. These connections are not terminated.
+        """
+        self._request_disconnect.set()
+        if not self._xmlstream:
+            return
+        self._disconnect()
+        return self.disconnect_future()
+
+
+class PresenceManagedClient(AbstractClient):
+    def __init__(self, client_jid, security_layer,
+                 initial_presence=presence.PresenceState(),
+                 **kwargs):
+        super().__init__(client_jid, security_layer, **kwargs)
+        self._presence = initial_presence
+        self._presence_changed = asyncio.Condition(loop=self._loop)
+        self._connected_event = asyncio.Event(loop=self._loop)
+
+    def _send_current_presence(self):
+        presence = self._presence.to_stanza(self.make_presence)
+        self.enqueue_stanza(presence)
+
+    @asyncio.coroutine
+    def _disconnect_and_wait(self):
+        self._request_disconnect.set()
+        if not self._xmlstream:
+            return
+        self._disconnecting = True
+        self._stanza_broker.stop()
+        yield from self.set_presence(presence.PresenceState())
+        yield from self._xmlstream.close_and_wait(
+            timeout=self.close_timeout.total_seconds()
+        )
+
+    @asyncio.coroutine
+    def _post_resource_binding(self, features_node):
+        yield from super()._post_resource_binding(features_node)
+        # we are holding the presence lock here
+        self._send_current_presence()
+
+    @asyncio.coroutine
+    def set_presence(self, new_presence):
+        logger.debug("managed.set_presence: getting lock...")
+        with (yield from self._presence_changed):
+            if self._presence == new_presence:
+                logger.info("managed.set_presence: presence already set")
+                return
+            self._presence = new_presence
+            logger.info("managed.set_presence: set presence to %r",
+                        new_presence)
+            self._presence_changed.notify_all()
+
+    @asyncio.coroutine
+    def _manage_presence(self):
+        self._request_disconnect.clear()
+
+        logger.debug("waiting for presence not equal to unavailable")
+        yield from self._presence_changed.wait_for(
+            lambda: self._presence.available)
+        logger.debug("trying to connect...")
+        yield from super()._connect()
+        self._connected_event.set()
+        logger.debug("connected!")
+
+        while True:
+            logger.debug("waiting for presence change or disconnect")
+            presence_changed = asyncio.async(
+                self._presence_changed.wait())
+            disconnected = self.disconnect_future()
+            try:
+                done, pending = yield from asyncio.wait(
+                    [
+                        presence_changed,
+                        disconnected
+                    ],
+                    return_when=asyncio.FIRST_COMPLETED)
+            except asyncio.CancelledError:
+                if not presence_changed.done():
+                    presence_changed.cancel()
+                    try:
+                        yield from presence_changed
+                    except asyncio.CancelledError:
+                        pass
+                if not disconnected.done():
+                    disconnected.cancel()
+                raise
+
+            if presence_changed in done:
+                logger.debug("presence change detected")
+                if not self._presence.available:
+                    logger.debug("set to unavailable, disconnecting")
+                    if disconnected not in done:
+                        yield from _disconnect_and_wait()
+                    else:
+                        try:
+                            disconnected.result()
+                        except:
+                            pass
+                    break
+
+            if disconnected in done:
+                try:
+                    disconnected.result()
+                except:
+                    pass
+                logger.debug("disconnected due to other reasons")
+                break
+
+            logger.debug("sending new presence")
+            self._send_current_presence()
+
+        if presence_changed in pending:
+            logger.debug("presence_changed in pending, cancelling")
+            presence_changed.cancel()
+            try:
+                yield from presence_changed
+            except asyncio.CancelledError:
+                pass
+            pending.discard(presence_changed)
+        for fut in pending:
+            logger.debug("cancelling pending future %r", fut)
+            fut.cancel()
+
+    @asyncio.coroutine
+    def manage(self):
+        try:
+            while True:
+                self._connected_event.clear()
+                with (yield from self._presence_changed):
+                    yield from self._manage_presence()
+        except asyncio.CancelledError:
+            # set presence to unavailable
+            yield from self.set_presence(presence.PresenceState())
+            yield from self._disconnect_and_wait()
+
+    @property
+    def presence(self):
+        """
+        Read-only attribute holding the current managed presence. To change the
+        presence use the coroutine :meth:`set_presence`.
+        """
+        return self._presence
+
+    @property
+    def connected(self):
+        return self._connected_event
