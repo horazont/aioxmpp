@@ -213,7 +213,7 @@ class xmlchildtext(xmltext):
         self._hard_delete = hard_delete
 
     def _bind_to_name(self, namespace, name):
-        if self._tag is None:
+        if self._tag is not None:
             return
         try:
             ns, _ = split_tag(namespace["TAG"])

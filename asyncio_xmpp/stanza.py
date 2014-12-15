@@ -6,7 +6,7 @@ import logging
 import operator
 import random
 
-from . import jid, errors, stanza_props
+from . import jid, errors, stanza_props, presence
 from .utils import etree, namespaces, split_tag
 from .stanza_props import *
 
@@ -80,6 +80,7 @@ class Presence(Stanza):
                     "unsubscribe", "unsubscribed"}
 
     type_ = xmlattr(EnumType(_VALID_TYPES), name="type")
+    show = xmlchildtext(EnumType(presence.PresenceState.SHOW_VALUES))
 
     def _make_reply(self, tx_context, type_=None):
         return tx_context.make_presence(
@@ -87,6 +88,10 @@ class Presence(Stanza):
             from_=self.to,
             id_=self.id_,
             type_=type_ or self.type_)
+
+    def get_state(self):
+        available = self.type_ != "unavailable"
+        show = self.show
 
 class IQ(Stanza):
     TAG = "{jabber:client}iq"
