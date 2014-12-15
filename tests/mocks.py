@@ -16,6 +16,7 @@ This module contains classes which are mainly hacks on actual classes from
 
 """
 import asyncio
+import logging
 
 import asyncio_xmpp.protocol as protocol
 import asyncio_xmpp.node as node
@@ -25,6 +26,8 @@ import asyncio_xmpp.security_layer as security_layer
 import asyncio_xmpp.sasl as sasl
 
 from asyncio_xmpp.utils import *
+
+logger = logging.getLogger(__name__)
 
 class BangSuccess(Exception):
     """
@@ -227,6 +230,8 @@ class XMLStreamMock:
         self.close()
 
     def close(self, *, waiter=None):
+        logger.debug("remaining actions: %r", self._action_sequence)
+        logger.debug("CLIENT ACTION: !close")
         self._tester.assertFalse(self._closed)
         self._tester.assertTrue(self._action_sequence,
                                 "Unexpected client action (no actions left)")
@@ -245,6 +250,8 @@ class XMLStreamMock:
             self.on_connection_lost(None)
 
     def reset_stream(self):
+        logger.debug("remaining actions: %r", self._action_sequence)
+        logger.debug("CLIENT ACTION: !reset")
         self._tester.assertFalse(self._closed)
         self._tester.assertTrue(self._action_sequence,
                                 "Unexpected client action (no actions left)")
@@ -270,6 +277,8 @@ class XMLStreamMock:
             "Some expected actions were not performed")
 
     def _tx_send_node(self, node):
+        logger.debug("remaining actions: %r", self._action_sequence)
+        logger.debug("CLIENT ACTION: node: %s", etree.tostring(node))
         self._tester.assertFalse(self._closed)
         self._tester.assertTrue(self._action_sequence,
                                 "Unexpected client action (no actions left)")
