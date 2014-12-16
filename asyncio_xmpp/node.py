@@ -1039,7 +1039,6 @@ class PresenceManagedClient(AbstractClient):
             return
         self._disconnecting = True
         self._stanza_broker.stop()
-        yield from self.set_presence(presence.PresenceState())
         yield from self._xmlstream.close_and_wait(
             timeout=self.close_timeout.total_seconds()
         )
@@ -1102,7 +1101,7 @@ class PresenceManagedClient(AbstractClient):
                 if not self._presence.available:
                     logger.debug("set to unavailable, disconnecting")
                     if disconnected not in done:
-                        yield from _disconnect_and_wait()
+                        yield from self._disconnect_and_wait()
                     else:
                         try:
                             disconnected.result()
