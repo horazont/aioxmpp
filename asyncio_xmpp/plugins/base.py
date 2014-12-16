@@ -17,22 +17,20 @@ class Service:
     """
     Base class for services (see the services user guide :ref:`ug-services`).
 
-    On construction, the nodes passed via *nodes* are automatically added to the
-    service.
+    On construction, the :class:`asyncio_xmpp.node.Client` on which the service
+    is supposed to work has to be passed. The Service is then bound to that
+    specific node.
 
-    The public user interface for any :class:`Service` consists of the following
-    methods:
+    To disconnect a service from a node, call :meth:`close`. Note that a closed
+    service cannot be used anymore. To detect a closed service, check the
+    :attr:`node` attriubte against :data:`None`.
 
-    .. automethod:: add_node
+    .. automethod:: close
 
-    .. automethod:: remove_node
+    .. autoattribute:: node
 
     The remaining methods are only relevant to developers subclassing
     :class:`Service` to implement their own services:
-
-    .. automethod:: _add_node
-
-    .. automethod:: _remove_node
 
     .. automethod:: _start_task
 
@@ -43,21 +41,12 @@ class Service:
     .. automethod:: _on_task_success
     """
 
-    def __init__(self, *nodes, loop=None, logger=None):
+    def __init__(self, node, loop=None, logger=None):
         self.logger = logging.getLogger(type(self).__module__ +
                                         "." + type(self).__qualname__)
         self._loop = loop or asyncio.get_event_loop()
-        self._nodes = set()
-
-        for node in nodes:
-            self.add_node(node)
-
-    def _add_node(self, node):
-        """
-        Subclasses have to implement :meth:`_add_node`. It is called whenever
-        :meth:`add_node` is called with a *new* node, that is, a node which has
-        not been added yet.
-        """
+        self._node = node
+        self._tasks = set()
 
     def _handle_task_done(self, task):
         """
@@ -67,6 +56,7 @@ class Service:
         exception) or :meth:`_on_task_success` (if the task terminated
         normally) is called.
         """
+        self._tasks.discard(task)
         try:
             result = task.result()
         except asyncio.CancelledError:
@@ -109,13 +99,6 @@ class Service:
             task, result
         )
 
-    def _remove_node(self, node):
-        """
-        Subclasses have to implement :meth:`_remove_node`. It is called whenever
-        :meth:`remove_node` is called on a node which is currently registered
-        with the Service.
-        """
-
     def _start_task(self, coro):
         """
         Spawn a coroutine and add the method :meth:`_handle_task_done` as
@@ -123,30 +106,19 @@ class Service:
         """
         task = asyncio.async(coro, loop=self._loop)
         task.add_done_callback(self._handle_task_done)
+        self._tasks.add(task)
         return task
 
-    def add_node(self, node):
+    def close(self):
         """
-        Attach the service to the given :class:`~.node.Client` *node*. The exact
-        meaning of having the service attached to a node is dependent on the
-        service. In general, services will handle IQ requests or other stanzas
-        and process them in a meaningful way. To do this, they have to be
-        attached to one or more nodes whose stanzas they are supposed to
-        handle.
+        Detach the service from a node and stop any coroutines the service has
+        spawned.
+        """
+        for task in self._tasks:
+            if not task.done():
+                task.cancel()
+        self._node = None
 
-        Attempts to add the same node multiple times will be ignored.
-        """
-        if node in self._nodes:
-            return
-
-        self._nodes.add(node)
-        self._add_node(node)
-
-    def remove_node(self, node):
-        """
-        Detach the service from a *node*. The node must have been added via
-        :meth:`add_node` before, otherwise :class:`KeyError` is raised.
-        """
-        if node in self._nodes:
-            self._remove_node(node)
-        self._nodes.remove(node)
+    @property
+    def node(self):
+        return self._node
