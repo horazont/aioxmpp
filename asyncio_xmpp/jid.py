@@ -94,6 +94,8 @@ class JID:
         if self.__localpart:
             result = "{}@{}".format(self.__localpart,
                                     self.__domainpart)
+        else:
+            result = self.__domainpart
         if self.__resource:
             result += "/"+self.__resource
 
