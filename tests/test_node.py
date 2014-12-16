@@ -16,43 +16,9 @@ from asyncio_xmpp.utils import *
 
 from .mocks import TestableClient, XMLStreamMock, BangSuccess
 
-class TestClient(unittest.TestCase):
+class ClientTester(unittest.TestCase):
     def setUp(self):
         self._loop = asyncio.get_event_loop()
-
-    def _run_client(self, initial_features, stream,
-                    client_jid="test@example.com",
-                    password="test",
-                    *args, **kwargs):
-        client = TestableClient(
-            stream,
-            client_jid,
-            password,
-            max_reconnect_attempts=1,
-            initial_node=initial_features,
-            loop=self._loop)
-
-        @asyncio.coroutine
-        def run_test():
-            yield from asyncio.wait_for(
-                client.connect(),
-                timeout=2)
-
-        return run_test()
-
-    def _test_client(self, stream, initial_features=None, **kwargs):
-        if initial_features is None:
-            initial_features = stream.Estream(
-                "features",
-                stream.Estarttls(
-                    "starttls",
-                    stream.Estarttls("required")
-                )
-            )
-
-        self._loop.run_until_complete(
-            self._run_client(initial_features, stream, **kwargs)
-        )
 
     def _make_stream(self):
         stream = XMLStreamMock(
@@ -67,6 +33,54 @@ class TestClient(unittest.TestCase):
         stream.Esasl = stream.tx_context.default_ns_builder(
             namespaces.sasl)
         return stream
+
+class TestUnmanagedAndAbstractClient(ClientTester):
+    @asyncio.coroutine
+    def _run_negotiation_test(self, client):
+        yield from asyncio.wait_for(
+            client.connect(),
+            timeout=2)
+
+    @asyncio.coroutine
+    def _run_test_with_interaction(self, client):
+        yield from asyncio.wait_for(client.connect(), timeout=1)
+        yield from asyncio.wait_for(
+            client._TestableClient__mocked_stream.done_event.wait(),
+            timeout=2)
+        yield from asyncio.wait_for(client.disconnect(), timeout=1)
+
+    def _make_client(self, initial_features, stream,
+                     client_jid="test@example.com",
+                     password="test",
+                     *args, **kwargs):
+        return TestableClient(
+            stream,
+            client_jid,
+            password,
+            max_reconnect_attempts=1,
+            initial_node=initial_features,
+            loop=self._loop)
+
+    def _test_client(self, stream, initial_features=None,
+                     test_method=None,
+                     **kwargs):
+        if test_method is None:
+            test_method = self._run_negotiation_test
+
+        if initial_features is None:
+            initial_features = stream.Estream(
+                "features",
+                stream.Estarttls(
+                    "starttls",
+                    stream.Estarttls("required")
+                )
+            )
+
+        client = self._make_client(initial_features, stream, **kwargs)
+
+        self._loop.run_until_complete(
+            test_method(client)
+        )
 
     def _prepend_actions_up_to_binding(self, stream,
                                        probe_stanzas,
@@ -209,39 +223,41 @@ class TestClient(unittest.TestCase):
 
         stream.mock_finalize()
 
-    # def test_iq_error_response(self):
-    #     stream = self._make_stream()
 
-    #     probeiq = stream.E("{jabber:client}iq")
-    #     probeiq.data = stream.E("{foo}data")
-    #     probeiq.type_ = "set"
-    #     probeiq.to = "test@example.com/foo"
-    #     probeiq.from_ = "foo@example.com/bar"
-    #     probeiq.autoset_id()
+    def test_iq_error_response(self):
+        stream = self._make_stream()
 
-    #     err = stanza.Error()
-    #     err.type_ = "cancel"
-    #     err.condition = "feature-not-implemented"
-    #     err.text =("No handler registered for this request "
-    #                "pattern")
+        probeiq = stream.E("{jabber:client}iq")
+        probeiq.data = stream.E("{foo}data")
+        probeiq.type_ = "set"
+        probeiq.to = "test@example.com/foo"
+        probeiq.from_ = "foo@example.com/bar"
+        probeiq.autoset_id()
 
-    #     erriq = stream.tx_context.make_reply(probeiq, error=True)
-    #     erriq.error = err
+        err = stanza.Error()
+        err.type_ = "cancel"
+        err.condition = "feature-not-implemented"
+        err.text =("No handler registered for this request "
+                   "pattern")
 
-    #     self._prepend_actions_up_to_binding(
-    #         stream,
-    #         [
-    #             probeiq
-    #         ],
-    #         [
-    #             (erriq, "!success"),
-    #             ("!close", [])
-    #         ]
-    #     )
+        erriq = stream.tx_context.make_reply(probeiq, error=True)
+        erriq.error = err
 
-    #     self._test_client(stream)
+        self._prepend_actions_up_to_binding(
+            stream,
+            [
+                probeiq
+            ],
+            [
+                (erriq, []),
+                ("!close", [])
+            ]
+        )
 
-    #     stream.mock_finalize()
+        self._test_client(stream,
+                          test_method=self._run_test_with_interaction)
+
+        stream.mock_finalize()
 
     # def test_iq_silence_for_errornous_result(self):
     #     stream = self._make_stream()
