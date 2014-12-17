@@ -1151,7 +1151,10 @@ class PresenceManagedClient(AbstractClient):
             fut.cancel()
 
     @asyncio.coroutine
-    def manage(self):
+    def manage(self, set_presence=None):
+        if set_presence:
+            with (yield from self._presence_changed):
+                self._presence = set_presence
         try:
             while True:
                 self._connected_event.clear()
