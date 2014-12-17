@@ -246,6 +246,7 @@ class AbstractClient:
                 self._loop, host)
             record_iterable = network.group_and_order_srv_records(srv_records)
 
+        errors = []
         for host, port in record_iterable:
             logger.info("trying to connect to %s at port %s", host, port)
             try:
@@ -269,11 +270,28 @@ class AbstractClient:
                 break
             except OSError as err:
                 logger.warning("low-level connection attempt failed: %s", err)
+                errors.append(err)
         else:
             logger.warning("out of options to reach server for %s",
                            self._client_jid)
-            raise OSError("Failed to connect to {}".format(
+            exceptions = []
+            for exc in errors:
+                if hasattr(exc, "exceptions"):
+                    exceptions.extend(exc.exceptions)
+                else:
+                    exceptions.append(exc)
+
+            if len(exceptions) == 1:
+                raise exceptions[0]
+            elif not exceptions:
+                raise OSError("No connection options for {}".format(
+                    self._client_jid.domainpart))
+
+            err = OSError("Failed to connect to {}. Multiple errors: ".format(
                 self._client_jid.domainpart))
+            err.exceptions = exceptions
+            raise err
+
 
         return transport, xmlstream
 
