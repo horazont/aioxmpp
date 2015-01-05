@@ -78,9 +78,13 @@ class JID:
         Return a new :class:`JID` instance.
         """
 
-        localpart = kwargs.pop("localpart", self.__localpart)
-        domainpart = kwargs.pop("domainpart", self.__domainpart)
-        resource = kwargs.pop("resource", self.__resource)
+        localpart = kwargs.pop("localpart", self.__localpart) or None
+        if localpart:
+            localpart = nodeprep(localpart)
+        domainpart = nameprep(kwargs.pop("domainpart", self.__domainpart))
+        resource = kwargs.pop("resource", self.__resource) or None
+        if resource:
+            resource = resourceprep(resource)
 
         if kwargs:
             raise TypeError("replace() got an unexpected keyword "
