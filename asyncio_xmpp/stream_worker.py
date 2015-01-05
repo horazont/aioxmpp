@@ -276,7 +276,10 @@ class StanzaBroker(StreamWorker):
                 logger.debug("current token map: %r",
                              self._iq_response_tokens)
             else:
-                token.response_future.set_result(iq)
+                # check whether future is still valid (it might have timed out
+                # in the meantime)
+                if not token.response_future.done():
+                    token.response_future.set_result(iq)
             return
 
         self._loop.call_soon(self._iq_request_callback, iq)
