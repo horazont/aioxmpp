@@ -36,6 +36,6 @@ class CallbacksWithToken:
     def remove_callback_fn(self, key, fn):
         self._callbacks[key].remove(fn)
 
-    def emit(self, key, *args):
+    def emit(self, key, *args, **kwargs):
         for fn in self._callbacks[key].values():
-            self._loop.call_soon(fn, *args)
+            self._loop.call_soon(fn, *args, **kwargs)
