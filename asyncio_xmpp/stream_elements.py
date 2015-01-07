@@ -15,6 +15,9 @@ class StreamFeatures(etree.ElementBase):
     def get_feature(self, tag):
         return self.find(tag)
 
+    def has_feature(self, tag):
+        return self.find(tag) is not None
+
     def require_feature(self, tag):
         result = self.get_feature(tag)
         if result is None:

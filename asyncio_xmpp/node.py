@@ -31,7 +31,7 @@ from datetime import datetime, timedelta
 
 from . import network, jid, protocol, stream_plugin, sasl, stanza, ssl_transport
 from . import custom_queue, stream_worker, xml, errors, presence, dataevent
-from . import callbacks
+from . import callbacks, stream_elements
 from .utils import *
 
 from .plugins import rfc6120
@@ -211,6 +211,9 @@ class AbstractClient:
 
         self._override_addr_once = False
         self._override_addr = None
+
+        # use empty stream features by default
+        self._stream_features = stream_elements.StreamFeatures()
 
         self.tx_context = xml.default_tx_context
 
@@ -631,6 +634,7 @@ class AbstractClient:
 
     @asyncio.coroutine
     def _post_resource_binding(self, features_node):
+        self._stream_features = features_node
         if self.use_sm:
             sm_node = features_node.get_feature("{{{}}}sm".format(
                 namespaces.stream_management))
@@ -1001,6 +1005,10 @@ class AbstractClient:
     @property
     def security_layer(self):
         return self._security_layer
+
+    @property
+    def stream_features(self):
+        return self._stream_features
 
 class UnmanagedClient(AbstractClient):
     @asyncio.coroutine
