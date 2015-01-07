@@ -48,6 +48,7 @@ class Stanza(StanzaElementBase):
         pass
 
     def autoset_id(self):
+        # FIXME: make this more resilent against id prediction
         if self.id_ is None:
             idstr = binascii.b2a_base64(random.getrandbits(
                 120
