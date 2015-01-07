@@ -65,6 +65,10 @@ class AbstractClient:
     *loop* must be an :class:`asyncio.BaseEventLoop` or :data:`None`. In the
     latter case, the current event loop is used.
 
+    .. autoattribute:: account_jid
+
+    .. autoattribute:: client_jid
+
     .. attribute:: close_timeout
 
        A :class:`datetime.timedelta` which specifies the maximum time an XML
@@ -202,6 +206,7 @@ class AbstractClient:
         super().__init__()
         self._loop = loop or asyncio.get_event_loop()
         self._client_jid = jid.JID.fromstr(client_jid)
+        self._account_jid = self._client_jid.bare
         self._security_layer = security_layer
         self._xmlstream = None
         self._session_started = False
@@ -971,11 +976,37 @@ class AbstractClient:
                              "coroutine")
         del self._iq_request_coros[tag, type_]
 
+    def unregister_presence_callback(self, type_):
+        """
+        Remove all callbacks previously registered for the given *type_* of
+        presence stanzas.
+        """
+        try:
+            del self._presence_callbacks[type_]
+        except KeyError:
+            pass
 
     # other stuff
 
     @property
+    def account_jid(self):
+        """
+        The bare JID part of the *client_jid* passed to the constructor.
+        """
+        return self._account_jid
+
+    @property
     def client_jid(self):
+        """
+        The JID to which the node is currently bound.
+
+        .. warning::
+
+           Always use this instead of any statically saved JID. The server is
+           free to override the resourcepart during binding, and this attribute
+           is updated with the JID to which the node actually bound.
+
+        """
         return self._client_jid
 
     def disconnect_future(self):
