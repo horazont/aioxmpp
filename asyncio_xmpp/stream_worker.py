@@ -204,6 +204,17 @@ class StanzaBroker(StreamWorker):
                 raise ValueError("Response future is not supported for "
                                  "{}".format(token._stanza))
 
+    def _process_all_incoming(self):
+        queue = self.incoming_queue
+        while not queue.empty():
+            stanza, handler = queue.get_nowait()
+            self._process_incoming_stanza(handler, stanza)
+
+    def _process_incoming_stanza(self, handler, stanza):
+        self._loop.call_soon(handler, stanza)
+        if self._sm_enabled:
+            self._acked_remote_ctr += 1
+
     def _queued_stanza_abort(self, stanza_token):
         try:
             self.active_queue.remove(stanza_token)
@@ -235,6 +246,14 @@ class StanzaBroker(StreamWorker):
             token.sent_callback()
 
     def _sm_reset(self, enabled=False, id_=None):
+        if self._sm_enabled:
+            if not self.incoming_queue.empty():
+                logger.warning("sm session reset: dropping %d pending "
+                               "incoming stanzas",
+                               len(self.incoming_queue))
+            # drop incoming queue, new session, new luck
+            self.incoming_queue.clear()
+
         restart = False
         if self._sm_enabled ^ enabled:
             # state will change
@@ -432,6 +451,7 @@ class StanzaBroker(StreamWorker):
             else:
                 logger.debug("killing outgoing_stanza_future")
                 outgoing_stanza_future.cancel()
+
             if incoming_future.done():
                 if not incoming_future.exception():
                     # re-insert stanza into incoming queue, to not mess with any
@@ -440,17 +460,8 @@ class StanzaBroker(StreamWorker):
             else:
                 incoming_future.cancel()
 
-            # XXX: clear all incoming queues to avoid double stanza delivery on
-            # SM resumption. The other option would be to submit the stanzas to
-            # the handlers, but as we are most likely not connected anymore it
-            # does not make a whole lot of sense to do that
-            #
-            # FIXME: maybe we should only clear the queues if SM is enabled. on
-            # the other hand, most handlers will still not be able to do
-            # something sensible with this.
-            self.incoming_queue.clear()
-            disconnect_future.cancel()
-
+            # note: incoming queues are dealt with in sm_reset / sm_resume /
+            # notify_session_ended.
 
     # StanzaBroker interface
 
@@ -484,6 +495,14 @@ class StanzaBroker(StreamWorker):
             resend_impl=self._queued_stanza_resend,
             **kwargs)
 
+    def notify_session_ended(self):
+        """
+        Drop anything in any queues.
+        """
+        self.incoming_queue.clear()
+        self.active_queue.clear()
+        self.unacked_queue.clear()
+
     @property
     def sm_acked_remote_ctr(self):
         """
@@ -514,6 +533,10 @@ class StanzaBroker(StreamWorker):
         Resume stream management. *remote_counter* must be an integer which is
         equal to the remote counter received upon stream resumption.
         """
+
+        # handle any pending incoming stanza, to avoid unneccessary
+        # retransmissions
+        self._process_all_incoming()
 
         self._flush_unacked_to_acked(remote_counter)
         # do not resend aborted tokens

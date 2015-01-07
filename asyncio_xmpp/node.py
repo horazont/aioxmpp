@@ -262,6 +262,8 @@ class AbstractClient:
             logger.info("session ended, notifying users")
             self._session_started = False
             self._fire_callback("session_ended")
+            if self._stanza_broker is not None:
+                self._stanza_broker.notify_session_ended()
 
     def _service_done_handler(self, task):
         try:
