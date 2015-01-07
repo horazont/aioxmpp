@@ -204,6 +204,7 @@ class AbstractClient:
         self._client_jid = jid.JID.fromstr(client_jid)
         self._security_layer = security_layer
         self._xmlstream = None
+        self._session_started = False
 
         self._disconnect_event = dataevent.DataEvent(loop=loop)
         self._request_disconnect = asyncio.Event(loop=loop)
@@ -246,6 +247,21 @@ class AbstractClient:
         logger.debug("firing event %r with arguments %r",
                      name, args)
         self.callbacks.emit(name, *args)
+
+    def _notify_session_started(self):
+        if not self._session_started:
+            logger.info("session started, notifying users")
+            self._session_started = True
+            self._fire_callback("session_started")
+        else:
+            logger.warning("possible bug: session started twice. did a previous"
+                           " session not get terminated...?")
+
+    def _notify_session_ended(self):
+        if self._session_started:
+            logger.info("session ended, notifying users")
+            self._session_started = False
+            self._fire_callback("session_ended")
 
     def _service_done_handler(self, task):
         try:
@@ -360,6 +376,9 @@ class AbstractClient:
             yield from self._negotiate_stream(node)
         except Exception as err:
             self._notify_disconnect(exc=err)
+            if not self._stanza_broker.sm_session_id:
+                # if we cannot ever resume, notify about lost session
+                self._notify_session_ended()
             self._stanza_broker.stop()
             if not self._xmlstream.closed:
                 self._xmlstream.hard_close(err)
@@ -503,6 +522,10 @@ class AbstractClient:
             success = yield from self._resume_stream_management(sm_node)
             if success:
                 return True
+            else:
+                # notify users that session has been terminated, as we have not
+                # notified them before (as there was a chance for SM resumption)
+                self._notify_session_ended()
         else:
             if self._stanza_broker.sm_enabled:
                 logger.warning("had an sm session, but resumption was not"
@@ -527,7 +550,7 @@ class AbstractClient:
         logger.info("bound to JID: %s", self._client_jid)
 
         yield from self._post_resource_binding(features_node)
-        self._fire_callback("session_started")
+        self._notify_session_started()
 
     @asyncio.coroutine
     def _negotiate_stream_management(self, feature_node):
@@ -1010,7 +1033,10 @@ class UnmanagedClient(AbstractClient):
         if not self._xmlstream:
             return
         self._disconnect()
-        return self.disconnect_future()
+        future = self.disconnect_future()
+        # make sure no state lingers
+        future.add_done_callback(self._notify_session_ended)
+        return future
 
 
 class PresenceManagedClient(AbstractClient):
@@ -1140,6 +1166,9 @@ class PresenceManagedClient(AbstractClient):
             # set presence to unavailable
             yield from self.set_presence(presence.PresenceState())
             yield from self._disconnect_and_wait()
+        finally:
+            # make sure that no session state lingers
+            self._notify_session_ended()
 
     @property
     def presence(self):
