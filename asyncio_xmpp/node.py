@@ -251,6 +251,11 @@ class AbstractClient:
              self._handle_message,
              self._handle_presence))
 
+    def _cleanup_session(self):
+        if self._stanza_broker:
+            self._stanza_broker.sm_reset()
+        self._notify_session_ended()
+
     def _fire_callback(self, name, *args):
         logger.debug("firing event %r with arguments %r",
                      name, args)
@@ -1076,7 +1081,7 @@ class UnmanagedClient(AbstractClient):
         self._disconnect()
         future = self.disconnect_future()
         # make sure no state lingers
-        future.add_done_callback(self._notify_session_ended)
+        future.add_done_callback(self._cleanup_session)
         return future
 
 
@@ -1163,6 +1168,7 @@ class PresenceManagedClient(AbstractClient):
                     logger.debug("set to unavailable, disconnecting")
                     if disconnected not in done:
                         yield from self._disconnect_and_wait()
+                        self._cleanup_session()
                     else:
                         try:
                             disconnected.result()
@@ -1209,7 +1215,7 @@ class PresenceManagedClient(AbstractClient):
             yield from self._disconnect_and_wait()
         finally:
             # make sure that no session state lingers
-            self._notify_session_ended()
+            self._cleanup_session()
 
     @property
     def presence(self):
