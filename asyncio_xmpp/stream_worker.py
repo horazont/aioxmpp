@@ -161,9 +161,7 @@ class StanzaBroker(StreamWorker):
         self._liveness_handler_task = None
 
         self.active_queue = custom_queue.AsyncDeque(loop=self._loop)
-        self.incoming_iq_queue = custom_queue.AsyncDeque(loop=self._loop)
-        self.incoming_message_queue = custom_queue.AsyncDeque(loop=self._loop)
-        self.incoming_presence_queue = custom_queue.AsyncDeque(loop=self._loop)
+        self.incoming_queue = custom_queue.AsyncDeque(loop=self._loop)
         self.unacked_queue = list()
 
         self.ping_timeout = ping_timeout
@@ -286,6 +284,15 @@ class StanzaBroker(StreamWorker):
 
     # StreamWorker interface
 
+    def _xmlstream_stanza_iq_callback(self, stanza):
+        self.incoming_queue.put_nowait((stanza, self._stanza_iq))
+
+    def _xmlstream_stanza_message_callback(self, stanza):
+        self.incoming_queue.put_nowait((stanza, self._message_callback))
+
+    def _xmlstream_stanza_presence_callback(self, stanza):
+        self.incoming_queue.put_nowait((stanza, self._presence_callback))
+
     def setup(self, xmlstream):
         """
         Set up the StanzaBroker to work with the given *xmlstream*. This
@@ -293,15 +300,15 @@ class StanzaBroker(StreamWorker):
         liveness handler (but does not start it yet).
         """
         super().setup(xmlstream)
-        xmlstream.stream_level_hooks.add_queue(
+        xmlstream.stream_level_hooks.add_callback(
             "{jabber:client}iq",
-            self.incoming_iq_queue)
-        xmlstream.stream_level_hooks.add_queue(
+            self._xmlstream_stanza_iq_callback)
+        xmlstream.stream_level_hooks.add_callback(
             "{jabber:client}message",
-            self.incoming_message_queue)
-        xmlstream.stream_level_hooks.add_queue(
+            self._xmlstream_stanza_message_callback)
+        xmlstream.stream_level_hooks.add_callback(
             "{jabber:client}presence",
-            self.incoming_presence_queue)
+            self._xmlstream_stanza_presence_callback)
         self._liveness_handler.setup(self)
 
     def start_liveness_handler(self):
@@ -329,15 +336,15 @@ class StanzaBroker(StreamWorker):
         stream.
         """
         self._liveness_handler.teardown()
-        self.xmlstream.stream_level_hooks.remove_queue(
+        self.xmlstream.stream_level_hooks.remove_callback(
             "{jabber:client}iq",
-            self.incoming_iq_queue)
-        self.xmlstream.stream_level_hooks.remove_queue(
+            self._xmlstream_stanza_iq_callback)
+        self.xmlstream.stream_level_hooks.remove_callback(
             "{jabber:client}message",
-            self.incoming_message_queue)
-        self.xmlstream.stream_level_hooks.remove_queue(
+            self._xmlstream_stanza_message_callback)
+        self.xmlstream.stream_level_hooks.remove_callback(
             "{jabber:client}presence",
-            self.incoming_presence_queue)
+            self._xmlstream_stanza_presence_callback)
         super().teardown()
 
     @asyncio.coroutine
@@ -352,29 +359,15 @@ class StanzaBroker(StreamWorker):
         outgoing_stanza_future = future_from_queue(
             self.active_queue, self._loop)
 
-        incoming_queues = [
-            self.incoming_iq_queue,
-            self.incoming_message_queue,
-            self.incoming_presence_queue
-        ]
-
-        incoming_futures = [
-            future_from_queue(queue, self._loop)
-            for queue in incoming_queues
-        ]
-
-        incoming_handlers = [
-            self._stanza_iq,
-            self._message_callback,
-            self._presence_callback
-        ]
+        incoming_future = future_from_queue(self.incoming_queue, self._loop)
 
         try:
             while True:
-                futures_to_wait_for = incoming_futures.copy()
-                futures_to_wait_for.append(outgoing_stanza_future)
-                futures_to_wait_for.append(disconnect_future)
-                futures_to_wait_for.append(interrupt_future)
+                futures_to_wait_for = [
+                    incoming_future,
+                    outgoing_stanza_future,
+                    disconnect_future,
+                    interrupt_future]
                 if self._liveness_handler_task is not None:
                     futures_to_wait_for.append(self._liveness_handler_task)
 
@@ -423,18 +416,11 @@ class StanzaBroker(StreamWorker):
                         self.active_queue.get(),
                         loop=self._loop)
 
-                for i, (future, queue, handler) in enumerate(
-                        zip(incoming_futures, incoming_queues, incoming_handlers)):
-                    if future not in done:
-                        continue
-
-                    received_stanza = future.result()
-                    self._loop.call_soon(handler, received_stanza)
-                    if self._sm_enabled:
-                        self._acked_remote_ctr += 1
-
-                    incoming_futures[i] = future_from_queue(
-                        queue,
+                if incoming_future in done:
+                    received_stanza, handler = incoming_future.result()
+                    self._process_incoming_stanza(handler, received_stanza)
+                    incoming_future = future_from_queue(
+                        self.incoming_queue,
                         self._loop)
         finally:
             logger.debug("terminating ...")
@@ -446,12 +432,13 @@ class StanzaBroker(StreamWorker):
             else:
                 logger.debug("killing outgoing_stanza_future")
                 outgoing_stanza_future.cancel()
-            for fut, queue in zip(incoming_futures, incoming_queues):
-                if (fut.done() and not fut.exception()):
-                    # re-insert stanza into incoming queue
-                    queue.putleft_nowait(fut.result())
-                else:
-                    fut.cancel()
+            if incoming_future.done():
+                if not incoming_future.exception():
+                    # re-insert stanza into incoming queue, to not mess with any
+                    # counters if sm resumption happens
+                    incoming_future.putleft_nowait(fut.result())
+            else:
+                incoming_future.cancel()
 
             # XXX: clear all incoming queues to avoid double stanza delivery on
             # SM resumption. The other option would be to submit the stanzas to
@@ -461,8 +448,7 @@ class StanzaBroker(StreamWorker):
             # FIXME: maybe we should only clear the queues if SM is enabled. on
             # the other hand, most handlers will still not be able to do
             # something sensible with this.
-            for queue in incoming_queues:
-                queue.clear()
+            self.incoming_queue.clear()
             disconnect_future.cancel()
 
 
