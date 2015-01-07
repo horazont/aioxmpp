@@ -60,6 +60,18 @@ class AsyncDeque:
             self._non_empty.clear()
         return result
 
+    def get_nowait(self):
+        try:
+            return self._data.popleft()
+        except IndexError:
+            raise asyncio.QueueEmpty()
+
+    def getright_nowait(self):
+        try:
+            return self._data.pop()
+        except IndexError:
+            raise asyncio.QueueEmpty()
+
     def remove(self, item):
         self._data.remove(item)
         if not self._data:
