@@ -24,10 +24,10 @@ class Client(base.Service):
             "set",
             self._handle_roster_push)
 
-        self.node.register_callback(
+        self.node.callbacks.add_callback(
             "session_started",
             self._start_session)
-        self.node.register_callback(
+        self.node.callbacks.add_callback(
             "session_ended",
             self._stop_session)
 
@@ -113,4 +113,10 @@ class Client(base.Service):
     def close(self, emit_events=True):
         self._clear_roster()
         self.node.unregister_iq_request_coro(Query.TAG, "set")
+        self.node.callbacks.remove_callback_fn(
+            "session_started",
+            self._session_started)
+        self.node.callbacks.remove_callback_fn(
+            "session_ended",
+            self._session_ended)
         super().close()

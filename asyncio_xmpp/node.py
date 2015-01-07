@@ -31,6 +31,7 @@ from datetime import datetime, timedelta
 
 from . import network, jid, protocol, stream_plugin, sasl, stanza, ssl_transport
 from . import custom_queue, stream_worker, xml, errors, presence, dataevent
+from . import callbacks
 from .utils import *
 
 from .plugins import rfc6120
@@ -104,12 +105,54 @@ class AbstractClient:
        Management [#xep0199]_ is to be used, if available. It is generally
        recommended to have this set to :data:`True`.
 
-    To get notified about connection-related events, the following two methods
-    can be used to register and unregister callbacks:
+    To get notified about connection-related events, the following attribute
+    provides a callback manager (see :class:`~CallbacksWithToken`):
 
-    .. automethod:: register_callback
+    .. attribute:: callbacks
 
-    .. automethod:: unregister_callback
+        .. function:: connecting()
+
+           This event is called when the connection is about to be
+           established. This is followed by either :func:`connection_made` or
+           :func:`connection_failed`.
+
+        .. function:: connection_made()
+
+           This event fires when the connection has been fully established and
+           stanzas can be sent. Useful to send initial presence.
+
+        .. function:: connection_lost([exc=None])
+
+           Whenever the connection is lost (after it has been established) this
+           event is fired. If the connection was lost due to an error, *exc* is
+           the exception which caused the connection to fail.
+
+        .. function:: connection_failed(nattempt, exc, [fatal=False])
+
+           If a connection attempt has failed, this event is fired. *nattempt*
+           here is the number of the attempt which was made (starting at
+           0). *exc* is the exception which caused the connection to fail.
+
+           Depending on the error, *fatal* is either :data:`True` or
+           :data:`False`. If it is true, the connection will not be reattempted
+           and :meth:`stay_connected` will return.
+
+        .. function:: session_started()
+
+           A new session has been started. Either this is a fresh connection, or
+           stream management resumption was not possible for whatever
+           reason. Initial presence has just been sent, the resource is bound
+           and anything is possible now.
+
+        .. function:: session_ended()
+
+           The session has ended. This can happen if a stream management session
+           failed to resume or if a connection without resumable stream
+           management terminates.
+
+           Do not assume that any stanzas can be sent during this callback. This
+           callback can be used to clear client state which needs to be
+           re-synced after a reconnect.
 
     For sending and receiving stanzas, there are several helper functions. First
     of all, stanzas need to be constructed to be sent.
@@ -170,14 +213,14 @@ class AbstractClient:
 
         self.tx_context = xml.default_tx_context
 
-        self._callbacks = {
-            "connecting": set(),
-            "connection_made": set(),
-            "connection_lost": set(),
-            "connection_failed": set(),
-            "session_started": set(),
-            "session_ended": set()
-        }
+        self.callbacks = callbacks.CallbacksWithToken(
+            "connecting",
+            "connection_made",
+            "connection_lost",
+            "connection_failed",
+            "session_started",
+            "session_ended",
+        )
 
         self._iq_request_coros = {}
         self._message_callbacks = {}
@@ -202,8 +245,7 @@ class AbstractClient:
     def _fire_callback(self, name, *args):
         logger.debug("firing event %r with arguments %r",
                      name, args)
-        for cb in self._callbacks[name]:
-            self._loop.call_soon(cb, *args)
+        self.callbacks.emit(name, *args)
 
     def _service_done_handler(self, task):
         try:
@@ -931,75 +973,9 @@ class AbstractClient:
     def ping_timeout(self, value):
         self._stanza_broker.ping_timeout = value
 
-    def register_callback(self, event_name, callback):
-        """
-        Register the given *callback* for the connection event *event_name*.
-
-        The following events and signatures exist:
-
-        .. function:: connecting()
-
-           This event is called when the connection is about to be
-           established. This is followed by either :func:`connection_made` or
-           :func:`connection_failed`.
-
-        .. function:: connection_made()
-
-           This event fires when the connection has been fully established and
-           stanzas can be sent. Useful to send initial presence.
-
-        .. function:: connection_lost([exc=None])
-
-           Whenever the connection is lost (after it has been established) this
-           event is fired. If the connection was lost due to an error, *exc* is
-           the exception which caused the connection to fail.
-
-        .. function:: connection_failed(nattempt, exc, [fatal=False])
-
-           If a connection attempt has failed, this event is fired. *nattempt*
-           here is the number of the attempt which was made (starting at
-           0). *exc* is the exception which caused the connection to fail.
-
-           Depending on the error, *fatal* is either :data:`True` or
-           :data:`False`. If it is true, the connection will not be reattempted
-           and :meth:`stay_connected` will return.
-
-        .. function:: session_started()
-
-           A new session has been started. Either this is a fresh connection, or
-           stream management resumption was not possible for whatever
-           reason. Initial presence has just been sent, the resource is bound
-           and anything is possible now.
-
-        .. function:: session_ended()
-
-           The session has ended. This can happen if a stream management session
-           failed to resume or if a connection without resumable stream
-           management terminates.
-
-           Do not assume that any stanzas can be sent during this callback. This
-           callback can be used to clear client state which needs to be
-           re-synced after a reconnect.
-
-        """
-        self._callbacks[event_name].add(callback)
-
     @property
     def security_layer(self):
         return self._security_layer
-
-    def unregister_callback(self, event_name, callback):
-        """
-        Un-register a *callback* previously registered for the event called
-        *event_name*.
-
-        This function never raises.
-        """
-        try:
-            self._callbacks[event_name].discard(callback)
-        except KeyError:
-            pass
-
 
 class UnmanagedClient(AbstractClient):
     @asyncio.coroutine
