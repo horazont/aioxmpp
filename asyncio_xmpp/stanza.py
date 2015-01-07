@@ -77,21 +77,26 @@ class Presence(Stanza):
     TAG = "{jabber:client}presence"
     _VALID_TYPES = {"unavailable",
                     "subscribe", "subscribed",
-                    "unsubscribe", "unsubscribed"}
+                    "unsubscribe", "unsubscribed",
+                    "error"}
 
     type_ = xmlattr(EnumType(_VALID_TYPES), name="type")
     show = xmlchildtext(EnumType(presence.PresenceState.SHOW_VALUES))
 
     def _make_reply(self, tx_context, type_=None):
+        # we MUST NOT mirror the id attribute (see rfc 6121, section 3.1.4 and
+        # others).
+        # generally, there is no case where mirroring the id attribute is
+        # sensible
         return tx_context.make_presence(
             to=self._from,
             from_=self.to,
-            id_=self.id_,
             type_=type_ or self.type_)
 
     def get_state(self):
         available = self.type_ != "unavailable"
         show = self.show
+        return presence.PresenceState(available, show)
 
 class IQ(Stanza):
     TAG = "{jabber:client}iq"
