@@ -751,22 +751,21 @@ class AbstractClient:
             (str(from_.bare), type_),
             (None, type_),
         ]
+
         if not self._dispatch_stanza(self._message_callbacks, keys, message):
             logger.warning("unhandled message stanza: %r", message)
-            return
 
     def _handle_presence(self, presence):
         from_ = presence.from_
         id_ = presence.id_
         type_ = presence.type_
 
-        keys = [
-            (type_, )
-        ]
-
-        if not self._dispatch_stanza(self._presence_callbacks, keys, presence):
+        try:
+            handler = self._presence_callbacks[type_]
+        except KeyError:
             logger.warning("unhandled presence stanza: %r", presence)
-            return
+        else:
+            handler(presence)
 
     def _iq_handler_task_done(self, iq, task):
         is_error = True
@@ -911,6 +910,21 @@ class AbstractClient:
             raise ValueError("Another coroutine is already registered for "
                              "IQs with data tag {!r} and type={!r}".format(
                                  tag, type_))
+
+    def register_presence_callback(self, type_, fn):
+        """
+        Register a callback which is scheduled whenever a presence stanza with
+        the given *type_* arrives. The callback receives the stanza as its only
+        argument.
+        """
+
+        try:
+            existing = self._presence_callbacks[type_]
+        except KeyError:
+            self._presence_callbacks[type_] = fn
+        else:
+            raise ValueError("Another callback is already registered for "
+                             "presence of type {!r}".format(type_))
 
     @asyncio.coroutine
     def _wait_for_reply_future(self, reply_future, timeout):
