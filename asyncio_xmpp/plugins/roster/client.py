@@ -142,8 +142,8 @@ class RosterClient(base.Service):
             self._add_roster_item(item)
 
     def _remove_roster_item(self, item):
-        del self._roster[item.jid]
-        self.callbacks.emit("roster_item_removed", item)
+        iteminfo = self._roster.pop(item.jid)
+        self.callbacks.emit("roster_item_removed", iteminfo)
 
     def _handle_subscription_request(self, stanza):
         jid = stanza.from_.bare
@@ -165,7 +165,7 @@ class RosterClient(base.Service):
         items = list(response.data.items)
         response.data.clear()
         self._roster = {
-            item.jid: item
+            item.jid: RosterItemInfo(item=item)
             for item in items
         }
         self.callbacks.emit("initial_roster", self._roster)
