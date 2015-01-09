@@ -218,6 +218,9 @@ class RosterClient(base.Service):
                 to=peer_jid.bare,
             ), **kwargs)
 
+    def get_roster_item(self, peer_jid):
+        return self._roster[peer_jid.bare]
+
     def close(self, emit_events=True):
         self._clear_roster()
         self.node.unregister_iq_request_coro(Query.TAG, "set")
