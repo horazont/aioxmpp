@@ -135,6 +135,9 @@ class STARTTLSTransport(asyncio.Transport):
         super().__init__()
         self._rawsock = rawsock
         self._raw_fd = rawsock.fileno()
+        self._trace_logger = logger.getChild(
+            "trace.fd={}".format(self._raw_fd)
+        )
         self._sock = rawsock
         self._protocol = protocol
         self._loop = loop
@@ -200,6 +203,8 @@ class STARTTLSTransport(asyncio.Transport):
         self._force_close(exc)
 
     def _force_close(self, exc):
+        self._trace_logger.debug("_force_close called")
+        self._remove_rw()
         if self._state == _State.CLOSED:
             # don’t raise here
             raise self._invalid_state("_force_close called")
@@ -213,6 +218,11 @@ class STARTTLSTransport(asyncio.Transport):
         self._loop.remove_reader(self._raw_fd)
         self._loop.remove_writer(self._raw_fd)
         self._loop.call_soon(self._call_connection_lost_and_clean_up, exc)
+
+    def _remove_rw(self):
+        self._trace_logger.debug("clearing readers/writers")
+        self._loop.remove_reader(self._raw_fd)
+        self._loop.remove_writer(self._raw_fd)
 
     def _call_connection_lost_and_clean_up(self, exc):
         """
@@ -241,6 +251,7 @@ class STARTTLSTransport(asyncio.Transport):
             self._waiter = None
 
     def _initiate_tls(self):
+        self._trace_logger.debug("_initiate_tls called")
         if self._state is not None and self._state != _State.RAW_OPEN:
             self._invalid_transition(via="_initiate_tls",
                                      to=_State.TLS_HANDSHAKING)
@@ -265,41 +276,43 @@ class STARTTLSTransport(asyncio.Transport):
         self._tls_do_handshake()
 
     def _tls_do_handshake(self):
+        self._trace_logger.debug("_tls_do_handshake called")
         if self._state != _State.TLS_HANDSHAKING:
             raise self._invalid_state("_tls_do_handshake called")
 
         try:
             self._tls_conn.do_handshake()
         except OpenSSL.SSL.WantReadError:
+            self._trace_logger.debug("registering reader for _tls_do_handshake")
             self._loop.add_reader(self._raw_fd, self._tls_do_handshake)
             return
         except OpenSSL.SSL.WantWriteError:
+            self._trace_logger.debug("registering writer for _tls_do_handshake")
             self._loop.add_writer(self._raw_fd, self._tls_do_handshake)
             return
         except Exception as exc:
-            self._loop.remove_reader(self._raw_fd)
-            self._loop.remove_writer(self._raw_fd)
+            self._remove_rw()
             self._fatal_error(exc, "Fatal error on tls handshake")
             if self._waiter is not None:
                 self._waiter.set_exception(exc)
             return
         except BaseException as exc:
-            self._loop.remove_reader(self._raw_fd)
-            self._loop.remove_writer(self._raw_fd)
+            self._remove_rw()
             if self._waiter is not None:
                 self._waiter.set_exception(exc)
             raise
 
-        self._loop.remove_reader(self._raw_fd)
-        self._loop.remove_writer(self._raw_fd)
+        self._remove_rw()
 
         # handshake complete
 
+        self._trace_logger.debug("handshake complete")
         self._extra.update(
             peercert=self._tls_conn.get_peer_certificate()
         )
 
         if self._tls_post_handshake_callback:
+            self._trace_logger.debug("post handshake scheduled via callback")
             task = asyncio.async(self._tls_post_handshake_callback(self))
             task.add_done_callback(self._tls_post_handshake_done)
             self._tls_post_handshake_callback = None
@@ -315,6 +328,7 @@ class STARTTLSTransport(asyncio.Transport):
             self._tls_post_handshake(None)
 
     def _tls_post_handshake(self, exc):
+        self._trace_logger.debug("_tls_post_handshake called")
         if exc is not None:
             self._fatal_error(exc, "Fatal error on post-handshake callback")
             if self._waiter is not None:
@@ -335,15 +349,18 @@ class STARTTLSTransport(asyncio.Transport):
             self._loop.call_soon(self._waiter.set_result, None)
 
     def _tls_do_shutdown(self):
+        self._trace_logger.debug("_tls_do_shutdown called")
         if self._state != _State.TLS_SHUTTING_DOWN:
             raise self._invalid_state("_tls_do_shutdown called")
 
         try:
             self._sock.shutdown()
         except OpenSSL.SSL.WantReadError:
+            self._trace_logger.debug("registering reader for _tls_shutdown")
             self._loop.add_reader(self._raw_fd, self._tls_shutdown)
             return
         except OpenSSL.SSL.WantWriteError:
+            self._trace_logger.debug("registering writer for _tls_shutdown")
             self._loop.add_writer(self._raw_fd, self._tls_shutdown)
             return
         except Exception as exc:
@@ -351,10 +368,10 @@ class STARTTLSTransport(asyncio.Transport):
             self._fatal_error(exc, "Fatal error on tls shutdown")
             return
         except BaseException as exc:
-            self._loop.remove_reader(self._raw_fd)
-            self._loop.remove_writer(self._raw_fd)
+            self._remove_rw()
             raise
 
+        self._remove_rw()
         self._state = _State.TLS_SHUT_DOWN
         # continue to raw shut down
         self._raw_shutdown()
@@ -364,6 +381,7 @@ class STARTTLSTransport(asyncio.Transport):
         self._tls_do_shutdown()
 
     def _raw_shutdown(self):
+        self._remove_rw()
         self._rawsock.shutdown(socket.SHUT_RDWR)
         self._force_close(None)
 
@@ -373,6 +391,8 @@ class STARTTLSTransport(asyncio.Transport):
             self._write_ready()
 
             if self._buffer:
+                self._trace_logger.debug("_read_ready: add writer for more"
+                                         " data")
                 self._loop.add_writer(self._raw_fd, self._write_ready)
 
         if self._state.eof_received:
@@ -386,6 +406,7 @@ class STARTTLSTransport(asyncio.Transport):
         except OpenSSL.SSL.WantWriteError:
             assert self._state.tls_started
             self._tls_read_wants_write = True
+            self._trace_logger.debug("_read_ready: swap reader for writer")
             self._loop.remove_reader(self._raw_fd)
             self._loop.add_writer(self._raw_fd, self._write_ready)
         except Exception as err:
@@ -407,6 +428,8 @@ class STARTTLSTransport(asyncio.Transport):
             self._read_ready()
 
             if not self._paused and not self._state.eof_received:
+                self._trace_logger.debug("_write_ready: add reader for more"
+                                         " data")
                 self._loop.add_reader(self._raw_fd, self._read_ready)
 
         if self._buffer:
@@ -418,8 +441,10 @@ class STARTTLSTransport(asyncio.Transport):
             except OpenSSL.SSL.WantReadError:
                 nsent = 0
                 assert self._state.tls_started
-                self._tls_read_wants_write = True
                 self._tls_write_wants_read = True
+                self._trace_logger.debug("_write_ready: swap writer for reader")
+                self._loop.remove_writer(self._raw_fd)
+                self._loop.add_reader(self._raw_fd, self._read_ready)
             except Exception as err:
                 self._fatal_error(err,
                                   "Fatal write error on STARTTLS "
@@ -431,6 +456,8 @@ class STARTTLSTransport(asyncio.Transport):
 
         if not self._buffer:
             if not self._tls_read_wants_write:
+                self._trace_logger.debug("_write_ready: nothing more to write,"
+                                   " removing writer")
                 self._loop.remove_writer(self._raw_fd)
             if self._closing:
                 if self._state.tls_started:
@@ -439,6 +466,7 @@ class STARTTLSTransport(asyncio.Transport):
                     self._raw_shutdown()
 
     def _eof_received(self, keep_open):
+        self._trace_logger.debug("_eof_received: removing reader")
         self._loop.remove_reader(self._raw_fd)
         if self._state.tls_started:
             if self._tls_conn.get_shutdown() & OpenSSL.SSL.RECEIVED_SHUTDOWN:
@@ -449,8 +477,9 @@ class STARTTLSTransport(asyncio.Transport):
                     self._tls_shutdown()
             else:
                 if keep_open:
-                    logger.warning("result of eof_received() ignored "
-                                   "as shut down is improper")
+                    self._trace_logger.warning("result of eof_received() "
+                                               "ignored as shut down is"
+                                               " improper")
                 self._fatal_error(ConnectionError("Underlying transport "
                                                   "closed"))
         else:
