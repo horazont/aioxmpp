@@ -7,7 +7,7 @@ _PresenceState = collections.namedtuple(
 
 @functools.total_ordering
 class PresenceState(_PresenceState):
-    SHOW_VALUES = ["chat", None, "away", "xa", "dnd"]
+    SHOW_VALUES = ["dnd", "xa", "away", None, "chat"]
     SHOW_VALUE_WEIGHT = {
         value: i
         for i, value in enumerate(SHOW_VALUES)
@@ -23,7 +23,7 @@ class PresenceState(_PresenceState):
 
     def __lt__(self, other):
         my_key = (self.available, self.SHOW_VALUE_WEIGHT[self.show])
-        other_key = (other.available, other.SHOW_VALUE_WEIGHT[self.show])
+        other_key = (other.available, other.SHOW_VALUE_WEIGHT[other.show])
         return my_key < other_key
 
     def to_stanza(self, presence_factory):
@@ -38,3 +38,6 @@ class PresenceState(_PresenceState):
         if self.available and self.show:
             s += " show={!r}".format(self.show)
         return s+">"
+
+    def __bool__(self):
+        return self.available
