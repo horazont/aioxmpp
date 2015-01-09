@@ -15,7 +15,6 @@ import asyncio
 import copy
 import functools
 import logging
-import warnings
 
 import lxml.builder
 
@@ -486,7 +485,8 @@ class XMLStream(asyncio.Protocol):
         close the stream, too.
         """
         if self._state == _State.UNCONNECTED:
-            warnings.warn("trying to hard-close an unconnected stream")
+            logger.warning("trying to hard-close an unconnected stream",
+                           stack_info=True)
             return
 
         self._conn_exc = exc
@@ -505,7 +505,8 @@ class XMLStream(asyncio.Protocol):
         """
 
         if self._state == _State.UNCONNECTED:
-            warnings.warn("trying to close an unconnected stream")
+            logger.warning("trying to close an unconnected stream",
+                           stack_info=True)
             return
 
         self._waiter = waiter
