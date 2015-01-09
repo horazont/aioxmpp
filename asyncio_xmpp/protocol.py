@@ -505,8 +505,10 @@ class XMLStream(asyncio.Protocol):
         """
 
         if self._state == _State.UNCONNECTED:
-            logger.warning("trying to close an unconnected stream",
-                           stack_info=True)
+            # logger.warning("trying to close an unconnected stream",
+            #                stack_info=True)
+            if waiter:
+                self._loop.call_soon(waiter.set_result, None)
             return
 
         self._waiter = waiter
