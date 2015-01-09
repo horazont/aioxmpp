@@ -252,6 +252,9 @@ class PresenceClient(base.Service):
             "unavailable",
             self._handle_unavailable_presence)
         self.node.register_presence_callback(
+            "error",
+            self._handle_error_presence)
+        self.node.register_presence_callback(
             None,
             self._handle_available_presence)
 
@@ -261,6 +264,9 @@ class PresenceClient(base.Service):
     def _session_ended(self):
         self._presence_info.clear()
         self.logger.debug("presence session ended")
+
+    def _handle_error_presence(self, presence):
+        self._handle_unavailable_presence(presence)
 
     def _handle_unavailable_presence(self, presence):
         jid = presence.from_
