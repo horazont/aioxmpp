@@ -323,3 +323,28 @@ class PresenceClient(base.Service):
                 resource_map.get(
                     None,
                     presence.PresenceState()))
+
+    def get_all_presence(self, peer_jid):
+        try:
+            return self._presence_info[peer_jid.bare].copy()
+        except KeyError:
+            return {}
+
+    def dump_state(self, f=None):
+        if f is None:
+            import sys
+            f = sys.stdout
+
+        print("== BEGIN OF PRESENCE DUMP ==", file=f)
+        for jid, resource_map in self._presence_info.items():
+            print("jid: {!s}".format(jid), file=f)
+            try:
+                print("  bare presence:", resource_map[None], file=f)
+            except KeyError:
+                print("  no bare presence")
+
+            for resource, state in resource_map.items():
+                if not resource:
+                    continue
+                print("  resource {!r}: {}".format(resource, state))
+        print("== END OF PRESENCE DUMP ==", file=f)
