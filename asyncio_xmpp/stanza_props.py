@@ -129,6 +129,8 @@ class BoolType(PropertyType):
     _FALSE_VALUES = ["false", "0"]
 
     def _get(self, value, default):
+        if value is None:
+            raise ValueError("Not a boolean value: {}".format(value))
         value = value.strip().lower()
         if value in self._TRUE_VALUES:
             return True
