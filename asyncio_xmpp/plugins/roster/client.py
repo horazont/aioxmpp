@@ -10,12 +10,19 @@ from .stanza import *
 
 from asyncio_xmpp.utils import *
 
+__all__ = [
+    "RosterItemInfo",
+    "RosterClient",
+    "PresenceClient"
+]
+
 class RosterItemInfo:
     jid = None
     subscription = None
     groups = None
     pending_out = False
     name = None
+    approved = False
 
     def __init__(self, item=None):
         super().__init__()
@@ -27,6 +34,7 @@ class RosterItemInfo:
             )
             self.name = item.name
             self.pending_out = item.ask
+            self.approved = item.approved
             self.in_roster = True
         else:
             self.groups = set()
@@ -75,14 +83,7 @@ class RosterClient(base.Service):
         self.logger.debug("roster session started (query is on its way)")
 
     def _stop_session(self):
-        self.logger.debug("roster session stopping")
-        self._clear_roster()
-        self.logger.debug("roster session stopped")
-
-    def _clear_roster(self):
-        for item in list(self._roster.values()):
-            self._remove_roster_item(item)
-        self._roster.clear()
+        pass
 
     def _add_roster_item(self, item):
         self._roster[item.jid] = RosterItemInfo(item=item)
@@ -92,8 +93,8 @@ class RosterClient(base.Service):
         existing = self._roster[item.jid]
 
         subscription_changed = False
-        if item.ask != existing.ask:
-            existing.ask = item.ask
+        if item.pending_out != existing.pending_out:
+            existing.pending_out = item.pending_out
             subscribtion_changed = True
         if item.subscription != existing.subscription:
             existing.subscription = item.subscription
@@ -107,10 +108,23 @@ class RosterClient(base.Service):
             existing.name = item.name
             name_changed = True
 
-        new_groups = set(group.name for group in item.groups)
+        new_groups = item.groups
+        if not new_groups:
+            new_groups |= {None}
         removed_from_groups = existing.groups - new_groups
         added_to_groups = new_groups - existing.groups
         existing.groups = new_groups
+
+        self.logger.debug("item %s updated: "
+                          "added_to_groups=%r; "
+                          "removed_from_groups=%r; "
+                          "name_changed=%s; "
+                          "subscription_changed=%s; ",
+                          item.jid,
+                          added_to_groups,
+                          removed_from_groups,
+                          name_changed,
+                          subscription_changed)
 
         if removed_from_groups:
             self.callbacks.emit("roster_item_removed_from_groups",
@@ -124,7 +138,6 @@ class RosterClient(base.Service):
             self.callbacks.emit("roster_item_added_to_groups",
                                 item,
                                 added_to_groups)
-
 
     def _process_roster_item(self, item, allow_remove=False):
         if item.subscription == "remove":
@@ -149,6 +162,37 @@ class RosterClient(base.Service):
         jid = stanza.from_.bare
         self.callbacks.emit("subscription_request", jid)
 
+    def _diff_initial_roster(self, received_items):
+        remote_roster = {
+            item.jid: RosterItemInfo(item=item)
+            for item in received_items
+        }
+        self.logger.info("diffing initial roster: "
+                         "len(local)=%d, len(remote)=%d",
+                         len(self._roster),
+                         len(remote_roster))
+
+        local_jids = set(self._roster)
+        remote_jids = set(remote_roster)
+
+        deleted_jids = local_jids - remote_jids
+        self.logger.debug("removing %d entries", len(deleted_jids))
+        for jid in deleted_jids:
+            item = self._roster.pop(jid)
+            self.callbacks.emit("roster_item_removed", item)
+
+        updated_jids = remote_jids & local_jids
+        self.logger.debug("updating %d entries", len(updated_jids))
+        for jid in updated_jids:
+            self._update_roster_item(remote_roster[jid])
+
+        new_jids = remote_jids - local_jids
+        self.logger.debug("adding %d new entries", len(new_jids))
+        for jid in new_jids:
+            item = remote_roster[jid]
+            self._roster[jid] = item
+            self.callbacks.emit("roster_item_added", item)
+
     @asyncio.coroutine
     def _request_roster(self):
         request = self.node.make_iq(type_="get")
@@ -164,10 +208,18 @@ class RosterClient(base.Service):
 
         items = list(response.data.items)
         response.data.clear()
-        self._roster = {
-            item.jid: RosterItemInfo(item=item)
-            for item in items
-        }
+        if self._roster:
+            self.logger.debug("roster to diff against available, "
+                              "diffing roster")
+            # diff against existing roster
+            self._diff_initial_roster(items)
+        else:
+            self.logger.debug("no roster to diff against, constructing new"
+                              " roster")
+            self._roster = {
+                item.jid: RosterItemInfo(item=item)
+                for item in items
+            }
         self.callbacks.emit("initial_roster", self._roster)
 
     @asyncio.coroutine
@@ -221,8 +273,19 @@ class RosterClient(base.Service):
     def get_roster_item(self, peer_jid):
         return self._roster[peer_jid.bare]
 
+    def replace_roster(self, new_roster):
+        """
+        Replace the entire stored roster with another. The *new_roster* must be
+        a dict mapping bare JIDs to :class:`RosterItemInfo` instances.
+
+        Use case: supply an initial roster to diff against, thus obsoleting the
+        ``initial_roster`` event and instead using the ``roster_*`` events.
+        """
+        self.logger.debug("replacing roster with new roster: %d entries",
+                          len(new_roster))
+        self._roster = new_roster
+
     def close(self, emit_events=True):
-        self._clear_roster()
         self.node.unregister_iq_request_coro(Query.TAG, "set")
         self.node.callbacks.remove_callback_fn(
             "session_started",
