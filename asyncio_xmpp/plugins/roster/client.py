@@ -252,7 +252,13 @@ class RosterItemChange(_RosterItemChange):
 
         new_add_to_groups.update(other_change.add_to_groups)
 
-        new_remove_from_groups = self.remove_from_groups.copy()
+        new_remove_from_groups = set(self.remove_from_groups)
+
+        for remove_from_group in other_change.remove_from_groups:
+            new_add_to_groups.pop(remove_from_group, None)
+        for add_to_group in other_change.add_to_groups:
+            new_remove_from_groups.discard(add_to_group)
+
         new_remove_from_groups.update(other_change.remove_from_groups)
 
         return self._replace(
