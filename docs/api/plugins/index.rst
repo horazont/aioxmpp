@@ -11,6 +11,7 @@ generally proposed by XEPs.
    :maxdepth: 2
 
    rfc6120
+   roster
    xep0030
    xep0060
    xep0199
