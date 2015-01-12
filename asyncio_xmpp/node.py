@@ -8,7 +8,11 @@
 
    Currently, only an implementation for an XMPP client exists.
 
-.. autoclass:: Client(client_jid, security_layer, *, [negotiatgion_timeout], [ping_timeout], [override_addr], [max_reconnect_attempts], [reconnect_interval_start], [use_sm], [loop])
+.. autoclass:: AbstractClient(client_jid, security_layer, *, [negotiatgion_timeout], [ping_timeout], [override_addr], [max_reconnect_attempts], [reconnect_interval_start], [use_sm], [loop])
+
+.. autoclass:: UnmanagedClient
+
+.. autoclass:: PresenceManagedClient
 
 .. rubric:: Footnotes
 
