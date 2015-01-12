@@ -484,8 +484,8 @@ class StanzaBroker(StreamWorker):
         Construct a stanza token which works with this stream broker. The
         keyword arguments are forwarded to the constructor of
         :class:`~.stanza.StanzaToken`, but *abort_impl* and *resend_impl* are
-        set by this function. Thus, specifying these in the arguments to this
-        function results in a :class:`TypeError.
+        set by this function. Thus, passing any of these in the arguments to
+        this function results in a :class:`TypeError`.
 
         Return the stanza token.
         """
