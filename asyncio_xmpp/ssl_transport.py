@@ -434,7 +434,7 @@ class STARTTLSTransport(asyncio.Transport):
 
         if self._buffer:
             try:
-                nsent = self._sock.send(self._buffer)
+                nsent = self._sock.send(bytes(self._buffer))
             except (BlockingIOError, InterruptedError,
                     OpenSSL.SSL.WantWriteError):
                 nsent = 0
