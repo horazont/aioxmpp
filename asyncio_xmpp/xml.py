@@ -27,7 +27,7 @@ def configure_xmpp_parser(parser):
 
 class XMLStreamContext:
     DEFAULT_PARSER_OPTIONS = {
-        "resolve_entities": False
+        "resolve_entities": True
     }
 
     def __init__(self, *, parser_options={}):
@@ -62,29 +62,38 @@ class XMLStreamReceiverContext(XMLStreamContext):
     @classmethod
     def _mk_parser(cls, options):
         parser = etree.XMLPullParser(
-            ("start", "end"),
+            ("start", "end", "comment", "pi"),
             **options)
         configure_xmpp_parser(parser)
         return parser
 
     def _process_stream_header(self, node):
+        docinfo = node.getroottree().docinfo
+        if    (docinfo.doctype or
+               docinfo.externalDTD or
+               docinfo.internalDTD or
+               docinfo.system_url):
+            raise errors.SendStreamError(
+                "restricted-xml",
+                "usage of dtd is not allowed")
+
         version = node.get("version")
         if version is None:
             raise errors.SendStreamError(
                 "unsupported-version",
-                text="Missing version tag")
+                text="missing version tag")
 
         try:
             version = tuple(map(int, version.split(".")))
         except (ValueError, TypeError):
             raise errors.SendStreamError(
                 "unsupported-version",
-                text="Malformed version")
+                text="malformed version")
 
         if version[0] != 1:
             raise errors.SendStreamError(
                 "unsupported-version",
-                text="Unsupported version")
+                text="unsupported version")
 
         self._stream_id = node.get("id")
         self._root = node
@@ -103,7 +112,16 @@ class XMLStreamReceiverContext(XMLStreamContext):
         self._ready = False
 
     def feed(self, data):
-        self._parser.feed(data)
+        try:
+            self._parser.feed(data)
+        except etree.XMLSyntaxError as err:
+            # XXX: these error codes are taken from the libxml2 API
+            # documentation, and selected defensively
+            if 26 <= err.code <= 30:
+                raise errors.SendStreamError(
+                    "restricted-xml",
+                    text="entities not allowed")
+            raise
 
     def read_stream_level_nodes(self):
         if not self._ready:
@@ -120,7 +138,7 @@ class XMLStreamReceiverContext(XMLStreamContext):
                     node.tag == self.STREAM_HEADER_TAG):
                 raise errors.SendStreamError(
                     "unsupported-stanza-type",
-                    text="Duplicate stream header")
+                    text="duplicate stream header")
             elif ev == "end":
                 if node.getparent() is None:
                     # end of stream
@@ -129,6 +147,14 @@ class XMLStreamReceiverContext(XMLStreamContext):
                 elif node.getparent() is self._root:
                     self._root.remove(node)
                     yield node
+            elif ev == "comment":
+                raise errors.SendStreamError(
+                    "restricted-xml",
+                    text="comments not allowed")
+            elif ev == "pi":
+                raise errors.SendStreamError(
+                    "restricted-xml",
+                    text="processing instructions not allowed")
 
     @property
     def ready(self):
