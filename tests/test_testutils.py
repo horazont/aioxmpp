@@ -409,6 +409,35 @@ class TestTransportMock(unittest.TestCase):
                     TransportMock.Write(b"baz")
                 ])
 
+    def test_execute(self):
+        t = TransportMock(self, self.protocol)
+        t.execute(TransportMock.Receive(b"foo"))
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call.data_received(b"foo"),
+            ],
+            self.protocol.mock_calls)
+
+    def test_execute_connection_made(self):
+        t = TransportMock(self, self.protocol)
+        t.execute(TransportMock.MakeConnection())
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call.connection_made(t),
+            ],
+            self.protocol.mock_calls)
+
+    def test_execute_connection_made_mix(self):
+        t = TransportMock(self, self.protocol)
+        t.execute(TransportMock.MakeConnection())
+        self._run_test(t, [])
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call.connection_made(t),
+                unittest.mock.call.connection_lost(None),
+            ],
+            self.protocol.mock_calls)
+
     def tearDown(self):
         del self.protocol
 

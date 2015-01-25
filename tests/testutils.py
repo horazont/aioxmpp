@@ -231,6 +231,10 @@ class TransportMock(asyncio.ReadTransport, asyncio.WriteTransport):
         def __repr__(self):
             return "ReceiveEof()"
 
+    class MakeConnection:
+        def __repr__(self):
+            return "MakeConnection()"
+
     class LoseConnection(_LoseConnection):
         def __new__(cls, exc=None):
             return _LoseConnection.__new__(cls, exc)
@@ -239,39 +243,45 @@ class TransportMock(asyncio.ReadTransport, asyncio.WriteTransport):
         self._protocol = protocol
         self._actions = None
         self._tester = tester
+        self._connection_made = False
 
     def _check_done(self):
         if not self._done.done() and not self._actions:
             self._done.set_result(None)
 
-    def _produce_response(self, response):
+    def execute(self, response):
         if isinstance(response, self.Receive):
             self._protocol.data_received(response.data)
         elif isinstance(response, self.ReceiveEof):
             self._protocol.eof_received()
         elif isinstance(response, self.LoseConnection):
             self._protocol.connection_lost(response.exc)
-            self._connection_lost = True
+            self._connection_made = False
+        elif isinstance(response, self.MakeConnection):
+            self._connection_made = True
+            self._protocol.connection_made(self)
         elif response is not None:
             if hasattr(response, "__iter__"):
                 for item in response:
-                    self._produce_response(item)
+                    self.execute(item)
                 return
             raise RuntimeError("test specification incorrect: "
                                "unknown response type: "+repr(response))
 
     @asyncio.coroutine
     def run_test(self, actions, stimulus=None):
-        self._connection_lost = False
         self._done = asyncio.Future()
         self._actions = actions
-        self._protocol.connection_made(self)
+        if not self._connection_made:
+            self._connection_made = True
+            self._protocol.connection_made(self)
         if stimulus:
             self._protocol.data_received(stimulus)
         self._check_done()
         yield from self._done
-        if not self._connection_lost:
+        if self._connection_made:
             self._protocol.connection_lost(None)
+            self._connection_made = False
 
     def can_write_eof(self):
         return True
@@ -286,7 +296,7 @@ class TransportMock(asyncio.ReadTransport, asyncio.WriteTransport):
                 head, self.WriteEof,
                 "unexpected write_eof (expected something else)")
             self._actions.pop(0)
-            self._produce_response(head.response)
+            self.execute(head.response)
         except Exception as err:
             self._done.set_exception(err)
         else:
@@ -310,7 +320,7 @@ class TransportMock(asyncio.ReadTransport, asyncio.WriteTransport):
             expected_data = expected_data[len(data):]
             if not expected_data:
                 self._actions.pop(0)
-                self._produce_response(head.response)
+                self.execute(head.response)
             else:
                 self._actions[0] = head.replace(data=expected_data)
         except Exception as err:
@@ -329,7 +339,7 @@ class TransportMock(asyncio.ReadTransport, asyncio.WriteTransport):
                 head, self.Abort,
                 "unexpected abort (expected something else)")
             self._actions.pop(0)
-            self._produce_response(head.response)
+            self.execute(head.response)
         except Exception as err:
             if not self._done.done():
                 self._done.set_exception(err)
@@ -346,7 +356,7 @@ class TransportMock(asyncio.ReadTransport, asyncio.WriteTransport):
                 head, self.Close,
                 "unexpected close (expected something else)")
             self._actions.pop(0)
-            self._produce_response(head.response)
+            self.execute(head.response)
         except Exception as err:
             if not self._done.done():
                 self._done.set_exception(err)
