@@ -148,84 +148,6 @@ class XMLTestCase(unittest.TestCase):
             strict_ordering=strict_ordering)
 
 
-class TransportMock(asyncio.ReadTransport, asyncio.WriteTransport):
-    """
-    Mock a :class:`asyncio.Transport`.
-    """
-
-    def __init__(self, protocol):
-        super().__init__()
-        self.closed = False
-        self._eof = False
-        self._written = b""
-        self._protocol = protocol
-
-    def _require_non_eof(self):
-        if self._eof:
-            raise ConnectionError("Write connection already closed")
-
-    def _require_open(self):
-        if self.closed:
-            raise ConnectionError("Underlying connection closed")
-
-    def close(self):
-        self._require_open()
-        self.closed = True
-        self._eof = True
-
-    def get_extra_info(self, name, default=None):
-        return default
-
-    def abort(self):
-        self.close()
-
-    def can_write_eof(self):
-        return True
-
-    def write(self, data):
-        self._require_non_eof()
-        self._written += data
-
-    def writelines(self, list_of_data):
-        self.write(b"".join(list_of_data))
-
-    def write_eof(self):
-        self._require_non_eof()
-        self._eof = True
-
-    def pause_reading(self):
-        pass
-
-    def resume_reading(self):
-        pass
-
-    def mock_connection_made(self):
-        self._protocol.connection_made(self)
-
-    def mock_eof_received(self):
-        self._protocol.eof_received()
-
-    def mock_connection_lost(self, exc):
-        self._protocol.connection_lost(exc)
-
-    def mock_data_received(self, data):
-        self._protocol.data_received(data)
-
-    def mock_pause_writing(self):
-        self._protocol.pause_writing()
-
-    def mock_resume_writing(self):
-        self._protocol.resume_writing()
-
-    def mock_buffer(self):
-        return self._written, self._eof
-
-    def mock_flush_buffer(self):
-        buffer = self._written
-        self._written = b""
-        return buffer
-
-
 class SSLWrapperMock:
     """
     Mock for :class:`asyncio_xmpp.ssl_wrapper.STARTTLSableTransportProtocol`.
@@ -262,6 +184,149 @@ class SSLWrapperMock:
 
     def close(self):
         pass
+
+
+_Write = collections.namedtuple("Write", ["data", "response"])
+GenericTransportAction = collections.namedtuple(
+    "GenericTransportAction",
+    ["response"])
+_LoseConnection = collections.namedtuple("LoseConnection", ["exc"])
+
+
+class TransportMock(asyncio.ReadTransport, asyncio.WriteTransport):
+    class Write(_Write):
+        def __new__(cls, data, *, response=None):
+            return _Write.__new__(cls, data=data, response=response)
+        replace = _Write._replace
+
+    class Abort(GenericTransportAction):
+        def __new__(cls, *, response=None):
+            return GenericTransportAction.__new__(cls, response=response)
+        replace = GenericTransportAction._replace
+
+    class WriteEof(GenericTransportAction):
+        def __new__(cls, *, response=None):
+            return GenericTransportAction.__new__(cls, response=response)
+        replace = GenericTransportAction._replace
+
+    class Receive(collections.namedtuple("Receive", ["data"])):
+        pass
+
+    class Close(GenericTransportAction):
+        def __new__(cls, *, response=None):
+            return GenericTransportAction.__new__(cls, response=response)
+        replace = GenericTransportAction._replace
+
+    class ReceiveEof:
+        pass
+
+    class LoseConnection(_LoseConnection):
+        def __new__(cls, exc=None):
+            return _LoseConnection.__new__(cls, exc)
+
+    def __init__(self, tester, protocol):
+        self._protocol = protocol
+        self._actions = None
+        self._tester = tester
+
+    def _check_done(self):
+        if not self._done.done() and not self._actions:
+            self._done.set_result(None)
+
+    def _produce_response(self, response):
+        if isinstance(response, self.Receive):
+            self._protocol.data_received(response.data)
+        elif isinstance(response, self.ReceiveEof):
+            self._protocol.eof_received()
+        elif isinstance(response, self.LoseConnection):
+            self._protocol.connection_lost(response.exc)
+            self._connection_lost = True
+
+    @asyncio.coroutine
+    def run_test(self, actions, stimulus=None):
+        self._connection_lost = False
+        self._done = asyncio.Future()
+        self._actions = actions
+        self._protocol.connection_made(self)
+        if stimulus:
+            self._protocol.data_received(stimulus)
+        self._check_done()
+        yield from self._done
+        if not self._connection_lost:
+            self._protocol.connection_lost(None)
+
+    def can_write_eof(self):
+        return True
+
+    def write_eof(self):
+        try:
+            self._tester.assertTrue(
+                self._actions,
+                "unexpected write_eof (no actions left)")
+            head = self._actions[0]
+            self._tester.assertIsInstance(
+                head, self.WriteEof,
+                "unexpected write_eof (expected something else)")
+            self._actions.pop(0)
+            self._produce_response(head.response)
+        except Exception as err:
+            self._done.set_exception(err)
+        else:
+            self._check_done()
+
+    def write(self, data):
+        try:
+            self._tester.assertTrue(
+                self._actions,
+                "unexpected write (no actions left)")
+            head = self._actions[0]
+            self._tester.assertIsInstance(head, self.Write)
+            expected_data = head.data
+            self._tester.assertTrue(
+                expected_data.startswith(data),
+                "mismatch of expected and written data")
+            expected_data = expected_data[len(data):]
+            if not expected_data:
+                self._actions.pop(0)
+                self._produce_response(head.response)
+            else:
+                self._actions[0] = head.replace(data=expected_data)
+        except Exception as err:
+            self._done.set_exception(err)
+        else:
+            self._check_done()
+
+    def abort(self):
+        try:
+            self._tester.assertTrue(
+                self._actions,
+                "unexpected abort (no actions left)")
+            head = self._actions[0]
+            self._tester.assertIsInstance(
+                head, self.Abort,
+                "unexpected abort (expected something else)")
+            self._actions.pop(0)
+            self._produce_response(head.response)
+        except Exception as err:
+            self._done.set_exception(err)
+        else:
+            self._check_done()
+
+    def close(self):
+        try:
+            self._tester.assertTrue(
+                self._actions,
+                "unexpected close (no actions left)")
+            head = self._actions[0]
+            self._tester.assertIsInstance(
+                head, self.Close,
+                "unexpected close (expected something else)")
+            self._actions.pop(0)
+            self._produce_response(head.response)
+        except Exception as err:
+            self._done.set_exception(err)
+        else:
+            self._check_done()
 
 
 _Special = collections.namedtuple("Special", ["type_", "response"])
@@ -338,315 +403,3 @@ class XMLStreamMock(asyncio_xmpp.protocol.XMLStream):
 
     def send_node(self, node):
         return self._tx_send_node(node)
-
-# Tests for testing the test utils
-
-
-class TestTestUtils(unittest.TestCase):
-    def test_element_path(self):
-        el = etree.fromstring("<foo><bar><baz /></bar>"
-                              "<subfoo />"
-                              "<bar><baz /></bar></foo>")
-        baz1 = el[0][0]
-        subfoo = el[1]
-        baz2 = el[2][0]
-
-        self.assertEqual(
-            "/foo",
-            element_path(el))
-        self.assertEqual(
-            "/foo/bar[0]/baz[0]",
-            element_path(baz1))
-        self.assertEqual(
-            "/foo/subfoo[0]",
-            element_path(subfoo))
-        self.assertEqual(
-            "/foo/bar[1]/baz[0]",
-            element_path(baz2))
-
-
-class TestXMLTestCase(XMLTestCase):
-    def test_assertSubtreeEqual_tag(self):
-        t1 = etree.fromstring("<foo />")
-        t2 = etree.fromstring("<bar />")
-
-        with self.assertRaisesRegexp(AssertionError, "tag mismatch"):
-            self.assertSubtreeEqual(t1, t2)
-
-    def test_assertSubtreeEqual_attr_key_missing(self):
-        t1 = etree.fromstring("<foo a='1'/>")
-        t2 = etree.fromstring("<foo />")
-
-        with self.assertRaises(AssertionError):
-            self.assertSubtreeEqual(t1, t2)
-
-        with self.assertRaises(AssertionError):
-            self.assertSubtreeEqual(t1, t2, ignore_surplus_attr=True)
-
-    def test_assertSubtreeEqual_attr_surplus_key(self):
-        t1 = etree.fromstring("<foo a='1'/>")
-        t2 = etree.fromstring("<foo />")
-        with self.assertRaises(AssertionError):
-            self.assertSubtreeEqual(t1, t2)
-
-    def test_assertSubtreeEqual_attr_allow_surplus(self):
-        t1 = etree.fromstring("<foo />")
-        t2 = etree.fromstring("<foo a='1'/>")
-        self.assertSubtreeEqual(t1, t2, ignore_surplus_attr=True)
-
-    def test_assertSubtreeEqual_attr_value_mismatch(self):
-        t1 = etree.fromstring("<foo a='1'/>")
-        t2 = etree.fromstring("<foo a='2'/>")
-
-        with self.assertRaises(AssertionError):
-            self.assertSubtreeEqual(t1, t2)
-
-    def test_assertSubtreeEqual_attr_value_mismatch_allow_surplus(self):
-        t1 = etree.fromstring("<foo a='1'/>")
-        t2 = etree.fromstring("<foo a='1' b='2'/>")
-
-        self.assertSubtreeEqual(t1, t2, ignore_surplus_attr=True)
-
-    def test_assertSubtreeEqual_missing_child(self):
-        t1 = etree.fromstring("<foo><bar/></foo>")
-        t2 = etree.fromstring("<foo />")
-
-        with self.assertRaises(AssertionError):
-            self.assertSubtreeEqual(t1, t2)
-
-    def test_assertSubtreeEqual_surplus_child(self):
-        t1 = etree.fromstring("<foo><bar/></foo>")
-        t2 = etree.fromstring("<foo><bar/><bar/></foo>")
-
-        with self.assertRaises(AssertionError):
-            self.assertSubtreeEqual(t1, t2)
-
-    def test_assertSubtreeEqual_allow_surplus_child(self):
-        t1 = etree.fromstring("<foo />")
-        t2 = etree.fromstring("<foo><bar/></foo>")
-
-        self.assertSubtreeEqual(t1, t2, ignore_surplus_children=True)
-
-        t1 = etree.fromstring("<foo><bar/></foo>")
-        t2 = etree.fromstring("<foo><bar/><bar/><fnord /></foo>")
-
-        self.assertSubtreeEqual(t1, t2, ignore_surplus_children=True)
-
-    def test_assertSubtreeEqual_allow_relative_reordering(self):
-        t1 = etree.fromstring("<foo><bar/><baz/></foo>")
-        t2 = etree.fromstring("<foo><baz/><bar/></foo>")
-
-        self.assertSubtreeEqual(t1, t2)
-
-    def test_assertSubtreeEqual_forbid_reordering_of_same(self):
-        t1 = etree.fromstring("<foo><bar a='1' /><bar a='2' /></foo>")
-        t2 = etree.fromstring("<foo><bar a='2' /><bar a='1' /></foo>")
-
-        with self.assertRaises(AssertionError):
-            self.assertSubtreeEqual(t1, t2)
-
-    def test_assertSubtreeEqual_strict_ordering(self):
-        t1 = etree.fromstring("<foo><bar/><baz/></foo>")
-        t2 = etree.fromstring("<foo><baz/><bar/></foo>")
-
-        with self.assertRaises(AssertionError):
-            self.assertSubtreeEqual(t1, t2, strict_ordering=True)
-
-
-class TestTransportMock(unittest.TestCase):
-    def setUp(self):
-        self.protocol = make_protocol_mock()
-
-    def test_mock_connection_made(self):
-        t = TransportMock(self.protocol)
-        t.mock_connection_made()
-        self.protocol.connection_made.assert_called_once_with(t)
-
-    def test_mock_eof_received(self):
-        t = TransportMock(self.protocol)
-        t.mock_eof_received()
-        self.protocol.eof_received.assert_called_once_with()
-
-    def test_mock_pause_writing(self):
-        t = TransportMock(self.protocol)
-        t.mock_pause_writing()
-        self.protocol.pause_writing.assert_called_once_with()
-
-    def test_mock_resume_writing(self):
-        t = TransportMock(self.protocol)
-        t.mock_resume_writing()
-        self.protocol.resume_writing.assert_called_once_with()
-
-    def test_mock_connection_lost(self):
-        instance = object()
-        t = TransportMock(self.protocol)
-        t.mock_connection_lost(instance)
-        self.protocol.connection_lost.assert_called_once_with(instance)
-
-    def test_mock_data_received(self):
-        instance = object()
-        t = TransportMock(self.protocol)
-        t.mock_data_received(instance)
-        self.protocol.data_received.assert_called_once_with(instance)
-
-    def test_close(self):
-        t = TransportMock(self.protocol)
-        t.close()
-        with self.assertRaises(ConnectionError):
-            t.close()
-
-    def test_write_eof(self):
-        t = TransportMock(self.protocol)
-        self.assertFalse(t.mock_buffer()[1])
-        t.write_eof()
-        with self.assertRaises(ConnectionError):
-            t.write_eof()
-        self.assertTrue(t.mock_buffer()[1])
-
-    def test_can_write_eof(self):
-        t = TransportMock(self.protocol)
-        self.assertTrue(t.can_write_eof())
-
-    def test_write(self):
-        t = TransportMock(self.protocol)
-        t.write(b"foo")
-        self.assertEqual(
-            b"foo",
-            t.mock_buffer()[0])
-        t.write(b"bar")
-        self.assertEqual(
-            b"foobar",
-            t.mock_buffer()[0])
-
-    def test_writelines(self):
-        t = TransportMock(self.protocol)
-        t.writelines([b"foo", b"bar"])
-        self.assertEqual(
-            b"foobar",
-            t.mock_buffer()[0])
-
-    def tearDown(self):
-        del self.protocol
-
-
-class TestXMLStreamMock(XMLTestCase):
-    def test_init(self):
-        m = XMLStreamMock(
-            self,
-            [
-                XMLStreamMock.Special.CLOSE
-            ])
-
-        self.assertSequenceEqual(
-            [
-                XMLStreamMock.Special.CLOSE
-            ],
-            m._test_actions)
-
-    def test_close(self):
-        m = XMLStreamMock(
-            self,
-            [
-                XMLStreamMock.Special.CLOSE
-            ])
-        m.close()
-
-        m = XMLStreamMock(self, [])
-        with self.assertRaisesRegexp(AssertionError, "no actions left"):
-            m.close()
-
-        m = XMLStreamMock(
-            self,
-            [
-                XMLStreamMock.Special.RESET
-            ])
-        with self.assertRaisesRegexp(AssertionError, "incorrect action"):
-            m.close()
-
-    def test_reset_stream(self):
-        m = XMLStreamMock(
-            self,
-            [
-                XMLStreamMock.Special.RESET
-            ])
-        m.reset_stream()
-
-        m = XMLStreamMock(self, [])
-        with self.assertRaisesRegexp(AssertionError, "no actions left"):
-            m.reset_stream()
-
-    def test_reset_stream_with_response(self):
-        response_node = etree.fromstring("<foo/>")
-        m = XMLStreamMock(
-            self,
-            [
-                XMLStreamMock.Special.RESET.replace(
-                    response=response_node)
-            ])
-        mock = unittest.mock.Mock()
-        m.stream_level_hooks.add_callback("foo", mock)
-        m.reset_stream()
-        mock.assert_called_once_with(response_node)
-
-    def test_mock_finalize(self):
-        m = XMLStreamMock(self, [])
-        m.mock_finalize()
-
-        m = XMLStreamMock(self, [XMLStreamMock.Special.CLOSE])
-        with self.assertRaisesRegexp(AssertionError,
-                                     "expected actions were not performed"):
-            m.mock_finalize()
-
-    def test_mock_receive_node(self):
-        m = XMLStreamMock(self, [])
-        mock = unittest.mock.MagicMock()
-        node = etree.fromstring("<foo/>")
-        with self.assertRaisesRegexp(AssertionError, "no listener"):
-            m.mock_receive_node(node)
-        m.stream_level_hooks.add_callback("foo", mock)
-        m.mock_receive_node(node)
-        mock.assert_called_once_with(node)
-
-    def test_send_node_mismatch(self):
-        msg = etree.fromstring("<message/>")
-        m = XMLStreamMock(
-            self,
-            [
-                XMLStreamMock.Node(etree.fromstring("<iq/>"),
-                                   msg)
-            ])
-        mock = unittest.mock.MagicMock()
-        m.stream_level_hooks.add_callback("message", mock)
-        with self.assertRaises(AssertionError):
-            m.send_node(etree.fromstring("<foo />"))
-        mock.assert_not_called()
-
-    def test_send_node(self):
-        msg = etree.fromstring("<message/>")
-        m = XMLStreamMock(
-            self,
-            [
-                XMLStreamMock.Node(etree.fromstring("<iq/>"),
-                                   msg)
-            ])
-        mock = unittest.mock.MagicMock()
-        m.stream_level_hooks.add_callback("message", mock)
-        m.send_node(etree.fromstring("<iq />"))
-        mock.assert_called_once_with(msg)
-
-        with self.assertRaisesRegexp(AssertionError, "no actions left"):
-            m.send_node(etree.fromstring("<iq />"))
-
-    def test_some_sequence(self):
-        m = XMLStreamMock(
-            self,
-            [
-                XMLStreamMock.Special.RESET,
-                XMLStreamMock.Node(etree.fromstring("<iq/>"), None),
-                XMLStreamMock.Special.CLOSE,
-            ])
-
-        m.reset_stream()
-        m.send_node(etree.fromstring("<iq />"))
-        m.close()
-        m.mock_finalize()
