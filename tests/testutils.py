@@ -4,6 +4,7 @@ utilities themselves are tested, which is meta, but cool.
 """
 import asyncio
 import collections
+import logging
 import unittest
 import unittest.mock
 
@@ -44,6 +45,15 @@ def make_protocol_mock():
         "pause_writing",
         "resume_writing",
     ])
+
+
+def run_coroutine(coroutine, timeout=1.0, loop=None):
+    if not loop:
+        loop = asyncio.get_event_loop()
+    return loop.run_until_complete(
+        asyncio.wait_for(
+            coroutine,
+            timeout=timeout))
 
 
 class XMLTestCase(unittest.TestCase):
@@ -218,7 +228,8 @@ class TransportMock(asyncio.ReadTransport, asyncio.WriteTransport):
         replace = GenericTransportAction._replace
 
     class ReceiveEof:
-        pass
+        def __repr__(self):
+            return "ReceiveEof()"
 
     class LoseConnection(_LoseConnection):
         def __new__(cls, exc=None):
@@ -241,6 +252,13 @@ class TransportMock(asyncio.ReadTransport, asyncio.WriteTransport):
         elif isinstance(response, self.LoseConnection):
             self._protocol.connection_lost(response.exc)
             self._connection_lost = True
+        elif response is not None:
+            if hasattr(response, "__iter__"):
+                for item in response:
+                    self._produce_response(item)
+                return
+            raise RuntimeError("test specification incorrect: "
+                               "unknown response type: "+repr(response))
 
     @asyncio.coroutine
     def run_test(self, actions, stimulus=None):
@@ -282,9 +300,13 @@ class TransportMock(asyncio.ReadTransport, asyncio.WriteTransport):
             head = self._actions[0]
             self._tester.assertIsInstance(head, self.Write)
             expected_data = head.data
-            self._tester.assertTrue(
-                expected_data.startswith(data),
-                "mismatch of expected and written data")
+            if not expected_data.startswith(data):
+                logging.info("expected: %r", expected_data)
+                logging.info("got this: %r", data)
+                self._tester.assertEqual(
+                    expected_data[:len(data)],
+                    data,
+                    "mismatch of expected and written data")
             expected_data = expected_data[len(data):]
             if not expected_data:
                 self._actions.pop(0)
@@ -292,7 +314,8 @@ class TransportMock(asyncio.ReadTransport, asyncio.WriteTransport):
             else:
                 self._actions[0] = head.replace(data=expected_data)
         except Exception as err:
-            self._done.set_exception(err)
+            if not self._done.done():
+                self._done.set_exception(err)
         else:
             self._check_done()
 
@@ -308,7 +331,8 @@ class TransportMock(asyncio.ReadTransport, asyncio.WriteTransport):
             self._actions.pop(0)
             self._produce_response(head.response)
         except Exception as err:
-            self._done.set_exception(err)
+            if not self._done.done():
+                self._done.set_exception(err)
         else:
             self._check_done()
 
@@ -324,7 +348,8 @@ class TransportMock(asyncio.ReadTransport, asyncio.WriteTransport):
             self._actions.pop(0)
             self._produce_response(head.response)
         except Exception as err:
-            self._done.set_exception(err)
+            if not self._done.done():
+                self._done.set_exception(err)
         else:
             self._check_done()
 

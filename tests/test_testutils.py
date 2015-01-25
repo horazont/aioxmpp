@@ -24,17 +24,43 @@ class TestTestUtils(unittest.TestCase):
             element_path(baz2))
 
 
+class TestRunCoroutine(unittest.TestCase):
+    def test_result(self):
+        obj = object()
+
+        @asyncio.coroutine
+        def test():
+            return obj
+
+        self.assertIs(
+            obj,
+            run_coroutine(test())
+        )
+
+    def test_exception(self):
+        @asyncio.coroutine
+        def test():
+            raise ValueError()
+
+        with self.assertRaises(ValueError):
+            run_coroutine(test())
+
+    def test_timeout(self):
+        @asyncio.coroutine
+        def test():
+            yield from asyncio.sleep(1)
+
+        with self.assertRaises(asyncio.TimeoutError):
+            run_coroutine(test(), timeout=0.01)
+
+
 class TestTransportMock(unittest.TestCase):
     def setUp(self):
         self.protocol = make_protocol_mock()
         self.loop = asyncio.get_event_loop()
 
     def _run_test(self, t, *args, **kwargs):
-        return self.loop.run_until_complete(
-            asyncio.wait_for(
-                t.run_test(*args, **kwargs),
-                timeout=1.0
-            ))
+        return run_coroutine(t.run_test(*args, **kwargs), loop=self.loop)
 
     def test_run_test(self):
         t = TransportMock(self, self.protocol)
@@ -320,6 +346,67 @@ class TestTransportMock(unittest.TestCase):
                 t,
                 [
                     TransportMock.WriteEof()
+                ])
+
+    def test_invalid_response(self):
+        def connection_made(transport):
+            transport.write(b"foo")
+
+        self.protocol.connection_made = connection_made
+        t = TransportMock(self, self.protocol)
+
+        with self.assertRaisesRegexp(
+                RuntimeError,
+                "test specification incorrect"):
+            self._run_test(
+                t,
+                [
+                    TransportMock.Write(
+                        b"foo",
+                        response=1)
+                ])
+
+
+    def test_response_sequence(self):
+        def connection_made(transport):
+            transport.write(b"foo")
+
+        self.protocol.connection_made = connection_made
+        t = TransportMock(self, self.protocol)
+
+        self._run_test(
+            t,
+            [
+                TransportMock.Write(
+                    b"foo",
+                    response=[
+                        TransportMock.Receive(b"foo"),
+                        TransportMock.ReceiveEof()
+                    ])
+            ])
+
+        self.assertSequenceEqual(
+            self.protocol.mock_calls,
+            [
+                unittest.mock.call.data_received(b"foo"),
+                unittest.mock.call.eof_received(),
+                unittest.mock.call.connection_lost(None),
+            ])
+
+
+    def test_clear_error_message(self):
+        def connection_made(transport):
+            transport.write(b"foo")
+            transport.write(b"bar")
+
+        self.protocol.connection_made = connection_made
+        t = TransportMock(self, self.protocol)
+
+        with self.assertRaises(AssertionError):
+            self._run_test(
+                t,
+                [
+                    TransportMock.Write(b"baz")
                 ])
 
     def tearDown(self):
