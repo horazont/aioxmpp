@@ -273,15 +273,13 @@ class TransportMock(asyncio.ReadTransport, asyncio.WriteTransport):
         self._done = asyncio.Future()
         self._actions = actions
         if not self._connection_made:
-            self._connection_made = True
-            self._protocol.connection_made(self)
+            self.execute(self.MakeConnection())
         if stimulus:
-            self._protocol.data_received(stimulus)
+            self.execute(self.Receive(stimulus))
         self._check_done()
         yield from self._done
         if self._connection_made:
-            self._protocol.connection_lost(None)
-            self._connection_made = False
+            self.execute(self.LoseConnection())
 
     def can_write_eof(self):
         return True
