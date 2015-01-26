@@ -1,6 +1,3 @@
-import unittest
-import unittest.mock
-
 from asyncio_xmpp.xml import XMLStreamReceiverContext, XMLStreamSenderContext
 from asyncio_xmpp.utils import etree
 import asyncio_xmpp.errors as errors

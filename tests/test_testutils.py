@@ -1,5 +1,6 @@
 from .testutils import *
 
+from asyncio_xmpp.utils import etree
 
 class TestTestUtils(unittest.TestCase):
     def test_element_path(self):
@@ -332,7 +333,7 @@ class TestTransportMock(unittest.TestCase):
                 [
                 ])
 
-    def test_catch_unexpected_write_eof(self):
+    def test_catch_unexpected_abort(self):
         def connection_made(transport):
             transport.abort()
 
@@ -366,7 +367,6 @@ class TestTransportMock(unittest.TestCase):
                         response=1)
                 ])
 
-
     def test_response_sequence(self):
         def connection_made(transport):
             transport.write(b"foo")
@@ -392,7 +392,6 @@ class TestTransportMock(unittest.TestCase):
                 unittest.mock.call.eof_received(),
                 unittest.mock.call.connection_lost(None),
             ])
-
 
     def test_clear_error_message(self):
         def connection_made(transport):

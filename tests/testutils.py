@@ -10,8 +10,6 @@ import unittest.mock
 
 from enum import Enum
 
-import lxml.etree as etree
-
 import asyncio_xmpp.hooks
 import asyncio_xmpp.protocol
 
