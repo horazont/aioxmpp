@@ -1,10 +1,22 @@
+import copy
 import inspect
 import sys
 import xml.sax.handler
 
+from enum import Enum
+
 from asyncio_xmpp.utils import etree
 
 from . import stanza_types
+
+
+def tag_to_str(tag):
+    return "{{{:s}}}{:s}".format(*tag) if tag[0] else tag[1]
+
+
+class UnknownChildPolicy(Enum):
+    FAIL = 0
+    DROP = 1
 
 
 class UnknownTopLevelTag(ValueError):
@@ -71,6 +83,50 @@ class Child(_PropBase):
         obj.unparse_to_node(parent)
 
 
+class Collector(_PropBase):
+    def __init__(self):
+        super().__init__(default=[])
+
+    def __get__(self, instance, cls):
+        if instance is None:
+            return super().__get__(instance, cls)
+        return instance._stanza_props.setdefault(self, [])
+
+    def from_events(self, instance, ev_args):
+        def make_from_args(ev_args, parent):
+            if parent is not None:
+                el = etree.SubElement(parent,
+                                      tag_to_str((ev_args[0], ev_args[1])))
+            else:
+                el = etree.Element(tag_to_str((ev_args[0], ev_args[1])))
+            for key, value in ev_args[2].items():
+                el.set(tag_to_str(key), value)
+            return el
+
+        root_el = make_from_args(ev_args, None)
+        stack = [root_el]
+        while stack:
+            ev_type, *ev_args = yield
+            if ev_type == "start":
+                stack.append(make_from_args(ev_args, stack[-1]))
+            elif ev_type == "text":
+                curr = stack[-1]
+                if curr.text is not None:
+                    curr.text += ev_args[0]
+                else:
+                    curr.text = ev_args[0]
+            elif ev_type == "end":
+                stack.pop()
+            else:
+                raise ValueError(ev_type)
+
+        self.__get__(instance, type(instance)).append(root_el)
+
+    def to_node(self, instance, parent):
+        for node in self.__get__(instance, type(instance)):
+            parent.append(copy.copy(node))
+
+
 class Attr(Text):
     def __init__(self, name, type_=stanza_types.String(), default=None):
         super().__init__(type_=type_, default=default)
@@ -83,7 +139,7 @@ class Attr(Text):
 
     def to_node(self, instance, parent):
         parent.set(
-            "{{{}}}{}".format(*self.name) if self.name[0] else self.name[1],
+            tag_to_str(self.name),
             self._type.format(self.__get__(instance, type(instance))))
 
 
@@ -93,13 +149,14 @@ class StanzaClass(type):
         child_map = {}
         child_props = set()
         attr_map = {}
+        collector_property = None
 
         for name, obj in namespace.items():
             if isinstance(obj, Attr):
                 attr_map[obj.name] = obj
             elif isinstance(obj, Text):
                 if text_property is not None:
-                    raise TypeError("multiple Text properties on stanza object")
+                    raise TypeError("multiple Text properties on stanza class")
                 text_property = obj
             elif isinstance(obj, Child):
                 for key in obj.get_tag_map().keys():
@@ -110,11 +167,19 @@ class StanzaClass(type):
                                             obj))
                     child_map[key] = obj
                 child_props.add(obj)
+            elif isinstance(obj, Collector):
+                if collector_property is not None:
+                    raise TypeError("multiple Collector properties on stanza "
+                                    "class")
+                collector_property = obj
 
         namespace["TEXT_PROPERTY"] = text_property
         namespace["CHILD_MAP"] = child_map
         namespace["CHILD_PROPS"] = frozenset(child_props)
         namespace["ATTR_MAP"] = attr_map
+        namespace["COLLECTOR_PROPERTY"] = collector_property
+        namespace.setdefault("UNKNOWN_CHILD_POLICY",
+                             UnknownChildPolicy.FAIL)
 
         try:
             tag = namespace["TAG"]
@@ -142,7 +207,7 @@ class StanzaClass(type):
                 raise ValueError("unexpected attribute {!r} on {}".format(
                     key,
                     (ev_args[0], ev_args[1])
-                ))
+                )) from None
             prop.from_value(obj, value)
 
         collected_text = []
@@ -156,8 +221,14 @@ class StanzaClass(type):
                 try:
                     handler = cls.CHILD_MAP[ev_args[0], ev_args[1]]
                 except KeyError:
-                    raise ValueError("unexpected child TAG: {}".format(
-                        (ev_args[0], ev_args[1])))
+                    if cls.COLLECTOR_PROPERTY:
+                        handler = cls.COLLECTOR_PROPERTY
+                    elif cls.UNKNOWN_CHILD_POLICY == UnknownChildPolicy.DROP:
+                        yield from drop_handler(ev_args)
+                        continue
+                    else:
+                        raise ValueError("unexpected child TAG: {}".format(
+                            (ev_args[0], ev_args[1]))) from None
                 yield from handler.from_events(obj, ev_args)
 
         if collected_text:
@@ -178,7 +249,7 @@ class StanzaObject(metaclass=StanzaClass):
         cls = type(self)
         el = etree.SubElement(
             parent,
-            "{{{:s}}}{:s}".format(*self.TAG) if self.TAG[0] else self.TAG[1]
+            tag_to_str(self.TAG)
         )
         for prop in cls.ATTR_MAP.values():
             prop.to_node(self, el)
@@ -238,3 +309,13 @@ def stanza_parser(stanza_classes):
 
     generator = cls_to_use.parse_events(ev_args)
     return (yield from generator)
+
+
+def drop_handler(ev_args):
+    depth = 1
+    while depth:
+        ev = yield
+        if ev[0] == "start":
+            depth += 1
+        elif ev[0] == "end":
+            depth -= 1

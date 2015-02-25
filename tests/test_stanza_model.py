@@ -1,3 +1,4 @@
+import copy
 import functools
 import unittest
 import unittest.mock
@@ -12,12 +13,38 @@ from asyncio_xmpp.utils import etree
 from .testutils import XMLTestCase
 
 
+def from_wrapper(fun, *args):
+    ev_type, *ev_args = yield
+    return (yield from fun(*args+(ev_args,)))
+
+
+class Testtag_to_str(unittest.TestCase):
+    def test_unqualified(self):
+        self.assertEqual(
+            "foo",
+            stanza_model.tag_to_str((None, "foo"))
+        )
+
+    def test_with_namespace(self):
+        self.assertEqual(
+            "{uri:bar}foo",
+            stanza_model.tag_to_str(("uri:bar", "foo"))
+        )
+
+
 class TestStanzaClass(unittest.TestCase):
     def test_init(self):
         class Cls(metaclass=stanza_model.StanzaClass):
             TAG = None, "foo"
 
         self.assertIsNone(Cls.TEXT_PROPERTY)
+        self.assertIsNone(Cls.COLLECTOR_PROPERTY)
+        self.assertFalse(Cls.CHILD_MAP)
+        self.assertFalse(Cls.CHILD_PROPS)
+        self.assertFalse(Cls.ATTR_MAP)
+        self.assertEqual(
+            stanza_model.UnknownChildPolicy.FAIL,
+            Cls.UNKNOWN_CHILD_POLICY)
 
     def test_forbid_malformed_tag(self):
         with self.assertRaisesRegexp(TypeError,
@@ -93,6 +120,20 @@ class TestStanzaClass(unittest.TestCase):
                 (None, "baz"): Cls.attr3,
             },
             Cls.ATTR_MAP)
+
+    def test_collect_collector_property(self):
+        class Cls(metaclass=stanza_model.StanzaClass):
+            prop = stanza_model.Collector()
+
+        self.assertIs(
+            Cls.prop,
+            Cls.COLLECTOR_PROPERTY)
+
+    def test_forbid_duplicate_collector_property(self):
+        with self.assertRaises(TypeError):
+            class Cls(metaclass=stanza_model.StanzaClass):
+                propa = stanza_model.Collector()
+                propb = stanza_model.Collector()
 
     def test_forbid_duplicate_text_property(self):
         with self.assertRaises(TypeError):
@@ -336,6 +377,59 @@ class TestChild(XMLTestCase):
         del self.ClsLeaf
 
 
+class TestCollector(XMLTestCase):
+    def test_from_events(self):
+        instance = unittest.mock.MagicMock()
+        instance._stanza_props = {}
+
+        prop = stanza_model.Collector()
+        sd = stanza_model.SAXDriver(
+            functools.partial(from_wrapper, prop.from_events, instance)
+        )
+
+        subtree1 = etree.fromstring("<foo/>")
+        subtree2 = etree.fromstring("<bar a='baz'>fnord</bar>")
+        subtree3 = etree.fromstring("<baz><a/><b c='something'/><d i='am running out of'>dummy texts</d>to insert</baz>")
+
+        subtrees = [subtree1, subtree2, subtree3]
+
+        for subtree in subtrees:
+            lxml.sax.saxify(subtree, sd)
+
+        for result, subtree in zip(instance._stanza_props[prop],
+                                   subtrees):
+            self.assertSubtreeEqual(
+                subtree,
+                result)
+
+    def test_to_node(self):
+        prop = stanza_model.Collector()
+
+        subtree1 = etree.fromstring("<foo/>")
+        subtree2 = etree.fromstring("<bar a='baz'>fnord</bar>")
+        subtree3 = etree.fromstring("<baz><a/><b c='something'/><d i='am running out of'>dummy texts</d>to insert</baz>")
+
+        instance = unittest.mock.MagicMock()
+        instance._stanza_props = {
+            prop: [
+                subtree1,
+                subtree2,
+                subtree3,
+            ]
+        }
+
+
+        parent_compare = etree.Element("root")
+        parent_compare.extend([subtree1, subtree2, subtree3])
+
+        parent_generated = etree.Element("root")
+        prop.to_node(instance, parent_generated)
+
+        self.assertSubtreeEqual(
+            parent_compare,
+            parent_generated)
+
+
 class TestAttr(XMLTestCase):
     def test_name_attribute(self):
         prop = stanza_model.Attr("foo")
@@ -380,6 +474,24 @@ class TestAttr(XMLTestCase):
         self.assertSubtreeEqual(
             etree.fromstring("<foo foo='true'/>"),
             el)
+
+
+class Testdrop_handler(unittest.TestCase):
+    def test_drop_handler(self):
+        result = object()
+
+        def catch_result(value):
+            nonlocal result
+            result = value
+
+        sd = stanza_model.SAXDriver(
+            functools.partial(from_wrapper, stanza_model.drop_handler),
+            on_emit=catch_result)
+
+        tree = etree.fromstring("<foo><bar a='fnord'/><baz>keks</baz></foo>")
+        lxml.sax.saxify(tree, sd)
+
+        self.assertIsNone(result)
 
 
 class TestSAXDriver(unittest.TestCase):
@@ -546,7 +658,7 @@ class TestSAXDriver(unittest.TestCase):
 #             gw.send(("stop", ))
 
 
-class Teststanza_parser(unittest.TestCase):
+class Teststanza_parser(XMLTestCase):
     def run_parser(self, stanza_cls, tree):
         results = []
 
@@ -611,6 +723,26 @@ class Teststanza_parser(unittest.TestCase):
 
         with self.assertRaises(ValueError):
             self.run_parser_one([TestStanza], tree)
+
+    def test_handle_unknown_tag_at_non_toplevel_with_drop_policy(self):
+        tree = etree.fromstring("<foo><bar/></foo>")
+        class TestStanza(stanza_model.StanzaObject):
+            TAG = None, "foo"
+            UNKNOWN_CHILD_POLICY = stanza_model.UnknownChildPolicy.DROP
+
+        self.run_parser_one([TestStanza], tree)
+
+    def test_parse_using_collector(self):
+        tree = etree.fromstring("<foo><bar/></foo>")
+        class TestStanza(stanza_model.StanzaObject):
+            TAG = None, "foo"
+            coll = stanza_model.Collector()
+
+        result = self.run_parser_one([TestStanza], tree)
+        self.assertEqual(1, len(result.coll))
+        self.assertSubtreeEqual(
+            etree.fromstring("<bar/>"),
+            result.coll[0])
 
     def test_handle_unknown_attribute(self):
         tree = etree.fromstring("<foo a='bar' />")
