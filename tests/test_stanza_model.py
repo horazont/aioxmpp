@@ -45,6 +45,9 @@ class TestStanzaClass(unittest.TestCase):
         self.assertEqual(
             stanza_model.UnknownChildPolicy.FAIL,
             Cls.UNKNOWN_CHILD_POLICY)
+        self.assertEqual(
+            stanza_model.UnknownAttrPolicy.FAIL,
+            Cls.UNKNOWN_ATTR_POLICY)
 
     def test_forbid_malformed_tag(self):
         with self.assertRaisesRegexp(TypeError,
@@ -751,6 +754,14 @@ class Teststanza_parser(XMLTestCase):
 
         with self.assertRaises(ValueError):
             self.run_parser_one([TestStanza], tree)
+
+    def test_handle_unknown_attribute_with_drop_policy(self):
+        tree = etree.fromstring("<foo a='bar' />")
+        class TestStanza(stanza_model.StanzaObject):
+            TAG = None, "foo"
+            UNKNOWN_ATTR_POLICY = stanza_model.UnknownAttrPolicy.DROP
+
+        self.run_parser_one([TestStanza], tree)
 
     def test_handle_unknown_text(self):
         tree = etree.fromstring("<foo>bar</foo>")

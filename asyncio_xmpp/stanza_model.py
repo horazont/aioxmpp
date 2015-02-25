@@ -19,6 +19,11 @@ class UnknownChildPolicy(Enum):
     DROP = 1
 
 
+class UnknownAttrPolicy(Enum):
+    FAIL = 0
+    DROP = 1
+
+
 class UnknownTopLevelTag(ValueError):
     def __init__(self, msg, ev_args):
         super().__init__(msg + ": {}".format((ev_args[0], ev_args[1])))
@@ -180,6 +185,8 @@ class StanzaClass(type):
         namespace["COLLECTOR_PROPERTY"] = collector_property
         namespace.setdefault("UNKNOWN_CHILD_POLICY",
                              UnknownChildPolicy.FAIL)
+        namespace.setdefault("UNKNOWN_ATTR_POLICY",
+                             UnknownAttrPolicy.FAIL)
 
         try:
             tag = namespace["TAG"]
@@ -204,10 +211,13 @@ class StanzaClass(type):
             try:
                 prop = cls.ATTR_MAP[key]
             except KeyError:
-                raise ValueError("unexpected attribute {!r} on {}".format(
-                    key,
-                    (ev_args[0], ev_args[1])
-                )) from None
+                if cls.UNKNOWN_ATTR_POLICY == UnknownAttrPolicy.DROP:
+                    continue
+                else:
+                    raise ValueError("unexpected attribute {!r} on {}".format(
+                        key,
+                        (ev_args[0], ev_args[1])
+                    )) from None
             prop.from_value(obj, value)
 
         collected_text = []
