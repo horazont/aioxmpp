@@ -179,6 +179,39 @@ class TestStanzaClass(unittest.TestCase):
                 c1 = stanza_model.ChildList([ClsA])
                 c2 = stanza_model.Child([ClsB])
 
+    def test_register_child(self):
+        class Cls(metaclass=stanza_model.StanzaClass):
+            TAG = "foo"
+
+            child = stanza_model.Child([])
+
+        class ClsA(metaclass=stanza_model.StanzaClass):
+            TAG = "bar"
+
+        class ClsB(metaclass=stanza_model.StanzaClass):
+            TAG = "baz"
+
+        class ClsC(metaclass=stanza_model.StanzaClass):
+            TAG = "bar"
+
+        Cls.register_child(Cls.child, ClsA)
+        self.assertDictEqual(
+            {
+                (None, "bar"): Cls.child
+            },
+            Cls.CHILD_MAP)
+
+        Cls.register_child(Cls.child, ClsB)
+        self.assertDictEqual(
+            {
+                (None, "bar"): Cls.child,
+                (None, "baz"): Cls.child,
+            },
+            Cls.CHILD_MAP)
+
+        with self.assertRaises(ValueError):
+            Cls.register_child(Cls.child, ClsC)
+
 
 class TestStanzaObject(XMLTestCase):
     def _unparse_test(self, obj, tree):
@@ -359,6 +392,25 @@ class TestChild(XMLTestCase):
 
         with self.assertRaisesRegexp(ValueError, "ambiguous children"):
             stanza_model.Child([self.ClsLeaf, ClsLeaf2])
+
+    def test_post_register(self):
+        class ClsLeaf2(stanza_model.StanzaObject):
+            TAG = "baz"
+
+        self.ClsA.test_child.register(ClsLeaf2)
+        self.assertDictEqual(
+            {
+                (None, "bar"): self.ClsLeaf,
+                (None, "baz"): ClsLeaf2
+            },
+            self.ClsA.test_child.get_tag_map()
+        )
+
+        class ClsLeafConflict(stanza_model.StanzaObject):
+            TAG = "baz"
+
+        with self.assertRaisesRegexp(ValueError, "ambiguous children"):
+            self.ClsA.test_child.register(ClsLeafConflict)
 
     def test_from_events(self):
         dest = []
@@ -980,3 +1032,19 @@ class Teststanza_parser(XMLTestCase):
         for i, (child, (cls, value)) in enumerate(zip(result.cl, expected)):
             self.assertIsInstance(child, cls, "child {}".format(i))
             self.assertEqual(child.attr, value, "child {}".format(i))
+
+    def test_parse_child_with_post_register(self):
+        class Foo(stanza_model.StanzaObject):
+            TAG = "foo"
+
+            child = stanza_model.Child([])
+
+        class Bar(stanza_model.StanzaObject):
+            TAG = "bar"
+
+        Foo.register_child(Foo.child, Bar)
+
+        tree = etree.fromstring("<foo><bar/></foo>")
+        result = self.run_parser_one([Foo], tree)
+
+        self.assertIsInstance(result.child, Bar)

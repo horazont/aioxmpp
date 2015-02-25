@@ -67,12 +67,7 @@ class Child(_PropBase):
         self._classes = tuple(classes)
         self._tag_map = {}
         for cls in self._classes:
-            if cls.TAG in self._tag_map:
-                raise ValueError("ambiguous children: {} and {} share the same "
-                                 "TAG".format(
-                                     self._tag_map[cls.TAG],
-                                     cls))
-            self._tag_map[cls.TAG] = cls
+            self.register(cls)
 
     def get_tag_map(self):
         return self._tag_map
@@ -89,6 +84,14 @@ class Child(_PropBase):
     def to_node(self, instance, parent):
         obj = self.__get__(instance, type(instance))
         obj.unparse_to_node(parent)
+
+    def register(self, cls):
+        if cls.TAG in self._tag_map:
+            raise ValueError("ambiguous children: {} and {} share the same "
+                             "TAG".format(
+                                 self._tag_map[cls.TAG],
+                                 cls))
+        self._tag_map[cls.TAG] = cls
 
 
 class ChildList(Child):
@@ -281,6 +284,13 @@ class StanzaClass(type):
                 raise ValueError("unexpected text")
 
         return obj
+
+    def register_child(cls, prop, child_cls):
+        if child_cls.TAG in cls.CHILD_MAP:
+            raise ValueError("ambiguous Child")
+
+        prop.register(child_cls)
+        cls.CHILD_MAP[child_cls.TAG] = prop
 
 
 class StanzaObject(metaclass=StanzaClass):
