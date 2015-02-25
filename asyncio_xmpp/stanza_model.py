@@ -77,9 +77,12 @@ class Child(_PropBase):
     def get_tag_map(self):
         return self._tag_map
 
-    def from_events(self, instance, ev_args):
+    def _process(self, instance, ev_args):
         cls = self._tag_map[ev_args[0], ev_args[1]]
-        obj = (yield from cls.parse_events(ev_args))
+        return (yield from cls.parse_events(ev_args))
+
+    def from_events(self, instance, ev_args):
+        obj = yield from self._process(instance, ev_args)
         self.__set__(instance, obj)
         return obj
 
@@ -87,6 +90,24 @@ class Child(_PropBase):
         obj = self.__get__(instance, type(instance))
         obj.unparse_to_node(parent)
 
+
+class ChildList(Child):
+    def __init__(self, classes):
+        super().__init__(classes)
+
+    def __get__(self, instance, cls):
+        if instance is None:
+            return super().__get__(instance, cls)
+        return instance._stanza_props.setdefault(self, [])
+
+    def from_events(self, instance, ev_args):
+        obj = yield from self._process(instance, ev_args)
+        self.__get__(instance, type(instance)).append(obj)
+        return obj
+
+    def to_node(self, instance, parent):
+        for item in self.__get__(instance, type(instance)):
+            item.unparse_to_node(parent)
 
 class Collector(_PropBase):
     def __init__(self):
@@ -214,7 +235,7 @@ class StanzaClass(type):
         attr_map = cls.ATTR_MAP.copy()
         for key, value in attrs.items():
             try:
-                prop = cls.ATTR_MAP.pop(key)
+                prop = attr_map.pop(key)
             except KeyError:
                 if cls.UNKNOWN_ATTR_POLICY == UnknownAttrPolicy.DROP:
                     continue
