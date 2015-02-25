@@ -535,6 +535,26 @@ class TestXMLTestCase(XMLTestCase):
         with self.assertRaises(AssertionError):
             self.assertSubtreeEqual(t1, t2)
 
+    def test_assertSubtreeEqual_text_including_tails(self):
+        t1 = etree.fromstring("<foo>t<a/>ext1</foo>")
+        t2 = etree.fromstring("<foo>te<a/>xt1</foo>")
+
+        self.assertSubtreeEqual(t1, t2)
+
+    def test_assertSubtreeEqual_text_no_join_text_parts(self):
+        t1 = etree.fromstring("<foo>t<a/>ext1</foo>")
+        t2 = etree.fromstring("<foo>te<a/>xt1</foo>")
+
+        with self.assertRaises(AssertionError):
+            self.assertSubtreeEqual(t1, t2, join_text_parts=False)
+
+    def test_assertSubtreeEqual_text_no_join_text_parts_is_strict(self):
+        t1 = etree.fromstring("<foo><a/>text1</foo>")
+        t2 = etree.fromstring("<foo>text1<a/></foo>")
+
+        with self.assertRaises(AssertionError):
+            self.assertSubtreeEqual(t1, t2, join_text_parts=False)
+
 
 class TestXMLStreamMock(XMLTestCase):
     def test_init(self):

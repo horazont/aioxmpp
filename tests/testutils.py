@@ -141,14 +141,38 @@ class XMLTestCase(unittest.TestCase):
                     element_path(el2),
                     attr))
 
+    def _collect_text_parts(self, el):
+        parts = [el.text or ""]
+        parts.extend(child.tail or "" for child in el)
+        return parts
+
+    def assertTextContentEqual(self, el1, el2, join_text_parts=True):
+        parts1 = self._collect_text_parts(el1)
+        parts2 = self._collect_text_parts(el2)
+        if join_text_parts:
+            self.assertEqual(
+                "".join(parts1),
+                "".join(parts2),
+                "text mismatch at {}".format(element_path(el2))
+            )
+        else:
+            self.assertSequenceEqual(
+                parts1,
+                parts2,
+                "text mismatch at {}".format(element_path(el2))
+            )
+
     def assertSubtreeEqual(self, tree1, tree2,
                            ignore_surplus_attr=False,
                            ignore_surplus_children=False,
-                           strict_ordering=False):
+                           strict_ordering=False,
+                           join_text_parts=True):
         self.assertEqual(tree1.tag, tree2.tag,
                          "tag mismatch at {}".format(element_path(tree2)))
-        self.assertEqual(tree1.text, tree2.text,
-                         "text mismatch at {}".format(element_path(tree2)))
+
+        self.assertTextContentEqual(tree1, tree2,
+                                    join_text_parts=join_text_parts)
+
         self.assertAttributesEqual(tree1, tree2,
                                    ignore_surplus_attr=ignore_surplus_attr)
         self.assertChildrenEqual(
