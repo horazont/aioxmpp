@@ -133,7 +133,10 @@ class Collector(_PropBase):
 
 
 class Attr(Text):
-    def __init__(self, name, type_=stanza_types.String(), default=None):
+    def __init__(self, name,
+                 type_=stanza_types.String(),
+                 default=None,
+                 required=False):
         super().__init__(type_=type_, default=default)
         if isinstance(name, tuple):
             uri, localpart = name
@@ -141,6 +144,7 @@ class Attr(Text):
             uri = None
             localpart = name
         self.name = uri, localpart
+        self.required = required
 
     def to_node(self, instance, parent):
         parent.set(
@@ -207,18 +211,26 @@ class StanzaClass(type):
     def parse_events(cls, ev_args):
         obj = cls()
         attrs = ev_args[2]
+        attr_map = cls.ATTR_MAP.copy()
         for key, value in attrs.items():
             try:
-                prop = cls.ATTR_MAP[key]
+                prop = cls.ATTR_MAP.pop(key)
             except KeyError:
                 if cls.UNKNOWN_ATTR_POLICY == UnknownAttrPolicy.DROP:
                     continue
                 else:
                     raise ValueError("unexpected attribute {!r} on {}".format(
                         key,
-                        (ev_args[0], ev_args[1])
+                        tag_to_str((ev_args[0], ev_args[1]))
                     )) from None
             prop.from_value(obj, value)
+
+        for key, prop in attr_map.items():
+            if prop.required:
+                raise ValueError("missing attribute {!r} on {}".format(
+                    key,
+                    tag_to_str((ev_args[0], ev_args[1]))
+                ))
 
         collected_text = []
         while True:

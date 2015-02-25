@@ -771,6 +771,15 @@ class Teststanza_parser(XMLTestCase):
         with self.assertRaises(ValueError):
             self.run_parser_one([TestStanza], tree)
 
+    def test_handle_missing_attribute(self):
+        tree = etree.fromstring("<foo/>")
+        class TestStanza(stanza_model.StanzaObject):
+            TAG = None, "foo"
+            attr = stanza_model.Attr("a", required=True)
+
+        with self.assertRaises(ValueError):
+            self.run_parser_one([TestStanza], tree)
+
     def test_parse_simple_with_another_attribute(self):
         class TestStanza(stanza_model.StanzaObject):
             TAG = "uri:bar", "foo"
