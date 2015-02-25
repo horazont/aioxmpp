@@ -147,6 +147,8 @@ class XMLTestCase(unittest.TestCase):
                            strict_ordering=False):
         self.assertEqual(tree1.tag, tree2.tag,
                          "tag mismatch at {}".format(element_path(tree2)))
+        self.assertEqual(tree1.text, tree2.text,
+                         "text mismatch at {}".format(element_path(tree2)))
         self.assertAttributesEqual(tree1, tree2,
                                    ignore_surplus_attr=ignore_surplus_attr)
         self.assertChildrenEqual(

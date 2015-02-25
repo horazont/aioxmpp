@@ -528,6 +528,13 @@ class TestXMLTestCase(XMLTestCase):
         with self.assertRaises(AssertionError):
             self.assertSubtreeEqual(t1, t2, strict_ordering=True)
 
+    def test_assertSubtreeEqual_text(self):
+        t1 = etree.fromstring("<foo>text1</foo>")
+        t2 = etree.fromstring("<foo>text2</foo>")
+
+        with self.assertRaises(AssertionError):
+            self.assertSubtreeEqual(t1, t2)
+
 
 class TestXMLStreamMock(XMLTestCase):
     def test_init(self):
