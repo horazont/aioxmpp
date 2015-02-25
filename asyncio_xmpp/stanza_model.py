@@ -1,10 +1,16 @@
+import inspect
+import sys
+import xml.sax.handler
+
+from asyncio_xmpp.utils import etree
+
 from . import stanza_types
 
 
-class StanzaObject:
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self._stanza_props = dict()
+class UnknownTopLevelTag(ValueError):
+    def __init__(self, msg, ev_args):
+        super().__init__(msg + ": {}".format((ev_args[0], ev_args[1])))
+        self.ev_args = ev_args
 
 
 class _PropBase:
@@ -31,8 +37,204 @@ class Text(_PropBase):
         super().__init__(default)
         self._type = type_
 
-    def from_node(self, instance, el):
-        self.__set__(instance, self._type.parse(el.text))
+    def from_value(self, instance, value):
+        self.__set__(instance, self._type.parse(value))
 
     def to_node(self, instance, el):
         el.text = self._type.format(self.__get__(instance, type(instance)))
+
+
+class Child(_PropBase):
+    def __init__(self, classes, default=None):
+        super().__init__(default)
+        self._classes = tuple(classes)
+        self._tag_map = {}
+        for cls in self._classes:
+            if cls.TAG in self._tag_map:
+                raise ValueError("ambiguous children: {} and {} share the same "
+                                 "TAG".format(
+                                     self._tag_map[cls.TAG],
+                                     cls))
+            self._tag_map[cls.TAG] = cls
+
+    def get_tag_map(self):
+        return self._tag_map
+
+    def from_events(self, instance, ev_args):
+        cls = self._tag_map[ev_args[0], ev_args[1]]
+        obj = (yield from cls.parse_events(ev_args))
+        self.__set__(instance, obj)
+        return obj
+
+    def to_node(self, instance, parent):
+        obj = self.__get__(instance, type(instance))
+        obj.unparse_to_node(parent)
+
+
+class Attr(Text):
+    def __init__(self, name, type_=stanza_types.String(), default=None):
+        super().__init__(type_=type_, default=default)
+        if isinstance(name, tuple):
+            uri, localpart = name
+        else:
+            uri = None
+            localpart = name
+        self.name = uri, localpart
+
+    def to_node(self, instance, parent):
+        parent.set(
+            "{{{}}}{}".format(*self.name) if self.name[0] else self.name[1],
+            self._type.format(self.__get__(instance, type(instance))))
+
+
+class StanzaClass(type):
+    def __new__(mcls, name, bases, namespace):
+        text_property = None
+        child_map = {}
+        child_props = set()
+        attr_map = {}
+
+        for name, obj in namespace.items():
+            if isinstance(obj, Attr):
+                attr_map[obj.name] = obj
+            elif isinstance(obj, Text):
+                if text_property is not None:
+                    raise TypeError("multiple Text properties on stanza object")
+                text_property = obj
+            elif isinstance(obj, Child):
+                for key in obj.get_tag_map().keys():
+                    if key in child_map:
+                        raise TypeError("ambiguous Child properties: {} and {}"
+                                        " both use the same tag".format(
+                                            child_map[key],
+                                            obj))
+                    child_map[key] = obj
+                child_props.add(obj)
+
+        namespace["TEXT_PROPERTY"] = text_property
+        namespace["CHILD_MAP"] = child_map
+        namespace["CHILD_PROPS"] = frozenset(child_props)
+        namespace["ATTR_MAP"] = attr_map
+
+        try:
+            tag = namespace["TAG"]
+        except KeyError:
+            pass
+        else:
+            if isinstance(tag, tuple):
+                try:
+                    uri, localname = tag
+                except ValueError:
+                    raise TypeError("TAG attribute has incorrect type") \
+                        from None
+            else:
+                namespace["TAG"] = (None, tag)
+
+        return super().__new__(mcls, name, bases, namespace)
+
+    def parse_events(cls, ev_args):
+        obj = cls()
+        attrs = ev_args[2]
+        for key, value in attrs.items():
+            try:
+                prop = cls.ATTR_MAP[key]
+            except KeyError:
+                raise ValueError("unexpected attribute {!r} on {}".format(
+                    key,
+                    (ev_args[0], ev_args[1])
+                ))
+            prop.from_value(obj, value)
+
+        collected_text = []
+        while True:
+            ev_type, *ev_args = yield
+            if ev_type == "end":
+                break
+            elif ev_type == "text":
+                collected_text.append(ev_args[0])
+            elif ev_type == "start":
+                try:
+                    handler = cls.CHILD_MAP[ev_args[0], ev_args[1]]
+                except KeyError:
+                    raise ValueError("unexpected child TAG: {}".format(
+                        (ev_args[0], ev_args[1])))
+                yield from handler.from_events(obj, ev_args)
+
+        if collected_text:
+            if cls.TEXT_PROPERTY:
+                cls.TEXT_PROPERTY.from_value(obj, "".join(collected_text))
+            else:
+                raise ValueError("unexpected text")
+
+        return obj
+
+
+class StanzaObject(metaclass=StanzaClass):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._stanza_props = dict()
+
+    def unparse_to_node(self, parent):
+        cls = type(self)
+        el = etree.SubElement(
+            parent,
+            "{{{:s}}}{:s}".format(*self.TAG) if self.TAG[0] else self.TAG[1]
+        )
+        for prop in cls.ATTR_MAP.values():
+            prop.to_node(self, el)
+        if cls.TEXT_PROPERTY:
+            cls.TEXT_PROPERTY.to_node(self, el)
+        for prop in cls.CHILD_PROPS:
+            prop.to_node(self, el)
+        return el
+
+
+class SAXDriver(xml.sax.handler.ContentHandler):
+    def __init__(self, dest_generator_factory, on_emit=None):
+        self._on_emit = on_emit
+        self._dest_factory = dest_generator_factory
+        self._dest = None
+
+    def _emit(self, value):
+        if self._on_emit:
+            self._on_emit(value)
+
+    def _send(self, value):
+        if self._dest is None:
+            self._dest = self._dest_factory()
+            self._dest.send(None)
+        try:
+            self._dest.send(value)
+        except StopIteration as err:
+            self._emit(err.value)
+            self._dest = None
+
+    def startElementNS(self, name, qname, attributes):
+        uri, localname = name
+        self._send(("start", uri, localname, dict(attributes)))
+
+    def characters(self, data):
+        self._send(("text", data))
+
+    def endElementNS(self, name, qname):
+        self._send(("end",))
+
+    def close(self):
+        if self._dest is not None:
+            self._dest.close()
+            self._dest = None
+
+
+def stanza_parser(stanza_classes):
+    ev_type, *ev_args = yield
+    for cls in stanza_classes:
+        if cls.TAG == (ev_args[0], ev_args[1]):
+            cls_to_use = cls
+            break
+    else:
+        raise UnknownTopLevelTag(
+            "unhandled top-level element",
+            ev_args)
+
+    generator = cls_to_use.parse_events(ev_args)
+    return (yield from generator)
