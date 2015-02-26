@@ -3,7 +3,7 @@ from asyncio_xmpp.utils import etree
 import asyncio_xmpp.errors as errors
 import asyncio_xmpp.stanza as stanza
 
-from .testutils import XMLTestCase
+from .xmltestutils import XMLTestCase
 
 
 class TestXMLStreamReceiverContext(XMLTestCase):
