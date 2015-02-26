@@ -70,6 +70,49 @@ class TestStanzaClass(unittest.TestCase):
             Cls.prop,
             Cls.TEXT_PROPERTY)
 
+    def test_inheritance_text_one_level(self):
+        class ClsA(metaclass=stanza_model.StanzaClass):
+            text = stanza_model.Text()
+
+        with self.assertRaises(TypeError):
+            class ClsB(ClsA):
+                text2 = stanza_model.Text()
+
+        class ClsB(ClsA):
+            pass
+
+        self.assertIs(
+            ClsA.text,
+            ClsB.TEXT_PROPERTY)
+
+    def test_multi_inheritance_text(self):
+        class ClsA(metaclass=stanza_model.StanzaClass):
+            text = stanza_model.Text()
+
+        class ClsB(metaclass=stanza_model.StanzaClass):
+            text2 = stanza_model.Text()
+
+        with self.assertRaises(TypeError):
+            class ClsC(ClsA, ClsB):
+                pass
+
+    def test_diamond_inheritance_text(self):
+        class ClsA(metaclass=stanza_model.StanzaClass):
+            text = stanza_model.Text()
+
+        class ClsB(ClsA):
+            pass
+
+        class ClsC(ClsA):
+            pass
+
+        class ClsD(ClsB, ClsC):
+            pass
+
+        self.assertIs(
+            ClsA.text,
+            ClsD.TEXT_PROPERTY)
+
     def test_collect_child_property(self):
         class ClsA(metaclass=stanza_model.StanzaClass):
             TAG = "foo"
@@ -104,6 +147,105 @@ class TestStanzaClass(unittest.TestCase):
                 c1 = stanza_model.Child([ClsA])
                 c2 = stanza_model.Child([ClsB])
 
+    def test_inheritance_child(self):
+        class ClsLeafA:
+            TAG = "foo"
+
+        class ClsLeafB:
+            TAG = "bar"
+
+        class ClsA(metaclass=stanza_model.StanzaClass):
+            c1 = stanza_model.Child([ClsLeafA])
+
+        class ClsB(ClsA):
+            c2 = stanza_model.Child([ClsLeafB])
+
+        self.assertDictEqual(
+            {
+                "foo": ClsA.c1,
+                "bar": ClsB.c2,
+            },
+            ClsB.CHILD_MAP)
+        self.assertSetEqual(
+            {ClsA.c1, ClsB.c2},
+            ClsB.CHILD_PROPS)
+
+    def test_inheritance_child_ambiguous(self):
+        class ClsLeafA:
+            TAG = "foo"
+
+        class ClsA(metaclass=stanza_model.StanzaClass):
+            c1 = stanza_model.Child([ClsLeafA])
+
+        with self.assertRaisesRegexp(TypeError, "ambiguous Child properties"):
+            class ClsB(ClsA):
+                c2 = stanza_model.Child([ClsLeafA])
+
+    def test_multi_inheritance_child(self):
+        class ClsLeafA:
+            TAG = "foo"
+
+        class ClsLeafB:
+            TAG = "bar"
+
+        class ClsA(metaclass=stanza_model.StanzaClass):
+            c1 = stanza_model.Child([ClsLeafA])
+
+        class ClsB(metaclass=stanza_model.StanzaClass):
+            c2 = stanza_model.Child([ClsLeafB])
+
+        class ClsC(ClsA, ClsB):
+            pass
+
+        self.assertDictEqual(
+            {
+                "foo": ClsA.c1,
+                "bar": ClsB.c2,
+            },
+            ClsC.CHILD_MAP)
+        self.assertSetEqual(
+            {ClsA.c1, ClsB.c2},
+            ClsC.CHILD_PROPS)
+
+    def test_multi_inheritance_child_ambiguous(self):
+        class ClsLeafA:
+            TAG = "foo"
+
+        class ClsA(metaclass=stanza_model.StanzaClass):
+            c1 = stanza_model.Child([ClsLeafA])
+
+        class ClsB(metaclass=stanza_model.StanzaClass):
+            c2 = stanza_model.Child([ClsLeafA])
+
+        with self.assertRaises(TypeError):
+            class ClsC(ClsB, ClsA):
+                pass
+
+    def test_diamond_inheritance_child(self):
+        class ClsLeafA:
+            TAG = "foo"
+
+        class ClsA(metaclass=stanza_model.StanzaClass):
+            c1 = stanza_model.Child([ClsLeafA])
+
+        class ClsB(ClsA):
+            pass
+
+        class ClsC(ClsA):
+            pass
+
+        class ClsD(ClsB, ClsC):
+            pass
+
+        self.assertDictEqual(
+            {
+                "foo": ClsA.c1,
+            },
+            ClsD.CHILD_MAP)
+        self.assertSetEqual(
+            {ClsA.c1},
+            ClsD.CHILD_PROPS)
+
     def test_collect_attr_property(self):
         class Cls(metaclass=stanza_model.StanzaClass):
             attr1 = stanza_model.Attr("foo")
@@ -118,6 +260,82 @@ class TestStanzaClass(unittest.TestCase):
             },
             Cls.ATTR_MAP)
 
+    def test_forbid_ambiguous_attr(self):
+        with self.assertRaises(TypeError):
+            class Cls(metaclass=stanza_model.StanzaClass):
+                attr1 = stanza_model.Attr("foo")
+                attr2 = stanza_model.Attr("foo")
+
+    def test_inheritance_attr(self):
+        class ClsA(metaclass=stanza_model.StanzaClass):
+            attr1 = stanza_model.Attr("foo")
+
+        class ClsB(ClsA):
+            attr2 = stanza_model.Attr("bar")
+
+        self.assertDictEqual(
+            {
+                (None, "foo"): ClsA.attr1,
+                (None, "bar"): ClsB.attr2,
+            },
+            ClsB.ATTR_MAP)
+
+    def test_inheritance_attr_ambiguous(self):
+        class ClsA(metaclass=stanza_model.StanzaClass):
+            attr1 = stanza_model.Attr("foo")
+
+        with self.assertRaises(TypeError):
+            class ClsB(ClsA):
+                attr2 = stanza_model.Attr("foo")
+
+    def test_multi_inheritance_attr(self):
+        class ClsA(metaclass=stanza_model.StanzaClass):
+            attr1 = stanza_model.Attr("foo")
+
+        class ClsB(metaclass=stanza_model.StanzaClass):
+            attr2 = stanza_model.Attr("bar")
+
+        class ClsC(ClsB, ClsA):
+            attr3 = stanza_model.Attr("baz")
+
+        self.assertDictEqual(
+            {
+                (None, "foo"): ClsA.attr1,
+                (None, "bar"): ClsB.attr2,
+                (None, "baz"): ClsC.attr3,
+            },
+            ClsC.ATTR_MAP)
+
+    def test_multi_inheritance_attr_ambiguous(self):
+        class ClsA(metaclass=stanza_model.StanzaClass):
+            attr1 = stanza_model.Attr("foo")
+
+        class ClsB(metaclass=stanza_model.StanzaClass):
+            attr2 = stanza_model.Attr("foo")
+
+        with self.assertRaises(TypeError):
+            class ClsC(ClsB, ClsA):
+                attr3 = stanza_model.Attr("baz")
+
+    def test_diamond_inheritance_attr(self):
+        class ClsA(metaclass=stanza_model.StanzaClass):
+            attr = stanza_model.Attr("foo")
+
+        class ClsB(ClsA):
+            pass
+
+        class ClsC(ClsA):
+            pass
+
+        class ClsD(ClsB, ClsC):
+            pass
+
+        self.assertDictEqual(
+            {
+                (None, "foo"): ClsA.attr,
+            },
+            ClsD.ATTR_MAP)
+
     def test_collect_collector_property(self):
         class Cls(metaclass=stanza_model.StanzaClass):
             prop = stanza_model.Collector()
@@ -131,6 +349,45 @@ class TestStanzaClass(unittest.TestCase):
             class Cls(metaclass=stanza_model.StanzaClass):
                 propa = stanza_model.Collector()
                 propb = stanza_model.Collector()
+
+    def test_inheritance_collector_one_level(self):
+        class ClsA(metaclass=stanza_model.StanzaClass):
+            text = stanza_model.Collector()
+
+        with self.assertRaises(TypeError):
+            class ClsB(ClsA):
+                text2 = stanza_model.Collector()
+
+        class ClsB(ClsA):
+            pass
+
+        self.assertIs(ClsB.COLLECTOR_PROPERTY, ClsA.text)
+
+    def test_multi_inheritance_collector(self):
+        class ClsA(metaclass=stanza_model.StanzaClass):
+            text = stanza_model.Collector()
+
+        class ClsB(metaclass=stanza_model.StanzaClass):
+            text2 = stanza_model.Collector()
+
+        with self.assertRaises(TypeError):
+            class ClsC(ClsA, ClsB):
+                pass
+
+    def test_diamond_inheritance_collector(self):
+        class ClsA(metaclass=stanza_model.StanzaClass):
+            text = stanza_model.Collector()
+
+        class ClsB(ClsA):
+            pass
+
+        class ClsC(ClsA):
+            pass
+
+        class ClsD(ClsB, ClsC):
+            pass
+
+        self.assertIs(ClsD.COLLECTOR_PROPERTY, ClsA.text)
 
     def test_forbid_duplicate_text_property(self):
         with self.assertRaises(TypeError):

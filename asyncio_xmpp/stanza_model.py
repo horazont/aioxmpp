@@ -184,8 +184,47 @@ class StanzaClass(type):
         attr_map = {}
         collector_property = None
 
+        for base in reversed(bases):
+            if not isinstance(base, StanzaClass):
+                continue
+
+            if base.TEXT_PROPERTY is not None:
+                if     (text_property is not None and
+                        base.TEXT_PROPERTY is not text_property):
+                    raise TypeError("multiple text properties in inheritance")
+                text_property = base.TEXT_PROPERTY
+
+            for key, prop in base.CHILD_MAP.items():
+                try:
+                    existing = child_map[key]
+                except KeyError:
+                    child_map[key] = prop
+                else:
+                    if existing is not prop:
+                        raise TypeError("ambiguous Child properties inherited")
+
+            child_props |= base.CHILD_PROPS
+
+            for key, prop in base.ATTR_MAP.items():
+                try:
+                    existing = attr_map[key]
+                except KeyError:
+                    attr_map[key] = prop
+                else:
+                    if existing is not prop:
+                        raise TypeError("ambiguous Attr properties inherited")
+
+            if base.COLLECTOR_PROPERTY is not None:
+                if     (collector_property is not None and
+                        base.COLLECTOR_PROPERTY is not collector_property):
+                    raise TypeError("multiple collector properties in "
+                                    "inheritance")
+                collector_property = base.COLLECTOR_PROPERTY
+
         for attrname, obj in namespace.items():
             if isinstance(obj, Attr):
+                if obj.name in attr_map:
+                    raise TypeError("ambiguous Attr properties")
                 attr_map[obj.name] = obj
             elif isinstance(obj, Text):
                 if text_property is not None:
