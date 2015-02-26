@@ -206,6 +206,9 @@ class Text(_PropBase):
     *default* is returned as an attribute value whenever no value has been
     assigned before.
 
+    *validator* must be an object which provides a :meth:`validate` method,
+    returning true if the argument passed is a valid value and false otherwise.
+
     .. automethod:: from_value
 
     .. automethod:: to_node
@@ -213,16 +216,21 @@ class Text(_PropBase):
 
     def __init__(self,
                  type_=stanza_types.String(),
+                 validator=None,
                  default=None):
         super().__init__(default)
         self._type = type_
+        self._validator = validator
 
     def from_value(self, instance, value):
         """
         Convert the given value using the set *type_* and store it into
         *instance*’ attribute.
         """
-        self.__set__(instance, self._type.parse(value))
+        parsed = self._type.parse(value)
+        if self._validator and not self._validator.validate(parsed):
+            raise ValueError("Invalid value")
+        self.__set__(instance, parsed)
 
     def to_node(self, instance, el):
         """
@@ -420,6 +428,9 @@ class Attr(Text):
     If *required* is true and the attribute is missing from the element it is
     associated to, parsing will fail with a :class:`ValueError`.
 
+    *validator* must be an object which provides a :meth:`validate` method,
+    returning true if the argument passed is a valid value and false otherwise.
+
     .. automethod:: from_value
 
     .. automethod:: to_node
@@ -429,8 +440,9 @@ class Attr(Text):
     def __init__(self, tag,
                  type_=stanza_types.String(),
                  default=None,
-                 required=False):
-        super().__init__(type_=type_, default=default)
+                 required=False,
+                 validator=None):
+        super().__init__(type_=type_, default=default, validator=validator)
         if isinstance(tag, tuple):
             uri, localpart = tag
         else:

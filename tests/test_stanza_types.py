@@ -225,3 +225,11 @@ class TestJID(unittest.TestCase):
             "ssa@ix.test/IX",
             t.format(jid.JID("ßA", "IX.test", "\u2168"))
         )
+
+
+class TestRestrictToSet(unittest.TestCase):
+    def test_validate(self):
+        t = stanza_types.RestrictToSet({"foo", "bar"})
+        self.assertTrue(t.validate("foo"))
+        self.assertTrue(t.validate("bar"))
+        self.assertFalse(t.validate("baz"))

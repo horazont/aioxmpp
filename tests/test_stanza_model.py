@@ -10,7 +10,7 @@ import asyncio_xmpp.stanza_types as stanza_types
 
 from asyncio_xmpp.utils import etree
 
-from .testutils import XMLTestCase
+from .xmltestutils import XMLTestCase
 
 
 def from_wrapper(fun, *args):
@@ -620,6 +620,29 @@ class TestText(unittest.TestCase):
             "123",
             el.text)
 
+    def test_validates(self):
+        validator = unittest.mock.MagicMock()
+        instance = unittest.mock.MagicMock()
+        instance._stanza_prop = {}
+
+        prop = stanza_model.Text(validator=validator)
+
+        validator.validate.return_value = True
+        prop.from_value(instance, "foo")
+
+        validator.validate.return_value = False
+        with self.assertRaises(ValueError):
+            prop.from_value(instance, "foo")
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call.__bool__(),
+                unittest.mock.call.validate("foo"),
+                unittest.mock.call.__bool__(),
+                unittest.mock.call.validate("foo"),
+            ],
+            validator.mock_calls)
+
     def tearDown(self):
         del self.obja
         del self.objb
@@ -887,6 +910,29 @@ class TestAttr(XMLTestCase):
         self.assertSubtreeEqual(
             etree.fromstring("<foo foo='true'/>"),
             el)
+
+    def test_validates(self):
+        validator = unittest.mock.MagicMock()
+        instance = unittest.mock.MagicMock()
+        instance._stanza_prop = {}
+
+        prop = stanza_model.Attr("foo", validator=validator)
+
+        validator.validate.return_value = True
+        prop.from_value(instance, "foo")
+
+        validator.validate.return_value = False
+        with self.assertRaises(ValueError):
+            prop.from_value(instance, "foo")
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call.__bool__(),
+                unittest.mock.call.validate("foo"),
+                unittest.mock.call.__bool__(),
+                unittest.mock.call.validate("foo"),
+            ],
+            validator.mock_calls)
 
 
 class Testdrop_handler(unittest.TestCase):

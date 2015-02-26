@@ -111,3 +111,11 @@ class JID:
 
     def format(self, v):
         return str(v)
+
+
+class RestrictToSet:
+    def __init__(self, values):
+        self.values = frozenset(values)
+
+    def validate(self, value):
+        return value in self.values
