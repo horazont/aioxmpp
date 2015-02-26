@@ -6,12 +6,14 @@ import pytz
 
 from datetime import datetime, timedelta
 
+
 class String:
     def parse(self, v):
         return v
 
     def format(self, v):
         return v
+
 
 class Integer:
     def parse(self, v):
@@ -20,12 +22,14 @@ class Integer:
     def format(self, v):
         return str(v)
 
+
 class Float:
     def parse(self, v):
         return float(v)
 
     def format(self, v):
         return str(v)
+
 
 class Bool:
     def parse(self, v):
@@ -42,6 +46,7 @@ class Bool:
             return "true"
         else:
             return "false"
+
 
 class DateTime:
     tzextract = re.compile("((Z)|([+-][0-9]{2}):([0-9]{2}))$")
@@ -81,12 +86,14 @@ class DateTime:
             result += "Z"
         return result
 
+
 class Base64Binary:
     def parse(self, v):
         return base64.b64decode(v)
 
     def format(self, v):
         return base64.b64encode(v).decode("ascii")
+
 
 class HexBinary:
     def parse(self, v):
