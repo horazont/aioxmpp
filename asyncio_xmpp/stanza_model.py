@@ -211,10 +211,6 @@ class StanzaClass(type):
         namespace["CHILD_PROPS"] = frozenset(child_props)
         namespace["ATTR_MAP"] = attr_map
         namespace["COLLECTOR_PROPERTY"] = collector_property
-        namespace.setdefault("UNKNOWN_CHILD_POLICY",
-                             UnknownChildPolicy.FAIL)
-        namespace.setdefault("UNKNOWN_ATTR_POLICY",
-                             UnknownAttrPolicy.FAIL)
 
         try:
             tag = namespace["TAG"]
@@ -294,6 +290,9 @@ class StanzaClass(type):
 
 
 class StanzaObject(metaclass=StanzaClass):
+    UNKNOWN_CHILD_POLICY = UnknownChildPolicy.FAIL
+    UNKNOWN_ATTR_POLICY = UnknownAttrPolicy.FAIL
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._stanza_props = dict()

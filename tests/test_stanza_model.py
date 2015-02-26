@@ -42,12 +42,6 @@ class TestStanzaClass(unittest.TestCase):
         self.assertFalse(Cls.CHILD_MAP)
         self.assertFalse(Cls.CHILD_PROPS)
         self.assertFalse(Cls.ATTR_MAP)
-        self.assertEqual(
-            stanza_model.UnknownChildPolicy.FAIL,
-            Cls.UNKNOWN_CHILD_POLICY)
-        self.assertEqual(
-            stanza_model.UnknownAttrPolicy.FAIL,
-            Cls.UNKNOWN_ATTR_POLICY)
 
     def test_forbid_malformed_tag(self):
         with self.assertRaisesRegexp(TypeError,
@@ -228,6 +222,14 @@ class TestStanzaObject(XMLTestCase):
 
         self.Cls = Cls
         self.obj = Cls()
+
+    def test_policies(self):
+        self.assertEqual(
+            stanza_model.UnknownChildPolicy.FAIL,
+            self.Cls.UNKNOWN_CHILD_POLICY)
+        self.assertEqual(
+            stanza_model.UnknownAttrPolicy.FAIL,
+            self.Cls.UNKNOWN_ATTR_POLICY)
 
     def test_property_storage(self):
         self.obj._stanza_props["key"] = "value"
