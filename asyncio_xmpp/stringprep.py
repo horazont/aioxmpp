@@ -89,7 +89,7 @@ def check_prohibited_output(chars, bad_tables):
     violator = check_against_tables(chars, bad_tables)
     if violator is not None:
         raise ValueError("Input contains invalid unicode codepoint: "
-                         "U+{}".format(ord(violator)))
+                         "U+{:04x}".format(ord(violator)))
 
 
 def check_unassigned(chars, bad_tables):
@@ -105,7 +105,7 @@ def check_unassigned(chars, bad_tables):
     violator = check_against_tables(chars, bad_tables)
     if violator is not None:
         raise ValueError("Input contains unassigned code point: "
-                         "U+{}".format(ord(violator)))
+                         "U+{:04x}".format(ord(violator)))
 
 def _saslprep_do_mapping(chars):
     """

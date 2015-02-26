@@ -90,18 +90,21 @@ class TestNodeprep(unittest.TestCase):
             "Nodeprep requirement: NFKC")
 
     def test_prohibited_character(self):
-        with self.assertRaises(
+        with self.assertRaisesRegexp(
                 ValueError,
+                r"U\+0007",
                 msg="Nodeprep requirement: prohibited character (C.2.1)") as err:
             nodeprep("\u0007")
 
-        with self.assertRaises(
+        with self.assertRaisesRegexp(
                 ValueError,
+                r"U\+200e",
                 msg="Nodeprep requirement: prohibited character (C.8)") as err:
             nodeprep("\u200E")
 
-        with self.assertRaises(
+        with self.assertRaisesRegexp(
                 ValueError,
+                r"U\+003e",
                 msg="Nodeprep requirement: prohibited character (custom)") as err:
             nodeprep(">")
 
@@ -130,40 +133,47 @@ class TestNameprep(unittest.TestCase):
             "Nameprep requirement: NFKC")
 
     def test_prohibited_character(self):
-        with self.assertRaises(
+        with self.assertRaisesRegexp(
                 ValueError,
+                r"U\+06dd",
                 msg="Nameprep requirement: prohibited character (C.2.2)") as err:
             nameprep("\u06DD")
 
-        with self.assertRaises(
+        with self.assertRaisesRegexp(
                 ValueError,
+                r"U\+e000",
                 msg="Nameprep requirement: prohibited character (C.3)") as err:
             nameprep("\uE000")
 
-        with self.assertRaises(
+        with self.assertRaisesRegexp(
                 ValueError,
+                r"U\+1fffe",
                 msg="Nameprep requirement: prohibited character (C.4)") as err:
-            nameprep("\u1FFFE")
+            nameprep("\U0001FFFE")
 
-        with self.assertRaises(
+        with self.assertRaisesRegexp(
                 ValueError,
+                r"U\+d800",
                 msg="Nameprep requirement: prohibited character (C.5)") as err:
             nameprep("\uD800")
 
-        with self.assertRaises(
+        with self.assertRaisesRegexp(
                 ValueError,
+                r"U\+fff9",
                 msg="Nameprep requirement: prohibited character (C.6)") as err:
             nameprep("\uFFF9")
 
-        with self.assertRaises(
+        with self.assertRaisesRegexp(
                 ValueError,
+                r"U\+2ff0",
                 msg="Nameprep requirement: prohibited character (C.7)") as err:
             nameprep("\u2FF0")
 
-        with self.assertRaises(
+        with self.assertRaisesRegexp(
                 ValueError,
+                r"U\+e0001",
                 msg="Nameprep requirement: prohibited character (C.9)") as err:
-            nameprep("\uE0001")
+            nameprep("\U000E0001")
 
 
 class TestResourceprep(unittest.TestCase):
@@ -184,14 +194,16 @@ class TestResourceprep(unittest.TestCase):
             "Resourceprep requirement: NFKC")
 
     def test_prohibited_character(self):
-        with self.assertRaises(
+        with self.assertRaisesRegexp(
                 ValueError,
+                r"U\+0007",
                 msg="Resourceprep requirement: "
                     "prohibited character (C.2.1)") as err:
             resourceprep("\u0007")
 
-        with self.assertRaises(
+        with self.assertRaisesRegexp(
                 ValueError,
+                r"U\+200e",
                 msg="Resourceprep requirement: "
                     "prohibited character (C.8)") as err:
             resourceprep("\u200E")
