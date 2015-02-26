@@ -184,7 +184,7 @@ class StanzaClass(type):
         attr_map = {}
         collector_property = None
 
-        for name, obj in namespace.items():
+        for attrname, obj in namespace.items():
             if isinstance(obj, Attr):
                 attr_map[obj.name] = obj
             elif isinstance(obj, Text):
