@@ -1,14 +1,30 @@
 import unittest
 
 from asyncio_xmpp.stringprep import (
-    saslprep, nodeprep, resourceprep, nameprep
+    saslprep, nodeprep, resourceprep, nameprep,
+    check_bidi
 )
+
+class Testcheck_bidi(unittest.TestCase):
+    # some test cases which are not covered by the other tests
+    def test_empty_string(self):
+        check_bidi("")
+
+    def test_L_RAL_violation(self):
+        with self.assertRaises(ValueError):
+            check_bidi("\u05be\u0041")
 
 class TestSASLprep(unittest.TestCase):
     def test_map_to_nothing_rfcx(self):
         self.assertEqual(
             "IX",
             saslprep("I\u00ADX"),
+            "SASLprep requirement: map SOFT HYPHEN to nothing")
+
+    def test_map_to_space(self):
+        self.assertEqual(
+            "I X",
+            saslprep("I\u00A0X"),
             "SASLprep requirement: map SOFT HYPHEN to nothing")
 
     def test_identity_rfcx(self):

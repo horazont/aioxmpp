@@ -170,9 +170,6 @@ def _nodeprep_do_mapping(chars):
                 chars[i:i+1] = list(replacement)
             i += len(replacement)
 
-def _nameprep_do_mapping(chars):
-    return _nodeprep_do_mapping(chars)
-
 def nodeprep(string, allow_unassigned=False):
     """
     Process the given *string* using the Nodeprep (`RFC 6122`_) profile. In the
