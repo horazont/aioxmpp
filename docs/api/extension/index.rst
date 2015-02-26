@@ -5,3 +5,4 @@ APIs relevant for extension developers
    :maxdepth: 2
 
    plugins_base.rst
+   stanza_model.rst

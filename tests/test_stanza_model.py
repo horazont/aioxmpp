@@ -652,11 +652,11 @@ class TestChild(XMLTestCase):
         with self.assertRaisesRegexp(ValueError, "ambiguous children"):
             stanza_model.Child([self.ClsLeaf, ClsLeaf2])
 
-    def test_post_register(self):
+    def test__register(self):
         class ClsLeaf2(stanza_model.StanzaObject):
             TAG = "baz"
 
-        self.ClsA.test_child.register(ClsLeaf2)
+        self.ClsA.test_child._register(ClsLeaf2)
         self.assertDictEqual(
             {
                 (None, "bar"): self.ClsLeaf,
@@ -669,7 +669,7 @@ class TestChild(XMLTestCase):
             TAG = "baz"
 
         with self.assertRaisesRegexp(ValueError, "ambiguous children"):
-            self.ClsA.test_child.register(ClsLeafConflict)
+            self.ClsA.test_child._register(ClsLeafConflict)
 
     def test_from_events(self):
         dest = []
@@ -844,23 +844,23 @@ class TestCollector(XMLTestCase):
 
 
 class TestAttr(XMLTestCase):
-    def test_name_attribute(self):
+    def test_tag_attribute(self):
         prop = stanza_model.Attr("foo")
         self.assertEqual(
             (None, "foo"),
-            prop.name
+            prop.tag
         )
 
         prop = stanza_model.Attr((None, "foo"))
         self.assertEqual(
             (None, "foo"),
-            prop.name
+            prop.tag
         )
 
         prop = stanza_model.Attr(("bar", "foo"))
         self.assertEqual(
             ("bar", "foo"),
-            prop.name
+            prop.tag
         )
 
     def test_from_value_and_type(self):
