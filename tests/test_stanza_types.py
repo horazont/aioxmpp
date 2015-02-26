@@ -5,6 +5,7 @@ import pytz
 from datetime import datetime
 
 import asyncio_xmpp.stanza_types as stanza_types
+import asyncio_xmpp.jid as jid
 
 
 class TestStringType(unittest.TestCase):
@@ -207,4 +208,20 @@ class TestHexBinary(unittest.TestCase):
         self.assertEqual(
             "666e6f7264",
             t.format(b"fnord")
+        )
+
+
+class TestJID(unittest.TestCase):
+    def test_parse(self):
+        t = stanza_types.JID()
+        self.assertEqual(
+            jid.JID("foo", "example.test", "bar"),
+            t.parse("foo@example.test/bar")
+        )
+
+    def test_format(self):
+        t = stanza_types.JID()
+        self.assertEqual(
+            "ssa@ix.test/IX",
+            t.format(jid.JID("ßA", "IX.test", "\u2168"))
         )

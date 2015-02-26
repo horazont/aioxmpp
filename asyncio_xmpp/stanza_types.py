@@ -6,6 +6,8 @@ import pytz
 
 from datetime import datetime, timedelta
 
+from . import jid
+
 
 class String:
     def parse(self, v):
@@ -101,3 +103,11 @@ class HexBinary:
 
     def format(self, v):
         return binascii.b2a_hex(v).decode("ascii")
+
+
+class JID:
+    def parse(self, v):
+        return jid.JID.fromstr(v)
+
+    def format(self, v):
+        return str(v)
