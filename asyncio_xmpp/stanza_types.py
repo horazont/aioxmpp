@@ -1,5 +1,6 @@
 import base64
 import binascii
+import unicodedata
 import re
 
 import pytz
@@ -119,3 +120,27 @@ class RestrictToSet:
 
     def validate(self, value):
         return value in self.values
+
+
+class Nmtoken:
+    VALID_CATS = {
+        "Ll", "Lu", "Lo", "Lt", "Nl",  # Name start
+        "Mc", "Me", "Mn", "Lm", "Nd",  # Name without name start
+    }
+    ADDITIONAL = frozenset(":_.-\u06dd\u06de\u06df\u00b7\u0387\u212e")
+    UCD = unicodedata.ucd_3_2_0
+
+    @classmethod
+    def _validate_chr(cls, c):
+        if c in cls.ADDITIONAL:
+            return True
+        if 0xf900 < ord(c) < 0xfffe:
+            return False
+        if 0x20dd <= ord(c) <= 0x20e0:
+            return False
+        if cls.UCD.category(c) not in cls.VALID_CATS:
+            return False
+        return True
+
+    def validate(self, value):
+        return all(map(self._validate_chr, value))
