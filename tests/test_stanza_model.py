@@ -1040,7 +1040,7 @@ class TestCollector(XMLTestCase):
 
         subtree1 = etree.fromstring("<foo/>")
         subtree2 = etree.fromstring("<bar a='baz'>fnord</bar>")
-        subtree3 = etree.fromstring("<baz><a/><b c='something'/><d i='am running out of'>dummy texts</d>to insert</baz>")
+        subtree3 = etree.fromstring("<baz>prefix: <a/><b c='something'/><d i='am running out of'>dummy texts</d>to insert</baz>")
 
         subtrees = [subtree1, subtree2, subtree3]
 
