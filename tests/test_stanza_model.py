@@ -603,7 +603,8 @@ class Test_PropBase(unittest.TestCase):
     def setUp(self):
         self.default = object()
         class Cls(stanza_model.StanzaObject):
-            prop = stanza_model._PropBase(default=self.default)
+            prop = stanza_model._PropBase(
+                default=self.default)
         self.Cls = Cls
         self.obj = Cls()
 
@@ -622,6 +623,167 @@ class Test_PropBase(unittest.TestCase):
         self.assertIsInstance(
             self.Cls.prop,
             stanza_model._PropBase)
+
+    def test_validator_recv(self):
+        validator = unittest.mock.MagicMock()
+        instance = unittest.mock.MagicMock()
+        instance._stanza_props = {}
+
+        prop = stanza_model._PropBase(
+            default=self.default,
+            validator=validator,
+            validate=stanza_model.ValidateMode.FROM_RECV)
+
+        prop._set_from_recv(instance, "foo")
+        self.assertDictEqual(
+            {
+                prop: "foo",
+            },
+            instance._stanza_props
+        )
+
+        prop._set_from_code(instance, "bar")
+        self.assertDictEqual(
+            {
+                prop: "bar",
+            },
+            instance._stanza_props
+        )
+
+        validator.validate.return_value = False
+        with self.assertRaises(ValueError):
+            prop._set_from_recv(instance, "baz")
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call.__bool__(),
+                unittest.mock.call.validate("foo"),
+                unittest.mock.call.validate().__bool__(),
+                unittest.mock.call.__bool__(),
+                unittest.mock.call.validate("baz"),
+            ],
+            validator.mock_calls)
+
+    def test_validator_code(self):
+        validator = unittest.mock.MagicMock()
+        instance = unittest.mock.MagicMock()
+        instance._stanza_props = {}
+
+        prop = stanza_model._PropBase(
+            default=self.default,
+            validator=validator,
+            validate=stanza_model.ValidateMode.FROM_CODE)
+
+        prop._set_from_recv(instance, "foo")
+        self.assertDictEqual(
+            {
+                prop: "foo",
+            },
+            instance._stanza_props
+        )
+
+        prop._set_from_code(instance, "bar")
+        self.assertDictEqual(
+            {
+                prop: "bar",
+            },
+            instance._stanza_props
+        )
+
+        validator.validate.return_value = False
+        with self.assertRaises(ValueError):
+            prop._set_from_code(instance, "baz")
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call.__bool__(),
+                unittest.mock.call.validate("bar"),
+                unittest.mock.call.validate().__bool__(),
+                unittest.mock.call.__bool__(),
+                unittest.mock.call.validate("baz"),
+            ],
+            validator.mock_calls)
+
+    def test_validator_always(self):
+        validator = unittest.mock.MagicMock()
+        instance = unittest.mock.MagicMock()
+        instance._stanza_props = {}
+
+        prop = stanza_model._PropBase(
+            default=self.default,
+            validator=validator,
+            validate=stanza_model.ValidateMode.ALWAYS)
+
+        prop._set_from_recv(instance, "foo")
+        self.assertDictEqual(
+            {
+                prop: "foo",
+            },
+            instance._stanza_props
+        )
+
+        prop._set_from_code(instance, "bar")
+        self.assertDictEqual(
+            {
+                prop: "bar",
+            },
+            instance._stanza_props
+        )
+
+        validator.validate.return_value = False
+        with self.assertRaises(ValueError):
+            prop._set_from_recv(instance, "baz")
+
+        with self.assertRaises(ValueError):
+            prop._set_from_code(instance, "fnord")
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call.__bool__(),
+                unittest.mock.call.validate("foo"),
+                unittest.mock.call.validate().__bool__(),
+                unittest.mock.call.__bool__(),
+                unittest.mock.call.validate("bar"),
+                unittest.mock.call.validate().__bool__(),
+                unittest.mock.call.__bool__(),
+                unittest.mock.call.validate("baz"),
+                unittest.mock.call.__bool__(),
+                unittest.mock.call.validate("fnord"),
+            ],
+            validator.mock_calls)
+
+    def test_descriptor_access_goes_through_code_setter(self):
+        validator = unittest.mock.MagicMock()
+
+        class Cls(stanza_model.StanzaObject):
+            prop = stanza_model._PropBase(
+                default=self.default,
+                validator=validator,
+                validate=stanza_model.ValidateMode.FROM_CODE)
+
+        obj = Cls()
+        obj.prop = "foo"
+        self.assertEqual(
+            "foo",
+            obj.prop)
+
+        validator.validate.return_value = False
+        with self.assertRaises(ValueError):
+            obj.prop = "bar"
+
+        self.assertEqual(
+            "foo",
+            obj.prop)
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call.__bool__(),
+                unittest.mock.call.validate("foo"),
+                unittest.mock.call.validate().__bool__(),
+                unittest.mock.call.__bool__(),
+                unittest.mock.call.validate("bar"),
+            ],
+            validator.mock_calls)
 
     def tearDown(self):
         del self.obj

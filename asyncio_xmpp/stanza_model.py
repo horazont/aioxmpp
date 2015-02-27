@@ -43,19 +43,21 @@ until the next event is sent into it.
 Descriptors for XML-sourced attributes
 ======================================
 
-The following descriptors can be used to load attributes from stanza XML:
+The following descriptors can be used to load attributes from stanza XML. Before
+going into the details of the different classes, let us describe some common
+arguments which are used by several classes:
 
-.. autoclass:: Attr(name, type_=stanza_types.String(), default=None, required=False)
+.. autoclass:: Attr(name, type_=stanza_types.String(), default=None, required=False, validator=None, validate=ValidateMode.FROM_RECV)
 
 .. autoclass:: Child(classes, default=None)
 
 .. autoclass:: ChildList(classes)
 
-.. autoclass:: ChildText(tag, type_=stanza_types.String(), default=None, child_policy=UnknownChildPolicy.FAIL, attr_policy=UnknownAttrPolicy.FAIL)
+.. autoclass:: ChildText(tag, child_policy=UnknownChildPolicy.FAIL, attr_policy=UnknownAttrPolicy.FAIL, type_=stanza_types.String(), default=None, validator=None, validate=ValidateMode.FROM_RECV)
 
 .. autoclass:: Collector()
 
-.. autoclass:: Text(type_=stanza_types.String(), default=None)
+.. autoclass:: Text(type_=stanza_types.String(), default=None, validator=None, validate=ValidateMode.FROM_RECV)
 
 Parsing stanzas
 ===============
@@ -98,6 +100,8 @@ The values of the following enumerations are used on "magic" attributes of
 .. autoclass:: UnknownChildPolicy
 
 .. autoclass:: UnknownAttrPolicy
+
+.. autoclass:: ValidateMode
 
 The following exceptions are generated at some places in this module:
 
@@ -196,6 +200,38 @@ class UnknownAttrPolicy(Enum):
     DROP = 1
 
 
+class ValidateMode(Enum):
+    """
+    Control which ways to set a value in a descriptor are passed through a
+    validator.
+
+    .. attribute:: FROM_RECV
+
+       Values which are obtained from XML source are validated.
+
+    .. attribute:: FROM_CODE
+
+       Values which are set through attribute access are validated.
+
+    .. attribute:: ALWAYS
+
+       All values, whether set by attribute or obtained from XML source, are
+       validated.
+
+    """
+
+    FROM_RECV = 1
+    FROM_CODE = 2
+    ALWAYS = 3
+
+    @property
+    def from_recv(self):
+        return self.value & 1
+
+    @property
+    def from_code(self):
+        return self.value & 2
+
 class UnknownTopLevelTag(ValueError):
     """
     Subclass of :class:`ValueError`. *ev_args* must be the arguments of the
@@ -214,12 +250,33 @@ class UnknownTopLevelTag(ValueError):
 
 
 class _PropBase:
-    def __init__(self, default):
+    def __init__(self, default,
+                 validator=None,
+                 validate=ValidateMode.FROM_RECV):
         super().__init__()
         self._default = default
+        self.validate = validate
+        self.validator = validator
+
+    def _set(self, instance, value):
+        instance._stanza_props[self] = value
 
     def __set__(self, instance, value):
-        instance._stanza_props[self] = value
+        if     (self.validate.from_code and
+                self.validator and
+                not self.validator.validate(value)):
+            raise ValueError("invalid value")
+        self._set(instance, value)
+
+    def _set_from_code(self, instance, value):
+        self.__set__(instance, value)
+
+    def _set_from_recv(self, instance, value):
+        if     (self.validate.from_recv and
+                self.validator and
+                not self.validator.validate(value)):
+            raise ValueError("invalid value")
+        self._set(instance, value)
 
     def __get__(self, instance, cls):
         if instance is None:
@@ -240,14 +297,8 @@ class Text(_PropBase):
     XMPP to keep that relative order: Elements either have character data *or*
     other elements as children.
 
-    *type_* should be a type object from :mod:`~asyncio_xmpp.stanza_types` and
-    defaults to :class:`~asyncio_xmpp.stanza_types.String`.
-
-    *default* is returned as an attribute value whenever no value has been
-    assigned before.
-
-    *validator* must be an object which provides a :meth:`validate` method,
-    returning true if the argument passed is a valid value and false otherwise.
+    The *type_*, *validator*, *validate* and *default* arguments behave like in
+    :class:`Attr`.
 
     .. automethod:: from_value
 
@@ -256,21 +307,17 @@ class Text(_PropBase):
 
     def __init__(self,
                  type_=stanza_types.String(),
-                 validator=None,
-                 default=None):
-        super().__init__(default)
+                 default=None,
+                 **kwargs):
+        super().__init__(default, **kwargs)
         self.type_ = type_
-        self.validator = validator
 
     def from_value(self, instance, value):
         """
         Convert the given value using the set *type_* and store it into
         *instance*’ attribute.
         """
-        parsed = self.type_.parse(value)
-        if self.validator and not self.validator.validate(parsed):
-            raise ValueError("invalid value")
-        self.__set__(instance, parsed)
+        self._set_from_recv(instance, self.type_.parse(value))
 
     def to_node(self, instance, el):
         """
@@ -288,7 +335,8 @@ class Child(_PropBase):
     The tags among the *classes* must be unique, otherwise :class:`ValueError`
     is raised on construction.
 
-    When the descriptor is used and no value is assigned, *default* is returned.
+    The *default* argument behaves like in :class:`Attr`. Validators are not
+    supported.
 
     .. automethod:: get_tag_map
 
@@ -458,18 +506,25 @@ class Attr(Text):
     attribute with the given *tag*. *tag* must be a valid input to
     :func:`normalize_tag`.
 
-    The *type_* should be a type from :mod:`~asyncio_xmpp.stanza_types` and
-    defaults to :class:`~asyncio_xmpp.stanza_types.String`.
+    The following arguments occur at several of the descriptor classes, and are
+    all available at :class:`Attr`.
 
-    The *default* value is returned as attribute value whenever the attribute is
-    not set.
-
-    If *required* is true and the attribute is missing from the element it is
-    associated to, parsing will fail with a :class:`ValueError`.
-
-    *validator* must be an object which provides a :meth:`validate` method,
-    returning true if the argument passed is a valid value and false
-    otherwise. The argument has already been parsed by the *type_*.
+    :param type_: An object which fulfills the type interface proposed by
+                  :mod:`~asyncio_xmpp.stanza_types`. Usually, this is defaulted
+                  to a :class:`~asyncio_xmpp.stanza_types.String` instance.
+    :param validator: An object which has a :meth:`validate` method. That method
+                      receives a value which was either assigned to the property
+                      (depending on the *validate* argument) or parsed from XML
+                      (after it passed through *type_*).
+    :param validate: A value from the :class:`ValidateMode` enum, which defines
+                     which values have to pass through the validator. At some
+                     points it makes sense to only validate outgoing values, but
+                     be liberal with incoming values. This defaults to
+                     :attr:`ValidateMode.FROM_RECV`.
+    :param default: The value which the attribute has if no value has been
+                    assigned. This defaults to :data:`None`.
+    :param required: Whether the absence of data for this object during parsing
+                     is a fatal error. This defaults to :data:`False`.
 
     .. automethod:: from_value
 
@@ -481,8 +536,8 @@ class Attr(Text):
                  type_=stanza_types.String(),
                  default=None,
                  required=False,
-                 validator=None):
-        super().__init__(type_=type_, default=default, validator=validator)
+                 **kwargs):
+        super().__init__(type_=type_, default=default, **kwargs)
         self.tag = normalize_tag(tag)
         self.required = required
 
@@ -502,14 +557,8 @@ class ChildText(_PropBase):
     character data of a child element with the given *tag*. *tag* must be a
     valid input to :func:`normalize_tag`.
 
-    *type_* is used to convert the character data to python types on
-    deserialization and back on serialization. It should be a type from
-    :mod:`~asyncio_xmpp.stanza_types` and defaults to
-    :class:`~asyncio_xmpp.stanza_types.String`.
-
-    *validator* must be an object which provides a :meth:`validate` method,
-    returning true if the argument passed is a valid value and false
-    otherwise. The argument has already been parsed by the *type_*.
+    The *type_*, *validate*, *validator* and *default* arguments behave like in
+    :class:`Attr`.
 
     *child_policy* is applied when :meth:`from_events` encounters an element in
     the child element of which it is supposed to extract text. Likewise,
@@ -525,14 +574,13 @@ class ChildText(_PropBase):
 
     def __init__(self, tag,
                  type_=stanza_types.String(),
-                 validator=None,
                  default=None,
                  child_policy=UnknownChildPolicy.FAIL,
-                 attr_policy=UnknownAttrPolicy.FAIL):
-        super().__init__(default=default)
+                 attr_policy=UnknownAttrPolicy.FAIL,
+                 **kwargs):
+        super().__init__(default=default, **kwargs)
         self.tag = normalize_tag(tag)
         self.type_ = type_
-        self.validator = validator
         self.default = default
         self.child_policy = child_policy
         self.attr_policy = attr_policy
@@ -575,10 +623,7 @@ class ChildText(_PropBase):
                     yield from drop_handler(ev_args)
             elif ev_type == "end":
                 break
-        parsed = self.type_.parse("".join(parts))
-        if self.validator and not self.validator.validate(parsed):
-            raise ValueError("invalid value")
-        self.__set__(instance, parsed)
+        self._set_from_recv(instance, self.type_.parse("".join(parts)))
 
     def to_node(self, instance, parent):
         """
