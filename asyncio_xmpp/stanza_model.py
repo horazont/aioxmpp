@@ -267,7 +267,7 @@ class Text(_PropBase):
         """
         parsed = self.type_.parse(value)
         if self.validator and not self.validator.validate(parsed):
-            raise ValueError("Invalid value")
+            raise ValueError("invalid value")
         self.__set__(instance, parsed)
 
     def to_node(self, instance, el):
@@ -453,9 +453,8 @@ class Collector(_PropBase):
 class Attr(Text):
     """
     When assigned to a class’ attribute, it binds that attribute to the XML
-    attribute with the given *tag*. *tag* may either be a plain string (for an
-    unnamespaced attribute) or a tuple ``(namespace_uri, localname)`` for a
-    namespaced attribute.
+    attribute with the given *tag*. *tag* must be a valid input to
+    :func:`normalize_tag`.
 
     The *type_* should be a type from :mod:`~asyncio_xmpp.stanza_types` and
     defaults to :class:`~asyncio_xmpp.stanza_types.String`.
@@ -467,7 +466,8 @@ class Attr(Text):
     associated to, parsing will fail with a :class:`ValueError`.
 
     *validator* must be an object which provides a :meth:`validate` method,
-    returning true if the argument passed is a valid value and false otherwise.
+    returning true if the argument passed is a valid value and false
+    otherwise. The argument has already been parsed by the *type_*.
 
     .. automethod:: from_value
 
@@ -481,12 +481,7 @@ class Attr(Text):
                  required=False,
                  validator=None):
         super().__init__(type_=type_, default=default, validator=validator)
-        if isinstance(tag, tuple):
-            uri, localpart = tag
-        else:
-            uri = None
-            localpart = tag
-        self.tag = uri, localpart
+        self.tag = normalize_tag(tag)
         self.required = required
 
     def to_node(self, instance, parent):
