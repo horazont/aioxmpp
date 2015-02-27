@@ -51,6 +51,8 @@ The following descriptors can be used to load attributes from stanza XML:
 
 .. autoclass:: ChildList(classes)
 
+.. autoclass:: ChildText(tag, type_=stanza_types.String(), default=None, child_policy=UnknownChildPolicy.FAIL, attr_policy=UnknownAttrPolicy.FAIL)
+
 .. autoclass:: Collector()
 
 .. autoclass:: Text(type_=stanza_types.String(), default=None)
@@ -494,6 +496,106 @@ class Attr(Text):
             self.type_.format(self.__get__(instance, type(instance))))
 
 
+class ChildText(_PropBase):
+    """
+    When assigned to a class’ attribute, it binds that attribute to the XML
+    character data of a child element with the given *tag*. *tag* must be a
+    valid input to :func:`normalize_tag`.
+
+    *type_* is used to convert the character data to python types on
+    deserialization and back on serialization. It should be a type from
+    :mod:`~asyncio_xmpp.stanza_types` and defaults to
+    :class:`~asyncio_xmpp.stanza_types.String`.
+
+    *validator* must be an object which provides a :meth:`validate` method,
+    returning true if the argument passed is a valid value and false
+    otherwise. The argument has already been parsed by the *type_*.
+
+    *child_policy* is applied when :meth:`from_events` encounters an element in
+    the child element of which it is supposed to extract text. Likewise,
+    *attr_policy* is applied if an attribute is encountered on the element.
+
+    .. automethod:: get_tag_map
+
+    .. automethod:: from_events
+
+    .. automethod:: to_node
+
+    """
+
+    def __init__(self, tag,
+                 type_=stanza_types.String(),
+                 validator=None,
+                 default=None,
+                 child_policy=UnknownChildPolicy.FAIL,
+                 attr_policy=UnknownAttrPolicy.FAIL):
+        super().__init__(default=default)
+        self.tag = normalize_tag(tag)
+        self.type_ = type_
+        self.validator = validator
+        self.default = default
+        self.child_policy = child_policy
+        self.attr_policy = attr_policy
+
+    def get_tag_map(self):
+        """
+        Return an iterable yielding :attr:`tag`.
+
+        This is for compatiblity with the :class:`Child` interface.
+        """
+        return {self.tag}
+
+    def from_events(self, instance, ev_args):
+        """
+        Starting with the element to which the start event information in
+        *ev_args* belongs, parse text data. If any children are encountered,
+        :attr:`child_policy` is enforced (see
+        :class:`UnknownChildPolicy`). Likewise, if the start event contains
+        attributes, :attr:`attr_policy` is enforced
+        (c.f. :class:`UnknownAttrPolicy`).
+
+        The extracted text is passed through :attr:`type_` and :attr:`validator`
+        and if it passes, stored in the attribute on the *instance* with which
+        the property is associated.
+
+        This method is suspendable.
+        """
+        attrs = ev_args[2]
+        if attrs and self.attr_policy == UnknownAttrPolicy.FAIL:
+            raise ValueError("unexpected attribute (at text only node)")
+        parts = []
+        while True:
+            ev_type, *ev_args = yield
+            if ev_type == "text":
+                parts.append(ev_args[0])
+            elif ev_type == "start":
+                if self.child_policy == UnknownChildPolicy.FAIL:
+                    raise ValueError("unexpected child (in text only node)")
+                else:
+                    yield from drop_handler(ev_args)
+            elif ev_type == "end":
+                break
+        parsed = self.type_.parse("".join(parts))
+        if self.validator and not self.validator.validate(parsed):
+            raise ValueError("invalid value")
+        self.__set__(instance, parsed)
+
+    def to_node(self, instance, parent):
+        """
+        Create a child node at *parent* with the tag :attr:`tag`. Set the text
+        contents to the value of the attribute which this descriptor represents
+        at *instance*.
+
+        If the value is equal to the :attr:`default`, no element is generated.
+        """
+        value = self.__get__(instance, type(instance))
+        if value == self._default:
+            return
+        el = etree.SubElement(parent, tag_to_str(self.tag))
+        el.text = self.type_.format(value)
+        return el
+
+
 class StanzaClass(type):
     """
     There should be no need to use this metaclass directly when implementing
@@ -611,8 +713,8 @@ class StanzaClass(type):
                 if text_property is not None:
                     raise TypeError("multiple Text properties on stanza class")
                 text_property = obj
-            elif isinstance(obj, Child):
-                for key in obj.get_tag_map().keys():
+            elif isinstance(obj, (Child, ChildText)):
+                for key in obj.get_tag_map():
                     if key in child_map:
                         raise TypeError("ambiguous Child properties: {} and {}"
                                         " both use the same tag".format(

@@ -153,6 +153,19 @@ class TestStanzaClass(unittest.TestCase):
             ClsA.text,
             ClsD.TEXT_PROPERTY)
 
+    def test_collect_child_text_property(self):
+        class ClsA(metaclass=stanza_model.StanzaClass):
+            body = stanza_model.ChildText("body")
+
+        self.assertDictEqual(
+            {
+                (None, "body"): ClsA.body,
+            },
+            ClsA.CHILD_MAP)
+        self.assertSetEqual(
+            {ClsA.body},
+            ClsA.CHILD_PROPS)
+
     def test_collect_child_property(self):
         class ClsA(metaclass=stanza_model.StanzaClass):
             TAG = "foo"
@@ -975,6 +988,219 @@ class TestAttr(XMLTestCase):
             validator.mock_calls)
 
 
+class TestChildText(XMLTestCase):
+    def test_init(self):
+        type_mock = unittest.mock.MagicMock()
+        validator_mock = unittest.mock.MagicMock()
+
+        prop = stanza_model.ChildText(
+            tag="body",
+            type_=type_mock,
+            validator=validator_mock)
+        self.assertEqual(
+            (None, "body"),
+            prop.tag)
+        self.assertIs(
+            type_mock,
+            prop.type_)
+        self.assertIs(
+            validator_mock,
+            prop.validator)
+
+    def test_from_events_with_type_and_validation(self):
+        type_mock = unittest.mock.MagicMock()
+        validator_mock = unittest.mock.MagicMock()
+
+        instance = unittest.mock.MagicMock()
+        instance._stanza_props = {}
+
+        prop = stanza_model.ChildText(
+            "body",
+            type_=type_mock,
+            validator=validator_mock)
+
+        subtree = etree.fromstring("<body>foo</body>")
+
+        sd = stanza_model.SAXDriver(
+            functools.partial(from_wrapper, prop.from_events, instance)
+        )
+
+        lxml.sax.saxify(subtree, sd)
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call.parse("foo"),
+            ],
+            type_mock.mock_calls)
+        self.assertDictEqual(
+            {
+                prop: type_mock.parse("foo"),
+            },
+            instance._stanza_props)
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call.__bool__(),
+                unittest.mock.call.validate(type_mock.parse("foo")),
+                unittest.mock.call.validate().__bool__(),
+            ],
+            validator_mock.mock_calls)
+        self.assertSequenceEqual(
+            [],
+            instance.mock_calls)
+
+    def test_from_events_validates(self):
+        type_mock = unittest.mock.MagicMock()
+        validator_mock = unittest.mock.MagicMock()
+
+        instance = unittest.mock.MagicMock()
+        instance._stanza_props = {}
+
+        prop = stanza_model.ChildText(
+            "body",
+            type_=type_mock,
+            validator=validator_mock)
+
+        subtree = etree.fromstring("<body>foo</body>")
+
+        sd = stanza_model.SAXDriver(
+            functools.partial(from_wrapper, prop.from_events, instance)
+        )
+
+        validator_mock.validate.return_value = False
+
+        with self.assertRaises(ValueError):
+            lxml.sax.saxify(subtree, sd)
+
+    def test_child_policy_default(self):
+        prop = stanza_model.ChildText("body")
+        self.assertEqual(
+            stanza_model.UnknownChildPolicy.FAIL,
+            prop.child_policy)
+
+    def test_enforce_child_policy_fail(self):
+        instance = unittest.mock.MagicMock()
+        instance._stanza_props = {}
+
+        prop = stanza_model.ChildText(
+            "body",
+            child_policy=stanza_model.UnknownChildPolicy.FAIL)
+        subtree = etree.fromstring("<body>foo<bar/></body>")
+
+        sd = stanza_model.SAXDriver(
+            functools.partial(from_wrapper, prop.from_events, instance)
+        )
+
+        with self.assertRaises(ValueError):
+            lxml.sax.saxify(subtree, sd)
+
+        self.assertFalse(instance._stanza_props)
+
+    def test_enforce_child_policy_drop(self):
+        instance = unittest.mock.MagicMock()
+        instance._stanza_props = {}
+
+        prop = stanza_model.ChildText(
+            "body",
+            child_policy=stanza_model.UnknownChildPolicy.DROP)
+        subtree = etree.fromstring("<body>foo<bar/>bar</body>")
+
+        sd = stanza_model.SAXDriver(
+            functools.partial(from_wrapper, prop.from_events, instance)
+        )
+
+        lxml.sax.saxify(subtree, sd)
+
+        self.assertDictEqual(
+            {
+                prop: "foobar",
+            },
+            instance._stanza_props)
+
+    def test_attr_policy_default(self):
+        prop = stanza_model.ChildText("body")
+        self.assertEqual(
+            stanza_model.UnknownAttrPolicy.FAIL,
+            prop.attr_policy)
+
+    def test_enforce_attr_policy_fail(self):
+        instance = unittest.mock.MagicMock()
+        instance._stanza_props = {}
+
+        prop = stanza_model.ChildText(
+            "body",
+            attr_policy=stanza_model.UnknownAttrPolicy.FAIL)
+        subtree = etree.fromstring("<body a='bar'>foo</body>")
+
+        sd = stanza_model.SAXDriver(
+            functools.partial(from_wrapper, prop.from_events, instance)
+        )
+
+        with self.assertRaises(ValueError):
+            lxml.sax.saxify(subtree, sd)
+
+        self.assertFalse(instance._stanza_props)
+
+    def test_enforce_attr_policy_drop(self):
+        instance = unittest.mock.MagicMock()
+        instance._stanza_props = {}
+
+        prop = stanza_model.ChildText(
+            "body",
+            attr_policy=stanza_model.UnknownAttrPolicy.DROP)
+        subtree = etree.fromstring("<body a='bar'>foo</body>")
+
+        sd = stanza_model.SAXDriver(
+            functools.partial(from_wrapper, prop.from_events, instance)
+        )
+
+        lxml.sax.saxify(subtree, sd)
+
+        self.assertDictEqual(
+            {
+                prop: "foo",
+            },
+            instance._stanza_props)
+
+    def test_to_node(self):
+        type_mock = unittest.mock.MagicMock()
+        type_mock.format.return_value = "foo"
+
+        prop = stanza_model.ChildText(
+            "body",
+            type_=type_mock
+        )
+
+        instance = unittest.mock.MagicMock()
+        instance._stanza_props = {
+            prop: "foo"
+        }
+
+        parent = etree.Element("root")
+        prop.to_node(instance, parent)
+
+        self.assertSubtreeEqual(
+            etree.fromstring("<root><body>foo</body></root>"),
+            parent)
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call.format("foo"),
+            ],
+            type_mock.mock_calls)
+
+    def test_to_node_default(self):
+        prop = stanza_model.ChildText("body")
+
+        instance = unittest.mock.MagicMock()
+        instance._stanza_props = {}
+
+        parent = etree.Element("root")
+        prop.to_node(instance, parent)
+
+        self.assertSubtreeEqual(
+            etree.fromstring("<root />"),
+            parent)
+
+
 class Testdrop_handler(unittest.TestCase):
     def test_drop_handler(self):
         result = object()
@@ -1393,3 +1619,15 @@ class Teststanza_parser(XMLTestCase):
         result = self.run_parser_one([Foo], tree)
 
         self.assertIsInstance(result.child, Bar)
+
+    def test_parse_child_text(self):
+        class Foo(stanza_model.StanzaObject):
+            TAG = "foo"
+            body = stanza_model.ChildText("body")
+
+        tree = etree.fromstring("<foo><body>foobar</body></foo>")
+        result = self.run_parser_one([Foo], tree)
+
+        self.assertEqual(
+            "foobar",
+            result.body)
