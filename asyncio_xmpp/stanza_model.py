@@ -257,16 +257,16 @@ class Text(_PropBase):
                  validator=None,
                  default=None):
         super().__init__(default)
-        self._type = type_
-        self._validator = validator
+        self.type_ = type_
+        self.validator = validator
 
     def from_value(self, instance, value):
         """
         Convert the given value using the set *type_* and store it into
         *instance*’ attribute.
         """
-        parsed = self._type.parse(value)
-        if self._validator and not self._validator.validate(parsed):
+        parsed = self.type_.parse(value)
+        if self.validator and not self.validator.validate(parsed):
             raise ValueError("Invalid value")
         self.__set__(instance, parsed)
 
@@ -275,7 +275,7 @@ class Text(_PropBase):
         Assign the formatted value stored at *instance*’ attribute to the text
         of *el*.
         """
-        el.text = self._type.format(self.__get__(instance, type(instance)))
+        el.text = self.type_.format(self.__get__(instance, type(instance)))
 
 
 class Child(_PropBase):
@@ -496,7 +496,7 @@ class Attr(Text):
         """
         parent.set(
             tag_to_str(self.tag),
-            self._type.format(self.__get__(instance, type(instance))))
+            self.type_.format(self.__get__(instance, type(instance))))
 
 
 class StanzaClass(type):
