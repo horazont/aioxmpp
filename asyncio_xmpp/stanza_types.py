@@ -1,3 +1,64 @@
+"""
+:mod:`asyncio_xmpp.stanza_types` --- Types specifications for use with :mod:`~asyncio_xmpp.stanza_model`
+########################################################################################################
+
+This module provides classes whose objects can be used as types and validators
+in :mod:`~asyncio_xmpp.stanza_model`.
+
+Types
+=====
+
+Types are used to convert strings obtained from XML character data or attribute
+contents to python types. They are valid values for *type_* arguments e.g. for
+:class:`~asyncio_xmpp.stanza_model.Attr`.
+
+The basic type interface
+------------------------
+
+.. autoclass:: AbstractType
+
+Implementations
+---------------
+
+.. autoclass:: String
+
+.. autoclass:: Integer
+
+.. autoclass:: Bool
+
+.. autoclass:: DateTime
+
+.. autoclass:: Base64Binary
+
+.. autoclass:: HexBinary
+
+.. autoclass:: JID
+
+Validators
+==========
+
+Validators validate the python values after they have been parsed from
+XML-sourced strings or even when being assigned to a descriptor attribute
+(depending on the choice in the *validate* argument).
+
+They can be useful both for defending and rejecting incorrect input and to avoid
+producing incorrect output.
+
+The basic validator interface
+-----------------------------
+
+.. autoclass:: AbstractValidator
+
+Implementations
+---------------
+
+.. autoclass:: RestrictToSet
+
+.. autoclass:: Nmtoken
+
+"""
+
+import abc
 import base64
 import binascii
 import unicodedata
@@ -10,31 +71,71 @@ from datetime import datetime, timedelta
 from . import jid
 
 
-class String:
+class AbstractType(metaclass=abc.ABCMeta):
+    """
+    This is the interface all types must implement.
+
+    .. automethod:: parse
+
+    .. automethod:: format
+    """
+
+    @abc.abstractmethod
+    def parse(self, v):
+        """
+        Convert the given string *v* into a value of the appropriate type this
+        class implements and return the result.
+
+        If conversion fails, :class:`ValueError` is raised.
+        """
+
+    def format(self, v):
+        """
+        Convert the value *v* of the type this class implements to a str.
+
+        This conversion does not fail.
+        """
+        return str(v)
+
+
+class String(AbstractType):
+    """
+    Interpret the input value as string. The identity operation: the value is
+    returned unmodified.
+    """
+
     def parse(self, v):
         return v
 
-    def format(self, v):
-        return v
 
+class Integer(AbstractType):
+    """
+    Parse the value as base-10 integer and return the result as :class:`int`.
+    """
 
-class Integer:
     def parse(self, v):
         return int(v)
 
-    def format(self, v):
-        return str(v)
 
+class Float(AbstractType):
+    """
+    Parse the value as decimal float and return the result as :class:`float`.
+    """
 
-class Float:
     def parse(self, v):
         return float(v)
 
-    def format(self, v):
-        return str(v)
 
+class Bool(AbstractType):
+    """
+    Parse the value as boolean:
 
-class Bool:
+    * ``"true"`` and ``"1"`` are taken as :data:`True`,
+    * ``"false"`` and ``"0"`` are taken as :data:`False`,
+    * everything else results in a :class:`ValueError` exception.
+
+    """
+
     def parse(self, v):
         v = v.strip()
         if v in ["true", "1"]:
@@ -51,7 +152,19 @@ class Bool:
             return "false"
 
 
-class DateTime:
+class DateTime(AbstractType):
+    """
+    Parse the value as ISO datetime, possibly including microseconds and
+    timezone information.
+
+    Timezones are handled as constant offsets from UTC, and are converted to UTC
+    before the :class:`~datetime.datetime` object is returned (which is
+    correctly tagged with UTC tzinfo). Values without timezone specification are
+    not tagged.
+
+    This class makes use of :mod:`pytz`.
+    """
+
     tzextract = re.compile("((Z)|([+-][0-9]{2}):([0-9]{2}))$")
 
     def parse(self, v):
@@ -90,7 +203,12 @@ class DateTime:
         return result
 
 
-class Base64Binary:
+class Base64Binary(AbstractType):
+    """
+    Parse the value as base64 and return the :class:`bytes` object obtained from
+    decoding.
+    """
+
     def parse(self, v):
         return base64.b64decode(v)
 
@@ -98,7 +216,12 @@ class Base64Binary:
         return base64.b64encode(v).decode("ascii")
 
 
-class HexBinary:
+class HexBinary(AbstractType):
+    """
+    Parse the value as hexadecimal blob and return the :class:`bytes` object
+    obtained from decoding.
+    """
+
     def parse(self, v):
         return binascii.a2b_hex(v)
 
@@ -106,15 +229,38 @@ class HexBinary:
         return binascii.b2a_hex(v).decode("ascii")
 
 
-class JID:
+class JID(AbstractType):
+    """
+    Parse the value as Jabber ID using :meth:`~asyncio_xmpp.jid.JID.fromstr` and
+    return the :class:`asyncio_xmpp.jid.JID` object.
+    """
+
     def parse(self, v):
         return jid.JID.fromstr(v)
 
-    def format(self, v):
-        return str(v)
+
+class AbstractValidator(metaclass=abc.ABCMeta):
+    """
+    This is the interface all validators must implement. In addition, a
+    validators documentation should clearly state on which types it operates.
+
+    .. automethod:: validate
+    """
+
+    @abc.abstractmethod
+    def validate(self, value):
+        """
+        Return :data:`True` if the *value* adheres to the restrictions imposed
+        by this validator and :data:`False` otherwise.
+        """
 
 
-class RestrictToSet:
+class RestrictToSet(AbstractValidator):
+    """
+    Restrict the possible values to the values from *values*. Operates on any
+    types.
+    """
+
     def __init__(self, values):
         self.values = frozenset(values)
 
@@ -122,7 +268,22 @@ class RestrictToSet:
         return value in self.values
 
 
-class Nmtoken:
+class Nmtoken(AbstractValidator):
+    """
+    Restrict the possible strings to the NMTOKEN specification of XML Schema
+    Definitions. The validator only works with strings.
+
+    .. warning::
+
+       This validator is probably incorrect. It is a good first line of defense
+       to avoid creating obvious incorrect output and should not be used as
+       input validator.
+
+       It most likely falsely rejects valid values and may let through invalid
+       values.
+
+    """
+
     VALID_CATS = {
         "Ll", "Lu", "Lo", "Lt", "Nl",  # Name start
         "Mc", "Me", "Mn", "Lm", "Nd",  # Name without name start

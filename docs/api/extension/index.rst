@@ -6,3 +6,4 @@ APIs relevant for extension developers
 
    plugins_base.rst
    stanza_model.rst
+   stanza_types.rst

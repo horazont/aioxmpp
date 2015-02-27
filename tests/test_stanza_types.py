@@ -1,3 +1,5 @@
+import abc
+import inspect
 import unittest
 
 import pytz
@@ -8,7 +10,37 @@ import asyncio_xmpp.stanza_types as stanza_types
 import asyncio_xmpp.jid as jid
 
 
+class TestAbstractType(unittest.TestCase):
+    class DummyType(stanza_types.AbstractType):
+        def parse(self, v):
+            pass
+
+    def test_is_abstract(self):
+        self.assertIsInstance(
+            stanza_types.AbstractType,
+            abc.ABCMeta)
+        with self.assertRaises(TypeError):
+            stanza_types.AbstractType()
+
+    def test_parse_method(self):
+        self.assertTrue(inspect.isfunction(stanza_types.AbstractType.parse))
+
+    def test_format_method(self):
+        self.assertTrue(inspect.isfunction(stanza_types.AbstractType.format))
+        self.assertEqual(
+            "foo",
+            self.DummyType().format("foo"))
+        self.assertEqual(
+            "23",
+            self.DummyType().format(23))
+
+
 class TestStringType(unittest.TestCase):
+    def test_is_abstract_type(self):
+        self.assertIsInstance(
+            stanza_types.String(),
+            stanza_types.AbstractType)
+
     def test_parse(self):
         t = stanza_types.String()
         self.assertEqual(
@@ -23,6 +55,11 @@ class TestStringType(unittest.TestCase):
 
 
 class TestIntegerType(unittest.TestCase):
+    def test_is_abstract_type(self):
+        self.assertIsInstance(
+            stanza_types.Integer(),
+            stanza_types.AbstractType)
+
     def test_parse(self):
         t = stanza_types.Integer()
         self.assertEqual(
@@ -42,6 +79,11 @@ class TestIntegerType(unittest.TestCase):
 
 
 class TestFloatType(unittest.TestCase):
+    def test_is_abstract_type(self):
+        self.assertIsInstance(
+            stanza_types.Float(),
+            stanza_types.AbstractType)
+
     def test_parse(self):
         t = stanza_types.Float()
         self.assertEqual(
@@ -61,6 +103,11 @@ class TestFloatType(unittest.TestCase):
 
 
 class TestBoolType(unittest.TestCase):
+    def test_is_abstract_type(self):
+        self.assertIsInstance(
+            stanza_types.Bool(),
+            stanza_types.AbstractType)
+
     def test_parse(self):
         t = stanza_types.Bool()
         self.assertTrue(t.parse("true"))
@@ -92,6 +139,11 @@ class TestBoolType(unittest.TestCase):
 
 
 class TestDateTimeType(unittest.TestCase):
+    def test_is_abstract_type(self):
+        self.assertIsInstance(
+            stanza_types.DateTime(),
+            stanza_types.AbstractType)
+
     def test_parse_example(self):
         t = stanza_types.DateTime()
         self.assertEqual(
@@ -171,6 +223,11 @@ class TestDateTimeType(unittest.TestCase):
 
 
 class TestBase64Binary(unittest.TestCase):
+    def test_is_abstract_type(self):
+        self.assertIsInstance(
+            stanza_types.Base64Binary(),
+            stanza_types.AbstractType)
+
     def test_parse(self):
         t = stanza_types.Base64Binary()
         self.assertEqual(
@@ -196,6 +253,11 @@ class TestBase64Binary(unittest.TestCase):
 
 
 class TestHexBinary(unittest.TestCase):
+    def test_is_abstract_type(self):
+        self.assertIsInstance(
+            stanza_types.HexBinary(),
+            stanza_types.AbstractType)
+
     def test_parse(self):
         t = stanza_types.HexBinary()
         self.assertEqual(
@@ -212,6 +274,11 @@ class TestHexBinary(unittest.TestCase):
 
 
 class TestJID(unittest.TestCase):
+    def test_is_abstract_type(self):
+        self.assertIsInstance(
+            stanza_types.JID(),
+            stanza_types.AbstractType)
+
     def test_parse(self):
         t = stanza_types.JID()
         self.assertEqual(
@@ -227,7 +294,21 @@ class TestJID(unittest.TestCase):
         )
 
 
+class TestAbstractValidator(unittest.TestCase):
+    def test_is_abstract(self):
+        self.assertIsInstance(
+            stanza_types.AbstractValidator,
+            abc.ABCMeta)
+        with self.assertRaises(TypeError):
+            stanza_types.AbstractValidator()
+
+
 class TestRestrictToSet(unittest.TestCase):
+    def test_is_abstract_validator(self):
+        self.assertIsInstance(
+            stanza_types.RestrictToSet([]),
+            stanza_types.AbstractValidator)
+
     def test_validate(self):
         t = stanza_types.RestrictToSet({"foo", "bar"})
         self.assertTrue(t.validate("foo"))
@@ -236,6 +317,11 @@ class TestRestrictToSet(unittest.TestCase):
 
 
 class TestNmtoken(unittest.TestCase):
+    def test_is_abstract_validator(self):
+        self.assertIsInstance(
+            stanza_types.RestrictToSet([]),
+            stanza_types.AbstractValidator)
+
     def _test_samples(self, t, samples, group):
         for sample in samples:
             self.assertTrue(
