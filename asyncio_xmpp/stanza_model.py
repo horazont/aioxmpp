@@ -19,8 +19,11 @@ Tags, as used by etree, are used throughout this module. Note that we are
 representing tags as tuples of ``(namespace_uri, localname)``, where
 ``namespace_uri`` may be :data:`None`.
 
-To convert these tag tuples to strings accepted by etree, use
-:func:`tag_to_str`.
+.. seealso::
+
+   The functions :func:`normalize_tag` and :func:`tag_to_str` are useful to
+   convert from and to ElementTree compatible strings.
+
 
 Suspendable functions
 ---------------------
@@ -83,6 +86,8 @@ data. It also provides a class method for late registration of child classes.
 Functions, enumerations and exceptions
 ======================================
 
+.. autofunction:: normalize_tag
+
 .. autofunction:: tag_to_str
 
 The values of the following enumerations are used on "magic" attributes of
@@ -117,6 +122,39 @@ def tag_to_str(tag):
          tag_to_str(("jabber:client", "iq")) == "{jabber:client}iq"
     """
     return "{{{:s}}}{:s}".format(*tag) if tag[0] else tag[1]
+
+
+def normalize_tag(tag):
+    """
+    Normalize an XML element tree *tag* into the tuple format. The following
+    input formats are accepted:
+
+    * ElementTree namespaced string, e.g. ``{uri:bar}foo``
+    * Unnamespaced tags, e.g. ``foo``
+    * Two-tuples consisting of *namespace_uri* and *localpart*; *namespace_uri*
+      may be :data:`None` if the tag is supposed to be namespaceless. Otherwise
+      it must be, like *localpart*, a :class:`str`.
+
+    Return a two-tuple consisting the ``(namespace_uri, localpart)`` format.
+    """
+    if isinstance(tag, str):
+        namespace_uri, sep, localname = tag.partition("}")
+        if sep:
+            if not namespace_uri.startswith("{"):
+                raise ValueError("not a valid etree-format tag")
+            namespace_uri = namespace_uri[1:]
+        else:
+            localname = namespace_uri
+            namespace_uri = None
+        return (namespace_uri, localname)
+    elif len(tag) != 2:
+        raise ValueError("not a valid tuple-format tag")
+    else:
+        if any(part is not None and not isinstance(part, str) for part in tag):
+            raise TypeError("tuple-format tags must only contain str and None")
+        if tag[1] is None:
+            raise ValueError("tuple-format localname must not be None")
+    return tag
 
 
 class UnknownChildPolicy(Enum):
@@ -604,14 +642,10 @@ class StanzaClass(type):
         except KeyError:
             pass
         else:
-            if isinstance(tag, tuple):
-                try:
-                    uri, localname = tag
-                except ValueError:
-                    raise TypeError("TAG attribute has incorrect type") \
-                        from None
-            else:
-                namespace["TAG"] = (None, tag)
+            try:
+                namespace["TAG"] = normalize_tag(tag)
+            except ValueError:
+                raise TypeError("TAG attribute has incorrect format")
 
         return super().__new__(mcls, name, bases, namespace)
 
