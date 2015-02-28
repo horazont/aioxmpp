@@ -1837,44 +1837,24 @@ class ChildTag(XMLTestCase):
         del self.prop
 
 
-# class Testguard_wrap(unittest.TestCase):
-#     def catchall(self):
-#         while True:
-#             ev_type, *_ = yield
-#             if ev_type == "stop":
-#                 return
-
-#     def test_requires_proper_generator(self):
-#         gw = stanza_model.guard_wrap([])
-#         with self.assertRaisesRegexp(RuntimeError, "not a generator"):
-#             gw.send(None)
-
-#     def test_requires_fresh_generator(self):
-#         gen = self.catchall()
-#         next(gen)
-#         gw = stanza_model.guard_wrap(gen)
-#         with self.assertRaisesRegexp(RuntimeError, "invalid generator state"):
-#             gw.send(None)
-
-#     def test_enforce_end_boundary(self):
-#         gw = stanza_model.guard_wrap(self.catchall())
-#         gw.send(None)
-#         gw.send(("start", ))
-#         with self.assertRaisesRegexp(RuntimeError, "unexpected return"):
-#             gw.send(("stop", ))
-
-
-class Teststanza_parser(XMLTestCase):
-    def run_parser(self, stanza_cls, tree):
+class TestStanzaParser(XMLTestCase):
+    def run_parser(self, classes, tree):
         results = []
 
         def catch_result(value):
             nonlocal results
             results.append(value)
 
+        def fail_hard(*args):
+            raise AssertionError("this should not be reached")
+
+        parser = stanza_model.StanzaParser()
+        for cls in classes:
+            parser.add_class(cls, catch_result)
+
         sd = stanza_model.SAXDriver(
-            functools.partial(stanza_model.stanza_parser, stanza_cls),
-            on_emit = catch_result
+            parser,
+            on_emit=fail_hard
         )
         lxml.sax.saxify(tree, sd)
 
@@ -2112,3 +2092,57 @@ class Teststanza_parser(XMLTestCase):
         self.assertEqual(
             "foobar",
             result.body)
+
+    def test_add_class(self):
+        class Foo(stanza_model.StanzaObject):
+            TAG = "foo"
+
+        class Bar(stanza_model.StanzaObject):
+            TAG = "bar"
+
+        cb1, cb2 = object(), object()
+
+        p = stanza_model.StanzaParser()
+        p.add_class(Foo, cb1)
+        p.add_class(Bar, cb2)
+
+        self.assertDictEqual(
+            {
+                Foo.TAG: (Foo, cb1),
+                Bar.TAG: (Bar, cb2)
+            },
+            p.get_tag_map()
+        )
+
+    def test_add_class_forbid_duplicate_tags(self):
+        class Foo(stanza_model.StanzaObject):
+            TAG = "foo"
+
+        class Bar(stanza_model.StanzaObject):
+            TAG = "foo"
+
+        p = stanza_model.StanzaParser()
+        p.add_class(Foo, None)
+        with self.assertRaises(ValueError):
+            p.add_class(Bar, None)
+
+    def test_remove_class(self):
+        class Foo(stanza_model.StanzaObject):
+            TAG = "foo"
+
+        class Bar(stanza_model.StanzaObject):
+            TAG = "bar"
+
+        p = stanza_model.StanzaParser()
+        p.add_class(Foo, None)
+        p.add_class(Bar, None)
+
+        p.remove_class(Bar)
+        self.assertDictEqual(
+            {
+                Foo.TAG: (Foo, None),
+            },
+            p.get_tag_map()
+        )
+        p.remove_class(Foo)
+        self.assertFalse(p.get_tag_map())

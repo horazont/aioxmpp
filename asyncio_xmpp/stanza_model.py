@@ -79,10 +79,10 @@ Parsing stanzas
 
 To parse stanzas, an asynchronous approach which uses SAX-like events is
 followed. For this, the suspendable functions explained earlier are used. The
-main function to parse a stanza from events is :func:`stanza_parser`. To drive
-that suspendable function from SAX events, use a :class:`SAXDriver`.
+main class to parse a stanza from events is :class:`StanzaParser`. To drive
+that suspendable callable from SAX events, use a :class:`SAXDriver`.
 
-.. autofunction:: stanza_parser
+.. autoclass:: StanzaParser
 
 .. autoclass:: SAXDriver
 
@@ -993,7 +993,7 @@ class StanzaClass(type):
         .. seealso::
 
            You probably should not call this method directly, but instead use
-           :func:`stanza_parser` with a :class:`SAXDriver`.
+           :class:`StanzaParser` with a :class:`SAXDriver`.
 
         This method is suspendable.
         """
@@ -1075,7 +1075,7 @@ class StanzaObject(metaclass=StanzaClass):
     """
     Represent an object which may be converted to a stanza (or part of a
     stanza). These objects can also be created and validated on-the-fly from
-    SAX-like events using :func:`stanza_parser`. The constructor does not
+    SAX-like events using :class:`StanzaParser`. The constructor does not
     require any arguments and forwards them directly the next class in the
     resolution order.
 
@@ -1167,7 +1167,7 @@ class SAXDriver(xml.sax.handler.ContentHandler):
     supports namespace-conforming SAX event sources.
 
     *dest_generator_factory* must be a function which returns a new suspendable
-    method supporting the interface of :func:`stanza_parser`. The SAX events are
+    method supporting the interface of :class:`StanzaParser`. The SAX events are
     converted to an internal event format and sent to the suspendable function
     in order.
 
@@ -1218,48 +1218,91 @@ class SAXDriver(xml.sax.handler.ContentHandler):
             self._dest = None
 
 
-def stanza_parser(stanza_classes):
+class StanzaParser:
     """
-    Parse one of the stanza classes provided, depending on what tag the start
-    element has. If the start element tag is not equal to any of the stanza
-    classes tags, :class:`UnknownTopLevelTag` is raised.
+    A generic stanza parser which supports a dynamic set of stanza objects to
+    parse. :class:`StanzaParser` objects are callable and they are suspendable
+    methods (i.e. calling a :class:`StanzaParser` returns a generator which
+    parses stanzas from sax-ish events. Use with :class:`SAXDriver`).
 
-    When the parsing terminates, the fully instanciated object is returned.
+    Example use::
 
-    Example::
+        # let Message be a StanzaObject class, like in the StanzaObject example
+        result = None
+        def catch_result(value):
+            nonlocal result
+            result = value
 
-         # let Message be a StanzaObject class, like in the StanzaObject example
+        parser = stanza_model.StanzaParser()
+        parser.add_class(Message, catch_result)
+        sd = stanza_model.SAXDriver(parser)
+        lxml.sax.saxify(lmxl.etree.fromstring(
+            "<message id='foo' from='bar' type='chat' />"
+        ))
 
-         result = None
-         def catch_result(value):
-             nonlocal result
-             result = value
 
-         sd = stanza_model.SAXDriver(
-             functools.partial(stanza_parser, [Message]),
-             on_emit=catch_result
-         )
-         lxml.sax.saxify(lxml.etree.fromstring(
-              "<message id='foo' from='bar' type='chat' />")
-         )
+    The following methods can be used to dynamically add and remove top-level
+    :class:`StanzaObject` classes.
 
-         # result is now a Message instance, having the attributes filled in
-         # accordingly
+    .. automethod:: add_class
 
-    This function is suspendable.
+    .. automethod:: remove_class
+
+    .. automethod:: get_tag_map
+
     """
-    ev_type, *ev_args = yield
-    for cls in stanza_classes:
-        if cls.TAG == (ev_args[0], ev_args[1]):
-            cls_to_use = cls
-            break
-    else:
-        raise UnknownTopLevelTag(
-            "unhandled top-level element",
-            ev_args)
 
-    generator = cls_to_use.parse_events(ev_args)
-    return (yield from generator)
+    def __init__(self):
+        self._class_map = {}
+        self._tag_map = {}
+
+    def add_class(self, cls, callback):
+        """
+        Add a class *cls* for parsing as root level element. When an object of
+        *cls* type has been completely parsed, *callback* is called with the
+        object as argument.
+        """
+        if cls.TAG in self._tag_map:
+            raise ValueError(
+                "duplicate tag: {!r} is already handled by {}".format(
+                    cls.TAG,
+                    self._tag_map[cls.TAG]))
+        self._class_map[cls] = callback
+        self._tag_map[cls.TAG] = (cls, callback)
+
+    def get_tag_map(self):
+        """
+        Return the internal mapping which maps tags to tuples of ``(cls,
+        callback)``.
+
+        .. warning::
+
+           The results of modifying this dict are undefined. Make a copy if you
+           need to modify the result of this function.
+
+        """
+        return self._tag_map
+
+    def remove_class(self, cls):
+        """
+        Remove a stanza object class *cls* from parsing. This method raises
+        :class:`KeyError` with the classes :attr:`TAG` attribute as argument if
+        removing fails because the class is not registered.
+        """
+        del self._tag_map[cls.TAG]
+        del self._class_map[cls]
+
+    def __call__(self):
+        while True:
+            ev_type, *ev_args = yield
+            tag = ev_args[0], ev_args[1]
+            try:
+                cls, cb = self._tag_map[tag]
+            except KeyError:
+                raise UnknownTopLevelTag(
+                    "unhandled top-level element",
+                    ev_args)
+            cb((yield from cls.parse_events(ev_args)))
 
 
 def drop_handler(ev_args):
