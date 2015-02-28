@@ -18,6 +18,19 @@ def from_wrapper(fun, *args):
     return (yield from fun(*args+(ev_args,)))
 
 
+def drive_from_events(method, instance, subtree):
+    sd = stanza_model.SAXDriver(
+        functools.partial(from_wrapper, method, instance)
+    )
+    lxml.sax.saxify(subtree, sd)
+
+
+def make_instance_mock(mapping={}):
+    instance = unittest.mock.MagicMock()
+    instance._stanza_props = dict(mapping)
+    return instance
+
+
 class Testtag_to_str(unittest.TestCase):
     def test_unqualified(self):
         self.assertEqual(
@@ -626,8 +639,7 @@ class Test_PropBase(unittest.TestCase):
 
     def test_validator_recv(self):
         validator = unittest.mock.MagicMock()
-        instance = unittest.mock.MagicMock()
-        instance._stanza_props = {}
+        instance = make_instance_mock()
 
         prop = stanza_model._PropBase(
             default=self.default,
@@ -666,8 +678,7 @@ class Test_PropBase(unittest.TestCase):
 
     def test_validator_code(self):
         validator = unittest.mock.MagicMock()
-        instance = unittest.mock.MagicMock()
-        instance._stanza_props = {}
+        instance = make_instance_mock()
 
         prop = stanza_model._PropBase(
             default=self.default,
@@ -706,8 +717,7 @@ class Test_PropBase(unittest.TestCase):
 
     def test_validator_always(self):
         validator = unittest.mock.MagicMock()
-        instance = unittest.mock.MagicMock()
-        instance._stanza_props = {}
+        instance = make_instance_mock()
 
         prop = stanza_model._PropBase(
             default=self.default,
@@ -837,8 +847,7 @@ class TestText(XMLTestCase):
 
     def test_validates(self):
         validator = unittest.mock.MagicMock()
-        instance = unittest.mock.MagicMock()
-        instance._stanza_prop = {}
+        instance = make_instance_mock()
 
         prop = stanza_model.Text(validator=validator)
 
@@ -859,8 +868,7 @@ class TestText(XMLTestCase):
             validator.mock_calls)
 
     def test_to_node_unset(self):
-        instance = unittest.mock.MagicMock()
-        instance._stanza_props = {}
+        instance = make_instance_mock()
 
         prop = stanza_model.Text(default="foo")
         el = etree.Element("root")
@@ -943,8 +951,7 @@ class TestChild(XMLTestCase):
 
         prop = stanza_model.Child([Cls])
 
-        instance = unittest.mock.MagicMock()
-        instance._stanza_props = {}
+        instance = make_instance_mock()
 
         gen = prop.from_events(instance, (None, "foo", {}))
         next(gen)
@@ -1071,13 +1078,9 @@ class TestChildList(XMLTestCase):
 
 class TestCollector(XMLTestCase):
     def test_from_events(self):
-        instance = unittest.mock.MagicMock()
-        instance._stanza_props = {}
+        instance = make_instance_mock()
 
         prop = stanza_model.Collector()
-        sd = stanza_model.SAXDriver(
-            functools.partial(from_wrapper, prop.from_events, instance)
-        )
 
         subtree1 = etree.fromstring("<foo/>")
         subtree2 = etree.fromstring("<bar a='baz'>fnord</bar>")
@@ -1086,7 +1089,7 @@ class TestCollector(XMLTestCase):
         subtrees = [subtree1, subtree2, subtree3]
 
         for subtree in subtrees:
-            lxml.sax.saxify(subtree, sd)
+            drive_from_events(prop.from_events, instance, subtree)
 
         for result, subtree in zip(instance._stanza_props[prop],
                                    subtrees):
@@ -1117,14 +1120,13 @@ class TestCollector(XMLTestCase):
         subtree2 = etree.fromstring("<bar a='baz'>fnord</bar>")
         subtree3 = etree.fromstring("<baz><a/><b c='something'/><d i='am running out of'>dummy texts</d>to insert</baz>")
 
-        instance = unittest.mock.MagicMock()
-        instance._stanza_props = {
+        instance = make_instance_mock({
             prop: [
                 subtree1,
                 subtree2,
                 subtree3,
             ]
-        }
+        })
 
 
         parent_compare = etree.Element("root")
@@ -1159,8 +1161,7 @@ class TestAttr(XMLTestCase):
         )
 
     def test_from_value_and_type(self):
-        instance = unittest.mock.MagicMock()
-        instance._stanza_props = {}
+        instance = make_instance_mock()
 
         prop = stanza_model.Attr("foo", type_=stanza_types.Integer())
         prop.from_value(instance, "123")
@@ -1175,8 +1176,7 @@ class TestAttr(XMLTestCase):
     def test_to_node(self):
         el = etree.Element("foo")
         prop = stanza_model.Attr("foo", type_=stanza_types.Bool())
-        instance = unittest.mock.MagicMock()
-        instance._stanza_props = {prop: True}
+        instance = make_instance_mock({prop: True})
 
         prop.to_node(instance, el)
         self.assertSubtreeEqual(
@@ -1185,8 +1185,7 @@ class TestAttr(XMLTestCase):
 
     def test_to_node_unset(self):
         prop = stanza_model.Attr("foo", default="bar")
-        instance = unittest.mock.MagicMock()
-        instance._stanza_props = {}
+        instance = make_instance_mock()
 
         el = etree.Element("foo")
         prop.to_node(instance, el)
@@ -1204,8 +1203,7 @@ class TestAttr(XMLTestCase):
 
     def test_validates(self):
         validator = unittest.mock.MagicMock()
-        instance = unittest.mock.MagicMock()
-        instance._stanza_prop = {}
+        instance = make_instance_mock()
 
         prop = stanza_model.Attr("foo", validator=validator)
 
@@ -1249,8 +1247,7 @@ class TestChildText(XMLTestCase):
         type_mock = unittest.mock.MagicMock()
         validator_mock = unittest.mock.MagicMock()
 
-        instance = unittest.mock.MagicMock()
-        instance._stanza_props = {}
+        instance = make_instance_mock()
 
         prop = stanza_model.ChildText(
             "body",
@@ -1259,11 +1256,7 @@ class TestChildText(XMLTestCase):
 
         subtree = etree.fromstring("<body>foo</body>")
 
-        sd = stanza_model.SAXDriver(
-            functools.partial(from_wrapper, prop.from_events, instance)
-        )
-
-        lxml.sax.saxify(subtree, sd)
+        drive_from_events(prop.from_events, instance, subtree)
 
         self.assertSequenceEqual(
             [
@@ -1290,8 +1283,7 @@ class TestChildText(XMLTestCase):
         type_mock = unittest.mock.MagicMock()
         validator_mock = unittest.mock.MagicMock()
 
-        instance = unittest.mock.MagicMock()
-        instance._stanza_props = {}
+        instance = make_instance_mock()
 
         prop = stanza_model.ChildText(
             "body",
@@ -1299,15 +1291,10 @@ class TestChildText(XMLTestCase):
             validator=validator_mock)
 
         subtree = etree.fromstring("<body>foo</body>")
-
-        sd = stanza_model.SAXDriver(
-            functools.partial(from_wrapper, prop.from_events, instance)
-        )
-
         validator_mock.validate.return_value = False
 
         with self.assertRaises(ValueError):
-            lxml.sax.saxify(subtree, sd)
+            drive_from_events(prop.from_events, instance, subtree)
 
     def test_child_policy_default(self):
         prop = stanza_model.ChildText("body")
@@ -1316,37 +1303,26 @@ class TestChildText(XMLTestCase):
             prop.child_policy)
 
     def test_enforce_child_policy_fail(self):
-        instance = unittest.mock.MagicMock()
-        instance._stanza_props = {}
+        instance = make_instance_mock()
 
         prop = stanza_model.ChildText(
             "body",
             child_policy=stanza_model.UnknownChildPolicy.FAIL)
         subtree = etree.fromstring("<body>foo<bar/></body>")
 
-        sd = stanza_model.SAXDriver(
-            functools.partial(from_wrapper, prop.from_events, instance)
-        )
-
         with self.assertRaises(ValueError):
-            lxml.sax.saxify(subtree, sd)
+            drive_from_events(prop.from_events, instance, subtree)
 
         self.assertFalse(instance._stanza_props)
 
     def test_enforce_child_policy_drop(self):
-        instance = unittest.mock.MagicMock()
-        instance._stanza_props = {}
+        instance = make_instance_mock()
 
         prop = stanza_model.ChildText(
             "body",
             child_policy=stanza_model.UnknownChildPolicy.DROP)
         subtree = etree.fromstring("<body>foo<bar/>bar</body>")
-
-        sd = stanza_model.SAXDriver(
-            functools.partial(from_wrapper, prop.from_events, instance)
-        )
-
-        lxml.sax.saxify(subtree, sd)
+        drive_from_events(prop.from_events, instance, subtree)
 
         self.assertDictEqual(
             {
@@ -1361,37 +1337,27 @@ class TestChildText(XMLTestCase):
             prop.attr_policy)
 
     def test_enforce_attr_policy_fail(self):
-        instance = unittest.mock.MagicMock()
-        instance._stanza_props = {}
+        instance = make_instance_mock()
 
         prop = stanza_model.ChildText(
             "body",
             attr_policy=stanza_model.UnknownAttrPolicy.FAIL)
         subtree = etree.fromstring("<body a='bar'>foo</body>")
 
-        sd = stanza_model.SAXDriver(
-            functools.partial(from_wrapper, prop.from_events, instance)
-        )
-
         with self.assertRaises(ValueError):
-            lxml.sax.saxify(subtree, sd)
+            drive_from_events(prop.from_events, instance, subtree)
 
         self.assertFalse(instance._stanza_props)
 
     def test_enforce_attr_policy_drop(self):
-        instance = unittest.mock.MagicMock()
-        instance._stanza_props = {}
+        instance = make_instance_mock()
 
         prop = stanza_model.ChildText(
             "body",
             attr_policy=stanza_model.UnknownAttrPolicy.DROP)
         subtree = etree.fromstring("<body a='bar'>foo</body>")
 
-        sd = stanza_model.SAXDriver(
-            functools.partial(from_wrapper, prop.from_events, instance)
-        )
-
-        lxml.sax.saxify(subtree, sd)
+        drive_from_events(prop.from_events, instance, subtree)
 
         self.assertDictEqual(
             {
@@ -1408,10 +1374,9 @@ class TestChildText(XMLTestCase):
             type_=type_mock
         )
 
-        instance = unittest.mock.MagicMock()
-        instance._stanza_props = {
+        instance = make_instance_mock({
             prop: "foo"
-        }
+        })
 
         parent = etree.Element("root")
         prop.to_node(instance, parent)
@@ -1428,8 +1393,7 @@ class TestChildText(XMLTestCase):
     def test_to_node_unset(self):
         prop = stanza_model.ChildText("body", default="foo")
 
-        instance = unittest.mock.MagicMock()
-        instance._stanza_props = {}
+        instance = make_instance_mock()
 
         parent = etree.Element("root")
         prop.to_node(instance, parent)
