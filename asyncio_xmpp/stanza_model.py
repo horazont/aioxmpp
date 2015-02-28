@@ -67,6 +67,8 @@ Non-scalar descriptors
 
 .. autoclass:: ChildList(classes)
 
+.. autoclass:: ChildMap(classes)
+
 .. autoclass:: Collector()
 
 
@@ -673,6 +675,53 @@ class ChildText(_PropBase):
         el = etree.SubElement(parent, tag_to_str(self.tag))
         el.text = self.type_.format(value)
         return el
+
+
+class ChildMap(Child):
+    """
+    The :class:`ChildMap` class works like :class:`ChildList`, but instead of
+    storing the child objects in a list, they are stored in a map which contains
+    a list of objects for each tag.
+
+    .. automethod:: from_events
+
+    .. automethod:: to_node
+
+    """
+
+    def __get__(self, instance, cls):
+        if instance is None:
+            return super().__get__(instance, cls)
+        return instance._stanza_props.setdefault(self, {})
+
+    def _set(self, instance, value):
+        if not isinstance(value, dict):
+            raise TypeError("expected dict, but found {}".format(type(value)))
+        return super()._set(instance, value)
+
+    def from_events(self, instance, ev_args):
+        """
+        Like :meth:`.ChildList.from_events`, but the object is appended to the
+        list associated with its tag in the dict.
+        """
+
+        tag = ev_args[0], ev_args[1]
+        cls = self._tag_map[tag]
+        obj = yield from cls.parse_events(ev_args)
+        mapping = self.__get__(instance, type(instance))
+        mapping.setdefault(cls.TAG, []).append(obj)
+
+    def to_node(self, instance, parent):
+        """
+        Serialize all objects in the dict associated with the descriptor at
+        *instance* to the given *parent*.
+
+        The order of elements within a tag is preserved; the order of the tags
+        relative to each other is undefined.
+        """
+        for items in self.__get__(instance, type(instance)).values():
+            for obj in items:
+                obj.unparse_to_node(parent)
 
 
 class StanzaClass(type):

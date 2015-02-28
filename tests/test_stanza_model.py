@@ -1416,6 +1416,94 @@ class TestChildText(XMLTestCase):
             parent)
 
 
+class TestChildMap(XMLTestCase):
+    def test_from_events_from_init(self):
+        class Bar(stanza_model.StanzaObject):
+            TAG = "bar"
+
+        class Foo(stanza_model.StanzaObject):
+            TAG = "foo"
+
+        instance = make_instance_mock()
+
+        prop = stanza_model.ChildMap([Foo, Bar])
+
+        drive_from_events(
+            prop.from_events,
+            instance,
+            etree.fromstring("<bar/>")
+        )
+        drive_from_events(
+            prop.from_events,
+            instance,
+            etree.fromstring("<foo/>")
+        )
+        drive_from_events(
+            prop.from_events,
+            instance,
+            etree.fromstring("<bar/>")
+        )
+
+        self.assertIn(prop, instance._stanza_props)
+        resultmap = instance._stanza_props[prop]
+        self.assertEqual(2, len(resultmap))
+        self.assertIn(Bar.TAG, resultmap)
+        self.assertIn(Foo.TAG, resultmap)
+
+        bar_results = resultmap[Bar.TAG]
+        self.assertEqual(2, len(bar_results))
+        self.assertIsInstance(bar_results[0], Bar)
+        self.assertIsInstance(bar_results[1], Bar)
+
+        foo_results = resultmap[Foo.TAG]
+        self.assertEqual(1, len(foo_results))
+        self.assertIsInstance(foo_results[0], Foo)
+
+    def test_assign_enforces_dict(self):
+        class Cls(stanza_model.StanzaObject):
+            children = stanza_model.ChildMap([])
+        obj = Cls()
+
+        with self.assertRaises(TypeError):
+            obj.children = 123
+        with self.assertRaises(TypeError):
+            obj.children = "foo"
+        d = {}
+        obj.children = d
+        self.assertIs(
+            d,
+            obj.children
+        )
+
+    def test_to_node(self):
+        class Bar(stanza_model.StanzaObject):
+            TAG = "bar"
+
+        class Foo(stanza_model.StanzaObject):
+            TAG = "foo"
+
+            attr = stanza_model.Attr("a")
+
+            def __init__(self, a=None):
+                super().__init__()
+                self.attr = a
+
+        prop = stanza_model.ChildMap([Foo, Bar])
+
+        instance = make_instance_mock({
+            prop: {
+                Bar.TAG: [Bar()],
+                Foo.TAG: [Foo(a=1), Foo(a=2)]
+            }
+        })
+
+        parent = etree.Element("root")
+        prop.to_node(instance, parent)
+        self.assertSubtreeEqual(
+            etree.fromstring("<root><foo a='1'/><foo a='2'/><bar/></root>"),
+            parent)
+
+
 class Testdrop_handler(unittest.TestCase):
     def test_drop_handler(self):
         result = object()
