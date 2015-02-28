@@ -10,13 +10,6 @@ __all__ = ["lookup"]
 
 lookup = etree.ElementNamespaceClassLookup()
 
-for ns in [lookup.get_namespace("jabber:client"),
-           lookup.get_namespace("jabber:server")]:
-    ns["iq"] = stanza.IQ
-    ns["presence"] = stanza.Presence
-    ns["error"] = stanza.Error
-    ns["message"] = stanza.Message
-
 def configure_xmpp_parser(parser):
     """
     Return an instance of *cls* (which is, by default, an
@@ -216,8 +209,9 @@ class XMLStreamSenderContext(XMLStreamContext):
             makeelement=self.makeelement)
 
         # verify that parser works correctly
-        assert isinstance(self.makeelement("{jabber:client}iq"), stanza.IQ)
-        assert isinstance(self.E("{jabber:client}iq"), stanza.IQ)
+        # XXX: rewrite is due
+        # assert isinstance(self.makeelement("{jabber:client}iq"), stanza.IQ)
+        # assert isinstance(self.E("{jabber:client}iq"), stanza.IQ)
 
     def __call__(self, *args, **kwargs):
         return self.E(*args, **kwargs)
@@ -257,7 +251,8 @@ class XMLStreamSenderContext(XMLStreamContext):
                       type_=None, id_=None):
         el = self.E(self._namespace_prefix + localname)
         # verify that construction worked properly
-        assert el.__class__ is not lxml.etree._Element
+        # XXX: rewrite is due
+        # assert el.__class__ is not lxml.etree._Element
         if to is not None:
             el.to = to
         if from_ is not None:
