@@ -58,6 +58,8 @@ Scalar descriptors
 
 .. autoclass:: Child(classes, default=None)
 
+.. autoclass:: ChildTag(tags, *, text_policy=UnknownTextPolicy.FAIL, child_policy=UnknownChildPolicy.FAILattr_policy=UnknownAttrPolicy.FAIL, default_ns=None, default=None, allow_none=False)
+
 .. autoclass:: ChildText(tag, child_policy=UnknownChildPolicy.FAIL, attr_policy=UnknownAttrPolicy.FAIL, type_=stanza_types.String(), default=None, validator=None, validate=ValidateMode.FROM_RECV)
 
 .. autoclass:: Text(type_=stanza_types.String(), default=None, validator=None, validate=ValidateMode.FROM_RECV)
@@ -113,6 +115,8 @@ The values of the following enumerations are used on "magic" attributes of
 .. autoclass:: UnknownChildPolicy
 
 .. autoclass:: UnknownAttrPolicy
+
+.. autoclass:: UnknownTextPolicy
 
 .. autoclass:: ValidateMode
 
@@ -213,6 +217,24 @@ class UnknownAttrPolicy(Enum):
     DROP = 1
 
 
+class UnknownTextPolicy(Enum):
+    """
+    Describe the event which shall take place whenever XML character data is
+    encountered on an object which does not support it.
+
+    .. attribute:: FAIL
+
+       Raise a :class:`ValueError`
+
+    .. attribute:: DROP
+
+       Drop and ignore the text
+
+    """
+    FAIL = 0
+    DROP = 1
+
+
 class ValidateMode(Enum):
     """
     Control which ways to set a value in a descriptor are passed through a
@@ -244,6 +266,7 @@ class ValidateMode(Enum):
     @property
     def from_code(self):
         return self.value & 2
+
 
 class UnknownTopLevelTag(ValueError):
     """
@@ -722,6 +745,93 @@ class ChildMap(Child):
         for items in self.__get__(instance, type(instance)).values():
             for obj in items:
                 obj.unparse_to_node(parent)
+
+
+class ChildTag(_PropBase):
+    """
+    When assigned to a class’ attribute, this descriptor represents the presence
+    or absence of a single child with a tag from a given set of valid tags.
+
+    *tags* must be an iterable of valid arguments to :func:`normalize_tag`. If
+    :func:`normalize_tag` returns a false value (such as :data:`None`) as
+    *namespace_uri*, it is replaced with *default_ns* (defaulting to
+    :data:`None`, which makes this sentence a no-op). This allows a benefit to
+    readability if you have many tags which share the same namespace.
+
+    *text_policy*, *child_policy* and *attr_policy* describe the behaviour if
+    the child element unexpectedly has text, children or attributes,
+    respectively. The default for each is to fail with a :class:`ValueError`.
+
+    If *allow_none* is :data:`True`, assignment of :data:`None` to the attribute
+    to which this descriptor belongs is allowed and represents the absence of
+    the child element.
+
+    *default* works as for :class:`Attr`.
+    """
+
+    class ElementTreeTag(stanza_types.AbstractType):
+        """
+        Parse an element-tree-format tag to a tuple-format tag. This type
+        operates on strings and should not be used in general.
+        """
+
+        def parse(self, v):
+            return normalize_tag(v)
+
+        def format(self, v):
+            return tag_to_str(v)
+
+    def __init__(self, tags, *,
+                 default_ns=None,
+                 text_policy=UnknownTextPolicy.FAIL,
+                 child_policy=UnknownChildPolicy.FAIL,
+                 attr_policy=UnknownAttrPolicy.FAIL,
+                 allow_none=False,
+                 default=None):
+        tags = {
+            (ns or default_ns, localname)
+            for ns, localname in map(normalize_tag, tags)
+        }
+        if allow_none:
+            tags.add(None)
+        super().__init__(
+            default=default,
+            validator=stanza_types.RestrictToSet(tags),
+            validate=ValidateMode.ALWAYS)
+        self.type_ = self.ElementTreeTag()
+        self.text_policy = text_policy
+        self.attr_policy = attr_policy
+        self.child_policy = child_policy
+
+    def get_tag_map(self):
+        return self.validator.values
+
+    def from_events(self, instance, ev_args):
+        attrs = ev_args[2]
+        if attrs and self.attr_policy == UnknownAttrPolicy.FAIL:
+            raise ValueError("unexpected attributes")
+        tag = ev_args[0], ev_args[1]
+        while True:
+            ev_type, *ev_args = yield
+            if ev_type == "text":
+                if self.text_policy == UnknownTextPolicy.FAIL:
+                    raise ValueError("unexpected text")
+            elif ev_type == "start":
+                if self.child_policy == UnknownChildPolicy.FAIL:
+                    raise ValueError("unexpected child")
+                else:
+                    yield from drop_handler(ev_args)
+            elif ev_type == "end":
+                break
+        self._set_from_recv(instance, tag)
+
+    def to_node(self, instance, parent):
+        value = self.__get__(instance, type(instance))
+        if value is None:
+            return
+        etree.SubElement(
+            parent,
+            self.type_.format(value))
 
 
 class StanzaClass(type):

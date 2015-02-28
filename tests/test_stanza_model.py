@@ -1659,6 +1659,184 @@ class TestSAXDriver(unittest.TestCase):
         del self.l
 
 
+class ChildTag(XMLTestCase):
+    def setUp(self):
+        self.prop = stanza_model.ChildTag(
+            [
+                "foo",
+                ("uri:foo", "bar"),
+                "baz"
+            ],
+            default_ns="uri:bar")
+
+    def test_init(self):
+        self.assertSetEqual(
+            {
+                ("uri:bar", "foo"),
+                ("uri:foo", "bar"),
+                ("uri:bar", "baz"),
+            },
+            self.prop.get_tag_map()
+        )
+
+    def test_valdiator(self):
+        self.assertTrue(self.prop.validator.validate(("uri:bar", "foo")))
+        self.assertFalse(self.prop.validator.validate(("uri:foo", "foo")))
+
+    def test_type(self):
+        self.assertEqual(
+            (None, "foo"),
+            self.prop.type_.parse("foo")
+        )
+        self.assertEqual(
+            "{uri:bar}foo",
+            self.prop.type_.format(("uri:bar", "foo"))
+        )
+
+    def test_from_events(self):
+        instance = make_instance_mock()
+
+        drive_from_events(
+            self.prop.from_events, instance,
+            etree.fromstring("<foo xmlns='uri:bar'/>")
+        )
+
+        self.assertEqual(
+            {
+                self.prop: ("uri:bar", "foo"),
+            },
+            instance._stanza_props)
+
+    def test_from_events_text_policy_fail(self):
+        instance = make_instance_mock()
+        self.prop.text_policy = stanza_model.UnknownTextPolicy.FAIL
+
+        with self.assertRaises(ValueError):
+            drive_from_events(
+                self.prop.from_events, instance,
+                etree.fromstring("<foo xmlns='uri:bar'>text</foo>")
+            )
+        self.assertFalse(instance._stanza_props)
+
+    def test_from_events_text_policy_drop(self):
+        instance = make_instance_mock()
+        self.prop.text_policy = stanza_model.UnknownTextPolicy.DROP
+
+        drive_from_events(
+            self.prop.from_events, instance,
+            etree.fromstring("<foo xmlns='uri:bar'>text</foo>")
+        )
+
+        self.assertEqual(
+            {
+                self.prop: ("uri:bar", "foo"),
+            },
+            instance._stanza_props)
+
+    def test_from_events_child_policy_fail(self):
+        instance = make_instance_mock()
+        self.prop.child_policy = stanza_model.UnknownChildPolicy.FAIL
+
+        with self.assertRaises(ValueError):
+            drive_from_events(
+                self.prop.from_events, instance,
+                etree.fromstring("<foo xmlns='uri:bar'><bar/></foo>")
+            )
+        self.assertFalse(instance._stanza_props)
+
+    def test_from_events_child_policy_drop(self):
+        instance = make_instance_mock()
+        self.prop.child_policy = stanza_model.UnknownChildPolicy.DROP
+
+        drive_from_events(
+            self.prop.from_events, instance,
+            etree.fromstring("<foo xmlns='uri:bar'><bar/></foo>")
+        )
+
+        self.assertEqual(
+            {
+                self.prop: ("uri:bar", "foo"),
+            },
+            instance._stanza_props)
+
+    def test_from_events_attr_policy_fail(self):
+        instance = make_instance_mock()
+        self.prop.attr_policy = stanza_model.UnknownAttrPolicy.FAIL
+
+        with self.assertRaises(ValueError):
+            drive_from_events(
+                self.prop.from_events, instance,
+                etree.fromstring("<foo xmlns='uri:bar' a='bar'/>")
+            )
+        self.assertFalse(instance._stanza_props)
+
+    def test_from_events_attr_policy_drop(self):
+        instance = make_instance_mock()
+        self.prop.attr_policy = stanza_model.UnknownAttrPolicy.DROP
+
+        drive_from_events(
+            self.prop.from_events, instance,
+            etree.fromstring("<foo xmlns='uri:bar' a='bar'/>")
+        )
+
+        self.assertEqual(
+            {
+                self.prop: ("uri:bar", "foo"),
+            },
+            instance._stanza_props)
+
+    def test_to_node(self):
+        instance = make_instance_mock({
+            self.prop: ("uri:bar", "foo")
+        })
+
+        parent = etree.Element("root")
+        self.prop.to_node(instance, parent)
+        self.assertSubtreeEqual(
+            etree.fromstring("<root><foo xmlns='uri:bar'/></root>"),
+            parent)
+
+    def test_to_node_unset(self):
+        instance = make_instance_mock({
+            self.prop: None
+        })
+
+        parent = etree.Element("root")
+        self.prop.to_node(instance, parent)
+        self.assertSubtreeEqual(
+            etree.fromstring("<root/>"),
+            parent)
+
+    def test_validate_from_code(self):
+        class ClsWNone(stanza_model.StanzaObject):
+            prop = stanza_model.ChildTag(
+                self.prop.get_tag_map(),
+                allow_none=True)
+
+        class ClsWONone(stanza_model.StanzaObject):
+            prop = stanza_model.ChildTag(
+                self.prop.get_tag_map(),
+                default=("uri:bar", "foo"),
+                allow_none=False)
+
+        w_none = ClsWNone()
+        wo_none = ClsWONone()
+
+        with self.assertRaises(ValueError):
+            wo_none.prop = None
+        with self.assertRaises(ValueError):
+            wo_none.prop = ("foo", "bar")
+        with self.assertRaises(ValueError):
+            wo_none.prop = "foo"
+        with self.assertRaises(ValueError):
+            w_none.prop = ("foo", "bar")
+        with self.assertRaises(ValueError):
+            w_none.prop = "foo"
+
+    def tearDown(self):
+        del self.prop
+
+
 # class Testguard_wrap(unittest.TestCase):
 #     def catchall(self):
 #         while True:
