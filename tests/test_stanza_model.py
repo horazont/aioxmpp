@@ -1050,6 +1050,19 @@ class TestChildList(XMLTestCase):
             etree.fromstring("<foo><bar/><bar/><baz/><bar/></foo>"),
             parent)
 
+    def test_assign_enforces_list(self):
+        obj = self.Cls()
+        with self.assertRaises(TypeError):
+            obj.children = 123
+        with self.assertRaises(TypeError):
+            obj.children = "foo"
+        l = []
+        obj.children = l
+        self.assertIs(
+            l,
+            obj.children
+        )
+
     def tearDown(self):
         del self.ClsLeafB
         del self.ClsLeafA
@@ -1080,6 +1093,22 @@ class TestCollector(XMLTestCase):
             self.assertSubtreeEqual(
                 subtree,
                 result)
+
+    def test_assign_enforces_list(self):
+        class Cls(stanza_model.StanzaObject):
+            children = stanza_model.Collector()
+
+        obj = Cls()
+        with self.assertRaises(TypeError):
+            obj.children = 123
+        with self.assertRaises(TypeError):
+            obj.children = "foo"
+        l = []
+        obj.children = l
+        self.assertIs(
+            l,
+            obj.children
+        )
 
     def test_to_node(self):
         prop = stanza_model.Collector()

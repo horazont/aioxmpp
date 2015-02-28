@@ -434,6 +434,11 @@ class ChildList(Child):
             return super().__get__(instance, cls)
         return instance._stanza_props.setdefault(self, [])
 
+    def _set(self, instance, value):
+        if not isinstance(value, list):
+            raise TypeError("expected list, but found {}".format(type(value)))
+        return super()._set(instance, value)
+
     def from_events(self, instance, ev_args):
         """
         Like :meth:`.Child.from_events`, but instead of replacing the attribute
@@ -473,6 +478,11 @@ class Collector(_PropBase):
         if instance is None:
             return super().__get__(instance, cls)
         return instance._stanza_props.setdefault(self, [])
+
+    def _set(self, instance, value):
+        if not isinstance(value, list):
+            raise TypeError("expected list, but found {}".format(type(value)))
+        return super()._set(instance, value)
 
     def from_events(self, instance, ev_args):
         """
