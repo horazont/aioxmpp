@@ -43,21 +43,32 @@ until the next event is sent into it.
 Descriptors for XML-sourced attributes
 ======================================
 
-The following descriptors can be used to load attributes from stanza XML. Before
-going into the details of the different classes, let us describe some common
-arguments which are used by several classes:
+The following descriptors can be used to load attributes from stanza XML. There
+are two fundamentally different descriptor types: *scalar* and *non-scalar*
+(e.g. list) descriptors. *scalar* descriptor types always accept a value of
+:data:`None`, which represents the *absence* of the object (unless it is
+required by some means, e.g. ``Attr(required=True)``). *Non-scalar* descriptors
+generally have a different way to describe the absence and in addition have a
+mutable value. Assignment to the descriptor attribute is strictly type-checked.
+
+Scalar descriptors
+------------------
 
 .. autoclass:: Attr(name, type_=stanza_types.String(), default=None, required=False, validator=None, validate=ValidateMode.FROM_RECV)
 
 .. autoclass:: Child(classes, default=None)
 
-.. autoclass:: ChildList(classes)
-
 .. autoclass:: ChildText(tag, child_policy=UnknownChildPolicy.FAIL, attr_policy=UnknownAttrPolicy.FAIL, type_=stanza_types.String(), default=None, validator=None, validate=ValidateMode.FROM_RECV)
+
+.. autoclass:: Text(type_=stanza_types.String(), default=None, validator=None, validate=ValidateMode.FROM_RECV)
+
+Non-scalar descriptors
+----------------------
+
+.. autoclass:: ChildList(classes)
 
 .. autoclass:: Collector()
 
-.. autoclass:: Text(type_=stanza_types.String(), default=None, validator=None, validate=ValidateMode.FROM_RECV)
 
 Parsing stanzas
 ===============
@@ -323,8 +334,13 @@ class Text(_PropBase):
         """
         Assign the formatted value stored at *instance*’ attribute to the text
         of *el*.
+
+        If the *value* is :data:`None`, no text is generated.
         """
-        el.text = self.type_.format(self.__get__(instance, type(instance)))
+        value = self.__get__(instance, type(instance))
+        if value is None:
+            return
+        el.text = self.type_.format(value)
 
 
 class Child(_PropBase):
@@ -380,8 +396,12 @@ class Child(_PropBase):
         Take the object associated with this descriptor on *instance* and
         serialize it as child into the given :class:`lxml.etree.Element`
         *parent*.
+
+        If the object is :data:`None`, no content is generated.
         """
         obj = self.__get__(instance, type(instance))
+        if obj is None:
+            return
         obj.unparse_to_node(parent)
 
     def _register(self, cls):
@@ -545,10 +565,14 @@ class Attr(Text):
         """
         Override the implementation from :class:`Text` by storing the formatted
         value in the XML attribute instead of the character data.
+
+        If the value is :data:`None`, no element is generated.
         """
-        parent.set(
-            tag_to_str(self.tag),
-            self.type_.format(self.__get__(instance, type(instance))))
+        value = self.__get__(instance, type(instance))
+        if value is None:
+            return
+
+        parent.set(tag_to_str(self.tag), self.type_.format(value))
 
 
 class ChildText(_PropBase):
@@ -631,10 +655,10 @@ class ChildText(_PropBase):
         contents to the value of the attribute which this descriptor represents
         at *instance*.
 
-        If the value is equal to the :attr:`default`, no element is generated.
+        If the value is :data:`None`, no element is generated.
         """
         value = self.__get__(instance, type(instance))
-        if value == self._default:
+        if value is None:
             return
         el = etree.SubElement(parent, tag_to_str(self.tag))
         el.text = self.type_.format(value)

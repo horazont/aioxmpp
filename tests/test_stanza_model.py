@@ -791,7 +791,7 @@ class Test_PropBase(unittest.TestCase):
         del self.default
 
 
-class TestText(unittest.TestCase):
+class TestText(XMLTestCase):
     def setUp(self):
         class ClsA(stanza_model.StanzaObject):
             test_str = stanza_model.Text(default="bar")
@@ -857,6 +857,24 @@ class TestText(unittest.TestCase):
                 unittest.mock.call.validate("foo"),
             ],
             validator.mock_calls)
+
+    def test_to_node_unset(self):
+        instance = unittest.mock.MagicMock()
+        instance._stanza_props = {}
+
+        prop = stanza_model.Text(default="foo")
+        el = etree.Element("root")
+        prop.to_node(instance, el)
+        self.assertSubtreeEqual(
+            etree.fromstring("<root>foo</root>"),
+            el)
+
+        el = etree.Element("root")
+        instance._stanza_props = {prop: None}
+        prop.to_node(instance, el)
+        self.assertSubtreeEqual(
+            etree.fromstring("<root/>"),
+            el)
 
     def tearDown(self):
         del self.obja
@@ -956,6 +974,16 @@ class TestChild(XMLTestCase):
                 unittest.mock.call.unparse_to_node(parent)
             ],
             obj.test_child.mock_calls
+        )
+
+    def test_to_node_unset(self):
+        obj = self.ClsA()
+        obj.test_child = None
+        parent = etree.Element("foo")
+        self.ClsA.test_child.to_node(obj, parent)
+        self.assertSubtreeEqual(
+            etree.fromstring("<foo/>"),
+            parent
         )
 
     def tearDown(self):
@@ -1124,6 +1152,25 @@ class TestAttr(XMLTestCase):
         prop.to_node(instance, el)
         self.assertSubtreeEqual(
             etree.fromstring("<foo foo='true'/>"),
+            el)
+
+    def test_to_node_unset(self):
+        prop = stanza_model.Attr("foo", default="bar")
+        instance = unittest.mock.MagicMock()
+        instance._stanza_props = {}
+
+        el = etree.Element("foo")
+        prop.to_node(instance, el)
+        self.assertSubtreeEqual(
+            etree.fromstring("<foo foo='bar'/>"),
+            el)
+
+        instance._stanza_props = {prop: None}
+
+        el = etree.Element("foo")
+        prop.to_node(instance, el)
+        self.assertSubtreeEqual(
+            etree.fromstring("<foo/>"),
             el)
 
     def test_validates(self):
@@ -1349,17 +1396,30 @@ class TestChildText(XMLTestCase):
             ],
             type_mock.mock_calls)
 
-    def test_to_node_default(self):
-        prop = stanza_model.ChildText("body")
+    def test_to_node_unset(self):
+        prop = stanza_model.ChildText("body", default="foo")
 
         instance = unittest.mock.MagicMock()
         instance._stanza_props = {}
 
         parent = etree.Element("root")
         prop.to_node(instance, parent)
+        self.assertSubtreeEqual(
+            etree.fromstring("<root><body>foo</body></root>"),
+            parent)
 
+        instance._stanza_props = {prop: None}
+        parent = etree.Element("root")
+        prop.to_node(instance, parent)
         self.assertSubtreeEqual(
             etree.fromstring("<root />"),
+            parent)
+
+        instance._stanza_props = {prop: ""}
+        parent = etree.Element("root")
+        prop.to_node(instance, parent)
+        self.assertSubtreeEqual(
+            etree.fromstring("<root><body/></root>"),
             parent)
 
 
