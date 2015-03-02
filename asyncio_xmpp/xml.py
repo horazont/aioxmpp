@@ -37,7 +37,17 @@ class XMPPXMLGenerator:
         self._ns_prefixes_floating_out = {}
         self._ns_auto_prefixes_floating_in = set()
         self._ns_decls_floating_in = {}
-        self._ns_counter = 0
+        self._ns_counter = -1
+
+    def _roll_prefix(self):
+        prefix_number = self._ns_counter + 1
+        while True:
+            prefix = "ns{}".format(prefix_number)
+            if prefix not in self._ns_prefixes_floating_in:
+                break
+            prefix_number += 1
+        self._ns_counter = prefix_number
+        return prefix
 
     def _qname(self, name, attr=False):
         if ":" in name or not xmlValidateNameValue_str(name[1]):
@@ -52,8 +62,7 @@ class XMPPXMLGenerator:
                     prefix = self._ns_decls_floating_in[name[0]]
                 except KeyError:
                     # namespace is undeclared, we have to declare it..
-                    prefix = "ns{}".format(self._ns_counter)
-                    self._ns_counter += 1
+                    prefix = self._roll_prefix()
                     self.startPrefixMapping(prefix, name[0], auto=True)
             if prefix:
                 return ":".join((prefix, name[1]))
@@ -97,6 +106,8 @@ class XMPPXMLGenerator:
                 (not xmlValidateNameValue_str(prefix) or ":" in prefix)):
             raise ValueError("not a valid prefix: {!r}".format(prefix))
 
+        if prefix in self._ns_prefixes_floating_in:
+            raise ValueError("prefix already declared for next element")
         if auto:
             self._ns_auto_prefixes_floating_in.add(prefix)
         self._ns_prefixes_floating_in[prefix] = uri

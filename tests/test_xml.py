@@ -300,6 +300,29 @@ class TestXMPPXMLGenerator(XMLTestCase):
                                      "restricted xml: processing instruction"):
             gen.processingInstruction("foo", "bar")
 
+    def test_reject_multiple_assignments_for_prefix(self):
+        gen = xml.XMPPXMLGenerator(self.buf)
+        gen.startDocument()
+        gen.startPrefixMapping("a", "uri:foo")
+        with self.assertRaises(ValueError):
+            gen.startPrefixMapping("a", "uri:bar")
+
+    def test_no_duplicate_auto_assignments_of_prefixes(self):
+        gen = xml.XMPPXMLGenerator(self.buf)
+        gen.startDocument()
+        gen.startPrefixMapping("ns0", "uri:foo")
+        gen.startElementNS(("uri:bar", "foo"), None, None)
+        gen.startElementNS(("uri:foo", "foo"), None, None)
+        gen.endElementNS(("uri:foo", "foo"), None)
+        gen.endElementNS(("uri:bar", "foo"), None)
+        gen.endPrefixMapping("ns0")
+        gen.endDocument()
+
+        self.assertSubtreeEqual(
+            etree.fromstring("<foo xmlns='uri:bar'><foo xmlns='uri:foo' /></foo>"),
+            etree.fromstring(self.buf.getvalue())
+        )
+
     def test_reject_control_characters_in_characters(self):
         gen = xml.XMPPXMLGenerator(self.buf)
         gen.startDocument()
