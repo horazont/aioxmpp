@@ -291,6 +291,13 @@ class TestXMPPXMLGenerator(XMLTestCase):
             tree,
             tree2)
 
+    def test_reject_unnamespaced_element_if_default_namespace_is_set(self):
+        gen = xml.XMPPXMLGenerator(self.buf)
+        gen.startDocument()
+        gen.startPrefixMapping(None, "uri:foo")
+        with self.assertRaises(ValueError):
+            gen.startElementNS((None, "foo"), None, None)
+
     def tearDown(self):
         del self.buf
 

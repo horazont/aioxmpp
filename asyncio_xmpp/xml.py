@@ -50,7 +50,7 @@ class XMPPXMLGenerator:
         self._ns_decls_floating_in = {}
         self._ns_counter = 0
 
-    def _qname(self, name):
+    def _qname(self, name, attr=False):
         if ":" in name or not xmlValidateNameValue_str(name[1]):
             raise ValueError("invalid name: {!r}".format(name[1]))
         if name[0]:
@@ -68,6 +68,11 @@ class XMPPXMLGenerator:
                     self.startPrefixMapping(prefix, name[0], auto=True)
             if prefix:
                 return ":".join((prefix, name[1]))
+        elif   (not attr and
+                (None in self._curr_ns_map or
+                 None in self._ns_prefixes_floating_in)):
+            raise ValueError("cannot create unnamespaced element when "
+                             "prefixless namespace is bound")
         return name[1]
 
     def _finish_pending_start_element(self):
@@ -115,7 +120,7 @@ class XMPPXMLGenerator:
         qname = self._qname(name)
         if attributes:
             attrib = [
-                (self._qname(attrname), value)
+                (self._qname(attrname, attr=True), value)
                 for attrname, value in attributes.items()
             ]
         else:
