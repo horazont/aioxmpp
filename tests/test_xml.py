@@ -300,6 +300,14 @@ class TestXMPPXMLGenerator(XMLTestCase):
                                      "restricted xml: processing instruction"):
             gen.processingInstruction("foo", "bar")
 
+    def test_reject_control_characters_in_characters(self):
+        gen = xml.XMPPXMLGenerator(self.buf)
+        gen.startDocument()
+        gen.startElementNS(("uri:bar", "foo"), None, None)
+        for i in set(range(32)) - {9, 10, 13}:
+            with self.assertRaises(ValueError):
+                gen.characters(chr(i))
+
     def test_skippedEntity_not_implemented(self):
         gen = xml.XMPPXMLGenerator(self.buf)
         with self.assertRaises(NotImplementedError):

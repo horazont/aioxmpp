@@ -184,6 +184,12 @@ class XMPPXMLGenerator:
 
     def characters(self, chars):
         self._finish_pending_start_element()
+        if any(0 <= ord(c) <= 8 or
+               11 <= ord(c) <= 12 or
+               14 <= ord(c) <= 31
+               for c in chars):
+            raise ValueError("control characters are not allowed in "
+                             "well-formed XML")
         self._write(xml.sax.saxutils.escape(chars).encode(self._encoding))
 
     def processingInstruction(self, target, data):
