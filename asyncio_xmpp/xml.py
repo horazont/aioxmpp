@@ -1,4 +1,13 @@
 import ctypes
+import random
+
+import xml.sax
+import xml.sax.saxutils
+
+import lxml.sax
+
+from .utils import namespaces, etree
+
 
 libxml2 = ctypes.cdll.LoadLibrary("libxml2.so")
 
@@ -10,30 +19,9 @@ def xmlValidateNameValue_buf(b):
         return False
     return bool(libxml2.xmlValidateNameValue(b))
 
-import xml.sax
-import xml.sax.saxutils
-
-import lxml.sax
-
-from .utils import namespaces, etree
-
 
 class AbortStream(Exception):
     pass
-
-
-class AbortableContext:
-    def __init__(self, cm):
-        self._cm = cm
-        self._cm_exit = type(cm).__exit__
-
-    def __enter__(self):
-        self._value = type(self._cm).__enter__(self._cm)
-        return self._value
-
-    def __exit__(self, exc_type, exc_value, exc_tb):
-        if not issubclass(exc_type, AbortStream):
-            return self._cm_exit(self._cm, exc_value, exc_type, exc_tb)
 
 
 class XMPPXMLGenerator:
