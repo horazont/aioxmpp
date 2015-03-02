@@ -536,7 +536,8 @@ class TestStanzaObject(XMLTestCase):
         obj.unparse_to_node(parent)
         self.assertSubtreeEqual(
             tree,
-            parent
+            parent,
+            strict_ordering=False
         )
 
     def setUp(self):
@@ -592,6 +593,87 @@ class TestStanzaObject(XMLTestCase):
         self._unparse_test(
             obj,
             etree.fromstring("<foo><bar><baz>fnord</baz></bar></foo>")
+        )
+
+    def test_unparse_to_node_handle_child_list(self):
+        class ClsLeaf(stanza_model.StanzaObject):
+            TAG = "baz"
+            text = stanza_model.Text()
+
+            def __init__(self, text=None):
+                super().__init__()
+                self.text = text
+
+        class Cls(stanza_model.StanzaObject):
+            TAG = "bar"
+            children = stanza_model.ChildList([ClsLeaf])
+
+        obj = Cls()
+        obj.children.append(ClsLeaf("a"))
+        obj.children.append(ClsLeaf("b"))
+        obj.children.append(ClsLeaf("c"))
+
+        self._unparse_test(
+            obj,
+            etree.fromstring("<foo><bar><baz>a</baz><baz>b</baz><baz>c</baz></bar></foo>")
+        )
+
+    def test_unparse_to_node_handle_child_text(self):
+        class Cls(stanza_model.StanzaObject):
+            TAG = "bar"
+            body = stanza_model.ChildText("body")
+
+        obj = Cls()
+        obj.body = "foobar"
+
+        self._unparse_test(
+            obj,
+            etree.fromstring("<foo><bar><body>foobar</body></bar></foo>")
+        )
+
+    def test_unparse_to_node_handle_collector(self):
+        class Cls(stanza_model.StanzaObject):
+            TAG = "bar"
+            dump = stanza_model.Collector()
+
+        obj = Cls()
+        obj.dump.append(etree.fromstring("<foo/>"))
+        obj.dump.append(etree.fromstring("<fnord/>"))
+
+        self._unparse_test(
+            obj,
+            etree.fromstring("<foo><bar><foo/><fnord/></bar></foo>")
+        )
+
+    def test_unparse_to_node_handle_child_map(self):
+        class ClsLeafA(stanza_model.StanzaObject):
+            TAG = "baz"
+            text = stanza_model.Text()
+
+            def __init__(self, text=None):
+                super().__init__()
+                self.text = text
+
+        class ClsLeafB(stanza_model.StanzaObject):
+            TAG = "fnord"
+            text = stanza_model.Text()
+
+            def __init__(self, text=None):
+                super().__init__()
+                self.text = text
+
+        class Cls(stanza_model.StanzaObject):
+            TAG = "bar"
+            children = stanza_model.ChildMap([ClsLeafA, ClsLeafB])
+
+        obj = Cls()
+        obj.children[ClsLeafA.TAG].append(ClsLeafA("a"))
+        obj.children[ClsLeafA.TAG].append(ClsLeafA("b"))
+        obj.children[ClsLeafB.TAG].append(ClsLeafB("1"))
+
+        self._unparse_test(
+            obj,
+            etree.fromstring("<foo><bar><baz>a</baz><baz>b</baz><fnord>1</fnord></bar></foo>")
         )
 
     def test_unparse_to_node_handle_attr(self):
@@ -835,15 +917,17 @@ class TestText(XMLTestCase):
             123,
             self.objb.test_int)
 
-    def test_int_to_node(self):
-        el = etree.Element("node")
+    def test_int_to_sax(self):
+        dest = unittest.mock.MagicMock()
         self.objb.test_int = 123
-        self.ClsB.test_int.to_node(
+        self.ClsB.test_int.to_sax(
             self.objb,
-            el)
+            dest)
         self.assertEqual(
-            "123",
-            el.text)
+            [
+                unittest.mock.call.characters("123"),
+            ],
+            dest.mock_calls)
 
     def test_validates(self):
         validator = unittest.mock.MagicMock()
@@ -867,22 +951,25 @@ class TestText(XMLTestCase):
             ],
             validator.mock_calls)
 
-    def test_to_node_unset(self):
+    def test_to_sax_unset(self):
         instance = make_instance_mock()
 
         prop = stanza_model.Text(default="foo")
-        el = etree.Element("root")
-        prop.to_node(instance, el)
-        self.assertSubtreeEqual(
-            etree.fromstring("<root>foo</root>"),
-            el)
+        dest = unittest.mock.MagicMock()
+        prop.to_sax(instance, dest)
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call.characters("foo"),
+            ],
+            dest.mock_calls)
 
-        el = etree.Element("root")
         instance._stanza_props = {prop: None}
-        prop.to_node(instance, el)
-        self.assertSubtreeEqual(
-            etree.fromstring("<root/>"),
-            el)
+        dest = unittest.mock.MagicMock()
+        prop.to_sax(instance, dest)
+        self.assertSequenceEqual(
+            [
+            ],
+            dest.mock_calls)
 
     def tearDown(self):
         del self.obja
@@ -971,27 +1058,27 @@ class TestChild(XMLTestCase):
             {prop: "bar"},
             instance._stanza_props)
 
-    def test_to_node(self):
+    def test_to_sax(self):
+        dest = unittest.mock.MagicMock()
         obj = self.ClsA()
         obj.test_child = unittest.mock.MagicMock()
-        parent = etree.Element("foo")
-        self.ClsA.test_child.to_node(obj, parent)
+        self.ClsA.test_child.to_sax(obj, dest)
         self.assertSequenceEqual(
             [
-                unittest.mock.call.unparse_to_node(parent)
+                unittest.mock.call.unparse_to_sax(dest)
             ],
             obj.test_child.mock_calls
         )
 
-    def test_to_node_unset(self):
+    def test_to_sax_unset(self):
+        dest = unittest.mock.MagicMock()
         obj = self.ClsA()
         obj.test_child = None
-        parent = etree.Element("foo")
-        self.ClsA.test_child.to_node(obj, parent)
-        self.assertSubtreeEqual(
-            etree.fromstring("<foo/>"),
-            parent
-        )
+        self.ClsA.test_child.to_sax(obj, dest)
+        self.assertSequenceEqual(
+            [
+            ],
+            dest.mock_calls)
 
     def tearDown(self):
         del self.ClsA
@@ -1043,19 +1130,29 @@ class TestChildList(XMLTestCase):
         self.assertIsInstance(obj.children[2], self.ClsLeafB)
         self.assertIsInstance(obj.children[3], self.ClsLeafA)
 
-    def test_to_node(self):
+    def test_to_sax(self):
+        dest = unittest.mock.MagicMock()
+
         obj = self.Cls()
         obj.children.append(self.ClsLeafA())
         obj.children.append(self.ClsLeafB())
         obj.children.append(self.ClsLeafA())
         obj.children.append(self.ClsLeafA())
 
-        parent = etree.Element("foo")
-        self.Cls.children.to_node(obj, parent)
+        self.Cls.children.to_sax(obj, dest)
 
-        self.assertSubtreeEqual(
-            etree.fromstring("<foo><bar/><bar/><baz/><bar/></foo>"),
-            parent)
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call.startElementNS((None, "bar"), None, {}),
+                unittest.mock.call.endElementNS((None, "bar"), None),
+                unittest.mock.call.startElementNS((None, "baz"), None, {}),
+                unittest.mock.call.endElementNS((None, "baz"), None),
+                unittest.mock.call.startElementNS((None, "bar"), None, {}),
+                unittest.mock.call.endElementNS((None, "bar"), None),
+                unittest.mock.call.startElementNS((None, "bar"), None, {}),
+                unittest.mock.call.endElementNS((None, "bar"), None),
+            ],
+            dest.mock_calls)
 
     def test_assign_enforces_list(self):
         obj = self.Cls()
@@ -1128,7 +1225,6 @@ class TestCollector(XMLTestCase):
             ]
         })
 
-
         parent_compare = etree.Element("root")
         parent_compare.extend([subtree1, subtree2, subtree3])
 
@@ -1173,33 +1269,39 @@ class TestAttr(XMLTestCase):
             instance._stanza_props
         )
 
-    def test_to_node(self):
-        el = etree.Element("foo")
+    def test_to_dict(self):
+        d = {}
+
         prop = stanza_model.Attr("foo", type_=stanza_types.Bool())
         instance = make_instance_mock({prop: True})
 
-        prop.to_node(instance, el)
-        self.assertSubtreeEqual(
-            etree.fromstring("<foo foo='true'/>"),
-            el)
+        prop.to_dict(instance, d)
+        self.assertDictEqual(
+            {
+                (None, "foo"): "true"
+            },
+            d)
 
-    def test_to_node_unset(self):
+    def test_to_dict_unset(self):
         prop = stanza_model.Attr("foo", default="bar")
         instance = make_instance_mock()
 
-        el = etree.Element("foo")
-        prop.to_node(instance, el)
-        self.assertSubtreeEqual(
-            etree.fromstring("<foo foo='bar'/>"),
-            el)
+        d = {}
+        prop.to_dict(instance, d)
+        self.assertDictEqual(
+            {
+                (None, "foo"): "bar"
+            },
+            d)
 
         instance._stanza_props = {prop: None}
 
-        el = etree.Element("foo")
-        prop.to_node(instance, el)
-        self.assertSubtreeEqual(
-            etree.fromstring("<foo/>"),
-            el)
+        d = {}
+        prop.to_dict(instance, d)
+        self.assertDictEqual(
+            {
+            },
+            d)
 
     def test_validates(self):
         validator = unittest.mock.MagicMock()
@@ -1365,7 +1467,9 @@ class TestChildText(XMLTestCase):
             },
             instance._stanza_props)
 
-    def test_to_node(self):
+    def test_to_sax(self):
+        dest = unittest.mock.MagicMock()
+
         type_mock = unittest.mock.MagicMock()
         type_mock.format.return_value = "foo"
 
@@ -1379,41 +1483,54 @@ class TestChildText(XMLTestCase):
         })
 
         parent = etree.Element("root")
-        prop.to_node(instance, parent)
+        prop.to_sax(instance, dest)
 
-        self.assertSubtreeEqual(
-            etree.fromstring("<root><body>foo</body></root>"),
-            parent)
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call.startElementNS((None, "body"), None, {}),
+                unittest.mock.call.characters("foo"),
+                unittest.mock.call.endElementNS((None, "body"), None)
+            ],
+            dest.mock_calls)
         self.assertSequenceEqual(
             [
                 unittest.mock.call.format("foo"),
             ],
             type_mock.mock_calls)
 
-    def test_to_node_unset(self):
+    def test_to_sax_unset(self):
         prop = stanza_model.ChildText("body", default="foo")
 
         instance = make_instance_mock()
 
-        parent = etree.Element("root")
-        prop.to_node(instance, parent)
-        self.assertSubtreeEqual(
-            etree.fromstring("<root><body>foo</body></root>"),
-            parent)
+        dest = unittest.mock.MagicMock()
+        prop.to_sax(instance, dest)
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call.startElementNS((None, "body"), None, {}),
+                unittest.mock.call.characters("foo"),
+                unittest.mock.call.endElementNS((None, "body"), None)
+            ],
+            dest.mock_calls)
 
         instance._stanza_props = {prop: None}
-        parent = etree.Element("root")
-        prop.to_node(instance, parent)
-        self.assertSubtreeEqual(
-            etree.fromstring("<root />"),
-            parent)
+        dest = unittest.mock.MagicMock()
+        prop.to_sax(instance, dest)
+        self.assertSequenceEqual(
+            [
+            ],
+            dest.mock_calls)
 
         instance._stanza_props = {prop: ""}
-        parent = etree.Element("root")
-        prop.to_node(instance, parent)
-        self.assertSubtreeEqual(
-            etree.fromstring("<root><body/></root>"),
-            parent)
+        dest = unittest.mock.MagicMock()
+        prop.to_sax(instance, dest)
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call.startElementNS((None, "body"), None, {}),
+                unittest.mock.call.characters(""),
+                unittest.mock.call.endElementNS((None, "body"), None)
+            ],
+            dest.mock_calls)
 
 
 class TestChildMap(XMLTestCase):
@@ -1476,6 +1593,9 @@ class TestChildMap(XMLTestCase):
         )
 
     def test_to_node(self):
+        # we run the test through to_node here, to avoid ordering issues with
+        # the dict.
+
         class Bar(stanza_model.StanzaObject):
             TAG = "bar"
 
@@ -1785,27 +1905,31 @@ class ChildTag(XMLTestCase):
             },
             instance._stanza_props)
 
-    def test_to_node(self):
+    def test_to_sax(self):
         instance = make_instance_mock({
             self.prop: ("uri:bar", "foo")
         })
 
-        parent = etree.Element("root")
-        self.prop.to_node(instance, parent)
-        self.assertSubtreeEqual(
-            etree.fromstring("<root><foo xmlns='uri:bar'/></root>"),
-            parent)
+        dest = unittest.mock.MagicMock()
+        self.prop.to_sax(instance, dest)
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call.startElementNS(("uri:bar", "foo"), None, {}),
+                unittest.mock.call.endElementNS(("uri:bar", "foo"), None),
+            ],
+            dest.mock_calls)
 
-    def test_to_node_unset(self):
+    def test_to_sax_unset(self):
         instance = make_instance_mock({
             self.prop: None
         })
 
-        parent = etree.Element("root")
-        self.prop.to_node(instance, parent)
-        self.assertSubtreeEqual(
-            etree.fromstring("<root/>"),
-            parent)
+        dest = unittest.mock.MagicMock()
+        self.prop.to_sax(instance, dest)
+        self.assertSequenceEqual(
+            [
+            ],
+            dest.mock_calls)
 
     def test_validate_from_code(self):
         class ClsWNone(stanza_model.StanzaObject):

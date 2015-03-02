@@ -125,10 +125,13 @@ The following exceptions are generated at some places in this module:
 .. autoclass:: UnknownTopLevelTag
 
 """
+import collections
 import copy
 import inspect
 import sys
 import xml.sax.handler
+
+import lxml.sax
 
 from enum import Enum
 
@@ -322,6 +325,22 @@ class _PropBase:
         except KeyError as err:
             return self._default
 
+    def to_node(self, instance, parent):
+        handler = lxml.sax.ElementTreeContentHandler(
+            makeelement=parent.makeelement)
+        handler.startDocument()
+        handler.startElementNS((None, "_"), None, {})
+        try:
+            self.to_sax(instance, handler)
+        finally:
+            try:
+                handler.endElementNS((None, "_"), None)
+                handler.endDocument()
+            except:
+                pass
+
+        parent.extend(handler.etree.getroot())
+
 
 class Text(_PropBase):
     """
@@ -338,7 +357,8 @@ class Text(_PropBase):
 
     .. automethod:: from_value
 
-    .. automethod:: to_node
+    .. automethod:: to_sax
+
     """
 
     def __init__(self,
@@ -355,7 +375,7 @@ class Text(_PropBase):
         """
         self._set_from_recv(instance, self.type_.parse(value))
 
-    def to_node(self, instance, el):
+    def to_sax(self, instance, dest):
         """
         Assign the formatted value stored at *instance*’ attribute to the text
         of *el*.
@@ -365,7 +385,7 @@ class Text(_PropBase):
         value = self.__get__(instance, type(instance))
         if value is None:
             return
-        el.text = self.type_.format(value)
+        dest.characters(self.type_.format(value))
 
 
 class Child(_PropBase):
@@ -383,7 +403,7 @@ class Child(_PropBase):
 
     .. automethod:: from_events
 
-    .. automethod:: to_node
+    .. automethod:: to_sax
     """
 
     def __init__(self, classes, default=None):
@@ -416,7 +436,7 @@ class Child(_PropBase):
         self.__set__(instance, obj)
         return obj
 
-    def to_node(self, instance, parent):
+    def to_sax(self, instance, dest):
         """
         Take the object associated with this descriptor on *instance* and
         serialize it as child into the given :class:`lxml.etree.Element`
@@ -427,7 +447,7 @@ class Child(_PropBase):
         obj = self.__get__(instance, type(instance))
         if obj is None:
             return
-        obj.unparse_to_node(parent)
+        obj.unparse_to_sax(dest)
 
     def _register(self, cls):
         if cls.TAG in self._tag_map:
@@ -448,7 +468,7 @@ class ChildList(Child):
 
     .. automethod:: from_events
 
-    .. automethod:: to_node
+    .. automethod:: to_sax
     """
 
     def __init__(self, classes):
@@ -474,14 +494,14 @@ class ChildList(Child):
         self.__get__(instance, type(instance)).append(obj)
         return obj
 
-    def to_node(self, instance, parent):
+    def to_sax(self, instance, dest):
         """
         Like :meth:`.Child.to_node`, but instead of serializing a single object,
         all objects in the list are serialized.
         """
 
-        for item in self.__get__(instance, type(instance)):
-            item.unparse_to_node(parent)
+        for obj in self.__get__(instance, type(instance)):
+            obj.unparse_to_sax(dest)
 
 
 class Collector(_PropBase):
@@ -493,7 +513,7 @@ class Collector(_PropBase):
 
     .. automethod:: from_events
 
-    .. automethod:: to_node
+    .. automethod:: to_sax
     """
 
     def __init__(self):
@@ -547,12 +567,9 @@ class Collector(_PropBase):
 
         self.__get__(instance, type(instance)).append(root_el)
 
-    def to_node(self, instance, parent):
-        """
-        Add all XML subtrees on *instance* to the *parent* node.
-        """
+    def to_sax(self, instance, dest):
         for node in self.__get__(instance, type(instance)):
-            parent.append(copy.copy(node))
+            lxml.sax.saxify(node, dest)
 
 
 class Attr(Text):
@@ -583,7 +600,7 @@ class Attr(Text):
 
     .. automethod:: from_value
 
-    .. automethod:: to_node
+    .. automethod:: to_dict
 
     """
 
@@ -596,18 +613,19 @@ class Attr(Text):
         self.tag = normalize_tag(tag)
         self.required = required
 
-    def to_node(self, instance, parent):
+    def to_dict(self, instance, d):
         """
         Override the implementation from :class:`Text` by storing the formatted
         value in the XML attribute instead of the character data.
 
         If the value is :data:`None`, no element is generated.
         """
+
         value = self.__get__(instance, type(instance))
         if value is None:
             return
 
-        parent.set(tag_to_str(self.tag), self.type_.format(value))
+        d[self.tag] = self.type_.format(value)
 
 
 class ChildText(_PropBase):
@@ -627,7 +645,7 @@ class ChildText(_PropBase):
 
     .. automethod:: from_events
 
-    .. automethod:: to_node
+    .. automethod:: to_sax
 
     """
 
@@ -684,7 +702,7 @@ class ChildText(_PropBase):
                 break
         self._set_from_recv(instance, self.type_.parse("".join(parts)))
 
-    def to_node(self, instance, parent):
+    def to_sax(self, instance, dest):
         """
         Create a child node at *parent* with the tag :attr:`tag`. Set the text
         contents to the value of the attribute which this descriptor represents
@@ -692,12 +710,16 @@ class ChildText(_PropBase):
 
         If the value is :data:`None`, no element is generated.
         """
+
         value = self.__get__(instance, type(instance))
         if value is None:
             return
-        el = etree.SubElement(parent, tag_to_str(self.tag))
-        el.text = self.type_.format(value)
-        return el
+
+        dest.startElementNS(self.tag, None, {})
+        try:
+            dest.characters(self.type_.format(value))
+        finally:
+            dest.endElementNS(self.tag, None)
 
 
 class ChildMap(Child):
@@ -708,14 +730,16 @@ class ChildMap(Child):
 
     .. automethod:: from_events
 
-    .. automethod:: to_node
+    .. automethod:: to_sax
 
     """
 
     def __get__(self, instance, cls):
         if instance is None:
             return super().__get__(instance, cls)
-        return instance._stanza_props.setdefault(self, {})
+        return instance._stanza_props.setdefault(
+            self,
+            collections.defaultdict(list))
 
     def _set(self, instance, value):
         if not isinstance(value, dict):
@@ -734,7 +758,7 @@ class ChildMap(Child):
         mapping = self.__get__(instance, type(instance))
         mapping.setdefault(cls.TAG, []).append(obj)
 
-    def to_node(self, instance, parent):
+    def to_sax(self, instance, dest):
         """
         Serialize all objects in the dict associated with the descriptor at
         *instance* to the given *parent*.
@@ -742,9 +766,10 @@ class ChildMap(Child):
         The order of elements within a tag is preserved; the order of the tags
         relative to each other is undefined.
         """
+
         for items in self.__get__(instance, type(instance)).values():
             for obj in items:
-                obj.unparse_to_node(parent)
+                obj.unparse_to_sax(dest)
 
 
 class ChildTag(_PropBase):
@@ -767,6 +792,11 @@ class ChildTag(_PropBase):
     the child element.
 
     *default* works as for :class:`Attr`.
+
+    .. automethod:: from_events
+
+    .. automethod:: to_sax
+
     """
 
     class ElementTreeTag(stanza_types.AbstractType):
@@ -825,13 +855,13 @@ class ChildTag(_PropBase):
                 break
         self._set_from_recv(instance, tag)
 
-    def to_node(self, instance, parent):
+    def to_sax(self, instance, dest):
         value = self.__get__(instance, type(instance))
         if value is None:
             return
-        etree.SubElement(
-            parent,
-            self.type_.format(value))
+
+        dest.startElementNS(value, None, {})
+        dest.endElementNS(value, None)
 
 
 class StanzaClass(type):
@@ -1146,19 +1176,32 @@ class StanzaObject(metaclass=StanzaClass):
         super().__init__(*args, **kwargs)
         self._stanza_props = dict()
 
-    def unparse_to_node(self, parent):
+    def unparse_to_sax(self, dest):
         cls = type(self)
-        el = etree.SubElement(
-            parent,
-            tag_to_str(self.TAG)
-        )
+        attrib = {}
         for prop in cls.ATTR_MAP.values():
-            prop.to_node(self, el)
-        if cls.TEXT_PROPERTY:
-            cls.TEXT_PROPERTY.to_node(self, el)
-        for prop in cls.CHILD_PROPS:
-            prop.to_node(self, el)
-        return el
+            prop.to_dict(self, attrib)
+        dest.startElementNS(self.TAG, None, attrib)
+        try:
+            if cls.TEXT_PROPERTY:
+                cls.TEXT_PROPERTY.to_sax(self, dest)
+            for prop in cls.CHILD_PROPS:
+                prop.to_sax(self, dest)
+            if cls.COLLECTOR_PROPERTY:
+                cls.COLLECTOR_PROPERTY.to_sax(self, dest)
+        finally:
+            dest.endElementNS(self.TAG, None)
+
+    def unparse_to_node(self, parent):
+        handler = lxml.sax.ElementTreeContentHandler(
+            makeelement=parent.makeelement)
+        handler.startDocument()
+        handler.startElementNS((None, "root"), None)
+        self.unparse_to_sax(handler)
+        handler.endElementNS((None, "root"), None)
+        handler.endDocument()
+
+        parent.extend(handler.etree.getroot())
 
 
 class SAXDriver(xml.sax.handler.ContentHandler):
