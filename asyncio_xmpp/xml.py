@@ -185,6 +185,9 @@ class XMPPXMLGenerator:
         self._finish_pending_start_element()
         self._write(xml.sax.saxutils.escape(chars).encode(self._encoding))
 
+    def processingInstruction(self, target, data):
+        raise ValueError("restricted xml: processing instruction forbidden")
+
     def endElement(self, name):
         self.startElement(name)
 

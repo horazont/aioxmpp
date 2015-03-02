@@ -291,6 +291,14 @@ class TestXMPPXMLGenerator(XMLTestCase):
             tree,
             tree2)
 
+    def test_reject_processing_instruction(self):
+        gen = xml.XMPPXMLGenerator(self.buf)
+        gen.startDocument()
+        gen.startElementNS((None, "foo"), None, None)
+        with self.assertRaisesRegexp(ValueError,
+                                     "restricted xml: processing instruction"):
+            gen.processingInstruction("foo", "bar")
+
     def test_reject_unnamespaced_element_if_default_namespace_is_set(self):
         gen = xml.XMPPXMLGenerator(self.buf)
         gen.startDocument()
