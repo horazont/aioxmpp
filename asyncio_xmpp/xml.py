@@ -188,6 +188,15 @@ class XMPPXMLGenerator:
     def processingInstruction(self, target, data):
         raise ValueError("restricted xml: processing instruction forbidden")
 
+    def skippedEntity(self, name):
+        raise NotImplementedError("skippedEntity")
+
+    def setDocumentLocator(self, locator):
+        raise NotImplementedError("setDocumentLocator")
+
+    def ignorableWhitespace(self, _):
+        raise NotImplementedError("ignorableWhitespace")
+
     def endElement(self, name):
         self.startElement(name)
 

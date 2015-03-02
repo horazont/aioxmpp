@@ -299,6 +299,21 @@ class TestXMPPXMLGenerator(XMLTestCase):
                                      "restricted xml: processing instruction"):
             gen.processingInstruction("foo", "bar")
 
+    def test_skippedEntity_not_implemented(self):
+        gen = xml.XMPPXMLGenerator(self.buf)
+        with self.assertRaises(NotImplementedError):
+            gen.skippedEntity("foo")
+
+    def test_setDocumentLocator_not_implemented(self):
+        gen = xml.XMPPXMLGenerator(self.buf)
+        with self.assertRaises(NotImplementedError):
+            gen.setDocumentLocator("foo")
+
+    def test_ignorableWhitespace_not_implemented(self):
+        gen = xml.XMPPXMLGenerator(self.buf)
+        with self.assertRaises(NotImplementedError):
+            gen.ignorableWhitespace("foo")
+
     def test_reject_unnamespaced_element_if_default_namespace_is_set(self):
         gen = xml.XMPPXMLGenerator(self.buf)
         gen.startDocument()
