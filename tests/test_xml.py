@@ -2,10 +2,47 @@ import collections
 import io
 import unittest
 
+import lxml.sax
+
 import asyncio_xmpp.xml as xml
 import asyncio_xmpp.stanza_model as stanza_model
 
 from asyncio_xmpp.utils import etree
+
+from .xmltestutils import XMLTestCase
+
+
+# this tree is extracted from http://api.met.no, the API of the norwegian
+# meterological institute. This data is under CC-BY-SA.
+TEST_TREE = b"""<weatherdata xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://api.met.no/weatherapi/locationforecast/1.9/schema" created="2015-03-02T19:40:26Z">
+   <meta>
+      <model name="LOCAL" termin="2015-03-02T12:00:00Z" runended="2015-03-02T15:39:25Z" nextrun="2015-03-03T04:00:00Z" from="2015-03-02T20:00:00Z" to="2015-03-05T06:00:00Z" />
+      <model name="EC.GEO.0.25" termin="2015-03-02T12:00:00Z" runended="2015-03-02T19:04:34Z" nextrun="2015-03-02T20:00:00Z" from="2015-03-05T09:00:00Z" to="2015-03-12T12:00:00Z" />
+      </meta>
+   <product class="pointData">
+      <time datatype="forecast" from="2015-03-02T20:00:00Z" to="2015-03-02T20:00:00Z">
+         <location altitude="288" latitude="51.0000" longitude="13.0000">
+            <temperature id="TTT" unit="celsius" value="2.1"/>
+            <windDirection id="dd" deg="232.7" name="SW"/>
+            <windSpeed id="ff" mps="5.4" beaufort="3" name="Lett bris"/>
+            <humidity value="72.7" unit="percent"/>
+            <pressure id="pr" unit="hPa" value="1007.5"/>
+            <cloudiness id="NN" percent="70.4"/>
+            <fog id="FOG" percent="0.0"/>
+            <lowClouds id="LOW" percent="0.6"/>
+            <mediumClouds id="MEDIUM" percent="69.8"/>
+            <highClouds id="HIGH" percent="0.0"/>
+            <dewpointTemperature id="TD" unit="celsius" value="-2.5"/>
+         </location>
+      </time>
+      <time datatype="forecast" from="2015-03-02T19:00:00Z" to="2015-03-02T20:00:00Z">
+         <location altitude="288" latitude="51.0000" longitude="13.0000">
+            <precipitation unit="mm" value="0.0" minvalue="0.0" maxvalue="0.0"/>
+<symbol id="PartlyCloud" number="3"/>
+         </location>
+      </time>
+</product></weatherdata>"""
+# end of data extracted from http://api.met.no
 
 
 class Cls(stanza_model.StanzaObject):
@@ -23,7 +60,7 @@ class TestxmlValidateNameValue_str(unittest.TestCase):
         self.assertFalse(xml.xmlValidateNameValue_str("foo<"))
 
 
-class TestDurableXMLGenerator(unittest.TestCase):
+class TestDurableXMLGenerator(XMLTestCase):
     def setUp(self):
         self.buf = io.BytesIO()
 
@@ -244,7 +281,15 @@ class TestDurableXMLGenerator(unittest.TestCase):
         )
 
     def test_complex_tree(self):
+        tree = etree.fromstring(TEST_TREE)
+        gen = xml.DurableXMLGenerator(self.buf, short_empty_elements=True)
+        lxml.sax.saxify(tree, gen)
 
+        tree2 = etree.fromstring(self.buf.getvalue())
+
+        self.assertSubtreeEqual(
+            tree,
+            tree2)
 
     def tearDown(self):
         del self.buf
