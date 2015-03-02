@@ -39,6 +39,7 @@ class AbortableContext:
 class XMPPXMLGenerator:
     def __init__(self, out, encoding="utf-8", short_empty_elements=True):
         self._write = out.write
+        self._flush = out.flush
         self._ns_map_stack = [({}, {}, 0)]
         self._curr_ns_map = {}
         self._encoding = encoding
@@ -203,6 +204,10 @@ class XMPPXMLGenerator:
     def endDocument(self):
         pass
 
+    def flush(self):
+        self._finish_pending_start_element()
+        self._flush()
+
 
 def write_objects(f, nsmap={}):
     nsmap_to_use = {
@@ -215,13 +220,14 @@ def write_objects(f, nsmap={}):
         encoding="utf-8",
         short_empty_elements=True)
 
-    # writer.startDocument()
+    writer.startDocument()
     for prefix, uri in nsmap_to_use.items():
         writer.startPrefixMapping(prefix, uri)
     writer.startElementNS(
         (namespaces.xmlstream, "stream"),
         None,
         {})
+    writer.flush()
 
     abort = False
 
@@ -234,13 +240,11 @@ def write_objects(f, nsmap={}):
                 return
             parent = etree.Element("_")
             obj.unparse_to_sax(writer)
+            writer.flush()
     finally:
         if not abort:
             writer.endElementNS((namespaces.xmlstream, "stream"), None)
             for prefix in nsmap_to_use:
                 writer.endPrefixMapping(prefix)
-        else:
-            # XXX: I’m nasty. I deserve punishment
-            if writer._pending_start_element:
-                f.write(b">")
-        writer.endDocument()
+            writer.endDocument()
+        writer.flush()

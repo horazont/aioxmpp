@@ -1,6 +1,7 @@
 import collections
 import io
 import unittest
+import unittest.mock
 
 import lxml.sax
 
@@ -321,6 +322,47 @@ class TestXMPPXMLGenerator(XMLTestCase):
         with self.assertRaises(ValueError):
             gen.startElementNS((None, "foo"), None, None)
 
+    def test_properly_handle_empty_root(self):
+        gen = xml.XMPPXMLGenerator(self.buf, short_empty_elements=True)
+        gen.startDocument()
+        gen.startElementNS((None, "foo"), None, None)
+        gen.endElementNS((None, "foo"), None)
+        gen.endDocument()
+
+        self.assertEqual(
+            b"<foo/>",
+            self.buf.getvalue()
+        )
+
+    def test_finish_partially_opened_element_on_flush(self):
+        gen = xml.XMPPXMLGenerator(self.buf, short_empty_elements=True)
+        gen.startDocument()
+        gen.startElementNS((None, "foo"), None, None)
+        gen.flush()
+        self.assertEqual(
+            b"<foo>",
+            self.buf.getvalue()
+        )
+        gen.endElementNS((None, "foo"), None)
+        gen.endDocument()
+        self.assertEqual(
+            b"<foo></foo>",
+            self.buf.getvalue()
+        )
+
+    def test_flush(self):
+        buf = unittest.mock.MagicMock()
+
+        gen = xml.XMPPXMLGenerator(buf, short_empty_elements=True)
+        gen.flush()
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call.flush(),
+            ],
+            buf.mock_calls
+        )
+
     def tearDown(self):
         del self.buf
 
@@ -335,7 +377,7 @@ class Testwrite_objects(unittest.TestCase):
         gen.close()
 
         self.assertEqual(
-            b'<stream:stream xmlns:stream="http://etherx.jabber.org/streams"/>',
+            b'<stream:stream xmlns:stream="http://etherx.jabber.org/streams"></stream:stream>',
             self.buf.getvalue()
         )
 
@@ -356,7 +398,7 @@ class Testwrite_objects(unittest.TestCase):
         gen.close()
 
         self.assertEqual(
-            b'<stream:stream xmlns="jabber:client" xmlns:stream="http://etherx.jabber.org/streams"/>',
+            b'<stream:stream xmlns="jabber:client" xmlns:stream="http://etherx.jabber.org/streams"></stream:stream>',
             self.buf.getvalue()
         )
 
