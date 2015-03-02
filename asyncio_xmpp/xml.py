@@ -1,3 +1,27 @@
+"""
+:mod:`~asyncio_xmpp.xml` --- XML utilities and interfaces for handling XMPP XML streams
+#######################################################################################
+
+This module provides a few classes and functions which are useful when
+generating and parsing XML streams for XMPP.
+
+Generating XML streams
+======================
+
+The most useful class here is the :class:`XMPPXMLGenerator`:
+
+.. autoclass:: XMPPXMLGenerator
+
+The following generator function can be used to send several
+:class:`~.stanza_model.StanzaObject` instances along an XMPP stream without
+bothering with any cleanup.
+
+.. autofunction:: write_objects
+
+.. autoclass:: AbortStream
+
+"""
+
 import ctypes
 import random
 
@@ -21,10 +45,76 @@ def xmlValidateNameValue_buf(b):
 
 
 class AbortStream(Exception):
-    pass
+    """
+    This is a signal exception which causes :func:`write_objects` to stop
+    immediately without closing the stream.
+    """
 
 
 class XMPPXMLGenerator:
+    """
+    :class:`XMPPXMLGenerator` works similar to
+    :class:`xml.sax.saxutils.XMLGenerator`, but has a few key differences:
+
+    * It supports **only** namespace-conforming XML documents
+    * It automatically chooses namespace prefixes if a namespace has not been
+      declared
+    * It is in general stricter on (explicit) namespace declarations, to avoid
+      ambiguities
+    * It defaults to utf-8 ☺
+    * It allows explicit flushing
+    * It does never write a XML document declaration
+
+    *out* must be a file-like supporting both :meth:`file.write` and
+    :meth:`file.flush`. *encoding* specifies the encoding which is used and
+    **must** be ``utf-8`` for XMPP.
+
+    If *short_empty_elements* is true, empty elements are rendered as ``<foo/>``
+    instead of ``<foo></foo>``, unless a flush occurs before the call to
+    :meth:`endElementNS`, in which case the opening is finished before
+    flushing, thus the long form is generated.
+
+    Implementation of the SAX content handler interface (see
+    :class:`xml.sax.handler.ContentHandler`):
+
+    .. automethod:: startDocument
+
+    .. automethod:: startPrefixMapping(prefix, uri)
+
+    .. automethod:: startElementNS
+
+    .. automethod:: characters
+
+    .. automethod:: endElementNS
+
+    .. automethod:: endPrefixMapping
+
+    .. automethod:: endDocument
+
+    The following SAX content handler methods have deliberately not been
+    implemented:
+
+    .. automethod:: setDocumentLocator
+
+    .. automethod:: skippedEntity
+
+    .. automethod:: ignorableWhitespace
+
+    .. automethod:: startElement
+
+    .. automethod:: endElement
+
+    These methods produce content which is invalid in XMPP XML streams and thus
+    always raise :class:`ValueError`:
+
+    .. automethod:: processingInstruction
+
+    In addition to the SAX content handler interface, the following methods are
+    provided:
+
+    .. automethod:: flush
+
+    """
     def __init__(self, out, encoding="utf-8", short_empty_elements=True):
         self._write = out.write
         self._flush = out.flush
@@ -99,9 +189,43 @@ class XMPPXMLGenerator:
         return new_prefixes
 
     def startDocument(self):
-        pass
+        """
+        Start the document. This method *must* be called before any other
+        content handler method.
+        """
+        # yes, I know the doctext is not enforced. It might become enforced in a
+        # later version though, when I find a compelling reason why it is
+        # needed.
 
     def startPrefixMapping(self, prefix, uri, *, auto=False):
+        """
+        Start a prefix mapping which maps the given *prefix* to the given
+        *uri*.
+
+        Note that prefix mappings are handled transactional. All announcements
+        of prefix mappings are collected until the next call to
+        :meth:`startElementNS`. At that point, the mappings are collected and
+        start to override the previously declared mappings until the
+        corresponding :meth:`endElementNS` call.
+
+        Also note that calling :meth:`startPrefixMapping` is not mandatory; you
+        can use any namespace you like at any time. If you use a namespace whose
+        URI has not been associated with a prefix yet, a free prefix will
+        automatically be chosen. To avoid unneccessary performance penalties, do
+        not use prefixes of the form ``"{:d}".format(n)``, for any non-negative
+        number of *n*.
+
+        It is however required to call :meth:`endPrefixMapping` after a
+        :meth:`endElementNS` call for all namespaces which have been announced
+        directly before the :meth:`startElementNS` call (except for those which
+        have been chosen automatically). Not doing so will result in a
+        :class:`RuntimeError` at the next :meth:`startElementNS` or
+        :meth:`endElementNS` call.
+
+        During a transaction, it is not allowed to declare the same prefix
+        multiple times.
+        """
+
         if     (prefix is not None and
                 (not xmlValidateNameValue_str(prefix) or ":" in prefix)):
             raise ValueError("not a valid prefix: {!r}".format(prefix))
@@ -114,6 +238,20 @@ class XMPPXMLGenerator:
         self._ns_decls_floating_in[uri] = prefix
 
     def startElementNS(self, name, qname, attributes=None):
+        """
+        Start a sub-element. *name* must be a tuple of ``(namespace_uri,
+        localname)`` and *qname* is ignored. *attributes* must be a dictionary
+        mapping attribute tag tuples (``(namespace_uri, attribute_name)``) to
+        string values. To use unnamespaced attributes, *namespace_uri* can be
+        false (e.g. :data:`None` or the empty string).
+
+        To use unnamespaced elements, *namespace_uri* in *name* must be false
+        **and** no namespace without prefix must be currently active. If a
+        namespace without prefix is active and *namespace_uri* in *name* is
+        false, :class:`ValueError` is raised.
+
+        Attribute values are of course automatically escaped.
+        """
         self._finish_pending_start_element()
         old_counter = self._ns_counter
 
@@ -160,6 +298,10 @@ class XMPPXMLGenerator:
             self._write(b">")
 
     def endElementNS(self, name, qname):
+        """
+        End a previously started element. *name* must be a ``(namespace_uri,
+        localname)`` tuple and *qname* is ignored.
+        """
         if self._ns_prefixes_floating_out:
             raise RuntimeError("namespace prefix has not been closed")
 
@@ -175,13 +317,28 @@ class XMPPXMLGenerator:
             self._ns_map_stack.pop()
 
     def endPrefixMapping(self, prefix):
+        """
+        End a prefix mapping declared with :meth:`startPrefixMapping`. See there
+        for more details.
+        """
         self._ns_prefixes_floating_out.remove(prefix)
 
     def startElement(self, name, attributes=None):
+        """
+        Not supported; only elements with proper namespacing are supported by
+        this generator.
+        """
         raise NotImplementedError("namespace-incorrect documents are "
                                   "not supported")
 
     def characters(self, chars):
+        """
+        Put character data in the currently open element. Special characters
+        (such as ``<``, ``>`` and ``&``) are escaped.
+
+        If *chars* contains any ASCII control character, :class:`ValueError` is
+        raised.
+        """
         self._finish_pending_start_element()
         if any(0 <= ord(c) <= 8 or
                11 <= ord(c) <= 12 or
@@ -192,29 +349,72 @@ class XMPPXMLGenerator:
         self._write(xml.sax.saxutils.escape(chars).encode(self._encoding))
 
     def processingInstruction(self, target, data):
+        """
+        Not supported; explicitly forbidden in XMPP. Raises :class:`ValueError`.
+        """
         raise ValueError("restricted xml: processing instruction forbidden")
 
     def skippedEntity(self, name):
+        """
+        Not supported; there is no use case. Raises :class:`NotImplementedError`.
+        """
         raise NotImplementedError("skippedEntity")
 
     def setDocumentLocator(self, locator):
+        """
+        Not supported; there is no use case. Raises :class:`NotImplementedError`.
+        """
         raise NotImplementedError("setDocumentLocator")
 
-    def ignorableWhitespace(self, _):
+    def ignorableWhitespace(self, whitespace):
+        """
+        Not supported; could be mapped to :meth:`characters`.
+        """
         raise NotImplementedError("ignorableWhitespace")
 
     def endElement(self, name):
+        """
+        Not supported; only elements with proper namespacing are supported by
+        this generator.
+        """
         self.startElement(name)
 
     def endDocument(self):
-        pass
+        """
+        This must be called at the end of the document. Note that this does not
+        call :meth:`flush`.
+        """
 
     def flush(self):
+        """
+        Call :meth:`flush` on the object passed to the *out* argument of the
+        constructor. In addition, any unfinished opening tags are finished,
+        which can lead to expansion of the generated XML code (see note on the
+        *short_empty_elements* argument at the class documentation).
+        """
         self._finish_pending_start_element()
         self._flush()
 
 
 def write_objects(f, nsmap={}):
+    """
+    Return a generator, which writes an XMPP XML stream on the file-like object
+    *f*.
+
+    First, the generator writes the stream header and declares all namespaces
+    given in *nsmap* plus the xmlstream namespace, then the output is flushed
+    and the generator yields.
+
+    Now, user code can send :class:`~.stanza_model.StanzaObject` objects to the
+    generator using its :meth:`send` method. These objects get serialized to the
+    XML stream. Any exception raised during that is re-raised and the stream is
+    closed.
+
+    Using the :meth:`throw` method to throw a :class:`AbortStream` exception
+    will immediately stop the generator without closing the stream
+    properly, but with a last flush call to the writer. This can be used to
+    reset the stream.
+    """
     nsmap_to_use = {
         "stream": namespaces.xmlstream
     }
