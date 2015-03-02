@@ -36,7 +36,7 @@ class AbortableContext:
             return self._cm_exit(self._cm, exc_value, exc_type, exc_tb)
 
 
-class DurableXMLGenerator:
+class XMPPXMLGenerator:
     def __init__(self, out, encoding="utf-8", short_empty_elements=True):
         self._write = out.write
         self._ns_map_stack = [({}, {}, 0)]
@@ -193,7 +193,7 @@ def write_objects(f, nsmap={}):
     }
     nsmap_to_use.update(nsmap)
 
-    writer = DurableXMLGenerator(
+    writer = XMPPXMLGenerator(
         out=f,
         encoding="utf-8",
         short_empty_elements=True)

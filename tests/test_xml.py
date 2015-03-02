@@ -60,19 +60,19 @@ class TestxmlValidateNameValue_str(unittest.TestCase):
         self.assertFalse(xml.xmlValidateNameValue_str("foo<"))
 
 
-class TestDurableXMLGenerator(XMLTestCase):
+class TestXMPPXMLGenerator(XMLTestCase):
     def setUp(self):
         self.buf = io.BytesIO()
 
     def test_no_declaration(self):
-        gen = xml.DurableXMLGenerator(self.buf)
+        gen = xml.XMPPXMLGenerator(self.buf)
         gen.startDocument()
         gen.endDocument()
 
         self.assertFalse(self.buf.getvalue())
 
     def test_reject_namespaceless_stuff(self):
-        gen = xml.DurableXMLGenerator(self.buf)
+        gen = xml.XMPPXMLGenerator(self.buf)
         gen.startDocument()
         with self.assertRaises(NotImplementedError):
             gen.startElement(None, None)
@@ -80,7 +80,7 @@ class TestDurableXMLGenerator(XMLTestCase):
             gen.endElement(None)
 
     def test_reject_invalid_prefix(self):
-        gen = xml.DurableXMLGenerator(self.buf)
+        gen = xml.XMPPXMLGenerator(self.buf)
         gen.startDocument()
         with self.assertRaises(ValueError):
             gen.startPrefixMapping(">", "uri:foo")
@@ -88,19 +88,19 @@ class TestDurableXMLGenerator(XMLTestCase):
             gen.startPrefixMapping(":", "uri:foo")
 
     def test_reject_invalid_attribute_name(self):
-        gen = xml.DurableXMLGenerator(self.buf)
+        gen = xml.XMPPXMLGenerator(self.buf)
         gen.startDocument()
         with self.assertRaises(ValueError):
             gen.startElementNS((None, "foo"), None, {(None, ">"): "bar"})
 
     def test_reject_invalid_element_name(self):
-        gen = xml.DurableXMLGenerator(self.buf)
+        gen = xml.XMPPXMLGenerator(self.buf)
         gen.startDocument()
         with self.assertRaises(ValueError):
             gen.startElementNS((None, ">"), None, None)
 
     def test_element_with_explicit_namespace_setup(self):
-        gen = xml.DurableXMLGenerator(self.buf, short_empty_elements=True)
+        gen = xml.XMPPXMLGenerator(self.buf, short_empty_elements=True)
         gen.startDocument()
         gen.startPrefixMapping("ns", "uri:foo")
         gen.startElementNS(("uri:foo", "foo"), None, None)
@@ -114,7 +114,7 @@ class TestDurableXMLGenerator(XMLTestCase):
         )
 
     def test_element_without_explicit_namespace_setup(self):
-        gen = xml.DurableXMLGenerator(self.buf, short_empty_elements=True)
+        gen = xml.XMPPXMLGenerator(self.buf, short_empty_elements=True)
         gen.startDocument()
         gen.startElementNS(("uri:foo", "foo"), None, None)
         gen.endElementNS(("uri:foo", "foo"), None)
@@ -126,7 +126,7 @@ class TestDurableXMLGenerator(XMLTestCase):
         )
 
     def test_detection_of_unclosed_namespace(self):
-        gen = xml.DurableXMLGenerator(self.buf)
+        gen = xml.XMPPXMLGenerator(self.buf)
         gen.startDocument()
         gen.startPrefixMapping("ns0", "uri:foo")
         gen.startElementNS(("uri:foo", "foo"), None, None)
@@ -141,7 +141,7 @@ class TestDurableXMLGenerator(XMLTestCase):
             gen.endElementNS(("uri:foo", "foo"), None)
 
     def test_no_need_to_close_auto_generated_prefix(self):
-        gen = xml.DurableXMLGenerator(self.buf)
+        gen = xml.XMPPXMLGenerator(self.buf)
         gen.startDocument()
         gen.startPrefixMapping("ns", "uri:foo")
         gen.startElementNS(("uri:foo", "foo"), None, None)
@@ -157,7 +157,7 @@ class TestDurableXMLGenerator(XMLTestCase):
         )
 
     def test_auto_namespacing_per_element(self):
-        gen = xml.DurableXMLGenerator(self.buf)
+        gen = xml.XMPPXMLGenerator(self.buf)
         gen.startDocument()
         gen.startPrefixMapping("ns", "uri:foo")
         gen.startElementNS(("uri:foo", "foo"), None, None)
@@ -176,7 +176,7 @@ class TestDurableXMLGenerator(XMLTestCase):
         )
 
     def test_namespaceless_root(self):
-        gen = xml.DurableXMLGenerator(self.buf)
+        gen = xml.XMPPXMLGenerator(self.buf)
         gen.startDocument()
         gen.startElementNS((None, "foo"), None, None)
         gen.endElementNS((None, "foo"), None)
@@ -187,7 +187,7 @@ class TestDurableXMLGenerator(XMLTestCase):
         )
 
     def test_attributes(self):
-        gen = xml.DurableXMLGenerator(self.buf, short_empty_elements=True)
+        gen = xml.XMPPXMLGenerator(self.buf, short_empty_elements=True)
         gen.startDocument()
         gen.startElementNS(
             (None, "foo"),
@@ -208,7 +208,7 @@ class TestDurableXMLGenerator(XMLTestCase):
         )
 
     def test_attribute_ns_autogeneration(self):
-        gen = xml.DurableXMLGenerator(self.buf)
+        gen = xml.XMPPXMLGenerator(self.buf)
         gen.startDocument()
         gen.startPrefixMapping("ns", "uri:foo")
         gen.startElementNS(
@@ -231,7 +231,7 @@ class TestDurableXMLGenerator(XMLTestCase):
         )
 
     def test_text(self):
-        gen = xml.DurableXMLGenerator(self.buf)
+        gen = xml.XMPPXMLGenerator(self.buf)
         gen.startDocument()
         gen.startElementNS((None, "foo"), None, None)
         gen.characters("foobar")
@@ -244,7 +244,7 @@ class TestDurableXMLGenerator(XMLTestCase):
         )
 
     def test_text_escaping(self):
-        gen = xml.DurableXMLGenerator(self.buf)
+        gen = xml.XMPPXMLGenerator(self.buf)
         gen.startDocument()
         gen.startElementNS((None, "foo"), None, None)
         gen.characters("<fo&o>")
@@ -257,7 +257,7 @@ class TestDurableXMLGenerator(XMLTestCase):
         )
 
     def test_interleave_setup_and_teardown_of_namespaces(self):
-        gen = xml.DurableXMLGenerator(self.buf, short_empty_elements=True)
+        gen = xml.XMPPXMLGenerator(self.buf, short_empty_elements=True)
         gen.startDocument()
         gen.startPrefixMapping("ns0", "uri:foo")
         gen.startElementNS(("uri:foo", "foo"), None, None)
@@ -282,7 +282,7 @@ class TestDurableXMLGenerator(XMLTestCase):
 
     def test_complex_tree(self):
         tree = etree.fromstring(TEST_TREE)
-        gen = xml.DurableXMLGenerator(self.buf, short_empty_elements=True)
+        gen = xml.XMPPXMLGenerator(self.buf, short_empty_elements=True)
         lxml.sax.saxify(tree, gen)
 
         tree2 = etree.fromstring(self.buf.getvalue())
