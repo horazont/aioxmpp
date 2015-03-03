@@ -394,6 +394,48 @@ class TestXMPPXMLGenerator(XMLTestCase):
             buf.mock_calls
         )
 
+    def test_reject_colon_in_element_name(self):
+        gen = xml.XMPPXMLGenerator(self.buf, short_empty_elements=True)
+        gen.startDocument()
+        with self.assertRaises(ValueError):
+            gen.startElementNS((None, "foo:bar"), None, None)
+
+    def test_reject_invalid_element_names(self):
+        gen = xml.XMPPXMLGenerator(self.buf, short_empty_elements=True)
+        gen.startDocument()
+        with self.assertRaises(ValueError):
+            gen.startElementNS((None, "foo*bar"), None, None)
+        with self.assertRaises(ValueError):
+            gen.startElementNS((None, "\u0002bar"), None, None)
+
+    def test_reject_xmlns_attributes(self):
+        gen = xml.XMPPXMLGenerator(self.buf, short_empty_elements=True)
+        gen.startDocument()
+        with self.assertRaises(ValueError):
+            gen.startElementNS((None, "foo"), None, {
+                (None, "xmlns"): "foobar"
+            })
+        with self.assertRaises(ValueError):
+            gen.startElementNS((None, "foo"), None, {
+                (None, "xmlns:foo"): "foobar"
+            })
+
+    def test_reject_reserved_prefixes(self):
+        gen = xml.XMPPXMLGenerator(self.buf, short_empty_elements=True)
+        gen.startDocument()
+        with self.assertRaises(ValueError):
+            gen.startPrefixMapping("xmlns", "uri:foo")
+        with self.assertRaises(ValueError):
+            gen.startPrefixMapping("xml", "uri:foo")
+
+    def test_catch_non_tuple_attribute(self):
+        gen = xml.XMPPXMLGenerator(self.buf, short_empty_elements=True)
+        gen.startDocument()
+        with self.assertRaises(ValueError):
+            gen.startElementNS((None, "foo"), None, {
+                "fo": "foobar"
+            })
+
     def tearDown(self):
         del self.buf
 

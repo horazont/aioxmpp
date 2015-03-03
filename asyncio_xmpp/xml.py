@@ -140,7 +140,9 @@ class XMPPXMLGenerator:
         return prefix
 
     def _qname(self, name, attr=False):
-        if ":" in name or not xmlValidateNameValue_str(name[1]):
+        if not isinstance(name, tuple):
+            raise ValueError("names must be tuples")
+        if ":" in name[1] or not xmlValidateNameValue_str(name[1]):
             raise ValueError("invalid name: {!r}".format(name[1]))
         if name[0]:
             if name[0] == "http://www.w3.org/XML/1998/namespace":
@@ -227,7 +229,10 @@ class XMPPXMLGenerator:
         """
 
         if     (prefix is not None and
-                (not xmlValidateNameValue_str(prefix) or ":" in prefix)):
+                (prefix == "xml" or
+                 prefix == "xmlns" or
+                 not xmlValidateNameValue_str(prefix) or
+                 ":" in prefix)):
             raise ValueError("not a valid prefix: {!r}".format(prefix))
 
         if prefix in self._ns_prefixes_floating_in:
@@ -261,6 +266,9 @@ class XMPPXMLGenerator:
                 (self._qname(attrname, attr=True), value)
                 for attrname, value in attributes.items()
             ]
+            for attrqname, _ in attrib:
+                if attrqname == "xmlns":
+                    raise ValueError("xmlns not allowed as attribute name")
         else:
             attrib = []
 
