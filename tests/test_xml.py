@@ -1,4 +1,5 @@
 import collections
+# import numbers
 import io
 import unittest
 import unittest.mock
@@ -840,6 +841,32 @@ class TestXMPPXMLProcessor(unittest.TestCase):
         self.proc.startDocument()
         with self.assertRaises(RuntimeError):
             self.proc.stanza_parser = unittest.mock.MagicMock()
+
+    # def test_depth_limit(self):
+    #     def dummy_parser():
+    #         while True:
+    #             yield
+
+    #     self.assertEqual(
+    #         1024,
+    #         self.proc.depth_limit)
+
+    #     self.proc.stanza_parser = dummy_parser
+    #     self.proc.startDocument()
+    #     self.proc.depth_limit = 100
+
+    #     self.proc.startElementNS(self.STREAM_HEADER_TAG,
+    #                              None,
+    #                              self.STREAM_HEADER_ATTRS)
+    #     for i in range(99):
+    #         self.proc.startElementNS((None, "foo"), None, {})
+
+    #     with self.assertRaises(errors.StreamError) as cm:
+    #         self.proc.startElementNS((None, "foo"), None, {})
+    #     self.assertEqual(
+    #         (namespaces.streams, "policy-violation"),
+    #         cm.exception.error_tag
+    #     )
 
     def tearDown(self):
         del self.proc
