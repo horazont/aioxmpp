@@ -20,6 +20,14 @@ bothering with any cleanup.
 
 .. autoclass:: AbortStream
 
+Processing XML streams
+======================
+
+To convert streams of SAX events to :class:`~.stanza_model.StanzaObject`
+instances, the following class can be used:
+
+.. autoclass:: XMPPXMLProcessor
+
 """
 
 import ctypes
@@ -30,6 +38,9 @@ import xml.sax.saxutils
 
 import lxml.sax
 
+from enum import Enum
+
+from . import errors, jid, stanza_model
 from .utils import namespaces, etree
 
 
@@ -461,3 +472,196 @@ def write_objects(f, nsmap={}):
                 writer.endPrefixMapping(prefix)
             writer.endDocument()
         writer.flush()
+
+
+class ProcessorState(Enum):
+    CLEAN = 0
+    STARTED = 1
+    STREAM_HEADER_PROCESSED = 2
+    STREAM_FOOTER_PROCESSED = 3
+
+
+class XMPPXMLProcessor:
+    """
+    This class is a :class:`xml.sax.handler.ContentHandler` and a `lexical
+    handler
+    <http://www.saxproject.org/apidoc/org/xml/sax/ext/LexicalHandler.html>`_. It
+    can be used to parse an XMPP XML stream.
+
+    When used with a :class:`xml.sax.xmlreader.XMLReader`, it gradually
+    processes the incoming XML stream. If any restricted XML is encountered, an
+    appropriate :class:`~.errors.StreamError` is raised.
+
+    .. warning::
+
+       To achieve compliance with XMPP, it is recommended to use this object
+       also as lexical handler, using
+       :meth:`xml.sax.xmlreader.XMLReader.setProperty`::
+
+            parser.setProperty(xml.sax.handler.property_lexical_handler,
+                               my_xmpp_xml_processor)
+
+       Otherwise, invalid XMPP XML such as comments, entity references and DTD
+       declarations will not be caught.
+
+    .. autoattribute:: stanza_parser
+    """
+
+    PREDEFINED_ENTITIES = {"amp", "lt", "gt", "apos", "quot"}
+
+    def __init__(self):
+        super().__init__()
+        self._state = ProcessorState.CLEAN
+        self._stanza_parser = None
+
+    @property
+    def stanza_parser(self):
+        """
+        A :class:`~.stanza_model.StanzaParser` object (or compatible) which will
+        receive the sax-ish events used in :mod:`~asyncio_xmpp.stanza_model`. It
+        is driven using an instance of :class:`~.stanza_model.SAXDriver`.
+
+        This object can only be set before :meth:`startDocument` has been called
+        (or after :meth:`endDocument` has been called).
+        """
+        return self._stanza_parser
+
+    @stanza_parser.setter
+    def stanza_parser(self, value):
+        if self._state != ProcessorState.CLEAN:
+            raise RuntimeError("invalid state: {}".format(self._state))
+        self._stanza_parser = value
+
+    def comment(self, data):
+        raise errors.StreamError(
+            (namespaces.streams, "restricted-xml"),
+            "comments are not allowed in XMPP"
+        )
+
+    def startDTD(self, name, publicId, systemId):
+        raise errors.StreamError(
+            (namespaces.streams, "restricted-xml"),
+            "DTD declarations are not allowed in XMPP"
+        )
+
+    def endDTD(self):
+        pass
+
+    def startCDATA(self):
+        pass
+
+    def endCDATA(self):
+        pass
+
+    def startEntity(self, name):
+        if name not in self.PREDEFINED_ENTITIES:
+            raise errors.StreamError(
+                (namespaces.streams, "restricted-xml"),
+                "non-predefined entities are not allowed in XMPP"
+            )
+
+    def endEntity(self, name):
+        pass
+
+    def processingInstruction(self, target, foo):
+        raise errors.StreamError(
+            (namespaces.streams, "restricted-xml"),
+            "processing instructions are not allowed in XMPP"
+        )
+
+    def characters(self, characters):
+        if self._state != ProcessorState.STREAM_HEADER_PROCESSED:
+            raise RuntimeError("invalid state: {}".format(self._state))
+        else:
+            self._driver.characters(characters)
+
+    def startDocument(self):
+        if self._state != ProcessorState.CLEAN:
+            raise RuntimeError("invalid state: {}".format(self._state))
+        self._state = ProcessorState.STARTED
+        self._depth = 0
+        self._driver = stanza_model.SAXDriver(self._stanza_parser)
+
+    def startElement(self, name, attributes):
+        raise RuntimeError("incorrectly configured parser: "
+                           "startElement called (instead of startElementNS)")
+
+    def endElement(self, name):
+        raise RuntimeError("incorrectly configured parser: "
+                           "endElement called (instead of endElementNS)")
+
+    def endDocument(self):
+        if self._state != ProcessorState.STREAM_FOOTER_PROCESSED:
+            raise RuntimeError("invalid state: {}".format(self._state))
+        self._state = ProcessorState.CLEAN
+        self._driver = None
+
+    def startPrefixMapping(self, prefix, uri):
+        pass
+
+    def endPrefixMapping(self, prefix):
+        pass
+
+    def startElementNS(self, name, qname, attributes):
+        if self._state == ProcessorState.STREAM_HEADER_PROCESSED:
+            self._driver.startElementNS(name, qname, attributes)
+            self._depth += 1
+            return
+
+        elif self._state != ProcessorState.STARTED:
+            raise RuntimeError("invalid state: {}".format(self._state))
+
+        if name != (namespaces.xmlstream, "stream"):
+            raise errors.StreamError(
+                (namespaces.streams, "invalid-namespace"),
+                "stream has invalid namespace or localname"
+            )
+
+        attributes = dict(attributes)
+        try:
+            self.remote_version = tuple(
+                map(int, attributes.pop((None, "version"), "0.9").split("."))
+            )
+        except ValueError as exc:
+            raise errors.StreamError(
+                (namespaces.streams, "unsupported-version"),
+                str(exc)
+            )
+        if self.remote_version != (1, 0):
+            raise errors.StreamError(
+                (namespaces.streams, "unsupported-version"),
+                ".".join(map(str, self.remote_version))
+            )
+
+        remote_to = attributes.pop((None, "to"), None)
+        if remote_to is not None:
+            remote_to = jid.JID.fromstr(remote_to)
+        self.remote_to = remote_to
+
+        try:
+            self.remote_from = jid.JID.fromstr(attributes.pop((None, "from")))
+        except KeyError:
+            raise errors.StreamError(
+                (namespaces.streams, "undefined-condition"),
+                "from attribute required in response header"
+            )
+        try:
+            self.remote_id = attributes.pop((None, "id"))
+        except KeyError:
+            raise errors.StreamError(
+                (namespaces.streams, "undefined-condition"),
+                "id attribute required in response header"
+            )
+
+        self._state = ProcessorState.STREAM_HEADER_PROCESSED
+        self._depth += 1
+
+    def endElementNS(self, name, qname):
+        if self._state == ProcessorState.STREAM_HEADER_PROCESSED:
+            self._depth -= 1
+            if self._depth > 0:
+                return self._driver.endElementNS(name, qname)
+            else:
+                self._state = ProcessorState.STREAM_FOOTER_PROCESSED
+        else:
+            raise RuntimeError("invalid state: {}".format(self._state))

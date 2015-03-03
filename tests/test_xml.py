@@ -5,10 +5,15 @@ import unittest.mock
 
 import lxml.sax
 
+import xml.sax as sax
+import xml.sax.handler as saxhandler
+
 import asyncio_xmpp.xml as xml
+import asyncio_xmpp.jid as jid
+import asyncio_xmpp.errors as errors
 import asyncio_xmpp.stanza_model as stanza_model
 
-from asyncio_xmpp.utils import etree
+from asyncio_xmpp.utils import etree, namespaces
 
 from .xmltestutils import XMLTestCase
 
@@ -505,3 +510,337 @@ class Testwrite_objects(unittest.TestCase):
 
     def tearDown(self):
         del self.buf
+
+
+class TestXMPPXMLProcessor(unittest.TestCase):
+    VALID_STREAM_HEADER = "".join((
+        "<stream:stream xmlns:stream='{}'".format(namespaces.xmlstream),
+        " version='1.0' from='example.test' ",
+        "to='foo@example.test' id='foobarbaz'>"
+    ))
+
+    STREAM_HEADER_TAG = (namespaces.xmlstream, "stream")
+
+    STREAM_HEADER_ATTRS = {
+        (None, "from"): "example.test",
+        (None, "to"): "foo@example.test",
+        (None, "id"): "foobarbaz",
+        (None, "version"): "1.0"
+    }
+
+    def setUp(self):
+        self.proc = xml.XMPPXMLProcessor()
+        self.parser = sax.make_parser()
+        self.parser.setFeature(saxhandler.feature_namespaces, True)
+        self.parser.setFeature(saxhandler.feature_validation, False)
+        self.parser.setFeature(saxhandler.feature_external_ges, False)
+        self.parser.setFeature(saxhandler.feature_external_pes, False)
+        self.parser.setContentHandler(self.proc)
+        self.parser.setProperty(saxhandler.property_lexical_handler, self.proc)
+
+    def test_reject_comments(self):
+        with self.assertRaises(errors.StreamError) as cm:
+            self.proc.comment("foobar")
+        self.assertEqual(
+            (namespaces.streams, "restricted-xml"),
+            cm.exception.error_tag
+        )
+        self.proc.endCDATA()
+
+    def test_reject_dtd(self):
+        with self.assertRaises(errors.StreamError) as cm:
+            self.proc.startDTD("foo", "bar", "baz")
+        self.assertEqual(
+            (namespaces.streams, "restricted-xml"),
+            cm.exception.error_tag
+        )
+        self.proc.endDTD()
+
+    def test_reject_processing_instruction(self):
+        with self.assertRaises(errors.StreamError) as cm:
+            self.proc.processingInstruction("foo", "bar")
+        self.assertEqual(
+            (namespaces.streams, "restricted-xml"),
+            cm.exception.error_tag
+        )
+
+    def test_reject_non_predefined_entity(self):
+        with self.assertRaises(errors.StreamError) as cm:
+            self.proc.startEntity("foo")
+        self.assertEqual(
+            (namespaces.streams, "restricted-xml"),
+            cm.exception.error_tag
+        )
+        self.proc.endEntity("foo")
+
+    def test_accept_predefined_entity(self):
+        for entity in ["amp", "lt", "gt", "apos", "quot"]:
+            self.proc.startEntity(entity)
+            self.proc.endEntity(entity)
+
+    def test_reject_start_element_without_ns(self):
+        with self.assertRaises(RuntimeError):
+            self.proc.startElement("foo", {})
+
+    def test_reject_end_element_without_ns(self):
+        with self.assertRaises(RuntimeError):
+            self.proc.endElement("foo")
+
+    def test_ignore_cdata(self):
+        self.proc.startCDATA()
+        self.proc.endCDATA()
+
+    def test_errors_propagate(self):
+        self.parser.feed(self.VALID_STREAM_HEADER)
+        with self.assertRaises(errors.StreamError):
+            self.parser.feed("<!-- foo -->")
+
+    def test_capture_stream_header(self):
+        self.proc.startDocument()
+        self.proc.startElementNS(
+            self.STREAM_HEADER_TAG,
+            None,
+            self.STREAM_HEADER_ATTRS
+        )
+
+        self.assertEqual(
+            (1, 0),
+            self.proc.remote_version
+        )
+        self.assertEqual(
+            jid.JID.fromstr("example.test"),
+            self.proc.remote_from
+        )
+        self.assertEqual(
+            jid.JID.fromstr("foo@example.test"),
+            self.proc.remote_to
+        )
+        self.assertEqual(
+            "foobarbaz",
+            self.proc.remote_id
+        )
+
+    def test_require_stream_header(self):
+        self.proc.startDocument()
+
+        with self.assertRaises(errors.StreamError) as cm:
+            self.proc.startElementNS((None, "foo"), None, {})
+        self.assertEqual(
+            (namespaces.streams, "invalid-namespace"),
+            cm.exception.error_tag
+        )
+
+        with self.assertRaises(errors.StreamError) as cm:
+            self.proc.startElementNS((namespaces.xmlstream, "bar"), None, {})
+        self.assertEqual(
+            (namespaces.streams, "invalid-namespace"),
+            cm.exception.error_tag
+        )
+
+    def test_require_stream_header_from(self):
+        attrs = self.STREAM_HEADER_ATTRS.copy()
+        del attrs[(None, "from")]
+
+        self.proc.startDocument()
+        with self.assertRaises(errors.StreamError) as cm:
+            self.proc.startElementNS(self.STREAM_HEADER_TAG, None, attrs)
+        self.assertEqual(
+            (namespaces.streams, "undefined-condition"),
+            cm.exception.error_tag
+        )
+
+    def test_do_not_require_stream_header_to(self):
+        attrs = self.STREAM_HEADER_ATTRS.copy()
+        del attrs[(None, "to")]
+
+        self.proc.startDocument()
+        self.proc.startElementNS(self.STREAM_HEADER_TAG, None, attrs)
+        self.assertIsNone(
+            None,
+            self.proc.remote_to)
+
+    def test_require_stream_header_id(self):
+        attrs = self.STREAM_HEADER_ATTRS.copy()
+        del attrs[(None, "id")]
+
+        self.proc.startDocument()
+        with self.assertRaises(errors.StreamError) as cm:
+            self.proc.startElementNS(self.STREAM_HEADER_TAG, None, attrs)
+        self.assertEqual(
+            (namespaces.streams, "undefined-condition"),
+            cm.exception.error_tag
+        )
+
+    def test_check_stream_header_version(self):
+        attrs = self.STREAM_HEADER_ATTRS.copy()
+        attrs[None, "version"] = "2.0"
+
+        self.proc.startDocument()
+        with self.assertRaises(errors.StreamError) as cm:
+            self.proc.startElementNS(self.STREAM_HEADER_TAG, None, attrs)
+        self.assertEqual(
+            (namespaces.streams, "unsupported-version"),
+            cm.exception.error_tag
+        )
+        self.assertEqual(
+            "2.0",
+            cm.exception.text
+        )
+
+    def test_interpret_missing_version_as_0_point_9(self):
+        attrs = self.STREAM_HEADER_ATTRS.copy()
+        del attrs[None, "version"]
+
+        self.proc.startDocument()
+        with self.assertRaises(errors.StreamError) as cm:
+            self.proc.startElementNS(self.STREAM_HEADER_TAG, None, attrs)
+        self.assertEqual(
+            (namespaces.streams, "unsupported-version"),
+            cm.exception.error_tag
+        )
+        self.assertEqual(
+            "0.9",
+            cm.exception.text
+        )
+
+    def test_interpret_parsing_error_as_unsupported_version(self):
+        attrs = self.STREAM_HEADER_ATTRS.copy()
+        attrs[None, "version"] = "foobar"
+
+        self.proc.startDocument()
+        with self.assertRaises(errors.StreamError) as cm:
+            self.proc.startElementNS(self.STREAM_HEADER_TAG, None, attrs)
+        self.assertEqual(
+            (namespaces.streams, "unsupported-version"),
+            cm.exception.error_tag
+        )
+
+    def test_forward_to_parser(self):
+        results = []
+
+        def recv(obj):
+            nonlocal results
+            results.append(obj)
+
+        self.proc.stanza_parser = stanza_model.StanzaParser()
+        self.proc.stanza_parser.add_class(Cls, recv)
+
+        self.proc.startDocument()
+        self.proc.startElementNS(self.STREAM_HEADER_TAG, None,
+                                 self.STREAM_HEADER_ATTRS)
+        self.proc.startElementNS(Cls.TAG, None, {})
+        self.proc.endElementNS(Cls.TAG, None)
+
+        self.assertEqual(1, len(results))
+
+        self.assertIsInstance(
+            results[0],
+            Cls)
+
+    def test_end_element_of_stream_header_is_not_forwarded_to_parser(self):
+        self.proc.startDocument()
+        self.proc._driver = unittest.mock.MagicMock()
+
+        self.proc.startElementNS(self.STREAM_HEADER_TAG, None,
+                                 self.STREAM_HEADER_ATTRS)
+        self.proc.endElementNS(self.STREAM_HEADER_TAG, None)
+
+        self.assertSequenceEqual(
+            [],
+            self.proc._driver.mock_calls)
+
+    def test_require_start_document(self):
+        with self.assertRaises(RuntimeError):
+            self.proc.startElementNS((None, "foo"), None, {})
+        with self.assertRaises(RuntimeError):
+            self.proc.endElementNS((None, "foo"), None)
+        with self.assertRaises(RuntimeError):
+            self.proc.characters("foo")
+
+    def test_parse_complex_class(self):
+        results = []
+
+        def recv(obj):
+            nonlocal results
+            results.append(obj)
+
+        class Bar(stanza_model.StanzaObject):
+            TAG = ("uri:foo", "bar")
+
+            text = stanza_model.Text()
+
+            def __init__(self, text=None):
+                super().__init__()
+                self.text = text
+
+        class Baz(stanza_model.StanzaObject):
+            TAG = ("uri:foo", "baz")
+
+            children = stanza_model.ChildList([Bar])
+
+        class Foo(stanza_model.StanzaObject):
+            TAG = ("uri:foo", "foo")
+
+            attr = stanza_model.Attr((None, "attr"))
+            bar = stanza_model.Child([Bar])
+            baz = stanza_model.Child([Baz])
+
+        self.proc.stanza_parser = stanza_model.StanzaParser()
+        self.proc.stanza_parser.add_class(Foo, recv)
+
+        self.proc.startDocument()
+        self.proc.startElementNS(self.STREAM_HEADER_TAG, None,
+                                 self.STREAM_HEADER_ATTRS)
+
+        f = Foo()
+        f.attr = "fnord"
+        f.bar = Bar()
+        f.bar.text = "some text"
+        f.baz = Baz()
+        f.baz.children.append(Bar("child a"))
+        f.baz.children.append(Bar("child b"))
+
+        f.unparse_to_sax(self.proc)
+
+        self.assertEqual(1, len(results))
+
+        f2 = results.pop()
+        self.assertEqual(
+            f.attr,
+            f2.attr
+        )
+        self.assertEqual(
+            f.bar.text,
+            f2.bar.text
+        )
+        self.assertEqual(
+            len(f.baz.children),
+            len(f2.baz.children)
+        )
+        for c1, c2 in zip(f.baz.children, f2.baz.children):
+            self.assertEqual(c1.text, c2.text)
+
+        self.proc.endElementNS(self.STREAM_HEADER_TAG, None)
+        self.proc.endDocument()
+
+    def test_require_end_document_before_restarting(self):
+        self.proc.startDocument()
+        self.proc.startElementNS(self.STREAM_HEADER_TAG, None,
+                                 self.STREAM_HEADER_ATTRS)
+        with self.assertRaises(RuntimeError):
+            self.proc.startDocument()
+        self.proc.endElementNS(self.STREAM_HEADER_TAG, None)
+        with self.assertRaises(RuntimeError):
+            self.proc.startDocument()
+        self.proc.endDocument()
+        self.proc.startDocument()
+
+    def test_disallow_changing_stanza_parser_during_processing(self):
+        self.proc.stanza_parser = unittest.mock.MagicMock()
+        self.proc.startDocument()
+        with self.assertRaises(RuntimeError):
+            self.proc.stanza_parser = unittest.mock.MagicMock()
+
+    def tearDown(self):
+        del self.proc
+        del self.parser
