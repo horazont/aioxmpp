@@ -387,6 +387,30 @@ class TestXMPPXMLGenerator(XMLTestCase):
             self.buf.getvalue()
         )
 
+    def test_implicit_xml_prefix(self):
+        gen = xml.XMPPXMLGenerator(self.buf, short_empty_elements=True)
+        gen.startDocument()
+        gen.startElementNS(
+            ("http://www.w3.org/XML/1998/namespace", "foo"), None, None)
+        gen.endElementNS(("http://www.w3.org/XML/1998/namespace", "foo"),
+                         None)
+        gen.endDocument()
+        self.assertEqual(
+            b"<xml:foo />",
+            self.buf.getvalue()
+        )
+
+    def test_non_short_empty_elements(self):
+        gen = xml.XMPPXMLGenerator(self.buf, short_empty_elements=False)
+        gen.startDocument()
+        gen.startElementNS((None, "foo"), None, None)
+        gen.endElementNS((None, "foo"), None)
+        gen.endDocument()
+        self.assertEqual(
+            b"<foo></foo>",
+            self.buf.getvalue()
+        )
+
     def test_flush(self):
         buf = unittest.mock.MagicMock()
 
@@ -413,6 +437,8 @@ class TestXMPPXMLGenerator(XMLTestCase):
             gen.startElementNS((None, "foo*bar"), None, None)
         with self.assertRaises(ValueError):
             gen.startElementNS((None, "\u0002bar"), None, None)
+        with self.assertRaises(ValueError):
+            gen.startElementNS((None, "\u0000"), None, None)
 
     def test_reject_xmlns_attributes(self):
         gen = xml.XMPPXMLGenerator(self.buf, short_empty_elements=True)
@@ -835,6 +861,19 @@ class TestXMPPXMLProcessor(unittest.TestCase):
             self.proc.startDocument()
         self.proc.endDocument()
         self.proc.startDocument()
+
+    def test_allow_end_document_only_after_stream_has_finished(self):
+        with self.assertRaises(RuntimeError):
+            self.proc.endDocument()
+        self.proc.startDocument()
+        with self.assertRaises(RuntimeError):
+            self.proc.endDocument()
+        self.proc.startElementNS(self.STREAM_HEADER_TAG, None,
+                                 self.STREAM_HEADER_ATTRS)
+        with self.assertRaises(RuntimeError):
+            self.proc.endDocument()
+        self.proc.endElementNS(self.STREAM_HEADER_TAG, None)
+        self.proc.endDocument()
 
     def test_disallow_changing_stanza_parser_during_processing(self):
         self.proc.stanza_parser = unittest.mock.MagicMock()
