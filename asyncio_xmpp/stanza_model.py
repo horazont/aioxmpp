@@ -330,14 +330,7 @@ class _PropBase:
             makeelement=parent.makeelement)
         handler.startDocument()
         handler.startElementNS((None, "_"), None, {})
-        try:
-            self.to_sax(instance, handler)
-        finally:
-            try:
-                handler.endElementNS((None, "_"), None)
-                handler.endDocument()
-            except:
-                pass
+        self.to_sax(instance, handler)
 
         parent.extend(handler.etree.getroot())
 
@@ -563,6 +556,7 @@ class Collector(_PropBase):
             elif ev_type == "end":
                 stack.pop()
             else:
+                # not in coverage -- this is more like an assertion
                 raise ValueError(ev_type)
 
         self.__get__(instance, type(instance)).append(root_el)

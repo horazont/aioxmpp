@@ -1534,6 +1534,15 @@ class TestChildText(XMLTestCase):
 
 
 class TestChildMap(XMLTestCase):
+    def test_class_access_returns_property(self):
+        prop = stanza_model.ChildMap([])
+        class Foo(stanza_model.StanzaObject):
+            cm = prop
+
+        self.assertIs(
+            prop,
+            Foo.cm)
+
     def test_from_events_from_init(self):
         class Bar(stanza_model.StanzaObject):
             TAG = "bar"
