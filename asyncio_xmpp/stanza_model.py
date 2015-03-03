@@ -531,6 +531,9 @@ class Collector(_PropBase):
         This method is suspendable.
         """
 
+        # goal: collect all elements starting with the element for which we got
+        # the start-ev_args in a lxml.etree.Element.
+
         def make_from_args(ev_args, parent):
             if parent is not None:
                 el = etree.SubElement(parent,
@@ -542,18 +545,25 @@ class Collector(_PropBase):
             return el
 
         root_el = make_from_args(ev_args, None)
+        # create an element stack
         stack = [root_el]
         while stack:
+            # we get send all sax-ish events until we return. we return when the
+            # stack is empty, i.e. when our top element ended.
             ev_type, *ev_args = yield
             if ev_type == "start":
+                # new element started, create and push to stack
                 stack.append(make_from_args(ev_args, stack[-1]))
             elif ev_type == "text":
+                # text for current element
                 curr = stack[-1]
                 if curr.text is not None:
                     curr.text += ev_args[0]
                 else:
                     curr.text = ev_args[0]
             elif ev_type == "end":
+                # element ended, remove from stack (it is already appended to
+                # the current element)
                 stack.pop()
             else:
                 # not in coverage -- this is more like an assertion
@@ -679,6 +689,10 @@ class ChildText(_PropBase):
 
         This method is suspendable.
         """
+
+        # goal: take all text inside the child element and collect it as
+        # attribute value
+
         attrs = ev_args[2]
         if attrs and self.attr_policy == UnknownAttrPolicy.FAIL:
             raise ValueError("unexpected attribute (at text only node)")
@@ -686,14 +700,19 @@ class ChildText(_PropBase):
         while True:
             ev_type, *ev_args = yield
             if ev_type == "text":
+                # collect ALL TEH TEXT!
                 parts.append(ev_args[0])
             elif ev_type == "start":
+                # ok, a child inside the child was found, we look at our policy
+                # to see what to do
                 if self.child_policy == UnknownChildPolicy.FAIL:
                     raise ValueError("unexpected child (in text only node)")
                 else:
                     yield from drop_handler(ev_args)
             elif ev_type == "end":
+                # end of our element, return
                 break
+
         self._set_from_recv(instance, self.type_.parse("".join(parts)))
 
     def to_sax(self, instance, dest):
