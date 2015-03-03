@@ -396,7 +396,7 @@ class TestXMPPXMLGenerator(XMLTestCase):
                          None)
         gen.endDocument()
         self.assertEqual(
-            b"<xml:foo />",
+            b"<xml:foo/>",
             self.buf.getvalue()
         )
 
