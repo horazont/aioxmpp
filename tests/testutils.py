@@ -4,6 +4,7 @@ utilities themselves are tested, which is meta, but cool.
 """
 import asyncio
 import collections
+import functools
 import logging
 import unittest
 import unittest.mock
@@ -115,15 +116,39 @@ class TransportMock(asyncio.ReadTransport, asyncio.WriteTransport):
         def __new__(cls, exc=None):
             return _LoseConnection.__new__(cls, exc)
 
-    def __init__(self, tester, protocol):
+    def __init__(self, tester, protocol, *, loop=None):
+        self._loop = loop or asyncio.get_event_loop()
         self._protocol = protocol
         self._actions = None
         self._tester = tester
         self._connection_made = False
+        self._rxd = []
 
     def _check_done(self):
         if not self._done.done() and not self._actions:
             self._done.set_result(None)
+
+    def _pop_and_call_and_catch(self, fun, *args):
+        @functools.wraps(fun)
+        def wrap():
+            try:
+                self._actions.pop(0)
+                fun(*args)
+            except Exception as err:
+                self._done.set_exception(err)
+            else:
+                self._check_done()
+        self._loop.call_soon(wrap)
+
+    def _previously(self):
+        buf = b"".join(self._rxd)
+        result = [" (previously: "]
+        if len(buf) > 100:
+            result.append("[ {} more bytes ]".format(len(buf) - 100))
+            buf = buf[-100:]
+        result.append(str(buf)[1:])
+        result.append(")")
+        return "".join(result)
 
     def execute(self, response):
         if isinstance(response, self.Receive):
@@ -164,23 +189,23 @@ class TransportMock(asyncio.ReadTransport, asyncio.WriteTransport):
         try:
             self._tester.assertTrue(
                 self._actions,
-                "unexpected write_eof (no actions left)")
+                "unexpected write_eof (no actions left)"+self._previously()
+            )
             head = self._actions[0]
             self._tester.assertIsInstance(
                 head, self.WriteEof,
-                "unexpected write_eof (expected something else)")
-            self._actions.pop(0)
-            self.execute(head.response)
+                "unexpected write_eof (expected something else)"+self._previously()
+            )
+            self._pop_and_call_and_catch(self.execute, head.response)
         except Exception as err:
             self._done.set_exception(err)
-        else:
-            self._check_done()
 
     def write(self, data):
         try:
             self._tester.assertTrue(
                 self._actions,
-                "unexpected write (no actions left)")
+                "unexpected write (no actions left)"+self._previously()
+            )
             head = self._actions[0]
             self._tester.assertIsInstance(head, self.Write)
             expected_data = head.data
@@ -190,52 +215,49 @@ class TransportMock(asyncio.ReadTransport, asyncio.WriteTransport):
                 self._tester.assertEqual(
                     expected_data[:len(data)],
                     data,
-                    "mismatch of expected and written data")
+                    "mismatch of expected and written data"+self._previously()
+                )
+            self._rxd.append(data)
             expected_data = expected_data[len(data):]
             if not expected_data:
-                self._actions.pop(0)
-                self.execute(head.response)
+                self._pop_and_call_and_catch(self.execute, head.response)
             else:
                 self._actions[0] = head.replace(data=expected_data)
         except Exception as err:
             if not self._done.done():
                 self._done.set_exception(err)
-        else:
-            self._check_done()
 
     def abort(self):
         try:
             self._tester.assertTrue(
                 self._actions,
-                "unexpected abort (no actions left)")
+                "unexpected abort (no actions left)"+self._previously()
+            )
             head = self._actions[0]
             self._tester.assertIsInstance(
                 head, self.Abort,
-                "unexpected abort (expected something else)")
-            self._actions.pop(0)
-            self.execute(head.response)
+                "unexpected abort (expected something else)"+self._previously()
+            )
+            self._pop_and_call_and_catch(self.execute, head.response)
         except Exception as err:
             if not self._done.done():
                 self._done.set_exception(err)
-        else:
-            self._check_done()
 
     def close(self):
         try:
             self._tester.assertTrue(
                 self._actions,
-                "unexpected close (no actions left)")
+                "unexpected close (no actions left)"+self._previously()
+            )
             head = self._actions[0]
             self._tester.assertIsInstance(
                 head, self.Close,
-                "unexpected close (expected something else)")
-            self._actions.pop(0)
-            self.execute(head.response)
+                "unexpected close (expected something else)"+self._previoulsy()
+            )
+            self._pop_and_call_and_catch(self.execute, head.response)
         except Exception as err:
             if not self._done.done():
                 self._done.set_exception(err)
-        else:
-            self._check_done()
 
 
 _Special = collections.namedtuple("Special", ["type_", "response"])

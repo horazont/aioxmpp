@@ -38,27 +38,26 @@ class TestTransportMock(unittest.TestCase):
     def setUp(self):
         self.protocol = make_protocol_mock()
         self.loop = asyncio.get_event_loop()
+        self.t = TransportMock(self, self.protocol, loop=self.loop)
 
     def _run_test(self, t, *args, **kwargs):
         return run_coroutine(t.run_test(*args, **kwargs), loop=self.loop)
 
     def test_run_test(self):
-        t = TransportMock(self, self.protocol)
-        self._run_test(t, [])
+        self._run_test(self.t, [])
         self.assertSequenceEqual(
             self.protocol.mock_calls,
             [
-                unittest.mock.call.connection_made(t),
+                unittest.mock.call.connection_made(self.t),
                 unittest.mock.call.connection_lost(None),
             ])
 
     def test_stimulus(self):
-        t = TransportMock(self, self.protocol)
-        self._run_test(t, [], stimulus=b"foo")
+        self._run_test(self.t, [], stimulus=b"foo")
         self.assertSequenceEqual(
             self.protocol.mock_calls,
             [
-                unittest.mock.call.connection_made(t),
+                unittest.mock.call.connection_made(self.t),
                 unittest.mock.call.data_received(b"foo"),
                 unittest.mock.call.connection_lost(None),
             ])
@@ -67,14 +66,13 @@ class TestTransportMock(unittest.TestCase):
         def data_received(data):
             assert data in {b"foo", b"baz"}
             if data == b"foo":
-                t.write(b"bar")
+                self.t.write(b"bar")
             elif data == b"baz":
-                t.close()
+                self.t.close()
 
         self.protocol.data_received = data_received
-        t = TransportMock(self, self.protocol)
         self._run_test(
-            t,
+            self.t,
             [
                 TransportMock.Write(
                     b"bar",
@@ -88,10 +86,9 @@ class TestTransportMock(unittest.TestCase):
             self.loop.call_soon(transport.close)
 
         self.protocol.connection_made = connection_made
-        t = TransportMock(self, self.protocol)
         with self.assertRaises(AssertionError):
             self._run_test(
-                t,
+                self.t,
                 [
                     TransportMock.Write(b"foo")
                 ])
@@ -101,12 +98,11 @@ class TestTransportMock(unittest.TestCase):
             transport.write(b"fnord")
 
         self.protocol.connection_made = connection_made
-        t = TransportMock(self, self.protocol)
         with self.assertRaisesRegexp(
                 AssertionError,
                 "mismatch of expected and written data"):
             self._run_test(
-                t,
+                self.t,
                 [
                     TransportMock.Write(b"foo")
                 ])
@@ -116,10 +112,9 @@ class TestTransportMock(unittest.TestCase):
             transport.write(b"fnord")
 
         self.protocol.connection_made = connection_made
-        t = TransportMock(self, self.protocol)
         with self.assertRaisesRegexp(AssertionError, "unexpected write"):
             self._run_test(
-                t,
+                self.t,
                 [
                 ])
 
@@ -128,10 +123,9 @@ class TestTransportMock(unittest.TestCase):
             transport.close()
 
         self.protocol.connection_made = connection_made
-        t = TransportMock(self, self.protocol)
         with self.assertRaisesRegexp(AssertionError, "unexpected close"):
             self._run_test(
-                t,
+                self.t,
                 [
                     TransportMock.Write(b"foo")
                 ])
@@ -141,10 +135,9 @@ class TestTransportMock(unittest.TestCase):
             transport.close()
 
         self.protocol.connection_made = connection_made
-        t = TransportMock(self, self.protocol)
         with self.assertRaisesRegexp(AssertionError, "unexpected close"):
             self._run_test(
-                t,
+                self.t,
                 [
                 ])
 
@@ -155,9 +148,8 @@ class TestTransportMock(unittest.TestCase):
             self.loop.call_soon(transport.write, b"o")
 
         self.protocol.connection_made = connection_made
-        t = TransportMock(self, self.protocol)
         self._run_test(
-            t,
+            self.t,
             [
                 TransportMock.Write(b"foo")
             ])
@@ -166,14 +158,13 @@ class TestTransportMock(unittest.TestCase):
         def data_received(data):
             self.assertIn(data, {b"foo", b"baz"})
             if data == b"foo":
-                self.loop.call_soon(t.write, b"bar")
+                self.loop.call_soon(self.t.write, b"bar")
             elif data == b"baz":
-                self.loop.call_soon(t.close)
+                self.loop.call_soon(self.t.close)
 
         self.protocol.data_received = data_received
-        t = TransportMock(self, self.protocol)
         self._run_test(
-            t,
+            self.t,
             [
                 TransportMock.Write(
                     b"bar",
@@ -187,9 +178,8 @@ class TestTransportMock(unittest.TestCase):
             transport.close()
 
         self.protocol.connection_made = connection_made
-        t = TransportMock(self, self.protocol)
         self._run_test(
-            t,
+            self.t,
             [
                 TransportMock.Close(
                     response=TransportMock.ReceiveEof()
@@ -209,9 +199,8 @@ class TestTransportMock(unittest.TestCase):
         obj = object()
 
         self.protocol.connection_made = connection_made
-        t = TransportMock(self, self.protocol)
         self._run_test(
-            t,
+            self.t,
             [
                 TransportMock.Close(
                     response=TransportMock.LoseConnection(obj)
@@ -228,27 +217,24 @@ class TestTransportMock(unittest.TestCase):
             transport.writelines([b"foo", b"bar"])
 
         self.protocol.connection_made = connection_made
-        t = TransportMock(self, self.protocol)
 
         self._run_test(
-            t,
+            self.t,
             [
                 TransportMock.Write(b"foobar")
             ])
 
     def test_can_write_eof(self):
-        t = TransportMock(self, self.protocol)
-        self.assertTrue(t.can_write_eof())
+        self.assertTrue(self.t.can_write_eof())
 
     def test_abort(self):
         def connection_made(transport):
             transport.abort()
 
         self.protocol.connection_made = connection_made
-        t = TransportMock(self, self.protocol)
 
         self._run_test(
-            t,
+            self.t,
             [
                 TransportMock.Abort()
             ])
@@ -258,10 +244,9 @@ class TestTransportMock(unittest.TestCase):
             transport.write_eof()
 
         self.protocol.connection_made = connection_made
-        t = TransportMock(self, self.protocol)
 
         self._run_test(
-            t,
+            self.t,
             [
                 TransportMock.WriteEof()
             ])
@@ -271,13 +256,12 @@ class TestTransportMock(unittest.TestCase):
             transport.write_eof()
 
         self.protocol.connection_made = connection_made
-        t = TransportMock(self, self.protocol)
 
         with self.assertRaisesRegexp(
                 AssertionError,
                 "unexpected write_eof"):
             self._run_test(
-                t,
+                self.t,
                 [
                 ])
 
@@ -286,13 +270,12 @@ class TestTransportMock(unittest.TestCase):
             transport.write_eof()
 
         self.protocol.connection_made = connection_made
-        t = TransportMock(self, self.protocol)
 
         with self.assertRaisesRegexp(
                 AssertionError,
                 "unexpected write_eof"):
             self._run_test(
-                t,
+                self.t,
                 [
                     TransportMock.Abort()
                 ])
@@ -302,13 +285,12 @@ class TestTransportMock(unittest.TestCase):
             transport.abort()
 
         self.protocol.connection_made = connection_made
-        t = TransportMock(self, self.protocol)
 
         with self.assertRaisesRegexp(
                 AssertionError,
                 "unexpected abort"):
             self._run_test(
-                t,
+                self.t,
                 [
                 ])
 
@@ -317,13 +299,12 @@ class TestTransportMock(unittest.TestCase):
             transport.abort()
 
         self.protocol.connection_made = connection_made
-        t = TransportMock(self, self.protocol)
 
         with self.assertRaisesRegexp(
                 AssertionError,
                 "unexpected abort"):
             self._run_test(
-                t,
+                self.t,
                 [
                     TransportMock.WriteEof()
                 ])
@@ -333,13 +314,12 @@ class TestTransportMock(unittest.TestCase):
             transport.write(b"foo")
 
         self.protocol.connection_made = connection_made
-        t = TransportMock(self, self.protocol)
 
         with self.assertRaisesRegexp(
                 RuntimeError,
                 "test specification incorrect"):
             self._run_test(
-                t,
+                self.t,
                 [
                     TransportMock.Write(
                         b"foo",
@@ -351,10 +331,9 @@ class TestTransportMock(unittest.TestCase):
             transport.write(b"foo")
 
         self.protocol.connection_made = connection_made
-        t = TransportMock(self, self.protocol)
 
         self._run_test(
-            t,
+            self.t,
             [
                 TransportMock.Write(
                     b"foo",
@@ -378,18 +357,16 @@ class TestTransportMock(unittest.TestCase):
             transport.write(b"bar")
 
         self.protocol.connection_made = connection_made
-        t = TransportMock(self, self.protocol)
 
         with self.assertRaises(AssertionError):
             self._run_test(
-                t,
+                self.t,
                 [
                     TransportMock.Write(b"baz")
                 ])
 
     def test_execute(self):
-        t = TransportMock(self, self.protocol)
-        t.execute(TransportMock.Receive(b"foo"))
+        self.t.execute(TransportMock.Receive(b"foo"))
         self.assertSequenceEqual(
             [
                 unittest.mock.call.data_received(b"foo"),
@@ -397,24 +374,44 @@ class TestTransportMock(unittest.TestCase):
             self.protocol.mock_calls)
 
     def test_execute_connection_made(self):
-        t = TransportMock(self, self.protocol)
-        t.execute(TransportMock.MakeConnection())
+        self.t.execute(TransportMock.MakeConnection())
         self.assertSequenceEqual(
             [
-                unittest.mock.call.connection_made(t),
+                unittest.mock.call.connection_made(self.t),
             ],
             self.protocol.mock_calls)
 
     def test_execute_connection_made_mix(self):
-        t = TransportMock(self, self.protocol)
-        t.execute(TransportMock.MakeConnection())
-        self._run_test(t, [])
+        self.t.execute(TransportMock.MakeConnection())
+        self._run_test(self.t, [])
         self.assertSequenceEqual(
             [
-                unittest.mock.call.connection_made(t),
+                unittest.mock.call.connection_made(self.t),
                 unittest.mock.call.connection_lost(None),
             ],
             self.protocol.mock_calls)
+
+    def test_detached_response(self):
+        data = []
+
+        def data_received(blob):
+            data.append(blob)
+
+        def connection_made(transport):
+            transport.write(b"foo")
+            self.assertFalse(data)
+
+        self.protocol.connection_made = connection_made
+        self.protocol.data_received = data_received
+
+        self._run_test(
+            self.t,
+            [
+                TransportMock.Write(
+                    b"foo",
+                    response=TransportMock.Receive(b"bar")
+                )
+            ])
 
     def tearDown(self):
         del self.protocol
