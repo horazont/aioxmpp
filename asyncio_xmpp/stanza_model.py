@@ -133,6 +133,8 @@ import xml.sax.handler
 
 import lxml.sax
 
+import orderedset  # get it from PyPI
+
 from enum import Enum
 
 from asyncio_xmpp.utils import etree
@@ -962,7 +964,7 @@ class StanzaClass(type):
     def __new__(mcls, name, bases, namespace):
         text_property = None
         child_map = {}
-        child_props = set()
+        child_props = orderedset.OrderedSet()
         attr_map = {}
         collector_property = None
 
@@ -1029,7 +1031,7 @@ class StanzaClass(type):
 
         namespace["TEXT_PROPERTY"] = text_property
         namespace["CHILD_MAP"] = child_map
-        namespace["CHILD_PROPS"] = frozenset(child_props)
+        namespace["CHILD_PROPS"] = child_props
         namespace["ATTR_MAP"] = attr_map
         namespace["COLLECTOR_PROPERTY"] = collector_property
 
@@ -1044,6 +1046,9 @@ class StanzaClass(type):
                 raise TypeError("TAG attribute has incorrect format")
 
         return super().__new__(mcls, name, bases, namespace)
+
+    def __prepare__(name, bases):
+        return collections.OrderedDict()
 
     def parse_events(cls, ev_args):
         """

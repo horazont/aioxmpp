@@ -515,6 +515,20 @@ class TestStanzaClass(unittest.TestCase):
             {Cls.ct},
             Cls.CHILD_PROPS)
 
+    def test_ordered_child_props(self):
+        class Cls(metaclass=stanza_model.StanzaClass):
+            c1 = stanza_model.ChildText((None, "a"))
+            c2 = stanza_model.ChildText((None, "b"))
+            c3 = stanza_model.ChildText((None, "c"))
+
+        self.assertSequenceEqual(
+            [
+                Cls.c1,
+                Cls.c2,
+                Cls.c3,
+            ],
+            Cls.CHILD_PROPS)
+
     def test_register_child(self):
         class Cls(metaclass=stanza_model.StanzaClass):
             TAG = "foo"
