@@ -413,6 +413,33 @@ class TestTransportMock(unittest.TestCase):
                 )
             ])
 
+    def test_no_response_conflict(self):
+        data = []
+
+        def data_received(blob):
+            data.append(blob)
+
+        def connection_made(transport):
+            transport.write(b"foo")
+            self.assertFalse(data)
+            transport.write(b"bar")
+
+        self.protocol.connection_made = connection_made
+        self.protocol.data_received = data_received
+
+        self._run_test(
+            self.t,
+            [
+                TransportMock.Write(
+                    b"foo",
+                    response=TransportMock.Receive(b"baz"),
+                ),
+                TransportMock.Write(
+                    b"bar",
+                    response=TransportMock.Receive(b"baz")
+                )
+            ])
+
     def tearDown(self):
         del self.protocol
 

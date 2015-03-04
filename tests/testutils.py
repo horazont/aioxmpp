@@ -172,92 +172,127 @@ class TransportMock(asyncio.ReadTransport, asyncio.WriteTransport):
     @asyncio.coroutine
     def run_test(self, actions, stimulus=None):
         self._done = asyncio.Future()
+        self._queue = asyncio.Queue()
         self._actions = actions
         if not self._connection_made:
             self.execute(self.MakeConnection())
         if stimulus:
             self.execute(self.Receive(stimulus))
-        self._check_done()
-        yield from self._done
+
+        while not self._queue.empty() or self._actions:
+            done, pending = yield from asyncio.wait(
+                [
+                    self._queue.get(),
+                    self._done
+                ],
+                return_when=asyncio.FIRST_COMPLETED
+            )
+            if self._done not in pending:
+                # raise if error
+                self._done.result()
+                done.remove(self._done)
+
+            if done:
+                value_future = next(iter(done))
+                action, *args = value_future.result()
+                if action == "write":
+                    yield from self._write(*args)
+                elif action == "write_eof":
+                    yield from self._write_eof(*args)
+                elif action == "close":
+                    yield from self._close(*args)
+                elif action == "abort":
+                    yield from self._abort(*args)
+                else:
+                    assert False
+
+            if self._done not in pending:
+                break
+
         if self._connection_made:
             self.execute(self.LoseConnection())
 
     def can_write_eof(self):
         return True
 
-    def write_eof(self):
-        try:
-            self._tester.assertTrue(
-                self._actions,
-                "unexpected write_eof (no actions left)"+self._previously()
+    @asyncio.coroutine
+    def _write_eof(self):
+        self._tester.assertTrue(
+            self._actions,
+            "unexpected write_eof (no actions left)"+self._previously()
+        )
+        head = self._actions[0]
+        self._tester.assertIsInstance(
+            head, self.WriteEof,
+            "unexpected write_eof (expected something else)"+self._previously()
+        )
+        self._actions.pop(0)
+        self.execute(head.response)
+
+    @asyncio.coroutine
+    def _write(self, data):
+        self._tester.assertTrue(
+            self._actions,
+            "unexpected write (no actions left)"+self._previously()
+        )
+        head = self._actions[0]
+        self._tester.assertIsInstance(head, self.Write)
+        expected_data = head.data
+        if not expected_data.startswith(data):
+            logging.info("expected: %r", expected_data)
+            logging.info("got this: %r", data)
+            self._tester.assertEqual(
+                expected_data[:len(data)],
+                data,
+                "mismatch of expected and written data"+self._previously()
             )
-            head = self._actions[0]
-            self._tester.assertIsInstance(
-                head, self.WriteEof,
-                "unexpected write_eof (expected something else)"+self._previously()
-            )
-            self._pop_and_call_and_catch(self.execute, head.response)
-        except Exception as err:
-            self._done.set_exception(err)
+        self._rxd.append(data)
+        expected_data = expected_data[len(data):]
+        if not expected_data:
+            self._actions.pop(0)
+            self.execute(head.response)
+        else:
+            self._actions[0] = head.replace(data=expected_data)
+
+    @asyncio.coroutine
+    def _abort(self):
+        self._tester.assertTrue(
+            self._actions,
+            "unexpected abort (no actions left)"+self._previously()
+        )
+        head = self._actions[0]
+        self._tester.assertIsInstance(
+            head, self.Abort,
+            "unexpected abort (expected something else)"+self._previously()
+        )
+        self._actions.pop(0)
+        self.execute(head.response)
+
+    @asyncio.coroutine
+    def _close(self):
+        self._tester.assertTrue(
+            self._actions,
+            "unexpected close (no actions left)"+self._previously()
+        )
+        head = self._actions[0]
+        self._tester.assertIsInstance(
+            head, self.Close,
+            "unexpected close (expected something else)"+self._previously()
+        )
+        self._actions.pop(0)
+        self.execute(head.response)
 
     def write(self, data):
-        try:
-            self._tester.assertTrue(
-                self._actions,
-                "unexpected write (no actions left)"+self._previously()
-            )
-            head = self._actions[0]
-            self._tester.assertIsInstance(head, self.Write)
-            expected_data = head.data
-            if not expected_data.startswith(data):
-                logging.info("expected: %r", expected_data)
-                logging.info("got this: %r", data)
-                self._tester.assertEqual(
-                    expected_data[:len(data)],
-                    data,
-                    "mismatch of expected and written data"+self._previously()
-                )
-            self._rxd.append(data)
-            expected_data = expected_data[len(data):]
-            if not expected_data:
-                self._pop_and_call_and_catch(self.execute, head.response)
-            else:
-                self._actions[0] = head.replace(data=expected_data)
-        except Exception as err:
-            if not self._done.done():
-                self._done.set_exception(err)
+        self._queue.put_nowait(("write", data))
+
+    def write_eof(self):
+        self._queue.put_nowait(("write_eof", ))
 
     def abort(self):
-        try:
-            self._tester.assertTrue(
-                self._actions,
-                "unexpected abort (no actions left)"+self._previously()
-            )
-            head = self._actions[0]
-            self._tester.assertIsInstance(
-                head, self.Abort,
-                "unexpected abort (expected something else)"+self._previously()
-            )
-            self._pop_and_call_and_catch(self.execute, head.response)
-        except Exception as err:
-            if not self._done.done():
-                self._done.set_exception(err)
+        self._queue.put_nowait(("abort", ))
 
     def close(self):
-        try:
-            self._tester.assertTrue(
-                self._actions,
-                "unexpected close (no actions left)"+self._previously()
-            )
-            head = self._actions[0]
-            self._tester.assertIsInstance(
-                head, self.Close,
-                "unexpected close (expected something else)"+self._previoulsy()
-            )
-            self._pop_and_call_and_catch(self.execute, head.response)
-        except Exception as err:
-            if not self._done.done():
-                self._done.set_exception(err)
+        self._queue.put_nowait(("close", ))
 
 
 _Special = collections.namedtuple("Special", ["type_", "response"])
