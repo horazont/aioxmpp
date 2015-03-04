@@ -1,82 +1,108 @@
 import asyncio
+import inspect
+import io
+import traceback
+import sys
 
 from enum import Enum
 
-from . import xml, errors
+import xml.sax as sax
+import xml.parsers.expat as pyexpat
+
+from . import xml, errors, stanza_model, stream_elements
 from .utils import namespaces, etree
+
 
 class Mode(Enum):
     C2S = namespaces.client
 
+
+class State(Enum):
+    CLOSED = 0
+    STREAM_HEADER_SENT = 1
+    OPEN = 2
+    CLOSING = 3
+
+
 class XMLStream(asyncio.Protocol):
-    STREAM_HEADER_TEMPLATE = """<?xml version="1.0" ?>
-<stream:stream xmlns="{{namespace}}" xmlns:stream="{stream_ns}" \
-version="1.0" to="{{to}}">""".format(
-        stream_ns=namespaces.xmlstream)
-
-    def __init__(self,
-                 to,
-                 mode=Mode.C2S,
-                 *,
-                 loop=None,
-                 tx_context=xml.default_tx_context,
-                 **kwargs):
-        super().__init__(**kwargs)
+    def __init__(self, to, sorted_attributes=False):
         self._to = to
-        self._namespace = mode.value
+        self._sorted_attributes = sorted_attributes
+        self._state = State.CLOSED
+        self.stanza_parser = stanza_model.StanzaParser()
+        self.stanza_parser.add_class(stream_elements.StreamError,
+                                     self._rx_stream_error)
 
-        self._tx_context = tx_context
-        self._rx_context = None
+    def _invalid_transition(self, to, via=None):
+        text = "invalid state transition: from={} to={}".format(self._state, to)
+        if via:
+            text += " (via: {})".format(via)
+        return RuntimeError(text)
 
-    # RX handling
+    def _invalid_state(self, at=None):
+        text = "invalid state: {}".format(self._state)
+        if at:
+            text += " (at: {})".format(at)
+        return RuntimeError(text)
 
-    def _rx_init(self):
-        pass
+    def _rx_stream_header(self):
+        if self._processor.remote_version != (1, 0):
+            raise errors.StreamError(
+                (namespaces.streams, "unsupported-version"),
+                text="unsupported version")
 
-    # Protocol interface
+    def _rx_stream_error(self, err):
+        self.connection_lost(err.to_exception())
+
+    def _rx_stream_footer(self):
+        self.connection_lost(None)
+
+    def _rx_feed(self, blob):
+        try:
+            self._parser.feed(blob)
+        except sax.SAXParseException as exc:
+            if     (exc.getException().args[0].startswith(
+                    pyexpat.errors.XML_ERROR_UNDEFINED_ENTITY)):
+                # this will raise an appropriate stream error
+                xml.XMPPLexicalHandler.startEntity("foo")
+            raise
 
     def connection_made(self, transport):
-        self._transport = transport
-        self._rx_context = xml.XMLStreamReceiverContext()
+        if self._state != State.CLOSED:
+            raise self._invalid_state("connection_made")
 
-        transport.write(
-            self.STREAM_HEADER_TEMPLATE.format(
-                to=self._to,
-                namespace=self._namespace,
-            ).encode("utf-8")
-        )
+        self._transport = transport
+        self._processor = xml.XMPPXMLProcessor()
+        self._processor.stanza_parser = self.stanza_parser
+        self._processor.on_stream_header = self._rx_stream_header
+        self._processor.on_stream_footer = self._rx_stream_footer
+        self._parser = xml.make_parser()
+        self._parser.setContentHandler(self._processor)
+
+        self._writer = xml.write_objects(
+            transport,
+            self._to,
+            nsmap={None: "jabber:client"},
+            sorted_attributes=self._sorted_attributes)
+        next(self._writer)
+
+        self._state = State.STREAM_HEADER_SENT
 
     def connection_lost(self, exc):
-        pass
+        if self._state == State.CLOSING:
+            return
+        self._state = State.CLOSING
+        self._writer.close()
+        self._transport.write_eof()
+        self._transport.close()
 
-    def data_received(self, data):
+    def data_received(self, blob):
         try:
-            self._rx_context.feed(data)
-            if not self._rx_context.start():
-                return
-
-            for node in self._rx_context.read_stream_level_nodes():
-                pass
-        except errors.SendStreamError as stream_error:
-            E = self._tx_context.default_ns_builder(namespaces.streams)
-            el = self._tx_context._parser.makeelement(
-                "{{{}}}error".format(namespaces.xmlstream),
-                nsmap={"stream": namespaces.xmlstream})
-            el.append(E(stream_error.error_tag))
-            if stream_error.text:
-                el.append(E("text", stream_error.text))
-            self._transport.write(etree.tostring(el, encoding="utf-8"))
-            self.close()
-
-    def eof_received(self):
-        self.close()
+            self._rx_feed(blob)
+        except errors.StreamError as exc:
+            stanza_obj = stream_elements.StreamError.from_exception(exc)
+            self._writer.send(stanza_obj)
+            self.connection_lost(exc)
 
     def close(self):
-        try:
-            self._rx_context.close()
-        except etree.XMLSyntaxError:
-            pass
-        self._transport.write(b"</stream:stream>")
-        if self._transport.can_write_eof():
-            self._transport.write_eof()
-        self._transport.close()
+        self.connection_lost(None)
