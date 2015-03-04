@@ -761,15 +761,10 @@ class TestXMPPXMLProcessor(unittest.TestCase):
         del attrs[None, "version"]
 
         self.proc.startDocument()
-        with self.assertRaises(errors.StreamError) as cm:
-            self.proc.startElementNS(self.STREAM_HEADER_TAG, None, attrs)
+        self.proc.startElementNS(self.STREAM_HEADER_TAG, None, attrs)
         self.assertEqual(
-            (namespaces.streams, "unsupported-version"),
-            cm.exception.error_tag
-        )
-        self.assertEqual(
-            "0.9",
-            cm.exception.text
+            (0, 9),
+            self.proc.remote_version,
         )
 
     def test_interpret_parsing_error_as_unsupported_version(self):
