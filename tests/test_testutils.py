@@ -440,6 +440,33 @@ class TestTransportMock(unittest.TestCase):
                 )
             ])
 
+    def test_partial(self):
+        def connection_made(transport):
+            transport.write(b"foo")
+
+        self.protocol.connection_made = connection_made
+
+        self._run_test(
+            self.t,
+            [
+                TransportMock.Write(
+                    b"foo",
+                ),
+            ],
+            partial=True
+        )
+
+        self.t.write_eof()
+        self.t.close()
+
+        self._run_test(
+            self.t,
+            [
+                TransportMock.WriteEof(),
+                TransportMock.Close()
+            ]
+        )
+
     def tearDown(self):
         del self.protocol
 

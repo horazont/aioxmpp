@@ -123,6 +123,7 @@ class TransportMock(asyncio.ReadTransport, asyncio.WriteTransport):
         self._tester = tester
         self._connection_made = False
         self._rxd = []
+        self._queue = asyncio.Queue()
 
     def _check_done(self):
         if not self._done.done() and not self._actions:
@@ -170,9 +171,8 @@ class TransportMock(asyncio.ReadTransport, asyncio.WriteTransport):
                                "unknown response type: "+repr(response))
 
     @asyncio.coroutine
-    def run_test(self, actions, stimulus=None):
+    def run_test(self, actions, stimulus=None, partial=False):
         self._done = asyncio.Future()
-        self._queue = asyncio.Queue()
         self._actions = actions
         if not self._connection_made:
             self.execute(self.MakeConnection())
@@ -209,7 +209,7 @@ class TransportMock(asyncio.ReadTransport, asyncio.WriteTransport):
             if self._done not in pending:
                 break
 
-        if self._connection_made:
+        if self._connection_made and not partial:
             self.execute(self.LoseConnection())
 
     def can_write_eof(self):
