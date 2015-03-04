@@ -24,9 +24,13 @@ Processing XML streams
 ======================
 
 To convert streams of SAX events to :class:`~.stanza_model.StanzaObject`
-instances, the following class can be used:
+instances, the following classes and functions can be used:
 
 .. autoclass:: XMPPXMLProcessor
+
+.. autoclass:: XMPPLexicalHandler
+
+.. autofunction:: make_parser
 
 """
 
@@ -483,9 +487,7 @@ class ProcessorState(Enum):
 
 class XMPPXMLProcessor:
     """
-    This class is a :class:`xml.sax.handler.ContentHandler` and a `lexical
-    handler
-    <http://www.saxproject.org/apidoc/org/xml/sax/ext/LexicalHandler.html>`_. It
+    This class is a :class:`xml.sax.handler.ContentHandler`. It
     can be used to parse an XMPP XML stream.
 
     When used with a :class:`xml.sax.xmlreader.XMLReader`, it gradually
@@ -506,8 +508,6 @@ class XMPPXMLProcessor:
 
     .. autoattribute:: stanza_parser
     """
-
-    PREDEFINED_ENTITIES = {"amp", "lt", "gt", "apos", "quot"}
 
     def __init__(self):
         super().__init__()
@@ -531,37 +531,6 @@ class XMPPXMLProcessor:
         if self._state != ProcessorState.CLEAN:
             raise RuntimeError("invalid state: {}".format(self._state))
         self._stanza_parser = value
-
-    def comment(self, data):
-        raise errors.StreamError(
-            (namespaces.streams, "restricted-xml"),
-            "comments are not allowed in XMPP"
-        )
-
-    def startDTD(self, name, publicId, systemId):
-        raise errors.StreamError(
-            (namespaces.streams, "restricted-xml"),
-            "DTD declarations are not allowed in XMPP"
-        )
-
-    def endDTD(self):
-        pass
-
-    def startCDATA(self):
-        pass
-
-    def endCDATA(self):
-        pass
-
-    def startEntity(self, name):
-        if name not in self.PREDEFINED_ENTITIES:
-            raise errors.StreamError(
-                (namespaces.streams, "restricted-xml"),
-                "non-predefined entities are not allowed in XMPP"
-            )
-
-    def endEntity(self, name):
-        pass
 
     def processingInstruction(self, target, foo):
         raise errors.StreamError(
@@ -665,3 +634,71 @@ class XMPPXMLProcessor:
                 self._state = ProcessorState.STREAM_FOOTER_PROCESSED
         else:
             raise RuntimeError("invalid state: {}".format(self._state))
+
+
+class XMPPLexicalHandler:
+    """
+    A `lexical handler
+    <http://www.saxproject.org/apidoc/org/xml/sax/ext/LexicalHandler.html>`_
+    which rejects certain contents which are invalid in an XMPP XML stream:
+
+    * comments,
+    * dtd declarations,
+    * non-predefined entities.
+
+    The class can be used as lexical handler directly; all methods are stateless
+    and can be used both on the class and on objects of the class.
+
+    """
+    PREDEFINED_ENTITIES = {"amp", "lt", "gt", "apos", "quot"}
+
+    @classmethod
+    def comment(cls, data):
+        raise errors.StreamError(
+            (namespaces.streams, "restricted-xml"),
+            "comments are not allowed in XMPP"
+        )
+
+    @classmethod
+    def startDTD(cls, name, publicId, systemId):
+        raise errors.StreamError(
+            (namespaces.streams, "restricted-xml"),
+            "DTD declarations are not allowed in XMPP"
+        )
+
+    @classmethod
+    def endDTD(cls):
+        pass
+
+    @classmethod
+    def startCDATA(cls):
+        pass
+
+    @classmethod
+    def endCDATA(cls):
+        pass
+
+    @classmethod
+    def startEntity(cls, name):
+        if name not in cls.PREDEFINED_ENTITIES:
+            raise errors.StreamError(
+                (namespaces.streams, "restricted-xml"),
+                "non-predefined entities are not allowed in XMPP"
+            )
+
+    @classmethod
+    def endEntity(cls, name):
+        pass
+
+
+def make_parser():
+    """
+    Create a parser which is suitably configured for parsing an XMPP XML
+    stream. It comes equipped with :class:`XMPPLexicalHandler`.
+    """
+    p = xml.sax.make_parser()
+    p.setFeature(xml.sax.handler.feature_namespaces, True)
+    p.setFeature(xml.sax.handler.feature_external_ges, False)
+    p.setProperty(xml.sax.handler.property_lexical_handler,
+                  XMPPLexicalHandler)
+    return p

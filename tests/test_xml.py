@@ -557,31 +557,8 @@ class TestXMPPXMLProcessor(unittest.TestCase):
 
     def setUp(self):
         self.proc = xml.XMPPXMLProcessor()
-        self.parser = sax.make_parser()
-        self.parser.setFeature(saxhandler.feature_namespaces, True)
-        self.parser.setFeature(saxhandler.feature_validation, False)
-        self.parser.setFeature(saxhandler.feature_external_ges, False)
-        self.parser.setFeature(saxhandler.feature_external_pes, False)
+        self.parser = xml.make_parser()
         self.parser.setContentHandler(self.proc)
-        self.parser.setProperty(saxhandler.property_lexical_handler, self.proc)
-
-    def test_reject_comments(self):
-        with self.assertRaises(errors.StreamError) as cm:
-            self.proc.comment("foobar")
-        self.assertEqual(
-            (namespaces.streams, "restricted-xml"),
-            cm.exception.error_tag
-        )
-        self.proc.endCDATA()
-
-    def test_reject_dtd(self):
-        with self.assertRaises(errors.StreamError) as cm:
-            self.proc.startDTD("foo", "bar", "baz")
-        self.assertEqual(
-            (namespaces.streams, "restricted-xml"),
-            cm.exception.error_tag
-        )
-        self.proc.endDTD()
 
     def test_reject_processing_instruction(self):
         with self.assertRaises(errors.StreamError) as cm:
@@ -591,20 +568,6 @@ class TestXMPPXMLProcessor(unittest.TestCase):
             cm.exception.error_tag
         )
 
-    def test_reject_non_predefined_entity(self):
-        with self.assertRaises(errors.StreamError) as cm:
-            self.proc.startEntity("foo")
-        self.assertEqual(
-            (namespaces.streams, "restricted-xml"),
-            cm.exception.error_tag
-        )
-        self.proc.endEntity("foo")
-
-    def test_accept_predefined_entity(self):
-        for entity in ["amp", "lt", "gt", "apos", "quot"]:
-            self.proc.startEntity(entity)
-            self.proc.endEntity(entity)
-
     def test_reject_start_element_without_ns(self):
         with self.assertRaises(RuntimeError):
             self.proc.startElement("foo", {})
@@ -612,10 +575,6 @@ class TestXMPPXMLProcessor(unittest.TestCase):
     def test_reject_end_element_without_ns(self):
         with self.assertRaises(RuntimeError):
             self.proc.endElement("foo")
-
-    def test_ignore_cdata(self):
-        self.proc.startCDATA()
-        self.proc.endCDATA()
 
     def test_errors_propagate(self):
         self.parser.feed(self.VALID_STREAM_HEADER)
@@ -910,3 +869,83 @@ class TestXMPPXMLProcessor(unittest.TestCase):
     def tearDown(self):
         del self.proc
         del self.parser
+
+
+class Testmake_parser(unittest.TestCase):
+    def setUp(self):
+        self.p = xml.make_parser()
+
+    def test_is_incremental(self):
+        self.assertTrue(
+            hasattr(self.p, "feed")
+        )
+
+    def test_namespace_feature_enabled(self):
+        self.assertTrue(
+            self.p.getFeature(saxhandler.feature_namespaces)
+        )
+
+    def test_validation_feature_disabled(self):
+        self.assertFalse(
+            self.p.getFeature(saxhandler.feature_validation)
+        )
+
+    def test_external_ges_feature_disabled(self):
+        self.assertFalse(
+            self.p.getFeature(saxhandler.feature_external_ges)
+        )
+
+    def test_external_pes_feature_disabled(self):
+        self.assertFalse(
+            self.p.getFeature(saxhandler.feature_external_pes)
+        )
+
+    def test_uses_XMPPLexicalHandler(self):
+        self.assertIs(
+            xml.XMPPLexicalHandler,
+            self.p.getProperty(saxhandler.property_lexical_handler)
+        )
+
+
+class TestXMPPLexicalHandler(unittest.TestCase):
+    def setUp(self):
+        self.proc = xml.XMPPLexicalHandler()
+
+    def test_reject_comments(self):
+        with self.assertRaises(errors.StreamError) as cm:
+            self.proc.comment("foobar")
+        self.assertEqual(
+            (namespaces.streams, "restricted-xml"),
+            cm.exception.error_tag
+        )
+        self.proc.endCDATA()
+
+    def test_reject_dtd(self):
+        with self.assertRaises(errors.StreamError) as cm:
+            self.proc.startDTD("foo", "bar", "baz")
+        self.assertEqual(
+            (namespaces.streams, "restricted-xml"),
+            cm.exception.error_tag
+        )
+        self.proc.endDTD()
+
+    def test_reject_non_predefined_entity(self):
+        with self.assertRaises(errors.StreamError) as cm:
+            self.proc.startEntity("foo")
+        self.assertEqual(
+            (namespaces.streams, "restricted-xml"),
+            cm.exception.error_tag
+        )
+        self.proc.endEntity("foo")
+
+    def test_accept_predefined_entity(self):
+        for entity in ["amp", "lt", "gt", "apos", "quot"]:
+            self.proc.startEntity(entity)
+            self.proc.endEntity(entity)
+
+    def test_ignore_cdata(self):
+        self.proc.startCDATA()
+        self.proc.endCDATA()
+
+    def tearDown(self):
+        del self.proc
