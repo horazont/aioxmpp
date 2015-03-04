@@ -641,11 +641,6 @@ class XMPPXMLProcessor:
                 (namespaces.streams, "unsupported-version"),
                 str(exc)
             )
-        if self.remote_version != (1, 0):
-            raise errors.StreamError(
-                (namespaces.streams, "unsupported-version"),
-                ".".join(map(str, self.remote_version))
-            )
 
         remote_to = attributes.pop((None, "to"), None)
         if remote_to is not None:
