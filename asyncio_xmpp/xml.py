@@ -132,7 +132,10 @@ class XMPPXMLGenerator:
     """
     def __init__(self, out, encoding="utf-8", short_empty_elements=True):
         self._write = out.write
-        self._flush = out.flush
+        if hasattr(out, "flush"):
+            self._flush = out.flush
+        else:
+            self._flush = None
         self._ns_map_stack = [({}, {}, 0)]
         self._curr_ns_map = {}
         self._encoding = encoding
@@ -416,7 +419,8 @@ class XMPPXMLGenerator:
         *short_empty_elements* argument at the class documentation).
         """
         self._finish_pending_start_element()
-        self._flush()
+        if self._flush:
+            self._flush()
 
 
 def write_objects(f, nsmap={}):

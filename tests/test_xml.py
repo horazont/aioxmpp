@@ -419,6 +419,7 @@ class TestXMPPXMLGenerator(XMLTestCase):
 
         self.assertSequenceEqual(
             [
+                unittest.mock.call.flush.__bool__(),
                 unittest.mock.call.flush(),
             ],
             buf.mock_calls
@@ -467,6 +468,19 @@ class TestXMPPXMLGenerator(XMLTestCase):
             gen.startElementNS((None, "foo"), None, {
                 "fo": "foobar"
             })
+
+    def test_works_without_flush(self):
+        class Backend:
+            def write(self, data):
+                pass
+
+        gen = xml.XMPPXMLGenerator(Backend())
+        gen.startDocument()
+        gen.startElementNS((None, "foo"), None, {})
+        gen.flush()
+        gen.endElementNS((None, "foo"), None)
+        gen.endDocument()
+        gen.flush()
 
     def tearDown(self):
         del self.buf
