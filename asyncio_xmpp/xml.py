@@ -76,7 +76,7 @@ class XMPPXMLGenerator:
       declared
     * It is in general stricter on (explicit) namespace declarations, to avoid
       ambiguities
-    * It defaults to utf-8 ☺
+    * It always uses utf-8 ☺
     * It allows explicit flushing
     * It does never write a XML document declaration
 
@@ -130,7 +130,7 @@ class XMPPXMLGenerator:
     .. automethod:: flush
 
     """
-    def __init__(self, out, encoding="utf-8", short_empty_elements=True):
+    def __init__(self, out, short_empty_elements=True):
         self._write = out.write
         if hasattr(out, "flush"):
             self._flush = out.flush
@@ -138,7 +138,6 @@ class XMPPXMLGenerator:
             self._flush = None
         self._ns_map_stack = [({}, {}, 0)]
         self._curr_ns_map = {}
-        self._encoding = encoding
         self._short_empty_elements = short_empty_elements
         self._pending_start_element = False
         self._ns_prefixes_floating_in = {}
@@ -293,29 +292,29 @@ class XMPPXMLGenerator:
         pending_prefixes = self._pin_floating_ns_decls(old_counter)
 
         self._write(b"<")
-        self._write(qname.encode(self._encoding))
+        self._write(qname.encode("utf-8"))
 
         if None in pending_prefixes:
             uri = pending_prefixes.pop(None)
             self._write(b" xmlns=")
-            self._write(xml.sax.saxutils.quoteattr(uri).encode(self._encoding))
+            self._write(xml.sax.saxutils.quoteattr(uri).encode("utf-8"))
 
         for prefix, uri in sorted(pending_prefixes.items()):
             self._write(b" xmlns")
             if prefix:
                 self._write(b":")
-                self._write(prefix.encode(self._encoding))
+                self._write(prefix.encode("utf-8"))
             self._write(b"=")
             self._write(
-                xml.sax.saxutils.quoteattr(uri).encode(self._encoding)
+                xml.sax.saxutils.quoteattr(uri).encode("utf-8")
             )
 
         for attrname, value in attrib:
             self._write(b" ")
-            self._write(attrname.encode(self._encoding))
+            self._write(attrname.encode("utf-8"))
             self._write(b"=")
             self._write(
-                xml.sax.saxutils.quoteattr(value).encode(self._encoding)
+                xml.sax.saxutils.quoteattr(value).encode("utf-8")
             )
 
         if self._short_empty_elements:
@@ -336,7 +335,7 @@ class XMPPXMLGenerator:
             self._write(b"/>")
         else:
             self._write(b"</")
-            self._write(self._qname(name).encode(self._encoding))
+            self._write(self._qname(name).encode("utf-8"))
             self._write(b">")
 
         self._curr_ns_map, self._ns_prefixes_floating_out, self._ns_counter = \
@@ -372,7 +371,7 @@ class XMPPXMLGenerator:
                for c in chars):
             raise ValueError("control characters are not allowed in "
                              "well-formed XML")
-        self._write(xml.sax.saxutils.escape(chars).encode(self._encoding))
+        self._write(xml.sax.saxutils.escape(chars).encode("utf-8"))
 
     def processingInstruction(self, target, data):
         """
@@ -449,7 +448,6 @@ def write_objects(f, nsmap={}):
 
     writer = XMPPXMLGenerator(
         out=f,
-        encoding="utf-8",
         short_empty_elements=True)
 
     writer.startDocument()
