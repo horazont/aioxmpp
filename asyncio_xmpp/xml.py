@@ -539,6 +539,16 @@ class XMPPXMLProcessor:
        Otherwise, invalid XMPP XML such as comments, entity references and DTD
        declarations will not be caught.
 
+    .. attribute:: on_stream_footer
+
+       May be a callable or :data:`None`. If not false, the value will get
+       called whenever a stream footer is processed.
+
+    .. attribute:: on_stream_header
+
+       May be a callable or :data:`None`. If not false, the value will get
+       called whenever a stream header is processed.
+
     .. autoattribute:: stanza_parser
     """
 
@@ -546,6 +556,8 @@ class XMPPXMLProcessor:
         super().__init__()
         self._state = ProcessorState.CLEAN
         self._stanza_parser = None
+        self.on_stream_header = None
+        self.on_stream_footer = None
 
     @property
     def stanza_parser(self):
@@ -655,6 +667,9 @@ class XMPPXMLProcessor:
                 "id attribute required in response header"
             )
 
+        if self.on_stream_header:
+            self.on_stream_header()
+
         self._state = ProcessorState.STREAM_HEADER_PROCESSED
         self._depth += 1
 
@@ -664,6 +679,8 @@ class XMPPXMLProcessor:
             if self._depth > 0:
                 return self._driver.endElementNS(name, qname)
             else:
+                if self.on_stream_footer:
+                    self.on_stream_footer()
                 self._state = ProcessorState.STREAM_FOOTER_PROCESSED
         else:
             raise RuntimeError("invalid state: {}".format(self._state))

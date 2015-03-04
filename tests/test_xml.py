@@ -923,6 +923,52 @@ class TestXMPPXMLProcessor(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             self.proc.stanza_parser = unittest.mock.MagicMock()
 
+    def test_on_stream_header(self):
+        stream_header = ()
+        def catch_stream_header():
+            nonlocal stream_header
+            stream_header = (
+                self.proc.remote_from,
+                self.proc.remote_to,
+                self.proc.remote_version,
+                self.proc.remote_id)
+
+        self.assertIsNone(self.proc.on_stream_header)
+        self.proc.on_stream_header = catch_stream_header
+        self.proc.startDocument()
+        self.proc.startElementNS(self.STREAM_HEADER_TAG,
+                                 None,
+                                 self.STREAM_HEADER_ATTRS)
+
+        self.assertSequenceEqual(
+            (
+                self.proc.remote_from,
+                self.proc.remote_to,
+                self.proc.remote_version,
+                self.proc.remote_id
+            ),
+            stream_header)
+
+    def test_on_stream_footer(self):
+        catch_stream_footer = unittest.mock.MagicMock()
+
+        self.assertIsNone(self.proc.on_stream_footer)
+        self.proc.on_stream_footer = catch_stream_footer
+        self.proc.startDocument()
+        self.proc.startElementNS(self.STREAM_HEADER_TAG,
+                                 None,
+                                 self.STREAM_HEADER_ATTRS)
+        self.proc.endElementNS(self.STREAM_HEADER_TAG, None)
+        self.proc.endDocument()
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call.__bool__(),
+                unittest.mock.call.__call__(),
+            ],
+            catch_stream_footer.mock_calls
+        )
+
     # def test_depth_limit(self):
     #     def dummy_parser():
     #         while True:
