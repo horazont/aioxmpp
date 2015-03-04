@@ -71,12 +71,15 @@ class TestXMPPXMLGenerator(XMLTestCase):
     def setUp(self):
         self.buf = io.BytesIO()
 
-    def test_no_declaration(self):
+    def test_declaration(self):
         gen = xml.XMPPXMLGenerator(self.buf)
         gen.startDocument()
         gen.endDocument()
 
-        self.assertFalse(self.buf.getvalue())
+        self.assertEqual(
+            b'<?xml version="1.0"?>',
+            self.buf.getvalue()
+        )
 
     def test_reject_namespaceless_stuff(self):
         gen = xml.XMPPXMLGenerator(self.buf)
@@ -116,7 +119,7 @@ class TestXMPPXMLGenerator(XMLTestCase):
         gen.endDocument()
 
         self.assertEqual(
-            b'<ns:foo xmlns:ns="uri:foo"/>',
+            b'<?xml version="1.0"?><ns:foo xmlns:ns="uri:foo"/>',
             self.buf.getvalue()
         )
 
@@ -128,7 +131,7 @@ class TestXMPPXMLGenerator(XMLTestCase):
         gen.endDocument()
 
         self.assertEqual(
-            b'<ns0:foo xmlns:ns0="uri:foo"/>',
+            b'<?xml version="1.0"?><ns0:foo xmlns:ns0="uri:foo"/>',
             self.buf.getvalue()
         )
 
@@ -157,6 +160,7 @@ class TestXMPPXMLGenerator(XMLTestCase):
         gen.endElementNS(("uri:foo", "foo"), None)
         gen.endDocument()
         self.assertEqual(
+            b'<?xml version="1.0"?>'
             b'<ns:foo xmlns:ns="uri:foo">'
             b'<ns0:e1 xmlns:ns0="uri:bar"/>'
             b'</ns:foo>',
@@ -175,6 +179,7 @@ class TestXMPPXMLGenerator(XMLTestCase):
         gen.endElementNS(("uri:foo", "foo"), None)
         gen.endDocument()
         self.assertEqual(
+            b'<?xml version="1.0"?>'
             b'<ns:foo xmlns:ns="uri:foo">'
             b'<ns0:e xmlns:ns0="uri:bar"/>'
             b'<ns0:e xmlns:ns0="uri:baz"/>'
@@ -189,6 +194,7 @@ class TestXMPPXMLGenerator(XMLTestCase):
         gen.endElementNS((None, "foo"), None)
         gen.endDocument()
         self.assertEqual(
+            b'<?xml version="1.0"?>'
             b'<foo/>',
             self.buf.getvalue()
         )
@@ -209,8 +215,8 @@ class TestXMPPXMLGenerator(XMLTestCase):
         self.assertIn(
             self.buf.getvalue(),
             {
-                b'<foo bar="1" fnord="2"/>',
-                b'<foo fnord="2" bar="1"/>',
+                b'<?xml version="1.0"?><foo bar="1" fnord="2"/>',
+                b'<?xml version="1.0"?><foo fnord="2" bar="1"/>',
             }
         )
 
@@ -232,6 +238,7 @@ class TestXMPPXMLGenerator(XMLTestCase):
         gen.endDocument()
 
         self.assertEqual(
+            b'<?xml version="1.0"?>'
             b'<foo xmlns:ns="uri:foo" xmlns:ns0="uri:bar"'
             b' a="1" ns:b="2" ns0:b="3"/>',
             self.buf.getvalue()
@@ -246,6 +253,7 @@ class TestXMPPXMLGenerator(XMLTestCase):
         gen.endDocument()
 
         self.assertEqual(
+            b'<?xml version="1.0"?>'
             b"<foo>foobar</foo>",
             self.buf.getvalue()
         )
@@ -259,6 +267,7 @@ class TestXMPPXMLGenerator(XMLTestCase):
         gen.endDocument()
 
         self.assertEqual(
+            b'<?xml version="1.0"?>'
             b"<foo>&lt;fo&amp;o&gt;</foo>",
             self.buf.getvalue()
         )
@@ -280,6 +289,7 @@ class TestXMPPXMLGenerator(XMLTestCase):
         gen.endPrefixMapping("ns0")
         gen.endDocument()
         self.assertEqual(
+            b'<?xml version="1.0"?>'
             b'<ns0:foo xmlns:ns0="uri:foo">'
             b'<ns1:e1 xmlns:ns1="uri:bar"/>'
             b'<ns1:e2 xmlns:ns1="uri:baz"/>'
@@ -367,6 +377,7 @@ class TestXMPPXMLGenerator(XMLTestCase):
         gen.endDocument()
 
         self.assertEqual(
+            b'<?xml version="1.0"?>'
             b"<foo/>",
             self.buf.getvalue()
         )
@@ -377,12 +388,14 @@ class TestXMPPXMLGenerator(XMLTestCase):
         gen.startElementNS((None, "foo"), None, None)
         gen.flush()
         self.assertEqual(
+            b'<?xml version="1.0"?>'
             b"<foo>",
             self.buf.getvalue()
         )
         gen.endElementNS((None, "foo"), None)
         gen.endDocument()
         self.assertEqual(
+            b'<?xml version="1.0"?>'
             b"<foo></foo>",
             self.buf.getvalue()
         )
@@ -396,6 +409,7 @@ class TestXMPPXMLGenerator(XMLTestCase):
                          None)
         gen.endDocument()
         self.assertEqual(
+            b'<?xml version="1.0"?>'
             b"<xml:foo/>",
             self.buf.getvalue()
         )
@@ -407,6 +421,7 @@ class TestXMPPXMLGenerator(XMLTestCase):
         gen.endElementNS((None, "foo"), None)
         gen.endDocument()
         self.assertEqual(
+            b'<?xml version="1.0"?>'
             b"<foo></foo>",
             self.buf.getvalue()
         )
@@ -496,6 +511,7 @@ class Testwrite_objects(unittest.TestCase):
         gen.close()
 
         self.assertEqual(
+            b'<?xml version="1.0"?>'
             b'<stream:stream xmlns:stream="http://etherx.jabber.org/streams"></stream:stream>',
             self.buf.getvalue()
         )
@@ -507,6 +523,7 @@ class Testwrite_objects(unittest.TestCase):
             gen.throw(xml.AbortStream())
 
         self.assertEqual(
+            b'<?xml version="1.0"?>'
             b'<stream:stream xmlns:stream="http://etherx.jabber.org/streams">',
             self.buf.getvalue()
         )
@@ -517,6 +534,7 @@ class Testwrite_objects(unittest.TestCase):
         gen.close()
 
         self.assertEqual(
+            b'<?xml version="1.0"?>'
             b'<stream:stream xmlns="jabber:client" xmlns:stream="http://etherx.jabber.org/streams"></stream:stream>',
             self.buf.getvalue()
         )
@@ -529,6 +547,7 @@ class Testwrite_objects(unittest.TestCase):
         gen.close()
 
         self.assertEqual(
+            b'<?xml version="1.0"?>'
             b'<stream:stream xmlns:stream="http://etherx.jabber.org/streams">'
             b'<ns0:bar xmlns:ns0="uri:foo"/>'
             b'</stream:stream>',
@@ -544,6 +563,7 @@ class Testwrite_objects(unittest.TestCase):
         gen.close()
 
         self.assertEqual(
+            b'<?xml version="1.0"?>'
             b'<stream:stream xmlns:jc="uri:foo" xmlns:stream="http://etherx.jabber.org/streams">'
             b'<jc:bar/>'
             b'</stream:stream>',

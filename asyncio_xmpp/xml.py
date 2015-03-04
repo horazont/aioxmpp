@@ -78,7 +78,6 @@ class XMPPXMLGenerator:
       ambiguities
     * It always uses utf-8 ☺
     * It allows explicit flushing
-    * It does never write a XML document declaration
 
     *out* must be a file-like supporting both :meth:`file.write` and
     :meth:`file.flush`. *encoding* specifies the encoding which is used and
@@ -215,6 +214,7 @@ class XMPPXMLGenerator:
         # yes, I know the doctext is not enforced. It might become enforced in a
         # later version though, when I find a compelling reason why it is
         # needed.
+        self._write(b'<?xml version="1.0"?>')
 
     def startPrefixMapping(self, prefix, uri, *, auto=False):
         """
