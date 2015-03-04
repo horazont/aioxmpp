@@ -496,6 +496,25 @@ class TestStanzaClass(unittest.TestCase):
                 c1 = stanza_model.ChildList([ClsA])
                 c2 = stanza_model.Child([ClsB])
 
+    def test_collect_child_tag_property(self):
+        class Cls(metaclass=stanza_model.StanzaClass):
+            ct = stanza_model.ChildTag(
+                tags=[
+                    "foo",
+                    "bar"
+                ],
+                default_ns="uri:foo")
+
+        self.assertDictEqual(
+            {
+                ("uri:foo", "foo"): Cls.ct,
+                ("uri:foo", "bar"): Cls.ct,
+            },
+            Cls.CHILD_MAP)
+        self.assertSetEqual(
+            {Cls.ct},
+            Cls.CHILD_PROPS)
+
     def test_register_child(self):
         class Cls(metaclass=stanza_model.StanzaClass):
             TAG = "foo"
@@ -1498,6 +1517,46 @@ class TestChildText(XMLTestCase):
             ],
             type_mock.mock_calls)
 
+    def test_to_sax_declare_prefix(self):
+        prefix = object()
+        dest = unittest.mock.MagicMock()
+
+        type_mock = unittest.mock.MagicMock()
+        type_mock.format.return_value = "foo"
+
+        prop = stanza_model.ChildText(
+            ("uri:foo", "body"),
+            type_=type_mock,
+            declare_prefix=prefix
+        )
+
+        instance = make_instance_mock({
+            prop: "foo"
+        })
+
+        parent = etree.Element("root")
+        prop.to_sax(instance, dest)
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call.startPrefixMapping(prefix, "uri:foo"),
+                unittest.mock.call.startElementNS(
+                    ("uri:foo", "body"),
+                    None,
+                    {}),
+                unittest.mock.call.characters("foo"),
+                unittest.mock.call.endElementNS(
+                    ("uri:foo", "body"),
+                    None),
+                unittest.mock.call.endPrefixMapping(prefix)
+            ],
+            dest.mock_calls)
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call.format("foo"),
+            ],
+            type_mock.mock_calls)
+
     def test_to_sax_unset(self):
         prop = stanza_model.ChildText("body", default="foo")
 
@@ -1631,6 +1690,245 @@ class TestChildMap(XMLTestCase):
         self.assertSubtreeEqual(
             etree.fromstring("<root><foo a='1'/><foo a='2'/><bar/></root>"),
             parent)
+
+
+class TestChildTag(unittest.TestCase):
+    def test_from_events(self):
+        instance = make_instance_mock()
+
+        prop = stanza_model.ChildTag(
+            tags=[
+                "foo",
+                "bar"
+            ],
+            default_ns="uri:foo")
+
+        drive_from_events(
+            prop.from_events,
+            instance,
+            etree.fromstring("<foo xmlns='uri:foo'/>")
+        )
+
+        self.assertDictEqual(
+            {
+                prop: ("uri:foo", "foo"),
+            },
+            instance._stanza_props
+        )
+
+    def test_child_policy_fail(self):
+        instance = make_instance_mock()
+        prop = stanza_model.ChildTag(
+            tags=[
+                "foo",
+                "bar"
+            ],
+            default_ns="uri:foo",
+            child_policy=stanza_model.UnknownChildPolicy.FAIL)
+
+        with self.assertRaises(ValueError):
+            drive_from_events(
+                prop.from_events,
+                instance,
+                etree.fromstring("<foo xmlns='uri:foo'><bar/></foo>")
+            )
+
+        self.assertFalse(instance._stanza_props)
+
+    def test_child_policy_drop(self):
+        instance = make_instance_mock()
+        prop = stanza_model.ChildTag(
+            tags=[
+                "foo",
+                "bar"
+            ],
+            default_ns="uri:foo",
+            child_policy=stanza_model.UnknownChildPolicy.DROP)
+
+        drive_from_events(
+            prop.from_events,
+            instance,
+            etree.fromstring("<foo xmlns='uri:foo'><bar/></foo>")
+        )
+
+        self.assertDictEqual(
+            {
+                prop: ("uri:foo", "foo"),
+            },
+            instance._stanza_props
+        )
+
+    def test_attr_policy_fail(self):
+        instance = make_instance_mock()
+        prop = stanza_model.ChildTag(
+            tags=[
+                "foo",
+                "bar"
+            ],
+            default_ns="uri:foo",
+            attr_policy=stanza_model.UnknownAttrPolicy.FAIL)
+
+        with self.assertRaises(ValueError):
+            drive_from_events(
+                prop.from_events,
+                instance,
+                etree.fromstring("<foo a='b' xmlns='uri:foo'/>")
+            )
+
+        self.assertFalse(instance._stanza_props)
+
+    def test_attr_policy_drop(self):
+        instance = make_instance_mock()
+        prop = stanza_model.ChildTag(
+            tags=[
+                "foo",
+                "bar"
+            ],
+            default_ns="uri:foo",
+            attr_policy=stanza_model.UnknownAttrPolicy.DROP)
+
+        drive_from_events(
+            prop.from_events,
+            instance,
+            etree.fromstring("<foo a='b' xmlns='uri:foo'/>")
+        )
+
+        self.assertDictEqual(
+            {
+                prop: ("uri:foo", "foo"),
+            },
+            instance._stanza_props
+        )
+
+    def test_text_policy_fail(self):
+        instance = make_instance_mock()
+        prop = stanza_model.ChildTag(
+            tags=[
+                "foo",
+                "bar"
+            ],
+            default_ns="uri:foo",
+            text_policy=stanza_model.UnknownTextPolicy.FAIL)
+
+        with self.assertRaises(ValueError):
+            drive_from_events(
+                prop.from_events,
+                instance,
+                etree.fromstring("<foo xmlns='uri:foo'>bar</foo>")
+            )
+
+        self.assertFalse(instance._stanza_props)
+
+    def test_text_policy_drop(self):
+        instance = make_instance_mock()
+        prop = stanza_model.ChildTag(
+            tags=[
+                "foo",
+                "bar"
+            ],
+            default_ns="uri:foo",
+            text_policy=stanza_model.UnknownTextPolicy.DROP)
+
+        drive_from_events(
+            prop.from_events,
+            instance,
+            etree.fromstring("<foo xmlns='uri:foo'>bar</foo>")
+        )
+
+        self.assertDictEqual(
+            {
+                prop: ("uri:foo", "foo"),
+            },
+            instance._stanza_props
+        )
+
+    def test_to_sax(self):
+        prop = stanza_model.ChildTag(
+            tags=[
+                "foo",
+                "bar"
+            ],
+            default_ns="uri:foo")
+
+        instance = make_instance_mock({
+            prop: ("uri:foo", "bar")
+        })
+
+        dest = unittest.mock.MagicMock()
+        prop.to_sax(instance, dest)
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call.startElementNS(
+                    ("uri:foo", "bar"),
+                    None,
+                    {}),
+                unittest.mock.call.endElementNS(
+                    ("uri:foo", "bar"),
+                    None)
+            ],
+            dest.mock_calls)
+
+    def test_to_sax_declare_prefix(self):
+        prefix = object()
+
+        prop = stanza_model.ChildTag(
+            tags=[
+                "foo",
+                "bar"
+            ],
+            default_ns="uri:foo",
+            declare_prefix=prefix)
+
+        instance = make_instance_mock({
+            prop: ("uri:foo", "bar")
+        })
+
+        dest = unittest.mock.MagicMock()
+        prop.to_sax(instance, dest)
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call.startPrefixMapping(prefix, "uri:foo"),
+                unittest.mock.call.startElementNS(
+                    ("uri:foo", "bar"),
+                    None,
+                    {}),
+                unittest.mock.call.endElementNS(
+                    ("uri:foo", "bar"),
+                    None),
+                unittest.mock.call.endPrefixMapping(prefix),
+            ],
+            dest.mock_calls)
+
+    def test_to_sax_declare_prefix_skips_if_namespaceless(self):
+        prefix = object()
+
+        prop = stanza_model.ChildTag(
+            tags=[
+                "foo",
+                "bar"
+            ],
+            declare_prefix=prefix)
+
+        instance = make_instance_mock({
+            prop: (None, "bar")
+        })
+
+        dest = unittest.mock.MagicMock()
+        prop.to_sax(instance, dest)
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call.startElementNS(
+                    (None, "bar"),
+                    None,
+                    {}),
+                unittest.mock.call.endElementNS(
+                    (None, "bar"),
+                    None),
+            ],
+            dest.mock_calls)
 
 
 class Testdrop_handler(unittest.TestCase):

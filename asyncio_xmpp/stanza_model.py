@@ -645,6 +645,8 @@ class ChildText(_PropBase):
     the child element of which it is supposed to extract text. Likewise,
     *attr_policy* is applied if an attribute is encountered on the element.
 
+    *declare_prefix* works as for :class:`ChildTag`.
+
     .. automethod:: get_tag_map
 
     .. automethod:: from_events
@@ -658,6 +660,7 @@ class ChildText(_PropBase):
                  default=None,
                  child_policy=UnknownChildPolicy.FAIL,
                  attr_policy=UnknownAttrPolicy.FAIL,
+                 declare_prefix=False,
                  **kwargs):
         super().__init__(default=default, **kwargs)
         self.tag = normalize_tag(tag)
@@ -665,6 +668,7 @@ class ChildText(_PropBase):
         self.default = default
         self.child_policy = child_policy
         self.attr_policy = attr_policy
+        self.declare_prefix = declare_prefix
 
     def get_tag_map(self):
         """
@@ -728,11 +732,15 @@ class ChildText(_PropBase):
         if value is None:
             return
 
+        if self.declare_prefix is not False and self.tag[0]:
+            dest.startPrefixMapping(self.declare_prefix, self.tag[0])
         dest.startElementNS(self.tag, None, {})
         try:
             dest.characters(self.type_.format(value))
         finally:
             dest.endElementNS(self.tag, None)
+            if self.declare_prefix is not False and self.tag[0]:
+                dest.endPrefixMapping(self.declare_prefix)
 
 
 class ChildMap(Child):
@@ -804,6 +812,10 @@ class ChildTag(_PropBase):
     to which this descriptor belongs is allowed and represents the absence of
     the child element.
 
+    If *declare_prefix* is not :data:`False` (note that :data:`None` is a valid,
+    non-:data:`False` value in this context!), the namespace is explicitly
+    declared using the given prefix when serializing to SAX.
+
     *default* works as for :class:`Attr`.
 
     .. automethod:: from_events
@@ -830,7 +842,8 @@ class ChildTag(_PropBase):
                  child_policy=UnknownChildPolicy.FAIL,
                  attr_policy=UnknownAttrPolicy.FAIL,
                  allow_none=False,
-                 default=None):
+                 default=None,
+                 declare_prefix=False):
         tags = {
             (ns or default_ns, localname)
             for ns, localname in map(normalize_tag, tags)
@@ -845,6 +858,7 @@ class ChildTag(_PropBase):
         self.text_policy = text_policy
         self.attr_policy = attr_policy
         self.child_policy = child_policy
+        self.declare_prefix = declare_prefix
 
     def get_tag_map(self):
         return self.validator.values
@@ -873,8 +887,12 @@ class ChildTag(_PropBase):
         if value is None:
             return
 
+        if self.declare_prefix is not False and value[0]:
+            dest.startPrefixMapping(self.declare_prefix, value[0])
         dest.startElementNS(value, None, {})
         dest.endElementNS(value, None)
+        if self.declare_prefix is not False and value[0]:
+            dest.endPrefixMapping(self.declare_prefix)
 
 
 class StanzaClass(type):
@@ -994,7 +1012,7 @@ class StanzaClass(type):
                 if text_property is not None:
                     raise TypeError("multiple Text properties on stanza class")
                 text_property = obj
-            elif isinstance(obj, (Child, ChildText)):
+            elif isinstance(obj, (Child, ChildText, ChildTag)):
                 for key in obj.get_tag_map():
                     if key in child_map:
                         raise TypeError("ambiguous Child properties: {} and {}"
