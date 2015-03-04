@@ -220,6 +220,27 @@ class TestXMPPXMLGenerator(XMLTestCase):
             }
         )
 
+    def test_attributes_sortedattrs(self):
+        gen = xml.XMPPXMLGenerator(self.buf,
+                                   short_empty_elements=True,
+                                   sorted_attributes=True)
+        gen.startDocument()
+        gen.startElementNS(
+            (None, "foo"),
+            None,
+            {
+                (None, "bar"): "1",
+                (None, "fnord"): "2",
+                ("uri:foo", "baz"): "3"
+            }
+        )
+        gen.endElementNS((None, "foo"), None)
+        gen.endDocument()
+        self.assertEqual(
+            b'<?xml version="1.0"?><foo xmlns:ns0="uri:foo" bar="1" fnord="2" ns0:baz="3"/>',
+            self.buf.getvalue()
+        )
+
     def test_attribute_ns_autogeneration(self):
         gen = xml.XMPPXMLGenerator(self.buf)
         gen.startDocument()

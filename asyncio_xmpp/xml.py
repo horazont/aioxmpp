@@ -88,6 +88,12 @@ class XMPPXMLGenerator:
     :meth:`endElementNS`, in which case the opening is finished before
     flushing, thus the long form is generated.
 
+    If *sorted_attributes* is :data:`True`, attributes are emitted in the
+    lexical order of their qualified names (except for namespace declarations,
+    which are always sorted and always before the normal attributes). The
+    default is not to do this, for performance. During testing, however, it is
+    useful to have a consistent oder on the attributes.
+
     Implementation of the SAX content handler interface (see
     :class:`xml.sax.handler.ContentHandler`):
 
@@ -129,7 +135,7 @@ class XMPPXMLGenerator:
     .. automethod:: flush
 
     """
-    def __init__(self, out, short_empty_elements=True):
+    def __init__(self, out, short_empty_elements=True, sorted_attributes=False):
         self._write = out.write
         if hasattr(out, "flush"):
             self._flush = out.flush
@@ -138,6 +144,7 @@ class XMPPXMLGenerator:
         self._ns_map_stack = [({}, {}, 0)]
         self._curr_ns_map = {}
         self._short_empty_elements = short_empty_elements
+        self._sorted_attributes = sorted_attributes
         self._pending_start_element = False
         self._ns_prefixes_floating_in = {}
         self._ns_prefixes_floating_out = {}
@@ -308,6 +315,9 @@ class XMPPXMLGenerator:
             self._write(
                 xml.sax.saxutils.quoteattr(uri).encode("utf-8")
             )
+
+        if self._sorted_attributes:
+            attrib.sort()
 
         for attrname, value in attrib:
             self._write(b" ")
