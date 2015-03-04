@@ -523,69 +523,97 @@ class TestXMPPXMLGenerator(XMLTestCase):
 
 
 class Testwrite_objects(unittest.TestCase):
+    TEST_TO = jid.JID.fromstr("example.test")
+    TEST_FROM = jid.JID.fromstr("foo@example.test")
+
+    STREAM_HEADER = b'<stream:stream xmlns:stream="http://etherx.jabber.org/streams" to="'+str(TEST_TO).encode("utf-8")+b'" version="1.0">'
+
     def setUp(self):
         self.buf = io.BytesIO()
 
+    def _make_gen(self, **kwargs):
+        return xml.write_objects(self.buf, self.TEST_TO,
+                                 sorted_attributes=True,
+                                 **kwargs)
+
     def test_setup(self):
-        gen = xml.write_objects(self.buf)
+        gen = self._make_gen()
         next(gen)
         gen.close()
 
         self.assertEqual(
-            b'<?xml version="1.0"?>'
-            b'<stream:stream xmlns:stream="http://etherx.jabber.org/streams"></stream:stream>',
+            b'<?xml version="1.0"?>'+
+            self.STREAM_HEADER+b'</stream:stream>',
+            self.buf.getvalue()
+        )
+
+    def test_from(self):
+        gen = self._make_gen(from_=self.TEST_FROM)
+        next(gen)
+        gen.close()
+
+        self.assertEqual(
+            b'<?xml version="1.0"?>'+
+            b'<stream:stream '
+            b'xmlns:stream="http://etherx.jabber.org/streams" '
+            b'from="'+str(self.TEST_FROM).encode("utf-8")+b'" '
+            b'to="'+str(self.TEST_TO).encode("utf-8")+b'" '
+            b'version="1.0"></stream:stream>',
             self.buf.getvalue()
         )
 
     def test_reset(self):
-        gen = xml.write_objects(self.buf)
+        gen = self._make_gen()
         next(gen)
         with self.assertRaises(StopIteration):
             gen.throw(xml.AbortStream())
 
         self.assertEqual(
-            b'<?xml version="1.0"?>'
-            b'<stream:stream xmlns:stream="http://etherx.jabber.org/streams">',
+            b'<?xml version="1.0"?>'+self.STREAM_HEADER,
             self.buf.getvalue()
         )
 
     def test_root_ns(self):
-        gen = xml.write_objects(self.buf, nsmap={None: "jabber:client"})
+        gen = self._make_gen(nsmap={None: "jabber:client"})
         next(gen)
         gen.close()
 
         self.assertEqual(
             b'<?xml version="1.0"?>'
-            b'<stream:stream xmlns="jabber:client" xmlns:stream="http://etherx.jabber.org/streams"></stream:stream>',
+            b'<stream:stream xmlns="jabber:client" '
+            b'xmlns:stream="http://etherx.jabber.org/streams" '
+            b'to="'+str(self.TEST_TO).encode("utf-8")+b'" '
+            b'version="1.0"></stream:stream>',
             self.buf.getvalue()
         )
 
     def test_send_object(self):
         obj = Cls()
-        gen = xml.write_objects(self.buf)
+        gen = self._make_gen()
         next(gen)
         gen.send(obj)
         gen.close()
 
         self.assertEqual(
-            b'<?xml version="1.0"?>'
-            b'<stream:stream xmlns:stream="http://etherx.jabber.org/streams">'
+            b'<?xml version="1.0"?>'+
+            self.STREAM_HEADER+
             b'<ns0:bar xmlns:ns0="uri:foo"/>'
             b'</stream:stream>',
             self.buf.getvalue())
 
     def test_send_object_inherits_namespaces(self):
         obj = Cls()
-        gen = xml.write_objects(
-            self.buf,
-            nsmap={"jc": "uri:foo"})
+        gen = self._make_gen(nsmap={"jc": "uri:foo"})
         next(gen)
         gen.send(obj)
         gen.close()
 
         self.assertEqual(
             b'<?xml version="1.0"?>'
-            b'<stream:stream xmlns:jc="uri:foo" xmlns:stream="http://etherx.jabber.org/streams">'
+            b'<stream:stream xmlns:jc="uri:foo" '
+            b'xmlns:stream="http://etherx.jabber.org/streams" '
+            b'to="'+str(self.TEST_TO).encode("utf-8")+b'" '
+            b'version="1.0">'
             b'<jc:bar/>'
             b'</stream:stream>',
             self.buf.getvalue())

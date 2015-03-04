@@ -432,7 +432,12 @@ class XMPPXMLGenerator:
             self._flush()
 
 
-def write_objects(f, nsmap={}):
+def write_objects(f,
+                  to,
+                  from_=None,
+                  version=(1, 0),
+                  nsmap={},
+                  sorted_attributes=False):
     """
     Return a generator, which writes an XMPP XML stream on the file-like object
     *f*.
@@ -440,6 +445,14 @@ def write_objects(f, nsmap={}):
     First, the generator writes the stream header and declares all namespaces
     given in *nsmap* plus the xmlstream namespace, then the output is flushed
     and the generator yields.
+
+    *to* must be a :class:`~.jid.JID` which refers to the peer. *from_* may be
+    the JID identifying the local side, but see `RFC 6120 for considerations
+    <https://tools.ietf.org/html/rfc6120#section-4.7.1>`_. *version* is the
+    tuple of integers representing the locally supported XMPP version.
+
+    *sorted_attributes* is passed to the :class:`XMPPXMLGenerator` which is used
+    by this function.
 
     Now, user code can send :class:`~.stanza_model.StanzaObject` objects to the
     generator using its :meth:`send` method. These objects get serialized to the
@@ -456,9 +469,17 @@ def write_objects(f, nsmap={}):
     }
     nsmap_to_use.update(nsmap)
 
+    attrs = {
+        (None, "to"): str(to),
+        (None, "version"): ".".join(map(str, version))
+    }
+    if from_:
+        attrs[None, "from"] = str(from_)
+
     writer = XMPPXMLGenerator(
         out=f,
-        short_empty_elements=True)
+        short_empty_elements=True,
+        sorted_attributes=sorted_attributes)
 
     writer.startDocument()
     for prefix, uri in nsmap_to_use.items():
@@ -466,7 +487,7 @@ def write_objects(f, nsmap={}):
     writer.startElementNS(
         (namespaces.xmlstream, "stream"),
         None,
-        {})
+        attrs)
     writer.flush()
 
     abort = False
