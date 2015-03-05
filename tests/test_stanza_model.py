@@ -1963,6 +1963,30 @@ class Testdrop_handler(unittest.TestCase):
         self.assertIsNone(result)
 
 
+class Testenforce_unknown_child_policy(unittest.TestCase):
+    @unittest.mock.patch("asyncio_xmpp.stanza_model.drop_handler")
+    def test_drop_policy(self, drop_handler):
+        drop_handler.return_value = []
+        gen = stanza_model.enforce_unknown_child_policy(
+            stanza_model.UnknownChildPolicy.DROP,
+            (None, "foo", {}))
+        with self.assertRaises(StopIteration):
+            next(gen)
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call((None, "foo", {})),
+            ],
+            drop_handler.mock_calls
+        )
+
+    def test_fail_policy(self):
+        gen = stanza_model.enforce_unknown_child_policy(
+            stanza_model.UnknownChildPolicy.FAIL,
+            (None, "foo", {}))
+        with self.assertRaises(ValueError):
+            next(gen)
+
+
 class TestSAXDriver(unittest.TestCase):
     def setUp(self):
         self.l = []

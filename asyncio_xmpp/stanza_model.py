@@ -711,10 +711,9 @@ class ChildText(_PropBase):
             elif ev_type == "start":
                 # ok, a child inside the child was found, we look at our policy
                 # to see what to do
-                if self.child_policy == UnknownChildPolicy.FAIL:
-                    raise ValueError("unexpected child (in text only node)")
-                else:
-                    yield from drop_handler(ev_args)
+                yield from enforce_unknown_child_policy(
+                    self.child_policy,
+                    ev_args)
             elif ev_type == "end":
                 # end of our element, return
                 break
@@ -876,10 +875,9 @@ class ChildTag(_PropBase):
                 if self.text_policy == UnknownTextPolicy.FAIL:
                     raise ValueError("unexpected text")
             elif ev_type == "start":
-                if self.child_policy == UnknownChildPolicy.FAIL:
-                    raise ValueError("unexpected child")
-                else:
-                    yield from drop_handler(ev_args)
+                yield from enforce_unknown_child_policy(
+                    self.child_policy,
+                    ev_args)
             elif ev_type == "end":
                 break
         self._set_from_recv(instance, tag)
@@ -1099,12 +1097,11 @@ class StanzaClass(type):
                 except KeyError:
                     if cls.COLLECTOR_PROPERTY:
                         handler = cls.COLLECTOR_PROPERTY
-                    elif cls.UNKNOWN_CHILD_POLICY == UnknownChildPolicy.DROP:
-                        yield from drop_handler(ev_args)
-                        continue
                     else:
-                        raise ValueError("unexpected child TAG: {}".format(
-                            (ev_args[0], ev_args[1]))) from None
+                        yield from enforce_unknown_child_policy(
+                            cls.UNKNOWN_CHILD_POLICY,
+                            ev_args)
+                        continue
                 yield from handler.from_events(obj, ev_args)
 
         if collected_text:
@@ -1392,3 +1389,10 @@ def drop_handler(ev_args):
             depth += 1
         elif ev[0] == "end":
             depth -= 1
+
+
+def enforce_unknown_child_policy(policy, ev_args):
+    if policy == UnknownChildPolicy.DROP:
+        yield from drop_handler(ev_args)
+    else:
+        raise ValueError("unexpected child")
