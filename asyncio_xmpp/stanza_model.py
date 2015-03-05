@@ -1075,7 +1075,14 @@ class StanzaClass(type):
                         key,
                         tag_to_str((ev_args[0], ev_args[1]))
                     )) from None
-            prop.from_value(obj, value)
+            try:
+                prop.from_value(obj, value)
+            except:
+                obj.stanza_error_handler(
+                    prop,
+                    value,
+                    sys.exc_info())
+                raise
 
         for key, prop in attr_map.items():
             if prop.required:
@@ -1102,11 +1109,26 @@ class StanzaClass(type):
                             cls.UNKNOWN_CHILD_POLICY,
                             ev_args)
                         continue
-                yield from handler.from_events(obj, ev_args)
+                try:
+                    yield from handler.from_events(obj, ev_args)
+                except:
+                    obj.stanza_error_handler(
+                        handler,
+                        ev_args,
+                        sys.exc_info())
+                    raise
 
         if collected_text:
             if cls.TEXT_PROPERTY:
-                cls.TEXT_PROPERTY.from_value(obj, "".join(collected_text))
+                collected_text = "".join(collected_text)
+                try:
+                    cls.TEXT_PROPERTY.from_value(obj, collected_text)
+                except:
+                    obj.stanza_error_handler(
+                        cls.TEXT_PROPERTY,
+                        collected_text,
+                        sys.exc_info())
+                    raise
             else:
                 raise ValueError("unexpected text")
 
@@ -1208,6 +1230,9 @@ class StanzaObject(metaclass=StanzaClass):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._stanza_props = dict()
+
+    def stanza_error_handler(self, descriptor, ev_args, exc_info):
+        pass
 
     def unparse_to_sax(self, dest):
         cls = type(self)

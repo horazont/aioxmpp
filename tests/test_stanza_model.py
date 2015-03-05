@@ -562,6 +562,92 @@ class TestStanzaClass(unittest.TestCase):
         with self.assertRaises(ValueError):
             Cls.register_child(Cls.child, ClsC)
 
+    def test_call_error_handler_on_broken_child(self):
+        class Bar(stanza_model.StanzaObject):
+            TAG = "bar"
+
+            text = stanza_model.Text(
+                type_=stanza_types.Integer()
+            )
+
+        class Cls(metaclass=stanza_model.StanzaClass):
+            TAG = "foo"
+
+            child = stanza_model.Child([Bar])
+
+        Cls.stanza_error_handler = unittest.mock.MagicMock()
+
+        gen = Cls.parse_events((None, "foo", {}))
+        next(gen)
+        gen.send(("start", None, "bar", {}))
+        gen.send(("text", "foobar"))
+        with self.assertRaises(ValueError):
+            gen.send(("end", ))
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(
+                    Cls.child,
+                    [None, "bar", {}],
+                    unittest.mock.ANY)
+            ],
+            Cls.stanza_error_handler.mock_calls
+        )
+
+    def test_call_error_handler_on_broken_text(self):
+        class Cls(metaclass=stanza_model.StanzaClass):
+            TAG = "foo"
+
+            text = stanza_model.Text(
+                type_=stanza_types.Integer()
+            )
+
+        Cls.stanza_error_handler = unittest.mock.MagicMock()
+
+        gen = Cls.parse_events((None, "foo", {}))
+        next(gen)
+        gen.send(("text", "foo"))
+        gen.send(("text", "bar"))
+        with self.assertRaises(ValueError):
+            gen.send(("end",))
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(
+                    Cls.text,
+                    "foobar",
+                    unittest.mock.ANY)
+            ],
+            Cls.stanza_error_handler.mock_calls
+        )
+
+    def test_call_error_handler_on_broken_attr(self):
+        class Cls(metaclass=stanza_model.StanzaClass):
+            TAG = "foo"
+
+            attr = stanza_model.Attr(
+                tag=(None, "attr"),
+                type_=stanza_types.Integer()
+            )
+
+        Cls.stanza_error_handler = unittest.mock.MagicMock()
+
+        gen = Cls.parse_events((None, "foo", {
+            (None, "attr"): "foobar",
+        }))
+        with self.assertRaises(ValueError):
+            next(gen)
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(
+                    Cls.attr,
+                    "foobar",
+                    unittest.mock.ANY)
+            ],
+            Cls.stanza_error_handler.mock_calls
+        )
+
 
 class TestStanzaObject(XMLTestCase):
     def _unparse_test(self, obj, tree):
@@ -579,6 +665,12 @@ class TestStanzaObject(XMLTestCase):
 
         self.Cls = Cls
         self.obj = Cls()
+
+    def test_error_handler(self):
+        self.obj.stanza_error_handler(
+            None,
+            None,
+            None)
 
     def test_policies(self):
         self.assertEqual(
