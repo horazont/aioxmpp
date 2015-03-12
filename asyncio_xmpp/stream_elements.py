@@ -49,10 +49,10 @@ class StreamError(stanza_model.StanzaObject):
     def from_exception(cls, exc):
         instance = cls()
         instance.text = exc.text
-        instance.condition = exc.error_tag
+        instance.condition = exc.condition
         return instance
 
     def to_exception(self):
         return errors.StreamError(
-            error_tag=self.condition,
+            condition=self.condition,
             text=self.text)

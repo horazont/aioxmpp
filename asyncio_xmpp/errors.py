@@ -1,7 +1,10 @@
+from . import stanza_model
+
 def format_error_text(
-        error_tag,
+        condition,
         text=None,
         application_defined_condition=None):
+    error_tag = stanza_model.tag_to_str(condition)
     if application_defined_condition is not None:
         error_tag += "/{}".format(application_defined_condition.tag)
     if text:
@@ -10,33 +13,34 @@ def format_error_text(
 
 class XMPPWarning(UserWarning):
     def __init__(self,
-                 error_tag,
+                 condition,
                  text=None,
                  application_defined_condition=None):
         super().__init__(format_error_text(
-            error_tag, text, application_defined_condition))
-        self.error_tag = error_tag
+            condition, text, application_defined_condition))
+        self.condition = condition
         self.text = text
         self.application_defined_condition = application_defined_condition
 
 class StreamError(ConnectionError):
-    def __init__(self, error_tag, text=None):
-        super().__init__("stream error: {} ({!r})".format(error_tag, text))
-        self.error_tag = error_tag
+    def __init__(self, condition, text=None):
+        super().__init__("stream error: {}".format(
+            format_error_text(condition, text)))
+        self.condition = condition
         self.text = text
 
 class XMPPError(Exception):
     TYPE = "cancel"
 
     def __init__(self,
-                 error_tag,
+                 condition,
                  text=None,
                  application_defined_condition=None):
         super().__init__(format_error_text(
-            error_tag,
+            condition,
             text=text,
             application_defined_condition=application_defined_condition))
-        self.error_tag = error_tag
+        self.condition = condition
         self.text = text
         self.application_defined_condition = application_defined_condition
 

@@ -65,7 +65,7 @@ class XMLStream(asyncio.Protocol):
             self._writer.send(iq_response)
         except stanza_model.UnknownTopLevelTag as exc:
             raise errors.StreamError(
-                error_tag=(namespaces.streams, "unsupported-stanza-type"),
+                condition=(namespaces.streams, "unsupported-stanza-type"),
                 text="unsupported stanza: {}".format(
                     stanza_model.tag_to_str((exc.ev_args[0], exc.ev_args[1]))
                 )) from None

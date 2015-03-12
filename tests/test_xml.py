@@ -648,7 +648,7 @@ class TestXMPPXMLProcessor(unittest.TestCase):
             self.proc.processingInstruction("foo", "bar")
         self.assertEqual(
             (namespaces.streams, "restricted-xml"),
-            cm.exception.error_tag
+            cm.exception.condition
         )
 
     def test_reject_start_element_without_ns(self):
@@ -696,14 +696,14 @@ class TestXMPPXMLProcessor(unittest.TestCase):
             self.proc.startElementNS((None, "foo"), None, {})
         self.assertEqual(
             (namespaces.streams, "invalid-namespace"),
-            cm.exception.error_tag
+            cm.exception.condition
         )
 
         with self.assertRaises(errors.StreamError) as cm:
             self.proc.startElementNS((namespaces.xmlstream, "bar"), None, {})
         self.assertEqual(
             (namespaces.streams, "invalid-namespace"),
-            cm.exception.error_tag
+            cm.exception.condition
         )
 
     def test_require_stream_header_from(self):
@@ -715,7 +715,7 @@ class TestXMPPXMLProcessor(unittest.TestCase):
             self.proc.startElementNS(self.STREAM_HEADER_TAG, None, attrs)
         self.assertEqual(
             (namespaces.streams, "undefined-condition"),
-            cm.exception.error_tag
+            cm.exception.condition
         )
 
     def test_do_not_require_stream_header_to(self):
@@ -737,7 +737,7 @@ class TestXMPPXMLProcessor(unittest.TestCase):
             self.proc.startElementNS(self.STREAM_HEADER_TAG, None, attrs)
         self.assertEqual(
             (namespaces.streams, "undefined-condition"),
-            cm.exception.error_tag
+            cm.exception.condition
         )
 
     # def test_check_stream_header_version(self):
@@ -749,7 +749,7 @@ class TestXMPPXMLProcessor(unittest.TestCase):
     #         self.proc.startElementNS(self.STREAM_HEADER_TAG, None, attrs)
     #     self.assertEqual(
     #         (namespaces.streams, "unsupported-version"),
-    #         cm.exception.error_tag
+    #         cm.exception.condition
     #     )
     #     self.assertEqual(
     #         "2.0",
@@ -776,7 +776,7 @@ class TestXMPPXMLProcessor(unittest.TestCase):
             self.proc.startElementNS(self.STREAM_HEADER_TAG, None, attrs)
         self.assertEqual(
             (namespaces.streams, "unsupported-version"),
-            cm.exception.error_tag
+            cm.exception.condition
         )
 
     def test_forward_to_parser(self):
@@ -1026,7 +1026,7 @@ class TestXMPPXMLProcessor(unittest.TestCase):
     #         self.proc.startElementNS((None, "foo"), None, {})
     #     self.assertEqual(
     #         (namespaces.streams, "policy-violation"),
-    #         cm.exception.error_tag
+    #         cm.exception.condition
     #     )
 
     def tearDown(self):
@@ -1079,7 +1079,7 @@ class TestXMPPLexicalHandler(unittest.TestCase):
             self.proc.comment("foobar")
         self.assertEqual(
             (namespaces.streams, "restricted-xml"),
-            cm.exception.error_tag
+            cm.exception.condition
         )
         self.proc.endCDATA()
 
@@ -1088,7 +1088,7 @@ class TestXMPPLexicalHandler(unittest.TestCase):
             self.proc.startDTD("foo", "bar", "baz")
         self.assertEqual(
             (namespaces.streams, "restricted-xml"),
-            cm.exception.error_tag
+            cm.exception.condition
         )
         self.proc.endDTD()
 
@@ -1097,7 +1097,7 @@ class TestXMPPLexicalHandler(unittest.TestCase):
             self.proc.startEntity("foo")
         self.assertEqual(
             (namespaces.streams, "restricted-xml"),
-            cm.exception.error_tag
+            cm.exception.condition
         )
         self.proc.endEntity("foo")
 

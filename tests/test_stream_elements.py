@@ -31,7 +31,7 @@ class TestStreamError(unittest.TestCase):
             errors.StreamError)
         self.assertEqual(
             (namespaces.streams, "restricted-xml"),
-            exc.error_tag
+            exc.condition
         )
         self.assertEqual(
             "foobar",
