@@ -9,7 +9,7 @@ from enum import Enum
 import xml.sax as sax
 import xml.parsers.expat as pyexpat
 
-from . import xml, errors, stanza_model, stream_elements
+from . import xml, errors, stanza_model, stream_elements, stanza
 from .utils import namespaces, etree
 
 
@@ -45,6 +45,33 @@ class XMLStream(asyncio.Protocol):
             text += " (at: {})".format(at)
         return RuntimeError(text)
 
+    def _rx_exception(self, exc):
+        try:
+            raise exc
+        except stanza.PayloadParsingError as exc:
+            iq_response = exc.partial_obj.make_reply(type_="error")
+            iq_response.error = stanza.Error(
+                condition=(namespaces.stanzas, "bad-request"),
+                type_="modify",
+                text=str(exc.__context__)
+            )
+            self._writer.send(iq_response)
+        except stanza.UnknownIQPayload as exc:
+            iq_response = exc.partial_obj.make_reply(type_="error")
+            iq_response.error = stanza.Error(
+                condition=(namespaces.stanzas, "feature-not-implemented"),
+                type_="cancel",
+            )
+            self._writer.send(iq_response)
+        except stanza_model.UnknownTopLevelTag as exc:
+            raise errors.StreamError(
+                error_tag=(namespaces.streams, "unsupported-stanza-type"),
+                text="unsupported stanza: {}".format(
+                    stanza_model.tag_to_str((exc.ev_args[0], exc.ev_args[1]))
+                )) from None
+        except:
+            raise
+
     def _rx_stream_header(self):
         if self._processor.remote_version != (1, 0):
             raise errors.StreamError(
@@ -72,21 +99,8 @@ class XMLStream(asyncio.Protocol):
             raise self._invalid_state("connection_made")
 
         self._transport = transport
-        self._processor = xml.XMPPXMLProcessor()
-        self._processor.stanza_parser = self.stanza_parser
-        self._processor.on_stream_header = self._rx_stream_header
-        self._processor.on_stream_footer = self._rx_stream_footer
-        self._parser = xml.make_parser()
-        self._parser.setContentHandler(self._processor)
-
-        self._writer = xml.write_objects(
-            transport,
-            self._to,
-            nsmap={None: "jabber:client"},
-            sorted_attributes=self._sorted_attributes)
-        next(self._writer)
-
-        self._state = State.STREAM_HEADER_SENT
+        self._writer = None
+        self.reset()
 
     def connection_lost(self, exc):
         if self._state == State.CLOSING:
@@ -106,3 +120,26 @@ class XMLStream(asyncio.Protocol):
 
     def close(self):
         self.connection_lost(None)
+
+    def reset(self):
+        if self._writer:
+            try:
+                self._writer.throw(xml.AbortStream())
+            except StopIteration:
+                pass
+
+        self._processor = xml.XMPPXMLProcessor()
+        self._processor.stanza_parser = self.stanza_parser
+        self._processor.on_stream_header = self._rx_stream_header
+        self._processor.on_stream_footer = self._rx_stream_footer
+        self._processor.on_exception = self._rx_exception
+        self._parser = xml.make_parser()
+        self._parser.setContentHandler(self._processor)
+
+        self._writer = xml.write_objects(
+            self._transport,
+            self._to,
+            nsmap={None: "jabber:client"},
+            sorted_attributes=self._sorted_attributes)
+        next(self._writer)
+        self._state = State.STREAM_HEADER_SENT

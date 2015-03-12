@@ -1,6 +1,9 @@
 import unittest
 import unittest.mock
 
+import asyncio_xmpp.stanza as stanza
+import asyncio_xmpp.stanza_model as stanza_model
+
 from .testutils import TransportMock, run_coroutine
 
 from asyncio_xmpp.protocol import XMLStream
@@ -35,6 +38,27 @@ STREAM_ERROR_TEMPLATE_WITHOUT_TEXT = '''\
 <stream:error><{condition} xmlns="urn:ietf:params:xml:ns:xmpp-streams"/>\
 </stream:error>'''
 
+STANZA_ERROR_TEMPLATE_WITHOUT_TEXT = '''\
+<error type="{type}"><{condition} xmlns="urn:ietf:params:xml:ns:xmpp-stanzas"/>\
+</error>'''
+
+STANZA_ERROR_TEMPLATE_WITH_TEXT = '''\
+<error type="{type}">\
+<text xmlns="urn:ietf:params:xml:ns:xmpp-stanzas">{text}</text>\
+<{condition} xmlns="urn:ietf:params:xml:ns:xmpp-stanzas"/>\
+</error>'''
+
+
+class Child(stanza_model.StanzaObject):
+    TAG = ("uri:foo", "payload")
+
+    attr = stanza_model.Attr("a", required=True)
+
+
+class FakeIQ(stanza.IQ):
+    TAG = ("jabber:client", "iq")
+
+FakeIQ.register_child(FakeIQ.payload, Child)
 
 class TestXMLStream(unittest.TestCase):
     def setUp(self):
@@ -135,6 +159,27 @@ class TestXMLStream(unittest.TestCase):
                 ],
             ))
 
+    def test_reset(self):
+        t, p = self._make_stream(to=TEST_PEER)
+        run_coroutine(
+            t.run_test(
+                [
+                    TransportMock.Write(
+                        STREAM_HEADER,
+                    ),
+                ],
+                partial=True
+            ))
+        p.reset()
+        run_coroutine(
+            t.run_test(
+                [
+                    TransportMock.Write(
+                        STREAM_HEADER,
+                    ),
+                ],
+            ))
+
     def test_send_stream_error_from_feed(self):
         t, p = self._make_stream(to=TEST_PEER)
         run_coroutine(
@@ -178,4 +223,101 @@ class TestXMLStream(unittest.TestCase):
                     TransportMock.WriteEof(),
                     TransportMock.Close()
                 ]
+            ))
+
+    def test_unknown_top_level_produces_stream_error(self):
+        t, p = self._make_stream(to=TEST_PEER)
+        run_coroutine(
+            t.run_test(
+                [
+                    TransportMock.Write(
+                        STREAM_HEADER,
+                        response=[
+                            TransportMock.Receive(self._make_peer_header()),
+                            TransportMock.Receive(
+                                b'<foo xmlns="uri:bar"/>'),
+                        ]),
+                    TransportMock.Write(
+                        STREAM_ERROR_TEMPLATE_WITH_TEXT.format(
+                            condition="unsupported-stanza-type",
+                            text="unsupported stanza: {uri:bar}foo",
+                        ).encode("utf-8")),
+                    TransportMock.Write(b"</stream:stream>"),
+                    TransportMock.WriteEof(),
+                    TransportMock.Close(),
+                ]
+            ))
+
+    def test_recover_unknown_iq_payload(self):
+        def catch_iq(obj):
+            pass
+
+        t, p = self._make_stream(to=TEST_PEER)
+        p.stanza_parser.add_class(FakeIQ, catch_iq)
+        run_coroutine(
+            t.run_test(
+                [
+                    TransportMock.Write(
+                        STREAM_HEADER,
+                        response=[
+                            TransportMock.Receive(self._make_peer_header()),
+                            TransportMock.Receive(
+                                b'<iq to="foo@foo.example" from="foo@bar.example"'
+                                b' id="1234" type="get">'
+                                b'<unknown-payload xmlns="uri:foo"/>'
+                                b'</iq>'),
+                        ]),
+                    TransportMock.Write(
+                        b'<iq from="foo@foo.example" id="1234"'
+                        b' to="foo@bar.example" type="error">'+
+                        STANZA_ERROR_TEMPLATE_WITHOUT_TEXT.format(
+                            type="cancel",
+                            condition="feature-not-implemented").encode("utf-8")+
+                        b'</iq>',
+                        response=[
+                            TransportMock.Receive(
+                                b'<iq to="foo@foo.example" from="foo@bar.example"'
+                                b' id="1234" type="get">'
+                                b'<payload xmlns="uri:foo" a="test" />'
+                                b'</iq>')
+                        ])
+               ]
+            ))
+
+    def test_recover_errornous_iq_payload(self):
+        def catch_iq(obj):
+            pass
+
+        t, p = self._make_stream(to=TEST_PEER)
+        p.stanza_parser.add_class(FakeIQ, catch_iq)
+        run_coroutine(
+            t.run_test(
+                [
+                    TransportMock.Write(
+                        STREAM_HEADER,
+                        response=[
+                            TransportMock.Receive(self._make_peer_header()),
+                            TransportMock.Receive(
+                                b'<iq to="foo@foo.example" from="foo@bar.example"'
+                                b' id="1234" type="get">'
+                                b'<payload xmlns="uri:foo"/>'
+                                b'</iq>'),
+                        ]),
+                    TransportMock.Write(
+                        b'<iq from="foo@foo.example" id="1234"'
+                        b' to="foo@bar.example" type="error">'+
+                        STANZA_ERROR_TEMPLATE_WITH_TEXT.format(
+                            type="modify",
+                            condition="bad-request",
+                            text="missing attribute (None, 'a') on {uri:foo}payload"
+                        ).encode("utf-8")+
+                        b'</iq>',
+                        response=[
+                            TransportMock.Receive(
+                                b'<iq to="foo@foo.example" from="foo@bar.example"'
+                                b' id="1234" type="get">'
+                                b'<payload xmlns="uri:foo" a="test" />'
+                                b'</iq>')
+                        ])
+               ]
             ))

@@ -594,6 +594,38 @@ class TestStanzaClass(unittest.TestCase):
             Cls.stanza_error_handler.mock_calls
         )
 
+    def test_call_error_handler_on_unexpected_child(self):
+        class Bar(stanza_model.StanzaObject):
+            TAG = "bar"
+
+            text = stanza_model.Text(
+                type_=stanza_types.Integer()
+            )
+
+        class Cls(metaclass=stanza_model.StanzaClass):
+            TAG = "foo"
+            UNKNOWN_CHILD_POLICY = stanza_model.UnknownChildPolicy.FAIL
+
+            child = stanza_model.Child([Bar])
+
+        Cls.stanza_error_handler = unittest.mock.MagicMock()
+
+        gen = Cls.parse_events((None, "foo", {}))
+        next(gen)
+        with self.assertRaises(ValueError):
+            gen.send(("start", None, "baz", {}))
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call.__bool__(),
+                unittest.mock.call(
+                    None,
+                    [None, "baz", {}],
+                    None)
+            ],
+            Cls.stanza_error_handler.mock_calls
+        )
+
     def test_call_error_handler_on_broken_text(self):
         class Cls(metaclass=stanza_model.StanzaClass):
             TAG = "foo"

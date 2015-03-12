@@ -516,6 +516,7 @@ class ProcessorState(Enum):
     STARTED = 1
     STREAM_HEADER_PROCESSED = 2
     STREAM_FOOTER_PROCESSED = 3
+    EXCEPTION_BACKOFF = 4
 
 
 class XMPPXMLProcessor:
@@ -529,15 +530,31 @@ class XMPPXMLProcessor:
 
     .. warning::
 
-       To achieve compliance with XMPP, it is recommended to use this object
-       also as lexical handler, using
+       To achieve compliance with XMPP, it is recommended to use
+       :class:`XMPPLexicalHandler` as lexical handler, using
        :meth:`xml.sax.xmlreader.XMLReader.setProperty`::
 
             parser.setProperty(xml.sax.handler.property_lexical_handler,
-                               my_xmpp_xml_processor)
+                               XMPPLexicalHandler)
 
        Otherwise, invalid XMPP XML such as comments, entity references and DTD
        declarations will not be caught.
+
+    **Exception handling**: When an exception occurs while parsing a
+    stream-level element, such as a stanza, the exception is stored internally
+    and exception handling is invoked. During exception handling, all SAX events
+    are dropped, until the stream-level element has been completely processed by
+    the parser. Then, if available, :attr:`on_exception` is called, with the
+    stored exception as the only argument. If :attr:`on_exception` is false
+    (e.g. :data:`None`), the exception is re-raised from the
+    :meth:`endElementNS` handler, in turn most likely destroying the SAX parsers
+    internal state.
+
+    .. attribute:: on_exception
+
+       May be a callable or :data:`None`. If not false, the value will get
+       called when exception handling has finished, with the exception as the
+       only argument.
 
     .. attribute:: on_stream_footer
 
@@ -556,8 +573,10 @@ class XMPPXMLProcessor:
         super().__init__()
         self._state = ProcessorState.CLEAN
         self._stanza_parser = None
+        self._stored_exception = None
         self.on_stream_header = None
         self.on_stream_footer = None
+        self.on_exception = None
 
     @property
     def stanza_parser(self):
@@ -584,7 +603,9 @@ class XMPPXMLProcessor:
         )
 
     def characters(self, characters):
-        if self._state != ProcessorState.STREAM_HEADER_PROCESSED:
+        if self._state == ProcessorState.EXCEPTION_BACKOFF:
+            pass
+        elif self._state != ProcessorState.STREAM_HEADER_PROCESSED:
             raise RuntimeError("invalid state: {}".format(self._state))
         else:
             self._driver.characters(characters)
@@ -618,10 +639,16 @@ class XMPPXMLProcessor:
 
     def startElementNS(self, name, qname, attributes):
         if self._state == ProcessorState.STREAM_HEADER_PROCESSED:
-            self._driver.startElementNS(name, qname, attributes)
+            try:
+                self._driver.startElementNS(name, qname, attributes)
+            except Exception as exc:
+                self._stored_exception = exc
+                self._state = ProcessorState.EXCEPTION_BACKOFF
             self._depth += 1
             return
-
+        elif self._state == ProcessorState.EXCEPTION_BACKOFF:
+            self._depth += 1
+            return
         elif self._state != ProcessorState.STARTED:
             raise RuntimeError("invalid state: {}".format(self._state))
 
@@ -677,6 +704,16 @@ class XMPPXMLProcessor:
                 if self.on_stream_footer:
                     self.on_stream_footer()
                 self._state = ProcessorState.STREAM_FOOTER_PROCESSED
+        elif self._state == ProcessorState.EXCEPTION_BACKOFF:
+            self._depth -= 1
+            if self._depth == 1:
+                self._state = ProcessorState.STREAM_HEADER_PROCESSED
+                exc = self._stored_exception
+                self._stored_exception = None
+                if self.on_exception:
+                    self.on_exception(exc)
+                else:
+                    raise exc
         else:
             raise RuntimeError("invalid state: {}".format(self._state))
 

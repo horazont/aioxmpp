@@ -1107,7 +1107,8 @@ class StanzaClass(type):
                     else:
                         yield from enforce_unknown_child_policy(
                             cls.UNKNOWN_CHILD_POLICY,
-                            ev_args)
+                            ev_args,
+                            obj.stanza_error_handler)
                         continue
                 try:
                     yield from handler.from_events(obj, ev_args)
@@ -1232,6 +1233,20 @@ class StanzaObject(metaclass=StanzaClass):
         self._stanza_props = dict()
 
     def stanza_error_handler(self, descriptor, ev_args, exc_info):
+        """
+        This method is called whenever an error occurs while parsing.
+
+        If an exception is raised by the parsing function of a descriptor
+        attribute, such as :class:`Attr`, the *descriptor* is passed as first
+        argument, the *exc_info* tuple as third argument and the arguments which
+        led to the descriptor being invoked as second argument.
+
+        If an unknown child is encountered and the :attr:`UNKNOWN_CHILD_POLICY`
+        is set to :attr:`UnknownChildPolicy.FAIL`, *descriptor* and *exc_info*
+        are passed as :data:`None` and *ev_args* are the arguments to the
+        ``"start"`` event of the child (i.e. a triple
+        ``(namespace_uri, localname, attributes)``).
+        """
         pass
 
     def unparse_to_sax(self, dest):
@@ -1299,6 +1314,9 @@ class SAXDriver(xml.sax.handler.ContentHandler):
         except StopIteration as err:
             self._emit(err.value)
             self._dest = None
+        except:
+            self._dest = None
+            raise
 
     def startElementNS(self, name, qname, attributes):
         uri, localname = name
@@ -1416,8 +1434,10 @@ def drop_handler(ev_args):
             depth -= 1
 
 
-def enforce_unknown_child_policy(policy, ev_args):
+def enforce_unknown_child_policy(policy, ev_args, error_handler=None):
     if policy == UnknownChildPolicy.DROP:
         yield from drop_handler(ev_args)
     else:
+        if error_handler:
+            error_handler(None, ev_args, None)
         raise ValueError("unexpected child")

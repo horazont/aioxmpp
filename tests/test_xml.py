@@ -964,6 +964,45 @@ class TestXMPPXMLProcessor(unittest.TestCase):
             catch_stream_footer.mock_calls
         )
 
+    def test_exception_recovery_and_reporting(self):
+        catch_exception = unittest.mock.MagicMock()
+
+        elements = []
+        def recv(obj):
+            nonlocal elements
+            elements.append(obj)
+
+        class Foo(stanza_model.StanzaObject):
+            TAG = ("uri:foo", "foo")
+
+        self.assertIsNone(self.proc.on_exception)
+        self.proc.on_exception = catch_exception
+        self.proc.stanza_parser = stanza_model.StanzaParser()
+        self.proc.stanza_parser.add_class(Foo, recv)
+        self.proc.startDocument()
+        self.proc.startElementNS(self.STREAM_HEADER_TAG,
+                                 None,
+                                 self.STREAM_HEADER_ATTRS)
+        self.proc.startElementNS((None, "foo"), None, {})
+        self.proc.characters("foobar")
+        self.proc.endElementNS((None, "foo"), None)
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call.__bool__(),
+                unittest.mock.call(unittest.mock.ANY)
+            ],
+            catch_exception.mock_calls)
+
+        self.proc.startElementNS(("uri:foo", "foo"), None, {})
+        self.proc.endElementNS(("uri:foo", "foo"), None)
+
+        self.assertTrue(elements)
+        self.assertIsInstance(elements[0], Foo)
+
+        self.proc.endElementNS(self.STREAM_HEADER_TAG, None)
+        self.proc.endDocument()
+
     # def test_depth_limit(self):
     #     def dummy_parser():
     #         while True:

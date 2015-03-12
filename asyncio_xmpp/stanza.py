@@ -8,6 +8,31 @@ from .utils import namespaces
 RANDOM_ID_BYTES = (120//8)
 
 
+class PayloadError(Exception):
+    def __init__(self, msg, partial_obj, ev_args):
+        super().__init__(msg)
+        self.ev_args = ev_args
+        self.partial_obj = partial_obj
+
+
+class PayloadParsingError(PayloadError):
+    def __init__(self, partial_obj, ev_args):
+        super().__init__(
+            "parsing of payload {} failed".format(
+                stanza_model.tag_to_str((ev_args[0], ev_args[1]))),
+            partial_obj,
+            ev_args)
+
+
+class UnknownIQPayload(PayloadError):
+    def __init__(self, partial_obj, ev_args):
+        super().__init__(
+            "unknown payload {} on iq".format(
+                stanza_model.tag_to_str((ev_args[0], ev_args[1]))),
+            partial_obj,
+            ev_args)
+
+
 class StanzaBase(stanza_model.StanzaObject):
     id_ = stanza_model.Attr(
         tag="id",
@@ -54,6 +79,7 @@ class Thread(stanza_model.StanzaObject):
         validator=stanza_types.Nmtoken(),
         validate=stanza_model.ValidateMode.FROM_CODE
     )
+
 
 class Message(StanzaBase):
     TAG = (namespaces.client, "message")
@@ -128,7 +154,8 @@ class Error(stanza_model.StanzaObject):
     text = stanza_model.ChildText(
         tag=(namespaces.stanzas, "text"),
         attr_policy=stanza_model.UnknownAttrPolicy.DROP,
-        default=None)
+        default=None,
+        declare_prefix=None)
     condition = stanza_model.ChildTag(
         tags=[
             "bad-request",
@@ -156,8 +183,18 @@ class Error(stanza_model.StanzaObject):
         ],
         default_ns="urn:ietf:params:xml:ns:xmpp-stanzas",
         allow_none=False,
-        default=("urn:ietf:params:xml:ns:xmpp-stanzas", "undefined-condition")
+        default=("urn:ietf:params:xml:ns:xmpp-stanzas", "undefined-condition"),
+        declare_prefix=None,
     )
+
+    def __init__(self,
+                 condition=(namespaces.stanzas, "undefined-condition"),
+                 type_="cancel",
+                 text=None):
+        super().__init__()
+        self.condition = condition
+        self.type_ = type_
+        self.text = text
 
 
 class IQ(StanzaBase):
@@ -185,3 +222,10 @@ class IQ(StanzaBase):
         obj = super()._make_reply()
         obj.type_ = type_
         return obj
+
+    def stanza_error_handler(self, descriptor, ev_args, exc_info):
+        # raise a specific error if the payload failed to parse
+        if descriptor == IQ.payload:
+            raise PayloadParsingError(self, ev_args)
+        elif descriptor == None:
+            raise UnknownIQPayload(self, ev_args)
