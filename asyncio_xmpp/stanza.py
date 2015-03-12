@@ -196,6 +196,12 @@ class Error(stanza_model.StanzaObject):
         self.type_ = type_
         self.text = text
 
+    @classmethod
+    def from_exception(cls, exc):
+        return cls(condition=exc.condition,
+                   type_=exc.TYPE,
+                   text=exc.text)
+
 
 class IQ(StanzaBase):
     TAG = (namespaces.client, "iq")

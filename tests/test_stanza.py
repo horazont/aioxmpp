@@ -4,6 +4,9 @@ import asyncio_xmpp.stanza_model as stanza_model
 import asyncio_xmpp.stanza_types as stanza_types
 import asyncio_xmpp.stanza as stanza
 import asyncio_xmpp.jid as jid
+import asyncio_xmpp.errors as errors
+
+from asyncio_xmpp.utils import namespaces
 
 
 TEST_FROM = jid.JID.fromstr("foo@example.test")
@@ -255,6 +258,24 @@ class TestError(unittest.TestCase):
         self.assertTrue(
             stanza.Error.type_.required)
 
+    def test_from_exception(self):
+        exc = errors.XMPPWaitError(
+            condition=(namespaces.stanzas, "item-not-found"),
+            text="foobar"
+        )
+        obj = stanza.Error.from_exception(exc)
+        self.assertEqual(
+            "wait",
+            obj.type_
+        )
+        self.assertEqual(
+            (namespaces.stanzas, "item-not-found"),
+            obj.condition
+        )
+        self.assertEqual(
+            "foobar",
+            obj.text
+        )
 
 
 class TestIQ(unittest.TestCase):
