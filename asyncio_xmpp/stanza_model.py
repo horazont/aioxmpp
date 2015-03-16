@@ -1192,6 +1192,20 @@ class StanzaObject(metaclass=StanzaClass):
        behaviour if an attribute is encountered for which no matching descriptor
        is found.
 
+    .. attribute:: DECLARE_NS = None
+
+       Either a dictionary which defines the namespace mappings which shall be
+       declared when serializing this element or :data:`None`. If it is a
+       dictionary, it must map namespace prefixes (such as :data:`None` or
+       ``"foo"``) to namespace URIs.
+
+       .. warning::
+
+          It is discouraged to use namespace prefixes of the format
+          ``"ns{:d}".format(n)``, for any given number *n*. These prefixes are
+          reserved for ad-hoc namespace declarations, and attempting to use them
+          may have unwanted side-effects.
+
     Example::
 
         class Body(stanza_model.StanzaObject):
@@ -1227,6 +1241,7 @@ class StanzaObject(metaclass=StanzaClass):
     """
     UNKNOWN_CHILD_POLICY = UnknownChildPolicy.FAIL
     UNKNOWN_ATTR_POLICY = UnknownAttrPolicy.FAIL
+    DECLARE_NS = None
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -1254,6 +1269,9 @@ class StanzaObject(metaclass=StanzaClass):
         attrib = {}
         for prop in cls.ATTR_MAP.values():
             prop.to_dict(self, attrib)
+        if cls.DECLARE_NS:
+            for prefix, uri in cls.DECLARE_NS.items():
+                dest.startPrefixMapping(prefix, uri)
         dest.startElementNS(self.TAG, None, attrib)
         try:
             if cls.TEXT_PROPERTY:
@@ -1264,6 +1282,9 @@ class StanzaObject(metaclass=StanzaClass):
                 cls.COLLECTOR_PROPERTY.to_sax(self, dest)
         finally:
             dest.endElementNS(self.TAG, None)
+            if cls.DECLARE_NS:
+                for prefix, uri in cls.DECLARE_NS.items():
+                    dest.endPrefixMapping(prefix, uri)
 
     def unparse_to_node(self, parent):
         handler = lxml.sax.ElementTreeContentHandler(

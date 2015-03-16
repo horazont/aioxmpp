@@ -1,3 +1,4 @@
+import collections
 import copy
 import functools
 import unittest
@@ -711,6 +712,35 @@ class TestStanzaObject(XMLTestCase):
         self.assertEqual(
             stanza_model.UnknownAttrPolicy.FAIL,
             self.Cls.UNKNOWN_ATTR_POLICY)
+
+    def test_declare_ns(self):
+        self.assertIsNone(self.Cls.DECLARE_NS)
+
+        class Cls(stanza_model.StanzaObject):
+            TAG = ("uri:foo", "foo")
+
+            DECLARE_NS = collections.OrderedDict([
+                (None, "uri:foo"),
+                ("bar", "uri:bar"),
+            ])
+
+        sink = unittest.mock.MagicMock()
+
+        obj = Cls()
+        obj.unparse_to_sax(sink)
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call.startPrefixMapping(None, "uri:foo"),
+                unittest.mock.call.startPrefixMapping("bar", "uri:bar"),
+                unittest.mock.call.startElementNS(("uri:foo", "foo"), None, {}),
+                unittest.mock.call.endElementNS(("uri:foo", "foo"), None),
+                unittest.mock.call.endPrefixMapping(None, "uri:foo"),
+                unittest.mock.call.endPrefixMapping("bar", "uri:bar"),
+            ],
+            sink.mock_calls
+        )
+
 
     def test_property_storage(self):
         self.obj._stanza_props["key"] = "value"
