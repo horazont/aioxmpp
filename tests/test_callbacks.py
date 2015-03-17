@@ -1,7 +1,11 @@
 import unittest
 import unittest.mock
 
-from aioxmpp.callbacks import TagDispatcher, TagListener
+from aioxmpp.callbacks import (
+    TagDispatcher,
+    TagListener,
+    OneshotTagListener,
+)
 
 
 class TestTagListener(unittest.TestCase):
@@ -54,21 +58,107 @@ class TestTagDispatcher(unittest.TestCase):
                                      "only one listener is allowed"):
             nh.add_listener("tag", l)
 
+    def test_add_future(self):
+        mock = unittest.mock.Mock()
+        obj = object()
+
+        nh = TagDispatcher()
+        nh.add_future("tag", mock)
+        nh.unicast("tag", obj)
+        with self.assertRaises(KeyError):
+            # futures must be oneshots
+            nh.unicast("tag", obj)
+
+        nh.add_future("tag", mock)
+        nh.broadcast_error(obj)
+        with self.assertRaises(KeyError):
+            # futures must be oneshots
+            nh.unicast("tag", obj)
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call.set_result(obj),
+                unittest.mock.call.set_exception(obj),
+            ],
+            mock.mock_calls
+        )
+
     def test_unicast(self):
         mock = unittest.mock.Mock()
+        mock.return_value = False
         obj = object()
 
         nh = TagDispatcher()
         nh.add_callback("tag", mock)
         nh.unicast("tag", obj)
+        nh.unicast("tag", obj)
 
-        mock.assert_called_once_with(obj)
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(obj),
+                unittest.mock.call(obj),
+            ],
+            mock.mock_calls
+        )
 
     def test_unicast_fails_for_nonexistent(self):
         obj = object()
         nh = TagDispatcher()
         with self.assertRaises(KeyError):
             nh.unicast("tag", obj)
+
+    def test_unicast_to_oneshot(self):
+        mock = unittest.mock.Mock()
+        obj = object()
+
+        l = OneshotTagListener(mock)
+
+        nh = TagDispatcher()
+        nh.add_future("tag", mock)
+
+        nh.unicast("tag", obj)
+        with self.assertRaises(KeyError):
+            nh.unicast("tag", obj)
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(obj)
+            ],
+            mock.mock_calls
+        )
+
+    def test_unicast_removes_for_true_result(self):
+        mock = unittest.mock.Mock()
+        mock.return_value = True
+        obj = object()
+
+        nh = TagDispatcher()
+        nh.add_callback("tag", mock)
+        nh.unicast("tag", obj)
+        with self.assertRaises(KeyError):
+            nh.unicast("tag", obj)
+
+        mock.assert_called_once_with(obj)
+
+    def test_broadcast_error_to_oneshot(self):
+        mock = unittest.mock.Mock()
+        obj = object()
+
+        l = OneshotTagListener(mock)
+
+        nh = TagDispatcher()
+        nh.add_future("tag", mock)
+
+        nh.broadcast_error(obj)
+        with self.assertRaises(KeyError):
+            nh.unicast("tag", obj)
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(obj)
+            ],
+            mock.mock_calls
+        )
 
     def test_remove_listener(self):
         mock = unittest.mock.Mock()
@@ -82,7 +172,9 @@ class TestTagDispatcher(unittest.TestCase):
     def test_broadcast_error(self):
         data = unittest.mock.Mock()
         error1 = unittest.mock.Mock()
+        error1.return_value = False
         error2 = unittest.mock.Mock()
+        error2.return_value = False
 
         l1 = TagListener(data, error1)
         l2 = TagListener(data, error2)
@@ -94,10 +186,46 @@ class TestTagDispatcher(unittest.TestCase):
         nh.add_listener("tag2", l2)
 
         nh.broadcast_error(obj)
+        nh.broadcast_error(obj)
 
         data.assert_not_called()
-        error1.assert_called_once_with(obj)
-        error2.assert_called_once_with(obj)
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(obj),
+                unittest.mock.call(obj),
+            ],
+            error1.mock_calls
+        )
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(obj),
+                unittest.mock.call(obj),
+            ],
+            error2.mock_calls
+        )
+
+    def test_broadcast_error_removes_on_true_result(self):
+        data = unittest.mock.Mock()
+        error1 = unittest.mock.Mock()
+        error1.return_value = True
+
+        l1 = TagListener(data, error1)
+
+        obj = object()
+
+        nh = TagDispatcher()
+        nh.add_listener("tag1", l1)
+
+        nh.broadcast_error(obj)
+        nh.broadcast_error(obj)
+
+        data.assert_not_called()
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(obj),
+            ],
+            error1.mock_calls
+        )
 
     def test_close(self):
         data = unittest.mock.Mock()
