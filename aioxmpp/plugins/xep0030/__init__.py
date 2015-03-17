@@ -1,5 +1,5 @@
 """
-:mod:`~asyncio_xmpp.plugins.xep0030` --- Support for Service Discovery
+:mod:`~aioxmpp.plugins.xep0030` --- Support for Service Discovery
 ######################################################################
 
 Discovery server
@@ -40,7 +40,7 @@ Stanza elements
 
 """
 
-from asyncio_xmpp.utils import *
+from aioxmpp.utils import *
 
 from .service import *
 from .stanza import *

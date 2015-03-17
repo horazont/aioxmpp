@@ -1,1 +1,1 @@
-.. automodule:: asyncio_xmpp.security_layer
+.. automodule:: aioxmpp.security_layer

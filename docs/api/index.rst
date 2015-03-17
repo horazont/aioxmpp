@@ -1,11 +1,11 @@
 .. _api:
 
-The :mod:`asyncio_xmpp` package
+The :mod:`aioxmpp` package
 ###############################
 
-.. module:: asyncio_xmpp
+.. module:: aioxmpp
 
-The API reference provides the documented API of :mod:`asyncio_xmpp`.
+The API reference provides the documented API of :mod:`aioxmpp`.
 
 .. toctree::
    :maxdepth: 2

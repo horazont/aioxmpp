@@ -1,14 +1,14 @@
 import asyncio
 
-import asyncio_xmpp.plugins.base as base
-import asyncio_xmpp.callbacks as callbacks
-import asyncio_xmpp.jid as jid
-import asyncio_xmpp.stanza as stanza
-import asyncio_xmpp.presence as presence
+import aioxmpp.plugins.base as base
+import aioxmpp.callbacks as callbacks
+import aioxmpp.jid as jid
+import aioxmpp.stanza as stanza
+import aioxmpp.presence as presence
 
 from .stanza import *
 
-from asyncio_xmpp.utils import *
+from aioxmpp.utils import *
 
 __all__ = [
     "RosterItemInfo",

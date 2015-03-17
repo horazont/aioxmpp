@@ -1,1 +1,1 @@
-.. automodule:: asyncio_xmpp.ssl_transport
+.. automodule:: aioxmpp.ssl_transport

@@ -3,10 +3,10 @@ XEP-0199: XMPP Ping support
 ###########################
 """
 
-import asyncio_xmpp.stanza_model as stanza_model
-import asyncio_xmpp.xml as xml
+import aioxmpp.stanza_model as stanza_model
+import aioxmpp.xml as xml
 
-from asyncio_xmpp.utils import namespaces
+from aioxmpp.utils import namespaces
 
 namespaces.xep0199_ping = "urn:xmpp:ping"
 

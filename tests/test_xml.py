@@ -9,12 +9,12 @@ import lxml.sax
 import xml.sax as sax
 import xml.sax.handler as saxhandler
 
-import asyncio_xmpp.xml as xml
-import asyncio_xmpp.jid as jid
-import asyncio_xmpp.errors as errors
-import asyncio_xmpp.stanza_model as stanza_model
+import aioxmpp.xml as xml
+import aioxmpp.jid as jid
+import aioxmpp.errors as errors
+import aioxmpp.stanza_model as stanza_model
 
-from asyncio_xmpp.utils import etree, namespaces
+from aioxmpp.utils import etree, namespaces
 
 from .xmltestutils import XMLTestCase
 

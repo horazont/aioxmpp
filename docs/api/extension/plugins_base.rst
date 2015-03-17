@@ -1,1 +1,1 @@
-.. automodule:: asyncio_xmpp.plugins.base
+.. automodule:: aioxmpp.plugins.base

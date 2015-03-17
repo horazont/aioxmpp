@@ -1,16 +1,16 @@
 """
-:mod:`asyncio_xmpp.stanza_types` --- Types specifications for use with :mod:`~asyncio_xmpp.stanza_model`
+:mod:`aioxmpp.stanza_types` --- Types specifications for use with :mod:`~aioxmpp.stanza_model`
 ########################################################################################################
 
 This module provides classes whose objects can be used as types and validators
-in :mod:`~asyncio_xmpp.stanza_model`.
+in :mod:`~aioxmpp.stanza_model`.
 
 Types
 =====
 
 Types are used to convert strings obtained from XML character data or attribute
 contents to python types. They are valid values for *type_* arguments e.g. for
-:class:`~asyncio_xmpp.stanza_model.Attr`.
+:class:`~aioxmpp.stanza_model.Attr`.
 
 The basic type interface
 ------------------------
@@ -231,8 +231,8 @@ class HexBinary(AbstractType):
 
 class JID(AbstractType):
     """
-    Parse the value as Jabber ID using :meth:`~asyncio_xmpp.jid.JID.fromstr` and
-    return the :class:`asyncio_xmpp.jid.JID` object.
+    Parse the value as Jabber ID using :meth:`~aioxmpp.jid.JID.fromstr` and
+    return the :class:`aioxmpp.jid.JID` object.
     """
 
     def parse(self, v):

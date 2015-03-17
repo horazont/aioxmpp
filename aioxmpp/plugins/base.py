@@ -1,5 +1,5 @@
 """
-:mod:`asyncio_xmpp.plugins.base` --- Base classes for plugin implementations
+:mod:`aioxmpp.plugins.base` --- Base classes for plugin implementations
 ############################################################################
 
 This module provides a base class useful for plugin development.
@@ -17,7 +17,7 @@ class Service:
     """
     Base class for services (see the services user guide :ref:`ug-services`).
 
-    On construction, the :class:`asyncio_xmpp.node.Client` on which the service
+    On construction, the :class:`aioxmpp.node.Client` on which the service
     is supposed to work has to be passed. The Service is then bound to that
     specific node.
 

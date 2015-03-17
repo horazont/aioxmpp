@@ -1,7 +1,7 @@
 import asyncio
 import unittest
 
-import asyncio_xmpp.custom_queue as custom_queue
+import aioxmpp.custom_queue as custom_queue
 
 from .testutils import run_coroutine
 

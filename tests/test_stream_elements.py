@@ -1,9 +1,9 @@
 import unittest
 
-import asyncio_xmpp.stream_elements as stream_elements
-import asyncio_xmpp.errors as errors
+import aioxmpp.stream_elements as stream_elements
+import aioxmpp.errors as errors
 
-from asyncio_xmpp.utils import namespaces
+from aioxmpp.utils import namespaces
 
 
 class TestStreamError(unittest.TestCase):

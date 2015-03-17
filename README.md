@@ -1,4 +1,4 @@
-``asyncio_xmpp``
+``aioxmpp``
 ================
 
 ... is a pure-python XMPP library using the new [``asyncio``][0] standard library

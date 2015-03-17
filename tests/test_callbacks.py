@@ -1,7 +1,7 @@
 import unittest
 import unittest.mock
 
-from asyncio_xmpp.callbacks import TagDispatcher, TagListener
+from aioxmpp.callbacks import TagDispatcher, TagListener
 
 
 class TestTagListener(unittest.TestCase):

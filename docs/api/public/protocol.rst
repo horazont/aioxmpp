@@ -1,1 +1,1 @@
-.. automodule:: asyncio_xmpp.protocol
+.. automodule:: aioxmpp.protocol

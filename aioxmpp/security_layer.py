@@ -1,5 +1,5 @@
 """
-:mod:`~asyncio_xmpp.security_layer` --- Implementations to negotiate stream security
+:mod:`~aioxmpp.security_layer` --- Implementations to negotiate stream security
 ####################################################################################
 
 This module provides different implementations of the security layer (TLS+SASL).

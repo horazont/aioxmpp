@@ -6,8 +6,8 @@ import pytz
 
 from datetime import datetime
 
-import asyncio_xmpp.stanza_types as stanza_types
-import asyncio_xmpp.jid as jid
+import aioxmpp.stanza_types as stanza_types
+import aioxmpp.jid as jid
 
 
 class TestAbstractType(unittest.TestCase):

@@ -1,1 +1,1 @@
-.. automodule:: asyncio_xmpp.stanza_model
+.. automodule:: aioxmpp.stanza_model

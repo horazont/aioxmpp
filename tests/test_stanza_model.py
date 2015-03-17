@@ -6,10 +6,10 @@ import unittest.mock
 
 import lxml.sax
 
-import asyncio_xmpp.stanza_model as stanza_model
-import asyncio_xmpp.stanza_types as stanza_types
+import aioxmpp.stanza_model as stanza_model
+import aioxmpp.stanza_types as stanza_types
 
-from asyncio_xmpp.utils import etree
+from aioxmpp.utils import etree
 
 from .xmltestutils import XMLTestCase
 
@@ -2118,7 +2118,7 @@ class Testdrop_handler(unittest.TestCase):
 
 
 class Testenforce_unknown_child_policy(unittest.TestCase):
-    @unittest.mock.patch("asyncio_xmpp.stanza_model.drop_handler")
+    @unittest.mock.patch("aioxmpp.stanza_model.drop_handler")
     def test_drop_policy(self, drop_handler):
         drop_handler.return_value = []
         gen = stanza_model.enforce_unknown_child_policy(

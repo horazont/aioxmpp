@@ -1,9 +1,9 @@
-from asyncio_xmpp.stanza_props import *
-import asyncio_xmpp.stanza as stanza
+from aioxmpp.stanza_props import *
+import aioxmpp.stanza as stanza
 
-from asyncio_xmpp.utils import *
+from aioxmpp.utils import *
 
-import asyncio_xmpp.plugins.xep0030.stanza
+import aioxmpp.plugins.xep0030.stanza
 
 namespaces.xep0060_pubsub = "http://jabber.org/protocol/pubsub"
 namespaces.xep0060_pubsub_errors = "http://jabber.org/protocol/pubsub#errors"

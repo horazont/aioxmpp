@@ -1,5 +1,5 @@
 """
-:mod:`asyncio_xmpp.stanza_model` --- Declarative-style stanza definition
+:mod:`aioxmpp.stanza_model` --- Declarative-style stanza definition
 ########################################################################
 
 This module provides facilities to create classes which map to full XMPP stanzas
@@ -137,7 +137,7 @@ import orderedset  # get it from PyPI
 
 from enum import Enum
 
-from asyncio_xmpp.utils import etree
+from aioxmpp.utils import etree
 
 from . import stanza_types
 
@@ -588,8 +588,8 @@ class Attr(Text):
     all available at :class:`Attr`.
 
     :param type_: An object which fulfills the type interface proposed by
-                  :mod:`~asyncio_xmpp.stanza_types`. Usually, this is defaulted
-                  to a :class:`~asyncio_xmpp.stanza_types.String` instance.
+                  :mod:`~aioxmpp.stanza_types`. Usually, this is defaulted
+                  to a :class:`~aioxmpp.stanza_types.String` instance.
     :param validator: An object which has a :meth:`validate` method. That method
                       receives a value which was either assigned to the property
                       (depending on the *validate* argument) or parsed from XML

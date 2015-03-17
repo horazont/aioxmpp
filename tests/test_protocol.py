@@ -1,13 +1,13 @@
 import unittest
 import unittest.mock
 
-import asyncio_xmpp.stanza as stanza
-import asyncio_xmpp.stanza_model as stanza_model
+import aioxmpp.stanza as stanza
+import aioxmpp.stanza_model as stanza_model
 
 from .testutils import TransportMock, run_coroutine
 
-from asyncio_xmpp.protocol import XMLStream
-from asyncio_xmpp.jid import JID
+from aioxmpp.protocol import XMLStream
+from aioxmpp.jid import JID
 
 
 TEST_FROM = JID.fromstr("foo@bar.example")

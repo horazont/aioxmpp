@@ -1,5 +1,5 @@
 """
-:mod:`~asyncio_xmpp.xml` --- XML utilities and interfaces for handling XMPP XML streams
+:mod:`~aioxmpp.xml` --- XML utilities and interfaces for handling XMPP XML streams
 #######################################################################################
 
 This module provides a few classes and functions which are useful when
@@ -582,7 +582,7 @@ class XMPPXMLProcessor:
     def stanza_parser(self):
         """
         A :class:`~.stanza_model.StanzaParser` object (or compatible) which will
-        receive the sax-ish events used in :mod:`~asyncio_xmpp.stanza_model`. It
+        receive the sax-ish events used in :mod:`~aioxmpp.stanza_model`. It
         is driven using an instance of :class:`~.stanza_model.SAXDriver`.
 
         This object can only be set before :meth:`startDocument` has been called

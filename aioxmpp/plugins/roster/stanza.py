@@ -1,7 +1,7 @@
-import asyncio_xmpp.stanza as stanza
+import aioxmpp.stanza as stanza
 
-from asyncio_xmpp.stanza_props import *
-from asyncio_xmpp.utils import *
+from aioxmpp.stanza_props import *
+from aioxmpp.utils import *
 
 __all__ = [
     "Query",

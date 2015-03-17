@@ -1,5 +1,5 @@
 """
-This module contains utilities used for testing asyncio_xmpp code. These
+This module contains utilities used for testing aioxmpp code. These
 utilities themselves are tested, which is meta, but cool.
 """
 import asyncio
@@ -11,8 +11,8 @@ import unittest.mock
 
 from enum import Enum
 
-import asyncio_xmpp.hooks
-import asyncio_xmpp.protocol
+import aioxmpp.hooks
+import aioxmpp.protocol
 
 
 def make_protocol_mock():
@@ -37,7 +37,7 @@ def run_coroutine(coroutine, timeout=1.0, loop=None):
 
 class SSLWrapperMock:
     """
-    Mock for :class:`asyncio_xmpp.ssl_wrapper.STARTTLSableTransportProtocol`.
+    Mock for :class:`aioxmpp.ssl_wrapper.STARTTLSableTransportProtocol`.
 
     The *protocol* must be an :class:`XMLStreamMock`, as the
     :class:`SSLWrapperMock` depends on some private attributes to ensure the
@@ -299,7 +299,7 @@ _Special = collections.namedtuple("Special", ["type_", "response"])
 _Node = collections.namedtuple("Node", ["type_", "response"])
 
 
-class XMLStreamMock(asyncio_xmpp.protocol.XMLStream):
+class XMLStreamMock(aioxmpp.protocol.XMLStream):
     class SpecialType(Enum):
         CLOSE = 0
         STARTTLS = 1
@@ -320,7 +320,7 @@ class XMLStreamMock(asyncio_xmpp.protocol.XMLStream):
     def __init__(self, tester, actions):
         self._tester = tester
         self._test_actions = actions
-        self._stream_level_node_hooks = asyncio_xmpp.hooks.NodeHooks()
+        self._stream_level_node_hooks = aioxmpp.hooks.NodeHooks()
 
     def _require_action(self):
         self._tester.assertTrue(

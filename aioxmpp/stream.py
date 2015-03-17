@@ -21,7 +21,7 @@ class StanzaStream:
     def __init__(self,
                  *,
                  loop=None,
-                 base_logger=logging.getLogger("asyncio_xmpp")):
+                 base_logger=logging.getLogger("aioxmpp")):
         super().__init__()
         self._loop = loop or asyncio.get_event_loop()
         self._logger = base_logger.getChild("StanzaBroker")

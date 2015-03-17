@@ -1,1 +1,1 @@
-.. automodule:: asyncio_xmpp.stream_worker
+.. automodule:: aioxmpp.stream_worker

@@ -1,12 +1,12 @@
 import unittest
 
-import asyncio_xmpp.stanza_model as stanza_model
-import asyncio_xmpp.stanza_types as stanza_types
-import asyncio_xmpp.stanza as stanza
-import asyncio_xmpp.jid as jid
-import asyncio_xmpp.errors as errors
+import aioxmpp.stanza_model as stanza_model
+import aioxmpp.stanza_types as stanza_types
+import aioxmpp.stanza as stanza
+import aioxmpp.jid as jid
+import aioxmpp.errors as errors
 
-from asyncio_xmpp.utils import namespaces
+from aioxmpp.utils import namespaces
 
 
 TEST_FROM = jid.JID.fromstr("foo@example.test")

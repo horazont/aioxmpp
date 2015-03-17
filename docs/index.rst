@@ -1,9 +1,9 @@
-.. asyncio_xmpp documentation master file, created by
+.. aioxmpp documentation master file, created by
    sphinx-quickstart on Mon Dec  1 08:14:58 2014.
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Welcome to asyncio_xmpp's documentation!
+Welcome to aioxmpp's documentation!
 ########################################
 
 Contents:

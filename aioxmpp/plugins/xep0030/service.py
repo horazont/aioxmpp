@@ -6,7 +6,7 @@ from .. import base
 
 from . import stanza
 
-from asyncio_xmpp.utils import *
+from aioxmpp.utils import *
 
 __all__ = [
     "DiscoInfoService"

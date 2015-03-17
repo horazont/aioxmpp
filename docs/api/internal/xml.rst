@@ -1,1 +1,1 @@
-.. automodule:: asyncio_xmpp.xml
+.. automodule:: aioxmpp.xml

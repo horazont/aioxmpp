@@ -1,4 +1,4 @@
-from asyncio_xmpp.utils import *
+from aioxmpp.utils import *
 
 from . import stanza
 

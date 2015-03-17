@@ -1,6 +1,6 @@
 import unittest
 
-import asyncio_xmpp.jid as jid
+import aioxmpp.jid as jid
 
 class TestJID(unittest.TestCase):
     def test_init_full(self):

@@ -18,7 +18,7 @@ namespaces.stanzas = "urn:ietf:params:xml:ns:xmpp-stanzas"
 namespaces.streams = "urn:ietf:params:xml:ns:xmpp-streams"
 namespaces.stream_management = "urn:xmpp:sm:3"
 namespaces.bind = "urn:ietf:params:xml:ns:xmpp-bind"
-namespaces.asyncio_xmpp = "https://zombofant.net/xmlns/asyncio_xmpp#library"
+namespaces.aioxmpp = "https://zombofant.net/xmlns/aioxmpp#library"
 
 class LogETree:
     def __init__(self, subtree, **kwargs):

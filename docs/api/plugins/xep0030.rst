@@ -1,1 +1,1 @@
-.. automodule:: asyncio_xmpp.plugins.xep0030
+.. automodule:: aioxmpp.plugins.xep0030

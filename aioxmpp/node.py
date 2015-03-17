@@ -1,8 +1,8 @@
 """
-:mod:`~asyncio_xmpp.node` --- Basement for XMPP peers
+:mod:`~aioxmpp.node` --- Basement for XMPP peers
 #####################################################
 
-.. currentmodule:: asyncio_xmpp.node
+.. currentmodule:: aioxmpp.node
 
 .. note::
 
@@ -60,7 +60,7 @@ class AbstractClient:
 
     *security_layer* specifies which security features are enabled. To create an
     object suitable for this argument, see
-    :mod:`asyncio_xmpp.security_layer` and the functions referenced there.
+    :mod:`aioxmpp.security_layer` and the functions referenced there.
 
     *negotiation_timeout*, *max_reconnect_attempts*, *reconnect_interval_start*,
     *use_sm* and *ping_timeout* are initial values for the respective
@@ -168,7 +168,7 @@ class AbstractClient:
     .. note::
 
        Always use these methods instead of the constructors of the classes in
-       :mod:`asyncio_xmpp.stanza`. The advantage is that these methods ensure
+       :mod:`aioxmpp.stanza`. The advantage is that these methods ensure
        that the correct lxml context is used, allowing consistent access to the
        fancy classes around the XML elements.
 
@@ -496,7 +496,7 @@ class AbstractClient:
             yield from self._xmlstream.stream_error(
                 "policy-violation",
                 str(err),
-                custom_error="{{{}}}tls-failure".format(namespaces.asyncio_xmpp)
+                custom_error="{{{}}}tls-failure".format(namespaces.aioxmpp)
             )
             raise
         except errors.SASLUnavailable as err:
@@ -507,7 +507,7 @@ class AbstractClient:
                 "policy-violation",
                 str(err),
                 custom_error="{{{}}}sasl-failure".format(
-                    namespaces.asyncio_xmpp)
+                    namespaces.aioxmpp)
             )
             raise
         except errors.SASLFailure as err:
@@ -516,7 +516,7 @@ class AbstractClient:
             yield from self._xmlstream.stream_error(
                 "undefined-condition",
                 str(err),
-                custom_error="{{{}}}sasl-failure".format(namespaces.asyncio_xmpp)
+                custom_error="{{{}}}sasl-failure".format(namespaces.aioxmpp)
             )
             raise
         except errors.TLSFailure as err:

@@ -1,6 +1,6 @@
 import unittest
 
-from asyncio_xmpp.utils import etree
+from aioxmpp.utils import etree
 
 from .xmltestutils import XMLTestCase, element_path
 

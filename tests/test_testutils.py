@@ -1,7 +1,7 @@
 from .testutils import *
 from .xmltestutils import XMLTestCase
 
-from asyncio_xmpp.utils import etree
+from aioxmpp.utils import etree
 
 
 class TestRunCoroutine(unittest.TestCase):

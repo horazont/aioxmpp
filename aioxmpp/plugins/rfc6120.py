@@ -1,8 +1,8 @@
-import asyncio_xmpp.stanza as stanza
-import asyncio_xmpp.jid as jid
-import asyncio_xmpp.xml as xml
+import aioxmpp.stanza as stanza
+import aioxmpp.jid as jid
+import aioxmpp.xml as xml
 
-from asyncio_xmpp.utils import *
+from aioxmpp.utils import *
 
 namespaces.bind = "urn:ietf:params:xml:ns:xmpp-bind"
 

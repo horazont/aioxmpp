@@ -1,6 +1,6 @@
 import unittest
 
-from asyncio_xmpp.stringprep import (
+from aioxmpp.stringprep import (
     saslprep, nodeprep, resourceprep, nameprep,
     check_bidi
 )

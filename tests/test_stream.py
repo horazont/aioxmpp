@@ -1,17 +1,17 @@
 import asyncio
 import unittest
 
-import asyncio_xmpp.jid as jid
-import asyncio_xmpp.stanza_model as stanza_model
-import asyncio_xmpp.stanza as stanza
-import asyncio_xmpp.stream as stream
-import asyncio_xmpp.stream_elements as stream_elements
-import asyncio_xmpp.errors as errors
+import aioxmpp.jid as jid
+import aioxmpp.stanza_model as stanza_model
+import aioxmpp.stanza as stanza
+import aioxmpp.stream as stream
+import aioxmpp.stream_elements as stream_elements
+import aioxmpp.errors as errors
 
 from datetime import datetime, timedelta
 
-from asyncio_xmpp.utils import namespaces
-from asyncio_xmpp.plugins import xep0199
+from aioxmpp.utils import namespaces
+from aioxmpp.plugins import xep0199
 
 from .testutils import run_coroutine
 
