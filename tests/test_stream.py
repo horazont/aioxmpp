@@ -432,7 +432,7 @@ class TestStanzaStream(StanzaStreamTestBase):
             self.stream.stop()
             self._on_send_stanza(stanza_obj)
 
-        self.stream.on_send_stanza = send_handler
+        self.xmlstream.send_stanza = send_handler
 
         tokens = [
             self.stream.enqueue_stanza(
