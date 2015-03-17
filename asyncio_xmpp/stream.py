@@ -17,7 +17,7 @@ class PingEventType(Enum):
     PING_TIMEOUT = 2
 
 
-class StanzaBroker:
+class StanzaStream:
     def __init__(self,
                  *,
                  loop=None,
@@ -152,7 +152,7 @@ class StanzaBroker:
                 stanza_obj.id_
             )
 
-    def _process_incoming(self, stream, stanza_obj):
+    def _process_incoming(self, xmlstream, stanza_obj):
         if self.sm_enabled:
             self.sm_inbound_ctr += 1
 
@@ -176,26 +176,26 @@ class StanzaBroker:
                 return
             response = stream_elements.SMAcknowledgement()
             response.counter = self.sm_inbound_ctr
-            stream.send_stanza(response)
+            xmlstream.send_stanza(response)
         else:
             raise RuntimeError("unexpected stanza class: {}".format(stanza_obj))
 
-    def _send_stanza(self, stream, stanza_obj):
-        stream.send_stanza(stanza_obj)
+    def _send_stanza(self, xmlstream, stanza_obj):
+        xmlstream.send_stanza(stanza_obj)
         if self.sm_enabled:
             self.sm_unacked_list.append(stanza_obj)
 
-    def _process_outgoing(self, stream, stanza_obj):
-        self._send_stanza(stream, stanza_obj)
+    def _process_outgoing(self, xmlstream, stanza_obj):
+        self._send_stanza(xmlstream, stanza_obj)
         # try to send a bulk
         while True:
             try:
                 stanza_obj = self._active_queue.get_nowait()
             except asyncio.QueueEmpty:
                 break
-            self._send_stanza(stream, stanza_obj)
+            self._send_stanza(xmlstream, stanza_obj)
 
-        self._send_ping(stream)
+        self._send_ping(xmlstream)
 
     def _recv_pong(self, stanza):
         if not self.running:
@@ -205,11 +205,11 @@ class StanzaBroker:
         self._next_ping_event_type = PingEventType.PING_SEND_OPPORTUNISTIC
         self._next_ping_event_at = datetime.utcnow() + self.ping_interval
 
-    def _send_ping(self, stream):
+    def _send_ping(self, xmlstream):
         if not self._ping_send_opportunistic:
             return
         if self.sm_enabled:
-            stream.send_stanza(stream_elements.SMRequest())
+            xmlstream.send_stanza(stream_elements.SMRequest())
         else:
             request = stanza.IQ(type_="get")
             request.payload = xep0199.Ping()
@@ -225,7 +225,7 @@ class StanzaBroker:
             self._next_ping_event_at = datetime.utcnow() + self.ping_interval
             self._next_ping_event_type = PingEventType.PING_TIMEOUT
 
-    def _process_ping_event(self, stream):
+    def _process_ping_event(self, xmlstream):
         if self._next_ping_event_type == PingEventType.PING_SEND_OPPORTUNISTIC:
             self._next_ping_event_at += self.ping_opportunistic_interval
             self._next_ping_event_type = PingEventType.PING_SEND_NOW
@@ -233,7 +233,7 @@ class StanzaBroker:
             if not self.sm_enabled:
                 self._ping_send_opportunistic = True
         elif self._next_ping_event_type == PingEventType.PING_SEND_NOW:
-            self._send_ping(stream)
+            self._send_ping(xmlstream)
         elif self._next_ping_event_type == PingEventType.PING_TIMEOUT:
             raise ConnectionError("ping timeout")
         else:
@@ -252,18 +252,18 @@ class StanzaBroker:
     def register_presence_callback(self, type_, from_, cb):
         self._presence_map[type_, from_] = cb
 
-    def start(self, stream):
+    def start(self, xmlstream):
         if self.running():
             raise RuntimeError("already started")
-        self._task = asyncio.async(self._run(stream), loop=self._loop)
+        self._task = asyncio.async(self._run(xmlstream), loop=self._loop)
         self._task.add_done_callback(self._done_handler)
-        stream.stanza_parser.add_class(stanza.IQ, self.recv_stanza)
-        stream.stanza_parser.add_class(stanza.Message, self.recv_stanza)
-        stream.stanza_parser.add_class(stanza.Presence, self.recv_stanza)
+        xmlstream.stanza_parser.add_class(stanza.IQ, self.recv_stanza)
+        xmlstream.stanza_parser.add_class(stanza.Message, self.recv_stanza)
+        xmlstream.stanza_parser.add_class(stanza.Presence, self.recv_stanza)
         if self.sm_enabled:
-            stream.stanza_parser.add_class(stream_elements.SMAcknowledgement,
+            xmlstream.stanza_parser.add_class(stream_elements.SMAcknowledgement,
                                            self.recv_stanza)
-            stream.stanza_parser.add_class(stream_elements.SMRequest,
+            xmlstream.stanza_parser.add_class(stream_elements.SMRequest,
                                            self.recv_stanza)
         self._next_ping_event_at = datetime.utcnow() + self.ping_interval
         self._next_ping_event_type = PingEventType.PING_SEND_OPPORTUNISTIC
@@ -275,7 +275,7 @@ class StanzaBroker:
         self._task.cancel()
 
     @asyncio.coroutine
-    def _run(self, stream):
+    def _run(self, xmlstream):
         active_fut = asyncio.async(self._active_queue.get(),
                                    loop=self._loop)
         incoming_fut = asyncio.async(self._incoming_queue.get(),
@@ -301,13 +301,13 @@ class StanzaBroker:
                 print("after", timeout)
 
                 if active_fut in done:
-                    self._process_outgoing(stream, active_fut.result())
+                    self._process_outgoing(xmlstream, active_fut.result())
                     active_fut = asyncio.async(
                         self._active_queue.get(),
                         loop=self._loop)
 
                 if incoming_fut in done:
-                    self._process_incoming(stream, incoming_fut.result())
+                    self._process_incoming(xmlstream, incoming_fut.result())
                     incoming_fut = asyncio.async(
                         self._incoming_queue.get(),
                         loop=self._loop)
@@ -317,7 +317,7 @@ class StanzaBroker:
                     print("ping", timeout)
                     if timeout.total_seconds() <= 0:
                         print("ping event:", self._next_ping_event_type)
-                        self._process_ping_event(stream)
+                        self._process_ping_event(xmlstream)
 
         finally:
             # make sure we rescue any stanzas which possibly have already been
@@ -332,13 +332,13 @@ class StanzaBroker:
             else:
                 active_fut.cancel()
 
-            stream.stanza_parser.remove_class(stanza.Presence)
-            stream.stanza_parser.remove_class(stanza.Message)
-            stream.stanza_parser.remove_class(stanza.IQ)
+            xmlstream.stanza_parser.remove_class(stanza.Presence)
+            xmlstream.stanza_parser.remove_class(stanza.Message)
+            xmlstream.stanza_parser.remove_class(stanza.IQ)
             if self.sm_enabled:
-                stream.stanza_parser.remove_class(
+                xmlstream.stanza_parser.remove_class(
                     stream_elements.SMRequest)
-                stream.stanza_parser.remove_class(
+                xmlstream.stanza_parser.remove_class(
                     stream_elements.SMAcknowledgement)
 
 
