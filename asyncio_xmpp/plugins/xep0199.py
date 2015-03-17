@@ -3,23 +3,15 @@ XEP-0199: XMPP Ping support
 ###########################
 """
 
-import asyncio_xmpp.stanza as stanza
+import asyncio_xmpp.stanza_model as stanza_model
 import asyncio_xmpp.xml as xml
 
-from asyncio_xmpp.utils import *
+from asyncio_xmpp.utils import namespaces
 
 namespaces.xep0199_ping = "urn:xmpp:ping"
 
-class Ping(stanza.StanzaElementBase):
-    TAG = "{{{}}}ping".format(namespaces.xep0199_ping)
-
-    def __init__(self, *args, nsmap={}, **kwargs):
-        nsmap = dict(nsmap)
-        nsmap[None] = namespaces.xep0199_ping
-        super().__init__(*args, nsmap=nsmap, **kwargs)
-
-def register(lookup):
-    ns = lookup.get_namespace(namespaces.xep0199_ping)
-    ns["ping"] = Ping
-
-register(xml.lookup)
+class Ping(stanza_model.StanzaObject):
+    TAG = (namespaces.xep0199_ping, "ping")
+    DECLARE_NS = {
+        None: namespaces.xep0199_ping
+    }

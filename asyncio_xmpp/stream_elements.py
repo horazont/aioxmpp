@@ -56,3 +56,72 @@ class StreamError(stanza_model.StanzaObject):
         return errors.StreamError(
             condition=self.condition,
             text=self.text)
+
+
+class SMStanzaObject(stanza_model.StanzaObject):
+    DECLARE_NS = {
+        None: namespaces.stream_management
+    }
+
+
+class SMRequest(SMStanzaObject):
+    TAG = (namespaces.stream_management, "r")
+
+
+class SMAcknowledgement(SMStanzaObject):
+    TAG = (namespaces.stream_management, "a")
+
+    counter = stanza_model.Attr(
+        "h",
+        type_=stanza_types.Integer(),
+        required=True,
+    )
+
+
+class SMEnable(SMStanzaObject):
+    TAG = (namespaces.stream_management, "enable")
+
+    resume = stanza_model.Attr(
+        "resume",
+        type_=stanza_types.Bool(),
+        default=False
+    )
+
+
+class SMEnabled(SMStanzaObject):
+    TAG = (namespaces.stream_management, "enabled")
+
+    resume = stanza_model.Attr(
+        "resume",
+        type_=stanza_types.Bool(),
+        default=False
+    )
+    id_ = stanza_model.Attr("id")
+    location = stanza_model.Attr(
+        "location",
+        default=None)
+
+
+class SMResume(SMStanzaObject):
+    TAG = (namespaces.stream_management, "resume")
+
+    counter = stanza_model.Attr(
+        "h",
+        type_=stanza_types.Integer(),
+        required=True,
+    )
+    previd = stanza_model.Attr(
+        "previd",
+        required=True)
+
+
+class SMResumed(SMStanzaObject):
+    TAG = (namespaces.stream_management, "resumed")
+
+    counter = stanza_model.Attr(
+        "h",
+        type_=stanza_types.Integer(),
+        required=True)
+    previd = stanza_model.Attr(
+        "previd",
+        required=True)

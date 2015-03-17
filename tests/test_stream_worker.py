@@ -11,6 +11,7 @@ import asyncio_xmpp.errors as errors
 from datetime import datetime, timedelta
 
 from asyncio_xmpp.utils import namespaces
+from asyncio_xmpp.plugins import xep0199
 
 from .testutils import run_coroutine
 
@@ -61,6 +62,15 @@ class StanzaBrokerTestBase(unittest.TestCase):
         del self.sent_stanzas
 
 class TestStanzaBroker(StanzaBrokerTestBase):
+    def test_init(self):
+        self.assertEqual(
+            timedelta(seconds=15),
+            self.broker.ping_interval
+        )
+        self.assertEqual(
+            timedelta(seconds=15),
+            self.broker.ping_opportunistic_interval
+        )
 
     def test_broker_iq_response(self):
         iq = make_test_iq(type_="result")
@@ -410,26 +420,6 @@ class TestStanzaBroker(StanzaBrokerTestBase):
 
         self.assertIsNone(caught_exc)
 
-    def test_opportunistic_send_event(self):
-        mock = unittest.mock.MagicMock()
-        iq = make_test_iq()
-
-        self.assertIsNone(self.broker.on_opportunistic_send)
-        self.broker.on_opportunistic_send = mock
-
-        self.broker.start(self.stream)
-        self.broker.enqueue_stanza(iq)
-
-        run_coroutine(self.sent_stanzas.get())
-
-        self.assertSequenceEqual(
-            [
-                unittest.mock.call.__bool__(),
-                unittest.mock.call(self.stream),
-            ],
-            mock.mock_calls
-        )
-
     def test_send_bulk(self):
         iqs = [make_test_iq() for i in range(3)]
 
@@ -496,6 +486,29 @@ class TestStanzaBroker(StanzaBrokerTestBase):
         self.assertSequenceEqual(
             [],
             self.broker.sm_unacked_list
+        )
+
+        self.broker.start(self.stream)
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call.add_class(stream_elements.SMAcknowledgement,
+                                             self.broker.recv_stanza),
+                unittest.mock.call.add_class(stream_elements.SMRequest,
+                                             self.broker.recv_stanza),
+            ],
+            self.stream.stanza_parser.mock_calls[-2:]
+        )
+        run_coroutine(asyncio.sleep(0))
+        self.broker.stop()
+        run_coroutine(asyncio.sleep(0))
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call.remove_class(
+                    stream_elements.SMRequest),
+                unittest.mock.call.remove_class(
+                    stream_elements.SMAcknowledgement),
+            ],
+            self.stream.stanza_parser.mock_calls[-2:]
         )
 
     def test_sm_ack_requires_enabled_sm(self):
@@ -602,11 +615,24 @@ class TestStanzaBroker(StanzaBrokerTestBase):
 
         run_coroutine(asyncio.sleep(0))
 
-        for iq in iqs + iqs[2:] + [additional_iq]:
+        for iq in iqs:
             self.assertIs(
                 iq,
                 self.sent_stanzas.get_nowait()
             )
+        self.assertIsInstance(
+            self.sent_stanzas.get_nowait(),
+            stream_elements.SMRequest
+        )
+        for iq in iqs[2:] + [additional_iq]:
+            self.assertIs(
+                iq,
+                self.sent_stanzas.get_nowait()
+            )
+        self.assertIsInstance(
+            self.sent_stanzas.get_nowait(),
+            stream_elements.SMRequest
+        )
 
     def test_stop_sm(self):
         self.broker.start_sm()
@@ -616,3 +642,167 @@ class TestStanzaBroker(StanzaBrokerTestBase):
         self.assertFalse(hasattr(self.broker, "sm_outbound_base"))
         self.assertFalse(hasattr(self.broker, "sm_inbound_ctr"))
         self.assertFalse(hasattr(self.broker, "sm_unacked_list"))
+
+    def test_sm_ping_automatic(self):
+        self.broker.ping_interval = timedelta(seconds=0.01)
+        self.broker.ping_opportunistic_interval = timedelta(seconds=0.01)
+        self.broker.start_sm()
+        self.broker.start(self.stream)
+
+        run_coroutine(asyncio.sleep(0.005))
+        with self.assertRaises(asyncio.QueueEmpty):
+            self.sent_stanzas.get_nowait()
+        run_coroutine(asyncio.sleep(0.009))
+        with self.assertRaises(asyncio.QueueEmpty):
+            self.sent_stanzas.get_nowait()
+        run_coroutine(asyncio.sleep(0.005))
+
+        request = self.sent_stanzas.get_nowait()
+        self.assertIsInstance(request, stream_elements.SMRequest)
+
+    def test_sm_ping_opportunistic(self):
+        # sm ping is always opportunistic: it also allows the server to ACK our
+        # stanzas, which is great.
+
+        self.broker.start_sm()
+        self.broker.start(self.stream)
+
+        iq = make_test_iq()
+        self.broker.enqueue_stanza(iq)
+
+        run_coroutine(asyncio.sleep(0))
+        self.assertIs(
+            iq,
+            self.sent_stanzas.get_nowait()
+        )
+        self.assertIsInstance(
+            self.sent_stanzas.get_nowait(),
+            stream_elements.SMRequest
+        )
+
+    def test_sm_ping_timeout(self):
+        exc = None
+        def failure_handler(_exc):
+            nonlocal exc
+            exc = _exc
+
+        self.broker.ping_interval = timedelta(seconds=0.01)
+        self.broker.on_failure = failure_handler
+
+        self.broker.start_sm()
+        self.broker.start(self.stream)
+        run_coroutine(asyncio.sleep(0))
+        self.broker.enqueue_stanza(make_test_iq())
+        run_coroutine(asyncio.sleep(0.005))
+        self.broker.enqueue_stanza(make_test_iq())
+        run_coroutine(asyncio.sleep(0.006))
+        # at this point, the first ping must have timed out, and failure should
+        # be reported
+        self.assertIsInstance(
+            exc,
+            ConnectionError
+        )
+
+    def test_sm_ping_ack(self):
+        exc = None
+        def failure_handler(_exc):
+            nonlocal exc
+            exc = _exc
+
+        self.broker.ping_interval = timedelta(seconds=0.01)
+        self.broker.on_failure = failure_handler
+
+        self.broker.start_sm()
+        self.broker.start(self.stream)
+        run_coroutine(asyncio.sleep(0))
+        self.broker.enqueue_stanza(make_test_iq())
+        run_coroutine(asyncio.sleep(0.005))
+        self.broker.enqueue_stanza(make_test_iq())
+        ack = stream_elements.SMAcknowledgement()
+        ack.counter = 1
+        self.broker.recv_stanza(ack)
+        run_coroutine(asyncio.sleep(0.006))
+        self.assertIsNone(exc)
+        self.assertEqual(
+            1,
+            self.broker.sm_outbound_base
+        )
+
+    def test_sm_handle_req(self):
+        self.broker.start_sm()
+        self.broker.start(self.stream)
+        run_coroutine(asyncio.sleep(0))
+        self.broker.recv_stanza(stream_elements.SMRequest())
+        run_coroutine(asyncio.sleep(0))
+        response = self.sent_stanzas.get_nowait()
+        self.assertIsInstance(
+            response,
+            stream_elements.SMAcknowledgement
+        )
+        self.assertEqual(
+            response.counter,
+            self.broker.sm_inbound_ctr
+        )
+
+        # no opportunistic send after SMAck
+        with self.assertRaises(asyncio.QueueEmpty):
+            self.sent_stanzas.get_nowait()
+
+    def test_nonsm_ping(self):
+        self.broker.ping_interval = timedelta(seconds=0.01)
+        self.broker.ping_opportunistic_interval = timedelta(seconds=0.01)
+
+        self.broker.start(self.stream)
+        run_coroutine(asyncio.sleep(0.02))
+
+        request = self.sent_stanzas.get_nowait()
+        self.assertIsInstance(
+            request,
+            stanza.IQ)
+        self.assertIsInstance(
+            request.payload,
+            xep0199.Ping)
+        self.assertEqual(
+            "get",
+            request.type_)
+
+    def test_nonsm_ping_timeout(self):
+        exc = None
+        def failure_handler(_exc):
+            nonlocal exc
+            exc = _exc
+
+        self.broker.ping_interval = timedelta(seconds=0.01)
+        self.broker.ping_opportunistic_interval = timedelta(seconds=0.01)
+        self.broker.on_failure = failure_handler
+
+        self.broker.start(self.stream)
+        run_coroutine(asyncio.sleep(0.02))
+
+        request = self.sent_stanzas.get_nowait()
+        run_coroutine(asyncio.sleep(0.011))
+
+        self.assertIsInstance(
+            exc,
+            ConnectionError
+        )
+
+    def test_nonsm_ping_pong(self):
+        exc = None
+        def failure_handler(_exc):
+            nonlocal exc
+            exc = _exc
+
+        self.broker.ping_interval = timedelta(seconds=0.01)
+        self.broker.ping_opportunistic_interval = timedelta(seconds=0.01)
+        self.broker.on_failure = failure_handler
+
+        self.broker.start(self.stream)
+        run_coroutine(asyncio.sleep(0.02))
+
+        request = self.sent_stanzas.get_nowait()
+        response = request.make_reply(type_="result")
+        self.broker.recv_stanza(response)
+        run_coroutine(asyncio.sleep(0.011))
+
+        self.assertIsNone(exc)
