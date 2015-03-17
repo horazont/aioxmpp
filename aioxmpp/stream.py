@@ -431,3 +431,18 @@ class StanzaStream:
 
         for token in acked:
             token._set_state(StanzaState.ACKED)
+
+    @asyncio.coroutine
+    def send_iq_and_wait_for_reply(self, iq, *,
+                                   timeout=None,
+                                   loop=None):
+        fut = asyncio.Future(loop=loop)
+        self.register_iq_response_callback(
+            iq.to,
+            iq.id_,
+            fut.set_result)
+        self.enqueue_stanza(iq)
+        if not timeout:
+            return fut
+        else:
+            return asyncio.wait_for(fut, timeout=timeout, loop=loop)

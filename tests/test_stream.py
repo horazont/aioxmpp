@@ -41,17 +41,25 @@ def make_test_presence(from_=TEST_FROM, to=TEST_TO, type_=None):
     return pres
 
 
+def make_mocked_streams(loop):
+    def _on_send_stanza(obj):
+        nonlocal sent_stanzas
+        sent_stanzas.put_nowait(obj)
+
+    sent_stanzas = asyncio.Queue()
+    xmlstream = unittest.mock.MagicMock()
+    xmlstream.send_stanza = _on_send_stanza
+    xmlstream.stanza_parser = unittest.mock.MagicMock()
+    stanzastream = stream.StanzaStream(loop=loop)
+
+    return sent_stanzas, xmlstream, stanzastream
+
+
 class StanzaStreamTestBase(unittest.TestCase):
     def setUp(self):
         self.loop = asyncio.get_event_loop()
-        self.sent_stanzas = asyncio.Queue()
-        self.xmlstream = unittest.mock.MagicMock()
-        self.xmlstream.send_stanza = self._on_send_stanza
-        self.xmlstream.stanza_parser = unittest.mock.MagicMock()
-        self.stream = stream.StanzaStream(loop=self.loop)
-
-    def _on_send_stanza(self, obj):
-        self.sent_stanzas.put_nowait(obj)
+        self.sent_stanzas, self.xmlstream, self.stream = \
+            make_mocked_streams(self.loop)
 
     def tearDown(self):
         self.stream.stop()
@@ -430,7 +438,7 @@ class TestStanzaStream(StanzaStreamTestBase):
             # by that, we ensure that the broker does not yield and sends
             # multiple stanzas if it can, optimizing the opportunistic send
             self.stream.stop()
-            self._on_send_stanza(stanza_obj)
+            self.sent_stanzas.put_nowait(stanza_obj)
 
         self.xmlstream.send_stanza = send_handler
 
@@ -909,6 +917,46 @@ class TestStanzaStream(StanzaStreamTestBase):
             )
         with self.assertRaises(asyncio.QueueEmpty):
             self.sent_stanzas.get_nowait()
+
+    def test_send_iq_and_wait_for_reply(self):
+        iq = make_test_iq()
+        response = iq.make_reply(type_="result")
+
+        task = asyncio.async(
+            self.stream.send_iq_and_wait_for_reply(
+                iq,
+                loop=self.loop),
+            loop=self.loop)
+
+        self.stream.start(self.xmlstream)
+        run_coroutine(asyncio.sleep(0))
+        self.stream.recv_stanza(response)
+        result = run_coroutine(task)
+        self.assertIs(
+            response,
+            result
+        )
+
+    def test_send_iq_and_wait_for_reply_timeout(self):
+        iq = make_test_iq()
+        response = iq.make_reply(type_="result")
+
+        task = asyncio.async(
+            self.stream.send_iq_and_wait_for_reply(
+                iq,
+                timeout=0.01,
+                loop=self.loop),
+            loop=self.loop)
+
+        self.stream.start(self.xmlstream)
+        run_coroutine(asyncio.sleep(0))
+
+        @asyncio.coroutine
+        def test_task():
+            with self.assertRaises(asyncio.TimeoutError):
+                yield from task
+
+        run_coroutine(test_task())
 
 
 class TestStanzaToken(unittest.TestCase):
