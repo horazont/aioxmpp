@@ -5,6 +5,7 @@ from aioxmpp.callbacks import (
     TagDispatcher,
     TagListener,
     OneshotTagListener,
+    OneshotAsyncTagListener,
 )
 
 
@@ -81,6 +82,35 @@ class TestTagDispatcher(unittest.TestCase):
                 unittest.mock.call.set_exception(obj),
             ],
             mock.mock_calls
+        )
+
+    @unittest.mock.patch("aioxmpp.callbacks.OneshotAsyncTagListener")
+    def test_add_future_async(self, OneshotAsyncTagListener):
+        mock = unittest.mock.Mock()
+        loop = unittest.mock.Mock()
+        obj = object()
+
+        nh = TagDispatcher()
+        nh.add_future_async("tag", mock, loop=loop)
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(mock.set_result,
+                                   mock.set_exception,
+                                   loop=loop)
+            ],
+            OneshotAsyncTagListener.mock_calls
+        )
+        del OneshotAsyncTagListener.mock_calls[:]
+
+        nh.unicast("tag", obj)
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call().data(obj),
+                unittest.mock.call().data().__bool__(),
+            ],
+            OneshotAsyncTagListener.mock_calls
         )
 
     def test_unicast(self):
@@ -255,3 +285,25 @@ class TestTagDispatcher(unittest.TestCase):
             nh.unicast("tag1", None)
         with self.assertRaises(KeyError):
             nh.unicast("tag2", None)
+
+
+class TestOneshotAsyncTagListener(unittest.TestCase):
+    def test_everything(self):
+        data = unittest.mock.MagicMock()
+        error = unittest.mock.MagicMock()
+        loop = unittest.mock.MagicMock()
+        obj = object()
+        tl = OneshotAsyncTagListener(data, error, loop=loop)
+        tl.data(obj)
+        tl.error(obj)
+
+        self.assertFalse(data.mock_calls)
+        self.assertFalse(error.mock_calls)
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call.__bool__(),
+                unittest.mock.call.call_soon(data, obj),
+                unittest.mock.call.call_soon(error, obj),
+            ],
+            loop.mock_calls
+        )

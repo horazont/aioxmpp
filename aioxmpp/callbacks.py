@@ -65,6 +65,21 @@ class OneshotTagListener(TagListener):
         return True
 
 
+class OneshotAsyncTagListener(TagListener):
+    def __init__(self, ondata, onerror=None, *, loop=None):
+        super().__init__(ondata, onerror)
+        self._loop = loop or asyncio.get_event_loop()
+
+    def data(self, data):
+        self._loop.call_soon(self._ondata, data)
+        return True
+
+    def error(self, exc):
+        if self._onerror is not None:
+            self._loop.call_soon(self._onerror, exc)
+        return True
+
+
 class TagDispatcher:
     def __init__(self):
         self._listeners = {}
@@ -77,6 +92,14 @@ class TagDispatcher:
             tag,
             OneshotTagListener(fut.set_result,
                                fut.set_exception)
+        )
+
+    def add_future_async(self, tag, fut, *, loop=None):
+        return self.add_listener(
+            tag,
+            OneshotAsyncTagListener(fut.set_result,
+                                    fut.set_exception,
+                                    loop=loop)
         )
 
     def add_listener(self, tag, listener):
