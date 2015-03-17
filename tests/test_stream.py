@@ -343,7 +343,7 @@ class TestStanzaStream(StanzaStreamTestBase):
 
         self.assertIs(
             pres,
-            run_coroutine(self.stream._active_queue.get())
+            run_coroutine(self.stream._active_queue.get()).stanza
         )
 
     def test_unprocessed_incoming_stanza_does_not_get_lost_after_stop(self):
@@ -375,7 +375,7 @@ class TestStanzaStream(StanzaStreamTestBase):
 
         self.assertIs(
             pres,
-            run_coroutine(self.stream._active_queue.get())
+            run_coroutine(self.stream._active_queue.get()).stanza
         )
 
     def test_fail_on_unknown_stanza_class(self):
@@ -520,8 +520,9 @@ class TestStanzaStream(StanzaStreamTestBase):
 
         self.stream.start_sm()
         self.stream.start(self.xmlstream)
-        for iq in iqs:
-            self.stream.enqueue_stanza(iq)
+
+        tokens = [self.stream.enqueue_stanza(iq)
+                  for iq in iqs]
 
         run_coroutine(asyncio.sleep(0))
 
@@ -530,7 +531,7 @@ class TestStanzaStream(StanzaStreamTestBase):
             self.stream.sm_outbound_base
         )
         self.assertSequenceEqual(
-            iqs,
+            tokens,
             self.stream.sm_unacked_list
         )
 
@@ -540,7 +541,7 @@ class TestStanzaStream(StanzaStreamTestBase):
             self.stream.sm_outbound_base
         )
         self.assertSequenceEqual(
-            iqs[1:],
+            tokens[1:],
             self.stream.sm_unacked_list
         )
 
@@ -552,7 +553,7 @@ class TestStanzaStream(StanzaStreamTestBase):
             self.stream.sm_outbound_base
         )
         self.assertSequenceEqual(
-            iqs[1:],
+            tokens[1:],
             self.stream.sm_unacked_list
         )
 
@@ -806,3 +807,60 @@ class TestStanzaStream(StanzaStreamTestBase):
         run_coroutine(asyncio.sleep(0.011))
 
         self.assertIsNone(exc)
+
+    def test_enqueue_stanza_returns_token(self):
+        token = self.stream.enqueue_stanza(make_test_iq())
+        self.assertIsInstance(
+            token,
+            stream.StanzaToken)
+
+
+class TestStanzaToken(unittest.TestCase):
+    def test_init(self):
+        stanza = make_test_iq()
+        token = stream.StanzaToken(stanza)
+        self.assertIs(
+            stanza,
+            token.stanza
+        )
+        self.assertEqual(
+            stream.StanzaState.ACTIVE,
+            token.state
+        )
+
+    def test_state_not_writable(self):
+        stanza = make_test_iq()
+        token = stream.StanzaToken(stanza)
+        with self.assertRaises(AttributeError):
+            token.state = stream.StanzaState.ACKED
+
+    def test_state_change_callback(self):
+        state_change_handler = unittest.mock.MagicMock()
+
+        stanza = make_test_iq()
+        token = stream.StanzaToken(stanza,
+                                   on_state_change=state_change_handler)
+
+        states = [
+            stream.StanzaState.ON_HOLD,
+            stream.StanzaState.SENT,
+            stream.StanzaState.ACKED,
+            stream.StanzaState.SENT_WITHOUT_SM,
+            stream.StanzaState.ACTIVE,
+            stream.StanzaState.ABORTED,
+        ]
+
+        for state in states:
+            token._set_state(state)
+            self.assertEqual(
+                state,
+                token.state
+            )
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(state)
+                for state in states
+            ],
+            state_change_handler.mock_calls
+        )

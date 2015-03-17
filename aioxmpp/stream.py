@@ -17,6 +17,32 @@ class PingEventType(Enum):
     TIMEOUT = 2
 
 
+class StanzaState(Enum):
+    ACTIVE = 0
+    ON_HOLD = 1
+    SENT = 2
+    ACKED = 3
+    SENT_WITHOUT_SM = 4
+    ABORTED = 5
+
+
+
+class StanzaToken:
+    def __init__(self, stanza, *, on_state_change=None):
+        self.stanza = stanza
+        self._state = StanzaState.ACTIVE
+        self.on_state_change = on_state_change
+
+    @property
+    def state(self):
+        return self._state
+
+    def _set_state(self, new_state):
+        self._state = new_state
+        if self.on_state_change is not None:
+            self.on_state_change(new_state)
+
+
 class StanzaStream:
     def __init__(self,
                  *,
@@ -180,20 +206,23 @@ class StanzaStream:
         else:
             raise RuntimeError("unexpected stanza class: {}".format(stanza_obj))
 
-    def _send_stanza(self, xmlstream, stanza_obj):
-        xmlstream.send_stanza(stanza_obj)
+    def _send_stanza(self, xmlstream, token):
+        xmlstream.send_stanza(token.stanza)
         if self.sm_enabled:
-            self.sm_unacked_list.append(stanza_obj)
+            token._set_state(StanzaState.SENT)
+            self.sm_unacked_list.append(token)
+        else:
+            token._set_state(StanzaState.SENT_WITHOUT_SM)
 
-    def _process_outgoing(self, xmlstream, stanza_obj):
-        self._send_stanza(xmlstream, stanza_obj)
+    def _process_outgoing(self, xmlstream, token):
+        self._send_stanza(xmlstream, token)
         # try to send a bulk
         while True:
             try:
-                stanza_obj = self._active_queue.get_nowait()
+                token = self._active_queue.get_nowait()
             except asyncio.QueueEmpty:
                 break
-            self._send_stanza(xmlstream, stanza_obj)
+            self._send_stanza(xmlstream, token)
 
         self._send_ping(xmlstream)
 
@@ -345,8 +374,10 @@ class StanzaStream:
     def recv_stanza(self, stanza):
         self._incoming_queue.put_nowait(stanza)
 
-    def enqueue_stanza(self, stanza):
-        self._active_queue.put_nowait(stanza)
+    def enqueue_stanza(self, stanza, **kwargs):
+        token = StanzaToken(stanza, **kwargs)
+        self._active_queue.put_nowait(token)
+        return token
 
     def running(self):
         return self._task is not None and not self._task.done()
