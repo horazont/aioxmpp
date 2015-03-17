@@ -5,7 +5,7 @@ import logging
 from datetime import datetime, timedelta
 from enum import Enum
 
-from . import stanza, errors, custom_queue, stream_elements
+from . import stanza, errors, custom_queue, stream_elements, callbacks
 
 from .plugins import xep0199
 from .utils import namespaces
@@ -61,7 +61,7 @@ class StanzaStream:
         self._active_queue = custom_queue.AsyncDeque(loop=self._loop)
         self._incoming_queue = custom_queue.AsyncDeque(loop=self._loop)
 
-        self._iq_response_map = {}
+        self._iq_response_map = callbacks.TagDispatcher()
         self._iq_request_map = {}
         self._message_map = {}
         self._presence_map = {}
@@ -108,18 +108,12 @@ class StanzaStream:
             # iq response
             key = (stanza_obj.from_, stanza_obj.id_)
             try:
-                cb = self._iq_response_map.pop(key)
+                self._iq_response_map.unicast(key, stanza_obj)
             except KeyError:
                 self._logger.warning(
                     "unexpected IQ response: from=%r, id=%r",
                     *key)
                 return
-            try:
-                self._loop.call_soon(cb, stanza_obj)
-            except:
-                self._logger.warning(
-                    "while handling IQ response",
-                    exc_info=True)
         else:
             # iq request
             key = (stanza_obj.type_, type(stanza_obj.payload))
@@ -278,7 +272,10 @@ class StanzaStream:
                 self._next_ping_event_type))
 
     def register_iq_response_callback(self, from_, id_, cb):
-        self._iq_response_map[from_, id_] = cb
+        self._iq_response_map.add_listener(
+            (from_, id_),
+            callbacks.OneshotAsyncTagListener(cb, loop=self._loop)
+        )
 
     def register_iq_request_coro(self, type_, payload_cls, coro):
         self._iq_request_map[type_, payload_cls] = coro
