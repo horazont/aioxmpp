@@ -4,6 +4,7 @@ import unittest.mock
 from aioxmpp.callbacks import (
     TagDispatcher,
     TagListener,
+    AsyncTagListener,
     OneshotTagListener,
     OneshotAsyncTagListener,
 )
@@ -58,6 +59,33 @@ class TestTagDispatcher(unittest.TestCase):
         with self.assertRaisesRegexp(ValueError,
                                      "only one listener is allowed"):
             nh.add_listener("tag", l)
+
+    @unittest.mock.patch("aioxmpp.callbacks.AsyncTagListener")
+    def test_add_callback_async(self, AsyncTagListener):
+        data = unittest.mock.Mock()
+        loop = unittest.mock.Mock()
+        obj = object()
+
+        nh = TagDispatcher()
+        nh.add_callback_async("tag", data, loop=loop)
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(data, loop=loop)
+            ],
+            AsyncTagListener.mock_calls
+        )
+        del AsyncTagListener.mock_calls[:]
+
+        nh.unicast("tag", obj)
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call().data(obj),
+                unittest.mock.call().data().__bool__(),
+            ],
+            AsyncTagListener.mock_calls
+        )
 
     def test_add_future(self):
         mock = unittest.mock.Mock()
@@ -287,6 +315,28 @@ class TestTagDispatcher(unittest.TestCase):
             nh.unicast("tag2", None)
 
 
+class TestAsyncTagListener(unittest.TestCase):
+    def test_everything(self):
+        data = unittest.mock.MagicMock()
+        error = unittest.mock.MagicMock()
+        loop = unittest.mock.MagicMock()
+        obj = object()
+        tl = AsyncTagListener(data, error, loop=loop)
+        self.assertFalse(tl.data(obj))
+        self.assertFalse(tl.error(obj))
+
+        self.assertFalse(data.mock_calls)
+        self.assertFalse(error.mock_calls)
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call.__bool__(),
+                unittest.mock.call.call_soon(data, obj),
+                unittest.mock.call.call_soon(error, obj),
+            ],
+            loop.mock_calls
+        )
+
+
 class TestOneshotAsyncTagListener(unittest.TestCase):
     def test_everything(self):
         data = unittest.mock.MagicMock()
@@ -294,8 +344,8 @@ class TestOneshotAsyncTagListener(unittest.TestCase):
         loop = unittest.mock.MagicMock()
         obj = object()
         tl = OneshotAsyncTagListener(data, error, loop=loop)
-        tl.data(obj)
-        tl.error(obj)
+        self.assertTrue(tl.data(obj))
+        self.assertTrue(tl.error(obj))
 
         self.assertFalse(data.mock_calls)
         self.assertFalse(error.mock_calls)
