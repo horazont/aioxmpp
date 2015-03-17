@@ -421,6 +421,7 @@ class TestStanzaStream(StanzaStreamTestBase):
         self.assertIsNone(caught_exc)
 
     def test_send_bulk(self):
+        state_change_handler = unittest.mock.MagicMock()
         iqs = [make_test_iq() for i in range(3)]
 
         def send_handler(stanza_obj):
@@ -433,8 +434,12 @@ class TestStanzaStream(StanzaStreamTestBase):
 
         self.stream.on_send_stanza = send_handler
 
-        for iq in iqs:
-            self.stream.enqueue_stanza(iq)
+        tokens = [
+            self.stream.enqueue_stanza(
+                iq,
+                on_state_change=state_change_handler)
+            for iq in iqs
+        ]
 
         self.stream.start(self.xmlstream)
 
@@ -443,6 +448,15 @@ class TestStanzaStream(StanzaStreamTestBase):
                 iq,
                 run_coroutine(self.sent_stanzas.get()),
             )
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(token, stream.StanzaState.SENT_WITHOUT_SM)
+                for token in tokens
+            ],
+            state_change_handler.mock_calls
+        )
+
 
     def test_running(self):
         self.assertFalse(self.stream.running())
@@ -516,13 +530,16 @@ class TestStanzaStream(StanzaStreamTestBase):
             self.stream.sm_ack(0)
 
     def test_sm_outbound(self):
+        state_change_handler = unittest.mock.MagicMock()
         iqs = [make_test_iq() for i in range(3)]
 
         self.stream.start_sm()
         self.stream.start(self.xmlstream)
 
-        tokens = [self.stream.enqueue_stanza(iq)
-                  for iq in iqs]
+        tokens = [
+            self.stream.enqueue_stanza(
+                iq, on_state_change=state_change_handler)
+            for iq in iqs]
 
         run_coroutine(asyncio.sleep(0))
 
@@ -534,6 +551,18 @@ class TestStanzaStream(StanzaStreamTestBase):
             tokens,
             self.stream.sm_unacked_list
         )
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(token, stream.StanzaState.SENT)
+                for token in tokens
+            ],
+            state_change_handler.mock_calls
+        )
+        del state_change_handler.mock_calls[:]
+        self.assertSequenceEqual(
+            [stream.StanzaState.SENT]*3,
+            [token.state for token in tokens]
+        )
 
         self.stream.sm_ack(1)
         self.assertEqual(
@@ -543,6 +572,14 @@ class TestStanzaStream(StanzaStreamTestBase):
         self.assertSequenceEqual(
             tokens[1:],
             self.stream.sm_unacked_list
+        )
+        self.assertSequenceEqual(
+            [
+                stream.StanzaState.ACKED,
+                stream.StanzaState.SENT,
+                stream.StanzaState.SENT
+            ],
+            [token.state for token in tokens]
         )
 
         # idempotence with same number
@@ -556,6 +593,14 @@ class TestStanzaStream(StanzaStreamTestBase):
             tokens[1:],
             self.stream.sm_unacked_list
         )
+        self.assertSequenceEqual(
+            [
+                stream.StanzaState.ACKED,
+                stream.StanzaState.SENT,
+                stream.StanzaState.SENT
+            ],
+            [token.state for token in tokens]
+        )
 
         self.stream.sm_ack(3)
         self.assertEqual(
@@ -565,6 +610,14 @@ class TestStanzaStream(StanzaStreamTestBase):
         self.assertSequenceEqual(
             [],
             self.stream.sm_unacked_list
+        )
+        self.assertSequenceEqual(
+            [
+                stream.StanzaState.ACKED,
+                stream.StanzaState.ACKED,
+                stream.StanzaState.ACKED
+            ],
+            [token.state for token in tokens]
         )
 
     def test_sm_inbound(self):
@@ -814,6 +867,49 @@ class TestStanzaStream(StanzaStreamTestBase):
             token,
             stream.StanzaToken)
 
+    def test_set_stanzas_to_sent_without_sm_when_sm_is_turned_off(self):
+        iqs = [make_test_iq() for i in range(3)]
+
+        self.stream.start_sm()
+        self.stream.start(self.xmlstream)
+        tokens = [self.stream.enqueue_stanza(iq) for iq in iqs]
+        run_coroutine(asyncio.sleep(0))
+        self.stream.stop()
+        self.stream.stop_sm()
+
+        self.assertSequenceEqual(
+            [
+                stream.StanzaState.SENT_WITHOUT_SM,
+                stream.StanzaState.SENT_WITHOUT_SM,
+                stream.StanzaState.SENT_WITHOUT_SM,
+            ],
+            [token.state for token in tokens]
+        )
+
+    def test_abort_stanza(self):
+        iqs = [make_test_iq() for i in range(3)]
+        self.stream.start(self.xmlstream)
+        tokens = [self.stream.enqueue_stanza(iq) for iq in iqs]
+        tokens[1].abort()
+        run_coroutine(asyncio.sleep(0))
+
+        self.assertSequenceEqual(
+            [
+                stream.StanzaState.SENT_WITHOUT_SM,
+                stream.StanzaState.ABORTED,
+                stream.StanzaState.SENT_WITHOUT_SM,
+            ],
+            [token.state for token in tokens]
+        )
+
+        for iq in iqs[:1] + iqs[2:]:
+            self.assertIs(
+                iq,
+                self.sent_stanzas.get_nowait()
+            )
+        with self.assertRaises(asyncio.QueueEmpty):
+            self.sent_stanzas.get_nowait()
+
 
 class TestStanzaToken(unittest.TestCase):
     def test_init(self):
@@ -842,7 +938,6 @@ class TestStanzaToken(unittest.TestCase):
                                    on_state_change=state_change_handler)
 
         states = [
-            stream.StanzaState.ON_HOLD,
             stream.StanzaState.SENT,
             stream.StanzaState.ACKED,
             stream.StanzaState.SENT_WITHOUT_SM,
@@ -859,8 +954,32 @@ class TestStanzaToken(unittest.TestCase):
 
         self.assertSequenceEqual(
             [
-                unittest.mock.call(state)
+                unittest.mock.call(token, state)
                 for state in states
             ],
             state_change_handler.mock_calls
         )
+
+    def test_abort_while_active(self):
+        stanza = make_test_iq()
+        token = stream.StanzaToken(stanza)
+        token.abort()
+        self.assertEqual(
+            stream.StanzaState.ABORTED,
+            token.state
+        )
+
+    def test_abort_while_sent(self):
+        stanza = make_test_iq()
+        token = stream.StanzaToken(stanza)
+        for state in set(stream.StanzaState) - {stream.StanzaState.ACTIVE,
+                                                stream.StanzaState.ABORTED}:
+            token._set_state(stream.StanzaState.SENT)
+            with self.assertRaisesRegexp(RuntimeError, "already sent"):
+                token.abort()
+
+    def test_abort_while_aborted(self):
+        stanza = make_test_iq()
+        token = stream.StanzaToken(stanza)
+        token.abort()
+        token.abort()

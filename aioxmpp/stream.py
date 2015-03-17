@@ -19,11 +19,10 @@ class PingEventType(Enum):
 
 class StanzaState(Enum):
     ACTIVE = 0
-    ON_HOLD = 1
-    SENT = 2
-    ACKED = 3
-    SENT_WITHOUT_SM = 4
-    ABORTED = 5
+    SENT = 1
+    ACKED = 2
+    SENT_WITHOUT_SM = 3
+    ABORTED = 4
 
 
 
@@ -40,7 +39,13 @@ class StanzaToken:
     def _set_state(self, new_state):
         self._state = new_state
         if self.on_state_change is not None:
-            self.on_state_change(new_state)
+            self.on_state_change(self, new_state)
+
+    def abort(self):
+        if     (self._state != StanzaState.ACTIVE and
+                self._state != StanzaState.ABORTED):
+            raise RuntimeError("cannot abort stanza (already sent)")
+        self._state = StanzaState.ABORTED
 
 
 class StanzaStream:
@@ -207,6 +212,9 @@ class StanzaStream:
             raise RuntimeError("unexpected stanza class: {}".format(stanza_obj))
 
     def _send_stanza(self, xmlstream, token):
+        if token.state == StanzaState.ABORTED:
+            return
+
         xmlstream.send_stanza(token.stanza)
         if self.sm_enabled:
             token._set_state(StanzaState.SENT)
@@ -404,6 +412,8 @@ class StanzaStream:
         self.sm_enabled = False
         del self.sm_outbound_base
         del self.sm_inbound_ctr
+        for token in self.sm_unacked_list:
+            token._set_state(StanzaState.SENT_WITHOUT_SM)
         del self.sm_unacked_list
 
     def sm_ack(self, remote_ctr):
@@ -419,5 +429,9 @@ class StanzaStream:
                 remote_ctr)
             return
 
+        acked = self.sm_unacked_list[:to_drop]
         del self.sm_unacked_list[:to_drop]
         self.sm_outbound_base = remote_ctr
+
+        for token in acked:
+            token._set_state(StanzaState.ACKED)
