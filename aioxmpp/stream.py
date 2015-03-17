@@ -12,9 +12,9 @@ from .utils import namespaces
 
 
 class PingEventType(Enum):
-    PING_SEND_OPPORTUNISTIC = 0
-    PING_SEND_NOW = 1
-    PING_TIMEOUT = 2
+    SEND_OPPORTUNISTIC = 0
+    SEND_NOW = 1
+    TIMEOUT = 2
 
 
 class StanzaStream:
@@ -167,8 +167,8 @@ class StanzaStream:
                 self._logger.warning("received sm:a, but sm not enabled")
                 return
             self.sm_ack(stanza_obj.counter)
-            if self._next_ping_event_type == PingEventType.PING_TIMEOUT:
-                self._next_ping_event_type = PingEventType.PING_SEND_OPPORTUNISTIC
+            if self._next_ping_event_type == PingEventType.TIMEOUT:
+                self._next_ping_event_type = PingEventType.SEND_OPPORTUNISTIC
                 self._next_ping_event_at = datetime.utcnow() + self.ping_interval
         elif isinstance(stanza_obj, stream_elements.SMRequest):
             if not self.sm_enabled:
@@ -200,9 +200,9 @@ class StanzaStream:
     def _recv_pong(self, stanza):
         if not self.running:
             return
-        if self._next_ping_event_type != PingEventType.PING_TIMEOUT:
+        if self._next_ping_event_type != PingEventType.TIMEOUT:
             return
-        self._next_ping_event_type = PingEventType.PING_SEND_OPPORTUNISTIC
+        self._next_ping_event_type = PingEventType.SEND_OPPORTUNISTIC
         self._next_ping_event_at = datetime.utcnow() + self.ping_interval
 
     def _send_ping(self, xmlstream):
@@ -221,20 +221,20 @@ class StanzaStream:
             )
             self.enqueue_stanza(request)
             self._ping_send_opportunistic = False
-        if self._next_ping_event_type != PingEventType.PING_TIMEOUT:
+        if self._next_ping_event_type != PingEventType.TIMEOUT:
             self._next_ping_event_at = datetime.utcnow() + self.ping_interval
-            self._next_ping_event_type = PingEventType.PING_TIMEOUT
+            self._next_ping_event_type = PingEventType.TIMEOUT
 
     def _process_ping_event(self, xmlstream):
-        if self._next_ping_event_type == PingEventType.PING_SEND_OPPORTUNISTIC:
+        if self._next_ping_event_type == PingEventType.SEND_OPPORTUNISTIC:
             self._next_ping_event_at += self.ping_opportunistic_interval
-            self._next_ping_event_type = PingEventType.PING_SEND_NOW
+            self._next_ping_event_type = PingEventType.SEND_NOW
             # ping send opportunistic is always true for sm
             if not self.sm_enabled:
                 self._ping_send_opportunistic = True
-        elif self._next_ping_event_type == PingEventType.PING_SEND_NOW:
+        elif self._next_ping_event_type == PingEventType.SEND_NOW:
             self._send_ping(xmlstream)
-        elif self._next_ping_event_type == PingEventType.PING_TIMEOUT:
+        elif self._next_ping_event_type == PingEventType.TIMEOUT:
             raise ConnectionError("ping timeout")
         else:
             raise RuntimeError("unknown ping event type: {!r}".format(
@@ -266,7 +266,7 @@ class StanzaStream:
             xmlstream.stanza_parser.add_class(stream_elements.SMRequest,
                                            self.recv_stanza)
         self._next_ping_event_at = datetime.utcnow() + self.ping_interval
-        self._next_ping_event_type = PingEventType.PING_SEND_OPPORTUNISTIC
+        self._next_ping_event_type = PingEventType.SEND_OPPORTUNISTIC
         self._ping_send_opportunistic = self.sm_enabled
 
     def stop(self):
