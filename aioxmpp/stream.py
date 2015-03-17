@@ -327,7 +327,6 @@ class StanzaStream:
                 else:
                     timeout = timedelta()
 
-                print("before", timeout)
                 done, pending = yield from asyncio.wait(
                     [
                         active_fut,
@@ -335,7 +334,6 @@ class StanzaStream:
                     ],
                     return_when=asyncio.FIRST_COMPLETED,
                     timeout=timeout.total_seconds())
-                print("after", timeout)
 
                 if active_fut in done:
                     self._process_outgoing(xmlstream, active_fut.result())
@@ -351,9 +349,7 @@ class StanzaStream:
 
                 if self._next_ping_event_at is not None:
                     timeout = self._next_ping_event_at - datetime.utcnow()
-                    print("ping", timeout)
                     if timeout.total_seconds() <= 0:
-                        print("ping event:", self._next_ping_event_type)
                         self._process_ping_event(xmlstream)
 
         finally:
