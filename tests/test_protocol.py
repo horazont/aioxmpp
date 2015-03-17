@@ -321,3 +321,39 @@ class TestXMLStream(unittest.TestCase):
                         ])
                ]
             ))
+
+    def test_send_stanza(self):
+        st = FakeIQ()
+        st.id_ = "id"
+        st.from_ = JID.fromstr("u1@foo.example/test")
+        st.to = JID.fromstr("u2@foo.example/test")
+        st.type_ = "get"
+        st.payload = Child()
+        st.payload.attr = "foo"
+
+        t, p = self._make_stream(to=TEST_PEER)
+        run_coroutine(
+            t.run_test(
+                [
+                    TransportMock.Write(
+                        STREAM_HEADER,
+                        response=[
+                            TransportMock.Receive(self._make_peer_header()),
+                        ]),
+                ],
+                partial=True
+            )
+        )
+        p.send_stanza(st)
+        run_coroutine(
+            t.run_test(
+                [
+                    TransportMock.Write(
+                        b'<iq from="u1@foo.example/test" id="id"'
+                        b' to="u2@foo.example/test" type="get">'
+                        b'<ns0:payload xmlns:ns0="uri:foo" a="foo"/>'
+                        b'</iq>'),
+                ],
+                partial=True
+            )
+        )

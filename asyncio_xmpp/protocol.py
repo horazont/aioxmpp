@@ -143,3 +143,6 @@ class XMLStream(asyncio.Protocol):
             sorted_attributes=self._sorted_attributes)
         next(self._writer)
         self._state = State.STREAM_HEADER_SENT
+
+    def send_stanza(self, obj):
+        self._writer.send(obj)
