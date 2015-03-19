@@ -35,23 +35,22 @@ instances, the following classes and functions can be used:
 """
 
 import ctypes
-import random
 
 import xml.sax
 import xml.sax.saxutils
 
-import lxml.sax
-
 from enum import Enum
 
 from . import errors, structs, xso
-from .utils import namespaces, etree
+from .utils import namespaces
 
 
 libxml2 = ctypes.cdll.LoadLibrary("libxml2.so")
 
+
 def xmlValidateNameValue_str(s):
     return bool(xmlValidateNameValue_buf(s.encode("utf-8")))
+
 
 def xmlValidateNameValue_buf(b):
     if b"\0" in b:
@@ -83,9 +82,9 @@ class XMPPXMLGenerator:
     :meth:`file.flush`. *encoding* specifies the encoding which is used and
     **must** be ``utf-8`` for XMPP.
 
-    If *short_empty_elements* is true, empty elements are rendered as ``<foo/>``
-    instead of ``<foo></foo>``, unless a flush occurs before the call to
-    :meth:`endElementNS`, in which case the opening is finished before
+    If *short_empty_elements* is true, empty elements are rendered as
+    ``<foo/>`` instead of ``<foo></foo>``, unless a flush occurs before the
+    call to :meth:`endElementNS`, in which case the opening is finished before
     flushing, thus the long form is generated.
 
     If *sorted_attributes* is :data:`True`, attributes are emitted in the
@@ -135,7 +134,9 @@ class XMPPXMLGenerator:
     .. automethod:: flush
 
     """
-    def __init__(self, out, short_empty_elements=True, sorted_attributes=False):
+    def __init__(self, out,
+                 short_empty_elements=True,
+                 sorted_attributes=False):
         self._write = out.write
         if hasattr(out, "flush"):
             self._flush = out.flush
@@ -165,8 +166,10 @@ class XMPPXMLGenerator:
     def _qname(self, name, attr=False):
         if not isinstance(name, tuple):
             raise ValueError("names must be tuples")
+
         if ":" in name[1] or not xmlValidateNameValue_str(name[1]):
             raise ValueError("invalid name: {!r}".format(name[1]))
+
         if name[0]:
             if name[0] == "http://www.w3.org/XML/1998/namespace":
                 return "xml:" + name[1]
@@ -181,11 +184,13 @@ class XMPPXMLGenerator:
                     self.startPrefixMapping(prefix, name[0], auto=True)
             if prefix:
                 return ":".join((prefix, name[1]))
+
         elif   (not attr and
                 (None in self._curr_ns_map or
                  None in self._ns_prefixes_floating_in)):
             raise ValueError("cannot create unnamespaced element when "
                              "prefixless namespace is bound")
+
         return name[1]
 
     def _finish_pending_start_element(self):
@@ -218,8 +223,8 @@ class XMPPXMLGenerator:
         Start the document. This method *must* be called before any other
         content handler method.
         """
-        # yes, I know the doctext is not enforced. It might become enforced in a
-        # later version though, when I find a compelling reason why it is
+        # yes, I know the doctext is not enforced. It might become enforced in
+        # a later version though, when I find a compelling reason why it is
         # needed.
         self._write(b'<?xml version="1.0"?>')
 
@@ -235,11 +240,11 @@ class XMPPXMLGenerator:
         corresponding :meth:`endElementNS` call.
 
         Also note that calling :meth:`startPrefixMapping` is not mandatory; you
-        can use any namespace you like at any time. If you use a namespace whose
-        URI has not been associated with a prefix yet, a free prefix will
-        automatically be chosen. To avoid unneccessary performance penalties, do
-        not use prefixes of the form ``"{:d}".format(n)``, for any non-negative
-        number of *n*.
+        can use any namespace you like at any time. If you use a namespace
+        whose URI has not been associated with a prefix yet, a free prefix will
+        automatically be chosen. To avoid unneccessary performance penalties,
+        do not use prefixes of the form ``"{:d}".format(n)``, for any
+        non-negative number of *n*.
 
         It is however required to call :meth:`endPrefixMapping` after a
         :meth:`endElementNS` call for all namespaces which have been announced
@@ -353,8 +358,8 @@ class XMPPXMLGenerator:
 
     def endPrefixMapping(self, prefix):
         """
-        End a prefix mapping declared with :meth:`startPrefixMapping`. See there
-        for more details.
+        End a prefix mapping declared with :meth:`startPrefixMapping`. See
+        there for more details.
         """
         self._ns_prefixes_floating_out.remove(prefix)
 
@@ -385,19 +390,22 @@ class XMPPXMLGenerator:
 
     def processingInstruction(self, target, data):
         """
-        Not supported; explicitly forbidden in XMPP. Raises :class:`ValueError`.
+        Not supported; explicitly forbidden in XMPP. Raises
+        :class:`ValueError`.
         """
         raise ValueError("restricted xml: processing instruction forbidden")
 
     def skippedEntity(self, name):
         """
-        Not supported; there is no use case. Raises :class:`NotImplementedError`.
+        Not supported; there is no use case. Raises
+        :class:`NotImplementedError`.
         """
         raise NotImplementedError("skippedEntity")
 
     def setDocumentLocator(self, locator):
         """
-        Not supported; there is no use case. Raises :class:`NotImplementedError`.
+        Not supported; there is no use case. Raises
+        :class:`NotImplementedError`.
         """
         raise NotImplementedError("setDocumentLocator")
 
@@ -446,18 +454,18 @@ def write_objects(f,
     given in *nsmap* plus the xmlstream namespace, then the output is flushed
     and the generator yields.
 
-    *to* must be a :class:`~.structs.JID` which refers to the peer. *from_* may be
-    the JID identifying the local side, but see `RFC 6120 for considerations
+    *to* must be a :class:`~.structs.JID` which refers to the peer. *from_* may
+    be the JID identifying the local side, but see `RFC 6120 for considerations
     <https://tools.ietf.org/html/rfc6120#section-4.7.1>`_. *version* is the
     tuple of integers representing the locally supported XMPP version.
 
-    *sorted_attributes* is passed to the :class:`XMPPXMLGenerator` which is used
-    by this function.
+    *sorted_attributes* is passed to the :class:`XMPPXMLGenerator` which is
+    used by this function.
 
     Now, user code can send :class:`~.xso.XSO` objects to the
-    generator using its :meth:`send` method. These objects get serialized to the
-    XML stream. Any exception raised during that is re-raised and the stream is
-    closed.
+    generator using its :meth:`send` method. These objects get serialized to
+    the XML stream. Any exception raised during that is re-raised and the
+    stream is closed.
 
     Using the :meth:`throw` method to throw a :class:`AbortStream` exception
     will immediately stop the generator without closing the stream
@@ -499,7 +507,6 @@ def write_objects(f,
             except AbortStream:
                 abort = True
                 return
-            parent = etree.Element("_")
             obj.unparse_to_sax(writer)
             writer.flush()
     finally:
@@ -542,13 +549,13 @@ class XMPPXMLProcessor:
 
     **Exception handling**: When an exception occurs while parsing a
     stream-level element, such as a stanza, the exception is stored internally
-    and exception handling is invoked. During exception handling, all SAX events
-    are dropped, until the stream-level element has been completely processed by
-    the parser. Then, if available, :attr:`on_exception` is called, with the
-    stored exception as the only argument. If :attr:`on_exception` is false
-    (e.g. :data:`None`), the exception is re-raised from the
-    :meth:`endElementNS` handler, in turn most likely destroying the SAX parsers
-    internal state.
+    and exception handling is invoked. During exception handling, all SAX
+    events are dropped, until the stream-level element has been completely
+    processed by the parser. Then, if available, :attr:`on_exception` is
+    called, with the stored exception as the only argument. If
+    :attr:`on_exception` is false (e.g. :data:`None`), the exception is
+    re-raised from the :meth:`endElementNS` handler, in turn most likely
+    destroying the SAX parsers internal state.
 
     .. attribute:: on_exception
 
@@ -585,8 +592,8 @@ class XMPPXMLProcessor:
         receive the sax-ish events used in :mod:`~aioxmpp.xso`. It
         is driven using an instance of :class:`~.xso.SAXDriver`.
 
-        This object can only be set before :meth:`startDocument` has been called
-        (or after :meth:`endDocument` has been called).
+        This object can only be set before :meth:`startDocument` has been
+        called (or after :meth:`endDocument` has been called).
         """
         return self._stanza_parser
 
@@ -675,7 +682,9 @@ class XMPPXMLProcessor:
         self.remote_to = remote_to
 
         try:
-            self.remote_from = structs.JID.fromstr(attributes.pop((None, "from")))
+            self.remote_from = structs.JID.fromstr(
+                attributes.pop((None, "from"))
+            )
         except KeyError:
             raise errors.StreamError(
                 (namespaces.streams, "undefined-condition"),
@@ -728,8 +737,8 @@ class XMPPLexicalHandler:
     * dtd declarations,
     * non-predefined entities.
 
-    The class can be used as lexical handler directly; all methods are stateless
-    and can be used both on the class and on objects of the class.
+    The class can be used as lexical handler directly; all methods are
+    stateless and can be used both on the class and on objects of the class.
 
     """
     PREDEFINED_ENTITIES = {"amp", "lt", "gt", "apos", "quot"}

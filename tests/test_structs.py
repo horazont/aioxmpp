@@ -19,11 +19,11 @@ class TestJID(unittest.TestCase):
 
     def test_init_enforces_stringprep(self):
         with self.assertRaises(ValueError):
-            j = structs.JID("\u0007", "example.com", "bar")
+            structs.JID("\u0007", "example.com", "bar")
         with self.assertRaises(ValueError):
-            j = structs.JID("foo", "\u070f", "bar")
+            structs.JID("foo", "\u070f", "bar")
         with self.assertRaises(ValueError):
-            j = structs.JID("foo", "example.com", "\u0007")
+            structs.JID("foo", "example.com", "\u0007")
 
         self.assertEqual(
             "ssa",
@@ -55,11 +55,11 @@ class TestJID(unittest.TestCase):
     def test_replace_enforces_stringprep(self):
         j = structs.JID("foo", "example.com", "bar")
         with self.assertRaises(ValueError):
-            j2 = j.replace(localpart="\u0007")
+            j.replace(localpart="\u0007")
         with self.assertRaises(ValueError):
-            j2 = j.replace(domain="\u070f")
+            j.replace(domain="\u070f")
         with self.assertRaises(ValueError):
-            j2 = j.replace(resource="\u0007")
+            j.replace(resource="\u0007")
 
         self.assertEqual(
             "ssa",
@@ -138,7 +138,7 @@ class TestJID(unittest.TestCase):
 
     def test_require_domainpart(self):
         with self.assertRaises(ValueError):
-            j = structs.JID(None, None, None)
+            structs.JID(None, None, None)
 
     def test_replace_rejects_surplus_argument(self):
         j = structs.JID("foo", "example.test", "bar")

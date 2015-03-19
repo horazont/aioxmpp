@@ -43,6 +43,7 @@ Stream negotiation exceptions
 
 from . import xso
 
+
 def format_error_text(
         condition,
         text=None,
@@ -54,16 +55,6 @@ def format_error_text(
         error_tag += " ({})".format(text)
     return error_tag
 
-class XMPPWarning(UserWarning):
-    def __init__(self,
-                 condition,
-                 text=None,
-                 application_defined_condition=None):
-        super().__init__(format_error_text(
-            condition, text, application_defined_condition))
-        self.condition = condition
-        self.text = text
-        self.application_defined_condition = application_defined_condition
 
 class StreamError(ConnectionError):
     def __init__(self, condition, text=None):
@@ -71,6 +62,7 @@ class StreamError(ConnectionError):
             format_error_text(condition, text)))
         self.condition = condition
         self.text = text
+
 
 class XMPPError(Exception):
     TYPE = "cancel"
@@ -87,26 +79,34 @@ class XMPPError(Exception):
         self.text = text
         self.application_defined_condition = application_defined_condition
 
+
 class XMPPWarning(XMPPError, UserWarning):
     TYPE = "continue"
+
 
 class XMPPAuthError(XMPPError, PermissionError):
     TYPE = "auth"
 
+
 class XMPPModifyError(XMPPError, ValueError):
     TYPE = "modify"
+
 
 class XMPPCancelError(XMPPError):
     TYPE = "cancel"
 
+
 class XMPPWaitError(XMPPError):
     TYPE = "wait"
+
 
 class XMPPContinueError(XMPPWarning):
     TYPE = "continue"
 
+
 class StreamNegotiationFailure(ConnectionError):
     pass
+
 
 class SecurityNegotiationFailure(StreamNegotiationFailure):
     def __init__(self, xmpp_error,
@@ -119,6 +119,7 @@ class SecurityNegotiationFailure(StreamNegotiationFailure):
         self.xmpp_error = xmpp_error
         self.text = text
 
+
 class SASLFailure(SecurityNegotiationFailure):
     def __init__(self, xmpp_error, text=None):
         super().__init__(xmpp_error, text=text, kind="SASL failure")
@@ -128,22 +129,27 @@ class SASLFailure(SecurityNegotiationFailure):
             xmpp_error=self.xmpp_error,
             text=self.text)
 
+
 class SASLUnavailable(SASLFailure):
-    # we use this to tell the Client that SASL has not been available at all, or
-    # that we could not agree on mechansims.
+    # we use this to tell the Client that SASL has not been available at all,
+    # or that we could not agree on mechansims.
     # it might be helpful to notify the peer about this before dying.
     pass
+
 
 class TLSFailure(SecurityNegotiationFailure):
     def __init__(self, xmpp_error, text=None):
         super().__init__(xmpp_error, text=text, kind="TLS failure")
 
+
 class TLSUnavailable(TLSFailure):
     pass
+
 
 class AuthenticationFailure(SecurityNegotiationFailure):
     def __init__(self, xmpp_error, text=None):
         super().__init__(xmpp_error, text=text, kind="Authentication failure")
+
 
 error_type_map = {
     "auth": XMPPAuthError,

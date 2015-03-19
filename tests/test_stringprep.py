@@ -5,6 +5,7 @@ from aioxmpp.stringprep import (
     check_bidi
 )
 
+
 class Testcheck_bidi(unittest.TestCase):
     # some test cases which are not covered by the other tests
     def test_empty_string(self):
@@ -13,6 +14,7 @@ class Testcheck_bidi(unittest.TestCase):
     def test_L_RAL_violation(self):
         with self.assertRaises(ValueError):
             check_bidi("\u05be\u0041")
+
 
 class TestSASLprep(unittest.TestCase):
     def test_map_to_nothing_rfcx(self):
@@ -52,29 +54,29 @@ class TestSASLprep(unittest.TestCase):
     def test_prohibited_character_rfcx(self):
         with self.assertRaises(
                 ValueError,
-                msg="SASLprep requirement: prohibited character (C.2.1)") as err:
+                msg="SASLprep requirement: prohibited character (C.2.1)"):
             saslprep("\u0007")
 
         with self.assertRaises(
                 ValueError,
-                msg="SASLprep requirement: prohibited character (C.8)") as err:
+                msg="SASLprep requirement: prohibited character (C.8)"):
             saslprep("\u200E")
 
     def test_bidirectional_check_rfcx(self):
         with self.assertRaises(
                 ValueError,
-                msg="SASLprep requirement: bidirectional check") as err:
+                msg="SASLprep requirement: bidirectional check"):
             saslprep("\u0627\u0031")
 
     def test_unassigned(self):
         with self.assertRaises(
                 ValueError,
-                msg="SASLprep requirement: unassigned") as err:
+                msg="SASLprep requirement: unassigned"):
             saslprep("\u0221", allow_unassigned=False)
 
         with self.assertRaises(
                 ValueError,
-                msg="enforce no unassigned by default") as err:
+                msg="enforce no unassigned by default"):
             saslprep("\u0221")
 
         self.assertEqual(
@@ -109,19 +111,19 @@ class TestNodeprep(unittest.TestCase):
         with self.assertRaisesRegexp(
                 ValueError,
                 r"U\+0007",
-                msg="Nodeprep requirement: prohibited character (C.2.1)") as err:
+                msg="Nodeprep requirement: prohibited character (C.2.1)"):
             nodeprep("\u0007")
 
         with self.assertRaisesRegexp(
                 ValueError,
                 r"U\+200e",
-                msg="Nodeprep requirement: prohibited character (C.8)") as err:
+                msg="Nodeprep requirement: prohibited character (C.8)"):
             nodeprep("\u200E")
 
         with self.assertRaisesRegexp(
                 ValueError,
                 r"U\+003e",
-                msg="Nodeprep requirement: prohibited character (custom)") as err:
+                msg="Nodeprep requirement: prohibited character (custom)"):
             nodeprep(">")
 
 
@@ -152,43 +154,43 @@ class TestNameprep(unittest.TestCase):
         with self.assertRaisesRegexp(
                 ValueError,
                 r"U\+06dd",
-                msg="Nameprep requirement: prohibited character (C.2.2)") as err:
+                msg="Nameprep requirement: prohibited character (C.2.2)"):
             nameprep("\u06DD")
 
         with self.assertRaisesRegexp(
                 ValueError,
                 r"U\+e000",
-                msg="Nameprep requirement: prohibited character (C.3)") as err:
+                msg="Nameprep requirement: prohibited character (C.3)"):
             nameprep("\uE000")
 
         with self.assertRaisesRegexp(
                 ValueError,
                 r"U\+1fffe",
-                msg="Nameprep requirement: prohibited character (C.4)") as err:
+                msg="Nameprep requirement: prohibited character (C.4)"):
             nameprep("\U0001FFFE")
 
         with self.assertRaisesRegexp(
                 ValueError,
                 r"U\+d800",
-                msg="Nameprep requirement: prohibited character (C.5)") as err:
+                msg="Nameprep requirement: prohibited character (C.5)"):
             nameprep("\uD800")
 
         with self.assertRaisesRegexp(
                 ValueError,
                 r"U\+fff9",
-                msg="Nameprep requirement: prohibited character (C.6)") as err:
+                msg="Nameprep requirement: prohibited character (C.6)"):
             nameprep("\uFFF9")
 
         with self.assertRaisesRegexp(
                 ValueError,
                 r"U\+2ff0",
-                msg="Nameprep requirement: prohibited character (C.7)") as err:
+                msg="Nameprep requirement: prohibited character (C.7)"):
             nameprep("\u2FF0")
 
         with self.assertRaisesRegexp(
                 ValueError,
                 r"U\+e0001",
-                msg="Nameprep requirement: prohibited character (C.9)") as err:
+                msg="Nameprep requirement: prohibited character (C.9)"):
             nameprep("\U000E0001")
 
 
@@ -214,12 +216,12 @@ class TestResourceprep(unittest.TestCase):
                 ValueError,
                 r"U\+0007",
                 msg="Resourceprep requirement: "
-                    "prohibited character (C.2.1)") as err:
+                    "prohibited character (C.2.1)"):
             resourceprep("\u0007")
 
         with self.assertRaisesRegexp(
                 ValueError,
                 r"U\+200e",
                 msg="Resourceprep requirement: "
-                    "prohibited character (C.8)") as err:
+                    "prohibited character (C.8)"):
             resourceprep("\u200E")

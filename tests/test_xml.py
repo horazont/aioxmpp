@@ -6,7 +6,6 @@ import unittest.mock
 
 import lxml.sax
 
-import xml.sax as sax
 import xml.sax.handler as saxhandler
 
 import aioxmpp.xml as xml
@@ -237,7 +236,8 @@ class TestXMPPXMLGenerator(XMLTestCase):
         gen.endElementNS((None, "foo"), None)
         gen.endDocument()
         self.assertEqual(
-            b'<?xml version="1.0"?><foo xmlns:ns0="uri:foo" bar="1" fnord="2" ns0:baz="3"/>',
+            b'<?xml version="1.0"?>'
+            b'<foo xmlns:ns0="uri:foo" bar="1" fnord="2" ns0:baz="3"/>',
             self.buf.getvalue()
         )
 
@@ -356,7 +356,10 @@ class TestXMPPXMLGenerator(XMLTestCase):
         gen.endDocument()
 
         self.assertSubtreeEqual(
-            etree.fromstring("<foo xmlns='uri:bar'><foo xmlns='uri:foo' /></foo>"),
+            etree.fromstring(
+                "<foo xmlns='uri:bar'>"
+                "<foo xmlns='uri:foo' />"
+                "</foo>"),
             etree.fromstring(self.buf.getvalue())
         )
 
@@ -542,7 +545,7 @@ class Testwrite_objects(unittest.TestCase):
         gen.close()
 
         self.assertEqual(
-            b'<?xml version="1.0"?>'+
+            b'<?xml version="1.0"?>' +
             self.STREAM_HEADER+b'</stream:stream>',
             self.buf.getvalue()
         )
@@ -553,7 +556,7 @@ class Testwrite_objects(unittest.TestCase):
         gen.close()
 
         self.assertEqual(
-            b'<?xml version="1.0"?>'+
+            b'<?xml version="1.0"?>' +
             b'<stream:stream '
             b'xmlns:stream="http://etherx.jabber.org/streams" '
             b'from="'+str(self.TEST_FROM).encode("utf-8")+b'" '
@@ -595,8 +598,8 @@ class Testwrite_objects(unittest.TestCase):
         gen.close()
 
         self.assertEqual(
-            b'<?xml version="1.0"?>'+
-            self.STREAM_HEADER+
+            b'<?xml version="1.0"?>' +
+            self.STREAM_HEADER +
             b'<ns0:bar xmlns:ns0="uri:foo"/>'
             b'</stream:stream>',
             self.buf.getvalue())
@@ -920,6 +923,7 @@ class TestXMPPXMLProcessor(unittest.TestCase):
 
     def test_on_stream_header(self):
         stream_header = ()
+
         def catch_stream_header():
             nonlocal stream_header
             stream_header = (
@@ -968,6 +972,7 @@ class TestXMPPXMLProcessor(unittest.TestCase):
         catch_exception = unittest.mock.MagicMock()
 
         elements = []
+
         def recv(obj):
             nonlocal elements
             elements.append(obj)

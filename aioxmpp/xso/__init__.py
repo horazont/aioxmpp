@@ -8,8 +8,8 @@ stanzas, but in general anything which is sent after the XML stream header.
 The facilities in this subpackage are supposed to help developers of XEP
 plugins, as well as the main development of :mod:`aioxmpp`. The subpackage
 is split in two parts, :mod:`aioxmpp.xso.model`, which provides facilities to
-allow declarative-style parsing and un-parsing of XML subtrees into XSOs and the
-:mod:`aioxmpp.xso.types` module, which provides classes which implement
+allow declarative-style parsing and un-parsing of XML subtrees into XSOs and
+the :mod:`aioxmpp.xso.types` module, which provides classes which implement
 validators and type parsers for content represented as strings in XML.
 
 Terminology
@@ -39,11 +39,11 @@ Suspendable functions
 
 This module uses suspendable functions, implemented as generators, at several
 points. These may also be called coroutines, but have nothing to do with
-coroutines as used by :mod:`asyncio`, which is why we will call them suspendable
-functions here.
+coroutines as used by :mod:`asyncio`, which is why we will call them
+suspendable functions here.
 
-Suspendable functions possibly take arguments and then operate on input which is
-fed to them in a push-manner step by step (using the
+Suspendable functions possibly take arguments and then operate on input which
+is fed to them in a push-manner step by step (using the
 :meth:`~types.GeneratorType.send` method). The main usage in this module is to
 process SAX events: The SAX events are processed step-by-step by the functions,
 and when the event is fully processed, it suspends itself (using ``yield``)
@@ -73,8 +73,8 @@ descriptors.
 Descriptors for XML-sourced attributes
 --------------------------------------
 
-The following descriptors can be used to load XSO attributes from XML. There are
-two fundamentally different descriptor types: *scalar* and *non-scalar*
+The following descriptors can be used to load XSO attributes from XML. There
+are two fundamentally different descriptor types: *scalar* and *non-scalar*
 (e.g. list) descriptors. *scalar* descriptor types always accept a
 value of :data:`None`, which represents the *absence* of the object (unless it
 is required by some means, e.g. ``Attr(required=True)``). *Non-scalar*
@@ -201,8 +201,8 @@ Validators validate the python values after they have been parsed from
 XML-sourced strings or even when being assigned to a descriptor attribute
 (depending on the choice in the *validate* argument).
 
-They can be useful both for defending and rejecting incorrect input and to avoid
-producing incorrect output.
+They can be useful both for defending and rejecting incorrect input and to
+avoid producing incorrect output.
 
 The basic validator interface
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -263,7 +263,7 @@ def normalize_tag(tag):
     return tag
 
 
-from .types import (
+from .types import (  # NOQA
     AbstractType,
     String,
     Integer,
@@ -278,7 +278,7 @@ from .types import (
     Nmtoken
 )
 
-from .model import (
+from .model import (  # NOQA
     tag_to_str,
     normalize_tag,
     UnknownChildPolicy,

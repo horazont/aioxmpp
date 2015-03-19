@@ -172,7 +172,7 @@ class TestTagDispatcher(unittest.TestCase):
         l = OneshotTagListener(mock)
 
         nh = TagDispatcher()
-        nh.add_future("tag", mock)
+        nh.add_listener("tag", l)
 
         nh.unicast("tag", obj)
         with self.assertRaises(KeyError):
@@ -199,13 +199,14 @@ class TestTagDispatcher(unittest.TestCase):
         mock.assert_called_once_with(obj)
 
     def test_broadcast_error_to_oneshot(self):
-        mock = unittest.mock.Mock()
+        data = unittest.mock.Mock()
+        error = unittest.mock.Mock()
         obj = object()
 
-        l = OneshotTagListener(mock)
+        l = OneshotTagListener(data, error)
 
         nh = TagDispatcher()
-        nh.add_future("tag", mock)
+        nh.add_listener("tag", l)
 
         nh.broadcast_error(obj)
         with self.assertRaises(KeyError):
@@ -215,8 +216,9 @@ class TestTagDispatcher(unittest.TestCase):
             [
                 unittest.mock.call(obj)
             ],
-            mock.mock_calls
+            error.mock_calls
         )
+        self.assertFalse(data.mock_calls)
 
     def test_remove_listener(self):
         mock = unittest.mock.Mock()

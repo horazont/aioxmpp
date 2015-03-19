@@ -400,7 +400,6 @@ class TestError(unittest.TestCase):
         )
 
 
-
 class TestIQ(unittest.TestCase):
     def test_inheritance(self):
         self.assertIsInstance(

@@ -13,6 +13,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
 class Service:
     """
     Base class for services (see the services user guide :ref:`ug-services`).
@@ -83,7 +84,7 @@ class Service:
         self.logger.error(
             "task %s failed:",
             task,
-            exc_info=(type(error), error, error.__traceback__)
+            exc_info=(type(error), error, tb)
         )
 
     def _on_task_success(self, task, result):

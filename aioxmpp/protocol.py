@@ -1,16 +1,11 @@
 import asyncio
-import inspect
-import io
-import traceback
-import sys
-
 from enum import Enum
 
 import xml.sax as sax
 import xml.parsers.expat as pyexpat
 
 from . import xml, errors, xso, stream_xsos, stanza
-from .utils import namespaces, etree
+from .utils import namespaces
 
 
 class Mode(Enum):
@@ -34,7 +29,9 @@ class XMLStream(asyncio.Protocol):
                                      self._rx_stream_error)
 
     def _invalid_transition(self, to, via=None):
-        text = "invalid state transition: from={} to={}".format(self._state, to)
+        text = "invalid state transition: from={} to={}".format(
+            self._state,
+            to)
         if via:
             text += " (via: {})".format(via)
         return RuntimeError(text)

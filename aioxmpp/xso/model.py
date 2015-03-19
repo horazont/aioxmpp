@@ -5,8 +5,6 @@
 See :mod:`aioxmpp.xso` for documentation.
 """
 import collections
-import copy
-import inspect
 import sys
 import xml.sax.handler
 
@@ -20,6 +18,7 @@ from aioxmpp.utils import etree
 
 from . import types as xso_types
 from . import tag_to_str, normalize_tag
+
 
 class UnknownChildPolicy(Enum):
     """
@@ -160,7 +159,7 @@ class _PropBase:
             return self
         try:
             return instance._stanza_props[self]
-        except KeyError as err:
+        except KeyError:
             return self._default
 
     def to_node(self, instance, parent):
@@ -179,9 +178,9 @@ class Text(_PropBase):
     XML element.
 
     Note that this destroys the relative ordering of child elements and
-    character data pieces. This is known and a WONTFIX, as it is not required in
-    XMPP to keep that relative order: Elements either have character data *or*
-    other elements as children.
+    character data pieces. This is known and a WONTFIX, as it is not required
+    in XMPP to keep that relative order: Elements either have character data
+    *or* other elements as children.
 
     The *type_*, *validator*, *validate* and *default* arguments behave like in
     :class:`Attr`.
@@ -221,8 +220,8 @@ class Text(_PropBase):
 
 class Child(_PropBase):
     """
-    When assigned to a class’ attribute, it collects any child which matches any
-    :attr:`XSO.TAG` of the given *classes*.
+    When assigned to a class’ attribute, it collects any child which matches
+    any :attr:`XSO.TAG` of the given *classes*.
 
     The tags among the *classes* must be unique, otherwise :class:`ValueError`
     is raised on construction.
@@ -327,8 +326,8 @@ class ChildList(Child):
 
     def to_sax(self, instance, dest):
         """
-        Like :meth:`.Child.to_node`, but instead of serializing a single object,
-        all objects in the list are serialized.
+        Like :meth:`.Child.to_node`, but instead of serializing a single
+        object, all objects in the list are serialized.
         """
 
         for obj in self.__get__(instance, type(instance)):
@@ -363,8 +362,8 @@ class Collector(_PropBase):
     def from_events(self, instance, ev_args):
         """
         Collect the events and convert them to a single XML subtree, which then
-        gets appended to the list at *instance*. *ev_args* must be the arguments
-        of the ``"start"`` event of the new child.
+        gets appended to the list at *instance*. *ev_args* must be the
+        arguments of the ``"start"`` event of the new child.
 
         This method is suspendable.
         """
@@ -386,8 +385,8 @@ class Collector(_PropBase):
         # create an element stack
         stack = [root_el]
         while stack:
-            # we get send all sax-ish events until we return. we return when the
-            # stack is empty, i.e. when our top element ended.
+            # we get send all sax-ish events until we return. we return when
+            # the stack is empty, i.e. when our top element ended.
             ev_type, *ev_args = yield
             if ev_type == "start":
                 # new element started, create and push to stack
@@ -426,14 +425,14 @@ class Attr(Text):
     :param type_: An object which fulfills the type interface proposed by
                   :class:`~.xso.AbstractType`. Usually, this is defaulted
                   to a :class:`~aioxmpp.xso.String` instance.
-    :param validator: An object which has a :meth:`validate` method. That method
-                      receives a value which was either assigned to the property
-                      (depending on the *validate* argument) or parsed from XML
-                      (after it passed through *type_*).
+    :param validator: An object which has a :meth:`validate` method. That
+                      method receives a value which was either assigned to the
+                      property (depending on the *validate* argument) or parsed
+                      from XML (after it passed through *type_*).
     :param validate: A value from the :class:`ValidateMode` enum, which defines
                      which values have to pass through the validator. At some
-                     points it makes sense to only validate outgoing values, but
-                     be liberal with incoming values. This defaults to
+                     points it makes sense to only validate outgoing values,
+                     but be liberal with incoming values. This defaults to
                      :attr:`ValidateMode.FROM_RECV`.
     :param default: The value which the attribute has if no value has been
                     assigned. This defaults to :data:`None`.
@@ -525,9 +524,9 @@ class ChildText(_PropBase):
         attributes, :attr:`attr_policy` is enforced
         (c.f. :class:`UnknownAttrPolicy`).
 
-        The extracted text is passed through :attr:`type_` and :attr:`validator`
-        and if it passes, stored in the attribute on the *instance* with which
-        the property is associated.
+        The extracted text is passed through :attr:`type_` and
+        :attr:`validator` and if it passes, stored in the attribute on the
+        *instance* with which the property is associated.
 
         This method is suspendable.
         """
@@ -583,8 +582,8 @@ class ChildText(_PropBase):
 class ChildMap(Child):
     """
     The :class:`ChildMap` class works like :class:`ChildList`, but instead of
-    storing the child objects in a list, they are stored in a map which contains
-    a list of objects for each tag.
+    storing the child objects in a list, they are stored in a map which
+    contains a list of objects for each tag.
 
     .. automethod:: from_events
 
@@ -632,8 +631,9 @@ class ChildMap(Child):
 
 class ChildTag(_PropBase):
     """
-    When assigned to a class’ attribute, this descriptor represents the presence
-    or absence of a single child with a tag from a given set of valid tags.
+    When assigned to a class’ attribute, this descriptor represents the
+    presence or absence of a single child with a tag from a given set of valid
+    tags.
 
     *tags* must be an iterable of valid arguments to :func:`normalize_tag`. If
     :func:`normalize_tag` returns a false value (such as :data:`None`) as
@@ -645,13 +645,13 @@ class ChildTag(_PropBase):
     the child element unexpectedly has text, children or attributes,
     respectively. The default for each is to fail with a :class:`ValueError`.
 
-    If *allow_none* is :data:`True`, assignment of :data:`None` to the attribute
-    to which this descriptor belongs is allowed and represents the absence of
-    the child element.
+    If *allow_none* is :data:`True`, assignment of :data:`None` to the
+    attribute to which this descriptor belongs is allowed and represents the
+    absence of the child element.
 
-    If *declare_prefix* is not :data:`False` (note that :data:`None` is a valid,
-    non-:data:`False` value in this context!), the namespace is explicitly
-    declared using the given prefix when serializing to SAX.
+    If *declare_prefix* is not :data:`False` (note that :data:`None` is a
+    valid, non-:data:`False` value in this context!), the namespace is
+    explicitly declared using the given prefix when serializing to SAX.
 
     *default* works as for :class:`Attr`.
 
@@ -736,8 +736,8 @@ class XMLStreamClass(type):
     There should be no need to use this metaclass directly when implementing
     your own XSO classes. Instead, derive from :class:`XSO`.
 
-    The following restrictions apply when a class uses the :class:`XMLStreamClass`
-    metaclass:
+    The following restrictions apply when a class uses the
+    :class:`XMLStreamClass` metaclass:
 
     1. At no point in the inheritance tree there must exist more than one
        distinct :class:`Text` descriptor. It is possible to inherit two
@@ -765,9 +765,9 @@ class XMLStreamClass(type):
 
     .. attribute:: COLLECTOR_PROPERTY
 
-       The :class:`Collector` descriptor object associated with this class. This
-       is :data:`None` if no attribute using that descriptor is declared on the
-       class.
+       The :class:`Collector` descriptor object associated with this
+       class. This is :data:`None` if no attribute using that descriptor is
+       declared on the class.
 
     .. attribute:: ATTR_MAP
 
@@ -790,8 +790,8 @@ class XMLStreamClass(type):
        :class:`XSO` defines defaults for more attributes which also
        must be present on objects which are used as XSOs.
 
-    When inheriting from :class:`XMLStreamClass` objects, the properties are merged
-    sensibly.
+    When inheriting from :class:`XMLStreamClass` objects, the properties are
+    merged sensibly.
 
     """
 
@@ -1018,15 +1018,15 @@ class XSO(metaclass=XMLStreamClass):
        behaviour if a child is encountered for which no matching attribute is
        found.
 
-       Note that this policy has no effect if a :class:`Collector` descriptor is
-       present, as it takes all children for which no other descriptor exists,
-       thus all children are known.
+       Note that this policy has no effect if a :class:`Collector` descriptor
+       is present, as it takes all children for which no other descriptor
+       exists, thus all children are known.
 
     .. attribute:: UNKNOWN_ATTR_POLICY = UnknownAttrPolicy.FAIL
 
        A value from the :class:`UnknownAttrPolicy` enum which defines the
-       behaviour if an attribute is encountered for which no matching descriptor
-       is found.
+       behaviour if an attribute is encountered for which no matching
+       descriptor is found.
 
     .. attribute:: DECLARE_NS = None
 
@@ -1039,8 +1039,8 @@ class XSO(metaclass=XMLStreamClass):
 
           It is discouraged to use namespace prefixes of the format
           ``"ns{:d}".format(n)``, for any given number *n*. These prefixes are
-          reserved for ad-hoc namespace declarations, and attempting to use them
-          may have unwanted side-effects.
+          reserved for ad-hoc namespace declarations, and attempting to use
+          them may have unwanted side-effects.
 
     Example::
 
@@ -1086,8 +1086,8 @@ class XSO(metaclass=XMLStreamClass):
 
         If an exception is raised by the parsing function of a descriptor
         attribute, such as :class:`Attr`, the *descriptor* is passed as first
-        argument, the *exc_info* tuple as third argument and the arguments which
-        led to the descriptor being invoked as second argument.
+        argument, the *exc_info* tuple as third argument and the arguments
+        which led to the descriptor being invoked as second argument.
 
         If an unknown child is encountered and the :attr:`UNKNOWN_CHILD_POLICY`
         is set to :attr:`UnknownChildPolicy.FAIL`, *descriptor* and *exc_info*

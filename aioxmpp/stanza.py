@@ -5,7 +5,7 @@ from . import xso, errors
 
 from .utils import namespaces
 
-RANDOM_ID_BYTES = (120//8)
+RANDOM_ID_BYTES = 120 // 8
 
 
 class PayloadError(Exception):
@@ -55,7 +55,7 @@ class StanzaBase(xso.XSO):
             return
 
         self.id_ = base64.b64encode(random.getrandbits(
-            RANDOM_ID_BYTES*8
+            RANDOM_ID_BYTES * 8
         ).to_bytes(
             RANDOM_ID_BYTES, "little"
         )).decode("ascii")
@@ -283,7 +283,7 @@ class IQ(StanzaBase):
         # raise a specific error if the payload failed to parse
         if descriptor == IQ.payload:
             raise PayloadParsingError(self, ev_args)
-        elif descriptor == None:
+        elif descriptor is None:
             raise UnknownIQPayload(self, ev_args)
 
     def __repr__(self):

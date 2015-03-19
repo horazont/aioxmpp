@@ -39,7 +39,8 @@ STREAM_ERROR_TEMPLATE_WITHOUT_TEXT = '''\
 </stream:error>'''
 
 STANZA_ERROR_TEMPLATE_WITHOUT_TEXT = '''\
-<error type="{type}"><{condition} xmlns="urn:ietf:params:xml:ns:xmpp-stanzas"/>\
+<error type="{type}">\
+<{condition} xmlns="urn:ietf:params:xml:ns:xmpp-stanzas"/>\
 </error>'''
 
 STANZA_ERROR_TEMPLATE_WITH_TEXT = '''\
@@ -59,6 +60,7 @@ class FakeIQ(stanza.IQ):
     TAG = ("jabber:client", "iq")
 
 FakeIQ.register_child(FakeIQ.payload, Child)
+
 
 class TestXMLStream(unittest.TestCase):
     def setUp(self):
@@ -95,7 +97,6 @@ class TestXMLStream(unittest.TestCase):
                     ],
                 ))
 
-
     def test_clean_empty_stream(self):
         t, p = self._make_stream(to=TEST_PEER)
         run_coroutine(
@@ -118,24 +119,20 @@ class TestXMLStream(unittest.TestCase):
 
     def test_only_one_close_event_on_multiple_errors(self):
         t, p = self._make_stream(to=TEST_PEER)
-        run_coroutine(
-            t.run_test(
-                [
-                    TransportMock.Write(
-                        STREAM_HEADER,
-                        response=[
-                            TransportMock.Receive(
-                                self._make_peer_header(version=(1, 0)) +
-                                self._make_stream_error("undefined-condition") +
-                                self._make_eos()),
-                            TransportMock.ReceiveEof()
-                        ]
-                    ),
-                    TransportMock.Write(b"</stream:stream>"),
-                    TransportMock.WriteEof(),
-                    TransportMock.Close()
-                ]
-            ))
+        run_coroutine(t.run_test([
+            TransportMock.Write(
+                STREAM_HEADER,
+                response=[
+                    TransportMock.Receive(
+                        self._make_peer_header(version=(1, 0)) +
+                        self._make_stream_error("undefined-condition") +
+                        self._make_eos()),
+                    TransportMock.ReceiveEof()
+                ]),
+            TransportMock.Write(b"</stream:stream>"),
+            TransportMock.WriteEof(),
+            TransportMock.Close()
+        ]))
 
     def test_close(self):
         t, p = self._make_stream(to=TEST_PEER)
@@ -182,26 +179,23 @@ class TestXMLStream(unittest.TestCase):
 
     def test_send_stream_error_from_feed(self):
         t, p = self._make_stream(to=TEST_PEER)
-        run_coroutine(
-            t.run_test(
-                [
-                    TransportMock.Write(
-                        STREAM_HEADER,
-                        response=[
-                            TransportMock.Receive(self._make_peer_header()),
-                            TransportMock.Receive(b"&foo;")
-                        ]),
-                    TransportMock.Write(
-                        STREAM_ERROR_TEMPLATE_WITH_TEXT.format(
-                            condition="restricted-xml",
-                            text="non-predefined entities are not allowed in XMPP"
-                        ).encode("utf-8")
-                    ),
-                    TransportMock.Write(b"</stream:stream>"),
-                    TransportMock.WriteEof(),
-                    TransportMock.Close()
-                ]
-            ))
+        run_coroutine(t.run_test([
+            TransportMock.Write(
+                STREAM_HEADER,
+                response=[
+                    TransportMock.Receive(self._make_peer_header()),
+                    TransportMock.Receive(b"&foo;")
+                ]),
+            TransportMock.Write(
+                STREAM_ERROR_TEMPLATE_WITH_TEXT.format(
+                    condition="restricted-xml",
+                    text="non-predefined entities are not allowed in XMPP"
+                ).encode("utf-8")
+            ),
+            TransportMock.Write(b"</stream:stream>"),
+            TransportMock.WriteEof(),
+            TransportMock.Close()
+        ]))
 
     def test_check_version(self):
         t, p = self._make_stream(to=TEST_PEER)
@@ -254,35 +248,32 @@ class TestXMLStream(unittest.TestCase):
 
         t, p = self._make_stream(to=TEST_PEER)
         p.stanza_parser.add_class(FakeIQ, catch_iq)
-        run_coroutine(
-            t.run_test(
-                [
-                    TransportMock.Write(
-                        STREAM_HEADER,
-                        response=[
-                            TransportMock.Receive(self._make_peer_header()),
-                            TransportMock.Receive(
-                                b'<iq to="foo@foo.example" from="foo@bar.example"'
-                                b' id="1234" type="get">'
-                                b'<unknown-payload xmlns="uri:foo"/>'
-                                b'</iq>'),
-                        ]),
-                    TransportMock.Write(
-                        b'<iq from="foo@foo.example" id="1234"'
-                        b' to="foo@bar.example" type="error">'+
-                        STANZA_ERROR_TEMPLATE_WITHOUT_TEXT.format(
-                            type="cancel",
-                            condition="feature-not-implemented").encode("utf-8")+
-                        b'</iq>',
-                        response=[
-                            TransportMock.Receive(
-                                b'<iq to="foo@foo.example" from="foo@bar.example"'
-                                b' id="1234" type="get">'
-                                b'<payload xmlns="uri:foo" a="test" />'
-                                b'</iq>')
-                        ])
-               ]
-            ))
+        run_coroutine(t.run_test([
+            TransportMock.Write(
+                STREAM_HEADER,
+                response=[
+                    TransportMock.Receive(self._make_peer_header()),
+                    TransportMock.Receive(
+                        b'<iq to="foo@foo.example" from="foo@bar.example"'
+                        b' id="1234" type="get">'
+                        b'<unknown-payload xmlns="uri:foo"/>'
+                        b'</iq>'),
+                ]),
+            TransportMock.Write(
+                b'<iq from="foo@foo.example" id="1234"'
+                b' to="foo@bar.example" type="error">' +
+                STANZA_ERROR_TEMPLATE_WITHOUT_TEXT.format(
+                    type="cancel",
+                    condition="feature-not-implemented").encode("utf-8") +
+                b'</iq>',
+                response=[
+                    TransportMock.Receive(
+                        b'<iq to="foo@foo.example" from="foo@bar.example"'
+                        b' id="1234" type="get">'
+                        b'<payload xmlns="uri:foo" a="test" />'
+                        b'</iq>')
+                ])
+        ]))
 
     def test_recover_errornous_iq_payload(self):
         def catch_iq(obj):
@@ -290,37 +281,34 @@ class TestXMLStream(unittest.TestCase):
 
         t, p = self._make_stream(to=TEST_PEER)
         p.stanza_parser.add_class(FakeIQ, catch_iq)
-        run_coroutine(
-            t.run_test(
-                [
-                    TransportMock.Write(
-                        STREAM_HEADER,
-                        response=[
-                            TransportMock.Receive(self._make_peer_header()),
-                            TransportMock.Receive(
-                                b'<iq to="foo@foo.example" from="foo@bar.example"'
-                                b' id="1234" type="get">'
-                                b'<payload xmlns="uri:foo"/>'
-                                b'</iq>'),
-                        ]),
-                    TransportMock.Write(
-                        b'<iq from="foo@foo.example" id="1234"'
-                        b' to="foo@bar.example" type="error">'+
-                        STANZA_ERROR_TEMPLATE_WITH_TEXT.format(
-                            type="modify",
-                            condition="bad-request",
-                            text="missing attribute (None, 'a') on {uri:foo}payload"
-                        ).encode("utf-8")+
-                        b'</iq>',
-                        response=[
-                            TransportMock.Receive(
-                                b'<iq to="foo@foo.example" from="foo@bar.example"'
-                                b' id="1234" type="get">'
-                                b'<payload xmlns="uri:foo" a="test" />'
-                                b'</iq>')
-                        ])
-               ]
-            ))
+        run_coroutine(t.run_test([
+            TransportMock.Write(
+                STREAM_HEADER,
+                response=[
+                    TransportMock.Receive(self._make_peer_header()),
+                    TransportMock.Receive(
+                        b'<iq to="foo@foo.example" from="foo@bar.example"'
+                        b' id="1234" type="get">'
+                        b'<payload xmlns="uri:foo"/>'
+                        b'</iq>'),
+                ]),
+            TransportMock.Write(
+                b'<iq from="foo@foo.example" id="1234"'
+                b' to="foo@bar.example" type="error">' +
+                STANZA_ERROR_TEMPLATE_WITH_TEXT.format(
+                    type="modify",
+                    condition="bad-request",
+                    text="missing attribute (None, 'a') on {uri:foo}payload"
+                ).encode("utf-8") +
+                b'</iq>',
+                response=[
+                    TransportMock.Receive(
+                        b'<iq to="foo@foo.example" from="foo@bar.example"'
+                        b' id="1234" type="get">'
+                        b'<payload xmlns="uri:foo" a="test" />'
+                        b'</iq>')
+                ])
+        ]))
 
     def test_send_stanza(self):
         st = FakeIQ()

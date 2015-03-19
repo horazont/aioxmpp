@@ -100,13 +100,13 @@ class TestAsyncDeque(unittest.TestCase):
 
         self.assertSequenceEqual(
             range(20),
-            sorted(vs1+vs2+vs3+vs4+vs5)
+            sorted(vs1 + vs2 + vs3 + vs4 + vs5)
         )
 
     def test_one_consumer_many_producers(self):
         @asyncio.coroutine
         def putter(n0):
-            for i in range(n0, n0+4):
+            for i in range(n0, n0 + 4):
                 self.q.put_nowait(i)
                 yield from asyncio.sleep(0)
 

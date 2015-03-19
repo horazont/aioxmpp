@@ -2,7 +2,8 @@
 :mod:`~aioxmpp.security_layer` --- Implementations to negotiate stream security
 ####################################################################################
 
-This module provides different implementations of the security layer (TLS+SASL).
+This module provides different implementations of the security layer
+(TLS+SASL).
 
 These are coupled, as different SASL features might need different TLS features
 (such as channel binding or client cert authentication).
@@ -75,10 +76,11 @@ import pyasn1_modules.rfc2459
 
 import OpenSSL.SSL
 
-from . import errors, sasl, stream_elements
-from .utils import *
+from . import errors, sasl
+from .utils import namespaces
 
 logger = logging.getLogger(__name__)
+
 
 class CertificateVerifier(metaclass=abc.ABCMeta):
     """
@@ -117,6 +119,7 @@ class CertificateVerifier(metaclass=abc.ABCMeta):
     def post_handshake(self, transport):
         pass
 
+
 class _NullVerifier(CertificateVerifier):
     def setup_context(self, ctx):
         ctx.set_verify(OpenSSL.SSL.VERIFY_NONE, self._callback_wrapper)
@@ -128,10 +131,11 @@ class _NullVerifier(CertificateVerifier):
     def post_handshake(self, transport):
         pass
 
+
 class PKIXCertificateVerifier(CertificateVerifier):
     """
-    This verifier enables the default PKIX based verification of certificates as
-    implemented by OpenSSL.
+    This verifier enables the default PKIX based verification of certificates
+    as implemented by OpenSSL.
 
     .. warning::
 
@@ -182,6 +186,7 @@ class PKIXCertificateVerifier(CertificateVerifier):
         except ssl.CertificateError as err:
             raise errors.TLSError(str(err))
 
+
 class ErrorRecordingVerifier(CertificateVerifier):
     def __init__(self):
         super().__init__()
@@ -213,8 +218,8 @@ class STARTTLSProvider:
     arguments.
 
     *require_starttls* can be set to :data:`False` to allow stream negotiation
-    to continue even if STARTTLS fails before it has been started (the stream is
-    fatally broken if the STARTTLS command has been sent but SSL negotiation
+    to continue even if STARTTLS fails before it has been started (the stream
+    is fatally broken if the STARTTLS command has been sent but SSL negotiation
     fails afterwards).
 
     *certificate_verifier_factory* must be a callable providing a
@@ -258,7 +263,7 @@ class STARTTLSProvider:
         E = xmlstream.tx_context.default_ns_builder(namespaces.starttls)
 
         try:
-            feature = features.require_feature(
+            features.require_feature(
                 "{{{}}}starttls".format(namespaces.starttls)
             )
         except KeyError:
@@ -296,10 +301,13 @@ class STARTTLSProvider:
                 raise
             except Exception as err:
                 logger.exception("STARTTLS failed:")
-                raise errors.TLSFailure("TLS connection failed: {}".format(err))
+                raise errors.TLSFailure(
+                    "TLS connection failed: {}".format(err)
+                )
             return xmlstream.transport
 
         return self._fail_if_required("STARTTLS failed on remote side")
+
 
 class SASLProvider:
     def _find_supported(self, features, mechanism_classes):
@@ -324,8 +332,8 @@ class SASLProvider:
 
         remote_mechanism_list = [
             mechanism.text
-            for mechanism in mechanisms.iterchildren("{{{}}}mechanism".format(
-                    namespaces.sasl))
+            for mechanism in mechanisms.iterchildren(
+                "{{{}}}mechanism".format(namespaces.sasl))
             if mechanism.text
         ]
 
@@ -390,14 +398,15 @@ class SASLProvider:
         exception to be raised.
         """
 
+
 class PasswordSASLProvider(SASLProvider):
     """
     Perform password-based SASL authentication.
 
     *jid* must be a :class:`~.structs.JID` object for the
-    client. *password_provider* must be a coroutine which is called with the jid
-    as first and the number of attempt as second argument. It must return the
-    password to use, or :data:`None` to abort. In that case, an
+    client. *password_provider* must be a coroutine which is called with the
+    jid as first and the number of attempt as second argument. It must return
+    the password to use, or :data:`None` to abort. In that case, an
     :class:`errors.AuthenticationFailure` error will be raised.
 
     At most *max_auth_attempts* will be carried out. If all fail, the
@@ -474,19 +483,22 @@ class PasswordSASLProvider(SASLProvider):
                 raise last_auth_error
 
             if mechanism_worked:
-               return True
+                return True
             classes.remove(mechanism_class)
 
         return False
 
+
 def default_verify_callback(conn, x509, errno, errdepth, returncode):
     return errno == 0
+
 
 def default_ssl_context():
     ctx = OpenSSL.SSL.Context(OpenSSL.SSL.SSLv23_METHOD)
     ctx.set_options(OpenSSL.SSL.OP_NO_SSLv2 | OpenSSL.SSL.OP_NO_SSLv3)
     ctx.set_verify(OpenSSL.SSL.VERIFY_PEER, default_verify_callback)
     return ctx
+
 
 @asyncio.coroutine
 def negotiate_stream_security(tls_provider, sasl_providers,
@@ -508,8 +520,8 @@ def negotiate_stream_security(tls_provider, sasl_providers,
     propagates upwards.
 
     If no provider succeeds and there was an authentication failure, that error
-    is re-raised. Otherwise, a dedicated :class:`~.errors.SASLFailure` exception
-    is raised, which states that no common mechanisms were found.
+    is re-raised. Otherwise, a dedicated :class:`~.errors.SASLFailure`
+    exception is raised, which states that no common mechanisms were found.
 
     On success, a pair of ``(tls_transport, features)`` is returned. If TLS has
     been negotiated, *tls_transport* is the SSL :class:`asyncio.Transport`
@@ -552,6 +564,7 @@ def negotiate_stream_security(tls_provider, sasl_providers,
 
     return tls_transport, features
 
+
 def security_layer(tls_provider, sasl_providers):
     """
     .. seealso::
@@ -559,10 +572,11 @@ def security_layer(tls_provider, sasl_providers):
        Use this function only if you need more customization than provided by
        :func:`tls_with_password_based_authentication`.
 
-    Return a partially applied :func:`negotiate_stream_security` function, where
-    the *tls_provider* and *sasl_providers* arguments are already bound.
+    Return a partially applied :func:`negotiate_stream_security` function,
+    where the *tls_provider* and *sasl_providers* arguments are already bound.
 
-    The return value can be passed to the constructor of :class:`~.node.Client`.
+    The return value can be passed to the constructor of
+    :class:`~.node.Client`.
 
     Some very basic checking on the input is also performed.
     """
@@ -597,7 +611,8 @@ def tls_with_password_based_authentication(
 
     tls_kwargs = {}
     if certificate_verifier_factory is not None:
-        tls_kwargs["certificate_verifier_factory"] = certificate_verifier_factory
+        tls_kwargs["certificate_verifier_factory"] = \
+            certificate_verifier_factory
 
     return security_layer(
         tls_provider=STARTTLSProvider(ssl_context_factory,

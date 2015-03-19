@@ -42,8 +42,8 @@ class StanzaState(Enum):
 
     .. attribute:: ACTIVE
 
-       The stanza has just been enqueued for sending and has not been taken care
-       of by the StanzaStream yet.
+       The stanza has just been enqueued for sending and has not been taken
+       care of by the StanzaStream yet.
 
     .. attribute:: SENT
 
@@ -52,8 +52,8 @@ class StanzaState(Enum):
 
     .. attribute:: ACKED
 
-       The stanza has been sent over a stream with Stream Management enabled and
-       has been acked by the remote. This is a final state.
+       The stanza has been sent over a stream with Stream Management enabled
+       and has been acked by the remote. This is a final state.
 
     .. attribute:: SENT_WITHOUT_SM
 
@@ -183,8 +183,8 @@ class StanzaStream:
        ping is fired after the interval.
 
     After a ping has been sent, the response must arrive in a time of
-    :attr:`ping_interval` for the stream to be considered alive. If the response
-    fails to arrive within that interval, the stream fails (see
+    :attr:`ping_interval` for the stream to be considered alive. If the
+    response fails to arrive within that interval, the stream fails (see
     :attr:`on_failure`).
 
     Reacting to failures:
@@ -291,9 +291,9 @@ class StanzaStream:
 
     def _iq_request_coro_done(self, request, task):
         """
-        Called when an IQ request handler coroutine returns. *request* holds the
-        IQ request which triggered the excecution of the coroutine and *task* is
-        the :class:`asyncio.Task` which tracks the running coroutine.
+        Called when an IQ request handler coroutine returns. *request* holds
+        the IQ request which triggered the excecution of the coroutine and
+        *task* is the :class:`asyncio.Task` which tracks the running coroutine.
 
         Compose a response and send that response.
         """
@@ -302,7 +302,7 @@ class StanzaStream:
         except errors.XMPPError as err:
             response = request.make_reply(type_="error")
             response.error = stanza.Error.from_exception(err)
-        except Exception as exc:
+        except Exception:
             response = request.make_reply(type_="error")
             response.error = stanza.Error(
                 condition=(namespaces.stanzas, "undefined-condition"),
@@ -430,7 +430,9 @@ class StanzaStream:
             if self._next_ping_event_type == PingEventType.TIMEOUT:
                 self._logger.debug("resetting ping timeout")
                 self._next_ping_event_type = PingEventType.SEND_OPPORTUNISTIC
-                self._next_ping_event_at = datetime.utcnow() + self.ping_interval
+                self._next_ping_event_at = (datetime.utcnow() +
+                                            self.ping_interval)
+
         elif isinstance(stanza_obj, stream_xsos.SMRequest):
             self._logger.debug("received SM request: %r", stanza_obj)
             if not self._sm_enabled:
@@ -441,18 +443,19 @@ class StanzaStream:
             self._logger.debug("sending SM ack: %r", stanza_obj)
             xmlstream.send_stanza(response)
         else:
-            raise RuntimeError("unexpected stanza class: {}".format(stanza_obj))
+            raise RuntimeError(
+                "unexpected stanza class: {}".format(stanza_obj))
 
     def flush_incoming(self):
         """
         Flush all incoming queues to the respective processing methods. The
-        handlers are called as usual, thus it may require at least one iteration
-        through the asyncio event loop before effects can be seen.
+        handlers are called as usual, thus it may require at least one
+        iteration through the asyncio event loop before effects can be seen.
 
         The incoming queues are empty after a call to this method.
 
-        It is legal (but pretty useless) to call this method while the stream is
-        :attr:`running`.
+        It is legal (but pretty useless) to call this method while the stream
+        is :attr:`running`.
         """
         while True:
             try:
@@ -483,8 +486,8 @@ class StanzaStream:
         """
         Process the current outgoing stanza *token* and also any other outgoing
         stanza which is currently in the active queue. After all stanzas have
-        been processed, use :meth:`_send_ping` to allow an opportunistic ping to
-        be sent.
+        been processed, use :meth:`_send_ping` to allow an opportunistic ping
+        to be sent.
         """
 
         self._send_stanza(xmlstream, token)
@@ -586,12 +589,13 @@ class StanzaStream:
     def register_iq_response_future(self, from_, id_, fut):
         """
         Register a future *fut* for an IQ stanza with type ``result`` or
-        ``error`` from the :class:`~aioxmpp.structs.JID`` *from_* with the id *id_*.
+        ``error`` from the :class:`~aioxmpp.structs.JID`` *from_* with the id
+        *id_*.
 
         If the type of the IQ stanza is ``result``, the stanza is set as result
         to the future. If the type of the IQ stanza is ``error``, the stanzas
-        error field is converted to an exception and set as the exception of the
-        future.
+        error field is converted to an exception and set as the exception of
+        the future.
         """
 
         self._iq_response_map.add_listener(
@@ -611,10 +615,10 @@ class StanzaStream:
         Register a coroutine *coro* to IQ requests of type *type_* which have a
         payload of the given *payload_cls* class.
 
-        Whenever a matching IQ stanza is received, the coroutine is started with
-        the stanza as its only argument. It is expected to return an IQ stanza
-        which is sent as response; returning :data:`None` will cause the stream
-        to fail.
+        Whenever a matching IQ stanza is received, the coroutine is started
+        with the stanza as its only argument. It is expected to return an IQ
+        stanza which is sent as response; returning :data:`None` will cause the
+        stream to fail.
 
         Raising an exception will convert the exception to an IQ error stanza;
         if the exception is a subclass of :class:`aioxmpp.errors.XMPPError`, it
@@ -628,9 +632,9 @@ class StanzaStream:
 
     def register_message_callback(self, type_, from_, cb):
         """
-        Register a callback function *cb* to be called whenever a message stanza
-        of the given *type_* from the given :class:`~aioxmpp.structs.JID` *from_*
-        arrives.
+        Register a callback function *cb* to be called whenever a message
+        stanza of the given *type_* from the given
+        :class:`~aioxmpp.structs.JID` *from_* arrives.
 
         Both *type_* and *from_* can be :data:`None`, each, to indicate a
         wildcard match. It is not allowed for both *type_* and *from_* to be
@@ -638,8 +642,8 @@ class StanzaStream:
 
         More specific callbacks win over less specific callbacks. That is, a
         callback registered for type ``"chat"`` and from a specific JID
-        will win over a callback registered for type ``"chat"`` with from set to
-        :data:`None`.
+        will win over a callback registered for type ``"chat"`` with from set
+        to :data:`None`.
         """
         self._message_map[type_, from_] = cb
         self._logger.debug(
@@ -653,8 +657,8 @@ class StanzaStream:
         :class:`~aioxmpp.structs.JID`.
 
         *from_* may be :data:`None` to indicate a wildcard. Like with
-        :meth:`register_message_callback`, more specific callbacks win over less
-        specific callbacks.
+        :meth:`register_message_callback`, more specific callbacks win over
+        less specific callbacks.
 
         .. note::
 
@@ -690,9 +694,9 @@ class StanzaStream:
         if self._sm_enabled:
             self._logger.debug("using SM")
             xmlstream.stanza_parser.add_class(stream_xsos.SMAcknowledgement,
-                                           self.recv_stanza)
+                                              self.recv_stanza)
             xmlstream.stanza_parser.add_class(stream_xsos.SMRequest,
-                                           self.recv_stanza)
+                                              self.recv_stanza)
 
         self._next_ping_event_at = datetime.utcnow() + self.ping_interval
         self._next_ping_event_type = PingEventType.SEND_OPPORTUNISTIC
@@ -701,14 +705,14 @@ class StanzaStream:
     def stop(self):
         """
         Send a signal to the main broker task to terminate. You have to check
-        :attr:`running` and possibly wait for it to become :data:`False` --- the
-        task takes at least one loop through the event loop to terminate.
+        :attr:`running` and possibly wait for it to become :data:`False` ---
+        the task takes at least one loop through the event loop to terminate.
 
-        It is guarenteed that the task will not attempt to send stanzas over the
-        existing *xmlstream* after a call to :meth:`stop` has been made.
+        It is guarenteed that the task will not attempt to send stanzas over
+        the existing *xmlstream* after a call to :meth:`stop` has been made.
 
-        It is legal to call :meth:`stop` even if the task is already stopped. It
-        is a no-op in that case.
+        It is legal to call :meth:`stop` even if the task is already
+        stopped. It is a no-op in that case.
         """
         if not self.running:
             return
@@ -869,8 +873,8 @@ class StanzaStream:
     @property
     def sm_unacked_list(self):
         """
-        A **copy** of the list of stanza tokens which have not yet been acked by
-        the remote party.
+        A **copy** of the list of stanza tokens which have not yet been acked
+        by the remote party.
 
         .. note::
 
@@ -888,8 +892,8 @@ class StanzaStream:
 
     def resume_sm(self, remote_ctr):
         """
-        Resume a stream management session, using the remote stanza counter with
-        the value *remote_ctr*.
+        Resume a stream management session, using the remote stanza counter
+        with the value *remote_ctr*.
 
         Attempting to call this method while the stream is running or on a
         stream without enabled stream management results in a
@@ -908,8 +912,8 @@ class StanzaStream:
         # remove any acked stanzas
         self.sm_ack(remote_ctr)
         # reinsert the remaining stanzas
-        for stanza in self._sm_unacked_list:
-            self._active_queue.putleft_nowait(stanza)
+        for token in self._sm_unacked_list:
+            self._active_queue.putleft_nowait(token)
         self._sm_unacked_list.clear()
 
     def stop_sm(self):
@@ -984,9 +988,10 @@ class StanzaStream:
 
         .. warning::
 
-           If *timeout* is :data:`None`, this may block forever! For example, if
-           the stanza is sent over a dead, not stream managed stream, of which
-           the deadness is only detected *after* the stanza has been sent.
+           If *timeout* is :data:`None`, this may block forever! For example,
+           if the stanza is sent over a dead, not stream managed stream, of
+           which the deadness is only detected *after* the stanza has been
+           sent.
 
            This is a very common case in most networking scenarios, so you
            should generally use a timeout or apply a timeout on a higher level.

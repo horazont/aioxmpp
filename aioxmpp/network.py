@@ -3,7 +3,6 @@ import functools
 import itertools
 import logging
 import random
-import socket
 
 import dns
 import dns.flags
@@ -11,10 +10,13 @@ import dns.resolver
 
 logger = logging.getLogger(__name__)
 
-def repeated_query(qname, rdtype, nattempts=3, resolver=None, require_ad=False):
+
+def repeated_query(qname, rdtype,
+                   nattempts=3,
+                   resolver=None,
+                   require_ad=False):
     if nattempts <= 0:
         raise ValueError("Query cannot succeed with zero or less attempts")
-
 
     resolver = resolver or dns.resolver.get_default_resolver()
     for i in range(nattempts):
@@ -26,7 +28,7 @@ def repeated_query(qname, rdtype, nattempts=3, resolver=None, require_ad=False):
             answer = resolver.query(
                 qname.decode("ascii"),
                 rdtype,
-                tcp=i>0,
+                tcp=(i > 0),
             )
             if require_ad:
                 if not (answer.response.flags & dns.flags.AD):
@@ -42,10 +44,11 @@ def repeated_query(qname, rdtype, nattempts=3, resolver=None, require_ad=False):
 
     return answer
 
+
 def lookup_srv(domain, service, transport=b"tcp", **kwargs):
     record = b".".join([
-        b"_"+service,
-        b"_"+transport,
+        b"_" + service,
+        b"_" + transport,
         domain])
 
     answer = repeated_query(
@@ -71,10 +74,11 @@ def lookup_srv(domain, service, transport=b"tcp", **kwargs):
 
     return items
 
+
 def lookup_tlsa(domain, port, transport=b"tcp", require_ad=True, **kwargs):
     record = b".".join([
-        b"_"+str(port).encode("ascii"),
-        b"_"+transport,
+        b"_" + str(port).encode("ascii"),
+        b"_" + transport,
         domain
     ])
 
@@ -93,6 +97,7 @@ def lookup_tlsa(domain, port, transport=b"tcp", require_ad=True, **kwargs):
     ]
 
     return items
+
 
 def group_and_order_srv_records(all_records, rng=None):
     rng = rng or random
@@ -141,6 +146,7 @@ def find_xmpp_host_addr(loop, domain, attempts=3):
         return items
 
     return [(0, 0, (domain, 5222))]
+
 
 @asyncio.coroutine
 def find_xmpp_host_tlsa(loop, domain, attempts=3, require_ad=True):

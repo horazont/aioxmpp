@@ -31,9 +31,11 @@ _MockMessage = collections.namedtuple(
         "flags",
     ])
 
+
 class MockMessage(_MockMessage):
     def __new__(cls, flags=0):
         return _MockMessage.__new__(cls, flags)
+
 
 class MockAnswer:
     def __init__(self, records, **kwargs):
@@ -42,6 +44,7 @@ class MockAnswer:
 
     def __iter__(self):
         return iter(self.records)
+
 
 class MockResolver:
     def __init__(self, tester):
@@ -88,6 +91,7 @@ class MockResolver:
             raise dns.resolver.NoAnswer()
 
         return response
+
 
 class Testlookup_srv(unittest.TestCase):
     def setUp(self):
@@ -233,9 +237,9 @@ class Testlookup_srv(unittest.TestCase):
                                resolver=self.resolver)
         )
 
-
     def tearDown(self):
         del self.resolver
+
 
 class Testlookup_tlsa(unittest.TestCase):
     def setUp(self):
@@ -273,6 +277,7 @@ class Testlookup_tlsa(unittest.TestCase):
 
     def tearDown(self):
         del self.resolver
+
 
 class Testgroup_and_order_srv_records(unittest.TestCase):
     def _test_monte_carlo_ex(self, hosts, records, N=100):

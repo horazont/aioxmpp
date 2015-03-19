@@ -3,9 +3,9 @@
 #######################################################################
 
 This module provides a socket-based :class:`~asyncio.Transport` for
-:mod:`asyncio` which supports deferred TLS as used by the STARTTLS mechanism. In
-addition it uses :mod:`OpenSSL` instead of the built-in :mod:`ssl` module, to
-provide this and more sophisticated functionality.
+:mod:`asyncio` which supports deferred TLS as used by the STARTTLS
+mechanism. In addition it uses :mod:`OpenSSL` instead of the built-in
+:mod:`ssl` module, to provide this and more sophisticated functionality.
 
 The following function can be used to create a connection using the
 :class:`STARTTLSTransport`, which itself is documented below:
@@ -19,7 +19,6 @@ The transport implementation is documented below:
 
 """
 
-import abc
 import asyncio
 import logging
 import socket
@@ -29,6 +28,7 @@ from enum import Enum
 import OpenSSL.SSL
 
 logger = logging.getLogger(__name__)
+
 
 class _State(Enum):
     RAW_OPEN               = 0x0000
@@ -62,6 +62,7 @@ class _State(Enum):
     def is_open(self):
         return (self.value & 0x3) == 0
 
+
 class STARTTLSTransport(asyncio.Transport):
     """
     Create a new :class:`asyncio.Transport` which supports TLS and the deferred
@@ -72,8 +73,8 @@ class STARTTLSTransport(asyncio.Transport):
     complements.
 
     *rawsock* must be a :class:`socket.socket` which will be used as the socket
-    for the transport. *protocol* must be a :class:`asyncio.Protocol` which will
-    be fed the data the transport receives.
+    for the transport. *protocol* must be a :class:`asyncio.Protocol` which
+    will be fed the data the transport receives.
 
     *ssl_context* must be a :class:`OpenSSL.SSL.Context`. It will be used to
     create the :class:`OpenSSL.SSL.Connection` when TLS is enabled on the
@@ -93,17 +94,18 @@ class STARTTLSTransport(asyncio.Transport):
     certificate validators implementing e.g. DANE.
 
     *server_hostname* must be either a :class:`str` or :data:`None`. It may be
-    used by certificate validators anrd must be the host name for which the peer
-    must have a valid certificate (if host name based certificate validation is
-    performed). *server_hostname* is also passed via the TLS Server Name
-    Indication (SNI) extension if it is given.
+    used by certificate validators anrd must be the host name for which the
+    peer must have a valid certificate (if host name based certificate
+    validation is performed). *server_hostname* is also passed via the TLS
+    Server Name Indication (SNI) extension if it is given.
 
     If host names are to be converted to :class:`bytes` by the transport, they
     are encoded using the ``utf-8` codec.
 
-    If *waiter* is not :data:`None`, it must be a :class:`asyncio.Future`. After
-    the stream has been established, the futures result is set to a value of
-    :data:`None`. If any errors occur, the exception is set on the future.
+    If *waiter* is not :data:`None`, it must be a
+    :class:`asyncio.Future`. After the stream has been established, the futures
+    result is set to a value of :data:`None`. If any errors occur, the
+    exception is set on the future.
 
     If *use_starttls* is true, the future is fulfilled immediately after
     construction, as there is no blocking process which needs to take place. If
@@ -111,8 +113,8 @@ class STARTTLSTransport(asyncio.Transport):
     future is fulfilled when TLS negotiation is complete.
 
     *post_handshake_callback* may be a coroutine or :data:`None`. If it is not
-    :data:`None`, it is called asynchronously after the TLS handshake and blocks
-    the completion of the TLS handshake until it returns.
+    :data:`None`, it is called asynchronously after the TLS handshake and
+    blocks the completion of the TLS handshake until it returns.
 
     It can be used to perform blocking post-handshake certificate verification,
     e.g. using DANE. The coroutine must not return a value. If it encounters an
@@ -129,8 +131,8 @@ class STARTTLSTransport(asyncio.Transport):
                  peer_hostname=None,
                  server_hostname=None):
         if not use_starttls and not ssl_context:
-            raise ValueError("Cannot have STARTTLS disabled (i.e. immediate TLS"
-                             " connection) and without SSL context.")
+            raise ValueError("Cannot have STARTTLS disabled (i.e. immediate "
+                             "TLS connection) and without SSL context.")
 
         super().__init__()
         self._rawsock = rawsock
@@ -228,7 +230,8 @@ class STARTTLSTransport(asyncio.Transport):
         """
         Clean up all resources and call the protocols connection lost method.
         """
-        self._state = _State.CLOSED;
+
+        self._state = _State.CLOSED
         try:
             self._protocol.connection_lost(exc)
         finally:
@@ -283,11 +286,13 @@ class STARTTLSTransport(asyncio.Transport):
         try:
             self._tls_conn.do_handshake()
         except OpenSSL.SSL.WantReadError:
-            self._trace_logger.debug("registering reader for _tls_do_handshake")
+            self._trace_logger.debug(
+                "registering reader for _tls_do_handshake")
             self._loop.add_reader(self._raw_fd, self._tls_do_handshake)
             return
         except OpenSSL.SSL.WantWriteError:
-            self._trace_logger.debug("registering writer for _tls_do_handshake")
+            self._trace_logger.debug(
+                "registering writer for _tls_do_handshake")
             self._loop.add_writer(self._raw_fd, self._tls_do_handshake)
             return
         except Exception as exc:
@@ -442,7 +447,8 @@ class STARTTLSTransport(asyncio.Transport):
                 nsent = 0
                 assert self._state.tls_started
                 self._tls_write_wants_read = True
-                self._trace_logger.debug("_write_ready: swap writer for reader")
+                self._trace_logger.debug(
+                    "_write_ready: swap writer for reader")
                 self._loop.remove_writer(self._raw_fd)
                 self._loop.add_reader(self._raw_fd, self._read_ready)
             except Exception as err:
@@ -457,7 +463,7 @@ class STARTTLSTransport(asyncio.Transport):
         if not self._buffer:
             if not self._tls_read_wants_write:
                 self._trace_logger.debug("_write_ready: nothing more to write,"
-                                   " removing writer")
+                                         " removing writer")
                 self._loop.remove_writer(self._raw_fd)
             if self._closing:
                 if self._state.tls_started:
@@ -508,8 +514,8 @@ class STARTTLSTransport(asyncio.Transport):
         .. note::
 
            Writing of EOF (i.e. closing the sending direction of the stream) is
-           theoretically possible. However, it was deemed by the author that the
-           case is rare enough to neglect it for the sake of implementation
+           theoretically possible. However, it was deemed by the author that
+           the case is rare enough to neglect it for the sake of implementation
            simplicity.
 
         """
@@ -554,8 +560,10 @@ class STARTTLSTransport(asyncio.Transport):
         * ``conn``: :class:`OpenSSL.SSL.Connection` object (:data:`None` if TLS
           is not enabled (yet))
         * ``peername``: return value of :meth:`socket.Socket.getpeername`
-        * ``peer_hostname``: The *peer_hostname* value passed to the constructor.
-        * ``server_hostname``: The *server_hostname* value passed to the constructor.
+        * ``peer_hostname``: The *peer_hostname* value passed to the
+          constructor.
+        * ``server_hostname``: The *server_hostname* value passed to the
+          constructor.
 
         """
         return self._extra.get(name, default)
@@ -564,8 +572,8 @@ class STARTTLSTransport(asyncio.Transport):
     def starttls(self, ssl_context=None,
                  post_handshake_callback=None):
         """
-        Start a TLS stream on top of the socket. This is an invalid operation if
-        the stream is not in RAW_OPEN state.
+        Start a TLS stream on top of the socket. This is an invalid operation
+        if the stream is not in RAW_OPEN state.
 
         If *ssl_context* is set, it overrides the *ssl_context* passed to the
         constructor. If *post_handshake_callback* is set, it overrides the
@@ -616,6 +624,7 @@ class STARTTLSTransport(asyncio.Transport):
         """
         raise NotImplementedError("Cannot write_eof() on STARTTLS transport")
 
+
 @asyncio.coroutine
 def create_starttls_connection(
         loop,
@@ -648,9 +657,9 @@ def create_starttls_connection(
     socket. *sock* is put into non-blocking mode and must be a stream socket.
 
     This coroutine returns when the stream is established. If *use_starttls* is
-    :data:`False`, this means that the full TLS handshake has to be finished for
-    this coroutine to return. Otherwise, no TLS handshake takes place. It must
-    be invoked using the :meth:`STARTTLSTransport.starttls` coroutine.
+    :data:`False`, this means that the full TLS handshake has to be finished
+    for this coroutine to return. Otherwise, no TLS handshake takes place. It
+    must be invoked using the :meth:`STARTTLSTransport.starttls` coroutine.
     """
 
     if host is not None and port is not None:

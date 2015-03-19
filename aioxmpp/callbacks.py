@@ -72,7 +72,7 @@ class TagDispatcher:
 
     def add_listener(self, tag, listener):
         try:
-            existing = self._listeners[tag]
+            self._listeners[tag]
         except KeyError:
             self._listeners[tag] = listener
         else:

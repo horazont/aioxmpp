@@ -105,10 +105,10 @@ class DateTime(AbstractType):
     Parse the value as ISO datetime, possibly including microseconds and
     timezone information.
 
-    Timezones are handled as constant offsets from UTC, and are converted to UTC
-    before the :class:`~datetime.datetime` object is returned (which is
-    correctly tagged with UTC tzinfo). Values without timezone specification are
-    not tagged.
+    Timezones are handled as constant offsets from UTC, and are converted to
+    UTC before the :class:`~datetime.datetime` object is returned (which is
+    correctly tagged with UTC tzinfo). Values without timezone specification
+    are not tagged.
 
     This class makes use of :mod:`pytz`.
     """
@@ -127,7 +127,7 @@ class DateTime(AbstractType):
                 hour_offset = int(hour_offset)
                 minute_offset = int(minute_offset)
             tzinfo = pytz.utc
-            offset = timedelta(minutes=minute_offset+60*hour_offset)
+            offset = timedelta(minutes=minute_offset + 60 * hour_offset)
             v = v[:m.start()]
         else:
             tzinfo = None
@@ -153,8 +153,8 @@ class DateTime(AbstractType):
 
 class Base64Binary(AbstractType):
     """
-    Parse the value as base64 and return the :class:`bytes` object obtained from
-    decoding.
+    Parse the value as base64 and return the :class:`bytes` object obtained
+    from decoding.
     """
 
     def parse(self, v):

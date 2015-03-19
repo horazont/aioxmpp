@@ -1,5 +1,4 @@
 import collections
-import copy
 import functools
 import unittest
 import unittest.mock
@@ -46,12 +45,12 @@ class TestXMLStreamClass(unittest.TestCase):
     def test_forbid_malformed_tag(self):
         with self.assertRaisesRegexp(TypeError,
                                      "TAG attribute has incorrect format"):
-            class Cls(metaclass=xso_model.XMLStreamClass):
+            class ClsA(metaclass=xso_model.XMLStreamClass):
                 TAG = "foo", "bar", "baz"
 
         with self.assertRaisesRegexp(TypeError,
                                      "TAG attribute has incorrect format"):
-            class Cls(metaclass=xso_model.XMLStreamClass):
+            class ClsB(metaclass=xso_model.XMLStreamClass):
                 TAG = "foo",
 
     def test_normalize_tag(self):
@@ -75,7 +74,7 @@ class TestXMLStreamClass(unittest.TestCase):
             text = xso.Text()
 
         with self.assertRaises(TypeError):
-            class ClsB(ClsA):
+            class ClsFoo(ClsA):
                 text2 = xso.Text()
 
         class ClsB(ClsA):
@@ -129,8 +128,10 @@ class TestXMLStreamClass(unittest.TestCase):
     def test_collect_child_property(self):
         class ClsA(metaclass=xso_model.XMLStreamClass):
             TAG = "foo"
+
         class ClsB(metaclass=xso_model.XMLStreamClass):
             TAG = "bar"
+
         class ClsC(metaclass=xso_model.XMLStreamClass):
             TAG = "baz"
 
@@ -152,6 +153,7 @@ class TestXMLStreamClass(unittest.TestCase):
     def test_forbid_ambiguous_children(self):
         class ClsA(metaclass=xso_model.XMLStreamClass):
             TAG = "foo"
+
         class ClsB(metaclass=xso_model.XMLStreamClass):
             TAG = "foo"
 
@@ -368,7 +370,7 @@ class TestXMLStreamClass(unittest.TestCase):
             text = xso.Collector()
 
         with self.assertRaises(TypeError):
-            class ClsB(ClsA):
+            class ClsFoo(ClsA):
                 text2 = xso.Collector()
 
         class ClsB(ClsA):
@@ -412,8 +414,10 @@ class TestXMLStreamClass(unittest.TestCase):
     def test_collect_child_list_property(self):
         class ClsA(metaclass=xso_model.XMLStreamClass):
             TAG = "foo"
+
         class ClsB(metaclass=xso_model.XMLStreamClass):
             TAG = "bar"
+
         class ClsC(metaclass=xso_model.XMLStreamClass):
             TAG = "baz"
 
@@ -435,6 +439,7 @@ class TestXMLStreamClass(unittest.TestCase):
     def test_forbid_ambiguous_children_with_lists(self):
         class ClsA(metaclass=xso_model.XMLStreamClass):
             TAG = "foo"
+
         class ClsB(metaclass=xso_model.XMLStreamClass):
             TAG = "foo"
 
@@ -679,14 +684,14 @@ class TestXSO(XMLTestCase):
             [
                 unittest.mock.call.startPrefixMapping(None, "uri:foo"),
                 unittest.mock.call.startPrefixMapping("bar", "uri:bar"),
-                unittest.mock.call.startElementNS(("uri:foo", "foo"), None, {}),
+                unittest.mock.call.startElementNS(
+                    ("uri:foo", "foo"), None, {}),
                 unittest.mock.call.endElementNS(("uri:foo", "foo"), None),
                 unittest.mock.call.endPrefixMapping(None, "uri:foo"),
                 unittest.mock.call.endPrefixMapping("bar", "uri:bar"),
             ],
             sink.mock_calls
         )
-
 
     def test_property_storage(self):
         self.obj._stanza_props["key"] = "value"
@@ -748,7 +753,9 @@ class TestXSO(XMLTestCase):
 
         self._unparse_test(
             obj,
-            etree.fromstring("<foo><bar><baz>a</baz><baz>b</baz><baz>c</baz></bar></foo>")
+            etree.fromstring(
+                "<foo><bar><baz>a</baz><baz>b</baz><baz>c</baz></bar></foo>"
+            )
         )
 
     def test_unparse_to_node_handle_child_text(self):
@@ -806,7 +813,13 @@ class TestXSO(XMLTestCase):
 
         self._unparse_test(
             obj,
-            etree.fromstring("<foo><bar><baz>a</baz><baz>b</baz><fnord>1</fnord></bar></foo>")
+            etree.fromstring(
+                "<foo><bar>"
+                "<baz>a</baz>"
+                "<baz>b</baz>"
+                "<fnord>1</fnord>"
+                "</bar></foo>"
+            )
         )
 
     def test_unparse_to_node_handle_attr(self):
@@ -830,9 +843,11 @@ class TestXSO(XMLTestCase):
 class Test_PropBase(unittest.TestCase):
     def setUp(self):
         self.default = object()
+
         class Cls(xso.XSO):
             prop = xso_model._PropBase(
                 default=self.default)
+
         self.Cls = Cls
         self.obj = Cls()
 
@@ -1020,8 +1035,10 @@ class TestText(XMLTestCase):
     def setUp(self):
         class ClsA(xso.XSO):
             test_str = xso.Text(default="bar")
+
         class ClsB(xso.XSO):
             test_int = xso.Text(type_=xso.Integer())
+
         self.ClsA = ClsA
         self.ClsB = ClsB
         self.obja = ClsA()
@@ -1157,6 +1174,7 @@ class TestChild(XMLTestCase):
 
     def test_from_events(self):
         dest = []
+
         def mock_fun(ev_args):
             dest.append(ev_args)
             while True:
@@ -1243,7 +1261,10 @@ class TestChildList(XMLTestCase):
         obj = self.Cls()
 
         sd = xso.SAXDriver(
-            functools.partial(from_wrapper, self.Cls.children.from_events, obj),
+            functools.partial(
+                from_wrapper,
+                self.Cls.children.from_events,
+                obj),
             on_emit=catch_result
         )
 
@@ -1314,7 +1335,11 @@ class TestCollector(XMLTestCase):
 
         subtree1 = etree.fromstring("<foo/>")
         subtree2 = etree.fromstring("<bar a='baz'>fnord</bar>")
-        subtree3 = etree.fromstring("<baz>prefix: <a/><b c='something'/><d i='am running out of'>dummy texts</d>to insert</baz>")
+        subtree3 = etree.fromstring(
+            "<baz>prefix: <a/>"
+            "<b c='something'/>"
+            "<d i='am running out of'>dummy texts</d>"
+            "to insert</baz>")
 
         subtrees = [subtree1, subtree2, subtree3]
 
@@ -1348,7 +1373,11 @@ class TestCollector(XMLTestCase):
 
         subtree1 = etree.fromstring("<foo/>")
         subtree2 = etree.fromstring("<bar a='baz'>fnord</bar>")
-        subtree3 = etree.fromstring("<baz><a/><b c='something'/><d i='am running out of'>dummy texts</d>to insert</baz>")
+        subtree3 = etree.fromstring(
+            "<baz><a/>"
+            "<b c='something'/>"
+            "<d i='am running out of'>dummy texts</d>"
+            "to insert</baz>")
 
         instance = make_instance_mock({
             prop: [
@@ -1615,7 +1644,6 @@ class TestChildText(XMLTestCase):
             prop: "foo"
         })
 
-        parent = etree.Element("root")
         prop.to_sax(instance, dest)
 
         self.assertSequenceEqual(
@@ -1648,7 +1676,6 @@ class TestChildText(XMLTestCase):
             prop: "foo"
         })
 
-        parent = etree.Element("root")
         prop.to_sax(instance, dest)
 
         self.assertSequenceEqual(
@@ -1709,6 +1736,7 @@ class TestChildText(XMLTestCase):
 class TestChildMap(XMLTestCase):
     def test_class_access_returns_property(self):
         prop = xso.ChildMap([])
+
         class Foo(xso.XSO):
             cm = prop
 
@@ -2182,6 +2210,7 @@ class TestSAXDriver(unittest.TestCase):
     def test_collect_result(self):
         l = []
         results = []
+
         def returning_coroutine():
             nonlocal l
             while True:
@@ -2359,8 +2388,10 @@ class ChildTag(XMLTestCase):
         self.prop.to_sax(instance, dest)
         self.assertSequenceEqual(
             [
-                unittest.mock.call.startElementNS(("uri:bar", "foo"), None, {}),
-                unittest.mock.call.endElementNS(("uri:bar", "foo"), None),
+                unittest.mock.call.startElementNS(
+                    ("uri:bar", "foo"), None, {}),
+                unittest.mock.call.endElementNS(
+                    ("uri:bar", "foo"), None),
             ],
             dest.mock_calls)
 
@@ -2460,6 +2491,7 @@ class TestXSOParser(XMLTestCase):
 
     def test_handle_unknown_tag_at_toplevel(self):
         tree = etree.fromstring("<foo />")
+
         class TestStanza(xso.XSO):
             TAG = "uri:bar", "foo"
 
@@ -2473,6 +2505,7 @@ class TestXSOParser(XMLTestCase):
 
     def test_handle_unknown_tag_at_non_toplevel(self):
         tree = etree.fromstring("<foo><bar/></foo>")
+
         class TestStanza(xso.XSO):
             TAG = None, "foo"
 
@@ -2481,6 +2514,7 @@ class TestXSOParser(XMLTestCase):
 
     def test_handle_unknown_tag_at_non_toplevel_with_drop_policy(self):
         tree = etree.fromstring("<foo><bar/></foo>")
+
         class TestStanza(xso.XSO):
             TAG = None, "foo"
             UNKNOWN_CHILD_POLICY = xso.UnknownChildPolicy.DROP
@@ -2489,6 +2523,7 @@ class TestXSOParser(XMLTestCase):
 
     def test_parse_using_collector(self):
         tree = etree.fromstring("<foo><bar/></foo>")
+
         class TestStanza(xso.XSO):
             TAG = None, "foo"
             coll = xso.Collector()
@@ -2501,6 +2536,7 @@ class TestXSOParser(XMLTestCase):
 
     def test_handle_unknown_attribute(self):
         tree = etree.fromstring("<foo a='bar' />")
+
         class TestStanza(xso.XSO):
             TAG = None, "foo"
 
@@ -2509,6 +2545,7 @@ class TestXSOParser(XMLTestCase):
 
     def test_handle_unknown_attribute_with_drop_policy(self):
         tree = etree.fromstring("<foo a='bar' />")
+
         class TestStanza(xso.XSO):
             TAG = None, "foo"
             UNKNOWN_ATTR_POLICY = xso.UnknownAttrPolicy.DROP
@@ -2517,6 +2554,7 @@ class TestXSOParser(XMLTestCase):
 
     def test_handle_unknown_text(self):
         tree = etree.fromstring("<foo>bar</foo>")
+
         class TestStanza(xso.XSO):
             TAG = None, "foo"
 
@@ -2525,6 +2563,7 @@ class TestXSOParser(XMLTestCase):
 
     def test_handle_missing_attribute(self):
         tree = etree.fromstring("<foo/>")
+
         class TestStanza(xso.XSO):
             TAG = None, "foo"
             attr = xso.Attr("a", required=True)
@@ -2536,6 +2575,7 @@ class TestXSOParser(XMLTestCase):
         class TestStanza(xso.XSO):
             TAG = "uri:bar", "foo"
             text = xso.Text()
+
         tree = etree.fromstring("<foo xmlns='uri:bar'>bar</foo>")
         result = self.run_parser_one([TestStanza], tree)
         self.assertIsInstance(result, TestStanza)
@@ -2619,7 +2659,13 @@ class TestXSOParser(XMLTestCase):
 
             cl = xso.ChildList([ClsLeafA, ClsLeafB])
 
-        tree = etree.fromstring("<foo><bar a='1'/><baz b='2'/><bar a='3'/><bar a='4'/></foo>")
+        tree = etree.fromstring(
+            "<foo>"
+            "<bar a='1'/>"
+            "<baz b='2'/>"
+            "<bar a='3'/>"
+            "<bar a='4'/>"
+            "</foo>")
         result = self.run_parser_one([Foo], tree)
         self.assertEqual(4, len(result.cl))
 

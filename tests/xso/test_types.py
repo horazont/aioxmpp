@@ -331,8 +331,8 @@ class TestNmtoken(unittest.TestCase):
 
     def test_validate(self):
         t = xso.Nmtoken()
-        # ok, testing this sucks hard. we’ll do some hand-waiving tests guarding
-        # against the most important characters which must not occur.
+        # ok, testing this sucks hard. we’ll do some hand-waiving tests
+        # guarding against the most important characters which must not occur.
 
         self.assertTrue(t.validate("foobar"))
         self.assertTrue(t.validate("foo:bar"))
@@ -350,7 +350,6 @@ class TestNmtoken(unittest.TestCase):
         self.assertFalse(t.validate(">"))
         self.assertFalse(t.validate("<"))
         self.assertFalse(t.validate("&"))
-
 
     def test_validate_base_char(self):
         self._test_samples(

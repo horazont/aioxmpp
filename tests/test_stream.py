@@ -8,7 +8,7 @@ import aioxmpp.stream as stream
 import aioxmpp.stream_xsos as stream_xsos
 import aioxmpp.errors as errors
 
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 from aioxmpp.utils import namespaces
 from aioxmpp.plugins import xep0199
@@ -19,8 +19,10 @@ from .testutils import run_coroutine
 TEST_FROM = structs.JID.fromstr("foo@example.test/r1")
 TEST_TO = structs.JID.fromstr("bar@example.test/r1")
 
+
 class FancyTestIQ(xso.XSO):
     TAG = ("uri:tests:test_stream.py", "foo")
+
 
 stanza.IQ.register_child(stanza.IQ.payload, FancyTestIQ)
 
@@ -68,6 +70,7 @@ class StanzaStreamTestBase(unittest.TestCase):
         del self.stream
         del self.xmlstream
         del self.sent_stanzas
+
 
 class TestStanzaStream(StanzaStreamTestBase):
     def test_init(self):
@@ -434,6 +437,7 @@ class TestStanzaStream(StanzaStreamTestBase):
 
     def test_fail_on_unknown_stanza_class(self):
         caught_exc = None
+
         def failure_handler(exc):
             nonlocal caught_exc
             caught_exc = exc
@@ -451,9 +455,9 @@ class TestStanzaStream(StanzaStreamTestBase):
             RuntimeError
         )
 
-
-    def test_stopping_after_unassigning_stanza_sender_induces_clean_shutdown(self):
+    def test_induces_clean_shutdown_and_no_call_to_transport(self):
         caught_exc = None
+
         def failure_handler(exc):
             nonlocal caught_exc
             caught_exc = exc
@@ -467,7 +471,8 @@ class TestStanzaStream(StanzaStreamTestBase):
         iq_sent = run_coroutine(self.sent_stanzas.get())
         self.assertIs(iq, iq_sent)
 
-        self.stream.on_send_stanza = None
+        self.xmlstream.send_stanza = unittest.mock.MagicMock(
+            side_effect=RuntimeError())
         self.stream.enqueue_stanza(iq)
         self.stream.recv_stanza(iq)
         self.stream.stop()
@@ -511,14 +516,13 @@ class TestStanzaStream(StanzaStreamTestBase):
             state_change_handler.mock_calls
         )
 
-
     def test_running(self):
         self.assertFalse(self.stream.running)
         self.stream.start(self.xmlstream)
         self.assertTrue(self.stream.running)
         self.stream.stop()
-        # the task does not immediately terminate, it requires one cycle through
-        # the event loop to do so
+        # the task does not immediately terminate, it requires one cycle
+        # through the event loop to do so
         self.assertTrue(self.stream.running)
         run_coroutine(asyncio.sleep(0))
         self.assertFalse(self.stream.running)
@@ -809,6 +813,7 @@ class TestStanzaStream(StanzaStreamTestBase):
 
     def test_sm_ping_timeout(self):
         exc = None
+
         def failure_handler(_exc):
             nonlocal exc
             exc = _exc
@@ -832,6 +837,7 @@ class TestStanzaStream(StanzaStreamTestBase):
 
     def test_sm_ping_ack(self):
         exc = None
+
         def failure_handler(_exc):
             nonlocal exc
             exc = _exc
@@ -903,6 +909,7 @@ class TestStanzaStream(StanzaStreamTestBase):
 
     def test_nonsm_ping_timeout(self):
         exc = None
+
         def failure_handler(_exc):
             nonlocal exc
             exc = _exc
@@ -914,7 +921,7 @@ class TestStanzaStream(StanzaStreamTestBase):
         self.stream.start(self.xmlstream)
         run_coroutine(asyncio.sleep(0.02))
 
-        request = self.sent_stanzas.get_nowait()
+        self.sent_stanzas.get_nowait()
         run_coroutine(asyncio.sleep(0.011))
 
         self.assertIsInstance(
@@ -924,6 +931,7 @@ class TestStanzaStream(StanzaStreamTestBase):
 
     def test_nonsm_ping_pong(self):
         exc = None
+
         def failure_handler(_exc):
             nonlocal exc
             exc = _exc
@@ -1011,7 +1019,6 @@ class TestStanzaStream(StanzaStreamTestBase):
 
     def test_send_iq_and_wait_for_reply_timeout(self):
         iq = make_test_iq()
-        response = iq.make_reply(type_="result")
 
         task = asyncio.async(
             self.stream.send_iq_and_wait_for_reply(

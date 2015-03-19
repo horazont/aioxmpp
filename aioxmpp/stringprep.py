@@ -2,7 +2,8 @@
 Stringprep support
 ##################
 
-This module implements the SASLprep (`RFC 4013`_), Nodeprep (`RFC 6122`_) and Resourceprep (`RFC 6122`_) stringprep profiles.
+This module implements the SASLprep (`RFC 4013`_), Nodeprep (`RFC 6122`_) and
+Resourceprep (`RFC 6122`_) stringprep profiles.
 
 .. autofunction:: saslprep
 
@@ -18,22 +19,24 @@ This module implements the SASLprep (`RFC 4013`_), Nodeprep (`RFC 6122`_) and Re
 
 """
 
-import operator
 import stringprep
 import unicodedata
 
 _nodeprep_prohibited = frozenset("\"&'/:<>@")
 
+
 def is_RandALCat(c):
     return unicodedata.bidirectional(c) in ("R", "AL")
+
 
 def is_LCat(c):
     return unicodedata.bidirectional(c) == "L"
 
+
 def check_against_tables(chars, tables):
     """
-    Perform a check against the table predicates in *tables*. *tables* must be a
-    reusable iterable containing characteristic functions of character sets,
+    Perform a check against the table predicates in *tables*. *tables* must be
+    a reusable iterable containing characteristic functions of character sets,
     that is, functions which return :data:`True` if the character is in the
     table.
 
@@ -47,12 +50,14 @@ def check_against_tables(chars, tables):
 
     return None
 
+
 def do_normalization(chars):
     """
-    Perform the stringprep normalization. Operates in-place on a list of unicode
-    characters provided in *chars*.
+    Perform the stringprep normalization. Operates in-place on a list of
+    unicode characters provided in *chars*.
     """
     chars[:] = list(unicodedata.normalize("NFKC", "".join(chars)))
+
 
 def check_bidi(chars):
     """
@@ -78,6 +83,7 @@ def check_bidi(chars):
 
     if not is_RandALCat(chars[0]) or not is_RandALCat(chars[-1]):
         raise ValueError("R/AL string must start and end with R/AL character.")
+
 
 def check_prohibited_output(chars, bad_tables):
     """
@@ -107,10 +113,11 @@ def check_unassigned(chars, bad_tables):
         raise ValueError("Input contains unassigned code point: "
                          "U+{:04x}".format(ord(violator)))
 
+
 def _saslprep_do_mapping(chars):
     """
-    Perform the stringprep mapping step of SASLprep. Operates in-place on a list
-    of unicode characters provided in *chars*.
+    Perform the stringprep mapping step of SASLprep. Operates in-place on a
+    list of unicode characters provided in *chars*.
     """
     i = 0
     while i < len(chars):
@@ -121,6 +128,7 @@ def _saslprep_do_mapping(chars):
             del chars[i]
             continue
         i += 1
+
 
 def saslprep(string, allow_unassigned=False):
     """
@@ -158,6 +166,7 @@ def saslprep(string, allow_unassigned=False):
 
     return "".join(chars)
 
+
 def _nodeprep_do_mapping(chars):
     i = 0
     while i < len(chars):
@@ -167,8 +176,9 @@ def _nodeprep_do_mapping(chars):
         else:
             replacement = stringprep.map_table_b2(c)
             if replacement != c:
-                chars[i:i+1] = list(replacement)
+                chars[i:(i + 1)] = list(replacement)
             i += len(replacement)
+
 
 def nodeprep(string, allow_unassigned=False):
     """
@@ -200,6 +210,7 @@ def nodeprep(string, allow_unassigned=False):
 
     return "".join(chars)
 
+
 def _resourceprep_do_mapping(chars):
     i = 0
     while i < len(chars):
@@ -208,6 +219,7 @@ def _resourceprep_do_mapping(chars):
             del chars[i]
             continue
         i += 1
+
 
 def resourceprep(string, allow_unassigned=False):
     """

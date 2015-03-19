@@ -9,4 +9,4 @@ Main public API
    sasl
    protocol
    errors
-   jid
+   structs

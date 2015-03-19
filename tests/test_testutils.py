@@ -1,4 +1,12 @@
-from .testutils import *
+import asyncio
+import unittest
+
+from .testutils import (
+    run_coroutine,
+    make_protocol_mock,
+    TransportMock,
+    XMLStreamMock
+)
 from .xmltestutils import XMLTestCase
 
 from aioxmpp.utils import etree
