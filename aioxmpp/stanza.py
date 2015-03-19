@@ -267,7 +267,7 @@ class IQ(StanzaBase):
         obj.type_ = type_
         return obj
 
-    def stanza_error_handler(self, descriptor, ev_args, exc_info):
+    def xso_error_handler(self, descriptor, ev_args, exc_info):
         # raise a specific error if the payload failed to parse
         if descriptor == IQ.payload:
             raise PayloadParsingError(self, ev_args)

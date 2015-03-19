@@ -522,7 +522,7 @@ class TestXMLStreamClass(unittest.TestCase):
 
             child = xso.Child([Bar])
 
-        Cls.stanza_error_handler = unittest.mock.MagicMock()
+        Cls.xso_error_handler = unittest.mock.MagicMock()
 
         gen = Cls.parse_events((None, "foo", {}))
         next(gen)
@@ -538,7 +538,7 @@ class TestXMLStreamClass(unittest.TestCase):
                     [None, "bar", {}],
                     unittest.mock.ANY)
             ],
-            Cls.stanza_error_handler.mock_calls
+            Cls.xso_error_handler.mock_calls
         )
 
     def test_call_error_handler_on_unexpected_child(self):
@@ -555,7 +555,7 @@ class TestXMLStreamClass(unittest.TestCase):
 
             child = xso.Child([Bar])
 
-        Cls.stanza_error_handler = unittest.mock.MagicMock()
+        Cls.xso_error_handler = unittest.mock.MagicMock()
 
         gen = Cls.parse_events((None, "foo", {}))
         next(gen)
@@ -570,7 +570,7 @@ class TestXMLStreamClass(unittest.TestCase):
                     [None, "baz", {}],
                     None)
             ],
-            Cls.stanza_error_handler.mock_calls
+            Cls.xso_error_handler.mock_calls
         )
 
     def test_call_error_handler_on_broken_text(self):
@@ -581,7 +581,7 @@ class TestXMLStreamClass(unittest.TestCase):
                 type_=xso.Integer()
             )
 
-        Cls.stanza_error_handler = unittest.mock.MagicMock()
+        Cls.xso_error_handler = unittest.mock.MagicMock()
 
         gen = Cls.parse_events((None, "foo", {}))
         next(gen)
@@ -597,7 +597,7 @@ class TestXMLStreamClass(unittest.TestCase):
                     "foobar",
                     unittest.mock.ANY)
             ],
-            Cls.stanza_error_handler.mock_calls
+            Cls.xso_error_handler.mock_calls
         )
 
     def test_call_error_handler_on_broken_attr(self):
@@ -609,7 +609,7 @@ class TestXMLStreamClass(unittest.TestCase):
                 type_=xso.Integer()
             )
 
-        Cls.stanza_error_handler = unittest.mock.MagicMock()
+        Cls.xso_error_handler = unittest.mock.MagicMock()
 
         gen = Cls.parse_events((None, "foo", {
             (None, "attr"): "foobar",
@@ -624,7 +624,7 @@ class TestXMLStreamClass(unittest.TestCase):
                     "foobar",
                     unittest.mock.ANY)
             ],
-            Cls.stanza_error_handler.mock_calls
+            Cls.xso_error_handler.mock_calls
         )
 
 
@@ -646,7 +646,7 @@ class TestXSO(XMLTestCase):
         self.obj = Cls()
 
     def test_error_handler(self):
-        self.obj.stanza_error_handler(
+        self.obj.xso_error_handler(
             None,
             None,
             None)

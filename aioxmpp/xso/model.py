@@ -914,7 +914,7 @@ class XMLStreamClass(type):
             try:
                 prop.from_value(obj, value)
             except:
-                obj.stanza_error_handler(
+                obj.xso_error_handler(
                     prop,
                     value,
                     sys.exc_info())
@@ -944,12 +944,12 @@ class XMLStreamClass(type):
                         yield from enforce_unknown_child_policy(
                             cls.UNKNOWN_CHILD_POLICY,
                             ev_args,
-                            obj.stanza_error_handler)
+                            obj.xso_error_handler)
                         continue
                 try:
                     yield from handler.from_events(obj, ev_args)
                 except:
-                    obj.stanza_error_handler(
+                    obj.xso_error_handler(
                         handler,
                         ev_args,
                         sys.exc_info())
@@ -961,7 +961,7 @@ class XMLStreamClass(type):
                 try:
                     cls.TEXT_PROPERTY.from_value(obj, collected_text)
                 except:
-                    obj.stanza_error_handler(
+                    obj.xso_error_handler(
                         cls.TEXT_PROPERTY,
                         collected_text,
                         sys.exc_info())
@@ -1080,7 +1080,7 @@ class XSO(metaclass=XMLStreamClass):
         super().__init__(*args, **kwargs)
         self._stanza_props = dict()
 
-    def stanza_error_handler(self, descriptor, ev_args, exc_info):
+    def xso_error_handler(self, descriptor, ev_args, exc_info):
         """
         This method is called whenever an error occurs while parsing.
 
