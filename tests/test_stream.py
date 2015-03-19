@@ -997,9 +997,7 @@ class TestStanzaStream(StanzaStreamTestBase):
         response = iq.make_reply(type_="result")
 
         task = asyncio.async(
-            self.stream.send_iq_and_wait_for_reply(
-                iq,
-                loop=self.loop),
+            self.stream.send_iq_and_wait_for_reply(iq),
             loop=self.loop)
 
         self.stream.start(self.xmlstream)
@@ -1018,8 +1016,7 @@ class TestStanzaStream(StanzaStreamTestBase):
         task = asyncio.async(
             self.stream.send_iq_and_wait_for_reply(
                 iq,
-                timeout=0.01,
-                loop=self.loop),
+                timeout=0.01),
             loop=self.loop)
 
         self.stream.start(self.xmlstream)

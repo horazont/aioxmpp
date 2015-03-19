@@ -545,9 +545,8 @@ class StanzaStream:
 
     @asyncio.coroutine
     def send_iq_and_wait_for_reply(self, iq, *,
-                                   timeout=None,
-                                   loop=None):
-        fut = asyncio.Future(loop=loop)
+                                   timeout=None):
+        fut = asyncio.Future(loop=self._loop)
         self.register_iq_response_callback(
             iq.to,
             iq.id_,
@@ -556,4 +555,5 @@ class StanzaStream:
         if not timeout:
             return fut
         else:
-            return asyncio.wait_for(fut, timeout=timeout, loop=loop)
+            return asyncio.wait_for(fut, timeout=timeout,
+                                    loop=self._loop)
