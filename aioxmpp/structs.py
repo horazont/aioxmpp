@@ -104,7 +104,7 @@ class PresenceState:
             raise ValueError("Unavailable state cannot have show value")
         if show not in PresenceState.SHOW_VALUES:
             raise ValueError("Not a valid show value")
-        self._available = available
+        self._available = bool(available)
         self._show = show
 
     @property

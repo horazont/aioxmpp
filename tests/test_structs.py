@@ -228,6 +228,10 @@ class TestPresenceState(unittest.TestCase):
         ps = structs.PresenceState(available=True)
         self.assertTrue(ps.available)
 
+    def test_init_normalizes_available(self):
+        ps = structs.PresenceState(available="foo")
+        self.assertIs(True, ps.available)
+
     def test_init_available_with_show(self):
         ps = structs.PresenceState(available=True, show="dnd")
         self.assertTrue(ps.available)
