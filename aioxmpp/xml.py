@@ -44,7 +44,7 @@ import lxml.sax
 
 from enum import Enum
 
-from . import errors, jid, stanza_model
+from . import errors, jid, xso
 from .utils import namespaces, etree
 
 
@@ -454,7 +454,7 @@ def write_objects(f,
     *sorted_attributes* is passed to the :class:`XMPPXMLGenerator` which is used
     by this function.
 
-    Now, user code can send :class:`~.stanza_model.StanzaObject` objects to the
+    Now, user code can send :class:`~.xso.StanzaObject` objects to the
     generator using its :meth:`send` method. These objects get serialized to the
     XML stream. Any exception raised during that is re-raised and the stream is
     closed.
@@ -581,9 +581,9 @@ class XMPPXMLProcessor:
     @property
     def stanza_parser(self):
         """
-        A :class:`~.stanza_model.StanzaParser` object (or compatible) which will
-        receive the sax-ish events used in :mod:`~aioxmpp.stanza_model`. It
-        is driven using an instance of :class:`~.stanza_model.SAXDriver`.
+        A :class:`~.xso.StanzaParser` object (or compatible) which will
+        receive the sax-ish events used in :mod:`~aioxmpp.xso`. It
+        is driven using an instance of :class:`~.xso.SAXDriver`.
 
         This object can only be set before :meth:`startDocument` has been called
         (or after :meth:`endDocument` has been called).
@@ -615,7 +615,7 @@ class XMPPXMLProcessor:
             raise RuntimeError("invalid state: {}".format(self._state))
         self._state = ProcessorState.STARTED
         self._depth = 0
-        self._driver = stanza_model.SAXDriver(self._stanza_parser)
+        self._driver = xso.SAXDriver(self._stanza_parser)
 
     def startElement(self, name, attributes):
         raise RuntimeError("incorrectly configured parser: "

@@ -1,7 +1,7 @@
 import base64
 import random
 
-from . import stanza_model, stanza_types, errors
+from . import xso, errors
 
 from .utils import namespaces
 
@@ -19,7 +19,7 @@ class PayloadParsingError(PayloadError):
     def __init__(self, partial_obj, ev_args):
         super().__init__(
             "parsing of payload {} failed".format(
-                stanza_model.tag_to_str((ev_args[0], ev_args[1]))),
+                xso.tag_to_str((ev_args[0], ev_args[1]))),
             partial_obj,
             ev_args)
 
@@ -28,21 +28,21 @@ class UnknownIQPayload(PayloadError):
     def __init__(self, partial_obj, ev_args):
         super().__init__(
             "unknown payload {} on iq".format(
-                stanza_model.tag_to_str((ev_args[0], ev_args[1]))),
+                xso.tag_to_str((ev_args[0], ev_args[1]))),
             partial_obj,
             ev_args)
 
 
-class StanzaBase(stanza_model.StanzaObject):
-    id_ = stanza_model.Attr(
+class StanzaBase(xso.StanzaObject):
+    id_ = xso.Attr(
         tag="id",
         required=True)
-    from_ = stanza_model.Attr(
+    from_ = xso.Attr(
         tag="from",
-        type_=stanza_types.JID())
-    to = stanza_model.Attr(
+        type_=xso.JID())
+    to = xso.Attr(
         tag="to",
-        type_=stanza_types.JID())
+        type_=xso.JID())
 
     def __init__(self, *, from_=None, to=None, id_=None):
         super().__init__()
@@ -68,25 +68,25 @@ class StanzaBase(stanza_model.StanzaObject):
         return obj
 
 
-class Thread(stanza_model.StanzaObject):
+class Thread(xso.StanzaObject):
     TAG = (namespaces.client, "thread")
 
-    identifier = stanza_model.Text(
-        validator=stanza_types.Nmtoken(),
-        validate=stanza_model.ValidateMode.FROM_CODE)
-    parent = stanza_model.Attr(
+    identifier = xso.Text(
+        validator=xso.Nmtoken(),
+        validate=xso.ValidateMode.FROM_CODE)
+    parent = xso.Attr(
         tag="parent",
-        validator=stanza_types.Nmtoken(),
-        validate=stanza_model.ValidateMode.FROM_CODE
+        validator=xso.Nmtoken(),
+        validate=xso.ValidateMode.FROM_CODE
     )
 
 
 class Message(StanzaBase):
     TAG = (namespaces.client, "message")
 
-    type_ = stanza_model.Attr(
+    type_ = xso.Attr(
         tag="type",
-        validator=stanza_types.RestrictToSet({
+        validator=xso.RestrictToSet({
             "chat",
             "groupchat",
             "error",
@@ -95,14 +95,14 @@ class Message(StanzaBase):
         required=True
     )
 
-    body = stanza_model.ChildText(
+    body = xso.ChildText(
         tag=(namespaces.client, "body"),
-        attr_policy=stanza_model.UnknownAttrPolicy.DROP)
-    subject = stanza_model.ChildText(
+        attr_policy=xso.UnknownAttrPolicy.DROP)
+    subject = xso.ChildText(
         tag=(namespaces.client, "subject"),
-        attr_policy=stanza_model.UnknownAttrPolicy.DROP)
-    thread = stanza_model.Child([Thread])
-    ext = stanza_model.ChildMap([])
+        attr_policy=xso.UnknownAttrPolicy.DROP)
+    thread = xso.Child([Thread])
+    ext = xso.ChildMap([])
 
     def __init__(self, *, type_="chat", **kwargs):
         super().__init__(**kwargs)
@@ -125,9 +125,9 @@ class Message(StanzaBase):
 class Presence(StanzaBase):
     TAG = (namespaces.client, "presence")
 
-    type_ = stanza_model.Attr(
+    type_ = xso.Attr(
         tag="type",
-        validator=stanza_types.RestrictToSet({
+        validator=xso.RestrictToSet({
             "error",
             "probe",
             "subscribe",
@@ -137,7 +137,7 @@ class Presence(StanzaBase):
             "unsubscribed"}),
         required=False,
     )
-    ext = stanza_model.ChildMap([])
+    ext = xso.ChildMap([])
 
     def __init__(self, *, type_=None, **kwargs):
         super().__init__(**kwargs)
@@ -151,7 +151,7 @@ class Presence(StanzaBase):
             self.type_)
 
 
-class Error(stanza_model.StanzaObject):
+class Error(xso.StanzaObject):
     TAG = (namespaces.client, "error")
 
     EXCEPTION_CLS_MAP = {
@@ -162,9 +162,9 @@ class Error(stanza_model.StanzaObject):
         "continue": errors.XMPPContinueError,
     }
 
-    type_ = stanza_model.Attr(
+    type_ = xso.Attr(
         tag="type",
-        validator=stanza_types.RestrictToSet({
+        validator=xso.RestrictToSet({
             "auth",
             "cancel",
             "continue",
@@ -173,12 +173,12 @@ class Error(stanza_model.StanzaObject):
         }),
         required=True,
     )
-    text = stanza_model.ChildText(
+    text = xso.ChildText(
         tag=(namespaces.stanzas, "text"),
-        attr_policy=stanza_model.UnknownAttrPolicy.DROP,
+        attr_policy=xso.UnknownAttrPolicy.DROP,
         default=None,
         declare_prefix=None)
-    condition = stanza_model.ChildTag(
+    condition = xso.ChildTag(
         tags=[
             "bad-request",
             "conflict",
@@ -244,17 +244,17 @@ class Error(stanza_model.StanzaObject):
 class IQ(StanzaBase):
     TAG = (namespaces.client, "iq")
 
-    type_ = stanza_model.Attr(
+    type_ = xso.Attr(
         tag="type",
-        validator=stanza_types.RestrictToSet({
+        validator=xso.RestrictToSet({
             "get",
             "set",
             "result",
             "error"}),
         required=True,
     )
-    payload = stanza_model.Child([])
-    error = stanza_model.Child([Error])
+    payload = xso.Child([])
+    error = xso.Child([Error])
 
     def __init__(self, *, type_=None, **kwargs):
         super().__init__(**kwargs)

@@ -2,7 +2,7 @@ import unittest
 import unittest.mock
 
 import aioxmpp.stanza as stanza
-import aioxmpp.stanza_model as stanza_model
+import aioxmpp.xso as xso
 
 from .testutils import TransportMock, run_coroutine
 
@@ -49,10 +49,10 @@ STANZA_ERROR_TEMPLATE_WITH_TEXT = '''\
 </error>'''
 
 
-class Child(stanza_model.StanzaObject):
+class Child(xso.StanzaObject):
     TAG = ("uri:foo", "payload")
 
-    attr = stanza_model.Attr("a", required=True)
+    attr = xso.Attr("a", required=True)
 
 
 class FakeIQ(stanza.IQ):

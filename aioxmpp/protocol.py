@@ -9,7 +9,7 @@ from enum import Enum
 import xml.sax as sax
 import xml.parsers.expat as pyexpat
 
-from . import xml, errors, stanza_model, stream_elements, stanza
+from . import xml, errors, xso, stream_elements, stanza
 from .utils import namespaces, etree
 
 
@@ -29,7 +29,7 @@ class XMLStream(asyncio.Protocol):
         self._to = to
         self._sorted_attributes = sorted_attributes
         self._state = State.CLOSED
-        self.stanza_parser = stanza_model.StanzaParser()
+        self.stanza_parser = xso.StanzaParser()
         self.stanza_parser.add_class(stream_elements.StreamError,
                                      self._rx_stream_error)
 
@@ -63,11 +63,11 @@ class XMLStream(asyncio.Protocol):
                 type_="cancel",
             )
             self._writer.send(iq_response)
-        except stanza_model.UnknownTopLevelTag as exc:
+        except xso.UnknownTopLevelTag as exc:
             raise errors.StreamError(
                 condition=(namespaces.streams, "unsupported-stanza-type"),
                 text="unsupported stanza: {}".format(
-                    stanza_model.tag_to_str((exc.ev_args[0], exc.ev_args[1]))
+                    xso.tag_to_str((exc.ev_args[0], exc.ev_args[1]))
                 )) from None
         except:
             raise

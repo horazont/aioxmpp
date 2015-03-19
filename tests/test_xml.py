@@ -12,7 +12,7 @@ import xml.sax.handler as saxhandler
 import aioxmpp.xml as xml
 import aioxmpp.jid as jid
 import aioxmpp.errors as errors
-import aioxmpp.stanza_model as stanza_model
+import aioxmpp.xso as xso
 
 from aioxmpp.utils import etree, namespaces
 
@@ -52,7 +52,7 @@ TEST_TREE = b"""<weatherdata xmlns:xsi="http://www.w3.org/2001/XMLSchema-instanc
 # end of data extracted from http://api.met.no
 
 
-class Cls(stanza_model.StanzaObject):
+class Cls(xso.StanzaObject):
     TAG = ("uri:foo", "bar")
 
 
@@ -786,7 +786,7 @@ class TestXMPPXMLProcessor(unittest.TestCase):
             nonlocal results
             results.append(obj)
 
-        self.proc.stanza_parser = stanza_model.StanzaParser()
+        self.proc.stanza_parser = xso.StanzaParser()
         self.proc.stanza_parser.add_class(Cls, recv)
 
         self.proc.startDocument()
@@ -828,28 +828,28 @@ class TestXMPPXMLProcessor(unittest.TestCase):
             nonlocal results
             results.append(obj)
 
-        class Bar(stanza_model.StanzaObject):
+        class Bar(xso.StanzaObject):
             TAG = ("uri:foo", "bar")
 
-            text = stanza_model.Text()
+            text = xso.Text()
 
             def __init__(self, text=None):
                 super().__init__()
                 self.text = text
 
-        class Baz(stanza_model.StanzaObject):
+        class Baz(xso.StanzaObject):
             TAG = ("uri:foo", "baz")
 
-            children = stanza_model.ChildList([Bar])
+            children = xso.ChildList([Bar])
 
-        class Foo(stanza_model.StanzaObject):
+        class Foo(xso.StanzaObject):
             TAG = ("uri:foo", "foo")
 
-            attr = stanza_model.Attr((None, "attr"))
-            bar = stanza_model.Child([Bar])
-            baz = stanza_model.Child([Baz])
+            attr = xso.Attr((None, "attr"))
+            bar = xso.Child([Bar])
+            baz = xso.Child([Baz])
 
-        self.proc.stanza_parser = stanza_model.StanzaParser()
+        self.proc.stanza_parser = xso.StanzaParser()
         self.proc.stanza_parser.add_class(Foo, recv)
 
         self.proc.startDocument()
@@ -972,12 +972,12 @@ class TestXMPPXMLProcessor(unittest.TestCase):
             nonlocal elements
             elements.append(obj)
 
-        class Foo(stanza_model.StanzaObject):
+        class Foo(xso.StanzaObject):
             TAG = ("uri:foo", "foo")
 
         self.assertIsNone(self.proc.on_exception)
         self.proc.on_exception = catch_exception
-        self.proc.stanza_parser = stanza_model.StanzaParser()
+        self.proc.stanza_parser = xso.StanzaParser()
         self.proc.stanza_parser.add_class(Foo, recv)
         self.proc.startDocument()
         self.proc.startElementNS(self.STREAM_HEADER_TAG,

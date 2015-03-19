@@ -2,7 +2,7 @@ import asyncio
 import unittest
 
 import aioxmpp.jid as jid
-import aioxmpp.stanza_model as stanza_model
+import aioxmpp.xso as xso
 import aioxmpp.stanza as stanza
 import aioxmpp.stream as stream
 import aioxmpp.stream_elements as stream_elements
@@ -19,7 +19,7 @@ from .testutils import run_coroutine
 TEST_FROM = jid.JID.fromstr("foo@example.test/r1")
 TEST_TO = jid.JID.fromstr("bar@example.test/r1")
 
-class FancyTestIQ(stanza_model.StanzaObject):
+class FancyTestIQ(xso.StanzaObject):
     TAG = ("uri:tests:test_stream.py", "foo")
 
 stanza.IQ.register_child(stanza.IQ.payload, FancyTestIQ)

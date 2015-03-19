@@ -1,60 +1,8 @@
 """
-:mod:`aioxmpp.stanza_types` --- Types specifications for use with :mod:`~aioxmpp.stanza_model`
-########################################################################################################
+:mod:`aioxmpp.xso.types` --- Types specifications for use with :mod:`aioxmpp.xso.model`
+#######################################################################################
 
-This module provides classes whose objects can be used as types and validators
-in :mod:`~aioxmpp.stanza_model`.
-
-Types
-=====
-
-Types are used to convert strings obtained from XML character data or attribute
-contents to python types. They are valid values for *type_* arguments e.g. for
-:class:`~aioxmpp.stanza_model.Attr`.
-
-The basic type interface
-------------------------
-
-.. autoclass:: AbstractType
-
-Implementations
----------------
-
-.. autoclass:: String
-
-.. autoclass:: Integer
-
-.. autoclass:: Bool
-
-.. autoclass:: DateTime
-
-.. autoclass:: Base64Binary
-
-.. autoclass:: HexBinary
-
-.. autoclass:: JID
-
-Validators
-==========
-
-Validators validate the python values after they have been parsed from
-XML-sourced strings or even when being assigned to a descriptor attribute
-(depending on the choice in the *validate* argument).
-
-They can be useful both for defending and rejecting incorrect input and to avoid
-producing incorrect output.
-
-The basic validator interface
------------------------------
-
-.. autoclass:: AbstractValidator
-
-Implementations
----------------
-
-.. autoclass:: RestrictToSet
-
-.. autoclass:: Nmtoken
+See :mod:`aioxmpp.xso` for documentation.
 
 """
 
@@ -68,7 +16,7 @@ import pytz
 
 from datetime import datetime, timedelta
 
-from . import jid
+from .. import jid
 
 
 class AbstractType(metaclass=abc.ABCMeta):

@@ -6,27 +6,27 @@ import pytz
 
 from datetime import datetime
 
-import aioxmpp.stanza_types as stanza_types
+import aioxmpp.xso as xso
 import aioxmpp.jid as jid
 
 
 class TestAbstractType(unittest.TestCase):
-    class DummyType(stanza_types.AbstractType):
+    class DummyType(xso.AbstractType):
         def parse(self, v):
             pass
 
     def test_is_abstract(self):
         self.assertIsInstance(
-            stanza_types.AbstractType,
+            xso.AbstractType,
             abc.ABCMeta)
         with self.assertRaises(TypeError):
-            stanza_types.AbstractType()
+            xso.AbstractType()
 
     def test_parse_method(self):
-        self.assertTrue(inspect.isfunction(stanza_types.AbstractType.parse))
+        self.assertTrue(inspect.isfunction(xso.AbstractType.parse))
 
     def test_format_method(self):
-        self.assertTrue(inspect.isfunction(stanza_types.AbstractType.format))
+        self.assertTrue(inspect.isfunction(xso.AbstractType.format))
         self.assertEqual(
             "foo",
             self.DummyType().format("foo"))
@@ -38,17 +38,17 @@ class TestAbstractType(unittest.TestCase):
 class TestStringType(unittest.TestCase):
     def test_is_abstract_type(self):
         self.assertIsInstance(
-            stanza_types.String(),
-            stanza_types.AbstractType)
+            xso.String(),
+            xso.AbstractType)
 
     def test_parse(self):
-        t = stanza_types.String()
+        t = xso.String()
         self.assertEqual(
             "foo",
             t.parse("foo"))
 
     def test_format(self):
-        t = stanza_types.String()
+        t = xso.String()
         self.assertEqual(
             "foo",
             t.format("foo"))
@@ -57,22 +57,22 @@ class TestStringType(unittest.TestCase):
 class TestIntegerType(unittest.TestCase):
     def test_is_abstract_type(self):
         self.assertIsInstance(
-            stanza_types.Integer(),
-            stanza_types.AbstractType)
+            xso.Integer(),
+            xso.AbstractType)
 
     def test_parse(self):
-        t = stanza_types.Integer()
+        t = xso.Integer()
         self.assertEqual(
             123,
             t.parse("123"))
 
     def test_parse_failure(self):
-        t = stanza_types.Integer()
+        t = xso.Integer()
         with self.assertRaises(ValueError):
             t.parse("123f")
 
     def test_format(self):
-        t = stanza_types.Integer()
+        t = xso.Integer()
         self.assertEqual(
             "123",
             t.format(123))
@@ -81,22 +81,22 @@ class TestIntegerType(unittest.TestCase):
 class TestFloatType(unittest.TestCase):
     def test_is_abstract_type(self):
         self.assertIsInstance(
-            stanza_types.Float(),
-            stanza_types.AbstractType)
+            xso.Float(),
+            xso.AbstractType)
 
     def test_parse(self):
-        t = stanza_types.Float()
+        t = xso.Float()
         self.assertEqual(
             123.3,
             t.parse("123.3"))
 
     def test_parse_failure(self):
-        t = stanza_types.Float()
+        t = xso.Float()
         with self.assertRaises(ValueError):
             t.parse("123.3f")
 
     def test_format(self):
-        t = stanza_types.Float()
+        t = xso.Float()
         self.assertEqual(
             "123.3",
             t.format(123.3))
@@ -105,11 +105,11 @@ class TestFloatType(unittest.TestCase):
 class TestBoolType(unittest.TestCase):
     def test_is_abstract_type(self):
         self.assertIsInstance(
-            stanza_types.Bool(),
-            stanza_types.AbstractType)
+            xso.Bool(),
+            xso.AbstractType)
 
     def test_parse(self):
-        t = stanza_types.Bool()
+        t = xso.Bool()
         self.assertTrue(t.parse("true"))
         self.assertTrue(t.parse("1"))
         self.assertTrue(t.parse("  true  "))
@@ -120,7 +120,7 @@ class TestBoolType(unittest.TestCase):
         self.assertFalse(t.parse(" 0 "))
 
     def test_parse_failure(self):
-        t = stanza_types.Bool()
+        t = xso.Bool()
         with self.assertRaises(ValueError):
             t.parse("foobar")
         with self.assertRaises(ValueError):
@@ -129,7 +129,7 @@ class TestBoolType(unittest.TestCase):
             t.parse("0foo")
 
     def test_format(self):
-        t = stanza_types.Bool()
+        t = xso.Bool()
         self.assertEqual(
             "true",
             t.format(True))
@@ -141,58 +141,58 @@ class TestBoolType(unittest.TestCase):
 class TestDateTimeType(unittest.TestCase):
     def test_is_abstract_type(self):
         self.assertIsInstance(
-            stanza_types.DateTime(),
-            stanza_types.AbstractType)
+            xso.DateTime(),
+            xso.AbstractType)
 
     def test_parse_example(self):
-        t = stanza_types.DateTime()
+        t = xso.DateTime()
         self.assertEqual(
             datetime(2014, 1, 26, 19, 40, 10, tzinfo=pytz.utc),
             t.parse("2014-01-26T19:40:10Z"))
 
     def test_parse_timezoned(self):
-        t = stanza_types.DateTime()
+        t = xso.DateTime()
         self.assertEqual(
             datetime(2014, 1, 26, 19, 40, 10, tzinfo=pytz.utc),
             t.parse("2014-01-26T20:40:10+01:00"))
 
     def test_parse_local(self):
-        t = stanza_types.DateTime()
+        t = xso.DateTime()
         self.assertEqual(
             datetime(2014, 1, 26, 20, 40, 10),
             t.parse("2014-01-26T20:40:10"))
 
     def test_parse_milliseconds(self):
-        t = stanza_types.DateTime()
+        t = xso.DateTime()
         self.assertEqual(
             datetime(2014, 1, 26, 20, 40, 10, 123456),
             t.parse("2014-01-26T20:40:10.123456"))
 
     def test_parse_milliseconds_timezoned(self):
-        t = stanza_types.DateTime()
+        t = xso.DateTime()
         self.assertEqual(
             datetime(2014, 1, 26, 19, 40, 10, 123456, tzinfo=pytz.utc),
             t.parse("2014-01-26T20:40:10.123456+01:00"))
 
     def test_parse_need_time(self):
-        t = stanza_types.DateTime()
+        t = xso.DateTime()
         with self.assertRaises(ValueError):
             t.parse("2014-01-26")
 
     def test_parse_need_date(self):
-        t = stanza_types.DateTime()
+        t = xso.DateTime()
         with self.assertRaises(ValueError):
             t.parse("20:40:10")
 
     def test_format_timezoned(self):
-        t = stanza_types.DateTime()
+        t = xso.DateTime()
         self.assertEqual(
             "2014-01-26T19:40:10Z",
             t.format(datetime(2014, 1, 26, 19, 40, 10, tzinfo=pytz.utc))
         )
 
     def test_format_timezoned_microseconds(self):
-        t = stanza_types.DateTime()
+        t = xso.DateTime()
         self.assertEqual(
             "2014-01-26T19:40:10.1234Z",
             t.format(datetime(2014, 1, 26, 19, 40, 10, 123400,
@@ -200,21 +200,21 @@ class TestDateTimeType(unittest.TestCase):
         )
 
     def test_format_naive(self):
-        t = stanza_types.DateTime()
+        t = xso.DateTime()
         self.assertEqual(
             "2014-01-26T19:40:10",
             t.format(datetime(2014, 1, 26, 19, 40, 10))
         )
 
     def test_format_naive_microseconds(self):
-        t = stanza_types.DateTime()
+        t = xso.DateTime()
         self.assertEqual(
             "2014-01-26T19:40:10.1234",
             t.format(datetime(2014, 1, 26, 19, 40, 10, 123400))
         )
 
     def test_format_timezoned_nonutc(self):
-        t = stanza_types.DateTime()
+        t = xso.DateTime()
         self.assertEqual(
             "2014-01-26T19:47:10Z",
             t.format(datetime(2014, 1, 26, 20, 40, 10,
@@ -225,25 +225,25 @@ class TestDateTimeType(unittest.TestCase):
 class TestBase64Binary(unittest.TestCase):
     def test_is_abstract_type(self):
         self.assertIsInstance(
-            stanza_types.Base64Binary(),
-            stanza_types.AbstractType)
+            xso.Base64Binary(),
+            xso.AbstractType)
 
     def test_parse(self):
-        t = stanza_types.Base64Binary()
+        t = xso.Base64Binary()
         self.assertEqual(
             b"fnord",
             t.parse("Zm5vcmQ=")
         )
 
     def test_format(self):
-        t = stanza_types.Base64Binary()
+        t = xso.Base64Binary()
         self.assertEqual(
             "Zm5vcmQ=",
             t.format(b"fnord")
         )
 
     def test_format_long(self):
-        t = stanza_types.Base64Binary()
+        t = xso.Base64Binary()
         self.assertEqual(
             "Zm5vcmRmbm9yZGZub3JkZm5vcmRmbm9yZGZub3JkZm5vcmRmbm9yZG"
             "Zub3JkZm5vcmRmbm9yZGZub3JkZm5vcmRmbm9yZGZub3JkZm5vcmRm"
@@ -255,18 +255,18 @@ class TestBase64Binary(unittest.TestCase):
 class TestHexBinary(unittest.TestCase):
     def test_is_abstract_type(self):
         self.assertIsInstance(
-            stanza_types.HexBinary(),
-            stanza_types.AbstractType)
+            xso.HexBinary(),
+            xso.AbstractType)
 
     def test_parse(self):
-        t = stanza_types.HexBinary()
+        t = xso.HexBinary()
         self.assertEqual(
             b"fnord",
             t.parse("666e6f7264")
         )
 
     def test_format(self):
-        t = stanza_types.HexBinary()
+        t = xso.HexBinary()
         self.assertEqual(
             "666e6f7264",
             t.format(b"fnord")
@@ -276,18 +276,18 @@ class TestHexBinary(unittest.TestCase):
 class TestJID(unittest.TestCase):
     def test_is_abstract_type(self):
         self.assertIsInstance(
-            stanza_types.JID(),
-            stanza_types.AbstractType)
+            xso.JID(),
+            xso.AbstractType)
 
     def test_parse(self):
-        t = stanza_types.JID()
+        t = xso.JID()
         self.assertEqual(
             jid.JID("foo", "example.test", "bar"),
             t.parse("foo@example.test/bar")
         )
 
     def test_format(self):
-        t = stanza_types.JID()
+        t = xso.JID()
         self.assertEqual(
             "ssa@ix.test/IX",
             t.format(jid.JID("ßA", "IX.test", "\u2168"))
@@ -297,20 +297,20 @@ class TestJID(unittest.TestCase):
 class TestAbstractValidator(unittest.TestCase):
     def test_is_abstract(self):
         self.assertIsInstance(
-            stanza_types.AbstractValidator,
+            xso.AbstractValidator,
             abc.ABCMeta)
         with self.assertRaises(TypeError):
-            stanza_types.AbstractValidator()
+            xso.AbstractValidator()
 
 
 class TestRestrictToSet(unittest.TestCase):
     def test_is_abstract_validator(self):
         self.assertIsInstance(
-            stanza_types.RestrictToSet([]),
-            stanza_types.AbstractValidator)
+            xso.RestrictToSet([]),
+            xso.AbstractValidator)
 
     def test_validate(self):
-        t = stanza_types.RestrictToSet({"foo", "bar"})
+        t = xso.RestrictToSet({"foo", "bar"})
         self.assertTrue(t.validate("foo"))
         self.assertTrue(t.validate("bar"))
         self.assertFalse(t.validate("baz"))
@@ -319,8 +319,8 @@ class TestRestrictToSet(unittest.TestCase):
 class TestNmtoken(unittest.TestCase):
     def test_is_abstract_validator(self):
         self.assertIsInstance(
-            stanza_types.RestrictToSet([]),
-            stanza_types.AbstractValidator)
+            xso.RestrictToSet([]),
+            xso.AbstractValidator)
 
     def _test_samples(self, t, samples, group):
         for sample in samples:
@@ -330,7 +330,7 @@ class TestNmtoken(unittest.TestCase):
             )
 
     def test_validate(self):
-        t = stanza_types.Nmtoken()
+        t = xso.Nmtoken()
         # ok, testing this sucks hard. we’ll do some hand-waiving tests guarding
         # against the most important characters which must not occur.
 
@@ -354,7 +354,7 @@ class TestNmtoken(unittest.TestCase):
 
     def test_validate_base_char(self):
         self._test_samples(
-            stanza_types.Nmtoken(),
+            xso.Nmtoken(),
             "\u0041"
             "\u0061"
             "\u00c0"
@@ -562,7 +562,7 @@ class TestNmtoken(unittest.TestCase):
 
     def test_validate_ideographic(self):
         self._test_samples(
-            stanza_types.Nmtoken(),
+            xso.Nmtoken(),
             "\u4E00"
             "\u3007"
             "\u3021",
@@ -571,7 +571,7 @@ class TestNmtoken(unittest.TestCase):
 
     def test_validate_combining(self):
         self._test_samples(
-            stanza_types.Nmtoken(),
+            xso.Nmtoken(),
             "\u0300"
             "\u0360"
             "\u0483"
@@ -672,7 +672,7 @@ class TestNmtoken(unittest.TestCase):
 
     def test_validate_digit(self):
         self._test_samples(
-            stanza_types.Nmtoken(),
+            xso.Nmtoken(),
             "\u0030"
             "\u0660"
             "\u06F0"
@@ -693,7 +693,7 @@ class TestNmtoken(unittest.TestCase):
 
     def test_validate_extender(self):
         self._test_samples(
-            stanza_types.Nmtoken(),
+            xso.Nmtoken(),
             "\u00B7"
             "\u02D0"
             "\u02D1"

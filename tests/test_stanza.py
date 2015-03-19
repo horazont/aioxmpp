@@ -1,8 +1,7 @@
 import itertools
 import unittest
 
-import aioxmpp.stanza_model as stanza_model
-import aioxmpp.stanza_types as stanza_types
+import aioxmpp.xso as xso
 import aioxmpp.stanza as stanza
 import aioxmpp.jid as jid
 import aioxmpp.errors as errors
@@ -14,7 +13,7 @@ TEST_FROM = jid.JID.fromstr("foo@example.test")
 TEST_TO = jid.JID.fromstr("bar@example.test")
 
 
-class TestPayload(stanza_model.StanzaObject):
+class TestPayload(xso.StanzaObject):
     def __repr__(self):
         return "foobar"
 
@@ -23,7 +22,7 @@ class TestStanzaBase(unittest.TestCase):
     def test_id_attr(self):
         self.assertIsInstance(
             stanza.StanzaBase.id_,
-            stanza_model.Attr)
+            xso.Attr)
         self.assertEqual(
             (None, "id"),
             stanza.StanzaBase.id_.tag)
@@ -32,24 +31,24 @@ class TestStanzaBase(unittest.TestCase):
     def test_from_attr(self):
         self.assertIsInstance(
             stanza.StanzaBase.from_,
-            stanza_model.Attr)
+            xso.Attr)
         self.assertEqual(
             (None, "from"),
             stanza.StanzaBase.from_.tag)
         self.assertIsInstance(
             stanza.StanzaBase.from_.type_,
-            stanza_types.JID)
+            xso.JID)
 
     def test_to_attr(self):
         self.assertIsInstance(
             stanza.StanzaBase.to,
-            stanza_model.Attr)
+            xso.Attr)
         self.assertEqual(
             (None, "to"),
             stanza.StanzaBase.to.tag)
         self.assertIsInstance(
             stanza.StanzaBase.to.type_,
-            stanza_types.JID)
+            xso.JID)
 
     def test_autoset_id_generates_random_str_on_none(self):
         s = stanza.StanzaBase()
@@ -122,13 +121,13 @@ class TestMessage(unittest.TestCase):
     def test_type_attr(self):
         self.assertIsInstance(
             stanza.Message.type_,
-            stanza_model.Attr)
+            xso.Attr)
         self.assertEqual(
             (None, "type"),
             stanza.Message.type_.tag)
         self.assertIsInstance(
             stanza.Message.type_.validator,
-            stanza_types.RestrictToSet)
+            xso.RestrictToSet)
         self.assertSetEqual(
             {
                 "chat",
@@ -144,7 +143,7 @@ class TestMessage(unittest.TestCase):
     def test_ext_attr(self):
         self.assertIsInstance(
             stanza.Message.ext,
-            stanza_model.ChildMap)
+            xso.ChildMap)
 
     def test_init(self):
         s = stanza.Message(from_=TEST_FROM,
@@ -205,13 +204,13 @@ class TestPresence(unittest.TestCase):
     def test_type_attr(self):
         self.assertIsInstance(
             stanza.Presence.type_,
-            stanza_model.Attr)
+            xso.Attr)
         self.assertEqual(
             (None, "type"),
             stanza.Presence.type_.tag)
         self.assertIsInstance(
             stanza.Presence.type_.validator,
-            stanza_types.RestrictToSet)
+            xso.RestrictToSet)
         self.assertSetEqual(
             {
                 "error",
@@ -229,7 +228,7 @@ class TestPresence(unittest.TestCase):
     def test_ext_attr(self):
         self.assertIsInstance(
             stanza.Presence.ext,
-            stanza_model.ChildMap)
+            xso.ChildMap)
 
     def test_init(self):
         s = stanza.Presence(
@@ -278,13 +277,13 @@ class TestError(unittest.TestCase):
     def test_type_attr(self):
         self.assertIsInstance(
             stanza.Error.type_,
-            stanza_model.Attr)
+            xso.Attr)
         self.assertEqual(
             (None, "type"),
             stanza.Error.type_.tag)
         self.assertIsInstance(
             stanza.Error.type_.validator,
-            stanza_types.RestrictToSet)
+            xso.RestrictToSet)
         self.assertSetEqual(
             {
                 "auth",
@@ -389,13 +388,13 @@ class TestIQ(unittest.TestCase):
     def test_type_attr(self):
         self.assertIsInstance(
             stanza.IQ.type_,
-            stanza_model.Attr)
+            xso.Attr)
         self.assertEqual(
             (None, "type"),
             stanza.IQ.type_.tag)
         self.assertIsInstance(
             stanza.IQ.type_.validator,
-            stanza_types.RestrictToSet)
+            xso.RestrictToSet)
         self.assertSetEqual(
             {
                 "get",
@@ -410,12 +409,12 @@ class TestIQ(unittest.TestCase):
     def test_error(self):
         self.assertIsInstance(
             stanza.IQ.error,
-            stanza_model.Child)
+            xso.Child)
 
     def test_payload(self):
         self.assertIsInstance(
             stanza.IQ.payload,
-            stanza_model.Child)
+            xso.Child)
 
     def test_init(self):
         s = stanza.IQ(from_=TEST_FROM, type_="result")

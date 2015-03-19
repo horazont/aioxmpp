@@ -1,17 +1,17 @@
-from . import stanza_model, stanza_types, errors
+from . import xso, errors
 
 from .utils import namespaces
 
 
-class StreamError(stanza_model.StanzaObject):
+class StreamError(xso.StanzaObject):
     TAG = (namespaces.xmlstream, "error")
 
-    text = stanza_model.ChildText(
+    text = xso.ChildText(
         tag=(namespaces.streams, "text"),
-        attr_policy=stanza_model.UnknownAttrPolicy.DROP,
+        attr_policy=xso.UnknownAttrPolicy.DROP,
         default=None,
         declare_prefix=None)
-    condition = stanza_model.ChildTag(
+    condition = xso.ChildTag(
         tags=[
             "bad-format",
             "bad-namespace-prefix",
@@ -58,7 +58,7 @@ class StreamError(stanza_model.StanzaObject):
             text=self.text)
 
 
-class SMStanzaObject(stanza_model.StanzaObject):
+class SMStanzaObject(xso.StanzaObject):
     DECLARE_NS = {
         None: namespaces.stream_management
     }
@@ -71,9 +71,9 @@ class SMRequest(SMStanzaObject):
 class SMAcknowledgement(SMStanzaObject):
     TAG = (namespaces.stream_management, "a")
 
-    counter = stanza_model.Attr(
+    counter = xso.Attr(
         "h",
-        type_=stanza_types.Integer(),
+        type_=xso.Integer(),
         required=True,
     )
 
@@ -81,9 +81,9 @@ class SMAcknowledgement(SMStanzaObject):
 class SMEnable(SMStanzaObject):
     TAG = (namespaces.stream_management, "enable")
 
-    resume = stanza_model.Attr(
+    resume = xso.Attr(
         "resume",
-        type_=stanza_types.Bool(),
+        type_=xso.Bool(),
         default=False
     )
 
@@ -91,13 +91,13 @@ class SMEnable(SMStanzaObject):
 class SMEnabled(SMStanzaObject):
     TAG = (namespaces.stream_management, "enabled")
 
-    resume = stanza_model.Attr(
+    resume = xso.Attr(
         "resume",
-        type_=stanza_types.Bool(),
+        type_=xso.Bool(),
         default=False
     )
-    id_ = stanza_model.Attr("id")
-    location = stanza_model.Attr(
+    id_ = xso.Attr("id")
+    location = xso.Attr(
         "location",
         default=None)
 
@@ -105,12 +105,12 @@ class SMEnabled(SMStanzaObject):
 class SMResume(SMStanzaObject):
     TAG = (namespaces.stream_management, "resume")
 
-    counter = stanza_model.Attr(
+    counter = xso.Attr(
         "h",
-        type_=stanza_types.Integer(),
+        type_=xso.Integer(),
         required=True,
     )
-    previd = stanza_model.Attr(
+    previd = xso.Attr(
         "previd",
         required=True)
 
@@ -118,10 +118,10 @@ class SMResume(SMStanzaObject):
 class SMResumed(SMStanzaObject):
     TAG = (namespaces.stream_management, "resumed")
 
-    counter = stanza_model.Attr(
+    counter = xso.Attr(
         "h",
-        type_=stanza_types.Integer(),
+        type_=xso.Integer(),
         required=True)
-    previd = stanza_model.Attr(
+    previd = xso.Attr(
         "previd",
         required=True)

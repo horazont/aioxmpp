@@ -41,13 +41,13 @@ Stream negotiation exceptions
 
 """
 
-from . import stanza_model
+from . import xso
 
 def format_error_text(
         condition,
         text=None,
         application_defined_condition=None):
-    error_tag = stanza_model.tag_to_str(condition)
+    error_tag = xso.tag_to_str(condition)
     if application_defined_condition is not None:
         error_tag += "/{}".format(application_defined_condition.tag)
     if text:

@@ -1,129 +1,8 @@
 """
-:mod:`aioxmpp.stanza_model` --- Declarative-style stanza definition
-########################################################################
+:mod:`aioxmpp.xso.model` --- Declarative-style stanza definition
+################################################################
 
-This module provides facilities to create classes which map to full XMPP stanzas
-(including payload).
-
-To create such a class, derive from :class:`StanzaObject` and provide attributes
-using the :class:`Attr`, :class:`Text`, :class:`Child` and :class:`ChildList`
-descriptors.
-
-Terminology
-===========
-
-A word on tags
---------------
-
-Tags, as used by etree, are used throughout this module. Note that we are
-representing tags as tuples of ``(namespace_uri, localname)``, where
-``namespace_uri`` may be :data:`None`.
-
-.. seealso::
-
-   The functions :func:`normalize_tag` and :func:`tag_to_str` are useful to
-   convert from and to ElementTree compatible strings.
-
-
-Suspendable functions
----------------------
-
-This module uses suspendable functions, implemented as generators, at several
-points. These may also be called coroutines, but have nothing to do with
-coroutines as used by :mod:`asyncio`, which is why we will call them suspendable
-functions here.
-
-Suspendable functions possibly take arguments and then operate on input which is
-fed to them in a push-manner step by step (using the
-:meth:`~types.GeneratorType.send` method). The main usage in this module is to
-process SAX events: The SAX events are processed step-by-step by the functions,
-and when the event is fully processed, it suspends itself (using ``yield``)
-until the next event is sent into it.
-
-Descriptors for XML-sourced attributes
-======================================
-
-The following descriptors can be used to load attributes from stanza XML. There
-are two fundamentally different descriptor types: *scalar* and *non-scalar*
-(e.g. list) descriptors. *scalar* descriptor types always accept a value of
-:data:`None`, which represents the *absence* of the object (unless it is
-required by some means, e.g. ``Attr(required=True)``). *Non-scalar* descriptors
-generally have a different way to describe the absence and in addition have a
-mutable value. Assignment to the descriptor attribute is strictly type-checked.
-
-Scalar descriptors
-------------------
-
-.. autoclass:: Attr(name, type_=stanza_types.String(), default=None, required=False, validator=None, validate=ValidateMode.FROM_RECV)
-
-.. autoclass:: Child(classes, default=None)
-
-.. autoclass:: ChildTag(tags, *, text_policy=UnknownTextPolicy.FAIL, child_policy=UnknownChildPolicy.FAILattr_policy=UnknownAttrPolicy.FAIL, default_ns=None, default=None, allow_none=False)
-
-.. autoclass:: ChildText(tag, child_policy=UnknownChildPolicy.FAIL, attr_policy=UnknownAttrPolicy.FAIL, type_=stanza_types.String(), default=None, validator=None, validate=ValidateMode.FROM_RECV)
-
-.. autoclass:: Text(type_=stanza_types.String(), default=None, validator=None, validate=ValidateMode.FROM_RECV)
-
-Non-scalar descriptors
-----------------------
-
-.. autoclass:: ChildList(classes)
-
-.. autoclass:: ChildMap(classes)
-
-.. autoclass:: Collector()
-
-
-Parsing stanzas
-===============
-
-To parse stanzas, an asynchronous approach which uses SAX-like events is
-followed. For this, the suspendable functions explained earlier are used. The
-main class to parse a stanza from events is :class:`StanzaParser`. To drive
-that suspendable callable from SAX events, use a :class:`SAXDriver`.
-
-.. autoclass:: StanzaParser
-
-.. autoclass:: SAXDriver
-
-Base and meta class
-===================
-
-The :class:`StanzaObject` base class makes use of the :class:`StanzaClass`
-metaclass and provides implementations for utility methods. For an object to
-work with this module, it must derive from :class:`StanzaObject` or provide an
-identical interface.
-
-.. autoclass:: StanzaObject()
-
-The metaclass takes care of collecting the special descriptors in attributes
-where they can be used by the SAX event interpreter to fill the class with
-data. It also provides a class method for late registration of child classes.
-
-.. autoclass:: StanzaClass
-
-Functions, enumerations and exceptions
-======================================
-
-.. autofunction:: normalize_tag
-
-.. autofunction:: tag_to_str
-
-The values of the following enumerations are used on "magic" attributes of
-:class:`StanzaClass` instances (i.e. classes).
-
-.. autoclass:: UnknownChildPolicy
-
-.. autoclass:: UnknownAttrPolicy
-
-.. autoclass:: UnknownTextPolicy
-
-.. autoclass:: ValidateMode
-
-The following exceptions are generated at some places in this module:
-
-.. autoclass:: UnknownTopLevelTag
-
+See :mod:`aioxmpp.xso` for documentation.
 """
 import collections
 import copy
@@ -139,51 +18,8 @@ from enum import Enum
 
 from aioxmpp.utils import etree
 
-from . import stanza_types
-
-
-def tag_to_str(tag):
-    """
-    *tag* must be a tuple ``(namespace_uri, localname)``. Return a tag string
-    conforming to the ElementTree specification. Example::
-
-         tag_to_str(("jabber:client", "iq")) == "{jabber:client}iq"
-    """
-    return "{{{:s}}}{:s}".format(*tag) if tag[0] else tag[1]
-
-
-def normalize_tag(tag):
-    """
-    Normalize an XML element tree *tag* into the tuple format. The following
-    input formats are accepted:
-
-    * ElementTree namespaced string, e.g. ``{uri:bar}foo``
-    * Unnamespaced tags, e.g. ``foo``
-    * Two-tuples consisting of *namespace_uri* and *localpart*; *namespace_uri*
-      may be :data:`None` if the tag is supposed to be namespaceless. Otherwise
-      it must be, like *localpart*, a :class:`str`.
-
-    Return a two-tuple consisting the ``(namespace_uri, localpart)`` format.
-    """
-    if isinstance(tag, str):
-        namespace_uri, sep, localname = tag.partition("}")
-        if sep:
-            if not namespace_uri.startswith("{"):
-                raise ValueError("not a valid etree-format tag")
-            namespace_uri = namespace_uri[1:]
-        else:
-            localname = namespace_uri
-            namespace_uri = None
-        return (namespace_uri, localname)
-    elif len(tag) != 2:
-        raise ValueError("not a valid tuple-format tag")
-    else:
-        if any(part is not None and not isinstance(part, str) for part in tag):
-            raise TypeError("tuple-format tags must only contain str and None")
-        if tag[1] is None:
-            raise ValueError("tuple-format localname must not be None")
-    return tag
-
+from . import types as xso_types
+from . import tag_to_str, normalize_tag
 
 class UnknownChildPolicy(Enum):
     """
@@ -357,7 +193,7 @@ class Text(_PropBase):
     """
 
     def __init__(self,
-                 type_=stanza_types.String(),
+                 type_=xso_types.String(),
                  default=None,
                  **kwargs):
         super().__init__(default, **kwargs)
@@ -588,8 +424,8 @@ class Attr(Text):
     all available at :class:`Attr`.
 
     :param type_: An object which fulfills the type interface proposed by
-                  :mod:`~aioxmpp.stanza_types`. Usually, this is defaulted
-                  to a :class:`~aioxmpp.stanza_types.String` instance.
+                  :mod:`~aioxmpp.xso_types`. Usually, this is defaulted
+                  to a :class:`~aioxmpp.xso_types.String` instance.
     :param validator: An object which has a :meth:`validate` method. That method
                       receives a value which was either assigned to the property
                       (depending on the *validate* argument) or parsed from XML
@@ -611,7 +447,7 @@ class Attr(Text):
     """
 
     def __init__(self, tag,
-                 type_=stanza_types.String(),
+                 type_=xso_types.String(),
                  default=None,
                  required=False,
                  **kwargs):
@@ -658,7 +494,7 @@ class ChildText(_PropBase):
     """
 
     def __init__(self, tag,
-                 type_=stanza_types.String(),
+                 type_=xso_types.String(),
                  default=None,
                  child_policy=UnknownChildPolicy.FAIL,
                  attr_policy=UnknownAttrPolicy.FAIL,
@@ -825,7 +661,7 @@ class ChildTag(_PropBase):
 
     """
 
-    class ElementTreeTag(stanza_types.AbstractType):
+    class ElementTreeTag(xso_types.AbstractType):
         """
         Parse an element-tree-format tag to a tuple-format tag. This type
         operates on strings and should not be used in general.
@@ -853,7 +689,7 @@ class ChildTag(_PropBase):
             tags.add(None)
         super().__init__(
             default=default,
-            validator=stanza_types.RestrictToSet(tags),
+            validator=xso_types.RestrictToSet(tags),
             validate=ValidateMode.ALWAYS)
         self.type_ = self.ElementTreeTag()
         self.text_policy = text_policy
