@@ -742,6 +742,22 @@ class TestStanzaStream(StanzaStreamTestBase):
             stream_elements.SMRequest
         )
 
+    def test_sm_resume_requires_stopped_stream(self):
+        self.stream.start_sm()
+        self.stream.start(self.xmlstream)
+        with self.assertRaises(RuntimeError):
+            self.stream.resume_sm(0)
+
+    def test_sm_stop_requires_stopped_stream(self):
+        self.stream.start_sm()
+        self.stream.start(self.xmlstream)
+        with self.assertRaises(RuntimeError):
+            self.stream.stop_sm()
+
+    def test_sm_stop_requires_enabled_sm(self):
+        with self.assertRaises(RuntimeError):
+            self.stream.stop_sm()
+
     def test_stop_sm(self):
         self.stream.start_sm()
         self.stream.stop_sm()
@@ -940,6 +956,7 @@ class TestStanzaStream(StanzaStreamTestBase):
         tokens = [self.stream.enqueue_stanza(iq) for iq in iqs]
         run_coroutine(asyncio.sleep(0))
         self.stream.stop()
+        run_coroutine(asyncio.sleep(0))
         self.stream.stop_sm()
 
         self.assertSequenceEqual(

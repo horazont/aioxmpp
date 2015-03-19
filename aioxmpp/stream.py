@@ -461,7 +461,7 @@ class StanzaStream:
     def start_sm(self):
         if self.running:
             raise RuntimeError("cannot start Stream Management while"
-                               " StanzaBroker is running")
+                               " StanzaStream is running")
 
         self._logger.info("starting SM handling")
         self._sm_outbound_base = 0
@@ -492,6 +492,10 @@ class StanzaStream:
         return self._sm_unacked_list[:]
 
     def resume_sm(self, remote_ctr):
+        if self.running:
+            raise RuntimeError("Cannot resume Stream Management while"
+                               " StanzaStream is running")
+
         self._logger.info("resuming SM stream with remote_ctr=%d", remote_ctr)
         # remove any acked stanzas
         self.sm_ack(remote_ctr)
@@ -501,6 +505,13 @@ class StanzaStream:
         self._sm_unacked_list.clear()
 
     def stop_sm(self):
+        if self.running:
+            raise RuntimeError("Cannot stop Stream Management while"
+                               " StanzaStream is running")
+        if not self.sm_enabled:
+            raise RuntimeError("Cannot stop Stream Management while"
+                               " StanzaStream is running")
+
         self._logger.info("stopping SM stream")
         self._sm_enabled = False
         del self._sm_outbound_base
