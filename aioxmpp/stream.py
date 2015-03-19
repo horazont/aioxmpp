@@ -76,10 +76,9 @@ class StanzaStream:
         self.ping_interval = timedelta(seconds=15)
         self.ping_opportunistic_interval = timedelta(seconds=15)
 
-        self.on_send_stanza = None
         self.on_failure = None
 
-        self.sm_enabled = False
+        self._sm_enabled = False
 
     def _done_handler(self, task):
         try:
@@ -190,8 +189,8 @@ class StanzaStream:
             )
 
     def _process_incoming(self, xmlstream, stanza_obj):
-        if self.sm_enabled:
-            self.sm_inbound_ctr += 1
+        if self._sm_enabled:
+            self._sm_inbound_ctr += 1
 
         if isinstance(stanza_obj, stanza.IQ):
             self._process_incoming_iq(stanza_obj)
@@ -201,7 +200,7 @@ class StanzaStream:
             self._process_incoming_presence(stanza_obj)
         elif isinstance(stanza_obj, stream_elements.SMAcknowledgement):
             self._logger.debug("received SM ack: %r", stanza_obj)
-            if not self.sm_enabled:
+            if not self._sm_enabled:
                 self._logger.warning("received SM ack, but SM not enabled")
                 return
             self.sm_ack(stanza_obj.counter)
@@ -212,11 +211,11 @@ class StanzaStream:
                 self._next_ping_event_at = datetime.utcnow() + self.ping_interval
         elif isinstance(stanza_obj, stream_elements.SMRequest):
             self._logger.debug("received SM request: %r", stanza_obj)
-            if not self.sm_enabled:
+            if not self._sm_enabled:
                 self._logger.warning("received SM request, but SM not enabled")
                 return
             response = stream_elements.SMAcknowledgement()
-            response.counter = self.sm_inbound_ctr
+            response.counter = self._sm_inbound_ctr
             self._logger.debug("sending SM ack: %r", stanza_obj)
             xmlstream.send_stanza(response)
         else:
@@ -235,9 +234,9 @@ class StanzaStream:
             return
 
         xmlstream.send_stanza(token.stanza)
-        if self.sm_enabled:
+        if self._sm_enabled:
             token._set_state(StanzaState.SENT)
-            self.sm_unacked_list.append(token)
+            self._sm_unacked_list.append(token)
         else:
             token._set_state(StanzaState.SENT_WITHOUT_SM)
 
@@ -265,7 +264,7 @@ class StanzaStream:
         if not self._ping_send_opportunistic:
             return
 
-        if self.sm_enabled:
+        if self._sm_enabled:
             self._logger.debug("sending SM req")
             xmlstream.send_stanza(stream_elements.SMRequest())
         else:
@@ -292,7 +291,7 @@ class StanzaStream:
             self._next_ping_event_at += self.ping_opportunistic_interval
             self._next_ping_event_type = PingEventType.SEND_NOW
             # ping send opportunistic is always true for sm
-            if not self.sm_enabled:
+            if not self._sm_enabled:
                 self._ping_send_opportunistic = True
         elif self._next_ping_event_type == PingEventType.SEND_NOW:
             self._logger.debug("ping: requiring ping to be sent now")
@@ -351,7 +350,7 @@ class StanzaStream:
         xmlstream.stanza_parser.add_class(stanza.Message, self.recv_stanza)
         xmlstream.stanza_parser.add_class(stanza.Presence, self.recv_stanza)
 
-        if self.sm_enabled:
+        if self._sm_enabled:
             self._logger.debug("using SM")
             xmlstream.stanza_parser.add_class(stream_elements.SMAcknowledgement,
                                            self.recv_stanza)
@@ -360,7 +359,7 @@ class StanzaStream:
 
         self._next_ping_event_at = datetime.utcnow() + self.ping_interval
         self._next_ping_event_type = PingEventType.SEND_OPPORTUNISTIC
-        self._ping_send_opportunistic = self.sm_enabled
+        self._ping_send_opportunistic = self._sm_enabled
 
     def stop(self):
         if not self.running:
@@ -427,7 +426,7 @@ class StanzaStream:
             xmlstream.stanza_parser.remove_class(stanza.Presence)
             xmlstream.stanza_parser.remove_class(stanza.Message)
             xmlstream.stanza_parser.remove_class(stanza.IQ)
-            if self.sm_enabled:
+            if self._sm_enabled:
                 xmlstream.stanza_parser.remove_class(
                     stream_elements.SMRequest)
                 xmlstream.stanza_parser.remove_class(
@@ -453,46 +452,68 @@ class StanzaStream:
                                " StanzaBroker is running")
 
         self._logger.info("starting SM handling")
-        self.sm_outbound_base = 0
-        self.sm_inbound_ctr = 0
-        self.sm_unacked_list = []
-        self.sm_enabled = True
+        self._sm_outbound_base = 0
+        self._sm_inbound_ctr = 0
+        self._sm_unacked_list = []
+        self._sm_enabled = True
+
+    @property
+    def sm_enabled(self):
+        return self._sm_enabled
+
+    @property
+    def sm_outbound_base(self):
+        if not self.sm_enabled:
+            raise RuntimeError("Stream Management not enabled")
+        return self._sm_outbound_base
+
+    @property
+    def sm_inbound_ctr(self):
+        if not self.sm_enabled:
+            raise RuntimeError("Stream Management not enabled")
+        return self._sm_inbound_ctr
+
+    @property
+    def sm_unacked_list(self):
+        if not self.sm_enabled:
+            raise RuntimeError("Stream Management not enabled")
+        return self._sm_unacked_list[:]
 
     def resume_sm(self, remote_ctr):
         self._logger.info("resuming SM stream with remote_ctr=%d", remote_ctr)
         # remove any acked stanzas
         self.sm_ack(remote_ctr)
         # reinsert the remaining stanzas
-        for stanza in self.sm_unacked_list:
+        for stanza in self._sm_unacked_list:
             self._active_queue.putleft_nowait(stanza)
-        self.sm_unacked_list.clear()
+        self._sm_unacked_list.clear()
 
     def stop_sm(self):
         self._logger.info("stopping SM stream")
-        self.sm_enabled = False
-        del self.sm_outbound_base
-        del self.sm_inbound_ctr
-        for token in self.sm_unacked_list:
+        self._sm_enabled = False
+        del self._sm_outbound_base
+        del self._sm_inbound_ctr
+        for token in self._sm_unacked_list:
             token._set_state(StanzaState.SENT_WITHOUT_SM)
-        del self.sm_unacked_list
+        del self._sm_unacked_list
 
     def sm_ack(self, remote_ctr):
-        if not self.sm_enabled:
+        if not self._sm_enabled:
             raise RuntimeError("Stream Management is not enabled")
 
         self._logger.debug("sm_ack(%d)", remote_ctr)
-        to_drop = remote_ctr - self.sm_outbound_base
+        to_drop = remote_ctr - self._sm_outbound_base
         if to_drop < 0:
             self._logger.warning(
                 "remote stanza counter is *less* than before "
                 "(outbound_base=%d, remote_ctr=%d)",
-                self.sm_outbound_base,
+                self._sm_outbound_base,
                 remote_ctr)
             return
 
-        acked = self.sm_unacked_list[:to_drop]
-        del self.sm_unacked_list[:to_drop]
-        self.sm_outbound_base = remote_ctr
+        acked = self._sm_unacked_list[:to_drop]
+        del self._sm_unacked_list[:to_drop]
+        self._sm_outbound_base = remote_ctr
 
         if acked:
             self._logger.debug("%d stanzas acked by remote", len(acked))

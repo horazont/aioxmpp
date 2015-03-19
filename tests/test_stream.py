@@ -720,9 +720,12 @@ class TestStanzaStream(StanzaStreamTestBase):
         self.stream.stop_sm()
 
         self.assertFalse(self.stream.sm_enabled)
-        self.assertFalse(hasattr(self.stream, "sm_outbound_base"))
-        self.assertFalse(hasattr(self.stream, "sm_inbound_ctr"))
-        self.assertFalse(hasattr(self.stream, "sm_unacked_list"))
+        with self.assertRaises(RuntimeError):
+            self.stream.sm_outbound_base
+        with self.assertRaises(RuntimeError):
+            self.stream.sm_inbound_ctr
+        with self.assertRaises(RuntimeError):
+            self.stream.sm_unacked_list
 
     def test_sm_ping_automatic(self):
         self.stream.ping_interval = timedelta(seconds=0.01)
@@ -828,6 +831,14 @@ class TestStanzaStream(StanzaStreamTestBase):
         # no opportunistic send after SMAck
         with self.assertRaises(asyncio.QueueEmpty):
             self.sent_stanzas.get_nowait()
+
+    def test_sm_unacked_list_is_a_copy(self):
+        self.stream.start_sm()
+        l1 = self.stream.sm_unacked_list
+        l2 = self.stream.sm_unacked_list
+        self.assertIsNot(l1, l2)
+        l1.append("foo")
+        self.assertFalse(self.stream.sm_unacked_list)
 
     def test_nonsm_ping(self):
         self.stream.ping_interval = timedelta(seconds=0.01)
