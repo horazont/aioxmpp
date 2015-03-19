@@ -1,7 +1,7 @@
 import base64
 import random
 
-from . import stanza_model, stanza_types
+from . import stanza_model, stanza_types, errors
 
 from .utils import namespaces
 
@@ -154,6 +154,14 @@ class Presence(StanzaBase):
 class Error(stanza_model.StanzaObject):
     TAG = (namespaces.client, "error")
 
+    EXCEPTION_CLS_MAP = {
+        "modify": errors.XMPPModifyError,
+        "cancel": errors.XMPPCancelError,
+        "auth": errors.XMPPAuthError,
+        "wait": errors.XMPPWaitError,
+        "continue": errors.XMPPContinueError,
+    }
+
     type_ = stanza_model.Attr(
         tag="type",
         validator=stanza_types.RestrictToSet({
@@ -215,6 +223,12 @@ class Error(stanza_model.StanzaObject):
         return cls(condition=exc.condition,
                    type_=exc.TYPE,
                    text=exc.text)
+
+    def to_exception(self):
+        return self.EXCEPTION_CLS_MAP[self.type_](
+            condition=self.condition,
+            text=self.text
+        )
 
     def __repr__(self):
         payload = ""

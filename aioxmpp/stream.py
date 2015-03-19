@@ -25,6 +25,15 @@ class StanzaState(Enum):
     ABORTED = 4
 
 
+class StanzaErrorAwareListener(callbacks.TagListener):
+    def __init__(self, forward_to):
+        super().__init__(forward_to.data, forward_to.error)
+
+    def data(self, stanza_obj):
+        if stanza_obj.type_ == "error":
+            return super().error(stanza_obj.error.to_exception())
+        return super().data(stanza_obj)
+
 
 class StanzaToken:
     def __init__(self, stanza, *, on_state_change=None):
@@ -314,9 +323,12 @@ class StanzaStream:
     def register_iq_response_future(self, from_, id_, fut):
         self._iq_response_map.add_listener(
             (from_, id_),
-            callbacks.OneshotAsyncTagListener(fut.set_result,
-                                              fut.set_exception,
-                                              loop=self._loop)
+            StanzaErrorAwareListener(
+                callbacks.OneshotAsyncTagListener(
+                    fut.set_result,
+                    fut.set_exception,
+                    loop=self._loop)
+            )
         )
         self._logger.debug("iq response future registered: from=%r, id=%r",
                            from_, id_)

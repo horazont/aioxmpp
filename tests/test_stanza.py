@@ -1,3 +1,4 @@
+import itertools
 import unittest
 
 import aioxmpp.stanza_model as stanza_model
@@ -314,6 +315,46 @@ class TestError(unittest.TestCase):
             "foobar",
             obj.text
         )
+
+    def test_to_exception(self):
+        types = {
+            "modify": errors.XMPPModifyError,
+            "cancel": errors.XMPPCancelError,
+            "auth": errors.XMPPAuthError,
+            "wait": errors.XMPPWaitError,
+            "continue": errors.XMPPContinueError,
+        }
+        conditions = [
+            (namespaces.stanzas, "bad-request"),
+            (namespaces.stanzas, "undefined-condition"),
+        ]
+        texts = [
+            "foo",
+            "bar",
+            None,
+        ]
+
+        for (type_name, cls), condition, text in itertools.product(
+                types.items(),
+                conditions,
+                texts):
+            obj = stanza.Error(
+                type_=type_name,
+                condition=condition,
+                text=text)
+            exc = obj.to_exception()
+            self.assertIsInstance(
+                exc,
+                cls
+            )
+            self.assertEqual(
+                condition,
+                exc.condition
+            )
+            self.assertEqual(
+                text,
+                exc.text
+            )
 
     def test_repr(self):
         obj = stanza.Error()

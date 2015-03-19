@@ -118,6 +118,33 @@ class TestStanzaStream(StanzaStreamTestBase):
 
         self.assertIs(iq, fut.result())
 
+    def test_broker_iq_response_to_future_with_error(self):
+        iq = make_test_iq(type_="error")
+        iq.autoset_id()
+        iq.payload = None
+        iq.error = stanza.Error(
+            type_="modify",
+            condition=(namespaces.stanzas, "bad-request"),
+        )
+
+        fut = asyncio.Future()
+
+        self.stream.register_iq_response_future(
+            TEST_FROM,
+            iq.id_,
+            fut)
+        self.stream.start(self.xmlstream)
+        self.stream.recv_stanza(iq)
+
+        with self.assertRaises(errors.XMPPModifyError) as cm:
+            run_coroutine(fut)
+        self.assertEqual(
+            (namespaces.stanzas, "bad-request"),
+            cm.exception.condition
+        )
+
+        self.stream.stop()
+
     def test_queue_stanza(self):
         iq = make_test_iq(type_="get")
 
