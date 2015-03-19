@@ -16,7 +16,7 @@ import pytz
 
 from datetime import datetime, timedelta
 
-from .. import jid
+from .. import structs
 
 
 class AbstractType(metaclass=abc.ABCMeta):
@@ -179,12 +179,12 @@ class HexBinary(AbstractType):
 
 class JID(AbstractType):
     """
-    Parse the value as Jabber ID using :meth:`~aioxmpp.jid.JID.fromstr` and
-    return the :class:`aioxmpp.jid.JID` object.
+    Parse the value as Jabber ID using :meth:`~aioxmpp.structs.JID.fromstr` and
+    return the :class:`aioxmpp.structs.JID` object.
     """
 
     def parse(self, v):
-        return jid.JID.fromstr(v)
+        return structs.JID.fromstr(v)
 
 
 class AbstractValidator(metaclass=abc.ABCMeta):

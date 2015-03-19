@@ -10,7 +10,7 @@ import xml.sax as sax
 import xml.sax.handler as saxhandler
 
 import aioxmpp.xml as xml
-import aioxmpp.jid as jid
+import aioxmpp.structs as structs
 import aioxmpp.errors as errors
 import aioxmpp.xso as xso
 
@@ -523,8 +523,8 @@ class TestXMPPXMLGenerator(XMLTestCase):
 
 
 class Testwrite_objects(unittest.TestCase):
-    TEST_TO = jid.JID.fromstr("example.test")
-    TEST_FROM = jid.JID.fromstr("foo@example.test")
+    TEST_TO = structs.JID.fromstr("example.test")
+    TEST_FROM = structs.JID.fromstr("foo@example.test")
 
     STREAM_HEADER = b'<stream:stream xmlns:stream="http://etherx.jabber.org/streams" to="'+str(TEST_TO).encode("utf-8")+b'" version="1.0">'
 
@@ -677,11 +677,11 @@ class TestXMPPXMLProcessor(unittest.TestCase):
             self.proc.remote_version
         )
         self.assertEqual(
-            jid.JID.fromstr("example.test"),
+            structs.JID.fromstr("example.test"),
             self.proc.remote_from
         )
         self.assertEqual(
-            jid.JID.fromstr("foo@example.test"),
+            structs.JID.fromstr("foo@example.test"),
             self.proc.remote_to
         )
         self.assertEqual(

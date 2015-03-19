@@ -7,7 +7,7 @@ import aioxmpp.xso as xso
 from .testutils import TransportMock, run_coroutine
 
 from aioxmpp.protocol import XMLStream
-from aioxmpp.jid import JID
+from aioxmpp.structs import JID
 
 
 TEST_FROM = JID.fromstr("foo@bar.example")

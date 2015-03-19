@@ -2,6 +2,7 @@ import collections
 
 from .stringprep import nodeprep, resourceprep, nameprep
 
+
 class JID(collections.namedtuple("JID", ["localpart", "domain", "resource"])):
     __slots__ = []
 

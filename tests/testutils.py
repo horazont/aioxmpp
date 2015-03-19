@@ -11,7 +11,7 @@ import unittest.mock
 
 from enum import Enum
 
-import aioxmpp.hooks
+import aioxmpp.callbacks
 import aioxmpp.protocol
 
 
@@ -320,7 +320,7 @@ class XMLStreamMock(aioxmpp.protocol.XMLStream):
     def __init__(self, tester, actions):
         self._tester = tester
         self._test_actions = actions
-        self._stream_level_node_hooks = aioxmpp.hooks.NodeHooks()
+        self._stream_level_node_hooks = aioxmpp.callbacks.TagDispatcher()
 
     def _require_action(self):
         self._tester.assertTrue(

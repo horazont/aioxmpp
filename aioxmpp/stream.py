@@ -571,7 +571,7 @@ class StanzaStream:
         """
         Register a callback function *cb* to be called when a IQ stanza with
         type ``result`` or ``error`` is recieved from the
-        :class:`~aioxmpp.jid.JID` *from_* with the id *id_*.
+        :class:`~aioxmpp.structs.JID` *from_* with the id *id_*.
 
         The callback is called at most once.
         """
@@ -586,7 +586,7 @@ class StanzaStream:
     def register_iq_response_future(self, from_, id_, fut):
         """
         Register a future *fut* for an IQ stanza with type ``result`` or
-        ``error`` from the :class:`~aioxmpp.jid.JID`` *from_* with the id *id_*.
+        ``error`` from the :class:`~aioxmpp.structs.JID`` *from_* with the id *id_*.
 
         If the type of the IQ stanza is ``result``, the stanza is set as result
         to the future. If the type of the IQ stanza is ``error``, the stanzas
@@ -629,7 +629,7 @@ class StanzaStream:
     def register_message_callback(self, type_, from_, cb):
         """
         Register a callback function *cb* to be called whenever a message stanza
-        of the given *type_* from the given :class:`~aioxmpp.jid.JID` *from_*
+        of the given *type_* from the given :class:`~aioxmpp.structs.JID` *from_*
         arrives.
 
         Both *type_* and *from_* can be :data:`None`, each, to indicate a
@@ -650,7 +650,7 @@ class StanzaStream:
         """
         Register a callback function *cb* to be called whenever a presence
         stanza of the given *type_* arrives from the given
-        :class:`~aioxmpp.jid.JID`.
+        :class:`~aioxmpp.structs.JID`.
 
         *from_* may be :data:`None` to indicate a wildcard. Like with
         :meth:`register_message_callback`, more specific callbacks win over less

@@ -44,7 +44,7 @@ import lxml.sax
 
 from enum import Enum
 
-from . import errors, jid, xso
+from . import errors, structs, xso
 from .utils import namespaces, etree
 
 
@@ -446,7 +446,7 @@ def write_objects(f,
     given in *nsmap* plus the xmlstream namespace, then the output is flushed
     and the generator yields.
 
-    *to* must be a :class:`~.jid.JID` which refers to the peer. *from_* may be
+    *to* must be a :class:`~.structs.JID` which refers to the peer. *from_* may be
     the JID identifying the local side, but see `RFC 6120 for considerations
     <https://tools.ietf.org/html/rfc6120#section-4.7.1>`_. *version* is the
     tuple of integers representing the locally supported XMPP version.
@@ -671,11 +671,11 @@ class XMPPXMLProcessor:
 
         remote_to = attributes.pop((None, "to"), None)
         if remote_to is not None:
-            remote_to = jid.JID.fromstr(remote_to)
+            remote_to = structs.JID.fromstr(remote_to)
         self.remote_to = remote_to
 
         try:
-            self.remote_from = jid.JID.fromstr(attributes.pop((None, "from")))
+            self.remote_from = structs.JID.fromstr(attributes.pop((None, "from")))
         except KeyError:
             raise errors.StreamError(
                 (namespaces.streams, "undefined-condition"),

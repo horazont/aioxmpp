@@ -7,7 +7,7 @@ import pytz
 from datetime import datetime
 
 import aioxmpp.xso as xso
-import aioxmpp.jid as jid
+import aioxmpp.structs as structs
 
 
 class TestAbstractType(unittest.TestCase):
@@ -282,7 +282,7 @@ class TestJID(unittest.TestCase):
     def test_parse(self):
         t = xso.JID()
         self.assertEqual(
-            jid.JID("foo", "example.test", "bar"),
+            structs.JID("foo", "example.test", "bar"),
             t.parse("foo@example.test/bar")
         )
 
@@ -290,7 +290,7 @@ class TestJID(unittest.TestCase):
         t = xso.JID()
         self.assertEqual(
             "ssa@ix.test/IX",
-            t.format(jid.JID("ßA", "IX.test", "\u2168"))
+            t.format(structs.JID("ßA", "IX.test", "\u2168"))
         )
 
 

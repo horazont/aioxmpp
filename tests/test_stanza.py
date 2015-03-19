@@ -3,14 +3,14 @@ import unittest
 
 import aioxmpp.xso as xso
 import aioxmpp.stanza as stanza
-import aioxmpp.jid as jid
+import aioxmpp.structs as structs
 import aioxmpp.errors as errors
 
 from aioxmpp.utils import namespaces
 
 
-TEST_FROM = jid.JID.fromstr("foo@example.test")
-TEST_TO = jid.JID.fromstr("bar@example.test")
+TEST_FROM = structs.JID.fromstr("foo@example.test")
+TEST_TO = structs.JID.fromstr("bar@example.test")
 
 
 class TestPayload(xso.XSO):

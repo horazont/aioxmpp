@@ -1,7 +1,7 @@
 import asyncio
 import unittest
 
-import aioxmpp.jid as jid
+import aioxmpp.structs as structs
 import aioxmpp.xso as xso
 import aioxmpp.stanza as stanza
 import aioxmpp.stream as stream
@@ -16,8 +16,8 @@ from aioxmpp.plugins import xep0199
 from .testutils import run_coroutine
 
 
-TEST_FROM = jid.JID.fromstr("foo@example.test/r1")
-TEST_TO = jid.JID.fromstr("bar@example.test/r1")
+TEST_FROM = structs.JID.fromstr("foo@example.test/r1")
+TEST_TO = structs.JID.fromstr("bar@example.test/r1")
 
 class FancyTestIQ(xso.XSO):
     TAG = ("uri:tests:test_stream.py", "foo")
