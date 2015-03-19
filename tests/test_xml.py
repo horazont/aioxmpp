@@ -786,7 +786,7 @@ class TestXMPPXMLProcessor(unittest.TestCase):
             nonlocal results
             results.append(obj)
 
-        self.proc.stanza_parser = xso.StanzaParser()
+        self.proc.stanza_parser = xso.XSOParser()
         self.proc.stanza_parser.add_class(Cls, recv)
 
         self.proc.startDocument()
@@ -849,7 +849,7 @@ class TestXMPPXMLProcessor(unittest.TestCase):
             bar = xso.Child([Bar])
             baz = xso.Child([Baz])
 
-        self.proc.stanza_parser = xso.StanzaParser()
+        self.proc.stanza_parser = xso.XSOParser()
         self.proc.stanza_parser.add_class(Foo, recv)
 
         self.proc.startDocument()
@@ -977,7 +977,7 @@ class TestXMPPXMLProcessor(unittest.TestCase):
 
         self.assertIsNone(self.proc.on_exception)
         self.proc.on_exception = catch_exception
-        self.proc.stanza_parser = xso.StanzaParser()
+        self.proc.stanza_parser = xso.XSOParser()
         self.proc.stanza_parser.add_class(Foo, recv)
         self.proc.startDocument()
         self.proc.startElementNS(self.STREAM_HEADER_TAG,

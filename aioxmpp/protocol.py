@@ -29,7 +29,7 @@ class XMLStream(asyncio.Protocol):
         self._to = to
         self._sorted_attributes = sorted_attributes
         self._state = State.CLOSED
-        self.stanza_parser = xso.StanzaParser()
+        self.stanza_parser = xso.XSOParser()
         self.stanza_parser.add_class(stream_elements.StreamError,
                                      self._rx_stream_error)
 

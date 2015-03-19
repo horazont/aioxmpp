@@ -581,7 +581,7 @@ class XMPPXMLProcessor:
     @property
     def stanza_parser(self):
         """
-        A :class:`~.xso.StanzaParser` object (or compatible) which will
+        A :class:`~.xso.XSOParser` object (or compatible) which will
         receive the sax-ish events used in :mod:`~aioxmpp.xso`. It
         is driven using an instance of :class:`~.xso.SAXDriver`.
 

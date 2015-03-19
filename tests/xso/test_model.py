@@ -2406,7 +2406,7 @@ class ChildTag(XMLTestCase):
         del self.prop
 
 
-class TestStanzaParser(XMLTestCase):
+class TestXSOParser(XMLTestCase):
     def run_parser(self, classes, tree):
         results = []
 
@@ -2417,7 +2417,7 @@ class TestStanzaParser(XMLTestCase):
         def fail_hard(*args):
             raise AssertionError("this should not be reached")
 
-        parser = xso.StanzaParser()
+        parser = xso.XSOParser()
         for cls in classes:
             parser.add_class(cls, catch_result)
 
@@ -2671,7 +2671,7 @@ class TestStanzaParser(XMLTestCase):
 
         cb1, cb2 = object(), object()
 
-        p = xso.StanzaParser()
+        p = xso.XSOParser()
         p.add_class(Foo, cb1)
         p.add_class(Bar, cb2)
 
@@ -2690,7 +2690,7 @@ class TestStanzaParser(XMLTestCase):
         class Bar(xso.XSO):
             TAG = "foo"
 
-        p = xso.StanzaParser()
+        p = xso.XSOParser()
         p.add_class(Foo, None)
         with self.assertRaises(ValueError):
             p.add_class(Bar, None)
@@ -2702,7 +2702,7 @@ class TestStanzaParser(XMLTestCase):
         class Bar(xso.XSO):
             TAG = "bar"
 
-        p = xso.StanzaParser()
+        p = xso.XSOParser()
         p.add_class(Foo, None)
         p.add_class(Bar, None)
 

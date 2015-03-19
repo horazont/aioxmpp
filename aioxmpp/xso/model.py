@@ -1,6 +1,6 @@
 """
-:mod:`aioxmpp.xso.model` --- Declarative-style stanza definition
-################################################################
+:mod:`aioxmpp.xso.model` --- Declarative-style XSO definition
+#############################################################
 
 See :mod:`aioxmpp.xso` for documentation.
 """
@@ -734,7 +734,7 @@ class ChildTag(_PropBase):
 class XMLStreamClass(type):
     """
     There should be no need to use this metaclass directly when implementing
-    your own stanza classes. Instead, derive from :class:`XSO`.
+    your own XSO classes. Instead, derive from :class:`XSO`.
 
     The following restrictions apply when a class uses the :class:`XMLStreamClass`
     metaclass:
@@ -755,7 +755,7 @@ class XMLStreamClass(type):
 
     Objects of this metaclass (i.e. classes) have some useful attributes. The
     following attributes are gathered from the namespace of the class, by
-    collecting the different stanza-related descriptors:
+    collecting the different XSO-related descriptors:
 
     .. attribute:: TEXT_PROPERTY
 
@@ -788,7 +788,7 @@ class XMLStreamClass(type):
     .. note::
 
        :class:`XSO` defines defaults for more attributes which also
-       must be present on objects which are used as stanza objects.
+       must be present on objects which are used as XSOs.
 
     When inheriting from :class:`XMLStreamClass` objects, the properties are merged
     sensibly.
@@ -846,7 +846,7 @@ class XMLStreamClass(type):
                 attr_map[obj.tag] = obj
             elif isinstance(obj, Text):
                 if text_property is not None:
-                    raise TypeError("multiple Text properties on stanza class")
+                    raise TypeError("multiple Text properties on XSO class")
                 text_property = obj
             elif isinstance(obj, (Child, ChildText, ChildTag)):
                 for key in obj.get_tag_map():
@@ -859,7 +859,7 @@ class XMLStreamClass(type):
                 child_props.add(obj)
             elif isinstance(obj, Collector):
                 if collector_property is not None:
-                    raise TypeError("multiple Collector properties on stanza "
+                    raise TypeError("multiple Collector properties on XSO "
                                     "class")
                 collector_property = obj
 
@@ -893,7 +893,7 @@ class XMLStreamClass(type):
         .. seealso::
 
            You probably should not call this method directly, but instead use
-           :class:`StanzaParser` with a :class:`SAXDriver`.
+           :class:`XSOParser` with a :class:`SAXDriver`.
 
         This method is suspendable.
         """
@@ -995,13 +995,13 @@ class XMLStreamClass(type):
 
 class XSO(metaclass=XMLStreamClass):
     """
-    Represent an object which may be converted to a stanza (or part of a
-    stanza). These objects can also be created and validated on-the-fly from
-    SAX-like events using :class:`StanzaParser`. The constructor does not
-    require any arguments and forwards them directly the next class in the
-    resolution order.
+    XSO is short for **X**\ ML **S**\ tream **O**\ bject and means an object
+    which represents a subtree of an XML stream. These objects can also be
+    created and validated on-the-fly from SAX-like events using
+    :class:`XSOParser`. The constructor does not require any arguments and
+    forwards them directly the next class in the resolution order.
 
-    To declare a stanza object, inherit from :class:`XSO` and provide
+    To declare an XSO, inherit from :class:`XSO` and provide
     the following attributes on your class:
 
     * A ``TAG`` attribute, which is a tuple ``(namespace_uri, localname)``
@@ -1044,29 +1044,26 @@ class XSO(metaclass=XMLStreamClass):
 
     Example::
 
-        class Body(stanza_model.XSO):
+        class Body(aioxmpp.xso.XSO):
             TAG = ("jabber:client", "body")
 
-            text = stanza_model.Text()
+            text = aioxmpp.xso.Text()
 
-        class Message(stanza_model.XSO):
+        class Message(aioxmpp.xso.XSO):
             TAG = ("jabber:client", "message")
-            UNKNOWN_CHILD_POLICY = stanza_model.UnknownChildPolicy.DROP
+            UNKNOWN_CHILD_POLICY = aioxmpp.xso.UnknownChildPolicy.DROP
 
-            type_ = stanza_model.Attr(tag="type", required=True)
-            from_ = stanza_model.Attr(tag="from", required=True)
-            to = stanza_model.Attr(tag="to")
-            id_ = stanza_model.Attr(tag="id")
+            type_ = aioxmpp.xso.Attr(tag="type", required=True)
+            from_ = aioxmpp.xso.Attr(tag="from", required=True)
+            to = aioxmpp.xso.Attr(tag="to")
+            id_ = aioxmpp.xso.Attr(tag="id")
 
-            body = stanza_model.Child([Body])
+            body = aioxmpp.xso.Child([Body])
 
-
-    To add a stanza object to an :class:`lxml.etree.Element`, use
-    :meth:`unparse_to_node`.
 
     The following methods are available on instances of :class:`XSO`:
 
-    .. automethod:: unparse_to_node
+    .. automethod:: unparse_to_sax
 
     The following **class methods** are provided by the metaclass:
 
@@ -1140,7 +1137,7 @@ class SAXDriver(xml.sax.handler.ContentHandler):
     supports namespace-conforming SAX event sources.
 
     *dest_generator_factory* must be a function which returns a new suspendable
-    method supporting the interface of :class:`StanzaParser`. The SAX events are
+    method supporting the interface of :class:`XSOParser`. The SAX events are
     converted to an internal event format and sent to the suspendable function
     in order.
 
@@ -1194,12 +1191,12 @@ class SAXDriver(xml.sax.handler.ContentHandler):
             self._dest = None
 
 
-class StanzaParser:
+class XSOParser:
     """
-    A generic stanza parser which supports a dynamic set of stanza objects to
-    parse. :class:`StanzaParser` objects are callable and they are suspendable
-    methods (i.e. calling a :class:`StanzaParser` returns a generator which
-    parses stanzas from sax-ish events. Use with :class:`SAXDriver`).
+    A generic XSO parser which supports a dynamic set of XSOs to
+    parse. :class:`XSOParser` objects are callable and they are suspendable
+    methods (i.e. calling a :class:`XSOParser` returns a generator which parses
+    stanzas from sax-ish events. Use with :class:`SAXDriver`).
 
     Example use::
 
@@ -1209,9 +1206,9 @@ class StanzaParser:
             nonlocal result
             result = value
 
-        parser = stanza_model.StanzaParser()
+        parser = aioxmpp.xso.XSOParser()
         parser.add_class(Message, catch_result)
-        sd = stanza_model.SAXDriver(parser)
+        sd = aioxmpp.xso.SAXDriver(parser)
         lxml.sax.saxify(lmxl.etree.fromstring(
             "<message id='foo' from='bar' type='chat' />"
         ))
@@ -1261,7 +1258,7 @@ class StanzaParser:
 
     def remove_class(self, cls):
         """
-        Remove a stanza object class *cls* from parsing. This method raises
+        Remove a XSO class *cls* from parsing. This method raises
         :class:`KeyError` with the classes :attr:`TAG` attribute as argument if
         removing fails because the class is not registered.
         """
