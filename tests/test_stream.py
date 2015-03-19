@@ -977,6 +977,28 @@ class TestStanzaStream(StanzaStreamTestBase):
 
         run_coroutine(test_task())
 
+    def test_flush_incoming(self):
+        iqs = [make_test_iq(type_="result") for i in range(2)]
+        futs = []
+
+
+        for iq in iqs:
+            fut = asyncio.Future()
+            iq.autoset_id()
+            self.stream.register_iq_response_future(
+                iq.from_,
+                iq.id_,
+                fut)
+            futs.append(fut)
+            self.stream.recv_stanza(iq)
+
+        self.stream.flush_incoming()
+
+        run_coroutine(asyncio.sleep(0))
+        for iq, fut in zip(iqs, futs):
+            self.assertTrue(fut.done())
+            self.assertIs(iq, fut.result())
+
 
 class TestStanzaToken(unittest.TestCase):
     def test_init(self):
