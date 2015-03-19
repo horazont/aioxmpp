@@ -1,3 +1,46 @@
+"""
+:mod:`~aioxmpp.errors` --- Exception classes
+############################################
+
+Exception classes mapping to XMPP stream errors
+===============================================
+
+.. autoclass:: StreamError
+
+Exception classes mapping to XMPP stanza errors
+===============================================
+
+.. autoclass:: XMPPError
+
+.. autoclass:: XMPPAuthError
+
+.. autoclass:: XMPPModifyError
+
+.. autoclass:: XMPPCancelError
+
+.. autoclass:: XMPPWaitError
+
+.. autoclass:: XMPPContinueError
+
+Stream negotiation exceptions
+=============================
+
+.. autoclass:: StreamNegotiationFailure
+
+.. autoclass:: SecurityNegotiationFailure
+
+.. autoclass:: SASLFailure
+
+.. autoclass:: SASLUnavailable
+
+.. autoclass:: TLSFailure
+
+.. autoclass:: TLSUnavailable
+
+.. autoclass:: AuthenticationFailure
+
+"""
+
 from . import stanza_model
 
 def format_error_text(
