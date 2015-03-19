@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-# asyncio_xmpp documentation build configuration file, created by
+# aioxmpp documentation build configuration file, created by
 # sphinx-quickstart on Mon Dec  1 08:14:58 2014.
 #
 # This file is execfile()d with the current directory set to its containing dir.
@@ -41,7 +41,7 @@ source_suffix = '.rst'
 master_doc = 'index'
 
 # General information about the project.
-project = 'asyncio_xmpp'
+project = 'aioxmpp'
 copyright = '2014, Jonas Wielicki'
 
 # The version info for the project you're documenting, acts as replacement for
@@ -165,7 +165,7 @@ html_static_path = ['sphinx-data/static']
 #html_file_suffix = None
 
 # Output file base name for HTML help builder.
-htmlhelp_basename = 'asyncio_xmppdoc'
+htmlhelp_basename = 'aioxmppdoc'
 
 
 # -- Options for LaTeX output --------------------------------------------------
@@ -184,7 +184,7 @@ latex_elements = {
 # Grouping the document tree into LaTeX files. List of tuples
 # (source start file, target name, title, author, documentclass [howto/manual]).
 latex_documents = [
-  ('index', 'asyncio_xmpp.tex', 'asyncio\\_xmpp Documentation',
+  ('index', 'aioxmpp.tex', 'aioxmpp Documentation',
    'Jonas Wielicki', 'manual'),
 ]
 
@@ -214,7 +214,7 @@ latex_documents = [
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [
-    ('index', 'asyncio_xmpp', 'asyncio_xmpp Documentation',
+    ('index', 'aioxmpp', 'aioxmpp Documentation',
      ['Jonas Wielicki'], 1)
 ]
 
@@ -228,8 +228,8 @@ man_pages = [
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
 texinfo_documents = [
-  ('index', 'asyncio_xmpp', 'asyncio_xmpp Documentation',
-   'Jonas Wielicki', 'asyncio_xmpp', 'One line description of project.',
+  ('index', 'aioxmpp', 'aioxmpp Documentation',
+   'Jonas Wielicki', 'aioxmpp', 'One line description of project.',
    'Miscellaneous'),
 ]
 
