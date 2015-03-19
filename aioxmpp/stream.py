@@ -24,7 +24,7 @@ import logging
 from datetime import datetime, timedelta
 from enum import Enum
 
-from . import stanza, errors, custom_queue, stream_elements, callbacks
+from . import stanza, errors, custom_queue, stream_xsos, callbacks
 
 from .plugins import xep0199
 from .utils import namespaces
@@ -420,7 +420,7 @@ class StanzaStream:
             self._process_incoming_message(stanza_obj)
         elif isinstance(stanza_obj, stanza.Presence):
             self._process_incoming_presence(stanza_obj)
-        elif isinstance(stanza_obj, stream_elements.SMAcknowledgement):
+        elif isinstance(stanza_obj, stream_xsos.SMAcknowledgement):
             self._logger.debug("received SM ack: %r", stanza_obj)
             if not self._sm_enabled:
                 self._logger.warning("received SM ack, but SM not enabled")
@@ -431,12 +431,12 @@ class StanzaStream:
                 self._logger.debug("resetting ping timeout")
                 self._next_ping_event_type = PingEventType.SEND_OPPORTUNISTIC
                 self._next_ping_event_at = datetime.utcnow() + self.ping_interval
-        elif isinstance(stanza_obj, stream_elements.SMRequest):
+        elif isinstance(stanza_obj, stream_xsos.SMRequest):
             self._logger.debug("received SM request: %r", stanza_obj)
             if not self._sm_enabled:
                 self._logger.warning("received SM request, but SM not enabled")
                 return
-            response = stream_elements.SMAcknowledgement()
+            response = stream_xsos.SMAcknowledgement()
             response.counter = self._sm_inbound_ctr
             self._logger.debug("sending SM ack: %r", stanza_obj)
             xmlstream.send_stanza(response)
@@ -527,7 +527,7 @@ class StanzaStream:
 
         if self._sm_enabled:
             self._logger.debug("sending SM req")
-            xmlstream.send_stanza(stream_elements.SMRequest())
+            xmlstream.send_stanza(stream_xsos.SMRequest())
         else:
             request = stanza.IQ(type_="get")
             request.payload = xep0199.Ping()
@@ -689,9 +689,9 @@ class StanzaStream:
 
         if self._sm_enabled:
             self._logger.debug("using SM")
-            xmlstream.stanza_parser.add_class(stream_elements.SMAcknowledgement,
+            xmlstream.stanza_parser.add_class(stream_xsos.SMAcknowledgement,
                                            self.recv_stanza)
-            xmlstream.stanza_parser.add_class(stream_elements.SMRequest,
+            xmlstream.stanza_parser.add_class(stream_xsos.SMRequest,
                                            self.recv_stanza)
 
         self._next_ping_event_at = datetime.utcnow() + self.ping_interval
@@ -776,9 +776,9 @@ class StanzaStream:
             xmlstream.stanza_parser.remove_class(stanza.IQ)
             if self._sm_enabled:
                 xmlstream.stanza_parser.remove_class(
-                    stream_elements.SMRequest)
+                    stream_xsos.SMRequest)
                 xmlstream.stanza_parser.remove_class(
-                    stream_elements.SMAcknowledgement)
+                    stream_xsos.SMAcknowledgement)
 
     def recv_stanza(self, stanza):
         """

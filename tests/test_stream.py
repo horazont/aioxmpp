@@ -5,7 +5,7 @@ import aioxmpp.jid as jid
 import aioxmpp.xso as xso
 import aioxmpp.stanza as stanza
 import aioxmpp.stream as stream
-import aioxmpp.stream_elements as stream_elements
+import aioxmpp.stream_xsos as stream_xsos
 import aioxmpp.errors as errors
 
 from datetime import datetime, timedelta
@@ -559,9 +559,9 @@ class TestStanzaStream(StanzaStreamTestBase):
         self.stream.start(self.xmlstream)
         self.assertSequenceEqual(
             [
-                unittest.mock.call.add_class(stream_elements.SMAcknowledgement,
+                unittest.mock.call.add_class(stream_xsos.SMAcknowledgement,
                                              self.stream.recv_stanza),
-                unittest.mock.call.add_class(stream_elements.SMRequest,
+                unittest.mock.call.add_class(stream_xsos.SMRequest,
                                              self.stream.recv_stanza),
             ],
             self.xmlstream.stanza_parser.mock_calls[-2:]
@@ -572,9 +572,9 @@ class TestStanzaStream(StanzaStreamTestBase):
         self.assertSequenceEqual(
             [
                 unittest.mock.call.remove_class(
-                    stream_elements.SMRequest),
+                    stream_xsos.SMRequest),
                 unittest.mock.call.remove_class(
-                    stream_elements.SMAcknowledgement),
+                    stream_xsos.SMAcknowledgement),
             ],
             self.xmlstream.stanza_parser.mock_calls[-2:]
         )
@@ -730,7 +730,7 @@ class TestStanzaStream(StanzaStreamTestBase):
             )
         self.assertIsInstance(
             self.sent_stanzas.get_nowait(),
-            stream_elements.SMRequest
+            stream_xsos.SMRequest
         )
         for iq in iqs[2:] + [additional_iq]:
             self.assertIs(
@@ -739,7 +739,7 @@ class TestStanzaStream(StanzaStreamTestBase):
             )
         self.assertIsInstance(
             self.sent_stanzas.get_nowait(),
-            stream_elements.SMRequest
+            stream_xsos.SMRequest
         )
 
     def test_sm_resume_requires_stopped_stream(self):
@@ -785,7 +785,7 @@ class TestStanzaStream(StanzaStreamTestBase):
         run_coroutine(asyncio.sleep(0.005))
 
         request = self.sent_stanzas.get_nowait()
-        self.assertIsInstance(request, stream_elements.SMRequest)
+        self.assertIsInstance(request, stream_xsos.SMRequest)
 
     def test_sm_ping_opportunistic(self):
         # sm ping is always opportunistic: it also allows the server to ACK our
@@ -804,7 +804,7 @@ class TestStanzaStream(StanzaStreamTestBase):
         )
         self.assertIsInstance(
             self.sent_stanzas.get_nowait(),
-            stream_elements.SMRequest
+            stream_xsos.SMRequest
         )
 
     def test_sm_ping_timeout(self):
@@ -845,7 +845,7 @@ class TestStanzaStream(StanzaStreamTestBase):
         self.stream.enqueue_stanza(make_test_iq())
         run_coroutine(asyncio.sleep(0.005))
         self.stream.enqueue_stanza(make_test_iq())
-        ack = stream_elements.SMAcknowledgement()
+        ack = stream_xsos.SMAcknowledgement()
         ack.counter = 1
         self.stream.recv_stanza(ack)
         run_coroutine(asyncio.sleep(0.006))
@@ -859,12 +859,12 @@ class TestStanzaStream(StanzaStreamTestBase):
         self.stream.start_sm()
         self.stream.start(self.xmlstream)
         run_coroutine(asyncio.sleep(0))
-        self.stream.recv_stanza(stream_elements.SMRequest())
+        self.stream.recv_stanza(stream_xsos.SMRequest())
         run_coroutine(asyncio.sleep(0))
         response = self.sent_stanzas.get_nowait()
         self.assertIsInstance(
             response,
-            stream_elements.SMAcknowledgement
+            stream_xsos.SMAcknowledgement
         )
         self.assertEqual(
             response.counter,

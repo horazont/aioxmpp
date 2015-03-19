@@ -9,7 +9,7 @@ from enum import Enum
 import xml.sax as sax
 import xml.parsers.expat as pyexpat
 
-from . import xml, errors, xso, stream_elements, stanza
+from . import xml, errors, xso, stream_xsos, stanza
 from .utils import namespaces, etree
 
 
@@ -30,7 +30,7 @@ class XMLStream(asyncio.Protocol):
         self._sorted_attributes = sorted_attributes
         self._state = State.CLOSED
         self.stanza_parser = xso.XSOParser()
-        self.stanza_parser.add_class(stream_elements.StreamError,
+        self.stanza_parser.add_class(stream_xsos.StreamError,
                                      self._rx_stream_error)
 
     def _invalid_transition(self, to, via=None):
@@ -114,7 +114,7 @@ class XMLStream(asyncio.Protocol):
         try:
             self._rx_feed(blob)
         except errors.StreamError as exc:
-            stanza_obj = stream_elements.StreamError.from_exception(exc)
+            stanza_obj = stream_xsos.StreamError.from_exception(exc)
             self._writer.send(stanza_obj)
             self.connection_lost(exc)
 
