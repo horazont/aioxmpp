@@ -99,6 +99,25 @@ class TestStanzaStream(StanzaStreamTestBase):
 
         self.assertIs(iq, fut.result())
 
+    def test_broker_iq_response_to_future(self):
+        iq = make_test_iq(type_="result")
+        iq.autoset_id()
+
+        fut = asyncio.Future()
+
+        self.stream.register_iq_response_future(
+            TEST_FROM,
+            iq.id_,
+            fut)
+        self.stream.start(self.xmlstream)
+        self.stream.recv_stanza(iq)
+
+        run_coroutine(fut)
+
+        self.stream.stop()
+
+        self.assertIs(iq, fut.result())
+
     def test_queue_stanza(self):
         iq = make_test_iq(type_="get")
 

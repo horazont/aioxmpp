@@ -277,6 +277,14 @@ class StanzaStream:
             callbacks.OneshotAsyncTagListener(cb, loop=self._loop)
         )
 
+    def register_iq_response_future(self, from_, id_, fut):
+        self._iq_response_map.add_listener(
+            (from_, id_),
+            callbacks.OneshotAsyncTagListener(fut.set_result,
+                                              fut.set_exception,
+                                              loop=self._loop)
+        )
+
     def register_iq_request_coro(self, type_, payload_cls, coro):
         self._iq_request_map[type_, payload_cls] = coro
 
