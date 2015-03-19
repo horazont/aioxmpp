@@ -140,6 +140,11 @@ class TestJID(unittest.TestCase):
         with self.assertRaises(ValueError):
             j = structs.JID(None, None, None)
 
+    def test_replace_rejects_surplus_argument(self):
+        j = structs.JID("foo", "example.test", "bar")
+        with self.assertRaises(TypeError):
+            j.replace(foobar="baz")
+
     def test_alias_empty_to_none(self):
         j = structs.JID("", "example.test", "")
         self.assertIsNone(j.resource)

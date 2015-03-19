@@ -22,32 +22,41 @@ class JID(collections.namedtuple("JID", ["localpart", "domain", "resource"])):
         return super().__new__(cls, localpart, domain, resource)
 
     def replace(self, **kwargs):
+        new_kwargs = {}
+
         try:
-            localpart = kwargs["localpart"]
+            localpart = kwargs.pop("localpart")
         except KeyError:
             pass
         else:
             if localpart:
-                kwargs["localpart"] = nodeprep(localpart)
+                localpart = nodeprep(localpart)
+            new_kwargs["localpart"] = localpart
 
         try:
-            domain = kwargs["domain"]
+            domain = kwargs.pop("domain")
         except KeyError:
             pass
         else:
             if not domain:
                 raise ValueError("domain must not be empty or None")
-            kwargs["domain"] = nameprep(domain)
+            new_kwargs["domain"] = nameprep(domain)
 
         try:
-            resource = kwargs["resource"]
+            resource = kwargs.pop("resource")
         except KeyError:
             pass
         else:
             if resource:
-                kwargs["resource"] = resourceprep(resource)
+                resource = resourceprep(resource)
+            new_kwargs["resource"] = resource
 
-        return super()._replace(**kwargs)
+        if kwargs:
+            raise TypeError("replace() got an unexpected keyword argument"
+                            " {!r}".format(
+                                next(iter(kwargs))))
+
+        return super()._replace(**new_kwargs)
 
     def __str__(self):
         result = self.domain
