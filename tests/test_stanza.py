@@ -13,7 +13,7 @@ TEST_FROM = jid.JID.fromstr("foo@example.test")
 TEST_TO = jid.JID.fromstr("bar@example.test")
 
 
-class TestPayload(xso.StanzaObject):
+class TestPayload(xso.XSO):
     def __repr__(self):
         return "foobar"
 

@@ -222,7 +222,7 @@ class Text(_PropBase):
 class Child(_PropBase):
     """
     When assigned to a class’ attribute, it collects any child which matches any
-    :attr:`StanzaObject.TAG` of the given *classes*.
+    :attr:`XSO.TAG` of the given *classes*.
 
     The tags among the *classes* must be unique, otherwise :class:`ValueError`
     is raised on construction.
@@ -424,8 +424,8 @@ class Attr(Text):
     all available at :class:`Attr`.
 
     :param type_: An object which fulfills the type interface proposed by
-                  :mod:`~aioxmpp.xso_types`. Usually, this is defaulted
-                  to a :class:`~aioxmpp.xso_types.String` instance.
+                  :class:`~.xso.AbstractType`. Usually, this is defaulted
+                  to a :class:`~aioxmpp.xso.String` instance.
     :param validator: An object which has a :meth:`validate` method. That method
                       receives a value which was either assigned to the property
                       (depending on the *validate* argument) or parsed from XML
@@ -731,12 +731,12 @@ class ChildTag(_PropBase):
             dest.endPrefixMapping(self.declare_prefix)
 
 
-class StanzaClass(type):
+class XMLStreamClass(type):
     """
     There should be no need to use this metaclass directly when implementing
-    your own stanza classes. Instead, derive from :class:`StanzaObject`.
+    your own stanza classes. Instead, derive from :class:`XSO`.
 
-    The following restrictions apply when a class uses the :class:`StanzaClass`
+    The following restrictions apply when a class uses the :class:`XMLStreamClass`
     metaclass:
 
     1. At no point in the inheritance tree there must exist more than one
@@ -787,10 +787,10 @@ class StanzaClass(type):
 
     .. note::
 
-       :class:`StanzaObject` defines defaults for more attributes which also
+       :class:`XSO` defines defaults for more attributes which also
        must be present on objects which are used as stanza objects.
 
-    When inheriting from :class:`StanzaClass` objects, the properties are merged
+    When inheriting from :class:`XMLStreamClass` objects, the properties are merged
     sensibly.
 
     """
@@ -803,7 +803,7 @@ class StanzaClass(type):
         collector_property = None
 
         for base in reversed(bases):
-            if not isinstance(base, StanzaClass):
+            if not isinstance(base, XMLStreamClass):
                 continue
 
             if base.TEXT_PROPERTY is not None:
@@ -973,7 +973,7 @@ class StanzaClass(type):
 
     def register_child(cls, prop, child_cls):
         """
-        Register a new :class:`StanzaClass` instance *child_cls* for a given
+        Register a new :class:`XMLStreamClass` instance *child_cls* for a given
         :class:`Child` descriptor *prop*.
 
         .. warning::
@@ -993,7 +993,7 @@ class StanzaClass(type):
         cls.CHILD_MAP[child_cls.TAG] = prop
 
 
-class StanzaObject(metaclass=StanzaClass):
+class XSO(metaclass=XMLStreamClass):
     """
     Represent an object which may be converted to a stanza (or part of a
     stanza). These objects can also be created and validated on-the-fly from
@@ -1001,7 +1001,7 @@ class StanzaObject(metaclass=StanzaClass):
     require any arguments and forwards them directly the next class in the
     resolution order.
 
-    To declare a stanza object, inherit from :class:`StanzaObject` and provide
+    To declare a stanza object, inherit from :class:`XSO` and provide
     the following attributes on your class:
 
     * A ``TAG`` attribute, which is a tuple ``(namespace_uri, localname)``
@@ -1044,12 +1044,12 @@ class StanzaObject(metaclass=StanzaClass):
 
     Example::
 
-        class Body(stanza_model.StanzaObject):
+        class Body(stanza_model.XSO):
             TAG = ("jabber:client", "body")
 
             text = stanza_model.Text()
 
-        class Message(stanza_model.StanzaObject):
+        class Message(stanza_model.XSO):
             TAG = ("jabber:client", "message")
             UNKNOWN_CHILD_POLICY = stanza_model.UnknownChildPolicy.DROP
 
@@ -1064,7 +1064,7 @@ class StanzaObject(metaclass=StanzaClass):
     To add a stanza object to an :class:`lxml.etree.Element`, use
     :meth:`unparse_to_node`.
 
-    The following methods are available on instances of :class:`StanzaObject`:
+    The following methods are available on instances of :class:`XSO`:
 
     .. automethod:: unparse_to_node
 
@@ -1203,7 +1203,7 @@ class StanzaParser:
 
     Example use::
 
-        # let Message be a StanzaObject class, like in the StanzaObject example
+        # let Message be a XSO class, like in the XSO example
         result = None
         def catch_result(value):
             nonlocal result
@@ -1218,7 +1218,7 @@ class StanzaParser:
 
 
     The following methods can be used to dynamically add and remove top-level
-    :class:`StanzaObject` classes.
+    :class:`XSO` classes.
 
     .. automethod:: add_class
 

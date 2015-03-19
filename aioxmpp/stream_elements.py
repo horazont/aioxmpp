@@ -3,7 +3,7 @@ from . import xso, errors
 from .utils import namespaces
 
 
-class StreamError(xso.StanzaObject):
+class StreamError(xso.XSO):
     TAG = (namespaces.xmlstream, "error")
 
     text = xso.ChildText(
@@ -58,17 +58,17 @@ class StreamError(xso.StanzaObject):
             text=self.text)
 
 
-class SMStanzaObject(xso.StanzaObject):
+class SMXSO(xso.XSO):
     DECLARE_NS = {
         None: namespaces.stream_management
     }
 
 
-class SMRequest(SMStanzaObject):
+class SMRequest(SMXSO):
     TAG = (namespaces.stream_management, "r")
 
 
-class SMAcknowledgement(SMStanzaObject):
+class SMAcknowledgement(SMXSO):
     TAG = (namespaces.stream_management, "a")
 
     counter = xso.Attr(
@@ -78,7 +78,7 @@ class SMAcknowledgement(SMStanzaObject):
     )
 
 
-class SMEnable(SMStanzaObject):
+class SMEnable(SMXSO):
     TAG = (namespaces.stream_management, "enable")
 
     resume = xso.Attr(
@@ -88,7 +88,7 @@ class SMEnable(SMStanzaObject):
     )
 
 
-class SMEnabled(SMStanzaObject):
+class SMEnabled(SMXSO):
     TAG = (namespaces.stream_management, "enabled")
 
     resume = xso.Attr(
@@ -102,7 +102,7 @@ class SMEnabled(SMStanzaObject):
         default=None)
 
 
-class SMResume(SMStanzaObject):
+class SMResume(SMXSO):
     TAG = (namespaces.stream_management, "resume")
 
     counter = xso.Attr(
@@ -115,7 +115,7 @@ class SMResume(SMStanzaObject):
         required=True)
 
 
-class SMResumed(SMStanzaObject):
+class SMResumed(SMXSO):
     TAG = (namespaces.stream_management, "resumed")
 
     counter = xso.Attr(

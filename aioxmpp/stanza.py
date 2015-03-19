@@ -33,7 +33,7 @@ class UnknownIQPayload(PayloadError):
             ev_args)
 
 
-class StanzaBase(xso.StanzaObject):
+class StanzaBase(xso.XSO):
     id_ = xso.Attr(
         tag="id",
         required=True)
@@ -68,7 +68,7 @@ class StanzaBase(xso.StanzaObject):
         return obj
 
 
-class Thread(xso.StanzaObject):
+class Thread(xso.XSO):
     TAG = (namespaces.client, "thread")
 
     identifier = xso.Text(
@@ -151,7 +151,7 @@ class Presence(StanzaBase):
             self.type_)
 
 
-class Error(xso.StanzaObject):
+class Error(xso.XSO):
     TAG = (namespaces.client, "error")
 
     EXCEPTION_CLS_MAP = {

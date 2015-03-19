@@ -10,7 +10,7 @@ from aioxmpp.utils import namespaces
 
 namespaces.xep0199_ping = "urn:xmpp:ping"
 
-class Ping(xso.StanzaObject):
+class Ping(xso.XSO):
     TAG = (namespaces.xep0199_ping, "ping")
     DECLARE_NS = {
         None: namespaces.xep0199_ping

@@ -19,7 +19,7 @@ from .testutils import run_coroutine
 TEST_FROM = jid.JID.fromstr("foo@example.test/r1")
 TEST_TO = jid.JID.fromstr("bar@example.test/r1")
 
-class FancyTestIQ(xso.StanzaObject):
+class FancyTestIQ(xso.XSO):
     TAG = ("uri:tests:test_stream.py", "foo")
 
 stanza.IQ.register_child(stanza.IQ.payload, FancyTestIQ)

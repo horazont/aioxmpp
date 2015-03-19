@@ -32,9 +32,9 @@ def make_instance_mock(mapping={}):
     return instance
 
 
-class TestStanzaClass(unittest.TestCase):
+class TestXMLStreamClass(unittest.TestCase):
     def test_init(self):
-        class Cls(metaclass=xso.StanzaClass):
+        class Cls(metaclass=xso_model.XMLStreamClass):
             TAG = None, "foo"
 
         self.assertIsNone(Cls.TEXT_PROPERTY)
@@ -46,23 +46,23 @@ class TestStanzaClass(unittest.TestCase):
     def test_forbid_malformed_tag(self):
         with self.assertRaisesRegexp(TypeError,
                                      "TAG attribute has incorrect format"):
-            class Cls(metaclass=xso.StanzaClass):
+            class Cls(metaclass=xso_model.XMLStreamClass):
                 TAG = "foo", "bar", "baz"
 
         with self.assertRaisesRegexp(TypeError,
                                      "TAG attribute has incorrect format"):
-            class Cls(metaclass=xso.StanzaClass):
+            class Cls(metaclass=xso_model.XMLStreamClass):
                 TAG = "foo",
 
     def test_normalize_tag(self):
-        class Cls(metaclass=xso.StanzaClass):
+        class Cls(metaclass=xso_model.XMLStreamClass):
             TAG = "foo"
         self.assertEqual(
             (None, "foo"),
             Cls.TAG)
 
     def test_collect_text_property(self):
-        class Cls(metaclass=xso.StanzaClass):
+        class Cls(metaclass=xso_model.XMLStreamClass):
             TAG = "foo"
             prop = xso.Text()
 
@@ -71,7 +71,7 @@ class TestStanzaClass(unittest.TestCase):
             Cls.TEXT_PROPERTY)
 
     def test_inheritance_text_one_level(self):
-        class ClsA(metaclass=xso.StanzaClass):
+        class ClsA(metaclass=xso_model.XMLStreamClass):
             text = xso.Text()
 
         with self.assertRaises(TypeError):
@@ -86,10 +86,10 @@ class TestStanzaClass(unittest.TestCase):
             ClsB.TEXT_PROPERTY)
 
     def test_multi_inheritance_text(self):
-        class ClsA(metaclass=xso.StanzaClass):
+        class ClsA(metaclass=xso_model.XMLStreamClass):
             text = xso.Text()
 
-        class ClsB(metaclass=xso.StanzaClass):
+        class ClsB(metaclass=xso_model.XMLStreamClass):
             text2 = xso.Text()
 
         with self.assertRaises(TypeError):
@@ -97,7 +97,7 @@ class TestStanzaClass(unittest.TestCase):
                 pass
 
     def test_diamond_inheritance_text(self):
-        class ClsA(metaclass=xso.StanzaClass):
+        class ClsA(metaclass=xso_model.XMLStreamClass):
             text = xso.Text()
 
         class ClsB(ClsA):
@@ -114,7 +114,7 @@ class TestStanzaClass(unittest.TestCase):
             ClsD.TEXT_PROPERTY)
 
     def test_collect_child_text_property(self):
-        class ClsA(metaclass=xso.StanzaClass):
+        class ClsA(metaclass=xso_model.XMLStreamClass):
             body = xso.ChildText("body")
 
         self.assertDictEqual(
@@ -127,14 +127,14 @@ class TestStanzaClass(unittest.TestCase):
             ClsA.CHILD_PROPS)
 
     def test_collect_child_property(self):
-        class ClsA(metaclass=xso.StanzaClass):
+        class ClsA(metaclass=xso_model.XMLStreamClass):
             TAG = "foo"
-        class ClsB(metaclass=xso.StanzaClass):
+        class ClsB(metaclass=xso_model.XMLStreamClass):
             TAG = "bar"
-        class ClsC(metaclass=xso.StanzaClass):
+        class ClsC(metaclass=xso_model.XMLStreamClass):
             TAG = "baz"
 
-        class Cls(metaclass=xso.StanzaClass):
+        class Cls(metaclass=xso_model.XMLStreamClass):
             c1 = xso.Child([ClsA, ClsB])
             c2 = xso.Child([ClsC])
 
@@ -150,13 +150,13 @@ class TestStanzaClass(unittest.TestCase):
             Cls.CHILD_PROPS)
 
     def test_forbid_ambiguous_children(self):
-        class ClsA(metaclass=xso.StanzaClass):
+        class ClsA(metaclass=xso_model.XMLStreamClass):
             TAG = "foo"
-        class ClsB(metaclass=xso.StanzaClass):
+        class ClsB(metaclass=xso_model.XMLStreamClass):
             TAG = "foo"
 
         with self.assertRaisesRegexp(TypeError, "ambiguous Child properties"):
-            class Cls(metaclass=xso.StanzaClass):
+            class Cls(metaclass=xso_model.XMLStreamClass):
                 c1 = xso.Child([ClsA])
                 c2 = xso.Child([ClsB])
 
@@ -167,7 +167,7 @@ class TestStanzaClass(unittest.TestCase):
         class ClsLeafB:
             TAG = "bar"
 
-        class ClsA(metaclass=xso.StanzaClass):
+        class ClsA(metaclass=xso_model.XMLStreamClass):
             c1 = xso.Child([ClsLeafA])
 
         class ClsB(ClsA):
@@ -187,7 +187,7 @@ class TestStanzaClass(unittest.TestCase):
         class ClsLeafA:
             TAG = "foo"
 
-        class ClsA(metaclass=xso.StanzaClass):
+        class ClsA(metaclass=xso_model.XMLStreamClass):
             c1 = xso.Child([ClsLeafA])
 
         with self.assertRaisesRegexp(TypeError, "ambiguous Child properties"):
@@ -201,10 +201,10 @@ class TestStanzaClass(unittest.TestCase):
         class ClsLeafB:
             TAG = "bar"
 
-        class ClsA(metaclass=xso.StanzaClass):
+        class ClsA(metaclass=xso_model.XMLStreamClass):
             c1 = xso.Child([ClsLeafA])
 
-        class ClsB(metaclass=xso.StanzaClass):
+        class ClsB(metaclass=xso_model.XMLStreamClass):
             c2 = xso.Child([ClsLeafB])
 
         class ClsC(ClsA, ClsB):
@@ -224,10 +224,10 @@ class TestStanzaClass(unittest.TestCase):
         class ClsLeafA:
             TAG = "foo"
 
-        class ClsA(metaclass=xso.StanzaClass):
+        class ClsA(metaclass=xso_model.XMLStreamClass):
             c1 = xso.Child([ClsLeafA])
 
-        class ClsB(metaclass=xso.StanzaClass):
+        class ClsB(metaclass=xso_model.XMLStreamClass):
             c2 = xso.Child([ClsLeafA])
 
         with self.assertRaises(TypeError):
@@ -238,7 +238,7 @@ class TestStanzaClass(unittest.TestCase):
         class ClsLeafA:
             TAG = "foo"
 
-        class ClsA(metaclass=xso.StanzaClass):
+        class ClsA(metaclass=xso_model.XMLStreamClass):
             c1 = xso.Child([ClsLeafA])
 
         class ClsB(ClsA):
@@ -260,7 +260,7 @@ class TestStanzaClass(unittest.TestCase):
             ClsD.CHILD_PROPS)
 
     def test_collect_attr_property(self):
-        class Cls(metaclass=xso.StanzaClass):
+        class Cls(metaclass=xso_model.XMLStreamClass):
             attr1 = xso.Attr("foo")
             attr2 = xso.Attr("bar")
             attr3 = xso.Attr("baz")
@@ -275,12 +275,12 @@ class TestStanzaClass(unittest.TestCase):
 
     def test_forbid_ambiguous_attr(self):
         with self.assertRaises(TypeError):
-            class Cls(metaclass=xso.StanzaClass):
+            class Cls(metaclass=xso_model.XMLStreamClass):
                 attr1 = xso.Attr("foo")
                 attr2 = xso.Attr("foo")
 
     def test_inheritance_attr(self):
-        class ClsA(metaclass=xso.StanzaClass):
+        class ClsA(metaclass=xso_model.XMLStreamClass):
             attr1 = xso.Attr("foo")
 
         class ClsB(ClsA):
@@ -294,7 +294,7 @@ class TestStanzaClass(unittest.TestCase):
             ClsB.ATTR_MAP)
 
     def test_inheritance_attr_ambiguous(self):
-        class ClsA(metaclass=xso.StanzaClass):
+        class ClsA(metaclass=xso_model.XMLStreamClass):
             attr1 = xso.Attr("foo")
 
         with self.assertRaises(TypeError):
@@ -302,10 +302,10 @@ class TestStanzaClass(unittest.TestCase):
                 attr2 = xso.Attr("foo")
 
     def test_multi_inheritance_attr(self):
-        class ClsA(metaclass=xso.StanzaClass):
+        class ClsA(metaclass=xso_model.XMLStreamClass):
             attr1 = xso.Attr("foo")
 
-        class ClsB(metaclass=xso.StanzaClass):
+        class ClsB(metaclass=xso_model.XMLStreamClass):
             attr2 = xso.Attr("bar")
 
         class ClsC(ClsB, ClsA):
@@ -320,10 +320,10 @@ class TestStanzaClass(unittest.TestCase):
             ClsC.ATTR_MAP)
 
     def test_multi_inheritance_attr_ambiguous(self):
-        class ClsA(metaclass=xso.StanzaClass):
+        class ClsA(metaclass=xso_model.XMLStreamClass):
             attr1 = xso.Attr("foo")
 
-        class ClsB(metaclass=xso.StanzaClass):
+        class ClsB(metaclass=xso_model.XMLStreamClass):
             attr2 = xso.Attr("foo")
 
         with self.assertRaises(TypeError):
@@ -331,7 +331,7 @@ class TestStanzaClass(unittest.TestCase):
                 attr3 = xso.Attr("baz")
 
     def test_diamond_inheritance_attr(self):
-        class ClsA(metaclass=xso.StanzaClass):
+        class ClsA(metaclass=xso_model.XMLStreamClass):
             attr = xso.Attr("foo")
 
         class ClsB(ClsA):
@@ -350,7 +350,7 @@ class TestStanzaClass(unittest.TestCase):
             ClsD.ATTR_MAP)
 
     def test_collect_collector_property(self):
-        class Cls(metaclass=xso.StanzaClass):
+        class Cls(metaclass=xso_model.XMLStreamClass):
             prop = xso.Collector()
 
         self.assertIs(
@@ -359,12 +359,12 @@ class TestStanzaClass(unittest.TestCase):
 
     def test_forbid_duplicate_collector_property(self):
         with self.assertRaises(TypeError):
-            class Cls(metaclass=xso.StanzaClass):
+            class Cls(metaclass=xso_model.XMLStreamClass):
                 propa = xso.Collector()
                 propb = xso.Collector()
 
     def test_inheritance_collector_one_level(self):
-        class ClsA(metaclass=xso.StanzaClass):
+        class ClsA(metaclass=xso_model.XMLStreamClass):
             text = xso.Collector()
 
         with self.assertRaises(TypeError):
@@ -377,10 +377,10 @@ class TestStanzaClass(unittest.TestCase):
         self.assertIs(ClsB.COLLECTOR_PROPERTY, ClsA.text)
 
     def test_multi_inheritance_collector(self):
-        class ClsA(metaclass=xso.StanzaClass):
+        class ClsA(metaclass=xso_model.XMLStreamClass):
             text = xso.Collector()
 
-        class ClsB(metaclass=xso.StanzaClass):
+        class ClsB(metaclass=xso_model.XMLStreamClass):
             text2 = xso.Collector()
 
         with self.assertRaises(TypeError):
@@ -388,7 +388,7 @@ class TestStanzaClass(unittest.TestCase):
                 pass
 
     def test_diamond_inheritance_collector(self):
-        class ClsA(metaclass=xso.StanzaClass):
+        class ClsA(metaclass=xso_model.XMLStreamClass):
             text = xso.Collector()
 
         class ClsB(ClsA):
@@ -404,20 +404,20 @@ class TestStanzaClass(unittest.TestCase):
 
     def test_forbid_duplicate_text_property(self):
         with self.assertRaises(TypeError):
-            class Cls(metaclass=xso.StanzaClass):
+            class Cls(metaclass=xso_model.XMLStreamClass):
                 TAG = "foo"
                 propa = xso.Text()
                 propb = xso.Text()
 
     def test_collect_child_list_property(self):
-        class ClsA(metaclass=xso.StanzaClass):
+        class ClsA(metaclass=xso_model.XMLStreamClass):
             TAG = "foo"
-        class ClsB(metaclass=xso.StanzaClass):
+        class ClsB(metaclass=xso_model.XMLStreamClass):
             TAG = "bar"
-        class ClsC(metaclass=xso.StanzaClass):
+        class ClsC(metaclass=xso_model.XMLStreamClass):
             TAG = "baz"
 
-        class Cls(metaclass=xso.StanzaClass):
+        class Cls(metaclass=xso_model.XMLStreamClass):
             cl1 = xso.ChildList([ClsA, ClsB])
             cl2 = xso.ChildList([ClsC])
 
@@ -433,18 +433,18 @@ class TestStanzaClass(unittest.TestCase):
             Cls.CHILD_PROPS)
 
     def test_forbid_ambiguous_children_with_lists(self):
-        class ClsA(metaclass=xso.StanzaClass):
+        class ClsA(metaclass=xso_model.XMLStreamClass):
             TAG = "foo"
-        class ClsB(metaclass=xso.StanzaClass):
+        class ClsB(metaclass=xso_model.XMLStreamClass):
             TAG = "foo"
 
         with self.assertRaisesRegexp(TypeError, "ambiguous Child properties"):
-            class Cls(metaclass=xso.StanzaClass):
+            class Cls(metaclass=xso_model.XMLStreamClass):
                 c1 = xso.ChildList([ClsA])
                 c2 = xso.Child([ClsB])
 
     def test_collect_child_tag_property(self):
-        class Cls(metaclass=xso.StanzaClass):
+        class Cls(metaclass=xso_model.XMLStreamClass):
             ct = xso.ChildTag(
                 tags=[
                     "foo",
@@ -463,7 +463,7 @@ class TestStanzaClass(unittest.TestCase):
             Cls.CHILD_PROPS)
 
     def test_ordered_child_props(self):
-        class Cls(metaclass=xso.StanzaClass):
+        class Cls(metaclass=xso_model.XMLStreamClass):
             c1 = xso.ChildText((None, "a"))
             c2 = xso.ChildText((None, "b"))
             c3 = xso.ChildText((None, "c"))
@@ -477,18 +477,18 @@ class TestStanzaClass(unittest.TestCase):
             Cls.CHILD_PROPS)
 
     def test_register_child(self):
-        class Cls(metaclass=xso.StanzaClass):
+        class Cls(metaclass=xso_model.XMLStreamClass):
             TAG = "foo"
 
             child = xso.Child([])
 
-        class ClsA(metaclass=xso.StanzaClass):
+        class ClsA(metaclass=xso_model.XMLStreamClass):
             TAG = "bar"
 
-        class ClsB(metaclass=xso.StanzaClass):
+        class ClsB(metaclass=xso_model.XMLStreamClass):
             TAG = "baz"
 
-        class ClsC(metaclass=xso.StanzaClass):
+        class ClsC(metaclass=xso_model.XMLStreamClass):
             TAG = "bar"
 
         Cls.register_child(Cls.child, ClsA)
@@ -510,14 +510,14 @@ class TestStanzaClass(unittest.TestCase):
             Cls.register_child(Cls.child, ClsC)
 
     def test_call_error_handler_on_broken_child(self):
-        class Bar(xso.StanzaObject):
+        class Bar(xso.XSO):
             TAG = "bar"
 
             text = xso.Text(
                 type_=xso.Integer()
             )
 
-        class Cls(metaclass=xso.StanzaClass):
+        class Cls(metaclass=xso_model.XMLStreamClass):
             TAG = "foo"
 
             child = xso.Child([Bar])
@@ -542,14 +542,14 @@ class TestStanzaClass(unittest.TestCase):
         )
 
     def test_call_error_handler_on_unexpected_child(self):
-        class Bar(xso.StanzaObject):
+        class Bar(xso.XSO):
             TAG = "bar"
 
             text = xso.Text(
                 type_=xso.Integer()
             )
 
-        class Cls(metaclass=xso.StanzaClass):
+        class Cls(metaclass=xso_model.XMLStreamClass):
             TAG = "foo"
             UNKNOWN_CHILD_POLICY = xso.UnknownChildPolicy.FAIL
 
@@ -574,7 +574,7 @@ class TestStanzaClass(unittest.TestCase):
         )
 
     def test_call_error_handler_on_broken_text(self):
-        class Cls(metaclass=xso.StanzaClass):
+        class Cls(metaclass=xso_model.XMLStreamClass):
             TAG = "foo"
 
             text = xso.Text(
@@ -601,7 +601,7 @@ class TestStanzaClass(unittest.TestCase):
         )
 
     def test_call_error_handler_on_broken_attr(self):
-        class Cls(metaclass=xso.StanzaClass):
+        class Cls(metaclass=xso_model.XMLStreamClass):
             TAG = "foo"
 
             attr = xso.Attr(
@@ -628,7 +628,7 @@ class TestStanzaClass(unittest.TestCase):
         )
 
 
-class TestStanzaObject(XMLTestCase):
+class TestXSO(XMLTestCase):
     def _unparse_test(self, obj, tree):
         parent = etree.Element("foo")
         obj.unparse_to_node(parent)
@@ -639,7 +639,7 @@ class TestStanzaObject(XMLTestCase):
         )
 
     def setUp(self):
-        class Cls(xso.StanzaObject):
+        class Cls(xso.XSO):
             TAG = "bar"
 
         self.Cls = Cls
@@ -662,7 +662,7 @@ class TestStanzaObject(XMLTestCase):
     def test_declare_ns(self):
         self.assertIsNone(self.Cls.DECLARE_NS)
 
-        class Cls(xso.StanzaObject):
+        class Cls(xso.XSO):
             TAG = ("uri:foo", "foo")
 
             DECLARE_NS = collections.OrderedDict([
@@ -698,7 +698,7 @@ class TestStanzaObject(XMLTestCase):
         )
 
     def test_unparse_to_node_handle_text(self):
-        class Cls(xso.StanzaObject):
+        class Cls(xso.XSO):
             TAG = "bar"
             text = xso.Text()
 
@@ -711,11 +711,11 @@ class TestStanzaObject(XMLTestCase):
         )
 
     def test_unparse_to_node_handle_child(self):
-        class ClsLeaf(xso.StanzaObject):
+        class ClsLeaf(xso.XSO):
             TAG = "baz"
             text = xso.Text()
 
-        class Cls(xso.StanzaObject):
+        class Cls(xso.XSO):
             TAG = "bar"
             child = xso.Child([ClsLeaf])
 
@@ -729,7 +729,7 @@ class TestStanzaObject(XMLTestCase):
         )
 
     def test_unparse_to_node_handle_child_list(self):
-        class ClsLeaf(xso.StanzaObject):
+        class ClsLeaf(xso.XSO):
             TAG = "baz"
             text = xso.Text()
 
@@ -737,7 +737,7 @@ class TestStanzaObject(XMLTestCase):
                 super().__init__()
                 self.text = text
 
-        class Cls(xso.StanzaObject):
+        class Cls(xso.XSO):
             TAG = "bar"
             children = xso.ChildList([ClsLeaf])
 
@@ -752,7 +752,7 @@ class TestStanzaObject(XMLTestCase):
         )
 
     def test_unparse_to_node_handle_child_text(self):
-        class Cls(xso.StanzaObject):
+        class Cls(xso.XSO):
             TAG = "bar"
             body = xso.ChildText("body")
 
@@ -765,7 +765,7 @@ class TestStanzaObject(XMLTestCase):
         )
 
     def test_unparse_to_node_handle_collector(self):
-        class Cls(xso.StanzaObject):
+        class Cls(xso.XSO):
             TAG = "bar"
             dump = xso.Collector()
 
@@ -779,7 +779,7 @@ class TestStanzaObject(XMLTestCase):
         )
 
     def test_unparse_to_node_handle_child_map(self):
-        class ClsLeafA(xso.StanzaObject):
+        class ClsLeafA(xso.XSO):
             TAG = "baz"
             text = xso.Text()
 
@@ -787,7 +787,7 @@ class TestStanzaObject(XMLTestCase):
                 super().__init__()
                 self.text = text
 
-        class ClsLeafB(xso.StanzaObject):
+        class ClsLeafB(xso.XSO):
             TAG = "fnord"
             text = xso.Text()
 
@@ -795,7 +795,7 @@ class TestStanzaObject(XMLTestCase):
                 super().__init__()
                 self.text = text
 
-        class Cls(xso.StanzaObject):
+        class Cls(xso.XSO):
             TAG = "bar"
             children = xso.ChildMap([ClsLeafA, ClsLeafB])
 
@@ -810,7 +810,7 @@ class TestStanzaObject(XMLTestCase):
         )
 
     def test_unparse_to_node_handle_attr(self):
-        class Cls(xso.StanzaObject):
+        class Cls(xso.XSO):
             TAG = "bar"
             attr = xso.Attr("baz")
 
@@ -830,7 +830,7 @@ class TestStanzaObject(XMLTestCase):
 class Test_PropBase(unittest.TestCase):
     def setUp(self):
         self.default = object()
-        class Cls(xso.StanzaObject):
+        class Cls(xso.XSO):
             prop = xso_model._PropBase(
                 default=self.default)
         self.Cls = Cls
@@ -980,7 +980,7 @@ class Test_PropBase(unittest.TestCase):
     def test_descriptor_access_goes_through_code_setter(self):
         validator = unittest.mock.MagicMock()
 
-        class Cls(xso.StanzaObject):
+        class Cls(xso.XSO):
             prop = xso_model._PropBase(
                 default=self.default,
                 validator=validator,
@@ -1018,9 +1018,9 @@ class Test_PropBase(unittest.TestCase):
 
 class TestText(XMLTestCase):
     def setUp(self):
-        class ClsA(xso.StanzaObject):
+        class ClsA(xso.XSO):
             test_str = xso.Text(default="bar")
-        class ClsB(xso.StanzaObject):
+        class ClsB(xso.XSO):
             test_int = xso.Text(type_=xso.Integer())
         self.ClsA = ClsA
         self.ClsB = ClsB
@@ -1113,10 +1113,10 @@ class TestText(XMLTestCase):
 
 class TestChild(XMLTestCase):
     def setUp(self):
-        class ClsLeaf(xso.StanzaObject):
+        class ClsLeaf(xso.XSO):
             TAG = "bar"
 
-        class ClsA(xso.StanzaObject):
+        class ClsA(xso.XSO):
             TAG = "foo"
             test_child = xso.Child([ClsLeaf])
 
@@ -1130,14 +1130,14 @@ class TestChild(XMLTestCase):
         )
 
     def test_forbid_duplicate_tags(self):
-        class ClsLeaf2(xso.StanzaObject):
+        class ClsLeaf2(xso.XSO):
             TAG = "bar"
 
         with self.assertRaisesRegexp(ValueError, "ambiguous children"):
             xso.Child([self.ClsLeaf, ClsLeaf2])
 
     def test__register(self):
-        class ClsLeaf2(xso.StanzaObject):
+        class ClsLeaf2(xso.XSO):
             TAG = "baz"
 
         self.ClsA.test_child._register(ClsLeaf2)
@@ -1149,7 +1149,7 @@ class TestChild(XMLTestCase):
             self.ClsA.test_child.get_tag_map()
         )
 
-        class ClsLeafConflict(xso.StanzaObject):
+        class ClsLeafConflict(xso.XSO):
             TAG = "baz"
 
         with self.assertRaisesRegexp(ValueError, "ambiguous children"):
@@ -1220,13 +1220,13 @@ class TestChild(XMLTestCase):
 
 class TestChildList(XMLTestCase):
     def setUp(self):
-        class ClsLeafA(xso.StanzaObject):
+        class ClsLeafA(xso.XSO):
             TAG = "bar"
 
-        class ClsLeafB(xso.StanzaObject):
+        class ClsLeafB(xso.XSO):
             TAG = "baz"
 
-        class Cls(xso.StanzaObject):
+        class Cls(xso.XSO):
             TAG = "foo"
             children = xso.ChildList([ClsLeafA, ClsLeafB])
 
@@ -1328,7 +1328,7 @@ class TestCollector(XMLTestCase):
                 result)
 
     def test_assign_enforces_list(self):
-        class Cls(xso.StanzaObject):
+        class Cls(xso.XSO):
             children = xso.Collector()
 
         obj = Cls()
@@ -1709,7 +1709,7 @@ class TestChildText(XMLTestCase):
 class TestChildMap(XMLTestCase):
     def test_class_access_returns_property(self):
         prop = xso.ChildMap([])
-        class Foo(xso.StanzaObject):
+        class Foo(xso.XSO):
             cm = prop
 
         self.assertIs(
@@ -1717,10 +1717,10 @@ class TestChildMap(XMLTestCase):
             Foo.cm)
 
     def test_from_events_from_init(self):
-        class Bar(xso.StanzaObject):
+        class Bar(xso.XSO):
             TAG = "bar"
 
-        class Foo(xso.StanzaObject):
+        class Foo(xso.XSO):
             TAG = "foo"
 
         instance = make_instance_mock()
@@ -1759,7 +1759,7 @@ class TestChildMap(XMLTestCase):
         self.assertIsInstance(foo_results[0], Foo)
 
     def test_assign_enforces_dict(self):
-        class Cls(xso.StanzaObject):
+        class Cls(xso.XSO):
             children = xso.ChildMap([])
         obj = Cls()
 
@@ -1778,10 +1778,10 @@ class TestChildMap(XMLTestCase):
         # we run the test through to_node here, to avoid ordering issues with
         # the dict.
 
-        class Bar(xso.StanzaObject):
+        class Bar(xso.XSO):
             TAG = "bar"
 
-        class Foo(xso.StanzaObject):
+        class Foo(xso.XSO):
             TAG = "foo"
 
             attr = xso.Attr("a")
@@ -2377,12 +2377,12 @@ class ChildTag(XMLTestCase):
             dest.mock_calls)
 
     def test_validate_from_code(self):
-        class ClsWNone(xso.StanzaObject):
+        class ClsWNone(xso.XSO):
             prop = xso.ChildTag(
                 self.prop.get_tag_map(),
                 allow_none=True)
 
-        class ClsWONone(xso.StanzaObject):
+        class ClsWONone(xso.XSO):
             prop = xso.ChildTag(
                 self.prop.get_tag_map(),
                 default=("uri:bar", "foo"),
@@ -2435,7 +2435,7 @@ class TestStanzaParser(XMLTestCase):
         return results[0]
 
     def test_parse_text(self):
-        class TestStanza(xso.StanzaObject):
+        class TestStanza(xso.XSO):
             TAG = "uri:bar", "foo"
             contents = xso.Text()
         tree = etree.fromstring("<foo xmlns='uri:bar'>bar</foo>")
@@ -2444,10 +2444,10 @@ class TestStanzaParser(XMLTestCase):
         self.assertEqual(result.contents, "bar")
 
     def test_parse_text_split_in_multiple_events(self):
-        class Dummy(xso.StanzaObject):
+        class Dummy(xso.XSO):
             TAG = "uri:bar", "dummy"
 
-        class TestStanza(xso.StanzaObject):
+        class TestStanza(xso.XSO):
             TAG = "uri:bar", "foo"
 
             contents = xso.Text()
@@ -2460,7 +2460,7 @@ class TestStanzaParser(XMLTestCase):
 
     def test_handle_unknown_tag_at_toplevel(self):
         tree = etree.fromstring("<foo />")
-        class TestStanza(xso.StanzaObject):
+        class TestStanza(xso.XSO):
             TAG = "uri:bar", "foo"
 
         with self.assertRaises(xso.UnknownTopLevelTag) as ctx:
@@ -2473,7 +2473,7 @@ class TestStanzaParser(XMLTestCase):
 
     def test_handle_unknown_tag_at_non_toplevel(self):
         tree = etree.fromstring("<foo><bar/></foo>")
-        class TestStanza(xso.StanzaObject):
+        class TestStanza(xso.XSO):
             TAG = None, "foo"
 
         with self.assertRaises(ValueError):
@@ -2481,7 +2481,7 @@ class TestStanzaParser(XMLTestCase):
 
     def test_handle_unknown_tag_at_non_toplevel_with_drop_policy(self):
         tree = etree.fromstring("<foo><bar/></foo>")
-        class TestStanza(xso.StanzaObject):
+        class TestStanza(xso.XSO):
             TAG = None, "foo"
             UNKNOWN_CHILD_POLICY = xso.UnknownChildPolicy.DROP
 
@@ -2489,7 +2489,7 @@ class TestStanzaParser(XMLTestCase):
 
     def test_parse_using_collector(self):
         tree = etree.fromstring("<foo><bar/></foo>")
-        class TestStanza(xso.StanzaObject):
+        class TestStanza(xso.XSO):
             TAG = None, "foo"
             coll = xso.Collector()
 
@@ -2501,7 +2501,7 @@ class TestStanzaParser(XMLTestCase):
 
     def test_handle_unknown_attribute(self):
         tree = etree.fromstring("<foo a='bar' />")
-        class TestStanza(xso.StanzaObject):
+        class TestStanza(xso.XSO):
             TAG = None, "foo"
 
         with self.assertRaises(ValueError):
@@ -2509,7 +2509,7 @@ class TestStanzaParser(XMLTestCase):
 
     def test_handle_unknown_attribute_with_drop_policy(self):
         tree = etree.fromstring("<foo a='bar' />")
-        class TestStanza(xso.StanzaObject):
+        class TestStanza(xso.XSO):
             TAG = None, "foo"
             UNKNOWN_ATTR_POLICY = xso.UnknownAttrPolicy.DROP
 
@@ -2517,7 +2517,7 @@ class TestStanzaParser(XMLTestCase):
 
     def test_handle_unknown_text(self):
         tree = etree.fromstring("<foo>bar</foo>")
-        class TestStanza(xso.StanzaObject):
+        class TestStanza(xso.XSO):
             TAG = None, "foo"
 
         with self.assertRaises(ValueError):
@@ -2525,7 +2525,7 @@ class TestStanzaParser(XMLTestCase):
 
     def test_handle_missing_attribute(self):
         tree = etree.fromstring("<foo/>")
-        class TestStanza(xso.StanzaObject):
+        class TestStanza(xso.XSO):
             TAG = None, "foo"
             attr = xso.Attr("a", required=True)
 
@@ -2533,7 +2533,7 @@ class TestStanzaParser(XMLTestCase):
             self.run_parser_one([TestStanza], tree)
 
     def test_parse_simple_with_another_attribute(self):
-        class TestStanza(xso.StanzaObject):
+        class TestStanza(xso.XSO):
             TAG = "uri:bar", "foo"
             text = xso.Text()
         tree = etree.fromstring("<foo xmlns='uri:bar'>bar</foo>")
@@ -2542,10 +2542,10 @@ class TestStanzaParser(XMLTestCase):
         self.assertEqual(result.text, "bar")
 
     def test_parse_detect_class(self):
-        class TestStanzaA(xso.StanzaObject):
+        class TestStanzaA(xso.XSO):
             TAG = "uri:bar", "a"
 
-        class TestStanzaB(xso.StanzaObject):
+        class TestStanzaB(xso.XSO):
             TAG = "uri:bar", "b"
 
         tree = etree.fromstring("<a xmlns='uri:bar' />")
@@ -2557,10 +2557,10 @@ class TestStanzaParser(XMLTestCase):
         self.assertIsInstance(result, TestStanzaB)
 
     def test_parse_child(self):
-        class Bar(xso.StanzaObject):
+        class Bar(xso.XSO):
             TAG = "bar"
 
-        class Foo(xso.StanzaObject):
+        class Foo(xso.XSO):
             TAG = "foo"
 
             child = xso.Child([Bar])
@@ -2571,7 +2571,7 @@ class TestStanzaParser(XMLTestCase):
         self.assertIsInstance(result.child, Bar)
 
     def test_parse_attribute(self):
-        class Foo(xso.StanzaObject):
+        class Foo(xso.XSO):
             TAG = "foo"
 
             attr = xso.Attr("bar")
@@ -2583,12 +2583,12 @@ class TestStanzaParser(XMLTestCase):
             result.attr)
 
     def test_parse_attribute_nested(self):
-        class Bar(xso.StanzaObject):
+        class Bar(xso.XSO):
             TAG = "bar"
 
             attr = xso.Attr("a")
 
-        class Foo(xso.StanzaObject):
+        class Foo(xso.XSO):
             TAG = "foo"
 
             attr = xso.Attr("a")
@@ -2604,17 +2604,17 @@ class TestStanzaParser(XMLTestCase):
             result.child.attr)
 
     def test_parse_child_list(self):
-        class ClsLeafA(xso.StanzaObject):
+        class ClsLeafA(xso.XSO):
             TAG = "bar"
 
             attr = xso.Attr("a")
 
-        class ClsLeafB(xso.StanzaObject):
+        class ClsLeafB(xso.XSO):
             TAG = "baz"
 
             attr = xso.Attr("b")
 
-        class Foo(xso.StanzaObject):
+        class Foo(xso.XSO):
             TAG = "foo"
 
             cl = xso.ChildList([ClsLeafA, ClsLeafB])
@@ -2635,12 +2635,12 @@ class TestStanzaParser(XMLTestCase):
             self.assertEqual(child.attr, value, "child {}".format(i))
 
     def test_parse_child_with_post_register(self):
-        class Foo(xso.StanzaObject):
+        class Foo(xso.XSO):
             TAG = "foo"
 
             child = xso.Child([])
 
-        class Bar(xso.StanzaObject):
+        class Bar(xso.XSO):
             TAG = "bar"
 
         Foo.register_child(Foo.child, Bar)
@@ -2651,7 +2651,7 @@ class TestStanzaParser(XMLTestCase):
         self.assertIsInstance(result.child, Bar)
 
     def test_parse_child_text(self):
-        class Foo(xso.StanzaObject):
+        class Foo(xso.XSO):
             TAG = "foo"
             body = xso.ChildText("body")
 
@@ -2663,10 +2663,10 @@ class TestStanzaParser(XMLTestCase):
             result.body)
 
     def test_add_class(self):
-        class Foo(xso.StanzaObject):
+        class Foo(xso.XSO):
             TAG = "foo"
 
-        class Bar(xso.StanzaObject):
+        class Bar(xso.XSO):
             TAG = "bar"
 
         cb1, cb2 = object(), object()
@@ -2684,10 +2684,10 @@ class TestStanzaParser(XMLTestCase):
         )
 
     def test_add_class_forbid_duplicate_tags(self):
-        class Foo(xso.StanzaObject):
+        class Foo(xso.XSO):
             TAG = "foo"
 
-        class Bar(xso.StanzaObject):
+        class Bar(xso.XSO):
             TAG = "foo"
 
         p = xso.StanzaParser()
@@ -2696,10 +2696,10 @@ class TestStanzaParser(XMLTestCase):
             p.add_class(Bar, None)
 
     def test_remove_class(self):
-        class Foo(xso.StanzaObject):
+        class Foo(xso.XSO):
             TAG = "foo"
 
-        class Bar(xso.StanzaObject):
+        class Bar(xso.XSO):
             TAG = "bar"
 
         p = xso.StanzaParser()

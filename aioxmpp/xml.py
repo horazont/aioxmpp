@@ -13,7 +13,7 @@ The most useful class here is the :class:`XMPPXMLGenerator`:
 .. autoclass:: XMPPXMLGenerator
 
 The following generator function can be used to send several
-:class:`~.stanza_model.StanzaObject` instances along an XMPP stream without
+:class:`~.stanza_model.XSO` instances along an XMPP stream without
 bothering with any cleanup.
 
 .. autofunction:: write_objects
@@ -23,7 +23,7 @@ bothering with any cleanup.
 Processing XML streams
 ======================
 
-To convert streams of SAX events to :class:`~.stanza_model.StanzaObject`
+To convert streams of SAX events to :class:`~.stanza_model.XSO`
 instances, the following classes and functions can be used:
 
 .. autoclass:: XMPPXMLProcessor
@@ -454,7 +454,7 @@ def write_objects(f,
     *sorted_attributes* is passed to the :class:`XMPPXMLGenerator` which is used
     by this function.
 
-    Now, user code can send :class:`~.xso.StanzaObject` objects to the
+    Now, user code can send :class:`~.xso.XSO` objects to the
     generator using its :meth:`send` method. These objects get serialized to the
     XML stream. Any exception raised during that is re-raised and the stream is
     closed.

@@ -49,7 +49,7 @@ STANZA_ERROR_TEMPLATE_WITH_TEXT = '''\
 </error>'''
 
 
-class Child(xso.StanzaObject):
+class Child(xso.XSO):
     TAG = ("uri:foo", "payload")
 
     attr = xso.Attr("a", required=True)

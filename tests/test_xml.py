@@ -52,7 +52,7 @@ TEST_TREE = b"""<weatherdata xmlns:xsi="http://www.w3.org/2001/XMLSchema-instanc
 # end of data extracted from http://api.met.no
 
 
-class Cls(xso.StanzaObject):
+class Cls(xso.XSO):
     TAG = ("uri:foo", "bar")
 
 
@@ -828,7 +828,7 @@ class TestXMPPXMLProcessor(unittest.TestCase):
             nonlocal results
             results.append(obj)
 
-        class Bar(xso.StanzaObject):
+        class Bar(xso.XSO):
             TAG = ("uri:foo", "bar")
 
             text = xso.Text()
@@ -837,12 +837,12 @@ class TestXMPPXMLProcessor(unittest.TestCase):
                 super().__init__()
                 self.text = text
 
-        class Baz(xso.StanzaObject):
+        class Baz(xso.XSO):
             TAG = ("uri:foo", "baz")
 
             children = xso.ChildList([Bar])
 
-        class Foo(xso.StanzaObject):
+        class Foo(xso.XSO):
             TAG = ("uri:foo", "foo")
 
             attr = xso.Attr((None, "attr"))
@@ -972,7 +972,7 @@ class TestXMPPXMLProcessor(unittest.TestCase):
             nonlocal elements
             elements.append(obj)
 
-        class Foo(xso.StanzaObject):
+        class Foo(xso.XSO):
             TAG = ("uri:foo", "foo")
 
         self.assertIsNone(self.proc.on_exception)
