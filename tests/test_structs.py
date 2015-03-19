@@ -162,7 +162,7 @@ class TestJID(unittest.TestCase):
         j = structs.JID("foo", "example.test", "bar")
         self.assertEqual(
             structs.JID("foo", "example.test", None),
-            j.bare)
+            j.bare())
 
     def test_is_bare(self):
         self.assertFalse(structs.JID("foo", "example.test", "bar").is_bare)

@@ -66,7 +66,6 @@ class JID(collections.namedtuple("JID", ["localpart", "domain", "resource"])):
             result += "/" + self.resource
         return result
 
-    @property
     def bare(self):
         return self.replace(resource=None)
 
