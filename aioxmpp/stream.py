@@ -104,8 +104,10 @@ class StanzaStream:
         self.enqueue_stanza(response)
 
     def _process_incoming_iq(self, stanza_obj):
+        self._logger.debug("incoming iq: %r", stanza_obj)
         if stanza_obj.type_ == "result" or stanza_obj.type_ == "error":
             # iq response
+            self._logger.debug("iq is response")
             key = (stanza_obj.from_, stanza_obj.id_)
             try:
                 self._iq_response_map.unicast(key, stanza_obj)
@@ -116,6 +118,7 @@ class StanzaStream:
                 return
         else:
             # iq request
+            self._logger.debug("iq is request")
             key = (stanza_obj.type_, type(stanza_obj.payload))
             try:
                 coro = self._iq_request_map[key]
@@ -139,16 +142,20 @@ class StanzaStream:
                 functools.partial(
                     self._iq_request_coro_done,
                     stanza_obj))
+            self._logger.debug("started task to handle request: %r", task)
 
     def _process_incoming_message(self, stanza_obj):
+        self._logger.debug("incoming messgage: %r", stanza_obj)
         keys = [(stanza_obj.type_, stanza_obj.from_),
                 (stanza_obj.type_, None),
                 (None, None)]
+
         for key in keys:
             try:
                 cb = self._message_map[key]
             except KeyError:
                 continue
+            self._logger.debug("dispatching message using key: %r", key)
             self._loop.call_soon(cb, stanza_obj)
             break
         else:
@@ -160,6 +167,7 @@ class StanzaStream:
             )
 
     def _process_incoming_presence(self, stanza_obj):
+        self._logger.debug("incoming presence: %r", stanza_obj)
         keys = [(stanza_obj.type_, stanza_obj.from_),
                 (stanza_obj.type_, None)]
         for key in keys:
@@ -167,6 +175,7 @@ class StanzaStream:
                 cb = self._presence_map[key]
             except KeyError:
                 continue
+            self._logger.debug("dispatching presence using key: %r", key)
             self._loop.call_soon(cb, stanza_obj)
             break
         else:
@@ -188,19 +197,24 @@ class StanzaStream:
         elif isinstance(stanza_obj, stanza.Presence):
             self._process_incoming_presence(stanza_obj)
         elif isinstance(stanza_obj, stream_elements.SMAcknowledgement):
+            self._logger.debug("received SM ack: %r", stanza_obj)
             if not self.sm_enabled:
-                self._logger.warning("received sm:a, but sm not enabled")
+                self._logger.warning("received SM ack, but SM not enabled")
                 return
             self.sm_ack(stanza_obj.counter)
+
             if self._next_ping_event_type == PingEventType.TIMEOUT:
+                self._logger.debug("resetting ping timeout")
                 self._next_ping_event_type = PingEventType.SEND_OPPORTUNISTIC
                 self._next_ping_event_at = datetime.utcnow() + self.ping_interval
         elif isinstance(stanza_obj, stream_elements.SMRequest):
+            self._logger.debug("received SM request: %r", stanza_obj)
             if not self.sm_enabled:
-                self._logger.warning("received sm:r, but sm not enabled")
+                self._logger.warning("received SM request, but SM not enabled")
                 return
             response = stream_elements.SMAcknowledgement()
             response.counter = self.sm_inbound_ctr
+            self._logger.debug("sending SM ack: %r", stanza_obj)
             xmlstream.send_stanza(response)
         else:
             raise RuntimeError("unexpected stanza class: {}".format(stanza_obj))
@@ -247,7 +261,9 @@ class StanzaStream:
     def _send_ping(self, xmlstream):
         if not self._ping_send_opportunistic:
             return
+
         if self.sm_enabled:
+            self._logger.debug("sending SM req")
             xmlstream.send_stanza(stream_elements.SMRequest())
         else:
             request = stanza.IQ(type_="get")
@@ -258,22 +274,28 @@ class StanzaStream:
                 request.id_,
                 self._recv_pong
             )
-            self.enqueue_stanza(request)
+            self._logger.debug("sending XEP-0199 ping: %r", request)
+            xmlstream.send_stanza(request)
             self._ping_send_opportunistic = False
+
         if self._next_ping_event_type != PingEventType.TIMEOUT:
+            self._logger.debug("configuring ping timeout")
             self._next_ping_event_at = datetime.utcnow() + self.ping_interval
             self._next_ping_event_type = PingEventType.TIMEOUT
 
     def _process_ping_event(self, xmlstream):
         if self._next_ping_event_type == PingEventType.SEND_OPPORTUNISTIC:
+            self._logger.debug("ping: opportunistic interval started")
             self._next_ping_event_at += self.ping_opportunistic_interval
             self._next_ping_event_type = PingEventType.SEND_NOW
             # ping send opportunistic is always true for sm
             if not self.sm_enabled:
                 self._ping_send_opportunistic = True
         elif self._next_ping_event_type == PingEventType.SEND_NOW:
+            self._logger.debug("ping: requiring ping to be sent now")
             self._send_ping(xmlstream)
         elif self._next_ping_event_type == PingEventType.TIMEOUT:
+            self._logger.warning("ping: response timeout tripped")
             raise ConnectionError("ping timeout")
         else:
             raise RuntimeError("unknown ping event type: {!r}".format(
@@ -284,6 +306,8 @@ class StanzaStream:
             (from_, id_),
             callbacks.OneshotAsyncTagListener(cb, loop=self._loop)
         )
+        self._logger.debug("iq response callback registered: from=%r, id=%r",
+                           from_, id_)
 
     def register_iq_response_future(self, from_, id_, fut):
         self._iq_response_map.add_listener(
@@ -292,29 +316,45 @@ class StanzaStream:
                                               fut.set_exception,
                                               loop=self._loop)
         )
+        self._logger.debug("iq response future registered: from=%r, id=%r",
+                           from_, id_)
 
     def register_iq_request_coro(self, type_, payload_cls, coro):
         self._iq_request_map[type_, payload_cls] = coro
+        self._logger.debug(
+            "iq request coroutine registered: type=%r, payload=%r",
+            type_, payload_cls)
 
     def register_message_callback(self, type_, from_, cb):
         self._message_map[type_, from_] = cb
+        self._logger.debug(
+            "message callback registered: type=%r, from=%r",
+            type_, from_)
 
     def register_presence_callback(self, type_, from_, cb):
         self._presence_map[type_, from_] = cb
+        self._logger.debug(
+            "presence callback registered: type=%r, from=%r",
+            type_, from_)
 
     def start(self, xmlstream):
         if self.running:
             raise RuntimeError("already started")
         self._task = asyncio.async(self._run(xmlstream), loop=self._loop)
         self._task.add_done_callback(self._done_handler)
+        self._logger.debug("broker task started as %r", self._task)
+
         xmlstream.stanza_parser.add_class(stanza.IQ, self.recv_stanza)
         xmlstream.stanza_parser.add_class(stanza.Message, self.recv_stanza)
         xmlstream.stanza_parser.add_class(stanza.Presence, self.recv_stanza)
+
         if self.sm_enabled:
+            self._logger.debug("using SM")
             xmlstream.stanza_parser.add_class(stream_elements.SMAcknowledgement,
                                            self.recv_stanza)
             xmlstream.stanza_parser.add_class(stream_elements.SMRequest,
                                            self.recv_stanza)
+
         self._next_ping_event_at = datetime.utcnow() + self.ping_interval
         self._next_ping_event_type = PingEventType.SEND_OPPORTUNISTIC
         self._ping_send_opportunistic = self.sm_enabled
@@ -322,6 +362,7 @@ class StanzaStream:
     def stop(self):
         if not self.running:
             return
+        self._logger.debug("sending stop signal to task")
         self._task.cancel()
 
     @asyncio.coroutine
@@ -368,6 +409,8 @@ class StanzaStream:
         finally:
             # make sure we rescue any stanzas which possibly have already been
             # caught by the calls to get()
+            self._logger.debug("task terminating, rescuing stanzas and "
+                               "clearing handlers")
             if incoming_fut.done() and not incoming_fut.exception():
                 self._incoming_queue.putleft_nowait(incoming_fut.result())
             else:
@@ -387,13 +430,14 @@ class StanzaStream:
                 xmlstream.stanza_parser.remove_class(
                     stream_elements.SMAcknowledgement)
 
-
     def recv_stanza(self, stanza):
         self._incoming_queue.put_nowait(stanza)
 
     def enqueue_stanza(self, stanza, **kwargs):
         token = StanzaToken(stanza, **kwargs)
         self._active_queue.put_nowait(token)
+        self._logger.debug("enqueued stanza %r with token %r",
+                           stanza, token)
         return token
 
     @property
@@ -405,12 +449,14 @@ class StanzaStream:
             raise RuntimeError("cannot start Stream Management while"
                                " StanzaBroker is running")
 
+        self._logger.info("starting SM handling")
         self.sm_outbound_base = 0
         self.sm_inbound_ctr = 0
         self.sm_unacked_list = []
         self.sm_enabled = True
 
     def resume_sm(self, remote_ctr):
+        self._logger.info("resuming SM stream with remote_ctr=%d", remote_ctr)
         # remove any acked stanzas
         self.sm_ack(remote_ctr)
         # reinsert the remaining stanzas
@@ -419,6 +465,7 @@ class StanzaStream:
         self.sm_unacked_list.clear()
 
     def stop_sm(self):
+        self._logger.info("stopping SM stream")
         self.sm_enabled = False
         del self.sm_outbound_base
         del self.sm_inbound_ctr
@@ -430,6 +477,7 @@ class StanzaStream:
         if not self.sm_enabled:
             raise RuntimeError("Stream Management is not enabled")
 
+        self._logger.debug("sm_ack(%d)", remote_ctr)
         to_drop = remote_ctr - self.sm_outbound_base
         if to_drop < 0:
             self._logger.warning(
@@ -443,6 +491,8 @@ class StanzaStream:
         del self.sm_unacked_list[:to_drop]
         self.sm_outbound_base = remote_ctr
 
+        if acked:
+            self._logger.debug("%d stanzas acked by remote", len(acked))
         for token in acked:
             token._set_state(StanzaState.ACKED)
 
