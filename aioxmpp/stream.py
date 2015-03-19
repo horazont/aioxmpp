@@ -287,7 +287,7 @@ class StanzaStream:
         self._presence_map[type_, from_] = cb
 
     def start(self, xmlstream):
-        if self.running():
+        if self.running:
             raise RuntimeError("already started")
         self._task = asyncio.async(self._run(xmlstream), loop=self._loop)
         self._task.add_done_callback(self._done_handler)
@@ -304,7 +304,7 @@ class StanzaStream:
         self._ping_send_opportunistic = self.sm_enabled
 
     def stop(self):
-        if not self.running():
+        if not self.running:
             return
         self._task.cancel()
 
@@ -380,11 +380,12 @@ class StanzaStream:
         self._active_queue.put_nowait(token)
         return token
 
+    @property
     def running(self):
         return self._task is not None and not self._task.done()
 
     def start_sm(self):
-        if self.running():
+        if self.running:
             raise RuntimeError("cannot start Stream Management while"
                                " StanzaBroker is running")
 

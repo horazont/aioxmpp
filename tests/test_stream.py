@@ -64,7 +64,7 @@ class StanzaStreamTestBase(unittest.TestCase):
     def tearDown(self):
         self.stream.stop()
         run_coroutine(asyncio.sleep(0))
-        assert not self.stream.running()
+        assert not self.stream.running
         del self.stream
         del self.xmlstream
         del self.sent_stanzas
@@ -399,7 +399,7 @@ class TestStanzaStream(StanzaStreamTestBase):
 
         run_coroutine(asyncio.sleep(0))
 
-        self.assertFalse(self.stream.running())
+        self.assertFalse(self.stream.running)
         self.assertIsInstance(
             caught_exc,
             RuntimeError
@@ -467,15 +467,15 @@ class TestStanzaStream(StanzaStreamTestBase):
 
 
     def test_running(self):
-        self.assertFalse(self.stream.running())
+        self.assertFalse(self.stream.running)
         self.stream.start(self.xmlstream)
-        self.assertTrue(self.stream.running())
+        self.assertTrue(self.stream.running)
         self.stream.stop()
         # the task does not immediately terminate, it requires one cycle through
         # the event loop to do so
-        self.assertTrue(self.stream.running())
+        self.assertTrue(self.stream.running)
         run_coroutine(asyncio.sleep(0))
-        self.assertFalse(self.stream.running())
+        self.assertFalse(self.stream.running)
 
     def test_forbid_starting_twice(self):
         self.stream.start(self.xmlstream)
