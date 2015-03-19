@@ -47,6 +47,9 @@ class StanzaToken:
             raise RuntimeError("cannot abort stanza (already sent)")
         self._state = StanzaState.ABORTED
 
+    def __repr__(self):
+        return "<StanzaToken id=0x{:016x}>".format(id(self))
+
 
 class StanzaStream:
     def __init__(self,

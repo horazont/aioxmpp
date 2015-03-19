@@ -114,6 +114,13 @@ class Message(StanzaBase):
         obj.id_ = None
         return obj
 
+    def __repr__(self):
+        return "<message from='{!s}' to='{!s}' id={!r} type={!r}>".format(
+            self.from_,
+            self.to,
+            self.id_,
+            self.type_)
+
 
 class Presence(StanzaBase):
     TAG = (namespaces.client, "presence")
@@ -135,6 +142,13 @@ class Presence(StanzaBase):
     def __init__(self, *, type_=None, **kwargs):
         super().__init__(**kwargs)
         self.type_ = type_
+
+    def __repr__(self):
+        return "<presence from='{!s}' to='{!s}' id={!r} type={!r}>".format(
+            self.from_,
+            self.to,
+            self.id_,
+            self.type_)
 
 
 class Error(stanza_model.StanzaObject):
@@ -202,6 +216,16 @@ class Error(stanza_model.StanzaObject):
                    type_=exc.TYPE,
                    text=exc.text)
 
+    def __repr__(self):
+        payload = ""
+        if self.text:
+            payload = " text={!r}".format(self.text)
+
+        return "<{} type={!r}{}>".format(
+            self.condition[1],
+            self.type_,
+            payload)
+
 
 class IQ(StanzaBase):
     TAG = (namespaces.client, "iq")
@@ -235,3 +259,16 @@ class IQ(StanzaBase):
             raise PayloadParsingError(self, ev_args)
         elif descriptor == None:
             raise UnknownIQPayload(self, ev_args)
+
+    def __repr__(self):
+        payload = ""
+        if self.type_ == "error":
+            payload = " error={!r}".format(self.error)
+        elif self.payload:
+            payload = " data={!r}".format(self.payload)
+        return "<iq from='{!s}' to='{!s}' id={!r} type={!r}{}>".format(
+            self.from_,
+            self.to,
+            self.id_,
+            self.type_,
+            payload)

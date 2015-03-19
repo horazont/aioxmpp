@@ -13,6 +13,11 @@ TEST_FROM = jid.JID.fromstr("foo@example.test")
 TEST_TO = jid.JID.fromstr("bar@example.test")
 
 
+class TestPayload(stanza_model.StanzaObject):
+    def __repr__(self):
+        return "foobar"
+
+
 class TestStanzaBase(unittest.TestCase):
     def test_id_attr(self):
         self.assertIsInstance(
@@ -173,6 +178,17 @@ class TestMessage(unittest.TestCase):
             r.from_)
         self.assertIsNone(r.id_)
 
+    def test_repr(self):
+        s = stanza.Message(from_=TEST_FROM,
+                           to=TEST_TO,
+                           id_="someid",
+                           type_="groupchat")
+        self.assertEqual(
+            "<message from='foo@example.test' to='bar@example.test'"
+            " id='someid' type='groupchat'>",
+            repr(s)
+        )
+
 
 class TestPresence(unittest.TestCase):
     def test_inheritance(self):
@@ -229,6 +245,28 @@ class TestPresence(unittest.TestCase):
         s = stanza.Presence()
         self.assertIsNone(s.type_)
 
+    def test_repr(self):
+        s = stanza.Presence(
+            from_=TEST_FROM,
+            to=TEST_TO,
+            id_="someid",
+            type_="probe")
+        self.assertEqual(
+            "<presence from='foo@example.test' to='bar@example.test'"
+            " id='someid' type='probe'>",
+            repr(s)
+        )
+        s = stanza.Presence(
+            from_=TEST_FROM,
+            to=TEST_TO,
+            id_="someid",
+            type_=None)
+        self.assertEqual(
+            "<presence from='foo@example.test' to='bar@example.test'"
+            " id='someid' type=None>",
+            repr(s)
+        )
+
 
 class TestError(unittest.TestCase):
     def test_tag(self):
@@ -276,6 +314,24 @@ class TestError(unittest.TestCase):
             "foobar",
             obj.text
         )
+
+    def test_repr(self):
+        obj = stanza.Error()
+        self.assertEqual(
+            "<undefined-condition type='cancel'>",
+            repr(obj)
+        )
+        obj = stanza.Error(
+            type_="modify",
+            condition=(namespaces.stanzas,
+                       "bad-request"),
+            text="foobar"
+        )
+        self.assertEqual(
+            "<bad-request type='modify' text='foobar'>",
+            repr(obj)
+        )
+
 
 
 class TestIQ(unittest.TestCase):
@@ -361,3 +417,41 @@ class TestIQ(unittest.TestCase):
         s.type_ = "result"
         with self.assertRaises(ValueError):
             s.make_reply("error")
+
+    def test_repr(self):
+        s = stanza.IQ(
+            from_=TEST_FROM,
+            to=TEST_TO,
+            id_="someid",
+            type_="error")
+        s.error = stanza.Error()
+        self.assertEqual(
+            "<iq from='foo@example.test' to='bar@example.test'"
+            " id='someid' type='error'"
+            " error=<undefined-condition type='cancel'>>",
+            repr(s)
+        )
+
+        s = stanza.IQ(
+            from_=TEST_FROM,
+            to=TEST_TO,
+            id_="someid",
+            type_="result")
+        s.payload = TestPayload()
+        self.assertEqual(
+            "<iq from='foo@example.test' to='bar@example.test'"
+            " id='someid' type='result'"
+            " data=foobar>",
+            repr(s)
+        )
+
+        s = stanza.IQ(
+            from_=TEST_FROM,
+            to=TEST_TO,
+            id_="someid",
+            type_="result")
+        self.assertEqual(
+            "<iq from='foo@example.test' to='bar@example.test'"
+            " id='someid' type='result'>",
+            repr(s)
+        )

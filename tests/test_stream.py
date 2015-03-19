@@ -1072,3 +1072,10 @@ class TestStanzaToken(unittest.TestCase):
         token = stream.StanzaToken(stanza)
         token.abort()
         token.abort()
+
+    def test_repr(self):
+        token = stream.StanzaToken(make_test_iq())
+        self.assertEqual(
+            "<StanzaToken id=0x{:016x}>".format(id(token)),
+            repr(token)
+        )
