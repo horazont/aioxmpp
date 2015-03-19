@@ -225,6 +225,33 @@ class TestPresence(unittest.TestCase):
         self.assertFalse(
             stanza.Presence.type_.required)
 
+    def test_show_attr(self):
+        self.assertIsInstance(
+            stanza.Presence.show,
+            xso.ChildText)
+        self.assertEqual(
+            (namespaces.client, "show"),
+            stanza.Presence.show.tag
+        )
+        self.assertEqual(
+            xso.ValidateMode.ALWAYS,
+            stanza.Presence.show.validate
+        )
+        self.assertIsInstance(
+            stanza.Presence.show.validator,
+            xso.RestrictToSet
+        )
+        self.assertSetEqual(
+            {
+                "dnd",
+                "away",
+                "xa",
+                None,
+                "chat",
+            },
+            stanza.Presence.show.validator.values
+        )
+
     def test_ext_attr(self):
         self.assertIsInstance(
             stanza.Presence.ext,

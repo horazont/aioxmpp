@@ -137,6 +137,18 @@ class Presence(StanzaBase):
             "unsubscribed"}),
         required=False,
     )
+
+    show = xso.ChildText(
+        tag=(namespaces.client, "show"),
+        validator=xso.RestrictToSet({
+            "dnd",
+            "xa",
+            "away",
+            None,
+            "chat",
+        }),
+        validate=xso.ValidateMode.ALWAYS
+    )
     ext = xso.ChildMap([])
 
     def __init__(self, *, type_=None, **kwargs):
