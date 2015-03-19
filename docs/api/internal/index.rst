@@ -8,6 +8,6 @@ Internal tools
    hooks
    network
    ssl_transport
-   stream_worker
+   stream
    stringprep
    xml

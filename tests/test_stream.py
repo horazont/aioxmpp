@@ -1033,7 +1033,6 @@ class TestStanzaStream(StanzaStreamTestBase):
         iqs = [make_test_iq(type_="result") for i in range(2)]
         futs = []
 
-
         for iq in iqs:
             fut = asyncio.Future()
             iq.autoset_id()
