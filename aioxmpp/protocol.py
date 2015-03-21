@@ -95,7 +95,7 @@ class XMLStream(asyncio.Protocol):
                 # this will raise an appropriate stream error
                 xml.XMPPLexicalHandler.startEntity("foo")
             raise errors.StreamError(
-                condition=(namespaces.streams, "not-well-formed"),
+                condition=(namespaces.streams, "bad-format"),
                 text=str(exc)
             )
         except errors.StreamError as exc:

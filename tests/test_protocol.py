@@ -218,7 +218,7 @@ class TestXMLStream(unittest.TestCase):
                 ]),
             TransportMock.Write(
                 STREAM_ERROR_TEMPLATE_WITH_TEXT.format(
-                    condition="not-well-formed",
+                    condition="bad-format",
                     text="&lt;unknown&gt;:1:149: not well-formed (invalid token)"
                 ).encode("utf-8")
             ),
