@@ -2729,6 +2729,14 @@ class TestXSOParser(XMLTestCase):
             p.get_tag_map()
         )
 
+        self.assertDictEqual(
+            {
+                Foo: cb1,
+                Bar: cb2
+            },
+            p.get_class_map()
+        )
+
     def test_add_class_forbid_duplicate_tags(self):
         class Foo(xso.XSO):
             TAG = "foo"

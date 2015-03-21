@@ -1256,6 +1256,19 @@ class XSOParser:
         """
         return self._tag_map
 
+    def get_class_map(self):
+        """
+        Return the internal mapping which maps classes to the associated
+        callbacks.
+
+        .. warning::
+
+           The results of modifying this dict are undefined. Make a copy if you
+           need to modify the result of this function.
+
+        """
+        return self._class_map
+
     def remove_class(self, cls):
         """
         Remove a XSO class *cls* from parsing. This method raises
