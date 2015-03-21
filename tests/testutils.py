@@ -8,11 +8,15 @@ import functools
 import logging
 import unittest
 import unittest.mock
+import sys
 
 from enum import Enum
 
 import aioxmpp.callbacks
 import aioxmpp.protocol
+import aioxmpp.xso as xso
+
+from aioxmpp.utils import etree
 
 
 def make_protocol_mock():
@@ -73,57 +77,11 @@ class SSLWrapperMock:
         pass
 
 
-_Write = collections.namedtuple("Write", ["data", "response"])
-GenericTransportAction = collections.namedtuple(
-    "GenericTransportAction",
-    ["response"])
-_LoseConnection = collections.namedtuple("LoseConnection", ["exc"])
-
-
-class TransportMock(asyncio.ReadTransport, asyncio.WriteTransport):
-    class Write(_Write):
-        def __new__(cls, data, *, response=None):
-            return _Write.__new__(cls, data=data, response=response)
-        replace = _Write._replace
-
-    class Abort(GenericTransportAction):
-        def __new__(cls, *, response=None):
-            return GenericTransportAction.__new__(cls, response=response)
-        replace = GenericTransportAction._replace
-
-    class WriteEof(GenericTransportAction):
-        def __new__(cls, *, response=None):
-            return GenericTransportAction.__new__(cls, response=response)
-        replace = GenericTransportAction._replace
-
-    class Receive(collections.namedtuple("Receive", ["data"])):
-        pass
-
-    class Close(GenericTransportAction):
-        def __new__(cls, *, response=None):
-            return GenericTransportAction.__new__(cls, response=response)
-        replace = GenericTransportAction._replace
-
-    class ReceiveEof:
-        def __repr__(self):
-            return "ReceiveEof()"
-
-    class MakeConnection:
-        def __repr__(self):
-            return "MakeConnection()"
-
-    class LoseConnection(_LoseConnection):
-        def __new__(cls, exc=None):
-            return _LoseConnection.__new__(cls, exc)
-
-    def __init__(self, tester, protocol, *, loop=None):
+class InteractivityMock:
+    def __init__(self, tester, *, loop=None):
+        super().__init__()
         self._loop = loop or asyncio.get_event_loop()
-        self._protocol = protocol
-        self._actions = None
         self._tester = tester
-        self._connection_made = False
-        self._rxd = []
-        self._queue = asyncio.Queue()
 
     def _check_done(self):
         if not self._done.done() and not self._actions:
@@ -141,6 +99,113 @@ class TransportMock(asyncio.ReadTransport, asyncio.WriteTransport):
                 self._check_done()
         self._loop.call_soon(wrap)
 
+    def _format_unexpected_action(self, action_name, reason):
+        return "unexpected {name} ({reason})".format(
+            name=action_name,
+            reason=reason
+        )
+
+    def _basic(self, name, action_cls):
+        self._tester.assertTrue(
+            self._actions,
+            self._format_unexpected_action(name, "no actions left"),
+        )
+        head = self._actions[0]
+        self._tester.assertIsInstance(
+            head, action_cls,
+            self._format_unexpected_action(name, "expected something else"),
+        )
+        self._actions.pop(0)
+        self._execute_response(head.response)
+
+    def _execute_response(self, response):
+        if response is None:
+            return
+
+        try:
+            do = response.do
+        except AttributeError:
+            # if we move the for-loop into the except block, *very* weird
+            # things happen. weird enough so that I decided to snapshot the
+            # state of the tree while I was debugging in the weird-things
+            # branch.
+            # Have a look if you’re brave.
+            if not hasattr(response, "__iter__"):
+                raise RuntimeError("test specification incorrect: "
+                                   "unknown response type: "+repr(response))
+        else:
+            self._execute_single(do)
+            return
+
+        for item in response:
+            self._execute_response(item)
+
+
+_Write = collections.namedtuple("Write", ["data", "response"])
+GenericTransportAction = collections.namedtuple(
+    "GenericTransportAction",
+    ["response"])
+_LoseConnection = collections.namedtuple("LoseConnection", ["exc"])
+
+
+class TransportMock(InteractivityMock,
+                    asyncio.ReadTransport,
+                    asyncio.WriteTransport):
+    class Write(_Write):
+        def __new__(cls, data, *, response=None):
+            return _Write.__new__(cls, data=data, response=response)
+        replace = _Write._replace
+
+    class Abort(GenericTransportAction):
+        def __new__(cls, *, response=None):
+            return GenericTransportAction.__new__(cls, response=response)
+        replace = GenericTransportAction._replace
+
+    class WriteEof(GenericTransportAction):
+        def __new__(cls, *, response=None):
+            return GenericTransportAction.__new__(cls, response=response)
+        replace = GenericTransportAction._replace
+
+    class Receive(collections.namedtuple("Receive", ["data"])):
+        def do(self, transport, protocol):
+            protocol.data_received(self.data)
+
+    class Close(GenericTransportAction):
+        def __new__(cls, *, response=None):
+            return GenericTransportAction.__new__(cls, response=response)
+        replace = GenericTransportAction._replace
+
+    class ReceiveEof:
+        def __repr__(self):
+            return "ReceiveEof()"
+
+        def do(self, transport, protocol):
+            protocol.eof_received()
+
+    class MakeConnection:
+        def __repr__(self):
+            return "MakeConnection()"
+
+        def do(self, transport, protocol):
+            transport._connection_made = True
+            protocol.connection_made(transport)
+
+    class LoseConnection(_LoseConnection):
+        def __new__(cls, exc=None):
+            return _LoseConnection.__new__(cls, exc)
+
+        def do(self, transport, protocol):
+            protocol.connection_lost(self.exc)
+            transport._connection_made = False
+
+    def __init__(self, tester, protocol, *, loop=None):
+        super().__init__(tester, loop=loop)
+        self._protocol = protocol
+        self._actions = None
+        self._connection_made = False
+        self._rxd = []
+        self._queue = asyncio.Queue()
+
     def _previously(self):
         buf = b"".join(self._rxd)
         result = [" (previously: "]
@@ -151,33 +216,23 @@ class TransportMock(asyncio.ReadTransport, asyncio.WriteTransport):
         result.append(")")
         return "".join(result)
 
-    def execute(self, response):
-        if isinstance(response, self.Receive):
-            self._protocol.data_received(response.data)
-        elif isinstance(response, self.ReceiveEof):
-            self._protocol.eof_received()
-        elif isinstance(response, self.LoseConnection):
-            self._protocol.connection_lost(response.exc)
-            self._connection_made = False
-        elif isinstance(response, self.MakeConnection):
-            self._connection_made = True
-            self._protocol.connection_made(self)
-        elif response is not None:
-            if hasattr(response, "__iter__"):
-                for item in response:
-                    self.execute(item)
-                return
-            raise RuntimeError("test specification incorrect: "
-                               "unknown response type: "+repr(response))
+    def _format_unexpected_action(self, action_name, reason):
+        return (
+            super()._format_unexpected_action(action_name, reason) +
+            self._previously()
+        )
+
+    def _execute_single(self, do):
+        do(self, self._protocol)
 
     @asyncio.coroutine
     def run_test(self, actions, stimulus=None, partial=False):
         self._done = asyncio.Future()
         self._actions = actions
         if not self._connection_made:
-            self.execute(self.MakeConnection())
+            self._execute_response(self.MakeConnection())
         if stimulus:
-            self.execute(self.Receive(stimulus))
+            self._execute_response(self.Receive(stimulus))
 
         while not self._queue.empty() or self._actions:
             done, pending = yield from asyncio.wait(
@@ -210,24 +265,14 @@ class TransportMock(asyncio.ReadTransport, asyncio.WriteTransport):
                 break
 
         if self._connection_made and not partial:
-            self.execute(self.LoseConnection())
+            self._execute_response(self.LoseConnection())
 
     def can_write_eof(self):
         return True
 
     @asyncio.coroutine
     def _write_eof(self):
-        self._tester.assertTrue(
-            self._actions,
-            "unexpected write_eof (no actions left)"+self._previously()
-        )
-        head = self._actions[0]
-        self._tester.assertIsInstance(
-            head, self.WriteEof,
-            "unexpected write_eof (expected something else)"+self._previously()
-        )
-        self._actions.pop(0)
-        self.execute(head.response)
+        self._basic("write_eof", self.WriteEof)
 
     @asyncio.coroutine
     def _write(self, data):
@@ -250,37 +295,17 @@ class TransportMock(asyncio.ReadTransport, asyncio.WriteTransport):
         expected_data = expected_data[len(data):]
         if not expected_data:
             self._actions.pop(0)
-            self.execute(head.response)
+            self._execute_response(head.response)
         else:
             self._actions[0] = head.replace(data=expected_data)
 
     @asyncio.coroutine
     def _abort(self):
-        self._tester.assertTrue(
-            self._actions,
-            "unexpected abort (no actions left)"+self._previously()
-        )
-        head = self._actions[0]
-        self._tester.assertIsInstance(
-            head, self.Abort,
-            "unexpected abort (expected something else)"+self._previously()
-        )
-        self._actions.pop(0)
-        self.execute(head.response)
+        self._basic("abort", self.Abort)
 
     @asyncio.coroutine
     def _close(self):
-        self._tester.assertTrue(
-            self._actions,
-            "unexpected close (no actions left)"+self._previously()
-        )
-        head = self._actions[0]
-        self._tester.assertIsInstance(
-            head, self.Close,
-            "unexpected close (expected something else)"+self._previously()
-        )
-        self._actions.pop(0)
-        self.execute(head.response)
+        self._basic("close", self.Close)
 
     def write(self, data):
         self._queue.put_nowait(("write", data))
@@ -295,77 +320,109 @@ class TransportMock(asyncio.ReadTransport, asyncio.WriteTransport):
         self._queue.put_nowait(("close", ))
 
 
-_Special = collections.namedtuple("Special", ["type_", "response"])
-_Node = collections.namedtuple("Node", ["type_", "response"])
+class XMLStreamMock(InteractivityMock):
+    class Receive(collections.namedtuple("Receive", ["obj"])):
+        def do(self, xmlstream):
+            clsmap = xmlstream.stanza_parser.get_class_map()
+            cls = type(self.obj)
+            xmlstream._tester.assertIn(
+                cls, clsmap,
+                "no handler registered for {}".format(cls)
+            )
+            clsmap[cls](self.obj)
 
+    class Send(collections.namedtuple("Send", ["obj", "response"])):
+        def __new__(cls, obj, *, response=None):
+            return super().__new__(cls, obj, response)
 
-class XMLStreamMock(aioxmpp.protocol.XMLStream):
-    class SpecialType(Enum):
-        CLOSE = 0
-        STARTTLS = 1
-        RESET = 2
+    class Reset(collections.namedtuple("Reset", ["response"])):
+        def __new__(cls, *, response=None):
+            return super().__new__(cls, response)
 
-    class Special(_Special):
-        def __new__(cls, type_, response=None):
-            return _Special.__new__(cls, type_, response)
-        replace = _Special._replace
+    class Close(collections.namedtuple("Close", ["response"])):
+        def __new__(cls, *, response=None):
+            return super().__new__(cls, response)
 
-    class Node(_Node):
-        pass
+    def __init__(self, tester, *, loop=None):
+        super().__init__(tester, loop=loop)
+        self._queue = asyncio.Queue()
+        self.stanza_parser = xso.XSOParser()
 
-    Special.CLOSE = Special(SpecialType.CLOSE)
-    Special.STARTTLS = Special(SpecialType.STARTTLS)
-    Special.RESET = Special(SpecialType.RESET)
+    def _execute_single(self, do):
+        do(self)
 
-    def __init__(self, tester, actions):
-        self._tester = tester
-        self._test_actions = actions
-        self._stream_level_node_hooks = aioxmpp.callbacks.TagDispatcher()
+    @asyncio.coroutine
+    def run_test(self, actions, stimulus=None):
+        self._done = asyncio.Future()
+        self._actions = actions
 
-    def _require_action(self):
+        self._execute_response(stimulus)
+
+        while not self._queue.empty() or self._actions:
+            done, pending = yield from asyncio.wait(
+                [
+                    self._queue.get(),
+                    self._done
+                ],
+                return_when=asyncio.FIRST_COMPLETED
+            )
+
+            if self._done not in pending:
+                # raise if error
+                self._done.result()
+                done.remove(self._done)
+
+            if done:
+                value_future = next(iter(done))
+                action, *args = value_future.result()
+                if action == "send":
+                    yield from self._send_stanza(*args)
+                elif action == "reset":
+                    yield from self._reset(*args)
+                elif action == "close":
+                    yield from self._close(*args)
+                else:
+                    assert False
+
+            if self._done not in pending:
+                break
+
+    @asyncio.coroutine
+    def _send_stanza(self, obj):
         self._tester.assertTrue(
-            self._test_actions,
-            "Unexpected client action (no actions left)")
+            self._actions,
+            self._format_unexpected_action("send_stanza", "no actions left")
+        )
+        head = self._actions[0]
+        self._tester.assertIsInstance(
+            head, self.Send,
+            self._format_unexpected_action(
+                "send_stanza",
+                "expected something different")
+        )
 
-    def _process_special(self, action):
-        self._require_action()
-        expected_action, response = self._test_actions.pop(0)
-        self._tester.assertIs(
-            action,
-            expected_action,
-            "Unexpected client action (incorrect action)")
-        return response
+        t1 = etree.Element("root")
+        obj.unparse_to_node(t1)
+        t2 = etree.Element("root")
+        head.obj.unparse_to_node(t2)
 
-    def _produce_response(self, response):
-        if response is not None:
-            self.mock_receive_node(response)
+        self._tester.assertSubtreeEqual(t1, t2)
+        self._actions.pop(0)
+        self._execute_response(head.response)
+
+    @asyncio.coroutine
+    def _reset(self):
+        self._basic("reset", self.Reset)
+
+    @asyncio.coroutine
+    def _close(self):
+        self._basic("close", self.Close)
+
+    def send_stanza(self, obj):
+        self._queue.put_nowait(("send", obj))
+
+    def reset(self):
+        self._queue.put_nowait(("reset",))
 
     def close(self):
-        response = self._process_special(self.SpecialType.CLOSE)
-        self._produce_response(response)
-
-    def reset_stream(self):
-        response = self._process_special(self.SpecialType.RESET)
-        self._produce_response(response)
-
-    def mock_finalize(self):
-        self._tester.assertFalse(
-            self._test_actions,
-            "Some expected actions were not performed")
-
-    def mock_receive_node(self, node):
-        try:
-            self._stream_level_node_hooks.unicast(node.tag, node)
-        except KeyError:
-            raise AssertionError(
-                "Client has no listener for node sent by test: {}".format(
-                    node.tag))
-
-    def _tx_send_node(self, node):
-        self._require_action()
-        expected_node, response = self._test_actions.pop(0)
-        self._tester.assertSubtreeEqual(expected_node, node)
-        self._produce_response(response)
-
-    def send_node(self, node):
-        return self._tx_send_node(node)
+        self._queue.put_nowait(("close",))

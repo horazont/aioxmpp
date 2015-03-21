@@ -9,6 +9,8 @@ from .testutils import (
 )
 from .xmltestutils import XMLTestCase
 
+import aioxmpp.xso as xso
+
 from aioxmpp.utils import etree
 
 
@@ -85,6 +87,31 @@ class TestTransportMock(unittest.TestCase):
                 TransportMock.Write(
                     b"bar",
                     response=TransportMock.Receive(b"baz")),
+                TransportMock.Close()
+            ],
+            stimulus=b"foo")
+
+    def test_request_multiresponse(self):
+        def data_received(data):
+            assert data in {b"foo", b"bar", b"baz"}
+            if data == b"foo":
+                self.t.write(b"bar")
+            elif data == b"bar":
+                self.t.write(b"baric")
+            elif data == b"baz":
+                self.t.close()
+
+        self.protocol.data_received = data_received
+        self._run_test(
+            self.t,
+            [
+                TransportMock.Write(
+                    b"bar",
+                    response=[
+                        TransportMock.Receive(b"bar"),
+                        TransportMock.Receive(b"baz")
+                    ]),
+                TransportMock.Write(b"baric"),
                 TransportMock.Close()
             ],
             stimulus=b"foo")
@@ -373,32 +400,6 @@ class TestTransportMock(unittest.TestCase):
                     TransportMock.Write(b"baz")
                 ])
 
-    def test_execute(self):
-        self.t.execute(TransportMock.Receive(b"foo"))
-        self.assertSequenceEqual(
-            [
-                unittest.mock.call.data_received(b"foo"),
-            ],
-            self.protocol.mock_calls)
-
-    def test_execute_connection_made(self):
-        self.t.execute(TransportMock.MakeConnection())
-        self.assertSequenceEqual(
-            [
-                unittest.mock.call.connection_made(self.t),
-            ],
-            self.protocol.mock_calls)
-
-    def test_execute_connection_made_mix(self):
-        self.t.execute(TransportMock.MakeConnection())
-        self._run_test(self.t, [])
-        self.assertSequenceEqual(
-            [
-                unittest.mock.call.connection_made(self.t),
-                unittest.mock.call.connection_lost(None),
-            ],
-            self.protocol.mock_calls)
-
     def test_detached_response(self):
         data = []
 
@@ -476,129 +477,137 @@ class TestTransportMock(unittest.TestCase):
         )
 
     def tearDown(self):
+        del self.t
+        del self.loop
         del self.protocol
 
 
 class TestXMLStreamMock(XMLTestCase):
-    def test_init(self):
-        m = XMLStreamMock(
-            self,
-            [
-                XMLStreamMock.Special.CLOSE
-            ])
+    def setUp(self):
+        class Cls(xso.XSO):
+            TAG = ("uri:foo", "foo")
+
+        self.Cls = Cls
+        self.loop = asyncio.get_event_loop()
+        self.xmlstream = XMLStreamMock(self, loop=self.loop)
+
+    def test_register_stanza_handler(self):
+        received = []
+
+        def handler(obj):
+            nonlocal received
+            received.append(obj)
+
+        obj = self.Cls()
+
+        self.xmlstream.stanza_parser.add_class(self.Cls, handler)
+
+        run_coroutine(self.xmlstream.run_test(
+            [],
+            stimulus=XMLStreamMock.Receive(obj)
+        ))
 
         self.assertSequenceEqual(
             [
-                XMLStreamMock.Special.CLOSE
+                obj
             ],
-            m._test_actions)
+            received
+        )
+
+    def test_send_stanza(self):
+        obj = self.Cls()
+
+        def handler(obj):
+            self.xmlstream.send_stanza(obj)
+
+        self.xmlstream.stanza_parser.add_class(self.Cls, handler)
+        run_coroutine(self.xmlstream.run_test(
+            [
+                XMLStreamMock.Send(obj),
+            ],
+            stimulus=XMLStreamMock.Receive(obj)
+        ))
+
+    def test_catch_missing_stanza_handler(self):
+        obj = self.Cls()
+
+        with self.assertRaisesRegexp(AssertionError, "no handler registered"):
+            run_coroutine(self.xmlstream.run_test(
+                [
+                ],
+                stimulus=XMLStreamMock.Receive(obj)
+            ))
+
+    def test_no_termination_on_missing_action(self):
+        obj = self.Cls()
+
+        with self.assertRaises(asyncio.TimeoutError):
+            run_coroutine(
+                self.xmlstream.run_test(
+                    [
+                        XMLStreamMock.Send(obj),
+                    ],
+                ),
+                timeout=0.05)
+
+    def test_catch_surplus_send(self):
+        self.xmlstream.send_stanza(self.Cls())
+
+        with self.assertRaisesRegexp(AssertionError,
+                                     "unexpected send_stanza"):
+            run_coroutine(self.xmlstream.run_test(
+                [
+                ],
+            ))
+
+    def test_reset(self):
+        obj = self.Cls()
+
+        def handler(obj):
+            self.xmlstream.reset()
+
+        self.xmlstream.stanza_parser.add_class(self.Cls, handler)
+        run_coroutine(self.xmlstream.run_test(
+            [
+                XMLStreamMock.Reset(),
+            ],
+            stimulus=XMLStreamMock.Receive(obj)
+        ))
+
+    def test_catch_surplus_reset(self):
+        self.xmlstream.reset()
+
+        with self.assertRaisesRegexp(AssertionError,
+                                     "unexpected reset"):
+            run_coroutine(self.xmlstream.run_test(
+                [
+                ],
+            ))
 
     def test_close(self):
-        m = XMLStreamMock(
-            self,
+        obj = self.Cls()
+
+        def handler(obj):
+            self.xmlstream.close()
+
+        self.xmlstream.stanza_parser.add_class(self.Cls, handler)
+        run_coroutine(self.xmlstream.run_test(
             [
-                XMLStreamMock.Special.CLOSE
-            ])
-        m.close()
+                XMLStreamMock.Close(),
+            ],
+            stimulus=XMLStreamMock.Receive(obj)
+        ))
 
-        m = XMLStreamMock(self, [])
-        with self.assertRaisesRegexp(AssertionError, "no actions left"):
-            m.close()
+    def test_catch_surplus_close(self):
+        self.xmlstream.close()
 
-        m = XMLStreamMock(
-            self,
-            [
-                XMLStreamMock.Special.RESET
-            ])
-        with self.assertRaisesRegexp(AssertionError, "incorrect action"):
-            m.close()
-
-    def test_reset_stream(self):
-        m = XMLStreamMock(
-            self,
-            [
-                XMLStreamMock.Special.RESET
-            ])
-        m.reset_stream()
-
-        m = XMLStreamMock(self, [])
-        with self.assertRaisesRegexp(AssertionError, "no actions left"):
-            m.reset_stream()
-
-    def test_reset_stream_with_response(self):
-        response_node = etree.fromstring("<foo/>")
-        m = XMLStreamMock(
-            self,
-            [
-                XMLStreamMock.Special.RESET.replace(
-                    response=response_node)
-            ])
-        mock = unittest.mock.Mock()
-        m.stream_level_hooks.add_callback("foo", mock)
-        m.reset_stream()
-        mock.assert_called_once_with(response_node)
-
-    def test_mock_finalize(self):
-        m = XMLStreamMock(self, [])
-        m.mock_finalize()
-
-        m = XMLStreamMock(self, [XMLStreamMock.Special.CLOSE])
         with self.assertRaisesRegexp(AssertionError,
-                                     "expected actions were not performed"):
-            m.mock_finalize()
+                                     "unexpected close"):
+            run_coroutine(self.xmlstream.run_test(
+                [
+                ],
+            ))
 
-    def test_mock_receive_node(self):
-        m = XMLStreamMock(self, [])
-        mock = unittest.mock.MagicMock()
-        node = etree.fromstring("<foo/>")
-        with self.assertRaisesRegexp(AssertionError, "no listener"):
-            m.mock_receive_node(node)
-        m.stream_level_hooks.add_callback("foo", mock)
-        m.mock_receive_node(node)
-        mock.assert_called_once_with(node)
-
-    def test_send_node_mismatch(self):
-        msg = etree.fromstring("<message/>")
-        m = XMLStreamMock(
-            self,
-            [
-                XMLStreamMock.Node(etree.fromstring("<iq/>"),
-                                   msg)
-            ])
-        mock = unittest.mock.MagicMock()
-        m.stream_level_hooks.add_callback("message", mock)
-        with self.assertRaises(AssertionError):
-            m.send_node(etree.fromstring("<foo />"))
-        mock.assert_not_called()
-
-    def test_send_node(self):
-        msg = etree.fromstring("<message/>")
-        m = XMLStreamMock(
-            self,
-            [
-                XMLStreamMock.Node(etree.fromstring("<iq/>"),
-                                   msg)
-            ])
-        mock = unittest.mock.MagicMock()
-        m.stream_level_hooks.add_callback("message", mock)
-        m.send_node(etree.fromstring("<iq />"))
-        mock.assert_called_once_with(msg)
-
-        with self.assertRaisesRegexp(AssertionError, "no actions left"):
-            m.send_node(etree.fromstring("<iq />"))
-
-    def test_some_sequence(self):
-        m = XMLStreamMock(
-            self,
-            [
-                XMLStreamMock.Special.RESET,
-                XMLStreamMock.Node(etree.fromstring("<iq/>"), None),
-                XMLStreamMock.Special.CLOSE,
-            ])
-
-        m.reset_stream()
-        m.send_node(etree.fromstring("<iq />"))
-        m.close()
-        m.mock_finalize()
-
-del TestXMLStreamMock
+    def tearDown(self):
+        del self.xmlstream
+        del self.loop
