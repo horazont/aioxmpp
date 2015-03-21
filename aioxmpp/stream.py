@@ -728,11 +728,8 @@ class StanzaStream:
 
         try:
             while True:
-                if self._next_ping_event_at is not None:
-                    timeout = self._next_ping_event_at - datetime.utcnow()
-                    if timeout.total_seconds() < 0:
-                        timeout = timedelta()
-                else:
+                timeout = self._next_ping_event_at - datetime.utcnow()
+                if timeout.total_seconds() < 0:
                     timeout = timedelta()
 
                 done, pending = yield from asyncio.wait(
@@ -755,10 +752,9 @@ class StanzaStream:
                         self._incoming_queue.get(),
                         loop=self._loop)
 
-                if self._next_ping_event_at is not None:
-                    timeout = self._next_ping_event_at - datetime.utcnow()
-                    if timeout.total_seconds() <= 0:
-                        self._process_ping_event(xmlstream)
+                timeout = self._next_ping_event_at - datetime.utcnow()
+                if timeout.total_seconds() <= 0:
+                    self._process_ping_event(xmlstream)
 
         finally:
             # make sure we rescue any stanzas which possibly have already been

@@ -1,4 +1,6 @@
 import asyncio
+import logging
+
 from enum import Enum
 
 import xml.sax as sax
@@ -20,10 +22,13 @@ class State(Enum):
 
 
 class XMLStream(asyncio.Protocol):
-    def __init__(self, to, sorted_attributes=False):
+    def __init__(self, to,
+                 sorted_attributes=False,
+                 base_logger=logging.getLogger("aioxmpp")):
         self._to = to
         self._sorted_attributes = sorted_attributes
         self._state = State.CLOSED
+        self._logger = base_logger.getChild("XMLStream")
         self.stanza_parser = xso.XSOParser()
         self.stanza_parser.add_class(stream_xsos.StreamError,
                                      self._rx_stream_error)
@@ -89,7 +94,21 @@ class XMLStream(asyncio.Protocol):
                     pyexpat.errors.XML_ERROR_UNDEFINED_ENTITY)):
                 # this will raise an appropriate stream error
                 xml.XMPPLexicalHandler.startEntity("foo")
+            raise errors.StreamError(
+                condition=(namespaces.streams, "not-well-formed"),
+                text=str(exc)
+            )
+        except errors.StreamError as exc:
             raise
+        except Exception as exc:
+            self._logger.exception(
+                "unexpected exception while parsing stanza"
+                " bubbled up through parser. stream so ded.")
+            raise errors.StreamError(
+                condition=(namespaces.streams, "internal-server-error"),
+                text="Internal error while parsing XML. Client logs have more"
+                     " details."
+            )
 
     def connection_made(self, transport):
         if self._state != State.CLOSED:

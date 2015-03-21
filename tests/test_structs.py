@@ -317,6 +317,16 @@ class TestPresenceState(unittest.TestCase):
             stanza_obj.show
         )
 
+        ps = structs.PresenceState()
+        ps.apply_to_stanza(stanza_obj)
+        self.assertEqual(
+            "unavailable",
+            stanza_obj.type_
+        )
+        self.assertIsNone(
+            stanza_obj.show
+        )
+
     def test_from_stanza(self):
         stanza_obj = stanza.Presence(type_=None)
         stanza_obj.show = "xa"

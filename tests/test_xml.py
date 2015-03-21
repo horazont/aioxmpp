@@ -977,6 +977,9 @@ class TestXMPPXMLProcessor(unittest.TestCase):
             nonlocal elements
             elements.append(obj)
 
+        class Child(xso.XSO):
+            TAG = ("uri:foo", "bar")
+
         class Foo(xso.XSO):
             TAG = ("uri:foo", "foo")
 
@@ -989,7 +992,9 @@ class TestXMPPXMLProcessor(unittest.TestCase):
                                  None,
                                  self.STREAM_HEADER_ATTRS)
         self.proc.startElementNS((None, "foo"), None, {})
+        self.proc.startElementNS((None, "bar"), None, {})
         self.proc.characters("foobar")
+        self.proc.endElementNS((None, "bar"), None)
         self.proc.endElementNS((None, "foo"), None)
 
         self.assertSequenceEqual(
@@ -1007,6 +1012,33 @@ class TestXMPPXMLProcessor(unittest.TestCase):
 
         self.proc.endElementNS(self.STREAM_HEADER_TAG, None)
         self.proc.endDocument()
+
+    def test_exception_reraise_without_handler(self):
+        elements = []
+
+        def recv(obj):
+            nonlocal elements
+            elements.append(obj)
+
+        class Child(xso.XSO):
+            TAG = ("uri:foo", "bar")
+
+        class Foo(xso.XSO):
+            TAG = ("uri:foo", "foo")
+
+        self.proc.stanza_parser = xso.XSOParser()
+        self.proc.stanza_parser.add_class(Foo, recv)
+        self.proc.startDocument()
+        self.proc.startElementNS(self.STREAM_HEADER_TAG,
+                                 None,
+                                 self.STREAM_HEADER_ATTRS)
+        self.proc.startElementNS((None, "foo"), None, {})
+        self.proc.startElementNS((None, "bar"), None, {})
+        self.proc.characters("foobar")
+        self.proc.endElementNS((None, "bar"), None)
+
+        with self.assertRaises(ValueError):
+            self.proc.endElementNS((None, "foo"), None)
 
     # def test_depth_limit(self):
     #     def dummy_parser():

@@ -59,6 +59,16 @@ class Child(xso.XSO):
 class FakeIQ(stanza.IQ):
     TAG = ("jabber:client", "iq")
 
+
+class RuntimeErrorRaisingStanza(stanza.StanzaBase):
+    TAG = ("jabber:client", "foo")
+
+    a = xso.Attr("a", required=True)
+
+    def xso_error_handler(self, *args):
+        raise RuntimeError("foobar")
+
+
 FakeIQ.register_child(FakeIQ.payload, Child)
 
 
@@ -190,6 +200,51 @@ class TestXMLStream(unittest.TestCase):
                 STREAM_ERROR_TEMPLATE_WITH_TEXT.format(
                     condition="restricted-xml",
                     text="non-predefined entities are not allowed in XMPP"
+                ).encode("utf-8")
+            ),
+            TransportMock.Write(b"</stream:stream>"),
+            TransportMock.WriteEof(),
+            TransportMock.Close()
+        ]))
+
+    def test_send_stream_error_on_malformed_xml(self):
+        t, p = self._make_stream(to=TEST_PEER)
+        run_coroutine(t.run_test([
+            TransportMock.Write(
+                STREAM_HEADER,
+                response=[
+                    TransportMock.Receive(self._make_peer_header()),
+                    TransportMock.Receive("<</>".encode("utf-8"))
+                ]),
+            TransportMock.Write(
+                STREAM_ERROR_TEMPLATE_WITH_TEXT.format(
+                    condition="not-well-formed",
+                    text="&lt;unknown&gt;:1:149: not well-formed (invalid token)"
+                ).encode("utf-8")
+            ),
+            TransportMock.Write(b"</stream:stream>"),
+            TransportMock.WriteEof(),
+            TransportMock.Close()
+        ]))
+
+    def test_error_propagation(self):
+        def cb(stanza):
+            pass
+
+        t, p = self._make_stream(to=TEST_PEER)
+        p.stanza_parser.add_class(RuntimeErrorRaisingStanza, cb)
+        run_coroutine(t.run_test([
+            TransportMock.Write(
+                STREAM_HEADER,
+                response=[
+                    TransportMock.Receive(self._make_peer_header()),
+                    TransportMock.Receive("<foo xmlns='jabber:client' />")
+                ]),
+            TransportMock.Write(
+                STREAM_ERROR_TEMPLATE_WITH_TEXT.format(
+                    condition="internal-server-error",
+                    text="Internal error while parsing XML. Client logs have "
+                         "more details."
                 ).encode("utf-8")
             ),
             TransportMock.Write(b"</stream:stream>"),

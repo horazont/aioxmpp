@@ -1,4 +1,5 @@
 import asyncio
+import time
 import unittest
 
 import aioxmpp.structs as structs
@@ -147,6 +148,54 @@ class TestStanzaStream(StanzaStreamTestBase):
         )
 
         self.stream.stop()
+
+    def test_ignore_unexpected_iq_result(self):
+        caught_exc = None
+
+        def failure_handler(exc):
+            nonlocal caught_exc
+            caught_exc = exc
+
+        iq = make_test_iq(type_="error")
+        iq.autoset_id()
+        self.stream.start(self.xmlstream)
+        self.stream.recv_stanza(iq)
+        run_coroutine(asyncio.sleep(0))
+        self.stream.stop()
+
+        self.assertIsNone(caught_exc)
+
+    def test_ignore_unexpected_message(self):
+        caught_exc = None
+
+        def failure_handler(exc):
+            nonlocal caught_exc
+            caught_exc = exc
+
+        msg = make_test_message()
+        msg.autoset_id()
+        self.stream.start(self.xmlstream)
+        self.stream.recv_stanza(msg)
+        run_coroutine(asyncio.sleep(0))
+        self.stream.stop()
+
+        self.assertIsNone(caught_exc)
+
+    def test_ignore_unexpected_presence(self):
+        caught_exc = None
+
+        def failure_handler(exc):
+            nonlocal caught_exc
+            caught_exc = exc
+
+        pres = make_test_presence()
+        pres.autoset_id()
+        self.stream.start(self.xmlstream)
+        self.stream.recv_stanza(pres)
+        run_coroutine(asyncio.sleep(0))
+        self.stream.stop()
+
+        self.assertIsNone(caught_exc)
 
     def test_queue_stanza(self):
         iq = make_test_iq(type_="get")
@@ -889,6 +938,41 @@ class TestStanzaStream(StanzaStreamTestBase):
         l1.append("foo")
         self.assertFalse(self.stream.sm_unacked_list)
 
+    def test_sm_ignore_late_remote_counter(self):
+        self.stream.start_sm()
+        self.stream.sm_ack(-1)
+
+    def test_nonsm_ignore_sm_ack(self):
+        caught_exc = None
+
+        def failure_handler(exc):
+            nonlocal caught_exc
+            caught_exc = exc
+
+        self.stream.start(self.xmlstream)
+        self.stream.recv_stanza(stream_xsos.SMAcknowledgement())
+        run_coroutine(asyncio.sleep(0))
+        self.stream.stop()
+
+        self.assertIsNone(caught_exc)
+
+    def test_nonsm_ignore_sm_req(self):
+        caught_exc = None
+
+        def failure_handler(exc):
+            nonlocal caught_exc
+            caught_exc = exc
+
+        self.stream.start(self.xmlstream)
+        self.stream.recv_stanza(stream_xsos.SMRequest())
+        run_coroutine(asyncio.sleep(0))
+        self.stream.stop()
+
+        with self.assertRaises(asyncio.QueueEmpty):
+            self.sent_stanzas.get_nowait()
+
+        self.assertIsNone(caught_exc)
+
     def test_nonsm_ping(self):
         self.stream.ping_interval = timedelta(seconds=0.01)
         self.stream.ping_opportunistic_interval = timedelta(seconds=0.01)
@@ -949,6 +1033,25 @@ class TestStanzaStream(StanzaStreamTestBase):
         run_coroutine(asyncio.sleep(0.011))
 
         self.assertIsNone(exc)
+
+    def test_nonsm_ping_send_delayed(self):
+        self.stream.ping_interval = timedelta(seconds=0.01)
+        self.stream.ping_opportunistic_interval = timedelta(seconds=0.01)
+
+        self.stream.start(self.xmlstream)
+        time.sleep(0.02)
+        run_coroutine(asyncio.sleep(0))
+
+        request = self.sent_stanzas.get_nowait()
+        self.assertIsInstance(
+            request,
+            stanza.IQ)
+        self.assertIsInstance(
+            request.payload,
+            xep0199.Ping)
+        self.assertEqual(
+            "get",
+            request.type_)
 
     def test_enqueue_stanza_returns_token(self):
         token = self.stream.enqueue_stanza(make_test_iq())
