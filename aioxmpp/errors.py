@@ -52,7 +52,7 @@ def format_error_text(
     if application_defined_condition is not None:
         error_tag += "/{}".format(application_defined_condition.tag)
     if text:
-        error_tag += " ({})".format(text)
+        error_tag += " ({!r})".format(text)
     return error_tag
 
 
