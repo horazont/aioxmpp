@@ -1,5 +1,6 @@
 import base64
 import random
+import sys
 
 from . import xso, errors
 
@@ -282,7 +283,14 @@ class IQ(StanzaBase):
     def xso_error_handler(self, descriptor, ev_args, exc_info):
         # raise a specific error if the payload failed to parse
         if descriptor == IQ.payload:
-            raise PayloadParsingError(self, ev_args)
+            print(exc_info)
+            print(sys.exc_info())
+            try:
+                raise PayloadParsingError(self, ev_args)
+            except Exception as err:
+                print(err)
+                print(err.__context__)
+                raise
         elif descriptor is None:
             raise UnknownIQPayload(self, ev_args)
 

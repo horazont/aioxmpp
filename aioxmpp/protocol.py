@@ -1,5 +1,7 @@
 import asyncio
 import logging
+import traceback
+import sys
 
 from enum import Enum
 
@@ -51,6 +53,10 @@ class XMLStream(asyncio.Protocol):
         try:
             raise exc
         except stanza.PayloadParsingError as exc:
+            print("payload parsing error")
+            print(sys.exc_info())
+            traceback.print_exc(file=sys.stdout)
+            print(exc.__context__)
             iq_response = exc.partial_obj.make_reply(type_="error")
             iq_response.error = stanza.Error(
                 condition=(namespaces.stanzas, "bad-request"),
@@ -59,6 +65,7 @@ class XMLStream(asyncio.Protocol):
             )
             self._writer.send(iq_response)
         except stanza.UnknownIQPayload as exc:
+            print("unknown iq payload")
             iq_response = exc.partial_obj.make_reply(type_="error")
             iq_response.error = stanza.Error(
                 condition=(namespaces.stanzas, "feature-not-implemented"),
@@ -66,12 +73,14 @@ class XMLStream(asyncio.Protocol):
             )
             self._writer.send(iq_response)
         except xso.UnknownTopLevelTag as exc:
+            print("unknown toplevel tag")
             raise errors.StreamError(
                 condition=(namespaces.streams, "unsupported-stanza-type"),
                 text="unsupported stanza: {}".format(
                     xso.tag_to_str((exc.ev_args[0], exc.ev_args[1]))
                 )) from None
         except:
+            print("re-raising")
             raise
 
     def _rx_stream_header(self):
