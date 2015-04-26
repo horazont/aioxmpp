@@ -1,3 +1,6 @@
+# This specific file can be used under the conditions of the Apache 2.0
+# license. The full license can be found in COPYING.apache20 in the root of
+# this software repository.
 """
 :mod:`ssl_transport` --- A transport for asyncio using :mod:`OpenSSL`
 #######################################################################
