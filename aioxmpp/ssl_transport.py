@@ -1,3 +1,6 @@
+# This specific file can be used under the conditions of the Apache 2.0
+# license. The full license can be found in COPYING.apache20 in the root of
+# this software repository.
 """
 :mod:`ssl_transport` --- A transport for asyncio using :mod:`OpenSSL`
 #######################################################################
@@ -439,7 +442,7 @@ class STARTTLSTransport(asyncio.Transport):
 
         if self._buffer:
             try:
-                nsent = self._sock.send(self._buffer)
+                nsent = self._sock.send(bytes(self._buffer))
             except (BlockingIOError, InterruptedError,
                     OpenSSL.SSL.WantWriteError):
                 nsent = 0
