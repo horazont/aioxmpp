@@ -343,10 +343,20 @@ class XMLStreamMock(InteractivityMock):
         def __new__(cls, *, response=None):
             return super().__new__(cls, response)
 
+    class STARTTLS(collections.namedtuple("STARTTLS", [
+            "ssl_context", "post_handshake_callback", "response"])):
+        def __new__(cls, ssl_context, post_handshake_callback,
+                    *, response=None):
+            return super().__new__(cls,
+                                   ssl_context,
+                                   post_handshake_callback,
+                                   response)
+
     def __init__(self, tester, *, loop=None):
         super().__init__(tester, loop=loop)
         self._queue = asyncio.Queue()
         self.stanza_parser = xso.XSOParser()
+        self.can_starttls_value = False
 
     def _execute_single(self, do):
         do(self)
@@ -381,6 +391,8 @@ class XMLStreamMock(InteractivityMock):
                     yield from self._reset(*args)
                 elif action == "close":
                     yield from self._close(*args)
+                elif action == "starttls":
+                    yield from self._starttls(*args)
                 else:
                     assert False
 
@@ -418,6 +430,38 @@ class XMLStreamMock(InteractivityMock):
     def _close(self):
         self._basic("close", self.Close)
 
+    @asyncio.coroutine
+    def _starttls(self, ssl_context, post_handshake_callback, fut):
+        self._tester.assertTrue(
+            self._actions,
+            self._format_unexpected_action("starttls", "no actions left"),
+        )
+        head = self._actions[0]
+        self._tester.assertIsInstance(
+            head, self.STARTTLS,
+            self._format_unexpected_action("starttls", "expected something else"),
+        )
+        self._actions.pop(0)
+
+        self._tester.assertEqual(
+            ssl_context,
+            head.ssl_context,
+            "mismatched starttls argument")
+        self._tester.assertEqual(
+            post_handshake_callback,
+            head.post_handshake_callback,
+            "mismatched starttls argument")
+
+        try:
+            yield from post_handshake_callback(self.transport)
+        except Exception as exc:
+            fut.set_exception(exc)
+            raise exc
+        else:
+            fut.set_result(None)
+
+        self._execute_response(head.response)
+
     def send_stanza(self, obj):
         self._queue.put_nowait(("send", obj))
 
@@ -426,3 +470,14 @@ class XMLStreamMock(InteractivityMock):
 
     def close(self):
         self._queue.put_nowait(("close",))
+
+    @asyncio.coroutine
+    def starttls(self, ssl_context, post_handshake_callback):
+        fut = asyncio.Future()
+        self._queue.put_nowait(
+            ("starttls", ssl_context, post_handshake_callback, fut)
+        )
+        yield from fut
+
+    def can_starttls(self):
+        return self.can_starttls_value

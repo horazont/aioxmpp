@@ -1,5 +1,6 @@
 import asyncio
 import unittest
+import unittest.mock
 
 from .testutils import (
     run_coroutine,
@@ -607,6 +608,90 @@ class TestXMLStreamMock(XMLTestCase):
                 [
                 ],
             ))
+
+    def test_starttls(self):
+        ssl_context = unittest.mock.MagicMock()
+        post_handshake_callback = unittest.mock.MagicMock()
+
+        self.xmlstream.transport = object()
+
+        run_coroutine(
+            asyncio.gather(
+                self.xmlstream.starttls(ssl_context, post_handshake_callback),
+                self.xmlstream.run_test(
+                    [
+                        XMLStreamMock.STARTTLS(
+                            ssl_context,
+                            post_handshake_callback)
+                    ],
+                )
+            )
+        )
+
+        post_handshake_callback.assert_called_once_with(
+            self.xmlstream.transport)
+
+    def test_starttls_reject_incorrect_arguments(self):
+        ssl_context = unittest.mock.MagicMock()
+        post_handshake_callback = unittest.mock.MagicMock()
+
+        self.xmlstream.transport = object()
+
+        with self.assertRaisesRegexp(AssertionError,
+                                     "mismatched starttls argument"):
+            run_coroutine(
+                asyncio.gather(
+                    self.xmlstream.starttls(object(), post_handshake_callback),
+                    self.xmlstream.run_test(
+                        [
+                            XMLStreamMock.STARTTLS(
+                                ssl_context,
+                                post_handshake_callback)
+                        ],
+                    )
+                )
+            )
+
+        with self.assertRaisesRegexp(AssertionError,
+                                     "mismatched starttls argument"):
+            run_coroutine(
+                asyncio.gather(
+                    self.xmlstream.starttls(ssl_context, object()),
+                    self.xmlstream.run_test(
+                        [
+                            XMLStreamMock.STARTTLS(
+                                ssl_context,
+                                post_handshake_callback)
+                        ],
+                    )
+                )
+            )
+
+    def test_starttls_propagates_exception_from_callback(self):
+        ssl_context = unittest.mock.MagicMock()
+        post_handshake_callback = unittest.mock.MagicMock()
+
+        self.xmlstream.transport = object()
+
+        exc = ValueError()
+        post_handshake_callback.side_effect = exc
+
+        caught_exception, other_result = run_coroutine(
+            asyncio.gather(
+                self.xmlstream.starttls(ssl_context, post_handshake_callback),
+                self.xmlstream.run_test(
+                    [
+                        XMLStreamMock.STARTTLS(
+                            ssl_context,
+                            post_handshake_callback)
+                    ],
+                ),
+                return_exceptions=True
+            )
+        )
+
+        self.assertIs(caught_exception, exc)
+        self.assertIs(other_result, exc)
 
     def tearDown(self):
         del self.xmlstream
