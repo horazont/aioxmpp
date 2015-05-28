@@ -125,6 +125,26 @@ class StreamFeatures(xso.XSO):
        such XSO is contained in the :class:`StreamFeatures` instance
        *stream_features*, :class:`KeyError` is raised.
 
+    .. method:: stream_features[FeatureClass] = feature
+
+       Replace the stream features belonging to the given *FeatureClass* with
+       the *feature* XSO.
+
+       If the *FeatureClass* does not match the type of the *feature* XSO, a
+       :class:`TypeError` is raised.
+
+       It is legal to leave the FeatureClass out by specifying ``...``
+       instead. In that case, the class is auto-detected from the *feature*
+       object assigned.
+
+    .. method:: del stream_features[FeatureClass]
+
+       If any feature of the given *FeatureClass* type is in the
+       *stream_features*, they are all removed.
+
+       Otherwise, :class:`KeyError` is raised, to stay consistent with other
+       mapping-like types.
+
     .. automethod:: get_feature
 
     .. automethod:: has_feature
@@ -152,6 +172,19 @@ class StreamFeatures(xso.XSO):
             return self.features[feature_cls.TAG][0]
         except IndexError:
             raise KeyError(feature_cls) from None
+
+    def __setitem__(self, feature_cls, feature):
+        if feature_cls is Ellipsis:
+            feature_cls = type(feature)
+        if not isinstance(feature, feature_cls):
+            raise ValueError("incorrect XSO class supplied")
+        self.features[feature_cls.TAG][:] = [feature]
+
+    def __delitem__(self, feature_cls):
+        items = self.features[feature_cls.TAG]
+        if not items:
+            raise KeyError(feature_cls)
+        items.clear()
 
     def has_feature(self, feature_cls):
         """

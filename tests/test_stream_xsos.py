@@ -100,6 +100,46 @@ class TestStreamFeatures(unittest.TestCase):
         self.assertIsNone(ctx.exception.__cause__)
         self.assertTrue(ctx.exception.__suppress_context__)
 
+    def test___delitem__(self):
+        class FakeFeature(xso.XSO):
+            TAG = ("uri:foo", "foo")
+
+        instance = FakeFeature()
+
+        features = stream_xsos.StreamFeatures()
+        features.features[FakeFeature.TAG].append(instance)
+
+        del features[FakeFeature]
+
+        with self.assertRaises(KeyError):
+            features[FakeFeature]
+
+        with self.assertRaises(KeyError):
+            del features[FakeFeature]
+
+    def test___setitem__(self):
+        class FakeFeature(xso.XSO):
+            TAG = ("uri:foo", "foo")
+
+        class NotAFeature(xso.XSO):
+            TAG = ("uri:foo", "foo")  # using the same tag here!
+
+        instance = FakeFeature()
+
+        features = stream_xsos.StreamFeatures()
+        features[...] = instance
+
+        self.assertIs(
+            instance,
+            features[FakeFeature]
+        )
+
+        with self.assertRaisesRegexp(ValueError, "incorrect XSO class"):
+            features[NotAFeature] = instance
+
+        del features[FakeFeature]
+
+
     def test_get_feature(self):
         class FakeFeature(xso.XSO):
             TAG = ("uri:foo", "foo")
