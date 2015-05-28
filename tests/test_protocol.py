@@ -505,6 +505,13 @@ class Testsend_and_wait_for(xmltestutils.XMLTestCase):
                 timeout=0.1
             )
 
+        with self.assertRaisesRegexp(AssertionError,
+                                     "no handler registered for"):
+            run_coroutine(self.xmlstream.run_test(
+                [],
+                stimulus=XMLStreamMock.Receive(instance)
+            ))
+
     def tearDown(self):
         del self.xmlstream
         del self.loop

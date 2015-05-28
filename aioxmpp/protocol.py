@@ -169,11 +169,14 @@ def send_and_wait_for(xmlstream, send, wait_for, timeout=None):
     fut = asyncio.Future()
     wait_for = list(wait_for)
 
+    def cleanup():
+        for anticipated_cls in wait_for:
+            xmlstream.stanza_parser.remove_class(anticipated_cls)
+
     def receive(obj):
         nonlocal fut
         fut.set_result(obj)
-        for anticipated_cls in wait_for:
-            xmlstream.stanza_parser.remove_class(anticipated_cls)
+        cleanup()
 
     for anticipated_cls in wait_for:
         xmlstream.stanza_parser.add_class(
@@ -183,7 +186,12 @@ def send_and_wait_for(xmlstream, send, wait_for, timeout=None):
     for to_send in send:
         xmlstream.send_stanza(to_send)
 
-    if timeout is not None and timeout >= 0:
-        return (yield from asyncio.wait_for(fut, timeout))
+    try:
+        if timeout is not None and timeout >= 0:
+            return (yield from asyncio.wait_for(fut, timeout))
 
-    return (yield from fut)
+        return (yield from fut)
+    except:
+        cleanup()
+        raise
+
