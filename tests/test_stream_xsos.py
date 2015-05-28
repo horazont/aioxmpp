@@ -109,11 +109,17 @@ class TestStreamFeatures(unittest.TestCase):
 
         instance = FakeFeature()
 
+        default = object()
+
         features = stream_xsos.StreamFeatures()
         features.features[FakeFeature.TAG].append(instance)
 
         self.assertIs(instance, features.get_feature(FakeFeature))
         self.assertIsNone(features.get_feature(NotAFeature))
+        self.assertIs(
+            default,
+            features.get_feature(NotAFeature, default=default)
+        )
 
     def test_has_feature(self):
         class FakeFeature(xso.XSO):
