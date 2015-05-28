@@ -11,7 +11,9 @@ import random
 import time
 
 from .stringprep import saslprep
-from . import utils, errors
+from . import errors, xso
+
+from .utils import namespaces
 
 logger = logging.getLogger(__name__)
 
@@ -69,6 +71,44 @@ except ImportError:
         return result[:dklen]
 
 
+class SASLAuth(xso.XSO):
+    TAG = (namespaces.sasl, "auth")
+
+    mechanism = xso.Attr("mechanism")
+    payload = xso.Text(type_=xso.Base64Binary(empty_as_equal=True))
+
+    def __init__(self, mechanism=None, payload=None):
+        super().__init__()
+        self.mechanism = mechanism
+        self.payload = payload
+
+
+class SASLChallenge(xso.XSO):
+    TAG = (namespaces.sasl, "challenge")
+
+
+class SASLResponse(xso.XSO):
+    TAG = (namespaces.sasl, "response")
+
+    payload = xso.Text(type_=xso.Base64Binary(empty_as_equal=True))
+
+    def __init__(self, payload=None):
+        super().__init__()
+        self.payload = payload
+
+
+class SASLFailure(xso.XSO):
+    TAG = (namespaces.sasl, "failure")
+
+
+class SASLSuccess(xso.XSO):
+    TAG = (namespaces.sasl, "success")
+
+
+class SASLAbort(xso.XSO):
+    TAG = (namespaces.sasl, "abort")
+
+
 class SASLStateMachine:
     """
     A state machine to reduce code duplication during SASL handshake.
@@ -94,8 +134,6 @@ class SASLStateMachine:
         self.xmlstream = xmlstream
         self._state = "initial"
         self.timeout = None
-        self.E = self.xmlstream.tx_context.default_ns_builder(
-            utils.namespaces.sasl)
 
     @asyncio.coroutine
     def _send_sasl_node_and_wait_for(self, node):
@@ -150,14 +188,9 @@ class SASLStateMachine:
         if self._state != "initial":
             raise ValueError("initiate has already been called")
 
-        node = self.E("auth", mechanism=mechanism)
-        if payload is not None:
-            if not payload:  # empty payload
-                node.text = "="
-            else:
-                node.text = base64.b64encode(payload)
-
-        result = yield from self._send_sasl_node_and_wait_for(node)
+        result = yield from self._send_sasl_node_and_wait_for(
+            SASLAuth(mechanism=mechanism,
+                     payload=payload))
         return result
 
     @asyncio.coroutine
@@ -175,7 +208,7 @@ class SASLStateMachine:
                 "No challenge has been made or negotiation failed")
 
         result = yield from self._send_sasl_node_and_wait_for(
-            self.E("response", base64.b64encode(payload).decode("ascii"))
+            SASLResponse(payload=payload)
         )
         return result
 
@@ -190,7 +223,7 @@ class SASLStateMachine:
 
         try:
             next_state, payload = yield from self._send_sasl_node_and_wait_for(
-                self.E("abort")
+                SASLAbort()
             )
         except errors.SASLFailure as err:
             self._state = "failure"
