@@ -60,8 +60,8 @@ General functions
 
 .. currentmodule:: aioxmpp.xso
 
-Object declaration with :mod:`~aioxmpp.xso.model`
-=================================================
+Object declaration with :mod:`aioxmpp.xso.model`
+================================================
 
 This module provides facilities to create classes which map to full XML stream
 subtrees (for example stanzas including payload).
@@ -89,7 +89,7 @@ Scalar descriptors
 
 .. autoclass:: Child(classes, default=None)
 
-.. autoclass:: ChildTag(tags, *, text_policy=UnknownTextPolicy.FAIL, child_policy=UnknownChildPolicy.FAILattr_policy=UnknownAttrPolicy.FAIL, default_ns=None, default=None, allow_none=False)
+.. autoclass:: ChildTag(tags, *, text_policy=UnknownTextPolicy.FAIL, child_policy=UnknownChildPolicy.FAIL, attr_policy=UnknownAttrPolicy.FAIL, default_ns=None, default=None, allow_none=False)
 
 .. autoclass:: ChildText(tag, child_policy=UnknownChildPolicy.FAIL, attr_policy=UnknownAttrPolicy.FAIL, type_=xso.String(), default=None, validator=None, validate=ValidateMode.FROM_RECV)
 
