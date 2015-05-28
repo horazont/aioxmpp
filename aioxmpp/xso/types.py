@@ -155,12 +155,21 @@ class Base64Binary(AbstractType):
     """
     Parse the value as base64 and return the :class:`bytes` object obtained
     from decoding.
+
+    If *empty_as_equal* is :data:`True`, an empty value is represented using a
+    single equal sign. This is used in the SASL protocol.
     """
+
+    def __init__(self, *, empty_as_equal=False):
+        super().__init__()
+        self._empty_as_equal = empty_as_equal
 
     def parse(self, v):
         return base64.b64decode(v)
 
     def format(self, v):
+        if self._empty_as_equal and not v:
+            return "="
         return base64.b64encode(v).decode("ascii")
 
 

@@ -235,11 +235,36 @@ class TestBase64Binary(unittest.TestCase):
             t.parse("Zm5vcmQ=")
         )
 
+    def test_parse_empty(self):
+        t = xso.Base64Binary()
+        self.assertEqual(
+            b"",
+            t.parse("")
+        )
+        self.assertEqual(
+            b"",
+            t.parse("=")
+        )
+
     def test_format(self):
         t = xso.Base64Binary()
         self.assertEqual(
             "Zm5vcmQ=",
             t.format(b"fnord")
+        )
+
+    def test_format_empty_default(self):
+        t = xso.Base64Binary()
+        self.assertEqual(
+            "",
+            t.format(b"")
+        )
+
+    def test_format_empty_with_empty_as_equal_flag(self):
+        t = xso.Base64Binary(empty_as_equal=True)
+        self.assertEqual(
+            "=",
+            t.format(b"")
         )
 
     def test_format_long(self):
