@@ -330,6 +330,27 @@ class STARTTLSProvider:
         return self._fail_if_required("STARTTLS failed on remote side")
 
 
+class SASLMechanism(xso.XSO):
+    TAG = (namespaces.sasl, "mechansims")
+
+    name = xso.Text()
+
+    def __init__(self, name=None):
+        super().__init__()
+        self.name = name
+
+class SASLMechanisms(xso.XSO):
+    TAG = (namespaces.sasl, "mechansims")
+
+    mechanisms = xso.ChildList([SASLMechanism])
+
+    def get_mechanism_list(self):
+        return [
+            mechanism.name
+            for mechanism in self.mechanisms
+        ]
+
+
 class SASLProvider:
     def _find_supported(self, features, mechanism_classes):
         """
@@ -344,19 +365,13 @@ class SASLProvider:
         """
 
         try:
-            mechanisms = features.require_feature("{{{}}}mechanisms".format(
-                namespaces.sasl))
+            mechanisms = features[SASLMechanisms]
         except KeyError:
             logger.error("No sasl mechanisms: %r", list(features))
             raise errors.SASLUnavailable(
                 "Remote side does not support SASL") from None
 
-        remote_mechanism_list = [
-            mechanism.text
-            for mechanism in mechanisms.iterchildren(
-                "{{{}}}mechanism".format(namespaces.sasl))
-            if mechanism.text
-        ]
+        remote_mechanism_list = mechanisms.get_mechanism_list()
 
         for our_mechanism in mechanism_classes:
             token = our_mechanism.any_supported(remote_mechanism_list)
@@ -450,7 +465,7 @@ class PasswordSASLProvider(SASLProvider):
                 features,
                 xmlstream,
                 tls_transport):
-        client_jid = client_jid.bare
+        client_jid = client_jid.bare()
 
         password_signalled_abort = False
         nattempt = 0

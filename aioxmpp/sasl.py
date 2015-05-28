@@ -11,7 +11,7 @@ import random
 import time
 
 from .stringprep import saslprep
-from . import errors, xso
+from . import errors, xso, protocol
 
 from .utils import namespaces
 
@@ -100,6 +100,36 @@ class SASLResponse(xso.XSO):
 class SASLFailure(xso.XSO):
     TAG = (namespaces.sasl, "failure")
 
+    condition = xso.ChildTag(
+        tags=[
+            "aborted",
+            "account-disabled",
+            "credentials-expired",
+            "encryption-required",
+            "incorrect-encoding",
+            "invalid-authzid",
+            "invalid-mechanism",
+            "malformed-request",
+            "mechanism-too-weak",
+            "not-authorized",
+            "temporary-auth-failure",
+        ],
+        default_ns=namespaces.sasl,
+        allow_none=False,
+        default=(namespaces.sasl, "temporary-auth-failure"),
+        declare_prefix=None,
+    )
+    text = xso.ChildText(
+        tag=(namespaces.sasl, "text"),
+        attr_policy=xso.UnknownAttrPolicy.DROP,
+        default=None,
+        declare_prefix=None)
+
+    def __init__(self, condition=None):
+        super().__init__()
+        if condition is not None:
+            self.condition = condition
+
 
 class SASLSuccess(xso.XSO):
     TAG = (namespaces.sasl, "success")
@@ -137,31 +167,28 @@ class SASLStateMachine:
 
     @asyncio.coroutine
     def _send_sasl_node_and_wait_for(self, node):
-        node = yield from self.xmlstream.send_and_wait_for(
+        node = yield from protocol.send_and_wait_for(
+            self.xmlstream,
             [node],
             [
-                "{urn:ietf:params:xml:ns:xmpp-sasl}challenge",
-                "{urn:ietf:params:xml:ns:xmpp-sasl}failure",
-                "{urn:ietf:params:xml:ns:xmpp-sasl}success",
+                SASLChallenge,
+                SASLFailure,
+                SASLSuccess
             ],
             timeout=self.timeout
         )
 
-        _, state = utils.split_tag(node.tag)
+        state = node.TAG[1]
 
         self._state = state
 
         if state == "failure":
-            xmpp_error = node[0].tag.partition("}")[2]
-            text_node = node.find("{urn:ietf:params:xml:ns:xmpp-sasl}text")
-            if text_node is not None:
-                text = text_node.text
-            else:
-                text = None
+            xmpp_error = node.condition[1]
+            text = node.text
             raise errors.SASLFailure(xmpp_error, text=text)
 
-        if node.text is not None:
-            payload = base64.b64decode(node.text.encode("ascii"))
+        if hasattr(node, "payload"):
+            payload = node.payload
         else:
             payload = None
 

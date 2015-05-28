@@ -10,6 +10,8 @@ import aioxmpp.sasl as sasl
 import aioxmpp.xml as xml
 import aioxmpp.errors as errors
 
+from aioxmpp.utils import namespaces
+
 from . import testutils
 
 
@@ -66,6 +68,44 @@ class SASLStateMachineMock(sasl.SASLStateMachine):
             self._action_sequence,
             "Not all actions performed")
 
+
+class TestSASLAuth(unittest.TestCase):
+    def test_init(self):
+        obj = sasl.SASLAuth(mechanism="foo", payload=b"bar")
+        self.assertEqual("foo", obj.mechanism)
+        self.assertEqual(b"bar", obj.payload)
+
+    def test_default_init(self):
+        obj = sasl.SASLAuth()
+        self.assertIsNone(obj.mechanism)
+        self.assertIsNone(obj.payload)
+
+
+class TestSASLResponse(unittest.TestCase):
+    def test_init(self):
+        obj = sasl.SASLResponse(payload=b"bar")
+        self.assertEqual(b"bar", obj.payload)
+
+    def test_default_init(self):
+        obj = sasl.SASLResponse()
+        self.assertIsNone(obj.payload)
+
+
+class TestSASLFailure(unittest.TestCase):
+    def test_init(self):
+        obj = sasl.SASLFailure(condition=(namespaces.sasl,
+                                          "invalid-mechanism"))
+        self.assertEqual(
+            (namespaces.sasl, "invalid-mechanism"),
+            obj.condition)
+
+    def test_default_init(self):
+        obj = sasl.SASLFailure()
+        self.assertEqual(
+            (namespaces.sasl, "temporary-auth-failure"),
+            obj.condition)
+
+
 class TestPLAIN(unittest.TestCase):
     def test_rfc(self):
         user = "tim"
@@ -94,6 +134,7 @@ class TestPLAIN(unittest.TestCase):
         asyncio.get_event_loop().run_until_complete(run())
 
         smmock.finalize()
+
 
 class TestSCRAM(unittest.TestCase):
     def setUp(self):
@@ -262,3 +303,7 @@ class TestSCRAM(unittest.TestCase):
             "signature",
             str(ctx.exception).lower()
         )
+
+    def tearDown(self):
+        import random
+        sasl._system_random = random.SystemRandom()
