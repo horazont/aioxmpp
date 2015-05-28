@@ -58,6 +58,46 @@ class StreamError(xso.XSO):
             text=self.text)
 
 
+class StreamFeatures(xso.XSO):
+    """
+    XSO for collecting the supported stream features the remote advertises.
+
+    To register a stream feature, use :meth:`register_child` with the
+    :attr:`features` descriptor. A more fancy way to do the same thing is to
+    """
+
+    TAG = (namespaces.xmlstream, "features")
+    DECLARE_NS = {
+        None: namespaces.xmlstream
+    }
+
+    # we drop unknown children
+    UNKNOWN_CHILD_POLICY = xso.UnknownChildPolicy.DROP
+
+    features = xso.ChildMap([])
+
+    @classmethod
+    def as_feature_class(cls, other_cls):
+        cls.register_child(cls.features, other_cls)
+        return other_cls
+
+    def __getitem__(self, feature_cls):
+        tag = feature_cls.TAG
+        try:
+            return self.features[feature_cls.TAG][0]
+        except IndexError:
+            raise KeyError(feature_cls) from None
+
+    def has_feature(self, feature_cls):
+        return feature_cls.TAG in self.features
+
+    def get_feature(self, feature_cls):
+        try:
+            return self[feature_cls]
+        except KeyError:
+            return None
+
+
 class SMXSO(xso.XSO):
     DECLARE_NS = {
         None: namespaces.stream_management
