@@ -195,3 +195,30 @@ def send_and_wait_for(xmlstream, send, wait_for, timeout=None):
         cleanup()
         raise
 
+
+@asyncio.coroutine
+def reset_stream_and_get_features(xmlstream, timeout=None):
+    fut = asyncio.Future()
+
+    def cleanup():
+        xmlstream.stanza_parser.remove_class(stream_xsos.StreamFeatures)
+
+    def receive(obj):
+        nonlocal fut
+        fut.set_result(obj)
+        cleanup()
+
+    xmlstream.stanza_parser.add_class(
+        stream_xsos.StreamFeatures,
+        receive)
+
+    xmlstream.reset()
+
+    try:
+        if timeout is not None and timeout >= 0:
+            return (yield from asyncio.wait_for(fut, timeout))
+
+        return (yield from fut)
+    except:
+        cleanup()
+        raise

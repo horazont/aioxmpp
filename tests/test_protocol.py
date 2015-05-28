@@ -4,6 +4,7 @@ import unittest.mock
 
 import aioxmpp.stanza as stanza
 import aioxmpp.xso as xso
+import aioxmpp.stream_xsos as stream_xsos
 
 from .testutils import TransportMock, run_coroutine, XMLStreamMock
 from . import xmltestutils
@@ -510,6 +511,76 @@ class Testsend_and_wait_for(xmltestutils.XMLTestCase):
             run_coroutine(self.xmlstream.run_test(
                 [],
                 stimulus=XMLStreamMock.Receive(instance)
+            ))
+
+    def tearDown(self):
+        del self.xmlstream
+        del self.loop
+
+
+class Testreset_stream_and_get_features(xmltestutils.XMLTestCase):
+    def setUp(self):
+        self.loop = asyncio.get_event_loop()
+        self.xmlstream = XMLStreamMock(self, loop=self.loop)
+
+    def _run_test(self, actions, stimulus=None,
+                  timeout=None):
+        return run_coroutine(
+            asyncio.gather(
+                protocol.reset_stream_and_get_features(
+                    self.xmlstream,
+                    timeout=timeout),
+                self.xmlstream.run_test(
+                    actions,
+                    stimulus=stimulus)
+            )
+        )[0]
+
+    def test_send_and_return_features(self):
+        features = stream_xsos.StreamFeatures()
+
+        result = self._run_test(
+            [
+                XMLStreamMock.Reset(
+                    response=XMLStreamMock.Receive(features)
+                )
+            ]
+        )
+
+        self.assertIs(result, features)
+
+    def test_receive_exactly_one(self):
+        features = stream_xsos.StreamFeatures()
+
+        with self.assertRaisesRegexp(AssertionError,
+                                     "no handler registered for"):
+            self._run_test(
+                [
+                    XMLStreamMock.Reset(
+                        response=[
+                            XMLStreamMock.Receive(features),
+                            XMLStreamMock.Receive(features),
+                        ]
+                    )
+                ]
+            )
+
+    def test_timeout(self):
+        features = stream_xsos.StreamFeatures()
+
+        with self.assertRaises(asyncio.TimeoutError):
+            self._run_test(
+                [
+                    XMLStreamMock.Reset()
+                ],
+                timeout=0.1
+            )
+
+        with self.assertRaisesRegexp(AssertionError,
+                                     "no handler registered for"):
+            run_coroutine(self.xmlstream.run_test(
+                [],
+                stimulus=XMLStreamMock.Receive(features)
             ))
 
     def tearDown(self):
