@@ -576,7 +576,8 @@ def negotiate_stream_security(tls_provider, sasl_providers,
     tls_transport = yield from tls_provider.execute(jid, features, xmlstream)
 
     if tls_transport is not None:
-        features = yield from xmlstream.reset_stream_and_get_features(
+        features = yield from protocol.reset_stream_and_get_features(
+            xmlstream,
             timeout=negotiation_timeout)
 
     last_auth_error = None
@@ -589,7 +590,8 @@ def negotiate_stream_security(tls_provider, sasl_providers,
             continue
 
         if result:
-            features = yield from xmlstream.reset_stream_and_get_features(
+            features = yield from protocol.reset_stream_and_get_features(
+                xmlstream,
                 timeout=negotiation_timeout)
             break
     else:
