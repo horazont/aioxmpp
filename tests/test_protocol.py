@@ -410,13 +410,15 @@ class Testsend_and_wait_for(xmltestutils.XMLTestCase):
         self.loop = asyncio.get_event_loop()
         self.xmlstream = XMLStreamMock(self, loop=self.loop)
 
-    def _run_test(self, send, wait_for, actions, stimulus=None):
+    def _run_test(self, send, wait_for, actions, stimulus=None,
+                  timeout=None):
         return run_coroutine(
             asyncio.gather(
                 protocol.send_and_wait_for(
                     self.xmlstream,
                     send,
-                    wait_for),
+                    wait_for,
+                    timeout=timeout),
                 self.xmlstream.run_test(
                     actions,
                     stimulus=stimulus)
@@ -476,6 +478,31 @@ class Testsend_and_wait_for(xmltestutils.XMLTestCase):
                         ]
                     )
                 ]
+            )
+
+    def test_timeout(self):
+        class Q(xso.XSO):
+            TAG = ("uri:foo", "Q")
+
+        class R(xso.XSO):
+            TAG = ("uri:foo", "R")
+
+        instance = R()
+
+        with self.assertRaises(asyncio.TimeoutError):
+            self._run_test(
+                [
+                    Q(),
+                ],
+                [
+                    R
+                ],
+                [
+                    XMLStreamMock.Send(
+                        Q(),
+                    )
+                ],
+                timeout=0.1
             )
 
     def tearDown(self):
