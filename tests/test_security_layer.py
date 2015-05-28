@@ -737,3 +737,26 @@ class Testnegotiate_stream_security(xmltestutils.XMLTestCase):
             self.post_tls_features,
             self.xmlstream,
             self.transport)
+
+
+class Testsecurity_layer(unittest.TestCase):
+    def test_sanity_checks_on_providers(self):
+        with self.assertRaises(AttributeError):
+            security_layer.security_layer(object(), [unittest.mock.MagicMock()])
+        with self.assertRaises(AttributeError):
+            security_layer.security_layer(unittest.mock.MagicMock(), [object()])
+
+    def test_require_sasl_provider(self):
+        with self.assertRaises(ValueError):
+            security_layer.security_layer(unittest.mock.MagicMock(), [])
+
+    @unittest.mock.patch("functools.partial")
+    def test_uses_partial(self, partial):
+        tls_provider = unittest.mock.MagicMock()
+        sasl_providers = [unittest.mock.MagicMock()]
+        security_layer.security_layer(tls_provider, sasl_providers)
+
+        partial.assert_called_once_with(
+            security_layer.negotiate_stream_security,
+            tls_provider,
+            sasl_providers)
