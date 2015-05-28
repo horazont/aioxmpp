@@ -1,14 +1,17 @@
+import asyncio
 import unittest
 import unittest.mock
 
 import aioxmpp.stanza as stanza
 import aioxmpp.xso as xso
 
-from .testutils import TransportMock, run_coroutine
+from .testutils import TransportMock, run_coroutine, XMLStreamMock
+from . import xmltestutils
 
 from aioxmpp.protocol import XMLStream
 from aioxmpp.structs import JID
 
+import aioxmpp.protocol as protocol
 
 TEST_FROM = JID.fromstr("foo@bar.example")
 TEST_PEER = JID.fromstr("bar.example")
@@ -400,3 +403,81 @@ class TestXMLStream(unittest.TestCase):
                 partial=True
             )
         )
+
+
+class Testsend_and_wait_for(xmltestutils.XMLTestCase):
+    def setUp(self):
+        self.loop = asyncio.get_event_loop()
+        self.xmlstream = XMLStreamMock(self, loop=self.loop)
+
+    def _run_test(self, send, wait_for, actions, stimulus=None):
+        return run_coroutine(
+            asyncio.gather(
+                protocol.send_and_wait_for(
+                    self.xmlstream,
+                    send,
+                    wait_for),
+                self.xmlstream.run_test(
+                    actions,
+                    stimulus=stimulus)
+            )
+        )[0]
+
+    def test_send_and_return_response(self):
+        class Q(xso.XSO):
+            TAG = ("uri:foo", "Q")
+
+        class R(xso.XSO):
+            TAG = ("uri:foo", "R")
+
+        instance = R()
+
+        result = self._run_test(
+            [
+                Q(),
+            ],
+            [
+                R
+            ],
+            [
+                XMLStreamMock.Send(
+                    Q(),
+                    response=XMLStreamMock.Receive(instance)
+                )
+            ]
+        )
+
+        self.assertIs(result, instance)
+
+    def test_receive_exactly_one(self):
+        class Q(xso.XSO):
+            TAG = ("uri:foo", "Q")
+
+        class R(xso.XSO):
+            TAG = ("uri:foo", "R")
+
+        instance = R()
+
+        with self.assertRaisesRegexp(AssertionError,
+                                     "no handler registered for"):
+            self._run_test(
+                [
+                    Q(),
+                ],
+                [
+                    R
+                ],
+                [
+                    XMLStreamMock.Send(
+                        Q(),
+                        response=[
+                            XMLStreamMock.Receive(instance),
+                            XMLStreamMock.Receive(instance),
+                        ]
+                    )
+                ]
+            )
+
+    def tearDown(self):
+        del self.xmlstream
+        del self.loop

@@ -162,3 +162,25 @@ class XMLStream(asyncio.Protocol):
 
     def send_stanza(self, obj):
         self._writer.send(obj)
+
+
+@asyncio.coroutine
+def send_and_wait_for(xmlstream, send, wait_for):
+    fut = asyncio.Future()
+    wait_for = list(wait_for)
+
+    def receive(obj):
+        nonlocal fut
+        fut.set_result(obj)
+        for anticipated_cls in wait_for:
+            xmlstream.stanza_parser.remove_class(anticipated_cls)
+
+    for anticipated_cls in wait_for:
+        xmlstream.stanza_parser.add_class(
+            anticipated_cls,
+            receive)
+
+    for to_send in send:
+        xmlstream.send_stanza(to_send)
+
+    return (yield from fut)
