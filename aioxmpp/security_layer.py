@@ -76,7 +76,7 @@ import pyasn1_modules.rfc2459
 
 import OpenSSL.SSL
 
-from . import errors, sasl
+from . import errors, sasl, stream_xsos, xso, protocol
 from .utils import namespaces
 
 logger = logging.getLogger(__name__)
@@ -207,6 +207,28 @@ class ErrorRecordingVerifier(CertificateVerifier):
                     ", ".join(map(str, self._errors))))
 
 
+@stream_xsos.StreamFeatures.as_feature_class
+class STARTTLSFeature(xso.XSO):
+    class STARTTLSRequired(xso.XSO):
+        TAG = (namespaces.starttls, "required")
+
+    TAG = (namespaces.starttls, "starttls")
+
+    required = xso.Child([STARTTLSRequired])
+
+
+class STARTTLS(xso.XSO):
+    TAG = (namespaces.starttls, "starttls")
+
+
+class STARTTLSFailure(xso.XSO):
+    TAG = (namespaces.starttls, "failure")
+
+
+class STARTTLSProceed(xso.XSO):
+    TAG = (namespaces.starttls, "proceed")
+
+
 class STARTTLSProvider:
     """
     A TLS provider to negotiate STARTTLS on an existing XML stream. This
@@ -242,8 +264,8 @@ class STARTTLSProvider:
         self._ssl_context_factory = ssl_context_factory
         self._required = require_starttls
 
-    def _fail_if_required(self, msg):
-        if self._required:
+    def _fail_if_required(self, msg, peer_requires=False):
+        if self._required or peer_requires:
             raise errors.TLSUnavailable(msg)
         return None
 
@@ -260,31 +282,30 @@ class STARTTLSProvider:
         element are the new stream features received after STARTTLS
         negotiation.
         """
-        E = xmlstream.tx_context.default_ns_builder(namespaces.starttls)
 
         try:
-            features.require_feature(
-                "{{{}}}starttls".format(namespaces.starttls)
-            )
+            feature = features[STARTTLSFeature]
         except KeyError:
             return self._fail_if_required("STARTTLS not supported by peer")
 
-        if not hasattr(xmlstream.transport, "starttls"):
-            return self._fail_if_required("STARTTLS not supported by us")
+        if not xmlstream.can_starttls():
+            return self._fail_if_required(
+                "STARTTLS not supported by us",
+                peer_requires=bool(feature.required)
+            )
 
-        node = yield from xmlstream.send_and_wait_for(
+        response = yield from protocol.send_and_wait_for(
+            xmlstream,
             [
-                E("starttls")
+                STARTTLS()
             ],
             [
-                "{{{}}}proceed".format(namespaces.starttls),
-                "{{{}}}failure".format(namespaces.starttls),
+                STARTTLSFailure,
+                STARTTLSProceed,
             ]
         )
 
-        proceed = node.tag.endswith("}proceed")
-
-        if proceed:
+        if response.TAG[1] == "proceed":
             logger.info("engaging STARTTLS")
             try:
                 verifier = self._certificate_verifier_factory()
@@ -292,7 +313,7 @@ class STARTTLSProvider:
                 ctx = self._ssl_context_factory()
                 verifier.setup_context(ctx)
                 logger.debug("using certificate verifier: %s", verifier)
-                yield from xmlstream.transport.starttls(
+                yield from xmlstream.starttls(
                     ssl_context=ctx,
                     post_handshake_callback=verifier.post_handshake)
             except errors.TLSFailure:
