@@ -24,6 +24,7 @@ class State(Enum):
 
 class XMLStream(asyncio.Protocol):
     def __init__(self, to,
+                 features_future,
                  sorted_attributes=False,
                  base_logger=logging.getLogger("aioxmpp")):
         self._to = to
@@ -31,9 +32,12 @@ class XMLStream(asyncio.Protocol):
         self._state = State.CLOSED
         self._logger = base_logger.getChild("XMLStream")
         self._transport = None
+        self._features_future = features_future
         self.stanza_parser = xso.XSOParser()
         self.stanza_parser.add_class(stream_xsos.StreamError,
                                      self._rx_stream_error)
+        self.stanza_parser.add_class(stream_xsos.StreamFeatures,
+                                     self._rx_stream_features)
 
     def _invalid_transition(self, to, via=None):
         text = "invalid state transition: from={} to={}".format(
@@ -87,6 +91,11 @@ class XMLStream(asyncio.Protocol):
 
     def _rx_stream_footer(self):
         self.connection_lost(None)
+
+    def _rx_stream_features(self, features):
+        self.stanza_parser.remove_class(stream_xsos.StreamFeatures)
+        self._features_future.set_result(features)
+        self._features_future = None
 
     def _rx_feed(self, blob):
         try:

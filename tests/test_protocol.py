@@ -37,6 +37,9 @@ to="foo@bar.example" \
 id="abc" \
 version="{major:d}.{minor:d}">'''
 
+PEER_FEATURES_TEMPLATE = '''\
+<stream:features/>'''
+
 STREAM_ERROR_TEMPLATE_WITH_TEXT = '''\
 <stream:error>\
 <text xmlns="urn:ietf:params:xml:ns:xmpp-streams">{text}</text>\
@@ -95,11 +98,21 @@ class TestXMLStream(unittest.TestCase):
             condition=condition
         ).encode("utf-8")
 
+    def _make_peer_features(self):
+        return PEER_FEATURES_TEMPLATE.format().encode("utf-8")
+
     def _make_eos(self):
         return b"</stream:stream>"
 
-    def _make_stream(self, *args, with_starttls=False, **kwargs):
-        p = XMLStream(*args, sorted_attributes=True, **kwargs)
+    def _make_stream(self, *args,
+                     features_future=None,
+                     with_starttls=False,
+                     **kwargs):
+        if features_future is None:
+            features_future = asyncio.Future()
+        p = XMLStream(*args, sorted_attributes=True,
+                      features_future=features_future,
+                      **kwargs)
         t = TransportMock(self, p, with_starttls=with_starttls)
         return t, p
 
@@ -478,6 +491,26 @@ class TestXMLStream(unittest.TestCase):
         self.assertIsNone(p._processor.remote_from)
         self.assertIsNone(p._processor.remote_to)
         self.assertIsNone(p._processor.remote_id)
+
+    def test_features_future(self):
+        fut = asyncio.Future()
+        t, p = self._make_stream(to=TEST_PEER, features_future=fut)
+
+        run_coroutine(
+            t.run_test(
+                [
+                    TransportMock.Write(
+                        STREAM_HEADER,
+                        response=[
+                            TransportMock.Receive(self._make_peer_header()),
+                            TransportMock.Receive(self._make_peer_features()),
+                        ]),
+                ]
+            )
+        )
+
+        self.assertTrue(fut.done())
+        self.assertIsInstance(fut.result(), stream_xsos.StreamFeatures)
 
 
 class Testsend_and_wait_for(xmltestutils.XMLTestCase):
