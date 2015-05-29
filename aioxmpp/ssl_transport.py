@@ -696,9 +696,9 @@ def create_starttls_connection(
             if all(str(exc) == model for exc in exceptions):
                 raise exceptions[0]
 
-            exc = OSError("Multiple exceptions: {}".format(
-                ", ".join(map(str, exceptions))))
-            exc.exceptions = exceptions
+            exc = errors.MultiOSError(
+                "could not connect to [{}]:{}".format(host, port),
+                exceptions)
             raise exc
     elif sock is None:
         raise ValueError("sock must not be None if host and/or port are None")
