@@ -517,6 +517,33 @@ class TestTransportMock(unittest.TestCase):
 
         post_handshake_callback.assert_called_once_with(self.t)
 
+    def test_starttls_without_callback(self):
+        self.t = TransportMock(self, self.protocol,
+                               with_starttls=True,
+                               loop=self.loop)
+        self.assertTrue(self.t.can_starttls())
+
+        fut = asyncio.Future()
+        def connection_made(transport):
+            fut.set_result(None)
+
+        self.protocol.connection_made = connection_made
+
+        ssl_context = unittest.mock.Mock()
+
+        @asyncio.coroutine
+        def late_starttls():
+            yield from fut
+            yield from self.t.starttls(ssl_context)
+
+        run_coroutine_with_peer(
+            late_starttls(),
+            self.t.run_test(
+                [
+                    TransportMock.STARTTLS(ssl_context, None)
+                ]
+            )
+        )
 
     def tearDown(self):
         del self.t
@@ -671,6 +698,22 @@ class TestXMLStreamMock(XMLTestCase):
 
         post_handshake_callback.assert_called_once_with(
             self.xmlstream.transport)
+
+    def test_starttls_without_callback(self):
+        ssl_context = unittest.mock.MagicMock()
+
+        self.xmlstream.transport = object()
+
+        run_coroutine(
+            asyncio.gather(
+                self.xmlstream.starttls(ssl_context, None),
+                self.xmlstream.run_test(
+                    [
+                        XMLStreamMock.STARTTLS(ssl_context, None)
+                    ],
+                )
+            )
+        )
 
     def test_starttls_reject_incorrect_arguments(self):
         ssl_context = unittest.mock.MagicMock()

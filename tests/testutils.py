@@ -391,13 +391,13 @@ class TransportMock(InteractivityMock,
             head.post_handshake_callback,
             "mismatched starttls argument")
 
-        try:
-            yield from post_handshake_callback(self)
-        except Exception as exc:
-            fut.set_exception(exc)
-            raise exc
-        else:
-            fut.set_result(None)
+        if post_handshake_callback:
+            try:
+                yield from post_handshake_callback(self)
+            except Exception as exc:
+                fut.set_exception(exc)
+                raise exc
+        fut.set_result(None)
 
         self._execute_response(head.response)
 
@@ -561,13 +561,13 @@ class XMLStreamMock(InteractivityMock):
             head.post_handshake_callback,
             "mismatched starttls argument")
 
-        try:
-            yield from post_handshake_callback(self.transport)
-        except Exception as exc:
-            fut.set_exception(exc)
-            raise exc
-        else:
-            fut.set_result(None)
+        if post_handshake_callback:
+            try:
+                yield from post_handshake_callback(self.transport)
+            except Exception as exc:
+                fut.set_exception(exc)
+                raise exc
+        fut.set_result(None)
 
         self._execute_response(head.response)
 
