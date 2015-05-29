@@ -5,6 +5,7 @@ import unittest.mock
 
 import aioxmpp.node as node
 import aioxmpp.structs as structs
+import aioxmpp.stream_xsos as stream_xsos
 import aioxmpp.errors as errors
 
 from . import xmltestutils
@@ -277,6 +278,95 @@ class Testconnect_to_xmpp_server(unittest.TestCase):
             exc,
             ctx.exception
         )
+
+    def tearDown(self):
+        for patch in self.patches:
+            patch.stop()
+
+
+class Testconnect_secured_xmlstream(unittest.TestCase):
+    def setUp(self):
+        self.loop = asyncio.get_event_loop()
+
+        self.patches = [
+            unittest.mock.patch("aioxmpp.protocol.XMLStream"),
+        ]
+        self.XMLStream, = (patch.start() for patch in self.patches)
+
+        self.test_jid = structs.JID.fromstr("foo@bar.example/baz")
+
+    @asyncio.coroutine
+    def _security_layer(self,
+                        mock_recorder,
+                        tls_transport,
+                        new_features,
+                        negotiation_timeout, jid, features, xmlstream):
+        mock_recorder(negotiation_timeout, jid, features, xmlstream)
+        return tls_transport, new_features
+
+    @asyncio.coroutine
+    def _connect_to_xmpp_server(self,
+                                transport,
+                                features,
+                                xmlstream,
+                                mock_recorder,
+                                *args, **kwargs):
+        mock_recorder(*args, **kwargs)
+        fut = asyncio.Future()
+        fut.set_result(features)
+        xmlstream.transport = transport
+        return transport, xmlstream, fut
+
+    def test_call_sequence(self):
+        connect_to_xmpp_server_recorder = unittest.mock.MagicMock()
+        security_layer_recorder = unittest.mock.MagicMock()
+
+        transport = object()
+        xmlstream = unittest.mock.MagicMock()
+
+        final_features = stream_xsos.StreamFeatures()
+        tls_transport = object()
+        security_layer = functools.partial(
+            self._security_layer,
+            security_layer_recorder,
+            tls_transport,
+            final_features)
+
+        features = stream_xsos.StreamFeatures()
+
+        with unittest.mock.patch("aioxmpp.node.connect_to_xmpp_server",
+                                 functools.partial(
+                                     self._connect_to_xmpp_server,
+                                     transport,
+                                     features,
+                                     xmlstream,
+                                     connect_to_xmpp_server_recorder
+                                 )):
+            result = run_coroutine(
+                node.connect_secured_xmlstream(
+                    self.test_jid,
+                    security_layer,
+                    negotiation_timeout=10.0,
+                    loop=self.loop)
+            )
+
+        connect_to_xmpp_server_recorder.assert_called_once_with(
+            self.test_jid,
+            loop=self.loop
+        )
+
+        security_layer_recorder.assert_called_once_with(
+            10.0,
+            self.test_jid,
+            features,
+            xmlstream,
+        )
+
+        result_tls_transport, result_xmlstream, result_features = result
+
+        self.assertIs(tls_transport, result_tls_transport)
+        self.assertIs(xmlstream, result_xmlstream)
+        self.assertIs(final_features, result_features)
 
     def tearDown(self):
         for patch in self.patches:
