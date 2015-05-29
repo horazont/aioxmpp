@@ -22,6 +22,7 @@ _system_random = random.SystemRandom()
 try:
     from hashlib import pbkdf2_hmac as pbkdf2
 except ImportError:
+    # this is untested if you have pbkdf2_hmac
     def pbkdf2(hashfun_name, input_data, salt, iterations, dklen=None):
         """
         Derivate a key from a password. *input_data* is taken as the bytes
@@ -85,6 +86,12 @@ class SASLAuth(xso.XSO):
 
 class SASLChallenge(xso.XSO):
     TAG = (namespaces.sasl, "challenge")
+
+    payload = xso.Text(type_=xso.Base64Binary(empty_as_equal=True))
+
+    def __init__(self, payload=None):
+        super().__init__()
+        self.payload = payload
 
 
 class SASLResponse(xso.XSO):
@@ -195,12 +202,6 @@ class SASLStateMachine:
         return state, payload
 
     @asyncio.coroutine
-    def _send_response(self, payload):
-        return self._send_sasl_node_and_wait_for(
-            self.E("response",
-                   base64.b64encode(payload)))
-
-    @asyncio.coroutine
     def initiate(self, mechanism, payload=None):
         """
         Initiate the SASL handshake and advertise the use of the given
@@ -213,7 +214,7 @@ class SASLStateMachine:
         """
 
         if self._state != "initial":
-            raise ValueError("initiate has already been called")
+            raise RuntimeError("initiate has already been called")
 
         result = yield from self._send_sasl_node_and_wait_for(
             SASLAuth(mechanism=mechanism,
@@ -231,8 +232,8 @@ class SASLStateMachine:
         :class:`SASLStateMachine` for details).
         """
         if self._state != "challenge":
-            raise ValueError(
-                "No challenge has been made or negotiation failed")
+            raise RuntimeError(
+                "no challenge has been made or negotiation failed")
 
         result = yield from self._send_sasl_node_and_wait_for(
             SASLResponse(payload=payload)
@@ -246,7 +247,7 @@ class SASLStateMachine:
         state is ``failure``.
         """
         if self._state == "initial":
-            raise ValueError("SASL authentication hasn't started yet")
+            raise RuntimeError("SASL authentication hasn't started yet")
 
         try:
             next_state, payload = yield from self._send_sasl_node_and_wait_for(
@@ -259,7 +260,8 @@ class SASLStateMachine:
             return "failure", None
         else:
             raise errors.SASLFailure(
-                "Unexpected non-failure after abort: {}".format(self._state)
+                "aborted",
+                text="unexpected non-failure after abort: {}".format(self._state)
             )
 
 
@@ -316,18 +318,14 @@ class PLAIN(SASLMechanism):
         username = saslprep(username).encode("utf8")
         password = saslprep(password).encode("utf8")
 
-        if b'\0' in username or b'\0' in password:
-            raise ValueError("Username and password must not contain NUL")
-
         state, _ = yield from sm.initiate(
             mechanism="PLAIN",
             payload=b"\0" + username + b"\0" + password)
 
-        if state == "failure":
-            return False
-
         if state != "success":
-            raise Exception("SASL protocol violation")
+            raise errors.SASLFailure(
+                "malformed-request",
+                text="SASL protocol violation")
 
         return True
 
@@ -382,7 +380,8 @@ class SCRAM(SASLMechanism):
 
         return supported.pop()[1]
 
-    def parse_message(self, msg):
+    @classmethod
+    def parse_message(cls, msg):
         parts = (
             part
             for part in msg.split(b",")
@@ -483,7 +482,9 @@ class SCRAM(SASLMechanism):
             raise err.promote_to_authentication_failure() from None
 
         if state != "success":
-            raise errors.SASLFailure("SCRAM protocol violation")
+            raise errors.SASLFailure(
+                "malformed-request",
+                text="SCRAM protocol violation")
 
         server_signature = hmac.new(
             hmac.new(

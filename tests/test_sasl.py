@@ -12,12 +12,13 @@ import aioxmpp.errors as errors
 
 from aioxmpp.utils import namespaces
 
-from . import testutils
+from . import xmltestutils
+from .testutils import XMLStreamMock, run_coroutine_with_peer, run_coroutine
 
 
 class SASLStateMachineMock(sasl.SASLStateMachine):
     def __init__(self, testobj, action_sequence, xmlstream=None):
-        super().__init__(xmlstream or testutils.XMLStreamMock(testobj))
+        super().__init__(xmlstream or XMLStreamMock(testobj))
         self._testobj = testobj
         self._action_sequence = action_sequence
 
@@ -81,6 +82,16 @@ class TestSASLAuth(unittest.TestCase):
         self.assertIsNone(obj.payload)
 
 
+class TestSASLChallenge(unittest.TestCase):
+    def test_init(self):
+        obj = sasl.SASLChallenge(payload=b"bar")
+        self.assertEqual(b"bar", obj.payload)
+
+    def test_default_init(self):
+        obj = sasl.SASLChallenge()
+        self.assertIsNone(obj.payload)
+
+
 class TestSASLResponse(unittest.TestCase):
     def test_init(self):
         obj = sasl.SASLResponse(payload=b"bar")
@@ -104,6 +115,229 @@ class TestSASLFailure(unittest.TestCase):
         self.assertEqual(
             (namespaces.sasl, "temporary-auth-failure"),
             obj.condition)
+
+
+class TestSASLStateMachine(xmltestutils.XMLTestCase):
+    def setUp(self):
+        self.loop = asyncio.get_event_loop()
+        self.xmlstream = XMLStreamMock(self, loop=self.loop)
+        self.sm = sasl.SASLStateMachine(self.xmlstream)
+
+    def _run_test(self, coro, actions=[], stimulus=None):
+        return run_coroutine_with_peer(
+            coro,
+            self.xmlstream.run_test(actions, stimulus=stimulus),
+            loop=self.loop)
+
+    def test_initiate_success(self):
+        state, payload = self._run_test(
+            self.sm.initiate("foo", b"bar"),
+            [
+                XMLStreamMock.Send(
+                    sasl.SASLAuth(mechanism="foo",
+                                  payload=b"bar"),
+                    response=XMLStreamMock.Receive(
+                        sasl.SASLSuccess()
+                    )
+                )
+            ]
+        )
+        self.assertEqual(state, "success")
+        self.assertIsNone(payload)
+
+    def test_initiate_failure(self):
+        with self.assertRaises(errors.SASLFailure) as ctx:
+            self._run_test(
+                self.sm.initiate("foo", b"bar"),
+                [
+                    XMLStreamMock.Send(
+                        sasl.SASLAuth(mechanism="foo",
+                                      payload=b"bar"),
+                        response=XMLStreamMock.Receive(
+                            sasl.SASLFailure(
+                                condition=(namespaces.sasl, "not-authorized")
+                            )
+                        )
+                    )
+                ]
+            )
+
+        self.assertEqual(
+            "not-authorized",
+            ctx.exception.xmpp_error
+        )
+
+    def test_initiate_challenge(self):
+        state, payload = self._run_test(
+            self.sm.initiate("foo", b"bar"),
+            [
+                XMLStreamMock.Send(
+                    sasl.SASLAuth(mechanism="foo",
+                                  payload=b"bar"),
+                    response=XMLStreamMock.Receive(
+                        sasl.SASLChallenge(payload=b"baz")
+                    )
+                )
+            ]
+        )
+        self.assertEqual(state, "challenge")
+        self.assertEqual(payload, b"baz")
+
+    def test_reject_double_initiate(self):
+        self._run_test(
+            self.sm.initiate("foo", b"bar"),
+            [
+                XMLStreamMock.Send(
+                    sasl.SASLAuth(mechanism="foo",
+                                  payload=b"bar"),
+                    response=XMLStreamMock.Receive(
+                        sasl.SASLSuccess()
+                    )
+                )
+            ]
+        )
+
+        with self.assertRaisesRegexp(RuntimeError,
+                                     "has already been called"):
+            run_coroutine(self.sm.initiate("foo"))
+
+    def test_reject_response_without_challenge(self):
+        with self.assertRaisesRegexp(RuntimeError,
+                                     "no challenge"):
+            run_coroutine(self.sm.response(b"bar"))
+
+    def test_response_success(self):
+        self.sm._state = "challenge"
+
+        state, payload = self._run_test(
+            self.sm.response(b"bar"),
+            [
+                XMLStreamMock.Send(
+                    sasl.SASLResponse(payload=b"bar"),
+                    response=XMLStreamMock.Receive(
+                        sasl.SASLSuccess()
+                    )
+                )
+            ]
+        )
+        self.assertEqual(state, "success")
+        self.assertIsNone(payload)
+
+    def test_response_failure(self):
+        self.sm._state = "challenge"
+
+        with self.assertRaises(errors.SASLFailure) as ctx:
+            self._run_test(
+                self.sm.response(b"bar"),
+                [
+                    XMLStreamMock.Send(
+                        sasl.SASLResponse(payload=b"bar"),
+                        response=XMLStreamMock.Receive(
+                            sasl.SASLFailure(
+                                condition=(namespaces.sasl, "credentials-expired")
+                            )
+                        )
+                    )
+                ]
+            )
+
+        self.assertEqual(
+            "credentials-expired",
+            ctx.exception.xmpp_error
+        )
+
+    def test_response_challenge(self):
+        self.sm._state = "challenge"
+
+        state, payload = self._run_test(
+            self.sm.response(b"bar"),
+            [
+                XMLStreamMock.Send(
+                    sasl.SASLResponse(payload=b"bar"),
+                    response=XMLStreamMock.Receive(
+                        sasl.SASLChallenge(payload=b"baz")
+                    )
+                )
+            ]
+        )
+        self.assertEqual(state, "challenge")
+        self.assertEqual(payload, b"baz")
+
+    def test_reject_abort_without_initiate(self):
+        with self.assertRaises(RuntimeError):
+            run_coroutine(self.sm.abort())
+
+    def test_abort_reject_non_failure(self):
+        self.sm._state = "challenge"
+
+        with self.assertRaisesRegexp(
+                errors.SASLFailure,
+                "unexpected non-failure"
+        ) as ctx:
+            self._run_test(
+                self.sm.abort(),
+                [
+                    XMLStreamMock.Send(
+                        sasl.SASLAbort(),
+                        response=XMLStreamMock.Receive(
+                            sasl.SASLSuccess()
+                        )
+                    )
+                ]
+            )
+
+        self.assertEqual(
+            "aborted",
+            ctx.exception.xmpp_error
+        )
+
+    def test_abort_return_on_aborted_error(self):
+        self.sm._state = "challenge"
+
+        state, payload = self._run_test(
+            self.sm.abort(),
+            [
+                XMLStreamMock.Send(
+                    sasl.SASLAbort(),
+                    response=XMLStreamMock.Receive(
+                        sasl.SASLFailure(
+                            condition=(namespaces.sasl, "aborted")
+                        )
+                    )
+                )
+            ]
+        )
+
+        self.assertEqual(state, "failure")
+        self.assertIsNone(payload)
+
+    def test_abort_re_raise_other_errors(self):
+        self.sm._state = "challenge"
+
+        with self.assertRaises(errors.SASLFailure) as ctx:
+            self._run_test(
+                self.sm.abort(),
+                [
+                    XMLStreamMock.Send(
+                        sasl.SASLAbort(),
+                        response=XMLStreamMock.Receive(
+                            sasl.SASLFailure(
+                                condition=(namespaces.sasl, "mechanism-too-weak")
+                            )
+                    )
+                    )
+                ]
+            )
+
+        self.assertEqual(
+            "mechanism-too-weak",
+            ctx.exception.xmpp_error
+        )
+
+
+    def tearDown(self):
+        del self.xmlstream
+        del self.loop
 
 
 class TestPLAIN(unittest.TestCase):
@@ -134,6 +368,81 @@ class TestPLAIN(unittest.TestCase):
         asyncio.get_event_loop().run_until_complete(run())
 
         smmock.finalize()
+
+    def test_fail_on_protocol_violation(self):
+        user = "tim"
+        password = "tanstaaftanstaaf"
+
+        smmock = SASLStateMachineMock(
+            self,
+            [
+                ("auth;PLAIN",
+                 b"\0tim\0tanstaaftanstaaf",
+                 "challenge",
+                 b"foo")
+            ])
+
+        @asyncio.coroutine
+        def provide_credentials(*args):
+            return user, password
+
+        def run():
+            plain = sasl.PLAIN(provide_credentials)
+            result = yield from plain.authenticate(
+                smmock,
+                "PLAIN")
+
+        with self.assertRaisesRegexp(errors.SASLFailure,
+                                     "protocol violation") as ctx:
+            asyncio.get_event_loop().run_until_complete(run())
+
+        self.assertEqual(
+            "malformed-request",
+            ctx.exception.xmpp_error
+        )
+
+        smmock.finalize()
+
+    def test_reject_NUL_bytes_in_username(self):
+        smmock = SASLStateMachineMock(
+            self,
+            [
+            ])
+
+        @asyncio.coroutine
+        def provide_credentials(*args):
+            return "\0", "foo"
+
+        with self.assertRaises(ValueError):
+            run_coroutine(
+                sasl.PLAIN(provide_credentials).authenticate(smmock, "PLAIN")
+            )
+
+    def test_reject_NUL_bytes_in_password(self):
+        smmock = SASLStateMachineMock(
+            self,
+            [
+            ])
+
+        @asyncio.coroutine
+        def provide_credentials(*args):
+            return "foo", "\0"
+
+        with self.assertRaises(ValueError):
+            run_coroutine(
+                sasl.PLAIN(provide_credentials).authenticate(smmock, "PLAIN")
+            )
+
+    def test_supports_PLAIN(self):
+        self.assertEqual(
+            "PLAIN",
+            sasl.PLAIN.any_supported(["PLAIN"])
+        )
+
+    def test_does_not_support_SCRAM(self):
+        self.assertIsNone(
+            sasl.PLAIN.any_supported(["SCRAM-SHA-1"])
+        )
 
 
 class TestSCRAM(unittest.TestCase):
@@ -302,6 +611,126 @@ class TestSCRAM(unittest.TestCase):
         self.assertIn(
             "signature",
             str(ctx.exception).lower()
+        )
+
+    def test_supports_SCRAM_famliy(self):
+        hashes = ["SHA-1", "SHA-224", "SHA-256",
+                  "SHA-512", "SHA-384", "SHA-256"]
+
+        for hashname in hashes:
+            mechanism = "SCRAM-{}".format(hashname)
+            self.assertEqual(
+                (mechanism, hashname.replace("-", "").lower()),
+                sasl.SCRAM.any_supported([mechanism])
+            )
+
+    def test_pick_longest_hash(self):
+        self.assertEqual(
+            ("SCRAM-SHA-512", "sha512"),
+            sasl.SCRAM.any_supported([
+                "SCRAM-SHA-1",
+                "SCRAM-SHA-512",
+                "SCRAM-SHA-224",
+                "PLAIN",
+            ])
+        )
+
+        self.assertEqual(
+            ("SCRAM-SHA-256", "sha256"),
+            sasl.SCRAM.any_supported([
+                "SCRAM-SHA-1",
+                "SCRAM-SHA-256",
+                "SCRAM-SHA-224",
+                "PLAIN",
+            ])
+        )
+
+    def test_reject_scram_plus(self):
+        hashes = ["SHA-1", "SHA-224", "SHA-256",
+                  "SHA-512", "SHA-384", "SHA-256"]
+
+        for hashname in hashes:
+            mechanism = "SCRAM-{}-PLUS".format(hashname)
+            self.assertIsNone(
+                sasl.SCRAM.any_supported([mechanism])
+            )
+
+    def test_reject_md5(self):
+        self.assertIsNone(
+            sasl.SCRAM.any_supported(["SCRAM-MD5"])
+        )
+
+    def test_reject_unknown_hash_functions(self):
+        self.assertIsNone(
+            sasl.SCRAM.any_supported(["SCRAM-FOOBAR"])
+        )
+
+    def test_parse_message_reject_long_keys(self):
+        with self.assertRaisesRegexp(Exception, "protocol violation"):
+            list(sasl.SCRAM.parse_message(b"foo=bar"))
+
+    def test_parse_message_reject_m_key(self):
+        with self.assertRaisesRegexp(Exception, "protocol violation"):
+            list(sasl.SCRAM.parse_message(b"m=bar"))
+
+    def test_parse_message_unescape_n_and_a_payload(self):
+        data = list(sasl.SCRAM.parse_message(b"n=foo=2Cbar=3Dbaz,"
+                                             b"a=fnord=2Cfunky=3Dfunk"))
+        self.assertSequenceEqual(
+            [
+                (b"n", b"foo,bar=baz"),
+                (b"a", b"fnord,funky=funk")
+            ],
+            data
+        )
+
+    def test_promote_failure_to_authentication_failure(self):
+        smmock = SASLStateMachineMock(
+            self,
+            [
+                ("auth;SCRAM-SHA-1",
+                 b"n,,"+self.client_first_message_bare,
+                 "challenge",
+                 self.server_first_message
+                ),
+                ("response",
+                 self.client_final_message_without_proof+
+                     b",p="+base64.b64encode(self.client_proof),
+                 "failure",
+                 ("credentials-expired", None))
+            ])
+
+        with self.assertRaises(errors.AuthenticationFailure) as ctx:
+            self._run(smmock)
+
+        self.assertEqual(
+            "credentials-expired",
+            ctx.exception.xmpp_error
+        )
+
+    def test_reject_protocol_violation(self):
+        smmock = SASLStateMachineMock(
+            self,
+            [
+                ("auth;SCRAM-SHA-1",
+                 b"n,,"+self.client_first_message_bare,
+                 "challenge",
+                 self.server_first_message
+                ),
+                ("response",
+                 self.client_final_message_without_proof+
+                     b",p="+base64.b64encode(self.client_proof),
+                 "challenge",
+                 b"foo")
+            ])
+
+        with self.assertRaisesRegexp(errors.SASLFailure,
+                                     "protocol violation") as ctx:
+            self._run(smmock)
+
+        self.assertEqual(
+            "malformed-request",
+            ctx.exception.xmpp_error
         )
 
     def tearDown(self):
