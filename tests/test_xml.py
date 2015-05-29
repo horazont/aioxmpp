@@ -668,6 +668,11 @@ class TestXMPPXMLProcessor(unittest.TestCase):
             self.parser.feed("<!-- foo -->")
 
     def test_capture_stream_header(self):
+        self.assertIsNone(self.proc.remote_version)
+        self.assertIsNone(self.proc.remote_from)
+        self.assertIsNone(self.proc.remote_to)
+        self.assertIsNone(self.proc.remote_id)
+
         self.proc.startDocument()
         self.proc.startElementNS(
             self.STREAM_HEADER_TAG,

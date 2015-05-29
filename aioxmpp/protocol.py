@@ -1,4 +1,5 @@
 import asyncio
+import inspect
 import logging
 
 from enum import Enum
@@ -29,6 +30,7 @@ class XMLStream(asyncio.Protocol):
         self._sorted_attributes = sorted_attributes
         self._state = State.CLOSED
         self._logger = base_logger.getChild("XMLStream")
+        self._transport = None
         self.stanza_parser = xso.XSOParser()
         self.stanza_parser.add_class(stream_xsos.StreamError,
                                      self._rx_stream_error)
@@ -137,12 +139,15 @@ class XMLStream(asyncio.Protocol):
     def close(self):
         self.connection_lost(None)
 
-    def reset(self):
+    def _reset_state(self):
         if self._writer:
-            try:
-                self._writer.throw(xml.AbortStream())
-            except StopIteration:
-                pass
+            if inspect.getgeneratorstate(self._writer) == "GEN_SUSPENDED":
+                try:
+                    self._writer.throw(xml.AbortStream())
+                except StopIteration:
+                    pass
+            else:
+                self._writer = None
 
         self._processor = xml.XMPPXMLProcessor()
         self._processor.stanza_parser = self.stanza_parser
@@ -157,11 +162,29 @@ class XMLStream(asyncio.Protocol):
             self._to,
             nsmap={None: "jabber:client"},
             sorted_attributes=self._sorted_attributes)
+
+    def reset(self):
+        self._reset_state()
         next(self._writer)
         self._state = State.STREAM_HEADER_SENT
 
     def send_stanza(self, obj):
         self._writer.send(obj)
+
+    def can_starttls(self):
+        return (hasattr(self._transport, "can_starttls") and
+                self._transport.can_starttls())
+
+    @asyncio.coroutine
+    def starttls(self, ssl_context, post_handshake_callback=None):
+        if not self.can_starttls():
+            raise RuntimeError("no transport connected or "
+                               "starttls not available")
+
+        yield from self._transport.starttls(ssl_context,
+                                            post_handshake_callback)
+        self._reset_state()
+
 
 
 @asyncio.coroutine

@@ -6,7 +6,12 @@ import aioxmpp.stanza as stanza
 import aioxmpp.xso as xso
 import aioxmpp.stream_xsos as stream_xsos
 
-from .testutils import TransportMock, run_coroutine, XMLStreamMock
+from .testutils import (
+    TransportMock,
+    run_coroutine,
+    XMLStreamMock,
+    run_coroutine_with_peer
+)
 from . import xmltestutils
 
 from aioxmpp.protocol import XMLStream
@@ -93,9 +98,9 @@ class TestXMLStream(unittest.TestCase):
     def _make_eos(self):
         return b"</stream:stream>"
 
-    def _make_stream(self, *args, **kwargs):
+    def _make_stream(self, *args, with_starttls=False, **kwargs):
         p = XMLStream(*args, sorted_attributes=True, **kwargs)
-        t = TransportMock(self, p)
+        t = TransportMock(self, p, with_starttls=with_starttls)
         return t, p
 
     def test_connection_made_check_state(self):
@@ -404,6 +409,75 @@ class TestXMLStream(unittest.TestCase):
                 partial=True
             )
         )
+
+    def test_can_starttls(self):
+        t, p = self._make_stream(to=TEST_PEER)
+        self.assertFalse(p.can_starttls())
+        run_coroutine(
+            t.run_test(
+                [
+                    TransportMock.Write(
+                        STREAM_HEADER,
+                        response=[
+                            TransportMock.Receive(self._make_peer_header()),
+                        ]),
+                ],
+                partial=True
+            )
+        )
+        self.assertFalse(p.can_starttls())
+
+    def test_starttls_raises_without_starttls_support(self):
+        t, p = self._make_stream(to=TEST_PEER)
+        with self.assertRaisesRegexp(RuntimeError, "no transport connected"):
+            run_coroutine(p.starttls(object()))
+        run_coroutine(
+            t.run_test(
+                [
+                    TransportMock.Write(
+                        STREAM_HEADER,
+                        response=[
+                            TransportMock.Receive(self._make_peer_header()),
+                        ]),
+                ],
+                partial=True
+            )
+        )
+        with self.assertRaisesRegexp(RuntimeError, "starttls not available"):
+            run_coroutine(p.starttls(object()))
+
+    def test_starttls(self):
+        t, p = self._make_stream(to=TEST_PEER, with_starttls=True)
+        self.assertFalse(p.can_starttls())
+        run_coroutine(
+            t.run_test(
+                [
+                    TransportMock.Write(
+                        STREAM_HEADER,
+                        response=[
+                            TransportMock.Receive(self._make_peer_header()),
+                        ]),
+                ],
+                partial=True
+            )
+        )
+        self.assertTrue(p.can_starttls())
+
+        ssl_context = unittest.mock.MagicMock()
+        run_coroutine_with_peer(
+            p.starttls(ssl_context),
+            t.run_test(
+                [
+                    TransportMock.STARTTLS(ssl_context, None)
+                ]
+            )
+        )
+
+        # make sure that the state has been discarded
+        self.assertIsNone(p._processor.remote_version)
+        self.assertIsNone(p._processor.remote_from)
+        self.assertIsNone(p._processor.remote_to)
+        self.assertIsNone(p._processor.remote_id)
 
 
 class Testsend_and_wait_for(xmltestutils.XMLTestCase):

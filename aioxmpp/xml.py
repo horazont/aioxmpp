@@ -585,6 +585,11 @@ class XMPPXMLProcessor:
         self.on_stream_footer = None
         self.on_exception = None
 
+        self.remote_version = None
+        self.remote_from = None
+        self.remote_to = None
+        self.remote_id = None
+
     @property
     def stanza_parser(self):
         """

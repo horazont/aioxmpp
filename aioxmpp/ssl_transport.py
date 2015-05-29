@@ -627,6 +627,12 @@ class STARTTLSTransport(asyncio.Transport):
         """
         raise NotImplementedError("Cannot write_eof() on STARTTLS transport")
 
+    def can_starttls(self):
+        """
+        Return :data:`True`.
+        """
+        return True
+
 
 @asyncio.coroutine
 def create_starttls_connection(
