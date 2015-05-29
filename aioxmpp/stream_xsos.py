@@ -30,6 +30,7 @@ Stream management related XSOs
 .. autoclass:: SMResumed()
 
 """
+import itertools
 
 from . import xso, errors
 
@@ -204,6 +205,9 @@ class StreamFeatures(xso.XSO):
             return self[feature_cls]
         except KeyError:
             return default
+
+    def __iter__(self):
+        return itertools.chain(*self.features.values())
 
 
 class SMXSO(xso.XSO):

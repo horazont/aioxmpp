@@ -173,3 +173,24 @@ class TestStreamFeatures(unittest.TestCase):
 
         self.assertTrue(features.has_feature(FakeFeature))
         self.assertFalse(features.has_feature(NotAFeature))
+
+    def test_iter_features(self):
+        class FakeFeatureA(xso.XSO):
+            TAG = ("uri:foo", "foo")
+
+        class FakeFeatureB(xso.XSO):
+            TAG = ("uri:foo", "bar")
+
+        instance1, instance2 = FakeFeatureA(), FakeFeatureB()
+
+        features = stream_xsos.StreamFeatures()
+        features[...] = instance1
+        features[...] = instance2
+
+        self.assertSetEqual(
+            {
+                instance1,
+                instance2
+            },
+            set(features)
+        )
