@@ -349,9 +349,7 @@ class STARTTLSTransport(asyncio.Transport):
         self._state = _State.TLS_OPEN
 
         self._loop.add_reader(self._raw_fd, self._read_ready)
-        if self._tls_was_starttls:
-            self._loop.call_soon(self._protocol.starttls_made, self)
-        else:
+        if not self._tls_was_starttls:
             self._loop.call_soon(self._protocol.connection_made, self)
         if self._waiter is not None:
             self._loop.call_soon(self._waiter.set_result, None)
