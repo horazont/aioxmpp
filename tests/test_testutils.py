@@ -6,7 +6,8 @@ from .testutils import (
     run_coroutine,
     make_protocol_mock,
     TransportMock,
-    XMLStreamMock
+    XMLStreamMock,
+    run_coroutine_with_peer
 )
 from .xmltestutils import XMLTestCase
 
@@ -476,6 +477,46 @@ class TestTransportMock(unittest.TestCase):
                 TransportMock.Close()
             ]
         )
+
+    def test_no_starttls_by_default(self):
+        self.assertFalse(self.t.can_starttls())
+        with self.assertRaises(RuntimeError):
+            run_coroutine(self.t.starttls())
+
+    def test_starttls(self):
+        self.t = TransportMock(self, self.protocol,
+                               with_starttls=True,
+                               loop=self.loop)
+        self.assertTrue(self.t.can_starttls())
+
+        fut = asyncio.Future()
+        def connection_made(transport):
+            fut.set_result(None)
+
+        self.protocol.connection_made = connection_made
+
+        ssl_context = unittest.mock.Mock()
+        post_handshake_callback = unittest.mock.Mock()
+        post_handshake_callback.return_value = []
+
+        @asyncio.coroutine
+        def late_starttls():
+            yield from fut
+            yield from self.t.starttls(ssl_context,
+                                       post_handshake_callback)
+
+        run_coroutine_with_peer(
+            late_starttls(),
+            self.t.run_test(
+                [
+                    TransportMock.STARTTLS(ssl_context,
+                                           post_handshake_callback)
+                ]
+            )
+        )
+
+        post_handshake_callback.assert_called_once_with(self.t)
+
 
     def tearDown(self):
         del self.t

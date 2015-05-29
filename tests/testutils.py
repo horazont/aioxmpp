@@ -189,6 +189,10 @@ class InteractivityMock:
 
 
 _Write = collections.namedtuple("Write", ["data", "response"])
+_STARTTLS = collections.namedtuple("STARTTLS",
+                                   ["ssl_context",
+                                    "post_handshake_callback",
+                                    "response"])
 GenericTransportAction = collections.namedtuple(
     "GenericTransportAction",
     ["response"])
@@ -202,6 +206,14 @@ class TransportMock(InteractivityMock,
         def __new__(cls, data, *, response=None):
             return _Write.__new__(cls, data=data, response=response)
         replace = _Write._replace
+
+    class STARTTLS(_STARTTLS):
+        def __new__(cls, ssl_context, post_handshake_callback, *, response=None):
+            return _STARTTLS.__new__(cls,
+                                     ssl_context,
+                                     post_handshake_callback,
+                                     response=response)
+        replace = _STARTTLS._replace
 
     class Abort(GenericTransportAction):
         def __new__(cls, *, response=None):
@@ -245,13 +257,14 @@ class TransportMock(InteractivityMock,
             protocol.connection_lost(self.exc)
             transport._connection_made = False
 
-    def __init__(self, tester, protocol, *, loop=None):
+    def __init__(self, tester, protocol, *, with_starttls=False, loop=None):
         super().__init__(tester, loop=loop)
         self._protocol = protocol
         self._actions = None
         self._connection_made = False
         self._rxd = []
         self._queue = asyncio.Queue()
+        self._with_starttls = with_starttls
 
     def _previously(self):
         buf = b"".join(self._rxd)
@@ -305,6 +318,8 @@ class TransportMock(InteractivityMock,
                     yield from self._close(*args)
                 elif action == "abort":
                     yield from self._abort(*args)
+                elif action == "starttls":
+                    yield from self._starttls(*args)
                 else:
                     assert False
 
@@ -354,6 +369,38 @@ class TransportMock(InteractivityMock,
     def _close(self):
         self._basic("close", self.Close)
 
+    @asyncio.coroutine
+    def _starttls(self, ssl_context, post_handshake_callback, fut):
+        self._tester.assertTrue(
+            self._actions,
+            self._format_unexpected_action("starttls", "no actions left"),
+        )
+        head = self._actions[0]
+        self._tester.assertIsInstance(
+            head, self.STARTTLS,
+            self._format_unexpected_action("starttls", "expected something else"),
+        )
+        self._actions.pop(0)
+
+        self._tester.assertEqual(
+            ssl_context,
+            head.ssl_context,
+            "mismatched starttls argument")
+        self._tester.assertEqual(
+            post_handshake_callback,
+            head.post_handshake_callback,
+            "mismatched starttls argument")
+
+        try:
+            yield from post_handshake_callback(self)
+        except Exception as exc:
+            fut.set_exception(exc)
+            raise exc
+        else:
+            fut.set_result(None)
+
+        self._execute_response(head.response)
+
     def write(self, data):
         self._queue.put_nowait(("write", data))
 
@@ -365,6 +412,21 @@ class TransportMock(InteractivityMock,
 
     def close(self):
         self._queue.put_nowait(("close", ))
+
+    def can_starttls(self):
+        return self._with_starttls
+
+    @asyncio.coroutine
+    def starttls(self, ssl_context=None, post_handshake_callback=None):
+        if not self._with_starttls:
+            raise RuntimeError("STARTTLS not supported")
+
+        fut = asyncio.Future()
+        self._queue.put_nowait(
+            ("starttls", ssl_context, post_handshake_callback, fut)
+        )
+        yield from fut
+
 
 
 class XMLStreamMock(InteractivityMock):
