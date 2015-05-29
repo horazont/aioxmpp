@@ -47,6 +47,16 @@ class TestSTARTTLSProvider(xmltestutils.XMLTestCase):
                                      "not supported by peer"):
             self._test_provider(provider, features)
 
+    def test_pass_without_required_starttls(self):
+        provider = security_layer.STARTTLSProvider(
+            self.ssl_context_factory,
+            self.certificate_verifier_factory,
+            require_starttls=False)
+
+        features = stream_xsos.StreamFeatures()
+
+        self.assertIsNone(self._test_provider(provider, features))
+
     def test_fail_if_peer_requires_starttls_but_we_cannot_do_starttls(self):
         provider = security_layer.STARTTLSProvider(
             self.ssl_context_factory,
@@ -232,6 +242,16 @@ class TestPasswordSASLProvider(xmltestutils.XMLTestCase):
             loop=self.loop
         )
 
+    def test_raise_sasl_unavailable_if_sasl_is_not_supported(self):
+        del self.features[security_layer.SASLMechanisms]
+
+        provider = security_layer.PasswordSASLProvider(
+            self._password_provider_wrapper)
+
+        with self.assertRaisesRegexp(errors.SASLUnavailable,
+                                     "does not support SASL"):
+            self._test_provider(provider)
+
     def test_reject_plain_auth_over_non_tls_stream(self):
         self.mechanisms.mechanisms.append(
             security_layer.SASLMechanism(name="PLAIN")
@@ -255,6 +275,35 @@ class TestPasswordSASLProvider(xmltestutils.XMLTestCase):
         with self.assertRaisesRegexp(errors.AuthenticationFailure,
                                      "aborted by user"):
             self._test_provider(provider, tls_transport=True)
+
+    def test_raise_sasl_error_on_permanent_error(self):
+        self.mechanisms.mechanisms.append(
+            security_layer.SASLMechanism(name="PLAIN")
+        )
+
+        provider = security_layer.PasswordSASLProvider(
+            self._password_provider_wrapper)
+
+        payload = b"\0foo\0foo"
+        self.password_provider.return_value = "foo"
+
+        with self.assertRaisesRegexp(errors.SASLFailure,
+                                     "malformed-request"):
+            self._test_provider(
+                provider,
+                actions=[
+                    XMLStreamMock.Send(
+                        sasl.SASLAuth(mechanism="PLAIN",
+                                      payload=payload),
+                        response=XMLStreamMock.Receive(
+                            sasl.SASLFailure(
+                                condition=(namespaces.sasl,
+                                           "malformed-request")
+                            )
+                        )
+                    )
+                ],
+                tls_transport=True)
 
     def test_perform_mechanism_on_match(self):
         self.mechanisms.mechanisms.append(
@@ -379,6 +428,50 @@ class TestPasswordSASLProvider(xmltestutils.XMLTestCase):
                 unittest.mock.call(self.client_jid.bare(), 2),
             ],
             self.password_provider.mock_calls
+        )
+
+    def test_fail_if_out_of_mechanisms(self):
+        self.mechanisms.mechanisms.extend([
+            security_layer.SASLMechanism(name="SCRAM-SHA-1"),
+            security_layer.SASLMechanism(name="PLAIN")
+        ])
+
+        provider = security_layer.PasswordSASLProvider(
+            self._password_provider_wrapper)
+
+        self.password_provider.return_value = "foobar"
+
+        plain_payload = (b"\0"+str(self.client_jid.localpart).encode("utf-8")+
+                         b"\0"+"foobar".encode("utf-8"))
+
+        self.assertFalse(
+            self._test_provider(
+                provider,
+                actions=[
+                    XMLStreamMock.Send(
+                        sasl.SASLAuth(
+                            mechanism="SCRAM-SHA-1",
+                            payload=b"n,,n=foo,r=Zm9vAAAAAAAAAAAAAAAA"),
+                        response=XMLStreamMock.Receive(
+                            sasl.SASLFailure(
+                                condition=(namespaces.sasl,
+                                           "invalid-mechanism")
+                            )
+                        )
+                    ),
+                    XMLStreamMock.Send(
+                        sasl.SASLAuth(mechanism="PLAIN",
+                                      payload=plain_payload),
+                        response=XMLStreamMock.Receive(
+                            sasl.SASLFailure(
+                                condition=(namespaces.sasl,
+                                           "mechanism-too-weak")
+                            )
+                        )
+                    )
+                ],
+                tls_transport=True
+            )
         )
 
     def tearDown(self):
