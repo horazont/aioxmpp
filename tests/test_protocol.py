@@ -87,6 +87,7 @@ FakeIQ.register_child(FakeIQ.payload, Child)
 class TestXMLStream(unittest.TestCase):
     def setUp(self):
         self.maxDiff = None
+        self.loop = asyncio.get_event_loop()
 
     def _make_peer_header(self, version=(1, 0)):
         return PEER_STREAM_HEADER_TEMPLATE.format(
@@ -541,6 +542,64 @@ class TestXMLStream(unittest.TestCase):
         )
 
         self.assertIsNone(p.transport)
+
+    def test_clean_state_if_starttls_fails(self):
+        had_exception = False
+        def exc_handler(loop, context):
+            nonlocal had_exception
+            had_exception = True
+            loop.default_exception_handler(context)
+
+        self.loop.set_exception_handler(exc_handler)
+
+        fut = asyncio.Future()
+        t, p = self._make_stream(to=TEST_PEER,
+                                 with_starttls=True,
+                                 features_future=fut)
+
+        run_coroutine(
+            t.run_test(
+                [
+                    TransportMock.Write(
+                        STREAM_HEADER,
+                        response=[
+                            TransportMock.Receive(self._make_peer_header()),
+                        ]),
+                ],
+                partial=True
+            )
+        )
+
+        side_effect = ValueError()
+
+        ssl_context = unittest.mock.MagicMock()
+        # we raise from the callback to simulate a handshake failure
+        post_handshake_callback = unittest.mock.MagicMock()
+        # some unknown exception, definitely not an XMPP error
+        post_handshake_callback.side_effect = side_effect
+
+        starttls_result, test_result = run_coroutine(asyncio.gather(
+            p.starttls(ssl_context, post_handshake_callback),
+            t.run_test(
+                [
+                    TransportMock.STARTTLS(
+                    ssl_context,
+                        post_handshake_callback,
+                        response=TransportMock.LoseConnection(side_effect)
+                    )
+                ]
+            ),
+            return_exceptions=True
+        ))
+
+        self.assertIs(side_effect, starttls_result)
+        if test_result is not None:
+            raise test_result
+
+    def tearDown(self):
+        self.loop.set_exception_handler(
+            type(self.loop).default_exception_handler
+        )
 
 
 class Testsend_and_wait_for(xmltestutils.XMLTestCase):

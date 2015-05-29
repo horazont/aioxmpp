@@ -396,12 +396,15 @@ class TransportMock(InteractivityMock,
                 yield from post_handshake_callback(self)
             except Exception as exc:
                 fut.set_exception(exc)
-                raise exc
-        fut.set_result(None)
+            else:
+                fut.set_result(None)
+        else:
+            fut.set_result(None)
 
         self._execute_response(head.response)
 
     def write(self, data):
+        print(data)
         self._queue.put_nowait(("write", data))
 
     def write_eof(self):
@@ -566,8 +569,10 @@ class XMLStreamMock(InteractivityMock):
                 yield from post_handshake_callback(self.transport)
             except Exception as exc:
                 fut.set_exception(exc)
-                raise exc
-        fut.set_result(None)
+            else:
+                fut.set_result(None)
+        else:
+            fut.set_result(None)
 
         self._execute_response(head.response)
 

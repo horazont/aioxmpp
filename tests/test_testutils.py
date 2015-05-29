@@ -775,7 +775,7 @@ class TestXMLStreamMock(XMLTestCase):
         )
 
         self.assertIs(caught_exception, exc)
-        self.assertIs(other_result, exc)
+        self.assertIs(other_result, None)
 
     def tearDown(self):
         del self.xmlstream

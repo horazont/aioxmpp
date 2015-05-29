@@ -133,9 +133,13 @@ class XMLStream(asyncio.Protocol):
         if self._state == State.CLOSING:
             return
         self._state = State.CLOSING
-        self._writer.close()
-        self._transport.write_eof()
-        self._transport.close()
+        if exc is not None and not isinstance(exc, errors.StreamError):
+            self._kill_state()
+        else:
+            self._writer.close()
+            self._transport.write_eof()
+            self._transport.close()
+        self._writer = None
         self._transport = None
 
     def data_received(self, blob):
@@ -149,7 +153,7 @@ class XMLStream(asyncio.Protocol):
     def close(self):
         self.connection_lost(None)
 
-    def _reset_state(self):
+    def _kill_state(self):
         if self._writer:
             if inspect.getgeneratorstate(self._writer) == "GEN_SUSPENDED":
                 try:
@@ -158,6 +162,12 @@ class XMLStream(asyncio.Protocol):
                     pass
             else:
                 self._writer = None
+
+        self._processor = None
+        self._parser = None
+
+    def _reset_state(self):
+        self._kill_state()
 
         self._processor = xml.XMPPXMLProcessor()
         self._processor.stanza_parser = self.stanza_parser
