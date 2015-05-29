@@ -9,7 +9,7 @@ import aioxmpp.stream_xsos as stream_xsos
 
 from aioxmpp.utils import namespaces
 
-from .testutils import XMLStreamMock, run_coroutine
+from .testutils import XMLStreamMock, run_coroutine, run_coroutine_with_peer
 from . import xmltestutils
 
 
@@ -28,19 +28,12 @@ class TestSTARTTLSProvider(xmltestutils.XMLTestCase):
         self.certificate_verifier_factory = unittest.mock.MagicMock()
 
     def _test_provider(self, provider, features, actions=[], stimulus=None):
-        result1, result2 = run_coroutine(
-            asyncio.gather(
-                provider.execute(self.client_jid,
-                                 features,
-                                 self.xmlstream),
-                self.xmlstream.run_test(actions, stimulus=stimulus),
-                return_exceptions=True),
-        )
-        if isinstance(result1, Exception):
-            raise result1
-        if isinstance(result2, Exception):
-            raise result2
-        return result1
+        return run_coroutine_with_peer(
+            provider.execute(self.client_jid,
+                             features,
+                             self.xmlstream),
+            self.xmlstream.run_test(actions, stimulus=stimulus),
+            loop=self.loop)
 
     def test_require_starttls(self):
         provider = security_layer.STARTTLSProvider(
@@ -230,40 +223,14 @@ class TestPasswordSASLProvider(xmltestutils.XMLTestCase):
     def _test_provider(self, provider,
                        actions=[], stimulus=None,
                        tls_transport=None):
-        provider_future = asyncio.async(
+        return run_coroutine_with_peer(
             provider.execute(self.client_jid,
                              self.features,
                              self.xmlstream,
                              tls_transport),
-            loop=self.loop)
-        test_future = asyncio.async(
             self.xmlstream.run_test(actions, stimulus=stimulus),
-            loop=self.loop)
-
-        done, pending = run_coroutine(
-            asyncio.wait(
-                [
-                    provider_future,
-                    test_future,
-                ],
-                return_when=asyncio.FIRST_EXCEPTION),
+            loop=self.loop
         )
-
-        if pending:
-            next(iter(pending)).cancel()
-            # this must throw
-            next(iter(done)).result()
-            assert False
-
-        if provider_future.exception():
-            # re-throw the exception properly
-            provider_future.result()
-
-        # throw if any
-        test_future.result()
-
-        # return correct result
-        return provider_future.result()
 
     def test_reject_plain_auth_over_non_tls_stream(self):
         self.mechanisms.mechanisms.append(
@@ -449,36 +416,11 @@ class Testnegotiate_stream_security(xmltestutils.XMLTestCase):
 
     def _test_provider(self, main_coro,
                        actions=[], stimulus=None):
-        provider_future = asyncio.async(main_coro,
-                                        loop=self.loop)
-        test_future = asyncio.async(
+        return run_coroutine_with_peer(
+            main_coro,
             self.xmlstream.run_test(actions, stimulus=stimulus),
-            loop=self.loop)
-
-        done, pending = run_coroutine(
-            asyncio.wait(
-                [
-                    provider_future,
-                    test_future,
-                ],
-                return_when=asyncio.FIRST_EXCEPTION),
+            loop=self.loop
         )
-
-        if pending:
-            next(iter(pending)).cancel()
-            # this must throw
-            next(iter(done)).result()
-            assert False
-
-        if provider_future.exception():
-            # re-throw the exception properly
-            provider_future.result()
-
-        # throw if any
-        test_future.result()
-
-        # return correct result
-        return provider_future.result()
 
     def _coro_return(self, value):
         return value

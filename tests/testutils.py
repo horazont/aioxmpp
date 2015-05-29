@@ -39,6 +39,53 @@ def run_coroutine(coroutine, timeout=1.0, loop=None):
             timeout=timeout))
 
 
+def run_coroutine_with_peer(
+        coroutine,
+        peer_coroutine,
+        timeout=1.0,
+        loop=None):
+    loop = loop or asyncio.get_event_loop()
+
+    local_future = asyncio.async(coroutine, loop=loop)
+    remote_future = asyncio.async(peer_coroutine, loop=loop)
+
+    done, pending = loop.run_until_complete(
+        asyncio.wait(
+            [
+                local_future,
+                remote_future,
+            ],
+            timeout=timeout,
+            return_when=asyncio.FIRST_EXCEPTION)
+    )
+    if not done:
+        raise asyncio.TimeoutError("Test timed out")
+
+    if pending:
+        pending_fut = next(iter(pending))
+        pending_fut.cancel()
+        fut = next(iter(done))
+        try:
+            fut.result()
+        except:
+            # everything is fine, the other one failed
+            raise
+        else:
+            if pending_fut == remote_future:
+                raise asyncio.TimeoutError(
+                    "Peer coroutine did not return in time")
+            else:
+                raise asyncio.TimeoutError(
+                    "Coroutine under test did not return in time")
+
+    if local_future.exception():
+        # re-throw the error properly
+        local_future.result()
+
+    remote_future.result()
+    return local_future.result()
+
+
 class SSLWrapperMock:
     """
     Mock for :class:`aioxmpp.ssl_wrapper.STARTTLSableTransportProtocol`.
