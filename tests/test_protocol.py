@@ -512,6 +512,36 @@ class TestXMLStream(unittest.TestCase):
         self.assertTrue(fut.done())
         self.assertIsInstance(fut.result(), stream_xsos.StreamFeatures)
 
+    def test_transport_attribute(self):
+        t, p = self._make_stream(to=TEST_PEER)
+
+        self.assertIsNone(p.transport)
+
+        run_coroutine(
+            t.run_test(
+                [
+                    TransportMock.Write(
+                        STREAM_HEADER,
+                        response=[
+                            TransportMock.Receive(self._make_peer_header()),
+                        ]),
+                ],
+                partial=True
+            )
+        )
+
+        self.assertIs(p.transport, t)
+
+        run_coroutine(
+            t.run_test(
+                [
+                ],
+                partial=False
+            )
+        )
+
+        self.assertIsNone(p.transport)
+
 
 class Testsend_and_wait_for(xmltestutils.XMLTestCase):
     def setUp(self):

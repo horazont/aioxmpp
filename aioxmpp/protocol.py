@@ -136,6 +136,7 @@ class XMLStream(asyncio.Protocol):
         self._writer.close()
         self._transport.write_eof()
         self._transport.close()
+        self._transport = None
 
     def data_received(self, blob):
         try:
@@ -194,6 +195,9 @@ class XMLStream(asyncio.Protocol):
                                             post_handshake_callback)
         self._reset_state()
 
+    @property
+    def transport(self):
+        return self._transport
 
 
 @asyncio.coroutine
