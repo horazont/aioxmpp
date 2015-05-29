@@ -331,7 +331,7 @@ class STARTTLSProvider:
 
 
 class SASLMechanism(xso.XSO):
-    TAG = (namespaces.sasl, "mechansims")
+    TAG = (namespaces.sasl, "mechanism")
 
     name = xso.Text()
 
@@ -339,8 +339,9 @@ class SASLMechanism(xso.XSO):
         super().__init__()
         self.name = name
 
+@stream_xsos.StreamFeatures.as_feature_class
 class SASLMechanisms(xso.XSO):
-    TAG = (namespaces.sasl, "mechansims")
+    TAG = (namespaces.sasl, "mechanisms")
 
     mechanisms = xso.ChildList([SASLMechanism])
 
