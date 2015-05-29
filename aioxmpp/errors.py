@@ -39,6 +39,11 @@ Stream negotiation exceptions
 
 .. autoclass:: AuthenticationFailure
 
+Other exceptions
+================
+
+.. autoclass:: MultiOSError
+
 """
 
 from . import xso
@@ -161,7 +166,15 @@ error_type_map = {
 
 
 class MultiOSError(OSError):
-    def __init__(self, msg, exceptions):
+    """
+    Describe an error situation which has been caused by the sequential
+    occurence of multiple other *exceptions*.
+
+    The *message* shall be descriptive and will be prepended to a concatenation
+    of the error messages of the given *exceptions*.
+    """
+
+    def __init__(self, message, exceptions):
         flattened_exceptions = []
         for exc in exceptions:
             if hasattr(exc, "exceptions"):
@@ -171,7 +184,7 @@ class MultiOSError(OSError):
 
         super().__init__(
             "{}: multiple errors: {}".format(
-                msg,
+                message,
                 ", ".join(map(str, flattened_exceptions))
             )
         )
