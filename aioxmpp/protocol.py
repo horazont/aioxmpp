@@ -10,6 +10,8 @@ import xml.parsers.expat as pyexpat
 from . import xml, errors, xso, stream_xsos, stanza
 from .utils import namespaces
 
+logger = logging.getLogger(__name__)
+
 
 class Mode(Enum):
     C2S = namespaces.client
@@ -143,6 +145,7 @@ class XMLStream(asyncio.Protocol):
         self._transport = None
 
     def data_received(self, blob):
+        logger.debug("RECV %r", blob)
         try:
             self._rx_feed(blob)
         except errors.StreamError as exc:
