@@ -760,3 +760,35 @@ class Testsecurity_layer(unittest.TestCase):
             security_layer.negotiate_stream_security,
             tls_provider,
             sasl_providers)
+
+
+class Testtls_with_password_based_authentication(unittest.TestCase):
+    @unittest.mock.patch("aioxmpp.security_layer.PasswordSASLProvider")
+    @unittest.mock.patch("aioxmpp.security_layer.STARTTLSProvider")
+    @unittest.mock.patch("aioxmpp.security_layer.security_layer")
+    def test_constructs_security_layer(self,
+                                       security_layer_fun,
+                                       STARTTLSProvider,
+                                       PasswordSASLProvider):
+        password_provider = object()
+        ssl_context_factory = object()
+        certificate_verifier_factory = object()
+        max_auth_attempts = 4
+
+        security_layer.tls_with_password_based_authentication(
+            password_provider,
+            ssl_context_factory,
+            max_auth_attempts,
+            certificate_verifier_factory)
+
+        security_layer_fun.assert_called_once_with(
+            tls_provider=STARTTLSProvider(
+                ssl_context_factory,
+                require_starttls=True,
+                certificate_verifier_factory=certificate_verifier_factory),
+            sasl_providers=[
+                PasswordSASLProvider(
+                    password_provider,
+                    max_auth_attempts=max_auth_attempts)
+            ]
+        )
