@@ -158,3 +158,21 @@ error_type_map = {
     "wait": XMPPWaitError,
     "continue": XMPPContinueError,
 }
+
+
+class MultiOSError(OSError):
+    def __init__(self, msg, exceptions):
+        flattened_exceptions = []
+        for exc in exceptions:
+            if hasattr(exc, "exceptions"):
+                flattened_exceptions.extend(exc.exceptions)
+            else:
+                flattened_exceptions.append(exc)
+
+        super().__init__(
+            "{}: multiple errors: {}".format(
+                msg,
+                ", ".join(map(str, flattened_exceptions))
+            )
+        )
+        self.exceptions = flattened_exceptions

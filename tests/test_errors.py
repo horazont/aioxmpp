@@ -43,3 +43,32 @@ class Testformat_error_text(unittest.TestCase):
                 text="that’s not an integer"
             )
         )
+
+
+class TestMultiOSError(unittest.TestCase):
+    def test_message(self):
+        exc = errors.MultiOSError("foo",
+                                  [ValueError("bar"),
+                                   ValueError("baz")])
+
+        self.assertEqual(
+            "foo: multiple errors: bar, baz",
+            str(exc)
+        )
+
+
+    def test_flatten(self):
+        base_excs1 = [OSError(), OSError()]
+        base_excs2 = [OSError(), OSError()]
+        exc3 = OSError()
+
+        excs = [errors.MultiOSError("foo", base_excs1),
+                errors.MultiOSError("foo", base_excs2),
+                exc3]
+
+        exc = errors.MultiOSError("bar", excs)
+
+        self.assertSequenceEqual(
+            base_excs1+base_excs2+[exc3],
+            exc.exceptions
+        )
