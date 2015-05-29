@@ -139,7 +139,8 @@ class XMLStream(asyncio.Protocol):
             self._kill_state()
         else:
             self._writer.close()
-            self._transport.write_eof()
+            if self._transport.can_write_eof():
+                self._transport.write_eof()
             self._transport.close()
         self._writer = None
         self._transport = None
