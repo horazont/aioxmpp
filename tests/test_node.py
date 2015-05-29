@@ -368,6 +368,40 @@ class Testconnect_secured_xmlstream(unittest.TestCase):
         self.assertIs(xmlstream, result_xmlstream)
         self.assertIs(final_features, result_features)
 
+    def test_connect_timeout(self):
+        connect_to_xmpp_server_recorder = unittest.mock.MagicMock()
+        security_layer_recorder = unittest.mock.MagicMock()
+
+        transport = object()
+        xmlstream = unittest.mock.MagicMock()
+
+        final_features = stream_xsos.StreamFeatures()
+        tls_transport = object()
+        security_layer = functools.partial(
+            self._security_layer,
+            security_layer_recorder,
+            tls_transport,
+            final_features)
+
+        features = stream_xsos.StreamFeatures()
+
+        @asyncio.coroutine
+        def sleeper(jid, loop):
+            yield from asyncio.sleep(10, loop=loop)
+
+        with unittest.mock.patch("aioxmpp.node.connect_to_xmpp_server",
+                                 sleeper):
+            with self.assertRaisesRegexp(TimeoutError,
+                                         "connection to .* timed out"):
+                run_coroutine(
+                    node.connect_secured_xmlstream(
+                        self.test_jid,
+                        security_layer,
+                        negotiation_timeout=0.2,
+                        loop=self.loop)
+                )
+
+
     def tearDown(self):
         for patch in self.patches:
             patch.stop()

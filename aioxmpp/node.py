@@ -92,6 +92,9 @@ def connect_secured_xmlstream(jid, security_layer,
     *loop* must be either a valid :class:`asyncio.BaseEventLoop` or
     :data:`None`, in which case the current event loop is used.
 
+    The *negotiation_timeout* is passed to the security layer and used for
+    connect timeouts.
+
     Return a triple consisting of the *transport*, the
     :class:`~aioxmpp.protocol.XMLStream` and the current
     :class:`~aioxmpp.stream_xsos.StreamFeatures` node. The *transport* returned
@@ -109,9 +112,14 @@ def connect_secured_xmlstream(jid, security_layer,
     :class:`~aioxmpp.errors.AuthenticationFailure`.
     """
 
-    transport, xmlstream, features_future = yield from connect_to_xmpp_server(
-        jid,
-        loop=loop)
+    try:
+        transport, xmlstream, features_future = yield from asyncio.wait_for(
+            connect_to_xmpp_server(jid, loop=loop),
+            timeout=negotiation_timeout,
+            loop=loop
+        )
+    except asyncio.TimeoutError:
+        raise TimeoutError("connection to {} timed out".format(jid))
 
     features = yield from features_future
 
