@@ -589,7 +589,7 @@ class StanzaStream:
     def register_iq_response_future(self, from_, id_, fut):
         """
         Register a future *fut* for an IQ stanza with type ``result`` or
-        ``error`` from the :class:`~aioxmpp.structs.JID`` *from_* with the id
+        ``error`` from the :class:`~aioxmpp.structs.JID` *from_* with the id
         *id_*.
 
         If the type of the IQ stanza is ``result``, the stanza is set as result
