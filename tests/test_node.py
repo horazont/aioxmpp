@@ -789,6 +789,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
             client.local_jid = structs.JID.fromstr("bar@bar.example/baz")
 
     def test_start(self):
+        self.assertFalse(self.client.established)
         run_coroutine(asyncio.sleep(0))
         self.connect_secured_xmlstream_rec.assert_not_called()
         self.assertFalse(self.client.running)
@@ -814,6 +815,8 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
         run_coroutine(asyncio.sleep(0))
         self.assertTrue(self.client.stream.running)
         run_coroutine(self.xmlstream.run_test(self.resource_binding))
+        run_coroutine(asyncio.sleep(0))
+        self.assertTrue(self.client.established)
         self.client.stop()
         run_coroutine(asyncio.sleep(0.01))
         self.assertFalse(self.client.stream.running)
@@ -825,10 +828,14 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
         self.client.start()
         self.assertTrue(self.client.running)
         run_coroutine(self.xmlstream.run_test(self.resource_binding))
+        run_coroutine(asyncio.sleep(0))
+        self.assertTrue(self.client.established)
         self.assertTrue(self.client.running)
         self.client.stop()
         run_coroutine(asyncio.sleep(0))
         self.assertFalse(self.client.running)
+        run_coroutine(asyncio.sleep(0))
+        self.assertFalse(self.client.established)
 
     def test_reconnect_on_failure(self):
         self.client.backoff_start = timedelta(seconds=0.008)
@@ -881,6 +888,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
 
         # the client has not failed
         self.assertFalse(self.failure_rec.mock_calls)
+        self.assertTrue(self.client.established)
 
     def test_fail_on_authentication_failure(self):
         exc = errors.AuthenticationFailure("not-authorized")
@@ -1367,6 +1375,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
 
         self.established_rec.assert_called_once_with()
         self.destroyed_rec.assert_called_once_with()
+        self.assertFalse(self.client.established)
 
     def test_signals_fire_correctly_on_fail_after_established_sm_connection(self):
         self.features[...] = stream_xsos.StreamManagementFeature()
@@ -1392,6 +1401,183 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
 
         self.established_rec.assert_called_once_with()
         self.destroyed_rec.assert_called_once_with()
+
+    def tearDown(self):
+        for patch in self.patches:
+            patch.stop()
+        if self.client.running:
+            self.client.stop()
+        run_coroutine(self.xmlstream.run_test([]))
+
+
+class TestPresenceManagedClient(xmltestutils.XMLTestCase):
+    @asyncio.coroutine
+    def _connect_secured_xmlstream(self, *args, **kwargs):
+        self.connect_secured_xmlstream_rec(*args, **kwargs)
+        return None, self.xmlstream, self.features
+
+    def setUp(self):
+        self.connect_secured_xmlstream_rec = unittest.mock.MagicMock()
+        self.failure_rec = unittest.mock.MagicMock()
+        self.failure_rec.return_value = None
+        self.established_rec = unittest.mock.MagicMock()
+        self.established_rec.return_value = None
+        self.destroyed_rec = unittest.mock.MagicMock()
+        self.destroyed_rec.return_value = None
+        self.presence_sent_rec = unittest.mock.MagicMock()
+        self.presence_sent_rec.return_value = None
+        self.security_layer = object()
+
+        self.loop = asyncio.get_event_loop()
+        self.patches = [
+            unittest.mock.patch("aioxmpp.node.connect_secured_xmlstream",
+                                self._connect_secured_xmlstream)
+
+        ]
+        self.connect_secured_xmlstream, = (patch.start()
+                                           for patch in self.patches)
+        self.xmlstream = XMLStreamMock(self, loop=self.loop)
+        self.test_jid = structs.JID.fromstr("foo@bar.example/baz")
+        self.features = stream_xsos.StreamFeatures()
+        self.features[...] = rfc6120.BindFeature()
+
+        self.client = node.PresenceManagedClient(
+            self.test_jid,
+            self.security_layer,
+            loop=self.loop)
+        self.client.on_failure.connect(self.failure_rec)
+        self.client.on_stream_destroyed.connect(self.destroyed_rec)
+        self.client.on_stream_established.connect(self.established_rec)
+        self.client.on_presence_sent.connect(self.presence_sent_rec)
+
+        self.resource_binding = [
+            XMLStreamMock.Send(
+                stanza.IQ(
+                    payload=rfc6120.Bind(
+                        resource=self.test_jid.resource),
+                    type_="set"),
+                response=XMLStreamMock.Receive(
+                    stanza.IQ(
+                        payload=rfc6120.Bind(
+                            jid=self.test_jid,
+                        ),
+                        type_="result"
+                    )
+                )
+            )
+        ]
+
+    def test_setup(self):
+        self.assertEqual(
+            structs.PresenceState(),
+            self.client.presence
+        )
+
+    def test_change_presence_to_available(self):
+        self.client.presence = structs.PresenceState(
+            available=True,
+            show="chat")
+
+        run_coroutine(self.xmlstream.run_test([
+        ]+self.resource_binding+[
+            XMLStreamMock.Send(
+                stanza.Presence(type_=None,
+                                show="chat"),
+                response=XMLStreamMock.Receive(
+                    stanza.Presence(type_=None,
+                                    show="chat")
+                )
+            )
+        ]))
+
+        self.presence_sent_rec.assert_called_once_with()
+
+    def test_change_presence_while_available(self):
+        self.client.presence = structs.PresenceState(
+            available=True,
+            show="chat")
+
+        run_coroutine(self.xmlstream.run_test([
+        ]+self.resource_binding+[
+            XMLStreamMock.Send(
+                stanza.Presence(type_=None,
+                                show="chat"),
+                response=XMLStreamMock.Receive(
+                    stanza.Presence(type_=None,
+                                    show="chat")
+                )
+            )
+        ]))
+
+        self.presence_sent_rec.assert_called_once_with()
+
+        self.client.presence = structs.PresenceState(
+            available=True,
+            show="away")
+
+        run_coroutine(self.xmlstream.run_test([
+            XMLStreamMock.Send(
+                stanza.Presence(type_=None,
+                                show="away"),
+                response=XMLStreamMock.Receive(
+                    stanza.Presence(type_=None,
+                                    show="away")
+                )
+            )
+        ]))
+
+        self.presence_sent_rec.assert_called_once_with()
+
+    def test_change_presence_to_unavailable(self):
+        self.client.presence = structs.PresenceState(
+            available=True,
+            show="chat")
+
+        run_coroutine(self.xmlstream.run_test([
+        ]+self.resource_binding+[
+            XMLStreamMock.Send(
+                stanza.Presence(type_=None,
+                                show="chat"),
+                response=XMLStreamMock.Receive(
+                    stanza.Presence(type_=None,
+                                    show="chat")
+                )
+            )
+        ]))
+
+        self.client.presence = structs.PresenceState()
+
+        run_coroutine(self.xmlstream.run_test([]))
+
+        self.assertFalse(self.client.running)
+
+        self.presence_sent_rec.assert_called_once_with()
+
+    def test_do_not_send_presence_twice_if_changed_while_establishing(self):
+        self.client.presence = structs.PresenceState(
+            available=True,
+            show="chat")
+        run_coroutine(asyncio.sleep(0))
+        self.assertTrue(self.client.running)
+        self.assertFalse(self.client.established)
+
+        self.client.presence = structs.PresenceState(
+            available=True,
+            show="dnd")
+
+        run_coroutine(self.xmlstream.run_test([
+        ]+self.resource_binding+[
+            XMLStreamMock.Send(
+                stanza.Presence(type_=None,
+                                show="dnd"),
+                response=XMLStreamMock.Receive(
+                    stanza.Presence(type_=None,
+                                    show="dnd")
+                )
+            )
+        ]))
+
+        self.presence_sent_rec.assert_called_once_with()
 
     def tearDown(self):
         for patch in self.patches:

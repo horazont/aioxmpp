@@ -44,6 +44,7 @@ from . import (
     stream_xsos,
     rfc6120,
     stanza,
+    structs,
 )
 from .utils import namespaces
 
@@ -589,53 +590,57 @@ class AbstractClient:
         return self._established
 
 
-class ClientStatus(Enum):
-    DISCONNECTED = 0
-    CONNECTING = 1
-    CONNECTED = 2
-    DISCONNECTING = 3
-
-
-class PresenceManagedClient:
+class PresenceManagedClient(AbstractClient):
     """
-    A presence managed XMPP client.
+    A presence managed XMPP client. The arguments are passed to the
+    :class:`AbstractClient` constructor.
 
-    The *jid* must be a :class:`~aioxmpp.structs.JID` for which to connect. The
-    *security_layer* is best created using the
-    :func:`~aioxmpp.security_layer.security_layer` function and must provide
-    authentication for the given *jid*.
+    While the start/stop interfaces of :class:`AbstractClient` are still
+    available, it is recommended to control the presence managed client solely
+    using the :attr:`presence` property.
 
-    The basic workflow is to set the presence using the :meth:`set_presence`
-    coroutine and send and receive stanzas using :attr:`broker`, which is a
-    :class:`~aioxmpp.stream.StanzaBroker` instance.
+    The initial presence is set to *unavailable*, thus, the client will not
+    connect immediately.
 
-    When an available presence is set, the client maintains a connection to the
-    server. This includes enabling stream management if possible, periodically
-    checking the stream liveness and re-connecting the underlying XML stream if
-    neccessary.
+    .. attribute:: presence
 
-    In general, there are no fatal errors (aside from security layer
-    negotiation problems) which stop a :class:`PresenceManagedClient` from
-    working; however, if no stream can be established, the :attr:`status` of
-    the client will never turn :attr:`ClientStatus.CONNECTED` and no stanzas
-    will be received.
+    Signals:
 
-    If authentication fails, the client enters :attr:`ClientStatus.FAILED`
-    status and the :attr:`exception` attribute will hold the corresponding
-    exception; the corresponding event will also be fired. No reconnection
-    attempts will be made.
+    .. attribute:: on_presence_sent
 
-    There are events which allow a user to be notified about connectivity
-    changes.
-
-    Note that when stream management is enabled, the client is shown as
-    :attr:`ClientStatus.CONNECTED` even if no underlying XML stream is
-    currently available; this is consistent with the model of Stream Management
-    which tries to cover disconnects as good as possible. On a reconnect, it is
-    assumed that a retransmission of anything the client would want to re-fetch
-    on a reconnect will occur anyways.
-
-    If during a reconnect an SM session is terminated (because resumption
-    fails), a proper disconnect and connect event sequence is fired to allow
-    users to synchronize their state accordingly.
     """
+
+    on_presence_sent = callbacks.Signal()
+
+    def __init__(self, jid, security_layer, **kwargs):
+        super().__init__(jid, security_layer, **kwargs)
+        self._presence = structs.PresenceState()
+        self.on_stream_established.connect(self._handle_stream_established)
+
+    def _resend_presence(self):
+        pres = stanza.Presence()
+        self._presence.apply_to_stanza(pres)
+        self.stream.enqueue_stanza(pres)
+
+    def _handle_stream_established(self):
+        self._resend_presence()
+        self.on_presence_sent()
+
+    @property
+    def presence(self):
+        return self._presence
+
+    @presence.setter
+    def presence(self, value):
+        if value == self._presence:
+            return
+
+        self._presence = value
+        if self._presence.available:
+            if not self.running:
+                self.start()
+            elif self.established:
+                self._resend_presence()
+        else:
+            if self.running:
+                self.stop()
