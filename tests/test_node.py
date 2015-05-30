@@ -1247,6 +1247,69 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
             errors.StreamNegotiationFailure
         )
 
+    def test_resume_stream_management_during_resource_binding(self):
+        self.features[...] = stream_xsos.StreamManagementFeature()
+
+        self.client.backoff_start = timedelta(seconds=0)
+        self.client.negotiation_timeout = timedelta(seconds=0.01)
+        self.client.start()
+
+        run_coroutine(self.xmlstream.run_test([
+        ]+self.sm_negotiation_exchange+[
+            XMLStreamMock.Send(
+                stanza.IQ(
+                    payload=rfc6120.Bind(
+                        resource=self.test_jid.resource),
+                    type_="set"),
+                # we let the response go missing, let’s see whether
+                # retransmission works...
+            ),
+            XMLStreamMock.Send(
+                stream_xsos.SMRequest(),
+                response=[
+                    XMLStreamMock.Fail(
+                        exc=ConnectionError()
+                    ),
+                    XMLStreamMock.CleanFailure()
+                ],
+            ),
+            XMLStreamMock.Send(
+                stream_xsos.SMResume(counter=0, previd="foobar"),
+                response=[
+                    XMLStreamMock.Receive(
+                        stream_xsos.SMResumed(counter=0)
+                    )
+                ]
+            ),
+        ]+self.resource_binding+self.sm_request))
+
+    def test_resume_stream_management_after_resource_binding(self):
+        self.features[...] = stream_xsos.StreamManagementFeature()
+
+        self.client.backoff_start = timedelta(seconds=0)
+        self.client.negotiation_timeout = timedelta(seconds=0.01)
+        self.client.start()
+
+        run_coroutine(self.xmlstream.run_test([
+        ]+self.sm_negotiation_exchange+self.resource_binding+[
+            XMLStreamMock.Send(
+                stream_xsos.SMRequest(),
+                response=[
+                    XMLStreamMock.Fail(
+                        exc=ConnectionError()
+                    ),
+                    XMLStreamMock.CleanFailure()
+                ],
+            ),
+            XMLStreamMock.Send(
+                stream_xsos.SMResume(counter=1, previd="foobar"),
+                response=[
+                    XMLStreamMock.Receive(
+                        stream_xsos.SMResumed(counter=1)
+                    )
+                ]
+            )
+        ]))
 
     def tearDown(self):
         for patch in self.patches:
