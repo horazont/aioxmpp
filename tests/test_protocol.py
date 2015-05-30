@@ -117,11 +117,20 @@ class TestXMLStream(unittest.TestCase):
         t = TransportMock(self, p, with_starttls=with_starttls)
         return t, p
 
+    def test_init(self):
+        t, p = self._make_stream(to=TEST_PEER)
+        self.assertEqual(
+            protocol.State.CLOSED,
+            p.state
+        )
+
     def test_connection_made_check_state(self):
         t, p = self._make_stream(to=TEST_PEER)
         with self.assertRaisesRegexp(RuntimeError, "invalid state"):
             run_coroutine(
                 t.run_test(
+                    # implicit connection_made is at the start of each
+                    # TransportMock test!
                     [
                         TransportMock.Write(
                             STREAM_HEADER,
@@ -179,7 +188,9 @@ class TestXMLStream(unittest.TestCase):
                 partial=True
             ))
         p.close()
+        self.assertEqual(protocol.State.CLOSING, p.state)
         p.close()
+        self.assertEqual(protocol.State.CLOSING, p.state)
         run_coroutine(
             t.run_test(
                 [
@@ -188,6 +199,7 @@ class TestXMLStream(unittest.TestCase):
                     TransportMock.Close(),
                 ],
             ))
+        self.assertEqual(protocol.State.CLOSED, p.state)
 
     def test_reset(self):
         t, p = self._make_stream(to=TEST_PEER)
@@ -388,6 +400,26 @@ class TestXMLStream(unittest.TestCase):
                 ])
         ]))
 
+    def test_detect_stream_header(self):
+        t, p = self._make_stream(to=TEST_PEER)
+        run_coroutine(
+            t.run_test(
+                [
+                    TransportMock.Write(
+                        STREAM_HEADER,
+                        response=[
+                            TransportMock.Receive(self._make_peer_header()),
+                        ]),
+                ],
+                partial=True
+            )
+        )
+        self.assertEqual(
+            protocol.State.OPEN,
+            p.state
+        )
+
+
     def test_send_stanza(self):
         st = FakeIQ()
         st.id_ = "id"
@@ -443,8 +475,6 @@ class TestXMLStream(unittest.TestCase):
 
     def test_starttls_raises_without_starttls_support(self):
         t, p = self._make_stream(to=TEST_PEER)
-        with self.assertRaisesRegexp(RuntimeError, "no transport connected"):
-            run_coroutine(p.starttls(object()))
         run_coroutine(
             t.run_test(
                 [
@@ -595,6 +625,165 @@ class TestXMLStream(unittest.TestCase):
         self.assertIs(side_effect, starttls_result)
         if test_result is not None:
             raise test_result
+
+    def test_send_stanza_raises_while_closed(self):
+        t, p = self._make_stream(to=TEST_PEER)
+        with self.assertRaisesRegexp(ConnectionError,
+                                     "not connected"):
+            p.send_stanza(object())
+
+    def test_send_stanza_raises_while_closing(self):
+        t, p = self._make_stream(to=TEST_PEER)
+        run_coroutine(
+            t.run_test(
+                [
+                    TransportMock.Write(
+                        STREAM_HEADER,
+                        response=[
+                            TransportMock.Receive(self._make_peer_header()),
+                        ]),
+                ],
+                partial=True
+            )
+        )
+        p.close()
+        with self.assertRaisesRegexp(ConnectionError,
+                                     "not connected"):
+            p.send_stanza(object())
+
+    def test_starttls_raises_while_closed(self):
+        t, p = self._make_stream(to=TEST_PEER)
+        with self.assertRaisesRegexp(ConnectionError,
+                                     "not connected"):
+            run_coroutine(p.starttls(object()))
+
+    def test_starttls_raises_while_closing(self):
+        t, p = self._make_stream(to=TEST_PEER)
+        run_coroutine(
+            t.run_test(
+                [
+                    TransportMock.Write(
+                        STREAM_HEADER,
+                        response=[
+                            TransportMock.Receive(self._make_peer_header()),
+                        ]),
+                ],
+                partial=True
+            )
+        )
+        p.close()
+        with self.assertRaisesRegexp(ConnectionError,
+                                     "not connected"):
+            run_coroutine(p.starttls(object()))
+
+    def test_reset_raises_while_closed(self):
+        t, p = self._make_stream(to=TEST_PEER)
+        with self.assertRaisesRegexp(ConnectionError,
+                                     "not connected"):
+            p.reset()
+
+    def test_reset_raises_while_closing(self):
+        t, p = self._make_stream(to=TEST_PEER)
+        run_coroutine(
+            t.run_test(
+                [
+                    TransportMock.Write(
+                        STREAM_HEADER,
+                        response=[
+                            TransportMock.Receive(self._make_peer_header()),
+                        ]),
+                ],
+                partial=True
+            )
+        )
+        p.close()
+        with self.assertRaisesRegexp(ConnectionError,
+                                     "not connected"):
+            p.reset()
+
+    def test_send_stanza_reraises_connection_lost_error(self):
+        exc = ValueError()
+        t, p = self._make_stream(to=TEST_PEER)
+        run_coroutine(
+            t.run_test(
+                [
+                    TransportMock.Write(
+                        STREAM_HEADER,
+                        response=[
+                            TransportMock.LoseConnection(exc=exc)
+                        ]),
+                ],
+                partial=True
+            )
+        )
+        with self.assertRaises(ValueError) as ctx:
+            p.send_stanza(stanza.IQ())
+        self.assertIs(exc, ctx.exception)
+
+    def test_starttls_reraises_connection_lost_error(self):
+        exc = ValueError()
+        t, p = self._make_stream(to=TEST_PEER)
+        run_coroutine(
+            t.run_test(
+                [
+                    TransportMock.Write(
+                        STREAM_HEADER,
+                        response=[
+                            TransportMock.LoseConnection(exc=exc)
+                        ]),
+                ],
+                partial=True
+            )
+        )
+        with self.assertRaises(ValueError) as ctx:
+            run_coroutine(p.starttls(object()))
+        self.assertIs(exc, ctx.exception)
+
+    def test_reset_reraises_connection_lost_error(self):
+        exc = ValueError()
+        t, p = self._make_stream(to=TEST_PEER)
+        run_coroutine(
+            t.run_test(
+                [
+                    TransportMock.Write(
+                        STREAM_HEADER,
+                        response=[
+                            TransportMock.LoseConnection(exc=exc)
+                        ]),
+                ],
+                partial=True
+            )
+        )
+        with self.assertRaises(ValueError) as ctx:
+            p.reset()
+        self.assertIs(exc, ctx.exception)
+
+    def test_exception_is_reset_on_reconnect(self):
+        exc = ValueError()
+        t, p = self._make_stream(to=TEST_PEER)
+        run_coroutine(
+            t.run_test(
+                [
+                    TransportMock.Write(
+                        STREAM_HEADER,
+                        response=[
+                            TransportMock.LoseConnection(exc=exc)
+                        ]),
+                ],
+                partial=True
+            )
+        )
+        run_coroutine(
+            t.run_test(
+                [
+                    TransportMock.Write(STREAM_HEADER),
+                ],
+                partial=True
+            )
+        )
+        with self.assertRaisesRegexp(ConnectionError,
+                                     "not connected"):
+            p.send_stanza(object())
 
     def tearDown(self):
         self.loop.set_exception_handler(

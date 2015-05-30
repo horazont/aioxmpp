@@ -35,6 +35,7 @@ class XMLStream(asyncio.Protocol):
         self._logger = base_logger.getChild("XMLStream")
         self._transport = None
         self._features_future = features_future
+        self._exception = None
         self.stanza_parser = xso.XSOParser()
         self.stanza_parser.add_class(stream_xsos.StreamError,
                                      self._rx_stream_error)
@@ -54,6 +55,22 @@ class XMLStream(asyncio.Protocol):
         if at:
             text += " (at: {})".format(at)
         return RuntimeError(text)
+
+    def _fail(self, err):
+        # TODO: shall we do something pointful with the error here?
+        self._exception = err
+        self.close()
+
+    def _require_connection(self, accept_partial=False):
+        if     (self._state == State.OPEN
+                or (accept_partial
+                    and self._state == State.STREAM_HEADER_SENT)):
+            return
+
+        if self._exception:
+            raise self._exception
+
+        raise ConnectionError("xmlstream not connected")
 
     def _rx_exception(self, exc):
         try:
@@ -87,12 +104,13 @@ class XMLStream(asyncio.Protocol):
             raise errors.StreamError(
                 (namespaces.streams, "unsupported-version"),
                 text="unsupported version")
+        self._state = State.OPEN
 
     def _rx_stream_error(self, err):
-        self.connection_lost(err.to_exception())
+        self._fail(err.to_exception())
 
     def _rx_stream_footer(self):
-        self.connection_lost(None)
+        self.close()
 
     def _rx_stream_features(self, features):
         self.stanza_parser.remove_class(stream_xsos.StreamFeatures)
@@ -127,21 +145,20 @@ class XMLStream(asyncio.Protocol):
         if self._state != State.CLOSED:
             raise self._invalid_state("connection_made")
 
+        assert self._transport is None
         self._transport = transport
         self._writer = None
+        self._exception = None
+        # we need to set the state before we call reset()
+        self._state = State.STREAM_HEADER_SENT
         self.reset()
 
     def connection_lost(self, exc):
-        if self._state == State.CLOSING:
+        if self._state == State.CLOSED:
             return
-        self._state = State.CLOSING
-        if exc is not None and not isinstance(exc, errors.StreamError):
-            self._kill_state()
-        else:
-            self._writer.close()
-            if self._transport.can_write_eof():
-                self._transport.write_eof()
-            self._transport.close()
+        self._state = State.CLOSED
+        self._exception = self._exception or exc
+        self._kill_state()
         self._writer = None
         self._transport = None
 
@@ -152,10 +169,16 @@ class XMLStream(asyncio.Protocol):
         except errors.StreamError as exc:
             stanza_obj = stream_xsos.StreamError.from_exception(exc)
             self._writer.send(stanza_obj)
-            self.connection_lost(exc)
+            self._fail(exc)
 
     def close(self):
-        self.connection_lost(None)
+        if self._state == State.CLOSING or self._state == State.CLOSED:
+            return
+        self._state = State.CLOSING
+        self._writer.close()
+        if self._transport.can_write_eof():
+            self._transport.write_eof()
+        self._transport.close()
 
     def _kill_state(self):
         if self._writer:
@@ -188,11 +211,13 @@ class XMLStream(asyncio.Protocol):
             sorted_attributes=self._sorted_attributes)
 
     def reset(self):
+        self._require_connection(accept_partial=True)
         self._reset_state()
         next(self._writer)
         self._state = State.STREAM_HEADER_SENT
 
     def send_stanza(self, obj):
+        self._require_connection()
         self._writer.send(obj)
 
     def can_starttls(self):
@@ -201,9 +226,9 @@ class XMLStream(asyncio.Protocol):
 
     @asyncio.coroutine
     def starttls(self, ssl_context, post_handshake_callback=None):
+        self._require_connection()
         if not self.can_starttls():
-            raise RuntimeError("no transport connected or "
-                               "starttls not available")
+            raise RuntimeError("starttls not available on transport")
 
         yield from self._transport.starttls(ssl_context,
                                             post_handshake_callback)
@@ -212,6 +237,10 @@ class XMLStream(asyncio.Protocol):
     @property
     def transport(self):
         return self._transport
+
+    @property
+    def state(self):
+        return self._state
 
 
 @asyncio.coroutine
