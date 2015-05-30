@@ -5,6 +5,7 @@ import unittest.mock
 import aioxmpp.stanza as stanza
 import aioxmpp.xso as xso
 import aioxmpp.stream_xsos as stream_xsos
+import aioxmpp.errors as errors
 
 from .testutils import (
     TransportMock,
@@ -16,6 +17,7 @@ from . import xmltestutils
 
 from aioxmpp.protocol import XMLStream
 from aioxmpp.structs import JID
+from aioxmpp.utils import namespaces
 
 import aioxmpp.protocol as protocol
 
@@ -758,6 +760,29 @@ class TestXMLStream(unittest.TestCase):
             p.reset()
         self.assertIs(exc, ctx.exception)
 
+    def test_reset_reraises_stream_error(self):
+        t, p = self._make_stream(to=TEST_PEER)
+        run_coroutine(t.run_test([
+            TransportMock.Write(
+                STREAM_HEADER,
+                response=[
+                    TransportMock.Receive(
+                        self._make_peer_header(version=(1, 0)) +
+                        self._make_stream_error("undefined-condition") +
+                        self._make_eos()),
+                    TransportMock.ReceiveEof()
+                ]),
+            TransportMock.Write(b"</stream:stream>"),
+            TransportMock.WriteEof(),
+            TransportMock.Close()
+        ]))
+        with self.assertRaises(errors.StreamError) as ctx:
+            p.reset()
+        self.assertEqual(
+            (namespaces.streams, "undefined-condition"),
+            ctx.exception.condition
+        )
+
     def test_exception_is_reset_on_reconnect(self):
         exc = ValueError()
         t, p = self._make_stream(to=TEST_PEER)
@@ -784,6 +809,60 @@ class TestXMLStream(unittest.TestCase):
         with self.assertRaisesRegexp(ConnectionError,
                                      "not connected"):
             p.send_xso(object())
+
+    def test_on_failure_fires_on_connection_lost_with_error(self):
+        fun = unittest.mock.MagicMock()
+        fun.return_value = True
+        exc = ValueError()
+
+        t, p = self._make_stream(to=TEST_PEER)
+        p.on_failure.connect(fun)
+        run_coroutine(
+            t.run_test(
+                [
+                    TransportMock.Write(
+                        STREAM_HEADER,
+                        response=[
+                            TransportMock.LoseConnection(exc=exc)
+                        ]),
+                ],
+                partial=True
+            )
+        )
+
+
+        self.assertIsNotNone(fun.call_args, "on_failure did not fire")
+        args = fun.call_args
+        self.assertIs(exc, args[0][0])
+
+    def test_on_failure_fires_on_stream_error(self):
+        fun = unittest.mock.MagicMock()
+        fun.return_value = True
+        t, p = self._make_stream(to=TEST_PEER)
+        p.on_failure.connect(fun)
+
+        run_coroutine(t.run_test([
+            TransportMock.Write(
+                STREAM_HEADER,
+                response=[
+                    TransportMock.Receive(
+                        self._make_peer_header(version=(1, 0)) +
+                        self._make_stream_error("policy-violation") +
+                        self._make_eos()),
+                    TransportMock.ReceiveEof()
+                ]),
+            TransportMock.Write(b"</stream:stream>"),
+            TransportMock.WriteEof(),
+            TransportMock.Close()
+        ]))
+
+        self.assertIsNotNone(fun.call_args, "on_failure did not fire")
+        args = fun.call_args
+        self.assertIsInstance(args[0][0], errors.StreamError)
+        self.assertEqual(
+            (namespaces.streams, "policy-violation"),
+            args[0][0].condition
+        )
 
     def tearDown(self):
         self.loop.set_exception_handler(

@@ -39,7 +39,7 @@ from enum import Enum
 import xml.sax as sax
 import xml.parsers.expat as pyexpat
 
-from . import xml, errors, xso, stream_xsos, stanza
+from . import xml, errors, xso, stream_xsos, stanza, callbacks
 from .utils import namespaces
 
 
@@ -138,7 +138,21 @@ class XMLStream(asyncio.Protocol):
 
     .. automethod:: close
 
+    Signals:
+
+    .. autoattribute:: on_failure
+
+       A :class:`~aioxmpp.callbacks.Signal` which fires when the underlying
+       transport of the stream reports an error or when a stream error is
+       received. The signal is fired with the corresponding exception as the
+       only argument.
+
+       When the callback is fired, the stream is already in
+       :attr:`~State.CLOSED` state.
+
     """
+
+    on_failure = callbacks.Signal()
 
     def __init__(self, to,
                  features_future,
@@ -276,6 +290,9 @@ class XMLStream(asyncio.Protocol):
         self._kill_state()
         self._writer = None
         self._transport = None
+
+        if self._exception is not None:
+            self.on_failure(self._exception)
 
     def data_received(self, blob):
         self._logger.debug("RECV %r", blob)
