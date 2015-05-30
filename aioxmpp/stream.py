@@ -191,13 +191,15 @@ class StanzaStream:
 
     .. attribute:: on_failure
 
-       A callable which will be called when the stream has failed. A failure
+       A :class:`Signal` which will fire when the stream has failed. A failure
        occurs whenever the main task of the :class:`StanzaStream` (the one
        started by :meth:`start`) terminates with an exception.
 
        Examples are :class:`ConnectionError` as raised upon a ping timeout and
        any exceptions which may be raised by the
        :meth:`aioxmpp.protocol.XMLStream.send_xso` method.
+
+       The signal fires with the exception as the only argument.
 
     Starting/Stopping the stream:
 
@@ -247,6 +249,8 @@ class StanzaStream:
 
     """
 
+    on_failure = callbacks.Signal()
+
     def __init__(self,
                  *,
                  loop=None,
@@ -270,8 +274,6 @@ class StanzaStream:
 
         self.ping_interval = timedelta(seconds=15)
         self.ping_opportunistic_interval = timedelta(seconds=15)
-
-        self.on_failure = None
 
         self._sm_enabled = False
 

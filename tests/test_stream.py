@@ -491,7 +491,7 @@ class TestStanzaStream(StanzaStreamTestBase):
             nonlocal caught_exc
             caught_exc = exc
 
-        self.stream.on_failure = failure_handler
+        self.stream.on_failure.connect(failure_handler)
 
         self.stream.start(self.xmlstream)
         self.stream.recv_stanza(object())
@@ -512,7 +512,7 @@ class TestStanzaStream(StanzaStreamTestBase):
             caught_exc = exc
 
         iq = make_test_iq()
-        self.stream.on_failure = failure_handler
+        self.stream.on_failure.connect(failure_handler)
 
         self.stream.start(self.xmlstream)
         self.stream.enqueue_stanza(iq)
@@ -868,7 +868,7 @@ class TestStanzaStream(StanzaStreamTestBase):
             exc = _exc
 
         self.stream.ping_interval = timedelta(seconds=0.01)
-        self.stream.on_failure = failure_handler
+        self.stream.on_failure.connect(failure_handler)
 
         self.stream.start_sm()
         self.stream.start(self.xmlstream)
@@ -892,7 +892,7 @@ class TestStanzaStream(StanzaStreamTestBase):
             exc = _exc
 
         self.stream.ping_interval = timedelta(seconds=0.01)
-        self.stream.on_failure = failure_handler
+        self.stream.on_failure.connect(failure_handler)
 
         self.stream.start_sm()
         self.stream.start(self.xmlstream)
@@ -1000,7 +1000,7 @@ class TestStanzaStream(StanzaStreamTestBase):
 
         self.stream.ping_interval = timedelta(seconds=0.01)
         self.stream.ping_opportunistic_interval = timedelta(seconds=0.01)
-        self.stream.on_failure = failure_handler
+        self.stream.on_failure.connect(failure_handler)
 
         self.stream.start(self.xmlstream)
         run_coroutine(asyncio.sleep(0.02))
@@ -1022,7 +1022,7 @@ class TestStanzaStream(StanzaStreamTestBase):
 
         self.stream.ping_interval = timedelta(seconds=0.01)
         self.stream.ping_opportunistic_interval = timedelta(seconds=0.01)
-        self.stream.on_failure = failure_handler
+        self.stream.on_failure.connect(failure_handler)
 
         self.stream.start(self.xmlstream)
         run_coroutine(asyncio.sleep(0.02))
