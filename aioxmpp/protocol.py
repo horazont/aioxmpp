@@ -1,3 +1,23 @@
+"""
+:mod:`~aioxmpp.protocol` --- XML Stream implementation
+######################################################
+
+This module contains the :class:`XMLStream` class, which implements the XML
+stream protocol used by XMPP. It makes extensive use of the :mod:`aioxmpp.xml`
+module and the :mod:`aioxmpp.xso` subpackage to parse and serialize XSOs
+received and sent on the stream.
+
+.. autoclass:: XMLStream
+
+Enumerations
+============
+
+.. autoclass:: Mode
+
+.. autoclass:: State
+
+"""
+
 import asyncio
 import inspect
 import logging
@@ -9,8 +29,6 @@ import xml.parsers.expat as pyexpat
 
 from . import xml, errors, xso, stream_xsos, stanza
 from .utils import namespaces
-
-logger = logging.getLogger(__name__)
 
 
 class Mode(Enum):
@@ -25,6 +43,34 @@ class State(Enum):
 
 
 class XMLStream(asyncio.Protocol):
+    """
+    XML stream implementation. This is an streaming :class:`asyncio.Protocol`
+    which translates the received bytes into XSOs.
+
+    Receiving XSOs:
+
+    .. attribute:: stanza_parser
+
+       A :class:`~aioxmpp.xso.XSOParser` instance which is wired to a
+       :class:`~aioxmpp.xml.XMPPXMLProcessor` which processes the received
+       bytes.
+
+       To receive XSOs over the XML stream, use :attr:`stanza_parser` and
+       register class callbacks on it using
+       :meth:`~aioxmpp.xso.XSOParser.add_class`.
+
+    Sending XSOs:
+
+    .. automethod:: send_stanza
+
+    Manipulating stream state:
+
+    .. automethod:: starttls
+
+    .. automethod:: reset
+
+    """
+
     def __init__(self, to,
                  features_future,
                  sorted_attributes=False,
@@ -163,7 +209,7 @@ class XMLStream(asyncio.Protocol):
         self._transport = None
 
     def data_received(self, blob):
-        logger.debug("RECV %r", blob)
+        self._logger.debug("RECV %r", blob)
         try:
             self._rx_feed(blob)
         except errors.StreamError as exc:
