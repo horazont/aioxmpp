@@ -404,7 +404,6 @@ class TransportMock(InteractivityMock,
         self._execute_response(head.response)
 
     def write(self, data):
-        print(data)
         self._queue.put_nowait(("write", data))
 
     def write_eof(self):
