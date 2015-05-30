@@ -42,6 +42,8 @@ import xml.parsers.expat as pyexpat
 from . import xml, errors, xso, stream_xsos, stanza, callbacks
 from .utils import namespaces
 
+logger = logging.getLogger(__name__)
+
 
 class Mode(Enum):
     """
@@ -505,3 +507,17 @@ def reset_stream_and_get_features(xmlstream, timeout=None):
     except:
         cleanup()
         raise
+
+
+def send_stream_error_and_close(
+        xmlstream,
+        condition,
+        text,
+        custom_condition=None):
+    xmlstream.send_xso(stream_xsos.StreamError(
+        condition=condition,
+        text=text))
+    if custom_condition is not None:
+        logger.warn("custom_condition argument to send_stream_error_and_close"
+                    " not implemented")
+    xmlstream.close()

@@ -1050,3 +1050,25 @@ class Testreset_stream_and_get_features(xmltestutils.XMLTestCase):
     def tearDown(self):
         del self.xmlstream
         del self.loop
+
+
+class Testsend_stream_error_and_close(xmltestutils.XMLTestCase):
+    def setUp(self):
+        self.loop = asyncio.get_event_loop()
+        self.xmlstream = XMLStreamMock(self, loop=self.loop)
+
+    def test_sends_and_closes(self):
+        protocol.send_stream_error_and_close(
+            self.xmlstream,
+            condition=(namespaces.streams, "connection-timeout"),
+            text="foobar",
+            custom_condition=("uri:foo", "bar"))
+
+        run_coroutine(self.xmlstream.run_test([
+            XMLStreamMock.Send(
+                stream_xsos.StreamError(
+                    condition=(namespaces.streams, "connection-timeout"),
+                    text="foobar")
+            ),
+            XMLStreamMock.Close()
+        ]))
