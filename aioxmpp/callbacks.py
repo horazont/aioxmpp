@@ -148,7 +148,10 @@ class AdHocSignal:
                 del self._connections[token]
 
     def remove(self, token):
-        del self._connections[token]
+        try:
+            del self._connections[token]
+        except KeyError:
+            pass
 
     __call__ = fire
 
