@@ -8,6 +8,7 @@ import aioxmpp.stanza as stanza
 import aioxmpp.stream as stream
 import aioxmpp.stream_xsos as stream_xsos
 import aioxmpp.errors as errors
+import aioxmpp.callbacks as callbacks
 
 from datetime import timedelta
 
@@ -53,6 +54,7 @@ def make_mocked_streams(loop):
     xmlstream = unittest.mock.MagicMock()
     xmlstream.send_xso = _on_send_xso
     xmlstream.stanza_parser = unittest.mock.MagicMock()
+    xmlstream.on_failure = callbacks.AdHocSignal()
     stanzastream = stream.StanzaStream(loop=loop)
 
     return sent_stanzas, xmlstream, stanzastream
@@ -1159,6 +1161,23 @@ class TestStanzaStream(StanzaStreamTestBase):
         for iq, fut in zip(iqs, futs):
             self.assertTrue(fut.done())
             self.assertIs(iq, fut.result())
+
+    def test_fail_when_xmlstream_fails(self):
+        exc = ConnectionError()
+        caught_exc = None
+
+        def failure_handler(exc):
+            nonlocal caught_exc
+            caught_exc = exc
+
+        self.stream.on_failure.connect(failure_handler)
+
+        self.stream.start(self.xmlstream)
+        run_coroutine(asyncio.sleep(0))
+        self.xmlstream.on_failure(exc)
+        run_coroutine(asyncio.sleep(0))
+        self.assertIs(caught_exc, exc)
+        self.assertFalse(self.stream.running)
 
 
 class TestStanzaToken(unittest.TestCase):

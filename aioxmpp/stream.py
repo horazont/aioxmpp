@@ -272,6 +272,8 @@ class StanzaStream:
         self._next_ping_event_at = None
         self._next_ping_event_type = None
 
+        self._xmlstream_exception = None
+
         self.ping_interval = timedelta(seconds=15)
         self.ping_opportunistic_interval = timedelta(seconds=15)
 
@@ -290,6 +292,10 @@ class StanzaStream:
             if self.on_failure:
                 self.on_failure(err)
             raise
+
+    def _xmlstream_failed(self, exc):
+        self._xmlstream_exception = exc
+        self.stop()
 
     def _iq_request_coro_done(self, request, task):
         """
@@ -689,6 +695,10 @@ class StanzaStream:
         self._task.add_done_callback(self._done_handler)
         self._logger.debug("broker task started as %r", self._task)
 
+        self._xmlstream_failure_token = xmlstream.on_failure.connect(
+            self._xmlstream_failed
+        )
+
         xmlstream.stanza_parser.add_class(stanza.IQ, self.recv_stanza)
         xmlstream.stanza_parser.add_class(stanza.Message, self.recv_stanza)
         xmlstream.stanza_parser.add_class(stanza.Presence, self.recv_stanza)
@@ -781,6 +791,15 @@ class StanzaStream:
                     stream_xsos.SMRequest)
                 xmlstream.stanza_parser.remove_class(
                     stream_xsos.SMAcknowledgement)
+
+            xmlstream.on_failure.remove(
+                self._xmlstream_failure_token
+            )
+
+            if self._xmlstream_exception:
+                exc = self._xmlstream_exception
+                self._xmlstream_exception = None
+                raise exc
 
     def recv_stanza(self, stanza):
         """
