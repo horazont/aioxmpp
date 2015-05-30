@@ -216,3 +216,60 @@ class TestStreamFeatures(unittest.TestCase):
             },
             set(features)
         )
+
+
+class TestSMEnable(unittest.TestCase):
+    def test_default_init(self):
+        obj = stream_xsos.SMEnable()
+        self.assertFalse(obj.resume)
+
+    def test_init(self):
+        obj = stream_xsos.SMEnable(resume=True)
+        self.assertTrue(obj.resume)
+
+
+class TestSMEnabled(unittest.TestCase):
+    def test_default_init(self):
+        obj = stream_xsos.SMEnabled()
+        self.assertFalse(obj.resume)
+        self.assertIsNone(obj.id_)
+        self.assertIsNone(obj.location)
+        self.assertIsNone(obj.max_)
+
+    def test_init(self):
+        obj = stream_xsos.SMEnabled(
+            resume=True,
+            id_="foobar",
+            location="bar:baz",
+            max_="fnord")
+        self.assertTrue(obj.resume)
+        self.assertEqual("foobar", obj.id_)
+        self.assertEqual("bar:baz", obj.location)
+        self.assertEqual("fnord", obj.max_)
+
+
+class TestSMResume(unittest.TestCase):
+    def test_default_init(self):
+        obj = stream_xsos.SMResume()
+        self.assertIsNone(obj.counter)
+        self.assertIsNone(obj.previd)
+
+    def test_init(self):
+        obj = stream_xsos.SMResume(
+            counter=1,
+            previd="foobar")
+        self.assertEqual(1, obj.counter)
+        self.assertEqual("foobar", obj.previd)
+
+class TestSMResumed(unittest.TestCase):
+    def test_default_init(self):
+        obj = stream_xsos.SMResumed()
+        self.assertIsNone(obj.counter)
+        self.assertIsNone(obj.previd)
+
+    def test_init(self):
+        obj = stream_xsos.SMResumed(
+            counter=1,
+            previd="foobar")
+        self.assertEqual(1, obj.counter)
+        self.assertEqual("foobar", obj.previd)

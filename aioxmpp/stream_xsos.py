@@ -167,6 +167,7 @@ class StreamFeatures(xso.XSO):
     UNKNOWN_CHILD_POLICY = xso.UnknownChildPolicy.DROP
 
     features = xso.ChildMap([])
+    cruft = xso.Collector()
 
     @classmethod
     def as_feature_class(cls, other_cls):
@@ -214,6 +215,14 @@ class StreamFeatures(xso.XSO):
 
     def __iter__(self):
         return itertools.chain(*self.features.values())
+
+
+@StreamFeatures.as_feature_class
+class StreamManagementFeature(xso.XSO):
+    """
+    Stream management stream feature
+    """
+    TAG = (namespaces.stream_management, "sm")
 
 
 class SMXSO(xso.XSO):
@@ -274,6 +283,10 @@ class SMEnable(SMXSO):
         default=False
     )
 
+    def __init__(self, resume=False):
+        super().__init__()
+        self.resume = resume
+
 
 class SMEnabled(SMXSO):
     """
@@ -303,7 +316,20 @@ class SMEnabled(SMXSO):
     id_ = xso.Attr("id")
     location = xso.Attr(
         "location",
+        type_=xso.ConnectionLocation(),
         default=None)
+    max_ = xso.Attr("max")
+
+    def __init__(self,
+                 resume=False,
+                 id_=None,
+                 location=None,
+                 max_=None):
+        super().__init__()
+        self.resume = resume
+        self.id_ = id_
+        self.location = location
+        self.max_ = max_
 
 
 class SMResume(SMXSO):
@@ -331,6 +357,13 @@ class SMResume(SMXSO):
         "previd",
         required=True)
 
+    def __init__(self, counter=None, previd=None):
+        super().__init__()
+        if counter is not None:
+            self.counter = counter
+        if previd is not None:
+            self.previd = previd
+
 
 class SMResumed(SMXSO):
     """
@@ -356,3 +389,18 @@ class SMResumed(SMXSO):
     previd = xso.Attr(
         "previd",
         required=True)
+
+    def __init__(self, counter=None, previd=None):
+        super().__init__()
+        if counter is not None:
+            self.counter = counter
+        if previd is not None:
+            self.previd = previd
+
+
+class SMFailure(SMXSO):
+    """
+    Server response to :class:`SMEnable` or :class:`SMResume` if stream
+    management fails.
+    """
+    TAG = (namespaces.stream_management, "failure")
