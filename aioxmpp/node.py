@@ -39,6 +39,8 @@ from . import (
     stream,
     callbacks,
     stream_xsos,
+    rfc6120,
+    stanza,
 )
 from .utils import namespaces
 
@@ -266,6 +268,7 @@ class AbstractClient:
         self._backoff_time = None
         self._sm_id = None
         self._sm_location = None
+        self._sm_bound = False
 
         self.negotiation_timeout = negotiation_timeout
         self.backoff_start = timedelta(seconds=1)
@@ -274,7 +277,6 @@ class AbstractClient:
         self.stream = stream.StanzaStream()
 
     def _stream_failure(self, exc):
-        print("failed")
         self._failure_future.set_result(exc)
         self._failure_future = asyncio.Future()
 
@@ -309,7 +311,8 @@ class AbstractClient:
 
         self._sm_id = node.id_
         if node.resume:
-            self._sm_location = str(node.location[0]), node.location[1]
+            if node.location:
+                self._sm_location = str(node.location[0]), node.location[1]
 
     @asyncio.coroutine
     def _resume_stream_management(self, xmlstream, features, ctx):
@@ -355,41 +358,59 @@ class AbstractClient:
             resumed = yield from self._negotiate_stream_management(
                 xmlstream, features, ctx)
 
-        if not resumed:
-            # FIXME: bind to a resource here!
-            pass
+        return features, resumed
+
+    @asyncio.coroutine
+    def _bind(self, xmlstream, features, failure_future):
+        try:
+            features[rfc6120.BindFeature]
+        except KeyError:
+            raise errors.StreamNegotiationFailure(
+                "undefined-condition",
+                text="Server does not support resource binding"
+            )
+
+        iq = stanza.IQ(type_="set")
+        iq.payload = rfc6120.Bind(resource=self._local_jid.resource)
+        done, pending = yield from asyncio.wait(
+            [
+                self.stream.send_iq_and_wait_for_reply(iq),
+                failure_future
+            ],
+            timeout=self.negotiation_timeout.total_seconds(),
+            return_when=asyncio.FIRST_EXCEPTION,
+        )
+        if failure_future in done:
+            failure_future.result()
+        if not done:
+            # timeout! raise a TimeoutError...
+            raise TimeoutError()
+
+        self._sm_bound = True
 
     @asyncio.coroutine
     def _main_impl(self):
         failure_future = self._failure_future
-        try:
-            tls_transport, xmlstream, features = \
-                yield from connect_secured_xmlstream(
-                    self._local_jid,
-                    self._security_layer,
-                    negotiation_timeout=self.negotiation_timeout.total_seconds(),
-                    override_peer=self._sm_location,
-                    loop=self._loop)
+        tls_transport, xmlstream, features = \
+            yield from connect_secured_xmlstream(
+                self._local_jid,
+                self._security_layer,
+                negotiation_timeout=self.negotiation_timeout.total_seconds(),
+                override_peer=self._sm_location,
+                loop=self._loop)
 
-            with self.stream.transactional_start(xmlstream) as ctx:
-                features = yield from self._negotiate_stream(
-                    xmlstream,
-                    features,
-                    ctx)
-        except errors.StreamNegotiationFailure as exc:
-            raise
-        except OSError as exc:
-            if self._backoff_time is None:
-                self._backoff_time = self.backoff_start.total_seconds()
-            yield from asyncio.sleep(self._backoff_time)
-            self._backoff_time *= self.backoff_factor
-            if self._backoff_time > self.backoff_cap.total_seconds():
-                self._backoff_time = self.backoff_cap.total_seconds()
-            return  # retry
-
-        self._backoff_time = None
+        with self.stream.transactional_start(xmlstream) as ctx:
+            features, sm_resumed = yield from self._negotiate_stream(
+                xmlstream,
+                features,
+                ctx)
 
         try:
+            if not sm_resumed or not self._sm_bound:
+                yield from self._bind(xmlstream, features, failure_future)
+
+            self._backoff_time = None
+
             exc = yield from failure_future
             self._logger.error("stream failed: %s", exc)
         finally:
@@ -399,7 +420,20 @@ class AbstractClient:
     def _main(self):
         with self.stream.on_failure.context_connect(self._stream_failure):
             while True:
-                yield from self._main_impl()
+                self._failure_future = asyncio.Future()
+                try:
+                    yield from self._main_impl()
+                except errors.StreamNegotiationFailure as exc:
+                    raise
+                except OSError as exc:
+                    if self._backoff_time is None:
+                        self._backoff_time = self.backoff_start.total_seconds()
+                    yield from asyncio.sleep(self._backoff_time)
+                    self._backoff_time *= self.backoff_factor
+                    if self._backoff_time > self.backoff_cap.total_seconds():
+                        self._backoff_time = self.backoff_cap.total_seconds()
+                    continue  # retry
+
 
     def start(self):
         if self.running:

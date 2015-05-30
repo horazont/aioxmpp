@@ -12,6 +12,7 @@ import aioxmpp.structs as structs
 import aioxmpp.stream_xsos as stream_xsos
 import aioxmpp.errors as errors
 import aioxmpp.stanza as stanza
+import aioxmpp.rfc6120 as rfc6120
 
 from aioxmpp.utils import namespaces
 
@@ -708,6 +709,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
         self.xmlstream = XMLStreamMock(self, loop=self.loop)
         self.test_jid = structs.JID.fromstr("foo@bar.example/baz")
         self.features = stream_xsos.StreamFeatures()
+        self.features[...] = rfc6120.BindFeature()
 
         self.client = node.AbstractClient(
             self.test_jid,
@@ -723,6 +725,27 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
                     stream_xsos.SMEnabled(resume=True,
                                           id_="foobar")
                 )
+            )
+        ]
+        self.resource_binding = [
+            XMLStreamMock.Send(
+                stanza.IQ(
+                    payload=rfc6120.Bind(
+                        resource=self.test_jid.resource),
+                    type_="set"),
+                response=XMLStreamMock.Receive(
+                    stanza.IQ(
+                        payload=rfc6120.Bind(
+                            jid=self.test_jid,
+                        ),
+                        type_="result"
+                    )
+                )
+            )
+        ]
+        self.sm_request = [
+            XMLStreamMock.Send(
+                stream_xsos.SMRequest()
             )
         ]
 
@@ -765,7 +788,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
         self.assertFalse(self.client.running)
         self.client.start()
         self.assertTrue(self.client.running)
-        run_coroutine(asyncio.sleep(0))
+        run_coroutine(self.xmlstream.run_test(self.resource_binding))
         self.connect_secured_xmlstream_rec.assert_called_once_with(
             self.test_jid,
             self.security_layer,
@@ -784,8 +807,9 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
         self.client.start()
         run_coroutine(asyncio.sleep(0))
         self.assertTrue(self.client.stream.running)
+        run_coroutine(self.xmlstream.run_test(self.resource_binding))
         self.client.stop()
-        run_coroutine(asyncio.sleep(0))
+        run_coroutine(asyncio.sleep(0.01))
         self.assertFalse(self.client.stream.running)
 
     def test_stop(self):
@@ -794,13 +818,15 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
         self.assertFalse(self.client.running)
         self.client.start()
         self.assertTrue(self.client.running)
-        run_coroutine(asyncio.sleep(0))
+        run_coroutine(self.xmlstream.run_test(self.resource_binding))
         self.assertTrue(self.client.running)
         self.client.stop()
         run_coroutine(asyncio.sleep(0))
         self.assertFalse(self.client.running)
 
     def test_reconnect_on_failure(self):
+        self.client.backoff_start = timedelta(seconds=0)
+        self.client.negotiation_timeout = timedelta(seconds=0.01)
         self.client.start()
 
         @asyncio.coroutine
@@ -814,13 +840,25 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
                 [
                     XMLStreamMock.Send(
                         stanza.IQ(),
-                        response=XMLStreamMock.Fail(
-                            exc=ConnectionError()
-                        )
+                        response=[
+                            XMLStreamMock.Fail(
+                                exc=ConnectionError()
+                            ),
+                            XMLStreamMock.CleanFailure()
+                        ]
+                    ),
+                    XMLStreamMock.Send(
+                        stanza.IQ(
+                            type_="set",
+                            payload=rfc6120.Bind(
+                                resource=self.test_jid.resource)
+                        ),
                     )
                 ]
             )
         )
+
+        run_coroutine(asyncio.sleep(0.015))
 
         self.assertTrue(self.client.running)
         self.assertTrue(self.client.stream.running)
@@ -829,7 +867,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
                 unittest.mock.call(
                     self.test_jid,
                     self.security_layer,
-                    negotiation_timeout=60.0,
+                    negotiation_timeout=0.01,
                     override_peer=None,
                     loop=self.loop)
             ]*2,
@@ -944,7 +982,10 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
         self.client.start()
         with unittest.mock.patch.object(
                 self.client.stream, "_start_sm") as mock:
-            run_coroutine(self.xmlstream.run_test(self.sm_negotiation_exchange))
+            run_coroutine(self.xmlstream.run_test(
+                self.sm_negotiation_exchange+
+                self.resource_binding
+            ))
             mock.assert_called_once_with()
 
     def test_resume_stream_management(self):
@@ -981,7 +1022,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
                         )
                     ]
                 )
-            ]))
+            ]+self.resource_binding+self.sm_request))
 
             _resume_sm.assert_called_once_with(0)
 
@@ -1049,7 +1090,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
                     )
                 ]
             )
-        ]))
+        ]+self.resource_binding+self.sm_request))
 
         self.assertSequenceEqual(
             [
@@ -1084,7 +1125,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
                     ),
                 ]
             ),
-        ]))
+        ]+self.resource_binding))
 
         self.assertFalse(self.client.stream.sm_enabled)
 
@@ -1127,9 +1168,46 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
                     ),
                 ]
             ),
-        ]))
+        ]+self.resource_binding+self.sm_request))
 
         self.assertTrue(self.client.stream.sm_enabled)
+        self.assertTrue(self.client.running)
+
+    def test_resume_stream_management_during_resource_binding(self):
+        self.features[...] = stream_xsos.StreamManagementFeature()
+
+        self.client.backoff_start = timedelta(seconds=0)
+        self.client.negotiation_timeout = timedelta(seconds=0.01)
+        self.client.start()
+
+        run_coroutine(self.xmlstream.run_test([
+        ]+self.sm_negotiation_exchange+[
+            XMLStreamMock.Send(
+                stanza.IQ(
+                    payload=rfc6120.Bind(
+                        resource=self.test_jid.resource),
+                    type_="set"),
+                # we let the response go missing, let’s see whether
+                # retransmission works...
+            ),
+            XMLStreamMock.Send(
+                stream_xsos.SMRequest(),
+                response=[
+                    XMLStreamMock.Fail(
+                        exc=ConnectionError()
+                    ),
+                    XMLStreamMock.CleanFailure()
+                ],
+            ),
+            XMLStreamMock.Send(
+                stream_xsos.SMResume(counter=0, previd="foobar"),
+                response=[
+                    XMLStreamMock.Receive(
+                        stream_xsos.SMResumed(counter=0)
+                    )
+                ]
+            )
+        ]))
 
     def tearDown(self):
         for patch in self.patches:
