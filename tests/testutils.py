@@ -12,7 +12,7 @@ import sys
 
 from enum import Enum
 
-import aioxmpp.callbacks
+import aioxmpp.callbacks as callbacks
 import aioxmpp.protocol
 import aioxmpp.xso as xso
 
@@ -443,6 +443,11 @@ class XMLStreamMock(InteractivityMock):
             )
             clsmap[cls](self.obj)
 
+    class Fail(collections.namedtuple("Fail", ["exc"])):
+        def do(self, xmlstream):
+            xmlstream._exception = self.exc
+            xmlstream.on_failure(self.exc)
+
     class Send(collections.namedtuple("Send", ["obj", "response"])):
         def __new__(cls, obj, *, response=None):
             return super().__new__(cls, obj, response)
@@ -464,9 +469,12 @@ class XMLStreamMock(InteractivityMock):
                                    post_handshake_callback,
                                    response)
 
+    on_failure = callbacks.Signal()
+
     def __init__(self, tester, *, loop=None):
         super().__init__(tester, loop=loop)
         self._queue = asyncio.Queue()
+        self._exception = None
         self.stanza_parser = xso.XSOParser()
         self.can_starttls_value = False
 
@@ -474,9 +482,13 @@ class XMLStreamMock(InteractivityMock):
         do(self)
 
     @asyncio.coroutine
-    def run_test(self, actions, stimulus=None):
+    def run_test(self, actions,
+                 stimulus=None,
+                 clear_exception=True):
         self._done = asyncio.Future()
         self._actions = actions
+        if clear_exception:
+            self._exception = None
 
         self._execute_response(stimulus)
 
@@ -541,6 +553,7 @@ class XMLStreamMock(InteractivityMock):
     @asyncio.coroutine
     def _close(self):
         self._basic("close", self.Close)
+        self._exception = ConnectionError("not connected")
 
     @asyncio.coroutine
     def _starttls(self, ssl_context, post_handshake_callback, fut):
@@ -577,16 +590,25 @@ class XMLStreamMock(InteractivityMock):
         self._execute_response(head.response)
 
     def send_xso(self, obj):
+        if self._exception:
+            raise self._exception
         self._queue.put_nowait(("send", obj))
 
     def reset(self):
+        if self._exception:
+            raise self._exception
         self._queue.put_nowait(("reset",))
 
     def close(self):
+        if self._exception:
+            raise self._exception
         self._queue.put_nowait(("close",))
 
     @asyncio.coroutine
-    def starttls(self, ssl_context, post_handshake_callback):
+    def starttls(self, ssl_context, post_handshake_callback=None):
+        if self._exception:
+            raise self._exception
+
         fut = asyncio.Future()
         self._queue.put_nowait(
             ("starttls", ssl_context, post_handshake_callback, fut)

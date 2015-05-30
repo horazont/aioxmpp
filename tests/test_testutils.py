@@ -777,6 +777,45 @@ class TestXMLStreamMock(XMLTestCase):
         self.assertIs(caught_exception, exc)
         self.assertIs(other_result, None)
 
+    def test_fail(self):
+        exc = ValueError()
+        fun = unittest.mock.MagicMock()
+        fun.return_value = None
+
+        self.xmlstream.on_failure.connect(fun)
+
+        run_coroutine(self.xmlstream.run_test(
+            [
+            ],
+            stimulus=XMLStreamMock.Fail(exc=exc)
+        ))
+
+        fun.assert_called_once_with(exc)
+
+        with self.assertRaises(ValueError) as ctx:
+            self.xmlstream.reset()
+        self.assertIs(exc, ctx.exception)
+        with self.assertRaises(ValueError) as ctx:
+            run_coroutine(self.xmlstream.starttls(object()))
+        self.assertIs(exc, ctx.exception)
+        with self.assertRaises(ValueError) as ctx:
+            self.xmlstream.send_xso(object())
+        self.assertIs(exc, ctx.exception)
+
+        run_coroutine(self.xmlstream.run_test(
+            [
+            ],
+            clear_exception=True
+        ))
+
+        self.xmlstream.reset()
+
+        run_coroutine(self.xmlstream.run_test(
+            [
+                XMLStreamMock.Reset()
+            ],
+        ))
+
     def tearDown(self):
         del self.xmlstream
         del self.loop
