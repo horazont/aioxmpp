@@ -122,7 +122,6 @@ class AdHocSignal:
     def __init__(self):
         super().__init__()
         self._connections = {}
-        self._token_ctr = 0
 
     @staticmethod
     def _async_wrapper(f, loop, args, kwargs):
@@ -143,8 +142,7 @@ class AdHocSignal:
         return not f(*args, **kwargs)
 
     def _connect(self, wrapper):
-        token = self._token_ctr + 1
-        self._token_ctr = token
+        token = object()
         self._connections[token] = wrapper
         return token
 
