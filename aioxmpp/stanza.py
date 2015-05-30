@@ -268,10 +268,11 @@ class IQ(StanzaBase):
     payload = xso.Child([])
     error = xso.Child([Error])
 
-    def __init__(self, *, type_=None, payload=None, **kwargs):
+    def __init__(self, *, type_=None, payload=None, error=None, **kwargs):
         super().__init__(**kwargs)
         self.type_ = type_
         self.payload = payload
+        self.error = error
 
     def make_reply(self, type_):
         if self.type_ != "get" and self.type_ != "set":

@@ -459,6 +459,20 @@ class TestIQ(unittest.TestCase):
             payload,
             s.payload)
 
+    def test_init_error(self):
+        error = object()
+
+        s = stanza.IQ(
+            from_=TEST_FROM,
+            type_="error",
+            error=error)
+        self.assertEqual(
+            "error",
+            s.type_)
+        self.assertIs(
+            error,
+            s.error)
+
     def test_make_reply(self):
         s = stanza.IQ(
             from_=TEST_FROM,
