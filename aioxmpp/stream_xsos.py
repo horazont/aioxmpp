@@ -92,6 +92,12 @@ class StreamError(xso.XSO):
         declare_prefix=None,
     )
 
+    def __init__(self, condition=None, text=None):
+        super().__init__()
+        if condition is not None:
+            self.condition = condition
+        self.text = text
+
     @classmethod
     def from_exception(cls, exc):
         instance = cls()

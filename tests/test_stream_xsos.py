@@ -39,6 +39,28 @@ class TestStreamError(unittest.TestCase):
             exc.text
         )
 
+    def test_default_init(self):
+        obj = stream_xsos.StreamError()
+        self.assertEqual(
+            (namespaces.streams, "undefined-condition"),
+            obj.condition
+        )
+        self.assertIsNone(obj.text)
+
+    def test_init(self):
+        obj = stream_xsos.StreamError(
+            condition=(namespaces.streams, "reset"),
+            text="foobar"
+        )
+        self.assertEqual(
+            (namespaces.streams, "reset"),
+            obj.condition
+        )
+        self.assertEqual(
+            "foobar",
+            obj.text
+        )
+
 
 class TestStreamFeatures(unittest.TestCase):
     def test_setup(self):
