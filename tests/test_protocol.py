@@ -420,7 +420,7 @@ class TestXMLStream(unittest.TestCase):
         )
 
 
-    def test_send_stanza(self):
+    def test_send_xso(self):
         st = FakeIQ()
         st.id_ = "id"
         st.from_ = JID.fromstr("u1@foo.example/test")
@@ -442,7 +442,7 @@ class TestXMLStream(unittest.TestCase):
                 partial=True
             )
         )
-        p.send_stanza(st)
+        p.send_xso(st)
         run_coroutine(
             t.run_test(
                 [
@@ -626,13 +626,13 @@ class TestXMLStream(unittest.TestCase):
         if test_result is not None:
             raise test_result
 
-    def test_send_stanza_raises_while_closed(self):
+    def test_send_xso_raises_while_closed(self):
         t, p = self._make_stream(to=TEST_PEER)
         with self.assertRaisesRegexp(ConnectionError,
                                      "not connected"):
-            p.send_stanza(object())
+            p.send_xso(object())
 
-    def test_send_stanza_raises_while_closing(self):
+    def test_send_xso_raises_while_closing(self):
         t, p = self._make_stream(to=TEST_PEER)
         run_coroutine(
             t.run_test(
@@ -649,7 +649,7 @@ class TestXMLStream(unittest.TestCase):
         p.close()
         with self.assertRaisesRegexp(ConnectionError,
                                      "not connected"):
-            p.send_stanza(object())
+            p.send_xso(object())
 
     def test_starttls_raises_while_closed(self):
         t, p = self._make_stream(to=TEST_PEER)
@@ -701,7 +701,7 @@ class TestXMLStream(unittest.TestCase):
                                      "not connected"):
             p.reset()
 
-    def test_send_stanza_reraises_connection_lost_error(self):
+    def test_send_xso_reraises_connection_lost_error(self):
         exc = ValueError()
         t, p = self._make_stream(to=TEST_PEER)
         run_coroutine(
@@ -717,7 +717,7 @@ class TestXMLStream(unittest.TestCase):
             )
         )
         with self.assertRaises(ValueError) as ctx:
-            p.send_stanza(stanza.IQ())
+            p.send_xso(stanza.IQ())
         self.assertIs(exc, ctx.exception)
 
     def test_starttls_reraises_connection_lost_error(self):
@@ -783,7 +783,7 @@ class TestXMLStream(unittest.TestCase):
         )
         with self.assertRaisesRegexp(ConnectionError,
                                      "not connected"):
-            p.send_stanza(object())
+            p.send_xso(object())
 
     def tearDown(self):
         self.loop.set_exception_handler(

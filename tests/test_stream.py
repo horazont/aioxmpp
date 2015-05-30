@@ -45,13 +45,13 @@ def make_test_presence(from_=TEST_FROM, to=TEST_TO, type_=None):
 
 
 def make_mocked_streams(loop):
-    def _on_send_stanza(obj):
+    def _on_send_xso(obj):
         nonlocal sent_stanzas
         sent_stanzas.put_nowait(obj)
 
     sent_stanzas = asyncio.Queue()
     xmlstream = unittest.mock.MagicMock()
-    xmlstream.send_stanza = _on_send_stanza
+    xmlstream.send_xso = _on_send_xso
     xmlstream.stanza_parser = unittest.mock.MagicMock()
     stanzastream = stream.StanzaStream(loop=loop)
 
@@ -520,7 +520,7 @@ class TestStanzaStream(StanzaStreamTestBase):
         iq_sent = run_coroutine(self.sent_stanzas.get())
         self.assertIs(iq, iq_sent)
 
-        self.xmlstream.send_stanza = unittest.mock.MagicMock(
+        self.xmlstream.send_xso = unittest.mock.MagicMock(
             side_effect=RuntimeError())
         self.stream.enqueue_stanza(iq)
         self.stream.recv_stanza(iq)
@@ -540,7 +540,7 @@ class TestStanzaStream(StanzaStreamTestBase):
             self.stream.stop()
             self.sent_stanzas.put_nowait(stanza_obj)
 
-        self.xmlstream.send_stanza = send_handler
+        self.xmlstream.send_xso = send_handler
 
         tokens = [
             self.stream.enqueue_stanza(

@@ -498,7 +498,7 @@ class XMLStreamMock(InteractivityMock):
                 value_future = next(iter(done))
                 action, *args = value_future.result()
                 if action == "send":
-                    yield from self._send_stanza(*args)
+                    yield from self._send_xso(*args)
                 elif action == "reset":
                     yield from self._reset(*args)
                 elif action == "close":
@@ -512,16 +512,16 @@ class XMLStreamMock(InteractivityMock):
                 break
 
     @asyncio.coroutine
-    def _send_stanza(self, obj):
+    def _send_xso(self, obj):
         self._tester.assertTrue(
             self._actions,
-            self._format_unexpected_action("send_stanza", "no actions left")
+            self._format_unexpected_action("send_xso", "no actions left")
         )
         head = self._actions[0]
         self._tester.assertIsInstance(
             head, self.Send,
             self._format_unexpected_action(
-                "send_stanza",
+                "send_xso",
                 "expected something different")
         )
 
@@ -576,7 +576,7 @@ class XMLStreamMock(InteractivityMock):
 
         self._execute_response(head.response)
 
-    def send_stanza(self, obj):
+    def send_xso(self, obj):
         self._queue.put_nowait(("send", obj))
 
     def reset(self):

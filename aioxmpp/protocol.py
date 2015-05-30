@@ -61,7 +61,7 @@ class XMLStream(asyncio.Protocol):
 
     Sending XSOs:
 
-    .. automethod:: send_stanza
+    .. automethod:: send_xso
 
     Manipulating stream state:
 
@@ -262,7 +262,7 @@ class XMLStream(asyncio.Protocol):
         next(self._writer)
         self._state = State.STREAM_HEADER_SENT
 
-    def send_stanza(self, obj):
+    def send_xso(self, obj):
         self._require_connection()
         self._writer.send(obj)
 
@@ -309,7 +309,7 @@ def send_and_wait_for(xmlstream, send, wait_for, timeout=None):
             receive)
 
     for to_send in send:
-        xmlstream.send_stanza(to_send)
+        xmlstream.send_xso(to_send)
 
     try:
         if timeout is not None and timeout >= 0:

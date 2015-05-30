@@ -583,11 +583,11 @@ class TestXMLStreamMock(XMLTestCase):
             received
         )
 
-    def test_send_stanza(self):
+    def test_send_xso(self):
         obj = self.Cls()
 
         def handler(obj):
-            self.xmlstream.send_stanza(obj)
+            self.xmlstream.send_xso(obj)
 
         self.xmlstream.stanza_parser.add_class(self.Cls, handler)
         run_coroutine(self.xmlstream.run_test(
@@ -620,10 +620,10 @@ class TestXMLStreamMock(XMLTestCase):
                 timeout=0.05)
 
     def test_catch_surplus_send(self):
-        self.xmlstream.send_stanza(self.Cls())
+        self.xmlstream.send_xso(self.Cls())
 
         with self.assertRaisesRegexp(AssertionError,
-                                     "unexpected send_stanza"):
+                                     "unexpected send_xso"):
             run_coroutine(self.xmlstream.run_test(
                 [
                 ],

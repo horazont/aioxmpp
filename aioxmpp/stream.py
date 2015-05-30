@@ -197,7 +197,7 @@ class StanzaStream:
 
        Examples are :class:`ConnectionError` as raised upon a ping timeout and
        any exceptions which may be raised by the
-       :meth:`aioxmpp.protocol.XMLStream.send_stanza` method.
+       :meth:`aioxmpp.protocol.XMLStream.send_xso` method.
 
     Starting/Stopping the stream:
 
@@ -441,7 +441,7 @@ class StanzaStream:
             response = stream_xsos.SMAcknowledgement()
             response.counter = self._sm_inbound_ctr
             self._logger.debug("sending SM ack: %r", stanza_obj)
-            xmlstream.send_stanza(response)
+            xmlstream.send_xso(response)
         else:
             raise RuntimeError(
                 "unexpected stanza class: {}".format(stanza_obj))
@@ -475,7 +475,7 @@ class StanzaStream:
         if token.state == StanzaState.ABORTED:
             return
 
-        xmlstream.send_stanza(token.stanza)
+        xmlstream.send_xso(token.stanza)
         if self._sm_enabled:
             token._set_state(StanzaState.SENT)
             self._sm_unacked_list.append(token)
@@ -530,7 +530,7 @@ class StanzaStream:
 
         if self._sm_enabled:
             self._logger.debug("sending SM req")
-            xmlstream.send_stanza(stream_xsos.SMRequest())
+            xmlstream.send_xso(stream_xsos.SMRequest())
         else:
             request = stanza.IQ(type_="get")
             request.payload = xep0199.Ping()
@@ -541,7 +541,7 @@ class StanzaStream:
                 self._recv_pong
             )
             self._logger.debug("sending XEP-0199 ping: %r", request)
-            xmlstream.send_stanza(request)
+            xmlstream.send_xso(request)
             self._ping_send_opportunistic = False
 
         if self._next_ping_event_type != PingEventType.TIMEOUT:
