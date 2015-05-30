@@ -782,6 +782,8 @@ class TestXMLStreamMock(XMLTestCase):
         fun = unittest.mock.MagicMock()
         fun.return_value = None
 
+        ec_future = asyncio.async(self.xmlstream.error_future())
+
         self.xmlstream.on_failure.connect(fun)
 
         run_coroutine(self.xmlstream.run_test(
@@ -789,6 +791,9 @@ class TestXMLStreamMock(XMLTestCase):
             ],
             stimulus=XMLStreamMock.Fail(exc=exc)
         ))
+
+        self.assertTrue(ec_future.done())
+        self.assertIs(exc, ec_future.exception())
 
         fun.assert_called_once_with(exc)
 

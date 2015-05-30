@@ -445,6 +445,9 @@ class XMLStreamMock(InteractivityMock):
     class Fail(collections.namedtuple("Fail", ["exc"])):
         def do(self, xmlstream):
             xmlstream._exception = self.exc
+            for fut in xmlstream._error_futures:
+                if not fut.done():
+                    fut.set_exception(self.exc)
             xmlstream.on_failure(self.exc)
 
     class CleanFailure(collections.namedtuple("CleanFailure", [])):
@@ -484,6 +487,7 @@ class XMLStreamMock(InteractivityMock):
         self._exception = None
         self.stanza_parser = xso.XSOParser()
         self.can_starttls_value = False
+        self._error_futures = []
 
     def _execute_single(self, do):
         do(self)
@@ -624,3 +628,8 @@ class XMLStreamMock(InteractivityMock):
 
     def can_starttls(self):
         return self.can_starttls_value
+
+    def error_future(self):
+        fut = asyncio.Future()
+        self._error_futures.append(fut)
+        return fut

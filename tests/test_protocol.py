@@ -864,6 +864,37 @@ class TestXMLStream(unittest.TestCase):
             args[0][0].condition
         )
 
+    def test_fail_triggers_error_futures(self):
+        t, p = self._make_stream(to=TEST_PEER)
+
+        fut = p.error_future()
+
+        run_coroutine(t.run_test([
+            TransportMock.Write(
+                STREAM_HEADER,
+                response=[
+                    TransportMock.Receive(
+                        self._make_peer_header(version=(1, 0)) +
+                        self._make_stream_error("policy-violation") +
+                        self._make_eos()),
+                    TransportMock.ReceiveEof()
+                ]),
+            TransportMock.Write(b"</stream:stream>"),
+            TransportMock.WriteEof(),
+            TransportMock.Close()
+        ]))
+
+        self.assertTrue(fut.done())
+
+        exc = fut.exception()
+
+        self.assertIsInstance(exc, errors.StreamError)
+        self.assertEqual(
+            (namespaces.streams, "policy-violation"),
+            exc.condition
+        )
+
+
     def tearDown(self):
         self.loop.set_exception_handler(
             type(self.loop).default_exception_handler
@@ -955,7 +986,7 @@ class Testsend_and_wait_for(xmltestutils.XMLTestCase):
 
         instance = R()
 
-        with self.assertRaises(asyncio.TimeoutError):
+        with self.assertRaises(TimeoutError):
             self._run_test(
                 [
                     Q(),
@@ -1032,6 +1063,36 @@ class Testsend_and_wait_for(xmltestutils.XMLTestCase):
 
         self.assertIs(result, instance)
 
+    def test_send_and_return_response(self):
+        class Q(xso.XSO):
+            TAG = ("uri:foo", "Q")
+
+        class R(xso.XSO):
+            TAG = ("uri:foo", "R")
+
+        instance = R()
+
+        exc = ValueError()
+
+        with self.assertRaises(ValueError) as ctx:
+            self._run_test(
+                [
+                    Q(),
+                ],
+                [
+                    R
+                ],
+                [
+                    XMLStreamMock.Send(
+                        Q(),
+                        response=XMLStreamMock.Fail(exc)
+                    )
+                ]
+            )
+
+        self.assertIs(exc, ctx.exception)
+
+
     def tearDown(self):
         del self.xmlstream
         del self.loop
@@ -1088,7 +1149,7 @@ class Testreset_stream_and_get_features(xmltestutils.XMLTestCase):
     def test_timeout(self):
         features = stream_xsos.StreamFeatures()
 
-        with self.assertRaises(asyncio.TimeoutError):
+        with self.assertRaises(TimeoutError):
             self._run_test(
                 [
                     XMLStreamMock.Reset()
@@ -1117,8 +1178,6 @@ class Testreset_stream_and_get_features(xmltestutils.XMLTestCase):
             self._run_test(
                 [
                 ],
-                [
-                ],
                 clear_exception=False
             )
 
@@ -1138,6 +1197,20 @@ class Testreset_stream_and_get_features(xmltestutils.XMLTestCase):
         )
 
         self.assertIs(result, features)
+
+    def test_do_not_timeout_if_stream_fails(self):
+        features = stream_xsos.StreamFeatures()
+
+        exc = ValueError()
+
+        with self.assertRaises(ValueError) as ctx:
+            self._run_test(
+                [
+                    XMLStreamMock.Reset(response=XMLStreamMock.Fail(
+                        exc=exc))
+                ],
+                clear_exception=False
+            )
 
     def tearDown(self):
         del self.xmlstream

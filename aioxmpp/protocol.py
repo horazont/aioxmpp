@@ -159,7 +159,8 @@ class XMLStream(asyncio.Protocol):
     def __init__(self, to,
                  features_future,
                  sorted_attributes=False,
-                 base_logger=logging.getLogger("aioxmpp")):
+                 base_logger=logging.getLogger("aioxmpp"),
+                 loop=None):
         self._to = to
         self._sorted_attributes = sorted_attributes
         self._state = State.CLOSED
@@ -167,6 +168,8 @@ class XMLStream(asyncio.Protocol):
         self._transport = None
         self._features_future = features_future
         self._exception = None
+        self._loop = loop or asyncio.get_event_loop()
+        self._error_futures = []
         self.stanza_parser = xso.XSOParser()
         self.stanza_parser.add_class(stream_xsos.StreamError,
                                      self._rx_stream_error)
@@ -188,7 +191,6 @@ class XMLStream(asyncio.Protocol):
         return RuntimeError(text)
 
     def _fail(self, err):
-        # TODO: shall we do something pointful with the error here?
         self._exception = err
         self.close()
 
@@ -295,6 +297,10 @@ class XMLStream(asyncio.Protocol):
 
         if self._exception is not None:
             self.on_failure(self._exception)
+            for fut in self._error_futures:
+                if not fut.done():
+                    fut.set_exception(self._exception)
+        self._error_futures.clear()
 
     def data_received(self, blob):
         self._logger.debug("RECV %r", blob)
@@ -429,6 +435,18 @@ class XMLStream(asyncio.Protocol):
                                             post_handshake_callback)
         self._reset_state()
 
+    def error_future(self):
+        """
+        Return a future which will receive the next XML stream error as
+        exception.
+
+        It is safe to cancel the future at any time.
+        """
+        fut = asyncio.Future(loop=self._loop)
+        self._error_futures.append(fut)
+        return fut
+
+
     @property
     def transport(self):
         """
@@ -463,6 +481,8 @@ def send_and_wait_for(xmlstream, send, wait_for, timeout=None):
         fut.set_result(obj)
         cleanup()
 
+    failure_future = xmlstream.error_future()
+
     for anticipated_cls in wait_for:
         xmlstream.stanza_parser.add_class(
             anticipated_cls,
@@ -472,10 +492,25 @@ def send_and_wait_for(xmlstream, send, wait_for, timeout=None):
         for to_send in send:
             xmlstream.send_xso(to_send)
 
-        if timeout is not None and timeout >= 0:
-            return (yield from asyncio.wait_for(fut, timeout))
+        done, pending = yield from asyncio.wait(
+            [
+                fut,
+                failure_future,
+            ],
+            timeout=timeout,
+            return_when=asyncio.FIRST_COMPLETED,
+            loop=xmlstream._loop)
 
-        return (yield from fut)
+        for other_fut in pending:
+            other_fut.cancel()
+
+        if fut in done:
+            return fut.result()
+
+        if failure_future in done:
+            failure_future.result()
+
+        raise TimeoutError()
     except:
         cleanup()
         raise
@@ -493,6 +528,8 @@ def reset_stream_and_get_features(xmlstream, timeout=None):
         fut.set_result(obj)
         cleanup()
 
+    failure_future = xmlstream.error_future()
+
     xmlstream.stanza_parser.add_class(
         stream_xsos.StreamFeatures,
         receive)
@@ -500,10 +537,25 @@ def reset_stream_and_get_features(xmlstream, timeout=None):
     try:
         xmlstream.reset()
 
-        if timeout is not None and timeout >= 0:
-            return (yield from asyncio.wait_for(fut, timeout))
+        done, pending = yield from asyncio.wait(
+            [
+                fut,
+                failure_future,
+            ],
+            timeout=timeout,
+            return_when=asyncio.FIRST_COMPLETED,
+            loop=xmlstream._loop)
 
-        return (yield from fut)
+        for other_fut in pending:
+            other_fut.cancel()
+
+        if fut in done:
+            return fut.result()
+
+        if failure_future in done:
+            failure_future.result()
+
+        raise TimeoutError()
     except:
         cleanup()
         raise
