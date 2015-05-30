@@ -251,6 +251,8 @@ class AbstractClient:
     """
 
     on_failure = callbacks.Signal()
+    on_stream_destroyed = callbacks.Signal()
+    on_stream_established = callbacks.Signal()
 
     def __init__(self,
                  local_jid,
@@ -293,6 +295,7 @@ class AbstractClient:
 
     def _stream_destroyed(self):
         self._bind_task.cancel()
+        self.on_stream_destroyed()
 
     def _on_bind_done(self, task):
         try:
@@ -398,6 +401,8 @@ class AbstractClient:
             )
 
         self._local_jid = result.payload.jid
+
+        self.on_stream_established()
 
     @asyncio.coroutine
     def _main_impl(self):

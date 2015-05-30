@@ -993,6 +993,11 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
             ))
             mock.assert_called_once_with()
 
+        run_coroutine(asyncio.sleep(0))
+
+        self.established_rec.assert_called_once_with()
+        self.assertFalse(self.destroyed_rec.mock_calls)
+
     def test_resume_stream_management(self):
         self.features[...] = stream_xsos.StreamManagementFeature()
 
@@ -1031,6 +1036,9 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
 
             _resume_sm.assert_called_once_with(0)
 
+        self.established_rec.assert_called_once_with()
+        self.assertFalse(self.destroyed_rec.mock_calls)
+
     def test_stop_stream_management_if_remote_stops_providing_support(self):
         self.features[...] = stream_xsos.StreamManagementFeature()
 
@@ -1053,6 +1061,8 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
 
         run_coroutine(self.xmlstream.run_test(self.resource_binding))
 
+        self.established_rec.assert_called_once_with()
+        self.destroyed_rec.assert_called_once_with()
 
     def test_reconnect_at_advised_location_for_resumable_stream(self):
         self.features[...] = stream_xsos.StreamManagementFeature()
@@ -1105,6 +1115,9 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
             self.connect_secured_xmlstream_rec.mock_calls
         )
 
+        self.established_rec.assert_called_once_with()
+        self.assertFalse(self.destroyed_rec.mock_calls)
+
     def test_degrade_to_non_sm_if_sm_fails(self):
         self.features[...] = stream_xsos.StreamManagementFeature()
 
@@ -1122,7 +1135,12 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
             ),
         ]+self.resource_binding))
 
+        run_coroutine(asyncio.sleep(0))
+
         self.assertFalse(self.client.stream.sm_enabled)
+
+        self.established_rec.assert_called_once_with()
+        self.assertFalse(self.destroyed_rec.mock_calls)
 
     def test_retry_sm_restart_if_sm_resumption_fails(self):
         self.features[...] = stream_xsos.StreamManagementFeature()
@@ -1168,6 +1186,8 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
         self.assertTrue(self.client.stream.sm_enabled)
         self.assertTrue(self.client.running)
 
+        self.established_rec.assert_called_once_with()
+        self.assertFalse(self.destroyed_rec.mock_calls)
 
     def test_fail_on_resource_binding_error(self):
         self.client.start()
@@ -1208,6 +1228,9 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
             errors.StreamNegotiationFailure
         )
 
+        self.assertFalse(self.established_rec.mock_calls)
+        self.assertFalse(self.destroyed_rec.mock_calls)
+
     def test_resume_stream_management_during_resource_binding(self):
         self.features[...] = stream_xsos.StreamManagementFeature()
 
@@ -1244,6 +1267,9 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
             ),
         ]+self.resource_binding+self.sm_request))
 
+        self.established_rec.assert_called_once_with()
+        self.assertFalse(self.destroyed_rec.mock_calls)
+
     def test_resume_stream_management_after_resource_binding(self):
         self.features[...] = stream_xsos.StreamManagementFeature()
 
@@ -1272,6 +1298,8 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
             )
         ]))
 
+        self.established_rec.assert_called_once_with()
+        self.assertFalse(self.destroyed_rec.mock_calls)
 
     def test_resource_binding(self):
         self.client.start()
@@ -1300,6 +1328,8 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
             self.test_jid.replace(resource="foobarbaz"),
             self.client.local_jid
         )
+
+        self.established_rec.assert_called_once_with()
 
     def tearDown(self):
         for patch in self.patches:
