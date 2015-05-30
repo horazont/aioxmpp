@@ -1190,23 +1190,12 @@ class StanzaStream:
         The response stanza is returned as stanza object, if it is a
         ``result``. If it is an ``error``, the error is raised as a
         :class:`aioxmpp.errors.XMPPError` exception.
-
-        .. warning::
-
-           If *timeout* is :data:`None`, this may block forever! For example,
-           if the stanza is sent over a dead, not stream managed stream, of
-           which the deadness is only detected *after* the stanza has been
-           sent.
-
-           This is a very common case in most networking scenarios, so you
-           should generally use a timeout or apply a timeout on a higher level.
-
         """
         fut = asyncio.Future(loop=self._loop)
-        self.register_iq_response_callback(
+        self.register_iq_response_future(
             iq.to,
             iq.id_,
-            fut.set_result)
+            fut)
         self.enqueue_stanza(iq)
         if not timeout:
             return fut

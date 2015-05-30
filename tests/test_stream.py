@@ -1517,6 +1517,20 @@ class TestStanzaStream(StanzaStreamTestBase):
                 structs.JID("foo", "bar", None), "baz",
                 fun)
 
+    def test_stanza_future_raises_if_stream_interrupts_without_sm(self):
+        iq = make_test_iq()
+
+        @asyncio.coroutine
+        def kill_it():
+            yield from asyncio.sleep(0)
+            self.stream.stop()
+
+        self.stream.start(self.xmlstream)
+        with self.assertRaises(ConnectionError):
+            run_coroutine(asyncio.gather(
+                kill_it(),
+                self.stream.send_iq_and_wait_for_reply(iq)
+            ))
 
 
 class TestStanzaToken(unittest.TestCase):
