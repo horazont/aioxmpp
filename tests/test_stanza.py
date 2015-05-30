@@ -260,17 +260,22 @@ class TestPresence(unittest.TestCase):
     def test_init(self):
         s = stanza.Presence(
             from_=TEST_FROM,
-            type_="probe")
+            type_="probe",
+            show="away")
         self.assertEqual(
             TEST_FROM,
             s.from_)
         self.assertEqual(
             "probe",
             s.type_)
+        self.assertEqual(
+            "away",
+            s.show)
 
     def test_default(self):
         s = stanza.Presence()
         self.assertIsNone(s.type_)
+        self.assertIsNone(s.show)
 
     def test_repr(self):
         s = stanza.Presence(

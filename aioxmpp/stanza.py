@@ -151,9 +151,10 @@ class Presence(StanzaBase):
     )
     ext = xso.ChildMap([])
 
-    def __init__(self, *, type_=None, **kwargs):
+    def __init__(self, *, type_=None, show=None, **kwargs):
         super().__init__(**kwargs)
         self.type_ = type_
+        self.show = show
 
     def __repr__(self):
         return "<presence from='{!s}' to='{!s}' id={!r} type={!r}>".format(
