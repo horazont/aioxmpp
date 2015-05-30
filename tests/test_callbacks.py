@@ -1,5 +1,8 @@
+import asyncio
+import functools
 import unittest
 import unittest.mock
+import weakref
 
 from aioxmpp.callbacks import (
     TagDispatcher,
@@ -7,7 +10,11 @@ from aioxmpp.callbacks import (
     AsyncTagListener,
     OneshotTagListener,
     OneshotAsyncTagListener,
+    Signal,
+    AdHocSignal,
 )
+
+from .testutils import run_coroutine
 
 
 class TestTagListener(unittest.TestCase):
@@ -359,3 +366,183 @@ class TestOneshotAsyncTagListener(unittest.TestCase):
             ],
             loop.mock_calls
         )
+
+
+class TestAdHocSignal(unittest.TestCase):
+    def test_connect_and_fire(self):
+        signal = AdHocSignal()
+
+        fun = unittest.mock.MagicMock()
+        fun.return_value = None
+
+        signal.connect(fun)
+
+        signal.fire()
+        signal.fire()
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(),
+                unittest.mock.call(),
+            ],
+            fun.mock_calls
+        )
+
+    def test_connect_and_call(self):
+        signal = AdHocSignal()
+
+        fun = unittest.mock.MagicMock()
+        fun.return_value = None
+
+        signal.connect(fun)
+
+        signal()
+
+        fun.assert_called_once_with()
+
+    def test_connect_uses_weakref(self):
+        signal = AdHocSignal()
+
+        with unittest.mock.patch("weakref.ref") as ref:
+            fun = unittest.mock.MagicMock()
+            signal.connect(fun)
+            ref.assert_called_once_with(fun)
+
+    @unittest.mock.patch("weakref.ref")
+    def test_fire_removes_stale_references(self, ref):
+        signal = AdHocSignal()
+
+        fun = unittest.mock.MagicMock()
+        fun.return_value = None
+        ref().return_value = None
+
+        signal.connect(fun)
+
+        signal.fire()
+
+        self.assertFalse(signal._connections)
+
+    def test_connect_async(self):
+        signal = AdHocSignal()
+
+        mock = unittest.mock.MagicMock()
+        fun = functools.partial(mock)
+
+        signal.connect_async(fun)
+        signal.fire()
+
+        mock.assert_not_called()
+
+        run_coroutine(asyncio.sleep(0))
+
+        mock.assert_called_once_with()
+
+    def test_fire_with_arguments(self):
+        signal = AdHocSignal()
+
+        fun = unittest.mock.MagicMock()
+
+        signal.connect(fun)
+
+        signal("a", 1, foo=None)
+
+        fun.assert_called_once_with("a", 1, foo=None)
+
+    def test_remove_callback_on_true_result(self):
+        signal = AdHocSignal()
+
+        fun = unittest.mock.MagicMock()
+        fun.return_value = True
+
+        signal.connect(fun)
+
+        signal()
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(),
+            ],
+            fun.mock_calls
+        )
+
+        signal()
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(),
+            ],
+            fun.mock_calls
+        )
+
+    def test_remove_by_token(self):
+        signal = AdHocSignal()
+
+        fun = unittest.mock.MagicMock()
+        fun.return_value = None
+
+        token = signal.connect(fun)
+
+        signal()
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(),
+            ],
+            fun.mock_calls
+        )
+
+        signal()
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(),
+                unittest.mock.call(),
+            ],
+            fun.mock_calls
+        )
+
+        signal.remove(token)
+
+        signal()
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(),
+                unittest.mock.call(),
+            ],
+            fun.mock_calls
+        )
+
+
+class TestSignal(unittest.TestCase):
+    def test_get(self):
+        class Foo:
+            s = Signal()
+
+        instance1 = Foo()
+        instance2 = Foo()
+
+        self.assertIsNot(instance1.s, instance2.s)
+        self.assertIs(instance1.s, instance1.s)
+        self.assertIs(instance2.s, instance2.s)
+
+        self.assertIsInstance(instance1.s, AdHocSignal)
+        self.assertIsInstance(instance2.s, AdHocSignal)
+
+    def test_reject_set(self):
+        class Foo:
+            s = Signal()
+
+        instance = Foo()
+
+        with self.assertRaises(AttributeError):
+            instance.s = "foo"
+
+    def test_reject_delete(self):
+        class Foo:
+            s = Signal()
+
+        instance = Foo()
+
+        with self.assertRaises(AttributeError):
+            del instance.s

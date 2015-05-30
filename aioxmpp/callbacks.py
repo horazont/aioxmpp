@@ -1,5 +1,7 @@
 import asyncio
 import collections
+import functools
+import weakref
 
 
 class TagListener:
@@ -94,3 +96,80 @@ class TagDispatcher:
     def close_all(self, exc):
         self.broadcast_error(exc)
         self._listeners.clear()
+
+
+class AdHocSignal:
+    def __init__(self):
+        super().__init__()
+        self._connections = {}
+        self._token_ctr = 0
+
+    @staticmethod
+    def _async_wrapper(fref, loop, args, kwargs):
+        f = fref()
+        if f is None:
+            return False
+        if kwargs:
+            loop.call_soon(functools.partial(*args, **kwargs))
+        loop.call_soon(f, *args)
+        return True
+
+    @staticmethod
+    def _weakref_wrapper(fref, args, kwargs):
+        f = fref()
+        if f is None:
+            return False
+        return not f(*args, **kwargs)
+
+    def _connect(self, wrapper):
+        token = self._token_ctr + 1
+        self._token_ctr = token
+        self._connections[token] = wrapper
+        return token
+
+    def connect(self, f):
+        return self._connect(
+            functools.partial(self._weakref_wrapper, weakref.ref(f))
+        )
+
+    def connect_async(self, f, loop=None):
+        if loop is None:
+            loop = asyncio.get_event_loop()
+
+        return self._connect(
+            functools.partial(self._async_wrapper,
+                              weakref.ref(f),
+                              loop)
+        )
+
+    def fire(self, *args, **kwargs):
+        for token, wrapper in list(self._connections.items()):
+            if not wrapper(args, kwargs):
+                del self._connections[token]
+
+    def remove(self, token):
+        del self._connections[token]
+
+    __call__ = fire
+
+
+class Signal:
+    def __init__(self):
+        super().__init__()
+        self._instances = weakref.WeakKeyDictionary()
+
+    def __get__(self, instance, owner):
+        if instance is None:
+            return self
+        try:
+            return self._instances[instance]
+        except KeyError:
+            new = AdHocSignal()
+            self._instances[instance] = new
+            return new
+
+    def __set__(self, instance, value):
+        raise AttributeError("cannot override Signal attribute")
+
+    def __delete__(self, instance):
+        raise AttributeError("cannot override Signal attribute")
