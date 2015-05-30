@@ -414,6 +414,13 @@ class StanzaStream:
         self._xmlstream_exception = exc
         self.stop()
 
+    def _destroy_stream_state(self, exc):
+        """
+        Destroy all state which does not make sense to keep after an disconnect
+        (without stream management).
+        """
+        self._iq_response_map.close_all(exc)
+
     def _iq_request_coro_done(self, request, task):
         """
         Called when an IQ request handler coroutine returns. *request* holds
@@ -944,6 +951,11 @@ class StanzaStream:
             else:
                 active_fut.cancel()
 
+            if not self.sm_enabled:
+                self._destroy_stream_state(
+                    self._xmlstream_exception or
+                    ConnectionError("stream terminating"))
+
             self._start_rollback(xmlstream)
 
     def recv_stanza(self, stanza):
@@ -1111,6 +1123,10 @@ class StanzaStream:
         for token in self._sm_unacked_list:
             token._set_state(StanzaState.SENT_WITHOUT_SM)
         del self._sm_unacked_list
+
+        self._destroy_stream_state(ConnectionError(
+            "stream management disabled"
+        ))
 
     def stop_sm(self):
         """

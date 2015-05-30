@@ -1463,6 +1463,61 @@ class TestStanzaStream(StanzaStreamTestBase):
 
         self.assertFalse(fun.mock_calls)
 
+    def test_cleanup_iq_response_listeners_on_stop_without_sm(self):
+        fun = unittest.mock.MagicMock()
+
+        self.stream.register_iq_response_callback(
+            structs.JID("foo", "bar", None), "baz",
+            fun)
+        self.stream.start(self.xmlstream)
+        run_coroutine(asyncio.sleep(0))
+        self.stream.stop()
+        run_coroutine(asyncio.sleep(0))
+        self.assertFalse(self.stream.running)
+
+        self.stream.register_iq_response_callback(
+            structs.JID("foo", "bar", None), "baz",
+            fun)
+
+    def test_cleanup_iq_response_listeners_on_sm_stop(self):
+        fun = unittest.mock.MagicMock()
+
+
+        self.stream.register_iq_response_callback(
+            structs.JID("foo", "bar", None), "baz",
+            fun)
+        self.stream.start_sm()
+        self.stream.start(self.xmlstream)
+        run_coroutine(asyncio.sleep(0))
+        self.stream.stop()
+        run_coroutine(asyncio.sleep(0))
+        self.assertFalse(self.stream.running)
+
+        self.stream.stop_sm()
+        self.stream.register_iq_response_callback(
+            structs.JID("foo", "bar", None), "baz",
+            fun)
+
+    def test_keep_iq_response_listeners_on_sm_stop(self):
+        fun = unittest.mock.MagicMock()
+
+        self.stream.register_iq_response_callback(
+            structs.JID("foo", "bar", None), "baz",
+            fun)
+        self.stream.start_sm()
+        self.stream.start(self.xmlstream)
+        run_coroutine(asyncio.sleep(0))
+        self.stream.stop()
+        run_coroutine(asyncio.sleep(0))
+        self.assertFalse(self.stream.running)
+
+        with self.assertRaisesRegexp(ValueError,
+                                     "only one listener is allowed"):
+            self.stream.register_iq_response_callback(
+                structs.JID("foo", "bar", None), "baz",
+                fun)
+
+
 
 class TestStanzaToken(unittest.TestCase):
     def test_init(self):
