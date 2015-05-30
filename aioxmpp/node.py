@@ -386,6 +386,13 @@ class AbstractClient:
             # timeout! raise a TimeoutError...
             raise TimeoutError()
 
+        try:
+            result = next(iter(done)).result()
+        except errors.XMPPError as exc:
+            raise errors.StreamNegotiationFailure(
+                "Resource binding failed: {}".format(exc)
+            )
+
         self._sm_bound = True
 
     @asyncio.coroutine

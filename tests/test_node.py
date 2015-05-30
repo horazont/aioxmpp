@@ -825,7 +825,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
         self.assertFalse(self.client.running)
 
     def test_reconnect_on_failure(self):
-        self.client.backoff_start = timedelta(seconds=0)
+        self.client.backoff_start = timedelta(seconds=0.008)
         self.client.negotiation_timeout = timedelta(seconds=0.01)
         self.client.start()
 
@@ -854,14 +854,13 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
                                 resource=self.test_jid.resource)
                         ),
                     )
-                ]
+                ]+self.resource_binding
             )
         )
 
         run_coroutine(asyncio.sleep(0.015))
 
         self.assertTrue(self.client.running)
-        self.assertTrue(self.client.stream.running)
         self.assertSequenceEqual(
             [
                 unittest.mock.call(
@@ -1208,6 +1207,46 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
                 ]
             )
         ]))
+
+    def test_fail_on_resource_binding_error(self):
+        self.client.start()
+
+        run_coroutine(self.xmlstream.run_test([
+            XMLStreamMock.Send(
+                stanza.IQ(
+                    payload=rfc6120.Bind(
+                        resource=self.test_jid.resource),
+                    type_="set"),
+                response=XMLStreamMock.Receive(
+                    stanza.IQ(
+                        error=stanza.Error(
+                            condition=(namespaces.stanzas,
+                                       "resource-constraint"),
+                            text="too many resources",
+                            type_="cancel"
+                        ),
+                        type_="error"
+                    )
+                )
+            )
+        ]))
+        run_coroutine(asyncio.sleep(0))
+
+        self.assertFalse(self.client.running)
+        self.assertFalse(self.client.stream.running)
+
+        self.assertEqual(
+            1,
+            len(self.failure_rec.mock_calls)
+        )
+
+        error_call, = self.failure_rec.mock_calls
+
+        self.assertIsInstance(
+            error_call[1][0],
+            errors.StreamNegotiationFailure
+        )
+
 
     def tearDown(self):
         for patch in self.patches:
