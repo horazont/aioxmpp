@@ -405,7 +405,7 @@ class TestAdHocSignal(unittest.TestCase):
 
         with unittest.mock.patch("weakref.ref") as ref:
             fun = unittest.mock.MagicMock()
-            signal.connect_weak(fun)
+            signal.connect(fun, AdHocSignal.WEAK)
             ref.assert_called_once_with(fun)
 
     def test_connect_does_not_use_weakref(self):
@@ -424,7 +424,7 @@ class TestAdHocSignal(unittest.TestCase):
         fun.return_value = None
         ref().return_value = None
 
-        signal.connect_weak(fun)
+        signal.connect(fun, AdHocSignal.WEAK)
 
         signal.fire()
 
@@ -436,7 +436,7 @@ class TestAdHocSignal(unittest.TestCase):
         mock = unittest.mock.MagicMock()
         fun = functools.partial(mock)
 
-        signal.connect_async(fun)
+        signal.connect(fun, AdHocSignal.ASYNC)
         signal.fire()
 
         mock.assert_not_called()

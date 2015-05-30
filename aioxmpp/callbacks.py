@@ -99,6 +99,26 @@ class TagDispatcher:
 
 
 class AdHocSignal:
+    @classmethod
+    def STRONG(cls, f):
+        return functools.partial(cls._strong_wrapper, f)
+
+    @classmethod
+    def ASYNC_WITH_LOOP(cls, loop):
+        if loop is None:
+            loop = asyncio.get_event_loop()
+
+        def create_wrapper(f):
+            return functools.partial(cls._async_wrapper,
+                                     f,
+                                     loop)
+
+        return create_wrapper
+
+    @classmethod
+    def WEAK(cls, f):
+        return functools.partial(cls._weakref_wrapper, weakref.ref(f))
+
     def __init__(self):
         super().__init__()
         self._connections = {}
@@ -128,25 +148,9 @@ class AdHocSignal:
         self._connections[token] = wrapper
         return token
 
-    def connect_weak(self, f):
-        return self._connect(
-            functools.partial(self._weakref_wrapper, weakref.ref(f))
-        )
-
-    def connect(self, f):
-        return self._connect(
-            functools.partial(self._strong_wrapper, f)
-        )
-
-    def connect_async(self, f, loop=None):
-        if loop is None:
-            loop = asyncio.get_event_loop()
-
-        return self._connect(
-            functools.partial(self._async_wrapper,
-                              f,
-                              loop)
-        )
+    def connect(self, f, mode=None):
+        mode = mode or self.STRONG
+        return self._connect(mode(f))
 
     def fire(self, *args, **kwargs):
         for token, wrapper in list(self._connections.items()):
@@ -161,6 +165,7 @@ class AdHocSignal:
 
     __call__ = fire
 
+AdHocSignal.ASYNC = AdHocSignal.ASYNC_WITH_LOOP(None)
 
 class Signal:
     def __init__(self):
