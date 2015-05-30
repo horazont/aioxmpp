@@ -299,20 +299,6 @@ class StanzaStream:
     response fails to arrive within that interval, the stream fails (see
     :attr:`on_failure`).
 
-    Reacting to failures:
-
-    .. attribute:: on_failure
-
-       A :class:`Signal` which will fire when the stream has failed. A failure
-       occurs whenever the main task of the :class:`StanzaStream` (the one
-       started by :meth:`start`) terminates with an exception.
-
-       Examples are :class:`ConnectionError` as raised upon a ping timeout and
-       any exceptions which may be raised by the
-       :meth:`aioxmpp.protocol.XMLStream.send_xso` method.
-
-       The signal fires with the exception as the only argument.
-
     Starting/Stopping the stream:
 
     .. automethod:: start
@@ -361,9 +347,38 @@ class StanzaStream:
 
     .. autoattribute:: sm_unacked_list
 
+    Signals:
+
+    .. attribute:: on_failure
+
+       A :class:`Signal` which will fire when the stream has failed. A failure
+       occurs whenever the main task of the :class:`StanzaStream` (the one
+       started by :meth:`start`) terminates with an exception.
+
+       Examples are :class:`ConnectionError` as raised upon a ping timeout and
+       any exceptions which may be raised by the
+       :meth:`aioxmpp.protocol.XMLStream.send_xso` method.
+
+       The signal fires with the exception as the only argument.
+
+    .. attribute:: on_stream_destroyed
+
+       When a stream is destroyed so that all state shall be discarded (for
+       example, pending futures), this signal is fired.
+
+       This happens if a non-SM stream is stopped or if SM is being disabled.
+
+    .. attribute:: on_stream_established
+
+       When a stream is newly established, this signal is fired. This happens
+       whenever a non-SM stream is started and whenever a stream which
+       previously had SM disabled is started with SM enabled.
+
     """
 
     on_failure = callbacks.Signal()
+    on_stream_destroyed = callbacks.Signal()
+    on_stream_established = callbacks.Signal()
 
     def __init__(self,
                  *,
@@ -390,6 +405,8 @@ class StanzaStream:
 
         # set to True while slow_start is being used
         self._starting = False
+
+        self._established = False
 
         self.ping_interval = timedelta(seconds=15)
         self.ping_opportunistic_interval = timedelta(seconds=15)
@@ -420,6 +437,9 @@ class StanzaStream:
         (without stream management).
         """
         self._iq_response_map.close_all(exc)
+        if self._established:
+            self.on_stream_destroyed()
+            self._established = False
 
     def _iq_request_coro_done(self, request, task):
         """
@@ -845,6 +865,10 @@ class StanzaStream:
 
     def _start_commit(self, xmlstream):
         self._starting = False
+
+        if not self._established:
+            self.on_stream_established()
+            self._established = True
 
         self._task = asyncio.async(self._run(xmlstream), loop=self._loop)
         self._task.add_done_callback(self._done_handler)

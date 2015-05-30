@@ -66,6 +66,14 @@ class StanzaStreamTestBase(unittest.TestCase):
         self.sent_stanzas, self.xmlstream, self.stream = \
             make_mocked_streams(self.loop)
 
+        self.destroyed_rec = unittest.mock.MagicMock()
+        self.destroyed_rec.return_value = None
+        self.stream.on_stream_destroyed.connect(self.destroyed_rec)
+
+        self.established_rec = unittest.mock.MagicMock()
+        self.established_rec.return_value = None
+        self.stream.on_stream_established.connect(self.established_rec)
+
     def tearDown(self):
         self.stream.stop()
         run_coroutine(asyncio.sleep(0))
@@ -215,6 +223,8 @@ class TestStanzaStream(StanzaStreamTestBase):
 
         run_coroutine(asyncio.sleep(0))
 
+        self.established_rec.assert_called_once_with()
+
         self.assertSequenceEqual(
             [
                 unittest.mock.call.add_class(
@@ -234,6 +244,8 @@ class TestStanzaStream(StanzaStreamTestBase):
         self.stream.stop()
 
         run_coroutine(asyncio.sleep(0))
+
+        self.destroyed_rec.assert_called_once_with()
 
         self.assertSequenceEqual(
             [
@@ -506,7 +518,7 @@ class TestStanzaStream(StanzaStreamTestBase):
             RuntimeError
         )
 
-    def test_induces_clean_shutdown_and_no_call_to_transport(self):
+    def test_stop_induces_clean_shutdown_and_no_call_to_transport(self):
         caught_exc = None
 
         def failure_handler(exc):
@@ -622,6 +634,9 @@ class TestStanzaStream(StanzaStreamTestBase):
             self.xmlstream.stanza_parser.mock_calls[-2:]
         )
         run_coroutine(asyncio.sleep(0))
+
+        self.established_rec.assert_called_once_with()
+
         self.stream.stop()
         run_coroutine(asyncio.sleep(0))
         self.assertSequenceEqual(
@@ -633,6 +648,8 @@ class TestStanzaStream(StanzaStreamTestBase):
             ],
             self.xmlstream.stanza_parser.mock_calls[-2:]
         )
+
+        self.assertFalse(self.destroyed_rec.mock_calls)
 
     def test_sm_ack_requires_enabled_sm(self):
         with self.assertRaisesRegexp(RuntimeError, "is not enabled"):
@@ -764,10 +781,15 @@ class TestStanzaStream(StanzaStreamTestBase):
 
         run_coroutine(asyncio.sleep(0))
 
+        self.established_rec.assert_called_once_with()
+        self.established_rec.reset_mock()
+
         self.stream.sm_ack(1)
         self.stream.stop()
 
         run_coroutine(asyncio.sleep(0))
+
+        self.assertFalse(self.destroyed_rec.mock_calls)
 
         # enqueue a stanza before resumption and check that the sequence is
         # correct (resumption-generated stanzas before new stanzas)
@@ -777,6 +799,8 @@ class TestStanzaStream(StanzaStreamTestBase):
         self.stream.start(self.xmlstream)
 
         run_coroutine(asyncio.sleep(0))
+
+        self.assertFalse(self.established_rec.mock_calls)
 
         for iq in iqs:
             self.assertIs(
@@ -796,6 +820,11 @@ class TestStanzaStream(StanzaStreamTestBase):
             self.sent_stanzas.get_nowait(),
             stream_xsos.SMRequest
         )
+
+        self.stream.stop()
+        run_coroutine(asyncio.sleep(0))
+        self.stream.stop_sm()
+        self.destroyed_rec.assert_called_once_with()
 
     def test_sm_resume_requires_stopped_stream(self):
         self.stream.start_sm()
@@ -829,6 +858,9 @@ class TestStanzaStream(StanzaStreamTestBase):
     def test_stop_sm(self):
         self.stream.start_sm()
         self.stream.stop_sm()
+
+        self.assertFalse(self.destroyed_rec.mock_calls)
+        self.assertFalse(self.established_rec.mock_calls)
 
         self.assertFalse(self.stream.sm_enabled)
         with self.assertRaises(RuntimeError):
@@ -1221,6 +1253,7 @@ class TestStanzaStream(StanzaStreamTestBase):
             self.xmlstream.stanza_parser.mock_calls
         )
 
+        self.assertFalse(self.established_rec.mock_calls)
         self.assertFalse(self.stream.running)
 
     def test_transactional_start_rollback_drops_received_stanzas(self):
@@ -1276,6 +1309,7 @@ class TestStanzaStream(StanzaStreamTestBase):
             self.xmlstream.stanza_parser.mock_calls
         )
 
+        self.established_rec.assert_called_once_with()
         self.assertTrue(self.stream.running)
         run_coroutine(asyncio.sleep(0))
         self.assertTrue(fut.done())
@@ -1311,6 +1345,8 @@ class TestStanzaStream(StanzaStreamTestBase):
                 self.xmlstream.stanza_parser.mock_calls
             )
             self.xmlstream.stanza_parser.reset_mock()
+
+        self.established_rec.assert_called_once_with()
 
         self.assertSequenceEqual(
             [
@@ -1364,6 +1400,16 @@ class TestStanzaStream(StanzaStreamTestBase):
 
     def test_transactional_start_jit_sm_stop(self):
         self.stream.start_sm()
+        self.stream.start(self.xmlstream)
+        run_coroutine(asyncio.sleep(0))
+        self.stream.stop()
+        run_coroutine(asyncio.sleep(0))
+
+        self.xmlstream.stanza_parser.reset_mock()
+
+        self.established_rec.assert_called_once_with()
+        self.established_rec.reset_mock()
+
         with self.stream.transactional_start(self.xmlstream) as ctx:
             self.assertSequenceEqual(
                 [
@@ -1387,6 +1433,9 @@ class TestStanzaStream(StanzaStreamTestBase):
             )
             ctx.stop_sm()
             self.xmlstream.stanza_parser.reset_mock()
+
+        self.destroyed_rec.assert_called_once_with()
+        self.established_rec.assert_called_once_with()
 
         self.assertSequenceEqual(
             [

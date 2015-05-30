@@ -696,6 +696,10 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
         self.connect_secured_xmlstream_rec = unittest.mock.MagicMock()
         self.failure_rec = unittest.mock.MagicMock()
         self.failure_rec.return_value = None
+        self.established_rec = unittest.mock.MagicMock()
+        self.established_rec.return_value = None
+        self.destroyed_rec = unittest.mock.MagicMock()
+        self.destroyed_rec.return_value = None
         self.security_layer = object()
 
         self.loop = asyncio.get_event_loop()
@@ -716,6 +720,8 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
             self.security_layer,
             loop=self.loop)
         self.client.on_failure.connect(self.failure_rec)
+        self.client.on_stream_destroyed.connect(self.destroyed_rec)
+        self.client.on_stream_established.connect(self.established_rec)
 
         # some XMLStreamMock test case parts
         self.sm_negotiation_exchange = [
