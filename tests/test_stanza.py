@@ -443,13 +443,21 @@ class TestIQ(unittest.TestCase):
             xso.Child)
 
     def test_init(self):
-        s = stanza.IQ(from_=TEST_FROM, type_="result")
+        payload = object()
+
+        s = stanza.IQ(
+            from_=TEST_FROM,
+            type_="result",
+            payload=payload)
         self.assertEqual(
             TEST_FROM,
             s.from_)
         self.assertEqual(
             "result",
             s.type_)
+        self.assertIs(
+            payload,
+            s.payload)
 
     def test_make_reply(self):
         s = stanza.IQ(
