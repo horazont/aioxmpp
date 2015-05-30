@@ -806,12 +806,25 @@ class TestStanzaStream(StanzaStreamTestBase):
     def test_sm_stop_requires_stopped_stream(self):
         self.stream.start_sm()
         self.stream.start(self.xmlstream)
-        with self.assertRaises(RuntimeError):
+        with self.assertRaisesRegexp(RuntimeError,
+                                     "is running"):
             self.stream.stop_sm()
 
     def test_sm_stop_requires_enabled_sm(self):
-        with self.assertRaises(RuntimeError):
+        with self.assertRaisesRegexp(RuntimeError,
+                                     "not enabled"):
             self.stream.stop_sm()
+
+    def test_sm_start_requires_disabled_sm(self):
+        self.stream.start_sm()
+        with self.assertRaisesRegexp(RuntimeError,
+                                     "Stream Management already enabled"):
+            self.stream.start_sm()
+
+    def test_sm_resume_requires_enabled_sm(self):
+        with self.assertRaisesRegexp(RuntimeError,
+                                     "Stream Management is not enabled"):
+            self.stream.resume_sm(0)
 
     def test_stop_sm(self):
         self.stream.start_sm()
@@ -1178,6 +1191,261 @@ class TestStanzaStream(StanzaStreamTestBase):
         run_coroutine(asyncio.sleep(0))
         self.assertIs(caught_exc, exc)
         self.assertFalse(self.stream.running)
+
+    def test_transactional_start_prepares_and_rolls_back_on_exception(self):
+        with self.assertRaises(ValueError):
+            with self.stream.transactional_start(self.xmlstream) as ctx:
+                self.assertSequenceEqual(
+                    [
+                        unittest.mock.call.add_class(
+                            stanza.IQ,
+                            ctx._recv_stanza),
+                        unittest.mock.call.add_class(
+                            stanza.Message,
+                            ctx._recv_stanza),
+                        unittest.mock.call.add_class(
+                            stanza.Presence,
+                            ctx._recv_stanza),
+                    ],
+                    self.xmlstream.stanza_parser.mock_calls
+                )
+                self.xmlstream.stanza_parser.reset_mock()
+                raise ValueError()
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call.remove_class(stanza.Presence),
+                unittest.mock.call.remove_class(stanza.Message),
+                unittest.mock.call.remove_class(stanza.IQ),
+            ],
+            self.xmlstream.stanza_parser.mock_calls
+        )
+
+        self.assertFalse(self.stream.running)
+
+    def test_transactional_start_rollback_drops_received_stanzas(self):
+        iq = make_test_iq(type_="result")
+        iq.autoset_id()
+
+        fut = asyncio.Future()
+
+        self.stream.register_iq_response_future(
+            TEST_FROM,
+            iq.id_,
+            fut)
+
+        with self.assertRaises(ValueError):
+            with self.stream.transactional_start(self.xmlstream) as ctx:
+                ctx._recv_stanza(iq)
+                raise ValueError()
+
+        self.stream.start(self.xmlstream)
+        run_coroutine(asyncio.sleep(0))
+        self.assertFalse(fut.done())
+
+    def test_transactional_start_commit_leaves_stream_running_and_has_stanzas(self):
+        iq = make_test_iq(type_="result")
+        iq.autoset_id()
+
+        fut = asyncio.Future()
+
+        self.stream.register_iq_response_future(
+            TEST_FROM,
+            iq.id_,
+            fut)
+
+        with self.stream.transactional_start(self.xmlstream) as ctx:
+            ctx._recv_stanza(iq)
+            self.xmlstream.stanza_parser.reset_mock()
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call.remove_class(stanza.IQ),
+                unittest.mock.call.add_class(
+                    stanza.IQ,
+                    self.stream.recv_stanza),
+                unittest.mock.call.remove_class(stanza.Message),
+                unittest.mock.call.add_class(
+                    stanza.Message,
+                    self.stream.recv_stanza),
+                unittest.mock.call.remove_class(stanza.Presence),
+                unittest.mock.call.add_class(
+                    stanza.Presence,
+                    self.stream.recv_stanza),
+            ],
+            self.xmlstream.stanza_parser.mock_calls
+        )
+
+        self.assertTrue(self.stream.running)
+        run_coroutine(asyncio.sleep(0))
+        self.assertTrue(fut.done())
+
+    def test_transactional_start_blocks_start_and_transactional_start(self):
+        with self.stream.transactional_start(self.xmlstream) as ctx:
+            with self.assertRaisesRegexp(RuntimeError,
+                                         "in progress"):
+                self.stream.start(self.xmlstream)
+            with self.assertRaisesRegexp(RuntimeError,
+                                         "in progress"):
+                self.stream.transactional_start(self.xmlstream)
+
+    def test_forbid_transactional_start_while_running(self):
+        self.stream.start(self.xmlstream)
+        self.assertTrue(self.stream.running)
+        with self.assertRaisesRegexp(RuntimeError, "already started"):
+            self.stream.transactional_start(self.xmlstream)
+
+    def test_transactional_start_jit_sm_start(self):
+        with self.stream.transactional_start(self.xmlstream) as ctx:
+            self.xmlstream.stanza_parser.reset_mock()
+            ctx.start_sm()
+            self.assertSequenceEqual(
+                [
+                    unittest.mock.call.add_class(
+                        stream_xsos.SMAcknowledgement,
+                        ctx._recv_stanza),
+                    unittest.mock.call.add_class(
+                        stream_xsos.SMRequest,
+                        ctx._recv_stanza)
+                ],
+                self.xmlstream.stanza_parser.mock_calls
+            )
+            self.xmlstream.stanza_parser.reset_mock()
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call.remove_class(stanza.IQ),
+                unittest.mock.call.add_class(
+                    stanza.IQ,
+                    self.stream.recv_stanza),
+                unittest.mock.call.remove_class(stanza.Message),
+                unittest.mock.call.add_class(
+                    stanza.Message,
+                    self.stream.recv_stanza),
+                unittest.mock.call.remove_class(stanza.Presence),
+                unittest.mock.call.add_class(
+                    stanza.Presence,
+                    self.stream.recv_stanza),
+                unittest.mock.call.remove_class(
+                    stream_xsos.SMAcknowledgement),
+                unittest.mock.call.add_class(
+                    stream_xsos.SMAcknowledgement,
+                    self.stream.recv_stanza),
+                unittest.mock.call.remove_class(stream_xsos.SMRequest),
+                unittest.mock.call.add_class(
+                    stream_xsos.SMRequest,
+                    self.stream.recv_stanza)
+            ],
+            self.xmlstream.stanza_parser.mock_calls
+        )
+
+        self.assertTrue(self.stream.running)
+        self.assertTrue(self.stream.sm_enabled)
+
+    def test_transactional_start_blocks_start_sm(self):
+        with self.stream.transactional_start(self.xmlstream) as ctx:
+            with self.assertRaisesRegexp(RuntimeError,
+                                         "during startup"):
+                self.stream.start_sm()
+
+    def test_transactional_start_blocks_resume_sm(self):
+        self.stream.start_sm()
+        with self.stream.transactional_start(self.xmlstream) as ctx:
+            with self.assertRaisesRegexp(RuntimeError,
+                                         "during startup"):
+                self.stream.resume_sm(0)
+
+    def test_transactional_start_blocks_stop_sm(self):
+        self.stream.start_sm()
+        with self.stream.transactional_start(self.xmlstream) as ctx:
+            with self.assertRaisesRegexp(RuntimeError,
+                                         "during startup"):
+                self.stream.stop_sm()
+
+    def test_transactional_start_jit_sm_stop(self):
+        self.stream.start_sm()
+        with self.stream.transactional_start(self.xmlstream) as ctx:
+            self.assertSequenceEqual(
+                [
+                    unittest.mock.call.add_class(
+                        stanza.IQ,
+                        ctx._recv_stanza),
+                    unittest.mock.call.add_class(
+                        stanza.Message,
+                        ctx._recv_stanza),
+                    unittest.mock.call.add_class(
+                        stanza.Presence,
+                        ctx._recv_stanza),
+                    unittest.mock.call.add_class(
+                        stream_xsos.SMAcknowledgement,
+                        ctx._recv_stanza),
+                    unittest.mock.call.add_class(
+                        stream_xsos.SMRequest,
+                        ctx._recv_stanza)
+                ],
+                self.xmlstream.stanza_parser.mock_calls
+            )
+            ctx.stop_sm()
+            self.xmlstream.stanza_parser.reset_mock()
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call.remove_class(stanza.IQ),
+                unittest.mock.call.add_class(
+                    stanza.IQ,
+                    self.stream.recv_stanza),
+                unittest.mock.call.remove_class(stanza.Message),
+                unittest.mock.call.add_class(
+                    stanza.Message,
+                    self.stream.recv_stanza),
+                unittest.mock.call.remove_class(stanza.Presence),
+                unittest.mock.call.add_class(
+                    stanza.Presence,
+                    self.stream.recv_stanza),
+            ],
+            self.xmlstream.stanza_parser.mock_calls
+        )
+
+        self.assertTrue(self.stream.running)
+        self.assertFalse(self.stream.sm_enabled)
+
+    def test_transactional_start_jit_sm_resume(self):
+        self.stream.start_sm()
+        with self.stream.transactional_start(self.xmlstream) as ctx:
+            with unittest.mock.patch.object(self.stream, "_resume_sm") as mock:
+                ctx.resume_sm(10)
+                mock.assert_called_once_with(10)
+            self.xmlstream.stanza_parser.reset_mock()
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call.remove_class(stanza.IQ),
+                unittest.mock.call.add_class(
+                    stanza.IQ,
+                    self.stream.recv_stanza),
+                unittest.mock.call.remove_class(stanza.Message),
+                unittest.mock.call.add_class(
+                    stanza.Message,
+                    self.stream.recv_stanza),
+                unittest.mock.call.remove_class(stanza.Presence),
+                unittest.mock.call.add_class(
+                    stanza.Presence,
+                    self.stream.recv_stanza),
+                unittest.mock.call.remove_class(
+                    stream_xsos.SMAcknowledgement),
+                unittest.mock.call.add_class(
+                    stream_xsos.SMAcknowledgement,
+                    self.stream.recv_stanza),
+                unittest.mock.call.remove_class(stream_xsos.SMRequest),
+                unittest.mock.call.add_class(
+                    stream_xsos.SMRequest,
+                    self.stream.recv_stanza)
+            ],
+            self.xmlstream.stanza_parser.mock_calls
+        )
+
+        self.assertTrue(self.stream.running)
+        self.assertTrue(self.stream.sm_enabled)
 
 
 class TestStanzaToken(unittest.TestCase):

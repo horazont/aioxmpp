@@ -136,6 +136,109 @@ class StanzaToken:
         return "<StanzaToken id=0x{:016x}>".format(id(self))
 
 
+class TransactionalStartContext:
+    """
+    A context manager which allows a transactional start of a
+    :class:`StanzaStream`. Use :meth:`StanzaStream.slow_start` to safely aquire
+    an instance of it and for general documentation.
+
+    .. automethod:: start_sm
+
+    .. automethod:: resume_sm
+
+    .. automethod:: stop_sm
+    """
+    def __init__(self, stream, xmlstream):
+        if stream.running:
+            raise RuntimeError("already started")
+        if stream._starting:
+            raise RuntimeError("start in progress (slow_start() "
+                               "is being used)")
+        self.stream = stream
+        self.xmlstream = xmlstream
+        self._stanza_buffer = []
+
+    def _recv_stanza(self, obj):
+        self._stanza_buffer.append(obj)
+
+    def __enter__(self):
+        self.stream._start_prepare(self.xmlstream, self._recv_stanza)
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        if exc_type is not None:
+            self.stream._start_rollback(self.xmlstream)
+        else:
+            # rebind callbacks
+            self.xmlstream.stanza_parser.remove_class(stanza.IQ)
+            self.xmlstream.stanza_parser.add_class(
+                stanza.IQ,
+                self.stream.recv_stanza)
+            self.xmlstream.stanza_parser.remove_class(stanza.Message)
+            self.xmlstream.stanza_parser.add_class(
+                stanza.Message,
+                self.stream.recv_stanza)
+            self.xmlstream.stanza_parser.remove_class(stanza.Presence)
+            self.xmlstream.stanza_parser.add_class(
+                stanza.Presence,
+                self.stream.recv_stanza)
+            if self.stream.sm_enabled:
+                self.xmlstream.stanza_parser.remove_class(
+                    stream_xsos.SMAcknowledgement)
+                self.xmlstream.stanza_parser.add_class(
+                    stream_xsos.SMAcknowledgement,
+                    self.stream.recv_stanza)
+                self.xmlstream.stanza_parser.remove_class(
+                    stream_xsos.SMRequest)
+                self.xmlstream.stanza_parser.add_class(
+                    stream_xsos.SMRequest,
+                    self.stream.recv_stanza)
+            self.stream._start_commit(self.xmlstream)
+            for obj in self._stanza_buffer:
+                self.stream.recv_stanza(obj)
+            self._stanza_buffer.clear()
+        return False
+
+    def start_sm(self):
+        """
+        Start Stream Management during startup. You should call this *before*
+        sending the ``<sm:enable/>`` request to the server, to ensure that the
+        required state is set up when the servers response arrives.
+
+        This procedure is required as the server is allowed to send ``<sm:r/>``
+        nodes right after the ``<sm:enabled/>`` response.
+
+        If the server replies with ``<sm:failure/>``, use :meth:`stop_sm`` to
+        disable Stream Management again.
+
+        See also the documentation of :meth:`StanzaStream.start_sm`.
+        """
+        self.stream._start_sm()
+        self.xmlstream.stanza_parser.add_class(
+            stream_xsos.SMAcknowledgement,
+            self._recv_stanza)
+        self.xmlstream.stanza_parser.add_class(
+            stream_xsos.SMRequest,
+            self._recv_stanza)
+
+    def stop_sm(self):
+        """
+        Stop Stream Management during startup. See :meth:`StanzaStream.stop_sm`.
+        """
+        self.stream._stop_sm()
+        self.xmlstream.stanza_parser.remove_class(
+            stream_xsos.SMAcknowledgement)
+        self.xmlstream.stanza_parser.remove_class(
+            stream_xsos.SMRequest)
+
+    def resume_sm(self, remote_ctr):
+        """
+        Resume stream management during startup. See
+        :meth:`StanzaStream.resume_sm`.
+        """
+        self.stream._resume_sm(remote_ctr)
+
+
 class StanzaStream:
     """
     A stanza stream. This is the next layer of abstraction above the XMPP XML
@@ -205,6 +308,8 @@ class StanzaStream:
 
     .. automethod:: start
 
+    .. automethod:: transactional_start
+
     .. automethod:: stop
 
     .. autoattribute:: running
@@ -273,6 +378,9 @@ class StanzaStream:
         self._next_ping_event_type = None
 
         self._xmlstream_exception = None
+
+        # set to True while slow_start is being used
+        self._starting = False
 
         self.ping_interval = timedelta(seconds=15)
         self.ping_opportunistic_interval = timedelta(seconds=15)
@@ -680,6 +788,51 @@ class StanzaStream:
             "presence callback registered: type=%r, from=%r",
             type_, from_)
 
+    def _start_prepare(self, xmlstream, receiver):
+        self._starting = True
+
+        self._xmlstream_failure_token = xmlstream.on_failure.connect(
+            self._xmlstream_failed
+        )
+
+        xmlstream.stanza_parser.add_class(stanza.IQ, receiver)
+        xmlstream.stanza_parser.add_class(stanza.Message, receiver)
+        xmlstream.stanza_parser.add_class(stanza.Presence, receiver)
+
+        if self._sm_enabled:
+            self._logger.debug("using SM")
+            xmlstream.stanza_parser.add_class(stream_xsos.SMAcknowledgement,
+                                              receiver)
+            xmlstream.stanza_parser.add_class(stream_xsos.SMRequest,
+                                              receiver)
+
+    def _start_rollback(self, xmlstream):
+        self._starting = False
+
+        xmlstream.stanza_parser.remove_class(stanza.Presence)
+        xmlstream.stanza_parser.remove_class(stanza.Message)
+        xmlstream.stanza_parser.remove_class(stanza.IQ)
+        if self._sm_enabled:
+            xmlstream.stanza_parser.remove_class(
+                stream_xsos.SMRequest)
+            xmlstream.stanza_parser.remove_class(
+                stream_xsos.SMAcknowledgement)
+
+        xmlstream.on_failure.disconnect(
+            self._xmlstream_failure_token
+        )
+
+    def _start_commit(self, xmlstream):
+        self._starting = False
+
+        self._task = asyncio.async(self._run(xmlstream), loop=self._loop)
+        self._task.add_done_callback(self._done_handler)
+        self._logger.debug("broker task started as %r", self._task)
+
+        self._next_ping_event_at = datetime.utcnow() + self.ping_interval
+        self._next_ping_event_type = PingEventType.SEND_OPPORTUNISTIC
+        self._ping_send_opportunistic = self._sm_enabled
+
     def start(self, xmlstream):
         """
         Start or resume the stanza stream on the given
@@ -691,28 +844,22 @@ class StanzaStream:
 
         if self.running:
             raise RuntimeError("already started")
-        self._task = asyncio.async(self._run(xmlstream), loop=self._loop)
-        self._task.add_done_callback(self._done_handler)
-        self._logger.debug("broker task started as %r", self._task)
+        if self._starting:
+            raise RuntimeError("start in progress (slow_start() "
+                               "is being used)")
 
-        self._xmlstream_failure_token = xmlstream.on_failure.connect(
-            self._xmlstream_failed
-        )
+        self._start_prepare(xmlstream, self.recv_stanza)
+        self._start_commit(xmlstream)
 
-        xmlstream.stanza_parser.add_class(stanza.IQ, self.recv_stanza)
-        xmlstream.stanza_parser.add_class(stanza.Message, self.recv_stanza)
-        xmlstream.stanza_parser.add_class(stanza.Presence, self.recv_stanza)
-
-        if self._sm_enabled:
-            self._logger.debug("using SM")
-            xmlstream.stanza_parser.add_class(stream_xsos.SMAcknowledgement,
-                                              self.recv_stanza)
-            xmlstream.stanza_parser.add_class(stream_xsos.SMRequest,
-                                              self.recv_stanza)
-
-        self._next_ping_event_at = datetime.utcnow() + self.ping_interval
-        self._next_ping_event_type = PingEventType.SEND_OPPORTUNISTIC
-        self._ping_send_opportunistic = self._sm_enabled
+    def transactional_start(self, xmlstream):
+        """
+        Transactional start process. This returns a context manager, in which
+        you should encapsulate the Stream Management negotiation. To control
+        the Stream Managment configuration of the :class:`StanzaStream` during
+        start up, use the methods provided on the context manager, which is an
+        instance of :class:`TransactionalStartContext`.
+        """
+        return TransactionalStartContext(self, xmlstream)
 
     def stop(self):
         """
@@ -783,18 +930,7 @@ class StanzaStream:
             else:
                 active_fut.cancel()
 
-            xmlstream.stanza_parser.remove_class(stanza.Presence)
-            xmlstream.stanza_parser.remove_class(stanza.Message)
-            xmlstream.stanza_parser.remove_class(stanza.IQ)
-            if self._sm_enabled:
-                xmlstream.stanza_parser.remove_class(
-                    stream_xsos.SMRequest)
-                xmlstream.stanza_parser.remove_class(
-                    stream_xsos.SMAcknowledgement)
-
-            xmlstream.on_failure.disconnect(
-                self._xmlstream_failure_token
-            )
+            self._start_rollback(xmlstream)
 
             if self._xmlstream_exception:
                 exc = self._xmlstream_exception
@@ -827,6 +963,19 @@ class StanzaStream:
         """
         return self._task is not None and not self._task.done()
 
+    def _start_sm(self):
+        """
+        Version of :meth:`start_sm` which may be called during slow start.
+        """
+        if self.sm_enabled:
+            raise RuntimeError("Stream Management already enabled")
+
+        self._logger.info("starting SM handling")
+        self._sm_outbound_base = 0
+        self._sm_inbound_ctr = 0
+        self._sm_unacked_list = []
+        self._sm_enabled = True
+
     def start_sm(self):
         """
         Configure the :class:`StanzaStream` to use stream management. This must
@@ -839,12 +988,10 @@ class StanzaStream:
         if self.running:
             raise RuntimeError("cannot start Stream Management while"
                                " StanzaStream is running")
-
-        self._logger.info("starting SM handling")
-        self._sm_outbound_base = 0
-        self._sm_inbound_ctr = 0
-        self._sm_unacked_list = []
-        self._sm_enabled = True
+        if self._starting:
+            raise RuntimeError("use start_sm() method on the context to "
+                               "start stream management during startup")
+        return self._start_sm()
 
     @property
     def sm_enabled(self):
@@ -907,6 +1054,18 @@ class StanzaStream:
             raise RuntimeError("Stream Management not enabled")
         return self._sm_unacked_list[:]
 
+    def _resume_sm(self, remote_ctr):
+        """
+        Version of :meth:`resume_sm` which can be used during slow start.
+        """
+        self._logger.info("resuming SM stream with remote_ctr=%d", remote_ctr)
+        # remove any acked stanzas
+        self.sm_ack(remote_ctr)
+        # reinsert the remaining stanzas
+        for token in self._sm_unacked_list:
+            self._active_queue.putleft_nowait(token)
+        self._sm_unacked_list.clear()
+
     def resume_sm(self, remote_ctr):
         """
         Resume a stream management session, using the remote stanza counter
@@ -924,14 +1083,25 @@ class StanzaStream:
         if self.running:
             raise RuntimeError("Cannot resume Stream Management while"
                                " StanzaStream is running")
+        if self._starting:
+            raise RuntimeError("use resume_sm() method on the context to "
+                               "resume stream management during startup")
+        return self._resume_sm(remote_ctr)
 
-        self._logger.info("resuming SM stream with remote_ctr=%d", remote_ctr)
-        # remove any acked stanzas
-        self.sm_ack(remote_ctr)
-        # reinsert the remaining stanzas
+    def _stop_sm(self):
+        """
+        Version of :meth:`stop_sm` which can be called during startup.
+        """
+        if not self.sm_enabled:
+            raise RuntimeError("Stream Management is not enabled")
+
+        self._logger.info("stopping SM stream")
+        self._sm_enabled = False
+        del self._sm_outbound_base
+        del self._sm_inbound_ctr
         for token in self._sm_unacked_list:
-            self._active_queue.putleft_nowait(token)
-        self._sm_unacked_list.clear()
+            token._set_state(StanzaState.SENT_WITHOUT_SM)
+        del self._sm_unacked_list
 
     def stop_sm(self):
         """
@@ -946,17 +1116,10 @@ class StanzaStream:
         if self.running:
             raise RuntimeError("Cannot stop Stream Management while"
                                " StanzaStream is running")
-        if not self.sm_enabled:
-            raise RuntimeError("Cannot stop Stream Management while"
-                               " StanzaStream is running")
-
-        self._logger.info("stopping SM stream")
-        self._sm_enabled = False
-        del self._sm_outbound_base
-        del self._sm_inbound_ctr
-        for token in self._sm_unacked_list:
-            token._set_state(StanzaState.SENT_WITHOUT_SM)
-        del self._sm_unacked_list
+        if self._starting:
+            raise RuntimeError("use stop_sm() method on the context to "
+                               "stop stream management during startup")
+        return self._stop_sm()
 
     def sm_ack(self, remote_ctr):
         """
