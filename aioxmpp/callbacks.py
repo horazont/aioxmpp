@@ -157,7 +157,7 @@ class AdHocSignal:
             if not wrapper(args, kwargs):
                 del self._connections[token]
 
-    def remove(self, token):
+    def disconnect(self, token):
         try:
             del self._connections[token]
         except KeyError:

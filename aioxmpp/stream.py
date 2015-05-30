@@ -792,7 +792,7 @@ class StanzaStream:
                 xmlstream.stanza_parser.remove_class(
                     stream_xsos.SMAcknowledgement)
 
-            xmlstream.on_failure.remove(
+            xmlstream.on_failure.disconnect(
                 self._xmlstream_failure_token
             )
 

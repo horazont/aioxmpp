@@ -509,7 +509,7 @@ class TestAdHocSignal(unittest.TestCase):
             fun.mock_calls
         )
 
-        signal.remove(token)
+        signal.disconnect(token)
 
         signal()
 
@@ -521,7 +521,7 @@ class TestAdHocSignal(unittest.TestCase):
             fun.mock_calls
         )
 
-    def test_remove_is_idempotent(self):
+    def test_disconnect_is_idempotent(self):
         signal = AdHocSignal()
 
         fun = unittest.mock.MagicMock()
@@ -529,8 +529,8 @@ class TestAdHocSignal(unittest.TestCase):
 
         token = signal.connect(fun)
 
-        signal.remove(token)
-        signal.remove(token)
+        signal.disconnect(token)
+        signal.disconnect(token)
 
 
 class TestSignal(unittest.TestCase):
