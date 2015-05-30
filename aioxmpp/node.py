@@ -9,6 +9,8 @@ stream based on a presence setting is provided.
 Using XMPP
 ==========
 
+.. autoclass:: AbstractClient
+
 .. autoclass:: PresenceManagedClient
 
 Connecting streams low-level
@@ -206,12 +208,42 @@ class AbstractClient:
     provides functionality for connecting the xmlstream as well as signals
     which indicate changes in the stream state.
 
+    The *jid* must be a :class:`~aioxmpp.structs.JID` for which to connect. The
+    *security_layer* is best created using the
+    :func:`~aioxmpp.security_layer.security_layer` function and must provide
+    authentication for the given *jid*.
+
+    The *negotiation_timeout* argument controls the :attr:`negotiation_timeout`
+    attribute.
+
+    If *loop* is given, it must be a :class:`asyncio.BaseEventLoop`
+    instance. If it is not given, the current event loop is used.
+
     As a glue between the stanza stream and the XML stream, it also knows about
     stream management and performs stream management negotiation. It is
     specialized on client operations, which implies that it will try to keep
     the stream alive as long as wished by the client.
 
-    .. autoattribute:: local_jid
+    In general, there are no fatal errors (aside from stream negotiation
+    problems) which stop a :class:`AbstractClient` from working. It makes use
+    of stream management as far as possible and abstracts away the gritty low
+    level details. In general, it is sufficient to observe the
+    :attr:`on_stream_established` and :attr:`on_stream_destroyed` events, which
+    notify a user about when a stream becomes available and when it becomes
+    unavailable.
+
+    If authentication fails (or another stream negotiation error occurs), the
+    client fails and :attr:`on_failure` is fired. :attr:`running` becomes false
+    and the client needs to be re-started manually by calling :meth:`start`.
+
+
+    Controlling the client:
+
+    .. automethod:: start
+
+    .. automethod:: stop
+
+    .. autoattribute:: running
 
     .. attribute:: negotiation_timeout = timedelta(seconds=60)
 
@@ -219,19 +251,17 @@ class AbstractClient:
        of negotiating the stream. See the *negotiation_timeout* argument to
        :func:`connect_secured_xmlstream`.
 
-    .. attribute:: on_failure
+    Connection information:
 
-       A :class:`~aioxmpp.callbacks.Signal` which is fired when the client
-       fails and stops.
+    .. autoattribute:: established
 
-    .. autoattribute:: running
+    .. autoattribute:: local_jid
 
-
-    Exponential backoff on failure:
+    Exponential backoff on interruptions:
 
     .. attribute:: backoff_start
 
-       When connecting a stream fails due to connectivity issues (generic
+       When an underlying XML stream fails due to connectivity issues (generic
        :class:`OSError` raised), exponential backoff takes place before
        attempting to reconnect.
 
@@ -247,6 +277,28 @@ class AbstractClient:
 
        The backoff time is capped to :attr:`backoff_cap`, to avoid having
        unrealistically high values.
+
+    Signals:
+
+    .. attribute:: on_failure
+
+       A :class:`~aioxmpp.callbacks.Signal` which is fired when the client
+       fails and stops.
+
+    .. attribute:: on_stream_established
+
+       When the stream is established and resource binding took place, this
+       event is fired. It means that the stream can now be used for XMPP
+       interactions.
+
+    .. attribute:: on_stream_destroyed
+
+       This is called whenever a stream is destroyed. The conditions for this
+       are the same as for :attr:`.StanzaStream.on_stream_destroyed`.
+
+       This event can be used to know when to discard all state about the XMPP
+       connection, such as roster information.
+
 
     """
 
@@ -273,6 +325,8 @@ class AbstractClient:
         self._sm_id = None
         self._sm_location = None
 
+        self._established = False
+
         self.negotiation_timeout = negotiation_timeout
         self.backoff_start = timedelta(seconds=1)
         self.backoff_factor = 1.2
@@ -295,7 +349,9 @@ class AbstractClient:
 
     def _stream_destroyed(self):
         self._bind_task.cancel()
-        self.on_stream_destroyed()
+        if self._established:
+            self._established = False
+            self.on_stream_destroyed()
 
     def _on_bind_done(self, task):
         try:
@@ -402,6 +458,7 @@ class AbstractClient:
 
         self._local_jid = result.payload.jid
 
+        self._established = True
         self.on_stream_established()
 
     @asyncio.coroutine
@@ -428,6 +485,10 @@ class AbstractClient:
             self._logger.error("stream failed: %s", exc)
         finally:
             self.stream.stop()
+            try:
+                yield from self.stream._task
+            except:
+                pass
 
     @asyncio.coroutine
     def _main(self):
@@ -462,6 +523,13 @@ class AbstractClient:
 
 
     def start(self):
+        """
+        Start the client. If it is already :attr:`running`,
+        :class:`RuntimeError` is raised.
+
+        While the client is running, it will try to keep an XMPP connection
+        open to the server associated with :attr:`local_jid`.
+        """
         if self.running:
             raise RuntimeError("client already running")
 
@@ -472,8 +540,17 @@ class AbstractClient:
         self._main_task.add_done_callback(self._on_main_done)
 
     def stop(self):
+        """
+        Stop the client. This sends a signal to the clients main task which
+        makes it terminate.
+
+        It may take some cycles through the event loop to stop the client
+        task. To check whether the task has actually stopped, query
+        :attr:`running`.
+        """
         if not self.running:
             return
+
         self._main_task.cancel()
 
     # properties
@@ -498,7 +575,18 @@ class AbstractClient:
 
     @property
     def running(self):
+        """
+        true if the client is currently running, false otherwise.
+        """
         return self._main_task is not None and not self._main_task.done()
+
+    @property
+    def established(self):
+        """
+        true if the stream is currently established (as defined in
+        :attr:`on_stream_established`) and false otherwise.
+        """
+        return self._established
 
 
 class ClientStatus(Enum):
