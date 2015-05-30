@@ -105,10 +105,7 @@ class AdHocSignal:
         self._token_ctr = 0
 
     @staticmethod
-    def _async_wrapper(fref, loop, args, kwargs):
-        f = fref()
-        if f is None:
-            return False
+    def _async_wrapper(f, loop, args, kwargs):
         if kwargs:
             loop.call_soon(functools.partial(*args, **kwargs))
         loop.call_soon(f, *args)
@@ -121,15 +118,24 @@ class AdHocSignal:
             return False
         return not f(*args, **kwargs)
 
+    @staticmethod
+    def _strong_wrapper(f, args, kwargs):
+        return not f(*args, **kwargs)
+
     def _connect(self, wrapper):
         token = self._token_ctr + 1
         self._token_ctr = token
         self._connections[token] = wrapper
         return token
 
-    def connect(self, f):
+    def connect_weak(self, f):
         return self._connect(
             functools.partial(self._weakref_wrapper, weakref.ref(f))
+        )
+
+    def connect(self, f):
+        return self._connect(
+            functools.partial(self._strong_wrapper, f)
         )
 
     def connect_async(self, f, loop=None):
@@ -138,7 +144,7 @@ class AdHocSignal:
 
         return self._connect(
             functools.partial(self._async_wrapper,
-                              weakref.ref(f),
+                              f,
                               loop)
         )
 

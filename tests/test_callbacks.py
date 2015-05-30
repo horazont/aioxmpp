@@ -400,13 +400,21 @@ class TestAdHocSignal(unittest.TestCase):
 
         fun.assert_called_once_with()
 
-    def test_connect_uses_weakref(self):
+    def test_connect_weak_uses_weakref(self):
+        signal = AdHocSignal()
+
+        with unittest.mock.patch("weakref.ref") as ref:
+            fun = unittest.mock.MagicMock()
+            signal.connect_weak(fun)
+            ref.assert_called_once_with(fun)
+
+    def test_connect_does_not_use_weakref(self):
         signal = AdHocSignal()
 
         with unittest.mock.patch("weakref.ref") as ref:
             fun = unittest.mock.MagicMock()
             signal.connect(fun)
-            ref.assert_called_once_with(fun)
+            self.assertFalse(ref.mock_calls)
 
     @unittest.mock.patch("weakref.ref")
     def test_fire_removes_stale_references(self, ref):
@@ -416,7 +424,7 @@ class TestAdHocSignal(unittest.TestCase):
         fun.return_value = None
         ref().return_value = None
 
-        signal.connect(fun)
+        signal.connect_weak(fun)
 
         signal.fire()
 
@@ -523,6 +531,7 @@ class TestAdHocSignal(unittest.TestCase):
 
         signal.remove(token)
         signal.remove(token)
+
 
 class TestSignal(unittest.TestCase):
     def test_get(self):
