@@ -25,6 +25,7 @@ Enumerations
 
 """
 import asyncio
+import contextlib
 import itertools
 import logging
 
@@ -260,6 +261,7 @@ class AbstractClient:
         self._local_jid = local_jid
         self._loop = loop or asyncio.get_event_loop()
         self._main_task = None
+        self._bind_task = None
         self._security_layer = security_layer
 
         self._failure_future = asyncio.Future()
@@ -268,19 +270,43 @@ class AbstractClient:
         self._backoff_time = None
         self._sm_id = None
         self._sm_location = None
-        self._sm_bound = False
 
         self.negotiation_timeout = negotiation_timeout
         self.backoff_start = timedelta(seconds=1)
         self.backoff_factor = 1.2
         self.backoff_cap = timedelta(seconds=60)
+
         self.stream = stream.StanzaStream()
 
     def _stream_failure(self, exc):
         self._failure_future.set_result(exc)
         self._failure_future = asyncio.Future()
 
+    def _stream_established(self):
+        if self._bind_task and not self._bind_task.done():
+            self._bind_task.cancel()
+        self._bind_task = asyncio.async(
+            self._bind(),
+            loop=self._loop
+        )
+        self._bind_task.add_done_callback(self._on_bind_done)
+
+    def _stream_destroyed(self):
+        self._bind_task.cancel()
+
+    def _on_bind_done(self, task):
+        try:
+            task.result()
+        except asyncio.CancelledError:
+            pass
+        except Exception as err:
+            self._logger.error("resource binding failed: %r", err)
+            self._main_task.cancel()
+            self.on_failure(err)
+
     def _on_main_done(self, task):
+        if self._bind_task and not self._bind_task.done():
+            self._bind_task.cancel()
         try:
             task.result()
         except asyncio.CancelledError:
@@ -361,39 +387,17 @@ class AbstractClient:
         return features, resumed
 
     @asyncio.coroutine
-    def _bind(self, xmlstream, features, failure_future):
-        try:
-            features[rfc6120.BindFeature]
-        except KeyError:
-            raise errors.StreamNegotiationFailure(
-                "undefined-condition",
-                text="Server does not support resource binding"
-            )
-
+    def _bind(self):
         iq = stanza.IQ(type_="set")
         iq.payload = rfc6120.Bind(resource=self._local_jid.resource)
-        done, pending = yield from asyncio.wait(
-            [
-                self.stream.send_iq_and_wait_for_reply(iq),
-                failure_future
-            ],
-            timeout=self.negotiation_timeout.total_seconds(),
-            return_when=asyncio.FIRST_EXCEPTION,
-        )
-        if failure_future in done:
-            failure_future.result()
-        if not done:
-            # timeout! raise a TimeoutError...
-            raise TimeoutError()
-
         try:
-            result = next(iter(done)).result()
+            result = yield from self.stream.send_iq_and_wait_for_reply(iq)
         except errors.XMPPError as exc:
             raise errors.StreamNegotiationFailure(
                 "Resource binding failed: {}".format(exc)
             )
 
-        self._sm_bound = True
+        self._local_jid = result.payload.jid
 
     @asyncio.coroutine
     def _main_impl(self):
@@ -413,9 +417,6 @@ class AbstractClient:
                 ctx)
 
         try:
-            if not sm_resumed or not self._sm_bound:
-                yield from self._bind(xmlstream, features, failure_future)
-
             self._backoff_time = None
 
             exc = yield from failure_future
@@ -425,7 +426,18 @@ class AbstractClient:
 
     @asyncio.coroutine
     def _main(self):
-        with self.stream.on_failure.context_connect(self._stream_failure):
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(
+                self.stream.on_failure.context_connect(self._stream_failure)
+            )
+            stack.enter_context(
+                self.stream.on_stream_destroyed.context_connect(
+                    self._stream_destroyed)
+            )
+            stack.enter_context(
+                self.stream.on_stream_established.context_connect(
+                    self._stream_established)
+            )
             while True:
                 self._failure_future = asyncio.Future()
                 try:
