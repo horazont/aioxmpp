@@ -687,8 +687,8 @@ class TestXSO(XMLTestCase):
                 unittest.mock.call.startElementNS(
                     ("uri:foo", "foo"), None, {}),
                 unittest.mock.call.endElementNS(("uri:foo", "foo"), None),
-                unittest.mock.call.endPrefixMapping(None, "uri:foo"),
-                unittest.mock.call.endPrefixMapping("bar", "uri:bar"),
+                unittest.mock.call.endPrefixMapping(None),
+                unittest.mock.call.endPrefixMapping("bar"),
             ],
             sink.mock_calls
         )

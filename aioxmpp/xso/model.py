@@ -1117,7 +1117,7 @@ class XSO(metaclass=XMLStreamClass):
             dest.endElementNS(self.TAG, None)
             if cls.DECLARE_NS:
                 for prefix, uri in cls.DECLARE_NS.items():
-                    dest.endPrefixMapping(prefix, uri)
+                    dest.endPrefixMapping(prefix)
 
     def unparse_to_node(self, parent):
         handler = lxml.sax.ElementTreeContentHandler(
