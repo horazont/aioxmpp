@@ -1331,6 +1331,68 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
 
         self.established_rec.assert_called_once_with()
 
+    def test_signals_fire_correctly_on_fail_after_established_connection(self):
+        self.client.start()
+
+        run_coroutine(self.xmlstream.run_test([]))
+
+        exc = errors.AuthenticationFailure("not-authorized")
+        self.connect_secured_xmlstream_rec.side_effect = exc
+
+        run_coroutine(self.xmlstream.run_test([
+            XMLStreamMock.Send(
+                stanza.IQ(
+                    payload=rfc6120.Bind(
+                        resource=self.test_jid.resource),
+                    type_="set"),
+                response=[
+                    XMLStreamMock.Receive(
+                        stanza.IQ(
+                            payload=rfc6120.Bind(
+                                jid=self.test_jid,
+                            ),
+                            type_="result"
+                        )
+                    ),
+                ]
+            )
+        ]))
+
+        run_coroutine(self.xmlstream.run_test(
+            [],
+            stimulus=XMLStreamMock.Fail(exc=ConnectionError())
+        ))
+
+        run_coroutine(asyncio.sleep(0))
+
+        self.established_rec.assert_called_once_with()
+        self.destroyed_rec.assert_called_once_with()
+
+    def test_signals_fire_correctly_on_fail_after_established_sm_connection(self):
+        self.features[...] = stream_xsos.StreamManagementFeature()
+
+        self.client.backoff_start = timedelta(seconds=0)
+        self.client.start()
+
+        run_coroutine(self.xmlstream.run_test(
+            self.sm_negotiation_exchange+
+            self.resource_binding+
+            self.sm_request
+        ))
+
+        exc = errors.AuthenticationFailure("not-authorized")
+        self.connect_secured_xmlstream_rec.side_effect = exc
+
+        run_coroutine(self.xmlstream.run_test(
+            [],
+            stimulus=XMLStreamMock.Fail(exc=ConnectionError())
+        ))
+
+        run_coroutine(asyncio.sleep(0))
+
+        self.established_rec.assert_called_once_with()
+        self.destroyed_rec.assert_called_once_with()
+
     def tearDown(self):
         for patch in self.patches:
             patch.stop()

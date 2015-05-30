@@ -448,6 +448,8 @@ class AbstractClient:
                 try:
                     yield from self._main_impl()
                 except errors.StreamNegotiationFailure as exc:
+                    if self.stream.sm_enabled:
+                        self.stream.stop_sm()
                     raise
                 except OSError as exc:
                     if self._backoff_time is None:
