@@ -1,5 +1,6 @@
 import abc
 import inspect
+import ipaddress
 import unittest
 
 import pytz
@@ -316,6 +317,70 @@ class TestJID(unittest.TestCase):
         self.assertEqual(
             "ssa@ix.test/IX",
             t.format(structs.JID("ßA", "IX.test", "\u2168"))
+        )
+
+
+class TestConnectionLocation(unittest.TestCase):
+    def test_is_abstract_type(self):
+        self.assertIsInstance(
+            xso.ConnectionLocation(),
+            xso.AbstractType)
+
+    def test_parse_ipv6(self):
+        t = xso.ConnectionLocation()
+        self.assertEqual(
+            (ipaddress.IPv6Address("fe80::"), 5222),
+            t.parse("[fe80::]:5222")
+        )
+
+    def test_reject_non_integer_port_number(self):
+        t = xso.ConnectionLocation()
+        with self.assertRaises(ValueError):
+            t.parse("[fe80::]:23.4")
+
+    def test_reject_out_of_range_port_number(self):
+        t = xso.ConnectionLocation()
+        with self.assertRaises(ValueError):
+            t.parse("[fe80::]:1000000")
+
+    def test_reject_missing_colon(self):
+        t = xso.ConnectionLocation()
+        with self.assertRaises(ValueError):
+            t.parse("foo.bar")
+
+    def test_parse_ipv4(self):
+        t = xso.ConnectionLocation()
+        self.assertEqual(
+            (ipaddress.IPv4Address("10.0.0.1"), 5223),
+            t.parse("10.0.0.1:5223")
+        )
+
+    def test_parse_hostname(self):
+        t = xso.ConnectionLocation()
+        self.assertEqual(
+            ("foo.bar.example", 5234),
+            t.parse("foo.bar.example:5234")
+        )
+
+    def test_format_ipv6(self):
+        t = xso.ConnectionLocation()
+        self.assertEqual(
+            "[fe80::]:5222",
+            t.format((ipaddress.IPv6Address("fe80::"), 5222))
+        )
+
+    def test_format_ipv4(self):
+        t = xso.ConnectionLocation()
+        self.assertEqual(
+            "10.0.0.1:1234",
+            t.format((ipaddress.IPv4Address("10.0.0.1"), 1234))
+        )
+
+    def test_format_hostname(self):
+        t = xso.ConnectionLocation()
+        self.assertEqual(
+            "foo.bar.baz:5234",
+            t.format(("foo.bar.baz", 5234))
         )
 
 

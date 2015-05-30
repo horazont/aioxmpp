@@ -194,6 +194,8 @@ Implementations
 
 .. autoclass:: JID
 
+.. autoclass:: ConnectionLocation
+
 Validators
 ----------
 
@@ -273,6 +275,7 @@ from .types import (  # NOQA
     Base64Binary,
     HexBinary,
     JID,
+    ConnectionLocation,
     AbstractValidator,
     RestrictToSet,
     Nmtoken

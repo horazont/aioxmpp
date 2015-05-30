@@ -9,6 +9,7 @@ See :mod:`aioxmpp.xso` for documentation.
 import abc
 import base64
 import binascii
+import ipaddress
 import unicodedata
 import re
 
@@ -194,6 +195,37 @@ class JID(AbstractType):
 
     def parse(self, v):
         return structs.JID.fromstr(v)
+
+
+class ConnectionLocation(AbstractType):
+    """
+    Parse the value as a host-port pair, as for example used for Stream
+    Management reconnection location advisories.
+    """
+
+    def parse(self, v):
+        v = v.strip()
+        addr, _, port = v.rpartition(":")
+        if not _:
+            raise ValueError("missing colon in connection location")
+        port = int(port)
+        if not (0 <= port <= 65535):
+            raise ValueError("port number {} out of range".format(port))
+
+        if addr.startswith("[") and addr.endswith("]"):
+            addr = ipaddress.IPv6Address(addr[1:-1])
+
+        try:
+            addr = ipaddress.IPv4Address(addr)
+        except ValueError:
+            pass
+
+        return (addr, port)
+
+    def format(self, v):
+        if isinstance(v[0], ipaddress.IPv6Address):
+            return "[{}]:{}".format(*v)
+        return ":".join(map(str, v))
 
 
 class AbstractValidator(metaclass=abc.ABCMeta):
