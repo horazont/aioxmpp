@@ -1,15 +1,22 @@
 import asyncio
+import contextlib
 import functools
+import ipaddress
 import unittest
 import unittest.mock
+
+from datetime import timedelta
 
 import aioxmpp.node as node
 import aioxmpp.structs as structs
 import aioxmpp.stream_xsos as stream_xsos
 import aioxmpp.errors as errors
+import aioxmpp.stanza as stanza
+
+from aioxmpp.utils import namespaces
 
 from . import xmltestutils
-from .testutils import run_coroutine
+from .testutils import run_coroutine, XMLStreamMock, run_coroutine_with_peer
 
 
 class Testconnect_to_xmpp_server(unittest.TestCase):
@@ -279,6 +286,105 @@ class Testconnect_to_xmpp_server(unittest.TestCase):
             ctx.exception
         )
 
+    def test_override_peer_with_success(self):
+        create_starttls_connection_mock = unittest.mock.MagicMock()
+        with unittest.mock.patch(
+                "aioxmpp.ssl_transport.create_starttls_connection",
+                functools.partial(self._create_startttls_connection,
+                                  self.STARTTLSTransport,
+                                  create_starttls_connection_mock,
+                                  [])):
+
+            transport, protocol, features_future = run_coroutine(
+                node.connect_to_xmpp_server(
+                    self.test_jid,
+                    override_peer=("foo.bar.example", 5234)
+                ),
+                loop=self.loop
+            )
+
+        self.assertFalse(self.find_xmpp_host_addr.mock_calls)
+        self.assertFalse(self.group_and_order_srv_records.mock_calls)
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(
+                    self.loop,
+                    unittest.mock.ANY,
+                    host="foo.bar.example",
+                    port=5234,
+                    peer_hostname="foo.bar.example",
+                    server_hostname=self.test_jid.domain,
+                    use_starttls=True
+                )
+            ],
+            create_starttls_connection_mock.mock_calls
+        )
+
+        self.assertEqual(
+            protocol,
+            self.XMLStream(to=self.test_jid.domain,
+                           features_future=features_future)
+        )
+
+    def test_skip_to_next_on_failure(self):
+        exc = ConnectionError()
+
+        create_starttls_connection_mock = unittest.mock.MagicMock()
+        with unittest.mock.patch(
+                "aioxmpp.ssl_transport.create_starttls_connection",
+                functools.partial(self._create_startttls_connection,
+                                  self.STARTTLSTransport,
+                                  create_starttls_connection_mock,
+                                  [exc])):
+
+            transport, protocol, features_future = run_coroutine(
+                node.connect_to_xmpp_server(
+                    self.test_jid,
+                    override_peer=("foo.bar.example", 5234)
+                ),
+                loop=self.loop
+            )
+
+        self.find_xmpp_host_addr.assert_called_once_with(
+            self.loop,
+            self.test_jid.domain
+        )
+
+        self.group_and_order_srv_records.assert_called_once_with(
+            self.srv_records
+        )
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(
+                    self.loop,
+                    unittest.mock.ANY,
+                    host="foo.bar.example",
+                    port=5234,
+                    peer_hostname="foo.bar.example",
+                    server_hostname=self.test_jid.domain,
+                    use_starttls=True
+                ),
+                unittest.mock.call(
+                    self.loop,
+                    unittest.mock.ANY,
+                    host="xmpp1.bar.example",
+                    port=5223,
+                    peer_hostname="xmpp1.bar.example",
+                    server_hostname=self.test_jid.domain,
+                    use_starttls=True
+                )
+            ],
+            create_starttls_connection_mock.mock_calls
+        )
+
+        self.assertEqual(
+            protocol,
+            self.XMLStream(to=self.test_jid.domain,
+                           features_future=features_future)
+        )
+
     def tearDown(self):
         for patch in self.patches:
             patch.stop()
@@ -401,7 +507,633 @@ class Testconnect_secured_xmlstream(unittest.TestCase):
                         loop=self.loop)
                 )
 
+    @unittest.mock.patch("aioxmpp.protocol.send_stream_error_and_close")
+    def test_send_stream_error_on_sasl_unavailable_and_re_raise(
+            self,
+            send_stream_error_and_close
+    ):
+        connect_to_xmpp_server_recorder = unittest.mock.MagicMock()
+        security_layer_recorder = unittest.mock.MagicMock()
+        security_layer_recorder.side_effect = errors.SASLUnavailable(
+            "invalid-mechanism")
+
+        transport = object()
+        xmlstream = unittest.mock.MagicMock()
+
+        final_features = stream_xsos.StreamFeatures()
+        tls_transport = object()
+        security_layer = functools.partial(
+            self._security_layer,
+            security_layer_recorder,
+            tls_transport,
+            final_features)
+
+        features = stream_xsos.StreamFeatures()
+
+        with unittest.mock.patch("aioxmpp.node.connect_to_xmpp_server",
+                                 functools.partial(
+                                     self._connect_to_xmpp_server,
+                                     transport,
+                                     features,
+                                     xmlstream,
+                                     connect_to_xmpp_server_recorder
+                                 )):
+            with self.assertRaises(errors.SASLUnavailable):
+                run_coroutine(
+                    node.connect_secured_xmlstream(
+                        self.test_jid,
+                        security_layer,
+                        negotiation_timeout=10.0,
+                        loop=self.loop)
+                )
+
+        connect_to_xmpp_server_recorder.assert_called_once_with(
+            self.test_jid,
+            loop=self.loop
+        )
+
+        security_layer_recorder.assert_called_once_with(
+            10.0,
+            self.test_jid,
+            features,
+            xmlstream,
+        )
+
+        send_stream_error_and_close.assert_called_once_with(
+            xmlstream,
+            condition=(namespaces.streams, "policy-violation"),
+            text="SASL failure: invalid-mechanism")
+
+    @unittest.mock.patch("aioxmpp.protocol.send_stream_error_and_close")
+    def test_send_stream_error_on_tls_unavailable_and_re_raise(
+            self,
+            send_stream_error_and_close
+    ):
+        connect_to_xmpp_server_recorder = unittest.mock.MagicMock()
+        security_layer_recorder = unittest.mock.MagicMock()
+        security_layer_recorder.side_effect = errors.TLSUnavailable(
+            "policy-violation")
+
+        transport = object()
+        xmlstream = unittest.mock.MagicMock()
+
+        final_features = stream_xsos.StreamFeatures()
+        tls_transport = object()
+        security_layer = functools.partial(
+            self._security_layer,
+            security_layer_recorder,
+            tls_transport,
+            final_features)
+
+        features = stream_xsos.StreamFeatures()
+
+        with unittest.mock.patch("aioxmpp.node.connect_to_xmpp_server",
+                                 functools.partial(
+                                     self._connect_to_xmpp_server,
+                                     transport,
+                                     features,
+                                     xmlstream,
+                                     connect_to_xmpp_server_recorder
+                                 )):
+            with self.assertRaises(errors.TLSUnavailable):
+                run_coroutine(
+                    node.connect_secured_xmlstream(
+                        self.test_jid,
+                        security_layer,
+                        negotiation_timeout=10.0,
+                        loop=self.loop)
+                )
+
+        connect_to_xmpp_server_recorder.assert_called_once_with(
+            self.test_jid,
+            loop=self.loop
+        )
+
+        security_layer_recorder.assert_called_once_with(
+            10.0,
+            self.test_jid,
+            features,
+            xmlstream,
+        )
+
+        send_stream_error_and_close.assert_called_once_with(
+            xmlstream,
+            condition=(namespaces.streams, "policy-violation"),
+            text="TLS failure: policy-violation")
+
+    @unittest.mock.patch("aioxmpp.protocol.send_stream_error_and_close")
+    def test_send_stream_error_on_sasl_failure_and_re_raise(
+            self,
+            send_stream_error_and_close
+    ):
+        connect_to_xmpp_server_recorder = unittest.mock.MagicMock()
+        security_layer_recorder = unittest.mock.MagicMock()
+        exc = errors.SASLFailure(
+            "malformed-request",
+            text="Nonce does not match")
+        security_layer_recorder.side_effect = exc
+
+        transport = object()
+        xmlstream = unittest.mock.MagicMock()
+
+        final_features = stream_xsos.StreamFeatures()
+        tls_transport = object()
+        security_layer = functools.partial(
+            self._security_layer,
+            security_layer_recorder,
+            tls_transport,
+            final_features)
+
+        features = stream_xsos.StreamFeatures()
+
+        with unittest.mock.patch("aioxmpp.node.connect_to_xmpp_server",
+                                 functools.partial(
+                                     self._connect_to_xmpp_server,
+                                     transport,
+                                     features,
+                                     xmlstream,
+                                     connect_to_xmpp_server_recorder
+                                 )):
+            with self.assertRaises(errors.SASLFailure):
+                run_coroutine(
+                    node.connect_secured_xmlstream(
+                        self.test_jid,
+                        security_layer,
+                        negotiation_timeout=10.0,
+                        loop=self.loop)
+                )
+
+        connect_to_xmpp_server_recorder.assert_called_once_with(
+            self.test_jid,
+            loop=self.loop
+        )
+
+        security_layer_recorder.assert_called_once_with(
+            10.0,
+            self.test_jid,
+            features,
+            xmlstream,
+        )
+
+        send_stream_error_and_close.assert_called_once_with(
+            xmlstream,
+            condition=(namespaces.streams, "undefined-condition"),
+            text=str(exc))
 
     def tearDown(self):
         for patch in self.patches:
             patch.stop()
+
+
+class TestAbstractClient(xmltestutils.XMLTestCase):
+    @asyncio.coroutine
+    def _connect_secured_xmlstream(self, *args, **kwargs):
+        self.connect_secured_xmlstream_rec(*args, **kwargs)
+        return None, self.xmlstream, self.features
+
+    def setUp(self):
+        self.connect_secured_xmlstream_rec = unittest.mock.MagicMock()
+        self.failure_rec = unittest.mock.MagicMock()
+        self.failure_rec.return_value = None
+        self.security_layer = object()
+
+        self.loop = asyncio.get_event_loop()
+        self.patches = [
+            unittest.mock.patch("aioxmpp.node.connect_secured_xmlstream",
+                                self._connect_secured_xmlstream)
+
+        ]
+        self.connect_secured_xmlstream, = (patch.start()
+                                           for patch in self.patches)
+        self.xmlstream = XMLStreamMock(self, loop=self.loop)
+        self.test_jid = structs.JID.fromstr("foo@bar.example/baz")
+        self.features = stream_xsos.StreamFeatures()
+
+        self.client = node.AbstractClient(
+            self.test_jid,
+            self.security_layer,
+            loop=self.loop)
+        self.client.on_failure.connect(self.failure_rec)
+
+        # some XMLStreamMock test case parts
+        self.sm_negotiation_exchange = [
+            XMLStreamMock.Send(
+                stream_xsos.SMEnable(resume=True),
+                response=XMLStreamMock.Receive(
+                    stream_xsos.SMEnabled(resume=True,
+                                          id_="foobar")
+                )
+            )
+        ]
+
+    def test_defaults(self):
+        self.assertEqual(
+            self.client.negotiation_timeout,
+            timedelta(seconds=60)
+        )
+
+    def test_setup(self):
+        client = node.AbstractClient(
+            self.test_jid,
+            self.security_layer,
+            negotiation_timeout=timedelta(seconds=30)
+        )
+        self.assertEqual(client.local_jid, self.test_jid)
+        self.assertEqual(
+            client.negotiation_timeout,
+            timedelta(seconds=30)
+        )
+        self.assertEqual(
+            client.backoff_start,
+            timedelta(seconds=1)
+        )
+        self.assertEqual(
+            client.backoff_cap,
+            timedelta(seconds=60)
+        )
+        self.assertEqual(
+            client.backoff_factor,
+            1.2
+        )
+
+        with self.assertRaises(AttributeError):
+            client.local_jid = structs.JID.fromstr("bar@bar.example/baz")
+
+    def test_start(self):
+        run_coroutine(asyncio.sleep(0))
+        self.connect_secured_xmlstream_rec.assert_not_called()
+        self.assertFalse(self.client.running)
+        self.client.start()
+        self.assertTrue(self.client.running)
+        run_coroutine(asyncio.sleep(0))
+        self.connect_secured_xmlstream_rec.assert_called_once_with(
+            self.test_jid,
+            self.security_layer,
+            negotiation_timeout=60.0,
+            override_peer=None,
+            loop=self.loop
+        )
+
+    def test_reject_start_twice(self):
+        self.client.start()
+        with self.assertRaisesRegexp(RuntimeError,
+                                     "already running"):
+            self.client.start()
+
+    def test_stanza_stream_starts_and_stops_with_client(self):
+        self.client.start()
+        run_coroutine(asyncio.sleep(0))
+        self.assertTrue(self.client.stream.running)
+        self.client.stop()
+        run_coroutine(asyncio.sleep(0))
+        self.assertFalse(self.client.stream.running)
+
+    def test_stop(self):
+        run_coroutine(asyncio.sleep(0))
+        self.connect_secured_xmlstream_rec.assert_not_called()
+        self.assertFalse(self.client.running)
+        self.client.start()
+        self.assertTrue(self.client.running)
+        run_coroutine(asyncio.sleep(0))
+        self.assertTrue(self.client.running)
+        self.client.stop()
+        run_coroutine(asyncio.sleep(0))
+        self.assertFalse(self.client.running)
+
+    def test_reconnect_on_failure(self):
+        self.client.start()
+
+        @asyncio.coroutine
+        def stimulus():
+            iq = stanza.IQ()
+            self.client.stream.enqueue_stanza(iq)
+
+        run_coroutine_with_peer(
+            stimulus(),
+            self.xmlstream.run_test(
+                [
+                    XMLStreamMock.Send(
+                        stanza.IQ(),
+                        response=XMLStreamMock.Fail(
+                            exc=ConnectionError()
+                        )
+                    )
+                ]
+            )
+        )
+
+        self.assertTrue(self.client.running)
+        self.assertTrue(self.client.stream.running)
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(
+                    self.test_jid,
+                    self.security_layer,
+                    negotiation_timeout=60.0,
+                    override_peer=None,
+                    loop=self.loop)
+            ]*2,
+            self.connect_secured_xmlstream_rec.mock_calls
+        )
+
+        # the client has not failed
+        self.assertFalse(self.failure_rec.mock_calls)
+
+    def test_fail_on_authentication_failure(self):
+        exc = errors.AuthenticationFailure("not-authorized")
+        self.connect_secured_xmlstream_rec.side_effect = exc
+        self.client.start()
+        run_coroutine(asyncio.sleep(0))
+        self.assertFalse(self.client.running)
+        self.assertFalse(self.client.stream.running)
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(exc)
+            ],
+            self.failure_rec.mock_calls
+        )
+
+    def test_fail_on_stream_negotation_failure(self):
+        exc = errors.StreamNegotiationFailure("undefined-condition")
+        self.connect_secured_xmlstream_rec.side_effect = exc
+        self.client.start()
+        run_coroutine(asyncio.sleep(0))
+        self.assertFalse(self.client.running)
+        self.assertFalse(self.client.stream.running)
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(exc)
+            ],
+            self.failure_rec.mock_calls
+        )
+
+    def test_exponential_backoff_on_os_error(self):
+        call = unittest.mock.call(
+            self.test_jid,
+            self.security_layer,
+            negotiation_timeout=60.0,
+            override_peer=None,
+            loop=self.loop)
+
+        exc = OSError()
+        self.connect_secured_xmlstream_rec.side_effect = exc
+        self.client.backoff_start = timedelta(seconds=0.01)
+        self.client.backoff_factor = 2
+        self.client.backoff_cap = timedelta(seconds=0.1)
+        self.client.start()
+        run_coroutine(asyncio.sleep(0))
+        self.assertTrue(self.client.running)
+        self.assertFalse(self.client.stream.running)
+
+        self.assertSequenceEqual(
+            [call],
+            self.connect_secured_xmlstream_rec.mock_calls
+        )
+
+        run_coroutine(asyncio.sleep(0.01))
+
+        self.assertSequenceEqual(
+            [call]*2,
+            self.connect_secured_xmlstream_rec.mock_calls
+        )
+
+        run_coroutine(asyncio.sleep(0.02))
+
+        self.assertSequenceEqual(
+            [call]*3,
+            self.connect_secured_xmlstream_rec.mock_calls
+        )
+
+        run_coroutine(asyncio.sleep(0.04))
+
+        self.assertSequenceEqual(
+            [call]*4,
+            self.connect_secured_xmlstream_rec.mock_calls
+        )
+
+        run_coroutine(asyncio.sleep(0.08))
+
+        self.assertSequenceEqual(
+            [call]*5,
+            self.connect_secured_xmlstream_rec.mock_calls
+        )
+
+        run_coroutine(asyncio.sleep(0.1))
+
+        self.assertSequenceEqual(
+            [call]*6,
+            self.connect_secured_xmlstream_rec.mock_calls
+        )
+
+        run_coroutine(asyncio.sleep(0.1))
+
+        self.assertSequenceEqual(
+            [call]*7,
+            self.connect_secured_xmlstream_rec.mock_calls
+        )
+
+        self.assertSequenceEqual(
+            [
+            ],
+            self.failure_rec.mock_calls
+        )
+
+    def test_negotiate_stream_management(self):
+        self.features[...] = stream_xsos.StreamManagementFeature()
+
+        self.client.start()
+        with unittest.mock.patch.object(
+                self.client.stream, "_start_sm") as mock:
+            run_coroutine(self.xmlstream.run_test(self.sm_negotiation_exchange))
+            mock.assert_called_once_with()
+
+    def test_resume_stream_management(self):
+        self.features[...] = stream_xsos.StreamManagementFeature()
+
+        self.client.backoff_start = timedelta(seconds=0)
+        self.client.start()
+
+        with contextlib.ExitStack() as stack:
+            _resume_sm = stack.enter_context(
+                unittest.mock.patch.object(self.client.stream, "_resume_sm"),
+            )
+
+            run_coroutine(self.xmlstream.run_test([
+                XMLStreamMock.Send(
+                    stream_xsos.SMEnable(resume=True),
+                    response=[
+                        XMLStreamMock.Receive(
+                            stream_xsos.SMEnabled(resume=True,
+                                                  id_="foobar"),
+
+                        ),
+                        XMLStreamMock.Fail(
+                            exc=ConnectionError()
+                        ),
+                        XMLStreamMock.CleanFailure()
+                    ]
+                ),
+                XMLStreamMock.Send(
+                    stream_xsos.SMResume(counter=0, previd="foobar"),
+                    response=[
+                        XMLStreamMock.Receive(
+                            stream_xsos.SMResumed(counter=0)
+                        )
+                    ]
+                )
+            ]))
+
+            _resume_sm.assert_called_once_with(0)
+
+    def test_stop_stream_management_if_remote_stops_providing_support(self):
+        self.features[...] = stream_xsos.StreamManagementFeature()
+
+        self.client.backoff_start = timedelta(seconds=0)
+        self.client.start()
+
+        run_coroutine(self.xmlstream.run_test([
+            XMLStreamMock.Send(
+                stream_xsos.SMEnable(resume=True),
+                response=[
+                    XMLStreamMock.Receive(
+                        stream_xsos.SMEnabled(resume=True,
+                                              id_="foobar"),
+
+                    ),
+                    XMLStreamMock.Fail(
+                        exc=ConnectionError()
+                    ),
+                    XMLStreamMock.CleanFailure()
+                ]
+            ),
+        ]))
+
+        del self.features[stream_xsos.StreamManagementFeature]
+
+        with contextlib.ExitStack() as stack:
+            _stop_sm = stack.enter_context(
+                unittest.mock.patch.object(self.client.stream, "_stop_sm"),
+            )
+            run_coroutine(self.xmlstream.run_test([]))
+
+            _stop_sm.assert_called_once_with()
+
+    def test_reconnect_at_advised_location_for_resumable_stream(self):
+        self.features[...] = stream_xsos.StreamManagementFeature()
+
+        self.client.backoff_start = timedelta(seconds=0)
+        self.client.start()
+
+        run_coroutine(self.xmlstream.run_test([
+            XMLStreamMock.Send(
+                stream_xsos.SMEnable(resume=True),
+                response=[
+                    XMLStreamMock.Receive(
+                        stream_xsos.SMEnabled(
+                            resume=True,
+                            id_="foobar",
+                            location=(ipaddress.IPv6Address("fe80::"), 5222)),
+
+                    ),
+                    XMLStreamMock.Fail(
+                        exc=ConnectionError()
+                    ),
+                    XMLStreamMock.CleanFailure()
+                ]
+            ),
+            XMLStreamMock.Send(
+                stream_xsos.SMResume(counter=0, previd="foobar"),
+                response=[
+                    XMLStreamMock.Receive(
+                        stream_xsos.SMResumed(counter=0)
+                    )
+                ]
+            )
+        ]))
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(
+                    self.test_jid,
+                    self.security_layer,
+                    override_peer=None,
+                    negotiation_timeout=60.0,
+                    loop=self.loop),
+                unittest.mock.call(
+                    self.test_jid,
+                    self.security_layer,
+                    override_peer=("fe80::", 5222),
+                    negotiation_timeout=60.0,
+                    loop=self.loop),
+            ],
+            self.connect_secured_xmlstream_rec.mock_calls
+        )
+
+    def test_degrade_to_non_sm_if_sm_fails(self):
+        self.features[...] = stream_xsos.StreamManagementFeature()
+
+        self.client.backoff_start = timedelta(seconds=0)
+        self.client.start()
+
+        run_coroutine(self.xmlstream.run_test([
+            XMLStreamMock.Send(
+                stream_xsos.SMEnable(resume=True),
+                response=[
+                    XMLStreamMock.Receive(
+                        stream_xsos.SMFailure(),
+                    ),
+                ]
+            ),
+        ]))
+
+        self.assertFalse(self.client.stream.sm_enabled)
+
+    def test_retry_sm_restart_if_sm_resumption_fails(self):
+        self.features[...] = stream_xsos.StreamManagementFeature()
+
+        self.client.backoff_start = timedelta(seconds=0)
+        self.client.start()
+
+        run_coroutine(self.xmlstream.run_test([
+            XMLStreamMock.Send(
+                stream_xsos.SMEnable(resume=True),
+                response=[
+                    XMLStreamMock.Receive(
+                        stream_xsos.SMEnabled(resume=True,
+                                              id_="foobar"),
+
+                    ),
+                    XMLStreamMock.Fail(
+                        exc=ConnectionError()
+                    ),
+                    XMLStreamMock.CleanFailure()
+                ]
+            ),
+            XMLStreamMock.Send(
+                stream_xsos.SMResume(counter=0, previd="foobar"),
+                response=[
+                    XMLStreamMock.Receive(
+                        stream_xsos.SMFailure()
+                    )
+                ]
+            ),
+            XMLStreamMock.Send(
+                stream_xsos.SMEnable(resume=True),
+                response=[
+                    XMLStreamMock.Receive(
+                        stream_xsos.SMEnabled(resume=True,
+                                              id_="foobar"),
+
+                    ),
+                ]
+            ),
+        ]))
+
+        self.assertTrue(self.client.stream.sm_enabled)
+
+    def tearDown(self):
+        for patch in self.patches:
+            patch.stop()
+        if self.client.running:
+            self.client.stop()
+        run_coroutine(self.xmlstream.run_test([]))
