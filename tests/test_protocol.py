@@ -876,7 +876,7 @@ class Testsend_and_wait_for(xmltestutils.XMLTestCase):
         self.xmlstream = XMLStreamMock(self, loop=self.loop)
 
     def _run_test(self, send, wait_for, actions, stimulus=None,
-                  timeout=None):
+                  timeout=None, **kwargs):
         return run_coroutine(
             asyncio.gather(
                 protocol.send_and_wait_for(
@@ -886,7 +886,8 @@ class Testsend_and_wait_for(xmltestutils.XMLTestCase):
                     timeout=timeout),
                 self.xmlstream.run_test(
                     actions,
-                    stimulus=stimulus)
+                    stimulus=stimulus,
+                    **kwargs)
             )
         )[0]
 
@@ -977,6 +978,60 @@ class Testsend_and_wait_for(xmltestutils.XMLTestCase):
                 stimulus=XMLStreamMock.Receive(instance)
             ))
 
+    def test_clean_up_if_sending_fails(self):
+        class Q(xso.XSO):
+            TAG = ("uri:foo", "Q")
+
+        class R(xso.XSO):
+            TAG = ("uri:foo", "R")
+
+        instance = R()
+
+        exc = ValueError()
+
+        run_coroutine(self.xmlstream.run_test(
+            [],
+            stimulus=XMLStreamMock.Fail(exc=exc)
+        ))
+
+
+        with self.assertRaises(ValueError) as ctx:
+            self._run_test(
+                [
+                    Q(),
+                ],
+                [
+                    R
+                ],
+                [
+                ],
+                clear_exception=False
+            )
+
+        # this both cleans up and asserts that the send did not do anything
+        run_coroutine(self.xmlstream.run_test(
+            [],
+            clear_exception=True
+        ))
+
+        # now test that cleanup happened correctly
+        result = self._run_test(
+            [
+                Q(),
+            ],
+            [
+                R
+            ],
+            [
+                XMLStreamMock.Send(
+                    Q(),
+                    response=XMLStreamMock.Receive(instance)
+                )
+            ]
+        )
+
+        self.assertIs(result, instance)
+
     def tearDown(self):
         del self.xmlstream
         del self.loop
@@ -988,7 +1043,7 @@ class Testreset_stream_and_get_features(xmltestutils.XMLTestCase):
         self.xmlstream = XMLStreamMock(self, loop=self.loop)
 
     def _run_test(self, actions, stimulus=None,
-                  timeout=None):
+                  timeout=None, **kwargs):
         return run_coroutine(
             asyncio.gather(
                 protocol.reset_stream_and_get_features(
@@ -996,7 +1051,8 @@ class Testreset_stream_and_get_features(xmltestutils.XMLTestCase):
                     timeout=timeout),
                 self.xmlstream.run_test(
                     actions,
-                    stimulus=stimulus)
+                    stimulus=stimulus,
+                    **kwargs)
             )
         )[0]
 
@@ -1046,6 +1102,42 @@ class Testreset_stream_and_get_features(xmltestutils.XMLTestCase):
                 [],
                 stimulus=XMLStreamMock.Receive(features)
             ))
+
+    def test_clean_up_if_sending_fails(self):
+        features = stream_xsos.StreamFeatures()
+
+        exc = ValueError()
+
+        run_coroutine(self.xmlstream.run_test(
+            [],
+            stimulus=XMLStreamMock.Fail(exc=exc)
+        ))
+
+        with self.assertRaises(ValueError) as ctx:
+            self._run_test(
+                [
+                ],
+                [
+                ],
+                clear_exception=False
+            )
+
+        # this both cleans up and asserts that the send did not do anything
+        run_coroutine(self.xmlstream.run_test(
+            [],
+            clear_exception=True
+        ))
+
+        # now test that cleanup happened correctly
+        result = self._run_test(
+            [
+                XMLStreamMock.Reset(
+                    response=XMLStreamMock.Receive(features)
+                )
+            ]
+        )
+
+        self.assertIs(result, features)
 
     def tearDown(self):
         del self.xmlstream

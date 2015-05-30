@@ -468,10 +468,10 @@ def send_and_wait_for(xmlstream, send, wait_for, timeout=None):
             anticipated_cls,
             receive)
 
-    for to_send in send:
-        xmlstream.send_xso(to_send)
-
     try:
+        for to_send in send:
+            xmlstream.send_xso(to_send)
+
         if timeout is not None and timeout >= 0:
             return (yield from asyncio.wait_for(fut, timeout))
 
@@ -497,9 +497,9 @@ def reset_stream_and_get_features(xmlstream, timeout=None):
         stream_xsos.StreamFeatures,
         receive)
 
-    xmlstream.reset()
-
     try:
+        xmlstream.reset()
+
         if timeout is not None and timeout >= 0:
             return (yield from asyncio.wait_for(fut, timeout))
 
