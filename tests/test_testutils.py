@@ -816,6 +816,32 @@ class TestXMLStreamMock(XMLTestCase):
             ],
         ))
 
+    def test_clean_failure(self):
+        exc = ValueError()
+        fun = unittest.mock.MagicMock()
+        fun.return_value = None
+
+        self.xmlstream.on_failure.connect(fun)
+
+        run_coroutine(self.xmlstream.run_test(
+            [
+            ],
+            stimulus=[
+                XMLStreamMock.Fail(exc=exc),
+                XMLStreamMock.CleanFailure()
+            ]
+        ))
+
+        fun.assert_called_once_with(exc)
+
+        self.xmlstream.reset()
+
+        run_coroutine(self.xmlstream.run_test(
+            [
+                XMLStreamMock.Reset()
+            ],
+        ))
+
     def tearDown(self):
         del self.xmlstream
         del self.loop

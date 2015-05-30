@@ -447,6 +447,14 @@ class XMLStreamMock(InteractivityMock):
             xmlstream._exception = self.exc
             xmlstream.on_failure(self.exc)
 
+    class CleanFailure(collections.namedtuple("CleanFailure", [])):
+        def do(self, xmlstream):
+            xmlstream._tester.assertIsNotNone(
+                xmlstream._exception,
+                "no failure to clean up"
+            )
+            xmlstream._exception = None
+
     class Send(collections.namedtuple("Send", ["obj", "response"])):
         def __new__(cls, obj, *, response=None):
             return super().__new__(cls, obj, response)
