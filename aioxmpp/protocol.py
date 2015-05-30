@@ -367,7 +367,7 @@ class XMLStream(asyncio.Protocol):
         or the exception which caused the stream to die (possibly a received
         stream error or a transport error) to be reraised.
 
-        :meth:`reset` puts the stream into :attr:`State.STREAM_HEADER_SENT`
+        :meth:`reset` puts the stream into :attr:`~State.STREAM_HEADER_SENT`
         state and it cannot be used for sending XSOs until the peer stream
         header has been received. Usually, this is not a problem as stream
         resets only occur during stream negotiation and stream negotiation
