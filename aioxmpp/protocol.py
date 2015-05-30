@@ -7,7 +7,19 @@ stream protocol used by XMPP. It makes extensive use of the :mod:`aioxmpp.xml`
 module and the :mod:`aioxmpp.xso` subpackage to parse and serialize XSOs
 received and sent on the stream.
 
+In addition, helper functions to work with :class:`XMLStream` instances are
+provided; these are not included in the class itself because they provide
+additional functionality solely based on the public interface of the
+class. Separating them helps with testing.
+
 .. autoclass:: XMLStream
+
+Utilities for XML streams
+=========================
+
+.. autofunction:: send_and_wait_for
+
+.. autofunction:: reset_stream_and_get_features
 
 Enumerations
 ============
@@ -32,10 +44,48 @@ from .utils import namespaces
 
 
 class Mode(Enum):
+    """
+    Possible modes of connection for an XML stream. These define the namespaces
+    used.
+
+    .. attribute:: C2S
+
+       A client stream connected to a server. This is the default mode and,
+       currently, the only available mode.
+
+    """
     C2S = namespaces.client
 
 
 class State(Enum):
+    """
+    The possible states of a :class:`XMLStream`:
+
+    .. attribute:: CLOSED
+
+       The initial state; this is the case when no underlying transport is
+       connected. This state is entered from any other state when the
+       underlying transport calls :meth:`XMLStream.connection_lost` on the xml
+       stream.
+
+    .. attribute:: STREAM_HEADER_SENT
+
+       After a :class:`asyncio.Transport` calls
+       :meth:`XMLStream.connection_made` on the xml stream, it sends the stream
+       header and enters this state.
+
+    .. attribute:: OPEN
+
+       When the stream header of the peer is received, this state is entered
+       and the XML stream can be used for sending and receiving XSOs.
+
+    .. attribute:: CLOSING
+
+       After :meth:`XMLStream.close` is called, this state is entered. The
+       underlying transport was asked to close itself.
+
+    """
+
     CLOSED = 0
     STREAM_HEADER_SENT = 1
     OPEN = 2
@@ -46,6 +96,23 @@ class XMLStream(asyncio.Protocol):
     """
     XML stream implementation. This is an streaming :class:`asyncio.Protocol`
     which translates the received bytes into XSOs.
+
+    *to* must be a domain :class:`~aioxmpp.structs.JID` which identifies the
+    domain to which the stream shall connect.
+
+    *features_future* must be a :class:`asyncio.Future` instance; the XML
+    stream will set the first :class:`~aioxmpp.stream_xsos.StreamFeatures` node
+    it receives as the result of the future.
+
+    *sorted_attributes* is mainly for unittesting purposes; this is an argument
+    to the :class:`~aioxmpp.xml.XMPPXMLGenerator` and slows down the XML
+    serialization, but produces deterministic results, which is important for
+    testing. Generally, it is preferred to leave this argument at its default.
+
+    *base_logger* may be a :class:`logging.Logger` instance to use. The XML
+    stream will create a child called ``XMLStream`` at that logger and use that
+    child for logging purposes. This eases debugging and allows for
+    connection-specific loggers.
 
     Receiving XSOs:
 
@@ -68,6 +135,8 @@ class XMLStream(asyncio.Protocol):
     .. automethod:: starttls
 
     .. automethod:: reset
+
+    .. automethod:: close
 
     """
 
@@ -218,6 +287,21 @@ class XMLStream(asyncio.Protocol):
             self._fail(exc)
 
     def close(self):
+        """
+        Close the XML stream and the underlying transport.
+
+        This gracefully shuts down the XML stream and the transport, if
+        possible by writing the eof using :meth:`asyncio.Transport.write_eof`
+        after sending the stream footer.
+
+        After a call to :meth:`close`, no other stream manipulating or sending
+        method can be called; doing so will result in a
+        :class:`ConnectionError` exception or any exception caused by the
+        transport during shutdown.
+
+        Calling :meth:`close` while the stream is closing or closed is a
+        no-op.
+        """
         if self._state == State.CLOSING or self._state == State.CLOSED:
             return
         self._state = State.CLOSING
@@ -257,21 +341,67 @@ class XMLStream(asyncio.Protocol):
             sorted_attributes=self._sorted_attributes)
 
     def reset(self):
+        """
+        Reset the stream by discarding all state and re-sending the stream
+        header.
+
+        Calling :meth:`reset` when the stream is disconnected or currently
+        disconnecting results in either :class:`ConnectionError` being raised
+        or the exception which caused the stream to die (possibly a received
+        stream error or a transport error) to be reraised.
+
+        :meth:`reset` puts the stream into :attr:`State.STREAM_HEADER_SENT`
+        state and it cannot be used for sending XSOs until the peer stream
+        header has been received. Usually, this is not a problem as stream
+        resets only occur during stream negotiation and stream negotiation
+        typically waits for the peers feature node to arrive first.
+        """
         self._require_connection(accept_partial=True)
         self._reset_state()
         next(self._writer)
         self._state = State.STREAM_HEADER_SENT
 
     def send_xso(self, obj):
+        """
+        Send an XSO *obj* over the stream.
+
+        Calling :meth:`send_xso` while the stream is disconnected,
+        disconnecting or still waiting for the remote to send a stream header
+        causes :class:`ConnectionError` to be raised. If the stream got
+        disconnected due to a transport or stream error, that exception is
+        re-raised instead of the :class:`ConnectionError`.
+        """
         self._require_connection()
         self._writer.send(obj)
 
     def can_starttls(self):
+        """
+        Return true if the transport supports STARTTLS and false otherwise.
+
+        If the stream is currently not connected, this returns false.
+        """
         return (hasattr(self._transport, "can_starttls") and
                 self._transport.can_starttls())
 
     @asyncio.coroutine
     def starttls(self, ssl_context, post_handshake_callback=None):
+        """
+        Start TLS on the transport and wait for it to complete.
+
+        The *ssl_context* and *post_handshake_callback* arguments are forwarded
+        to the transports
+        :meth:`~aioxmpp.ssl_transport.STARTTLSTransport.starttls` coroutine
+        method.
+
+        If the transport does not support starttls, :class:`RuntimeError` is
+        raised; support for starttls can be discovered by querying
+        :meth:`can_starttls`.
+
+        After :meth:`starttls` returns, you must call :meth:`reset`. Any other
+        method may fail in interesting ways as the internal state is discarded
+        when starttls succeeds, for security reasons. :meth:`reset` re-creates
+        the internal structures.
+        """
         self._require_connection()
         if not self.can_starttls():
             raise RuntimeError("starttls not available on transport")
@@ -282,10 +412,21 @@ class XMLStream(asyncio.Protocol):
 
     @property
     def transport(self):
+        """
+        The underlying :class:`asyncio.Transport` instance. This attribute is
+        :data:`None` if the :class:`XMLStream` is currently not connected.
+
+        This attribute cannot be set.
+        """
         return self._transport
 
     @property
     def state(self):
+        """
+        The current :class:`State` of the XML stream.
+
+        This attribute cannot be set.
+        """
         return self._state
 
 
