@@ -1447,6 +1447,22 @@ class TestStanzaStream(StanzaStreamTestBase):
         self.assertTrue(self.stream.running)
         self.assertTrue(self.stream.sm_enabled)
 
+    def test_transactional_start_propagate_transport_errors(self):
+        exc = ConnectionError()
+
+        fun = unittest.mock.MagicMock()
+        fun.return_value = None
+
+        self.stream.on_failure.connect(fun)
+
+        with self.assertRaises(ConnectionError) as ctx:
+            with self.stream.transactional_start(self.xmlstream):
+                self.xmlstream.on_failure(exc)
+
+        self.assertIs(exc, ctx.exception)
+
+        self.assertFalse(fun.mock_calls)
+
 
 class TestStanzaToken(unittest.TestCase):
     def test_init(self):

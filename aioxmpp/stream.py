@@ -166,8 +166,17 @@ class TransactionalStartContext:
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
+        if exc_type is None:
+            if self.stream._xmlstream_exception is not None:
+                exc_type = type(self.stream._xmlstream_exception)
+                exc_value = self.stream._xmlstream_exception
+                traceback = self.stream._xmlstream_exception
+
         if exc_type is not None:
-            self.stream._start_rollback(self.xmlstream)
+            try:
+                self.stream._start_rollback(self.xmlstream)
+            except Exception as exc:
+                raise
         else:
             # rebind callbacks
             self.xmlstream.stanza_parser.remove_class(stanza.IQ)
@@ -399,7 +408,7 @@ class StanzaStream:
         except Exception as err:
             if self.on_failure:
                 self.on_failure(err)
-            raise
+            self._logger.exception("broker task failed")
 
     def _xmlstream_failed(self, exc):
         self._xmlstream_exception = exc
@@ -822,6 +831,11 @@ class StanzaStream:
             self._xmlstream_failure_token
         )
 
+        if self._xmlstream_exception:
+            exc = self._xmlstream_exception
+            self._xmlstream_exception = None
+            raise exc
+
     def _start_commit(self, xmlstream):
         self._starting = False
 
@@ -931,11 +945,6 @@ class StanzaStream:
                 active_fut.cancel()
 
             self._start_rollback(xmlstream)
-
-            if self._xmlstream_exception:
-                exc = self._xmlstream_exception
-                self._xmlstream_exception = None
-                raise exc
 
     def recv_stanza(self, stanza):
         """
