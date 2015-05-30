@@ -532,6 +532,50 @@ class TestAdHocSignal(unittest.TestCase):
         signal.disconnect(token)
         signal.disconnect(token)
 
+    def test_context_connect(self):
+        signal = AdHocSignal()
+
+        fun = unittest.mock.MagicMock()
+        fun.return_value = None
+
+        with signal.context_connect(fun):
+            signal("foo")
+        signal("bar")
+        with signal.context_connect(fun) as token:
+            signal("baz")
+            signal.disconnect(token)
+            signal("fnord")
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call("foo"),
+                unittest.mock.call("baz"),
+            ],
+            fun.mock_calls
+        )
+
+    def test_context_connect_forwards_exceptions_and_disconnects(self):
+        signal = AdHocSignal()
+
+        fun = unittest.mock.MagicMock()
+        fun.return_value = None
+
+        exc = ValueError()
+        with self.assertRaises(ValueError) as ctx:
+            with signal.context_connect(fun):
+                signal("foo")
+                raise exc
+        signal("bar")
+
+        self.assertIs(exc, ctx.exception)
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call("foo"),
+            ],
+            fun.mock_calls
+        )
+
 
 class TestSignal(unittest.TestCase):
     def test_get(self):

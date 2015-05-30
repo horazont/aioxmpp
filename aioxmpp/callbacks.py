@@ -150,6 +150,9 @@ class AdHocSignal:
         mode = mode or self.STRONG
         return self._connect(mode(f))
 
+    def context_connect(self, f, mode=None):
+        return SignalConnectionContext(self, f, mode=mode)
+
     def fire(self, *args, **kwargs):
         for token, wrapper in list(self._connections.items()):
             if not wrapper(args, kwargs):
@@ -164,6 +167,27 @@ class AdHocSignal:
     __call__ = fire
 
 AdHocSignal.ASYNC = AdHocSignal.ASYNC_WITH_LOOP(None)
+
+
+class SignalConnectionContext:
+    def __init__(self, signal, f, mode=None):
+        self._signal = signal
+        self._f = f
+        self._mode = mode
+
+    def __enter__(self):
+        try:
+            token = self._signal.connect(self._f, mode=self._mode)
+        finally:
+            del self._f
+            del self._mode
+        self._token = token
+        return token
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self._signal.disconnect(self._token)
+        return False
+
 
 class Signal:
     def __init__(self):
