@@ -602,11 +602,15 @@ class PresenceManagedClient(AbstractClient):
     The initial presence is set to *unavailable*, thus, the client will not
     connect immediately.
 
-    .. attribute:: presence
+    .. autoattribute:: presence
 
     Signals:
 
     .. attribute:: on_presence_sent
+
+       The event is fired after :attr:`~AbstractClient.on_stream_established`
+       and after the current presence has been sent to the server as *initial
+       presence*.
 
     """
 
@@ -628,6 +632,17 @@ class PresenceManagedClient(AbstractClient):
 
     @property
     def presence(self):
+        """
+        Control or query the current presence of the client. Note that when
+        reading, the property only returns the "set" value, not the actual
+        value known to the server (and others).
+
+        Upon setting this attribute, the :class:`PresenceManagedClient` will do
+        whatever neccessary to achieve the given presence. If the presence is
+        an *available* presence, the client will attempt to connect to the
+        server. If the presence is *unavailable* and the client is currently
+        connected, it will disconnect.
+        """
         return self._presence
 
     @presence.setter
