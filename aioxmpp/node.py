@@ -127,6 +127,7 @@ def connect_to_xmpp_server(jid, *, override_peer=None, loop=None):
 @asyncio.coroutine
 def connect_secured_xmlstream(jid, security_layer,
                               negotiation_timeout=1.0,
+                              override_peer=None,
                               loop=None):
     """
     Connect to an XMPP server which serves the domain of the given *jid* and
@@ -138,6 +139,8 @@ def connect_secured_xmlstream(jid, security_layer,
 
     The *negotiation_timeout* is passed to the security layer and used for
     connect timeouts.
+
+    *override_peer* is passed to :func:`connect_to_xmpp_server`.
 
     Return a triple consisting of the *transport*, the
     :class:`~aioxmpp.protocol.XMLStream` and the current
@@ -160,7 +163,7 @@ def connect_secured_xmlstream(jid, security_layer,
 
     try:
         transport, xmlstream, features_future = yield from asyncio.wait_for(
-            connect_to_xmpp_server(jid, loop=loop),
+            connect_to_xmpp_server(jid, override_peer=override_peer, loop=loop),
             timeout=negotiation_timeout,
             loop=loop
         )

@@ -429,6 +429,7 @@ class Testconnect_secured_xmlstream(unittest.TestCase):
         security_layer_recorder = unittest.mock.MagicMock()
 
         transport = object()
+        override_peer = object()
         xmlstream = unittest.mock.MagicMock()
 
         final_features = stream_xsos.StreamFeatures()
@@ -454,11 +455,13 @@ class Testconnect_secured_xmlstream(unittest.TestCase):
                     self.test_jid,
                     security_layer,
                     negotiation_timeout=10.0,
+                    override_peer=override_peer,
                     loop=self.loop)
             )
 
         connect_to_xmpp_server_recorder.assert_called_once_with(
             self.test_jid,
+            override_peer=override_peer,
             loop=self.loop
         )
 
@@ -493,7 +496,7 @@ class Testconnect_secured_xmlstream(unittest.TestCase):
         features = stream_xsos.StreamFeatures()
 
         @asyncio.coroutine
-        def sleeper(jid, loop):
+        def sleeper(jid, override_peer, loop):
             yield from asyncio.sleep(10, loop=loop)
 
         with unittest.mock.patch("aioxmpp.node.connect_to_xmpp_server",
@@ -550,6 +553,7 @@ class Testconnect_secured_xmlstream(unittest.TestCase):
 
         connect_to_xmpp_server_recorder.assert_called_once_with(
             self.test_jid,
+            override_peer=None,
             loop=self.loop
         )
 
@@ -607,6 +611,7 @@ class Testconnect_secured_xmlstream(unittest.TestCase):
 
         connect_to_xmpp_server_recorder.assert_called_once_with(
             self.test_jid,
+            override_peer=None,
             loop=self.loop
         )
 
@@ -666,6 +671,7 @@ class Testconnect_secured_xmlstream(unittest.TestCase):
 
         connect_to_xmpp_server_recorder.assert_called_once_with(
             self.test_jid,
+            override_peer=None,
             loop=self.loop
         )
 
