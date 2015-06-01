@@ -2708,6 +2708,18 @@ class TestXSOParser(XMLTestCase):
             "foobar",
             result.body)
 
+    def test_parse_ignore_whitespace_if_no_text_descriptor(self):
+        class Foo(xso.XSO):
+            TAG = "foo"
+            body = xso.ChildText("body")
+
+        tree = etree.fromstring("<foo>  \n<body>foobar</body>  </foo>")
+        result = self.run_parser_one([Foo], tree)
+
+        self.assertEqual(
+            "foobar",
+            result.body)
+
     def test_add_class(self):
         class Foo(xso.XSO):
             TAG = "foo"

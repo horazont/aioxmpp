@@ -933,7 +933,11 @@ class XMLStreamClass(type):
             if ev_type == "end":
                 break
             elif ev_type == "text":
-                collected_text.append(ev_args[0])
+                if not cls.TEXT_PROPERTY:
+                    if ev_args[0].strip():
+                        raise ValueError("unexpected text")
+                else:
+                    collected_text.append(ev_args[0])
             elif ev_type == "start":
                 try:
                     handler = cls.CHILD_MAP[ev_args[0], ev_args[1]]
@@ -956,18 +960,15 @@ class XMLStreamClass(type):
                     raise
 
         if collected_text:
-            if cls.TEXT_PROPERTY:
-                collected_text = "".join(collected_text)
-                try:
-                    cls.TEXT_PROPERTY.from_value(obj, collected_text)
-                except:
-                    obj.xso_error_handler(
-                        cls.TEXT_PROPERTY,
-                        collected_text,
-                        sys.exc_info())
-                    raise
-            else:
-                raise ValueError("unexpected text")
+            collected_text = "".join(collected_text)
+            try:
+                cls.TEXT_PROPERTY.from_value(obj, collected_text)
+            except:
+                obj.xso_error_handler(
+                    cls.TEXT_PROPERTY,
+                    collected_text,
+                    sys.exc_info())
+                raise
 
         return obj
 
