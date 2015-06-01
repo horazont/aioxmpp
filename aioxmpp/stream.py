@@ -240,6 +240,14 @@ class StanzaStream:
 
     .. autoattribute:: sm_unacked_list
 
+    .. autoattribute:: sm_id
+
+    .. autoattribute:: sm_max
+
+    .. autoattribute:: sm_location
+
+    .. autoattribute:: sm_resumable
+
     Signals:
 
     .. attribute:: on_failure
