@@ -599,6 +599,7 @@ class PresenceManagedClient(AbstractClient):
     def _resend_presence(self):
         pres = stanza.Presence()
         self._presence.apply_to_stanza(pres)
+        pres.autoset_id()
         self.stream.enqueue_stanza(pres)
 
     def _handle_stream_established(self):

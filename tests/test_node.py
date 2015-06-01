@@ -698,6 +698,11 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
         self.connect_secured_xmlstream_rec(*args, **kwargs)
         return None, self.xmlstream, self.features
 
+    @staticmethod
+    def _autoset_id(self):
+        # self refers to a StanzaBase object!
+        self.id_ = "autoset"
+
     def setUp(self):
         self.connect_secured_xmlstream_rec = unittest.mock.MagicMock()
         self.failure_rec = unittest.mock.MagicMock()
@@ -711,11 +716,12 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
         self.loop = asyncio.get_event_loop()
         self.patches = [
             unittest.mock.patch("aioxmpp.node.connect_secured_xmlstream",
-                                self._connect_secured_xmlstream)
-
+                                self._connect_secured_xmlstream),
+            unittest.mock.patch("aioxmpp.stanza.StanzaBase.autoset_id",
+                                self._autoset_id)
         ]
-        self.connect_secured_xmlstream, = (patch.start()
-                                           for patch in self.patches)
+        self.connect_secured_xmlstream, _ = (patch.start()
+                                             for patch in self.patches)
         self.xmlstream = XMLStreamMock(self, loop=self.loop)
         self.test_jid = structs.JID.fromstr("foo@bar.example/baz")
         self.features = stream_xsos.StreamFeatures()
@@ -744,13 +750,15 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
                 stanza.IQ(
                     payload=rfc6120.Bind(
                         resource=self.test_jid.resource),
-                    type_="set"),
+                    type_="set",
+                    id_="autoset"),
                 response=XMLStreamMock.Receive(
                     stanza.IQ(
                         payload=rfc6120.Bind(
                             jid=self.test_jid,
                         ),
-                        type_="result"
+                        type_="result",
+                        id_="autoset"
                     )
                 )
             )
@@ -848,9 +856,10 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
         self.client.negotiation_timeout = timedelta(seconds=0.01)
         self.client.start()
 
+        iq = stanza.IQ()
+        iq.autoset_id()
         @asyncio.coroutine
         def stimulus():
-            iq = stanza.IQ()
             self.client.stream.enqueue_stanza(iq)
 
         run_coroutine_with_peer(
@@ -858,7 +867,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
             self.xmlstream.run_test(
                 self.resource_binding+[
                     XMLStreamMock.Send(
-                        stanza.IQ(),
+                        iq,
                         response=[
                             XMLStreamMock.Fail(
                                 exc=ConnectionError()
@@ -870,7 +879,8 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
                         stanza.IQ(
                             type_="set",
                             payload=rfc6120.Bind(
-                                resource=self.test_jid.resource)
+                                resource=self.test_jid.resource),
+                            id_="autoset",
                         ),
                     )
                 ]
@@ -1238,7 +1248,8 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
                 stanza.IQ(
                     payload=rfc6120.Bind(
                         resource=self.test_jid.resource),
-                    type_="set"),
+                    type_="set",
+                    id_="autoset"),
                 response=XMLStreamMock.Receive(
                     stanza.IQ(
                         error=stanza.Error(
@@ -1247,7 +1258,8 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
                             text="too many resources",
                             type_="cancel"
                         ),
-                        type_="error"
+                        type_="error",
+                        id_="autoset"
                     )
                 )
             )
@@ -1280,14 +1292,16 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
                 stanza.IQ(
                     payload=rfc6120.Bind(
                         resource=self.test_jid.resource),
-                    type_="set"),
+                    type_="set",
+                    id_="autoset"),
                 response=XMLStreamMock.Receive(
                     stanza.IQ(
                         payload=rfc6120.Bind(
                             jid=self.test_jid.replace(
                                 resource="foobarbaz"),
                         ),
-                        type_="result"
+                        type_="result",
+                        id_="autoset",
                     )
                 )
             )
@@ -1315,14 +1329,16 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
                 stanza.IQ(
                     payload=rfc6120.Bind(
                         resource=self.test_jid.resource),
-                    type_="set"),
+                    type_="set",
+                    id_="autoset"),
                 response=[
                     XMLStreamMock.Receive(
                         stanza.IQ(
                             payload=rfc6120.Bind(
                                 jid=self.test_jid,
                             ),
-                            type_="result"
+                            type_="result",
+                            id_="autoset"
                         )
                     ),
                 ]
@@ -1378,6 +1394,11 @@ class TestPresenceManagedClient(xmltestutils.XMLTestCase):
         self.connect_secured_xmlstream_rec(*args, **kwargs)
         return None, self.xmlstream, self.features
 
+    @staticmethod
+    def _autoset_id(self):
+        # self refers to a StanzaBase object!
+        self.id_ = "autoset"
+
     def setUp(self):
         self.connect_secured_xmlstream_rec = unittest.mock.MagicMock()
         self.failure_rec = unittest.mock.MagicMock()
@@ -1393,11 +1414,12 @@ class TestPresenceManagedClient(xmltestutils.XMLTestCase):
         self.loop = asyncio.get_event_loop()
         self.patches = [
             unittest.mock.patch("aioxmpp.node.connect_secured_xmlstream",
-                                self._connect_secured_xmlstream)
-
+                                self._connect_secured_xmlstream),
+            unittest.mock.patch("aioxmpp.stanza.StanzaBase.autoset_id",
+                                self._autoset_id),
         ]
-        self.connect_secured_xmlstream, = (patch.start()
-                                           for patch in self.patches)
+        self.connect_secured_xmlstream, _ = (patch.start()
+                                             for patch in self.patches)
         self.xmlstream = XMLStreamMock(self, loop=self.loop)
         self.test_jid = structs.JID.fromstr("foo@bar.example/baz")
         self.features = stream_xsos.StreamFeatures()
@@ -1417,13 +1439,15 @@ class TestPresenceManagedClient(xmltestutils.XMLTestCase):
                 stanza.IQ(
                     payload=rfc6120.Bind(
                         resource=self.test_jid.resource),
-                    type_="set"),
+                    type_="set",
+                    id_="autoset"),
                 response=XMLStreamMock.Receive(
                     stanza.IQ(
                         payload=rfc6120.Bind(
                             jid=self.test_jid,
                         ),
-                        type_="result"
+                        type_="result",
+                        id_="autoset"
                     )
                 )
             )
@@ -1444,10 +1468,12 @@ class TestPresenceManagedClient(xmltestutils.XMLTestCase):
         ]+self.resource_binding+[
             XMLStreamMock.Send(
                 stanza.Presence(type_=None,
-                                show="chat"),
+                                show="chat",
+                                id_="autoset"),
                 response=XMLStreamMock.Receive(
                     stanza.Presence(type_=None,
-                                    show="chat")
+                                    show="chat",
+                                    id_="autoset")
                 )
             )
         ]))
@@ -1463,10 +1489,12 @@ class TestPresenceManagedClient(xmltestutils.XMLTestCase):
         ]+self.resource_binding+[
             XMLStreamMock.Send(
                 stanza.Presence(type_=None,
-                                show="chat"),
+                                show="chat",
+                                id_="autoset"),
                 response=XMLStreamMock.Receive(
                     stanza.Presence(type_=None,
-                                    show="chat")
+                                    show="chat",
+                                    id_="autoset")
                 )
             )
         ]))
@@ -1480,10 +1508,12 @@ class TestPresenceManagedClient(xmltestutils.XMLTestCase):
         run_coroutine(self.xmlstream.run_test([
             XMLStreamMock.Send(
                 stanza.Presence(type_=None,
-                                show="away"),
+                                show="away",
+                                id_="autoset"),
                 response=XMLStreamMock.Receive(
                     stanza.Presence(type_=None,
-                                    show="away")
+                                    show="away",
+                                    id_="autoset")
                 )
             )
         ]))
@@ -1499,10 +1529,12 @@ class TestPresenceManagedClient(xmltestutils.XMLTestCase):
         ]+self.resource_binding+[
             XMLStreamMock.Send(
                 stanza.Presence(type_=None,
-                                show="chat"),
+                                show="chat",
+                                id_="autoset"),
                 response=XMLStreamMock.Receive(
                     stanza.Presence(type_=None,
-                                    show="chat")
+                                    show="chat",
+                                    id_="autoset")
                 )
             )
         ]))
@@ -1531,10 +1563,12 @@ class TestPresenceManagedClient(xmltestutils.XMLTestCase):
         ]+self.resource_binding+[
             XMLStreamMock.Send(
                 stanza.Presence(type_=None,
-                                show="dnd"),
+                                show="dnd",
+                                id_="autoset"),
                 response=XMLStreamMock.Receive(
                     stanza.Presence(type_=None,
-                                    show="dnd")
+                                    show="dnd",
+                                    id_="autoset")
                 )
             )
         ]))
