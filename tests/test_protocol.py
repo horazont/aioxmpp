@@ -367,6 +367,44 @@ class TestXMLStream(unittest.TestCase):
                 ])
         ]))
 
+    def test_recover_unknown_iq_payload_without_reply_if_incoming_iq_was_an_error(self):
+        def catch_iq(obj):
+            pass
+
+        t, p = self._make_stream(to=TEST_PEER)
+        p.stanza_parser.add_class(FakeIQ, catch_iq)
+        run_coroutine(t.run_test([
+            TransportMock.Write(
+                STREAM_HEADER,
+                response=[
+                    TransportMock.Receive(self._make_peer_header()),
+                    TransportMock.Receive(
+                        b'<iq to="foo@foo.example" from="foo@bar.example"'
+                        b' id="1234" type="error">'
+                        b'<unknown-payload xmlns="uri:foo"/>'
+                        b'</iq>'),
+                ]),
+        ]))
+
+    def test_recover_unknown_iq_payload_without_reply_if_incoming_iq_was_a_result(self):
+        def catch_iq(obj):
+            pass
+
+        t, p = self._make_stream(to=TEST_PEER)
+        p.stanza_parser.add_class(FakeIQ, catch_iq)
+        run_coroutine(t.run_test([
+            TransportMock.Write(
+                STREAM_HEADER,
+                response=[
+                    TransportMock.Receive(self._make_peer_header()),
+                    TransportMock.Receive(
+                        b'<iq to="foo@foo.example" from="foo@bar.example"'
+                        b' id="1234" type="result">'
+                        b'<unknown-payload xmlns="uri:foo"/>'
+                        b'</iq>'),
+                ]),
+        ]))
+
     def test_recover_errornous_iq_payload(self):
         def catch_iq(obj):
             pass
@@ -402,6 +440,44 @@ class TestXMLStream(unittest.TestCase):
                 ])
         ]))
 
+    def test_recover_errornous_iq_payload_without_reply_if_incoming_iq_was_an_error(self):
+        def catch_iq(obj):
+            pass
+
+        t, p = self._make_stream(to=TEST_PEER)
+        p.stanza_parser.add_class(FakeIQ, catch_iq)
+        run_coroutine(t.run_test([
+            TransportMock.Write(
+                STREAM_HEADER,
+                response=[
+                    TransportMock.Receive(self._make_peer_header()),
+                    TransportMock.Receive(
+                        b'<iq to="foo@foo.example" from="foo@bar.example"'
+                        b' id="1234" type="error">'
+                        b'<payload xmlns="uri:foo"/>'
+                        b'</iq>'),
+                ]),
+        ]))
+
+    def test_recover_errornous_iq_payload_without_reply_if_incoming_iq_was_a_result(self):
+        def catch_iq(obj):
+            pass
+
+        t, p = self._make_stream(to=TEST_PEER)
+        p.stanza_parser.add_class(FakeIQ, catch_iq)
+        run_coroutine(t.run_test([
+            TransportMock.Write(
+                STREAM_HEADER,
+                response=[
+                    TransportMock.Receive(self._make_peer_header()),
+                    TransportMock.Receive(
+                        b'<iq to="foo@foo.example" from="foo@bar.example"'
+                        b' id="1234" type="result">'
+                        b'<payload xmlns="uri:foo"/>'
+                        b'</iq>'),
+                ]),
+        ]))
+
     def test_detect_stream_header(self):
         t, p = self._make_stream(to=TEST_PEER)
         run_coroutine(
@@ -420,7 +496,6 @@ class TestXMLStream(unittest.TestCase):
             protocol.State.OPEN,
             p.state
         )
-
 
     def test_send_xso(self):
         st = FakeIQ()

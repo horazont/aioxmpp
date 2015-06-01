@@ -207,20 +207,28 @@ class XMLStream(asyncio.Protocol):
 
     def _rx_exception(self, exc):
         if isinstance(exc, stanza.PayloadParsingError):
-            iq_response = exc.partial_obj.make_reply(type_="error")
-            iq_response.error = stanza.Error(
-                condition=(namespaces.stanzas, "bad-request"),
-                type_="modify",
-                text=str(exc.__context__)
-            )
-            self._writer.send(iq_response)
+            try:
+                iq_response = exc.partial_obj.make_reply(type_="error")
+            except ValueError:
+                pass
+            else:
+                iq_response.error = stanza.Error(
+                    condition=(namespaces.stanzas, "bad-request"),
+                    type_="modify",
+                    text=str(exc.__context__)
+                )
+                self._writer.send(iq_response)
         elif isinstance(exc, stanza.UnknownIQPayload):
-            iq_response = exc.partial_obj.make_reply(type_="error")
-            iq_response.error = stanza.Error(
-                condition=(namespaces.stanzas, "feature-not-implemented"),
-                type_="cancel",
-            )
-            self._writer.send(iq_response)
+            try:
+                iq_response = exc.partial_obj.make_reply(type_="error")
+            except ValueError:
+                pass
+            else:
+                iq_response.error = stanza.Error(
+                    condition=(namespaces.stanzas, "feature-not-implemented"),
+                    type_="cancel",
+                )
+                self._writer.send(iq_response)
         elif isinstance(exc, xso.UnknownTopLevelTag):
             raise errors.StreamError(
                 condition=(namespaces.streams, "unsupported-stanza-type"),
