@@ -24,7 +24,14 @@ import logging
 from datetime import datetime, timedelta
 from enum import Enum
 
-from . import stanza, errors, custom_queue, stream_xsos, callbacks
+from . import (
+    stanza,
+    errors,
+    custom_queue,
+    stream_xsos,
+    callbacks,
+    protocol,
+)
 
 from .plugins import xep0199
 from .utils import namespaces
@@ -136,118 +143,6 @@ class StanzaToken:
         return "<StanzaToken id=0x{:016x}>".format(id(self))
 
 
-class TransactionalStartContext:
-    """
-    A context manager which allows a transactional start of a
-    :class:`StanzaStream`. Use :meth:`StanzaStream.slow_start` to safely aquire
-    an instance of it and for general documentation.
-
-    .. automethod:: start_sm
-
-    .. automethod:: resume_sm
-
-    .. automethod:: stop_sm
-    """
-    def __init__(self, stream, xmlstream):
-        if stream.running:
-            raise RuntimeError("already started")
-        if stream._starting:
-            raise RuntimeError("start in progress (slow_start() "
-                               "is being used)")
-        self.stream = stream
-        self.xmlstream = xmlstream
-        self._stanza_buffer = []
-
-    def _recv_stanza(self, obj):
-        self._stanza_buffer.append(obj)
-
-    def __enter__(self):
-        self.stream._start_prepare(self.xmlstream, self._recv_stanza)
-        return self
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        if exc_type is None:
-            if self.stream._xmlstream_exception is not None:
-                exc_type = type(self.stream._xmlstream_exception)
-                exc_value = self.stream._xmlstream_exception
-                traceback = self.stream._xmlstream_exception
-
-        if exc_type is not None:
-            try:
-                self.stream._start_rollback(self.xmlstream)
-            except Exception as exc:
-                raise
-        else:
-            # rebind callbacks
-            self.xmlstream.stanza_parser.remove_class(stanza.IQ)
-            self.xmlstream.stanza_parser.add_class(
-                stanza.IQ,
-                self.stream.recv_stanza)
-            self.xmlstream.stanza_parser.remove_class(stanza.Message)
-            self.xmlstream.stanza_parser.add_class(
-                stanza.Message,
-                self.stream.recv_stanza)
-            self.xmlstream.stanza_parser.remove_class(stanza.Presence)
-            self.xmlstream.stanza_parser.add_class(
-                stanza.Presence,
-                self.stream.recv_stanza)
-            if self.stream.sm_enabled:
-                self.xmlstream.stanza_parser.remove_class(
-                    stream_xsos.SMAcknowledgement)
-                self.xmlstream.stanza_parser.add_class(
-                    stream_xsos.SMAcknowledgement,
-                    self.stream.recv_stanza)
-                self.xmlstream.stanza_parser.remove_class(
-                    stream_xsos.SMRequest)
-                self.xmlstream.stanza_parser.add_class(
-                    stream_xsos.SMRequest,
-                    self.stream.recv_stanza)
-            self.stream._start_commit(self.xmlstream)
-            for obj in self._stanza_buffer:
-                self.stream.recv_stanza(obj)
-            self._stanza_buffer.clear()
-        return False
-
-    def start_sm(self):
-        """
-        Start Stream Management during startup. You should call this *before*
-        sending the ``<sm:enable/>`` request to the server, to ensure that the
-        required state is set up when the servers response arrives.
-
-        This procedure is required as the server is allowed to send ``<sm:r/>``
-        nodes right after the ``<sm:enabled/>`` response.
-
-        If the server replies with ``<sm:failure/>``, use :meth:`stop_sm`` to
-        disable Stream Management again.
-
-        See also the documentation of :meth:`StanzaStream.start_sm`.
-        """
-        self.stream._start_sm()
-        self.xmlstream.stanza_parser.add_class(
-            stream_xsos.SMAcknowledgement,
-            self._recv_stanza)
-        self.xmlstream.stanza_parser.add_class(
-            stream_xsos.SMRequest,
-            self._recv_stanza)
-
-    def stop_sm(self):
-        """
-        Stop Stream Management during startup. See :meth:`StanzaStream.stop_sm`.
-        """
-        self.stream._stop_sm()
-        self.xmlstream.stanza_parser.remove_class(
-            stream_xsos.SMAcknowledgement)
-        self.xmlstream.stanza_parser.remove_class(
-            stream_xsos.SMRequest)
-
-    def resume_sm(self, remote_ctr):
-        """
-        Resume stream management during startup. See
-        :meth:`StanzaStream.resume_sm`.
-        """
-        self.stream._resume_sm(remote_ctr)
-
-
 class StanzaStream:
     """
     A stanza stream. This is the next layer of abstraction above the XMPP XML
@@ -302,8 +197,6 @@ class StanzaStream:
     Starting/Stopping the stream:
 
     .. automethod:: start
-
-    .. automethod:: transactional_start
 
     .. automethod:: stop
 
@@ -402,9 +295,6 @@ class StanzaStream:
         self._next_ping_event_type = None
 
         self._xmlstream_exception = None
-
-        # set to True while slow_start is being used
-        self._starting = False
 
         self._established = False
 
@@ -563,14 +453,17 @@ class StanzaStream:
         which has arrived over the given *xmlstream*.
         """
 
-        if self._sm_enabled:
-            self._sm_inbound_ctr += 1
-
         if isinstance(stanza_obj, stanza.IQ):
+            if self._sm_enabled:
+                self._sm_inbound_ctr += 1
             self._process_incoming_iq(stanza_obj)
         elif isinstance(stanza_obj, stanza.Message):
+            if self._sm_enabled:
+                self._sm_inbound_ctr += 1
             self._process_incoming_message(stanza_obj)
         elif isinstance(stanza_obj, stanza.Presence):
+            if self._sm_enabled:
+                self._sm_inbound_ctr += 1
             self._process_incoming_presence(stanza_obj)
         elif isinstance(stanza_obj, stream_xsos.SMAcknowledgement):
             self._logger.debug("received SM ack: %r", stanza_obj)
@@ -825,8 +718,6 @@ class StanzaStream:
             type_, from_)
 
     def _start_prepare(self, xmlstream, receiver):
-        self._starting = True
-
         self._xmlstream_failure_token = xmlstream.on_failure.connect(
             self._xmlstream_failed
         )
@@ -843,8 +734,6 @@ class StanzaStream:
                                               receiver)
 
     def _start_rollback(self, xmlstream):
-        self._starting = False
-
         xmlstream.stanza_parser.remove_class(stanza.Presence)
         xmlstream.stanza_parser.remove_class(stanza.Message)
         xmlstream.stanza_parser.remove_class(stanza.IQ)
@@ -864,8 +753,6 @@ class StanzaStream:
             raise exc
 
     def _start_commit(self, xmlstream):
-        self._starting = False
-
         if not self._established:
             self.on_stream_established()
             self._established = True
@@ -889,22 +776,9 @@ class StanzaStream:
 
         if self.running:
             raise RuntimeError("already started")
-        if self._starting:
-            raise RuntimeError("start in progress (slow_start() "
-                               "is being used)")
 
         self._start_prepare(xmlstream, self.recv_stanza)
         self._start_commit(xmlstream)
-
-    def transactional_start(self, xmlstream):
-        """
-        Transactional start process. This returns a context manager, in which
-        you should encapsulate the Stream Management negotiation. To control
-        the Stream Managment configuration of the :class:`StanzaStream` during
-        start up, use the methods provided on the context manager, which is an
-        instance of :class:`TransactionalStartContext`.
-        """
-        return TransactionalStartContext(self, xmlstream)
 
     def stop(self):
         """
@@ -925,6 +799,7 @@ class StanzaStream:
 
     @asyncio.coroutine
     def _run(self, xmlstream):
+        self._xmlstream = xmlstream
         active_fut = asyncio.async(self._active_queue.get(),
                                    loop=self._loop)
         incoming_fut = asyncio.async(self._incoming_queue.get(),
@@ -961,6 +836,8 @@ class StanzaStream:
                     self._process_ping_event(xmlstream)
 
         finally:
+            self._xmlstream = None
+
             # make sure we rescue any stanzas which possibly have already been
             # caught by the calls to get()
             self._logger.debug("task terminating, rescuing stanzas and "
@@ -1020,22 +897,56 @@ class StanzaStream:
         self._sm_inbound_ctr = 0
         self._sm_unacked_list = []
         self._sm_enabled = True
+        self._ping_send_opportunistic = True
 
-    def start_sm(self):
+    @asyncio.coroutine
+    def start_sm(self, request_resumption=True):
         """
-        Configure the :class:`StanzaStream` to use stream management. This must
-        be called while the stream is not running.
+        Start stream management (version 3). This negotiates stream management
+        with the server.
 
-        This initializes a new stream management session. The stream management
-        state attributes become available and :attr:`sm_enabled` becomes
-        :data:`True`.
+        If the server rejects the attempt to enable stream management, a
+        :class:`errors.StreamNegotiationError` is raised.
+
+        .. warning::
+
+           This method cannot and does not check whether the server advertised
+           support for stream management. Attempting to negotiate stream
+           management without server support might lead to termination of the
+           stream.
+
+        If negotiation succeeds, this coroutine initializes a new stream
+        management session. The stream management state attributes become
+        available and :attr:`sm_enabled` becomes :data:`True`.
         """
-        if self.running:
+        if not self.running:
             raise RuntimeError("cannot start Stream Management while"
-                               " StanzaStream is running")
-        if self._starting:
-            raise RuntimeError("use start_sm() method on the context to "
-                               "start stream management during startup")
+                               " StanzaStream is not running")
+        if self.sm_enabled:
+            raise RuntimeError("Stream Management already enabled")
+
+        response = yield from protocol.send_and_wait_for(
+            self._xmlstream,
+            [
+                stream_xsos.SMEnable(resume=bool(request_resumption)),
+            ],
+            [
+                stream_xsos.SMEnabled
+            ]
+        )
+
+        self._sm_id = response.id_
+        self._sm_resumable = response.resume
+        self._sm_max = response.max_
+        self._sm_location = response.location
+
+        self._xmlstream.stanza_parser.add_class(
+            stream_xsos.SMRequest,
+            self.recv_stanza)
+        self._xmlstream.stanza_parser.add_class(
+            stream_xsos.SMAcknowledgement,
+            self.recv_stanza)
+
         return self._start_sm()
 
     @property
@@ -1099,6 +1010,74 @@ class StanzaStream:
             raise RuntimeError("Stream Management not enabled")
         return self._sm_unacked_list[:]
 
+    @property
+    def sm_max(self):
+        """
+        The value of the ``max`` attribute of the
+        :class:`~.stream_xsos.SMEnabled` response from the server.
+
+        .. note::
+
+           Accessing this attribute when :attr:`sm_enabled` is :data:`False`
+           raises :class:`RuntimeError`.
+
+        """
+
+        if not self.sm_enabled:
+            raise RuntimeError("Stream Management not enabled")
+        return self._sm_max
+
+    @property
+    def sm_location(self):
+        """
+        The value of the ``location`` attribute of the
+        :class:`~.stream_xsos.SMEnabled` response from the server.
+
+        .. note::
+
+           Accessing this attribute when :attr:`sm_enabled` is :data:`False`
+           raises :class:`RuntimeError`.
+
+        """
+
+        if not self.sm_enabled:
+            raise RuntimeError("Stream Management not enabled")
+        return self._sm_location
+
+    @property
+    def sm_id(self):
+        """
+        The value of the ``id`` attribute of the
+        :class:`~.stream_xsos.SMEnabled` response from the server.
+
+        .. note::
+
+           Accessing this attribute when :attr:`sm_enabled` is :data:`False`
+           raises :class:`RuntimeError`.
+
+        """
+
+        if not self.sm_enabled:
+            raise RuntimeError("Stream Management not enabled")
+        return self._sm_id
+
+    @property
+    def sm_resumable(self):
+        """
+        The value of the ``resume`` attribute of the
+        :class:`~.stream_xsos.SMEnabled` response from the server.
+
+        .. note::
+
+           Accessing this attribute when :attr:`sm_enabled` is :data:`False`
+           raises :class:`RuntimeError`.
+
+        """
+
+        if not self.sm_enabled:
+            raise RuntimeError("Stream Management not enabled")
+        return self._sm_resumable
+
     def _resume_sm(self, remote_ctr):
         """
         Version of :meth:`resume_sm` which can be used during slow start.
@@ -1111,27 +1090,44 @@ class StanzaStream:
             self._active_queue.putleft_nowait(token)
         self._sm_unacked_list.clear()
 
-    def resume_sm(self, remote_ctr):
+    @asyncio.coroutine
+    def resume_sm(self, xmlstream):
         """
-        Resume a stream management session, using the remote stanza counter
-        with the value *remote_ctr*.
+        Resume an SM-enabled stream using the given *xmlstream*.
 
-        Attempting to call this method while the stream is running or on a
-        stream without enabled stream management results in a
-        :class:`RuntimeError`.
+        If the server rejects the attempt to resume stream management, a
+        :class:`errors.StreamNegotiationError` is raised. The stream is then in
+        stopped state.
 
-        Any stanzas which were not acked (including the *remote_ctr* value) by
-        the remote will be re-queued at the tip of the queue to be resent
-        immediately when the stream is resumed using :meth:`start`.
+        .. warning::
+
+           This method cannot and does not check whether the server advertised
+           support for stream management. Attempting to negotiate stream
+           management without server support might lead to termination of the
+           stream.
+
+        If negotiation succeeds, this coroutine resumes the stream management
+        session and initiates the retransmission of any unacked stanzas. The
+        stream is then in running state.
         """
 
         if self.running:
             raise RuntimeError("Cannot resume Stream Management while"
                                " StanzaStream is running")
-        if self._starting:
-            raise RuntimeError("use resume_sm() method on the context to "
-                               "resume stream management during startup")
-        return self._resume_sm(remote_ctr)
+
+        response = yield from protocol.send_and_wait_for(
+            xmlstream,
+            [
+                stream_xsos.SMResume(previd=self.sm_id,
+                                     counter=self._sm_inbound_ctr)
+            ],
+            [
+                stream_xsos.SMResumed
+            ]
+        )
+
+        self._resume_sm(response.counter)
+        self.start(xmlstream)
 
     def _stop_sm(self):
         """
@@ -1165,9 +1161,6 @@ class StanzaStream:
         if self.running:
             raise RuntimeError("Cannot stop Stream Management while"
                                " StanzaStream is running")
-        if self._starting:
-            raise RuntimeError("use stop_sm() method on the context to "
-                               "stop stream management during startup")
         return self._stop_sm()
 
     def sm_ack(self, remote_ctr):

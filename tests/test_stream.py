@@ -15,7 +15,12 @@ from datetime import timedelta
 from aioxmpp.utils import namespaces
 from aioxmpp.plugins import xep0199
 
-from .testutils import run_coroutine
+from .testutils import (
+    run_coroutine,
+    run_coroutine_with_peer,
+    XMLStreamMock
+)
+from . import xmltestutils
 
 
 TEST_FROM = structs.JID.fromstr("foo@example.test/r1")
@@ -32,6 +37,7 @@ stanza.IQ.register_child(stanza.IQ.payload, FancyTestIQ)
 def make_test_iq(from_=TEST_FROM, to=TEST_TO, type_="get"):
     iq = stanza.IQ(type_=type_, from_=from_, to=to)
     iq.payload = FancyTestIQ()
+    iq.autoset_id()
     return iq
 
 
@@ -60,7 +66,7 @@ def make_mocked_streams(loop):
     return sent_stanzas, xmlstream, stanzastream
 
 
-class StanzaStreamTestBase(unittest.TestCase):
+class StanzaStreamTestBase(xmltestutils.XMLTestCase):
     def setUp(self):
         self.loop = asyncio.get_event_loop()
         self.sent_stanzas, self.xmlstream, self.stream = \
@@ -600,395 +606,6 @@ class TestStanzaStream(StanzaStreamTestBase):
         self.stream.stop()
         self.stream.stop()
 
-    def test_sm_initialization_only_in_stopped_state(self):
-        self.stream.start(self.xmlstream)
-        with self.assertRaises(RuntimeError):
-            self.stream.start_sm()
-
-    def test_start_sm(self):
-        self.assertFalse(self.stream.sm_enabled)
-        self.stream.start_sm()
-        self.assertTrue(self.stream.sm_enabled)
-
-        self.assertEqual(
-            0,
-            self.stream.sm_outbound_base
-        )
-        self.assertEqual(
-            0,
-            self.stream.sm_inbound_ctr
-        )
-        self.assertSequenceEqual(
-            [],
-            self.stream.sm_unacked_list
-        )
-
-        self.stream.start(self.xmlstream)
-        self.assertSequenceEqual(
-            [
-                unittest.mock.call.add_class(stream_xsos.SMAcknowledgement,
-                                             self.stream.recv_stanza),
-                unittest.mock.call.add_class(stream_xsos.SMRequest,
-                                             self.stream.recv_stanza),
-            ],
-            self.xmlstream.stanza_parser.mock_calls[-2:]
-        )
-        run_coroutine(asyncio.sleep(0))
-
-        self.established_rec.assert_called_once_with()
-
-        self.stream.stop()
-        run_coroutine(asyncio.sleep(0))
-        self.assertSequenceEqual(
-            [
-                unittest.mock.call.remove_class(
-                    stream_xsos.SMRequest),
-                unittest.mock.call.remove_class(
-                    stream_xsos.SMAcknowledgement),
-            ],
-            self.xmlstream.stanza_parser.mock_calls[-2:]
-        )
-
-        self.assertFalse(self.destroyed_rec.mock_calls)
-
-    def test_sm_ack_requires_enabled_sm(self):
-        with self.assertRaisesRegexp(RuntimeError, "is not enabled"):
-            self.stream.sm_ack(0)
-
-    def test_sm_outbound(self):
-        state_change_handler = unittest.mock.MagicMock()
-        iqs = [make_test_iq() for i in range(3)]
-
-        self.stream.start_sm()
-        self.stream.start(self.xmlstream)
-
-        tokens = [
-            self.stream.enqueue_stanza(
-                iq, on_state_change=state_change_handler)
-            for iq in iqs]
-
-        run_coroutine(asyncio.sleep(0))
-
-        self.assertEqual(
-            0,
-            self.stream.sm_outbound_base
-        )
-        self.assertSequenceEqual(
-            tokens,
-            self.stream.sm_unacked_list
-        )
-        self.assertSequenceEqual(
-            [
-                unittest.mock.call(token, stream.StanzaState.SENT)
-                for token in tokens
-            ],
-            state_change_handler.mock_calls
-        )
-        del state_change_handler.mock_calls[:]
-        self.assertSequenceEqual(
-            [stream.StanzaState.SENT]*3,
-            [token.state for token in tokens]
-        )
-
-        self.stream.sm_ack(1)
-        self.assertEqual(
-            1,
-            self.stream.sm_outbound_base
-        )
-        self.assertSequenceEqual(
-            tokens[1:],
-            self.stream.sm_unacked_list
-        )
-        self.assertSequenceEqual(
-            [
-                stream.StanzaState.ACKED,
-                stream.StanzaState.SENT,
-                stream.StanzaState.SENT
-            ],
-            [token.state for token in tokens]
-        )
-
-        # idempotence with same number
-
-        self.stream.sm_ack(1)
-        self.assertEqual(
-            1,
-            self.stream.sm_outbound_base
-        )
-        self.assertSequenceEqual(
-            tokens[1:],
-            self.stream.sm_unacked_list
-        )
-        self.assertSequenceEqual(
-            [
-                stream.StanzaState.ACKED,
-                stream.StanzaState.SENT,
-                stream.StanzaState.SENT
-            ],
-            [token.state for token in tokens]
-        )
-
-        self.stream.sm_ack(3)
-        self.assertEqual(
-            3,
-            self.stream.sm_outbound_base
-        )
-        self.assertSequenceEqual(
-            [],
-            self.stream.sm_unacked_list
-        )
-        self.assertSequenceEqual(
-            [
-                stream.StanzaState.ACKED,
-                stream.StanzaState.ACKED,
-                stream.StanzaState.ACKED
-            ],
-            [token.state for token in tokens]
-        )
-
-    def test_sm_inbound(self):
-        iqs = [make_test_iq() for i in range(3)]
-
-        self.stream.start_sm()
-        self.stream.start(self.xmlstream)
-
-        self.stream.recv_stanza(iqs.pop())
-        run_coroutine(asyncio.sleep(0))
-
-        self.assertEqual(
-            1,
-            self.stream.sm_inbound_ctr
-        )
-
-        self.stream.recv_stanza(iqs.pop())
-        self.stream.recv_stanza(iqs.pop())
-        run_coroutine(asyncio.sleep(0))
-
-        self.assertEqual(
-            3,
-            self.stream.sm_inbound_ctr
-        )
-
-    def test_sm_resume(self):
-        iqs = [make_test_iq() for i in range(4)]
-
-        additional_iq = iqs.pop()
-
-        self.stream.start_sm()
-        self.stream.start(self.xmlstream)
-        for iq in iqs:
-            self.stream.enqueue_stanza(iq)
-
-        run_coroutine(asyncio.sleep(0))
-
-        self.established_rec.assert_called_once_with()
-        self.established_rec.reset_mock()
-
-        self.stream.sm_ack(1)
-        self.stream.stop()
-
-        run_coroutine(asyncio.sleep(0))
-
-        self.assertFalse(self.destroyed_rec.mock_calls)
-
-        # enqueue a stanza before resumption and check that the sequence is
-        # correct (resumption-generated stanzas before new stanzas)
-        self.stream.enqueue_stanza(additional_iq)
-
-        self.stream.resume_sm(2)
-        self.stream.start(self.xmlstream)
-
-        run_coroutine(asyncio.sleep(0))
-
-        self.assertFalse(self.established_rec.mock_calls)
-
-        for iq in iqs:
-            self.assertIs(
-                iq,
-                self.sent_stanzas.get_nowait()
-            )
-        self.assertIsInstance(
-            self.sent_stanzas.get_nowait(),
-            stream_xsos.SMRequest
-        )
-        for iq in iqs[2:] + [additional_iq]:
-            self.assertIs(
-                iq,
-                self.sent_stanzas.get_nowait()
-            )
-        self.assertIsInstance(
-            self.sent_stanzas.get_nowait(),
-            stream_xsos.SMRequest
-        )
-
-        self.stream.stop()
-        run_coroutine(asyncio.sleep(0))
-        self.stream.stop_sm()
-        self.destroyed_rec.assert_called_once_with()
-
-    def test_sm_resume_requires_stopped_stream(self):
-        self.stream.start_sm()
-        self.stream.start(self.xmlstream)
-        with self.assertRaises(RuntimeError):
-            self.stream.resume_sm(0)
-
-    def test_sm_stop_requires_stopped_stream(self):
-        self.stream.start_sm()
-        self.stream.start(self.xmlstream)
-        with self.assertRaisesRegexp(RuntimeError,
-                                     "is running"):
-            self.stream.stop_sm()
-
-    def test_sm_stop_requires_enabled_sm(self):
-        with self.assertRaisesRegexp(RuntimeError,
-                                     "not enabled"):
-            self.stream.stop_sm()
-
-    def test_sm_start_requires_disabled_sm(self):
-        self.stream.start_sm()
-        with self.assertRaisesRegexp(RuntimeError,
-                                     "Stream Management already enabled"):
-            self.stream.start_sm()
-
-    def test_sm_resume_requires_enabled_sm(self):
-        with self.assertRaisesRegexp(RuntimeError,
-                                     "Stream Management is not enabled"):
-            self.stream.resume_sm(0)
-
-    def test_stop_sm(self):
-        self.stream.start_sm()
-        self.stream.stop_sm()
-
-        self.assertFalse(self.destroyed_rec.mock_calls)
-        self.assertFalse(self.established_rec.mock_calls)
-
-        self.assertFalse(self.stream.sm_enabled)
-        with self.assertRaises(RuntimeError):
-            self.stream.sm_outbound_base
-        with self.assertRaises(RuntimeError):
-            self.stream.sm_inbound_ctr
-        with self.assertRaises(RuntimeError):
-            self.stream.sm_unacked_list
-
-    def test_sm_ping_automatic(self):
-        self.stream.ping_interval = timedelta(seconds=0.01)
-        self.stream.ping_opportunistic_interval = timedelta(seconds=0.01)
-        self.stream.start_sm()
-        self.stream.start(self.xmlstream)
-
-        run_coroutine(asyncio.sleep(0.005))
-        with self.assertRaises(asyncio.QueueEmpty):
-            self.sent_stanzas.get_nowait()
-        run_coroutine(asyncio.sleep(0.009))
-        with self.assertRaises(asyncio.QueueEmpty):
-            self.sent_stanzas.get_nowait()
-        run_coroutine(asyncio.sleep(0.005))
-
-        request = self.sent_stanzas.get_nowait()
-        self.assertIsInstance(request, stream_xsos.SMRequest)
-
-    def test_sm_ping_opportunistic(self):
-        # sm ping is always opportunistic: it also allows the server to ACK our
-        # stanzas, which is great.
-
-        self.stream.start_sm()
-        self.stream.start(self.xmlstream)
-
-        iq = make_test_iq()
-        self.stream.enqueue_stanza(iq)
-
-        run_coroutine(asyncio.sleep(0))
-        self.assertIs(
-            iq,
-            self.sent_stanzas.get_nowait()
-        )
-        self.assertIsInstance(
-            self.sent_stanzas.get_nowait(),
-            stream_xsos.SMRequest
-        )
-
-    def test_sm_ping_timeout(self):
-        exc = None
-
-        def failure_handler(_exc):
-            nonlocal exc
-            exc = _exc
-
-        self.stream.ping_interval = timedelta(seconds=0.01)
-        self.stream.on_failure.connect(failure_handler)
-
-        self.stream.start_sm()
-        self.stream.start(self.xmlstream)
-        run_coroutine(asyncio.sleep(0))
-        self.stream.enqueue_stanza(make_test_iq())
-        run_coroutine(asyncio.sleep(0.005))
-        self.stream.enqueue_stanza(make_test_iq())
-        run_coroutine(asyncio.sleep(0.006))
-        # at this point, the first ping must have timed out, and failure should
-        # be reported
-        self.assertIsInstance(
-            exc,
-            ConnectionError
-        )
-
-    def test_sm_ping_ack(self):
-        exc = None
-
-        def failure_handler(_exc):
-            nonlocal exc
-            exc = _exc
-
-        self.stream.ping_interval = timedelta(seconds=0.01)
-        self.stream.on_failure.connect(failure_handler)
-
-        self.stream.start_sm()
-        self.stream.start(self.xmlstream)
-        run_coroutine(asyncio.sleep(0))
-        self.stream.enqueue_stanza(make_test_iq())
-        run_coroutine(asyncio.sleep(0.005))
-        self.stream.enqueue_stanza(make_test_iq())
-        ack = stream_xsos.SMAcknowledgement()
-        ack.counter = 1
-        self.stream.recv_stanza(ack)
-        run_coroutine(asyncio.sleep(0.006))
-        self.assertIsNone(exc)
-        self.assertEqual(
-            1,
-            self.stream.sm_outbound_base
-        )
-
-    def test_sm_handle_req(self):
-        self.stream.start_sm()
-        self.stream.start(self.xmlstream)
-        run_coroutine(asyncio.sleep(0))
-        self.stream.recv_stanza(stream_xsos.SMRequest())
-        run_coroutine(asyncio.sleep(0))
-        response = self.sent_stanzas.get_nowait()
-        self.assertIsInstance(
-            response,
-            stream_xsos.SMAcknowledgement
-        )
-        self.assertEqual(
-            response.counter,
-            self.stream.sm_inbound_ctr
-        )
-
-        # no opportunistic send after SMAck
-        with self.assertRaises(asyncio.QueueEmpty):
-            self.sent_stanzas.get_nowait()
-
-    def test_sm_unacked_list_is_a_copy(self):
-        self.stream.start_sm()
-        l1 = self.stream.sm_unacked_list
-        l2 = self.stream.sm_unacked_list
-        self.assertIsNot(l1, l2)
-        l1.append("foo")
-        self.assertFalse(self.stream.sm_unacked_list)
-
-    def test_sm_ignore_late_remote_counter(self):
-        self.stream.start_sm()
-        self.stream.sm_ack(-1)
-
     def test_nonsm_ignore_sm_ack(self):
         caught_exc = None
 
@@ -1106,26 +723,6 @@ class TestStanzaStream(StanzaStreamTestBase):
             token,
             stream.StanzaToken)
 
-    def test_set_stanzas_to_sent_without_sm_when_sm_is_turned_off(self):
-        iqs = [make_test_iq() for i in range(3)]
-
-        self.stream.start_sm()
-        self.stream.start(self.xmlstream)
-        tokens = [self.stream.enqueue_stanza(iq) for iq in iqs]
-        run_coroutine(asyncio.sleep(0))
-        self.stream.stop()
-        run_coroutine(asyncio.sleep(0))
-        self.stream.stop_sm()
-
-        self.assertSequenceEqual(
-            [
-                stream.StanzaState.SENT_WITHOUT_SM,
-                stream.StanzaState.SENT_WITHOUT_SM,
-                stream.StanzaState.SENT_WITHOUT_SM,
-            ],
-            [token.state for token in tokens]
-        )
-
     def test_abort_stanza(self):
         iqs = [make_test_iq() for i in range(3)]
         self.stream.start(self.xmlstream)
@@ -1224,294 +821,6 @@ class TestStanzaStream(StanzaStreamTestBase):
         self.assertIs(caught_exc, exc)
         self.assertFalse(self.stream.running)
 
-    def test_transactional_start_prepares_and_rolls_back_on_exception(self):
-        with self.assertRaises(ValueError):
-            with self.stream.transactional_start(self.xmlstream) as ctx:
-                self.assertSequenceEqual(
-                    [
-                        unittest.mock.call.add_class(
-                            stanza.IQ,
-                            ctx._recv_stanza),
-                        unittest.mock.call.add_class(
-                            stanza.Message,
-                            ctx._recv_stanza),
-                        unittest.mock.call.add_class(
-                            stanza.Presence,
-                            ctx._recv_stanza),
-                    ],
-                    self.xmlstream.stanza_parser.mock_calls
-                )
-                self.xmlstream.stanza_parser.reset_mock()
-                raise ValueError()
-
-        self.assertSequenceEqual(
-            [
-                unittest.mock.call.remove_class(stanza.Presence),
-                unittest.mock.call.remove_class(stanza.Message),
-                unittest.mock.call.remove_class(stanza.IQ),
-            ],
-            self.xmlstream.stanza_parser.mock_calls
-        )
-
-        self.assertFalse(self.established_rec.mock_calls)
-        self.assertFalse(self.stream.running)
-
-    def test_transactional_start_rollback_drops_received_stanzas(self):
-        iq = make_test_iq(type_="result")
-        iq.autoset_id()
-
-        fut = asyncio.Future()
-
-        self.stream.register_iq_response_future(
-            TEST_FROM,
-            iq.id_,
-            fut)
-
-        with self.assertRaises(ValueError):
-            with self.stream.transactional_start(self.xmlstream) as ctx:
-                ctx._recv_stanza(iq)
-                raise ValueError()
-
-        self.stream.start(self.xmlstream)
-        run_coroutine(asyncio.sleep(0))
-        self.assertFalse(fut.done())
-
-    def test_transactional_start_commit_leaves_stream_running_and_has_stanzas(self):
-        iq = make_test_iq(type_="result")
-        iq.autoset_id()
-
-        fut = asyncio.Future()
-
-        self.stream.register_iq_response_future(
-            TEST_FROM,
-            iq.id_,
-            fut)
-
-        with self.stream.transactional_start(self.xmlstream) as ctx:
-            ctx._recv_stanza(iq)
-            self.xmlstream.stanza_parser.reset_mock()
-
-        self.assertSequenceEqual(
-            [
-                unittest.mock.call.remove_class(stanza.IQ),
-                unittest.mock.call.add_class(
-                    stanza.IQ,
-                    self.stream.recv_stanza),
-                unittest.mock.call.remove_class(stanza.Message),
-                unittest.mock.call.add_class(
-                    stanza.Message,
-                    self.stream.recv_stanza),
-                unittest.mock.call.remove_class(stanza.Presence),
-                unittest.mock.call.add_class(
-                    stanza.Presence,
-                    self.stream.recv_stanza),
-            ],
-            self.xmlstream.stanza_parser.mock_calls
-        )
-
-        self.established_rec.assert_called_once_with()
-        self.assertTrue(self.stream.running)
-        run_coroutine(asyncio.sleep(0))
-        self.assertTrue(fut.done())
-
-    def test_transactional_start_blocks_start_and_transactional_start(self):
-        with self.stream.transactional_start(self.xmlstream) as ctx:
-            with self.assertRaisesRegexp(RuntimeError,
-                                         "in progress"):
-                self.stream.start(self.xmlstream)
-            with self.assertRaisesRegexp(RuntimeError,
-                                         "in progress"):
-                self.stream.transactional_start(self.xmlstream)
-
-    def test_forbid_transactional_start_while_running(self):
-        self.stream.start(self.xmlstream)
-        self.assertTrue(self.stream.running)
-        with self.assertRaisesRegexp(RuntimeError, "already started"):
-            self.stream.transactional_start(self.xmlstream)
-
-    def test_transactional_start_jit_sm_start(self):
-        with self.stream.transactional_start(self.xmlstream) as ctx:
-            self.xmlstream.stanza_parser.reset_mock()
-            ctx.start_sm()
-            self.assertSequenceEqual(
-                [
-                    unittest.mock.call.add_class(
-                        stream_xsos.SMAcknowledgement,
-                        ctx._recv_stanza),
-                    unittest.mock.call.add_class(
-                        stream_xsos.SMRequest,
-                        ctx._recv_stanza)
-                ],
-                self.xmlstream.stanza_parser.mock_calls
-            )
-            self.xmlstream.stanza_parser.reset_mock()
-
-        self.established_rec.assert_called_once_with()
-
-        self.assertSequenceEqual(
-            [
-                unittest.mock.call.remove_class(stanza.IQ),
-                unittest.mock.call.add_class(
-                    stanza.IQ,
-                    self.stream.recv_stanza),
-                unittest.mock.call.remove_class(stanza.Message),
-                unittest.mock.call.add_class(
-                    stanza.Message,
-                    self.stream.recv_stanza),
-                unittest.mock.call.remove_class(stanza.Presence),
-                unittest.mock.call.add_class(
-                    stanza.Presence,
-                    self.stream.recv_stanza),
-                unittest.mock.call.remove_class(
-                    stream_xsos.SMAcknowledgement),
-                unittest.mock.call.add_class(
-                    stream_xsos.SMAcknowledgement,
-                    self.stream.recv_stanza),
-                unittest.mock.call.remove_class(stream_xsos.SMRequest),
-                unittest.mock.call.add_class(
-                    stream_xsos.SMRequest,
-                    self.stream.recv_stanza)
-            ],
-            self.xmlstream.stanza_parser.mock_calls
-        )
-
-        self.assertTrue(self.stream.running)
-        self.assertTrue(self.stream.sm_enabled)
-
-    def test_transactional_start_blocks_start_sm(self):
-        with self.stream.transactional_start(self.xmlstream) as ctx:
-            with self.assertRaisesRegexp(RuntimeError,
-                                         "during startup"):
-                self.stream.start_sm()
-
-    def test_transactional_start_blocks_resume_sm(self):
-        self.stream.start_sm()
-        with self.stream.transactional_start(self.xmlstream) as ctx:
-            with self.assertRaisesRegexp(RuntimeError,
-                                         "during startup"):
-                self.stream.resume_sm(0)
-
-    def test_transactional_start_blocks_stop_sm(self):
-        self.stream.start_sm()
-        with self.stream.transactional_start(self.xmlstream) as ctx:
-            with self.assertRaisesRegexp(RuntimeError,
-                                         "during startup"):
-                self.stream.stop_sm()
-
-    def test_transactional_start_jit_sm_stop(self):
-        self.stream.start_sm()
-        self.stream.start(self.xmlstream)
-        run_coroutine(asyncio.sleep(0))
-        self.stream.stop()
-        run_coroutine(asyncio.sleep(0))
-
-        self.xmlstream.stanza_parser.reset_mock()
-
-        self.established_rec.assert_called_once_with()
-        self.established_rec.reset_mock()
-
-        with self.stream.transactional_start(self.xmlstream) as ctx:
-            self.assertSequenceEqual(
-                [
-                    unittest.mock.call.add_class(
-                        stanza.IQ,
-                        ctx._recv_stanza),
-                    unittest.mock.call.add_class(
-                        stanza.Message,
-                        ctx._recv_stanza),
-                    unittest.mock.call.add_class(
-                        stanza.Presence,
-                        ctx._recv_stanza),
-                    unittest.mock.call.add_class(
-                        stream_xsos.SMAcknowledgement,
-                        ctx._recv_stanza),
-                    unittest.mock.call.add_class(
-                        stream_xsos.SMRequest,
-                        ctx._recv_stanza)
-                ],
-                self.xmlstream.stanza_parser.mock_calls
-            )
-            ctx.stop_sm()
-            self.xmlstream.stanza_parser.reset_mock()
-
-        self.destroyed_rec.assert_called_once_with()
-        self.established_rec.assert_called_once_with()
-
-        self.assertSequenceEqual(
-            [
-                unittest.mock.call.remove_class(stanza.IQ),
-                unittest.mock.call.add_class(
-                    stanza.IQ,
-                    self.stream.recv_stanza),
-                unittest.mock.call.remove_class(stanza.Message),
-                unittest.mock.call.add_class(
-                    stanza.Message,
-                    self.stream.recv_stanza),
-                unittest.mock.call.remove_class(stanza.Presence),
-                unittest.mock.call.add_class(
-                    stanza.Presence,
-                    self.stream.recv_stanza),
-            ],
-            self.xmlstream.stanza_parser.mock_calls
-        )
-
-        self.assertTrue(self.stream.running)
-        self.assertFalse(self.stream.sm_enabled)
-
-    def test_transactional_start_jit_sm_resume(self):
-        self.stream.start_sm()
-        with self.stream.transactional_start(self.xmlstream) as ctx:
-            with unittest.mock.patch.object(self.stream, "_resume_sm") as mock:
-                ctx.resume_sm(10)
-                mock.assert_called_once_with(10)
-            self.xmlstream.stanza_parser.reset_mock()
-
-        self.assertSequenceEqual(
-            [
-                unittest.mock.call.remove_class(stanza.IQ),
-                unittest.mock.call.add_class(
-                    stanza.IQ,
-                    self.stream.recv_stanza),
-                unittest.mock.call.remove_class(stanza.Message),
-                unittest.mock.call.add_class(
-                    stanza.Message,
-                    self.stream.recv_stanza),
-                unittest.mock.call.remove_class(stanza.Presence),
-                unittest.mock.call.add_class(
-                    stanza.Presence,
-                    self.stream.recv_stanza),
-                unittest.mock.call.remove_class(
-                    stream_xsos.SMAcknowledgement),
-                unittest.mock.call.add_class(
-                    stream_xsos.SMAcknowledgement,
-                    self.stream.recv_stanza),
-                unittest.mock.call.remove_class(stream_xsos.SMRequest),
-                unittest.mock.call.add_class(
-                    stream_xsos.SMRequest,
-                    self.stream.recv_stanza)
-            ],
-            self.xmlstream.stanza_parser.mock_calls
-        )
-
-        self.assertTrue(self.stream.running)
-        self.assertTrue(self.stream.sm_enabled)
-
-    def test_transactional_start_propagate_transport_errors(self):
-        exc = ConnectionError()
-
-        fun = unittest.mock.MagicMock()
-        fun.return_value = None
-
-        self.stream.on_failure.connect(fun)
-
-        with self.assertRaises(ConnectionError) as ctx:
-            with self.stream.transactional_start(self.xmlstream):
-                self.xmlstream.on_failure(exc)
-
-        self.assertIs(exc, ctx.exception)
-
-        self.assertFalse(fun.mock_calls)
-
     def test_cleanup_iq_response_listeners_on_stop_without_sm(self):
         fun = unittest.mock.MagicMock()
 
@@ -1528,44 +837,6 @@ class TestStanzaStream(StanzaStreamTestBase):
             structs.JID("foo", "bar", None), "baz",
             fun)
 
-    def test_cleanup_iq_response_listeners_on_sm_stop(self):
-        fun = unittest.mock.MagicMock()
-
-
-        self.stream.register_iq_response_callback(
-            structs.JID("foo", "bar", None), "baz",
-            fun)
-        self.stream.start_sm()
-        self.stream.start(self.xmlstream)
-        run_coroutine(asyncio.sleep(0))
-        self.stream.stop()
-        run_coroutine(asyncio.sleep(0))
-        self.assertFalse(self.stream.running)
-
-        self.stream.stop_sm()
-        self.stream.register_iq_response_callback(
-            structs.JID("foo", "bar", None), "baz",
-            fun)
-
-    def test_keep_iq_response_listeners_on_sm_stop(self):
-        fun = unittest.mock.MagicMock()
-
-        self.stream.register_iq_response_callback(
-            structs.JID("foo", "bar", None), "baz",
-            fun)
-        self.stream.start_sm()
-        self.stream.start(self.xmlstream)
-        run_coroutine(asyncio.sleep(0))
-        self.stream.stop()
-        run_coroutine(asyncio.sleep(0))
-        self.assertFalse(self.stream.running)
-
-        with self.assertRaisesRegexp(ValueError,
-                                     "only one listener is allowed"):
-            self.stream.register_iq_response_callback(
-                structs.JID("foo", "bar", None), "baz",
-                fun)
-
     def test_stanza_future_raises_if_stream_interrupts_without_sm(self):
         iq = make_test_iq()
 
@@ -1580,6 +851,603 @@ class TestStanzaStream(StanzaStreamTestBase):
                 kill_it(),
                 self.stream.send_iq_and_wait_for_reply(iq)
             ))
+
+
+class TestStanzaStreamSM(StanzaStreamTestBase):
+    def setUp(self):
+        super().setUp()
+        self.xmlstream = XMLStreamMock(self, loop=self.loop)
+
+        self.successful_sm = [
+            XMLStreamMock.Send(
+                stream_xsos.SMEnable(resume=True),
+                response=XMLStreamMock.Receive(
+                    stream_xsos.SMEnabled(resume=True,
+                                          id_="foobar")
+                )
+            )
+        ]
+
+        del self.sent_stanzas
+
+
+    def test_sm_initialization_only_in_stopped_state(self):
+        with self.assertRaisesRegexp(RuntimeError, "is not running"):
+            run_coroutine(self.stream.start_sm())
+
+    def test_start_sm(self):
+        self.assertFalse(self.stream.sm_enabled)
+
+        # we need interaction here to show that SM gets negotiated
+        xmlstream = XMLStreamMock(self, loop=self.loop)
+
+        self.stream.start(xmlstream)
+
+        run_coroutine_with_peer(
+            self.stream.start_sm(request_resumption=True),
+            xmlstream.run_test(
+                [
+                    XMLStreamMock.Send(
+                        stream_xsos.SMEnable(resume=True),
+                        response=XMLStreamMock.Receive(
+                            stream_xsos.SMEnabled(resume=True,
+                                                  id_="foobar",
+                                                  location=("fe80::", 5222),
+                                                  max_=1200)
+                        )
+                    )
+                ]
+            )
+        )
+
+        self.assertTrue(self.stream.sm_enabled)
+
+        self.assertEqual(
+            0,
+            self.stream.sm_outbound_base
+        )
+        self.assertEqual(
+            0,
+            self.stream.sm_inbound_ctr
+        )
+        self.assertSequenceEqual(
+            [],
+            self.stream.sm_unacked_list
+        )
+        self.assertEqual(
+            "foobar",
+            self.stream.sm_id
+        )
+        self.assertEqual(
+            ("fe80::", 5222),
+            self.stream.sm_location
+        )
+        self.assertEqual(
+            1200,
+            self.stream.sm_max
+        )
+        self.assertTrue(self.stream.sm_resumable)
+
+        self.established_rec.assert_called_once_with()
+
+        self.stream.stop()
+        run_coroutine(asyncio.sleep(0))
+
+        self.assertFalse(self.destroyed_rec.mock_calls)
+
+    def test_sm_ack_requires_enabled_sm(self):
+        with self.assertRaisesRegexp(RuntimeError, "is not enabled"):
+            self.stream.sm_ack(0)
+
+    def test_sm_outbound(self):
+        state_change_handler = unittest.mock.MagicMock()
+        iqs = [make_test_iq() for i in range(3)]
+
+        self.stream.start(self.xmlstream)
+        run_coroutine_with_peer(
+            self.stream.start_sm(),
+            self.xmlstream.run_test(self.successful_sm)
+        )
+
+        tokens = [
+            self.stream.enqueue_stanza(
+                iq, on_state_change=state_change_handler)
+            for iq in iqs]
+
+        run_coroutine(asyncio.sleep(0))
+
+        self.assertEqual(
+            0,
+            self.stream.sm_outbound_base
+        )
+        self.assertSequenceEqual(
+            tokens,
+            self.stream.sm_unacked_list
+        )
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(token, stream.StanzaState.SENT)
+                for token in tokens
+            ],
+            state_change_handler.mock_calls
+        )
+        state_change_handler.reset_mock()
+
+        self.assertSequenceEqual(
+            [stream.StanzaState.SENT]*3,
+            [token.state for token in tokens]
+        )
+
+        self.stream.sm_ack(1)
+        self.assertEqual(
+            1,
+            self.stream.sm_outbound_base
+        )
+        self.assertSequenceEqual(
+            tokens[1:],
+            self.stream.sm_unacked_list
+        )
+        self.assertSequenceEqual(
+            [
+                stream.StanzaState.ACKED,
+                stream.StanzaState.SENT,
+                stream.StanzaState.SENT
+            ],
+            [token.state for token in tokens]
+        )
+
+        # idempotence with same number
+
+        self.stream.sm_ack(1)
+        self.assertEqual(
+            1,
+            self.stream.sm_outbound_base
+        )
+        self.assertSequenceEqual(
+            tokens[1:],
+            self.stream.sm_unacked_list
+        )
+        self.assertSequenceEqual(
+            [
+                stream.StanzaState.ACKED,
+                stream.StanzaState.SENT,
+                stream.StanzaState.SENT
+            ],
+            [token.state for token in tokens]
+        )
+
+        self.stream.sm_ack(3)
+        self.assertEqual(
+            3,
+            self.stream.sm_outbound_base
+        )
+        self.assertSequenceEqual(
+            [],
+            self.stream.sm_unacked_list
+        )
+        self.assertSequenceEqual(
+            [
+                stream.StanzaState.ACKED,
+                stream.StanzaState.ACKED,
+                stream.StanzaState.ACKED
+            ],
+            [token.state for token in tokens]
+        )
+
+        # we don’t want XMLStreamMock testing
+        self.xmlstream = XMLStreamMock(self, loop=self)
+
+    def test_sm_inbound(self):
+        iqs = [make_test_iq() for i in range(3)]
+
+        error_iqs = [
+            iq.make_reply(type_="error")
+            for iq in iqs
+        ]
+        for err_iq in error_iqs:
+            err_iq.error = stanza.Error(
+                condition=(namespaces.stanzas, "feature-not-implemented")
+            )
+
+        self.stream.start(self.xmlstream)
+        run_coroutine_with_peer(
+            self.stream.start_sm(),
+            self.xmlstream.run_test(self.successful_sm)
+        )
+
+        self.stream.recv_stanza(iqs.pop())
+        run_coroutine(asyncio.sleep(0))
+
+        self.assertEqual(
+            1,
+            self.stream.sm_inbound_ctr
+        )
+
+        self.stream.recv_stanza(iqs.pop())
+        self.stream.recv_stanza(iqs.pop())
+        run_coroutine(asyncio.sleep(0))
+
+        self.assertEqual(
+            3,
+            self.stream.sm_inbound_ctr
+        )
+
+        run_coroutine(self.xmlstream.run_test([
+            XMLStreamMock.Send(error_iqs.pop()),
+            XMLStreamMock.Send(stream_xsos.SMRequest()),
+            XMLStreamMock.Send(error_iqs.pop()),
+            XMLStreamMock.Send(stream_xsos.SMRequest()),
+            XMLStreamMock.Send(error_iqs.pop()),
+            XMLStreamMock.Send(stream_xsos.SMRequest()),
+        ]))
+
+    def test_sm_resume(self):
+        iqs = [make_test_iq() for i in range(4)]
+
+        additional_iq = iqs.pop()
+
+        self.stream.start(self.xmlstream)
+        run_coroutine_with_peer(
+            self.stream.start_sm(),
+            self.xmlstream.run_test(self.successful_sm)
+        )
+
+        for iq in iqs:
+            self.stream.enqueue_stanza(iq)
+
+        run_coroutine(asyncio.sleep(0))
+
+        self.established_rec.assert_called_once_with()
+        self.established_rec.reset_mock()
+
+        run_coroutine(self.xmlstream.run_test([
+            XMLStreamMock.Send(iqs[0]),
+            XMLStreamMock.Send(iqs[1]),
+            XMLStreamMock.Send(iqs[2]),
+            XMLStreamMock.Send(
+                stream_xsos.SMRequest(),
+                response=XMLStreamMock.Receive(
+                    stream_xsos.SMAcknowledgement(counter=1)
+                )
+            )
+        ]))
+
+        self.stream.stop()
+
+        run_coroutine(asyncio.sleep(0))
+
+        self.assertFalse(self.destroyed_rec.mock_calls)
+
+        # enqueue a stanza before resumption and check that the sequence is
+        # correct (resumption-generated stanzas before new stanzas)
+        self.stream.enqueue_stanza(additional_iq)
+
+        run_coroutine_with_peer(
+            self.stream.resume_sm(self.xmlstream),
+            self.xmlstream.run_test([
+                XMLStreamMock.Send(
+                    stream_xsos.SMResume(previd="foobar",
+                                         counter=0),
+                    response=XMLStreamMock.Receive(
+                        stream_xsos.SMResumed(previd="foobar",
+                                              counter=2)
+                    )
+                ),
+                XMLStreamMock.Send(iqs[2]),
+                XMLStreamMock.Send(additional_iq),
+                XMLStreamMock.Send(stream_xsos.SMRequest()),
+            ])
+        )
+
+        self.assertFalse(self.established_rec.mock_calls)
+
+        self.stream.stop()
+        run_coroutine(asyncio.sleep(0))
+        self.stream.stop_sm()
+        self.destroyed_rec.assert_called_once_with()
+
+    def test_sm_resume_requires_stopped_stream(self):
+        self.stream.start(self.xmlstream)
+        run_coroutine_with_peer(
+            self.stream.start_sm(),
+            self.xmlstream.run_test(self.successful_sm)
+        )
+        self.assertTrue(self.stream.running)
+        with self.assertRaisesRegexp(RuntimeError, "is running"):
+            run_coroutine(self.stream.resume_sm(self.xmlstream))
+
+    def test_sm_stop_requires_stopped_stream(self):
+        self.stream.start_sm()
+        self.stream.start(self.xmlstream)
+        with self.assertRaisesRegexp(RuntimeError,
+                                     "is running"):
+            self.stream.stop_sm()
+
+    def test_sm_stop_requires_enabled_sm(self):
+        with self.assertRaisesRegexp(RuntimeError,
+                                     "not enabled"):
+            self.stream.stop_sm()
+
+    def test_sm_start_requires_disabled_sm(self):
+        self.stream.start(self.xmlstream)
+        run_coroutine_with_peer(
+            self.stream.start_sm(),
+            self.xmlstream.run_test(self.successful_sm)
+        )
+        with self.assertRaisesRegexp(RuntimeError,
+                                     "Stream Management already enabled"):
+            run_coroutine(self.stream.start_sm())
+
+    def test_sm_resume_requires_enabled_sm(self):
+        with self.assertRaisesRegexp(RuntimeError,
+                                     "not enabled"):
+            run_coroutine(self.stream.resume_sm(self.xmlstream))
+
+    def test_stop_sm(self):
+        self.stream.start(self.xmlstream)
+        run_coroutine_with_peer(
+            self.stream.start_sm(),
+            self.xmlstream.run_test(self.successful_sm)
+        )
+        self.stream.stop()
+        run_coroutine(asyncio.sleep(0))
+        self.stream.stop_sm()
+
+        self.destroyed_rec.assert_called_once_with()
+        self.established_rec.assert_called_once_with()
+
+        self.assertFalse(self.stream.sm_enabled)
+        with self.assertRaises(RuntimeError):
+            self.stream.sm_outbound_base
+        with self.assertRaises(RuntimeError):
+            self.stream.sm_inbound_ctr
+        with self.assertRaises(RuntimeError):
+            self.stream.sm_unacked_list
+        with self.assertRaises(RuntimeError):
+            self.stream.sm_id
+        with self.assertRaises(RuntimeError):
+            self.stream.sm_max
+        with self.assertRaises(RuntimeError):
+            self.stream.sm_location
+        with self.assertRaises(RuntimeError):
+            self.stream.sm_resumable
+
+    def test_sm_ping_automatic(self):
+        self.stream.ping_interval = timedelta(seconds=0.01)
+        self.stream.ping_opportunistic_interval = timedelta(seconds=0.01)
+        self.stream.start(self.xmlstream)
+        run_coroutine_with_peer(
+            self.stream.start_sm(),
+            self.xmlstream.run_test(self.successful_sm)
+        )
+
+        run_coroutine(asyncio.sleep(0.005))
+        # the next would raise if anything had been sent before
+        run_coroutine(self.xmlstream.run_test([]))
+        run_coroutine(asyncio.sleep(0.009))
+
+        run_coroutine(self.xmlstream.run_test([
+            XMLStreamMock.Send(stream_xsos.SMRequest())
+        ]))
+
+    def test_sm_ping_opportunistic(self):
+        # sm ping is always opportunistic: it also allows the server to ACK our
+        # stanzas, which is great.
+
+        self.stream.start(self.xmlstream)
+        run_coroutine_with_peer(
+            self.stream.start_sm(),
+            self.xmlstream.run_test(self.successful_sm)
+        )
+
+        iq = make_test_iq()
+        self.stream.enqueue_stanza(iq)
+
+        run_coroutine(self.xmlstream.run_test([
+            XMLStreamMock.Send(iq),
+            XMLStreamMock.Send(
+                stream_xsos.SMRequest()
+            )
+        ]))
+
+        run_coroutine(self.xmlstream.run_test(
+            [],
+            stimulus=XMLStreamMock.Receive(
+                stream_xsos.SMAcknowledgement(counter=1)
+            )
+        ))
+
+        self.assertEqual(1, self.stream.sm_outbound_base)
+
+    def test_sm_ping_timeout(self):
+        exc = None
+
+        def failure_handler(_exc):
+            nonlocal exc
+            exc = _exc
+
+        iqs = [make_test_iq() for i in range(2)]
+
+        self.stream.ping_interval = timedelta(seconds=0.01)
+        self.stream.on_failure.connect(failure_handler)
+
+        self.stream.start(self.xmlstream)
+        run_coroutine_with_peer(
+            self.stream.start_sm(),
+            self.xmlstream.run_test(self.successful_sm)
+        )
+
+        run_coroutine(asyncio.sleep(0))
+        self.stream.enqueue_stanza(iqs[0])
+        run_coroutine(asyncio.sleep(0.005))
+        self.stream.enqueue_stanza(iqs[1])
+        run_coroutine(asyncio.sleep(0.006))
+
+        run_coroutine(self.xmlstream.run_test([
+            XMLStreamMock.Send(iqs[0]),
+            XMLStreamMock.Send(stream_xsos.SMRequest()),
+            XMLStreamMock.Send(iqs[1]),
+            XMLStreamMock.Send(stream_xsos.SMRequest()),
+        ]))
+
+        # at this point, the first ping must have timed out, and failure should
+        # be reported
+        self.assertIsInstance(
+            exc,
+            ConnectionError
+        )
+
+    def test_sm_ping_ack(self):
+        exc = None
+
+        def failure_handler(_exc):
+            nonlocal exc
+            exc = _exc
+
+        iqs = [make_test_iq() for i in range(2)]
+
+        self.stream.ping_interval = timedelta(seconds=0.01)
+        self.stream.on_failure.connect(failure_handler)
+
+        self.stream.start(self.xmlstream)
+        run_coroutine_with_peer(
+            self.stream.start_sm(),
+            self.xmlstream.run_test(self.successful_sm)
+        )
+
+        self.stream.enqueue_stanza(iqs[0])
+        run_coroutine(self.xmlstream.run_test([
+            XMLStreamMock.Send(iqs[0]),
+            XMLStreamMock.Send(stream_xsos.SMRequest()),
+        ]))
+        self.stream.enqueue_stanza(iqs[1])
+        run_coroutine(self.xmlstream.run_test([
+            XMLStreamMock.Send(iqs[1]),
+            XMLStreamMock.Send(
+                stream_xsos.SMRequest(),
+                response=XMLStreamMock.Receive(
+                    stream_xsos.SMAcknowledgement(counter=1)
+                )
+            ),
+        ]))
+        run_coroutine(asyncio.sleep(0.006))
+        self.assertIsNone(exc)
+        self.assertEqual(
+            1,
+            self.stream.sm_outbound_base
+        )
+
+    def test_sm_handle_req(self):
+        self.stream.start(self.xmlstream)
+        run_coroutine_with_peer(
+            self.stream.start_sm(),
+            self.xmlstream.run_test(self.successful_sm)
+        )
+
+        run_coroutine(self.xmlstream.run_test(
+            [
+                XMLStreamMock.Send(stream_xsos.SMAcknowledgement(counter=0))
+            ],
+            stimulus=XMLStreamMock.Receive(stream_xsos.SMRequest())
+        ))
+
+    def test_sm_unacked_list_is_a_copy(self):
+        self.stream.start(self.xmlstream)
+        run_coroutine_with_peer(
+            self.stream.start_sm(),
+            self.xmlstream.run_test(self.successful_sm)
+        )
+        l1 = self.stream.sm_unacked_list
+        l2 = self.stream.sm_unacked_list
+        self.assertIsNot(l1, l2)
+        l1.append("foo")
+        self.assertFalse(self.stream.sm_unacked_list)
+
+    def test_sm_ignore_late_remote_counter(self):
+        self.stream.start(self.xmlstream)
+        run_coroutine_with_peer(
+            self.stream.start_sm(),
+            self.xmlstream.run_test(self.successful_sm)
+        )
+        self.stream.sm_ack(-1)
+
+    def test_cleanup_iq_response_listeners_on_sm_stop(self):
+        fun = unittest.mock.MagicMock()
+
+        self.stream.register_iq_response_callback(
+            structs.JID("foo", "bar", None), "baz",
+            fun)
+        self.stream.start(self.xmlstream)
+        run_coroutine_with_peer(
+            self.stream.start_sm(),
+            self.xmlstream.run_test(self.successful_sm)
+        )
+        self.stream.stop()
+        run_coroutine(asyncio.sleep(0))
+        self.assertFalse(self.stream.running)
+
+        self.stream.stop_sm()
+        self.stream.register_iq_response_callback(
+            structs.JID("foo", "bar", None), "baz",
+            fun)
+
+    def test_keep_iq_response_listeners_on_stop_with_sm(self):
+        fun = unittest.mock.MagicMock()
+
+        self.stream.register_iq_response_callback(
+            structs.JID("foo", "bar", None), "baz",
+            fun)
+        self.stream.start(self.xmlstream)
+        run_coroutine_with_peer(
+            self.stream.start_sm(),
+            self.xmlstream.run_test(self.successful_sm)
+        )
+        self.stream.stop()
+        run_coroutine(asyncio.sleep(0))
+        self.assertFalse(self.stream.running)
+
+        with self.assertRaisesRegexp(ValueError,
+                                     "only one listener is allowed"):
+            self.stream.register_iq_response_callback(
+                structs.JID("foo", "bar", None), "baz",
+                fun)
+
+    def test_set_stanzas_to_sent_without_sm_when_sm_gets_turned_off(self):
+        iqs = [make_test_iq() for i in range(3)]
+
+        self.stream.start(self.xmlstream)
+        run_coroutine_with_peer(
+            self.stream.start_sm(),
+            self.xmlstream.run_test(self.successful_sm)
+        )
+
+        tokens = [self.stream.enqueue_stanza(iq) for iq in iqs]
+
+        run_coroutine(self.xmlstream.run_test([
+            XMLStreamMock.Send(iqs[0]),
+            XMLStreamMock.Send(iqs[1]),
+            XMLStreamMock.Send(iqs[2]),
+            XMLStreamMock.Send(stream_xsos.SMRequest()),
+        ]))
+
+        self.stream.stop()
+        run_coroutine(asyncio.sleep(0))
+        self.stream.stop_sm()
+
+        self.assertSequenceEqual(
+            [
+                stream.StanzaState.SENT_WITHOUT_SM,
+                stream.StanzaState.SENT_WITHOUT_SM,
+                stream.StanzaState.SENT_WITHOUT_SM,
+            ],
+            [token.state for token in tokens]
+        )
+
+    def tearDown(self):
+        run_coroutine(self.xmlstream.run_test([]))
+        # to satisfy del.sent_stanzas in inherited tearDown
+        self.sent_stanzas = object()
+        super().tearDown()
 
 
 class TestStanzaToken(unittest.TestCase):

@@ -224,6 +224,15 @@ class StreamManagementFeature(xso.XSO):
     """
     TAG = (namespaces.stream_management, "sm")
 
+    class Required(xso.XSO):
+        TAG = (namespaces.stream_management, "required")
+
+    class Optional(xso.XSO):
+        TAG = (namespaces.stream_management, "optional")
+
+    required = xso.Child([Required])
+    optional = xso.Child([Optional])
+
 
 class SMXSO(xso.XSO):
     """
@@ -261,7 +270,12 @@ class SMAcknowledgement(SMXSO):
         "h",
         type_=xso.Integer(),
         required=True,
+        default=0,
     )
+
+    def __init__(self, counter=0, **kwargs):
+        super().__init__(**kwargs)
+        self.counter = counter
 
 
 class SMEnable(SMXSO):
@@ -398,9 +412,9 @@ class SMResumed(SMXSO):
             self.previd = previd
 
 
-class SMFailure(SMXSO):
+class SMFailed(SMXSO):
     """
     Server response to :class:`SMEnable` or :class:`SMResume` if stream
     management fails.
     """
-    TAG = (namespaces.stream_management, "failure")
+    TAG = (namespaces.stream_management, "failed")

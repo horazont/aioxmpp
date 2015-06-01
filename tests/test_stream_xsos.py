@@ -218,6 +218,16 @@ class TestStreamFeatures(unittest.TestCase):
         )
 
 
+class TestSMAcknowledgement(unittest.TestCase):
+    def test_default_init(self):
+        obj = stream_xsos.SMAcknowledgement()
+        self.assertEqual(0, obj.counter)
+
+    def test_init(self):
+        obj = stream_xsos.SMAcknowledgement(counter=1234)
+        self.assertEqual(1234, obj.counter)
+
+
 class TestSMEnable(unittest.TestCase):
     def test_default_init(self):
         obj = stream_xsos.SMEnable()
@@ -260,6 +270,7 @@ class TestSMResume(unittest.TestCase):
             previd="foobar")
         self.assertEqual(1, obj.counter)
         self.assertEqual("foobar", obj.previd)
+
 
 class TestSMResumed(unittest.TestCase):
     def test_default_init(self):
