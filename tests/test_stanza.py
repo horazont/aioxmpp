@@ -19,15 +19,6 @@ class TestPayload(xso.XSO):
 
 
 class TestStanzaBase(unittest.TestCase):
-    def test_id_attr(self):
-        self.assertIsInstance(
-            stanza.StanzaBase.id_,
-            xso.Attr)
-        self.assertEqual(
-            (None, "id"),
-            stanza.StanzaBase.id_.tag)
-        self.assertFalse(stanza.StanzaBase.id_.required)
-
     def test_from_attr(self):
         self.assertIsInstance(
             stanza.StanzaBase.from_,
@@ -49,6 +40,14 @@ class TestStanzaBase(unittest.TestCase):
         self.assertIsInstance(
             stanza.StanzaBase.to.type_,
             xso.JID)
+
+    def test_lang_attr(self):
+        self.assertIsInstance(
+            stanza.StanzaBase.lang,
+            xso.Attr)
+        self.assertEqual(
+            (namespaces.xml, "lang"),
+            stanza.StanzaBase.lang.tag)
 
     def test_autoset_id_generates_random_str_on_none(self):
         s = stanza.StanzaBase()
@@ -112,6 +111,15 @@ class TestMessage(unittest.TestCase):
         self.assertIsInstance(
             stanza.Message(),
             stanza.StanzaBase)
+
+    def test_id_attr(self):
+        self.assertIsInstance(
+            stanza.Message.id_,
+            xso.Attr)
+        self.assertEqual(
+            (None, "id"),
+            stanza.Message.id_.tag)
+        self.assertFalse(stanza.Message.id_.required)
 
     def test_tag(self):
         self.assertEqual(
@@ -195,6 +203,15 @@ class TestPresence(unittest.TestCase):
         self.assertIsInstance(
             stanza.Presence(),
             stanza.StanzaBase)
+
+    def test_id_attr(self):
+        self.assertIsInstance(
+            stanza.Presence.id_,
+            xso.Attr)
+        self.assertEqual(
+            (None, "id"),
+            stanza.Presence.id_.tag)
+        self.assertFalse(stanza.Presence.id_.required)
 
     def test_tag(self):
         self.assertEqual(
@@ -416,6 +433,15 @@ class TestIQ(unittest.TestCase):
         self.assertIsInstance(
             stanza.IQ(),
             stanza.StanzaBase)
+
+    def test_id_attr(self):
+        self.assertIsInstance(
+            stanza.IQ.id_,
+            xso.Attr)
+        self.assertEqual(
+            (None, "id"),
+            stanza.IQ.id_.tag)
+        self.assertTrue(stanza.IQ.id_.required)
 
     def test_tag(self):
         self.assertEqual(

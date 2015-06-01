@@ -59,14 +59,16 @@ class UnknownIQPayload(PayloadError):
 
 
 class StanzaBase(xso.XSO):
-    id_ = xso.Attr(
-        tag="id")
     from_ = xso.Attr(
         tag="from",
         type_=xso.JID())
     to = xso.Attr(
         tag="to",
         type_=xso.JID())
+
+    lang = xso.Attr(
+        tag=(namespaces.xml, "lang")
+    )
 
     def __init__(self, *, from_=None, to=None, id_=None):
         super().__init__()
@@ -108,6 +110,7 @@ class Thread(xso.XSO):
 class Message(StanzaBase):
     TAG = (namespaces.client, "message")
 
+    id_ = xso.Attr(tag="id")
     type_ = xso.Attr(
         tag="type",
         validator=xso.RestrictToSet({
@@ -149,6 +152,7 @@ class Message(StanzaBase):
 class Presence(StanzaBase):
     TAG = (namespaces.client, "presence")
 
+    id_ = xso.Attr(tag="id")
     type_ = xso.Attr(
         tag="type",
         validator=xso.RestrictToSet({
@@ -259,6 +263,7 @@ class Error(xso.XSO):
 class IQ(StanzaBase):
     TAG = (namespaces.client, "iq")
 
+    id_ = xso.Attr(tag="id", required=True)
     type_ = xso.Attr(
         tag="type",
         validator=xso.RestrictToSet({
