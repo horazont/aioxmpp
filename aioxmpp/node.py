@@ -49,12 +49,12 @@ from . import (
 from .utils import namespaces
 
 
-def lazy_lookup_addresses(loop, jid):
+def lookup_addresses(loop, jid):
     addresses = yield from network.find_xmpp_host_addr(
         loop,
         jid.domain)
 
-    yield from network.group_and_order_srv_records(addresses)
+    return network.group_and_order_srv_records(addresses)
 
 @asyncio.coroutine
 def connect_to_xmpp_server(jid, *, override_peer=None, loop=None):
@@ -88,14 +88,23 @@ def connect_to_xmpp_server(jid, *, override_peer=None, loop=None):
 
     exceptions = []
 
-    addresses_iterable = lazy_lookup_addresses(loop, jid)
     if override_peer is not None:
-        addresses_iterable = itertools.chain(
-            [override_peer],
-            addresses_iterable
-        )
+        host, port = override_peer
+        try:
+            transport, _ = yield from ssl_transport.create_starttls_connection(
+                loop,
+                lambda: xmlstream,
+                host=host,
+                port=port,
+                peer_hostname=host,
+                server_hostname=jid.domain,
+                use_starttls=True)
+        except OSError as exc:
+            exceptions.append(exc)
+        else:
+            return transport, xmlstream, features_future
 
-    for host, port in addresses_iterable:
+    for host, port in (yield from lookup_addresses(loop, jid)):
         try:
             transport, _ = yield from ssl_transport.create_starttls_connection(
                 loop,
