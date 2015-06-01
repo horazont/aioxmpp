@@ -172,6 +172,22 @@ class TestStanzaStream(StanzaStreamTestBase):
             nonlocal caught_exc
             caught_exc = exc
 
+        iq = make_test_iq(type_="result")
+        iq.autoset_id()
+        self.stream.start(self.xmlstream)
+        self.stream.recv_stanza(iq)
+        run_coroutine(asyncio.sleep(0))
+        self.stream.stop()
+
+        self.assertIsNone(caught_exc)
+
+    def test_ignore_unexpected_iq_error(self):
+        caught_exc = None
+
+        def failure_handler(exc):
+            nonlocal caught_exc
+            caught_exc = exc
+
         iq = make_test_iq(type_="error")
         iq.autoset_id()
         self.stream.start(self.xmlstream)
