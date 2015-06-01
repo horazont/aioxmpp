@@ -172,14 +172,17 @@ class InteractivityMock:
         try:
             do = response.do
         except AttributeError:
+            # we have the for loop outside this except: block, to have a
+            # clearer traceback.
             if not hasattr(response, "__iter__"):
                 raise RuntimeError("test specification incorrect: "
                                    "unknown response type: "+repr(response))
-
-            for item in response:
-                self._execute_response(item)
         else:
             self._execute_single(do)
+            return
+
+        for item in response:
+            self._execute_response(item)
 
 
 _Write = collections.namedtuple("Write", ["data", "response"])
