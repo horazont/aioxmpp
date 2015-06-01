@@ -328,15 +328,12 @@ class AbstractClient:
         self._local_jid = local_jid
         self._loop = loop or asyncio.get_event_loop()
         self._main_task = None
-        self._bind_task = None
         self._security_layer = security_layer
 
         self._failure_future = asyncio.Future()
         self._logger = logging.getLogger("aioxmpp.AbstractClient")
 
         self._backoff_time = None
-        self._sm_id = None
-        self._sm_location = None
 
         self._established = False
 
@@ -351,17 +348,7 @@ class AbstractClient:
         self._failure_future.set_result(exc)
         self._failure_future = asyncio.Future()
 
-    def _stream_established(self):
-        if self._bind_task and not self._bind_task.done():
-            self._bind_task.cancel()
-        self._bind_task = asyncio.async(
-            self._bind(),
-            loop=self._loop
-        )
-        self._bind_task.add_done_callback(self._on_bind_done)
-
     def _stream_destroyed(self):
-        self._bind_task.cancel()
         if self._established:
             self._established = False
             self.on_stream_destroyed()
@@ -377,8 +364,6 @@ class AbstractClient:
             self.on_failure(err)
 
     def _on_main_done(self, task):
-        if self._bind_task and not self._bind_task.done():
-            self._bind_task.cancel()
         try:
             task.result()
         except asyncio.CancelledError:
@@ -389,72 +374,51 @@ class AbstractClient:
             self.on_failure(err)
 
     @asyncio.coroutine
-    def _start_stream_management(self, xmlstream, features, ctx):
-        ctx.start_sm()
-        node = yield from protocol.send_and_wait_for(
-            xmlstream,
-            [
-                stream_xsos.SMEnable(resume=True),
-            ],
-            [
-                stream_xsos.SMEnabled,
-                stream_xsos.SMFailure
-            ]
-        )
-
-        if isinstance(node, stream_xsos.SMFailure):
-            # failed
-            ctx.stop_sm()
-            return
-
-        self._sm_id = node.id_
-        if node.resume:
-            if node.location:
-                self._sm_location = str(node.location[0]), node.location[1]
-
-    @asyncio.coroutine
-    def _resume_stream_management(self, xmlstream, features, ctx):
-        node = yield from protocol.send_and_wait_for(
-            xmlstream,
-            [
-                stream_xsos.SMResume(previd=self._sm_id,
-                                     counter=self.stream.sm_inbound_ctr),
-            ],
-            [
-                stream_xsos.SMResumed,
-                stream_xsos.SMFailure
-            ]
-        )
-        if isinstance(node, stream_xsos.SMFailure):
-            ctx.stop_sm()
+    def _try_resume_stream_management(self, xmlstream, features):
+        try:
+            yield from self.stream.resume_sm(xmlstream)
+        except errors.StreamNegotiationFailure:
             return False
-        ctx.resume_sm(node.counter)
         return True
 
     @asyncio.coroutine
-    def _negotiate_stream_management(self, xmlstream, features, ctx):
-        if self.stream.sm_enabled:
-            resumed = yield from self._resume_stream_management(
-                xmlstream, features, ctx)
-            if resumed:
-                return True
-
-        yield from self._start_stream_management(
-            xmlstream, features, ctx)
-        return False
-
-    @asyncio.coroutine
-    def _negotiate_stream(self, xmlstream, features, ctx):
+    def _negotiate_stream(self, xmlstream, features):
+        server_can_do_sm = True
         try:
             features[stream_xsos.StreamManagementFeature]
         except KeyError:
             if self.stream.sm_enabled:
                 self._logger.warn("server isn’t advertising SM anymore")
-                ctx.stop_sm()
-            resumed = False
+                self.stream.stop_sm()
+            server_can_do_sm = False
+
+        self._logger.debug("negotiating stream (server_can_do_sm=%s)",
+                           server_can_do_sm)
+
+        if self.stream.sm_enabled:
+            resumed = yield from self._try_resume_stream_management(
+                xmlstream, features)
+            if resumed:
+                return features, resumed
         else:
-            resumed = yield from self._negotiate_stream_management(
-                xmlstream, features, ctx)
+            resumed = False
+
+        self.stream.start(xmlstream)
+
+        if not resumed:
+            self._logger.debug("binding to resource")
+            yield from self._bind()
+
+        if server_can_do_sm:
+            self._logger.debug("attempting to start stream management")
+            try:
+                yield from self.stream.start_sm()
+            except errors.StreamNegotiationFailure:
+                self._logger.debug("stream management failed to start")
+            self._logger.debug("stream management started")
+
+        self._established = True
+        self.on_stream_established()
 
         return features, resumed
 
@@ -470,28 +434,31 @@ class AbstractClient:
             )
 
         self._local_jid = result.payload.jid
-
-        self._established = True
-        self.on_stream_established()
+        self._logger.info("bound to jid: %s", self._local_jid)
 
     @asyncio.coroutine
     def _main_impl(self):
         failure_future = self._failure_future
+
+        override_peer = None
+        if self.stream.sm_enabled:
+            override_peer = self.stream.sm_location
+            if override_peer:
+                override_peer = str(override_peer[0]), override_peer[1]
+
         tls_transport, xmlstream, features = \
             yield from connect_secured_xmlstream(
                 self._local_jid,
                 self._security_layer,
                 negotiation_timeout=self.negotiation_timeout.total_seconds(),
-                override_peer=self._sm_location,
+                override_peer=override_peer,
                 loop=self._loop)
 
-        with self.stream.transactional_start(xmlstream) as ctx:
+        try:
             features, sm_resumed = yield from self._negotiate_stream(
                 xmlstream,
-                features,
-                ctx)
+                features)
 
-        try:
             self._backoff_time = None
 
             exc = yield from failure_future
@@ -512,10 +479,6 @@ class AbstractClient:
             stack.enter_context(
                 self.stream.on_stream_destroyed.context_connect(
                     self._stream_destroyed)
-            )
-            stack.enter_context(
-                self.stream.on_stream_established.context_connect(
-                    self._stream_established)
             )
             while True:
                 self._failure_future = asyncio.Future()

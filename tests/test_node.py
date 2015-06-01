@@ -856,7 +856,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
         run_coroutine_with_peer(
             stimulus(),
             self.xmlstream.run_test(
-                [
+                self.resource_binding+[
                     XMLStreamMock.Send(
                         stanza.IQ(),
                         response=[
@@ -873,7 +873,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
                                 resource=self.test_jid.resource)
                         ),
                     )
-                ]+self.resource_binding
+                ]
             )
         )
 
@@ -999,15 +999,14 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
         self.features[...] = stream_xsos.StreamManagementFeature()
 
         self.client.start()
-        with unittest.mock.patch.object(
-                self.client.stream, "_start_sm") as mock:
-            run_coroutine(self.xmlstream.run_test(
-                self.sm_negotiation_exchange+
-                self.resource_binding
-            ))
-            mock.assert_called_once_with()
+        run_coroutine(self.xmlstream.run_test(
+            self.resource_binding+
+            self.sm_negotiation_exchange
+        ))
 
-        run_coroutine(asyncio.sleep(0))
+        self.assertTrue(self.client.stream.sm_enabled)
+        self.assertTrue(self.client.stream.running)
+        self.assertTrue(self.client.running)
 
         self.established_rec.assert_called_once_with()
         self.assertFalse(self.destroyed_rec.mock_calls)
@@ -1023,7 +1022,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
                 unittest.mock.patch.object(self.client.stream, "_resume_sm"),
             )
 
-            run_coroutine(self.xmlstream.run_test([
+            run_coroutine(self.xmlstream.run_test(self.resource_binding+[
                 XMLStreamMock.Send(
                     stream_xsos.SMEnable(resume=True),
                     response=[
@@ -1046,7 +1045,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
                         )
                     ]
                 )
-            ]+self.resource_binding+self.sm_request))
+            ]))
 
             _resume_sm.assert_called_once_with(0)
 
@@ -1060,22 +1059,34 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
         self.client.start()
 
         run_coroutine(self.xmlstream.run_test([
-        ]+self.sm_negotiation_exchange+self.resource_binding+[
+        ]+self.resource_binding+[
             XMLStreamMock.Send(
-                stream_xsos.SMRequest(),
+                stream_xsos.SMEnable(resume=True),
                 response=[
-                    XMLStreamMock.Fail(
-                        exc=ConnectionError()
+                    XMLStreamMock.Receive(
+                        stream_xsos.SMEnabled(resume=True,
+                                              id_="foobar"),
+
                     ),
-                ],
-            )
+                    XMLStreamMock.Fail(
+                    exc=ConnectionError()
+                    ),
+                    XMLStreamMock.CleanFailure()
+                ]
+            ),
         ]))
 
         del self.features[stream_xsos.StreamManagementFeature]
 
         run_coroutine(self.xmlstream.run_test(self.resource_binding))
+        run_coroutine(asyncio.sleep(0))
 
-        self.established_rec.assert_called_once_with()
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call()
+            ]*2,
+            self.established_rec.mock_calls
+        )
         self.destroyed_rec.assert_called_once_with()
 
     def test_reconnect_at_advised_location_for_resumable_stream(self):
@@ -1085,6 +1096,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
         self.client.start()
 
         run_coroutine(self.xmlstream.run_test([
+        ]+self.resource_binding+[
             XMLStreamMock.Send(
                 stream_xsos.SMEnable(resume=True),
                 response=[
@@ -1109,7 +1121,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
                     )
                 ]
             )
-        ]+self.resource_binding+self.sm_request))
+        ]))
 
         self.assertSequenceEqual(
             [
@@ -1139,15 +1151,16 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
         self.client.start()
 
         run_coroutine(self.xmlstream.run_test([
+        ]+self.resource_binding+[
             XMLStreamMock.Send(
                 stream_xsos.SMEnable(resume=True),
                 response=[
                     XMLStreamMock.Receive(
-                        stream_xsos.SMFailure(),
+                        stream_xsos.SMFailed(),
                     ),
                 ]
             ),
-        ]+self.resource_binding))
+        ]))
 
         run_coroutine(asyncio.sleep(0))
 
@@ -1163,6 +1176,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
         self.client.start()
 
         run_coroutine(self.xmlstream.run_test([
+        ]+self.resource_binding+[
             XMLStreamMock.Send(
                 stream_xsos.SMEnable(resume=True),
                 response=[
@@ -1181,10 +1195,11 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
                 stream_xsos.SMResume(counter=0, previd="foobar"),
                 response=[
                     XMLStreamMock.Receive(
-                        stream_xsos.SMFailure()
+                        stream_xsos.SMFailed()
                     )
                 ]
             ),
+        ]+self.resource_binding+[
             XMLStreamMock.Send(
                 stream_xsos.SMEnable(resume=True),
                 response=[
@@ -1195,13 +1210,25 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
                     ),
                 ]
             ),
-        ]+self.resource_binding+self.sm_request))
+        ]))
 
         self.assertTrue(self.client.stream.sm_enabled)
         self.assertTrue(self.client.running)
 
-        self.established_rec.assert_called_once_with()
-        self.assertFalse(self.destroyed_rec.mock_calls)
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(),  # stream established #1
+                unittest.mock.call(),  # resumption failed, so new stream
+            ],
+            self.established_rec.mock_calls
+        )
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(),  # resumption failed
+            ],
+            self.destroyed_rec.mock_calls
+        )
 
     def test_fail_on_resource_binding_error(self):
         self.client.start()
@@ -1243,76 +1270,6 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
         )
 
         self.assertFalse(self.established_rec.mock_calls)
-        self.assertFalse(self.destroyed_rec.mock_calls)
-
-    def test_resume_stream_management_during_resource_binding(self):
-        self.features[...] = stream_xsos.StreamManagementFeature()
-
-        self.client.backoff_start = timedelta(seconds=0)
-        self.client.negotiation_timeout = timedelta(seconds=0.01)
-        self.client.start()
-
-        run_coroutine(self.xmlstream.run_test([
-        ]+self.sm_negotiation_exchange+[
-            XMLStreamMock.Send(
-                stanza.IQ(
-                    payload=rfc6120.Bind(
-                        resource=self.test_jid.resource),
-                    type_="set"),
-                # we let the response go missing, let’s see whether
-                # retransmission works...
-            ),
-            XMLStreamMock.Send(
-                stream_xsos.SMRequest(),
-                response=[
-                    XMLStreamMock.Fail(
-                        exc=ConnectionError()
-                    ),
-                    XMLStreamMock.CleanFailure()
-                ],
-            ),
-            XMLStreamMock.Send(
-                stream_xsos.SMResume(counter=0, previd="foobar"),
-                response=[
-                    XMLStreamMock.Receive(
-                        stream_xsos.SMResumed(counter=0)
-                    )
-                ]
-            ),
-        ]+self.resource_binding+self.sm_request))
-
-        self.established_rec.assert_called_once_with()
-        self.assertFalse(self.destroyed_rec.mock_calls)
-
-    def test_resume_stream_management_after_resource_binding(self):
-        self.features[...] = stream_xsos.StreamManagementFeature()
-
-        self.client.backoff_start = timedelta(seconds=0)
-        self.client.negotiation_timeout = timedelta(seconds=0.01)
-        self.client.start()
-
-        run_coroutine(self.xmlstream.run_test([
-        ]+self.sm_negotiation_exchange+self.resource_binding+[
-            XMLStreamMock.Send(
-                stream_xsos.SMRequest(),
-                response=[
-                    XMLStreamMock.Fail(
-                        exc=ConnectionError()
-                    ),
-                    XMLStreamMock.CleanFailure()
-                ],
-            ),
-            XMLStreamMock.Send(
-                stream_xsos.SMResume(counter=1, previd="foobar"),
-                response=[
-                    XMLStreamMock.Receive(
-                        stream_xsos.SMResumed(counter=1)
-                    )
-                ]
-            )
-        ]))
-
-        self.established_rec.assert_called_once_with()
         self.assertFalse(self.destroyed_rec.mock_calls)
 
     def test_resource_binding(self):
@@ -1390,9 +1347,8 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
         self.client.start()
 
         run_coroutine(self.xmlstream.run_test(
-            self.sm_negotiation_exchange+
             self.resource_binding+
-            self.sm_request
+            self.sm_negotiation_exchange
         ))
 
         exc = errors.AuthenticationFailure("not-authorized")
