@@ -878,8 +878,11 @@ class StanzaStream:
         the stanza. The *kwargs* are passed to the :class:`StanzaToken`
         constructor.
         """
+        if not stanza.id_:
+            raise ValueError("stanza has no id")
         token = StanzaToken(stanza, **kwargs)
         self._active_queue.put_nowait(token)
+        stanza.autoset_id()
         self._logger.debug("enqueued stanza %r with token %r",
                            stanza, token)
         return token
@@ -1243,6 +1246,7 @@ class StanzaStream:
         ``result``. If it is an ``error``, the error is raised as a
         :class:`aioxmpp.errors.XMPPError` exception.
         """
+        iq.autoset_id()
         fut = asyncio.Future(loop=self._loop)
         self.register_iq_response_future(
             iq.to,

@@ -240,6 +240,13 @@ class TestStanzaStream(StanzaStreamTestBase):
 
         self.stream.stop()
 
+    def test_enqueue_stanza_requires_id(self):
+        iq = make_test_iq(type_="get")
+        iq.id_ = None
+
+        with self.assertRaisesRegexp(ValueError, "stanza has no id"):
+            self.stream.enqueue_stanza(iq)
+
     def test_start_stop(self):
         self.stream.start(self.xmlstream)
 
@@ -475,6 +482,7 @@ class TestStanzaStream(StanzaStreamTestBase):
 
     def test_rescue_unprocessed_outgoing_stanza_on_stop(self):
         pres = make_test_presence()
+        pres.autoset_id()
 
         self.stream.start(self.xmlstream)
 
@@ -506,6 +514,7 @@ class TestStanzaStream(StanzaStreamTestBase):
 
     def test_unprocessed_outgoing_stanza_does_not_get_lost_after_stop(self):
         pres = make_test_presence()
+        pres.autoset_id()
 
         self.stream.start(self.xmlstream)
 
@@ -773,6 +782,26 @@ class TestStanzaStream(StanzaStreamTestBase):
 
         self.stream.start(self.xmlstream)
         run_coroutine(asyncio.sleep(0))
+        self.stream.recv_stanza(response)
+        result = run_coroutine(task)
+        self.assertIs(
+            response,
+            result
+        )
+
+    def test_send_iq_and_wait_for_reply_autosets_id(self):
+        iq = make_test_iq()
+        iq.id_ = None
+
+        task = asyncio.async(
+            self.stream.send_iq_and_wait_for_reply(iq),
+            loop=self.loop)
+
+        self.stream.start(self.xmlstream)
+        run_coroutine(asyncio.sleep(0))
+        # this is a hack, which only works because send_iq_and_wait_for_reply
+        # mutates the object
+        response = iq.make_reply(type_="result")
         self.stream.recv_stanza(response)
         result = run_coroutine(task)
         self.assertIs(
