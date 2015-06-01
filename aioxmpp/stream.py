@@ -885,20 +885,6 @@ class StanzaStream:
         """
         return self._task is not None and not self._task.done()
 
-    def _start_sm(self):
-        """
-        Version of :meth:`start_sm` which may be called during slow start.
-        """
-        if self.sm_enabled:
-            raise RuntimeError("Stream Management already enabled")
-
-        self._logger.info("starting SM handling")
-        self._sm_outbound_base = 0
-        self._sm_inbound_ctr = 0
-        self._sm_unacked_list = []
-        self._sm_enabled = True
-        self._ping_send_opportunistic = True
-
     @asyncio.coroutine
     def start_sm(self, request_resumption=True):
         """
@@ -906,7 +892,8 @@ class StanzaStream:
         with the server.
 
         If the server rejects the attempt to enable stream management, a
-        :class:`errors.StreamNegotiationError` is raised.
+        :class:`.errors.StreamNegotiationFailure` is raised. The stream is
+        still running in that case.
 
         .. warning::
 
@@ -931,14 +918,28 @@ class StanzaStream:
                 stream_xsos.SMEnable(resume=bool(request_resumption)),
             ],
             [
-                stream_xsos.SMEnabled
+                stream_xsos.SMEnabled,
+                stream_xsos.SMFailed
             ]
         )
 
+        if isinstance(response, stream_xsos.SMFailed):
+            raise errors.StreamNegotiationFailure(
+                "Server rejected SM request")
+
+        self._sm_outbound_base = 0
+        self._sm_inbound_ctr = 0
+        self._sm_unacked_list = []
+        self._sm_enabled = True
         self._sm_id = response.id_
         self._sm_resumable = response.resume
         self._sm_max = response.max_
         self._sm_location = response.location
+        self._ping_send_opportunistic = True
+
+        self._logger.info("SM started: resumable=%s, stream id=%r",
+                          self._sm_resumable,
+                          self._sm_id)
 
         self._xmlstream.stanza_parser.add_class(
             stream_xsos.SMRequest,
@@ -946,8 +947,6 @@ class StanzaStream:
         self._xmlstream.stanza_parser.add_class(
             stream_xsos.SMAcknowledgement,
             self.recv_stanza)
-
-        return self._start_sm()
 
     @property
     def sm_enabled(self):
@@ -1096,8 +1095,8 @@ class StanzaStream:
         Resume an SM-enabled stream using the given *xmlstream*.
 
         If the server rejects the attempt to resume stream management, a
-        :class:`errors.StreamNegotiationError` is raised. The stream is then in
-        stopped state.
+        :class:`.errors.StreamNegotiationFailure` is raised. The stream is then
+        in stopped state and stream management has been stopped.
 
         .. warning::
 
@@ -1122,9 +1121,15 @@ class StanzaStream:
                                      counter=self._sm_inbound_ctr)
             ],
             [
-                stream_xsos.SMResumed
+                stream_xsos.SMResumed,
+                stream_xsos.SMFailed
             ]
         )
+
+        if isinstance(response, stream_xsos.SMFailed):
+            self.stop_sm()
+            raise errors.StreamNegotiationFailure(
+                "Server rejected SM resumption")
 
         self._resume_sm(response.counter)
         self.start(xmlstream)

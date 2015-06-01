@@ -935,6 +935,76 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
 
         self.assertFalse(self.destroyed_rec.mock_calls)
 
+    def test_sm_start_failure(self):
+        self.stream.start(self.xmlstream)
+        with self.assertRaises(errors.StreamNegotiationFailure):
+            run_coroutine_with_peer(
+                self.stream.start_sm(),
+                self.xmlstream.run_test([
+                    XMLStreamMock.Send(
+                        stream_xsos.SMEnable(resume=True),
+                        response=XMLStreamMock.Receive(
+                            stream_xsos.SMFailed()
+                        )
+                    )
+                ])
+            )
+
+        self.assertTrue(self.stream.running)
+        self.assertFalse(self.stream.sm_enabled)
+
+    def test_sm_start_stanza_race_processing(self):
+        iq = make_test_iq()
+        error_iq = iq.make_reply(type_="error")
+        error_iq.error = stanza.Error(
+            condition=(namespaces.stanzas, "feature-not-implemented")
+        )
+
+        iq_sent = make_test_iq()
+
+        @asyncio.coroutine
+        def starter():
+            sm_start_future = asyncio.async(self.stream.start_sm())
+            self.stream.enqueue_stanza(iq_sent)
+
+        self.stream.start(self.xmlstream)
+        run_coroutine_with_peer(
+            starter(),
+            self.xmlstream.run_test([
+                XMLStreamMock.Send(
+                    stream_xsos.SMEnable(resume=True),
+                    response=[
+                        XMLStreamMock.Receive(
+                            stream_xsos.SMEnabled(resume=True,
+                                                  id_="barbaz")
+                        ),
+                        XMLStreamMock.Receive(iq)
+                    ]
+                ),
+                XMLStreamMock.Send(
+                    iq_sent,
+                ),
+                XMLStreamMock.Send(error_iq),
+                XMLStreamMock.Send(stream_xsos.SMRequest())
+            ])
+        )
+
+        self.assertTrue(self.stream.running)
+        self.assertTrue(self.stream.sm_enabled)
+
+        self.assertEqual(
+            0,
+            self.stream.sm_outbound_base
+        )
+        self.assertEqual(
+            1,
+            len(self.stream.sm_unacked_list)
+        )
+        self.assertEqual(
+            1,
+            self.stream.sm_inbound_ctr
+        )
+
     def test_sm_ack_requires_enabled_sm(self):
         with self.assertRaisesRegexp(RuntimeError, "is not enabled"):
             self.stream.sm_ack(0)
@@ -1145,6 +1215,31 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
         run_coroutine(asyncio.sleep(0))
         self.stream.stop_sm()
         self.destroyed_rec.assert_called_once_with()
+
+    def test_sm_resumption_failure(self):
+        self.stream.start(self.xmlstream)
+        run_coroutine_with_peer(
+            self.stream.start_sm(),
+            self.xmlstream.run_test(self.successful_sm)
+        )
+        self.stream.stop()
+
+        with self.assertRaises(errors.StreamNegotiationFailure):
+            run_coroutine_with_peer(
+                self.stream.resume_sm(self.xmlstream),
+                self.xmlstream.run_test([
+                    XMLStreamMock.Send(
+                        stream_xsos.SMResume(previd="foobar",
+                                             counter=0),
+                        response=XMLStreamMock.Receive(
+                            stream_xsos.SMFailed()
+                        )
+                    )
+                ])
+            )
+
+        self.assertFalse(self.stream.running)
+        self.assertFalse(self.stream.sm_enabled)
 
     def test_sm_resume_requires_stopped_stream(self):
         self.stream.start(self.xmlstream)
