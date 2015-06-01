@@ -141,6 +141,8 @@ class SASLFailure(xso.XSO):
 class SASLSuccess(xso.XSO):
     TAG = (namespaces.sasl, "success")
 
+    payload = xso.Text(type_=xso.Base64Binary(empty_as_equal=True))
+
 
 class SASLAbort(xso.XSO):
     TAG = (namespaces.sasl, "abort")

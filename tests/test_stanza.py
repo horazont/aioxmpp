@@ -26,7 +26,7 @@ class TestStanzaBase(unittest.TestCase):
         self.assertEqual(
             (None, "id"),
             stanza.StanzaBase.id_.tag)
-        self.assertTrue(stanza.StanzaBase.id_.required)
+        self.assertFalse(stanza.StanzaBase.id_.required)
 
     def test_from_attr(self):
         self.assertIsInstance(
@@ -297,6 +297,12 @@ class TestPresence(unittest.TestCase):
             "<presence from='foo@example.test' to='bar@example.test'"
             " id='someid' type=None>",
             repr(s)
+        )
+
+    def test_collector(self):
+        self.assertIsInstance(
+            stanza.Presence.unhandled_children,
+            xso.Collector
         )
 
 

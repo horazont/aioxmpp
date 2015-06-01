@@ -7,6 +7,31 @@ from .utils import namespaces
 
 RANDOM_ID_BYTES = 120 // 8
 
+STANZA_ERROR_TAGS = (
+    "bad-request",
+    "conflict",
+    "feature-not-implemented",
+    "forbidden",
+    "gone",
+    "internal-server-error",
+    "item-not-found",
+    "jid-malformed",
+    "not-acceptable",
+    "not-allowed",
+    "not-authorized",
+    "policy-violation",
+    "recipient-unavailable",
+    "redirect",
+    "registration-required",
+    "remote-server-not-found",
+    "remote-server-timeout",
+    "resource-constraint",
+    "service-unavailable",
+    "subscription-required",
+    "undefined-condition",
+    "unexpected-request",
+)
+
 
 class PayloadError(Exception):
     def __init__(self, msg, partial_obj, ev_args):
@@ -35,8 +60,7 @@ class UnknownIQPayload(PayloadError):
 
 class StanzaBase(xso.XSO):
     id_ = xso.Attr(
-        tag="id",
-        required=True)
+        tag="id")
     from_ = xso.Attr(
         tag="from",
         type_=xso.JID())
@@ -150,6 +174,7 @@ class Presence(StanzaBase):
         validate=xso.ValidateMode.ALWAYS
     )
     ext = xso.ChildMap([])
+    unhandled_children = xso.Collector()
 
     def __init__(self, *, type_=None, show=None, **kwargs):
         super().__init__(**kwargs)
@@ -192,30 +217,7 @@ class Error(xso.XSO):
         default=None,
         declare_prefix=None)
     condition = xso.ChildTag(
-        tags=[
-            "bad-request",
-            "conflict",
-            "feature-not-implemented",
-            "forbidden",
-            "gone",
-            "internal-server-error",
-            "item-not-found",
-            "jid-malformed",
-            "not-acceptable",
-            "not-allowed",
-            "not-authorized",
-            "policy-violation",
-            "recipient-unavailable",
-            "redirect",
-            "registration-required",
-            "remote-server-not-found",
-            "remote-server-timeout",
-            "resource-constraint",
-            "service-unavailable",
-            "subscription-required",
-            "undefined-condition",
-            "unexpected-request",
-        ],
+        tags=STANZA_ERROR_TAGS,
         default_ns="urn:ietf:params:xml:ns:xmpp-stanzas",
         allow_none=False,
         default=("urn:ietf:params:xml:ns:xmpp-stanzas", "undefined-condition"),

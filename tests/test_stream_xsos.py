@@ -284,3 +284,21 @@ class TestSMResumed(unittest.TestCase):
             previd="foobar")
         self.assertEqual(1, obj.counter)
         self.assertEqual("foobar", obj.previd)
+
+
+class TestSMFailed(unittest.TestCase):
+    def test_default_init(self):
+        obj = stream_xsos.SMFailed()
+        self.assertEqual(
+            (namespaces.stanzas, "undefined-condition"),
+            obj.condition
+        )
+
+    def test_init(self):
+        obj = stream_xsos.SMFailed(
+            condition=(namespaces.stanzas, "item-not-found")
+        )
+        self.assertEqual(
+            (namespaces.stanzas, "item-not-found"),
+            obj.condition
+        )

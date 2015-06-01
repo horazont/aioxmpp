@@ -32,7 +32,7 @@ Stream management related XSOs
 """
 import itertools
 
-from . import xso, errors
+from . import xso, errors, stanza
 
 from .utils import namespaces
 
@@ -418,3 +418,16 @@ class SMFailed(SMXSO):
     management fails.
     """
     TAG = (namespaces.stream_management, "failed")
+
+    condition = xso.ChildTag(
+        tags=stanza.STANZA_ERROR_TAGS,
+        default_ns=namespaces.stanzas,
+        allow_none=False,
+        default=(namespaces.stanzas, "undefined-condition"),
+        declare_prefix=None,
+    )
+
+    def __init__(self, condition=None, **kwargs):
+        super().__init__(**kwargs)
+        if condition is not None:
+            self.condition = condition

@@ -8,6 +8,10 @@ namespaces.rfc6120_bind = "urn:ietf:params:xml:ns:xmpp-bind"
 class BindFeature(xso.XSO):
     TAG = (namespaces.rfc6120_bind, "bind")
 
+    class Required(xso.XSO):
+        TAG = (namespaces.rfc6120_bind, "required")
+
+    required = xso.Child([Required])
 
 class Bind(xso.XSO):
     TAG = (namespaces.rfc6120_bind, "bind")
