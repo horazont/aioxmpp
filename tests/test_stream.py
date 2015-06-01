@@ -59,7 +59,6 @@ def make_mocked_streams(loop):
     sent_stanzas = asyncio.Queue()
     xmlstream = unittest.mock.MagicMock()
     xmlstream.send_xso = _on_send_xso
-    xmlstream.stanza_parser = unittest.mock.MagicMock()
     xmlstream.on_failure = callbacks.AdHocSignal()
     stanzastream = stream.StanzaStream(loop=loop)
 
@@ -573,6 +572,78 @@ class TestStanzaStream(StanzaStreamTestBase):
 
         self.assertIsNone(caught_exc)
 
+    def test_wait_stop(self):
+        self.stream.start(self.xmlstream)
+        self.assertTrue(self.stream.running)
+        run_coroutine(self.stream.wait_stop())
+        self.assertFalse(self.stream.running)
+
+    def test_wait_stop_passes_if_not_started(self):
+        self.assertFalse(self.stream.running)
+        run_coroutine(self.stream.wait_stop())
+        self.assertFalse(self.stream.running)
+
+    def test_wait_stop_does_not_reemit_failures(self):
+        self.stream.start(self.xmlstream)
+        run_coroutine(asyncio.sleep(0))
+        self.xmlstream.on_failure(ConnectionError())
+        self.assertTrue(self.stream.running)
+        run_coroutine(self.stream.wait_stop())
+        self.assertFalse(self.stream.running)
+
+    def test_close_normally(self):
+        caught_exc = None
+
+        def failure_handler(exc):
+            nonlocal caught_exc
+            caught_exc = exc
+
+        self.stream.on_failure.connect(failure_handler)
+
+        self.stream.start(self.xmlstream)
+        run_coroutine(asyncio.sleep(0))
+        self.assertTrue(self.stream.running)
+        run_coroutine(self.stream.close())
+        self.assertFalse(self.stream.running)
+
+        self.xmlstream.close.assert_called_once_with()
+        self.assertIsNone(caught_exc)
+
+    def test_close_when_stopped(self):
+        caught_exc = None
+
+        def failure_handler(exc):
+            nonlocal caught_exc
+            caught_exc = exc
+
+        self.stream.on_failure.connect(failure_handler)
+
+        self.assertFalse(self.stream.running)
+        run_coroutine(self.stream.close())
+        self.assertFalse(self.stream.running)
+
+        self.assertIsNone(caught_exc)
+
+    def test_close_after_error(self):
+        caught_exc = None
+        exc = ConnectionError()
+
+        def failure_handler(exc):
+            nonlocal caught_exc
+            caught_exc = exc
+
+        self.stream.on_failure.connect(failure_handler)
+
+        self.stream.start(self.xmlstream)
+        run_coroutine(asyncio.sleep(0))
+        self.xmlstream.on_failure(exc)
+        self.assertTrue(self.stream.running)
+        run_coroutine(self.stream.close())
+        self.assertFalse(self.stream.running)
+
+        self.assertIs(exc, caught_exc)
+        self.assertFalse(self.xmlstream.close.mock_calls)
+
     def test_send_bulk(self):
         state_change_handler = unittest.mock.MagicMock()
         iqs = [make_test_iq() for i in range(3)]
@@ -909,6 +980,14 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
                 response=XMLStreamMock.Receive(
                     stream_xsos.SMEnabled(resume=True,
                                           id_="foobar")
+                )
+            )
+        ]
+        self.sm_without_resume = [
+            XMLStreamMock.Send(
+                stream_xsos.SMEnable(resume=True),
+                response=XMLStreamMock.Receive(
+                    stream_xsos.SMEnabled(resume=False)
                 )
             )
         ]
@@ -1658,6 +1737,89 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
             ],
             [token.state for token in tokens]
         )
+
+    def test_close_swallows_exceptions_if_sm_disabled(self):
+        self.stream.start(self.xmlstream)
+
+        self.established_rec.assert_called_once_with()
+
+        self.assertFalse(self.stream.sm_enabled)
+
+        run_coroutine_with_peer(
+            self.stream.close(),
+            self.xmlstream.run_test(
+                [
+                ],
+                stimulus=XMLStreamMock.Fail(ConnectionError())
+            )
+        )
+
+        self.assertFalse(self.stream.running)
+        self.destroyed_rec.assert_called_once_with()
+
+    def test_close_deletes_sm_state(self):
+        self.stream.start(self.xmlstream)
+        run_coroutine_with_peer(
+            self.stream.start_sm(),
+            self.xmlstream.run_test(self.successful_sm)
+        )
+
+        self.established_rec.assert_called_once_with()
+
+        run_coroutine_with_peer(
+            self.stream.close(),
+            self.xmlstream.run_test([
+                XMLStreamMock.Close()
+            ])
+        )
+
+        self.assertFalse(self.stream.sm_enabled)
+        self.destroyed_rec.assert_called_once_with()
+
+    def test_close_keeps_sm_state_on_exception_during_close_if_resumable(self):
+        self.stream.start(self.xmlstream)
+        run_coroutine_with_peer(
+            self.stream.start_sm(),
+            self.xmlstream.run_test(self.successful_sm)
+        )
+
+        self.established_rec.assert_called_once_with()
+
+        with self.assertRaises(ConnectionError):
+            run_coroutine_with_peer(
+                self.stream.close(),
+                self.xmlstream.run_test(
+                    [
+                        XMLStreamMock.Close()
+                    ],
+                    stimulus=XMLStreamMock.Fail(ConnectionError())
+                )
+            )
+
+        self.assertTrue(self.stream.sm_enabled)
+        self.assertFalse(self.destroyed_rec.mock_calls)
+
+    def test_close_clears_sm_state_on_exception_during_close_if_not_resumable(self):
+        self.stream.start(self.xmlstream)
+        run_coroutine_with_peer(
+            self.stream.start_sm(),
+            self.xmlstream.run_test(self.sm_without_resume)
+        )
+        self.assertFalse(self.stream.sm_resumable)
+
+        self.established_rec.assert_called_once_with()
+
+        run_coroutine_with_peer(
+            self.stream.close(),
+            self.xmlstream.run_test(
+                [
+                ],
+                stimulus=XMLStreamMock.Fail(ConnectionError())
+            )
+        )
+
+        self.assertFalse(self.stream.sm_enabled)
+        self.destroyed_rec.assert_called_once_with()
 
     def tearDown(self):
         run_coroutine(self.xmlstream.run_test([]))

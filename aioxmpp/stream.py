@@ -200,6 +200,10 @@ class StanzaStream:
 
     .. automethod:: stop
 
+    .. automethod:: wait_stop
+
+    .. automethod:: close
+
     .. autoattribute:: running
 
     .. automethod:: flush_incoming
@@ -803,6 +807,50 @@ class StanzaStream:
             return
         self._logger.debug("sending stop signal to task")
         self._task.cancel()
+
+    @asyncio.coroutine
+    def wait_stop(self):
+        """
+        Stop the stream and wait for it to stop.
+
+        See :meth:`stop` for the general stopping conditions. You can assume
+        that :meth:`stop` is the first thing this coroutine calls.
+        """
+        if not self.running:
+            return
+        self.stop()
+        try:
+            yield from self._task
+        except asyncio.CancelledError:
+            pass
+
+    @asyncio.coroutine
+    def close(self):
+        """
+        Close the stream and the underlying XML stream (if any is connected).
+
+        This calls :meth:`wait_stop` and cleans up any Stream Management state,
+        if no error occurs. If an error occurs while the stream stops, that
+        error is re-raised and the stream management state is not cleared,
+        unless resumption is disabled.
+        """
+        if not self.running:
+            return
+        xmlstream = self._xmlstream
+        try:
+            yield from self.wait_stop()
+            self._xmlstream.close()
+        except Exception as exc:
+            if self.sm_enabled:
+                if self.sm_resumable:
+                    raise
+                self._destroy_stream_state(exc)
+                self.stop_sm()
+                return
+        else:
+            self._destroy_stream_state(ConnectionError("close() called"))
+            if self.sm_enabled:
+                self.stop_sm()
 
     @asyncio.coroutine
     def _run(self, xmlstream):
