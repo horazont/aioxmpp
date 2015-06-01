@@ -538,7 +538,9 @@ class XMLStreamMock(InteractivityMock):
     def _send_xso(self, obj):
         self._tester.assertTrue(
             self._actions,
-            self._format_unexpected_action("send_xso", "no actions left")
+            self._format_unexpected_action(
+                "send_xso("+repr(obj)+")",
+                "no actions left")
         )
         head = self._actions[0]
         self._tester.assertIsInstance(

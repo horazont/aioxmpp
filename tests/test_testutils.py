@@ -622,8 +622,10 @@ class TestXMLStreamMock(XMLTestCase):
     def test_catch_surplus_send(self):
         self.xmlstream.send_xso(self.Cls())
 
-        with self.assertRaisesRegexp(AssertionError,
-                                     "unexpected send_xso"):
+        with self.assertRaisesRegexp(
+                AssertionError,
+                r"unexpected send_xso\(<tests.test_testutils.TestXMLStreamMock"
+                r".setUp.<locals>.Cls object at 0x[a-f0-9]+>\)"):
             run_coroutine(self.xmlstream.run_test(
                 [
                 ],
