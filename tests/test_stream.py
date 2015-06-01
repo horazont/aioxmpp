@@ -953,6 +953,81 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
         self.assertTrue(self.stream.running)
         self.assertFalse(self.stream.sm_enabled)
 
+    def test_sm_start_re_raise_xmlstream_errors_during_negotiation(self):
+        exc = ValueError()
+
+        self.stream.start(self.xmlstream)
+        with self.assertRaises(ValueError) as ctx:
+            run_coroutine_with_peer(
+                self.stream.start_sm(),
+                self.xmlstream.run_test([
+                    XMLStreamMock.Send(
+                        stream_xsos.SMEnable(resume=True),
+                        response=XMLStreamMock.Fail(
+                            exc
+                        )
+                    )
+                ])
+            )
+
+        self.assertIs(ctx.exception, exc)
+
+        self.assertFalse(self.stream.running)
+        self.assertFalse(self.stream.sm_enabled)
+
+    def test_sm_start_sm_enabled_on_xmlstream_errors_after_SMEnabled_if_resumable(self):
+        exc = ValueError()
+
+        self.stream.start(self.xmlstream)
+
+        run_coroutine_with_peer(
+            self.stream.start_sm(),
+            self.xmlstream.run_test([
+                XMLStreamMock.Send(
+                    stream_xsos.SMEnable(resume=True),
+                    response=[
+                        XMLStreamMock.Receive(
+                            stream_xsos.SMEnabled(resume=True,
+                                                  id_="foobar"),
+                        ),
+                        XMLStreamMock.Fail(exc)
+                    ]
+                )
+            ])
+        )
+
+        self.assertFalse(self.stream.running)
+        self.assertTrue(self.stream.sm_enabled)
+
+        self.assertTrue(self.established_rec.mock_calls)
+        self.assertFalse(self.destroyed_rec.mock_calls)
+
+    def test_sm_start_sm_disabled_on_xmlstream_errors_after_SMEnabled_if_not_resumable(self):
+        exc = ValueError()
+
+        self.stream.start(self.xmlstream)
+
+        run_coroutine_with_peer(
+            self.stream.start_sm(),
+            self.xmlstream.run_test([
+                XMLStreamMock.Send(
+                    stream_xsos.SMEnable(resume=True),
+                    response=[
+                        XMLStreamMock.Receive(
+                            stream_xsos.SMEnabled(resume=False),
+                        ),
+                        XMLStreamMock.Fail(exc)
+                    ]
+                )
+            ])
+        )
+
+        self.assertFalse(self.stream.running)
+        self.assertFalse(self.stream.sm_enabled)
+
+        self.assertTrue(self.established_rec.mock_calls)
+        self.assertTrue(self.destroyed_rec.mock_calls)
+
     def test_sm_start_stanza_race_processing(self):
         iq = make_test_iq()
         error_iq = iq.make_reply(type_="error")
@@ -984,8 +1059,9 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
                 XMLStreamMock.Send(
                     iq_sent,
                 ),
+                XMLStreamMock.Send(stream_xsos.SMRequest()),
                 XMLStreamMock.Send(error_iq),
-                XMLStreamMock.Send(stream_xsos.SMRequest())
+                XMLStreamMock.Send(stream_xsos.SMRequest()),
             ])
         )
 
@@ -997,7 +1073,7 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
             self.stream.sm_outbound_base
         )
         self.assertEqual(
-            1,
+            2,
             len(self.stream.sm_unacked_list)
         )
         self.assertEqual(

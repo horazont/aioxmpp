@@ -303,6 +303,8 @@ class StanzaStream:
 
         self._sm_enabled = False
 
+        self._broker_lock = asyncio.Lock(loop=loop)
+
     def _done_handler(self, task):
         """
         Called when the main task (:meth:`_run`, :attr:`_task`) returns.
@@ -733,6 +735,8 @@ class StanzaStream:
             xmlstream.stanza_parser.add_class(stream_xsos.SMRequest,
                                               receiver)
 
+        self._xmlstream_exception = None
+
     def _start_rollback(self, xmlstream):
         xmlstream.stanza_parser.remove_class(stanza.Presence)
         xmlstream.stanza_parser.remove_class(stanza.Message)
@@ -746,11 +750,6 @@ class StanzaStream:
         xmlstream.on_failure.disconnect(
             self._xmlstream_failure_token
         )
-
-        if self._xmlstream_exception:
-            exc = self._xmlstream_exception
-            self._xmlstream_exception = None
-            raise exc
 
     def _start_commit(self, xmlstream):
         if not self._established:
@@ -819,25 +818,24 @@ class StanzaStream:
                     return_when=asyncio.FIRST_COMPLETED,
                     timeout=timeout.total_seconds())
 
-                if active_fut in done:
-                    self._process_outgoing(xmlstream, active_fut.result())
-                    active_fut = asyncio.async(
-                        self._active_queue.get(),
-                        loop=self._loop)
+                with (yield from self._broker_lock):
+                    if active_fut in done:
+                        self._process_outgoing(xmlstream, active_fut.result())
+                        active_fut = asyncio.async(
+                            self._active_queue.get(),
+                            loop=self._loop)
 
-                if incoming_fut in done:
-                    self._process_incoming(xmlstream, incoming_fut.result())
-                    incoming_fut = asyncio.async(
-                        self._incoming_queue.get(),
-                        loop=self._loop)
+                    if incoming_fut in done:
+                        self._process_incoming(xmlstream, incoming_fut.result())
+                        incoming_fut = asyncio.async(
+                            self._incoming_queue.get(),
+                            loop=self._loop)
 
-                timeout = self._next_ping_event_at - datetime.utcnow()
-                if timeout.total_seconds() <= 0:
-                    self._process_ping_event(xmlstream)
+                    timeout = self._next_ping_event_at - datetime.utcnow()
+                    if timeout.total_seconds() <= 0:
+                        self._process_ping_event(xmlstream)
 
         finally:
-            self._xmlstream = None
-
             # make sure we rescue any stanzas which possibly have already been
             # caught by the calls to get()
             self._logger.debug("task terminating, rescuing stanzas and "
@@ -852,12 +850,21 @@ class StanzaStream:
             else:
                 active_fut.cancel()
 
-            if not self.sm_enabled:
-                self._destroy_stream_state(
-                    self._xmlstream_exception or
-                    ConnectionError("stream terminating"))
+            # we also lock shutdown, because the main race is among the SM
+            # variables
+            with (yield from self._broker_lock):
+                if not self.sm_enabled or not self.sm_resumable:
+                    if self.sm_enabled:
+                        self._stop_sm()
+                    self._destroy_stream_state(
+                        self._xmlstream_exception or
+                        ConnectionError("stream terminating"))
 
-            self._start_rollback(xmlstream)
+                self._start_rollback(xmlstream)
+
+            if self._xmlstream_exception:
+                raise self._xmlstream_exception
+
 
     def recv_stanza(self, stanza):
         """
@@ -902,6 +909,17 @@ class StanzaStream:
            management without server support might lead to termination of the
            stream.
 
+        If an XML stream error occurs during the negotiation, the result
+        depends on a few factors. In any case, the stream is not running
+        afterwards. If the :class:`SMEnabled` response was not received before
+        the XML stream died, SM is also disabled and the exception which caused
+        the stream to die is re-raised (this is due to the implementation of
+        :func:`~.protocol.send_and_wait_for`). If the :class:`SMEnabled`
+        response was received and annonuced support for resumption, SM is
+        enabled. Otherwise, it is disabled. No exception is raised if
+        :class:`SMEnabled` was received, as this method has no way to determine
+        that the stream failed.
+
         If negotiation succeeds, this coroutine initializes a new stream
         management session. The stream management state attributes become
         available and :attr:`sm_enabled` becomes :data:`True`.
@@ -912,41 +930,47 @@ class StanzaStream:
         if self.sm_enabled:
             raise RuntimeError("Stream Management already enabled")
 
-        response = yield from protocol.send_and_wait_for(
-            self._xmlstream,
-            [
-                stream_xsos.SMEnable(resume=bool(request_resumption)),
-            ],
-            [
-                stream_xsos.SMEnabled,
-                stream_xsos.SMFailed
-            ]
-        )
+        with (yield from self._broker_lock):
+            response = yield from protocol.send_and_wait_for(
+                self._xmlstream,
+                [
+                    stream_xsos.SMEnable(resume=bool(request_resumption)),
+                ],
+                [
+                    stream_xsos.SMEnabled,
+                    stream_xsos.SMFailed
+                ]
+            )
 
-        if isinstance(response, stream_xsos.SMFailed):
-            raise errors.StreamNegotiationFailure(
-                "Server rejected SM request")
+            if isinstance(response, stream_xsos.SMFailed):
+                raise errors.StreamNegotiationFailure(
+                    "Server rejected SM request")
 
-        self._sm_outbound_base = 0
-        self._sm_inbound_ctr = 0
-        self._sm_unacked_list = []
-        self._sm_enabled = True
-        self._sm_id = response.id_
-        self._sm_resumable = response.resume
-        self._sm_max = response.max_
-        self._sm_location = response.location
-        self._ping_send_opportunistic = True
+            self._sm_outbound_base = 0
+            self._sm_inbound_ctr = 0
+            self._sm_unacked_list = []
+            self._sm_enabled = True
+            self._sm_id = response.id_
+            self._sm_resumable = response.resume
+            self._sm_max = response.max_
+            self._sm_location = response.location
+            self._ping_send_opportunistic = True
 
-        self._logger.info("SM started: resumable=%s, stream id=%r",
-                          self._sm_resumable,
-                          self._sm_id)
+            self._logger.info("SM started: resumable=%s, stream id=%r",
+                              self._sm_resumable,
+                              self._sm_id)
 
-        self._xmlstream.stanza_parser.add_class(
-            stream_xsos.SMRequest,
-            self.recv_stanza)
-        self._xmlstream.stanza_parser.add_class(
-            stream_xsos.SMAcknowledgement,
-            self.recv_stanza)
+            # if not self._xmlstream:
+            #     # stream died in the meantime...
+            #     if self._xmlstream_exception:
+            #         raise self._xmlstream_exception
+
+            self._xmlstream.stanza_parser.add_class(
+                stream_xsos.SMRequest,
+                self.recv_stanza)
+            self._xmlstream.stanza_parser.add_class(
+                stream_xsos.SMAcknowledgement,
+                self.recv_stanza)
 
     @property
     def sm_enabled(self):
@@ -1104,6 +1128,12 @@ class StanzaStream:
            support for stream management. Attempting to negotiate stream
            management without server support might lead to termination of the
            stream.
+
+        If the XML stream dies at any point during the negotiation, the SM
+        state is left unchanged. If no response has been received yet, the
+        exception which caused the stream to die is re-raised. The state of the
+        stream depends on whether the main task already noticed the dead
+        stream.
 
         If negotiation succeeds, this coroutine resumes the stream management
         session and initiates the retransmission of any unacked stanzas. The
