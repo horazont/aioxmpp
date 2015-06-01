@@ -534,6 +534,9 @@ class StanzaStream:
         if token.state == StanzaState.ABORTED:
             return
 
+        self._logger.debug("forwarding stanza to xmlstream: %r",
+                           token.stanza)
+
         xmlstream.send_xso(token.stanza)
         if self._sm_enabled:
             token._set_state(StanzaState.SENT)
