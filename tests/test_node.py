@@ -835,6 +835,11 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
         run_coroutine(asyncio.sleep(0.01))
         self.assertFalse(self.client.stream.running)
 
+        run_coroutine(self.xmlstream.run_test([
+        ]+self.resource_binding+[
+            XMLStreamMock.Close()
+        ]))
+
     def test_stop(self):
         run_coroutine(asyncio.sleep(0))
         self.connect_secured_xmlstream_rec.assert_not_called()
@@ -850,6 +855,11 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
         self.assertFalse(self.client.running)
         run_coroutine(asyncio.sleep(0))
         self.assertFalse(self.client.established)
+
+        run_coroutine(self.xmlstream.run_test([
+        ]+self.resource_binding+[
+            XMLStreamMock.Close()
+        ]))
 
     def test_reconnect_on_failure(self):
         self.client.backoff_start = timedelta(seconds=0.008)
@@ -1541,7 +1551,9 @@ class TestPresenceManagedClient(xmltestutils.XMLTestCase):
 
         self.client.presence = structs.PresenceState()
 
-        run_coroutine(self.xmlstream.run_test([]))
+        run_coroutine(self.xmlstream.run_test([
+            XMLStreamMock.Close(),
+        ]))
 
         self.assertFalse(self.client.running)
 
