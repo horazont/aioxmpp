@@ -172,20 +172,14 @@ class InteractivityMock:
         try:
             do = response.do
         except AttributeError:
-            # if we move the for-loop into the except block, *very* weird
-            # things happen. weird enough so that I decided to snapshot the
-            # state of the tree while I was debugging in the weird-things
-            # branch.
-            # Have a look if you’re brave.
             if not hasattr(response, "__iter__"):
                 raise RuntimeError("test specification incorrect: "
                                    "unknown response type: "+repr(response))
+
+            for item in response:
+                self._execute_response(item)
         else:
             self._execute_single(do)
-            return
-
-        for item in response:
-            self._execute_response(item)
 
 
 _Write = collections.namedtuple("Write", ["data", "response"])

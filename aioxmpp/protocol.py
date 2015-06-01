@@ -206,9 +206,7 @@ class XMLStream(asyncio.Protocol):
         raise ConnectionError("xmlstream not connected")
 
     def _rx_exception(self, exc):
-        try:
-            raise exc
-        except stanza.PayloadParsingError as exc:
+        if isinstance(exc, stanza.PayloadParsingError):
             iq_response = exc.partial_obj.make_reply(type_="error")
             iq_response.error = stanza.Error(
                 condition=(namespaces.stanzas, "bad-request"),
@@ -216,21 +214,22 @@ class XMLStream(asyncio.Protocol):
                 text=str(exc.__context__)
             )
             self._writer.send(iq_response)
-        except stanza.UnknownIQPayload as exc:
+        elif isinstance(exc, stanza.UnknownIQPayload):
             iq_response = exc.partial_obj.make_reply(type_="error")
             iq_response.error = stanza.Error(
                 condition=(namespaces.stanzas, "feature-not-implemented"),
                 type_="cancel",
             )
             self._writer.send(iq_response)
-        except xso.UnknownTopLevelTag as exc:
+        elif isinstance(exc, xso.UnknownTopLevelTag):
             raise errors.StreamError(
                 condition=(namespaces.streams, "unsupported-stanza-type"),
                 text="unsupported stanza: {}".format(
                     xso.tag_to_str((exc.ev_args[0], exc.ev_args[1]))
                 )) from None
-        except:
-            raise
+        else:
+            context = exc.__context__ or exc.__cause__
+            raise exc from context
 
     def _rx_stream_header(self):
         if self._processor.remote_version != (1, 0):
