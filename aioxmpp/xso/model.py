@@ -127,6 +127,7 @@ class UnknownTopLevelTag(ValueError):
 
 class _PropBase:
     def __init__(self, default,
+                 *,
                  validator=None,
                  validate=ValidateMode.FROM_RECV):
         super().__init__()
@@ -172,7 +173,21 @@ class _PropBase:
         parent.extend(handler.etree.getroot())
 
 
-class Text(_PropBase):
+class _TypedPropBase(_PropBase):
+    def __init__(self, default,
+                 *,
+                 type_=xso_types.String(),
+                 **kwargs):
+        super().__init__(default, **kwargs)
+        self.type_ = type_
+
+    def __set__(self, instance, value):
+        if value is not None:
+            value = self.type_.coerce(value)
+        super().__set__(instance, value)
+
+
+class Text(_TypedPropBase):
     """
     When assigned to a class’ attribute, it collects all character data of the
     XML element.
@@ -192,11 +207,9 @@ class Text(_PropBase):
     """
 
     def __init__(self,
-                 type_=xso_types.String(),
                  default=None,
                  **kwargs):
         super().__init__(default, **kwargs)
-        self.type_ = type_
 
     def from_value(self, instance, value):
         """
@@ -469,7 +482,7 @@ class Attr(Text):
         d[self.tag] = self.type_.format(value)
 
 
-class ChildText(_PropBase):
+class ChildText(_TypedPropBase):
     """
     When assigned to a class’ attribute, it binds that attribute to the XML
     character data of a child element with the given *tag*. *tag* must be a
@@ -493,7 +506,7 @@ class ChildText(_PropBase):
     """
 
     def __init__(self, tag,
-                 type_=xso_types.String(),
+                 *,
                  default=None,
                  child_policy=UnknownChildPolicy.FAIL,
                  attr_policy=UnknownAttrPolicy.FAIL,
@@ -501,7 +514,6 @@ class ChildText(_PropBase):
                  **kwargs):
         super().__init__(default=default, **kwargs)
         self.tag = normalize_tag(tag)
-        self.type_ = type_
         self.default = default
         self.child_policy = child_policy
         self.attr_policy = attr_policy

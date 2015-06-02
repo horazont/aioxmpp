@@ -1,4 +1,5 @@
 import asyncio
+import ipaddress
 import time
 import unittest
 
@@ -1043,7 +1044,7 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
             self.stream.sm_id
         )
         self.assertEqual(
-            ("fe80::", 5222),
+            (ipaddress.IPv6Address("fe80::"), 5222),
             self.stream.sm_location
         )
         self.assertEqual(

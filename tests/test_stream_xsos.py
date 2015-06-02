@@ -250,11 +250,11 @@ class TestSMEnabled(unittest.TestCase):
         obj = stream_xsos.SMEnabled(
             resume=True,
             id_="foobar",
-            location="bar:baz",
+            location=("bar", 1234),
             max_="fnord")
         self.assertTrue(obj.resume)
         self.assertEqual("foobar", obj.id_)
-        self.assertEqual("bar:baz", obj.location)
+        self.assertEqual(("bar", 1234), obj.location)
         self.assertEqual("fnord", obj.max_)
 
 

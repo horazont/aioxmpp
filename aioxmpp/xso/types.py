@@ -7,9 +7,12 @@ See :mod:`aioxmpp.xso` for documentation.
 """
 
 import abc
+import array
 import base64
 import binascii
+import decimal
 import ipaddress
+import numbers
 import unicodedata
 import re
 
@@ -24,10 +27,38 @@ class AbstractType(metaclass=abc.ABCMeta):
     """
     This is the interface all types must implement.
 
+    .. automethod:: check
+
     .. automethod:: parse
 
     .. automethod:: format
     """
+
+    def coerce(self, v):
+        """
+        Force the given value *v* to be of the type represented by this
+        :class:`AbstractType`. :meth:`check` is called when user code assigns
+        values to descriptors which use the type; it is notably not called when
+        values are extracted from SAX events, as these go through :meth:`parse`
+        and that is expected to return correctly typed values.
+
+        If *v* cannot be sensibly coerced, :class:`TypeError` is raised (in
+        some rare occasions, :class:`ValueError` may be ok too).
+
+        Return a coerced version of *v* or *v* itself if it matches the
+        required type.
+
+        .. note::
+
+           For the sake of usability, coercion should only take place rarely;
+           in most of the cases, throwing :class:`TypeError` is the preferred
+           method.
+
+           Otherwise, a user might be surprised why the :class:`int` they
+           assigned to an attribute suddenly became a :class:`str`.
+
+        """
+        return v
 
     @abc.abstractmethod
     def parse(self, v):
@@ -36,6 +67,8 @@ class AbstractType(metaclass=abc.ABCMeta):
         class implements and return the result.
 
         If conversion fails, :class:`ValueError` is raised.
+
+        The result of :meth:`parse` must pass through :meth:`check`.
         """
 
     def format(self, v):
@@ -53,6 +86,11 @@ class String(AbstractType):
     returned unmodified.
     """
 
+    def coerce(self, v):
+        if not isinstance(v, str):
+            raise TypeError("must be a str object")
+        return v
+
     def parse(self, v):
         return v
 
@@ -62,6 +100,11 @@ class Integer(AbstractType):
     Parse the value as base-10 integer and return the result as :class:`int`.
     """
 
+    def coerce(self, v):
+        if not isinstance(v, numbers.Integral):
+            raise TypeError("must be integral number")
+        return int(v)
+
     def parse(self, v):
         return int(v)
 
@@ -70,6 +113,11 @@ class Float(AbstractType):
     """
     Parse the value as decimal float and return the result as :class:`float`.
     """
+
+    def coerce(self, v):
+        if not isinstance(v, (numbers.Real, decimal.Decimal)):
+            raise TypeError("must be real number")
+        return float(v)
 
     def parse(self, v):
         return float(v)
@@ -84,6 +132,9 @@ class Bool(AbstractType):
     * everything else results in a :class:`ValueError` exception.
 
     """
+
+    def coerce(self, v):
+        return bool(v)
 
     def parse(self, v):
         v = v.strip()
@@ -115,6 +166,11 @@ class DateTime(AbstractType):
     """
 
     tzextract = re.compile("((Z)|([+-][0-9]{2}):([0-9]{2}))$")
+
+    def coerce(self, v):
+        if not isinstance(v, datetime):
+            raise TypeError("must be a datetime object")
+        return v
 
     def parse(self, v):
         v = v.strip()
@@ -152,7 +208,20 @@ class DateTime(AbstractType):
         return result
 
 
-class Base64Binary(AbstractType):
+class _BinaryType(AbstractType):
+    """
+    Implements pointful coercion for binary types.
+    """
+
+    def coerce(self, v):
+        if isinstance(v, bytes):
+            return v
+        elif isinstance(v, (bytearray, array.array)):
+            return bytes(v)
+        raise TypeError("must be convertible to bytes")
+
+
+class Base64Binary(_BinaryType):
     """
     Parse the value as base64 and return the :class:`bytes` object obtained
     from decoding.
@@ -174,7 +243,7 @@ class Base64Binary(AbstractType):
         return base64.b64encode(v).decode("ascii")
 
 
-class HexBinary(AbstractType):
+class HexBinary(_BinaryType):
     """
     Parse the value as hexadecimal blob and return the :class:`bytes` object
     obtained from decoding.
@@ -193,6 +262,13 @@ class JID(AbstractType):
     return the :class:`aioxmpp.structs.JID` object.
     """
 
+    def coerce(self, v):
+        if not isinstance(v, structs.JID):
+            raise TypeError("{} object {!r} is not a JID".format(
+                type(v), v))
+
+        return v
+
     def parse(self, v):
         return structs.JID.fromstr(v)
 
@@ -203,14 +279,37 @@ class ConnectionLocation(AbstractType):
     Management reconnection location advisories.
     """
 
+    def coerce(self, v):
+        if not isinstance(v, tuple):
+            raise TypeError("2-tuple required for ConnectionLocation")
+        if len(v) != 2:
+            raise TypeError("2-tuple required for ConnectionLocation")
+
+        addr, port = v
+
+        if not isinstance(port, numbers.Integral):
+            raise TypeError("port number must be integral number")
+        port = int(port)
+
+        if not (0 <= port <= 65535):
+            raise ValueError("port number {} out of range".format(port))
+
+        try:
+            addr = ipaddress.IPv4Address(addr)
+        except ValueError:
+            try:
+                addr = ipaddress.IPv6Address(addr)
+            except ValueError:
+                pass
+
+        return (addr, port)
+
     def parse(self, v):
         v = v.strip()
         addr, _, port = v.rpartition(":")
         if not _:
             raise ValueError("missing colon in connection location")
         port = int(port)
-        if not (0 <= port <= 65535):
-            raise ValueError("port number {} out of range".format(port))
 
         if addr.startswith("[") and addr.endswith("]"):
             addr = ipaddress.IPv6Address(addr[1:-1])
@@ -220,7 +319,7 @@ class ConnectionLocation(AbstractType):
         except ValueError:
             pass
 
-        return (addr, port)
+        return self.coerce((addr, port))
 
     def format(self, v):
         if isinstance(v[0], ipaddress.IPv6Address):

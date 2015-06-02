@@ -1031,6 +1031,55 @@ class Test_PropBase(unittest.TestCase):
         del self.default
 
 
+class Test_TypedPropBase(unittest.TestCase):
+    def test_coerce_on_code_access(self):
+        type_ = unittest.mock.MagicMock()
+        instance = make_instance_mock()
+
+        prop = xso_model._TypedPropBase(
+            default=None,
+            type_=type_)
+
+        prop._set_from_code(instance, "bar")
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call.coerce("bar"),
+            ],
+            type_.mock_calls
+        )
+
+        self.assertDictEqual(
+            {
+                prop: type_.coerce(),
+            },
+            instance._stanza_props
+        )
+
+    def test_do_not_coerce_None(self):
+        type_ = unittest.mock.MagicMock()
+        instance = make_instance_mock()
+
+        prop = xso_model._TypedPropBase(
+            default=None,
+            type_=type_)
+
+        prop._set_from_code(instance, None)
+
+        self.assertSequenceEqual(
+            [
+            ],
+            type_.mock_calls
+        )
+
+        self.assertDictEqual(
+            {
+                prop: None
+            },
+            instance._stanza_props
+        )
+
+
 class TestText(XMLTestCase):
     def setUp(self):
         class ClsA(xso.XSO):
@@ -1100,6 +1149,19 @@ class TestText(XMLTestCase):
                 unittest.mock.call.validate("foo"),
             ],
             validator.mock_calls)
+
+    def test_coerces(self):
+        type_ = unittest.mock.MagicMock()
+        instance = make_instance_mock()
+
+        prop = xso.Text(type_=type_)
+        prop.__set__(instance, "foo")
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call.coerce("foo"),
+            ],
+            type_.mock_calls)
 
     def test_to_sax_unset(self):
         instance = make_instance_mock()
@@ -1487,6 +1549,20 @@ class TestAttr(XMLTestCase):
             ],
             validator.mock_calls)
 
+    def test_coerces(self):
+        type_ = unittest.mock.MagicMock()
+        instance = make_instance_mock()
+
+        prop = xso.Attr("foo", type_=type_)
+        prop.__set__(instance, "bar")
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call.coerce("bar"),
+            ],
+            type_.mock_calls
+        )
+
 
 class TestChildText(XMLTestCase):
     def test_init(self):
@@ -1732,6 +1808,20 @@ class TestChildText(XMLTestCase):
             ],
             dest.mock_calls)
 
+    def test_coerces(self):
+        type_ = unittest.mock.MagicMock()
+        instance = make_instance_mock()
+
+        prop = xso.ChildText("body", type_=type_)
+        prop.__set__(instance, "bar")
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call.coerce("bar"),
+            ],
+            type_.mock_calls
+        )
+
 
 class TestChildMap(XMLTestCase):
     def test_class_access_returns_property(self):
@@ -1823,7 +1913,7 @@ class TestChildMap(XMLTestCase):
         instance = make_instance_mock({
             prop: {
                 Bar.TAG: [Bar()],
-                Foo.TAG: [Foo(a=1), Foo(a=2)]
+                Foo.TAG: [Foo(a="1"), Foo(a="2")]
             }
         })
 

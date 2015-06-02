@@ -1,7 +1,10 @@
 import abc
+import decimal
+import fractions
 import inspect
 import ipaddress
 import unittest
+import unittest.mock
 
 import pytz
 
@@ -54,6 +57,28 @@ class TestStringType(unittest.TestCase):
             "foo",
             t.format("foo"))
 
+    def test_coerce_passes_string(self):
+        t = xso.String()
+        s = "foobar"
+        self.assertIs(s, t.coerce(s))
+
+    def test_coerce_rejects_non_strings(self):
+        t = xso.String()
+
+        values = [
+            1.2,
+            decimal.Decimal("1"),
+            fractions.Fraction(1, 1),
+            [],
+            (),
+            1.
+        ]
+
+        for value in values:
+            with self.assertRaisesRegexp(TypeError,
+                                         "must be a str"):
+                t.coerce(value)
+
 
 class TestIntegerType(unittest.TestCase):
     def test_is_abstract_type(self):
@@ -78,6 +103,40 @@ class TestIntegerType(unittest.TestCase):
             "123",
             t.format(123))
 
+    def test_coerce_passes_integral_numbers(self):
+        t = xso.Integer()
+
+        values = [-2, 0, 1, 2, 3, 4, 100]
+
+        for value in values:
+            self.assertIs(value, t.coerce(value))
+
+        import random
+        value = random.randint(1, 1e10)
+        self.assertIs(value, t.coerce(value))
+        value = -value
+        self.assertIs(value, t.coerce(value))
+
+    def test_coerce_requires_integral_number(self):
+        t = xso.Integer()
+
+        values = [
+            1.2,
+            "1",
+            decimal.Decimal("1"),
+            fractions.Fraction(1, 1),
+            "foo",
+            [],
+            (),
+            1.
+        ]
+
+        for value in values:
+            with self.assertRaisesRegexp(
+                    TypeError,
+                    "must be integral number"):
+                t.coerce(value)
+
 
 class TestFloatType(unittest.TestCase):
     def test_is_abstract_type(self):
@@ -101,6 +160,52 @@ class TestFloatType(unittest.TestCase):
         self.assertEqual(
             "123.3",
             t.format(123.3))
+
+    def test_coerce_passes_real_numbers(self):
+        t = xso.Float()
+
+        values = [
+            # decimal.Decimal("1.23"),
+            fractions.Fraction(1, 9),
+            1.234,
+            20,
+            -1,
+            -3.4,
+        ]
+
+        for value in values:
+            self.assertEqual(
+                float(value),
+                t.coerce(value)
+            )
+
+    def test_coerce_passes_decimal(self):
+        t = xso.Float()
+
+        values = [
+            decimal.Decimal("1.23"),
+        ]
+
+        for value in values:
+            self.assertEqual(
+                float(value),
+                t.coerce(value)
+            )
+
+    def test_coerce_requires_float_number(self):
+        t = xso.Float()
+
+        values = [
+            "foo",
+            [],
+            ()
+        ]
+
+        for value in values:
+            with self.assertRaisesRegexp(
+                    TypeError,
+                    "must be real number"):
+                t.coerce(value)
 
 
 class TestBoolType(unittest.TestCase):
@@ -137,6 +242,19 @@ class TestBoolType(unittest.TestCase):
         self.assertEqual(
             "false",
             t.format(False))
+
+    def test_coerce_anything(self):
+        t = xso.Bool()
+        mock = unittest.mock.MagicMock()
+
+        result = mock.__bool__()
+        mock.reset_mock()
+
+        self.assertEqual(
+            result,
+            t.coerce(mock))
+
+        mock.__bool__.assert_called_once_with()
 
 
 class TestDateTimeType(unittest.TestCase):
@@ -222,6 +340,31 @@ class TestDateTimeType(unittest.TestCase):
                               tzinfo=pytz.timezone("Europe/Berlin")))
         )
 
+    def test_require_datetime(self):
+        t = xso.DateTime()
+
+        values = [
+            1,
+            "foo",
+            "2014-01-26T19:47:10Z",
+            12.3,
+        ]
+
+        for value in values:
+            with self.assertRaisesRegexp(
+                    TypeError,
+                    "must be a datetime object"):
+                t.coerce(value)
+
+    def test_pass_datetime(self):
+        t = xso.DateTime()
+
+        dt = datetime.utcnow()
+        self.assertIs(
+            dt,
+            t.coerce(dt)
+        )
+
 
 class TestBase64Binary(unittest.TestCase):
     def test_is_abstract_type(self):
@@ -277,6 +420,47 @@ class TestBase64Binary(unittest.TestCase):
             t.format(b"fnord"*20)
         )
 
+    def test_coerce_rejects_int(self):
+        t = xso.Base64Binary()
+        with self.assertRaisesRegexp(TypeError,
+                                     "must be convertible to bytes"):
+            t.coerce(12)
+
+    def test_coerce_accepts_bytes_bytearray_array(self):
+        t = xso.Base64Binary()
+
+        import array
+        array_value = array.array("h")
+        array_value.append(1234)
+        array_value.append(5678)
+        array_value.append(910)
+
+        values = [
+            b"foobar",
+            bytearray(b"baz"),
+        ]
+
+        for value in values:
+            result = t.coerce(value)
+            self.assertEqual(
+                bytes(value),
+                result
+            )
+            self.assertIsInstance(
+                result,
+                bytes
+            )
+
+    def test_coerce_passes_bytes(self):
+        t = xso.Base64Binary()
+
+        value = b"foo"
+
+        self.assertIs(
+            value,
+            t.coerce(value)
+        )
+
 
 class TestHexBinary(unittest.TestCase):
     def test_is_abstract_type(self):
@@ -296,6 +480,47 @@ class TestHexBinary(unittest.TestCase):
         self.assertEqual(
             "666e6f7264",
             t.format(b"fnord")
+        )
+
+    def test_coerce_rejects_int(self):
+        t = xso.HexBinary()
+        with self.assertRaisesRegexp(TypeError,
+                                     "must be convertible to bytes"):
+            t.coerce(12)
+
+    def test_coerce_accepts_bytes_bytearray_array(self):
+        t = xso.HexBinary()
+
+        import array
+        array_value = array.array("h")
+        array_value.append(1234)
+        array_value.append(5678)
+        array_value.append(910)
+
+        values = [
+            b"foobar",
+            bytearray(b"baz"),
+        ]
+
+        for value in values:
+            result = t.coerce(value)
+            self.assertEqual(
+                bytes(value),
+                result
+            )
+            self.assertIsInstance(
+                result,
+                bytes
+            )
+
+    def test_coerce_passes_bytes(self):
+        t = xso.HexBinary()
+
+        value = b"foo"
+
+        self.assertIs(
+            value,
+            t.coerce(value)
         )
 
 
@@ -318,6 +543,36 @@ class TestJID(unittest.TestCase):
             "ssa@ix.test/IX",
             t.format(structs.JID("ßA", "IX.test", "\u2168"))
         )
+
+    def test_coerce_rejects_non_jids(self):
+        t = xso.JID()
+        types = [str, int, float, object]
+        for type_ in types:
+            with self.assertRaisesRegexp(TypeError,
+                                         "not a JID"):
+                t.coerce(type_())
+
+    def test_coerce_rejects_str_jids(self):
+        t = xso.JID()
+        with self.assertRaisesRegexp(
+                TypeError,
+                "<class 'str'> object 'foo@bar' is not a JID"):
+            t.coerce("foo@bar")
+
+    def test_coerce_passes_jid(self):
+        t = xso.JID()
+
+        values = [
+            structs.JID.fromstr("foo@bar.example"),
+            structs.JID.fromstr("bar.example"),
+            structs.JID.fromstr("foo@bar.example/baz"),
+        ]
+
+        for value in values:
+            self.assertIs(
+                value,
+                t.coerce(value)
+            )
 
 
 class TestConnectionLocation(unittest.TestCase):
@@ -382,6 +637,74 @@ class TestConnectionLocation(unittest.TestCase):
             "foo.bar.baz:5234",
             t.format(("foo.bar.baz", 5234))
         )
+
+    def test_coerce_rejects_non_2tuples(self):
+        t = xso.ConnectionLocation()
+
+        values = [
+            ["foo", 1234],
+            {"foo", 1234},
+            ("foo", 1234, "bar")
+        ]
+
+        for value in values:
+            with self.assertRaisesRegexp(TypeError,
+                                         "2-tuple required"):
+                t.coerce(value)
+
+    def test_coerce_parses_ip_addresses(self):
+        t = xso.ConnectionLocation()
+
+        value_pairs = [
+            (("10.0.0.1", 1234), (ipaddress.IPv4Address("10.0.0.1"), 1234)),
+            (("fe80::", 1234), (ipaddress.IPv6Address("fe80::"), 1234)),
+            (("10.0.foobar", 1234), ("10.0.foobar", 1234)),
+        ]
+
+        for given, expected in value_pairs:
+            self.assertEqual(
+                expected,
+                t.coerce(given)
+            )
+
+    def test_coerce_restricts_port_numbers(self):
+        t = xso.ConnectionLocation()
+
+        err_values = [
+            ("foobar", -1),
+            ("foobar", 65536),
+        ]
+
+        for err_value in err_values:
+            with self.assertRaisesRegexp(ValueError, "out of range"):
+                t.coerce(err_value)
+
+        ok_values = [
+            ("foobar", 0),
+            ("foobar", 65535),
+        ]
+
+        for ok_value in ok_values:
+            self.assertEqual(
+                ok_value,
+                t.coerce(ok_value)
+            )
+
+    def test_coerce_requires_integral_number(self):
+        t = xso.ConnectionLocation()
+
+        values = [
+            ("foobar", 1.2),
+            ("foobar", "1"),
+            ("foobar", decimal.Decimal("1")),
+            ("foobar", fractions.Fraction(1, 1)),
+        ]
+
+        for value in values:
+            with self.assertRaisesRegexp(
+                    TypeError,
+                    "port number must be integral number"):
+                t.coerce(value)
 
 
 class TestAbstractValidator(unittest.TestCase):
