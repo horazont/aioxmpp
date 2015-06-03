@@ -332,7 +332,9 @@ class SMEnabled(SMXSO):
         "location",
         type_=xso.ConnectionLocation(),
         default=None)
-    max_ = xso.Attr("max")
+    max_ = xso.Attr(
+        "max",
+        type_=xso.Integer())
 
     def __init__(self,
                  resume=False,

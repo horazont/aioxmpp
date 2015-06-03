@@ -251,11 +251,11 @@ class TestSMEnabled(unittest.TestCase):
             resume=True,
             id_="foobar",
             location=("bar", 1234),
-            max_="fnord")
+            max_=1023)
         self.assertTrue(obj.resume)
         self.assertEqual("foobar", obj.id_)
         self.assertEqual(("bar", 1234), obj.location)
-        self.assertEqual("fnord", obj.max_)
+        self.assertEqual(1023, obj.max_)
 
 
 class TestSMResume(unittest.TestCase):
