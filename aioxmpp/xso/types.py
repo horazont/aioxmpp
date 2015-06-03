@@ -27,7 +27,7 @@ class AbstractType(metaclass=abc.ABCMeta):
     """
     This is the interface all types must implement.
 
-    .. automethod:: check
+    .. automethod:: coerce
 
     .. automethod:: parse
 
