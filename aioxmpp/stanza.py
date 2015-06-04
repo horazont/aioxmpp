@@ -1,3 +1,42 @@
+"""
+:mod:`~aioxmpp.stanza` --- XSOs for dealing with stanzas
+########################################################
+
+Top-level classes
+=================
+
+.. autoclass:: Message(*[, from_][, to][, id_][, type_])
+
+.. autoclass:: IQ
+
+.. autoclass:: Presence
+
+Payload classes
+===============
+
+For :class:`Presence` and :class:`Message` as well as :class:`IQ` errors, the
+standardized payloads also have classes which are used as values for the
+attributes:
+
+.. autoclass:: Error
+
+.. autoclass:: Thread
+
+Base class for stanzas
+======================
+
+.. autoclass:: StanzaBase
+
+Exceptions
+==========
+
+.. autoclass:: PayloadError
+
+.. autoclass:: PayloadParsingError
+
+.. autoclass:: UnknownIQPayload
+
+"""
 import base64
 import random
 
@@ -34,6 +73,21 @@ STANZA_ERROR_TAGS = (
 
 
 class PayloadError(Exception):
+    """
+    Base class for exceptions raised when stanza payloads cannot be processed.
+
+    .. attribute:: partial_obj
+
+       The :class:`IQ` instance which has not been parsed completely. The
+       attributes of the instance are already there, everything else is not
+       guaranteed to be there.
+
+    .. attribute:: ev_args
+
+       The XSO parsing event arguments which caused the parsing to fail.
+
+    """
+
     def __init__(self, msg, partial_obj, ev_args):
         super().__init__(msg)
         self.ev_args = ev_args
@@ -41,6 +95,12 @@ class PayloadError(Exception):
 
 
 class PayloadParsingError(PayloadError):
+    """
+    A constraint of a sub-object was not fulfilled and the stanza being
+    processed is illegal. The partially parsed stanza object is provided in
+    :attr:`~PayloadError.partial_obj`.
+    """
+
     def __init__(self, partial_obj, ev_args):
         super().__init__(
             "parsing of payload {} failed".format(
@@ -50,6 +110,11 @@ class PayloadParsingError(PayloadError):
 
 
 class UnknownIQPayload(PayloadError):
+    """
+    The payload of an IQ object is unknown. The partial object with attributes
+    but without payload is available through :attr:`~PayloadError.partial_obj`.
+    """
+
     def __init__(self, partial_obj, ev_args):
         super().__init__(
             "unknown payload {} on iq".format(
@@ -108,6 +173,49 @@ class Thread(xso.XSO):
 
 
 class Message(StanzaBase):
+    """
+    An XMPP message stanza. The keyword arguments can be used to initialize the
+    attributes of the :class:`Message`.
+
+    .. attribute:: id_
+
+       The optional ID of the stanza.
+
+    .. attribute:: type_
+
+       The type attribute of the stanza. The allowed values are ``"chat"``,
+       ``"groupchat"``, ``"error"``, ``"headline"`` and ``"normal"``.
+
+    .. attribute:: from_
+
+       The :class:`~aioxmpp.structs.JID` of the sending entity.
+
+    .. attribute:: to
+
+       The :class:`~aioxmpp.structs.JID` of the receiving entity.
+
+    .. attribute:: body
+
+       The string content of the ``body`` element, if any. This is :data:`None`
+       if no body is attached to the message and the empty string if the
+       attached body is empty.
+
+    .. attribute:: subject
+
+       The text content of the ``subject`` element, if any. This attribute is
+       :data:`None` if the message has no subject and the empty string if the
+       subject is empty.
+
+    .. attribute:: thread
+
+       A :class:`Thread` instance representing the threading information
+       attached to the message or :data:`None` if no threading information is
+       attached.
+
+    .. automethod:: make_reply
+
+    """
+
     TAG = (namespaces.client, "message")
 
     id_ = xso.Attr(tag="id")
@@ -136,6 +244,14 @@ class Message(StanzaBase):
         self.type_ = type_
 
     def make_reply(self):
+        """
+        Create a reply for the message. The :attr:`id_` attribute is cleared in
+        the reply. The :attr:`from_` and :attr:`to` are swapped and the
+        :attr:`type_` attribute is the same as the one of the original
+        message.
+
+        The new :class:`Message` object is returned.
+        """
         obj = super()._make_reply()
         obj.type_ = self.type_
         obj.id_ = None

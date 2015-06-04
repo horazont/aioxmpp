@@ -5,6 +5,7 @@ Main public API
    :maxdepth: 2
 
    node
+   stanza
    security_layer
    sasl
    protocol
