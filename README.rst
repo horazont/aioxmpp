@@ -1,15 +1,17 @@
 ``aioxmpp``
-================
+###########
 
-... is a pure-python XMPP library using the new [``asyncio``][0] standard library
-module from Python 3.4 (and
-[available as a third-party module to Python 3.3][1]).
+... is a pure-python XMPP library using the [``asyncio``][0] standard library
+module from Python 3.4 (and [available as a third-party module to Python
+3.3][1]).
 
 Dependencies
 ------------
 
 * Python ≥ 3.4 (or Python = 3.3 with tulip and enum34)
 * DNSPython
+* libxml2-devel (for some XML helpers)
+* lxml
 
 Design goals
 ------------
