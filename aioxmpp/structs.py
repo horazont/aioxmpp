@@ -9,6 +9,8 @@ encountered in the XMPP realm.
 
 .. autoclass:: PresenceState
 
+.. autoclass:: LanguageTag
+
 """
 
 import collections
@@ -272,3 +274,65 @@ class PresenceState:
         else:
             show = stanza_obj.show
         return cls(available=available, show=show)
+
+
+class LanguageTag:
+    """
+    Implementation of a language tag. This may be a fully RFC5646 compliant
+    implementation some day, but for now it is only very simplistic stub.
+
+    There is no input validation of any kind.
+
+    :class:`LanguageTag` instances compare and hash case-insensitively.
+
+    .. automethod:: fromstr
+
+    .. autoattribute:: match_str
+
+    .. autoattribute:: print_str
+
+    """
+
+    def __init__(self, *, tag=None):
+        if not tag:
+            raise ValueError("tag cannot be empty")
+
+        self._tag = tag
+
+    @property
+    def match_str(self):
+        """
+        The string which is used for matching two lanugage tags. This is the
+        lower-cased version of the :attr:`print_str`.
+        """
+        return self._tag.lower()
+
+    @property
+    def print_str(self):
+        """
+        The stringified language tag.
+        """
+        return self._tag
+
+    @classmethod
+    def fromstr(cls, s):
+        """
+        Create a language tag from the given string *s*.
+
+        .. note::
+
+           This is a stub implementation which merely refers to the given
+           string as the :attr:`print_str` and derives the :attr:`match_str`
+           from that.
+
+        """
+        return cls(tag=s)
+
+    def __str__(self):
+        return self.print_str
+
+    def __eq__(self, other):
+        return self.match_str == other.match_str
+
+    def __hash__(self):
+        return hash(self.match_str)

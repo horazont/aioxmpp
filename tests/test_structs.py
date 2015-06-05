@@ -359,3 +359,66 @@ class TestPresenceState(unittest.TestCase):
         stanza_obj.show = "dnd"
         with self.assertRaises(ValueError):
             structs.PresenceState.from_stanza(stanza_obj, strict=True)
+
+
+class TestLanguageTag(unittest.TestCase):
+    def test_init_requires_kwargs(self):
+        with self.assertRaisesRegexp(TypeError,
+                                     "takes 1 positional argument"):
+            structs.LanguageTag("foo")
+
+    def test_init_requires_language(self):
+        with self.assertRaisesRegexp(ValueError, "tag cannot be empty"):
+            structs.LanguageTag()
+
+    def test_fromstr_match_str(self):
+        tag = structs.LanguageTag.fromstr("de-Latn-DE-1999")
+        self.assertEqual(
+            "de-latn-de-1999",
+            tag.match_str
+        )
+
+    def test_fromstr_print_str(self):
+        tag = structs.LanguageTag.fromstr("de-Latn-DE-1999")
+        self.assertEqual(
+            "de-Latn-DE-1999",
+            tag.print_str
+        )
+
+    def test___str__(self):
+        tag = structs.LanguageTag.fromstr("zh-Hans")
+        self.assertEqual(
+            "zh-Hans",
+            str(tag)
+        )
+        tag = structs.LanguageTag.fromstr("de-Latn-DE-1999")
+        self.assertEqual(
+            "de-Latn-DE-1999",
+            str(tag)
+        )
+
+    def test_compare_case_insensitively(self):
+        tag1 = structs.LanguageTag.fromstr("de-DE")
+        tag2 = structs.LanguageTag.fromstr("de-de")
+        tag3 = structs.LanguageTag.fromstr("fr")
+
+        self.assertTrue(tag1 == tag2)
+        self.assertFalse(tag1 != tag2)
+        self.assertTrue(tag2 == tag1)
+        self.assertFalse(tag2 != tag1)
+
+        self.assertTrue(tag1 != tag3)
+        self.assertFalse(tag1 == tag3)
+        self.assertTrue(tag2 != tag3)
+        self.assertFalse(tag2 == tag3)
+
+        self.assertTrue(tag3 != tag1)
+        self.assertFalse(tag3 == tag1)
+        self.assertTrue(tag3 != tag1)
+        self.assertFalse(tag3 == tag1)
+
+    def test_hash_case_insensitively(self):
+        tag1 = structs.LanguageTag.fromstr("de-DE")
+        tag2 = structs.LanguageTag.fromstr("de-de")
+
+        self.assertEqual(hash(tag1), hash(tag2))
