@@ -525,6 +525,23 @@ class Attr(Text):
         d[self.tag] = self.type_.format(value)
 
 
+class LangAttr(Attr):
+    """
+    The :class:`LangAttr` is identical to :class:`Attr`, except that the
+    *type_*, *tag* and *missing* arguments are already bound. The *tag* is set
+    to the ``(namespaces.xml, "lang")`` value to match ``xml:lang``
+    attributes. *type_* is a :class:`xso.LanguageTag` instance and *missing* is
+    set to :func:`lang_attr`.
+    """
+
+    def __init__(self, **kwargs):
+        super().__init__(
+            (namespaces.xml, "lang"),
+            type_=xso_types.LanguageTag(),
+            missing=lang_attr
+        )
+
+
 class ChildText(_TypedPropBase):
     """
     When assigned to a class’ attribute, it binds that attribute to the XML

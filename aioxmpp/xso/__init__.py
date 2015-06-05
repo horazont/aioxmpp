@@ -87,6 +87,8 @@ Scalar descriptors
 
 .. autoclass:: Attr(name, type_=xso.String(), default=None, required=False, validator=None, validate=ValidateMode.FROM_RECV, missing=None)
 
+.. autoclass:: LangAttr(default=None, required=False, validator=None, validate=ValidateMode.FROM_RECV)
+
 .. autoclass:: Child(classes, default=None)
 
 .. autoclass:: ChildTag(tags, *, text_policy=UnknownTextPolicy.FAIL, child_policy=UnknownChildPolicy.FAIL, attr_policy=UnknownAttrPolicy.FAIL, default_ns=None, default=None, allow_none=False)
@@ -300,6 +302,7 @@ from .model import (  # NOQA
     ValidateMode,
     UnknownTopLevelTag,
     Attr,
+    LangAttr,
     Child,
     ChildList,
     ChildLangMap,

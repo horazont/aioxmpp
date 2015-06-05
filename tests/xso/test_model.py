@@ -2329,6 +2329,25 @@ class TestChildLangMap(unittest.TestCase):
             self.assertEqual("de-DE", result.lang)
 
 
+class TestLangAttr(unittest.TestCase):
+    def test_init(self):
+        prop = xso.LangAttr()
+        self.assertIsInstance(
+            prop,
+            xso.Attr)
+        self.assertEqual(
+            prop.tag,
+            (namespaces.xml, "lang")
+        )
+        self.assertEqual(
+            prop.missing,
+            xso.lang_attr
+        )
+        self.assertIsInstance(
+            prop.type_,
+            xso.LanguageTag
+        )
+
 
 class TestChildTag(unittest.TestCase):
     def setUp(self):
