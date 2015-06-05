@@ -458,10 +458,10 @@ class Attr(Text):
                     use. If the value is :data:`None`, the usual handling of
                     missing attributes takes place.
 
-                    .. seealso::
+    .. seealso::
 
-                       :func:`lang_attr` is a useful function to pass to
-                       *missing* for `xml:lang` attributes.
+       :class:`LangAttr`, which is a subclass of :class:`Attr` specialized for
+       describing ``xml:lang`` attributes.
 
     .. automethod:: from_value
 
