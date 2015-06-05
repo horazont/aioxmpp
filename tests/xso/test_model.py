@@ -8,7 +8,7 @@ import lxml.sax
 import aioxmpp.xso as xso
 import aioxmpp.xso.model as xso_model
 
-from aioxmpp.utils import etree
+from aioxmpp.utils import etree, namespaces
 
 from ..xmltestutils import XMLTestCase
 
@@ -680,6 +680,8 @@ class TestXMLStreamClass(unittest.TestCase):
         missing = unittest.mock.MagicMock()
         missing.return_value = "123"
 
+        ctx = unittest.mock.MagicMock()
+
         class Cls(xso.XSO):
             TAG = "foo"
 
@@ -694,7 +696,7 @@ class TestXMLStreamClass(unittest.TestCase):
                 "foo", {
                 }
             ),
-            self.ctx)
+            ctx)
         next(gen)
         with self.assertRaises(StopIteration) as exc:
             gen.send(("end", ))
@@ -702,9 +704,164 @@ class TestXMLStreamClass(unittest.TestCase):
 
         self.assertSequenceEqual(
             [
-                unittest.mock.call(obj, self.ctx)
+                unittest.mock.call(obj, ctx.__enter__())
             ],
             missing.mock_calls
+        )
+
+    def test_lang_propagation_from_context(self):
+        class Bar(xso.XSO):
+            TAG = "bar"
+
+            lang = xso.Attr(
+                tag=(namespaces.xml, "lang"),
+                missing=xso.lang_attr
+            )
+
+        class Foo(xso.XSO):
+            TAG = "foo"
+
+            lang = xso.Attr(
+                tag=(namespaces.xml, "lang"),
+                missing=xso.lang_attr
+            )
+
+            child = xso.Child([Bar])
+
+        ctx = xso_model.Context()
+        ctx.lang = "de-DE"
+
+        caught_obj = None
+        def catch(obj):
+            nonlocal caught_obj
+            caught_obj = obj
+
+        sd = xso.SAXDriver(
+            functools.partial(from_wrapper,
+                              Foo.parse_events,
+                              ctx=ctx),
+            on_emit=catch
+        )
+        lxml.sax.saxify(
+            etree.fromstring(
+                "<foo><bar xml:lang='en-GB'/></foo>"
+            ),
+            sd)
+
+        self.assertIsNotNone(caught_obj)
+        self.assertEqual(
+            "de-DE",
+            caught_obj.lang
+        )
+        self.assertEqual(
+            "en-GB",
+            caught_obj.child.lang
+        )
+
+    def test_lang_propagation_from_parent(self):
+        class Bar(xso.XSO):
+            TAG = "bar"
+
+            lang = xso.Attr(
+                tag=(namespaces.xml, "lang"),
+                missing=xso.lang_attr
+            )
+
+        class Foo(xso.XSO):
+            TAG = "foo"
+
+            lang = xso.Attr(
+                tag=(namespaces.xml, "lang"),
+                missing=xso.lang_attr
+            )
+
+            child = xso.Child([Bar])
+
+        ctx = xso_model.Context()
+
+        caught_obj = None
+        def catch(obj):
+            nonlocal caught_obj
+            caught_obj = obj
+
+        sd = xso.SAXDriver(
+            functools.partial(from_wrapper,
+                              Foo.parse_events,
+                              ctx=ctx),
+            on_emit=catch
+        )
+        lxml.sax.saxify(
+            etree.fromstring(
+                "<foo xml:lang='en-GB'><bar/></foo>"
+            ),
+            sd)
+
+        self.assertIsNotNone(caught_obj)
+        self.assertEqual(
+            "en-GB",
+            caught_obj.lang
+        )
+        self.assertEqual(
+            "en-GB",
+            caught_obj.child.lang
+        )
+
+    def test_deep_lang_propagation_from_parent_with_confusion(self):
+        class Baz(xso.XSO):
+            TAG = "baz"
+
+            lang = xso.Attr(
+                tag=(namespaces.xml, "lang"),
+                missing=xso.lang_attr
+            )
+
+        class Bar(xso.XSO):
+            TAG = "bar"
+
+            lang = xso.Attr(
+                tag=(namespaces.xml, "lang"),
+            )
+
+            child = xso.Child([Baz])
+
+        class Foo(xso.XSO):
+            TAG = "foo"
+
+            lang = xso.Attr(
+                tag=(namespaces.xml, "lang"),
+                missing=xso.lang_attr
+            )
+
+            child = xso.Child([Bar])
+
+        ctx = xso_model.Context()
+
+        caught_obj = None
+        def catch(obj):
+            nonlocal caught_obj
+            caught_obj = obj
+
+        sd = xso.SAXDriver(
+            functools.partial(from_wrapper,
+                              Foo.parse_events,
+                              ctx=ctx),
+            on_emit=catch
+        )
+        lxml.sax.saxify(
+            etree.fromstring(
+                "<foo xml:lang='en-GB'><bar><baz/></bar></foo>"
+            ),
+            sd)
+
+        self.assertIsNotNone(caught_obj)
+        self.assertEqual(
+            "en-GB",
+            caught_obj.lang
+        )
+        self.assertIsNone(caught_obj.child.lang)
+        self.assertEqual(
+            "en-GB",
+            caught_obj.child.child.lang
         )
 
 

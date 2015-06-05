@@ -155,6 +155,11 @@ The following exceptions are generated at some places in this module:
 
 .. autoclass:: UnknownTopLevelTag
 
+Handlers for missing attributes
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. autofunction:: lang_attr
+
 .. module:: aioxmpp.xso.types
 
 .. currentmodule:: aioxmpp.xso
@@ -300,4 +305,5 @@ from .model import (  # NOQA
     XSOParser,
     SAXDriver,
     XSO,
+    lang_attr
 )

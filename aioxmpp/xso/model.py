@@ -14,7 +14,7 @@ import orderedset  # get it from PyPI
 
 from enum import Enum
 
-from aioxmpp.utils import etree
+from aioxmpp.utils import etree, namespaces
 
 from . import types as xso_types
 from . import tag_to_str, normalize_tag
@@ -939,7 +939,7 @@ class XMLStreamClass(type):
     def __prepare__(name, bases):
         return collections.OrderedDict()
 
-    def parse_events(cls, ev_args, ctx):
+    def parse_events(cls, ev_args, parent_ctx):
         """
         Create an instance of this class, using the events sent into this
         function. *ev_args* must be the event arguments of the ``"start"``
@@ -952,82 +952,93 @@ class XMLStreamClass(type):
 
         This method is suspendable.
         """
-        obj = cls()
-        attrs = ev_args[2]
-        attr_map = cls.ATTR_MAP.copy()
-        for key, value in attrs.items():
-            try:
-                prop = attr_map.pop(key)
-            except KeyError:
-                if cls.UNKNOWN_ATTR_POLICY == UnknownAttrPolicy.DROP:
-                    continue
-                else:
-                    raise ValueError("unexpected attribute {!r} on {}".format(
-                        key,
-                        tag_to_str((ev_args[0], ev_args[1]))
-                    )) from None
-            try:
-                prop.from_value(obj, value)
-            except:
-                obj.xso_error_handler(
-                    prop,
-                    value,
-                    sys.exc_info())
-                raise
-
-        for key, prop in attr_map.items():
-            try:
-                prop.missing(obj, ctx)
-            except:
-                obj.xso_error_handler(
-                    prop,
-                    None,
-                    sys.exc_info()
-                )
-                raise
-
-        collected_text = []
-        while True:
-            ev_type, *ev_args = yield
-            if ev_type == "end":
-                break
-            elif ev_type == "text":
-                if not cls.TEXT_PROPERTY:
-                    if ev_args[0].strip():
-                        raise ValueError("unexpected text")
-                else:
-                    collected_text.append(ev_args[0])
-            elif ev_type == "start":
+        with parent_ctx as ctx:
+            obj = cls()
+            attrs = ev_args[2]
+            attr_map = cls.ATTR_MAP.copy()
+            for key, value in attrs.items():
                 try:
-                    handler = cls.CHILD_MAP[ev_args[0], ev_args[1]]
+                    prop = attr_map.pop(key)
                 except KeyError:
-                    if cls.COLLECTOR_PROPERTY:
-                        handler = cls.COLLECTOR_PROPERTY
-                    else:
-                        yield from enforce_unknown_child_policy(
-                            cls.UNKNOWN_CHILD_POLICY,
-                            ev_args,
-                            obj.xso_error_handler)
+                    if cls.UNKNOWN_ATTR_POLICY == UnknownAttrPolicy.DROP:
                         continue
+                    else:
+                        raise ValueError(
+                            "unexpected attribute {!r} on {}".format(
+                                key,
+                                tag_to_str((ev_args[0], ev_args[1]))
+                            )) from None
                 try:
-                    yield from handler.from_events(obj, ev_args, ctx)
+                    prop.from_value(obj, value)
                 except:
                     obj.xso_error_handler(
-                        handler,
-                        ev_args,
+                        prop,
+                        value,
                         sys.exc_info())
                     raise
 
-        if collected_text:
-            collected_text = "".join(collected_text)
+            for key, prop in attr_map.items():
+                try:
+                    prop.missing(obj, ctx)
+                except:
+                    obj.xso_error_handler(
+                        prop,
+                        None,
+                        sys.exc_info()
+                    )
+                    raise
+
             try:
-                cls.TEXT_PROPERTY.from_value(obj, collected_text)
-            except:
-                obj.xso_error_handler(
-                    cls.TEXT_PROPERTY,
-                    collected_text,
-                    sys.exc_info())
-                raise
+                prop = cls.ATTR_MAP[namespaces.xml, "lang"]
+            except KeyError:
+                pass
+            else:
+                lang = prop.__get__(obj, cls)
+                if lang is not None:
+                    ctx.lang = lang
+
+            collected_text = []
+            while True:
+                ev_type, *ev_args = yield
+                if ev_type == "end":
+                    break
+                elif ev_type == "text":
+                    if not cls.TEXT_PROPERTY:
+                        if ev_args[0].strip():
+                            raise ValueError("unexpected text")
+                    else:
+                        collected_text.append(ev_args[0])
+                elif ev_type == "start":
+                    try:
+                        handler = cls.CHILD_MAP[ev_args[0], ev_args[1]]
+                    except KeyError:
+                        if cls.COLLECTOR_PROPERTY:
+                            handler = cls.COLLECTOR_PROPERTY
+                        else:
+                            yield from enforce_unknown_child_policy(
+                                cls.UNKNOWN_CHILD_POLICY,
+                                ev_args,
+                                obj.xso_error_handler)
+                            continue
+                    try:
+                        yield from handler.from_events(obj, ev_args, ctx)
+                    except:
+                        obj.xso_error_handler(
+                            handler,
+                            ev_args,
+                            sys.exc_info())
+                        raise
+
+            if collected_text:
+                collected_text = "".join(collected_text)
+                try:
+                    cls.TEXT_PROPERTY.from_value(obj, collected_text)
+                except:
+                    obj.xso_error_handler(
+                        cls.TEXT_PROPERTY,
+                        collected_text,
+                        sys.exc_info())
+                    raise
 
         return obj
 
@@ -1264,6 +1275,7 @@ class Context:
     def __exit__(self, *args):
         pass
 
+
 class XSOParser:
     """
     A generic XSO parser which supports a dynamic set of XSOs to
@@ -1382,3 +1394,14 @@ def enforce_unknown_child_policy(policy, ev_args, error_handler=None):
         if error_handler:
             error_handler(None, ev_args, None)
         raise ValueError("unexpected child")
+
+
+def lang_attr(instance, ctx):
+    """
+    A *missing* handler for :class:`Attr` descriptors. If any parent object has
+    a ``xml:lang`` attribute set, its value is used.
+
+    Pass as *missing* argument to :class:`Attr` constructors to use this
+    behaviour for a given attribute.
+    """
+    return ctx.lang
