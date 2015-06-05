@@ -1741,7 +1741,7 @@ class TestAttr(XMLTestCase):
         instance = make_instance_mock()
 
         prop = xso.Attr("foo")
-        prop.missing(instance, ctx)
+        prop.handle_missing(instance, ctx)
 
     def test_missing_raises_if_required(self):
         ctx = xso_model.Context()
@@ -1751,7 +1751,7 @@ class TestAttr(XMLTestCase):
         prop = xso.Attr("foo", required=True)
         with self.assertRaisesRegexp(ValueError,
                                      r"missing attribute foo"):
-            prop.missing(instance, ctx)
+            prop.handle_missing(instance, ctx)
 
     def test_to_dict(self):
         d = {}
@@ -1832,7 +1832,7 @@ class TestAttr(XMLTestCase):
         instance = make_instance_mock()
 
         prop = xso.Attr("foo", missing=missing)
-        prop.missing(instance, ctx)
+        prop.handle_missing(instance, ctx)
 
         self.assertSequenceEqual(
             [

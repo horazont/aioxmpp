@@ -465,7 +465,7 @@ class Attr(Text):
 
     .. automethod:: from_value
 
-    .. automethod:: missing
+    .. automethod:: handle_missing
 
     .. automethod:: to_dict
 
@@ -480,9 +480,9 @@ class Attr(Text):
         super().__init__(type_=type_, default=default, **kwargs)
         self.tag = normalize_tag(tag)
         self.required = required
-        self._missing = missing
+        self.missing = missing
 
-    def missing(self, instance, ctx):
+    def handle_missing(self, instance, ctx):
         """
         Handle a missing attribute on *instance*. This is called whenever no
         value for the attribute is found during parsing. The call to
@@ -498,8 +498,8 @@ class Attr(Text):
         handling continues as normal: if *required* is true, a
         :class:`ValueError` is raised.
         """
-        if self._missing is not None:
-            value = self._missing(instance, ctx)
+        if self.missing is not None:
+            value = self.missing(instance, ctx)
             if value is not None:
                 self._set_from_code(instance, value)
                 return
@@ -1006,7 +1006,7 @@ class XMLStreamClass(type):
 
             for key, prop in attr_map.items():
                 try:
-                    prop.missing(obj, ctx)
+                    prop.handle_missing(obj, ctx)
                 except:
                     obj.xso_error_handler(
                         prop,
