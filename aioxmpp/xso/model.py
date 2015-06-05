@@ -467,6 +467,10 @@ class Attr(Text):
         self.tag = normalize_tag(tag)
         self.required = required
 
+    def missing(self, ctx):
+        if self.required:
+            raise ValueError("missing attribute {!r}".format(self.tag))
+
     def to_dict(self, instance, d):
         """
         Override the implementation from :class:`Text` by storing the formatted
@@ -933,11 +937,21 @@ class XMLStreamClass(type):
                 raise
 
         for key, prop in attr_map.items():
-            if prop.required:
-                raise ValueError("missing attribute {!r} on {}".format(
-                    key,
-                    tag_to_str((ev_args[0], ev_args[1]))
-                ))
+            try:
+                try:
+                    prop.missing(ctx)
+                except ValueError as exc:
+                    raise ValueError("{!s} on {}".format(
+                        exc,
+                        tag_to_str((ev_args[0], ev_args[1]))
+                    ))
+            except:
+                obj.xso_error_handler(
+                    prop,
+                    None,
+                    sys.exc_info()
+                )
+                raise
 
         collected_text = []
         while True:

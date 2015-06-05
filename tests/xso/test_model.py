@@ -645,6 +645,37 @@ class TestXMLStreamClass(unittest.TestCase):
             Cls.xso_error_handler.mock_calls
         )
 
+    def test_call_error_handler_on_missing_attr(self):
+        class Cls(metaclass=xso_model.XMLStreamClass):
+            TAG = "foo"
+
+            attr = xso.Attr(
+                tag=(None, "attr"),
+                required=True
+            )
+
+        Cls.xso_error_handler = unittest.mock.MagicMock()
+
+        gen = Cls.parse_events(
+            (
+                None,
+                "foo", {
+                }
+            ),
+            self.ctx)
+        with self.assertRaises(ValueError):
+            next(gen)
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(
+                    Cls.attr,
+                    None,
+                    unittest.mock.ANY)
+            ],
+            Cls.xso_error_handler.mock_calls
+        )
+
 
 class TestXSO(XMLTestCase):
     def _unparse_test(self, obj, tree):
@@ -1514,6 +1545,20 @@ class TestAttr(XMLTestCase):
             },
             instance._stanza_props
         )
+
+    def test_missing_passes_if_not_required(self):
+        ctx = xso_model.Context()
+
+        prop = xso.Attr("foo")
+        prop.missing(ctx)
+
+    def test_missing_raises_if_required(self):
+        ctx = xso_model.Context()
+
+        prop = xso.Attr("foo", required=True)
+        with self.assertRaisesRegexp(ValueError,
+                                     r"missing attribute \(None, 'foo'\)"):
+            prop.missing(ctx)
 
     def test_to_dict(self):
         d = {}
