@@ -7,9 +7,9 @@ Top-level classes
 
 .. autoclass:: Message(*[, from_][, to][, id_][, type_])
 
-.. autoclass:: IQ
+.. autoclass:: IQ(*[, from_][, to][, id_][, type_])
 
-.. autoclass:: Presence
+.. autoclass:: Presence(*[, from_][, to][, id_][, type_])
 
 Payload classes
 ===============
@@ -18,9 +18,9 @@ For :class:`Presence` and :class:`Message` as well as :class:`IQ` errors, the
 standardized payloads also have classes which are used as values for the
 attributes:
 
-.. autoclass:: Error
+.. autoclass:: Error(*[, condition][, type_][, text])
 
-.. autoclass:: Thread
+.. autoclass:: Thread()
 
 Base class for stanzas
 ======================
@@ -160,6 +160,19 @@ class StanzaBase(xso.XSO):
 
 
 class Thread(xso.XSO):
+    """
+    Threading information, consisting of a thread identifier and an optional
+    parent thread identifier.
+
+    .. attribute:: identifier
+
+       Identifier of the thread
+
+    .. attribute:: parent
+
+       :data:`None` or the identifier of the parent thread.
+
+    """
     TAG = (namespaces.client, "thread")
 
     identifier = xso.Text(
@@ -266,6 +279,30 @@ class Message(StanzaBase):
 
 
 class Presence(StanzaBase):
+    """
+    An XMPP presence stanza. The keyword arguments can be used to initialize the
+    attributes of the :class:`Presence`.
+
+    .. attribute:: id_
+
+       The optional ID of the stanza.
+
+    .. attribute:: type_
+
+       The type attribute of the stanza. The allowed values are ``"error"``,
+       ``"probe"``, ``"subscribe"``, ``"subscribed"``, ``"unavailable"``,
+       ``"unsubscribe"``, ``"unsubscribed"`` and :data:`None`, where
+       :data:`None` signifies the absence of the ``type`` attribute.
+
+    .. attribute:: from_
+
+       The :class:`~aioxmpp.structs.JID` of the sending entity.
+
+    .. attribute:: to
+
+       The :class:`~aioxmpp.structs.JID` of the receiving entity.
+    """
+
     TAG = (namespaces.client, "presence")
 
     id_ = xso.Attr(tag="id")
@@ -310,6 +347,27 @@ class Presence(StanzaBase):
 
 
 class Error(xso.XSO):
+    """
+    An XMPP stanza error. The keyword arguments can be used to initialize the
+    attributes of the :class:`Error`.
+
+    .. attribute:: type_
+
+       The type of the error. Valid values are ``"auth"``, ``"cancel"``,
+       ``"continue"``, ``"modify"`` and ``"wait"``.
+
+    .. attribute:: condition
+
+       The standard defined condition which triggered the error. Possible
+       values can be determined by looking at the RFC or the source.
+
+    .. attribute:: text
+
+       The descriptive error text which is part of the error stanza, if any
+       (otherwise :data:`None`).
+
+    """
+
     TAG = (namespaces.client, "error")
 
     EXCEPTION_CLS_MAP = {
@@ -377,6 +435,28 @@ class Error(xso.XSO):
 
 
 class IQ(StanzaBase):
+    """
+    An XMPP IQ stanza. The keyword arguments can be used to initialize the
+    attributes of the :class:`IQ`.
+
+    .. attribute:: id_
+
+       The optional ID of the stanza.
+
+    .. attribute:: type_
+
+       The type attribute of the stanza. The allowed values are ``"error"``,
+       ``"result"``, ``"set"`` and ``"get"``.
+
+    .. attribute:: from_
+
+       The :class:`~aioxmpp.structs.JID` of the sending entity.
+
+    .. attribute:: to
+
+       The :class:`~aioxmpp.structs.JID` of the receiving entity.
+
+    """
     TAG = (namespaces.client, "iq")
 
     id_ = xso.Attr(tag="id", required=True)
