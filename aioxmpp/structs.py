@@ -11,6 +11,15 @@ encountered in the XMPP realm.
 
 .. autoclass:: LanguageTag
 
+.. autoclass:: LanguageRange
+
+Functions for working with language tags
+========================================
+
+.. autofunction:: basic_filter_languages
+
+.. autofunction:: lookup_language
+
 """
 
 import collections
@@ -293,6 +302,8 @@ class LanguageTag:
 
     """
 
+    __slots__ = ("_tag",)
+
     def __init__(self, *, tag=None):
         if not tag:
             raise ValueError("tag cannot be empty")
@@ -336,3 +347,170 @@ class LanguageTag:
 
     def __hash__(self):
         return hash(self.match_str)
+
+    def __repr__(self):
+        return "<{}.{}.fromstr({!r})>".format(
+            type(self).__module__,
+            type(self).__qualname__,
+            str(self))
+
+
+class LanguageRange:
+    """
+    Implementation of a language range. This may be a fully RFC4647 compliant
+    implementation some day, but for now it is only very simplistic stub.
+
+    There is no input validation of any kind.
+
+    :class:`LanguageRange` instances compare and hash case-insensitively.
+
+    .. automethod:: fromstr
+
+    .. automethod:: strip_rightmost
+
+    .. autoattribute:: match_str
+
+    .. autoattribute:: print_str
+
+    """
+
+    __slots__ = ("_tag",)
+
+    def __init__(self, *, tag=None):
+        if not tag:
+            raise ValueError("range cannot be empty")
+
+        self._tag = tag
+
+    @property
+    def match_str(self):
+        """
+        The string which is used for matching two lanugage tags. This is the
+        lower-cased version of the :attr:`print_str`.
+        """
+        return self._tag.lower()
+
+    @property
+    def print_str(self):
+        """
+        The stringified language tag.
+        """
+        return self._tag
+
+    @classmethod
+    def fromstr(cls, s):
+        """
+        Create a language tag from the given string *s*.
+
+        .. note::
+
+           This is a stub implementation which merely refers to the given
+           string as the :attr:`print_str` and derives the :attr:`match_str`
+           from that.
+
+        """
+        if s == "*":
+            return cls.WILDCARD
+
+        return cls(tag=s)
+
+    def __str__(self):
+        return self.print_str
+
+    def __eq__(self, other):
+        return self.match_str == other.match_str
+
+    def __hash__(self):
+        return hash(self.match_str)
+
+    def __repr__(self):
+        return "<{}.{}.fromstr({!r})>".format(
+            type(self).__module__,
+            type(self).__qualname__,
+            str(self))
+
+    def strip_rightmost(self):
+        """
+        Strip the rightmost part of the language range. If the new rightmost
+        part is a singleton or ``x`` (i.e. starts an extension or private use
+        part), it is also stripped.
+
+        Return the newly created :class:`LanguageRange`.
+        """
+
+        parts = self.print_str.split("-")
+        parts.pop()
+        if parts and len(parts[-1]) == 1:
+            parts.pop()
+        return type(self).fromstr("-".join(parts))
+
+LanguageRange.WILDCARD = LanguageRange(tag="*")
+
+
+def basic_filter_languages(languages, ranges):
+    """
+    Filter languages using the string-based basic filter algorithm described in
+    RFC4647.
+
+    *languages* must be a sequence of :class:`LanguageTag` instances which are
+    to be filtered.
+
+    *ranges* must be an iterable which represent the basic language ranges to
+    filter with, in priority order. The language ranges must be given as
+    :class:`LanguageRange` objects.
+
+    Return an iterator of languages which matched any of the *ranges*. The
+    sequence produced by the iterator is in match order and duplicate-free. The
+    first range to match a language yields the language into the iterator, no
+    other range can yield that language afterwards.
+    """
+
+    if LanguageRange.WILDCARD in ranges:
+        yield from languages
+        return
+
+    found = set()
+
+    for language_range in ranges:
+        range_str = language_range.match_str
+        for language in languages:
+            if language in found:
+                continue
+
+            match_str = language.match_str
+            if match_str == range_str:
+                yield language
+                found.add(language)
+                continue
+
+            if len(range_str) < len(match_str):
+                if (match_str[:len(range_str)] == range_str and
+                    match_str[len(range_str)] == "-"):
+                    yield language
+                    found.add(language)
+                    continue
+
+
+def lookup_language(languages, ranges):
+    """
+    Look up a single language in the sequence *languages* using the lookup
+    mechansim described in RFC4647. If no match is found, :data:`None` is
+    returned. Otherwise, the first matching language is returned.
+
+    *languages* must be a sequence of :class:`LanguageTag` objects, while
+    *ranges* must be an iterable of :class:`LanguageRange` objects.
+    """
+
+    for language_range in ranges:
+        while True:
+            try:
+                return next(iter(basic_filter_languages(
+                    languages,
+                    [language_range])))
+            except StopIteration:
+                pass
+
+            try:
+                language_range = language_range.strip_rightmost()
+            except ValueError:
+                break

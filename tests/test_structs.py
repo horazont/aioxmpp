@@ -422,3 +422,264 @@ class TestLanguageTag(unittest.TestCase):
         tag2 = structs.LanguageTag.fromstr("de-de")
 
         self.assertEqual(hash(tag1), hash(tag2))
+
+    def test__repr__(self):
+        tag1 = structs.LanguageTag.fromstr("de-DE")
+        tag2 = structs.LanguageTag.fromstr("fr")
+
+        self.assertEqual(
+            "<aioxmpp.structs.LanguageTag.fromstr('de-DE')>",
+            repr(tag1)
+        )
+
+        self.assertEqual(
+            "<aioxmpp.structs.LanguageTag.fromstr('fr')>",
+            repr(tag2)
+        )
+
+    def test_immutable(self):
+        tag = structs.LanguageTag.fromstr("foo")
+        with self.assertRaises(AttributeError):
+            tag.foo = "bar"
+
+
+class TestLanguageRange(unittest.TestCase):
+    def test_init_requires_kwargs(self):
+        with self.assertRaisesRegexp(TypeError,
+                                     "takes 1 positional argument"):
+            structs.LanguageRange("foo")
+
+    def test_init_requires_language(self):
+        with self.assertRaisesRegexp(ValueError, "range cannot be empty"):
+            structs.LanguageRange()
+
+    def test_fromstr_match_str(self):
+        tag = structs.LanguageRange.fromstr("de-DE")
+        self.assertEqual(
+            "de-de",
+            tag.match_str
+        )
+
+    def test_fromstr_print_str(self):
+        tag = structs.LanguageRange.fromstr("de-Latn-DE-1999")
+        self.assertEqual(
+            "de-Latn-DE-1999",
+            tag.print_str
+        )
+
+    def test___str__(self):
+        tag = structs.LanguageRange.fromstr("zh-Hans")
+        self.assertEqual(
+            "zh-Hans",
+            str(tag)
+        )
+        tag = structs.LanguageRange.fromstr("de-Latn-DE-1999")
+        self.assertEqual(
+            "de-Latn-DE-1999",
+            str(tag)
+        )
+
+    def test_compare_case_insensitively(self):
+        tag1 = structs.LanguageRange.fromstr("de-DE")
+        tag2 = structs.LanguageRange.fromstr("de-de")
+        tag3 = structs.LanguageRange.fromstr("fr")
+
+        self.assertTrue(tag1 == tag2)
+        self.assertFalse(tag1 != tag2)
+        self.assertTrue(tag2 == tag1)
+        self.assertFalse(tag2 != tag1)
+
+        self.assertTrue(tag1 != tag3)
+        self.assertFalse(tag1 == tag3)
+        self.assertTrue(tag2 != tag3)
+        self.assertFalse(tag2 == tag3)
+
+        self.assertTrue(tag3 != tag1)
+        self.assertFalse(tag3 == tag1)
+        self.assertTrue(tag3 != tag1)
+        self.assertFalse(tag3 == tag1)
+
+    def test_hash_case_insensitively(self):
+        tag1 = structs.LanguageRange.fromstr("de-DE")
+        tag2 = structs.LanguageRange.fromstr("de-de")
+
+        self.assertEqual(hash(tag1), hash(tag2))
+
+    def test_wildcard(self):
+        r1 = structs.LanguageRange.fromstr("*")
+        r2 = structs.LanguageRange.fromstr("*")
+        self.assertIs(r1, r2)
+
+    def test_strip_rightmost(self):
+        r = structs.LanguageRange.fromstr("de-Latn-DE-x-foo")
+        self.assertEqual(
+            structs.LanguageRange.fromstr("de-Latn-DE"),
+            r.strip_rightmost()
+        )
+        self.assertEqual(
+            structs.LanguageRange.fromstr("de-Latn"),
+            r.strip_rightmost().strip_rightmost()
+        )
+        self.assertEqual(
+            structs.LanguageRange.fromstr("de"),
+            r.strip_rightmost().strip_rightmost().strip_rightmost()
+        )
+        with self.assertRaises(ValueError):
+            r.strip_rightmost().strip_rightmost()\
+                .strip_rightmost().strip_rightmost()
+
+    def test_immutable(self):
+        r = structs.LanguageRange.fromstr("foo")
+        with self.assertRaises(AttributeError):
+            r.foo = "bar"
+
+
+class Testbasic_filter_languages(unittest.TestCase):
+    def setUp(self):
+        self.languages = [
+            structs.LanguageTag.fromstr("de-Latn-DE-1999"),
+            structs.LanguageTag.fromstr("de-DE"),
+            structs.LanguageTag.fromstr("de-Latn"),
+            structs.LanguageTag.fromstr("fr-CH"),
+            structs.LanguageTag.fromstr("it"),
+        ]
+
+
+    def test_filter(self):
+        self.assertSequenceEqual(
+            [
+                self.languages[0],
+                self.languages[1],
+                self.languages[2],
+            ],
+            list(structs.basic_filter_languages(
+                self.languages,
+                list(map(structs.LanguageRange.fromstr, [
+                    "de",
+                ]))
+            ))
+        )
+
+        self.assertSequenceEqual(
+            [
+                self.languages[1],
+            ],
+            list(structs.basic_filter_languages(
+                self.languages,
+                list(map(structs.LanguageRange.fromstr, [
+                    "de-DE",
+                ]))
+            ))
+        )
+
+        self.assertSequenceEqual(
+            [
+                self.languages[0],
+                self.languages[2],
+            ],
+            list(structs.basic_filter_languages(
+                self.languages,
+                list(map(structs.LanguageRange.fromstr, [
+                    "de-Latn",
+                ]))
+            ))
+        )
+
+    def test_filter_no_dupes_and_ordered(self):
+        self.assertSequenceEqual(
+            [
+                self.languages[0],
+                self.languages[2],
+                self.languages[1],
+            ],
+            list(structs.basic_filter_languages(
+                self.languages,
+                list(map(structs.LanguageRange.fromstr, [
+                    "de-Latn",
+                    "de",
+                ]))
+            ))
+        )
+
+    def test_filter_wildcard(self):
+        self.assertSequenceEqual(
+            self.languages,
+            list(structs.basic_filter_languages(
+                self.languages,
+                list(map(structs.LanguageRange.fromstr, [
+                    "fr",
+                    "*",
+                ]))
+            ))
+        )
+
+
+class Testlookup_language(unittest.TestCase):
+    def setUp(self):
+        self.languages = [
+            structs.LanguageTag.fromstr("de-Latn-DE-1999"),
+            structs.LanguageTag.fromstr("fr-CH"),
+            structs.LanguageTag.fromstr("it"),
+        ]
+
+    def test_match_direct(self):
+        self.assertEqual(
+            structs.LanguageTag.fromstr("fr-CH"),
+            structs.lookup_language(
+                self.languages,
+                list(map(structs.LanguageRange.fromstr, [
+                    "en",
+                    "fr-ch",
+                    "de-de"
+                ]))
+            )
+        )
+
+        self.assertEqual(
+            structs.LanguageTag.fromstr("it"),
+            structs.lookup_language(
+                self.languages,
+                list(map(structs.LanguageRange.fromstr, [
+                    "it",
+                ]))
+            )
+        )
+
+    def test_decay(self):
+        self.assertEqual(
+            structs.LanguageTag.fromstr("de-Latn-DE-1999"),
+            structs.lookup_language(
+                self.languages,
+                list(map(structs.LanguageRange.fromstr, [
+                    "de-de",
+                    "en-GB",
+                    "en"
+                ]))
+            )
+        )
+
+        self.assertEqual(
+            structs.LanguageTag.fromstr("fr-CH"),
+            structs.lookup_language(
+                self.languages,
+                list(map(structs.LanguageRange.fromstr, [
+                    "fr-FR",
+                    "de-DE",
+                    "fr",
+                ]))
+            )
+        )
+
+    def test_decay_skips_extension_prefixes_properly(self):
+        self.assertEqual(
+            structs.LanguageTag.fromstr("de-DE"),
+            structs.lookup_language(
+                list(map(structs.LanguageTag.fromstr, [
+                    "de-DE",
+                    "de-x",
+                ])),
+                list(map(structs.LanguageRange.fromstr, [
+                    "de-x-foobar",
+                ]))
+            )
+        )
