@@ -13,14 +13,19 @@ from aioxmpp.utils import etree
 from ..xmltestutils import XMLTestCase
 
 
-def from_wrapper(fun, *args):
+def from_wrapper(fun, *args, ctx=None):
+    ev_type, *ev_args = yield
+    return (yield from fun(*args+(ev_args, ctx)))
+
+
+def contextless_from_wrapper(fun, *args):
     ev_type, *ev_args = yield
     return (yield from fun(*args+(ev_args,)))
 
 
-def drive_from_events(method, instance, subtree):
+def drive_from_events(method, instance, subtree, ctx):
     sd = xso.SAXDriver(
-        functools.partial(from_wrapper, method, instance)
+        functools.partial(from_wrapper, method, instance, ctx=ctx)
     )
     lxml.sax.saxify(subtree, sd)
 
@@ -32,6 +37,9 @@ def make_instance_mock(mapping={}):
 
 
 class TestXMLStreamClass(unittest.TestCase):
+    def setUp(self):
+        self.ctx = xso_model.Context()
+
     def test_init(self):
         class Cls(metaclass=xso_model.XMLStreamClass):
             TAG = None, "foo"
@@ -529,7 +537,7 @@ class TestXMLStreamClass(unittest.TestCase):
 
         Cls.xso_error_handler = unittest.mock.MagicMock()
 
-        gen = Cls.parse_events((None, "foo", {}))
+        gen = Cls.parse_events((None, "foo", {}), self.ctx)
         next(gen)
         gen.send(("start", None, "bar", {}))
         gen.send(("text", "foobar"))
@@ -562,7 +570,7 @@ class TestXMLStreamClass(unittest.TestCase):
 
         Cls.xso_error_handler = unittest.mock.MagicMock()
 
-        gen = Cls.parse_events((None, "foo", {}))
+        gen = Cls.parse_events((None, "foo", {}), self.ctx)
         next(gen)
         with self.assertRaises(ValueError):
             gen.send(("start", None, "baz", {}))
@@ -588,7 +596,7 @@ class TestXMLStreamClass(unittest.TestCase):
 
         Cls.xso_error_handler = unittest.mock.MagicMock()
 
-        gen = Cls.parse_events((None, "foo", {}))
+        gen = Cls.parse_events((None, "foo", {}), self.ctx)
         next(gen)
         gen.send(("text", "foo"))
         gen.send(("text", "bar"))
@@ -616,9 +624,14 @@ class TestXMLStreamClass(unittest.TestCase):
 
         Cls.xso_error_handler = unittest.mock.MagicMock()
 
-        gen = Cls.parse_events((None, "foo", {
-            (None, "attr"): "foobar",
-        }))
+        gen = Cls.parse_events(
+            (
+                None,
+                "foo", {
+                    (None, "attr"): "foobar",
+                }
+            ),
+            self.ctx)
         with self.assertRaises(ValueError):
             next(gen)
 
@@ -1202,6 +1215,8 @@ class TestChild(XMLTestCase):
         self.ClsLeaf = ClsLeaf
         self.ClsA = ClsA
 
+        self.ctx = xso_model.Context()
+
     def test_match_map(self):
         self.assertDictEqual(
             {self.ClsLeaf.TAG: self.ClsLeaf},
@@ -1237,7 +1252,7 @@ class TestChild(XMLTestCase):
     def test_from_events(self):
         dest = []
 
-        def mock_fun(ev_args):
+        def mock_fun(ev_args, ctx):
             dest.append(ev_args)
             while True:
                 value = yield
@@ -1253,7 +1268,7 @@ class TestChild(XMLTestCase):
 
         instance = make_instance_mock()
 
-        gen = prop.from_events(instance, (None, "foo", {}))
+        gen = prop.from_events(instance, (None, "foo", {}), self.ctx)
         next(gen)
         with self.assertRaises(StopIteration) as ctx:
             gen.send(("stop",))
@@ -1314,6 +1329,8 @@ class TestChildList(XMLTestCase):
         self.ClsLeafA = ClsLeafA
         self.ClsLeafB = ClsLeafB
 
+        self.ctx = xso_model.Context()
+
     def test_from_events(self):
         results = []
 
@@ -1326,7 +1343,8 @@ class TestChildList(XMLTestCase):
             functools.partial(
                 from_wrapper,
                 self.Cls.children.from_events,
-                obj),
+                obj,
+                ctx=self.ctx),
             on_emit=catch_result
         )
 
@@ -1390,6 +1408,9 @@ class TestChildList(XMLTestCase):
 
 
 class TestCollector(XMLTestCase):
+    def setUp(self):
+        self.ctx = xso_model.Context()
+
     def test_from_events(self):
         instance = make_instance_mock()
 
@@ -1406,7 +1427,8 @@ class TestCollector(XMLTestCase):
         subtrees = [subtree1, subtree2, subtree3]
 
         for subtree in subtrees:
-            drive_from_events(prop.from_events, instance, subtree)
+            drive_from_events(prop.from_events, instance, subtree,
+                              self.ctx)
 
         for result, subtree in zip(instance._stanza_props[prop],
                                    subtrees):
@@ -1565,6 +1587,9 @@ class TestAttr(XMLTestCase):
 
 
 class TestChildText(XMLTestCase):
+    def setUp(self):
+        self.ctx = xso_model.Context()
+
     def test_init(self):
         type_mock = unittest.mock.MagicMock()
         validator_mock = unittest.mock.MagicMock()
@@ -1596,7 +1621,7 @@ class TestChildText(XMLTestCase):
 
         subtree = etree.fromstring("<body>foo</body>")
 
-        drive_from_events(prop.from_events, instance, subtree)
+        drive_from_events(prop.from_events, instance, subtree, self.ctx)
 
         self.assertSequenceEqual(
             [
@@ -1634,7 +1659,7 @@ class TestChildText(XMLTestCase):
         validator_mock.validate.return_value = False
 
         with self.assertRaises(ValueError):
-            drive_from_events(prop.from_events, instance, subtree)
+            drive_from_events(prop.from_events, instance, subtree, self.ctx)
 
     def test_child_policy_default(self):
         prop = xso.ChildText("body")
@@ -1651,7 +1676,7 @@ class TestChildText(XMLTestCase):
         subtree = etree.fromstring("<body>foo<bar/></body>")
 
         with self.assertRaises(ValueError):
-            drive_from_events(prop.from_events, instance, subtree)
+            drive_from_events(prop.from_events, instance, subtree, self.ctx)
 
         self.assertFalse(instance._stanza_props)
 
@@ -1662,7 +1687,7 @@ class TestChildText(XMLTestCase):
             "body",
             child_policy=xso.UnknownChildPolicy.DROP)
         subtree = etree.fromstring("<body>foo<bar/>bar</body>")
-        drive_from_events(prop.from_events, instance, subtree)
+        drive_from_events(prop.from_events, instance, subtree, self.ctx)
 
         self.assertDictEqual(
             {
@@ -1685,7 +1710,7 @@ class TestChildText(XMLTestCase):
         subtree = etree.fromstring("<body a='bar'>foo</body>")
 
         with self.assertRaises(ValueError):
-            drive_from_events(prop.from_events, instance, subtree)
+            drive_from_events(prop.from_events, instance, subtree, self.ctx)
 
         self.assertFalse(instance._stanza_props)
 
@@ -1697,7 +1722,7 @@ class TestChildText(XMLTestCase):
             attr_policy=xso.UnknownAttrPolicy.DROP)
         subtree = etree.fromstring("<body a='bar'>foo</body>")
 
-        drive_from_events(prop.from_events, instance, subtree)
+        drive_from_events(prop.from_events, instance, subtree, self.ctx)
 
         self.assertDictEqual(
             {
@@ -1824,6 +1849,9 @@ class TestChildText(XMLTestCase):
 
 
 class TestChildMap(XMLTestCase):
+    def setUp(self):
+        self.ctx = xso_model.Context()
+
     def test_class_access_returns_property(self):
         prop = xso.ChildMap([])
 
@@ -1848,17 +1876,20 @@ class TestChildMap(XMLTestCase):
         drive_from_events(
             prop.from_events,
             instance,
-            etree.fromstring("<bar/>")
+            etree.fromstring("<bar/>"),
+            self.ctx
         )
         drive_from_events(
             prop.from_events,
             instance,
-            etree.fromstring("<foo/>")
+            etree.fromstring("<foo/>"),
+            self.ctx
         )
         drive_from_events(
             prop.from_events,
             instance,
-            etree.fromstring("<bar/>")
+            etree.fromstring("<bar/>"),
+            self.ctx
         )
 
         self.assertIn(prop, instance._stanza_props)
@@ -1925,6 +1956,9 @@ class TestChildMap(XMLTestCase):
 
 
 class TestChildTag(unittest.TestCase):
+    def setUp(self):
+        self.ctx = xso_model.Context()
+
     def test_from_events(self):
         instance = make_instance_mock()
 
@@ -1938,7 +1972,8 @@ class TestChildTag(unittest.TestCase):
         drive_from_events(
             prop.from_events,
             instance,
-            etree.fromstring("<foo xmlns='uri:foo'/>")
+            etree.fromstring("<foo xmlns='uri:foo'/>"),
+            self.ctx
         )
 
         self.assertDictEqual(
@@ -1962,7 +1997,8 @@ class TestChildTag(unittest.TestCase):
             drive_from_events(
                 prop.from_events,
                 instance,
-                etree.fromstring("<foo xmlns='uri:foo'><bar/></foo>")
+                etree.fromstring("<foo xmlns='uri:foo'><bar/></foo>"),
+                self.ctx
             )
 
         self.assertFalse(instance._stanza_props)
@@ -1980,7 +2016,8 @@ class TestChildTag(unittest.TestCase):
         drive_from_events(
             prop.from_events,
             instance,
-            etree.fromstring("<foo xmlns='uri:foo'><bar/></foo>")
+            etree.fromstring("<foo xmlns='uri:foo'><bar/></foo>"),
+            self.ctx
         )
 
         self.assertDictEqual(
@@ -2004,7 +2041,8 @@ class TestChildTag(unittest.TestCase):
             drive_from_events(
                 prop.from_events,
                 instance,
-                etree.fromstring("<foo a='b' xmlns='uri:foo'/>")
+                etree.fromstring("<foo a='b' xmlns='uri:foo'/>"),
+            self.ctx
             )
 
         self.assertFalse(instance._stanza_props)
@@ -2022,7 +2060,8 @@ class TestChildTag(unittest.TestCase):
         drive_from_events(
             prop.from_events,
             instance,
-            etree.fromstring("<foo a='b' xmlns='uri:foo'/>")
+            etree.fromstring("<foo a='b' xmlns='uri:foo'/>"),
+            self.ctx
         )
 
         self.assertDictEqual(
@@ -2046,7 +2085,8 @@ class TestChildTag(unittest.TestCase):
             drive_from_events(
                 prop.from_events,
                 instance,
-                etree.fromstring("<foo xmlns='uri:foo'>bar</foo>")
+                etree.fromstring("<foo xmlns='uri:foo'>bar</foo>"),
+            self.ctx
             )
 
         self.assertFalse(instance._stanza_props)
@@ -2064,7 +2104,8 @@ class TestChildTag(unittest.TestCase):
         drive_from_events(
             prop.from_events,
             instance,
-            etree.fromstring("<foo xmlns='uri:foo'>bar</foo>")
+            etree.fromstring("<foo xmlns='uri:foo'>bar</foo>"),
+            self.ctx
         )
 
         self.assertDictEqual(
@@ -2172,7 +2213,8 @@ class Testdrop_handler(unittest.TestCase):
             result = value
 
         sd = xso.SAXDriver(
-            functools.partial(from_wrapper, xso_model.drop_handler),
+            functools.partial(contextless_from_wrapper,
+                              xso_model.drop_handler),
             on_emit=catch_result)
 
         tree = etree.fromstring("<foo><bar a='fnord'/><baz>keks</baz></foo>")
@@ -2208,6 +2250,7 @@ class Testenforce_unknown_child_policy(unittest.TestCase):
 class TestSAXDriver(unittest.TestCase):
     def setUp(self):
         self.l = []
+        self.ctx = xso_model.Context()
 
     def catchall(self):
         while True:
@@ -2352,6 +2395,7 @@ class ChildTag(XMLTestCase):
                 "baz"
             ],
             default_ns="uri:bar")
+        self.ctx = xso_model.Context()
 
     def test_init(self):
         self.assertSetEqual(
@@ -2382,7 +2426,8 @@ class ChildTag(XMLTestCase):
 
         drive_from_events(
             self.prop.from_events, instance,
-            etree.fromstring("<foo xmlns='uri:bar'/>")
+            etree.fromstring("<foo xmlns='uri:bar'/>"),
+            self.ctx
         )
 
         self.assertEqual(
@@ -2398,7 +2443,8 @@ class ChildTag(XMLTestCase):
         with self.assertRaises(ValueError):
             drive_from_events(
                 self.prop.from_events, instance,
-                etree.fromstring("<foo xmlns='uri:bar'>text</foo>")
+                etree.fromstring("<foo xmlns='uri:bar'>text</foo>"),
+                self.ctx
             )
         self.assertFalse(instance._stanza_props)
 
@@ -2408,7 +2454,8 @@ class ChildTag(XMLTestCase):
 
         drive_from_events(
             self.prop.from_events, instance,
-            etree.fromstring("<foo xmlns='uri:bar'>text</foo>")
+            etree.fromstring("<foo xmlns='uri:bar'>text</foo>"),
+            self.ctx
         )
 
         self.assertEqual(
@@ -2424,7 +2471,8 @@ class ChildTag(XMLTestCase):
         with self.assertRaises(ValueError):
             drive_from_events(
                 self.prop.from_events, instance,
-                etree.fromstring("<foo xmlns='uri:bar'><bar/></foo>")
+                etree.fromstring("<foo xmlns='uri:bar'><bar/></foo>"),
+                self.ctx
             )
         self.assertFalse(instance._stanza_props)
 
@@ -2434,7 +2482,8 @@ class ChildTag(XMLTestCase):
 
         drive_from_events(
             self.prop.from_events, instance,
-            etree.fromstring("<foo xmlns='uri:bar'><bar/></foo>")
+            etree.fromstring("<foo xmlns='uri:bar'><bar/></foo>"),
+            self.ctx
         )
 
         self.assertEqual(
@@ -2450,7 +2499,8 @@ class ChildTag(XMLTestCase):
         with self.assertRaises(ValueError):
             drive_from_events(
                 self.prop.from_events, instance,
-                etree.fromstring("<foo xmlns='uri:bar' a='bar'/>")
+                etree.fromstring("<foo xmlns='uri:bar' a='bar'/>"),
+                self.ctx
             )
         self.assertFalse(instance._stanza_props)
 
@@ -2460,7 +2510,8 @@ class ChildTag(XMLTestCase):
 
         drive_from_events(
             self.prop.from_events, instance,
-            etree.fromstring("<foo xmlns='uri:bar' a='bar'/>")
+            etree.fromstring("<foo xmlns='uri:bar' a='bar'/>"),
+            self.ctx
         )
 
         self.assertEqual(
@@ -2871,3 +2922,26 @@ class TestXSOParser(XMLTestCase):
         )
         p.remove_class(Foo)
         self.assertFalse(p.get_tag_map())
+
+
+class TestContext(unittest.TestCase):
+    def setUp(self):
+        self.ctx = xso_model.Context()
+
+    def test_init(self):
+        self.assertIsNone(self.ctx.lang)
+
+    def test_context_manager(self):
+        self.ctx.lang = "foo"
+        self.ctx.random_attribute = "fnord"
+        with self.ctx as new_ctx:
+            self.assertEqual("foo", new_ctx.lang)
+            self.assertEqual("fnord", new_ctx.random_attribute)
+
+            new_ctx.lang = "bar"
+            self.assertEqual("bar", new_ctx.lang)
+
+            self.assertEqual("foo", self.ctx.lang)
+
+    def tearDown(self):
+        del self.ctx

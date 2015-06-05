@@ -263,11 +263,11 @@ class Child(_PropBase):
         """
         return self._tag_map
 
-    def _process(self, instance, ev_args):
+    def _process(self, instance, ev_args, ctx):
         cls = self._tag_map[ev_args[0], ev_args[1]]
-        return (yield from cls.parse_events(ev_args))
+        return (yield from cls.parse_events(ev_args, ctx))
 
-    def from_events(self, instance, ev_args):
+    def from_events(self, instance, ev_args, ctx):
         """
         Detect the object to instanciate from the arguments *ev_args* of the
         ``"start"`` event. The new object is stored at the corresponding
@@ -275,7 +275,7 @@ class Child(_PropBase):
 
         This method is suspendable.
         """
-        obj = yield from self._process(instance, ev_args)
+        obj = yield from self._process(instance, ev_args, ctx)
         self.__set__(instance, obj)
         return obj
 
@@ -327,13 +327,13 @@ class ChildList(Child):
             raise TypeError("expected list, but found {}".format(type(value)))
         return super()._set(instance, value)
 
-    def from_events(self, instance, ev_args):
+    def from_events(self, instance, ev_args, ctx):
         """
         Like :meth:`.Child.from_events`, but instead of replacing the attribute
         value, the new object is appended to the list.
         """
 
-        obj = yield from self._process(instance, ev_args)
+        obj = yield from self._process(instance, ev_args, ctx)
         self.__get__(instance, type(instance)).append(obj)
         return obj
 
@@ -372,7 +372,7 @@ class Collector(_PropBase):
             raise TypeError("expected list, but found {}".format(type(value)))
         return super()._set(instance, value)
 
-    def from_events(self, instance, ev_args):
+    def from_events(self, instance, ev_args, ctx):
         """
         Collect the events and convert them to a single XML subtree, which then
         gets appended to the list at *instance*. *ev_args* must be the
@@ -527,7 +527,7 @@ class ChildText(_TypedPropBase):
         """
         return {self.tag}
 
-    def from_events(self, instance, ev_args):
+    def from_events(self, instance, ev_args, ctx):
         """
         Starting with the element to which the start event information in
         *ev_args* belongs, parse text data. If any children are encountered,
@@ -615,7 +615,7 @@ class ChildMap(Child):
             raise TypeError("expected dict, but found {}".format(type(value)))
         return super()._set(instance, value)
 
-    def from_events(self, instance, ev_args):
+    def from_events(self, instance, ev_args, ctx):
         """
         Like :meth:`.ChildList.from_events`, but the object is appended to the
         list associated with its tag in the dict.
@@ -623,7 +623,7 @@ class ChildMap(Child):
 
         tag = ev_args[0], ev_args[1]
         cls = self._tag_map[tag]
-        obj = yield from cls.parse_events(ev_args)
+        obj = yield from cls.parse_events(ev_args, ctx)
         mapping = self.__get__(instance, type(instance))
         mapping.setdefault(cls.TAG, []).append(obj)
 
@@ -712,7 +712,7 @@ class ChildTag(_PropBase):
     def get_tag_map(self):
         return self.validator.values
 
-    def from_events(self, instance, ev_args):
+    def from_events(self, instance, ev_args, ctx):
         attrs = ev_args[2]
         if attrs and self.attr_policy == UnknownAttrPolicy.FAIL:
             raise ValueError("unexpected attributes")
@@ -896,7 +896,7 @@ class XMLStreamClass(type):
     def __prepare__(name, bases):
         return collections.OrderedDict()
 
-    def parse_events(cls, ev_args):
+    def parse_events(cls, ev_args, ctx):
         """
         Create an instance of this class, using the events sent into this
         function. *ev_args* must be the event arguments of the ``"start"``
@@ -963,7 +963,7 @@ class XMLStreamClass(type):
                             obj.xso_error_handler)
                         continue
                 try:
-                    yield from handler.from_events(obj, ev_args)
+                    yield from handler.from_events(obj, ev_args, ctx)
                 except:
                     obj.xso_error_handler(
                         handler,
@@ -1204,6 +1204,19 @@ class SAXDriver(xml.sax.handler.ContentHandler):
             self._dest = None
 
 
+class Context:
+    def __init__(self):
+        super().__init__()
+        self.lang = None
+
+    def __enter__(self):
+        new_ctx = Context()
+        new_ctx.__dict__ = self.__dict__.copy()
+        return new_ctx
+
+    def __exit__(self, *args):
+        pass
+
 class XSOParser:
     """
     A generic XSO parser which supports a dynamic set of XSOs to
@@ -1292,6 +1305,7 @@ class XSOParser:
         del self._class_map[cls]
 
     def __call__(self):
+        ctx = Context()
         while True:
             ev_type, *ev_args = yield
             tag = ev_args[0], ev_args[1]
@@ -1301,7 +1315,7 @@ class XSOParser:
                 raise UnknownTopLevelTag(
                     "unhandled top-level element",
                     ev_args)
-            cb((yield from cls.parse_events(ev_args)))
+            cb((yield from cls.parse_events(ev_args, ctx)))
 
 
 def drop_handler(ev_args):
