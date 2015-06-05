@@ -85,7 +85,7 @@ strictly type-checked.
 Scalar descriptors
 ^^^^^^^^^^^^^^^^^^
 
-.. autoclass:: Attr(name, type_=xso.String(), default=None, required=False, validator=None, validate=ValidateMode.FROM_RECV)
+.. autoclass:: Attr(name, type_=xso.String(), default=None, required=False, validator=None, validate=ValidateMode.FROM_RECV, missing=None)
 
 .. autoclass:: Child(classes, default=None)
 
