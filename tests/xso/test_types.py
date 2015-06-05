@@ -707,6 +707,55 @@ class TestConnectionLocation(unittest.TestCase):
                 t.coerce(value)
 
 
+class TestLanguageTag(unittest.TestCase):
+    def test_is_abstract_type(self):
+        self.assertIsInstance(
+            xso.LanguageTag(),
+            xso.AbstractType)
+
+    def test_parse(self):
+        t = xso.LanguageTag()
+        self.assertEqual(
+            structs.LanguageTag.fromstr("de-Latn-DE-1999"),
+            t.parse("de-Latn-DE-1999")
+        )
+
+    def test_format(self):
+        t = xso.LanguageTag()
+        self.assertEqual(
+            "de-Latn-DE-1999",
+            t.format(structs.LanguageTag.fromstr("de-Latn-DE-1999"))
+        )
+
+    def test_coerce_passes_language_tags(self):
+        t = xso.LanguageTag()
+        tag = structs.LanguageTag.fromstr("foo")
+        self.assertIs(
+            tag,
+            t.coerce(tag)
+        )
+
+    def test_coerce_rejects_non_language_tags(self):
+        t = xso.LanguageTag()
+
+        values = [
+            1.2,
+            decimal.Decimal("1"),
+            fractions.Fraction(1, 1),
+            [],
+            (),
+            1.,
+            "foo",
+        ]
+
+        for value in values:
+            with self.assertRaisesRegexp(
+                    TypeError,
+                    "is not a LanguageTag"):
+                t.coerce(value)
+
+
+
 class TestAbstractValidator(unittest.TestCase):
     def test_is_abstract(self):
         self.assertIsInstance(

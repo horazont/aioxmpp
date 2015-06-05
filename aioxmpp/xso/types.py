@@ -327,6 +327,24 @@ class ConnectionLocation(AbstractType):
         return ":".join(map(str, v))
 
 
+class LanguageTag(AbstractType):
+    """
+    Parses the value as Language Tag using
+    :meth:`~.structs.LanguageTag.fromstr`.
+
+    Type coercion requires that any value assigned to a descriptor using this
+    type is an instance of :class:`~.structs.LanguageTag`.
+    """
+
+    def parse(self, v):
+        return structs.LanguageTag.fromstr(v)
+
+    def coerce(self, v):
+        if not isinstance(v, structs.LanguageTag):
+            raise TypeError("{!r} is not a LanguageTag", v)
+        return v
+
+
 class AbstractValidator(metaclass=abc.ABCMeta):
     """
     This is the interface all validators must implement. In addition, a

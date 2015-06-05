@@ -203,6 +203,8 @@ Implementations
 
 .. autoclass:: ConnectionLocation
 
+.. autoclass:: LanguageTag
+
 Validators
 ----------
 
@@ -283,6 +285,7 @@ from .types import (  # NOQA
     HexBinary,
     JID,
     ConnectionLocation,
+    LanguageTag,
     AbstractValidator,
     RestrictToSet,
     Nmtoken
