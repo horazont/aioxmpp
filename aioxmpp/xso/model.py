@@ -505,9 +505,9 @@ class Attr(Text):
                 return
 
         if self.required:
-            raise ValueError("missing attribute {!r} on {}".format(
-                self.tag,
-                instance.TAG,
+            raise ValueError("missing attribute {} on {}".format(
+                tag_to_str(self.tag),
+                tag_to_str(instance.TAG),
             ))
 
     def to_dict(self, instance, d):

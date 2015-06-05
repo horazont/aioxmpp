@@ -428,7 +428,7 @@ class TestXMLStream(unittest.TestCase):
                 STANZA_ERROR_TEMPLATE_WITH_TEXT.format(
                     type="modify",
                     condition="bad-request",
-                    text="missing attribute (None, 'a') on {uri:foo}payload"
+                    text="missing attribute a on {uri:foo}payload"
                 ).encode("utf-8") +
                 b'</iq>',
                 response=[

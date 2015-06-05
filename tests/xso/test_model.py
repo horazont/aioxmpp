@@ -32,6 +32,7 @@ def drive_from_events(method, instance, subtree, ctx):
 
 def make_instance_mock(mapping={}):
     instance = unittest.mock.MagicMock()
+    instance.TAG = ("uri:mock", "mock-instance")
     instance._stanza_props = dict(mapping)
     return instance
 
@@ -1749,7 +1750,7 @@ class TestAttr(XMLTestCase):
 
         prop = xso.Attr("foo", required=True)
         with self.assertRaisesRegexp(ValueError,
-                                     r"missing attribute \(None, 'foo'\)"):
+                                     r"missing attribute foo"):
             prop.missing(instance, ctx)
 
     def test_to_dict(self):
