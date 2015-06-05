@@ -5,6 +5,7 @@ import unittest.mock
 
 import lxml.sax
 
+import aioxmpp.structs as structs
 import aioxmpp.xso as xso
 import aioxmpp.xso.model as xso_model
 
@@ -2278,16 +2279,16 @@ class TestChildLangMap(unittest.TestCase):
         class Foo(xso.XSO):
             TAG = "foo"
 
-            lang = xso.Attr(
-                tag=(namespaces.xml, "lang"),
-                missing=xso.lang_attr
-            )
+            lang = xso.LangAttr()
 
         instance = make_instance_mock()
 
         prop = xso.ChildLangMap(
             [Foo]
         )
+
+        en_GB = structs.LanguageTag.fromstr("en-gb")
+        de_DE = structs.LanguageTag.fromstr("de-de")
 
         drive_from_events(
             prop.from_events,
@@ -2296,7 +2297,7 @@ class TestChildLangMap(unittest.TestCase):
             self.ctx
         )
 
-        self.ctx.lang = "en-GB"
+        self.ctx.lang = structs.LanguageTag.fromstr("en-gb")
         drive_from_events(
             prop.from_events,
             instance,
@@ -2308,25 +2309,25 @@ class TestChildLangMap(unittest.TestCase):
         drive_from_events(
             prop.from_events,
             instance,
-            etree.fromstring("<foo xml:lang='de-DE'/>"),
+            etree.fromstring("<foo xml:lang='de-de'/>"),
             self.ctx
         )
 
         self.assertIn(prop, instance._stanza_props)
         resultmap = instance._stanza_props[prop]
         self.assertEqual(2, len(resultmap))
-        self.assertIn("en-GB", resultmap)
-        self.assertIn("de-DE", resultmap)
+        self.assertIn(en_GB, resultmap)
+        self.assertIn(de_DE, resultmap)
 
-        en_results = resultmap["en-GB"]
+        en_results = resultmap[en_GB]
         self.assertEqual(2, len(en_results))
         for result in en_results:
-            self.assertEqual("en-GB", result.lang)
+            self.assertEqual(en_GB, result.lang)
 
-        de_results = resultmap["de-DE"]
+        de_results = resultmap[de_DE]
         self.assertEqual(1, len(de_results))
         for result in de_results:
-            self.assertEqual("de-DE", result.lang)
+            self.assertEqual(de_DE, result.lang)
 
 
 class TestLangAttr(unittest.TestCase):
