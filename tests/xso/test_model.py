@@ -2215,6 +2215,54 @@ class TestChildMap(XMLTestCase):
             etree.fromstring("<root><foo a='1'/><foo a='2'/><bar/></root>"),
             parent)
 
+    def test_custom_key_function(self):
+        class Bar(xso.XSO):
+            TAG = "bar"
+
+        class Foo(xso.XSO):
+            TAG = "foo"
+
+        instance = make_instance_mock()
+
+        prop = xso.ChildMap(
+            [Foo, Bar],
+            key=lambda obj: obj.TAG[1]
+        )
+
+        drive_from_events(
+            prop.from_events,
+            instance,
+            etree.fromstring("<bar/>"),
+            self.ctx
+        )
+        drive_from_events(
+            prop.from_events,
+            instance,
+            etree.fromstring("<foo/>"),
+            self.ctx
+        )
+        drive_from_events(
+            prop.from_events,
+            instance,
+            etree.fromstring("<bar/>"),
+            self.ctx
+        )
+
+        self.assertIn(prop, instance._stanza_props)
+        resultmap = instance._stanza_props[prop]
+        self.assertEqual(2, len(resultmap))
+        self.assertIn("bar", resultmap)
+        self.assertIn("foo", resultmap)
+
+        bar_results = resultmap["bar"]
+        self.assertEqual(2, len(bar_results))
+        self.assertIsInstance(bar_results[0], Bar)
+        self.assertIsInstance(bar_results[1], Bar)
+
+        foo_results = resultmap["foo"]
+        self.assertEqual(1, len(foo_results))
+        self.assertIsInstance(foo_results[0], Foo)
+
 
 class TestChildTag(unittest.TestCase):
     def setUp(self):

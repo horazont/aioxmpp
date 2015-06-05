@@ -640,11 +640,20 @@ class ChildMap(Child):
     storing the child objects in a list, they are stored in a map which
     contains a list of objects for each tag.
 
+    *key* may be callable. If it is given, it is used while parsing to
+    determine the dictionary key under which a newly parsed XSO will be
+    put. For that, the *key* callable is called with the newly parsed XSO as
+    the only argument and is expected to return the key.
+
     .. automethod:: from_events
 
     .. automethod:: to_sax
 
     """
+
+    def __init__(self, classes, *, key=None, **kwargs):
+        super().__init__(classes, **kwargs)
+        self.key = key or (lambda obj: obj.TAG)
 
     def __get__(self, instance, cls):
         if instance is None:
@@ -668,7 +677,7 @@ class ChildMap(Child):
         cls = self._tag_map[tag]
         obj = yield from cls.parse_events(ev_args, ctx)
         mapping = self.__get__(instance, type(instance))
-        mapping.setdefault(cls.TAG, []).append(obj)
+        mapping.setdefault(self.key(obj), []).append(obj)
 
     def to_sax(self, instance, dest):
         """

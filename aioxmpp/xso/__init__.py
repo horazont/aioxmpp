@@ -100,7 +100,7 @@ Non-scalar descriptors
 
 .. autoclass:: ChildList(classes)
 
-.. autoclass:: ChildMap(classes)
+.. autoclass:: ChildMap(classes[, key=None])
 
 .. autoclass:: Collector()
 
