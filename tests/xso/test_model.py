@@ -676,6 +676,37 @@ class TestXMLStreamClass(unittest.TestCase):
             Cls.xso_error_handler.mock_calls
         )
 
+    def test_call_missing_on_missing_attr(self):
+        missing = unittest.mock.MagicMock()
+        missing.return_value = "123"
+
+        class Cls(xso.XSO):
+            TAG = "foo"
+
+            attr = xso.Attr(
+                tag=(None, "attr"),
+                missing=missing
+            )
+
+        gen = Cls.parse_events(
+            (
+                None,
+                "foo", {
+                }
+            ),
+            self.ctx)
+        next(gen)
+        with self.assertRaises(StopIteration) as exc:
+            gen.send(("end", ))
+        obj = exc.exception.value
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(obj, self.ctx)
+            ],
+            missing.mock_calls
+        )
+
 
 class TestXSO(XMLTestCase):
     def _unparse_test(self, obj, tree):
@@ -1549,16 +1580,20 @@ class TestAttr(XMLTestCase):
     def test_missing_passes_if_not_required(self):
         ctx = xso_model.Context()
 
+        instance = make_instance_mock()
+
         prop = xso.Attr("foo")
-        prop.missing(ctx)
+        prop.missing(instance, ctx)
 
     def test_missing_raises_if_required(self):
         ctx = xso_model.Context()
 
+        instance = make_instance_mock()
+
         prop = xso.Attr("foo", required=True)
         with self.assertRaisesRegexp(ValueError,
                                      r"missing attribute \(None, 'foo'\)"):
-            prop.missing(ctx)
+            prop.missing(instance, ctx)
 
     def test_to_dict(self):
         d = {}
@@ -1628,6 +1663,29 @@ class TestAttr(XMLTestCase):
                 unittest.mock.call.coerce("bar"),
             ],
             type_.mock_calls
+        )
+
+    def test_missing(self):
+        ctx = xso_model.Context()
+
+        missing = unittest.mock.MagicMock()
+        missing.return_value = "123"
+
+        instance = make_instance_mock()
+
+        prop = xso.Attr("foo", missing=missing)
+        prop.missing(instance, ctx)
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(instance, ctx)
+            ],
+            missing.mock_calls
+        )
+
+        self.assertEqual(
+            "123",
+            prop.__get__(instance, type(instance))
         )
 
 

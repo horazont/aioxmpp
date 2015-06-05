@@ -451,8 +451,21 @@ class Attr(Text):
                     assigned. This defaults to :data:`None`.
     :param required: Whether the absence of data for this object during parsing
                      is a fatal error. This defaults to :data:`False`.
+    :param missing: A callable which takes a :class:`Context` instance. It is
+                    called whenever the attribute is missing (independent from
+                    the fact whether it is required or not). The callable shall
+                    return a not-:data:`None` value for the attribute to
+                    use. If the value is :data:`None`, the usual handling of
+                    missing attributes takes place.
+
+                    .. seealso::
+
+                       :func:`lang_attr` is a useful function to pass to
+                       *missing* for `xml:lang` attributes.
 
     .. automethod:: from_value
+
+    .. automethod:: missing
 
     .. automethod:: to_dict
 
@@ -462,14 +475,40 @@ class Attr(Text):
                  type_=xso_types.String(),
                  default=None,
                  required=False,
+                 missing=None,
                  **kwargs):
         super().__init__(type_=type_, default=default, **kwargs)
         self.tag = normalize_tag(tag)
         self.required = required
+        self._missing = missing
 
-    def missing(self, ctx):
+    def missing(self, instance, ctx):
+        """
+        Handle a missing attribute on *instance*. This is called whenever no
+        value for the attribute is found during parsing. The call to
+        :meth:`missing` is independent of the value of *required*.
+
+        If the *missing* callback is not :data:`None`, it is called with the
+        *instance* and the *ctx* as arguments. If the returned value is not
+        :data:`None`, it is used as the value of the attribute (validation
+        takes place as if the value had been set from the code, not as if the
+        value had been received from XML) and the handler returns.
+
+        If the *missing* callback is :data:`None` or returns :data:`None`, the
+        handling continues as normal: if *required* is true, a
+        :class:`ValueError` is raised.
+        """
+        if self._missing is not None:
+            value = self._missing(instance, ctx)
+            if value is not None:
+                self._set_from_code(instance, value)
+                return
+
         if self.required:
-            raise ValueError("missing attribute {!r}".format(self.tag))
+            raise ValueError("missing attribute {!r} on {}".format(
+                self.tag,
+                instance.TAG,
+            ))
 
     def to_dict(self, instance, d):
         """
@@ -938,13 +977,7 @@ class XMLStreamClass(type):
 
         for key, prop in attr_map.items():
             try:
-                try:
-                    prop.missing(ctx)
-                except ValueError as exc:
-                    raise ValueError("{!s} on {}".format(
-                        exc,
-                        tag_to_str((ev_args[0], ev_args[1]))
-                    ))
+                prop.missing(obj, ctx)
             except:
                 obj.xso_error_handler(
                     prop,
