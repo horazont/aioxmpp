@@ -2264,6 +2264,72 @@ class TestChildMap(XMLTestCase):
         self.assertIsInstance(foo_results[0], Foo)
 
 
+class TestChildLangMap(unittest.TestCase):
+    def setUp(self):
+        self.ctx = xso_model.Context()
+
+    def test_inherits_from_child_map(self):
+        self.assertIsInstance(
+            xso.ChildLangMap([]),
+            xso.ChildMap
+        )
+
+    def test_from_events_with_context(self):
+        class Foo(xso.XSO):
+            TAG = "foo"
+
+            lang = xso.Attr(
+                tag=(namespaces.xml, "lang"),
+                missing=xso.lang_attr
+            )
+
+        instance = make_instance_mock()
+
+        prop = xso.ChildLangMap(
+            [Foo]
+        )
+
+        drive_from_events(
+            prop.from_events,
+            instance,
+            etree.fromstring("<foo xml:lang='en-GB'/>"),
+            self.ctx
+        )
+
+        self.ctx.lang = "en-GB"
+        drive_from_events(
+            prop.from_events,
+            instance,
+            etree.fromstring("<foo />"),
+            self.ctx
+        )
+        self.ctx.lang = None
+
+        drive_from_events(
+            prop.from_events,
+            instance,
+            etree.fromstring("<foo xml:lang='de-DE'/>"),
+            self.ctx
+        )
+
+        self.assertIn(prop, instance._stanza_props)
+        resultmap = instance._stanza_props[prop]
+        self.assertEqual(2, len(resultmap))
+        self.assertIn("en-GB", resultmap)
+        self.assertIn("de-DE", resultmap)
+
+        en_results = resultmap["en-GB"]
+        self.assertEqual(2, len(en_results))
+        for result in en_results:
+            self.assertEqual("en-GB", result.lang)
+
+        de_results = resultmap["de-DE"]
+        self.assertEqual(1, len(de_results))
+        for result in de_results:
+            self.assertEqual("de-DE", result.lang)
+
+
+
 class TestChildTag(unittest.TestCase):
     def setUp(self):
         self.ctx = xso_model.Context()

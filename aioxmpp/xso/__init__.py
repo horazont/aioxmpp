@@ -102,6 +102,8 @@ Non-scalar descriptors
 
 .. autoclass:: ChildMap(classes[, key=None])
 
+.. autoclass:: ChildLangMap(classes)
+
 .. autoclass:: Collector()
 
 
@@ -297,6 +299,7 @@ from .model import (  # NOQA
     Attr,
     Child,
     ChildList,
+    ChildLangMap,
     ChildMap,
     ChildTag,
     ChildText,

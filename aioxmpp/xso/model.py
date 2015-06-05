@@ -693,6 +693,24 @@ class ChildMap(Child):
                 obj.unparse_to_sax(dest)
 
 
+class ChildLangMap(ChildMap):
+    """
+    The :class:`ChildLangMap` class is a specialized version of the
+    :class:`ChildMap`, which uses a *key* function to group the children by
+    their XML language tag.
+
+    It is expected that the language tag is available as ``lang`` attribute on
+    the objects stored in this map.
+    """
+
+    @staticmethod
+    def _lang_key(obj):
+        return obj.lang
+
+    def __init__(self, classes, **kwargs):
+        super().__init__(classes, key=self._lang_key, **kwargs)
+
+
 class ChildTag(_PropBase):
     """
     When assigned to a class’ attribute, this descriptor represents the
