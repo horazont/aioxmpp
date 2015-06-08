@@ -13,6 +13,8 @@ encountered in the XMPP realm.
 
 .. autoclass:: LanguageRange
 
+.. autoclass:: LanguageMap
+
 Functions for working with language tags
 ========================================
 
@@ -521,3 +523,29 @@ def lookup_language(languages, ranges):
                 language_range = language_range.strip_rightmost()
             except ValueError:
                 break
+
+
+class LanguageMap(dict):
+    """
+    A :class:`dict` subclass specialized for holding :class:`LanugageTag`
+    instances as keys.
+
+    In addition to the interface provided by :class:`dict`, instances of this
+    class also have the following method:
+
+    .. automethod:: lookup
+    """
+
+    def lookup(self, language_ranges):
+        """
+        Perform an RFC4647 language range lookup on the keys in the
+        dictionary. *language_ranges* must be a sequence of
+        :class:`LanguageRange` instances.
+
+        Return the entry in the dictionary with a key as produced by
+        *lookup_language*. If *lookup_language* does not find a match,
+        :class:`KeyError` is raised.
+        """
+        keys = sorted(self.keys())
+        key = lookup_language(keys, language_ranges)
+        return self[key]

@@ -1,3 +1,4 @@
+import collections.abc
 import unittest
 
 import aioxmpp.structs as structs
@@ -707,3 +708,176 @@ class Testlookup_language(unittest.TestCase):
                 ]))
             )
         )
+
+
+class TestLanguageMap(unittest.TestCase):
+    def test_implements_mapping(self):
+        mapping = structs.LanguageMap()
+        self.assertIsInstance(
+            mapping,
+            collections.abc.MutableMapping
+        )
+
+    def test_mapping_interface(self):
+        key1 = structs.LanguageTag.fromstr("de-DE")
+        key2 = structs.LanguageTag.fromstr("en-US")
+        key3 = structs.LanguageTag.fromstr("en")
+
+        mapping = structs.LanguageMap()
+
+        self.assertFalse(mapping)
+        self.assertEqual(0, len(mapping))
+
+        mapping[key1] = 10
+
+        self.assertIn(key1, mapping)
+        self.assertEqual(
+            10,
+            mapping[key1]
+        )
+
+        self.assertSetEqual(
+            {key1},
+            set(mapping)
+        )
+
+        mapping[key2] = 20
+
+        self.assertIn(key2, mapping)
+        self.assertEqual(
+            20,
+            mapping[key2]
+        )
+
+        self.assertSetEqual(
+            {key1, key2},
+            set(mapping)
+        )
+
+        key2_prime = structs.LanguageTag.fromstr("en-us")
+
+        self.assertIn(key2_prime, mapping)
+        self.assertEqual(
+            20,
+            mapping[key2_prime]
+        )
+
+        self.assertNotIn(key3, mapping)
+
+        del mapping[key1]
+
+        self.assertNotIn(key1, mapping)
+
+        mapping.clear()
+
+        self.assertNotIn(key2, mapping)
+
+    def test_lookup(self):
+        key1 = structs.LanguageTag.fromstr("de-DE")
+        key2 = structs.LanguageTag.fromstr("en-US")
+        key3 = structs.LanguageTag.fromstr("en")
+
+        mapping = structs.LanguageMap()
+
+        mapping[key1] = 10
+        mapping[key2] = 20
+        mapping[key3] = 30
+
+        self.assertEqual(
+            30,
+            mapping.lookup([structs.LanguageRange.fromstr("en-GB")])
+        )
+
+    def test_values(self):
+        key1 = structs.LanguageTag.fromstr("de-DE")
+        key2 = structs.LanguageTag.fromstr("en-US")
+        key3 = structs.LanguageTag.fromstr("en")
+
+        mapping = structs.LanguageMap()
+
+        mapping[key1] = 10
+        mapping[key2] = 20
+        mapping[key3] = 30
+
+        self.assertSetEqual(
+            {10, 20, 30},
+            set(mapping.values())
+        )
+
+    def test_keys(self):
+        key1 = structs.LanguageTag.fromstr("de-DE")
+        key2 = structs.LanguageTag.fromstr("en-US")
+        key3 = structs.LanguageTag.fromstr("en")
+
+        mapping = structs.LanguageMap()
+
+        mapping[key1] = 10
+        mapping[key2] = 20
+        mapping[key3] = 30
+
+        self.assertSetEqual(
+            {key1, key2, key3},
+            set(mapping.keys())
+        )
+
+    def test_items(self):
+        key1 = structs.LanguageTag.fromstr("de-DE")
+        key2 = structs.LanguageTag.fromstr("en-US")
+        key3 = structs.LanguageTag.fromstr("en")
+
+        mapping = structs.LanguageMap()
+
+        mapping[key1] = 10
+        mapping[key2] = 20
+        mapping[key3] = 30
+
+        self.assertSetEqual(
+            {
+                (key1, 10),
+                (key2, 20),
+                (key3, 30),
+            },
+            set(mapping.items())
+        )
+
+    def test_equality(self):
+        mapping1 = structs.LanguageMap()
+        mapping1[structs.LanguageTag.fromstr("de-de")] = 10
+        mapping1[structs.LanguageTag.fromstr("en-US")] = 20
+
+        mapping2 = structs.LanguageMap()
+        mapping2[structs.LanguageTag.fromstr("de-DE")] = 10
+        mapping2[structs.LanguageTag.fromstr("en-US")] = 20
+
+        mapping3 = structs.LanguageMap()
+        mapping3[structs.LanguageTag.fromstr("de-DE")] = 10
+        mapping3[structs.LanguageTag.fromstr("en-GB")] = 20
+
+        self.assertEqual(
+            mapping1,
+            mapping2
+        )
+        self.assertFalse(mapping1 != mapping2)
+
+        self.assertNotEqual(
+            mapping1,
+            mapping3
+        )
+        self.assertFalse(mapping1 == mapping3)
+
+        self.assertNotEqual(
+            mapping2,
+            mapping3
+        )
+        self.assertFalse(mapping2 == mapping3)
+
+    def test_setdefault(self):
+        l = []
+        mapping = structs.LanguageMap()
+        result = mapping.setdefault(structs.LanguageTag.fromstr("de-de"), l)
+
+        self.assertIs(result, l)
+
+        result = mapping.setdefault(structs.LanguageTag.fromstr("de-de"), [])
+
+        self.assertIs(result, l)
