@@ -285,6 +285,7 @@ class PresenceState:
         return cls(available=available, show=show)
 
 
+@functools.total_ordering
 class LanguageTag:
     """
     Implementation of a language tag. This may be a fully RFC5646 compliant
@@ -344,6 +345,12 @@ class LanguageTag:
 
     def __eq__(self, other):
         return self.match_str == other.match_str
+
+    def __lt__(self, other):
+        return self.match_str < other.match_str
+
+    def __le__(self, other):
+        return self.match_str <= other.match_str
 
     def __hash__(self):
         return hash(self.match_str)

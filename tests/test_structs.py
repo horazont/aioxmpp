@@ -417,6 +417,30 @@ class TestLanguageTag(unittest.TestCase):
         self.assertTrue(tag3 != tag1)
         self.assertFalse(tag3 == tag1)
 
+    def test_order_case_insensitively(self):
+        tag1 = structs.LanguageTag.fromstr("de-DE")
+        tag2 = structs.LanguageTag.fromstr("de-de")
+        tag3 = structs.LanguageTag.fromstr("en-us")
+        tag4 = structs.LanguageTag.fromstr("fr")
+
+        self.assertLess(tag1, tag3)
+        self.assertLess(tag1, tag4)
+        self.assertLess(tag2, tag3)
+        self.assertLess(tag2, tag4)
+        self.assertLess(tag3, tag4)
+
+        self.assertGreater(tag4, tag3)
+        self.assertGreater(tag4, tag2)
+        self.assertGreater(tag4, tag1)
+        self.assertGreater(tag3, tag2)
+        self.assertGreater(tag3, tag1)
+
+        self.assertFalse(tag1 > tag2)
+        self.assertFalse(tag2 > tag1)
+
+        self.assertFalse(tag1 < tag2)
+        self.assertFalse(tag2 < tag1)
+
     def test_hash_case_insensitively(self):
         tag1 = structs.LanguageTag.fromstr("de-DE")
         tag2 = structs.LanguageTag.fromstr("de-de")
