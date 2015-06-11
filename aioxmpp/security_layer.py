@@ -148,6 +148,10 @@ class PKIXCertificateVerifier(CertificateVerifier):
         return super().verify_callback(
             transport, x509, errno, errdepth, returncode)
 
+    def setup_context(self, ctx):
+        super().setup_context(ctx)
+        ctx.set_default_verify_paths()
+
     @asyncio.coroutine
     def post_handshake(self, transport):
         import ssl
