@@ -448,6 +448,10 @@ class TestLanguageTag(unittest.TestCase):
 
         self.assertEqual(hash(tag1), hash(tag2))
 
+    def test_not_equal_to_None(self):
+        tag1 = structs.LanguageTag.fromstr("de-DE")
+        self.assertNotEqual(tag1, None)
+
     def test__repr__(self):
         tag1 = structs.LanguageTag.fromstr("de-DE")
         tag2 = structs.LanguageTag.fromstr("fr")
@@ -529,6 +533,10 @@ class TestLanguageRange(unittest.TestCase):
         tag2 = structs.LanguageRange.fromstr("de-de")
 
         self.assertEqual(hash(tag1), hash(tag2))
+
+    def test_not_equal_to_None(self):
+        r1 = structs.LanguageRange.fromstr("de-DE")
+        self.assertNotEqual(r1, None)
 
     def test_wildcard(self):
         r1 = structs.LanguageRange.fromstr("*")

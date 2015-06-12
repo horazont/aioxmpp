@@ -346,7 +346,10 @@ class LanguageTag:
         return self.print_str
 
     def __eq__(self, other):
-        return self.match_str == other.match_str
+        try:
+            return self.match_str == other.match_str
+        except AttributeError:
+            return False
 
     def __lt__(self, other):
         return self.match_str < other.match_str
@@ -427,7 +430,10 @@ class LanguageRange:
         return self.print_str
 
     def __eq__(self, other):
-        return self.match_str == other.match_str
+        try:
+            return self.match_str == other.match_str
+        except AttributeError:
+            return False
 
     def __hash__(self):
         return hash(self.match_str)
