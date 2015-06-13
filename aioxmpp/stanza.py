@@ -259,6 +259,8 @@ class StanzaBase(xso.XSO):
 
     .. automethod:: autoset_id
 
+    .. automethod:: make_error
+
     """
 
     from_ = xso.Attr(
@@ -308,6 +310,23 @@ class StanzaBase(xso.XSO):
         obj.from_ = self.to
         obj.to = self.from_
         obj.id_ = self.id_
+        return obj
+
+    def make_error(self, error):
+        """
+        Create a new instance of this stanza (this directly uses
+        ``type(self)``, so also works for subclasses without extra care) which
+        has the given *error* value set as :attr:`error`.
+
+        In addition, the :attr:`id_`, :attr:`from_` and :attr:`to` values are
+        transferred from the original (with from and to being swapped). Also,
+        the :attr:`type_` is set to ``"error"``.
+        """
+        obj = type(self)(from_=self.to,
+                         to=self.from_)
+        obj.id_ = self.id_
+        obj.type_ = "error"
+        obj.error = error
         return obj
 
 

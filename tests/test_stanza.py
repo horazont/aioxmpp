@@ -90,6 +90,22 @@ class TestStanzaBase(unittest.TestCase):
             r.id_,
             s.id_)
 
+    def test_make_error(self):
+        s = stanza.StanzaBase()
+        s.from_ = TEST_FROM
+        s.to = TEST_TO
+        s.id_ = "foobar"
+
+        err = stanza.Error()
+
+        r = s.make_error(err)
+        self.assertIs(r.error, err)
+        self.assertEqual(r.to, TEST_FROM)
+        self.assertEqual(r.from_, TEST_TO)
+        self.assertEqual(r.id_, "foobar")
+
+        self.assertEqual(r.type_, "error")
+
     def test_init(self):
         id_ = "someid"
 
