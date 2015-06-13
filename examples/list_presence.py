@@ -88,8 +88,18 @@ def main(jid, password):
     yield from disconnected_future
 
     print("found presences:")
-    for pres in presences:
-        print(pres)
+    for i, pres in enumerate(presences):
+        print("presence {}".format(i))
+        print("  peer: {}".format(pres.from_))
+        print("  type: {}".format(pres.type_))
+        print("  show: {}".format(pres.show))
+        if pres.status:
+            print("  status: ")
+            for status in pres.status:
+                print("    (lang={}) {!r}".format(
+                    status.lang,
+                    status.text))
+
 
 if __name__ == "__main__":
     jid = aioxmpp.structs.JID.fromstr(input("JID: "))
