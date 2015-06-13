@@ -131,7 +131,7 @@ class StanzaBase(xso.XSO):
         tag="to",
         type_=xso.JID())
 
-    lang = xso.Attr(
+    lang = xso.LangAttr(
         tag=(namespaces.xml, "lang")
     )
 

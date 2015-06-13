@@ -44,10 +44,7 @@ class TestStanzaBase(unittest.TestCase):
     def test_lang_attr(self):
         self.assertIsInstance(
             stanza.StanzaBase.lang,
-            xso.Attr)
-        self.assertEqual(
-            (namespaces.xml, "lang"),
-            stanza.StanzaBase.lang.tag)
+            xso.LangAttr)
 
     def test_autoset_id_generates_random_str_on_none(self):
         s = stanza.StanzaBase()
