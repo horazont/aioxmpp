@@ -106,6 +106,40 @@ class TestStanzaBase(unittest.TestCase):
             s.id_)
 
 
+class TestBody(unittest.TestCase):
+    def test_tag(self):
+        self.assertEqual(
+            (namespaces.client, "body"),
+            stanza.Body.TAG)
+
+    def test_lang_attr(self):
+        self.assertIsInstance(
+            stanza.Body.lang,
+            xso.LangAttr)
+
+    def test_text_attr(self):
+        self.assertIsInstance(
+            stanza.Body.text,
+            xso.Text)
+
+
+class TestSubject(unittest.TestCase):
+    def test_tag(self):
+        self.assertEqual(
+            (namespaces.client, "subject"),
+            stanza.Subject.TAG)
+
+    def test_lang_attr(self):
+        self.assertIsInstance(
+            stanza.Subject.lang,
+            xso.LangAttr)
+
+    def test_text_attr(self):
+        self.assertIsInstance(
+            stanza.Subject.text,
+            xso.Text)
+
+
 class TestMessage(unittest.TestCase):
     def test_inheritance(self):
         self.assertIsInstance(
@@ -152,6 +186,33 @@ class TestMessage(unittest.TestCase):
         self.assertIsInstance(
             stanza.Message.ext,
             xso.ChildMap)
+
+    def test_body_attr(self):
+        self.assertIsInstance(
+            stanza.Message.body,
+            xso.ChildList)
+        self.assertSetEqual(
+            {stanza.Body},
+            set(stanza.Message.body._classes)
+        )
+
+    def test_subject_attr(self):
+        self.assertIsInstance(
+            stanza.Message.subject,
+            xso.ChildList)
+        self.assertSetEqual(
+            {stanza.Subject},
+            set(stanza.Message.subject._classes)
+        )
+
+    def test_thread_attr(self):
+        self.assertIsInstance(
+            stanza.Message.thread,
+            xso.Child)
+        self.assertSetEqual(
+            {stanza.Thread},
+            set(stanza.Message.thread._classes)
+        )
 
     def test_init(self):
         s = stanza.Message(from_=TEST_FROM,

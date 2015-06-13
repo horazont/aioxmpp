@@ -185,6 +185,20 @@ class Thread(xso.XSO):
     )
 
 
+class Body(xso.XSO):
+    TAG = (namespaces.client, "body")
+
+    lang = xso.LangAttr()
+    text = xso.Text()
+
+
+class Subject(xso.XSO):
+    TAG = (namespaces.client, "subject")
+
+    lang = xso.LangAttr()
+    text = xso.Text()
+
+
 class Message(StanzaBase):
     """
     An XMPP message stanza. The keyword arguments can be used to initialize the
@@ -243,12 +257,8 @@ class Message(StanzaBase):
         required=True
     )
 
-    body = xso.ChildText(
-        tag=(namespaces.client, "body"),
-        attr_policy=xso.UnknownAttrPolicy.DROP)
-    subject = xso.ChildText(
-        tag=(namespaces.client, "subject"),
-        attr_policy=xso.UnknownAttrPolicy.DROP)
+    body = xso.ChildList([Body])
+    subject = xso.ChildList([Subject])
     thread = xso.Child([Thread])
     ext = xso.ChildMap([])
 
