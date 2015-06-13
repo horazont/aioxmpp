@@ -2,10 +2,16 @@
 :mod:`~aioxmpp.stanza` --- XSOs for dealing with stanzas
 ########################################################
 
+This module provides :class:`~.xso.XSO` subclasses which provide access to
+stanzas and their RFC6120-defined child elements.
+
+Much of what you’ll read here makes much more sense if you have read
+`RFC 6120 <https://tools.ietf.org/html/rfc6120#section-4.7.1>`_.
+
 Top-level classes
 =================
 
-.. autoclass:: StanzaBase
+.. autoclass:: StanzaBase(*[, from_][, to][, id_])
 
 .. autoclass:: Message(*[, from_][, to][, id_][, type_])
 
