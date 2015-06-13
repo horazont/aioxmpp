@@ -288,6 +288,13 @@ class Message(StanzaBase):
             self.type_)
 
 
+class Status(xso.XSO):
+    TAG = (namespaces.client, "status")
+
+    lang = xso.LangAttr()
+    text = xso.Text()
+
+
 class Presence(StanzaBase):
     """
     An XMPP presence stanza. The keyword arguments can be used to initialize the
@@ -340,6 +347,15 @@ class Presence(StanzaBase):
         }),
         validate=xso.ValidateMode.ALWAYS
     )
+
+    status = xso.ChildList([Status])
+
+    priority = xso.ChildText(
+        tag=(namespaces.client, "priority"),
+        type_=xso.Integer(),
+        default=0
+    )
+
     ext = xso.ChildMap([])
     unhandled_children = xso.Collector()
 

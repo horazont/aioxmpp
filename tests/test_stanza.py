@@ -259,6 +259,23 @@ class TestMessage(unittest.TestCase):
         )
 
 
+class TestStatus(unittest.TestCase):
+    def test_tag(self):
+        self.assertEqual(
+            (namespaces.client, "status"),
+            stanza.Status.TAG)
+
+    def test_lang_attr(self):
+        self.assertIsInstance(
+            stanza.Status.lang,
+            xso.LangAttr)
+
+    def test_text_attr(self):
+        self.assertIsInstance(
+            stanza.Status.text,
+            xso.Text)
+
+
 class TestPresence(unittest.TestCase):
     def test_inheritance(self):
         self.assertIsInstance(
@@ -328,6 +345,32 @@ class TestPresence(unittest.TestCase):
                 "chat",
             },
             stanza.Presence.show.validator.values
+        )
+
+    def test_status_attr(self):
+        self.assertIsInstance(
+            stanza.Presence.status,
+            xso.ChildList)
+        self.assertSetEqual(
+            {stanza.Status},
+            set(stanza.Presence.status._classes)
+        )
+
+    def test_priority_attr(self):
+        self.assertIsInstance(
+            stanza.Presence.priority,
+            xso.ChildText)
+        self.assertEqual(
+            (namespaces.client, "priority"),
+            stanza.Presence.priority.tag
+        )
+        self.assertIsInstance(
+            stanza.Presence.priority.type_,
+            xso.Integer
+        )
+        self.assertEqual(
+            0,
+            stanza.Presence.priority.default
         )
 
     def test_ext_attr(self):
