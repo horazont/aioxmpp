@@ -46,6 +46,11 @@ class TestStanzaBase(unittest.TestCase):
             stanza.StanzaBase.lang,
             xso.LangAttr)
 
+    def test_error_attr(self):
+        self.assertIsInstance(
+            stanza.StanzaBase.error,
+            xso.Child)
+
     def test_autoset_id_generates_random_str_on_none(self):
         s = stanza.StanzaBase()
         self.assertIsNone(s.id_)
@@ -374,6 +379,11 @@ class TestPresence(unittest.TestCase):
         self.assertIsInstance(
             stanza.Presence.ext,
             xso.ChildMap)
+
+    def test_error_attr(self):
+        self.assertIsInstance(
+            stanza.Presence.error,
+            xso.Child)
 
     def test_init(self):
         s = stanza.Presence(

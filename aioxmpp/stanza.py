@@ -5,6 +5,8 @@
 Top-level classes
 =================
 
+.. autoclass:: StanzaBase
+
 .. autoclass:: Message(*[, from_][, to][, id_][, type_])
 
 .. autoclass:: IQ(*[, from_][, to][, id_][, type_])
@@ -20,12 +22,19 @@ attributes:
 
 .. autoclass:: Error(*[, condition][, type_][, text])
 
+For messages
+------------
+
 .. autoclass:: Thread()
 
-Base class for stanzas
-======================
+.. autoclass:: Subject()
 
-.. autoclass:: StanzaBase
+.. autoclass:: Body()
+
+For presence’
+-------------
+
+.. autoclass:: Status()
 
 Exceptions
 ==========
@@ -123,255 +132,6 @@ class UnknownIQPayload(PayloadError):
             ev_args)
 
 
-class StanzaBase(xso.XSO):
-    from_ = xso.Attr(
-        tag="from",
-        type_=xso.JID())
-    to = xso.Attr(
-        tag="to",
-        type_=xso.JID())
-
-    lang = xso.LangAttr(
-        tag=(namespaces.xml, "lang")
-    )
-
-    def __init__(self, *, from_=None, to=None, id_=None):
-        super().__init__()
-        self.from_ = from_
-        self.to = to
-        self.id_ = id_
-
-    def autoset_id(self):
-        if self.id_:
-            return
-
-        self.id_ = base64.b64encode(random.getrandbits(
-            RANDOM_ID_BYTES * 8
-        ).to_bytes(
-            RANDOM_ID_BYTES, "little"
-        )).decode("ascii")
-
-    def _make_reply(self):
-        obj = type(self)()
-        obj.from_ = self.to
-        obj.to = self.from_
-        obj.id_ = self.id_
-        return obj
-
-
-class Thread(xso.XSO):
-    """
-    Threading information, consisting of a thread identifier and an optional
-    parent thread identifier.
-
-    .. attribute:: identifier
-
-       Identifier of the thread
-
-    .. attribute:: parent
-
-       :data:`None` or the identifier of the parent thread.
-
-    """
-    TAG = (namespaces.client, "thread")
-
-    identifier = xso.Text(
-        validator=xso.Nmtoken(),
-        validate=xso.ValidateMode.FROM_CODE)
-    parent = xso.Attr(
-        tag="parent",
-        validator=xso.Nmtoken(),
-        validate=xso.ValidateMode.FROM_CODE
-    )
-
-
-class Body(xso.XSO):
-    TAG = (namespaces.client, "body")
-
-    lang = xso.LangAttr()
-    text = xso.Text()
-
-
-class Subject(xso.XSO):
-    TAG = (namespaces.client, "subject")
-
-    lang = xso.LangAttr()
-    text = xso.Text()
-
-
-class Message(StanzaBase):
-    """
-    An XMPP message stanza. The keyword arguments can be used to initialize the
-    attributes of the :class:`Message`.
-
-    .. attribute:: id_
-
-       The optional ID of the stanza.
-
-    .. attribute:: type_
-
-       The type attribute of the stanza. The allowed values are ``"chat"``,
-       ``"groupchat"``, ``"error"``, ``"headline"`` and ``"normal"``.
-
-    .. attribute:: from_
-
-       The :class:`~aioxmpp.structs.JID` of the sending entity.
-
-    .. attribute:: to
-
-       The :class:`~aioxmpp.structs.JID` of the receiving entity.
-
-    .. attribute:: body
-
-       The string content of the ``body`` element, if any. This is :data:`None`
-       if no body is attached to the message and the empty string if the
-       attached body is empty.
-
-    .. attribute:: subject
-
-       The text content of the ``subject`` element, if any. This attribute is
-       :data:`None` if the message has no subject and the empty string if the
-       subject is empty.
-
-    .. attribute:: thread
-
-       A :class:`Thread` instance representing the threading information
-       attached to the message or :data:`None` if no threading information is
-       attached.
-
-    .. automethod:: make_reply
-
-    """
-
-    TAG = (namespaces.client, "message")
-
-    id_ = xso.Attr(tag="id")
-    type_ = xso.Attr(
-        tag="type",
-        validator=xso.RestrictToSet({
-            "chat",
-            "groupchat",
-            "error",
-            "headline",
-            "normal"}),
-        required=True
-    )
-
-    body = xso.ChildList([Body])
-    subject = xso.ChildList([Subject])
-    thread = xso.Child([Thread])
-    ext = xso.ChildMap([])
-
-    def __init__(self, *, type_="chat", **kwargs):
-        super().__init__(**kwargs)
-        self.type_ = type_
-
-    def make_reply(self):
-        """
-        Create a reply for the message. The :attr:`id_` attribute is cleared in
-        the reply. The :attr:`from_` and :attr:`to` are swapped and the
-        :attr:`type_` attribute is the same as the one of the original
-        message.
-
-        The new :class:`Message` object is returned.
-        """
-        obj = super()._make_reply()
-        obj.type_ = self.type_
-        obj.id_ = None
-        return obj
-
-    def __repr__(self):
-        return "<message from='{!s}' to='{!s}' id={!r} type={!r}>".format(
-            self.from_,
-            self.to,
-            self.id_,
-            self.type_)
-
-
-class Status(xso.XSO):
-    TAG = (namespaces.client, "status")
-
-    lang = xso.LangAttr()
-    text = xso.Text()
-
-
-class Presence(StanzaBase):
-    """
-    An XMPP presence stanza. The keyword arguments can be used to initialize the
-    attributes of the :class:`Presence`.
-
-    .. attribute:: id_
-
-       The optional ID of the stanza.
-
-    .. attribute:: type_
-
-       The type attribute of the stanza. The allowed values are ``"error"``,
-       ``"probe"``, ``"subscribe"``, ``"subscribed"``, ``"unavailable"``,
-       ``"unsubscribe"``, ``"unsubscribed"`` and :data:`None`, where
-       :data:`None` signifies the absence of the ``type`` attribute.
-
-    .. attribute:: from_
-
-       The :class:`~aioxmpp.structs.JID` of the sending entity.
-
-    .. attribute:: to
-
-       The :class:`~aioxmpp.structs.JID` of the receiving entity.
-    """
-
-    TAG = (namespaces.client, "presence")
-
-    id_ = xso.Attr(tag="id")
-    type_ = xso.Attr(
-        tag="type",
-        validator=xso.RestrictToSet({
-            "error",
-            "probe",
-            "subscribe",
-            "subscribed",
-            "unavailable",
-            "unsubscribe",
-            "unsubscribed"}),
-        required=False,
-    )
-
-    show = xso.ChildText(
-        tag=(namespaces.client, "show"),
-        validator=xso.RestrictToSet({
-            "dnd",
-            "xa",
-            "away",
-            None,
-            "chat",
-        }),
-        validate=xso.ValidateMode.ALWAYS
-    )
-
-    status = xso.ChildList([Status])
-
-    priority = xso.ChildText(
-        tag=(namespaces.client, "priority"),
-        type_=xso.Integer(),
-        default=0
-    )
-
-    ext = xso.ChildMap([])
-    unhandled_children = xso.Collector()
-
-    def __init__(self, *, type_=None, show=None, **kwargs):
-        super().__init__(**kwargs)
-        self.type_ = type_
-        self.show = show
-
-    def __repr__(self):
-        return "<presence from='{!s}' to='{!s}' id={!r} type={!r}>".format(
-            self.from_,
-            self.to,
-            self.id_,
-            self.type_)
-
-
 class Error(xso.XSO):
     """
     An XMPP stanza error. The keyword arguments can be used to initialize the
@@ -460,6 +220,377 @@ class Error(xso.XSO):
             payload)
 
 
+class StanzaBase(xso.XSO):
+    """
+    Base for all stanza classes. Usually, you will use the derived classes:
+
+    .. autosummary::
+       :nosignatures:
+
+       Message
+       Presence
+       IQ
+
+    However, some common attributes are defined in this base class:
+
+    .. attribute:: from_
+
+       The :class:`~aioxmpp.structs.JID` of the sending entity.
+
+    .. attribute:: to
+
+       The :class:`~aioxmpp.structs.JID` of the receiving entity.
+
+    .. attribute:: lang
+
+       The ``xml:lang`` value as :class:`~aioxmpp.structs.LanguageTag`.
+
+    .. attribute:: error
+
+       Either :data:`None` or a :class:`Error` instance.
+
+    .. note::
+
+       The :attr:`id_` attribute is not defined in :class:`StanzaBase` as
+       different stanza classes have different requirements with respect to
+       presence of that attribute.
+
+    In addition to these attributes, common methods needed are also provided:
+
+    .. automethod:: autoset_id
+
+    """
+
+    from_ = xso.Attr(
+        tag="from",
+        type_=xso.JID())
+    to = xso.Attr(
+        tag="to",
+        type_=xso.JID())
+
+    lang = xso.LangAttr(
+        tag=(namespaces.xml, "lang")
+    )
+
+    error = xso.Child([Error])
+
+    def __init__(self, *, from_=None, to=None, id_=None):
+        super().__init__()
+        self.from_ = from_
+        self.to = to
+        self.id_ = id_
+
+    def autoset_id(self):
+        """
+        If the :attr:`id_` already has a non-false (false is also the empty
+        string!) value, this method is a no-op.
+
+        Otherwise, the :attr:`id_` attribute is filled with eight bytes of
+        random data, encoded as base64.
+
+        .. note::
+
+           This method only works on subclasses of :class:`StanzaBase` which
+           define the :attr:`id_` attribute.
+
+        """
+        if self.id_:
+            return
+
+        self.id_ = base64.b64encode(random.getrandbits(
+            RANDOM_ID_BYTES * 8
+        ).to_bytes(
+            RANDOM_ID_BYTES, "little"
+        )).decode("ascii")
+
+    def _make_reply(self):
+        obj = type(self)()
+        obj.from_ = self.to
+        obj.to = self.from_
+        obj.id_ = self.id_
+        return obj
+
+
+class Thread(xso.XSO):
+    """
+    Threading information, consisting of a thread identifier and an optional
+    parent thread identifier.
+
+    .. attribute:: identifier
+
+       Identifier of the thread
+
+    .. attribute:: parent
+
+       :data:`None` or the identifier of the parent thread.
+
+    """
+    TAG = (namespaces.client, "thread")
+
+    identifier = xso.Text(
+        validator=xso.Nmtoken(),
+        validate=xso.ValidateMode.FROM_CODE)
+    parent = xso.Attr(
+        tag="parent",
+        validator=xso.Nmtoken(),
+        validate=xso.ValidateMode.FROM_CODE
+    )
+
+
+class Body(xso.XSO):
+    """
+    The textual body of a :class:`Message` stanza.
+
+    While it might seem intuitive to refer to the body using a
+    :class:`~.xso.ChildText` descriptor, the fact that there might be multiple
+    texts for different languages justifies the use of a separate class.
+
+    .. attribute:: lang
+
+       The ``xml:lang`` of this body part, as :class:`~.structs.LanguageTag`.
+
+    .. attribute:: text
+
+       The textual content of the body.
+
+    """
+    TAG = (namespaces.client, "body")
+
+    lang = xso.LangAttr()
+    text = xso.Text()
+
+
+class Subject(xso.XSO):
+    """
+    The subject of a :class:`Message` stanza.
+
+    While it might seem intuitive to refer to the subject using a
+    :class:`~.xso.ChildText` descriptor, the fact that there might be multiple
+    texts for different languages justifies the use of a separate class.
+
+    .. attribute:: lang
+
+       The ``xml:lang`` of this subject part, as :class:`~.structs.LanguageTag`.
+
+    .. attribute:: text
+
+       The textual content of the subject
+
+    """
+    TAG = (namespaces.client, "subject")
+
+    lang = xso.LangAttr()
+    text = xso.Text()
+
+
+class Message(StanzaBase):
+    """
+    An XMPP message stanza. The keyword arguments can be used to initialize the
+    attributes of the :class:`Message`.
+
+    .. attribute:: id_
+
+       The optional ID of the stanza.
+
+    .. attribute:: type_
+
+       The type attribute of the stanza. The allowed values are ``"chat"``,
+       ``"groupchat"``, ``"error"``, ``"headline"`` and ``"normal"``.
+
+    .. attribute:: body
+
+       A :class:`~aioxmpp.xso.model.XSOList` of :class:`Body` elements. To
+       get a body element matching the users language, use the
+       :meth:`~aioxmpp.xso.model.XSOList.filter` method on the list.
+
+    .. attribute:: subject
+
+       A :class:`~aioxmpp.xso.model.XSOList` of :class:`Subject` elements. To
+       get a subject element matching the users language, use the
+       :meth:`~aioxmpp.xso.model.XSOList.filter` method on the list.
+
+    .. attribute:: thread
+
+       A :class:`Thread` instance representing the threading information
+       attached to the message or :data:`None` if no threading information is
+       attached.
+
+    Note that some attributes are inherited from :class:`StanzaBase`:
+
+    ========================= =======================================
+    :attr:`~StanzaBase.from_` sender :class:`~aioxmpp.structs.JID`
+    :attr:`~StanzaBase.to`    recipient :class:`~aioxmpp.structs.JID`
+    :attr:`~StanzaBase.lang`  ``xml:lang`` value
+    :attr:`~StanzaBase.error` :class:`Error` instance
+    ========================= =======================================
+
+    .. automethod:: make_reply
+
+    """
+
+    TAG = (namespaces.client, "message")
+
+    id_ = xso.Attr(tag="id")
+    type_ = xso.Attr(
+        tag="type",
+        validator=xso.RestrictToSet({
+            "chat",
+            "groupchat",
+            "error",
+            "headline",
+            "normal"}),
+        required=True
+    )
+
+    body = xso.ChildList([Body])
+    subject = xso.ChildList([Subject])
+    thread = xso.Child([Thread])
+    ext = xso.ChildMap([])
+
+    def __init__(self, *, type_="chat", **kwargs):
+        super().__init__(**kwargs)
+        self.type_ = type_
+
+    def make_reply(self):
+        """
+        Create a reply for the message. The :attr:`id_` attribute is cleared in
+        the reply. The :attr:`from_` and :attr:`to` are swapped and the
+        :attr:`type_` attribute is the same as the one of the original
+        message.
+
+        The new :class:`Message` object is returned.
+        """
+        obj = super()._make_reply()
+        obj.type_ = self.type_
+        obj.id_ = None
+        return obj
+
+    def __repr__(self):
+        return "<message from='{!s}' to='{!s}' id={!r} type={!r}>".format(
+            self.from_,
+            self.to,
+            self.id_,
+            self.type_)
+
+
+class Status(xso.XSO):
+    """
+    The status of a :class:`Presence` stanza.
+
+    While it might seem intuitive to refer to the status using a
+    :class:`~.xso.ChildText` descriptor, the fact that there might be multiple
+    texts for different languages justifies the use of a separate class.
+
+    .. attribute:: lang
+
+       The ``xml:lang`` of this status part, as :class:`~.structs.LanguageTag`.
+
+    .. attribute:: text
+
+       The textual content of the status
+
+    """
+    TAG = (namespaces.client, "status")
+
+    lang = xso.LangAttr()
+    text = xso.Text()
+
+
+class Presence(StanzaBase):
+    """
+    An XMPP presence stanza. The keyword arguments can be used to initialize the
+    attributes of the :class:`Presence`.
+
+    .. attribute:: id_
+
+       The optional ID of the stanza.
+
+    .. attribute:: type_
+
+       The type attribute of the stanza. The allowed values are ``"error"``,
+       ``"probe"``, ``"subscribe"``, ``"subscribed"``, ``"unavailable"``,
+       ``"unsubscribe"``, ``"unsubscribed"`` and :data:`None`, where
+       :data:`None` signifies the absence of the ``type`` attribute.
+
+    .. attribute:: show
+
+       The ``show`` value of the stanza, or :data:`None` if no ``show`` element
+       is present.
+
+    .. attribute:: priority
+
+       The ``priority`` value of the presence. The default here is ``0`` and
+       corresponds to an absent ``priority`` element.
+
+    .. attribute:: status
+
+       A :class:`~aioxmpp.xso.model.XSOList` of :class:`Status` elements. To
+       get a status matching the users language, use the
+       :meth:`~aioxmpp.xso.model.XSOList.filter` method on the list.
+
+    Note that some attributes are inherited from :class:`StanzaBase`:
+
+    ========================= =======================================
+    :attr:`~StanzaBase.from_` sender :class:`~aioxmpp.structs.JID`
+    :attr:`~StanzaBase.to`    recipient :class:`~aioxmpp.structs.JID`
+    :attr:`~StanzaBase.lang`  ``xml:lang`` value
+    :attr:`~StanzaBase.error` :class:`Error` instance
+    ========================= =======================================
+
+    """
+
+    TAG = (namespaces.client, "presence")
+
+    id_ = xso.Attr(tag="id")
+    type_ = xso.Attr(
+        tag="type",
+        validator=xso.RestrictToSet({
+            "error",
+            "probe",
+            "subscribe",
+            "subscribed",
+            "unavailable",
+            "unsubscribe",
+            "unsubscribed"}),
+        required=False,
+    )
+
+    show = xso.ChildText(
+        tag=(namespaces.client, "show"),
+        validator=xso.RestrictToSet({
+            "dnd",
+            "xa",
+            "away",
+            None,
+            "chat",
+        }),
+        validate=xso.ValidateMode.ALWAYS
+    )
+
+    status = xso.ChildList([Status])
+
+    priority = xso.ChildText(
+        tag=(namespaces.client, "priority"),
+        type_=xso.Integer(),
+        default=0
+    )
+
+    ext = xso.ChildMap([])
+    unhandled_children = xso.Collector()
+
+    def __init__(self, *, type_=None, show=None, **kwargs):
+        super().__init__(**kwargs)
+        self.type_ = type_
+        self.show = show
+
+    def __repr__(self):
+        return "<presence from='{!s}' to='{!s}' id={!r} type={!r}>".format(
+            self.from_,
+            self.to,
+            self.id_,
+            self.type_)
+
+
 class IQ(StanzaBase):
     """
     An XMPP IQ stanza. The keyword arguments can be used to initialize the
@@ -474,13 +605,14 @@ class IQ(StanzaBase):
        The type attribute of the stanza. The allowed values are ``"error"``,
        ``"result"``, ``"set"`` and ``"get"``.
 
-    .. attribute:: from_
+    Note that some attributes are inherited from :class:`StanzaBase`:
 
-       The :class:`~aioxmpp.structs.JID` of the sending entity.
-
-    .. attribute:: to
-
-       The :class:`~aioxmpp.structs.JID` of the receiving entity.
+    ========================= =======================================
+    :attr:`~StanzaBase.from_` sender :class:`~aioxmpp.structs.JID`
+    :attr:`~StanzaBase.to`    recipient :class:`~aioxmpp.structs.JID`
+    :attr:`~StanzaBase.lang`  ``xml:lang`` value
+    :attr:`~StanzaBase.error` :class:`Error` instance
+    ========================= =======================================
 
     """
     TAG = (namespaces.client, "iq")
@@ -496,7 +628,6 @@ class IQ(StanzaBase):
         required=True,
     )
     payload = xso.Child([])
-    error = xso.Child([Error])
 
     def __init__(self, *, type_=None, payload=None, error=None, **kwargs):
         super().__init__(**kwargs)
