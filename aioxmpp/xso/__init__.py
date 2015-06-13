@@ -108,6 +108,19 @@ Non-scalar descriptors
 
 .. autoclass:: Collector()
 
+Container for child lists
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The child lists in :class:`ChildList`, :class:`ChildMap` and
+:class:`ChildLangMap` descriptors use a specialized list-subclass which
+provides advanced capabilities for filtering :class:`XSO` objects.
+
+.. currentmodule:: aioxmpp.xso.model
+
+.. autoclass:: XSOList
+
+.. currentmodule:: aioxmpp.xso
+
 
 Parsing XSOs
 ------------

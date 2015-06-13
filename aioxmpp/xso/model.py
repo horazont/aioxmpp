@@ -18,6 +18,7 @@ from aioxmpp.utils import etree, namespaces
 
 from . import types as xso_types
 from . import tag_to_str, normalize_tag
+from .. import structs
 
 
 class UnknownChildPolicy(Enum):
@@ -123,6 +124,114 @@ class UnknownTopLevelTag(ValueError):
     def __init__(self, msg, ev_args):
         super().__init__(msg + ": {}".format((ev_args[0], ev_args[1])))
         self.ev_args = ev_args
+
+
+class XSOList(list):
+    """
+    A :class:`list` subclass; it provides the complete :class:`list` interface
+    with the addition of the following methods:
+
+    .. automethod:: filter
+
+    .. automethod:: filtered
+
+    In the future, methods to add indices to :class:`XSOList` instances may be
+    added; right now, there is no need for the huge complexity which would
+    arise from keeping the indices up-to-date with changes in the elements
+    attributes.
+    """
+
+    def _filter_type(self, chained_results, type_):
+        return (obj for obj in chained_results if isinstance(obj, type_))
+
+    def _filter_lang(self, chained_results, lang):
+        # first, filter on availability of the "lang" attribute
+        result = [item for item in chained_results if hasattr(item, "lang")]
+
+        # get a sorted list of all languages in the current result set
+        languages = sorted(
+            {item.lang for item in result}
+        )
+
+        if not languages:
+            # no languages -> no results
+            result = iter([])
+        else:
+            # lookup a matching language
+            if isinstance(lang, structs.LanguageRange):
+                lang = [lang]
+            else:
+                lang = list(lang)
+            match = structs.lookup_language(languages, lang)
+            # no language? fallback is using the first one
+            if match is None:
+                match = languages[0]
+            result = (item for item in result if item.lang == match)
+
+        return result
+
+    def _filter_attrs(self, chained_results, attrs):
+        result = chained_results
+        for key, value in attrs.items():
+            result = (item for item in result
+                      if hasattr(item, key) and getattr(item, key) == value)
+        return result
+
+    def filter(self, *, type_=None, lang=None, attrs={}):
+        """
+        Return an iterable which produces a sequence of the elements inside
+        this :class:`XSOList`, filtered by the criteria given as arguments. The
+        fucntion starts with a working sequence consisting of the whole list.
+
+        If *type_* is not :data:`None`, elements which are not an instance of
+        the given type are excluded from the working sequence.
+
+        If *lang* is not :data:`None`, it must be either a
+        :class:`~.structs.LanguageRange` or an iterable of language ranges. The
+        set of languages present among the working sequence is determined and
+        used for a call to
+        :class:`~.structs.lookup_language`. If the lookup returns a language,
+        all elements whose :attr:`lang` is different from that value are
+        excluded from the working sequence.
+
+        .. note::
+
+           If an iterable of language ranges is given, it is evaluated into a
+           list. This may be of concern if a huge iterable is about to be used
+           for language ranges, but it is an requirement of the
+           :class:`~.structs.lookup_language` function which is used under the
+           hood.
+
+        .. note::
+
+           Filtering by language assumes that the elements have a
+           :class:`~aioxmpp.xso.LangAttr` descriptor named ``lang``.
+
+        If *attrs* is not empty, the filter iterates over each *key*-*value*
+        pair. For each iteration, all elements which do not have an attribute
+        of the name in *key* or where that attribute has a value not equal to
+        *value* are excluded from the working sequence.
+
+        In general, the iterable returned from :meth:`filter` can only be used
+        once. It is dynamic in the sense that changes to elements which are in
+        the list *behind* the last element returned from the iterator will
+        still be picked up when the iterator is resumed.
+        """
+        result = self
+        if type_ is not None:
+            result = self._filter_type(result, type_)
+        if lang is not None:
+            result = self._filter_lang(result, lang)
+        if attrs:
+            result = self._filter_attrs(result, attrs)
+        return result
+
+    def filtered(self, *, type_=None, lang=None, attrs={}):
+        """
+        This method is a convencience wrapper around :meth:`filter` which
+        evaluates the result into a list and returns that list.
+        """
+        return list(self.filter(type_=type_, lang=lang, attrs=attrs))
 
 
 class _PropBase:
@@ -306,7 +415,7 @@ class ChildList(Child):
     The :class:`ChildList` works like :class:`Child`, with two key differences:
 
     * multiple children which are matched by this descriptor get collected into
-      a list
+      an :class:`~aioxmpp.xso.model.XSOList`.
     * the default is fixed at an empty list.
 
     .. automethod:: from_events
@@ -320,7 +429,7 @@ class ChildList(Child):
     def __get__(self, instance, cls):
         if instance is None:
             return super().__get__(instance, cls)
-        return instance._stanza_props.setdefault(self, [])
+        return instance._stanza_props.setdefault(self, XSOList())
 
     def _set(self, instance, value):
         if not isinstance(value, list):
@@ -655,7 +764,7 @@ class ChildMap(Child):
     """
     The :class:`ChildMap` class works like :class:`ChildList`, but instead of
     storing the child objects in a list, they are stored in a map which
-    contains a list of objects for each tag.
+    contains an :class:`~aioxmpp.xso.model.XSOList` of objects for each tag.
 
     *key* may be callable. If it is given, it is used while parsing to
     determine the dictionary key under which a newly parsed XSO will be
@@ -677,7 +786,10 @@ class ChildMap(Child):
             return super().__get__(instance, cls)
         return instance._stanza_props.setdefault(
             self,
-            collections.defaultdict(list))
+            collections.defaultdict(XSOList))
+
+    def __set__(self, instance, value):
+        raise AttributeError("ChildMap attribute cannot be assigned to")
 
     def _set(self, instance, value):
         if not isinstance(value, dict):
@@ -694,7 +806,7 @@ class ChildMap(Child):
         cls = self._tag_map[tag]
         obj = yield from cls.parse_events(ev_args, ctx)
         mapping = self.__get__(instance, type(instance))
-        mapping.setdefault(self.key(obj), []).append(obj)
+        mapping[self.key(obj)].append(obj)
 
     def to_sax(self, instance, dest):
         """

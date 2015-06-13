@@ -1,4 +1,5 @@
 import collections
+import collections.abc
 import functools
 import unittest
 import unittest.mock
@@ -1074,6 +1075,129 @@ class TestXSO(XMLTestCase):
         del self.Cls
 
 
+class TestXSOList(unittest.TestCase):
+    def setUp(self):
+        self.l = xso_model.XSOList()
+
+        class ClsA(xso.XSO):
+            TAG = ("uri:foo", "foo")
+
+            lang = xso.LangAttr()
+            foo = xso.Attr("foo")
+
+        class ClsB(xso.XSO):
+            TAG = ("uri:foo", "bar")
+
+            lang = xso.LangAttr()
+            bar = xso.Attr("bar")
+
+        self.ClsA = ClsA
+        self.ClsB = ClsB
+
+        self.a_s = [self.ClsA() for i in range(3)]
+        self.b_s = [self.ClsB() for i in range(2)]
+
+        self.l.extend(self.a_s[:2])
+        self.l.append(self.b_s[0])
+        self.l.extend(self.a_s[2:])
+        self.l.append(self.b_s[1])
+
+    def test_is_mutable_sequence(self):
+        self.assertIsInstance(self.l, collections.abc.MutableSequence)
+
+    def test_empty_filter_is_noop(self):
+        self.assertSequenceEqual(
+            self.l,
+            self.l.filtered()
+        )
+        self.assertIsNot(self.l, self.l.filter())
+
+    def test_filter_by_type(self):
+        self.assertSequenceEqual(
+            self.a_s,
+            self.l.filtered(type_=self.ClsA)
+        )
+
+        self.assertSequenceEqual(
+            self.b_s,
+            self.l.filtered(type_=self.ClsB)
+        )
+
+    def test_filter_by_language(self):
+        self.a_s[0].lang = structs.LanguageTag.fromstr("en-GB")
+        self.a_s[1].lang = structs.LanguageTag.fromstr("en-gb")
+        self.a_s[2].lang = structs.LanguageTag.fromstr("de-DE")
+
+        self.b_s[0].lang = structs.LanguageTag.fromstr("fr")
+        self.b_s[1].lang = structs.LanguageTag.fromstr("en")
+
+        self.assertSequenceEqual(
+            [self.a_s[0], self.a_s[1]],
+            self.l.filtered(lang=structs.LanguageRange.fromstr("en-GB"))
+        )
+        self.assertSequenceEqual(
+            [self.b_s[1]],
+            self.l.filtered(lang=structs.LanguageRange.fromstr("en-us"))
+        )
+
+        self.assertSequenceEqual(
+            [self.b_s[1]],
+            self.l.filtered(lang=structs.LanguageRange.fromstr("en"))
+        )
+
+    def test_filter_by_languages(self):
+        self.a_s[0].lang = structs.LanguageTag.fromstr("en-GB")
+        self.a_s[1].lang = structs.LanguageTag.fromstr("en-gb")
+        self.a_s[2].lang = structs.LanguageTag.fromstr("de-DE")
+
+        self.b_s[0].lang = structs.LanguageTag.fromstr("fr")
+        self.b_s[1].lang = structs.LanguageTag.fromstr("en")
+
+        self.assertSequenceEqual(
+            [self.a_s[2]],
+            self.l.filtered(lang=[structs.LanguageRange.fromstr("in"),
+                                  structs.LanguageRange.fromstr("de-ch")])
+        )
+
+    def test_filter_by_generic_attribute(self):
+        self.a_s[0].foo = "a"
+        self.a_s[1].foo = "b"
+        self.a_s[2].foo = "b"
+
+        self.b_s[0].bar = "1"
+        self.b_s[1].bar = "2"
+
+        self.assertSequenceEqual(
+            [self.a_s[1], self.a_s[2]],
+            self.l.filtered(attrs={"foo": "b"})
+        )
+
+        self.assertSequenceEqual(
+            [self.a_s[0]],
+            self.l.filtered(attrs={"foo": "a"})
+        )
+
+    def test_filter_by_generic_attribute_is_dynamic_generator(self):
+        self.a_s[0].foo = "a"
+        self.a_s[1].foo = "b"
+        self.a_s[2].foo = "b"
+
+        gen = self.l.filter(attrs={"foo": "a"})
+        self.assertIs(self.a_s[0], next(gen))
+        self.a_s[1].foo = "a"
+        self.assertIs(self.a_s[1], next(gen))
+        self.a_s[2].foo = "a"
+        self.assertIs(self.a_s[2], next(gen))
+
+        with self.assertRaises(StopIteration):
+            next(gen)
+
+    def tearDown(self):
+        del self.l
+        del self.a_s
+        del self.b_s
+
+
 class Test_PropBase(unittest.TestCase):
     def setUp(self):
         self.default = object()
@@ -1577,6 +1701,8 @@ class TestChildList(XMLTestCase):
         self.assertSequenceEqual(
             results,
             obj.children)
+
+        self.assertIsInstance(obj.children, xso_model.XSOList)
 
         self.assertEqual(4, len(obj.children))
 
@@ -2165,25 +2291,33 @@ class TestChildMap(XMLTestCase):
         self.assertIsInstance(bar_results[0], Bar)
         self.assertIsInstance(bar_results[1], Bar)
 
+        self.assertIsInstance(bar_results, xso_model.XSOList)
+
         foo_results = resultmap[Foo.TAG]
         self.assertEqual(1, len(foo_results))
         self.assertIsInstance(foo_results[0], Foo)
 
-    def test_assign_enforces_dict(self):
+        self.assertIsInstance(foo_results, xso_model.XSOList)
+
+    def test_assign_not_allowed(self):
         class Cls(xso.XSO):
             children = xso.ChildMap([])
         obj = Cls()
 
-        with self.assertRaises(TypeError):
+        with self.assertRaises(AttributeError):
             obj.children = 123
-        with self.assertRaises(TypeError):
+        with self.assertRaises(AttributeError):
             obj.children = "foo"
         d = {}
-        obj.children = d
-        self.assertIs(
-            d,
-            obj.children
-        )
+        with self.assertRaises(AttributeError):
+            obj.children = d
+
+    def test_lists_are_XSOList_instances(self):
+        class Cls(xso.XSO):
+            children = xso.ChildMap([])
+        obj = Cls()
+
+        self.assertIsInstance(obj.children["foo"], xso_model.XSOList)
 
     def test_to_node(self):
         # we run the test through to_node here, to avoid ordering issues with
