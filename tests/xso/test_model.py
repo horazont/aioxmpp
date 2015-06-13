@@ -1105,12 +1105,12 @@ class TestXSOList(unittest.TestCase):
     def test_is_mutable_sequence(self):
         self.assertIsInstance(self.l, collections.abc.MutableSequence)
 
-    def test_empty_filter_is_noop(self):
+    def test_empty_filtered_is_noop(self):
         self.assertSequenceEqual(
             self.l,
             self.l.filtered()
         )
-        self.assertIsNot(self.l, self.l.filter())
+        self.assertIsNot(self.l, self.l.filtered())
 
     def test_filter_by_type(self):
         self.assertSequenceEqual(
