@@ -274,3 +274,34 @@ class TestServiceMeta(unittest.TestCase):
             {Bar},
             B1.SERVICE_AFTER
         )
+
+    def test_inherit_dependencies_False(self):
+        class Foo(metaclass=service.Meta):
+            pass
+
+        class Bar(metaclass=service.Meta):
+            pass
+
+        class A(metaclass=service.Meta):
+            SERVICE_BEFORE = [Foo]
+            SERVICE_AFTER = [Bar]
+
+        class B(A, inherit_dependencies=False):
+            SERVICE_AFTER = [Foo]
+
+        self.assertSetEqual(
+            {A},
+            Foo.SERVICE_AFTER
+        )
+        self.assertSetEqual(
+            {B},
+            Foo.SERVICE_BEFORE
+        )
+        self.assertSetEqual(
+            {Foo, A, Bar},
+            B.SERVICE_AFTER
+        )
+        self.assertSetEqual(
+            set(),
+            B.SERVICE_BEFORE
+        )

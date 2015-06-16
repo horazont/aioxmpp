@@ -6,11 +6,13 @@ class Meta(type):
             yield from mcls.transitive_collect(getattr(cls, attr), attr, seen)
 
     @classmethod
-    def collect_and_inherit(mcls, bases, namespace, attr):
+    def collect_and_inherit(mcls, bases, namespace, attr,
+                            inherit_dependencies):
         classes = set(namespace.get(attr, []))
-        for base in bases:
-            if isinstance(base, mcls):
-                classes.update(getattr(base, attr))
+        if inherit_dependencies:
+            for base in bases:
+                if isinstance(base, mcls):
+                    classes.update(getattr(base, attr))
         classes.update(
             mcls.transitive_collect(
                 list(classes),
@@ -19,16 +21,18 @@ class Meta(type):
         )
         return classes
 
-    def __new__(mcls, name, bases, namespace):
+    def __new__(mcls, name, bases, namespace, inherit_dependencies=True):
         before_classes = mcls.collect_and_inherit(
             bases,
             namespace,
-            "SERVICE_BEFORE")
+            "SERVICE_BEFORE",
+            inherit_dependencies)
 
         after_classes = mcls.collect_and_inherit(
             bases,
             namespace,
-            "SERVICE_AFTER")
+            "SERVICE_AFTER",
+            inherit_dependencies)
 
         if before_classes & after_classes:
             raise TypeError("dependency loop: {} loops through {}".format(
@@ -39,14 +43,14 @@ class Meta(type):
         namespace["SERVICE_BEFORE"] = set(before_classes)
         namespace["SERVICE_AFTER"] = set(after_classes)
 
-        new_cls = super().__new__(mcls, name, bases, namespace)
+        return super().__new__(mcls, name, bases, namespace)
 
-        for cls in before_classes:
-            cls.SERVICE_AFTER.add(new_cls)
-        for cls in after_classes:
-            cls.SERVICE_BEFORE.add(new_cls)
-
-        return new_cls
+    def __init__(self, name, bases, namespace, inherit_dependencies=True):
+        super().__init__(name, bases, namespace)
+        for cls in self.SERVICE_BEFORE:
+            cls.SERVICE_AFTER.add(self)
+        for cls in self.SERVICE_AFTER:
+            cls.SERVICE_BEFORE.add(self)
 
     def __lt__(self, other):
         return other in self.SERVICE_BEFORE
