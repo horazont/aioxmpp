@@ -7,11 +7,13 @@ from .testutils import (
     make_protocol_mock,
     TransportMock,
     XMLStreamMock,
-    run_coroutine_with_peer
+    run_coroutine_with_peer,
+    make_connected_client
 )
 from .xmltestutils import XMLTestCase
 
 import aioxmpp.xso as xso
+import aioxmpp.callbacks as callbacks
 
 from aioxmpp.utils import etree
 
@@ -852,3 +854,19 @@ class TestXMLStreamMock(XMLTestCase):
     def tearDown(self):
         del self.xmlstream
         del self.loop
+
+
+class Testmake_connected_client(unittest.TestCase):
+    def test_attributes(self):
+        cc = make_connected_client()
+        self.assertTrue(hasattr(cc, "stream"))
+
+        self.assertIsInstance(cc.on_failure, callbacks.AdHocSignal)
+        self.assertIsInstance(cc.on_stream_destroyed, callbacks.AdHocSignal)
+        self.assertIsInstance(cc.on_stream_established, callbacks.AdHocSignal)
+
+        self.assertTrue(hasattr(cc.stream, "register_iq_response_future"))
+        self.assertTrue(hasattr(cc.stream, "register_iq_request_coro"))
+        self.assertTrue(hasattr(cc.stream, "register_message_callback"))
+        self.assertTrue(hasattr(cc.stream, "register_iq_response_callback"))
+        self.assertTrue(hasattr(cc.stream, "register_presence_callback"))

@@ -86,6 +86,21 @@ def run_coroutine_with_peer(
     return local_future.result()
 
 
+def make_connected_client():
+    cc = unittest.mock.Mock([
+        "stream",
+        "on_failure",
+        "on_stream_established",
+        "on_stream_destroyed"
+    ])
+
+    cc.on_stream_established = callbacks.AdHocSignal()
+    cc.on_stream_destroyed = callbacks.AdHocSignal()
+    cc.on_failure = callbacks.AdHocSignal()
+
+    return cc
+
+
 class SSLWrapperMock:
     """
     Mock for :class:`aioxmpp.ssl_wrapper.STARTTLSableTransportProtocol`.
