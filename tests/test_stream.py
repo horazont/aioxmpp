@@ -285,6 +285,26 @@ class TestStanzaStream(StanzaStreamTestBase):
             self.xmlstream.stanza_parser.mock_calls
         )
 
+    def test_register_iq_request_coro_rejects_duplicate_registration(self):
+        @asyncio.coroutine
+        def handle_request(stanza):
+            pass
+
+        self.stream.register_iq_request_coro(
+            "get",
+            FancyTestIQ,
+            handle_request)
+
+        @asyncio.coroutine
+        def handle_request(stanza):
+            pass
+
+        with self.assertRaises(ValueError):
+            self.stream.register_iq_request_coro(
+                "get",
+                FancyTestIQ,
+                handle_request)
+
     def test_run_iq_request_coro_with_result(self):
         iq = make_test_iq(type_="get")
         iq.autoset_id()
@@ -392,6 +412,41 @@ class TestStanzaStream(StanzaStreamTestBase):
         )
 
         self.stream.stop()
+
+    def test_unregister_iq_request_coro_raises_if_none_was_registered(self):
+        with self.assertRaises(KeyError):
+            self.stream.unregister_iq_request_coro(
+                "get",
+                FancyTestIQ)
+
+    def test_unregister_iq_request_coro(self):
+        iq = make_test_iq(type_="get")
+        iq.autoset_id()
+
+        recvd = None
+
+        @asyncio.coroutine
+        def handle_request(stanza):
+            nonlocal recvd
+            recvd = stanza
+
+        self.stream.register_iq_request_coro(
+            "get",
+            FancyTestIQ,
+            handle_request)
+        self.stream.unregister_iq_request_coro(
+            "get",
+            FancyTestIQ)
+
+        self.stream.start(self.xmlstream)
+        self.stream.recv_stanza(iq)
+
+        run_coroutine(asyncio.sleep(0))
+        self.assertIsNone(recvd)
+
+        self.stream.stop()
+        run_coroutine(asyncio.sleep(0))
+        self.assertFalse(self.stream.running)
 
     def test_run_message_callback(self):
         msg = make_test_message()

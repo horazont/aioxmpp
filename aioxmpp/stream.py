@@ -218,6 +218,8 @@ class StanzaStream:
 
     .. automethod:: register_iq_request_coro
 
+    .. automethod:: unregister_iq_request_coro
+
     .. automethod:: register_iq_response_future
 
     .. automethod:: register_iq_response_callback
@@ -686,10 +688,33 @@ class StanzaStream:
         if the exception is a subclass of :class:`aioxmpp.errors.XMPPError`, it
         is converted directly, otherwise it is wrapped in a
         :class:`aioxmpp.errors.XMPPCancelError` with ``undefined-condition``.
+
+        If there is already a coroutine registered for the given (*type_*,
+        *payload_cls*) pair, :class:`ValueError` is raised.
         """
-        self._iq_request_map[type_, payload_cls] = coro
+        key = type_, payload_cls
+
+        if key in self._iq_request_map:
+            raise ValueError("only one listener is allowed per tag")
+
+        self._iq_request_map[key] = coro
         self._logger.debug(
             "iq request coroutine registered: type=%r, payload=%r",
+            type_, payload_cls)
+
+    def unregister_iq_request_coro(self, type_, payload_cls):
+        """
+        Unregister a coroutine previously registered with
+        :meth:`register_iq_request_coro`. The match is solely made using the
+        *type_* and *payload_cls* arguments, which have the same meaning as in
+        :meth:`register_iq_request_coro`.
+
+        This raises :class:`KeyError` if no coroutine has previously been
+        registered for the *type_* and *payload_cls*.
+        """
+        del self._iq_request_map[type_, payload_cls]
+        self._logger.debug(
+            "iq request coroutine unregistered: type=%r, payload=%r",
             type_, payload_cls)
 
     def register_message_callback(self, type_, from_, cb):
