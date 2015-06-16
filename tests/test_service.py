@@ -1,10 +1,17 @@
+import abc
 import itertools
+import logging
 import unittest
 
 import aioxmpp.service as service
 
+from .testutils import run_coroutine
+
 
 class TestServiceMeta(unittest.TestCase):
+    def test_inherits_from_ABCMeta(self):
+        self.assertTrue(issubclass(service.Meta, abc.ABCMeta))
+
     def test_ordering_attributes(self):
         class Foo(metaclass=service.Meta):
             pass
@@ -304,4 +311,56 @@ class TestServiceMeta(unittest.TestCase):
         self.assertSetEqual(
             set(),
             B.SERVICE_BEFORE
+        )
+
+
+class TestService(unittest.TestCase):
+    def test_is_Meta(self):
+        self.assertIsInstance(
+            service.Service,
+            service.Meta
+        )
+
+    def test_automatic_logger(self):
+        class Service(service.Service):
+            pass
+
+        s = Service(None)
+        self.assertIsInstance(s.logger, logging.Logger)
+        self.assertEqual(
+            "tests.test_service.TestService"
+            ".test_automatic_logger.<locals>.Service",
+            s.logger.name
+        )
+
+    def test_custom_logger(self):
+        l = logging.getLogger("foo")
+        s = service.Service(None, logger=l)
+        self.assertIs(s.logger, l)
+
+    def test_client(self):
+        o = object()
+        s = service.Service(o)
+        self.assertIs(s.client, o)
+
+        with self.assertRaises(AttributeError):
+            s.client = o
+
+    def test_shutdown(self):
+        o = object()
+        s = service.Service(o)
+
+        def coro():
+            return
+            yield
+
+        with unittest.mock.patch.object(s, "_shutdown") as _shutdown:
+            _shutdown.return_value = coro()
+            run_coroutine(s.shutdown())
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(),
+            ],
+            _shutdown.mock_calls
         )
