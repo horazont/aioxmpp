@@ -10,6 +10,7 @@ from aioxmpp.callbacks import (
     AsyncTagListener,
     OneshotTagListener,
     OneshotAsyncTagListener,
+    FutureListener,
     Signal,
     AdHocSignal,
 )
@@ -45,6 +46,9 @@ class TestTagListener(unittest.TestCase):
         ondata.assert_not_called()
         onerror.assert_called_once_with(exc)
 
+    def test_is_valid(self):
+        self.assertTrue(TagListener(ondata=unittest.mock.Mock()))
+
 
 class TestTagDispatcher(unittest.TestCase):
     def test_add_callback(self):
@@ -67,8 +71,40 @@ class TestTagDispatcher(unittest.TestCase):
                                      "only one listener is allowed"):
             nh.add_listener("tag", l)
 
+    def test_add_listener_skips_invalid(self):
+        mock = unittest.mock.Mock()
+
+        l1 = unittest.mock.Mock()
+        l1.is_valid.return_value = True
+
+        l2 = TagListener(mock)
+
+        nh = TagDispatcher()
+        nh.add_listener("tag", l1)
+        l1.is_valid.return_value = False
+        nh.add_listener("tag", l2)
+
+        obj = object()
+        nh.unicast("tag", obj)
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call.is_valid(),
+            ],
+            l1.mock_calls
+        )
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(obj),
+            ],
+            mock.mock_calls
+        )
+
     @unittest.mock.patch("aioxmpp.callbacks.AsyncTagListener")
     def test_add_callback_async(self, AsyncTagListener):
+        AsyncTagListener().is_valid.return_value = True
+        AsyncTagListener.mock_calls.clear()
+
         data = unittest.mock.Mock()
         loop = unittest.mock.Mock()
         obj = object()
@@ -88,6 +124,7 @@ class TestTagDispatcher(unittest.TestCase):
 
         self.assertSequenceEqual(
             [
+                unittest.mock.call().is_valid(),
                 unittest.mock.call().data(obj),
                 unittest.mock.call().data().__bool__(),
             ],
@@ -96,6 +133,7 @@ class TestTagDispatcher(unittest.TestCase):
 
     def test_add_future(self):
         mock = unittest.mock.Mock()
+        mock.done.return_value = False
         obj = object()
 
         nh = TagDispatcher()
@@ -113,39 +151,12 @@ class TestTagDispatcher(unittest.TestCase):
 
         self.assertSequenceEqual(
             [
+                unittest.mock.call.done(),
                 unittest.mock.call.set_result(obj),
+                unittest.mock.call.done(),
                 unittest.mock.call.set_exception(obj),
             ],
             mock.mock_calls
-        )
-
-    @unittest.mock.patch("aioxmpp.callbacks.OneshotAsyncTagListener")
-    def test_add_future_async(self, OneshotAsyncTagListener):
-        mock = unittest.mock.Mock()
-        loop = unittest.mock.Mock()
-        obj = object()
-
-        nh = TagDispatcher()
-        nh.add_future_async("tag", mock, loop=loop)
-
-        self.assertSequenceEqual(
-            [
-                unittest.mock.call(mock.set_result,
-                                   mock.set_exception,
-                                   loop=loop)
-            ],
-            OneshotAsyncTagListener.mock_calls
-        )
-        del OneshotAsyncTagListener.mock_calls[:]
-
-        nh.unicast("tag", obj)
-
-        self.assertSequenceEqual(
-            [
-                unittest.mock.call().data(obj),
-                unittest.mock.call().data().__bool__(),
-            ],
-            OneshotAsyncTagListener.mock_calls
         )
 
     def test_unicast(self):
@@ -169,6 +180,16 @@ class TestTagDispatcher(unittest.TestCase):
     def test_unicast_fails_for_nonexistent(self):
         obj = object()
         nh = TagDispatcher()
+        with self.assertRaises(KeyError):
+            nh.unicast("tag", obj)
+
+    def test_unicast_fails_for_invalid(self):
+        fut = asyncio.Future()
+        obj = object()
+        l = unittest.mock.Mock()
+        l.is_valid.return_value = False
+        nh = TagDispatcher()
+        nh.add_listener("tag", l)
         with self.assertRaises(KeyError):
             nh.unicast("tag", obj)
 
@@ -226,6 +247,20 @@ class TestTagDispatcher(unittest.TestCase):
             error.mock_calls
         )
         self.assertFalse(data.mock_calls)
+
+    def test_broadcast_error_skip_invalid(self):
+        obj = object()
+        l = unittest.mock.Mock()
+        l.is_valid.return_value = False
+        nh = TagDispatcher()
+        nh.add_listener("tag", l)
+        nh.broadcast_error(obj)
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call.is_valid()
+            ],
+            l.mock_calls
+        )
 
     def test_remove_listener(self):
         mock = unittest.mock.Mock()
@@ -366,6 +401,57 @@ class TestOneshotAsyncTagListener(unittest.TestCase):
             ],
             loop.mock_calls
         )
+
+
+class TestFutureListener(unittest.TestCase):
+    def test_normal_operation(self):
+        loop = asyncio.get_event_loop()
+        fut = asyncio.Future(loop=loop)
+        obj = object()
+        tl = FutureListener(fut)
+
+        self.assertTrue(tl.is_valid())
+
+        self.assertTrue(tl.data(obj))
+        self.assertEqual(fut.result(), obj)
+
+        self.assertFalse(tl.is_valid())
+
+    def test_error_dispatch(self):
+        loop = asyncio.get_event_loop()
+        fut = asyncio.Future(loop=loop)
+        obj = object()
+        tl = FutureListener(fut)
+
+        self.assertTrue(tl.is_valid())
+
+        self.assertTrue(tl.error(obj))
+        self.assertEqual(fut.exception(), obj)
+
+        self.assertFalse(tl.is_valid())
+
+    def test_signals_non_existance_with_cancelled_future(self):
+        loop = asyncio.get_event_loop()
+        fut = asyncio.Future(loop=loop)
+        obj = object()
+        tl = FutureListener(fut)
+
+        self.assertTrue(tl.is_valid())
+
+        fut.cancel()
+
+        self.assertFalse(tl.is_valid())
+
+    def test_swallow_invalid_state_error(self):
+        loop = asyncio.get_event_loop()
+        fut = asyncio.Future(loop=loop)
+        obj = object()
+        tl = FutureListener(fut)
+
+        fut.cancel()
+
+        self.assertTrue(tl.data(obj))
+        self.assertTrue(tl.error(obj))
 
 
 class TestAdHocSignal(unittest.TestCase):

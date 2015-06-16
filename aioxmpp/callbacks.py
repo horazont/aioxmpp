@@ -16,6 +16,9 @@ class TagListener:
         if self._onerror is not None:
             return self._onerror(exc)
 
+    def is_valid(self):
+        return True
+
 
 class AsyncTagListener(TagListener):
     def __init__(self, ondata, onerror=None, *, loop=None):
@@ -44,6 +47,28 @@ class OneshotAsyncTagListener(OneshotTagListener, AsyncTagListener):
     pass
 
 
+class FutureListener:
+    def __init__(self, fut):
+        self.fut = fut
+
+    def data(self, data):
+        try:
+            self.fut.set_result(data)
+        except asyncio.futures.InvalidStateError:
+            pass
+        return True
+
+    def error(self, exc):
+        try:
+            self.fut.set_exception(exc)
+        except asyncio.futures.InvalidStateError:
+            pass
+        return True
+
+    def is_valid(self):
+        return not self.fut.done()
+
+
 class TagDispatcher:
     def __init__(self):
         self._listeners = {}
@@ -60,21 +85,14 @@ class TagDispatcher:
     def add_future(self, tag, fut):
         return self.add_listener(
             tag,
-            OneshotTagListener(fut.set_result,
-                               fut.set_exception)
-        )
-
-    def add_future_async(self, tag, fut, *, loop=None):
-        return self.add_listener(
-            tag,
-            OneshotAsyncTagListener(fut.set_result,
-                                    fut.set_exception,
-                                    loop=loop)
+            FutureListener(fut)
         )
 
     def add_listener(self, tag, listener):
         try:
-            self._listeners[tag]
+            existing = self._listeners[tag]
+            if not existing.is_valid():
+                raise KeyError()
         except KeyError:
             self._listeners[tag] = listener
         else:
@@ -82,6 +100,9 @@ class TagDispatcher:
 
     def unicast(self, tag, data):
         cb = self._listeners[tag]
+        if not cb.is_valid():
+            del self._listeners[tag]
+            self._listeners[tag]
         if cb.data(data):
             del self._listeners[tag]
 
@@ -90,7 +111,7 @@ class TagDispatcher:
 
     def broadcast_error(self, exc):
         for tag, listener in list(self._listeners.items()):
-            if listener.error(exc):
+            if listener.is_valid() and listener.error(exc):
                 del self._listeners[tag]
 
     def close_all(self, exc):
