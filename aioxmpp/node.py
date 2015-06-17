@@ -468,10 +468,12 @@ class AbstractClient:
             exc = yield from failure_future
             self._logger.error("stream failed: %s", exc)
         except asyncio.CancelledError:
+            self._logger.info("client shutting down")
             # cancelled, this means a clean shutdown is requested
             yield from self.stream.close()
             raise
         finally:
+            self._logger.info("stopping stream")
             self.stream.stop()
 
     @asyncio.coroutine
