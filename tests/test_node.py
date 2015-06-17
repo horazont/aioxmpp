@@ -885,15 +885,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
                             XMLStreamMock.CleanFailure()
                         ]
                     ),
-                    XMLStreamMock.Send(
-                        stanza.IQ(
-                            type_="set",
-                            payload=rfc6120.Bind(
-                                resource=self.test_jid.resource),
-                            id_="autoset",
-                        ),
-                    )
-                ]
+                ]+self.resource_binding
             )
         )
 
