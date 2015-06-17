@@ -270,6 +270,10 @@ class AbstractClient:
 
     .. autoattribute:: local_jid
 
+    .. attribute:: stream
+
+       The :class:`~aioxmpp.stream.StanzaStream` instance used by the node.
+
     Exponential backoff on interruptions:
 
     .. attribute:: backoff_start
