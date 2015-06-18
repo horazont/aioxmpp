@@ -236,6 +236,8 @@ class StanzaStream:
 
     .. automethod:: register_message_callback
 
+    .. automethod:: unregister_message_callback
+
     .. automethod:: register_presence_callback
 
     Using stream management:
@@ -759,6 +761,20 @@ class StanzaStream:
         self._message_map[type_, from_] = cb
         self._logger.debug(
             "message callback registered: type=%r, from=%r",
+            type_, from_)
+
+    def unregister_message_callback(self, type_, from_):
+        """
+        Unregister a callback previously registered with
+        :meth:`register_message_callback`. *type_* and *from_* have the same
+        semantics as in :meth:`register_message_callback`.
+
+        Attempting to unregister a *type_*, *from_* tuple for which no handler
+        has been registered results in a :class:`KeyError`.
+        """
+        del self._message_map[type_, from_]
+        self._logger.debug(
+            "message callback unregistered: type=%r, from=%r",
             type_, from_)
 
     def register_presence_callback(self, type_, from_, cb):

@@ -525,6 +525,33 @@ class TestStanzaStream(StanzaStreamTestBase):
 
         self.assertIs(msg, fut.result())
 
+    def test_unregister_message_callback(self):
+        cb = unittest.mock.Mock()
+
+        with self.assertRaises(KeyError):
+            self.stream.unregister_message_callback(None, None)
+
+        self.stream.register_message_callback(
+            None, None,
+            cb)
+
+        self.stream.unregister_message_callback(None, None)
+
+        self.stream.register_message_callback(
+            "chat", TEST_FROM,
+            cb)
+
+        self.stream.unregister_message_callback("chat", TEST_FROM)
+
+        self.stream.start(self.xmlstream)
+
+        msg = make_test_message(type_="chat", from_=TEST_FROM)
+        self.stream.recv_stanza(msg)
+
+        run_coroutine(asyncio.sleep(0))
+
+        self.assertFalse(cb.mock_calls)
+
     def test_run_presence_callback_from_wildcard(self):
         pres = make_test_presence()
 
