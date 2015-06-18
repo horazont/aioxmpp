@@ -285,6 +285,29 @@ class TestStanzaStream(StanzaStreamTestBase):
             self.xmlstream.stanza_parser.mock_calls
         )
 
+    def test_unregister_iq_response(self):
+        fut = asyncio.Future()
+        cb = unittest.mock.Mock()
+
+        self.stream.register_iq_response_future(
+            TEST_FROM,
+            "foobar",
+            fut)
+        self.stream.unregister_iq_response(TEST_FROM, "foobar")
+        self.stream.register_iq_response_callback(
+            TEST_FROM,
+            "foobar",
+            cb)
+        self.stream.unregister_iq_response(TEST_FROM, "foobar")
+
+        iq = make_test_iq(type_="result")
+        self.stream.start(self.xmlstream)
+        self.stream.recv_stanza(iq)
+        run_coroutine(asyncio.sleep(0))
+
+        self.assertFalse(fut.done())
+        self.assertFalse(cb.mock_calls)
+
     def test_register_iq_request_coro_rejects_duplicate_registration(self):
         @asyncio.coroutine
         def handle_request(stanza):

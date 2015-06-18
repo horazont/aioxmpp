@@ -232,6 +232,8 @@ class StanzaStream:
 
     .. automethod:: register_iq_response_callback
 
+    .. automethod:: unregister_iq_response
+
     .. automethod:: register_message_callback
 
     .. automethod:: register_presence_callback
@@ -677,6 +679,23 @@ class StanzaStream:
             )
         )
         self._logger.debug("iq response future registered: from=%r, id=%r",
+                           from_, id_)
+
+    def unregister_iq_response(self, from_, id_):
+        """
+        Unregister a registered callback or future for the IQ response
+        identified by *from_* and *id_*. See
+        :meth:`register_iq_response_future` or
+        :meth:`register_iq_response_callback` for details on the arguments
+        meanings and how to register futures and callbacks respectively.
+
+        .. note::
+
+           Futures will automatically be unregistered when they are cancelled.
+
+        """
+        self._iq_response_map.remove_listener((from_, id_))
+        self._logger.debug("iq response unregistered: from=%r, id=%r",
                            from_, id_)
 
     def register_iq_request_coro(self, type_, payload_cls, coro):
