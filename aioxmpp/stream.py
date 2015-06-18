@@ -240,6 +240,8 @@ class StanzaStream:
 
     .. automethod:: register_presence_callback
 
+    .. automethod:: unregister_presence_callback
+
     Using stream management:
 
     .. automethod:: start_sm
@@ -797,6 +799,20 @@ class StanzaStream:
         self._presence_map[type_, from_] = cb
         self._logger.debug(
             "presence callback registered: type=%r, from=%r",
+            type_, from_)
+
+    def unregister_presence_callback(self, type_, from_):
+        """
+        Unregister a callback previously registered with
+        :meth:`register_presence_callback`. *type_* and *from_* have the same
+        semantics as in :meth:`register_presence_callback`.
+
+        Attempting to unregister a *type_*, *from_* tuple for which no handler
+        has been registered results in a :class:`KeyError`.
+        """
+        del self._presence_map[type_, from_]
+        self._logger.debug(
+            "presence callback unregistered: type=%r, from=%r",
             type_, from_)
 
     def _start_prepare(self, xmlstream, receiver):

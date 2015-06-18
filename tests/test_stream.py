@@ -570,6 +570,33 @@ class TestStanzaStream(StanzaStreamTestBase):
 
         self.assertIs(pres, fut.result())
 
+    def test_unregister_presence_callback(self):
+        cb = unittest.mock.Mock()
+
+        with self.assertRaises(KeyError):
+            self.stream.unregister_presence_callback(None, None)
+
+        self.stream.register_presence_callback(
+            None, None,
+            cb)
+
+        self.stream.unregister_presence_callback(None, None)
+
+        self.stream.register_presence_callback(
+            "subscribe", TEST_FROM,
+            cb)
+
+        self.stream.unregister_presence_callback("subscribe", TEST_FROM)
+
+        self.stream.start(self.xmlstream)
+
+        msg = make_test_presence(type_="subscribe", from_=TEST_FROM)
+        self.stream.recv_stanza(msg)
+
+        run_coroutine(asyncio.sleep(0))
+
+        self.assertFalse(cb.mock_calls)
+
     def test_rescue_unprocessed_incoming_stanza_on_stop(self):
         pres = make_test_presence()
 
