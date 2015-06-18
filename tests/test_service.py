@@ -127,7 +127,7 @@ class TestServiceMeta(unittest.TestCase):
             SERVICE_AFTER = [Foo]
 
         with self.assertRaisesRegexp(
-                TypeError,
+                ValueError,
                 "dependency loop: Fnord loops through .*\.(Foo|Bar)"):
 
             class Fnord(metaclass=service.Meta):

@@ -5,4 +5,5 @@ APIs relevant for extension developers
    :maxdepth: 2
 
    plugins_base
+   service
    xso

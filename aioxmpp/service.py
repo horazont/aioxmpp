@@ -1,9 +1,84 @@
+"""
+:mod:`~aioxmpp.service` --- Utilities for implementing :class:`~aioxmpp.node.AbstractClient` services
+#####################################################################################################
+
+Protocol extensions or in general support for parts of the XMPP protocol are
+implemented using :class:`Service` classes, or rather, classes which use the
+:class:`Meta` metaclass.
+
+Both of these are provided in this module.
+
+.. autoclass:: Service
+
+.. autoclass:: Meta([inherit_dependencies=True])
+
+
+"""
+
 import abc
 import asyncio
 import logging
 
 
 class Meta(abc.ABCMeta):
+    """
+    The metaclass for services. The :class:`Service` class uses it and in
+    general you should just inherit from :class:`Service` and define the
+    dependency attributes as needed.
+
+    Services have dependencies. A :class:`Meta` instance (i.e. a service class)
+    can declare dependencies using the following two attributes.
+
+    .. attribute:: SERVICE_BEFORE
+
+       An iterable of :class:`Service` classes before which the class which is
+       currently being declared needs to be instanciated.
+
+       Thus, any service which occurs in :attr:`SERVICE_BEFORE` will be
+       instanciated *after* this class (if at all).
+
+    .. attribute:: SERVICE_AFTER
+
+       An iterable of :class:`Service` classes which would be instanciated
+       after the class which is currently being declared, it at all.
+
+       Classes which are declared in this attribute are not forced to be
+       instanciated (unlike with :attr:`SERVICE_BEFORE`). However, if any of
+       these classes is requested, it is made sure that *this* class is
+       instanciated before.
+
+    The dependencies are inherited from bases unless the *inherit_dependencies*
+    keyword argument is set to false.
+
+    After a class has been instanciated, the full set of dependencies is
+    provided in the attributes, including all transitive relationships. These
+    attributes are updated when new classes are declared.
+
+    Dependency relationships must not have cycles; a cycle results in a
+    :class:`ValueError` when the class causing the cycle is declared.
+
+    Example::
+
+        class Foo(metaclass=service.Meta):
+            pass
+
+        class Bar(metaclass=service.Meta):
+            SERVICE_BEFORE = [Foo]
+
+        class Baz(metaclass=service.Meta):
+            SERVICE_BEFORE = [Bar]
+
+        class Fourth(metaclass=service.Meta):
+            SERVICE_BEFORE = [Bar]
+
+    ``Baz`` and ``Fourth`` will be instanciated before ``Bar`` and ``Bar`` will
+    be instanciated before ``Foo``. There is no dependency relationship between
+    ``Baz`` and ``Fourth``.
+
+
+
+    """
+
     @classmethod
     def transitive_collect(mcls, classes, attr, seen):
         for cls in classes:
@@ -40,7 +115,7 @@ class Meta(abc.ABCMeta):
             inherit_dependencies)
 
         if before_classes & after_classes:
-            raise TypeError("dependency loop: {} loops through {}".format(
+            raise ValueError("dependency loop: {} loops through {}".format(
                 name,
                 next(iter(before_classes & after_classes)).__qualname__
             ))
@@ -87,6 +162,9 @@ class Service(metaclass=Meta):
     .. autoattribute:: client
 
     .. automethod:: shutdown
+
+    For rules with respect to inheriting from :class:`Service` see the
+    documentation of the used metaclass, :class:`Meta`.
     """
 
     def __init__(self, client, *, logger=None):
