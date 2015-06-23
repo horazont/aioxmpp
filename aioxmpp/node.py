@@ -316,6 +316,9 @@ class AbstractClient:
        This event can be used to know when to discard all state about the XMPP
        connection, such as roster information.
 
+    Services:
+
+    .. automethod:: summon
 
     """
 
@@ -340,6 +343,8 @@ class AbstractClient:
         self._backoff_time = None
 
         self._established = False
+
+        self._services = {}
 
         self.negotiation_timeout = negotiation_timeout
         self.backoff_start = timedelta(seconds=1)
@@ -534,6 +539,32 @@ class AbstractClient:
             return
 
         self._main_task.cancel()
+
+    # services
+
+    def _summon(self, class_):
+        try:
+            return self._services[class_]
+        except KeyError:
+            instance = class_(self)
+            self._services[class_] = instance
+            return instance
+
+    def summon(self, class_):
+        """
+        Summon a :class:`~aioxmpp.service.Service` for the client.
+
+        If the *class_* has already been summoned for the client, it’s instance
+        is returned.
+
+        Otherwise, all requirements for the class are first summoned (if they
+        are not there already). Afterwards, the class itself is summoned and
+        the instance is returned.
+        """
+        requirements = sorted(class_.SERVICE_AFTER)
+        for req in requirements:
+            self._summon(req)
+        return self._summon(class_)
 
     # properties
 

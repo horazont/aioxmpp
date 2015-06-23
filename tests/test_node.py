@@ -13,6 +13,7 @@ import aioxmpp.stream_xsos as stream_xsos
 import aioxmpp.errors as errors
 import aioxmpp.stanza as stanza
 import aioxmpp.rfc6120 as rfc6120
+import aioxmpp.service as service
 
 from aioxmpp.utils import namespaces
 
@@ -1381,6 +1382,59 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
 
         self.established_rec.assert_called_once_with()
         self.destroyed_rec.assert_called_once_with()
+
+    def test_summon(self):
+        svc_init = unittest.mock.Mock()
+
+        class Svc1(service.Service):
+            def __init__(self, *args, **kwargs):
+                super().__init__(*args, **kwargs)
+                getattr(svc_init, type(self).__name__)(*args, **kwargs)
+
+        class Svc2(service.Service):
+            SERVICE_BEFORE = [Svc1]
+
+            def __init__(self, *args, **kwargs):
+                super().__init__(*args, **kwargs)
+                getattr(svc_init, type(self).__name__)(*args, **kwargs)
+
+        class Svc3(service.Service):
+            SERVICE_BEFORE = [Svc2]
+
+            def __init__(self, *args, **kwargs):
+                super().__init__(*args, **kwargs)
+                getattr(svc_init, type(self).__name__)(*args, **kwargs)
+
+        svc2 = self.client.summon(Svc2)
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call.Svc3(self.client),
+                unittest.mock.call.Svc2(self.client),
+            ],
+            svc_init.mock_calls
+        )
+
+        svc3 = self.client.summon(Svc3)
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call.Svc3(self.client),
+                unittest.mock.call.Svc2(self.client),
+            ],
+            svc_init.mock_calls
+        )
+
+        svc1 = self.client.summon(Svc1)
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call.Svc3(self.client),
+                unittest.mock.call.Svc2(self.client),
+                unittest.mock.call.Svc1(self.client),
+            ],
+            svc_init.mock_calls
+        )
 
     def tearDown(self):
         for patch in self.patches:
