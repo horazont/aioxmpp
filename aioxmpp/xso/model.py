@@ -240,7 +240,7 @@ class _PropBase:
                  validator=None,
                  validate=ValidateMode.FROM_RECV):
         super().__init__()
-        self._default = default
+        self.default = default
         self.validate = validate
         self.validator = validator
 
@@ -270,7 +270,7 @@ class _PropBase:
         try:
             return instance._stanza_props[self]
         except KeyError:
-            return self._default
+            return self.default
 
     def to_node(self, instance, parent):
         handler = lxml.sax.ElementTreeContentHandler(
