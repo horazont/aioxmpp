@@ -207,6 +207,7 @@ class XMLStream(asyncio.Protocol):
 
     def _rx_exception(self, exc):
         if isinstance(exc, stanza.PayloadParsingError):
+            self._logger.warn("payload parsing error: %s", exc)
             try:
                 iq_response = exc.partial_obj.make_reply(type_="error")
             except ValueError:
@@ -217,8 +218,9 @@ class XMLStream(asyncio.Protocol):
                     type_="modify",
                     text=str(exc.__context__)
                 )
-                self._writer.send(iq_response)
+                self.send_xso(iq_response)
         elif isinstance(exc, stanza.UnknownIQPayload):
+            self._logger.warn("unknown IQ payload: %s", exc)
             try:
                 iq_response = exc.partial_obj.make_reply(type_="error")
             except ValueError:
@@ -228,7 +230,7 @@ class XMLStream(asyncio.Protocol):
                     condition=(namespaces.stanzas, "feature-not-implemented"),
                     type_="cancel",
                 )
-                self._writer.send(iq_response)
+                self.send_xso(iq_response)
         elif isinstance(exc, xso.UnknownTopLevelTag):
             raise errors.StreamError(
                 condition=(namespaces.streams, "unsupported-stanza-type"),
@@ -404,6 +406,8 @@ class XMLStream(asyncio.Protocol):
         re-raised instead of the :class:`ConnectionError`.
         """
         self._require_connection()
+        if self._logger.getEffectiveLevel() <= logging.DEBUG:
+            self._logger.debug("SEND %s", xml.serialize_single_xso(obj))
         self._writer.send(obj)
 
     def can_starttls(self):
