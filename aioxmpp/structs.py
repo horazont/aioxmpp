@@ -549,9 +549,15 @@ class LanguageMap(dict):
         :class:`LanguageRange` instances.
 
         Return the entry in the dictionary with a key as produced by
-        *lookup_language*. If *lookup_language* does not find a match,
-        :class:`KeyError` is raised.
+        *lookup_language*. If *lookup_language* does not find a match and the
+        mapping contains an entry with key :data:`None`, that entry is
+        returned, otherwise :class:`KeyError` is raised.
         """
-        keys = sorted(self.keys())
+        keys = list(self.keys())
+        try:
+            keys.remove(None)
+        except ValueError:
+            pass
+        keys.sort()
         key = lookup_language(keys, language_ranges)
         return self[key]

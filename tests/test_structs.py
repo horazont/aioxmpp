@@ -889,3 +889,14 @@ class TestLanguageMap(unittest.TestCase):
         result = mapping.setdefault(structs.LanguageTag.fromstr("de-de"), [])
 
         self.assertIs(result, l)
+
+    def test_lookup_returns_None_key_if_nothing_matches(self):
+        mapping = structs.LanguageMap()
+        mapping[None] = "foobar"
+        mapping[structs.LanguageTag.fromstr("de")] = "Test"
+        mapping[structs.LanguageTag.fromstr("en")] = "test"
+
+        self.assertEqual(
+            "foobar",
+            mapping.lookup([structs.LanguageRange.fromstr("it")])
+        )
