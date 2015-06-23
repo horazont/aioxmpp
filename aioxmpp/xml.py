@@ -32,9 +32,15 @@ instances, the following classes and functions can be used:
 
 .. autofunction:: make_parser
 
+Utility functions
+=================
+
+.. autofunction:: serialize_single_xso
+
 """
 
 import ctypes
+import io
 
 import xml.sax
 import xml.sax.saxutils
@@ -798,3 +804,17 @@ def make_parser():
     p.setProperty(xml.sax.handler.property_lexical_handler,
                   XMPPLexicalHandler)
     return p
+
+
+def serialize_single_xso(x):
+    """
+    Serialize a single XSO *x* to a string. This is potentially very slow and
+    should only be used for debugging purposes. It is generally more efficient
+    to use a :class:`XMPPXMLGenerator` to stream elements.
+    """
+    buf = io.BytesIO()
+    gen = XMPPXMLGenerator(buf,
+                           short_empty_elements=True,
+                           sorted_attributes=True)
+    x.unparse_to_sax(gen)
+    return buf.getvalue().decode("utf8")

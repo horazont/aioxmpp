@@ -1154,3 +1154,22 @@ class TestXMPPLexicalHandler(unittest.TestCase):
 
     def tearDown(self):
         del self.proc
+
+
+class Testserialize_single_xso(unittest.TestCase):
+    def test_simple(self):
+        class TestXSO(xso.XSO):
+            TAG = ("uri:foo", "bar")
+            DECLARE_NS = {
+                None: "uri:foo",
+            }
+
+            attr = xso.Attr("foo")
+
+        x = TestXSO()
+        x.attr = "test"
+
+        self.assertEqual(
+            '<bar xmlns="uri:foo" foo="test"/>',
+            xml.serialize_single_xso(x)
+        )
