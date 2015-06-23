@@ -707,3 +707,11 @@ class TestIQ(unittest.TestCase):
             " id='someid' type='result'>",
             repr(s)
         )
+
+    def test_as_payload_class(self):
+        @stanza.IQ.as_payload_class
+        class Foo(xso.XSO):
+            TAG = ("uri:foo", "test_as_payload_class")
+
+        self.assertIn(Foo.TAG, stanza.IQ.CHILD_MAP)
+        self.assertIs(stanza.IQ.CHILD_MAP[Foo.TAG], stanza.IQ.payload)

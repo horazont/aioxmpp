@@ -643,6 +643,10 @@ class IQ(StanzaBase):
     :attr:`~StanzaBase.error` :class:`Error` instance
     ========================= =======================================
 
+    New payload classes can be registered using:
+
+    .. automethod:: as_payload_class
+
     """
     TAG = (namespaces.client, "iq")
 
@@ -690,3 +694,8 @@ class IQ(StanzaBase):
             self.id_,
             self.type_,
             payload)
+
+    @classmethod
+    def as_payload_class(cls, other_cls):
+        cls.register_child(cls.payload, other_cls)
+        return other_cls
