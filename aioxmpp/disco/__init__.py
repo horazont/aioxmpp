@@ -3,6 +3,4 @@
 ##############################################################
 """
 
-from .stanza import (
-    InfoQuery
-)
+from .service import Service

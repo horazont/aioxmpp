@@ -11,3 +11,4 @@ Main public API
    protocol
    errors
    structs
+   disco

@@ -3,6 +3,9 @@ import unittest
 import aioxmpp.disco as disco
 import aioxmpp.disco.xso as disco_xso
 import aioxmpp.xso as xso
+import aioxmpp.xso.model as xso_model
+import aioxmpp.structs as structs
+import aioxmpp.stanza as stanza
 
 from aioxmpp.utils import namespaces
 
@@ -40,6 +43,10 @@ class TestIdentity(unittest.TestCase):
             (None, "category"),
             disco_xso.Identity.category.tag
         )
+        self.assertEqual(
+            "client",
+            disco_xso.Identity.category.default
+        )
         self.assertTrue(disco_xso.Identity.category.required)
 
     def test_type_attr(self):
@@ -50,6 +57,10 @@ class TestIdentity(unittest.TestCase):
         self.assertEqual(
             (None, "type"),
             disco_xso.Identity.type_.tag
+        )
+        self.assertEqual(
+            "bot",
+            disco_xso.Identity.type_.default
         )
         self.assertTrue(disco_xso.Identity.type_.required)
 
@@ -69,6 +80,24 @@ class TestIdentity(unittest.TestCase):
             disco_xso.Identity.lang,
             xso.LangAttr
         )
+
+    def test_init(self):
+        ident = disco_xso.Identity()
+        self.assertEqual("client", ident.category)
+        self.assertEqual("bot", ident.type_)
+        self.assertIsNone(ident.name)
+        self.assertIsNone(ident.lang)
+
+        ident = disco_xso.Identity(
+            category="account",
+            type_="anonymous",
+            name="Foobar",
+            lang=structs.LanguageTag.fromstr("de")
+        )
+        self.assertEqual("account", ident.category)
+        self.assertEqual("anonymous", ident.type_)
+        self.assertEqual("Foobar", ident.name)
+        self.assertEqual(structs.LanguageTag.fromstr("DE"), ident.lang)
 
 
 class TestFeature(unittest.TestCase):
@@ -91,6 +120,13 @@ class TestFeature(unittest.TestCase):
             disco_xso.Feature.var.tag
         )
         self.assertTrue(disco_xso.Feature.var.required)
+
+    def test_init(self):
+        f = disco_xso.Feature()
+        self.assertIsNone(f.var)
+
+        f = disco_xso.Feature(var="foobar")
+        self.assertEqual("foobar", f.var)
 
 
 class TestInfoQuery(unittest.TestCase):
@@ -132,6 +168,33 @@ class TestInfoQuery(unittest.TestCase):
         self.assertSetEqual(
             {disco_xso.Feature},
             set(disco_xso.InfoQuery.features._classes)
+        )
+
+    def test_init(self):
+        iq = disco_xso.InfoQuery()
+        self.assertFalse(iq.features)
+        self.assertFalse(iq.identities)
+        self.assertIsNone(iq.node)
+
+        iq = disco_xso.InfoQuery(node="foobar",
+                                 features=(1, 2),
+                                 identities=(3,))
+        self.assertIsInstance(iq.features, xso_model.XSOList)
+        self.assertSequenceEqual(
+            [1, 2],
+            iq.features
+        )
+        self.assertIsInstance(iq.identities, xso_model.XSOList)
+        self.assertSequenceEqual(
+            [3],
+            iq.identities
+        )
+        self.assertEqual("foobar", iq.node)
+
+    def test_registered_at_IQ(self):
+        self.assertIn(
+            disco_xso.InfoQuery.TAG,
+            stanza.IQ.CHILD_MAP
         )
 
 
@@ -203,3 +266,9 @@ class TestItemsQuery(unittest.TestCase):
             disco_xso.ItemsQuery.node.tag
         )
         self.assertFalse(disco_xso.ItemsQuery.node.required)
+
+    def test_registered_at_IQ(self):
+        self.assertIn(
+            disco_xso.ItemsQuery.TAG,
+            stanza.IQ.CHILD_MAP
+        )
