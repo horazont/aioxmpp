@@ -332,13 +332,13 @@ class TestStanzaStream(StanzaStreamTestBase):
         iq = make_test_iq(type_="get")
         iq.autoset_id()
 
-        response_put, response_got = None, None
+        response_payload, response_iq = None, None
 
         @asyncio.coroutine
         def handle_request(stanza):
-            nonlocal response_put
-            response_put = stanza.make_reply(type_="result")
-            return response_put
+            nonlocal response_payload
+            response_payload = FancyTestIQ()
+            return response_payload
 
         self.stream.register_iq_request_coro(
             "get",
@@ -347,8 +347,12 @@ class TestStanzaStream(StanzaStreamTestBase):
         self.stream.start(self.xmlstream)
         self.stream.recv_stanza(iq)
 
-        response_got = run_coroutine(self.sent_stanzas.get())
-        self.assertIs(response_got, response_put)
+        response_iq = run_coroutine(self.sent_stanzas.get())
+        self.assertEqual(iq.to, response_iq.from_)
+        self.assertEqual(iq.from_, response_iq.to)
+        self.assertEqual(iq.id_, response_iq.id_)
+        self.assertEqual("result", response_iq.type_)
+        self.assertIs(response_payload, response_iq.payload)
 
         self.stream.stop()
 

@@ -370,7 +370,7 @@ class StanzaStream:
         Compose a response and send that response.
         """
         try:
-            response = task.result()
+            payload = task.result()
         except errors.XMPPError as err:
             response = request.make_reply(type_="error")
             response.error = stanza.Error.from_exception(err)
@@ -380,6 +380,9 @@ class StanzaStream:
                 condition=(namespaces.stanzas, "undefined-condition"),
                 type_="cancel",
             )
+        else:
+            response = request.make_reply(type_="result")
+            response.payload = payload
         self.enqueue_stanza(response)
 
     def _process_incoming_iq(self, stanza_obj):
@@ -708,13 +711,19 @@ class StanzaStream:
         payload of the given *payload_cls* class.
 
         Whenever a matching IQ stanza is received, the coroutine is started
-        with the stanza as its only argument. It is expected to return an IQ
-        stanza which is sent as response; returning :data:`None` will cause the
-        stream to fail.
+        with the stanza as its only argument. The coroutine must return a valid
+        value for the :attr:`.stanza.IQ.payload` attribute. The value will be
+        set as the payload attribute value of an IQ response (with type
+        ``"result"``) which is generated and sent by the stream.
 
-        Raising an exception will convert the exception to an IQ error stanza;
-        if the exception is a subclass of :class:`aioxmpp.errors.XMPPError`, it
-        is converted directly, otherwise it is wrapped in a
+        If the coroutine raises an exception, it will be converted to a
+        :class:`~.stanza.Error` object. That error object is then used as
+        payload for an IQ response (with type ``"error"``) which is generated
+        and sent by the stream.
+
+        If the exception is a subclass of :class:`aioxmpp.errors.XMPPError`, it
+        is converted to an :class:`~.stanza.Error` instance
+        directly. Otherwise, it is wrapped in a
         :class:`aioxmpp.errors.XMPPCancelError` with ``undefined-condition``.
 
         If there is already a coroutine registered for the given (*type_*,
