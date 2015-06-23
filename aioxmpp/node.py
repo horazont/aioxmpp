@@ -437,7 +437,7 @@ class AbstractClient:
                 "Resource binding failed: {}".format(exc)
             )
 
-        self._local_jid = result.payload.jid
+        self._local_jid = result.jid
         self._logger.info("bound to jid: %s", self._local_jid)
 
     @asyncio.coroutine

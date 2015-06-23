@@ -1391,9 +1391,10 @@ class StanzaStream:
         :data:`None`, it must be the time in seconds for which to wait for a
         response.
 
-        The response stanza is returned as stanza object, if it is a
-        ``result``. If it is an ``error``, the error is raised as a
-        :class:`aioxmpp.errors.XMPPError` exception.
+        If the response is a ``"result"`` IQ, the value of the
+        :attr:`~aioxmpp.stanza.IQ.payload` attribute is returned. Otherwise,
+        the exception generated from the :attr:`~aioxmpp.stanza.IQ.error`
+        attribute is raised.
         """
         iq.autoset_id()
         fut = asyncio.Future(loop=self._loop)
@@ -1403,7 +1404,9 @@ class StanzaStream:
             fut)
         self.enqueue_stanza(iq)
         if not timeout:
-            return fut
+            reply = yield from fut
         else:
-            return asyncio.wait_for(fut, timeout=timeout,
-                                    loop=self._loop)
+            reply = yield from asyncio.wait_for(
+                fut, timeout=timeout,
+                loop=self._loop)
+        return reply.payload

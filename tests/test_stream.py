@@ -983,6 +983,7 @@ class TestStanzaStream(StanzaStreamTestBase):
     def test_send_iq_and_wait_for_reply(self):
         iq = make_test_iq()
         response = iq.make_reply(type_="result")
+        response.payload = FancyTestIQ()
 
         task = asyncio.async(
             self.stream.send_iq_and_wait_for_reply(iq),
@@ -993,8 +994,31 @@ class TestStanzaStream(StanzaStreamTestBase):
         self.stream.recv_stanza(response)
         result = run_coroutine(task)
         self.assertIs(
-            response,
+            response.payload,
             result
+        )
+
+    def test_send_iq_and_wait_for_reply_with_error(self):
+        iq = make_test_iq()
+        response = iq.make_reply(type_="error")
+        response.error = stanza.Error.from_exception(
+            errors.XMPPCancelError(
+                condition=(namespaces.stanzas, "item-not-found")
+            )
+        )
+
+        task = asyncio.async(
+            self.stream.send_iq_and_wait_for_reply(iq),
+            loop=self.loop)
+
+        self.stream.start(self.xmlstream)
+        run_coroutine(asyncio.sleep(0))
+        self.stream.recv_stanza(response)
+        with self.assertRaises(errors.XMPPCancelError) as ctx:
+            run_coroutine(task)
+        self.assertEqual(
+            (namespaces.stanzas, "item-not-found"),
+            ctx.exception.condition
         )
 
     def test_send_iq_and_wait_for_reply_autosets_id(self):
@@ -1010,10 +1034,11 @@ class TestStanzaStream(StanzaStreamTestBase):
         # this is a hack, which only works because send_iq_and_wait_for_reply
         # mutates the object
         response = iq.make_reply(type_="result")
+        response.payload = FancyTestIQ()
         self.stream.recv_stanza(response)
         result = run_coroutine(task)
         self.assertIs(
-            response,
+            response.payload,
             result
         )
 
