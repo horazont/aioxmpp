@@ -203,6 +203,37 @@ class TestService(unittest.TestCase):
                  item.name, item.lang) for item in response.identities)
         )
 
+        identity.default_name = "foobar"
+
+        response = run_coroutine(self.s.handle_request(self.request_iq))
+
+        self.assertSetEqual(
+            {
+                ("client", "pc",
+                 "test identity",
+                 structs.LanguageTag.fromstr("en")),
+                ("client", "pc",
+                 "Testidentität",
+                 structs.LanguageTag.fromstr("de")),
+            },
+            set((item.category, item.type_,
+                 item.name, item.lang) for item in response.identities)
+        )
+
+        identity.names.clear()
+
+        response = run_coroutine(self.s.handle_request(self.request_iq))
+
+        self.assertSetEqual(
+            {
+                ("client", "pc",
+                 "foobar",
+                 None),
+            },
+            set((item.category, item.type_,
+                 item.name, item.lang) for item in response.identities)
+        )
+
     def test_register_identity_disallows_duplicates(self):
         self.s.register_identity("client", "pc")
         with self.assertRaisesRegexp(ValueError, "identity already claimed"):
@@ -326,6 +357,36 @@ class TestService(unittest.TestCase):
 
         result2 = run_coroutine(
             self.s.query_info(to, node="foobar", require_fresh=True)
+        )
+
+        self.assertIs(result1, response1)
+        self.assertIs(result2, response2)
+
+        self.assertEqual(
+            2,
+            len(self.cc.stream.send_iq_and_wait_for_reply.mock_calls)
+        )
+
+    def test_query_info_cache_clears_on_disconnect(self):
+        to = structs.JID.fromstr("user@foo.example/res1")
+
+        response1 = disco_xso.InfoQuery()
+        self.cc.stream.send_iq_and_wait_for_reply.return_value = response1
+
+        with self.assertRaises(TypeError):
+            self.s.query_info(to, "foobar")
+
+        result1 = run_coroutine(
+            self.s.query_info(to, node="foobar")
+        )
+
+        self.cc.on_stream_destroyed()
+
+        response2 = disco_xso.InfoQuery()
+        self.cc.stream.send_iq_and_wait_for_reply.return_value = response2
+
+        result2 = run_coroutine(
+            self.s.query_info(to, node="foobar")
         )
 
         self.assertIs(result1, response1)

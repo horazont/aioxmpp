@@ -245,6 +245,18 @@ class TestItem(unittest.TestCase):
         )
         self.assertFalse(disco_xso.Item.node.required)
 
+    def test_init(self):
+        item = disco_xso.Item()
+        self.assertIsNone(item.jid)
+        self.assertIsNone(item.name)
+        self.assertIsNone(item.node)
+
+        jid = structs.JID.fromstr("foo@bar.example/baz")
+        item = disco_xso.Item(jid=jid, name="fnord", node="test")
+        self.assertEqual(jid, item.jid)
+        self.assertEqual("fnord", item.name)
+        self.assertEqual("test", item.node)
+
 
 class TestItemsQuery(unittest.TestCase):
     def test_is_xso(self):
@@ -267,8 +279,31 @@ class TestItemsQuery(unittest.TestCase):
         )
         self.assertFalse(disco_xso.ItemsQuery.node.required)
 
+    def test_items_attr(self):
+        self.assertIsInstance(
+            disco_xso.ItemsQuery.items,
+            xso.ChildList
+        )
+        self.assertSetEqual(
+            {disco_xso.Item},
+            set(disco_xso.ItemsQuery.items._classes)
+        )
+
     def test_registered_at_IQ(self):
         self.assertIn(
             disco_xso.ItemsQuery.TAG,
             stanza.IQ.CHILD_MAP
+        )
+
+    def test_init(self):
+        iq = disco_xso.ItemsQuery()
+        self.assertIsNone(iq.node)
+        self.assertFalse(iq.items)
+
+        iq = disco_xso.ItemsQuery(node="test", items=(1, 2))
+        self.assertEqual("test", iq.node)
+        self.assertIsInstance(iq.items, xso_model.XSOList)
+        self.assertSequenceEqual(
+            [1, 2],
+            iq.items
         )
