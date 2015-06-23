@@ -8,7 +8,8 @@ from .testutils import (
     TransportMock,
     XMLStreamMock,
     run_coroutine_with_peer,
-    make_connected_client
+    make_connected_client,
+    CoroutineMock
 )
 from .xmltestutils import XMLTestCase
 
@@ -870,3 +871,49 @@ class Testmake_connected_client(unittest.TestCase):
         self.assertTrue(hasattr(cc.stream, "register_message_callback"))
         self.assertTrue(hasattr(cc.stream, "register_iq_response_callback"))
         self.assertTrue(hasattr(cc.stream, "register_presence_callback"))
+
+
+class TestCoroutineMock(unittest.TestCase):
+    def test_inherits_from_Mock(self):
+        self.assertTrue(issubclass(CoroutineMock, unittest.mock.Mock))
+
+    def test_return_value(self):
+        m = CoroutineMock()
+        m.return_value = "foobar"
+        self.assertEqual(
+            "foobar",
+            run_coroutine(m())
+        )
+
+    def test_side_effect(self):
+        m = CoroutineMock()
+        m.side_effect = ValueError()
+        with self.assertRaises(ValueError):
+            run_coroutine(m())
+
+    def test_schedules(self):
+        called = False
+        m = CoroutineMock()
+        def cb():
+            nonlocal called
+            called = True
+
+        loop = asyncio.get_event_loop()
+        loop.call_soon(cb)
+
+        run_coroutine(m(), loop=loop)
+
+        self.assertTrue(called)
+
+    def test_registered_in_mock_calls(self):
+        m = CoroutineMock()
+        run_coroutine(m("foo", 123))
+        run_coroutine(m("bar", test=None))
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call("foo", 123),
+                unittest.mock.call("bar", test=None),
+            ],
+            m.mock_calls
+        )

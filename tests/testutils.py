@@ -101,6 +101,12 @@ def make_connected_client():
     return cc
 
 
+class CoroutineMock(unittest.mock.Mock):
+    @asyncio.coroutine
+    def __call__(self, *args, **kwargs):
+        return super().__call__(*args, **kwargs)
+
+
 class SSLWrapperMock:
     """
     Mock for :class:`aioxmpp.ssl_wrapper.STARTTLSableTransportProtocol`.
