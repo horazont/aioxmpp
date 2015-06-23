@@ -630,6 +630,10 @@ class IQ(StanzaBase):
        The type attribute of the stanza. The allowed values are ``"error"``,
        ``"result"``, ``"set"`` and ``"get"``.
 
+    .. attribute:: payload
+
+       An XSO which forms the payload of the IQ stanza.
+
     Note that some attributes are inherited from :class:`StanzaBase`:
 
     ========================= =======================================
