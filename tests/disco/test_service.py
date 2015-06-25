@@ -16,21 +16,6 @@ from ..testutils import (
 )
 
 
-class TestIdentity(unittest.TestCase):
-    def setUp(self):
-        self.id_ = disco_service.Identity()
-
-    def test_default_name(self):
-        self.assertIsNone(self.id_.default_name)
-        self.id_.default_name = "foobar"
-
-    def test_name_map_is_LanguageMap(self):
-        self.assertIsInstance(
-            self.id_.names,
-            structs.LanguageMap
-        )
-
-
 class TestService(unittest.TestCase):
     def setUp(self):
         self.cc = make_connected_client()
@@ -184,10 +169,14 @@ class TestService(unittest.TestCase):
         with self.assertRaisesRegexp(KeyError, r"\('client', 'bot'\)"):
             self.s.unregister_identity("client", "bot")
 
-    def test_register_identity_returns_Identity(self):
-        identity = self.s.register_identity("client", "pc")
-        identity.names[structs.LanguageTag.fromstr("de")] = "Testidentität"
-        identity.names[structs.LanguageTag.fromstr("en")] = "test identity"
+    def test_register_identity_with_names(self):
+        self.s.register_identity(
+            "client", "pc",
+            names={
+                structs.LanguageTag.fromstr("en"): "test identity",
+                structs.LanguageTag.fromstr("de"): "Testidentität",
+            }
+        )
 
         response = run_coroutine(self.s.handle_request(self.request_iq))
 
@@ -199,37 +188,6 @@ class TestService(unittest.TestCase):
                 ("client", "pc",
                  "Testidentität",
                  structs.LanguageTag.fromstr("de")),
-            },
-            set((item.category, item.type_,
-                 item.name, item.lang) for item in response.identities)
-        )
-
-        identity.default_name = "foobar"
-
-        response = run_coroutine(self.s.handle_request(self.request_iq))
-
-        self.assertSetEqual(
-            {
-                ("client", "pc",
-                 "test identity",
-                 structs.LanguageTag.fromstr("en")),
-                ("client", "pc",
-                 "Testidentität",
-                 structs.LanguageTag.fromstr("de")),
-            },
-            set((item.category, item.type_,
-                 item.name, item.lang) for item in response.identities)
-        )
-
-        identity.names.clear()
-
-        response = run_coroutine(self.s.handle_request(self.request_iq))
-
-        self.assertSetEqual(
-            {
-                ("client", "pc",
-                 "foobar",
-                 None),
             },
             set((item.category, item.type_,
                  item.name, item.lang) for item in response.identities)

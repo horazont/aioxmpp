@@ -10,48 +10,6 @@ from aioxmpp.utils import namespaces
 from . import xso as disco_xso
 
 
-class Identity:
-    """
-    A handle to a specific identity represented in a :class:`Service`. It is
-    returned by :meth:`Service.register_identity` and can be used to
-    comfortably manage different names for an identity.
-
-    .. attribute:: default_name
-
-       The default name of the identity. This must either be a :class:`str` or
-       :data:`None`.
-
-       It is used as value for the ``name`` attribute whenever the
-       :attr:`names` dictionary is empty.
-
-    .. attribute:: names
-
-       A :class:`.structs.LanguageMap` mapping. For each entry, a language tag
-       is created, with the ``lang`` attribute set to the key of the entry and
-       the ``name`` attribute set to the value.
-
-       .. warning::
-
-          Care must be taken when using the :data:`None` key. Technically, if
-          :data:`None` is used and the parents ``xml:lang`` value is equal to
-          one of the other keys in the mapping, the output will be invalid. The
-          service cannot check against that as the parent ``xml:lang`` values
-          are not known.
-
-          In general, using the :data:`None` key is discouraged; just do not do
-          it to avoid problems. Use :attr:`default_name` instead.
-
-    .. warning::
-
-       Do not confuse this class with :class:`aioxmpp.disco.xso.Identity`.
-
-    """
-    def __init__(self):
-        super().__init__()
-        self.default_name = None
-        self.names = structs.LanguageMap()
-
-
 class Service(service.Service):
     """
     A service implementing XEP-0030. The service provides methods for managing
@@ -143,19 +101,18 @@ class Service(service.Service):
             ))
 
         if self._identities:
-            for (category, type_), identity in self._identities.items():
-                for lang, name in identity.names.items():
+            for (category, type_), names in self._identities.items():
+                for lang, name in names.items():
                     response.identities.append(disco_xso.Identity(
                         category=category,
                         type_=type_,
                         lang=lang,
                         name=name
                     ))
-                if not identity.names:
+                if not names:
                     response.identities.append(disco_xso.Identity(
                         category=category,
-                        type_=type_,
-                        name=identity.default_name
+                        type_=type_
                     ))
         else:
             response.identities.append(self.DEFAULT_IDENTITY)
@@ -183,7 +140,7 @@ class Service(service.Service):
         """
         self._features.remove(var)
 
-    def register_identity(self, category, type_):
+    def register_identity(self, category, type_, *, names={}):
         """
         Register an identity with the given *category* and *type_*.
 
@@ -196,9 +153,7 @@ class Service(service.Service):
         key = category, type_
         if key in self._identities:
             raise ValueError("identity already claimed: {}".format(key))
-        identity = Identity()
-        self._identities[category, type_] = identity
-        return identity
+        self._identities[category, type_] = names
 
     def unregister_identity(self, category, type_):
         """
