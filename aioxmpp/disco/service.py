@@ -100,7 +100,7 @@ class Service(service.Service):
 
         self._features = set()
         self._identities = {}
-        self._info_cache = {}
+        self._info_pending = {}
 
         self.client.stream.register_iq_request_coro(
             "get",
@@ -118,7 +118,10 @@ class Service(service.Service):
         yield from super()._shutdown()
 
     def _clear_cache(self):
-        self._info_cache.clear()
+        for fut in self._info_pending.values():
+            if not fut.done():
+                fut.cancel()
+        self._info_pending.clear()
 
     @asyncio.coroutine
     def handle_request(self, iq):
@@ -227,16 +230,29 @@ class Service(service.Service):
 
         if not require_fresh:
             try:
-                return self._info_cache[key]
+                request = self._info_pending[key]
             except KeyError:
                 pass
+            else:
+                try:
+                    return (yield from request)
+                except asyncio.CancelledError:
+                    pass
 
         request_iq = stanza.IQ(to=jid, type_="get")
         request_iq.payload = disco_xso.InfoQuery(node=node)
-        result = yield from self.client.stream.send_iq_and_wait_for_reply(
-            request_iq,
-            timeout=timeout)
 
-        self._info_cache[key] = result
+        request = asyncio.async(
+            self.client.stream.send_iq_and_wait_for_reply(request_iq)
+        )
+
+        self._info_pending[key] = request
+        if timeout is not None:
+            try:
+                result = yield from asyncio.wait_for(request, timeout=timeout)
+            except asyncio.TimeoutError:
+                raise TimeoutError()
+        else:
+            result = yield from request
 
         return result

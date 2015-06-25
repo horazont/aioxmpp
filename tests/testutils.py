@@ -104,9 +104,13 @@ def make_connected_client():
 
 
 class CoroutineMock(unittest.mock.Mock):
+    delay = 0
+
     @asyncio.coroutine
     def __call__(self, *args, **kwargs):
-        return super().__call__(*args, **kwargs)
+        result = super().__call__(*args, **kwargs)
+        yield from asyncio.sleep(self.delay)
+        return result
 
 
 class SSLWrapperMock:

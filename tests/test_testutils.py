@@ -919,3 +919,20 @@ class TestCoroutineMock(unittest.TestCase):
             ],
             m.mock_calls
         )
+
+    def test_delay(self):
+        m = CoroutineMock()
+        self.assertEqual(0, m.delay)
+
+    def test_set_delay(self):
+        m = CoroutineMock()
+        m.delay = 1
+        with self.assertRaises(asyncio.TimeoutError):
+            run_coroutine(m(), timeout=0.01)
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(),
+            ],
+            m.mock_calls
+        )

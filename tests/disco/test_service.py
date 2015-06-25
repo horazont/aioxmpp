@@ -1,3 +1,4 @@
+import asyncio
 import unittest
 
 import aioxmpp.service as service
@@ -401,16 +402,66 @@ class TestService(unittest.TestCase):
         to = structs.JID.fromstr("user@foo.example/res1")
         response = disco_xso.InfoQuery()
 
+        self.cc.stream.send_iq_and_wait_for_reply.delay = 1
+        self.cc.stream.send_iq_and_wait_for_reply.return_value = response
+
+        with self.assertRaises(TimeoutError):
+            result = run_coroutine(
+                self.s.query_info(to, timeout=0.01)
+            )
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(unittest.mock.ANY),
+            ],
+            self.cc.stream.send_iq_and_wait_for_reply.mock_calls
+        )
+
+    def test_query_info_deduplicate_requests(self):
+        to = structs.JID.fromstr("user@foo.example/res1")
+        response = disco_xso.InfoQuery()
+
         self.cc.stream.send_iq_and_wait_for_reply.return_value = response
 
         result = run_coroutine(
-            self.s.query_info(to, timeout=10)
+            asyncio.gather(
+                self.s.query_info(to, timeout=10),
+                self.s.query_info(to, timeout=10),
+            )
         )
 
-        self.assertIs(result, response)
+        self.assertIs(result[0], response)
+        self.assertIs(result[1], response)
+
         self.assertSequenceEqual(
             [
-                unittest.mock.call(unittest.mock.ANY, timeout=10),
+                unittest.mock.call(unittest.mock.ANY),
+            ],
+            self.cc.stream.send_iq_and_wait_for_reply.mock_calls
+        )
+
+    def test_query_info_transparent_deduplication_when_cancelled(self):
+        to = structs.JID.fromstr("user@foo.example/res1")
+        response = disco_xso.InfoQuery()
+
+        self.cc.stream.send_iq_and_wait_for_reply.return_value = response
+        self.cc.stream.send_iq_and_wait_for_reply.delay = 0.1
+
+        q1 = asyncio.async(self.s.query_info(to))
+        q2 = asyncio.async(self.s.query_info(to))
+
+        run_coroutine(asyncio.sleep(0.05))
+
+        q1.cancel()
+
+        result = run_coroutine(q2)
+
+        self.assertIs(result, response)
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(unittest.mock.ANY),
+                unittest.mock.call(unittest.mock.ANY),
             ],
             self.cc.stream.send_iq_and_wait_for_reply.mock_calls
         )
