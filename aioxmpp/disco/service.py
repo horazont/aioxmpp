@@ -219,9 +219,23 @@ class Service(service.Service):
         Return the :class:`.xso.InfoQuery` instance returned by the peer. If an
         error is returned, that error is raised as :class:`.errors.XMPPError`.
 
-        The result is cached. If you require fresh results, use
-        *require_fresh*. Note that the cache is automatically cleared if a
-        session ends.
+        The requests are cached. This means that only one request is ever fired
+        for a given target (identified by the *jid* and the *node*). The
+        request is re-used for all subsequent requests to that identity.
+
+        If *require_fresh* is set to true, the above does not hold and a fresh
+        request is always created. The new request is the request which will be
+        used as alias for subsequent requests to the same identity.
+
+        The visible effects of this are twofold:
+
+        * Caching: Results of requests are implicitly cached
+        * Aliasing: Two concurrent requests will be aliased to one request to
+          save computing resources
+
+        Both can be turned off by using *require_fresh*. In general, you should
+        not need to use *require_fresh*, as all requests are implicitly
+        cancelled whenever the underlying session gets destroyed.
 
         *timeout* is passed to
         :meth:`.StanzaStream.send_iq_and_wait_for_reply`.
