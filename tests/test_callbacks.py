@@ -13,9 +13,11 @@ from aioxmpp.callbacks import (
     FutureListener,
     Signal,
     AdHocSignal,
+    SyncAdHocSignal,
+    SyncSignal
 )
 
-from .testutils import run_coroutine
+from .testutils import run_coroutine, CoroutineMock
 
 
 class TestTagListener(unittest.TestCase):
@@ -663,6 +665,93 @@ class TestAdHocSignal(unittest.TestCase):
         )
 
 
+class TestSyncAdHocSignal(unittest.TestCase):
+    def test_connect_and_fire(self):
+        coro = CoroutineMock()
+        coro.return_value = True
+
+        signal = SyncAdHocSignal()
+        signal.connect(coro)
+
+        run_coroutine(signal.fire(1, 2, foo="bar"))
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(1, 2, foo="bar"),
+            ],
+            coro.mock_calls
+        )
+
+    def test_fire_removes_on_false_result(self):
+        coro = CoroutineMock()
+        coro.return_value = False
+
+        signal = SyncAdHocSignal()
+        signal.connect(coro)
+
+        run_coroutine(signal.fire(1, 2, foo="bar"))
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(1, 2, foo="bar"),
+            ],
+            coro.mock_calls
+        )
+        coro.reset_mock()
+
+        run_coroutine(signal.fire(1, 2, foo="bar"))
+
+        self.assertSequenceEqual(
+            [
+            ],
+            coro.mock_calls
+        )
+
+    def test_ordered_calls(self):
+        calls = []
+        def make_coro(i):
+            @asyncio.coroutine
+            def coro():
+                nonlocal calls
+                calls.append(i)
+            return coro
+
+        coros = [make_coro(i) for i in range(3)]
+
+        signal = SyncAdHocSignal()
+        for coro in reversed(coros):
+            signal.connect(coro)
+
+        run_coroutine(signal.fire())
+
+        self.assertSequenceEqual(
+            [2, 1, 0],
+            calls
+        )
+
+    def test_context_connect(self):
+        signal = SyncAdHocSignal()
+
+        coro = CoroutineMock()
+        coro.return_value = True
+
+        with signal.context_connect(coro):
+            run_coroutine(signal("foo"))
+        run_coroutine(signal("bar"))
+        with signal.context_connect(coro) as token:
+            run_coroutine(signal("baz"))
+            signal.disconnect(token)
+            run_coroutine(signal("fnord"))
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call("foo"),
+                unittest.mock.call("baz"),
+            ],
+            coro.mock_calls
+        )
+
+
 class TestSignal(unittest.TestCase):
     def test_get(self):
         class Foo:
@@ -690,6 +779,40 @@ class TestSignal(unittest.TestCase):
     def test_reject_delete(self):
         class Foo:
             s = Signal()
+
+        instance = Foo()
+
+        with self.assertRaises(AttributeError):
+            del instance.s
+
+
+class TestSyncSignal(unittest.TestCase):
+    def test_get(self):
+        class Foo:
+            s = SyncSignal()
+
+        instance1 = Foo()
+        instance2 = Foo()
+
+        self.assertIsNot(instance1.s, instance2.s)
+        self.assertIs(instance1.s, instance1.s)
+        self.assertIs(instance2.s, instance2.s)
+
+        self.assertIsInstance(instance1.s, SyncAdHocSignal)
+        self.assertIsInstance(instance2.s, SyncAdHocSignal)
+
+    def test_reject_set(self):
+        class Foo:
+            s = SyncSignal()
+
+        instance = Foo()
+
+        with self.assertRaises(AttributeError):
+            instance.s = "foo"
+
+    def test_reject_delete(self):
+        class Foo:
+            s = SyncSignal()
 
         instance = Foo()
 

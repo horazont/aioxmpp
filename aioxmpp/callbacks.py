@@ -1,3 +1,4 @@
+import abc
 import asyncio
 import collections
 import functools
@@ -119,7 +120,24 @@ class TagDispatcher:
         self._listeners.clear()
 
 
-class AdHocSignal:
+class AbstractAdHocSignal:
+    def __init__(self):
+        super().__init__()
+        self._connections = collections.OrderedDict()
+
+    def _connect(self, wrapper):
+        token = object()
+        self._connections[token] = wrapper
+        return token
+
+    def disconnect(self, token):
+        try:
+            del self._connections[token]
+        except KeyError:
+            pass
+
+
+class AdHocSignal(AbstractAdHocSignal):
     @classmethod
     def STRONG(cls, f):
         return functools.partial(cls._strong_wrapper, f)
@@ -140,10 +158,6 @@ class AdHocSignal:
     def WEAK(cls, f):
         return functools.partial(cls._weakref_wrapper, weakref.ref(f))
 
-    def __init__(self):
-        super().__init__()
-        self._connections = {}
-
     @staticmethod
     def _async_wrapper(f, loop, args, kwargs):
         if kwargs:
@@ -162,11 +176,6 @@ class AdHocSignal:
     def _strong_wrapper(f, args, kwargs):
         return not f(*args, **kwargs)
 
-    def _connect(self, wrapper):
-        token = object()
-        self._connections[token] = wrapper
-        return token
-
     def connect(self, f, mode=None):
         mode = mode or self.STRONG
         return self._connect(mode(f))
@@ -179,29 +188,40 @@ class AdHocSignal:
             if not wrapper(args, kwargs):
                 del self._connections[token]
 
-    def disconnect(self, token):
-        try:
-            del self._connections[token]
-        except KeyError:
-            pass
-
     __call__ = fire
 
 AdHocSignal.ASYNC = AdHocSignal.ASYNC_WITH_LOOP(None)
 
 
+class SyncAdHocSignal(AbstractAdHocSignal):
+    def connect(self, coro):
+        return self._connect(coro)
+
+    def context_connect(self, coro):
+        return SignalConnectionContext(self, coro)
+
+    @asyncio.coroutine
+    def fire(self, *args, **kwargs):
+        for token, coro in list(self._connections.items()):
+            keep = yield from coro(*args, **kwargs)
+            if not keep:
+                del self._connections[token]
+
+    __call__ = fire
+
+
 class SignalConnectionContext:
-    def __init__(self, signal, f, mode=None):
+    def __init__(self, signal, *args, **kwargs):
         self._signal = signal
-        self._f = f
-        self._mode = mode
+        self._args = args
+        self._kwargs = kwargs
 
     def __enter__(self):
         try:
-            token = self._signal.connect(self._f, mode=self._mode)
+            token = self._signal.connect(*self._args, **self._kwargs)
         finally:
-            del self._f
-            del self._mode
+            del self._args
+            del self._kwargs
         self._token = token
         return token
 
@@ -210,10 +230,14 @@ class SignalConnectionContext:
         return False
 
 
-class Signal:
+class AbstractSignal(metaclass=abc.ABCMeta):
     def __init__(self):
         super().__init__()
         self._instances = weakref.WeakKeyDictionary()
+
+    @abc.abstractclassmethod
+    def make_adhoc_signal(cls):
+        pass
 
     def __get__(self, instance, owner):
         if instance is None:
@@ -221,7 +245,7 @@ class Signal:
         try:
             return self._instances[instance]
         except KeyError:
-            new = AdHocSignal()
+            new = self.make_adhoc_signal()
             self._instances[instance] = new
             return new
 
@@ -230,3 +254,15 @@ class Signal:
 
     def __delete__(self, instance):
         raise AttributeError("cannot override Signal attribute")
+
+
+class Signal(AbstractSignal):
+    @classmethod
+    def make_adhoc_signal(cls):
+        return AdHocSignal()
+
+
+class SyncSignal(AbstractSignal):
+    @classmethod
+    def make_adhoc_signal(cls):
+        return SyncAdHocSignal()
