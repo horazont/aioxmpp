@@ -98,6 +98,8 @@ def make_connected_client():
     cc.on_stream_destroyed = callbacks.AdHocSignal()
     cc.on_failure = callbacks.AdHocSignal()
 
+    cc.before_stream_established = callbacks.SyncAdHocSignal()
+
     cc.stream.send_iq_and_wait_for_reply = CoroutineMock()
 
     return cc

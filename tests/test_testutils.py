@@ -866,6 +866,9 @@ class Testmake_connected_client(unittest.TestCase):
         self.assertIsInstance(cc.on_stream_destroyed, callbacks.AdHocSignal)
         self.assertIsInstance(cc.on_stream_established, callbacks.AdHocSignal)
 
+        self.assertIsInstance(cc.before_stream_established,
+                              callbacks.SyncAdHocSignal)
+
         self.assertTrue(hasattr(cc.stream, "register_iq_response_future"))
         self.assertTrue(hasattr(cc.stream, "register_iq_request_coro"))
         self.assertTrue(hasattr(cc.stream, "register_message_callback"))
