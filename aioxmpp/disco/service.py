@@ -215,6 +215,24 @@ class Service(service.Service, Node):
        After having added another identity, that default identity can be
        removed.
 
+
+    Usage example, assuming that you have a :class:`.node.AbstractClient`
+    *node*::
+
+      import aioxmpp.disco as disco
+      # load service into node
+      sd = node.summon(disco.Service)
+
+      # retrieve server information
+      server_info = yield from sd.query_info(
+          node.local_jid.replace(localpart=None, resource=None)
+      )
+
+      # retrieve resources
+      resources = yield from sd.query_items(
+          node.local_jid.bare()
+      )
+
     """
 
     def __init__(self, client, *, logger=None):
