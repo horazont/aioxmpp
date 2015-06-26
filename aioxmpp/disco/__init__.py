@@ -13,11 +13,10 @@ Service
 
 .. autoclass:: Service
 
-.. module:: aioxmpp.disco.service
+Entity information
+------------------
 
-.. currentmodule:: aioxmpp.disco.service
-
-.. autoclass:: Identity
+.. autoclass:: Node
 
 .. module:: aioxmpp.disco.xso
 
@@ -54,4 +53,4 @@ Item queries
 """
 
 from . import xso
-from .service import Service
+from .service import Service, Node

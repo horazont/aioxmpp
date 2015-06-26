@@ -11,3 +11,6 @@ class TestExports(unittest.TestCase):
 
     def test_xso(self):
         self.assertIs(disco.xso, disco_xso)
+
+    def test_Node(self):
+        self.assertIs(disco.Node, disco_service.Node)

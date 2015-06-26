@@ -1,4 +1,5 @@
 import asyncio
+import itertools
 
 import aioxmpp.errors as errors
 import aioxmpp.service as service
@@ -10,7 +11,113 @@ from aioxmpp.utils import namespaces
 from . import xso as disco_xso
 
 
-class Service(service.Service):
+class Node(object):
+    """
+    A :class:`Node` holds the information related to a specific node within the
+    entity referred to by a JID, with respect to XEP-0030 semantics.
+
+    A :class:`Node` always has at least one identity (or it will return
+    as ``<item-not-found/>``). It may have zero or more features beyond the
+    XEP-0030 features which are statically included.
+
+    To manage the identities and the features of a node, use the following
+    methods:
+
+    .. automethod:: register_feature
+
+    .. automethod:: unregister_feature
+
+    .. automethod:: register_identity
+
+    .. automethod:: unregister_identity
+    """
+    STATIC_FEATURES = frozenset({namespaces.xep0030_info})
+
+    def __init__(self):
+        super().__init__()
+        self._identities = {}
+        self._features = set()
+
+    def iter_identities(self):
+        for (category, type_), names in self._identities.items():
+            for lang, name in names.items():
+                yield category, type_, lang, name
+            if not names:
+                yield category, type_, None, None
+
+    def iter_features(self):
+        return itertools.chain(
+            iter(self.STATIC_FEATURES),
+            iter(self._features)
+        )
+
+    def register_feature(self, var):
+        """
+        Register a feature with the namespace variable *var*.
+
+        If the feature is already registered or part of the default XEP-0030
+        features, a :class:`ValueError` is raised.
+        """
+        if var in self._features or var in self.STATIC_FEATURES:
+            raise ValueError("feature already claimed: {!r}".format(var))
+        self._features.add(var)
+
+    def register_identity(self, category, type_, *, names={}):
+        """
+        Register an identity with the given *category* and *type_*.
+
+        If there is already a registered identity with the same *category* and
+        *type_*, :class:`ValueError` is raised.
+
+        *names* may be a mapping which maps :class:`.structs.LanguageTag`
+        instances to strings. This mapping will be used to produce
+        ``<identity/>`` declarations with the respective ``xml:lang`` and
+        ``name`` attributes.
+        """
+        key = category, type_
+        if key in self._identities:
+            raise ValueError("identity already claimed: {!r}".format(key))
+        self._identities[key] = names
+
+    def unregister_feature(self, var):
+        """
+        Unregister a feature which has previously been registered using
+        :meth:`register_feature`.
+
+        If the feature has not been registered previously, :class:`KeyError` is
+        raised.
+
+        .. note::
+
+           The features which are mandatory per XEP-0030 are always registered
+           and cannot be unregistered. For the purpose of unregistration, they
+           behave as if they had never been registered; for the purpose of
+           registration, they behave as if they had been registered before.
+
+        """
+        self._features.remove(var)
+
+    def unregister_identity(self, category, type_):
+        """
+        Unregister an identity previously registered using
+        :meth:`register_identity`.
+
+        If no identity with the given *category* and *type_* has been
+        registered before, :class:`KeyError` is raised.
+
+        If the identity to remove is the last identity of the :class:`Node`,
+        :class:`ValueError` is raised; a node must always have at least one
+        identity.
+        """
+        key = category, type_
+        if key not in self._identities:
+            raise KeyError(key)
+        if len(self._identities) == 1:
+            raise ValueError("cannot remove last identity")
+        del self._identities[key]
+
+
+class Service(service.Service, Node):
     """
     A service implementing XEP-0030. The service provides methods for managing
     the own features and identities as well as querying others features and
@@ -20,45 +127,43 @@ class Service(service.Service):
 
     .. automethod:: query_info
 
-    Managing identities:
+    Services inherit from :class:`Node` to manage the identities and features
+    of the JID itself. The identities and features declared in the service
+    using the :class:`Node` interface on the :class:`Service` instance are
+    returned when a query is received for the JID with an empty or unset
+    ``node`` attribute. For completeness, the relevant methods are listed
+    here. Refer to the :class:`Node` documentation for details.
 
-    .. automethod:: register_identity
+    .. autosummary::
 
-    .. automethod:: unregister_identity
-
-    .. note::
-
-       While no other identity is registered, a default identity is used. That
-       default identity has a category ``"client"``, a type ``"bot"`` and a
-       name referring to the :mod:`aioxmpp` library.
-
-    Managing features:
-
-    .. automethod:: register_feature
-
-    .. automethod:: unregister_feature
+       Node.register_feature
+       Node.unregister_feature
+       Node.register_identity
+       Node.unregister_identity
 
     .. note::
 
-       The features which are mandatory per XEP-0030 are always registered and
-       cannot be unregistered. For the purpose of unregistration, they behave
-       as if they had never been registered; for the purpose of registration,
-       they behave as if they had been registered before.
+       Upon construction, the :class:`Service` adds a default identity with
+       category ``"client"`` and type ``"bot"`` to the root :class:`Node`. This
+       is to comply with XEP-0030 of always having an identity and not being
+       forced to reply with ``<feature-not-implemented/>`` or a similar error.
+
+       After having added another identity, that default identity can be
+       removed.
 
     """
-
-    STATIC_FEATURES = frozenset({namespaces.xep0030_info})
-    DEFAULT_IDENTITY = disco_xso.Identity(
-        name="aioxmpp default identity",
-        lang=structs.LanguageTag.fromstr("en")
-    )
 
     def __init__(self, client, *, logger=None):
         super().__init__(client, logger=logger)
 
-        self._features = set()
-        self._identities = {}
         self._info_pending = {}
+
+        self.register_identity(
+            "client", "bot",
+            names={
+                structs.LanguageTag.fromstr("en"): "aioxmpp default identity"
+            }
+        )
 
         self.client.stream.register_iq_request_coro(
             "get",
@@ -91,79 +196,20 @@ class Service(service.Service):
             )
 
         response = disco_xso.InfoQuery()
-        for feature in self._features:
-            response.features.append(disco_xso.Feature(
-                var=feature
-            ))
-        for feature in self.STATIC_FEATURES:
+        for feature in self.iter_features():
             response.features.append(disco_xso.Feature(
                 var=feature
             ))
 
-        if self._identities:
-            for (category, type_), names in self._identities.items():
-                for lang, name in names.items():
-                    response.identities.append(disco_xso.Identity(
-                        category=category,
-                        type_=type_,
-                        lang=lang,
-                        name=name
-                    ))
-                if not names:
-                    response.identities.append(disco_xso.Identity(
-                        category=category,
-                        type_=type_
-                    ))
-        else:
-            response.identities.append(self.DEFAULT_IDENTITY)
+        for category, type_, lang, name in self.iter_identities():
+            response.identities.append(disco_xso.Identity(
+                category=category,
+                type_=type_,
+                lang=lang,
+                name=name
+            ))
 
         return response
-
-    def register_feature(self, var):
-        """
-        Register a feature with the namespace variable *var*.
-
-        If the feature is already registered or part of the default XEP-0030
-        features, a :class:`ValueError` is raised.
-        """
-        if var in self._features or var in self.STATIC_FEATURES:
-            raise ValueError("feature already claimed: {!r}".format(var))
-        self._features.add(var)
-
-    def unregister_feature(self, var):
-        """
-        Unregister a feature which has previously been registered using
-        :meth:`register_feature`.
-
-        If the feature has not been registered previously, :class:`KeyError` is
-        raised.
-        """
-        self._features.remove(var)
-
-    def register_identity(self, category, type_, *, names={}):
-        """
-        Register an identity with the given *category* and *type_*.
-
-        If there is already a registered identity with the same *category* and
-        *type_*, :class:`ValueError` is raised.
-
-        Return a :class:`.service.Identity` instance which can be used to
-        manage the names of the identity.
-        """
-        key = category, type_
-        if key in self._identities:
-            raise ValueError("identity already claimed: {}".format(key))
-        self._identities[category, type_] = names
-
-    def unregister_identity(self, category, type_):
-        """
-        Unregister an identity previously registered using
-        :meth:`register_identity`.
-
-        If no identity with the given *category* and *type_* has been
-        registered before, :class:`KeyError` is raised.
-        """
-        del self._identities[category, type_]
 
     @asyncio.coroutine
     def query_info(self, jid, *, node=None, require_fresh=False, timeout=None):

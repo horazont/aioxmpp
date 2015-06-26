@@ -16,6 +16,226 @@ from ..testutils import (
 )
 
 
+class TestNode(unittest.TestCase):
+    def test_init(self):
+        n = disco_service.Node()
+        self.assertSequenceEqual(
+            [],
+            list(n.iter_identities())
+        )
+        self.assertSetEqual(
+            {namespaces.xep0030_info},
+            set(n.iter_features())
+        )
+
+    def test_register_feature_adds_the_feature(self):
+        n = disco_service.Node()
+        n.register_feature("uri:foo")
+        self.assertSetEqual(
+            {
+                "uri:foo",
+                namespaces.xep0030_info
+            },
+            set(n.iter_features())
+        )
+
+    def test_register_feature_prohibits_duplicate_registration(self):
+        n = disco_service.Node()
+        n.register_feature("uri:bar")
+
+        with self.assertRaisesRegexp(ValueError,
+                                     "feature already claimed"):
+            n.register_feature("uri:bar")
+
+        self.assertSetEqual(
+            {
+                "uri:bar",
+                namespaces.xep0030_info
+            },
+            set(n.iter_features())
+        )
+
+    def test_register_feature_prohibits_registration_of_xep0030_features(self):
+        n = disco_service.Node()
+        with self.assertRaisesRegexp(ValueError,
+                                     "feature already claimed"):
+            n.register_feature(namespaces.xep0030_info)
+
+    def test_unregister_feature_removes_the_feature(self):
+        n = disco_service.Node()
+        n.register_feature("uri:foo")
+        n.register_feature("uri:bar")
+
+        self.assertSetEqual(
+            {
+                "uri:foo",
+                "uri:bar",
+                namespaces.xep0030_info
+            },
+            set(n.iter_features())
+        )
+
+        n.unregister_feature("uri:foo")
+
+        self.assertSetEqual(
+            {
+                "uri:bar",
+                namespaces.xep0030_info
+            },
+            set(n.iter_features())
+        )
+
+        n.unregister_feature("uri:bar")
+
+        self.assertSetEqual(
+            {
+                namespaces.xep0030_info
+            },
+            set(n.iter_features())
+        )
+
+    def test_unregister_feature_prohibts_removal_of_nonexistant_feature(self):
+        n = disco_service.Node()
+
+        with self.assertRaises(KeyError):
+            n.unregister_feature("uri:foo")
+
+    def test_unregister_feature_prohibts_removal_of_xep0030_features(self):
+        n = disco_service.Node()
+
+        with self.assertRaises(KeyError):
+            n.unregister_feature(namespaces.xep0030_info)
+
+        self.assertSetEqual(
+            {
+                namespaces.xep0030_info
+            },
+            set(n.iter_features())
+        )
+
+    def test_register_identity_defines_identity(self):
+        n = disco_service.Node()
+
+        n.register_identity(
+            "client", "pc"
+        )
+
+        self.assertSetEqual(
+            {
+                ("client", "pc", None, None),
+            },
+            set(n.iter_identities())
+        )
+
+    def test_register_identity_prohibits_duplicate_registration(self):
+        n = disco_service.Node()
+
+        n.register_identity(
+            "client", "pc"
+        )
+
+        with self.assertRaisesRegexp(ValueError,
+                                     "identity already claimed"):
+            n.register_identity("client", "pc")
+
+        self.assertSetEqual(
+            {
+                ("client", "pc", None, None),
+            },
+            set(n.iter_identities())
+        )
+
+    def test_register_identity_with_names(self):
+        n = disco_service.Node()
+
+        n.register_identity(
+            "client", "pc",
+            names={
+                structs.LanguageTag.fromstr("en"): "test identity",
+                structs.LanguageTag.fromstr("de"): "Testidentität",
+            }
+        )
+
+        self.assertSetEqual(
+            {
+                ("client", "pc",
+                 structs.LanguageTag.fromstr("en"), "test identity"),
+                ("client", "pc",
+                 structs.LanguageTag.fromstr("de"), "Testidentität"),
+            },
+            set(n.iter_identities())
+        )
+
+    def test_unregister_identity_prohibits_removal_of_last_identity(self):
+        n = disco_service.Node()
+
+        n.register_identity(
+            "client", "pc",
+            names={
+                structs.LanguageTag.fromstr("en"): "test identity",
+                structs.LanguageTag.fromstr("de"): "Testidentität",
+            }
+        )
+
+        with self.assertRaisesRegexp(ValueError,
+                                     "cannot remove last identity"):
+            n.unregister_identity(
+                "client", "pc",
+            )
+
+    def test_unregister_identity_prohibits_removal_of_undeclared_identity(self):
+        n = disco_service.Node()
+
+        n.register_identity(
+            "client", "pc",
+            names={
+                structs.LanguageTag.fromstr("en"): "test identity",
+                structs.LanguageTag.fromstr("de"): "Testidentität",
+            }
+        )
+
+        with self.assertRaises(KeyError):
+            n.unregister_identity("foo", "bar")
+
+    def test_unregister_identity_removes_identity(self):
+        n = disco_service.Node()
+
+        n.register_identity(
+            "client", "pc",
+            names={
+                structs.LanguageTag.fromstr("en"): "test identity",
+                structs.LanguageTag.fromstr("de"): "Testidentität",
+            }
+        )
+
+        n.register_identity(
+            "foo", "bar"
+        )
+
+        self.assertSetEqual(
+            {
+                ("client", "pc",
+                 structs.LanguageTag.fromstr("en"), "test identity"),
+                ("client", "pc",
+                 structs.LanguageTag.fromstr("de"), "Testidentität"),
+                ("foo", "bar", None, None),
+            },
+            set(n.iter_identities())
+        )
+
+        n.unregister_identity("foo", "bar")
+
+        self.assertSetEqual(
+            {
+                ("client", "pc",
+                 structs.LanguageTag.fromstr("en"), "test identity"),
+                ("client", "pc",
+                 structs.LanguageTag.fromstr("de"), "Testidentität"),
+            },
+            set(n.iter_identities())
+        )
+
+
 class TestService(unittest.TestCase):
     def setUp(self):
         self.cc = make_connected_client()
@@ -122,7 +342,7 @@ class TestService(unittest.TestCase):
         with self.assertRaises(KeyError):
             self.s.unregister_feature(namespaces.xep0030_info)
 
-    def test_register_identity_produces_it_in_response_and_replaces_default(self):
+    def test_register_identity_produces_it_in_response(self):
         self.s.register_identity(
             "client", "pc"
         )
@@ -136,6 +356,8 @@ class TestService(unittest.TestCase):
             {
                 ("client", "pc", None, None),
                 ("hierarchy", "branch", None, None),
+                ("client", "bot", "aioxmpp default identity",
+                 structs.LanguageTag.fromstr("en")),
             },
             set((item.category, item.type_,
                  item.name, item.lang) for item in response.identities)
@@ -145,6 +367,9 @@ class TestService(unittest.TestCase):
         self.s.register_identity(
             "client", "pc"
         )
+
+        self.s.unregister_identity("client", "bot")
+
         self.s.register_identity(
             "hierarchy", "branch"
         )
@@ -165,10 +390,6 @@ class TestService(unittest.TestCase):
         with self.assertRaisesRegexp(KeyError, r"\('client', 'pc'\)"):
             self.s.unregister_identity("client", "pc")
 
-    def test_unregister_identity_disallows_unregistering_default_identity(self):
-        with self.assertRaisesRegexp(KeyError, r"\('client', 'bot'\)"):
-            self.s.unregister_identity("client", "bot")
-
     def test_register_identity_with_names(self):
         self.s.register_identity(
             "client", "pc",
@@ -177,6 +398,8 @@ class TestService(unittest.TestCase):
                 structs.LanguageTag.fromstr("de"): "Testidentität",
             }
         )
+
+        self.s.unregister_identity("client", "bot")
 
         response = run_coroutine(self.s.handle_request(self.request_iq))
 
