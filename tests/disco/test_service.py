@@ -274,6 +274,12 @@ class TestService(unittest.TestCase):
         self.request_iq.autoset_id()
         self.request_iq.payload = disco_xso.InfoQuery()
 
+        self.request_items_iq = stanza.IQ(
+            from_=structs.JID.fromstr("user@foo.example/res1"),
+            to=structs.JID.fromstr("user@bar.example/res2"))
+        self.request_items_iq.autoset_id()
+        self.request_items_iq.payload = disco_xso.ItemsQuery()
+
     def test_is_Service_subclass(self):
         self.assertTrue(issubclass(
             disco_service.Service,
@@ -290,6 +296,11 @@ class TestService(unittest.TestCase):
                     disco_xso.InfoQuery,
                     s.handle_info_request
                 ),
+                unittest.mock.call.stream.register_iq_request_coro(
+                    "get",
+                    disco_xso.ItemsQuery,
+                    s.handle_items_request
+                )
             ],
             cc.mock_calls
         )
@@ -698,3 +709,41 @@ class TestService(unittest.TestCase):
         self.request_iq.payload.node = "foo"
         with self.assertRaises(errors.XMPPModifyError):
             run_coroutine(self.s.handle_info_request(self.request_iq))
+
+    def test_default_items_response(self):
+        response = run_coroutine(
+            self.s.handle_items_request(self.request_items_iq)
+        )
+        self.assertIsInstance(response, disco_xso.ItemsQuery)
+        self.assertSequenceEqual(
+            [],
+            response.items
+        )
+
+    def test_items_query_returns_item_not_found_for_unknown_node(self):
+        self.request_items_iq.payload.node = "foobar"
+        with self.assertRaises(errors.XMPPModifyError):
+            run_coroutine(
+                self.s.handle_items_request(self.request_items_iq)
+            )
+
+    def test_items_query_returns_items_of_mounted_node(self):
+        item1 = disco_xso.Item()
+        item2 = disco_xso.Item()
+
+        node = disco_service.StaticNode()
+        node.register_identity("hierarchy", "leaf")
+        node.items.append(item1)
+        node.items.append(item2)
+
+        self.s.mount_node("foo", node)
+
+        self.request_items_iq.payload.node = "foo"
+        response = run_coroutine(
+            self.s.handle_items_request(self.request_items_iq)
+        )
+
+        self.assertSequenceEqual(
+            [item1, item2],
+            response.items
+        )

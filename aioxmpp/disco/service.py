@@ -236,6 +236,12 @@ class Service(service.Service, Node):
             "get",
             disco_xso.InfoQuery,
             self.handle_info_request)
+
+        self.client.stream.register_iq_request_coro(
+            "get",
+            disco_xso.ItemsQuery,
+            self.handle_items_request)
+
         self.client.on_stream_destroyed.connect(
             self._clear_cache
         )
@@ -286,6 +292,22 @@ class Service(service.Service, Node):
             response.features.append(disco_xso.Feature(
                 var=feature
             ))
+
+        return response
+
+    @asyncio.coroutine
+    def handle_items_request(self, iq):
+        request = iq.payload
+
+        try:
+            node = self._node_mounts[request.node]
+        except KeyError:
+            raise errors.XMPPModifyError(
+                condition=(namespaces.stanzas, "item-not-found")
+            )
+
+        response = disco_xso.ItemsQuery()
+        response.items.extend(node.iter_items())
 
         return response
 
