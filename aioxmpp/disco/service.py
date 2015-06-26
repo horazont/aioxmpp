@@ -235,7 +235,7 @@ class Service(service.Service, Node):
         self.client.stream.register_iq_request_coro(
             "get",
             disco_xso.InfoQuery,
-            self.handle_request)
+            self.handle_info_request)
         self.client.on_stream_destroyed.connect(
             self._clear_cache
         )
@@ -257,7 +257,7 @@ class Service(service.Service, Node):
         self._node_mounts[mountpoint] = node
 
     @asyncio.coroutine
-    def handle_request(self, iq):
+    def handle_info_request(self, iq):
         request = iq.payload
 
         try:

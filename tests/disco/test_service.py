@@ -288,7 +288,7 @@ class TestService(unittest.TestCase):
                 unittest.mock.call.stream.register_iq_request_coro(
                     "get",
                     disco_xso.InfoQuery,
-                    s.handle_request
+                    s.handle_info_request
                 ),
             ],
             cc.mock_calls
@@ -307,7 +307,7 @@ class TestService(unittest.TestCase):
         )
 
     def test_default_response(self):
-        response = run_coroutine(self.s.handle_request(self.request_iq))
+        response = run_coroutine(self.s.handle_info_request(self.request_iq))
 
         self.assertSetEqual(
             {namespaces.xep0030_info},
@@ -329,7 +329,7 @@ class TestService(unittest.TestCase):
     def test_nonexistant_node_response(self):
         self.request_iq.payload.node = "foobar"
         with self.assertRaises(errors.XMPPModifyError) as ctx:
-            run_coroutine(self.s.handle_request(self.request_iq))
+            run_coroutine(self.s.handle_info_request(self.request_iq))
 
         self.assertEqual(
             (namespaces.stanzas, "item-not-found"),
@@ -340,7 +340,7 @@ class TestService(unittest.TestCase):
         self.s.register_feature("uri:foo")
         self.s.register_feature("uri:bar")
 
-        response = run_coroutine(self.s.handle_request(self.request_iq))
+        response = run_coroutine(self.s.handle_info_request(self.request_iq))
 
         self.assertSetEqual(
             {"uri:foo", "uri:bar", namespaces.xep0030_info},
@@ -353,7 +353,7 @@ class TestService(unittest.TestCase):
 
         self.s.unregister_feature("uri:bar")
 
-        response = run_coroutine(self.s.handle_request(self.request_iq))
+        response = run_coroutine(self.s.handle_info_request(self.request_iq))
 
         self.assertSetEqual(
             {"uri:foo", namespaces.xep0030_info},
@@ -376,7 +376,7 @@ class TestService(unittest.TestCase):
             "hierarchy", "branch"
         )
 
-        response = run_coroutine(self.s.handle_request(self.request_iq))
+        response = run_coroutine(self.s.handle_info_request(self.request_iq))
 
         self.assertSetEqual(
             {
@@ -402,7 +402,7 @@ class TestService(unittest.TestCase):
 
         self.s.unregister_identity("hierarchy", "branch")
 
-        response = run_coroutine(self.s.handle_request(self.request_iq))
+        response = run_coroutine(self.s.handle_info_request(self.request_iq))
 
         self.assertSetEqual(
             {
@@ -427,7 +427,7 @@ class TestService(unittest.TestCase):
 
         self.s.unregister_identity("client", "bot")
 
-        response = run_coroutine(self.s.handle_request(self.request_iq))
+        response = run_coroutine(self.s.handle_info_request(self.request_iq))
 
         self.assertSetEqual(
             {
@@ -680,7 +680,7 @@ class TestService(unittest.TestCase):
         self.s.mount_node("foo", node)
 
         self.request_iq.payload.node = "foo"
-        response = run_coroutine(self.s.handle_request(self.request_iq))
+        response = run_coroutine(self.s.handle_info_request(self.request_iq))
 
         self.assertSetEqual(
             {
@@ -697,4 +697,4 @@ class TestService(unittest.TestCase):
 
         self.request_iq.payload.node = "foo"
         with self.assertRaises(errors.XMPPModifyError):
-            response = run_coroutine(self.s.handle_request(self.request_iq))
+            run_coroutine(self.s.handle_info_request(self.request_iq))
