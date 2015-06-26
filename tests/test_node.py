@@ -1436,6 +1436,31 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
             svc_init.mock_calls
         )
 
+    def test_call_before_stream_established(self):
+        @asyncio.coroutine
+        def coro():
+            iq = stanza.IQ(
+                type_="set",
+            )
+            yield from self.client.stream.send_iq_and_wait_for_reply(
+                iq)
+
+        self.client.before_stream_established.connect(coro)
+
+        self.client.start()
+
+        run_coroutine(self.xmlstream.run_test([
+        ]+self.resource_binding+[
+            XMLStreamMock.Send(
+                stanza.IQ(type_="set",
+                          id_="autoset"),
+                response=XMLStreamMock.Receive(
+                    stanza.IQ(type_="result",
+                              id_="autoset")
+                )
+            ),
+        ]))
+
     def tearDown(self):
         for patch in self.patches:
             patch.stop()

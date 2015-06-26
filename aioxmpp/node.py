@@ -302,6 +302,11 @@ class AbstractClient:
        A :class:`~aioxmpp.callbacks.Signal` which is fired when the client
        fails and stops.
 
+    .. attribute:: before_stream_established
+
+       This is a :class:`~aioxmpp.callbacks.SyncSignal` which is executed right
+       before :attr:`on_stream_established` fires.
+
     .. attribute:: on_stream_established
 
        When the stream is established and resource binding took place, this
@@ -325,6 +330,8 @@ class AbstractClient:
     on_failure = callbacks.Signal()
     on_stream_destroyed = callbacks.Signal()
     on_stream_established = callbacks.Signal()
+
+    before_stream_established = callbacks.SyncSignal()
 
     def __init__(self,
                  local_jid,
@@ -427,6 +434,9 @@ class AbstractClient:
             self._logger.debug("stream management started")
 
         self._established = True
+
+        yield from self.before_stream_established()
+
         self.on_stream_established()
 
         return features, resumed
