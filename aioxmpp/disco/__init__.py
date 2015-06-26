@@ -18,6 +18,8 @@ Entity information
 
 .. autoclass:: Node
 
+.. autoclass:: StaticNode
+
 .. module:: aioxmpp.disco.xso
 
 .. currentmodule:: aioxmpp.disco.xso
@@ -53,4 +55,4 @@ Item queries
 """
 
 from . import xso
-from .service import Service, Node
+from .service import Service, Node, StaticNode

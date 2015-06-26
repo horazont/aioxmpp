@@ -27,6 +27,10 @@ class TestNode(unittest.TestCase):
             {namespaces.xep0030_info},
             set(n.iter_features())
         )
+        self.assertSequenceEqual(
+            [],
+            list(n.iter_items())
+        )
 
     def test_register_feature_adds_the_feature(self):
         n = disco_service.Node()
@@ -236,6 +240,28 @@ class TestNode(unittest.TestCase):
         )
 
 
+class TestStaticNode(unittest.TestCase):
+    def setUp(self):
+        self.n = disco_service.StaticNode()
+
+    def test_is_Node(self):
+        self.assertIsInstance(self.n, disco_service.Node)
+
+    def test_add_items(self):
+        item1 = disco_xso.Item()
+        item2 = disco_xso.Item()
+        self.n.items.append(item1)
+        self.n.items.append(item2)
+
+        self.assertSequenceEqual(
+            [
+                item1,
+                item2
+            ],
+            list(self.n.iter_items())
+        )
+
+
 class TestService(unittest.TestCase):
     def setUp(self):
         self.cc = make_connected_client()
@@ -302,7 +328,7 @@ class TestService(unittest.TestCase):
 
     def test_nonexistant_node_response(self):
         self.request_iq.payload.node = "foobar"
-        with self.assertRaises(errors.XMPPCancelError) as ctx:
+        with self.assertRaises(errors.XMPPModifyError) as ctx:
             run_coroutine(self.s.handle_request(self.request_iq))
 
         self.assertEqual(
@@ -646,3 +672,29 @@ class TestService(unittest.TestCase):
             ],
             self.cc.stream.send_iq_and_wait_for_reply.mock_calls
         )
+
+    def test_mount_node_produces_response(self):
+        node = disco_service.StaticNode()
+        node.register_identity("hierarchy", "leaf")
+
+        self.s.mount_node("foo", node)
+
+        self.request_iq.payload.node = "foo"
+        response = run_coroutine(self.s.handle_request(self.request_iq))
+
+        self.assertSetEqual(
+            {
+                ("hierarchy", "leaf", None, None),
+            },
+            set((item.category, item.type_,
+                 item.name, item.lang) for item in response.identities)
+        )
+
+    def test_mount_node_without_identity_produces_item_not_found(self):
+        node = disco_service.StaticNode()
+
+        self.s.mount_node("foo", node)
+
+        self.request_iq.payload.node = "foo"
+        with self.assertRaises(errors.XMPPModifyError):
+            response = run_coroutine(self.s.handle_request(self.request_iq))

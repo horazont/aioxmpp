@@ -30,6 +30,25 @@ class Node(object):
     .. automethod:: register_identity
 
     .. automethod:: unregister_identity
+
+    To access the declared features and identities, use:
+
+    .. automethod:: iter_features
+
+    .. automethod:: iter_identities
+
+    To access items, use:
+
+    .. automethod:: iter_items
+
+    As mentioned, bare :class:`Node` objects have no items; there are
+    subclasses of :class:`Node` which support items:
+
+    ===================  ==================================================
+    :class:`StaticNode`  Support for a list of :class:`.xso.Item` instances
+    :class:`Service`     Support for "mountpoints" for node subtrees
+    ===================  ==================================================
+
     """
     STATIC_FEATURES = frozenset({namespaces.xep0030_info})
 
@@ -39,6 +58,14 @@ class Node(object):
         self._features = set()
 
     def iter_identities(self):
+        """
+        Return an iterator which yields tuples consisting of the category, the
+        type, the language code and the name of each identity declared in this
+        :class:`Node`.
+
+        Both the language code and the name may be :data:`None`, if no names or
+        a name without language code have been declared.
+        """
         for (category, type_), names in self._identities.items():
             for lang, name in names.items():
                 yield category, type_, lang, name
@@ -46,10 +73,25 @@ class Node(object):
                 yield category, type_, None, None
 
     def iter_features(self):
+        """
+        Return an iterator which yields the *var* values of each feature
+        declared in this :class:`Node`, including the statically declared
+        XEP-0030 features.
+        """
         return itertools.chain(
             iter(self.STATIC_FEATURES),
             iter(self._features)
         )
+
+    def iter_items(self):
+        """
+        Return an iterator which yields the :class:`.xso.Item` objects which
+        this node holds.
+
+        A bare :class:`Node` cannot hold any items and will thus return an
+        iterator which does not yield any element.
+        """
+        return iter([])
 
     def register_feature(self, var):
         """
@@ -117,6 +159,28 @@ class Node(object):
         del self._identities[key]
 
 
+class StaticNode(Node):
+    """
+    A :class:`StaticNode` is a :class:`Node` with a non-dynamic set of items.
+
+    .. attribute:: items
+
+       A list of :class:`.xso.Item` instances. These items will be returned
+       when the node is queried for it’s XEP-0030 items.
+
+       It is the responsibility of the user to ensure that the set of items is
+       valid. This includes avoiding duplicate items.
+
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.items = []
+
+    def iter_items(self):
+        return iter(self.items)
+
+
 class Service(service.Service, Node):
     """
     A service implementing XEP-0030. The service provides methods for managing
@@ -157,6 +221,9 @@ class Service(service.Service, Node):
         super().__init__(client, logger=logger)
 
         self._info_pending = {}
+        self._node_mounts = {
+            None: self
+        }
 
         self.register_identity(
             "client", "bot",
@@ -186,27 +253,38 @@ class Service(service.Service, Node):
                 fut.cancel()
         self._info_pending.clear()
 
+    def mount_node(self, mountpoint, node):
+        self._node_mounts[mountpoint] = node
+
     @asyncio.coroutine
     def handle_request(self, iq):
         request = iq.payload
 
-        if request.node:
-            raise errors.XMPPCancelError(
+        try:
+            node = self._node_mounts[request.node]
+        except KeyError:
+            raise errors.XMPPModifyError(
                 condition=(namespaces.stanzas, "item-not-found")
             )
 
         response = disco_xso.InfoQuery()
-        for feature in self.iter_features():
-            response.features.append(disco_xso.Feature(
-                var=feature
-            ))
 
-        for category, type_, lang, name in self.iter_identities():
+        for category, type_, lang, name in node.iter_identities():
             response.identities.append(disco_xso.Identity(
                 category=category,
                 type_=type_,
                 lang=lang,
                 name=name
+            ))
+
+        if not response.identities:
+            raise errors.XMPPModifyError(
+                condition=(namespaces.stanzas, "item-not-found"),
+            )
+
+        for feature in node.iter_features():
+            response.features.append(disco_xso.Feature(
+                var=feature
             ))
 
         return response

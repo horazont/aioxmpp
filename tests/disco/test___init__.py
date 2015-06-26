@@ -14,3 +14,6 @@ class TestExports(unittest.TestCase):
 
     def test_Node(self):
         self.assertIs(disco.Node, disco_service.Node)
+
+    def test_StaticNode(self):
+        self.assertIs(disco.StaticNode, disco_service.StaticNode)
