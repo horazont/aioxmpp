@@ -34,10 +34,6 @@ class Identity(xso.XSO):
        The language of the :attr:`name`. This may be not :data:`None` even if
        :attr:`name` is not set due to ``xml:lang`` propagation.
 
-    .. warning::
-
-       Do not confuse this class with :class:`aioxmpp.disco.service.Identity`.
-
     """
     TAG = (namespaces.xep0030_info, "identity")
 
