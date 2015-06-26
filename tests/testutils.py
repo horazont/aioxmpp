@@ -10,6 +10,7 @@ import unittest
 import unittest.mock
 import sys
 
+from datetime import timedelta
 from enum import Enum
 
 import aioxmpp.callbacks as callbacks
@@ -88,11 +89,10 @@ def run_coroutine_with_peer(
 
 def make_connected_client():
     cc = unittest.mock.Mock([
-        "stream",
-        "on_failure",
-        "on_stream_established",
-        "on_stream_destroyed"
+        "stream"
     ])
+
+    cc.negotiation_timeout = timedelta(microseconds=100000)
 
     cc.on_stream_established = callbacks.AdHocSignal()
     cc.on_stream_destroyed = callbacks.AdHocSignal()

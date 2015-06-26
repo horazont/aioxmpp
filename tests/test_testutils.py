@@ -2,6 +2,8 @@ import asyncio
 import unittest
 import unittest.mock
 
+from datetime import timedelta
+
 from .testutils import (
     run_coroutine,
     make_protocol_mock,
@@ -868,6 +870,11 @@ class Testmake_connected_client(unittest.TestCase):
 
         self.assertIsInstance(cc.before_stream_established,
                               callbacks.SyncAdHocSignal)
+
+        self.assertEqual(
+            timedelta(microseconds=100000),
+            cc.negotiation_timeout
+        )
 
         self.assertTrue(hasattr(cc.stream, "register_iq_response_future"))
         self.assertTrue(hasattr(cc.stream, "register_iq_request_coro"))
