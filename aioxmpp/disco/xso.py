@@ -40,13 +40,11 @@ class Identity(xso.XSO):
     category = xso.Attr(
         tag="category",
         required=True,
-        default="client",
     )
 
     type_ = xso.Attr(
         tag="type",
         required=True,
-        default="bot",
     )
 
     name = xso.Attr(
@@ -56,15 +54,13 @@ class Identity(xso.XSO):
     lang = xso.LangAttr()
 
     def __init__(self, *,
-                 category=None,
-                 type_=None,
+                 category="client",
+                 type_="bot",
                  name=None,
                  lang=None):
         super().__init__()
-        if category is not None:
-            self.category = category
-        if type_ is not None:
-            self.type_ = type_
+        self.category = category
+        self.type_ = type_
         if name is not None:
             self.name = name
         if lang is not None:

@@ -43,8 +43,7 @@ class TestIdentity(unittest.TestCase):
             (None, "category"),
             disco_xso.Identity.category.tag
         )
-        self.assertEqual(
-            "client",
+        self.assertIsNone(
             disco_xso.Identity.category.default
         )
         self.assertTrue(disco_xso.Identity.category.required)
@@ -58,8 +57,7 @@ class TestIdentity(unittest.TestCase):
             (None, "type"),
             disco_xso.Identity.type_.tag
         )
-        self.assertEqual(
-            "bot",
+        self.assertIsNone(
             disco_xso.Identity.type_.default
         )
         self.assertTrue(disco_xso.Identity.type_.required)
