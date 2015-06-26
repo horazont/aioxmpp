@@ -12,3 +12,4 @@ Main public API
    errors
    structs
    disco
+   roster
