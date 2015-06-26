@@ -152,6 +152,7 @@ class Item(xso.XSO):
     """
 
     TAG = (namespaces.xep0030_items, "item")
+    UNKNOWN_CHILD_POLICY = xso.UnknownChildPolicy.DROP
 
     jid = xso.Attr(
         tag="jid",

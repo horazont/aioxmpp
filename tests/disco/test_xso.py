@@ -245,6 +245,12 @@ class TestItem(unittest.TestCase):
         )
         self.assertFalse(disco_xso.Item.node.required)
 
+    def test_unknown_child_policy(self):
+        self.assertEqual(
+            xso.UnknownChildPolicy.DROP,
+            disco_xso.Item.UNKNOWN_CHILD_POLICY
+        )
+
     def test_init(self):
         item = disco_xso.Item()
         self.assertIsNone(item.jid)
