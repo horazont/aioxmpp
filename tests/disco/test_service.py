@@ -747,3 +747,220 @@ class TestService(unittest.TestCase):
             [item1, item2],
             response.items
         )
+
+    def test_query_items(self):
+        to = structs.JID.fromstr("user@foo.example/res1")
+        response = disco_xso.ItemsQuery()
+
+        self.cc.stream.send_iq_and_wait_for_reply.return_value = response
+
+        result = run_coroutine(
+            self.s.query_items(to)
+        )
+
+        self.assertIs(result, response)
+        self.assertEqual(
+            1,
+            len(self.cc.stream.send_iq_and_wait_for_reply.mock_calls)
+        )
+
+        call, = self.cc.stream.send_iq_and_wait_for_reply.mock_calls
+        # call[1] are args
+        request_iq, = call[1]
+
+        self.assertEqual(
+            to,
+            request_iq.to
+        )
+        self.assertEqual(
+            "get",
+            request_iq.type_
+        )
+        self.assertIsInstance(request_iq.payload, disco_xso.ItemsQuery)
+        self.assertFalse(request_iq.payload.items)
+        self.assertIsNone(request_iq.payload.node)
+
+    def test_query_items_with_node(self):
+        to = structs.JID.fromstr("user@foo.example/res1")
+        response = disco_xso.ItemsQuery()
+
+        self.cc.stream.send_iq_and_wait_for_reply.return_value = response
+
+        with self.assertRaises(TypeError):
+            self.s.query_items(to, "foobar")
+
+        result = run_coroutine(
+            self.s.query_items(to, node="foobar")
+        )
+
+        self.assertIs(result, response)
+        self.assertEqual(
+            1,
+            len(self.cc.stream.send_iq_and_wait_for_reply.mock_calls)
+        )
+
+        call, = self.cc.stream.send_iq_and_wait_for_reply.mock_calls
+        # call[1] are args
+        request_iq, = call[1]
+
+        self.assertEqual(
+            to,
+            request_iq.to
+        )
+        self.assertEqual(
+            "get",
+            request_iq.type_
+        )
+        self.assertIsInstance(request_iq.payload, disco_xso.ItemsQuery)
+        self.assertFalse(request_iq.payload.items)
+        self.assertEqual("foobar", request_iq.payload.node)
+
+    def test_query_items_caches(self):
+        to = structs.JID.fromstr("user@foo.example/res1")
+        response = disco_xso.ItemsQuery()
+
+        self.cc.stream.send_iq_and_wait_for_reply.return_value = response
+
+        with self.assertRaises(TypeError):
+            self.s.query_items(to, "foobar")
+
+        result1 = run_coroutine(
+            self.s.query_items(to, node="foobar")
+        )
+        result2 = run_coroutine(
+            self.s.query_items(to, node="foobar")
+        )
+
+        self.assertIs(result1, response)
+        self.assertIs(result2, response)
+
+        self.assertEqual(
+            1,
+            len(self.cc.stream.send_iq_and_wait_for_reply.mock_calls)
+        )
+
+    def test_query_items_cache_override(self):
+        to = structs.JID.fromstr("user@foo.example/res1")
+
+        response1 = disco_xso.ItemsQuery()
+        self.cc.stream.send_iq_and_wait_for_reply.return_value = response1
+
+        with self.assertRaises(TypeError):
+            self.s.query_items(to, "foobar")
+
+        result1 = run_coroutine(
+            self.s.query_items(to, node="foobar")
+        )
+
+        response2 = disco_xso.ItemsQuery()
+        self.cc.stream.send_iq_and_wait_for_reply.return_value = response2
+
+        result2 = run_coroutine(
+            self.s.query_items(to, node="foobar", require_fresh=True)
+        )
+
+        self.assertIs(result1, response1)
+        self.assertIs(result2, response2)
+
+        self.assertEqual(
+            2,
+            len(self.cc.stream.send_iq_and_wait_for_reply.mock_calls)
+        )
+
+    def test_query_items_cache_clears_on_disconnect(self):
+        to = structs.JID.fromstr("user@foo.example/res1")
+
+        response1 = disco_xso.ItemsQuery()
+        self.cc.stream.send_iq_and_wait_for_reply.return_value = response1
+
+        with self.assertRaises(TypeError):
+            self.s.query_items(to, "foobar")
+
+        result1 = run_coroutine(
+            self.s.query_items(to, node="foobar")
+        )
+
+        self.cc.on_stream_destroyed()
+
+        response2 = disco_xso.ItemsQuery()
+        self.cc.stream.send_iq_and_wait_for_reply.return_value = response2
+
+        result2 = run_coroutine(
+            self.s.query_items(to, node="foobar")
+        )
+
+        self.assertIs(result1, response1)
+        self.assertIs(result2, response2)
+
+        self.assertEqual(
+            2,
+            len(self.cc.stream.send_iq_and_wait_for_reply.mock_calls)
+        )
+
+    def test_query_items_timeout(self):
+        to = structs.JID.fromstr("user@foo.example/res1")
+        response = disco_xso.ItemsQuery()
+
+        self.cc.stream.send_iq_and_wait_for_reply.delay = 1
+        self.cc.stream.send_iq_and_wait_for_reply.return_value = response
+
+        with self.assertRaises(TimeoutError):
+            result = run_coroutine(
+                self.s.query_items(to, timeout=0.01)
+            )
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(unittest.mock.ANY),
+            ],
+            self.cc.stream.send_iq_and_wait_for_reply.mock_calls
+        )
+
+    def test_query_items_deduplicate_requests(self):
+        to = structs.JID.fromstr("user@foo.example/res1")
+        response = disco_xso.ItemsQuery()
+
+        self.cc.stream.send_iq_and_wait_for_reply.return_value = response
+
+        result = run_coroutine(
+            asyncio.gather(
+                self.s.query_items(to, timeout=10),
+                self.s.query_items(to, timeout=10),
+            )
+        )
+
+        self.assertIs(result[0], response)
+        self.assertIs(result[1], response)
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(unittest.mock.ANY),
+            ],
+            self.cc.stream.send_iq_and_wait_for_reply.mock_calls
+        )
+
+    def test_query_items_transparent_deduplication_when_cancelled(self):
+        to = structs.JID.fromstr("user@foo.example/res1")
+        response = disco_xso.ItemsQuery()
+
+        self.cc.stream.send_iq_and_wait_for_reply.return_value = response
+        self.cc.stream.send_iq_and_wait_for_reply.delay = 0.1
+
+        q1 = asyncio.async(self.s.query_items(to))
+        q2 = asyncio.async(self.s.query_items(to))
+
+        run_coroutine(asyncio.sleep(0.05))
+
+        q1.cancel()
+
+        result = run_coroutine(q2)
+
+        self.assertIs(result, response)
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(unittest.mock.ANY),
+                unittest.mock.call(unittest.mock.ANY),
+            ],
+            self.cc.stream.send_iq_and_wait_for_reply.mock_calls
+        )

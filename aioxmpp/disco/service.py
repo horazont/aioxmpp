@@ -221,6 +221,8 @@ class Service(service.Service, Node):
         super().__init__(client, logger=logger)
 
         self._info_pending = {}
+        self._items_pending = {}
+
         self._node_mounts = {
             None: self
         }
@@ -258,6 +260,11 @@ class Service(service.Service, Node):
             if not fut.done():
                 fut.cancel()
         self._info_pending.clear()
+
+        for fut in self._items_pending.values():
+            if not fut.done():
+                fut.cancel()
+        self._items_pending.clear()
 
     def mount_node(self, mountpoint, node):
         self._node_mounts[mountpoint] = node
@@ -362,6 +369,39 @@ class Service(service.Service, Node):
         )
 
         self._info_pending[key] = request
+        if timeout is not None:
+            try:
+                result = yield from asyncio.wait_for(request, timeout=timeout)
+            except asyncio.TimeoutError:
+                raise TimeoutError()
+        else:
+            result = yield from request
+
+        return result
+
+    @asyncio.coroutine
+    def query_items(self, jid, *, node=None, require_fresh=False, timeout=None):
+        key = jid, node
+
+        if not require_fresh:
+            try:
+                request = self._items_pending[key]
+            except KeyError:
+                pass
+            else:
+                try:
+                    return (yield from request)
+                except asyncio.CancelledError:
+                    pass
+
+        request_iq = stanza.IQ(to=jid, type_="get")
+        request_iq.payload = disco_xso.ItemsQuery(node=node)
+
+        request = asyncio.async(
+            self.client.stream.send_iq_and_wait_for_reply(request_iq)
+        )
+
+        self._items_pending[key] = request
         if timeout is not None:
             try:
                 result = yield from asyncio.wait_for(request, timeout=timeout)
