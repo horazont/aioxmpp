@@ -18,6 +18,10 @@ class Group(xso.XSO):
 
     name = xso.Text()
 
+    def __init__(self, *, name=None):
+        super().__init__()
+        self.name = name
+
 
 class Item(xso.XSO):
     """
@@ -104,6 +108,21 @@ class Item(xso.XSO):
 
     groups = xso.ChildList([Group])
 
+    def __init__(self, *,
+                 jid=None,
+                 name=None,
+                 groups=(),
+                 subscription="none",
+                 approved=False,
+                 ask=None):
+        super().__init__()
+        self.jid = jid
+        self.name = name
+        self.groups.extend(groups)
+        self.subscription = subscription
+        self.approved = approved
+        self.ask = ask
+
 
 class Query(xso.XSO):
     """
@@ -127,3 +146,8 @@ class Query(xso.XSO):
     )
 
     items = xso.ChildList([Item])
+
+    def __init__(self, *, ver=None, items=()):
+        super().__init__()
+        self.ver = ver
+        self.items.extend(items)

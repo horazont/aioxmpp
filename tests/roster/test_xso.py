@@ -1,7 +1,9 @@
 import unittest
 
 import aioxmpp.roster.xso as roster_xso
+import aioxmpp.structs as structs
 import aioxmpp.xso as xso
+import aioxmpp.xso.model as xso_model
 
 from aioxmpp.utils import namespaces
 
@@ -26,6 +28,13 @@ class TestGroup(unittest.TestCase):
             roster_xso.Group.name,
             xso.Text
         )
+
+    def test_init(self):
+        g = roster_xso.Group()
+        self.assertIsNone(g.name)
+
+        g = roster_xso.Group(name="foobar")
+        self.assertEqual("foobar", g.name)
 
 
 class TestItem(unittest.TestCase):
@@ -155,6 +164,34 @@ class TestItem(unittest.TestCase):
             set(roster_xso.Item.groups._classes)
         )
 
+    def test_init(self):
+        item = roster_xso.Item()
+        self.assertIsNone(item.jid)
+        self.assertIsNone(item.name)
+        self.assertSequenceEqual([], item.groups)
+        self.assertEqual("none", item.subscription)
+        self.assertIs(False, item.approved)
+        self.assertIsNone(item.ask)
+
+        jid = structs.JID.fromstr("foo@bar.example")
+        group = roster_xso.Group()
+        item = roster_xso.Item(
+            jid=jid,
+            name="foobar",
+            groups=(group,),
+            subscription="to",
+            approved=True,
+            ask="subscribe"
+        )
+
+        self.assertEqual(jid, item.jid)
+        self.assertEqual("foobar", item.name)
+        self.assertSequenceEqual([group], item.groups)
+        self.assertIsInstance(item.groups, xso_model.XSOList)
+        self.assertEqual("to", item.subscription)
+        self.assertIs(True, item.approved)
+        self.assertEqual("subscribe", item.ask)
+
 
 class TestQuery(unittest.TestCase):
     def test_tag(self):
@@ -185,4 +222,16 @@ class TestQuery(unittest.TestCase):
             set(roster_xso.Query.items._classes)
         )
 
-# foo
+    def test_init(self):
+        q = roster_xso.Query()
+        self.assertIsNone(q.ver)
+        self.assertSequenceEqual([], q.items)
+
+        item = roster_xso.Item()
+        q = roster_xso.Query(
+            ver="foobar",
+            items=(item,)
+        )
+        self.assertEqual("foobar", q.ver)
+        self.assertSequenceEqual([item], q.items)
+        self.assertIsInstance(q.items, xso_model.XSOList)
