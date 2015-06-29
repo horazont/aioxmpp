@@ -519,3 +519,36 @@ class TestService(unittest.TestCase):
             self.s.export_as_json()
         )
 
+    def test_import_from_json(self):
+        jid1 = structs.JID.fromstr("fnord@foo.example")
+        jid2 = structs.JID.fromstr("fnord@bar.example")
+
+        data = {
+            "items": {
+                str(jid1): {
+                    "name": "foo fnord",
+                    "subscription": "both",
+                },
+                str(jid2): {
+                    "name": "bar fnord",
+                    "subscription": "to",
+                }
+            },
+            "ver": "foobarbaz",
+        }
+
+        self.s.import_from_json(data)
+
+        self.assertEqual("foobarbaz", self.s.version)
+
+        self.assertNotIn(self.user1, self.s.items)
+        self.assertNotIn(self.user2, self.s.items)
+
+        self.assertIn(jid1, self.s.items)
+        self.assertIn(jid2, self.s.items)
+
+        self.assertEqual(self.s.items[jid1].name, "foo fnord")
+        self.assertEqual(self.s.items[jid1].subscription, "both")
+
+        self.assertEqual(self.s.items[jid2].name, "bar fnord")
+        self.assertEqual(self.s.items[jid2].subscription, "to")
