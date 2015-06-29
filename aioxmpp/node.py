@@ -274,6 +274,17 @@ class AbstractClient:
 
        The :class:`~aioxmpp.stream.StanzaStream` instance used by the node.
 
+    .. attribute:: stream_features
+
+       An instance of :class:`~aioxmpp.stream_xsos.StreamFeatures`. This is the
+       most-recently received stream features information (the one received
+       right before resource binding).
+
+       While no stream has been established yet, this is :data:`None`. During
+       transparent re-negotiation, that information may be obsolete. However,
+       when :attr:`before_stream_established` fires, the information is
+       up-to-date.
+
     Exponential backoff on interruptions:
 
     .. attribute:: backoff_start
@@ -353,6 +364,8 @@ class AbstractClient:
 
         self._services = {}
 
+        self.stream_features = None
+
         self.negotiation_timeout = negotiation_timeout
         self.backoff_start = timedelta(seconds=1)
         self.backoff_factor = 1.2
@@ -419,6 +432,7 @@ class AbstractClient:
         else:
             resumed = False
 
+        self.stream_features = features
         self.stream.start(xmlstream)
 
         if not resumed:

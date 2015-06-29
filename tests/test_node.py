@@ -1319,6 +1319,38 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
 
         self.established_rec.assert_called_once_with()
 
+    def test_stream_features_attribute(self):
+        self.assertIsNone(self.client.stream_features)
+
+        self.client.start()
+
+        run_coroutine(self.xmlstream.run_test([
+            XMLStreamMock.Send(
+                stanza.IQ(
+                    payload=rfc6120.Bind(
+                        resource=self.test_jid.resource),
+                    type_="set",
+                    id_="autoset"),
+                response=XMLStreamMock.Receive(
+                    stanza.IQ(
+                        payload=rfc6120.Bind(
+                            jid=self.test_jid.replace(
+                                resource="foobarbaz"),
+                        ),
+                        type_="result",
+                        id_="autoset",
+                    )
+                )
+            )
+        ]))
+
+        run_coroutine(asyncio.sleep(0))
+
+        self.assertIs(
+            self.features,
+            self.client.stream_features
+        )
+
     def test_signals_fire_correctly_on_fail_after_established_connection(self):
         self.client.start()
 
