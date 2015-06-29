@@ -16,6 +16,7 @@ from enum import Enum
 import aioxmpp.callbacks as callbacks
 import aioxmpp.protocol
 import aioxmpp.xso as xso
+import aioxmpp.stream_xsos as stream_xsos
 
 from aioxmpp.utils import etree
 
@@ -101,6 +102,8 @@ def make_connected_client():
     cc.before_stream_established = callbacks.SyncAdHocSignal()
 
     cc.stream.send_iq_and_wait_for_reply = CoroutineMock()
+
+    cc.stream_features = stream_xsos.StreamFeatures()
 
     return cc
 
