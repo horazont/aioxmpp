@@ -39,12 +39,18 @@ class Item(xso.XSO):
     The following attributes represent the subscription status of the
     contact. A client **must not** set these attributes when sending roster
     items to the server. To change subscription status, use presence stanzas of
-    the respective type.
+    the respective type. The only exception is a :attr:`subscription` value of
+    ``"remove"``, which is used to remove an entry from the roster.
 
     .. attribute:: subscription
 
        Primary subscription status, one of ``"none"`` (the default), ``"to"``,
        ``"from"`` and ``"both"``.
+
+       In addition, :attr:`subscription` can be set to ``"remove"`` to remove
+       an item from the roster during a roster set. Removing an entry from the
+       roster will also cancel any presence subscriptions from and to that
+       entries entity.
 
     .. attribute:: approved
 
@@ -90,6 +96,7 @@ class Item(xso.XSO):
             "to",
             "from",
             "both",
+            "remove",
         }),
         validate=xso.ValidateMode.ALWAYS,
         default="none",

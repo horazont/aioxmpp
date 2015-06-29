@@ -134,6 +134,7 @@ class TestItem(unittest.TestCase):
                 "to",
                 "from",
                 "both",
+                "remove",
             },
             roster_xso.Item.subscription.validator.values
         )
