@@ -82,6 +82,61 @@ class TestItem(unittest.TestCase):
             update_from_xso_item.mock_calls
         )
 
+    def test_export_as_json(self):
+        item = roster_service.Item(
+            jid=self.jid,
+            subscription="to",
+            ask="subscribe",
+            approved=False,
+            name="test")
+
+        self.assertDictEqual(
+            {
+                "subscription": "to",
+                "ask": "subscribe",
+                "name": "test",
+            },
+            item.export_as_json()
+        )
+
+        item = roster_service.Item(
+            jid=self.jid,
+            approved=True)
+
+        self.assertDictEqual(
+            {
+                "subscription": "none",
+                "approved": True
+            },
+            item.export_as_json()
+        )
+
+    def test_update_from_json(self):
+        item = roster_service.Item(jid=self.jid)
+
+        item.update_from_json({
+            "subscription": "both"
+        })
+        self.assertEqual("both", item.subscription)
+
+        item.update_from_json({
+            "approved": True
+        })
+        self.assertTrue(item.approved)
+        self.assertEqual("none", item.subscription)
+
+        item.update_from_json({
+            "ask": "subscribe"
+        })
+        self.assertEqual("subscribe", item.ask)
+        self.assertFalse(item.approved)
+
+        item.update_from_json({
+            "name": "foobar baz"
+        })
+        self.assertEqual("foobar baz", item.name)
+        self.assertIsNone(item.ask)
+
 
 class TestService(unittest.TestCase):
     def setUp(self):
@@ -445,5 +500,22 @@ class TestService(unittest.TestCase):
                 unittest.mock.call(old_item),
             ],
             cb.mock_calls
+        )
+
+    def test_export_as_json(self):
+        self.assertDictEqual(
+            {
+                "items": {
+                    str(self.user1): {
+                        "subscription": "none",
+                    },
+                    str(self.user2): {
+                        "subscription": "both",
+                        "name": "some bar user",
+                    },
+                },
+                "ver": "foobar",
+            },
+            self.s.export_as_json()
         )
 

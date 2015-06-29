@@ -153,3 +153,12 @@ class Service(aioxmpp.service.Service):
             self._update_entry(item)
 
         return True
+
+    def export_as_json(self):
+        return {
+            "items": {
+                str(jid): item.export_as_json()
+                for jid, item in self.items.items()
+            },
+            "ver": self.version
+        }
