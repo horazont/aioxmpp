@@ -1,6 +1,8 @@
 import unittest
 
 import aioxmpp.roster.xso as roster_xso
+import aioxmpp.stanza as stanza
+import aioxmpp.stream_xsos as stream_xsos
 import aioxmpp.structs as structs
 import aioxmpp.xso as xso
 import aioxmpp.xso.model as xso_model
@@ -13,6 +15,12 @@ class TestNamespaces(unittest.TestCase):
         self.assertEqual(
             "jabber:iq:roster",
             namespaces.rfc6121_roster
+        )
+
+    def test_roster_versioning_namespace(self):
+        self.assertEqual(
+            "urn:xmpp:features:rosterver",
+            namespaces.rfc6121_roster_versioning
         )
 
 
@@ -235,3 +243,28 @@ class TestQuery(unittest.TestCase):
         self.assertEqual("foobar", q.ver)
         self.assertSequenceEqual([item], q.items)
         self.assertIsInstance(q.items, xso_model.XSOList)
+
+    def test_is_registered_as_iq_payload(self):
+        self.assertIn(
+            roster_xso.Query.TAG,
+            stanza.IQ.CHILD_MAP
+        )
+
+
+class TestRosterVersioningFeature(unittest.TestCase):
+    def test_is_xso(self):
+        self.assertTrue(issubclass(
+            roster_xso.RosterVersioningFeature,
+            xso.XSO))
+
+    def test_tag(self):
+        self.assertEqual(
+            (namespaces.rfc6121_roster_versioning, "ver"),
+            roster_xso.RosterVersioningFeature.TAG
+        )
+
+    def test_is_registered_as_feature(self):
+        self.assertIn(
+            roster_xso.RosterVersioningFeature.TAG,
+            stream_xsos.StreamFeatures.CHILD_MAP
+        )

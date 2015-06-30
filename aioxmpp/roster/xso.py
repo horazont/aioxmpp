@@ -1,8 +1,11 @@
+import aioxmpp.stanza as stanza
+import aioxmpp.stream_xsos as stream_xsos
 import aioxmpp.xso as xso
 
 from aioxmpp.utils import namespaces
 
 namespaces.rfc6121_roster = "jabber:iq:roster"
+namespaces.rfc6121_roster_versioning = "urn:xmpp:features:rosterver"
 
 
 class Group(xso.XSO):
@@ -64,6 +67,10 @@ class Item(xso.XSO):
 
        Subscription sub-states, one of ``"subscribe"`` and :data:`None`.
 
+    .. note::
+
+       Do not confuse this class with :class:`~aioxmpp.roster.Item`.
+
     """
 
     TAG = (namespaces.rfc6121_roster, "item")
@@ -124,6 +131,7 @@ class Item(xso.XSO):
         self.ask = ask
 
 
+@stanza.IQ.as_payload_class
 class Query(xso.XSO):
     """
     A query which fetches data from the roster or sends new items to the
@@ -151,3 +159,16 @@ class Query(xso.XSO):
         super().__init__()
         self.ver = ver
         self.items.extend(items)
+
+
+@stream_xsos.StreamFeatures.as_feature_class
+class RosterVersioningFeature(xso.XSO):
+    """
+    Roster versioning feature.
+
+    .. seealso::
+
+       :class:`aioxmpp.stream_xsos.StreamFeatures`
+
+    """
+    TAG = (namespaces.rfc6121_roster_versioning, "ver")
