@@ -194,6 +194,9 @@ class StreamFeatures(xso.XSO):
             raise KeyError(feature_cls)
         items.clear()
 
+    def __contains__(self, other):
+        raise TypeError("membership test not supported")
+
     def has_feature(self, feature_cls):
         """
         Return :data:`True` if the stream features contain a feature of the

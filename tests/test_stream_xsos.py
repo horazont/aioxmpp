@@ -196,6 +196,12 @@ class TestStreamFeatures(unittest.TestCase):
         self.assertTrue(features.has_feature(FakeFeature))
         self.assertFalse(features.has_feature(NotAFeature))
 
+    def test_contains(self):
+        features = stream_xsos.StreamFeatures()
+        with self.assertRaisesRegexp(TypeError,
+                                     "membership test not supported"):
+            "foo" in features
+
     def test_iter_features(self):
         class FakeFeatureA(xso.XSO):
             TAG = ("uri:foo", "foo")
