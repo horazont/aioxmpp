@@ -1464,6 +1464,204 @@ class TestStanzaStream(StanzaStreamTestBase):
             mock.mock_calls
         )
 
+    def _test_outbound_presence_filter(self, filter_attr, **register_kwargs):
+        pres = stanza.Presence(type_="unavailable")
+        pres.autoset_id()
+        out = stanza.Presence(type_=None)
+
+        filter_func = unittest.mock.Mock()
+        filter_func.return_value = out
+
+        filter_attr.register(filter_func, **register_kwargs)
+
+        self.stream.start(self.xmlstream)
+        token = self.stream.enqueue_stanza(pres)
+
+        run_coroutine(asyncio.sleep(0))
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(pres),
+            ],
+            filter_func.mock_calls
+        )
+
+        self.assertEqual(
+            stream.StanzaState.SENT_WITHOUT_SM,
+            token.state
+        )
+
+        self.assertIs(
+            out,
+            self.sent_stanzas.get_nowait()
+        )
+
+        filter_func.reset_mock()
+        filter_func.return_value = None
+
+        token = self.stream.enqueue_stanza(pres)
+
+        run_coroutine(asyncio.sleep(0))
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(pres),
+            ],
+            filter_func.mock_calls
+        )
+
+        with self.assertRaises(asyncio.QueueEmpty):
+            self.sent_stanzas.get_nowait()
+
+        self.assertEqual(
+            stream.StanzaState.DROPPED,
+            token.state
+        )
+
+    def test_app_outbound_presence_filter(self):
+        self._test_outbound_presence_filter(
+            self.stream.app_outbound_presence_filter
+        )
+
+    def test_service_outbound_presence_filter(self):
+        class Service(service.Service):
+            pass
+
+        self._test_outbound_presence_filter(
+            self.stream.service_outbound_presence_filter,
+            order=Service
+        )
+
+    def test_service_outbound_presence_filter_after_app(self):
+        class Service(service.Service):
+            pass
+
+        pres = stanza.Presence()
+        pres.autoset_id()
+
+        mock = unittest.mock.Mock()
+
+        mock.app.return_value = pres
+        mock.service.return_value = pres
+
+        self.stream.app_outbound_presence_filter.register(mock.app)
+        self.stream.service_outbound_presence_filter.register(
+            mock.service,
+            order=Service
+        )
+
+        self.stream.start(self.xmlstream)
+        self.stream.enqueue_stanza(pres)
+
+        run_coroutine(asyncio.sleep(0))
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call.app(pres),
+                unittest.mock.call.service(pres)
+            ],
+            mock.mock_calls
+        )
+
+    def _test_outbound_message_filter(self, filter_attr, **register_kwargs):
+        msg = stanza.Message(type_="chat")
+        msg.autoset_id()
+        out = stanza.Message(type_="groupchat")
+
+        filter_func = unittest.mock.Mock()
+        filter_func.return_value = out
+
+        filter_attr.register(filter_func, **register_kwargs)
+
+        self.stream.start(self.xmlstream)
+        token = self.stream.enqueue_stanza(msg)
+
+        run_coroutine(asyncio.sleep(0))
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(msg),
+            ],
+            filter_func.mock_calls
+        )
+
+        self.assertEqual(
+            stream.StanzaState.SENT_WITHOUT_SM,
+            token.state
+        )
+
+        self.assertIs(
+            out,
+            self.sent_stanzas.get_nowait()
+        )
+
+        filter_func.reset_mock()
+        filter_func.return_value = None
+
+        token = self.stream.enqueue_stanza(msg)
+
+        run_coroutine(asyncio.sleep(0))
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(msg),
+            ],
+            filter_func.mock_calls
+        )
+
+        with self.assertRaises(asyncio.QueueEmpty):
+            self.sent_stanzas.get_nowait()
+
+        self.assertEqual(
+            stream.StanzaState.DROPPED,
+            token.state
+        )
+
+    def test_app_outbound_message_filter(self):
+        self._test_outbound_message_filter(
+            self.stream.app_outbound_message_filter
+        )
+
+    def test_service_outbound_message_filter(self):
+        class Service(service.Service):
+            pass
+
+        self._test_outbound_message_filter(
+            self.stream.service_outbound_message_filter,
+            order=Service
+        )
+
+    def test_service_outbound_message_filter_after_app(self):
+        class Service(service.Service):
+            pass
+
+        msg = stanza.Message()
+        msg.autoset_id()
+
+        mock = unittest.mock.Mock()
+
+        mock.app.return_value = msg
+        mock.service.return_value = msg
+
+        self.stream.app_outbound_message_filter.register(mock.app)
+        self.stream.service_outbound_message_filter.register(
+            mock.service,
+            order=Service
+        )
+
+        self.stream.start(self.xmlstream)
+        self.stream.enqueue_stanza(msg)
+
+        run_coroutine(asyncio.sleep(0))
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call.app(msg),
+                unittest.mock.call.service(msg)
+            ],
+            mock.mock_calls
+        )
+
 
 class TestStanzaStreamSM(StanzaStreamTestBase):
     def setUp(self):

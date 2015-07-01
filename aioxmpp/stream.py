@@ -178,12 +178,20 @@ class StanzaState(Enum):
 
        This is a final state.
 
+    .. attribute:: DROPPED
+
+       The stanza has been dropped by one of the filters configured in the
+       :class:`StanzaStream`.
+
+       This is a final state.
+
     """
     ACTIVE = 0
     SENT = 1
     ACKED = 2
     SENT_WITHOUT_SM = 3
     ABORTED = 4
+    DROPPED = 5
 
 
 class StanzaErrorAwareListener:
@@ -378,6 +386,35 @@ class StanzaStream:
        This is the analogon of :attr:`service_inbound_presence_filter` for
        :attr:`app_inbound_message_filter`.
 
+    Outbound stanza filters work similar to inbound stanza filters, but due to
+    their location in the processing chain and possible interactions with
+    senders of stanzas, there are some things to consider:
+
+    * Per convention, a outbound stanza filter **must not** modify any child
+      elements which are already present in the stanza when it receives the
+      stanza.
+
+      It may however add new child elements or remove existing child elements.
+
+    * If the stanza filter replaces the stanza, it is responsible for making
+      sure that the new stanza has appropriate
+      :attr:`~.stanza.StanzaBase.from_`, :attr:`~.stanza.StanzaBase.to` and
+      :attr:`~.stanza.StanzaBase.id` values. There are no checks to enforce
+      this, because errorr handling at this point is peculiar; instead, sending
+      invalid values may cause the stream to die with a stream error.
+
+    Now that you have been warned, here are the attributes for accessing the
+    outbound filter chains. These otherwise work exactly like their inbound
+    counterparts, but service filters run *after* application filters on
+    outbound processing.
+
+    .. attribute:: app_outbound_presence_filter
+
+    .. attribute:: service_outbound_presence_filter
+
+    .. attribute:: app_outbound_message_filter
+
+    .. attribute:: service_outbound_presence_filter
 
     Using stream management:
 
@@ -475,6 +512,12 @@ class StanzaStream:
 
         self.app_inbound_message_filter = AppFilter()
         self.service_inbound_message_filter = Filter()
+
+        self.app_outbound_presence_filter = AppFilter()
+        self.service_outbound_presence_filter = Filter()
+
+        self.app_outbound_message_filter = AppFilter()
+        self.service_outbound_message_filter = Filter()
 
     def _done_handler(self, task):
         """
@@ -722,10 +765,35 @@ class StanzaStream:
         if token.state == StanzaState.ABORTED:
             return
 
-        self._logger.debug("forwarding stanza to xmlstream: %r",
-                           token.stanza)
+        stanza_obj = token.stanza
 
-        xmlstream.send_xso(token.stanza)
+        if isinstance(stanza_obj, stanza.Presence):
+            stanza_obj = self.app_outbound_presence_filter.filter(
+                stanza_obj
+            )
+            if stanza_obj is not None:
+                stanza_obj = self.service_outbound_presence_filter.filter(
+                    stanza_obj
+                )
+        elif isinstance(stanza_obj, stanza.Message):
+            stanza_obj = self.app_outbound_message_filter.filter(
+                stanza_obj
+            )
+            if stanza_obj is not None:
+                stanza_obj = self.service_outbound_message_filter.filter(
+                    stanza_obj
+                )
+
+        if stanza_obj is None:
+            token._set_state(StanzaState.DROPPED)
+            self._logger.debug("outgoing stanza %r dropped by filter chain",
+                               token.stanza)
+            return
+
+        self._logger.debug("forwarding stanza to xmlstream: %r",
+                           stanza_obj)
+
+        xmlstream.send_xso(stanza_obj)
         if self._sm_enabled:
             token._set_state(StanzaState.SENT)
             self._sm_unacked_list.append(token)
