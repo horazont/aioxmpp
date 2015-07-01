@@ -54,6 +54,7 @@ def main(jid, password):
 
     tls_provider = aioxmpp.security_layer.STARTTLSProvider(
         aioxmpp.security_layer.default_ssl_context,
+        certificate_verifier_factory=aioxmpp.security_layer._NullVerifier
     )
 
     sasl_provider = aioxmpp.security_layer.PasswordSASLProvider(

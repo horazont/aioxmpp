@@ -12,6 +12,9 @@ from aioxmpp.utils import namespaces
 from . import xso as roster_xso
 
 
+_Sentinel = object()
+
+
 class Item:
     """
     Represent an entry in the roster. These entries are mutable, see the
@@ -230,12 +233,25 @@ class Service(aioxmpp.service.Service):
        already removed from all bookkeeping structures, but the values on the
        `item` object are the same as right before the removal.
 
+    Modifying roster contents:
+
+    .. automethod:: set_entry
+
+    .. automethod:: remove_entry
+
     Import/Export of roster data:
 
     .. automethod:: export_as_json
 
     .. automethod:: import_from_json
 
+    To make use of roster versioning, use the above two methods. The general
+    workflow is to :meth:`export_as_json` the roster after disconnecting and
+    storing it for the next connection attempt. **Before** connecting, the
+    stored data needs to be loaded using :meth:`import_from_json`. This only
+    needs to happen after a new :class:`Service` has been created, as roster
+    services won’t delete roster contents between two connections on the same
+    :class:`.node.AbstractClient` instance.
     """
 
     on_initial_roster_received = callbacks.Signal()
@@ -257,8 +273,6 @@ class Service(aioxmpp.service.Service):
             "set",
             roster_xso.Query,
             self.handle_roster_push)
-
-        print("initialized")
 
         self.items = {}
         self.groups = {}
@@ -348,7 +362,6 @@ class Service(aioxmpp.service.Service):
                 roster_xso.RosterVersioningFeature):
             iq.payload.ver = self.version
 
-        print("sending roster request")
         response = yield from self.client.stream.send_iq_and_wait_for_reply(
             iq,
             timeout=self.client.negotiation_timeout.total_seconds()
@@ -393,6 +406,10 @@ class Service(aioxmpp.service.Service):
 
         No events are fired during this activity. After this method completes,
         the whole roster contents are exchanged with the contents from `data`.
+
+        Also, no data is transferred to the server; this method is intended to
+        be used for roster versioning. See below (in the docs of
+        :class:`Service`).
         """
         self.version = data.get("ver", None)
 
@@ -405,3 +422,81 @@ class Service(aioxmpp.service.Service):
             self.items[jid] = item
             for group in item.groups:
                 self.groups.setdefault(group, set()).add(item)
+
+    @asyncio.coroutine
+    def set_entry(self, jid, *,
+                  name=_Sentinel,
+                  add_to_groups=frozenset(),
+                  remove_from_groups=frozenset(),
+                  timeout=None):
+        """
+        Set properties of a roster entry or add a new roster entry. The roster
+        entry is identified by its bare `jid`.
+
+        If an entry already exists, all values default to those stored in the
+        existing entry. For example, if no `name` is given, the current name of
+        the entry is re-used, if any.
+
+        If the entry does not exist, it will be created on the server side.
+
+        `remove_from_groups` takes precedence over `add_to_groups`.
+
+        `timeout` is the time in seconds to wait for a confirmation by the
+        server.
+
+        Note that the changes may not be visible immediately after his
+        coroutine returns in the :attr:`items` and :attr:`groups`
+        attributes. The :class:`Service` waits for the "official" roster push
+        from the server for updating the data structures and firing events, to
+
+        This may raise arbitrary :class:`.errors.XMPPError` exceptions if the
+        server replies with an error and also any kind of connection error if
+        the connection gets fatally terminated while waiting for a response.
+        prevent going out-of-sync with other clients.
+        """
+
+        existing = self.items.get(jid, Item(jid))
+
+        post_groups = (existing.groups | add_to_groups) - remove_from_groups
+        post_name = existing.name
+        if name is not _Sentinel:
+            post_name = name
+
+        item = roster_xso.Item(
+            jid=jid,
+            name=post_name,
+            groups=[
+                roster_xso.Group(name=group_name)
+                for group_name in post_groups
+            ])
+
+        yield from self.client.stream.send_iq_and_wait_for_reply(
+            stanza.IQ(payload=roster_xso.Query(items=[
+                item
+            ])),
+            timeout=timeout
+        )
+
+    @asyncio.coroutine
+    def remove_entry(self, jid, *, timeout=None):
+        """
+        Request removal of the roster entry identified by the given bare
+        `jid`. If the entry currently has any subscription state, the server
+        will send the corresponding unsubscribing presence stanzas.
+
+        `timeout` is the maximum time in seconds to wait for a reply from the
+        server.
+
+        This may raise arbitrary :class:`.errors.XMPPError` exceptions if the
+        server replies with an error and also any kind of connection error if
+        the connection gets fatally terminated while waiting for a response.
+        """
+        yield from self.client.stream.send_iq_and_wait_for_reply(
+            stanza.IQ(payload=roster_xso.Query(items=[
+                roster_xso.Item(
+                    jid=jid,
+                    subscription="remove"
+                )
+            ])),
+            timeout=timeout
+        )

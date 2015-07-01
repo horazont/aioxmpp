@@ -879,3 +879,154 @@ class TestService(unittest.TestCase):
             {self.s.items[self.user2]},
             self.s.groups["group2"]
         )
+
+    def test_set_entry_name(self):
+        self.cc.stream.send_iq_and_wait_for_reply.return_value = None
+
+        run_coroutine(
+            self.s.set_entry(
+                self.user1,
+                name="foobar",
+                timeout=10
+            ),
+        )
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(unittest.mock.ANY, timeout=10)
+            ],
+            self.cc.stream.send_iq_and_wait_for_reply.mock_calls
+        )
+
+        call, = self.cc.stream.send_iq_and_wait_for_reply.mock_calls
+        _, call_args, _ = call
+
+        request_iq, = call_args
+        self.assertIsNone(request_iq.to)
+        self.assertIsInstance(
+            request_iq.payload,
+            roster_xso.Query
+        )
+
+        query = request_iq.payload
+        self.assertIsNone(query.ver)
+        self.assertEqual(1, len(query.items))
+
+        item, = query.items
+        self.assertEqual(
+            self.user1,
+            item.jid
+        )
+        self.assertEqual(
+            "foobar",
+            item.name
+        )
+        self.assertSetEqual(
+            {
+                "group1", "group3"
+            },
+            {group.name for group in item.groups}
+        )
+
+        # defaults
+        self.assertEqual("none", item.subscription)
+        self.assertFalse(item.approved)
+        self.assertIsNone(item.ask)
+
+    def test_set_entry_groups(self):
+        self.cc.stream.send_iq_and_wait_for_reply.return_value = None
+
+        run_coroutine(
+            self.s.set_entry(
+                self.user2,
+                add_to_groups={"a", "b"},
+                remove_from_groups={"group1"},
+                timeout=10
+            )
+        )
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(unittest.mock.ANY, timeout=10)
+            ],
+            self.cc.stream.send_iq_and_wait_for_reply.mock_calls
+        )
+
+        call, = self.cc.stream.send_iq_and_wait_for_reply.mock_calls
+        _, call_args, _ = call
+
+        request_iq, = call_args
+        self.assertIsNone(request_iq.to)
+        self.assertIsInstance(
+            request_iq.payload,
+            roster_xso.Query
+        )
+
+        query = request_iq.payload
+        self.assertIsNone(query.ver)
+        self.assertEqual(1, len(query.items))
+
+        item, = query.items
+        self.assertEqual(
+            self.user2,
+            item.jid
+        )
+        self.assertEqual(
+            "some bar user",
+            item.name
+        )
+        self.assertSetEqual(
+            {
+                "a", "b", "group2"
+            },
+            {group.name for group in item.groups}
+        )
+
+        # defaults
+        self.assertEqual("none", item.subscription)
+        self.assertFalse(item.approved)
+        self.assertIsNone(item.ask)
+
+    def test_remove_entry(self):
+        self.cc.stream.send_iq_and_wait_for_reply.return_value = None
+
+        run_coroutine(
+            self.s.remove_entry(
+                self.user2,
+                timeout=10
+            )
+        )
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(unittest.mock.ANY, timeout=10)
+            ],
+            self.cc.stream.send_iq_and_wait_for_reply.mock_calls
+        )
+
+        call, = self.cc.stream.send_iq_and_wait_for_reply.mock_calls
+        _, call_args, _ = call
+
+        request_iq, = call_args
+        self.assertIsNone(request_iq.to)
+        self.assertIsInstance(
+            request_iq.payload,
+            roster_xso.Query
+        )
+
+        query = request_iq.payload
+        self.assertIsNone(query.ver)
+        self.assertEqual(1, len(query.items))
+
+        item, = query.items
+        self.assertEqual(
+            self.user2,
+            item.jid
+        )
+        self.assertEqual("remove", item.subscription)
+
+        # defaults
+        self.assertIsNone(item.ask)
+        self.assertFalse(item.approved)
+        self.assertFalse(item.groups)
+        self.assertIsNone(item.name)
