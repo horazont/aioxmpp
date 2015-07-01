@@ -10,6 +10,7 @@ import aioxmpp.stream as stream
 import aioxmpp.stream_xsos as stream_xsos
 import aioxmpp.errors as errors
 import aioxmpp.callbacks as callbacks
+import aioxmpp.service as service
 
 from datetime import timedelta
 
@@ -64,6 +65,155 @@ def make_mocked_streams(loop):
     stanzastream = stream.StanzaStream(loop=loop)
 
     return sent_stanzas, xmlstream, stanzastream
+
+
+class TestFilter_Token(unittest.TestCase):
+    def test_each_is_unique(self):
+        t1 = stream.Filter.Token()
+        t2 = stream.Filter.Token()
+        self.assertIsNot(t1, t2)
+        self.assertNotEqual(t1, t2)
+
+    def test_str(self):
+        self.assertRegex(
+            str(stream.Filter.Token()),
+            r"<[a-zA-Z._]+\.Filter\.Token 0x[0-9a-f]+>"
+        )
+
+
+class TestFilter(unittest.TestCase):
+    def setUp(self):
+        self.f = stream.Filter()
+
+    def test_register(self):
+        func = unittest.mock.Mock()
+        func.return_value = None
+
+        token = self.f.register(func, 0)
+        self.assertIsNotNone(token)
+
+    def test_filter(self):
+        func = unittest.mock.Mock()
+        func.return_value = None
+
+        self.f.register(func, 0)
+
+        iq = stanza.IQ()
+
+        self.assertIsNone(self.f.filter(iq))
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(iq),
+            ],
+            func.mock_calls
+        )
+
+    def test_filter_chain(self):
+        mock = unittest.mock.Mock()
+
+        self.f.register(mock.func1, 0)
+        self.f.register(mock.func2, 0)
+
+        result = self.f.filter(mock.stanza)
+
+        calls = list(mock.mock_calls)
+
+        self.assertEqual(
+            mock.func2(),
+            result
+        )
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call.func1(mock.stanza),
+                unittest.mock.call.func2(mock.func1()),
+            ],
+            calls
+        )
+
+    def test_filter_chain_aborts_on_None_result(self):
+        mock = unittest.mock.Mock()
+
+        mock.func2.return_value = None
+
+        self.f.register(mock.func1, 0)
+        self.f.register(mock.func2, 0)
+        self.f.register(mock.func3, 0)
+
+        result = self.f.filter(mock.stanza)
+
+        calls = list(mock.mock_calls)
+
+        self.assertIsNone(result)
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call.func1(mock.stanza),
+                unittest.mock.call.func2(mock.func1()),
+            ],
+            calls
+        )
+
+    def test_unregister_by_token(self):
+        func = unittest.mock.Mock()
+        token = self.f.register(func, 0)
+        self.f.unregister(token)
+        self.f.filter(object())
+        self.assertFalse(func.mock_calls)
+
+    def test_unregister_raises_ValueError_if_token_not_found(self):
+        with self.assertRaisesRegexp(ValueError, "unregistered token"):
+            self.f.unregister(object())
+
+    def test_register_with_order(self):
+        mock = unittest.mock.Mock()
+
+        self.f.register(mock.func1, 1)
+        self.f.register(mock.func2, 0)
+        self.f.register(mock.func3, -1)
+
+        result = self.f.filter(mock.stanza)
+        calls = list(mock.mock_calls)
+
+        self.assertEqual(
+            mock.func1(),
+            result
+        )
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call.func3(mock.stanza),
+                unittest.mock.call.func2(mock.func3()),
+                unittest.mock.call.func1(mock.func2()),
+            ],
+            calls
+        )
+
+
+class TestAppFilter(TestFilter):
+    def setUp(self):
+        super().setUp()
+        self.f = stream.AppFilter()
+
+    def test_register_defaults_ordering(self):
+        mock = unittest.mock.Mock()
+
+        self.f.register(mock.func2)
+        self.f.register(mock.func1, 1)
+        self.f.register(mock.func3, -1)
+
+        result = self.f.filter(mock.stanza)
+        calls = list(mock.mock_calls)
+
+        self.assertEqual(
+            mock.func1(),
+            result
+        )
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call.func3(mock.stanza),
+                unittest.mock.call.func2(mock.func3()),
+                unittest.mock.call.func1(mock.func2()),
+            ],
+            calls
+        )
 
 
 class StanzaStreamTestBase(xmltestutils.XMLTestCase):
@@ -1129,6 +1279,190 @@ class TestStanzaStream(StanzaStreamTestBase):
                 kill_it(),
                 self.stream.send_iq_and_wait_for_reply(iq)
             ))
+
+    def _test_inbound_presence_filter(self, filter_attr, **register_kwargs):
+        pres = stanza.Presence(type_="unavailable")
+        out = stanza.Presence(type_=None)
+
+        cb = unittest.mock.Mock([])
+        cb.return_value = None
+
+        filter_func = unittest.mock.Mock()
+        filter_func.return_value = out
+
+        filter_attr.register(filter_func, **register_kwargs)
+
+        self.stream.register_presence_callback(None, None, cb)
+
+        self.stream.recv_stanza(pres)
+        self.stream.start(self.xmlstream)
+        run_coroutine(asyncio.sleep(0))
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(pres),
+            ],
+            filter_func.mock_calls
+        )
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(out),
+            ],
+            cb.mock_calls
+        )
+
+        cb.reset_mock()
+        cb.return_value = None
+        filter_func.reset_mock()
+        filter_func.return_value = None
+
+        self.stream.recv_stanza(pres)
+        run_coroutine(asyncio.sleep(0))
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(pres),
+            ],
+            filter_func.mock_calls
+        )
+
+        self.assertSequenceEqual([], cb.mock_calls)
+
+        self.assertTrue(self.stream.running)
+
+    def test_app_inbound_presence_filter(self):
+        self._test_inbound_presence_filter(self.stream.app_inbound_presence_filter)
+
+    def test_service_inbound_presence_filter(self):
+        class Service(service.Service):
+            pass
+
+        self._test_inbound_presence_filter(
+            self.stream.service_inbound_presence_filter,
+            order=Service
+        )
+
+    def test_service_inbound_presence_filter_before_app(self):
+        class Service(service.Service):
+            pass
+
+        pres = stanza.Presence()
+
+        mock = unittest.mock.Mock()
+        mock.service.return_value = pres
+        mock.app.return_value = pres
+
+        self.stream.app_inbound_presence_filter.register(mock.app)
+        self.stream.service_inbound_presence_filter.register(
+            mock.service,
+            order=Service)
+
+        self.stream.recv_stanza(pres)
+        self.stream.start(self.xmlstream)
+
+        run_coroutine(asyncio.sleep(0))
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call.service(pres),
+                unittest.mock.call.app(pres),
+            ],
+            mock.mock_calls
+        )
+
+    def _test_inbound_message_filter(self, filter_attr, **register_kwargs):
+        msg = stanza.Message(type_="chat")
+        out = stanza.Message(type_="groupchat")
+
+        cb = unittest.mock.Mock([])
+        cb.return_value = None
+
+        filter_func = unittest.mock.Mock()
+        filter_func.return_value = out
+
+        filter_attr.register(filter_func, **register_kwargs)
+
+        self.stream.register_message_callback("groupchat", None, cb)
+
+        self.stream.recv_stanza(msg)
+        self.stream.start(self.xmlstream)
+        run_coroutine(asyncio.sleep(0))
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(msg),
+            ],
+            filter_func.mock_calls
+        )
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(out),
+            ],
+            cb.mock_calls
+        )
+
+        cb.reset_mock()
+        cb.return_value = None
+        filter_func.reset_mock()
+        filter_func.return_value = None
+
+        self.stream.recv_stanza(msg)
+        run_coroutine(asyncio.sleep(0))
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(msg),
+            ],
+            filter_func.mock_calls
+        )
+
+        self.assertSequenceEqual([], cb.mock_calls)
+
+        self.assertTrue(self.stream.running)
+
+    def test_app_inbound_message_filter(self):
+        self._test_inbound_message_filter(
+            self.stream.app_inbound_message_filter
+        )
+
+    def test_service_inbound_message_filter(self):
+        class Service(service.Service):
+            pass
+
+        self._test_inbound_message_filter(
+            self.stream.service_inbound_message_filter,
+            order=Service
+        )
+
+    def test_service_inbound_message_filter_before_app(self):
+        class Service(service.Service):
+            pass
+
+        msg = stanza.Message()
+
+        mock = unittest.mock.Mock()
+        mock.service.return_value = msg
+        mock.app.return_value = msg
+
+        self.stream.app_inbound_message_filter.register(mock.app)
+        self.stream.service_inbound_message_filter.register(
+            mock.service,
+            order=Service)
+
+        self.stream.recv_stanza(msg)
+        self.stream.start(self.xmlstream)
+
+        run_coroutine(asyncio.sleep(0))
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call.service(msg),
+                unittest.mock.call.app(msg),
+            ],
+            mock.mock_calls
+        )
 
 
 class TestStanzaStreamSM(StanzaStreamTestBase):

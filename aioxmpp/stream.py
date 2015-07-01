@@ -15,6 +15,16 @@ possible.
 
 .. autoclass:: StanzaState
 
+Filters
+=======
+
+The filters used by the :class:`StanzaStream` are implemented by the following
+classes:
+
+.. autoclass:: Filter
+
+.. autoclass:: AppFilter
+
 """
 
 import asyncio
@@ -35,6 +45,98 @@ from . import (
 
 from .plugins import xep0199
 from .utils import namespaces
+
+
+class Filter:
+    """
+    A filter chain for stanzas. The idea is to process a stanza through a
+    sequence of user- and service-definable functions.
+
+    Each function must either return the stanza it received as argument or
+    :data:`None`. If it returns :data:`None` the filtering aborts and the
+    caller of :meth:`filter` also receives :data:`None`.
+
+    Each function receives the result of the previous function for further
+    processing.
+
+    .. automethod:: register
+
+    .. automethod:: filter
+
+    .. automethod:: unregister
+    """
+
+    class Token:
+        def __str__(self):
+            return "<{}.{} 0x{:x}>".format(
+                type(self).__module__,
+                type(self).__qualname__,
+                id(self))
+
+    def __init__(self):
+        super().__init__()
+        self._filter_order = []
+
+    def register(self, func, order):
+        """
+        Register a function `func` as filter in the chain. `order` must be a
+        value which will be used to order the registered functions relative to
+        each other.
+
+        Functions with the same order are sorted in the order of their
+        addition, with the function which was added earliest first.
+
+        Remember that all values passed to `order` which are registered at the
+        same time in the same :class:`Filter` need to be at least partially
+        orderable with respect to each other.
+
+        Return an opaque token which is needed to unregister a function.
+        """
+        token = self.Token()
+        self._filter_order.append((order, token, func))
+        self._filter_order.sort(key=lambda x: x[0])
+        return token
+
+    def filter(self, stanza_obj):
+        """
+        Pass the given `stanza_obj` through the filter chain and return the
+        result of the chain. See :class:`Filter` for details on how the value
+        is passed through the registered functions.
+        """
+        for _, _, func in self._filter_order:
+            stanza_obj = func(stanza_obj)
+            if stanza_obj is None:
+                return None
+        return stanza_obj
+
+    def unregister(self, token_to_remove):
+        """
+        Unregister a function from the filter chain using the token returned by
+        :meth:`register`.
+        """
+        for i, (_, token, _) in enumerate(self._filter_order):
+            if token == token_to_remove:
+                break
+        else:
+            raise ValueError("unregistered token: {!r}".format(
+                token_to_remove))
+        del self._filter_order[i]
+
+
+class AppFilter(Filter):
+    """
+    A specialized :class:`Filter` version. The only difference is in the
+    handling of the `order` argument to :meth:`register`:
+
+    .. automethod:: register
+    """
+
+    def register(self, func, order=0):
+        """
+        This method works exactly like :meth:`Filter.register`, but `order` has
+        a default value of ``0``.
+        """
+        return super().register(func, order)
 
 
 class PingEventType(Enum):
@@ -242,6 +344,41 @@ class StanzaStream:
 
     .. automethod:: unregister_presence_callback
 
+    Inbound stanza filters allow to hook into the stanza processing by
+    replacing, modifying or otherwise processing stanza contents *before* the
+    above callbacks are invoked. With inbound stanza filters, there are no
+    restrictions as to what processing may take place on a stanza, as no one
+    but the stream may have references to its contents.
+
+    .. attribute:: app_inbound_presence_filter
+
+       This is a :class:`AppFilter` based filter chain on inbound presence
+       stanzas. It can be used to attach application-specific filters.
+
+    .. attribute:: service_inbound_presence_filter
+
+       This is another filter chain for inbound presence stanzas. It runs
+       *before* the :attr:`app_inbound_presence_filter` chain and all functions
+       registered there must have :class:`service.Service` *classes* as `order`
+       value (see :meth:`Filter.register`).
+
+       This filter chain is intended to be used by library services, such as a
+       XEP-0115 implementation which may start a XEP-0030 lookup at the target
+       entity to resolve the capability hash or prime the XEP-0030 cache with
+       the service information obtained by interpreting the XEP-0115 hash
+       value.
+
+    .. attribute:: app_inbound_message_filter
+
+       This is a :class:`AppFilter` based filter chain on inbound message
+       stanzas. It can be used to attach application-specific filters.
+
+    .. attribute:: service_inbound_message_filter
+
+       This is the analogon of :attr:`service_inbound_presence_filter` for
+       :attr:`app_inbound_message_filter`.
+
+
     Using stream management:
 
     .. automethod:: start_sm
@@ -332,6 +469,12 @@ class StanzaStream:
         self._sm_enabled = False
 
         self._broker_lock = asyncio.Lock(loop=loop)
+
+        self.app_inbound_presence_filter = AppFilter()
+        self.service_inbound_presence_filter = Filter()
+
+        self.app_inbound_message_filter = AppFilter()
+        self.service_inbound_message_filter = Filter()
 
     def _done_handler(self, task):
         """
@@ -436,6 +579,19 @@ class StanzaStream:
         Process an incoming message stanza *stanza_obj*.
         """
         self._logger.debug("incoming messgage: %r", stanza_obj)
+
+        stanza_obj = self.service_inbound_message_filter.filter(stanza_obj)
+        if stanza_obj is None:
+            self._logger.debug("incoming message dropped by service "
+                               "filter chain")
+            return
+
+        stanza_obj = self.app_inbound_message_filter.filter(stanza_obj)
+        if stanza_obj is None:
+            self._logger.debug("incoming message dropped by application "
+                               "filter chain")
+            return
+
         keys = [(stanza_obj.type_, stanza_obj.from_),
                 (stanza_obj.type_, None),
                 (None, None)]
@@ -461,6 +617,19 @@ class StanzaStream:
         Process an incoming presence stanza *stanza_obj*.
         """
         self._logger.debug("incoming presence: %r", stanza_obj)
+
+        stanza_obj = self.service_inbound_presence_filter.filter(stanza_obj)
+        if stanza_obj is None:
+            self._logger.debug("incoming presence dropped by service filter"
+                               " chain")
+            return
+
+        stanza_obj = self.app_inbound_presence_filter.filter(stanza_obj)
+        if stanza_obj is None:
+            self._logger.debug("incoming presence dropped by application "
+                               "filter chain")
+            return
+
         keys = [(stanza_obj.type_, stanza_obj.from_),
                 (stanza_obj.type_, None)]
         for key in keys:
