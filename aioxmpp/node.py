@@ -308,23 +308,23 @@ class AbstractClient:
 
     Signals:
 
-    .. attribute:: on_failure
+    .. method:: on_failure()
 
        A :class:`~aioxmpp.callbacks.Signal` which is fired when the client
        fails and stops.
 
-    .. attribute:: before_stream_established
+    .. method:: before_stream_established()
 
        This is a :class:`~aioxmpp.callbacks.SyncSignal` which is executed right
        before :attr:`on_stream_established` fires.
 
-    .. attribute:: on_stream_established
+    .. method:: on_stream_established()
 
        When the stream is established and resource binding took place, this
        event is fired. It means that the stream can now be used for XMPP
        interactions.
 
-    .. attribute:: on_stream_destroyed
+    .. method:: on_stream_destroyed()
 
        This is called whenever a stream is destroyed. The conditions for this
        are the same as for :attr:`.StanzaStream.on_stream_destroyed`.

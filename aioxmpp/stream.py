@@ -270,7 +270,7 @@ class StanzaStream:
 
     Signals:
 
-    .. attribute:: on_failure
+    .. method:: on_failure(exc)
 
        A :class:`Signal` which will fire when the stream has failed. A failure
        occurs whenever the main task of the :class:`StanzaStream` (the one
@@ -280,16 +280,16 @@ class StanzaStream:
        any exceptions which may be raised by the
        :meth:`aioxmpp.protocol.XMLStream.send_xso` method.
 
-       The signal fires with the exception as the only argument.
+       The exception which occured is given as `exc`.
 
-    .. attribute:: on_stream_destroyed
+    .. method:: on_stream_destroyed()
 
        When a stream is destroyed so that all state shall be discarded (for
        example, pending futures), this signal is fired.
 
        This happens if a non-SM stream is stopped or if SM is being disabled.
 
-    .. attribute:: on_stream_established
+    .. method:: on_stream_established()
 
        When a stream is newly established, this signal is fired. This happens
        whenever a non-SM stream is started and whenever a stream which
