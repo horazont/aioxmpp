@@ -356,7 +356,12 @@ class StanzaStream:
     replacing, modifying or otherwise processing stanza contents *before* the
     above callbacks are invoked. With inbound stanza filters, there are no
     restrictions as to what processing may take place on a stanza, as no one
-    but the stream may have references to its contents.
+    but the stream may have references to its contents. See below for a
+    guideline on when to use stanza filters.
+
+    Note that if a filter function drops an incoming stanza (by returning
+    :data:`None`), it **must** ensure that the client still behaves RFC
+    compliant.
 
     .. attribute:: app_inbound_presence_filter
 
@@ -394,14 +399,18 @@ class StanzaStream:
       elements which are already present in the stanza when it receives the
       stanza.
 
-      It may however add new child elements or remove existing child elements.
+      It may however add new child elements or remove existing child elements,
+      as well as copying and *then* modifying existing child elements.
 
     * If the stanza filter replaces the stanza, it is responsible for making
       sure that the new stanza has appropriate
       :attr:`~.stanza.StanzaBase.from_`, :attr:`~.stanza.StanzaBase.to` and
       :attr:`~.stanza.StanzaBase.id` values. There are no checks to enforce
-      this, because errorr handling at this point is peculiar; instead, sending
-      invalid values may cause the stream to die with a stream error.
+      this, because errorr handling at this point is peculiar. The stanzas will
+      be sent as-is.
+
+    * Similar to inbound filters, it is the responsibility of the filters that
+      if stanzas are dropped, the client still behaves RFC-compliant.
 
     Now that you have been warned, here are the attributes for accessing the
     outbound filter chains. These otherwise work exactly like their inbound
@@ -410,11 +419,54 @@ class StanzaStream:
 
     .. attribute:: app_outbound_presence_filter
 
+       This is a :class:`AppFilter` based filter chain on outbound presence
+       stanzas. It can be used to attach application-specific filters.
+
+       Before using this attribute, make sure that you have read the notes
+       above.
+
     .. attribute:: service_outbound_presence_filter
+
+       This is the analogon of :attr:`service_inbound_presence_filter`, but for
+       outbound presence. It runs *after* the
+       :meth:`app_outbound_presence_filter`.
+
+       Before using this attribute, make sure that you have read the notes
+       above.
 
     .. attribute:: app_outbound_message_filter
 
-    .. attribute:: service_outbound_presence_filter
+       This is a :class:`AppFilter` based filter chain on inbound message
+       stanzas. It can be used to attach application-specific filters.
+
+       Before using this attribute, make sure that you have read the notes
+       above.
+
+    .. attribute:: service_outbound_messages_filter
+
+       This is the analogon of :attr:`service_outbound_presence_filter`, but
+       for outbound messages.
+
+       Before using this attribute, make sure that you have read the notes
+       above.
+
+    When to use stanza filters? In general, applications will rarely need
+    them. However, services may make profitable use of them, and it is a
+    convenient way for them to inspect incoming or outgoing stanzas without
+    having to take up the registration slots (remember that
+    :meth:`register_message_callback` et. al. only allow *one* callback per
+    designator).
+
+    In general, whenever you do something which *supplements* the use of the
+    stanza with respect to the RFC but does not fulfill the orignial intent of
+    the stanza, it is advisable to use a filter instead of a callback on the
+    actual stanza.
+
+    Vice versa, if you were to develop a service which manages presence
+    subscriptions, it would be more correct to use
+    :meth:`register_presence_callback`; this prevents other services which try
+    to do the same from conflicting with you. You would then provide callbacks
+    to the application to let it learn about presence subscriptions.
 
     Using stream management:
 
