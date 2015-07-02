@@ -242,6 +242,16 @@ Implementations
 
 .. autoclass:: Nmtoken
 
+.. currentmodule:: aioxmpp.xso
+
+Predefined XSO base classes
+===========================
+
+Some patterns reoccur when using this subpackage. For these, base classes are
+provided which faciliate the use.
+
+.. autoclass:: AbstractTextChild
+
 
 """
 
@@ -329,3 +339,33 @@ from .model import (  # NOQA
     XSO,
     lang_attr
 )
+
+
+class AbstractTextChild(XSO):
+    """
+    One of the recurring patterns when using :mod:`xso` is the use of a XSO
+    subclass to represent an XML node which has only character data and an
+    ``xml:lang`` attribute.
+
+    This class provides exactly that. It inherits from :class:`XSO`.
+
+    .. attribute:: lang
+
+       The ``xml:lang`` of the node, as :class:`~.structs.LanguageTag`.
+
+    .. attribute:: text
+
+       The textual content of the node (XML character data).
+
+    Example use as base class::
+
+      class Subject(xso.AbstractTextChild):
+          TAG = (namespaces.client, "subject")
+
+    The full example can also be found in the source code of
+    :class:`.stanza.Subject`.
+
+    """
+
+    lang = LangAttr()
+    text = Text()

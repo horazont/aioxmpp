@@ -362,7 +362,7 @@ class Thread(xso.XSO):
     )
 
 
-class Body(xso.XSO):
+class Body(xso.AbstractTextChild):
     """
     The textual body of a :class:`Message` stanza.
 
@@ -381,11 +381,8 @@ class Body(xso.XSO):
     """
     TAG = (namespaces.client, "body")
 
-    lang = xso.LangAttr()
-    text = xso.Text()
 
-
-class Subject(xso.XSO):
+class Subject(xso.AbstractTextChild):
     """
     The subject of a :class:`Message` stanza.
 
@@ -403,9 +400,6 @@ class Subject(xso.XSO):
 
     """
     TAG = (namespaces.client, "subject")
-
-    lang = xso.LangAttr()
-    text = xso.Text()
 
 
 class Message(StanzaBase):
@@ -498,7 +492,7 @@ class Message(StanzaBase):
             self.type_)
 
 
-class Status(xso.XSO):
+class Status(xso.AbstractTextChild):
     """
     The status of a :class:`Presence` stanza.
 
@@ -516,9 +510,6 @@ class Status(xso.XSO):
 
     """
     TAG = (namespaces.client, "status")
-
-    lang = xso.LangAttr()
-    text = xso.Text()
 
 
 class Presence(StanzaBase):

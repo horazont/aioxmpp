@@ -57,3 +57,26 @@ class Testnormalize_tag(unittest.TestCase):
             xso.normalize_tag(1)
         with self.assertRaises(TypeError):
             xso.normalize_tag((1, 2))
+
+
+class TestAbstractTextChild(unittest.TestCase):
+    def test_is_xso(self):
+        self.assertTrue(issubclass(
+            xso.AbstractTextChild,
+            xso.XSO
+        ))
+
+    def test_has_no_tag(self):
+        self.assertFalse(hasattr(xso.AbstractTextChild, "TAG"))
+
+    def test_lang_attr(self):
+        self.assertIsInstance(
+            xso.AbstractTextChild.lang,
+            xso.LangAttr
+        )
+
+    def test_text_attr(self):
+        self.assertIsInstance(
+            xso.AbstractTextChild.text,
+            xso.Text
+        )
