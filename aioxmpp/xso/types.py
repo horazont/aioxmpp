@@ -36,16 +36,16 @@ class AbstractType(metaclass=abc.ABCMeta):
 
     def coerce(self, v):
         """
-        Force the given value *v* to be of the type represented by this
+        Force the given value `v` to be of the type represented by this
         :class:`AbstractType`. :meth:`check` is called when user code assigns
         values to descriptors which use the type; it is notably not called when
         values are extracted from SAX events, as these go through :meth:`parse`
         and that is expected to return correctly typed values.
 
-        If *v* cannot be sensibly coerced, :class:`TypeError` is raised (in
+        If `v` cannot be sensibly coerced, :class:`TypeError` is raised (in
         some rare occasions, :class:`ValueError` may be ok too).
 
-        Return a coerced version of *v* or *v* itself if it matches the
+        Return a coerced version of `v` or `v` itself if it matches the
         required type.
 
         .. note::
@@ -63,7 +63,7 @@ class AbstractType(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def parse(self, v):
         """
-        Convert the given string *v* into a value of the appropriate type this
+        Convert the given string `v` into a value of the appropriate type this
         class implements and return the result.
 
         If conversion fails, :class:`ValueError` is raised.
@@ -73,7 +73,7 @@ class AbstractType(metaclass=abc.ABCMeta):
 
     def format(self, v):
         """
-        Convert the value *v* of the type this class implements to a str.
+        Convert the value `v` of the type this class implements to a str.
 
         This conversion does not fail.
         """
@@ -226,7 +226,7 @@ class Base64Binary(_BinaryType):
     Parse the value as base64 and return the :class:`bytes` object obtained
     from decoding.
 
-    If *empty_as_equal* is :data:`True`, an empty value is represented using a
+    If `empty_as_equal` is :data:`True`, an empty value is represented using a
     single equal sign. This is used in the SASL protocol.
     """
 
@@ -356,14 +356,14 @@ class AbstractValidator(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def validate(self, value):
         """
-        Return :data:`True` if the *value* adheres to the restrictions imposed
+        Return :data:`True` if the `value` adheres to the restrictions imposed
         by this validator and :data:`False` otherwise.
         """
 
 
 class RestrictToSet(AbstractValidator):
     """
-    Restrict the possible values to the values from *values*. Operates on any
+    Restrict the possible values to the values from `values`. Operates on any
     types.
     """
 

@@ -47,7 +47,7 @@ class Meta(abc.ABCMeta):
        these classes is requested, it is made sure that *this* class is
        instanciated before.
 
-    The dependencies are inherited from bases unless the *inherit_dependencies*
+    The dependencies are inherited from bases unless the `inherit_dependencies`
     keyword argument is set to false.
 
     After a class has been instanciated, the full set of dependencies is
@@ -150,11 +150,11 @@ class Service(metaclass=Meta):
     of the features for which :mod:`aioxmpp` has support are also implemented
     using :class:`Service` subclasses.
 
-    *client* must be a :class:`~aioxmpp.node.AbstractClient` to which the
-    service will be attached. The *client* cannot be changed later, for the
+    `client` must be a :class:`~aioxmpp.node.AbstractClient` to which the
+    service will be attached. The `client` cannot be changed later, for the
     sake of simplicity.
 
-    *logger* may be a :class:`logging.Logger` instance or :data:`None`. If it
+    `logger` may be a :class:`logging.Logger` instance or :data:`None`. If it
     is :data:`None`, a logger is automatically created, by taking the fully
     qualified name of the :class:`Service` subclass which is being
     instanciated.

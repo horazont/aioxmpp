@@ -74,7 +74,7 @@ class Node(object):
 
     def iter_features(self):
         """
-        Return an iterator which yields the *var* values of each feature
+        Return an iterator which yields the `var` values of each feature
         declared in this :class:`Node`, including the statically declared
         XEP-0030 features.
         """
@@ -95,7 +95,7 @@ class Node(object):
 
     def register_feature(self, var):
         """
-        Register a feature with the namespace variable *var*.
+        Register a feature with the namespace variable `var`.
 
         If the feature is already registered or part of the default XEP-0030
         features, a :class:`ValueError` is raised.
@@ -106,12 +106,12 @@ class Node(object):
 
     def register_identity(self, category, type_, *, names={}):
         """
-        Register an identity with the given *category* and *type_*.
+        Register an identity with the given `category` and `type_`.
 
-        If there is already a registered identity with the same *category* and
-        *type_*, :class:`ValueError` is raised.
+        If there is already a registered identity with the same `category` and
+        `type_`, :class:`ValueError` is raised.
 
-        *names* may be a mapping which maps :class:`.structs.LanguageTag`
+        `names` may be a mapping which maps :class:`.structs.LanguageTag`
         instances to strings. This mapping will be used to produce
         ``<identity/>`` declarations with the respective ``xml:lang`` and
         ``name`` attributes.
@@ -144,7 +144,7 @@ class Node(object):
         Unregister an identity previously registered using
         :meth:`register_identity`.
 
-        If no identity with the given *category* and *type_* has been
+        If no identity with the given `category` and `type_` has been
         registered before, :class:`KeyError` is raised.
 
         If the identity to remove is the last identity of the :class:`Node`,
@@ -217,7 +217,7 @@ class Service(service.Service, Node):
 
 
     Usage example, assuming that you have a :class:`.node.AbstractClient`
-    *node*::
+    `node`::
 
       import aioxmpp.disco as disco
       # load service into node
@@ -340,16 +340,16 @@ class Service(service.Service, Node):
     def query_info(self, jid, *, node=None, require_fresh=False, timeout=None):
         """
         Query the features and identities of the specified entity. The entity
-        is identified by the *jid* and the optional *node*.
+        is identified by the `jid` and the optional `node`.
 
         Return the :class:`.xso.InfoQuery` instance returned by the peer. If an
         error is returned, that error is raised as :class:`.errors.XMPPError`.
 
         The requests are cached. This means that only one request is ever fired
-        for a given target (identified by the *jid* and the *node*). The
+        for a given target (identified by the `jid` and the `node`). The
         request is re-used for all subsequent requests to that identity.
 
-        If *require_fresh* is set to true, the above does not hold and a fresh
+        If `require_fresh` is set to true, the above does not hold and a fresh
         request is always created. The new request is the request which will be
         used as alias for subsequent requests to the same identity.
 
@@ -359,11 +359,11 @@ class Service(service.Service, Node):
         * Aliasing: Two concurrent requests will be aliased to one request to
           save computing resources
 
-        Both can be turned off by using *require_fresh*. In general, you should
-        not need to use *require_fresh*, as all requests are implicitly
+        Both can be turned off by using `require_fresh`. In general, you should
+        not need to use `require_fresh`, as all requests are implicitly
         cancelled whenever the underlying session gets destroyed.
 
-        *timeout* is passed to
+        `timeout` is passed to
         :meth:`.StanzaStream.send_iq_and_wait_for_reply`.
         """
         key = jid, node

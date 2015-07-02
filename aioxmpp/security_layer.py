@@ -40,7 +40,7 @@ Partial security providers serve as arguments to pass to
 Transport layer security provider
 ---------------------------------
 
-As an *tls_provider* argument to :class:`SecurityLayer`, instances of the
+As an `tls_provider` argument to :class:`SecurityLayer`, instances of the
 following classes can be used:
 
 .. autoclass:: STARTTLSProvider
@@ -50,7 +50,7 @@ following classes can be used:
 SASL providers
 --------------
 
-As elements of the *sasl_providers* argument to :class:`SecurityLayer`,
+As elements of the `sasl_providers` argument to :class:`SecurityLayer`,
 instances of the following classes can be used:
 
 .. autoclass:: PasswordSASLProvider
@@ -239,16 +239,16 @@ class STARTTLSProvider:
     requires that the stream uses
     :class:`.ssl_wrapper.STARTTLSableTransportProtocol` as a transport.
 
-    *ssl_context_factory* must be a callable returning a valid
+    `ssl_context_factory` must be a callable returning a valid
     :class:`ssl.SSLContext` object. It is called without
     arguments.
 
-    *require_starttls* can be set to :data:`False` to allow stream negotiation
+    `require_starttls` can be set to :data:`False` to allow stream negotiation
     to continue even if STARTTLS fails before it has been started (the stream
     is fatally broken if the STARTTLS command has been sent but SSL negotiation
     fails afterwards).
 
-    *certificate_verifier_factory* must be a callable providing a
+    `certificate_verifier_factory` must be a callable providing a
     :class:`CertificateVerifer` instance which will hooked up to the transport
     and the SSL context to perform certificate validation.
 
@@ -281,7 +281,7 @@ class STARTTLSProvider:
         non-fatally and is not required (see constructor arguments),
         :data:`False` is returned.
 
-        The *tls_transport* member of the return value is the
+        The `tls_transport` member of the return value is the
         :class:`asyncio.Transport` created by asyncio for SSL. The second
         element are the new stream features received after STARTTLS
         negotiation.
@@ -360,7 +360,7 @@ class SASLProvider:
     def _find_supported(self, features, mechanism_classes):
         """
         Return a supported SASL mechanism class, by looking the given
-        stream features *features*.
+        stream features `features`.
 
         If SASL is not supported at all, :class:`~.errors.SASLFailure` is
         raised. If no matching mechanism is found, ``(None, None)`` is
@@ -402,8 +402,8 @@ class SASLProvider:
     @asyncio.coroutine
     def _execute(self, xmlstream, mechanism, token):
         """
-        Execute SASL negotiation using the given *mechanism* instance and
-        *token* on the *xmlstream*.
+        Execute SASL negotiation using the given `mechanism` instance and
+        `token` on the `xmlstream`.
         """
         sm = sasl.SASLStateMachine(xmlstream)
         try:
@@ -444,13 +444,13 @@ class PasswordSASLProvider(SASLProvider):
     """
     Perform password-based SASL authentication.
 
-    *jid* must be a :class:`~.structs.JID` object for the
-    client. *password_provider* must be a coroutine which is called with the
+    `jid` must be a :class:`~.structs.JID` object for the
+    client. `password_provider` must be a coroutine which is called with the
     jid as first and the number of attempt as second argument. It must return
     the password to use, or :data:`None` to abort. In that case, an
     :class:`errors.AuthenticationFailure` error will be raised.
 
-    At most *max_auth_attempts* will be carried out. If all fail, the
+    At most `max_auth_attempts` will be carried out. If all fail, the
     authentication error of the last attempt is raised.
 
     The SASL mechanisms used depend on whether TLS has been negotiated
@@ -545,16 +545,16 @@ def default_ssl_context():
 def negotiate_stream_security(tls_provider, sasl_providers,
                               negotiation_timeout, jid, features, xmlstream):
     """
-    Negotiate stream security for the given *xmlstream*. For this to work,
-    *features* must be the most recent
+    Negotiate stream security for the given `xmlstream`. For this to work,
+    `features` must be the most recent
     :class:`.stream_elements.StreamFeatures` node.
 
-    First, transport layer security is negotiated using *tls_provider*. If that
+    First, transport layer security is negotiated using `tls_provider`. If that
     fails non-fatally, negotiation continues as normal. Exceptions propagate
     upwards.
 
     After TLS has been tried, SASL is negotiated, by sequentially attempting
-    SASL negotiation using the providers in the *sasl_providers* list. If a
+    SASL negotiation using the providers in the `sasl_providers` list. If a
     provider fails to negotiate SASL with an
     :class:`~.errors.AuthenticationFailure` or has no mechanisms in common with
     the peer server, the next provider can continue. Otherwise, the exception
@@ -565,9 +565,9 @@ def negotiate_stream_security(tls_provider, sasl_providers,
     exception is raised, which states that no common mechanisms were found.
 
     On success, a pair of ``(tls_transport, features)`` is returned. If TLS has
-    been negotiated, *tls_transport* is the SSL :class:`asyncio.Transport`
-    created by asyncio (as returned by the *tls_provider*). If no TLS has been
-    negotiated, *tls_transport* is :data:`None`. *features* is the latest
+    been negotiated, `tls_transport` is the SSL :class:`asyncio.Transport`
+    created by asyncio (as returned by the `tls_provider`). If no TLS has been
+    negotiated, `tls_transport` is :data:`None`. `features` is the latest
     :class:`~.stream_elements.StreamFeatures` element received during
     negotiation.
 
@@ -616,7 +616,7 @@ def security_layer(tls_provider, sasl_providers):
        :func:`tls_with_password_based_authentication`.
 
     Return a partially applied :func:`negotiate_stream_security` function,
-    where the *tls_provider* and *sasl_providers* arguments are already bound.
+    where the `tls_provider` and `sasl_providers` arguments are already bound.
 
     The return value can be passed to the constructor of
     :class:`~.node.Client`.
@@ -642,10 +642,10 @@ def tls_with_password_based_authentication(
         certificate_verifier_factory=None):
     """
     Produce a commonly used security layer, which uses TLS and password
-    authentication. If *ssl_context_factory* is not provided, an SSL context
+    authentication. If `ssl_context_factory` is not provided, an SSL context
     with TLSv1+ is used.
 
-    *password_provider* must be a coroutine which is called with the jid
+    `password_provider` must be a coroutine which is called with the jid
     as first and the number of attempt as second argument. It must return the
     password to us, or :data:`None` to abort.
 

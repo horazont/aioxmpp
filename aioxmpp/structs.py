@@ -156,7 +156,7 @@ class JID(collections.namedtuple("JID", ["localpart", "domain", "resource"])):
     def fromstr(cls, s):
         """
         Obtain a :class:`JID` object by parsing a JID from the given string
-        *s*.
+        `s`.
         """
         localpart, sep, domain = s.partition("@")
         if not sep:
@@ -173,16 +173,16 @@ class PresenceState:
     Hold a presence state of an XMPP resource, as defined by the presence
     stanza semantics.
 
-    *available* must be a boolean value, which defines whether the resource is
-    available or not. If the resource is available, *show* may be set to one of
+    `available` must be a boolean value, which defines whether the resource is
+    available or not. If the resource is available, `show` may be set to one of
     ``"dnd"``, ``"xa"``, ``"away"``, :data:`None`, ``"chat"`` (it is a
-    :class:`ValueError` to attempt to set *show* to a non-:data:`None` value if
-    *available* is false).
+    :class:`ValueError` to attempt to set `show` to a non-:data:`None` value if
+    `available` is false).
 
     :class:`PresenceState` objects are ordered by their availability and by
     their show values. Non-availability sorts lower than availability, and for
     available presence states the order is in the order of valid values given
-    for the *show* above.
+    for the `show` above.
 
     .. attribute:: available
 
@@ -251,7 +251,7 @@ class PresenceState:
     def apply_to_stanza(self, stanza_obj):
         """
         Apply the properties of this :class:`PresenceState` to a
-        :class:`~aioxmpp.stanza.Presence` *stanza_obj*. The
+        :class:`~aioxmpp.stanza.Presence` `stanza_obj`. The
         :attr:`~aioxmpp.stanza.Presence.type_` and
         :attr:`~aioxmpp.stanza.Presence.show` attributes of the object will be
         modified to fit the values in this object.
@@ -270,7 +270,7 @@ class PresenceState:
         the presence state as advertised in the given
         :class:`~aioxmpp.stanza.Presence` stanza.
 
-        If *strict* is :data:`True`, the value of *show* is strictly checked,
+        If `strict` is :data:`True`, the value of `show` is strictly checked,
         that is, it is required to be :data:`None` if the stanza indicates an
         unavailable state.
 
@@ -331,7 +331,7 @@ class LanguageTag:
     @classmethod
     def fromstr(cls, s):
         """
-        Create a language tag from the given string *s*.
+        Create a language tag from the given string `s`.
 
         .. note::
 
@@ -412,7 +412,7 @@ class LanguageRange:
     @classmethod
     def fromstr(cls, s):
         """
-        Create a language tag from the given string *s*.
+        Create a language tag from the given string `s`.
 
         .. note::
 
@@ -467,14 +467,14 @@ def basic_filter_languages(languages, ranges):
     Filter languages using the string-based basic filter algorithm described in
     RFC4647.
 
-    *languages* must be a sequence of :class:`LanguageTag` instances which are
+    `languages` must be a sequence of :class:`LanguageTag` instances which are
     to be filtered.
 
-    *ranges* must be an iterable which represent the basic language ranges to
+    `ranges` must be an iterable which represent the basic language ranges to
     filter with, in priority order. The language ranges must be given as
     :class:`LanguageRange` objects.
 
-    Return an iterator of languages which matched any of the *ranges*. The
+    Return an iterator of languages which matched any of the `ranges`. The
     sequence produced by the iterator is in match order and duplicate-free. The
     first range to match a language yields the language into the iterator, no
     other range can yield that language afterwards.
@@ -508,12 +508,12 @@ def basic_filter_languages(languages, ranges):
 
 def lookup_language(languages, ranges):
     """
-    Look up a single language in the sequence *languages* using the lookup
+    Look up a single language in the sequence `languages` using the lookup
     mechansim described in RFC4647. If no match is found, :data:`None` is
     returned. Otherwise, the first matching language is returned.
 
-    *languages* must be a sequence of :class:`LanguageTag` objects, while
-    *ranges* must be an iterable of :class:`LanguageRange` objects.
+    `languages` must be a sequence of :class:`LanguageTag` objects, while
+    `ranges` must be an iterable of :class:`LanguageRange` objects.
     """
 
     for language_range in ranges:
@@ -545,11 +545,11 @@ class LanguageMap(dict):
     def lookup(self, language_ranges):
         """
         Perform an RFC4647 language range lookup on the keys in the
-        dictionary. *language_ranges* must be a sequence of
+        dictionary. `language_ranges` must be a sequence of
         :class:`LanguageRange` instances.
 
         Return the entry in the dictionary with a key as produced by
-        *lookup_language*. If *lookup_language* does not find a match and the
+        `lookup_language`. If `lookup_language` does not find a match and the
         mapping contains an entry with key :data:`None`, that entry is
         returned, otherwise :class:`KeyError` is raised.
         """

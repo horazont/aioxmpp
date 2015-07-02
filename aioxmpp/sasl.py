@@ -25,11 +25,11 @@ except ImportError:
     # this is untested if you have pbkdf2_hmac
     def pbkdf2(hashfun_name, input_data, salt, iterations, dklen=None):
         """
-        Derivate a key from a password. *input_data* is taken as the bytes
-        object resembling the password (or other input). *hashfun* must be a
-        callable returning a :mod:`hashlib`-compatible hash function. *salt* is
-        the salt to be used in the PBKDF2 run, *iterations* the count of
-        iterations. *dklen* is the length in bytes of the key to be derived.
+        Derivate a key from a password. `input_data` is taken as the bytes
+        object resembling the password (or other input). `hashfun` must be a
+        callable returning a :mod:`hashlib`-compatible hash function. `salt` is
+        the salt to be used in the PBKDF2 run, `iterations` the count of
+        iterations. `dklen` is the length in bytes of the key to be derived.
 
         Return the derived key as :class:`bytes` object.
         """
@@ -156,7 +156,7 @@ class SASLStateMachine:
     SASL handshake, optionally with server-supplied payload.
 
     Valid next states are:
-    * ``('challenge', payload)`` (with *payload* being a :class:`bytes` object
+    * ``('challenge', payload)`` (with `payload` being a :class:`bytes` object
       obtained from base64-decoding the servers challenge)
     * ``('success', None)`` – after successful authentication
     * ``('failure', None)`` – after failed authentication (e.g. after a call to
@@ -207,7 +207,7 @@ class SASLStateMachine:
     def initiate(self, mechanism, payload=None):
         """
         Initiate the SASL handshake and advertise the use of the given
-        *mechanism*. If *payload* is not :data:`None`, it will be base64
+        `mechanism`. If `payload` is not :data:`None`, it will be base64
         encoded and sent as initial client response along with the ``<auth />``
         element.
 
@@ -227,7 +227,7 @@ class SASLStateMachine:
     def response(self, payload):
         """
         Send a response to the previously received challenge, with the given
-        *payload*. The payload is encoded using base64 and transmitted to the
+        `payload`. The payload is encoded using base64 and transmitted to the
         server.
 
         Return the next state of the state machine as tuple (see
@@ -269,8 +269,8 @@ class SASLStateMachine:
 
 class SASLMechanism(metaclass=abc.ABCMeta):
     """
-    Implementation of a SASL mechanism. Each SASLMechanism *class* must have a
-    *class* attribute :attr:`handled_mechanisms`, which must be a container of
+    Implementation of a SASL mechanism. Each SASLMechanism `class` must have a
+    `class` attribute :attr:`handled_mechanisms`, which must be a container of
     strings holding the SASL mechanism names supported by that class.
     """
 
@@ -278,7 +278,7 @@ class SASLMechanism(metaclass=abc.ABCMeta):
     def any_supported(cls, mechanisms):
         """
         Return the argument to be passed to :meth:`authenticate`, if any of the
-        *mechanisms* (which is a :cls:`set`) is supported.
+        `mechanisms` (which is a :cls:`set`) is supported.
 
         Return :data:`None` otherwise.
         """
@@ -287,9 +287,9 @@ class SASLMechanism(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def authenticate(self, sm, token):
         """
-        Execute the mechanism identified by *token* (the value which has been
+        Execute the mechanism identified by `token` (the value which has been
         returned by :meth:`any_supported` before) using the given
-        :class:`SASLStateMachine` *sm*.
+        :class:`SASLStateMachine` `sm`.
 
         If authentication fails, an appropriate exception is raised
         (:class:`~.errors.AuthenticationFailure`).
@@ -300,7 +300,7 @@ class PLAIN(SASLMechanism):
     """
     The ``PLAIN`` SASL mechanism (see RFC 4616).
 
-    *credential_provider* must be coroutine which returns a ``(user,
+    `credential_provider` must be coroutine which returns a ``(user,
     password)`` tuple.
     """
     def __init__(self, credential_provider):
@@ -336,7 +336,7 @@ class SCRAM(SASLMechanism):
     """
     The SCRAM SASL mechanism (see RFC 5802).
 
-    *credential_provider* must be coroutine which returns a ``(user,
+    `credential_provider` must be coroutine which returns a ``(user,
     password)`` tuple.
     """
 

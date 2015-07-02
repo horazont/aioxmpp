@@ -95,7 +95,7 @@ class InfoQuery(xso.XSO):
     """
     A query for features and identities of an entity. The keyword arguments to
     the constructor can be used to initialize the attributes. Note that
-    *identities* and *features* must be iterables of :class:`Identity` and
+    `identities` and `features` must be iterables of :class:`Identity` and
     :class:`Feature`, respectively; these iterables are evaluated and the items
     are stored in the respective attributes.
 
@@ -180,7 +180,7 @@ class ItemsQuery(xso.XSO):
     """
     A query for items at a specific entity. The keyword arguments to the
     constructor can be used to initialize the attributes of the
-    :class:`ItemsQuery`. Note that *items* must be an iterable of :class:`Item`
+    :class:`ItemsQuery`. Note that `items` must be an iterable of :class:`Item`
     instances. The iterable will be evaluated and the items will be stored in
     the :attr:`items` attribute.
 

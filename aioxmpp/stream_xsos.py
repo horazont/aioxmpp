@@ -128,26 +128,26 @@ class StreamFeatures(xso.XSO):
 
     .. method:: stream_features[FeatureClass]
 
-       Obtain the first feature XSO which matches the *FeatureClass*. If no
+       Obtain the first feature XSO which matches the `FeatureClass`. If no
        such XSO is contained in the :class:`StreamFeatures` instance
-       *stream_features*, :class:`KeyError` is raised.
+       `stream_features`, :class:`KeyError` is raised.
 
     .. method:: stream_features[FeatureClass] = feature
 
-       Replace the stream features belonging to the given *FeatureClass* with
-       the *feature* XSO.
+       Replace the stream features belonging to the given `FeatureClass` with
+       the `feature` XSO.
 
-       If the *FeatureClass* does not match the type of the *feature* XSO, a
+       If the `FeatureClass` does not match the type of the `feature` XSO, a
        :class:`TypeError` is raised.
 
        It is legal to leave the FeatureClass out by specifying ``...``
-       instead. In that case, the class is auto-detected from the *feature*
+       instead. In that case, the class is auto-detected from the `feature`
        object assigned.
 
     .. method:: del stream_features[FeatureClass]
 
-       If any feature of the given *FeatureClass* type is in the
-       *stream_features*, they are all removed.
+       If any feature of the given `FeatureClass` type is in the
+       `stream_features`, they are all removed.
 
        Otherwise, :class:`KeyError` is raised, to stay consistent with other
        mapping-like types.
@@ -200,16 +200,16 @@ class StreamFeatures(xso.XSO):
     def has_feature(self, feature_cls):
         """
         Return :data:`True` if the stream features contain a feature of the
-        given *feature_cls* type. :data:`False` is returned otherwise.
+        given `feature_cls` type. :data:`False` is returned otherwise.
         """
         return feature_cls.TAG in self.features
 
     def get_feature(self, feature_cls, default=None):
         """
-        If a feature of the given *feature_cls* type is contained in the
+        If a feature of the given `feature_cls` type is contained in the
         current stream features set, the first such instance is returned.
 
-        Otherwise, *default* is returned.
+        Otherwise, `default` is returned.
         """
         try:
             return self[feature_cls]

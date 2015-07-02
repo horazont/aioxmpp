@@ -322,7 +322,7 @@ class StanzaBase(xso.XSO):
         """
         Create a new instance of this stanza (this directly uses
         ``type(self)``, so also works for subclasses without extra care) which
-        has the given *error* value set as :attr:`error`.
+        has the given `error` value set as :attr:`error`.
 
         In addition, the :attr:`id_`, :attr:`from_` and :attr:`to` values are
         transferred from the original (with from and to being swapped). Also,

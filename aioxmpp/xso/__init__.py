@@ -191,7 +191,7 @@ Types
 -----
 
 Types are used to convert strings obtained from XML character data or attribute
-contents to python types. They are valid values for *type_* arguments e.g. for
+contents to python types. They are valid values for `type_` arguments e.g. for
 :class:`~aioxmpp.xso.Attr`.
 
 The basic type interface
@@ -225,7 +225,7 @@ Validators
 
 Validators validate the python values after they have been parsed from
 XML-sourced strings or even when being assigned to a descriptor attribute
-(depending on the choice in the *validate* argument).
+(depending on the choice in the `validate` argument).
 
 They can be useful both for defending and rejecting incorrect input and to
 avoid producing incorrect output.
@@ -248,7 +248,7 @@ Implementations
 
 def tag_to_str(tag):
     """
-    *tag* must be a tuple ``(namespace_uri, localname)``. Return a tag string
+    `tag` must be a tuple ``(namespace_uri, localname)``. Return a tag string
     conforming to the ElementTree specification. Example::
 
          tag_to_str(("jabber:client", "iq")) == "{jabber:client}iq"
@@ -258,14 +258,14 @@ def tag_to_str(tag):
 
 def normalize_tag(tag):
     """
-    Normalize an XML element tree *tag* into the tuple format. The following
+    Normalize an XML element tree `tag` into the tuple format. The following
     input formats are accepted:
 
     * ElementTree namespaced string, e.g. ``{uri:bar}foo``
     * Unnamespaced tags, e.g. ``foo``
-    * Two-tuples consisting of *namespace_uri* and *localpart*; *namespace_uri*
+    * Two-tuples consisting of `namespace_uri` and `localpart`; `namespace_uri`
       may be :data:`None` if the tag is supposed to be namespaceless. Otherwise
-      it must be, like *localpart*, a :class:`str`.
+      it must be, like `localpart`, a :class:`str`.
 
     Return a two-tuple consisting the ``(namespace_uri, localpart)`` format.
     """

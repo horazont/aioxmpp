@@ -214,9 +214,9 @@ class StanzaErrorAwareListener:
 
 class StanzaToken:
     """
-    A token to follow the processing of a *stanza*.
+    A token to follow the processing of a `stanza`.
 
-    *on_state_change* may be a function which will be called with the token and
+    `on_state_change` may be a function which will be called with the token and
     the new :class:`StanzaState` whenever the state of the token changes.
 
     .. autoattribute:: state
@@ -273,12 +273,12 @@ class StanzaStream:
     :class:`StanzaStream` has to make sure that the XML streams are compatible,
     identity-wise (use the same JID).
 
-    *loop* may be used to explicitly specify the :class:`asyncio.BaseEventLoop`
+    `loop` may be used to explicitly specify the :class:`asyncio.BaseEventLoop`
     to use, otherwise the current event loop is used.
 
-    *base_logger* can be used to explicitly specify a :class:`logging.Logger`
+    `base_logger` can be used to explicitly specify a :class:`logging.Logger`
     instance to fork off the logger from. The :class:`StanzaStream` will use a
-    child logger of *base_logger* called ``StanzaStream``.
+    child logger of `base_logger` called ``StanzaStream``.
 
     The stanza stream takes care of ensuring stream liveness. For that, pings
     are sent in a periodic interval. If stream management is enabled, stream
@@ -549,9 +549,9 @@ class StanzaStream:
 
     def _iq_request_coro_done(self, request, task):
         """
-        Called when an IQ request handler coroutine returns. *request* holds
+        Called when an IQ request handler coroutine returns. `request` holds
         the IQ request which triggered the excecution of the coroutine and
-        *task* is the :class:`asyncio.Task` which tracks the running coroutine.
+        `task` is the :class:`asyncio.Task` which tracks the running coroutine.
 
         Compose a response and send that response.
         """
@@ -573,7 +573,7 @@ class StanzaStream:
 
     def _process_incoming_iq(self, stanza_obj):
         """
-        Process an incoming IQ stanza *stanza_obj*. Calls the response handler,
+        Process an incoming IQ stanza `stanza_obj`. Calls the response handler,
         spawns a request handler coroutine or drops the stanza while logging a
         warning if no handler can be found.
         """
@@ -619,7 +619,7 @@ class StanzaStream:
 
     def _process_incoming_message(self, stanza_obj):
         """
-        Process an incoming message stanza *stanza_obj*.
+        Process an incoming message stanza `stanza_obj`.
         """
         self._logger.debug("incoming messgage: %r", stanza_obj)
 
@@ -657,7 +657,7 @@ class StanzaStream:
 
     def _process_incoming_presence(self, stanza_obj):
         """
-        Process an incoming presence stanza *stanza_obj*.
+        Process an incoming presence stanza `stanza_obj`.
         """
         self._logger.debug("incoming presence: %r", stanza_obj)
 
@@ -694,8 +694,8 @@ class StanzaStream:
     def _process_incoming(self, xmlstream, stanza_obj):
         """
         Dispatch to the different methods responsible for the different stanza
-        types or handle a non-stanza stream-level element from *stanza_obj*,
-        which has arrived over the given *xmlstream*.
+        types or handle a non-stanza stream-level element from `stanza_obj`,
+        which has arrived over the given `xmlstream`.
         """
 
         if isinstance(stanza_obj, stanza.IQ):
@@ -756,9 +756,9 @@ class StanzaStream:
 
     def _send_stanza(self, xmlstream, token):
         """
-        Send a stanza token *token* over the given *xmlstream*.
+        Send a stanza token `token` over the given `xmlstream`.
 
-        Only sends if the *token* has not been aborted (see
+        Only sends if the `token` has not been aborted (see
         :meth:`StanzaToken.abort`). Sends the state of the token acoording to
         :attr:`sm_enabled`.
         """
@@ -802,7 +802,7 @@ class StanzaStream:
 
     def _process_outgoing(self, xmlstream, token):
         """
-        Process the current outgoing stanza *token* and also any other outgoing
+        Process the current outgoing stanza `token` and also any other outgoing
         stanza which is currently in the active queue. After all stanzas have
         been processed, use :meth:`_send_ping` to allow an opportunistic ping
         to be sent.
@@ -833,7 +833,7 @@ class StanzaStream:
 
     def _send_ping(self, xmlstream):
         """
-        Opportunistically send a ping over the given *xmlstream*.
+        Opportunistically send a ping over the given `xmlstream`.
 
         If stream management is enabled, an SM request is always sent,
         independent of the current ping state. Otherwise, a XEP-0199 ping is
@@ -869,7 +869,7 @@ class StanzaStream:
 
     def _process_ping_event(self, xmlstream):
         """
-        Process a ping timed event on the current *xmlstream*.
+        Process a ping timed event on the current `xmlstream`.
         """
         if self._next_ping_event_type == PingEventType.SEND_OPPORTUNISTIC:
             self._logger.debug("ping: opportunistic interval started")
@@ -890,9 +890,9 @@ class StanzaStream:
 
     def register_iq_response_callback(self, from_, id_, cb):
         """
-        Register a callback function *cb* to be called when a IQ stanza with
+        Register a callback function `cb` to be called when a IQ stanza with
         type ``result`` or ``error`` is recieved from the
-        :class:`~aioxmpp.structs.JID` *from_* with the id *id_*.
+        :class:`~aioxmpp.structs.JID` `from_` with the id `id_`.
 
         The callback is called at most once.
         """
@@ -906,9 +906,9 @@ class StanzaStream:
 
     def register_iq_response_future(self, from_, id_, fut):
         """
-        Register a future *fut* for an IQ stanza with type ``result`` or
-        ``error`` from the :class:`~aioxmpp.structs.JID` *from_* with the id
-        *id_*.
+        Register a future `fut` for an IQ stanza with type ``result`` or
+        ``error`` from the :class:`~aioxmpp.structs.JID` `from_` with the id
+        `id_`.
 
         If the type of the IQ stanza is ``result``, the stanza is set as result
         to the future. If the type of the IQ stanza is ``error``, the stanzas
@@ -928,7 +928,7 @@ class StanzaStream:
     def unregister_iq_response(self, from_, id_):
         """
         Unregister a registered callback or future for the IQ response
-        identified by *from_* and *id_*. See
+        identified by `from_` and `id_`. See
         :meth:`register_iq_response_future` or
         :meth:`register_iq_response_callback` for details on the arguments
         meanings and how to register futures and callbacks respectively.
@@ -944,8 +944,8 @@ class StanzaStream:
 
     def register_iq_request_coro(self, type_, payload_cls, coro):
         """
-        Register a coroutine *coro* to IQ requests of type *type_* which have a
-        payload of the given *payload_cls* class.
+        Register a coroutine `coro` to IQ requests of type `type_` which have a
+        payload of the given `payload_cls` class.
 
         Whenever a matching IQ stanza is received, the coroutine is started
         with the stanza as its only argument. The coroutine must return a valid
@@ -963,8 +963,8 @@ class StanzaStream:
         directly. Otherwise, it is wrapped in a
         :class:`aioxmpp.errors.XMPPCancelError` with ``undefined-condition``.
 
-        If there is already a coroutine registered for the given (*type_*,
-        *payload_cls*) pair, :class:`ValueError` is raised.
+        If there is already a coroutine registered for the given (`type_`,
+        `payload_cls`) pair, :class:`ValueError` is raised.
         """
         key = type_, payload_cls
 
@@ -980,11 +980,11 @@ class StanzaStream:
         """
         Unregister a coroutine previously registered with
         :meth:`register_iq_request_coro`. The match is solely made using the
-        *type_* and *payload_cls* arguments, which have the same meaning as in
+        `type_` and `payload_cls` arguments, which have the same meaning as in
         :meth:`register_iq_request_coro`.
 
         This raises :class:`KeyError` if no coroutine has previously been
-        registered for the *type_* and *payload_cls*.
+        registered for the `type_` and `payload_cls`.
         """
         del self._iq_request_map[type_, payload_cls]
         self._logger.debug(
@@ -993,12 +993,12 @@ class StanzaStream:
 
     def register_message_callback(self, type_, from_, cb):
         """
-        Register a callback function *cb* to be called whenever a message
-        stanza of the given *type_* from the given
-        :class:`~aioxmpp.structs.JID` *from_* arrives.
+        Register a callback function `cb` to be called whenever a message
+        stanza of the given `type_` from the given
+        :class:`~aioxmpp.structs.JID` `from_` arrives.
 
-        Both *type_* and *from_* can be :data:`None`, each, to indicate a
-        wildcard match. It is not allowed for both *type_* and *from_* to be
+        Both `type_` and `from_` can be :data:`None`, each, to indicate a
+        wildcard match. It is not allowed for both `type_` and `from_` to be
         :data:`None` at the same time.
 
         More specific callbacks win over less specific callbacks. That is, a
@@ -1014,10 +1014,10 @@ class StanzaStream:
     def unregister_message_callback(self, type_, from_):
         """
         Unregister a callback previously registered with
-        :meth:`register_message_callback`. *type_* and *from_* have the same
+        :meth:`register_message_callback`. `type_` and `from_` have the same
         semantics as in :meth:`register_message_callback`.
 
-        Attempting to unregister a *type_*, *from_* tuple for which no handler
+        Attempting to unregister a `type_`, `from_` tuple for which no handler
         has been registered results in a :class:`KeyError`.
         """
         del self._message_map[type_, from_]
@@ -1027,17 +1027,17 @@ class StanzaStream:
 
     def register_presence_callback(self, type_, from_, cb):
         """
-        Register a callback function *cb* to be called whenever a presence
-        stanza of the given *type_* arrives from the given
+        Register a callback function `cb` to be called whenever a presence
+        stanza of the given `type_` arrives from the given
         :class:`~aioxmpp.structs.JID`.
 
-        *from_* may be :data:`None` to indicate a wildcard. Like with
+        `from_` may be :data:`None` to indicate a wildcard. Like with
         :meth:`register_message_callback`, more specific callbacks win over
         less specific callbacks.
 
         .. note::
 
-           A *type_* of :data:`None` is a valid value for
+           A `type_` of :data:`None` is a valid value for
            :class:`aioxmpp.stanza.Presence` stanzas and is **not** a wildcard
            here.
 
@@ -1050,10 +1050,10 @@ class StanzaStream:
     def unregister_presence_callback(self, type_, from_):
         """
         Unregister a callback previously registered with
-        :meth:`register_presence_callback`. *type_* and *from_* have the same
+        :meth:`register_presence_callback`. `type_` and `from_` have the same
         semantics as in :meth:`register_presence_callback`.
 
-        Attempting to unregister a *type_*, *from_* tuple for which no handler
+        Attempting to unregister a `type_`, `from_` tuple for which no handler
         has been registered results in a :class:`KeyError`.
         """
         del self._presence_map[type_, from_]
@@ -1109,10 +1109,10 @@ class StanzaStream:
     def start(self, xmlstream):
         """
         Start or resume the stanza stream on the given
-        :class:`aioxmpp.protocol.XMLStream` *xmlstream*.
+        :class:`aioxmpp.protocol.XMLStream` `xmlstream`.
 
         This starts the main broker task, registers stanza classes at the
-        *xmlstream* and reconfigures the ping state.
+        `xmlstream` and reconfigures the ping state.
         """
 
         if self.running:
@@ -1128,7 +1128,7 @@ class StanzaStream:
         the task takes at least one loop through the event loop to terminate.
 
         It is guarenteed that the task will not attempt to send stanzas over
-        the existing *xmlstream* after a call to :meth:`stop` has been made.
+        the existing `xmlstream` after a call to :meth:`stop` has been made.
 
         It is legal to call :meth:`stop` even if the task is already
         stopped. It is a no-op in that case.
@@ -1254,14 +1254,14 @@ class StanzaStream:
 
     def recv_stanza(self, stanza):
         """
-        Inject a *stanza* into the incoming queue.
+        Inject a `stanza` into the incoming queue.
         """
         self._incoming_queue.put_nowait(stanza)
 
     def enqueue_stanza(self, stanza, **kwargs):
         """
-        Enqueue a *stanza* to be sent. Return a :class:`StanzaToken` to track
-        the stanza. The *kwargs* are passed to the :class:`StanzaToken`
+        Enqueue a `stanza` to be sent. Return a :class:`StanzaToken` to track
+        the stanza. The `kwargs` are passed to the :class:`StanzaToken`
         constructor.
         """
         if not stanza.id_:
@@ -1505,7 +1505,7 @@ class StanzaStream:
     @asyncio.coroutine
     def resume_sm(self, xmlstream):
         """
-        Resume an SM-enabled stream using the given *xmlstream*.
+        Resume an SM-enabled stream using the given `xmlstream`.
 
         If the server rejects the attempt to resume stream management, a
         :class:`.errors.StreamNegotiationFailure` is raised. The stream is then
@@ -1589,7 +1589,7 @@ class StanzaStream:
 
     def sm_ack(self, remote_ctr):
         """
-        Process the remote stanza counter *remote_ctr*. Any acked stanzas are
+        Process the remote stanza counter `remote_ctr`. Any acked stanzas are
         dropped from :attr:`sm_unacked_list` and put into
         :attr:`StanzaState.ACKED` state and the counters are increased
         accordingly.
@@ -1624,7 +1624,7 @@ class StanzaStream:
     def send_iq_and_wait_for_reply(self, iq, *,
                                    timeout=None):
         """
-        Send an IQ stanza *iq* and wait for the response. If *timeout* is not
+        Send an IQ stanza `iq` and wait for the response. If `timeout` is not
         :data:`None`, it must be the time in seconds for which to wait for a
         response.
 

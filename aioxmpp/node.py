@@ -59,16 +59,16 @@ def lookup_addresses(loop, jid):
 @asyncio.coroutine
 def connect_to_xmpp_server(jid, *, override_peer=None, loop=None):
     """
-    Connect to an XMPP server which serves the domain of the given *jid*.
+    Connect to an XMPP server which serves the domain of the given `jid`.
 
-    *override_peer* may be a tuple of host name (or IP address) and port. If
+    `override_peer` may be a tuple of host name (or IP address) and port. If
     given, this will be the first peer the stream tries to connect to. Only if
     that connection fails the usual XMPP server lookup routine takes place.
 
-    *loop* must be either a valid :class:`asyncio.BaseEventLoop` or
+    `loop` must be either a valid :class:`asyncio.BaseEventLoop` or
     :data:`None`, in which case the current event loop is used.
 
-    Return a triple consisting of the *transport*, the
+    Return a triple consisting of the `transport`, the
     :class:`~aioxmpp.protocol.XMLStream` instance and a :class:`asyncio.Future`
     on the first :class:`~aioxmpp.stream_xsos.StreamFeatures` node.
 
@@ -139,21 +139,21 @@ def connect_secured_xmlstream(jid, security_layer,
                               override_peer=None,
                               loop=None):
     """
-    Connect to an XMPP server which serves the domain of the given *jid* and
-    apply the given *security_layer* (see
+    Connect to an XMPP server which serves the domain of the given `jid` and
+    apply the given `security_layer` (see
     :func:`~aioxmpp.security_layer.security_layer`).
 
-    *loop* must be either a valid :class:`asyncio.BaseEventLoop` or
+    `loop` must be either a valid :class:`asyncio.BaseEventLoop` or
     :data:`None`, in which case the current event loop is used.
 
-    The *negotiation_timeout* is passed to the security layer and used for
+    The `negotiation_timeout` is passed to the security layer and used for
     connect timeouts.
 
-    *override_peer* is passed to :func:`connect_to_xmpp_server`.
+    `override_peer` is passed to :func:`connect_to_xmpp_server`.
 
-    Return a triple consisting of the *transport*, the
+    Return a triple consisting of the `transport`, the
     :class:`~aioxmpp.protocol.XMLStream` and the current
-    :class:`~aioxmpp.stream_xsos.StreamFeatures` node. The *transport* returned
+    :class:`~aioxmpp.stream_xsos.StreamFeatures` node. The `transport` returned
     in the triple is the one returned by the security layer and is :data:`None`
     if no starttls has been negotiated. To gain access to the transport used if
     the transport returned is :data:`None`, use the
@@ -221,15 +221,15 @@ class AbstractClient:
     provides functionality for connecting the xmlstream as well as signals
     which indicate changes in the stream state.
 
-    The *jid* must be a :class:`~aioxmpp.structs.JID` for which to connect. The
-    *security_layer* is best created using the
+    The `jid` must be a :class:`~aioxmpp.structs.JID` for which to connect. The
+    `security_layer` is best created using the
     :func:`~aioxmpp.security_layer.security_layer` function and must provide
-    authentication for the given *jid*.
+    authentication for the given `jid`.
 
-    The *negotiation_timeout* argument controls the :attr:`negotiation_timeout`
+    The `negotiation_timeout` argument controls the :attr:`negotiation_timeout`
     attribute.
 
-    If *loop* is given, it must be a :class:`asyncio.BaseEventLoop`
+    If `loop` is given, it must be a :class:`asyncio.BaseEventLoop`
     instance. If it is not given, the current event loop is used.
 
     As a glue between the stanza stream and the XML stream, it also knows about
@@ -261,7 +261,7 @@ class AbstractClient:
     .. attribute:: negotiation_timeout = timedelta(seconds=60)
 
        The timeout applied to the connection process and the individual steps
-       of negotiating the stream. See the *negotiation_timeout* argument to
+       of negotiating the stream. See the `negotiation_timeout` argument to
        :func:`connect_secured_xmlstream`.
 
     Connection information:
@@ -578,7 +578,7 @@ class AbstractClient:
         """
         Summon a :class:`~aioxmpp.service.Service` for the client.
 
-        If the *class_* has already been summoned for the client, it’s instance
+        If the `class_` has already been summoned for the client, it’s instance
         is returned.
 
         Otherwise, all requirements for the class are first summoned (if they
@@ -635,7 +635,7 @@ class PresenceManagedClient(AbstractClient):
     available, it is recommended to control the presence managed client solely
     using the :attr:`presence` property.
 
-    The initial presence is set to *unavailable*, thus, the client will not
+    The initial presence is set to `unavailable`, thus, the client will not
     connect immediately.
 
     .. autoattribute:: presence
@@ -676,8 +676,8 @@ class PresenceManagedClient(AbstractClient):
 
         Upon setting this attribute, the :class:`PresenceManagedClient` will do
         whatever neccessary to achieve the given presence. If the presence is
-        an *available* presence, the client will attempt to connect to the
-        server. If the presence is *unavailable* and the client is currently
+        an `available` presence, the client will attempt to connect to the
+        server. If the presence is `unavailable` and the client is currently
         connected, it will disconnect.
         """
         return self._presence

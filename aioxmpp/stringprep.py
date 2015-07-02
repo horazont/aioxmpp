@@ -35,7 +35,7 @@ def is_LCat(c):
 
 def check_against_tables(chars, tables):
     """
-    Perform a check against the table predicates in *tables*. *tables* must be
+    Perform a check against the table predicates in `tables`. `tables` must be
     a reusable iterable containing characteristic functions of character sets,
     that is, functions which return :data:`True` if the character is in the
     table.
@@ -54,7 +54,7 @@ def check_against_tables(chars, tables):
 def do_normalization(chars):
     """
     Perform the stringprep normalization. Operates in-place on a list of
-    unicode characters provided in *chars*.
+    unicode characters provided in `chars`.
     """
     chars[:] = list(unicodedata.normalize("NFKC", "".join(chars)))
 
@@ -62,7 +62,7 @@ def do_normalization(chars):
 def check_bidi(chars):
     """
     Check proper bidirectionality as per stringprep. Operates on a list of
-    unicode characters provided in *chars*.
+    unicode characters provided in `chars`.
     """
 
     # the empty string is valid, as it cannot violate the RandALCat constraints
@@ -88,9 +88,9 @@ def check_bidi(chars):
 def check_prohibited_output(chars, bad_tables):
     """
     Check against prohibited output, by checking whether any of the characters
-    from *chars* are in any of the *bad_tables*.
+    from `chars` are in any of the `bad_tables`.
 
-    Operates in-place on a list of code points from *chars*.
+    Operates in-place on a list of code points from `chars`.
     """
     violator = check_against_tables(chars, bad_tables)
     if violator is not None:
@@ -100,10 +100,10 @@ def check_prohibited_output(chars, bad_tables):
 
 def check_unassigned(chars, bad_tables):
     """
-    Check that *chars* does not contain any unassigned code points as per
-    the given list of *bad_tables*.
+    Check that `chars` does not contain any unassigned code points as per
+    the given list of `bad_tables`.
 
-    Operates on a list of unicode code points provided in *chars*.
+    Operates on a list of unicode code points provided in `chars`.
     """
     bad_tables = (
         stringprep.in_table_a1,)
@@ -117,7 +117,7 @@ def check_unassigned(chars, bad_tables):
 def _saslprep_do_mapping(chars):
     """
     Perform the stringprep mapping step of SASLprep. Operates in-place on a
-    list of unicode characters provided in *chars*.
+    list of unicode characters provided in `chars`.
     """
     i = 0
     while i < len(chars):
@@ -132,7 +132,7 @@ def _saslprep_do_mapping(chars):
 
 def saslprep(string, allow_unassigned=False):
     """
-    Process the given *string* using the SASLprep profile. In the error cases
+    Process the given `string` using the SASLprep profile. In the error cases
     defined in `RFC 3454`_ (stringprep), a :class:`ValueError` is raised.
     """
 
@@ -182,7 +182,7 @@ def _nodeprep_do_mapping(chars):
 
 def nodeprep(string, allow_unassigned=False):
     """
-    Process the given *string* using the Nodeprep (`RFC 6122`_) profile. In the
+    Process the given `string` using the Nodeprep (`RFC 6122`_) profile. In the
     error cases defined in `RFC 3454`_ (stringprep), a :class:`ValueError` is
     raised.
     """
@@ -223,7 +223,7 @@ def _resourceprep_do_mapping(chars):
 
 def resourceprep(string, allow_unassigned=False):
     """
-    Process the given *string* using the Resourceprep (`RFC 6122`_) profile. In
+    Process the given `string` using the Resourceprep (`RFC 6122`_) profile. In
     the error cases defined in `RFC 3454`_ (stringprep), a :class:`ValueError`
     is raised.
     """
@@ -252,7 +252,7 @@ def resourceprep(string, allow_unassigned=False):
 
 def nameprep(string, allow_unassigned=False):
     """
-    Process the given *string* using the Nameprep (`RFC 3491`_) profile. In the
+    Process the given `string` using the Nameprep (`RFC 3491`_) profile. In the
     error cases defined in `RFC 3454`_ (stringprep), a :class:`ValueError` is
     raised.
     """

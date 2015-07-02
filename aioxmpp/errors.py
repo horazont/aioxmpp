@@ -168,10 +168,10 @@ error_type_map = {
 class MultiOSError(OSError):
     """
     Describe an error situation which has been caused by the sequential
-    occurence of multiple other *exceptions*.
+    occurence of multiple other `exceptions`.
 
-    The *message* shall be descriptive and will be prepended to a concatenation
-    of the error messages of the given *exceptions*.
+    The `message` shall be descriptive and will be prepended to a concatenation
+    of the error messages of the given `exceptions`.
     """
 
     def __init__(self, message, exceptions):

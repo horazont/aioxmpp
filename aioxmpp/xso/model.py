@@ -111,13 +111,13 @@ class ValidateMode(Enum):
 
 class UnknownTopLevelTag(ValueError):
     """
-    Subclass of :class:`ValueError`. *ev_args* must be the arguments of the
+    Subclass of :class:`ValueError`. `ev_args` must be the arguments of the
     ``"start"`` event and are stored as the :attr:`ev_args` attribute for
     inspection.
 
     .. attribute:: ev_args
 
-       The *ev_args* passed to the constructor.
+       The `ev_args` passed to the constructor.
 
     """
 
@@ -183,10 +183,10 @@ class XSOList(list):
         this :class:`XSOList`, filtered by the criteria given as arguments. The
         fucntion starts with a working sequence consisting of the whole list.
 
-        If *type_* is not :data:`None`, elements which are not an instance of
+        If `type_` is not :data:`None`, elements which are not an instance of
         the given type are excluded from the working sequence.
 
-        If *lang* is not :data:`None`, it must be either a
+        If `lang` is not :data:`None`, it must be either a
         :class:`~.structs.LanguageRange` or an iterable of language ranges. The
         set of languages present among the working sequence is determined and
         used for a call to
@@ -207,10 +207,10 @@ class XSOList(list):
            Filtering by language assumes that the elements have a
            :class:`~aioxmpp.xso.LangAttr` descriptor named ``lang``.
 
-        If *attrs* is not empty, the filter iterates over each *key*-*value*
+        If `attrs` is not empty, the filter iterates over each `key`-`value`
         pair. For each iteration, all elements which do not have an attribute
-        of the name in *key* or where that attribute has a value not equal to
-        *value* are excluded from the working sequence.
+        of the name in `key` or where that attribute has a value not equal to
+        `value` are excluded from the working sequence.
 
         In general, the iterable returned from :meth:`filter` can only be used
         once. It is dynamic in the sense that changes to elements which are in
@@ -306,7 +306,7 @@ class Text(_TypedPropBase):
     in XMPP to keep that relative order: Elements either have character data
     *or* other elements as children.
 
-    The *type_*, *validator*, *validate* and *default* arguments behave like in
+    The `type_`, `validator`, `validate` and `default` arguments behave like in
     :class:`Attr`.
 
     .. automethod:: from_value
@@ -322,17 +322,17 @@ class Text(_TypedPropBase):
 
     def from_value(self, instance, value):
         """
-        Convert the given value using the set *type_* and store it into
-        *instance*’ attribute.
+        Convert the given value using the set `type_` and store it into
+        `instance`’ attribute.
         """
         self._set_from_recv(instance, self.type_.parse(value))
 
     def to_sax(self, instance, dest):
         """
-        Assign the formatted value stored at *instance*’ attribute to the text
-        of *el*.
+        Assign the formatted value stored at `instance`’ attribute to the text
+        of `el`.
 
-        If the *value* is :data:`None`, no text is generated.
+        If the `value` is :data:`None`, no text is generated.
         """
         value = self.__get__(instance, type(instance))
         if value is None:
@@ -343,12 +343,12 @@ class Text(_TypedPropBase):
 class Child(_PropBase):
     """
     When assigned to a class’ attribute, it collects any child which matches
-    any :attr:`XSO.TAG` of the given *classes*.
+    any :attr:`XSO.TAG` of the given `classes`.
 
-    The tags among the *classes* must be unique, otherwise :class:`ValueError`
+    The tags among the `classes` must be unique, otherwise :class:`ValueError`
     is raised on construction.
 
-    The *default* argument behaves like in :class:`Attr`. Validators are not
+    The `default` argument behaves like in :class:`Attr`. Validators are not
     supported.
 
     .. automethod:: get_tag_map
@@ -378,9 +378,9 @@ class Child(_PropBase):
 
     def from_events(self, instance, ev_args, ctx):
         """
-        Detect the object to instanciate from the arguments *ev_args* of the
+        Detect the object to instanciate from the arguments `ev_args` of the
         ``"start"`` event. The new object is stored at the corresponding
-        descriptor attribute on *instance*.
+        descriptor attribute on `instance`.
 
         This method is suspendable.
         """
@@ -390,9 +390,9 @@ class Child(_PropBase):
 
     def to_sax(self, instance, dest):
         """
-        Take the object associated with this descriptor on *instance* and
+        Take the object associated with this descriptor on `instance` and
         serialize it as child into the given :class:`lxml.etree.Element`
-        *parent*.
+        `parent`.
 
         If the object is :data:`None`, no content is generated.
         """
@@ -484,7 +484,7 @@ class Collector(_PropBase):
     def from_events(self, instance, ev_args, ctx):
         """
         Collect the events and convert them to a single XML subtree, which then
-        gets appended to the list at *instance*. *ev_args* must be the
+        gets appended to the list at `instance`. `ev_args` must be the
         arguments of the ``"start"`` event of the new child.
 
         This method is suspendable.
@@ -538,7 +538,7 @@ class Collector(_PropBase):
 class Attr(Text):
     """
     When assigned to a class’ attribute, it binds that attribute to the XML
-    attribute with the given *tag*. *tag* must be a valid input to
+    attribute with the given `tag`. `tag` must be a valid input to
     :func:`normalize_tag`.
 
     The following arguments occur at several of the descriptor classes, and are
@@ -549,8 +549,8 @@ class Attr(Text):
                   to a :class:`~aioxmpp.xso.String` instance.
     :param validator: An object which has a :meth:`validate` method. That
                       method receives a value which was either assigned to the
-                      property (depending on the *validate* argument) or parsed
-                      from XML (after it passed through *type_*).
+                      property (depending on the `validate` argument) or parsed
+                      from XML (after it passed through `type_`).
     :param validate: A value from the :class:`ValidateMode` enum, which defines
                      which values have to pass through the validator. At some
                      points it makes sense to only validate outgoing values,
@@ -593,18 +593,18 @@ class Attr(Text):
 
     def handle_missing(self, instance, ctx):
         """
-        Handle a missing attribute on *instance*. This is called whenever no
+        Handle a missing attribute on `instance`. This is called whenever no
         value for the attribute is found during parsing. The call to
-        :meth:`missing` is independent of the value of *required*.
+        :meth:`missing` is independent of the value of `required`.
 
-        If the *missing* callback is not :data:`None`, it is called with the
-        *instance* and the *ctx* as arguments. If the returned value is not
+        If the `missing` callback is not :data:`None`, it is called with the
+        `instance` and the `ctx` as arguments. If the returned value is not
         :data:`None`, it is used as the value of the attribute (validation
         takes place as if the value had been set from the code, not as if the
         value had been received from XML) and the handler returns.
 
-        If the *missing* callback is :data:`None` or returns :data:`None`, the
-        handling continues as normal: if *required* is true, a
+        If the `missing` callback is :data:`None` or returns :data:`None`, the
+        handling continues as normal: if `required` is true, a
         :class:`ValueError` is raised.
         """
         if self.missing is not None:
@@ -637,9 +637,9 @@ class Attr(Text):
 class LangAttr(Attr):
     """
     The :class:`LangAttr` is identical to :class:`Attr`, except that the
-    *type_*, *tag* and *missing* arguments are already bound. The *tag* is set
+    `type_`, `tag` and `missing` arguments are already bound. The `tag` is set
     to the ``(namespaces.xml, "lang")`` value to match ``xml:lang``
-    attributes. *type_* is a :class:`xso.LanguageTag` instance and *missing* is
+    attributes. `type_` is a :class:`xso.LanguageTag` instance and `missing` is
     set to :func:`lang_attr`.
     """
 
@@ -654,17 +654,17 @@ class LangAttr(Attr):
 class ChildText(_TypedPropBase):
     """
     When assigned to a class’ attribute, it binds that attribute to the XML
-    character data of a child element with the given *tag*. *tag* must be a
+    character data of a child element with the given `tag`. `tag` must be a
     valid input to :func:`normalize_tag`.
 
-    The *type_*, *validate*, *validator* and *default* arguments behave like in
+    The `type_`, `validate`, `validator` and `default` arguments behave like in
     :class:`Attr`.
 
-    *child_policy* is applied when :meth:`from_events` encounters an element in
+    `child_policy` is applied when :meth:`from_events` encounters an element in
     the child element of which it is supposed to extract text. Likewise,
-    *attr_policy* is applied if an attribute is encountered on the element.
+    `attr_policy` is applied if an attribute is encountered on the element.
 
-    *declare_prefix* works as for :class:`ChildTag`.
+    `declare_prefix` works as for :class:`ChildTag`.
 
     .. automethod:: get_tag_map
 
@@ -699,7 +699,7 @@ class ChildText(_TypedPropBase):
     def from_events(self, instance, ev_args, ctx):
         """
         Starting with the element to which the start event information in
-        *ev_args* belongs, parse text data. If any children are encountered,
+        `ev_args` belongs, parse text data. If any children are encountered,
         :attr:`child_policy` is enforced (see
         :class:`UnknownChildPolicy`). Likewise, if the start event contains
         attributes, :attr:`attr_policy` is enforced
@@ -707,7 +707,7 @@ class ChildText(_TypedPropBase):
 
         The extracted text is passed through :attr:`type_` and
         :attr:`validator` and if it passes, stored in the attribute on the
-        *instance* with which the property is associated.
+        `instance` with which the property is associated.
 
         This method is suspendable.
         """
@@ -738,9 +738,9 @@ class ChildText(_TypedPropBase):
 
     def to_sax(self, instance, dest):
         """
-        Create a child node at *parent* with the tag :attr:`tag`. Set the text
+        Create a child node at `parent` with the tag :attr:`tag`. Set the text
         contents to the value of the attribute which this descriptor represents
-        at *instance*.
+        at `instance`.
 
         If the value is :data:`None`, no element is generated.
         """
@@ -766,9 +766,9 @@ class ChildMap(Child):
     storing the child objects in a list, they are stored in a map which
     contains an :class:`~aioxmpp.xso.model.XSOList` of objects for each tag.
 
-    *key* may be callable. If it is given, it is used while parsing to
+    `key` may be callable. If it is given, it is used while parsing to
     determine the dictionary key under which a newly parsed XSO will be
-    put. For that, the *key* callable is called with the newly parsed XSO as
+    put. For that, the `key` callable is called with the newly parsed XSO as
     the only argument and is expected to return the key.
 
     .. automethod:: from_events
@@ -811,7 +811,7 @@ class ChildMap(Child):
     def to_sax(self, instance, dest):
         """
         Serialize all objects in the dict associated with the descriptor at
-        *instance* to the given *parent*.
+        `instance` to the given `parent`.
 
         The order of elements within a tag is preserved; the order of the tags
         relative to each other is undefined.
@@ -825,7 +825,7 @@ class ChildMap(Child):
 class ChildLangMap(ChildMap):
     """
     The :class:`ChildLangMap` class is a specialized version of the
-    :class:`ChildMap`, which uses a *key* function to group the children by
+    :class:`ChildMap`, which uses a `key` function to group the children by
     their XML language tag.
 
     It is expected that the language tag is available as ``lang`` attribute on
@@ -846,25 +846,25 @@ class ChildTag(_PropBase):
     presence or absence of a single child with a tag from a given set of valid
     tags.
 
-    *tags* must be an iterable of valid arguments to :func:`normalize_tag`. If
+    `tags` must be an iterable of valid arguments to :func:`normalize_tag`. If
     :func:`normalize_tag` returns a false value (such as :data:`None`) as
-    *namespace_uri*, it is replaced with *default_ns* (defaulting to
+    `namespace_uri`, it is replaced with `default_ns` (defaulting to
     :data:`None`, which makes this sentence a no-op). This allows a benefit to
     readability if you have many tags which share the same namespace.
 
-    *text_policy*, *child_policy* and *attr_policy* describe the behaviour if
+    `text_policy`, `child_policy` and `attr_policy` describe the behaviour if
     the child element unexpectedly has text, children or attributes,
     respectively. The default for each is to fail with a :class:`ValueError`.
 
-    If *allow_none* is :data:`True`, assignment of :data:`None` to the
+    If `allow_none` is :data:`True`, assignment of :data:`None` to the
     attribute to which this descriptor belongs is allowed and represents the
     absence of the child element.
 
-    If *declare_prefix* is not :data:`False` (note that :data:`None` is a
+    If `declare_prefix` is not :data:`False` (note that :data:`None` is a
     valid, non-:data:`False` value in this context!), the namespace is
     explicitly declared using the given prefix when serializing to SAX.
 
-    *default* works as for :class:`Attr`.
+    `default` works as for :class:`Attr`.
 
     .. automethod:: from_events
 
@@ -1098,7 +1098,7 @@ class XMLStreamClass(type):
     def parse_events(cls, ev_args, parent_ctx):
         """
         Create an instance of this class, using the events sent into this
-        function. *ev_args* must be the event arguments of the ``"start"``
+        function. `ev_args` must be the event arguments of the ``"start"``
         event.
 
         .. seealso::
@@ -1200,14 +1200,14 @@ class XMLStreamClass(type):
 
     def register_child(cls, prop, child_cls):
         """
-        Register a new :class:`XMLStreamClass` instance *child_cls* for a given
-        :class:`Child` descriptor *prop*.
+        Register a new :class:`XMLStreamClass` instance `child_cls` for a given
+        :class:`Child` descriptor `prop`.
 
         .. warning::
 
            For now, this only modifies the :attr:`CHILD_MAP` of this class, not
            of any subclasses. Thus, subclasses will *not* pick up this change,
-           unless they are *declared* after the change has been made.
+           unless they are `declared` after the change has been made.
 
            This may be subject to change in the future, which will also come
            with a change in the inheritance rules to make them consistent.
@@ -1265,7 +1265,7 @@ class XSO(metaclass=XMLStreamClass):
        .. warning::
 
           It is discouraged to use namespace prefixes of the format
-          ``"ns{:d}".format(n)``, for any given number *n*. These prefixes are
+          ``"ns{:d}".format(n)``, for any given number `n`. These prefixes are
           reserved for ad-hoc namespace declarations, and attempting to use
           them may have unwanted side-effects.
 
@@ -1312,13 +1312,13 @@ class XSO(metaclass=XMLStreamClass):
         This method is called whenever an error occurs while parsing.
 
         If an exception is raised by the parsing function of a descriptor
-        attribute, such as :class:`Attr`, the *descriptor* is passed as first
-        argument, the *exc_info* tuple as third argument and the arguments
+        attribute, such as :class:`Attr`, the `descriptor` is passed as first
+        argument, the `exc_info` tuple as third argument and the arguments
         which led to the descriptor being invoked as second argument.
 
         If an unknown child is encountered and the :attr:`UNKNOWN_CHILD_POLICY`
-        is set to :attr:`UnknownChildPolicy.FAIL`, *descriptor* and *exc_info*
-        are passed as :data:`None` and *ev_args* are the arguments to the
+        is set to :attr:`UnknownChildPolicy.FAIL`, `descriptor` and `exc_info`
+        are passed as :data:`None` and `ev_args` are the arguments to the
         ``"start"`` event of the child (i.e. a triple
         ``(namespace_uri, localname, attributes)``).
         """
@@ -1363,13 +1363,13 @@ class SAXDriver(xml.sax.handler.ContentHandler):
     This is a :class:`xml.sax.handler.ContentHandler` subclass which *only*
     supports namespace-conforming SAX event sources.
 
-    *dest_generator_factory* must be a function which returns a new suspendable
+    `dest_generator_factory` must be a function which returns a new suspendable
     method supporting the interface of :class:`XSOParser`. The SAX events are
     converted to an internal event format and sent to the suspendable function
     in order.
 
-    *on_emit* may be a callable. Whenever a suspendable function returned by
-    *dest_generator_factory* returns, with the return value as sole argument.
+    `on_emit` may be a callable. Whenever a suspendable function returned by
+    `dest_generator_factory` returns, with the return value as sole argument.
 
     When you are done with a :class:`SAXDriver`, you should call :meth:`close`
     to clean up internal parser state.
@@ -1472,8 +1472,8 @@ class XSOParser:
 
     def add_class(self, cls, callback):
         """
-        Add a class *cls* for parsing as root level element. When an object of
-        *cls* type has been completely parsed, *callback* is called with the
+        Add a class `cls` for parsing as root level element. When an object of
+        `cls` type has been completely parsed, `callback` is called with the
         object as argument.
         """
         if cls.TAG in self._tag_map:
@@ -1512,7 +1512,7 @@ class XSOParser:
 
     def remove_class(self, cls):
         """
-        Remove a XSO class *cls* from parsing. This method raises
+        Remove a XSO class `cls` from parsing. This method raises
         :class:`KeyError` with the classes :attr:`TAG` attribute as argument if
         removing fails because the class is not registered.
         """
@@ -1554,10 +1554,10 @@ def enforce_unknown_child_policy(policy, ev_args, error_handler=None):
 
 def lang_attr(instance, ctx):
     """
-    A *missing* handler for :class:`Attr` descriptors. If any parent object has
+    A `missing` handler for :class:`Attr` descriptors. If any parent object has
     a ``xml:lang`` attribute set, its value is used.
 
-    Pass as *missing* argument to :class:`Attr` constructors to use this
+    Pass as `missing` argument to :class:`Attr` constructors to use this
     behaviour for a given attribute.
     """
     return ctx.lang

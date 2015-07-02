@@ -85,9 +85,9 @@ class Item:
     def update_from_xso_item(self, xso_item):
         """
         Update the attributes (except :attr:`jid`) with the values obtained
-        from the gixen *xso_item*.
+        from the gixen `xso_item`.
 
-        *xso_item* must be a valid :class:`.xso.Item` instance.
+        `xso_item` must be a valid :class:`.xso.Item` instance.
         """
         self.subscription = xso_item.subscription
         self.approved = xso_item.approved
@@ -99,8 +99,8 @@ class Item:
     def from_xso_item(cls, xso_item):
         """
         Create a :class:`Item` with the :attr:`jid` set to the
-        :attr:`.xso.Item.jid` obtained from *xso_item*. Then update that
-        instance with *xso_item* using :meth:`update_from_xso_item` and return
+        :attr:`.xso.Item.jid` obtained from `xso_item`. Then update that
+        instance with `xso_item` using :meth:`update_from_xso_item` and return
         it.
         """
         item = cls(xso_item.jid)
@@ -133,9 +133,9 @@ class Item:
     def update_from_json(self, data):
         """
         Update the attributes of this :class:`Item` using the values obtained
-        from the dictionary *data*.
+        from the dictionary `data`.
 
-        The format of *data* should be the same as the format returned by
+        The format of `data` should be the same as the format returned by
         :meth:`export_as_json`.
         """
         self.subscription = data.get("subscription", "none")
@@ -149,7 +149,7 @@ class Service(aioxmpp.service.Service):
     """
     A roster client :class:`aioxmpp.service.Service`.
 
-    *client* must be a :class:`~aioxmpp.node.AbstractClient` or
+    `client` must be a :class:`~aioxmpp.node.AbstractClient` or
     subclass. Ideally, you create :class:`Service` instances using
     :meth:`.AbstractClient.summon`.
 

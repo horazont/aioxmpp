@@ -84,16 +84,16 @@ class XMPPXMLGenerator:
     * It always uses utf-8 ☺
     * It allows explicit flushing
 
-    *out* must be a file-like supporting both :meth:`file.write` and
-    :meth:`file.flush`. *encoding* specifies the encoding which is used and
+    `out` must be a file-like supporting both :meth:`file.write` and
+    :meth:`file.flush`. `encoding` specifies the encoding which is used and
     **must** be ``utf-8`` for XMPP.
 
-    If *short_empty_elements* is true, empty elements are rendered as
+    If `short_empty_elements` is true, empty elements are rendered as
     ``<foo/>`` instead of ``<foo></foo>``, unless a flush occurs before the
     call to :meth:`endElementNS`, in which case the opening is finished before
     flushing, thus the long form is generated.
 
-    If *sorted_attributes* is :data:`True`, attributes are emitted in the
+    If `sorted_attributes` is :data:`True`, attributes are emitted in the
     lexical order of their qualified names (except for namespace declarations,
     which are always sorted and always before the normal attributes). The
     default is not to do this, for performance. During testing, however, it is
@@ -236,8 +236,8 @@ class XMPPXMLGenerator:
 
     def startPrefixMapping(self, prefix, uri, *, auto=False):
         """
-        Start a prefix mapping which maps the given *prefix* to the given
-        *uri*.
+        Start a prefix mapping which maps the given `prefix` to the given
+        `uri`.
 
         Note that prefix mappings are handled transactional. All announcements
         of prefix mappings are collected until the next call to
@@ -250,7 +250,7 @@ class XMPPXMLGenerator:
         whose URI has not been associated with a prefix yet, a free prefix will
         automatically be chosen. To avoid unneccessary performance penalties,
         do not use prefixes of the form ``"{:d}".format(n)``, for any
-        non-negative number of *n*.
+        non-negative number of `n`.
 
         It is however required to call :meth:`endPrefixMapping` after a
         :meth:`endElementNS` call for all namespaces which have been announced
@@ -279,15 +279,15 @@ class XMPPXMLGenerator:
 
     def startElementNS(self, name, qname, attributes=None):
         """
-        Start a sub-element. *name* must be a tuple of ``(namespace_uri,
-        localname)`` and *qname* is ignored. *attributes* must be a dictionary
+        Start a sub-element. `name` must be a tuple of ``(namespace_uri,
+        localname)`` and `qname` is ignored. `attributes` must be a dictionary
         mapping attribute tag tuples (``(namespace_uri, attribute_name)``) to
-        string values. To use unnamespaced attributes, *namespace_uri* can be
+        string values. To use unnamespaced attributes, `namespace_uri` can be
         false (e.g. :data:`None` or the empty string).
 
-        To use unnamespaced elements, *namespace_uri* in *name* must be false
+        To use unnamespaced elements, `namespace_uri` in `name` must be false
         **and** no namespace without prefix must be currently active. If a
-        namespace without prefix is active and *namespace_uri* in *name* is
+        namespace without prefix is active and `namespace_uri` in `name` is
         false, :class:`ValueError` is raised.
 
         Attribute values are of course automatically escaped.
@@ -345,8 +345,8 @@ class XMPPXMLGenerator:
 
     def endElementNS(self, name, qname):
         """
-        End a previously started element. *name* must be a ``(namespace_uri,
-        localname)`` tuple and *qname* is ignored.
+        End a previously started element. `name` must be a ``(namespace_uri,
+        localname)`` tuple and `qname` is ignored.
         """
         if self._ns_prefixes_floating_out:
             raise RuntimeError("namespace prefix has not been closed")
@@ -382,7 +382,7 @@ class XMPPXMLGenerator:
         Put character data in the currently open element. Special characters
         (such as ``<``, ``>`` and ``&``) are escaped.
 
-        If *chars* contains any ASCII control character, :class:`ValueError` is
+        If `chars` contains any ASCII control character, :class:`ValueError` is
         raised.
         """
         self._finish_pending_start_element()
@@ -436,10 +436,10 @@ class XMPPXMLGenerator:
 
     def flush(self):
         """
-        Call :meth:`flush` on the object passed to the *out* argument of the
+        Call :meth:`flush` on the object passed to the `out` argument of the
         constructor. In addition, any unfinished opening tags are finished,
         which can lead to expansion of the generated XML code (see note on the
-        *short_empty_elements* argument at the class documentation).
+        `short_empty_elements` argument at the class documentation).
         """
         self._finish_pending_start_element()
         if self._flush:
@@ -454,18 +454,18 @@ def write_objects(f,
                   sorted_attributes=False):
     """
     Return a generator, which writes an XMPP XML stream on the file-like object
-    *f*.
+    `f`.
 
     First, the generator writes the stream header and declares all namespaces
-    given in *nsmap* plus the xmlstream namespace, then the output is flushed
+    given in `nsmap` plus the xmlstream namespace, then the output is flushed
     and the generator yields.
 
-    *to* must be a :class:`~.structs.JID` which refers to the peer. *from_* may
+    `to` must be a :class:`~.structs.JID` which refers to the peer. `from_` may
     be the JID identifying the local side, but see `RFC 6120 for considerations
-    <https://tools.ietf.org/html/rfc6120#section-4.7.1>`_. *version* is the
+    <https://tools.ietf.org/html/rfc6120#section-4.7.1>`_. `version` is the
     tuple of integers representing the locally supported XMPP version.
 
-    *sorted_attributes* is passed to the :class:`XMPPXMLGenerator` which is
+    `sorted_attributes` is passed to the :class:`XMPPXMLGenerator` which is
     used by this function.
 
     Now, user code can send :class:`~.xso.XSO` objects to the
@@ -808,7 +808,7 @@ def make_parser():
 
 def serialize_single_xso(x):
     """
-    Serialize a single XSO *x* to a string. This is potentially very slow and
+    Serialize a single XSO `x` to a string. This is potentially very slow and
     should only be used for debugging purposes. It is generally more efficient
     to use a :class:`XMPPXMLGenerator` to stream elements.
     """

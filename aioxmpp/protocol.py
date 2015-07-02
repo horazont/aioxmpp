@@ -99,19 +99,19 @@ class XMLStream(asyncio.Protocol):
     XML stream implementation. This is an streaming :class:`asyncio.Protocol`
     which translates the received bytes into XSOs.
 
-    *to* must be a domain :class:`~aioxmpp.structs.JID` which identifies the
+    `to` must be a domain :class:`~aioxmpp.structs.JID` which identifies the
     domain to which the stream shall connect.
 
-    *features_future* must be a :class:`asyncio.Future` instance; the XML
+    `features_future` must be a :class:`asyncio.Future` instance; the XML
     stream will set the first :class:`~aioxmpp.stream_xsos.StreamFeatures` node
     it receives as the result of the future.
 
-    *sorted_attributes* is mainly for unittesting purposes; this is an argument
+    `sorted_attributes` is mainly for unittesting purposes; this is an argument
     to the :class:`~aioxmpp.xml.XMPPXMLGenerator` and slows down the XML
     serialization, but produces deterministic results, which is important for
     testing. Generally, it is preferred to leave this argument at its default.
 
-    *base_logger* may be a :class:`logging.Logger` instance to use. The XML
+    `base_logger` may be a :class:`logging.Logger` instance to use. The XML
     stream will create a child called ``XMLStream`` at that logger and use that
     child for logging purposes. This eases debugging and allows for
     connection-specific loggers.
@@ -397,7 +397,7 @@ class XMLStream(asyncio.Protocol):
 
     def send_xso(self, obj):
         """
-        Send an XSO *obj* over the stream.
+        Send an XSO `obj` over the stream.
 
         Calling :meth:`send_xso` while the stream is disconnected,
         disconnecting or still waiting for the remote to send a stream header
@@ -424,7 +424,7 @@ class XMLStream(asyncio.Protocol):
         """
         Start TLS on the transport and wait for it to complete.
 
-        The *ssl_context* and *post_handshake_callback* arguments are forwarded
+        The `ssl_context` and `post_handshake_callback` arguments are forwarded
         to the transports
         :meth:`~aioxmpp.ssl_transport.STARTTLSTransport.starttls` coroutine
         method.
