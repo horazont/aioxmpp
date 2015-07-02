@@ -20,11 +20,6 @@ Connecting streams low-level
 
 .. autofunction:: connect_to_xmpp_server
 
-Enumerations
-============
-
-.. autoclass:: ClientStatus
-
 """
 import asyncio
 import contextlib
