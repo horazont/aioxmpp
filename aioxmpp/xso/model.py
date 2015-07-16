@@ -272,6 +272,9 @@ class _PropBase:
         except KeyError:
             return self.default
 
+    def validate_xsos(self, instance):
+        pass
+
     def to_node(self, instance, parent):
         handler = lxml.sax.ElementTreeContentHandler(
             makeelement=parent.makeelement)
@@ -388,6 +391,12 @@ class Child(_PropBase):
         self.__set__(instance, obj)
         return obj
 
+    def validate_xsos(self, instance):
+        obj = self.__get__(instance, type(instance))
+        if obj is None:
+            return
+        obj.validate()
+
     def to_sax(self, instance, dest):
         """
         Take the object associated with this descriptor on `instance` and
@@ -445,6 +454,10 @@ class ChildList(Child):
         obj = yield from self._process(instance, ev_args, ctx)
         self.__get__(instance, type(instance)).append(obj)
         return obj
+
+    def validate_xsos(self, instance):
+        for child in self.__get__(instance, type(instance)):
+            child.validate()
 
     def to_sax(self, instance, dest):
         """
@@ -807,6 +820,12 @@ class ChildMap(Child):
         obj = yield from cls.parse_events(ev_args, ctx)
         mapping = self.__get__(instance, type(instance))
         mapping[self.key(obj)].append(obj)
+
+    def validate_xsos(self, instance):
+        mapping = self.__get__(instance, type(instance))
+        for objects in mapping.values():
+            for obj in objects:
+                obj.validate()
 
     def to_sax(self, instance, dest):
         """
@@ -1196,6 +1215,8 @@ class XMLStreamClass(type):
                         sys.exc_info())
                     raise
 
+        obj.validate()
+
         return obj
 
     def register_child(cls, prop, child_cls):
@@ -1287,6 +1308,11 @@ class XSO(metaclass=XMLStreamClass):
 
             body = aioxmpp.xso.Child([Body])
 
+    Beyond the validation of the individual descriptor values, it is possible
+    to implement more complex validation steps by overriding the
+    :meth:`validate` method:
+
+    .. automethod:: validate
 
     The following methods are available on instances of :class:`XSO`:
 
@@ -1306,6 +1332,28 @@ class XSO(metaclass=XMLStreamClass):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._stanza_props = dict()
+
+    def validate(self):
+        """
+        Validate the objects structure beyond the values of individual fields
+        (which have their own validators).
+
+        This first calls :meth:`_PropBase.validate_xsos` recursively on the
+        values of all child descriptors. These may raise (or re-raise) errors
+        which occur during validation of the child elements.
+
+        To implement your own validation logic in a subclass of :class:`XSO`,
+        override this method and call it via :func:`super` before doing your
+        own validation.
+
+        Validate is called by the parsing stack after an object has been fully
+        deserialized from the SAX event stream. If the deserialization fails
+        due to invalid values of descriptors or due to validation failures in
+        child objects, this method is obviously not called.
+        """
+
+        for descriptor in self.CHILD_PROPS:
+            descriptor.validate_xsos(self)
 
     def xso_error_handler(self, descriptor, ev_args, exc_info):
         """

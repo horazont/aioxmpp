@@ -1,5 +1,6 @@
 import collections
 import collections.abc
+import contextlib
 import functools
 import unittest
 import unittest.mock
@@ -867,6 +868,39 @@ class TestXMLStreamClass(unittest.TestCase):
             caught_obj.child.child.lang
         )
 
+    def test_validate_after_parse(self):
+        class Foo(xso.XSO):
+            TAG = "foo"
+
+        ctx = xso_model.Context()
+
+        catch = unittest.mock.Mock()
+        sd = xso.SAXDriver(
+            functools.partial(from_wrapper,
+                              Foo.parse_events,
+                              ctx=ctx),
+            on_emit=catch)
+        with unittest.mock.patch.object(Foo, "validate") as validate:
+            lxml.sax.saxify(
+                etree.fromstring(
+                    "<foo />"
+                ),
+                sd
+            )
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(unittest.mock.ANY),
+            ],
+            catch.mock_calls
+        )
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(),
+            ],
+            validate.mock_calls
+        )
+
 
 class TestXSO(XMLTestCase):
     def _unparse_test(self, obj, tree):
@@ -1068,6 +1102,38 @@ class TestXSO(XMLTestCase):
         self._unparse_test(
             obj,
             etree.fromstring("<foo><bar baz='fnord'/></foo>")
+        )
+
+    def test_validate_calls_validate_on_all_child_descriptors(self):
+        class Foo(xso.XSO):
+            TAG = "foo"
+
+            attr = xso.Attr("baz")
+            child = xso.Child([])
+
+        obj = Foo()
+
+        with contextlib.ExitStack() as stack:
+            attr_validate = stack.enter_context(
+                unittest.mock.patch.object(Foo.attr, "validate_xsos")
+            )
+            child_validate = stack.enter_context(
+                unittest.mock.patch.object(Foo.child, "validate_xsos")
+            )
+
+            obj.validate()
+
+        self.assertSequenceEqual(
+            [
+            ],
+            attr_validate.mock_calls
+        )
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(obj),
+            ],
+            child_validate.mock_calls
         )
 
     def tearDown(self):
@@ -1653,6 +1719,27 @@ class TestChild(XMLTestCase):
             ],
             dest.mock_calls)
 
+    def test_validate_xsos_recurses(self):
+        obj = self.ClsA()
+        child = self.ClsLeaf()
+        obj.test_child = child
+
+        with unittest.mock.patch.object(child, "validate") as validate:
+            self.ClsA.test_child.validate_xsos(obj)
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(),
+            ],
+            validate.mock_calls
+        )
+
+    def test_validate_xsos_passes_for_None(self):
+        obj = self.ClsA()
+        obj.test_child = None
+
+        self.ClsA.test_child.validate_xsos(obj)
+
     def tearDown(self):
         del self.ClsA
         del self.ClsLeaf
@@ -1746,6 +1833,40 @@ class TestChildList(XMLTestCase):
         self.assertIs(
             l,
             obj.children
+        )
+
+    def test_validate_xsos_recurses_to_all_children(self):
+        obj = self.Cls()
+        children = [
+            self.ClsLeafA(),
+            self.ClsLeafB(),
+            self.ClsLeafA(),
+        ]
+        obj.children.extend(children)
+
+        with contextlib.ExitStack() as stack:
+            a_validate = stack.enter_context(
+                unittest.mock.patch.object(self.ClsLeafA, "validate")
+            )
+            b_validate = stack.enter_context(
+                unittest.mock.patch.object(self.ClsLeafB, "validate")
+            )
+
+            obj.validate()
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(),
+                unittest.mock.call(),
+            ],
+            a_validate.mock_calls
+        )
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(),
+            ],
+            b_validate.mock_calls
         )
 
     def tearDown(self):
@@ -2397,6 +2518,47 @@ class TestChildMap(XMLTestCase):
         foo_results = resultmap["foo"]
         self.assertEqual(1, len(foo_results))
         self.assertIsInstance(foo_results[0], Foo)
+
+    def test_validate_xsos_recurses_to_all_children(self):
+        class Bar(xso.XSO):
+            TAG = "bar"
+
+        class Foo(xso.XSO):
+            TAG = "foo"
+
+        class Root(xso.XSO):
+            TAG = "root"
+
+            children = xso.ChildMap([Foo, Bar])
+
+        root = Root()
+        root.children[Foo].append(Foo())
+        root.children[Foo].append(Foo())
+        root.children[Bar].append(Bar())
+
+        with contextlib.ExitStack() as stack:
+            foo_validate = stack.enter_context(
+                unittest.mock.patch.object(Foo, "validate")
+            )
+            bar_validate = stack.enter_context(
+                unittest.mock.patch.object(Bar, "validate")
+            )
+
+            root.validate()
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call()
+            ]*2,
+            foo_validate.mock_calls
+        )
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call()
+            ],
+            bar_validate.mock_calls
+        )
 
 
 class TestChildLangMap(unittest.TestCase):
