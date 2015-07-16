@@ -659,6 +659,11 @@ class IQ(StanzaBase):
         self.payload = payload
         self.error = error
 
+    def validate(self):
+        super().validate()
+        if not self.id_:
+            raise ValueError("IQ requires ID")
+
     def make_reply(self, type_):
         if self.type_ != "get" and self.type_ != "set":
             raise ValueError("make_reply requires request IQ")

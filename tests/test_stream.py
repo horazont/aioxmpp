@@ -390,12 +390,18 @@ class TestStanzaStream(StanzaStreamTestBase):
 
         self.stream.stop()
 
-    def test_enqueue_stanza_requires_id(self):
+    def test_enqueue_stanza_validates_stanza(self):
         iq = make_test_iq(type_="get")
-        iq.id_ = None
 
-        with self.assertRaisesRegexp(ValueError, "stanza has no id"):
+        with unittest.mock.patch.object(iq, "validate") as validate:
             self.stream.enqueue_stanza(iq)
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(),
+            ],
+            validate.mock_calls
+        )
 
     def test_start_stop(self):
         self.stream.start(self.xmlstream)

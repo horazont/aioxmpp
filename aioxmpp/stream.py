@@ -1316,8 +1316,8 @@ class StanzaStream:
         the stanza. The `kwargs` are passed to the :class:`StanzaToken`
         constructor.
         """
-        if not stanza.id_:
-            raise ValueError("stanza has no id")
+
+        stanza.validate()
         token = StanzaToken(stanza, **kwargs)
         self._active_queue.put_nowait(token)
         stanza.autoset_id()

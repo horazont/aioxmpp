@@ -708,6 +708,13 @@ class TestIQ(unittest.TestCase):
             repr(s)
         )
 
+    def test_validate_requires_id(self):
+        iq = stanza.IQ()
+        with self.assertRaisesRegexp(
+                ValueError,
+                "IQ requires ID"):
+            iq.validate()
+
     def test_as_payload_class(self):
         @stanza.IQ.as_payload_class
         class Foo(xso.XSO):
