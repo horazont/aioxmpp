@@ -10,6 +10,7 @@ Main public API
    sasl
    protocol
    errors
+   i18n
    structs
    disco
    roster
