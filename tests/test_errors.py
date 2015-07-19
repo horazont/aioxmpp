@@ -144,3 +144,15 @@ class TestUserError(unittest.TestCase):
             ],
             s.mock_calls
         )
+
+
+class TestUserValueError(unittest.TestCase):
+    def test_is_value_and_user_error(self):
+        self.assertTrue(issubclass(
+            errors.UserValueError,
+            errors.UserError,
+        ))
+        self.assertTrue(issubclass(
+            errors.UserValueError,
+            ValueError
+        ))

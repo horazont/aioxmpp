@@ -39,10 +39,12 @@ Stream negotiation exceptions
 
 .. autoclass:: AuthenticationFailure
 
-I18N exception mixins
-=====================
+I18N exceptions
+===============
 
 .. autoclass:: UserError
+
+.. autoclass:: UserValueError
 
 Other exceptions
 ================
@@ -220,6 +222,12 @@ class UserError(Exception):
             *self.args,
             **self.kwargs
         )
+
+
+class UserValueError(UserError, ValueError):
+    """
+    This is a :class:`ValueError` with :class:`UserError` mixed in.
+    """
 
 
 class MultiOSError(OSError):
