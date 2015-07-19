@@ -39,14 +39,20 @@ Stream negotiation exceptions
 
 .. autoclass:: AuthenticationFailure
 
+I18N exception mixins
+=====================
+
+.. autoclass:: UserError
+
 Other exceptions
 ================
 
 .. autoclass:: MultiOSError
 
 """
+import gettext
 
-from . import xso
+from . import xso, i18n
 
 
 def format_error_text(
@@ -163,6 +169,57 @@ error_type_map = {
     "wait": XMPPWaitError,
     "continue": XMPPContinueError,
 }
+
+
+class UserError(Exception):
+    """
+    An exception subclass, which should be used as a mix-in.
+
+    It is intended to be used for exceptions which may be user-facing, such as
+    connection errors, value validation issues and the like.
+
+    `localizable_string` must be a :class:`.i18n.LocalizableString`
+    instance. The `args` and `kwargs` will be passed to
+    :class:`.LocalizableString.localize` when either :func:`str` is called on
+    the :class:`UserError` or :meth:`localize` is called.
+
+    The :func:`str` is created using the default
+    :class:`~.i18n.LocalizingFormatter` and a :class:`gettext.NullTranslations`
+    instance. The point in time at which the default localizing formatter is
+    created is unspecified.
+
+    .. automethod:: localize
+
+    """
+
+    DEFAULT_FORMATTER = i18n.LocalizingFormatter()
+    DEFAULT_TRANSLATIONS = gettext.NullTranslations()
+
+    def __init__(self, localizable_string, *args, **kwargs):
+        super().__init__()
+        self._str = localizable_string.localize(
+            self.DEFAULT_FORMATTER,
+            self.DEFAULT_TRANSLATIONS,
+            *args, **kwargs)
+        self.localizable_string = localizable_string
+        self.args = args
+        self.kwargs = kwargs
+
+    def __str__(self):
+        return str(self._str)
+
+    def localize(self, formatter, translator):
+        """
+        Return a localized version of the `localizable_string` passed to the
+        consturctor. It is formatted using the `formatter` with the `args` and
+        `kwargs` passed to the constructor of :class:`UserError`.
+        """
+        return self.localizable_string.localize(
+            formatter,
+            translator,
+            *self.args,
+            **self.kwargs
+        )
 
 
 class MultiOSError(OSError):

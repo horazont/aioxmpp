@@ -1,6 +1,9 @@
+import gettext
 import unittest
+import unittest.mock
 
 import aioxmpp.errors as errors
+import aioxmpp.i18n as i18n
 
 from aioxmpp.utils import etree
 
@@ -71,4 +74,73 @@ class TestMultiOSError(unittest.TestCase):
         self.assertSequenceEqual(
             base_excs1+base_excs2+[exc3],
             exc.exceptions
+        )
+
+
+class TestUserError(unittest.TestCase):
+    def test_simple(self):
+        s = unittest.mock.Mock()
+        ue = errors.UserError(s)
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call.localize(
+                    errors.UserError.DEFAULT_FORMATTER,
+                    errors.UserError.DEFAULT_TRANSLATIONS,
+                )
+            ],
+            s.mock_calls
+        )
+
+        self.assertEqual(
+            str(s.localize()),
+            str(ue),
+        )
+
+    def test_format(self):
+        s = unittest.mock.Mock()
+        ue = errors.UserError(s, 10, abc="baz")
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call.localize(
+                    errors.UserError.DEFAULT_FORMATTER,
+                    errors.UserError.DEFAULT_TRANSLATIONS,
+                    10,
+                    abc="baz"
+                ),
+            ],
+            s.mock_calls
+        )
+
+        self.assertEqual(
+            str(s.localize()),
+            str(ue),
+        )
+
+    def test_localize(self):
+        fmt = i18n.LocalizingFormatter()
+        tx = gettext.NullTranslations()
+
+        s = unittest.mock.Mock()
+        ue = errors.UserError(s, 10, abc="baz")
+
+
+        expected_result = s.localize()
+
+        s.reset_mock()
+
+        self.assertEqual(
+            expected_result,
+            ue.localize(fmt, tx)
+        )
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call.localize(
+                    fmt,
+                    tx,
+                    10,
+                    abc="baz")
+            ],
+            s.mock_calls
         )
