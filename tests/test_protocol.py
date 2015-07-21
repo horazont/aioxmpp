@@ -70,10 +70,6 @@ class Child(xso.XSO):
     attr = xso.Attr("a", required=True)
 
 
-class FakeIQ(stanza.IQ):
-    TAG = ("jabber:client", "iq")
-
-
 class RuntimeErrorRaisingStanza(stanza.StanzaBase):
     TAG = ("jabber:client", "foo")
 
@@ -83,6 +79,7 @@ class RuntimeErrorRaisingStanza(stanza.StanzaBase):
         raise RuntimeError("foobar")
 
 
+FakeIQ = stanza.IQ
 FakeIQ.register_child(FakeIQ.payload, Child)
 
 

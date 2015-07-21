@@ -1023,6 +1023,21 @@ class XMLStreamClass(type):
     When inheriting from :class:`XMLStreamClass` objects, the properties are
     merged sensibly.
 
+    Rebinding attributes of :class:`XMLStreamClass` instances (i.e. classes
+    using this metaclass) is somewhat restricted. The following rules cannot be
+    broken, attempting to do so will result in :class:`TypeError` being raised
+    when setting the attribute:
+
+    1. Existing descriptors for XSO purposes (such as :class:`.xso.Attr`)
+       cannot be removed (either by assigning a new value to the name they are
+       bound to or deleting the name).
+
+    2. New descriptors can only be added if they do not violate the rules
+       stated at the beginning of the :class:`XMLStreamClass` documentation.
+
+    3. New descriptors can only be added if no subclasses exist (see
+       :meth:`.xso.XSO.register_child` for reasons why).
+
     """
 
     def __new__(mcls, name, bases, namespace):
@@ -1110,6 +1125,61 @@ class XMLStreamClass(type):
                 raise TypeError("TAG attribute has incorrect format")
 
         return super().__new__(mcls, name, bases, namespace)
+
+    def __setattr__(cls, name, value):
+        try:
+            existing = getattr(cls, name)
+        except AttributeError:
+            pass
+        else:
+            if isinstance(existing, _PropBase):
+                raise AttributeError("cannot rebind XSO descriptors")
+
+        if isinstance(value, _PropBase) and cls.__subclasses__():
+            raise TypeError("adding descriptors is forbidden on classes with"
+                            " subclasses (subclasses: {})".format(
+                                ", ".join(map(str, cls.__subclasses__()))
+                            ))
+
+        if isinstance(value, Attr):
+            if value.tag in cls.ATTR_MAP:
+                raise TypeError("ambiguous Attr properties")
+            cls.ATTR_MAP[value.tag] = value
+
+        elif isinstance(value, Text):
+            if cls.TEXT_PROPERTY is not None:
+                raise TypeError("multiple Text properties on XSO class")
+            super().__setattr__("TEXT_PROPERTY", value)
+
+        elif isinstance(value, (Child, ChildText, ChildTag)):
+            updates = {}
+            for key in value.get_tag_map():
+                if key in cls.CHILD_MAP:
+                    raise TypeError("ambiguous Child properties: {} and {} "
+                                    "both use the same tag".format(
+                                        cls.CHILD_MAP[key],
+                                        value))
+                updates[key] = value
+            cls.CHILD_MAP.update(updates)
+            cls.CHILD_PROPS.add(value)
+
+        elif isinstance(value, Collector):
+            if cls.COLLECTOR_PROPERTY is not None:
+                raise TypeError("multiple Collector properties on XSO class")
+            super().__setattr__("COLLECTOR_PROPERTY", value)
+
+        super().__setattr__(name, value)
+
+    def __delattr__(cls, name):
+        try:
+            existing = getattr(cls, name)
+        except AttributeError:
+            pass
+        else:
+            if isinstance(existing, _PropBase):
+                raise AttributeError("cannot unbind XSO descriptors")
+
+        super().__delattr__(name)
 
     def __prepare__(name, bases):
         return collections.OrderedDict()
@@ -1254,7 +1324,10 @@ class XMLStreamClass(type):
         """
         if cls.__subclasses__():
             raise TypeError(
-                "register_child is forbidden on classes with subclasses")
+                "register_child is forbidden on classes with subclasses"
+                " (subclasses: {})".format(
+                    ", ".join(map(str, cls.__subclasses__()))
+                ))
 
         if child_cls.TAG in cls.CHILD_MAP:
             raise ValueError("ambiguous Child")
@@ -1278,6 +1351,13 @@ class XSO(metaclass=XMLStreamClass):
       representing the tag of the XML element you want to match.
     * An arbitrary number of :class:`Text`, :class:`Collector`, :class:`Child`,
       :class:`ChildList` and :class:`Attr`-based attributes.
+
+    .. seealso::
+
+       The documentation of :class:`.xso.model.XMLStreamClass` holds valuable
+       information with respect to subclassing and modifying :class:`XSO`
+       subclasses, as well as restrictions on the use of the said attribute
+       descriptors.
 
     To further influence the parsing behaviour of a class, two attributes are
     provided which give policies for unexpected elements in the XML tree:

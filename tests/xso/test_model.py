@@ -918,6 +918,333 @@ class TestXMLStreamClass(unittest.TestCase):
             validate.mock_calls
         )
 
+    def test_setattr_refuses_to_overwrite_existing_descriptor(self):
+        class Foo(metaclass=xso_model.XMLStreamClass):
+            attr = xso.Attr("bar")
+
+        with self.assertRaisesRegexp(AttributeError,
+                                     "cannot rebind XSO descriptors"):
+            Foo.attr = xso.Attr("baz")
+
+    def test_setattr_allows_to_overwrite_everything_else(self):
+        class Foo(metaclass=xso_model.XMLStreamClass):
+            def method(self):
+                pass
+
+            xyz = 123
+
+        Foo.xyz = 345
+        Foo.method = "bar"
+
+    def test_setattr_Attr(self):
+        class Foo(metaclass=xso_model.XMLStreamClass):
+            pass
+
+        Foo.attr = xso.Attr("bar")
+
+        self.assertIn(
+            (None, "bar"),
+            Foo.ATTR_MAP
+        )
+        self.assertIs(
+            Foo.ATTR_MAP[None, "bar"],
+            Foo.attr
+        )
+
+    def test_setattr_Attr_rejects_ambiguous_tags(self):
+        class Foo(metaclass=xso_model.XMLStreamClass):
+            pass
+
+        Foo.attr = xso.Attr("bar")
+
+        with self.assertRaisesRegexp(TypeError,
+                                     "ambiguous Attr properties"):
+            Foo.attr2 = xso.Attr("bar")
+
+    def test_setattr_Child(self):
+        class Foo(metaclass=xso_model.XMLStreamClass):
+            pass
+
+        class Bar(metaclass=xso_model.XMLStreamClass):
+            TAG = (None, "foobar")
+
+        Foo.child = xso.Child([Bar])
+
+        self.assertIn(
+            Foo.child,
+            Foo.CHILD_PROPS
+        )
+        self.assertIn(
+            (None, "foobar"),
+            Foo.CHILD_MAP
+        )
+        self.assertIs(
+            Foo.child,
+            Foo.CHILD_MAP[None, "foobar"]
+        )
+
+    def test_setattr_Child_rejects_ambiguous_tags(self):
+        class Foo(metaclass=xso_model.XMLStreamClass):
+            pass
+
+        class Bar(metaclass=xso_model.XMLStreamClass):
+            TAG = (None, "foobar")
+
+        class Baz(metaclass=xso_model.XMLStreamClass):
+            TAG = (None, "foobar")
+
+        Foo.child1 = xso.Child([Bar])
+
+        with self.assertRaisesRegexp(TypeError,
+                                     "ambiguous Child properties"):
+            Foo.child2 = xso.Child([Baz])
+
+    def test_setattr_Child_rejects_atomically(self):
+        class Foo(metaclass=xso_model.XMLStreamClass):
+            pass
+
+        class Bar(metaclass=xso_model.XMLStreamClass):
+            TAG = (None, "foobar")
+
+        class Baz(metaclass=xso_model.XMLStreamClass):
+            TAG = (None, "foobar")
+
+        class Fnord(metaclass=xso_model.XMLStreamClass):
+            TAG = (None, "fnord")
+
+        Foo.child1 = xso.Child([Bar])
+
+        with self.assertRaisesRegexp(TypeError,
+                                     "ambiguous Child properties"):
+            Foo.child2 = xso.Child([Fnord, Baz])
+
+        self.assertNotIn(
+            Fnord.TAG,
+            Foo.CHILD_MAP
+        )
+
+    def test_setattr_ChildText(self):
+        class Foo(metaclass=xso_model.XMLStreamClass):
+            pass
+
+        Foo.text = xso.ChildText(tag=(None, "foobar"))
+
+        self.assertIn(
+            (None, "foobar"),
+            Foo.CHILD_MAP
+        )
+        self.assertIs(
+            Foo.text,
+            Foo.CHILD_MAP[None, "foobar"]
+        )
+        self.assertIn(
+            Foo.text,
+            Foo.CHILD_PROPS
+        )
+
+    def test_setattr_ChildText_rejects_ambiguous(self):
+        class Bar(metaclass=xso_model.XMLStreamClass):
+            TAG = (None, "foobar")
+
+        class Foo(metaclass=xso_model.XMLStreamClass):
+            child = xso.Child([Bar])
+
+        with self.assertRaisesRegexp(TypeError,
+                                     "ambiguous Child properties"):
+            Foo.text = xso.ChildText(tag=(None, "foobar"))
+
+    def test_setattr_ChildTag(self):
+        class Foo(metaclass=xso_model.XMLStreamClass):
+            pass
+
+        Foo.tag = xso.ChildTag(
+            [
+                (None, "foo"),
+                (None, "bar"),
+                (None, "baz"),
+            ]
+        )
+
+        for tag in ["foo", "bar", "baz"]:
+            self.assertIn(
+                (None, tag),
+                Foo.CHILD_MAP
+            )
+            self.assertIs(
+                Foo.tag,
+                Foo.CHILD_MAP[None, tag]
+            )
+
+        self.assertIn(
+            Foo.tag,
+            Foo.CHILD_PROPS
+        )
+
+    def test_setattr_ChildTag_rejects_ambiguous(self):
+        class Bar(metaclass=xso_model.XMLStreamClass):
+            TAG = (None, "bar")
+
+        class Foo(metaclass=xso_model.XMLStreamClass):
+            child = xso.Child([Bar])
+
+        with self.assertRaisesRegexp(TypeError,
+                                     "ambiguous Child properties"):
+            Foo.tag = xso.ChildTag(
+                [
+                    (None, "foo"),
+                    (None, "bar"),
+                    (None, "baz"),
+                ]
+            )
+
+    def test_setattr_ChildTag_rejects_atomically(self):
+        class Bar(metaclass=xso_model.XMLStreamClass):
+            TAG = (None, "bar")
+
+        class Foo(metaclass=xso_model.XMLStreamClass):
+            child = xso.Child([Bar])
+
+        with self.assertRaisesRegexp(TypeError,
+                                     "ambiguous Child properties"):
+            Foo.tag = xso.ChildTag(
+                [
+                    (None, "foo"),
+                    (None, "bar"),
+                    (None, "baz"),
+                ]
+            )
+
+        self.assertNotIn(
+            (None, "foo"),
+            Foo.CHILD_MAP
+        )
+
+        self.assertNotIn(
+            (None, "baz"),
+            Foo.CHILD_MAP
+        )
+
+    def test_setattr_Collector(self):
+        class Foo(metaclass=xso_model.XMLStreamClass):
+            pass
+
+        Foo.collector = xso.Collector()
+
+        self.assertIs(
+            Foo.collector,
+            Foo.COLLECTOR_PROPERTY
+        )
+
+    def test_setattr_Collector_rejects_duplicate(self):
+        class Foo(metaclass=xso_model.XMLStreamClass):
+            pass
+
+        Foo.collector1 = xso.Collector()
+
+        with self.assertRaisesRegexp(TypeError,
+                                     "multiple Collector properties"):
+            Foo.collector2 = xso.Collector()
+
+    def test_setattr_Text(self):
+        class Foo(metaclass=xso_model.XMLStreamClass):
+            pass
+
+        Foo.text = xso.Text()
+
+        self.assertIs(
+            Foo.text,
+            Foo.TEXT_PROPERTY
+        )
+
+    def test_setattr_Text_rejects_duplicate(self):
+        class Foo(metaclass=xso_model.XMLStreamClass):
+            pass
+
+        Foo.text1 = xso.Text()
+
+        with self.assertRaisesRegexp(TypeError,
+                                     "multiple Text properties"):
+            Foo.text2 = xso.Text()
+
+    def test_setattr_rejects_adding_properties_to_class_with_descendants(self):
+        class Foo(metaclass=xso_model.XMLStreamClass):
+            pass
+
+        class Bar(Foo):
+            pass
+
+        msg_regexp = ("adding descriptors is forbidden on classes with"
+                      " subclasses")
+
+        with self.assertRaisesRegexp(TypeError, msg_regexp):
+            Foo.attr = xso.Attr("abc")
+
+        with self.assertRaisesRegexp(TypeError, msg_regexp):
+            Foo.attr = xso.Child([])
+
+        with self.assertRaisesRegexp(TypeError, msg_regexp):
+            Foo.attr = xso.ChildText((None, "abc"))
+
+        with self.assertRaisesRegexp(TypeError, msg_regexp):
+            Foo.attr = xso.ChildTag([(None, "abc")])
+
+        with self.assertRaisesRegexp(TypeError, msg_regexp):
+            Foo.attr = xso.Text()
+
+        with self.assertRaisesRegexp(TypeError, msg_regexp):
+            Foo.attr = xso.Collector()
+
+    def test_setattr_permits_adding_non_descriptors_to_class_with_descendants(self):
+        class Foo(metaclass=xso_model.XMLStreamClass):
+            pass
+
+        class Bar(Foo):
+            pass
+
+        Foo.bar = 123
+        Foo.baz = "fnord"
+
+    def test_delattr_rejects_removal_of_descriptors(self):
+        class Foo(metaclass=xso_model.XMLStreamClass):
+            attr = xso.Attr("foo")
+
+        Foo.text = xso.Text()
+
+        msg_regexp = "cannot unbind XSO descriptors"
+
+        with self.assertRaisesRegexp(AttributeError, msg_regexp):
+            del Foo.attr
+
+        with self.assertRaisesRegexp(AttributeError, msg_regexp):
+            del Foo.text
+
+    def test_delattr_removes_everything_else(self):
+        class Foo(metaclass=xso_model.XMLStreamClass):
+            foo = 123
+            bar = "baz"
+
+            def method(self):
+                pass
+
+        del Foo.foo
+        del Foo.bar
+        del Foo.method
+
+        self.assertFalse(hasattr(
+            Foo,
+            "foo"
+        ))
+
+        self.assertFalse(hasattr(
+            Foo,
+            "bar"
+        ))
+
+        self.assertFalse(hasattr(
+            Foo,
+            "method"
+        ))
+
 
 class TestXSO(XMLTestCase):
     def _unparse_test(self, obj, tree):
