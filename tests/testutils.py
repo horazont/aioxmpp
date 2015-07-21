@@ -104,9 +104,16 @@ class ConnectedClientMock(unittest.mock.Mock):
 
         self.stream_features = stream_xsos.StreamFeatures()
         self.stream.send_iq_and_wait_for_reply = CoroutineMock()
+        self.mock_services = {}
 
     def _get_child_mock(self, **kw):
         return unittest.mock.Mock(**kw)
+
+    def summon(self, cls):
+        try:
+            return self.mock_services[cls]
+        except KeyError:
+            raise AssertionError("service class not provisioned in mock")
 
 
 def make_connected_client():

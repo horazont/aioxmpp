@@ -887,6 +887,25 @@ class Testmake_connected_client(unittest.TestCase):
 
         self.assertIsInstance(cc.stream_features, stream_xsos.StreamFeatures)
 
+    def test_summon_uses_services_dict(self):
+        cc = make_connected_client()
+
+        self.assertDictEqual(
+            {},
+            cc.mock_services
+        )
+
+        instance = object()
+        cc.mock_services[object] = instance
+
+        self.assertIs(instance, cc.summon(object))
+
+    def test_summon_asserts_on_not_summoned_service(self):
+        cc = make_connected_client()
+
+        with self.assertRaises(AssertionError):
+            cc.summon(object)
+
 
 class TestCoroutineMock(unittest.TestCase):
     def test_inherits_from_Mock(self):
