@@ -20,7 +20,7 @@ import pytz
 
 from datetime import datetime, timedelta
 
-from .. import structs
+from .. import structs, i18n
 
 
 class AbstractType(metaclass=abc.ABCMeta):
@@ -351,15 +351,30 @@ class AbstractValidator(metaclass=abc.ABCMeta):
     validators documentation should clearly state on which types it operates.
 
     .. automethod:: validate
+
+    .. automethod:: validate_detailed
     """
 
-    @abc.abstractmethod
     def validate(self, value):
         """
         Return :data:`True` if the `value` adheres to the restrictions imposed
         by this validator and :data:`False` otherwise.
-        """
 
+        By default, this method calls :meth:`validate_detailed` and returns
+        :data:`True` if :meth:`validate_detailed` returned an empty result.
+        """
+        return not self.validate_detailed(value)
+
+    @abc.abstractmethod
+    def validate_detailed(self, value):
+        """
+        Return an empty list if the `value` adheres to the restrictions imposed
+        by this validator.
+
+        If the value does not comply, return a list of
+        :class:`~aioxmpp.errors.UserValueError` instances which each represent
+        a condition which was violated in a human-readable way.
+        """
 
 class RestrictToSet(AbstractValidator):
     """
@@ -370,8 +385,14 @@ class RestrictToSet(AbstractValidator):
     def __init__(self, values):
         self.values = frozenset(values)
 
-    def validate(self, value):
-        return value in self.values
+    def validate_detailed(self, value):
+        from ..errors import UserValueError
+        if value not in self.values:
+            return [
+                UserValueError(i18n._("{} is not an allowed value"),
+                               value)
+            ]
+        return []
 
 
 class Nmtoken(AbstractValidator):
@@ -409,5 +430,11 @@ class Nmtoken(AbstractValidator):
             return False
         return True
 
-    def validate(self, value):
-        return all(map(self._validate_chr, value))
+    def validate_detailed(self, value):
+        from ..errors import UserValueError
+        if not all(map(self._validate_chr, value)):
+            return [
+                UserValueError(i18n._("{} is not a valid NMTOKEN"),
+                               value)
+            ]
+        return []

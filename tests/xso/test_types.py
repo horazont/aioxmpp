@@ -764,6 +764,34 @@ class TestAbstractValidator(unittest.TestCase):
         with self.assertRaises(TypeError):
             xso.AbstractValidator()
 
+    def test_validate_calls_validate_detailed(self):
+        class FakeSubclass(xso.AbstractValidator):
+            def validate_detailed(self, value):
+                pass
+
+        instance = FakeSubclass()
+        obj = object()
+        with unittest.mock.patch.object(instance, "validate_detailed") \
+                 as validate_detailed:
+            instance.validate(obj)
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(obj),
+                unittest.mock.call().__bool__(),
+            ],
+            validate_detailed.mock_calls
+        )
+
+    def test_validate_calls_validate_detailed_and_inverts_result(self):
+        class FakeSubclass(xso.AbstractValidator):
+            def validate_detailed(self, value):
+                return []
+
+        instance = FakeSubclass()
+        obj = object()
+        self.assertTrue(instance.validate(obj))
+
 
 class TestRestrictToSet(unittest.TestCase):
     def test_is_abstract_validator(self):
