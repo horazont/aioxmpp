@@ -88,24 +88,29 @@ def run_coroutine_with_peer(
     return local_future.result()
 
 
+class ConnectedClientMock(unittest.mock.Mock):
+    on_stream_established = callbacks.Signal()
+    on_stream_destroyed = callbacks.Signal()
+    on_failure = callbacks.Signal()
+
+    before_stream_established = callbacks.SyncSignal()
+
+    negotiation_timeout = timedelta(milliseconds=100)
+
+    def __init__(self):
+        super().__init__([
+            "stream",
+        ])
+
+        self.stream_features = stream_xsos.StreamFeatures()
+        self.stream.send_iq_and_wait_for_reply = CoroutineMock()
+
+    def _get_child_mock(self, **kw):
+        return unittest.mock.Mock(**kw)
+
+
 def make_connected_client():
-    cc = unittest.mock.Mock([
-        "stream"
-    ])
-
-    cc.negotiation_timeout = timedelta(microseconds=100000)
-
-    cc.on_stream_established = callbacks.AdHocSignal()
-    cc.on_stream_destroyed = callbacks.AdHocSignal()
-    cc.on_failure = callbacks.AdHocSignal()
-
-    cc.before_stream_established = callbacks.SyncAdHocSignal()
-
-    cc.stream.send_iq_and_wait_for_reply = CoroutineMock()
-
-    cc.stream_features = stream_xsos.StreamFeatures()
-
-    return cc
+    return ConnectedClientMock()
 
 
 class CoroutineMock(unittest.mock.Mock):
