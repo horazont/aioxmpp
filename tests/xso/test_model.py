@@ -526,6 +526,23 @@ class TestXMLStreamClass(unittest.TestCase):
         with self.assertRaises(ValueError):
             Cls.register_child(Cls.child, ClsC)
 
+    def test_register_child_rejects_update_of_class_with_descendants(self):
+        class Cls(metaclass=xso_model.XMLStreamClass):
+            TAG = "foo"
+
+            child = xso.Child([])
+
+        class ClsA(Cls):
+            TAG = "bar"
+
+        class ClsB(metaclass=xso_model.XMLStreamClass):
+            TAG = "baz"
+
+        with self.assertRaisesRegexp(
+                TypeError,
+                "register_child is forbidden on classes with subclasses"):
+            Cls.register_child(Cls.child, ClsB)
+
     def test_call_error_handler_on_broken_child(self):
         class Bar(xso.XSO):
             TAG = "bar"

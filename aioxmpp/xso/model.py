@@ -1226,14 +1226,36 @@ class XMLStreamClass(type):
 
         .. warning::
 
-           For now, this only modifies the :attr:`CHILD_MAP` of this class, not
-           of any subclasses. Thus, subclasses will *not* pick up this change,
-           unless they are `declared` after the change has been made.
+           This method cannot be used after a class has been derived from this
+           class. This is for consistency: the method modifiers the bookkeeping
+           attributes of the class. There would be two ways to deal with the
+           situation:
 
-           This may be subject to change in the future, which will also come
-           with a change in the inheritance rules to make them consistent.
+           1. Updating all the attributes at all the subclasses and re-evaluate
+              the constraints of inheritance. This is simply not implemented,
+              although it would be the preferred way.
 
+           2. Only update the bookkeeping attributes on *this* class, hiding
+              the change from any existing subclasses. New subclasses would
+              pick the change up, however, which is inconsistent. This is the
+              way which was previously documented here and is not supported
+              anymore.
+
+           Obviously, (2) is bad, which is why it is not supported anymore. (1)
+           might be supported at some point in the future.
+
+           Attempting to use :meth:`register_child` on a class which already
+           has subclasses results in a :class:`TypeError`.
+
+        Note that *first* using :meth:`register_child` and only *then* deriving
+        clasess is a valid use: it will still lead to a consistent inheritance
+        hierarchy and is a convenient way to break reference cycles (e.g. if an
+        XSO may be its own child).
         """
+        if cls.__subclasses__():
+            raise TypeError(
+                "register_child is forbidden on classes with subclasses")
+
         if child_cls.TAG in cls.CHILD_MAP:
             raise ValueError("ambiguous Child")
 
