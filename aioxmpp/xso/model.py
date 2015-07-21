@@ -964,24 +964,26 @@ class ChildTag(_PropBase):
 class XMLStreamClass(type):
     """
     There should be no need to use this metaclass directly when implementing
-    your own XSO classes. Instead, derive from :class:`XSO`.
+    your own XSO classes. Instead, derive from :class:`~.xso.XSO`.
 
     The following restrictions apply when a class uses the
     :class:`XMLStreamClass` metaclass:
 
     1. At no point in the inheritance tree there must exist more than one
-       distinct :class:`Text` descriptor. It is possible to inherit two
+       distinct :class:`~.xso.Text` descriptor. It is possible to inherit two
        identical text descriptors from several base classes though.
 
-    2. The above applies equivalently for :class:`Collector` descriptors.
+    2. The above applies equivalently for :class:`~.xso.Collector`
+       descriptors.
 
     3. At no point in the inheritance tree there must exist more than one
-       :class:`Attr` descriptor which handles a given attribute tag. Like with
-       :class:`Text`, it is allowed that the same :class:`Attr` descriptor is
-       inherited through multiple paths from parent classes.
+       :class:`~.xso.Attr` descriptor which handles a given attribute tag. Like
+       with :class:`~.xso.Text`, it is allowed that the same
+       :class:`~.xso.Attr` descriptor is inherited through multiple paths from
+       parent classes.
 
-    4. The above applies likewise for element tags and :class:`Child` (or
-       :class:`ChildList`) descriptors.
+    4. The above applies likewise for element tags and :class:`~.xso.Child` (or
+       similar) descriptors.
 
     Objects of this metaclass (i.e. classes) have some useful attributes. The
     following attributes are gathered from the namespace of the class, by
@@ -989,35 +991,34 @@ class XMLStreamClass(type):
 
     .. attribute:: TEXT_PROPERTY
 
-       The :class:`Text` descriptor object associated with this class. This is
-       :data:`None` if no attribute using that descriptor is declared on the
-       class.
+       The :class:`~.xso.Text` descriptor object associated with this
+       class. This is :data:`None` if no attribute using that descriptor is
+       declared on the class.
 
     .. attribute:: COLLECTOR_PROPERTY
 
-       The :class:`Collector` descriptor object associated with this
+       The :class:`~.xso.Collector` descriptor object associated with this
        class. This is :data:`None` if no attribute using that descriptor is
        declared on the class.
 
     .. attribute:: ATTR_MAP
 
-       A dictionary mapping attribute tags to the :class:`Attr` descriptor
-       objects for these attributes.
+       A dictionary mapping attribute tags to the :class:`~.xso.Attr`
+       descriptor objects for these attributes.
 
     .. attribute:: CHILD_MAP
 
-       A dictionary mapping element tags to the :class:`Child` (or
-       :class:`ChildList`) descriptor objects which accept these child
-       elements.
+       A dictionary mapping element tags to the :class:`~.xso.Child` (or
+       similar) descriptor objects which accept these child elements.
 
     .. attribute:: CHILD_PROPS
 
-       A (frozen) set of all :class:`Child` (or :class:`ChildList`) descriptor
-       objects of this class.
+       A set of all :class:`~.xso.Child` (or :class:`~.xso.ChildList`)
+       descriptor objects of this class.
 
     .. note::
 
-       :class:`XSO` defines defaults for more attributes which also
+       :class:`~.xso.XSO` defines defaults for more attributes which also
        must be present on objects which are used as XSOs.
 
     When inheriting from :class:`XMLStreamClass` objects, the properties are
