@@ -53,7 +53,8 @@ class TestStanzaBase(unittest.TestCase):
 
     def test_autoset_id_generates_random_str_on_none(self):
         s = stanza.StanzaBase()
-        self.assertIsNone(s.id_)
+        # we fake the ID attribute here, StanzaBase does not have one by default
+        s.id_ = None
         s.autoset_id()
         id1 = s.id_
         self.assertTrue(s.id_)

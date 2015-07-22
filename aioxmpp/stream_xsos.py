@@ -273,7 +273,6 @@ class SMAcknowledgement(SMXSO):
         "h",
         type_=xso.Integer(),
         required=True,
-        default=0,
     )
 
     def __init__(self, counter=0, **kwargs):

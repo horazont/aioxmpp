@@ -2444,7 +2444,6 @@ class TestAttr(XMLTestCase):
         prop = xso.Attr("foo",
                         default="bar",
                         required=True)
-        prop.__set__(instance, "bar")
 
         with self.assertRaisesRegex(ValueError,
                                     "non-default value required for"):
@@ -2467,6 +2466,42 @@ class TestAttr(XMLTestCase):
                         required=True)
         prop.__set__(instance, "foo")
         prop.validate_contents(instance)
+
+    def test_reject_delete_if_required(self):
+        class Foo(xso.XSO):
+            prop = xso.Attr("foo", default="bar", required=True)
+
+        foo = Foo()
+
+        with self.assertRaisesRegex(AttributeError,
+                                    "cannot delete required attribute"):
+            del foo.prop
+
+    def test_delete_resets_to_default_if_not_required(self):
+        class Foo(xso.XSO):
+            prop = xso.Attr("foo", default="bar", required=False)
+
+        foo = Foo()
+        del foo.prop
+
+        foo.prop = "foo"
+
+        del foo.prop
+        self.assertEqual(
+            "bar",
+            foo.prop
+        )
+
+    def test_setattr_rejects_default_if_required(self):
+        class Foo(xso.XSO):
+            prop = xso.Attr("foo", default="bar", required=True)
+
+        foo = Foo()
+
+        with self.assertRaisesRegex(
+                AttributeError,
+                "cannot set required attribute to default"):
+            foo.prop = "bar"
 
 
 class TestChildText(XMLTestCase):

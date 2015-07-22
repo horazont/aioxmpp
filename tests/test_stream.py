@@ -36,10 +36,11 @@ class FancyTestIQ(xso.XSO):
 stanza.IQ.register_child(stanza.IQ.payload, FancyTestIQ)
 
 
-def make_test_iq(from_=TEST_FROM, to=TEST_TO, type_="get"):
+def make_test_iq(from_=TEST_FROM, to=TEST_TO, type_="get", autoset_id=True):
     iq = stanza.IQ(type_=type_, from_=from_, to=to)
     iq.payload = FancyTestIQ()
-    iq.autoset_id()
+    if autoset_id:
+        iq.autoset_id()
     return iq
 
 
@@ -1178,8 +1179,8 @@ class TestStanzaStream(StanzaStreamTestBase):
         )
 
     def test_send_iq_and_wait_for_reply_autosets_id(self):
-        iq = make_test_iq()
-        iq.id_ = None
+        iq = make_test_iq(autoset_id=False)
+        self.assertIsNone(iq.id_)
 
         task = asyncio.async(
             self.stream.send_iq_and_wait_for_reply(iq),

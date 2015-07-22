@@ -284,9 +284,12 @@ class StanzaBase(xso.XSO):
 
     def __init__(self, *, from_=None, to=None, id_=None):
         super().__init__()
-        self.from_ = from_
-        self.to = to
-        self.id_ = id_
+        if from_ is not None:
+            self.from_ = from_
+        if to is not None:
+            self.to = to
+        if id_ is not None:
+            self.id_ = id_
 
     def autoset_id(self):
         """
@@ -655,7 +658,8 @@ class IQ(StanzaBase):
 
     def __init__(self, *, type_=None, payload=None, error=None, **kwargs):
         super().__init__(**kwargs)
-        self.type_ = type_
+        if type_ is not None:
+            self.type_ = type_
         self.payload = payload
         self.error = error
 

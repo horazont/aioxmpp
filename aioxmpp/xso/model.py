@@ -604,6 +604,19 @@ class Attr(Text):
         self.required = required
         self.missing = missing
 
+    def __set__(self, instance, value):
+        if self.required and value == self.default:
+            raise AttributeError("cannot set required attribute to default")
+        super().__set__(instance, value)
+
+    def __delete__(self, instance):
+        if self.required:
+            raise AttributeError("cannot delete required attribute")
+        try:
+            del instance._stanza_props[self]
+        except KeyError:
+            pass
+
     def handle_missing(self, instance, ctx):
         """
         Handle a missing attribute on `instance`. This is called whenever no

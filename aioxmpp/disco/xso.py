@@ -87,7 +87,8 @@ class Feature(xso.XSO):
 
     def __init__(self, *, var=None):
         super().__init__()
-        self.var = var
+        if var is not None:
+            self.var = var
 
 
 @stanza.IQ.as_payload_class

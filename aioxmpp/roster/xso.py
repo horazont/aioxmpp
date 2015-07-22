@@ -123,7 +123,8 @@ class Item(xso.XSO):
                  approved=False,
                  ask=None):
         super().__init__()
-        self.jid = jid
+        if jid is not None:
+            self.jid = jid
         self.name = name
         self.groups.extend(groups)
         self.subscription = subscription
