@@ -2,7 +2,7 @@ import unittest
 
 from aioxmpp.utils import etree
 
-from .xmltestutils import XMLTestCase, element_path
+from aioxmpp.xmltestutils import XMLTestCase, element_path
 
 
 class TestTestUtils(unittest.TestCase):

@@ -5,7 +5,7 @@ import unittest
 
 import aioxmpp.service as service
 
-from .testutils import run_coroutine
+from aioxmpp.testutils import run_coroutine
 
 
 class TestServiceMeta(unittest.TestCase):

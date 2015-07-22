@@ -11,7 +11,7 @@ import aioxmpp.structs as structs
 
 from aioxmpp.utils import namespaces
 
-from ..testutils import make_connected_client, run_coroutine
+from aioxmpp.testutils import make_connected_client, run_coroutine
 
 
 class TestItem(unittest.TestCase):

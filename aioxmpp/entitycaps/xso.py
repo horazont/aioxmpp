@@ -1,3 +1,4 @@
+import aioxmpp.stanza as stanza
 import aioxmpp.xso as xso
 
 from aioxmpp.utils import namespaces
@@ -29,3 +30,6 @@ class Caps(xso.XSO):
     ext = xso.Attr(
         "ext"
     )
+
+
+stanza.Presence.xep0115_caps = xso.Child([Caps])

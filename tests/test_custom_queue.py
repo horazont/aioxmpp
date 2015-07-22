@@ -3,7 +3,7 @@ import unittest
 
 import aioxmpp.custom_queue as custom_queue
 
-from .testutils import run_coroutine
+from aioxmpp.testutils import run_coroutine
 
 
 class TestAsyncDeque(unittest.TestCase):

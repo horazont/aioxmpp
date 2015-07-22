@@ -15,7 +15,7 @@ import aioxmpp.xso as xso
 
 from aioxmpp.utils import etree, namespaces
 
-from .xmltestutils import XMLTestCase
+from aioxmpp.xmltestutils import XMLTestCase
 
 
 # this tree is extracted from http://api.met.no, the API of the norwegian

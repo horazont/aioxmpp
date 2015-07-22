@@ -4,7 +4,7 @@ import unittest.mock
 
 from datetime import timedelta
 
-from .testutils import (
+from aioxmpp.testutils import (
     run_coroutine,
     make_protocol_mock,
     TransportMock,
@@ -13,7 +13,7 @@ from .testutils import (
     make_connected_client,
     CoroutineMock
 )
-from .xmltestutils import XMLTestCase
+from aioxmpp.xmltestutils import XMLTestCase
 
 import aioxmpp.xso as xso
 import aioxmpp.callbacks as callbacks

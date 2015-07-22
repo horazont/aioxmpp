@@ -17,7 +17,7 @@ from aioxmpp.callbacks import (
     SyncSignal
 )
 
-from .testutils import run_coroutine, CoroutineMock
+from aioxmpp.testutils import run_coroutine, CoroutineMock
 
 
 class TestTagListener(unittest.TestCase):

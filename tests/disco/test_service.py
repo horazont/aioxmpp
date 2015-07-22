@@ -10,7 +10,7 @@ import aioxmpp.errors as errors
 
 from aioxmpp.utils import namespaces
 
-from ..testutils import (
+from aioxmpp.testutils import (
     make_connected_client,
     run_coroutine,
 )

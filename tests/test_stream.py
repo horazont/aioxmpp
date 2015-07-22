@@ -17,12 +17,12 @@ from datetime import timedelta
 from aioxmpp.utils import namespaces
 from aioxmpp.plugins import xep0199
 
-from .testutils import (
+from aioxmpp.testutils import (
     run_coroutine,
     run_coroutine_with_peer,
     XMLStreamMock
 )
-from . import xmltestutils
+from aioxmpp import xmltestutils
 
 
 TEST_FROM = structs.JID.fromstr("foo@example.test/r1")

@@ -13,7 +13,7 @@ import aioxmpp.xso.model as xso_model
 
 from aioxmpp.utils import etree, namespaces
 
-from ..xmltestutils import XMLTestCase
+from aioxmpp.xmltestutils import XMLTestCase
 
 
 def from_wrapper(fun, *args, ctx=None):

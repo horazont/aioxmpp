@@ -1,6 +1,7 @@
 import unittest
 
 import aioxmpp.entitycaps.xso as entitycaps_xso
+import aioxmpp.stanza as stanza
 import aioxmpp.xso as xso
 
 from aioxmpp.utils import namespaces
@@ -82,4 +83,16 @@ class TestCaps(unittest.TestCase):
         self.assertEqual(
             (None, "ext"),
             entitycaps_xso.Caps.ext.tag
+        )
+
+    def test_attr_on_Presence(self):
+        self.assertIsInstance(
+            stanza.Presence.xep0115_caps,
+            xso.Child,
+        )
+        self.assertSetEqual(
+            {
+                entitycaps_xso.Caps
+            },
+            set(stanza.Presence.xep0115_caps._classes)
         )

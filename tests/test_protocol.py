@@ -7,13 +7,13 @@ import aioxmpp.xso as xso
 import aioxmpp.stream_xsos as stream_xsos
 import aioxmpp.errors as errors
 
-from .testutils import (
+from aioxmpp.testutils import (
     TransportMock,
     run_coroutine,
     XMLStreamMock,
     run_coroutine_with_peer
 )
-from . import xmltestutils
+from aioxmpp import xmltestutils
 
 from aioxmpp.protocol import XMLStream
 from aioxmpp.structs import JID

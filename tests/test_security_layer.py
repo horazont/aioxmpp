@@ -9,8 +9,12 @@ import aioxmpp.stream_xsos as stream_xsos
 
 from aioxmpp.utils import namespaces
 
-from .testutils import XMLStreamMock, run_coroutine, run_coroutine_with_peer
-from . import xmltestutils
+from aioxmpp.testutils import (
+    XMLStreamMock,
+    run_coroutine,
+    run_coroutine_with_peer
+)
+from aioxmpp import xmltestutils
 
 
 class TestSTARTTLSProvider(xmltestutils.XMLTestCase):

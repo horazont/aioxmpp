@@ -12,8 +12,12 @@ import aioxmpp.errors as errors
 
 from aioxmpp.utils import namespaces
 
-from . import xmltestutils
-from .testutils import XMLStreamMock, run_coroutine_with_peer, run_coroutine
+from aioxmpp import xmltestutils
+from aioxmpp.testutils import (
+    XMLStreamMock,
+    run_coroutine_with_peer,
+    run_coroutine
+)
 
 
 class SASLStateMachineMock(sasl.SASLStateMachine):

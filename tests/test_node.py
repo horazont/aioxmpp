@@ -17,8 +17,12 @@ import aioxmpp.service as service
 
 from aioxmpp.utils import namespaces
 
-from . import xmltestutils
-from .testutils import run_coroutine, XMLStreamMock, run_coroutine_with_peer
+from aioxmpp import xmltestutils
+from aioxmpp.testutils import (
+    run_coroutine,
+    XMLStreamMock,
+    run_coroutine_with_peer
+)
 
 
 class Testconnect_to_xmpp_server(unittest.TestCase):
