@@ -343,7 +343,45 @@ class Text(_TypedPropBase):
         dest.characters(self.type_.format(value))
 
 
-class Child(_PropBase):
+class _ChildPropBase(_PropBase):
+    """
+    This is a base class for descriptors related to child :class:`XSO`
+    instances.
+
+    It provides a few implementation parts shared between :class:`Child`,
+    :class:`ChildList` and :class:`ChildMap`.
+    """
+
+    def __init__(self, classes, default=None):
+        super().__init__(default)
+        self._classes = set()
+        self._tag_map = {}
+
+        for cls in classes:
+            self._register(cls)
+
+    def _process(self, instance, ev_args, ctx):
+        cls = self._tag_map[ev_args[0], ev_args[1]]
+        return (yield from cls.parse_events(ev_args, ctx))
+
+    def get_tag_map(self):
+        """
+        Return a dictionary mapping the tags of the supported classes to the
+        classes themselves. Can be used to obtain a set of supported tags.
+        """
+        return self._tag_map
+
+    def _register(self, cls):
+        if cls.TAG in self._tag_map:
+            raise ValueError("ambiguous children: {} and {} share the same "
+                             "TAG".format(
+                                 self._tag_map[cls.TAG],
+                                 cls))
+        self._tag_map[cls.TAG] = cls
+        self._classes.add(cls)
+
+
+class Child(_ChildPropBase):
     """
     When assigned to a class’ attribute, it collects any child which matches
     any :attr:`XSO.TAG` of the given `classes`.
@@ -362,23 +400,8 @@ class Child(_PropBase):
     """
 
     def __init__(self, classes, default=None, required=False):
-        super().__init__(default)
+        super().__init__(classes, default=default)
         self.required = required
-        self._classes = tuple(classes)
-        self._tag_map = {}
-        for cls in self._classes:
-            self._register(cls)
-
-    def get_tag_map(self):
-        """
-        Return a dictionary mapping the tags of the supported classes to the
-        classes themselves. Can be used to obtain a set of supported tags.
-        """
-        return self._tag_map
-
-    def _process(self, instance, ev_args, ctx):
-        cls = self._tag_map[ev_args[0], ev_args[1]]
-        return (yield from cls.parse_events(ev_args, ctx))
 
     def __set__(self, instance, value):
         if value is None and self.required:
@@ -426,16 +449,8 @@ class Child(_PropBase):
             return
         obj.unparse_to_sax(dest)
 
-    def _register(self, cls):
-        if cls.TAG in self._tag_map:
-            raise ValueError("ambiguous children: {} and {} share the same "
-                             "TAG".format(
-                                 self._tag_map[cls.TAG],
-                                 cls))
-        self._tag_map[cls.TAG] = cls
 
-
-class ChildList(Child):
+class ChildList(_ChildPropBase):
     """
     The :class:`ChildList` works like :class:`Child`, with two key differences:
 
@@ -811,7 +826,7 @@ class ChildText(_TypedPropBase):
                 dest.endPrefixMapping(self.declare_prefix)
 
 
-class ChildMap(Child):
+class ChildMap(_ChildPropBase):
     """
     The :class:`ChildMap` class works like :class:`ChildList`, but instead of
     storing the child objects in a list, they are stored in a map which
@@ -828,8 +843,8 @@ class ChildMap(Child):
 
     """
 
-    def __init__(self, classes, *, key=None, **kwargs):
-        super().__init__(classes, **kwargs)
+    def __init__(self, classes, *, key=None):
+        super().__init__(classes)
         self.key = key or (lambda obj: obj.TAG)
 
     def __get__(self, instance, cls):
@@ -1132,7 +1147,7 @@ class XMLStreamClass(type):
                 if text_property is not None:
                     raise TypeError("multiple Text properties on XSO class")
                 text_property = obj
-            elif isinstance(obj, (Child, ChildText, ChildTag)):
+            elif isinstance(obj, (_ChildPropBase, ChildText, ChildTag)):
                 for key in obj.get_tag_map():
                     if key in child_map:
                         raise TypeError("ambiguous Child properties: {} and {}"
@@ -1190,7 +1205,7 @@ class XMLStreamClass(type):
                 raise TypeError("multiple Text properties on XSO class")
             super().__setattr__("TEXT_PROPERTY", value)
 
-        elif isinstance(value, (Child, ChildText, ChildTag)):
+        elif isinstance(value, (_ChildPropBase, ChildText, ChildTag)):
             updates = {}
             for key in value.get_tag_map():
                 if key in cls.CHILD_MAP:
