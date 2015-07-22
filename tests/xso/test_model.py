@@ -1459,10 +1459,10 @@ class TestXSO(XMLTestCase):
 
         with contextlib.ExitStack() as stack:
             attr_validate = stack.enter_context(
-                unittest.mock.patch.object(Foo.attr, "validate_xsos")
+                unittest.mock.patch.object(Foo.attr, "validate_contents")
             )
             child_validate = stack.enter_context(
-                unittest.mock.patch.object(Foo.child, "validate_xsos")
+                unittest.mock.patch.object(Foo.child, "validate_contents")
             )
 
             obj.validate()
@@ -2063,13 +2063,13 @@ class TestChild(XMLTestCase):
             ],
             dest.mock_calls)
 
-    def test_validate_xsos_recurses(self):
+    def test_validate_contents_recurses(self):
         obj = self.ClsA()
         child = self.ClsLeaf()
         obj.test_child = child
 
         with unittest.mock.patch.object(child, "validate") as validate:
-            self.ClsA.test_child.validate_xsos(obj)
+            self.ClsA.test_child.validate_contents(obj)
 
         self.assertSequenceEqual(
             [
@@ -2078,11 +2078,11 @@ class TestChild(XMLTestCase):
             validate.mock_calls
         )
 
-    def test_validate_xsos_passes_for_None(self):
+    def test_validate_contents_passes_for_None(self):
         obj = self.ClsA()
         obj.test_child = None
 
-        self.ClsA.test_child.validate_xsos(obj)
+        self.ClsA.test_child.validate_contents(obj)
 
     def tearDown(self):
         del self.ClsA
@@ -2179,7 +2179,7 @@ class TestChildList(XMLTestCase):
             obj.children
         )
 
-    def test_validate_xsos_recurses_to_all_children(self):
+    def test_validate_contents_recurses_to_all_children(self):
         obj = self.Cls()
         children = [
             self.ClsLeafA(),
@@ -2863,7 +2863,7 @@ class TestChildMap(XMLTestCase):
         self.assertEqual(1, len(foo_results))
         self.assertIsInstance(foo_results[0], Foo)
 
-    def test_validate_xsos_recurses_to_all_children(self):
+    def test_validate_contents_recurses_to_all_children(self):
         class Bar(xso.XSO):
             TAG = "bar"
 

@@ -272,7 +272,7 @@ class _PropBase:
         except KeyError:
             return self.default
 
-    def validate_xsos(self, instance):
+    def validate_contents(self, instance):
         pass
 
     def to_node(self, instance, parent):
@@ -391,7 +391,7 @@ class Child(_PropBase):
         self.__set__(instance, obj)
         return obj
 
-    def validate_xsos(self, instance):
+    def validate_contents(self, instance):
         obj = self.__get__(instance, type(instance))
         if obj is None:
             return
@@ -455,7 +455,7 @@ class ChildList(Child):
         self.__get__(instance, type(instance)).append(obj)
         return obj
 
-    def validate_xsos(self, instance):
+    def validate_contents(self, instance):
         for child in self.__get__(instance, type(instance)):
             child.validate()
 
@@ -821,7 +821,7 @@ class ChildMap(Child):
         mapping = self.__get__(instance, type(instance))
         mapping[self.key(obj)].append(obj)
 
-    def validate_xsos(self, instance):
+    def validate_contents(self, instance):
         mapping = self.__get__(instance, type(instance))
         for objects in mapping.values():
             for obj in objects:
@@ -1298,7 +1298,7 @@ class XMLStreamClass(type):
         .. warning::
 
            This method cannot be used after a class has been derived from this
-           class. This is for consistency: the method modifiers the bookkeeping
+           class. This is for consistency: the method modifies the bookkeeping
            attributes of the class. There would be two ways to deal with the
            situation:
 
@@ -1441,7 +1441,7 @@ class XSO(metaclass=XMLStreamClass):
         Validate the objects structure beyond the values of individual fields
         (which have their own validators).
 
-        This first calls :meth:`_PropBase.validate_xsos` recursively on the
+        This first calls :meth:`_PropBase.validate_contents` recursively on the
         values of all child descriptors. These may raise (or re-raise) errors
         which occur during validation of the child elements.
 
@@ -1456,7 +1456,7 @@ class XSO(metaclass=XMLStreamClass):
         """
 
         for descriptor in self.CHILD_PROPS:
-            descriptor.validate_xsos(self)
+            descriptor.validate_contents(self)
 
     def xso_error_handler(self, descriptor, ev_args, exc_info):
         """
