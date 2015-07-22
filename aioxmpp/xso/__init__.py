@@ -242,6 +242,8 @@ Implementations
 
 .. autoclass:: Nmtoken
 
+.. autoclass:: IsInstance
+
 .. currentmodule:: aioxmpp.xso
 
 Predefined XSO base classes
@@ -313,7 +315,8 @@ from .types import (  # NOQA
     LanguageTag,
     AbstractValidator,
     RestrictToSet,
-    Nmtoken
+    Nmtoken,
+    IsInstance,
 )
 
 from .model import (  # NOQA

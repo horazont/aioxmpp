@@ -1196,3 +1196,37 @@ class TestNmtoken(unittest.TestCase):
             "\u30FC",
             "Extender"
         )
+
+
+class TestIsInstance(unittest.TestCase):
+    def test_is_abstract_validator(self):
+        self.assertTrue(issubclass(
+            xso.IsInstance,
+            xso.AbstractValidator
+        ))
+
+    def test_validate(self):
+        v = xso.IsInstance((str, bytes))
+        self.assertTrue(
+            v.validate("abc")
+        )
+        self.assertTrue(
+            v.validate(b"abc")
+        )
+        self.assertFalse(
+            v.validate(1)
+        )
+
+    def test_list_of_classes_is_shared(self):
+        classes = []
+        v = xso.IsInstance(classes)
+
+        self.assertFalse(
+            v.validate("str")
+        )
+
+        classes.append(str)
+
+        self.assertTrue(
+            v.validate("str")
+        )

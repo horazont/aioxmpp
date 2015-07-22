@@ -438,3 +438,30 @@ class Nmtoken(AbstractValidator):
                                value)
             ]
         return []
+
+
+class IsInstance(AbstractValidator):
+    """
+    This validator checks that the value is an instance of any of the classes
+    given in `valid_classes`.
+
+    `valid_classes` is *not* copied into the :class:`IsInstance` instance, but
+    instead shared; it can be mutated after the construction of
+    :class:`IsInstance` to allow addition and removal of classes.
+    """
+
+    def __init__(self, valid_classes):
+        self.classes = valid_classes
+
+    def validate_detailed(self, v):
+        from ..errors import UserValueError
+        if not isinstance(v, tuple(self.classes)):
+            return [
+                UserValueError(
+                    i18n._("{} is of incorrect type (must be one of {})"),
+                    v,
+                    ", ".join(type_.__name__
+                              for type_ in self.classes)
+                )
+            ]
+        return []
