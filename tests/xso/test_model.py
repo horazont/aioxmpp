@@ -2438,6 +2438,36 @@ class TestAttr(XMLTestCase):
             prop.__get__(instance, type(instance))
         )
 
+    def test_validate_rejects_value_equal_to_default_if_required(self):
+        instance = make_instance_mock()
+
+        prop = xso.Attr("foo",
+                        default="bar",
+                        required=True)
+        prop.__set__(instance, "bar")
+
+        with self.assertRaisesRegex(ValueError,
+                                    "non-default value required for"):
+            prop.validate_contents(instance)
+
+    def test_validate_accepts_value_equal_to_default_if_not_required(self):
+        instance = make_instance_mock()
+
+        prop = xso.Attr("foo",
+                        default="bar",
+                        required=False)
+        prop.__set__(instance, "bar")
+        prop.validate_contents(instance)
+
+    def test_validate_accepts_non_default_value_if_required(self):
+        instance = make_instance_mock()
+
+        prop = xso.Attr("foo",
+                        default="bar",
+                        required=True)
+        prop.__set__(instance, "foo")
+        prop.validate_contents(instance)
+
 
 class TestChildText(XMLTestCase):
     def setUp(self):

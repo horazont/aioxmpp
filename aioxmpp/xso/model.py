@@ -632,6 +632,14 @@ class Attr(Text):
                 tag_to_str(instance.TAG),
             ))
 
+    def validate_contents(self, instance):
+        if self.required:
+            value = self.__get__(instance, type(instance))
+            if value == self.default:
+                raise ValueError("non-default value required for {}".format(
+                    tag_to_str(self.tag)
+                ))
+
     def to_dict(self, instance, d):
         """
         Override the implementation from :class:`Text` by storing the formatted
