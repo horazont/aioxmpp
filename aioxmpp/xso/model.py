@@ -351,8 +351,8 @@ class Child(_PropBase):
     The tags among the `classes` must be unique, otherwise :class:`ValueError`
     is raised on construction.
 
-    The `default` argument behaves like in :class:`Attr`. Validators are not
-    supported.
+    The `default` and `required` arguments behave like in
+    :class:`Attr`. Validators are not supported.
 
     .. automethod:: get_tag_map
 
@@ -361,8 +361,9 @@ class Child(_PropBase):
     .. automethod:: to_sax
     """
 
-    def __init__(self, classes, default=None):
+    def __init__(self, classes, default=None, required=False):
         super().__init__(default)
+        self.required = required
         self._classes = tuple(classes)
         self._tag_map = {}
         for cls in self._classes:
@@ -379,6 +380,19 @@ class Child(_PropBase):
         cls = self._tag_map[ev_args[0], ev_args[1]]
         return (yield from cls.parse_events(ev_args, ctx))
 
+    def __set__(self, instance, value):
+        if value is None and self.required:
+            raise ValueError("cannot set required member to None")
+        super().__set__(instance, value)
+
+    def __delete__(self, instance):
+        if self.required:
+            raise AttributeError("cannot delete required member")
+        try:
+            del instance._stanza_props[self]
+        except KeyError:
+            pass
+
     def from_events(self, instance, ev_args, ctx):
         """
         Detect the object to instanciate from the arguments `ev_args` of the
@@ -394,6 +408,8 @@ class Child(_PropBase):
     def validate_contents(self, instance):
         obj = self.__get__(instance, type(instance))
         if obj is None:
+            if self.required:
+                raise ValueError("missing required member")
             return
         obj.validate()
 
@@ -426,6 +442,7 @@ class ChildList(Child):
     * multiple children which are matched by this descriptor get collected into
       an :class:`~aioxmpp.xso.model.XSOList`.
     * the default is fixed at an empty list.
+    * `required` is not supported
 
     .. automethod:: from_events
 

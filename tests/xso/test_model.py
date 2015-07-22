@@ -2084,6 +2084,42 @@ class TestChild(XMLTestCase):
 
         self.ClsA.test_child.validate_contents(obj)
 
+    def test_validate_contents_rejects_None_if_required(self):
+        class Cls(xso.XSO):
+            prop = xso.Child([], required=True)
+
+        with self.assertRaisesRegex(ValueError,
+                                    "missing required member"):
+            Cls.prop.validate_contents(Cls())
+
+    def test_cannot_assign_None_if_required(self):
+        class Cls(xso.XSO):
+            prop = xso.Child([], required=True)
+
+        instance = Cls()
+        with self.assertRaisesRegex(ValueError,
+                                    "cannot set required member to None"):
+            instance.prop = None
+
+    def test_cannot_delete_if_required(self):
+        class Cls(xso.XSO):
+            prop = xso.Child([], required=True)
+
+        instance = Cls()
+        with self.assertRaisesRegex(AttributeError,
+                                    "cannot delete required member"):
+            del instance.prop
+
+    def test_delete_sets_to_None_if_not_required(self):
+        class Cls(xso.XSO):
+            prop = xso.Child([self.ClsA], required=False)
+
+        instance = Cls()
+        del instance.prop
+        instance.prop = self.ClsA()
+        del instance.prop
+        self.assertIsNone(instance.prop)
+
     def tearDown(self):
         del self.ClsA
         del self.ClsLeaf
