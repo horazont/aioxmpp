@@ -1,9 +1,10 @@
 ``aioxmpp``
 ###########
 
-... is a pure-python XMPP library using the [``asyncio``][0] standard library
-module from Python 3.4 (and [available as a third-party module to Python
-3.3][1]).
+... is a pure-python XMPP library using the
+`asyncio <https://docs.python.org/3/library/asyncio.html>`_
+standard library module from Python 3.4 (and `available as a third-party module to Python
+3.3 <https://code.google.com/p/tulip/>`_ ).
 
 Dependencies
 ------------
@@ -20,6 +21,3 @@ Design goals
 * Reliable message transmission even under dire network circumstances
 * Well-tested code base
 * A more compelling README than this
-
-   [0]: https://docs.python.org/3/library/asyncio.html
-   [1]: https://code.google.com/p/tulip/
