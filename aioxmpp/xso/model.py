@@ -1249,10 +1249,15 @@ class XMLStreamClass(type):
            You probably should not call this method directly, but instead use
            :class:`XSOParser` with a :class:`SAXDriver`.
 
+        .. note::
+
+           While this method creates an instance of the class, ``__init__`` is
+           not called. See the documentation of :meth:`.xso.XSO` for details.
+
         This method is suspendable.
         """
         with parent_ctx as ctx:
-            obj = cls()
+            obj = cls.__new__(cls)
             attrs = ev_args[2]
             attr_map = cls.ATTR_MAP.copy()
             for key, value in attrs.items():
@@ -1341,6 +1346,8 @@ class XMLStreamClass(type):
 
         obj.validate()
 
+        obj.xso_after_load()
+
         return obj
 
     def register_child(cls, prop, child_cls):
@@ -1395,8 +1402,17 @@ class XSO(metaclass=XMLStreamClass):
     XSO is short for **X**\ ML **S**\ tream **O**\ bject and means an object
     which represents a subtree of an XML stream. These objects can also be
     created and validated on-the-fly from SAX-like events using
-    :class:`XSOParser`. The constructor does not require any arguments and
-    forwards them directly the next class in the resolution order.
+    :class:`XSOParser`.
+
+    The constructor does not require any arguments and forwards them directly
+    the next class in the resolution order. Note that during deserialization,
+    ``__init__`` is not called. It is assumed that all data is loaded from the
+    XML stream and thus no initialization is required.
+
+    This is beneficial to applications, as it allows them to define mandatory
+    arguments for ``__init__``. This would not be possible if ``__init__`` was
+    called during deserialization. A way to execute code after successful
+    deserialization is provided through :meth:`xso_after_load`.
 
     To declare an XSO, inherit from :class:`XSO` and provide
     the following attributes on your class:
@@ -1412,6 +1428,12 @@ class XSO(metaclass=XMLStreamClass):
        information with respect to subclassing and modifying :class:`XSO`
        subclasses, as well as restrictions on the use of the said attribute
        descriptors.
+
+    .. note::
+
+       Attributes whose name starts with ``xso_`` are reserved for use by the
+       XSO implementation. Do not use these in your code if you can possibly
+       avoid it.
 
     To further influence the parsing behaviour of a class, two attributes are
     provided which give policies for unexpected elements in the XML tree:
@@ -1480,14 +1502,24 @@ class XSO(metaclass=XMLStreamClass):
 
     .. automethod:: register_child(prop, child_cls)
 
+    To customize behaviour of deserialization, these methods are provided which
+    can be re-implemented by subclasses:
+
+    .. automethod:: xso_after_load
+
+    .. automethod:: xso_error_handler
+
     """
     UNKNOWN_CHILD_POLICY = UnknownChildPolicy.FAIL
     UNKNOWN_ATTR_POLICY = UnknownAttrPolicy.FAIL
     DECLARE_NS = None
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self._stanza_props = dict()
+    def __new__(cls, *args, **kwargs):
+        # XXX: is it always correct to omit the arguments here?
+        # the semantics of the __new__ arguments are odd to say the least
+        result = super().__new__(cls)
+        result._stanza_props = dict()
+        return result
 
     def validate(self):
         """
@@ -1510,6 +1542,13 @@ class XSO(metaclass=XMLStreamClass):
 
         for descriptor in self.CHILD_PROPS:
             descriptor.validate_contents(self)
+
+    def xso_after_load(self):
+        """
+        After an object has been successfully deserialized, this method is
+        called. Note that ``__init__`` is never called on objects during
+        deserialization.
+        """
 
     def xso_error_handler(self, descriptor, ev_args, exc_info):
         """

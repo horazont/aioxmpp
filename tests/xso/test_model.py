@@ -1245,6 +1245,55 @@ class TestXMLStreamClass(unittest.TestCase):
             "method"
         ))
 
+    def test_parse_events_does_not_call_init_but_validate_and_new(self):
+        class Cls(metaclass=xso_model.XMLStreamClass):
+            TAG = "foo"
+
+            def validate(self):
+                pass
+
+            def xso_after_load(self):
+                pass
+
+        instance = unittest.mock.Mock(spec=Cls())
+
+        with contextlib.ExitStack() as stack:
+            init = stack.enter_context(
+                unittest.mock.patch.object(type(Cls), "__call__")
+            )
+            init.return_value = unittest.mock.Mock()
+
+            new = stack.enter_context(
+                unittest.mock.patch.object(Cls, "__new__")
+            )
+            new.return_value = instance
+
+            gen = Cls.parse_events((None, "foo", {}), self.ctx)
+            next(gen)
+            with self.assertRaises(StopIteration) as ctx:
+                gen.send(("end", ))
+
+        self.assertSequenceEqual(
+            [
+            ],
+            init.mock_calls,
+            "construction happened through init"
+        )
+
+        self.assertIs(
+            instance,
+            ctx.exception.value
+        )
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(Cls),
+                unittest.mock.call().validate(),
+                unittest.mock.call().xso_after_load(),
+            ],
+            new.mock_calls
+        )
+
 
 class TestXSO(XMLTestCase):
     def _unparse_test(self, obj, tree):
