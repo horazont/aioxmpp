@@ -664,6 +664,103 @@ class TestAdHocSignal(unittest.TestCase):
             fun.mock_calls
         )
 
+    def test_connect_auto_future_uses_set_result_with_None(self):
+        signal = AdHocSignal()
+
+        fut = unittest.mock.Mock()
+        fut.done.return_value = False
+
+        signal.connect(fut, AdHocSignal.AUTO_FUTURE)
+
+        signal()
+        signal()
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call.done(),
+                unittest.mock.call.set_result(None)
+            ],
+            fut.mock_calls
+        )
+
+    def test_connect_auto_future_uses_set_result_with_argument(self):
+        signal = AdHocSignal()
+
+        obj = object()
+
+        fut = unittest.mock.Mock()
+        fut.done.return_value = False
+
+        signal.connect(fut, AdHocSignal.AUTO_FUTURE)
+
+        signal(obj)
+        signal(obj)
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call.done(),
+                unittest.mock.call.set_result(obj)
+            ],
+            fut.mock_calls
+        )
+
+    def test_connect_auto_future_TypeErrors_if_more_than_one_argument(self):
+        signal = AdHocSignal()
+
+        obj = object()
+
+        fut = unittest.mock.Mock()
+        fut.done.return_value = False
+
+        signal.connect(fut, AdHocSignal.AUTO_FUTURE)
+
+        with self.assertRaises(TypeError):
+            signal(obj, "foo")
+
+        with self.assertRaises(TypeError):
+            signal(obj, fnord="foo")
+
+    def test_connect_auto_future_converts_exceptions(self):
+        signal = AdHocSignal()
+
+        obj = ValueError()
+
+        fut = unittest.mock.Mock()
+        fut.done.return_value = False
+
+        signal.connect(fut, AdHocSignal.AUTO_FUTURE)
+
+        signal(obj)
+        signal(obj)
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call.done(),
+                unittest.mock.call.set_exception(obj)
+            ],
+            fut.mock_calls
+        )
+
+    def test_connect_skips_if_future_is_done(self):
+        signal = AdHocSignal()
+
+        obj = ValueError()
+
+        fut = unittest.mock.Mock()
+        fut.done.return_value = True
+
+        signal.connect(fut, AdHocSignal.AUTO_FUTURE)
+
+        signal("foo")
+        signal(obj)
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call.done(),
+            ],
+            fut.mock_calls
+        )
+
 
 class TestSyncAdHocSignal(unittest.TestCase):
     def test_connect_and_fire(self):

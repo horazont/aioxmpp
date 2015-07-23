@@ -158,6 +158,26 @@ class AdHocSignal(AbstractAdHocSignal):
     def WEAK(cls, f):
         return functools.partial(cls._weakref_wrapper, weakref.ref(f))
 
+    @classmethod
+    def AUTO_FUTURE(cls, f):
+        def future_wrapper(args, kwargs):
+            if kwargs:
+                raise TypeError("keyword arguments not supported")
+            if len(args) > 0:
+                try:
+                    arg, = args
+                except ValueError:
+                    raise TypeError("too many arguments") from None
+            else:
+                arg = None
+            if f.done():
+                return
+            if isinstance(arg, Exception):
+                f.set_exception(arg)
+            else:
+                f.set_result(arg)
+        return future_wrapper
+
     @staticmethod
     def _async_wrapper(f, loop, args, kwargs):
         if kwargs:
