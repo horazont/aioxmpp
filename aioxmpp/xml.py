@@ -18,6 +18,8 @@ bothering with any cleanup.
 
 .. autofunction:: write_xmlstream
 
+.. autofunction:: write_objects
+
 .. autoclass:: AbortStream
 
 Processing XML streams
@@ -444,6 +446,27 @@ class XMPPXMLGenerator:
         self._finish_pending_start_element()
         if self._flush:
             self._flush()
+
+
+def write_objects(writer, *, autoflush=False):
+    """
+    Return a generator. All :class:`.xso.XSO` objects sent into the generator
+    (using it’s :meth:`send` method) are written to the given
+    *writer*. *writer* must be an object supporting the namespace-aware SAX
+    interface.
+
+    If *autoflush* is true, :meth:`flush` is called on *writer* after each
+    object. Note that not all writers support :meth:`flush`, as it is not part
+    of the official SAX specification.
+    """
+    try:
+        while True:
+            obj = yield
+            obj.unparse_to_sax(writer)
+            if autoflush:
+                writer.flush()
+    except AbortStream:
+        pass
 
 
 def write_xmlstream(f,

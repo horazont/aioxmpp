@@ -525,6 +525,130 @@ class TestXMPPXMLGenerator(XMLTestCase):
         del self.buf
 
 
+class Testwrite_objects(unittest.TestCase):
+    def setUp(self):
+        self.buf = io.BytesIO()
+        self.writer = xml.XMPPXMLGenerator(
+            out=self.buf,
+            short_empty_elements=True,
+            sorted_attributes=True)
+
+    def test_suspends(self):
+        gen = xml.write_objects(self.writer)
+        next(gen)
+
+    def test_writes_XSO(self):
+        class Cls(xso.XSO):
+            TAG = (None, "foobar")
+
+        obj1 = unittest.mock.Mock(Cls)
+        obj2 = unittest.mock.Mock(Cls)
+        obj3 = unittest.mock.Mock(Cls)
+        writer = unittest.mock.Mock(self.writer)
+
+        gen = xml.write_objects(writer)
+        next(gen)
+
+        gen.send(obj1)
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call.unparse_to_sax(writer),
+            ],
+            obj1.mock_calls
+        )
+
+        gen.send(obj2)
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call.unparse_to_sax(writer),
+            ],
+            obj2.mock_calls
+        )
+
+        gen.send(obj3)
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call.unparse_to_sax(writer),
+            ],
+            obj3.mock_calls
+        )
+
+        self.assertSequenceEqual(
+            [],
+            writer.mock_calls
+        )
+
+    def test_abort(self):
+        gen = xml.write_objects(self.writer)
+        next(gen)
+        with self.assertRaises(StopIteration) as ctx:
+            gen.throw(xml.AbortStream())
+        self.assertIsNone(ctx.exception.value)
+
+    def test_write_xsos_with_autoflush(self):
+        class Cls(xso.XSO):
+            TAG = (None, "foobar")
+
+        obj1 = unittest.mock.Mock(Cls)
+        obj2 = unittest.mock.Mock(Cls)
+        obj3 = unittest.mock.Mock(Cls)
+        writer = unittest.mock.Mock(self.writer)
+
+        gen = xml.write_objects(writer, autoflush=True)
+        next(gen)
+
+        gen.send(obj1)
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call.unparse_to_sax(writer),
+            ],
+            obj1.mock_calls
+        )
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call.flush(),
+            ],
+            writer.mock_calls
+        )
+
+        gen.send(obj2)
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call.unparse_to_sax(writer),
+            ],
+            obj2.mock_calls
+        )
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call.flush(),
+                unittest.mock.call.flush(),
+            ],
+            writer.mock_calls
+        )
+
+        gen.send(obj3)
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call.unparse_to_sax(writer),
+            ],
+            obj3.mock_calls
+        )
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call.flush(),
+                unittest.mock.call.flush(),
+                unittest.mock.call.flush(),
+            ],
+            writer.mock_calls
+        )
+
+    def tearDown(self):
+        del self.buf
+
+
 class Testwrite_xmlstream(unittest.TestCase):
     TEST_TO = structs.JID.fromstr("example.test")
     TEST_FROM = structs.JID.fromstr("foo@example.test")
