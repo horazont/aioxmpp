@@ -1708,6 +1708,62 @@ class TestPresenceManagedClient(xmltestutils.XMLTestCase):
 
         self.presence_sent_rec.assert_called_once_with()
 
+    def test_re_establish_on_presence_rewrite_if_disconnected(self):
+        self.client.presence = structs.PresenceState(
+            available=True,
+            show="chat")
+
+        run_coroutine(self.xmlstream.run_test([
+        ]+self.resource_binding+[
+            XMLStreamMock.Send(
+                stanza.Presence(type_=None,
+                                show="chat",
+                                id_="autoset"),
+                response=XMLStreamMock.Receive(
+                    stanza.Presence(type_=None,
+                                    show="chat",
+                                    id_="autoset")
+                )
+            ),
+        ]))
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call()
+            ],
+            self.presence_sent_rec.mock_calls
+        )
+        self.presence_sent_rec.reset_mock()
+
+        self.client.stop()
+        run_coroutine(self.xmlstream.run_test([
+            XMLStreamMock.Close()
+        ]))
+
+        self.client.presence = self.client.presence
+
+        run_coroutine(self.xmlstream.run_test([
+        ]+self.resource_binding+[
+            XMLStreamMock.Send(
+                stanza.Presence(type_=None,
+                                show="chat",
+                                id_="autoset"),
+                response=XMLStreamMock.Receive(
+                    stanza.Presence(type_=None,
+                                    show="chat",
+                                    id_="autoset")
+                )
+            ),
+        ]))
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call()
+            ],
+            self.presence_sent_rec.mock_calls
+        )
+        self.presence_sent_rec.reset_mock()
+
     def tearDown(self):
         for patch in self.patches:
             patch.stop()

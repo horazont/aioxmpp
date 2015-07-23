@@ -685,9 +685,6 @@ class PresenceManagedClient(AbstractClient):
 
     @presence.setter
     def presence(self, value):
-        if value == self._presence:
-            return
-
         self._presence = value
         if self._presence.available:
             if not self.running:
