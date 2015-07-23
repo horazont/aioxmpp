@@ -557,6 +557,7 @@ class TestXMLStreamClass(unittest.TestCase):
             child = xso.Child([Bar])
 
         Cls.xso_error_handler = unittest.mock.MagicMock()
+        Cls.xso_error_handler.return_value = False
 
         gen = Cls.parse_events((None, "foo", {}), self.ctx)
         next(gen)
@@ -590,6 +591,7 @@ class TestXMLStreamClass(unittest.TestCase):
             child = xso.Child([Bar])
 
         Cls.xso_error_handler = unittest.mock.MagicMock()
+        Cls.xso_error_handler.return_value = False
 
         gen = Cls.parse_events((None, "foo", {}), self.ctx)
         next(gen)
@@ -598,13 +600,67 @@ class TestXMLStreamClass(unittest.TestCase):
 
         self.assertSequenceEqual(
             [
-                unittest.mock.call.__bool__(),
                 unittest.mock.call(
                     None,
                     [None, "baz", {}],
                     None)
             ],
             Cls.xso_error_handler.mock_calls
+        )
+
+    def test_error_handler_on_unexpected_child_can_suppress(self):
+        class Bar(xso.XSO):
+            TAG = "bar"
+
+            text = xso.Text(
+                type_=xso.Integer()
+            )
+
+        class Cls(xso.XSO):
+            TAG = "foo"
+            UNKNOWN_CHILD_POLICY = xso.UnknownChildPolicy.FAIL
+
+            child = xso.Child([Bar])
+
+        Cls.xso_error_handler = unittest.mock.MagicMock()
+        Cls.xso_error_handler.return_value = True
+
+        gen = Cls.parse_events((None, "foo", {}), self.ctx)
+        next(gen)
+        gen.send(("start", None, "baz", {}))
+        gen.send(("text", "foo"))
+        gen.send(("start", None, "bar", {}))
+        gen.send(("end",))
+        gen.send(("end",))
+        gen.send(("start", None, "bar", {}))
+        gen.send(("text", "123"))
+        gen.send(("end",))
+        with self.assertRaises(StopIteration) as ctx:
+            gen.send(("end",))
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(
+                    None,
+                    [None, "baz", {}],
+                    None)
+            ],
+            Cls.xso_error_handler.mock_calls
+        )
+
+        self.assertIsInstance(
+            ctx.exception.value,
+            Cls
+        )
+
+        self.assertIsInstance(
+            ctx.exception.value.child,
+            Bar
+        )
+
+        self.assertEqual(
+            123,
+            ctx.exception.value.child.text
         )
 
     def test_call_error_handler_on_broken_text(self):
@@ -616,6 +672,7 @@ class TestXMLStreamClass(unittest.TestCase):
             )
 
         Cls.xso_error_handler = unittest.mock.MagicMock()
+        Cls.xso_error_handler.return_value = False
 
         gen = Cls.parse_events((None, "foo", {}), self.ctx)
         next(gen)
@@ -634,6 +691,106 @@ class TestXMLStreamClass(unittest.TestCase):
             Cls.xso_error_handler.mock_calls
         )
 
+    def test_error_handler_on_broken_text_can_suppress(self):
+        class Cls(metaclass=xso_model.XMLStreamClass):
+            TAG = "foo"
+
+            text = xso.Text(
+                type_=xso.Integer()
+            )
+
+            def validate(self):
+                pass
+
+            def xso_after_load(self):
+                pass
+
+        Cls.xso_error_handler = unittest.mock.MagicMock()
+        Cls.xso_error_handler.return_value = True
+
+        gen = Cls.parse_events((None, "foo", {}), self.ctx)
+        next(gen)
+        gen.send(("text", "foo"))
+        gen.send(("text", "bar"))
+        with self.assertRaises(StopIteration) as ctx:
+            gen.send(("end",))
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(
+                    Cls.text,
+                    "foobar",
+                    unittest.mock.ANY)
+            ],
+            Cls.xso_error_handler.mock_calls
+        )
+
+        self.assertIsInstance(
+            ctx.exception.value,
+            Cls
+        )
+
+    def test_call_error_handler_on_unexpected_text(self):
+        class Cls(metaclass=xso_model.XMLStreamClass):
+            TAG = "foo"
+
+        Cls.xso_error_handler = unittest.mock.MagicMock()
+        Cls.xso_error_handler.return_value = False
+
+        gen = Cls.parse_events((None, "foo", {}), self.ctx)
+        next(gen)
+        with self.assertRaises(ValueError):
+            gen.send(("text", "foo"))
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(
+                    None,
+                    "foo",
+                    None)
+            ],
+            Cls.xso_error_handler.mock_calls
+        )
+
+    def test_error_handler_on_unexpected_text_can_suppress(self):
+        class Cls(metaclass=xso_model.XMLStreamClass):
+            TAG = "foo"
+
+            def validate(self):
+                pass
+
+            def xso_after_load(self):
+                pass
+
+        Cls.xso_error_handler = unittest.mock.MagicMock()
+        Cls.xso_error_handler.return_value = True
+
+        gen = Cls.parse_events((None, "foo", {}), self.ctx)
+        next(gen)
+        gen.send(("text", "foo"))
+        gen.send(("text", "bar"))
+        with self.assertRaises(StopIteration) as ctx:
+            gen.send(("end",))
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(
+                    None,
+                    "foo",
+                    None),
+                unittest.mock.call(
+                    None,
+                    "bar",
+                    None),
+            ],
+            Cls.xso_error_handler.mock_calls
+        )
+
+        self.assertIsInstance(
+            ctx.exception.value,
+            Cls
+        )
+
     def test_call_error_handler_on_broken_attr(self):
         class Cls(metaclass=xso_model.XMLStreamClass):
             TAG = "foo"
@@ -644,6 +801,7 @@ class TestXMLStreamClass(unittest.TestCase):
             )
 
         Cls.xso_error_handler = unittest.mock.MagicMock()
+        Cls.xso_error_handler.return_value = False
 
         gen = Cls.parse_events(
             (
@@ -666,6 +824,38 @@ class TestXMLStreamClass(unittest.TestCase):
             Cls.xso_error_handler.mock_calls
         )
 
+    def test_error_handler_on_broken_attr_can_suppress(self):
+        class Cls(metaclass=xso_model.XMLStreamClass):
+            TAG = "foo"
+
+            attr = xso.Attr(
+                tag=(None, "attr"),
+                type_=xso.Integer()
+            )
+
+        Cls.xso_error_handler = unittest.mock.MagicMock()
+        Cls.xso_error_handler.return_value = True
+
+        gen = Cls.parse_events(
+            (
+                None,
+                "foo", {
+                    (None, "attr"): "foobar",
+                }
+            ),
+            self.ctx)
+        next(gen)
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(
+                    Cls.attr,
+                    "foobar",
+                    unittest.mock.ANY)
+            ],
+            Cls.xso_error_handler.mock_calls
+        )
+
     def test_call_error_handler_on_missing_attr(self):
         class Cls(metaclass=xso_model.XMLStreamClass):
             TAG = "foo"
@@ -676,6 +866,7 @@ class TestXMLStreamClass(unittest.TestCase):
             )
 
         Cls.xso_error_handler = unittest.mock.MagicMock()
+        Cls.xso_error_handler.return_value = False
 
         gen = Cls.parse_events(
             (
@@ -686,6 +877,37 @@ class TestXMLStreamClass(unittest.TestCase):
             self.ctx)
         with self.assertRaises(ValueError):
             next(gen)
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(
+                    Cls.attr,
+                    None,
+                    unittest.mock.ANY)
+            ],
+            Cls.xso_error_handler.mock_calls
+        )
+
+    def test_error_handler_on_missing_attr_can_suppress(self):
+        class Cls(metaclass=xso_model.XMLStreamClass):
+            TAG = "foo"
+
+            attr = xso.Attr(
+                tag=(None, "attr"),
+                required=True
+            )
+
+        Cls.xso_error_handler = unittest.mock.MagicMock()
+        Cls.xso_error_handler.return_value = True
+
+        gen = Cls.parse_events(
+            (
+                None,
+                "foo", {
+                }
+            ),
+            self.ctx)
+        next(gen)
 
         self.assertSequenceEqual(
             [
@@ -3449,6 +3671,41 @@ class Testenforce_unknown_child_policy(unittest.TestCase):
             (None, "foo", {}))
         with self.assertRaises(ValueError):
             next(gen)
+
+    @unittest.mock.patch("aioxmpp.xso.model.drop_handler")
+    def test_fail_policy_can_be_suppressed_by_error_handler(
+            self,
+            drop_handler):
+        drop_handler.return_value = []
+
+        error_handler = unittest.mock.Mock()
+        error_handler.return_value = True
+
+        gen = xso_model.enforce_unknown_child_policy(
+            xso.UnknownChildPolicy.FAIL,
+            (None, "foo", {}),
+            error_handler=error_handler)
+
+        with self.assertRaises(StopIteration):
+            next(gen)
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(
+                    None,
+                    (None, "foo", {}),
+                    None
+                )
+            ],
+            error_handler.mock_calls
+        )
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call((None, "foo", {})),
+            ],
+            drop_handler.mock_calls
+        )
 
 
 class TestSAXDriver(unittest.TestCase):

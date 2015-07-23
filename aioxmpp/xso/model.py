@@ -1275,22 +1275,23 @@ class XMLStreamClass(type):
                 try:
                     prop.from_value(obj, value)
                 except:
-                    obj.xso_error_handler(
-                        prop,
-                        value,
-                        sys.exc_info())
-                    raise
+                    # true means suppress
+                    if not obj.xso_error_handler(
+                            prop,
+                            value,
+                            sys.exc_info()):
+                        raise
 
             for key, prop in attr_map.items():
                 try:
                     prop.handle_missing(obj, ctx)
                 except:
-                    obj.xso_error_handler(
-                        prop,
-                        None,
-                        sys.exc_info()
-                    )
-                    raise
+                    # true means suppress
+                    if not obj.xso_error_handler(
+                            prop,
+                            None,
+                            sys.exc_info()):
+                        raise
 
             try:
                 prop = cls.ATTR_MAP[namespaces.xml, "lang"]
@@ -1309,7 +1310,12 @@ class XMLStreamClass(type):
                 elif ev_type == "text":
                     if not cls.TEXT_PROPERTY:
                         if ev_args[0].strip():
-                            raise ValueError("unexpected text")
+                            # true means suppress
+                            if not obj.xso_error_handler(
+                                    None,
+                                    ev_args[0],
+                                    None):
+                                raise ValueError("unexpected text")
                     else:
                         collected_text.append(ev_args[0])
                 elif ev_type == "start":
@@ -1338,11 +1344,12 @@ class XMLStreamClass(type):
                 try:
                     cls.TEXT_PROPERTY.from_value(obj, collected_text)
                 except:
-                    obj.xso_error_handler(
-                        cls.TEXT_PROPERTY,
-                        collected_text,
-                        sys.exc_info())
-                    raise
+                    # true means suppress
+                    if not obj.xso_error_handler(
+                            cls.TEXT_PROPERTY,
+                            collected_text,
+                            sys.exc_info()):
+                        raise
 
         obj.validate()
 
@@ -1564,6 +1571,29 @@ class XSO(metaclass=XMLStreamClass):
         are passed as :data:`None` and `ev_args` are the arguments to the
         ``"start"`` event of the child (i.e. a triple
         ``(namespace_uri, localname, attributes)``).
+
+        If the error handler wishes to suppress the exception, it must return a
+        true value. Otherwise, the exception is propagated (or a new exception
+        is raised, if the error was not caused by an exception). The error
+        handler may also raise its own exception.
+
+        .. note::
+
+           Currently, exceptions caused by a child failing to parse cannot be
+           suppressed. It is however possible to suppress the exception for an
+           unknown child (the behaviour is then identical as if the child
+           policy had been :attr:`.UnknownChildPolicy.DROP`).
+
+        .. warning::
+
+           Suppressing exceptions can cause invalid input to reside in the
+           object or the object in general being in a state which violates the
+           schema.
+
+           For example, suppressing exceptions about missing attributes will
+           cause the attribute to remain uninitialized (i.e. left at its
+           :attr:`default` value).
+
         """
         pass
 
@@ -1790,8 +1820,10 @@ def enforce_unknown_child_policy(policy, ev_args, error_handler=None):
     if policy == UnknownChildPolicy.DROP:
         yield from drop_handler(ev_args)
     else:
-        if error_handler:
-            error_handler(None, ev_args, None)
+        if error_handler is not None:
+            if error_handler(None, ev_args, None):
+                yield from drop_handler(ev_args)
+                return
         raise ValueError("unexpected child")
 
 
