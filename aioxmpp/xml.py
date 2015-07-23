@@ -16,7 +16,7 @@ The following generator function can be used to send several
 :class:`~.stanza_model.XSO` instances along an XMPP stream without
 bothering with any cleanup.
 
-.. autofunction:: write_objects
+.. autofunction:: write_xmlstream
 
 .. autoclass:: AbortStream
 
@@ -66,7 +66,7 @@ def xmlValidateNameValue_buf(b):
 
 class AbortStream(Exception):
     """
-    This is a signal exception which causes :func:`write_objects` to stop
+    This is a signal exception which causes :func:`write_xmlstream` to stop
     immediately without closing the stream.
     """
 
@@ -446,12 +446,12 @@ class XMPPXMLGenerator:
             self._flush()
 
 
-def write_objects(f,
-                  to,
-                  from_=None,
-                  version=(1, 0),
-                  nsmap={},
-                  sorted_attributes=False):
+def write_xmlstream(f,
+                    to,
+                    from_=None,
+                    version=(1, 0),
+                    nsmap={},
+                    sorted_attributes=False):
     """
     Return a generator, which writes an XMPP XML stream on the file-like object
     `f`.

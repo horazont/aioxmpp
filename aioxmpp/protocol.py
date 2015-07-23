@@ -368,7 +368,7 @@ class XMLStream(asyncio.Protocol):
         self._parser = xml.make_parser()
         self._parser.setContentHandler(self._processor)
 
-        self._writer = xml.write_objects(
+        self._writer = xml.write_xmlstream(
             self._transport,
             self._to,
             nsmap={None: "jabber:client"},

@@ -525,7 +525,7 @@ class TestXMPPXMLGenerator(XMLTestCase):
         del self.buf
 
 
-class Testwrite_objects(unittest.TestCase):
+class Testwrite_xmlstream(unittest.TestCase):
     TEST_TO = structs.JID.fromstr("example.test")
     TEST_FROM = structs.JID.fromstr("foo@example.test")
 
@@ -535,9 +535,9 @@ class Testwrite_objects(unittest.TestCase):
         self.buf = io.BytesIO()
 
     def _make_gen(self, **kwargs):
-        return xml.write_objects(self.buf, self.TEST_TO,
-                                 sorted_attributes=True,
-                                 **kwargs)
+        return xml.write_xmlstream(self.buf, self.TEST_TO,
+                                   sorted_attributes=True,
+                                   **kwargs)
 
     def test_setup(self):
         gen = self._make_gen()
