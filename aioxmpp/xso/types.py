@@ -82,16 +82,30 @@ class AbstractType(metaclass=abc.ABCMeta):
 
 class String(AbstractType):
     """
-    Interpret the input value as string. The identity operation: the value is
-    returned unmodified.
+    Interpret the input value as string.
+
+    Optionally, a stringprep function `prepfunc` can be applied on the
+    string. A stringprep function must take the string and prepare it
+    accordingly; if it is invalid input, it must raise
+    :class:`ValueError`. Otherwise, it shall return the prepared string.
+
+    If no `prepfunc` is given, this type is the identity operation.
     """
+
+    def __init__(self, prepfunc=None):
+        super().__init__()
+        self.prepfunc = prepfunc
 
     def coerce(self, v):
         if not isinstance(v, str):
             raise TypeError("must be a str object")
+        if self.prepfunc is not None:
+            return self.prepfunc(v)
         return v
 
     def parse(self, v):
+        if self.prepfunc is not None:
+            return self.prepfunc(v)
         return v
 
 

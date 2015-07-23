@@ -79,6 +79,42 @@ class TestStringType(unittest.TestCase):
                                          "must be a str"):
                 t.coerce(value)
 
+    def test_coerce_stringprep(self):
+        prepfunc = unittest.mock.Mock()
+        t = xso.String(prepfunc=prepfunc)
+
+        result = t.coerce("foobar")
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call("foobar"),
+            ],
+            prepfunc.mock_calls
+        )
+
+        self.assertEqual(
+            prepfunc(),
+            result,
+        )
+
+    def test_parse_stringprep(self):
+        prepfunc = unittest.mock.Mock()
+        t = xso.String(prepfunc=prepfunc)
+
+        result = t.parse("foobar")
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call("foobar"),
+            ],
+            prepfunc.mock_calls
+        )
+
+        self.assertEqual(
+            prepfunc(),
+            result,
+        )
+
 
 class TestIntegerType(unittest.TestCase):
     def test_is_abstract_type(self):
