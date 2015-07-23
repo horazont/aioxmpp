@@ -313,6 +313,11 @@ class AbstractClient:
        This is a :class:`~aioxmpp.callbacks.SyncSignal` which is executed right
        before :attr:`on_stream_established` fires.
 
+    .. method:: on_stopped()
+
+       A :class:`~aioxmpp.callbacks.Signal` which is fired when the client
+       stops gracefully. This is the counterpart to :meth:`on_failure`.
+
     .. method:: on_stream_established()
 
        When the stream is established and resource binding took place, this
@@ -334,6 +339,7 @@ class AbstractClient:
     """
 
     on_failure = callbacks.Signal()
+    on_stopped = callbacks.Signal()
     on_stream_destroyed = callbacks.Signal()
     on_stream_established = callbacks.Signal()
 
@@ -392,7 +398,7 @@ class AbstractClient:
             task.result()
         except asyncio.CancelledError:
             # task terminated normally
-            pass
+            self.on_stopped()
         except Exception as err:
             self._logger.exception("main failed")
             self.on_failure(err)

@@ -846,6 +846,9 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
         ]))
 
     def test_stop(self):
+        cb = unittest.mock.Mock()
+        cb.return_value = False
+
         run_coroutine(asyncio.sleep(0))
         self.connect_secured_xmlstream_rec.assert_not_called()
         self.assertFalse(self.client.running)
@@ -855,11 +858,22 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
         run_coroutine(asyncio.sleep(0))
         self.assertTrue(self.client.established)
         self.assertTrue(self.client.running)
+
+        self.client.on_stopped.connect(cb)
+
         self.client.stop()
+        self.assertSequenceEqual([], cb.mock_calls)
         run_coroutine(asyncio.sleep(0))
         self.assertFalse(self.client.running)
         run_coroutine(asyncio.sleep(0))
         self.assertFalse(self.client.established)
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(),
+            ],
+            cb.mock_calls
+        )
 
         run_coroutine(self.xmlstream.run_test([
         ]+self.resource_binding+[
