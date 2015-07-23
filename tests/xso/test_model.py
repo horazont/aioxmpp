@@ -576,6 +576,43 @@ class TestXMLStreamClass(unittest.TestCase):
             Cls.xso_error_handler.mock_calls
         )
 
+    def test_error_handler_on_broken_child_can_suppress(self):
+        class Bar(xso.XSO):
+            TAG = "bar"
+
+            text = xso.Text(
+                type_=xso.Integer()
+            )
+
+        class Cls(xso.XSO):
+            TAG = "foo"
+
+            child = xso.Child([Bar])
+
+        Cls.xso_error_handler = unittest.mock.MagicMock()
+        Cls.xso_error_handler.return_value = True
+
+        gen = Cls.parse_events((None, "foo", {}), self.ctx)
+        next(gen)
+        gen.send(("start", None, "bar", {}))
+        gen.send(("text", "foobar"))
+        gen.send(("end",))
+        gen.send(("start", None, "bar", {}))
+        gen.send(("text", "123"))
+        gen.send(("end",))
+        with self.assertRaises(StopIteration) as ctx:
+            gen.send(("end",))
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(
+                    Cls.child,
+                    [None, "bar", {}],
+                    unittest.mock.ANY)
+            ],
+            Cls.xso_error_handler.mock_calls
+        )
+
     def test_call_error_handler_on_unexpected_child(self):
         class Bar(xso.XSO):
             TAG = "bar"
@@ -692,18 +729,12 @@ class TestXMLStreamClass(unittest.TestCase):
         )
 
     def test_error_handler_on_broken_text_can_suppress(self):
-        class Cls(metaclass=xso_model.XMLStreamClass):
+        class Cls(xso.XSO):
             TAG = "foo"
 
             text = xso.Text(
                 type_=xso.Integer()
             )
-
-            def validate(self):
-                pass
-
-            def xso_after_load(self):
-                pass
 
         Cls.xso_error_handler = unittest.mock.MagicMock()
         Cls.xso_error_handler.return_value = True
@@ -753,14 +784,8 @@ class TestXMLStreamClass(unittest.TestCase):
         )
 
     def test_error_handler_on_unexpected_text_can_suppress(self):
-        class Cls(metaclass=xso_model.XMLStreamClass):
+        class Cls(xso.XSO):
             TAG = "foo"
-
-            def validate(self):
-                pass
-
-            def xso_after_load(self):
-                pass
 
         Cls.xso_error_handler = unittest.mock.MagicMock()
         Cls.xso_error_handler.return_value = True
@@ -3705,6 +3730,91 @@ class Testenforce_unknown_child_policy(unittest.TestCase):
                 unittest.mock.call((None, "foo", {})),
             ],
             drop_handler.mock_calls
+        )
+
+
+class Testguard(unittest.TestCase):
+    def test_forward_to_argument_and_return_after_end(self):
+        cmd_sequence = [
+            ("start", None, "foo", {}),
+            ("start", None, "bar", {}),
+            ("text", "fnord"),
+            ("end",),
+            ("start", None, "bar", {}),
+            ("text", "fnord"),
+            ("end",),
+            ("end",),
+        ]
+
+        dest = unittest.mock.MagicMock()
+        guard = xso_model.guard(dest, cmd_sequence[0][1:])
+        next(guard)
+
+        for cmd in cmd_sequence[1:-1]:
+            guard.send(cmd)
+
+        value = object()
+        dest.send.side_effect = StopIteration(value)
+
+        with self.assertRaises(StopIteration) as ctx:
+            guard.send(cmd_sequence[-1])
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call.__next__(),
+            ]+[
+                unittest.mock.call.send(cmd)
+                for cmd in cmd_sequence[1:]
+            ],
+            dest.mock_calls
+        )
+
+        self.assertIs(
+            ctx.exception.value,
+            value
+        )
+
+    def test_return_only_after_end_even_on_exception_and_reraise(self):
+        cmd_sequence = [
+            ("start", None, "foo", {}),
+            ("start", None, "bar", {}),
+            ("text", "fnord"),
+            ("end",),
+            ("start", None, "bar", {}),
+            ("text", "fnord"),
+            ("end",),
+            ("end",),
+        ]
+
+        dest = unittest.mock.MagicMock()
+        guard = xso_model.guard(dest, cmd_sequence[0][1:])
+        next(guard)
+
+        for cmd in cmd_sequence[1:5]:
+            guard.send(cmd)
+
+        exc = ValueError()
+        dest.send.side_effect = exc
+
+        for cmd in cmd_sequence[5:-1]:
+            guard.send(cmd)
+
+        with self.assertRaises(ValueError) as ctx:
+            guard.send(cmd_sequence[-1])
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call.__next__(),
+            ]+[
+                unittest.mock.call.send(cmd)
+                for cmd in cmd_sequence[1:6]
+            ],
+            dest.mock_calls
+        )
+
+        self.assertIs(
+            exc,
+            ctx.exception
         )
 
 

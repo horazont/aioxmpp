@@ -1331,13 +1331,17 @@ class XMLStreamClass(type):
                                 obj.xso_error_handler)
                             continue
                     try:
-                        yield from handler.from_events(obj, ev_args, ctx)
+                        yield from guard(
+                            handler.from_events(obj, ev_args, ctx),
+                            ev_args
+                        )
                     except:
-                        obj.xso_error_handler(
-                            handler,
-                            ev_args,
-                            sys.exc_info())
-                        raise
+                        # true means suppress
+                        if not obj.xso_error_handler(
+                                handler,
+                                ev_args,
+                                sys.exc_info()):
+                            raise
 
             if collected_text:
                 collected_text = "".join(collected_text)
@@ -1577,13 +1581,6 @@ class XSO(metaclass=XMLStreamClass):
         is raised, if the error was not caused by an exception). The error
         handler may also raise its own exception.
 
-        .. note::
-
-           Currently, exceptions caused by a child failing to parse cannot be
-           suppressed. It is however possible to suppress the exception for an
-           unknown child (the behaviour is then identical as if the child
-           policy had been :attr:`.UnknownChildPolicy.DROP`).
-
         .. warning::
 
            Suppressing exceptions can cause invalid input to reside in the
@@ -1594,8 +1591,9 @@ class XSO(metaclass=XMLStreamClass):
            cause the attribute to remain uninitialized (i.e. left at its
            :attr:`default` value).
 
+        Even if the error handler suppresses an exception caused by a broken
+        child, that child will not be added to the object.
         """
-        pass
 
     def unparse_to_sax(self, dest):
         cls = type(self)
@@ -1825,6 +1823,29 @@ def enforce_unknown_child_policy(policy, ev_args, error_handler=None):
                 yield from drop_handler(ev_args)
                 return
         raise ValueError("unexpected child")
+
+
+def guard(dest, ev_args):
+    next(dest)
+    depth = 1
+    while True:
+        ev = yield
+        if ev[0] == "start":
+            depth += 1
+        elif ev[0] == "end":
+            depth -= 1
+        try:
+            dest.send(ev)
+        except StopIteration as exc:
+            return exc.value
+        except Exception as exc:
+            error = exc
+            break
+    while depth > 0:
+        ev_type, *_ = yield
+        if ev_type == "end":
+            depth -= 1
+    raise error
 
 
 def lang_attr(instance, ctx):
