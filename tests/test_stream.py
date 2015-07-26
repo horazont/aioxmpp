@@ -20,7 +20,8 @@ from aioxmpp.plugins import xep0199
 from aioxmpp.testutils import (
     run_coroutine,
     run_coroutine_with_peer,
-    XMLStreamMock
+    XMLStreamMock,
+    CoroutineMock
 )
 from aioxmpp import xmltestutils
 
@@ -60,9 +61,10 @@ def make_mocked_streams(loop):
         sent_stanzas.put_nowait(obj)
 
     sent_stanzas = asyncio.Queue()
-    xmlstream = unittest.mock.MagicMock()
+    xmlstream = unittest.mock.Mock()
     xmlstream.send_xso = _on_send_xso
     xmlstream.on_closing = callbacks.AdHocSignal()
+    xmlstream.close_and_wait = CoroutineMock()
     stanzastream = stream.StanzaStream(loop=loop)
 
     return sent_stanzas, xmlstream, stanzastream
@@ -900,7 +902,7 @@ class TestStanzaStream(StanzaStreamTestBase):
         run_coroutine(self.stream.close())
         self.assertFalse(self.stream.running)
 
-        self.xmlstream.close.assert_called_once_with()
+        self.xmlstream.close_and_wait.assert_called_once_with()
         self.assertIsNone(caught_exc)
 
     def test_close_when_stopped(self):
@@ -2476,8 +2478,12 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
             self.stream.close(),
             self.xmlstream.run_test(
                 [
-                ],
-                stimulus=XMLStreamMock.Fail(ConnectionError())
+                    XMLStreamMock.Close(
+                        response=[
+                            XMLStreamMock.Fail(ConnectionError())
+                        ]
+                    )
+                ]
             )
         )
 
@@ -2540,8 +2546,12 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
             self.stream.close(),
             self.xmlstream.run_test(
                 [
+                    XMLStreamMock.Close(
+                        response=[
+                            XMLStreamMock.Fail(ConnectionError())
+                        ]
+                    )
                 ],
-                stimulus=XMLStreamMock.Fail(ConnectionError())
             )
         )
 

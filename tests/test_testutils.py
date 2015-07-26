@@ -551,6 +551,29 @@ class TestTransportMock(unittest.TestCase):
             )
         )
 
+
+    def test_exception_from_stimulus_bubbles_up(self):
+        exc = ConnectionError("foobar")
+
+        def data_received(data):
+            raise exc
+
+        self.protocol.data_received = data_received
+
+        with self.assertRaises(ConnectionError) as ctx:
+            run_coroutine(
+                self.t.run_test(
+                    [
+                    ],
+                    stimulus=TransportMock.Receive(b"foobar")
+                )
+            )
+
+        self.assertIs(
+            exc,
+            ctx.exception
+        )
+
     def tearDown(self):
         del self.t
         del self.loop
@@ -840,6 +863,17 @@ class TestXMLStreamMock(XMLTestCase):
                 ],
                 clear_exception=True
             ))
+
+    def test_close_and_wait(self):
+        task = asyncio.async(self.xmlstream.close_and_wait())
+
+        run_coroutine(self.xmlstream.run_test(
+            [
+                XMLStreamMock.Close(),
+            ]
+        ))
+
+        self.assertTrue(task.done())
 
     def tearDown(self):
         del self.xmlstream

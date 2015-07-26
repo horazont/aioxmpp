@@ -835,6 +835,9 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
                                      "already running"):
             self.client.start()
 
+        self.client.stop()
+        run_coroutine(asyncio.sleep(0))
+
     def test_stanza_stream_starts_and_stops_with_client(self):
         self.client.start()
         run_coroutine(asyncio.sleep(0))
@@ -842,14 +845,16 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
         run_coroutine(self.xmlstream.run_test(self.resource_binding))
         run_coroutine(asyncio.sleep(0))
         self.assertTrue(self.client.established)
-        self.client.stop()
-        run_coroutine(asyncio.sleep(0.01))
-        self.assertFalse(self.client.stream.running)
 
+        run_coroutine(self.xmlstream.run_test(
+            self.resource_binding
+        ))
+
+        self.client.stop()
         run_coroutine(self.xmlstream.run_test([
-        ]+self.resource_binding+[
             XMLStreamMock.Close()
         ]))
+        self.assertFalse(self.client.stream.running)
 
     def test_stop(self):
         cb = unittest.mock.Mock()
@@ -867,11 +872,20 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
 
         self.client.on_stopped.connect(cb)
 
+        run_coroutine(self.xmlstream.run_test(
+            self.resource_binding
+        ))
+
         self.client.stop()
         self.assertSequenceEqual([], cb.mock_calls)
-        run_coroutine(asyncio.sleep(0))
+
+        run_coroutine(self.xmlstream.run_test(
+            [
+                XMLStreamMock.Close(),
+            ],
+        ))
+
         self.assertFalse(self.client.running)
-        run_coroutine(asyncio.sleep(0))
         self.assertFalse(self.client.established)
 
         self.assertSequenceEqual(
@@ -880,11 +894,6 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
             ],
             cb.mock_calls
         )
-
-        run_coroutine(self.xmlstream.run_test([
-        ]+self.resource_binding+[
-            XMLStreamMock.Close()
-        ]))
 
     def test_reconnect_on_failure(self):
         self.client.backoff_start = timedelta(seconds=0.008)
@@ -1035,6 +1044,9 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
             ],
             self.failure_rec.mock_calls
         )
+
+        self.client.stop()
+        run_coroutine(asyncio.sleep(0))
 
     def test_negotiate_stream_management(self):
         self.features[...] = stream_xsos.StreamManagementFeature()
@@ -1533,7 +1545,11 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
             patch.stop()
         if self.client.running:
             self.client.stop()
-        run_coroutine(self.xmlstream.run_test([]))
+            run_coroutine(self.xmlstream.run_test([
+                XMLStreamMock.Close()
+            ]))
+        run_coroutine(self.xmlstream.run_test([
+        ]))
 
 
 class TestPresenceManagedClient(xmltestutils.XMLTestCase):
@@ -1792,4 +1808,8 @@ class TestPresenceManagedClient(xmltestutils.XMLTestCase):
             patch.stop()
         if self.client.running:
             self.client.stop()
-        run_coroutine(self.xmlstream.run_test([]))
+            run_coroutine(self.xmlstream.run_test([
+                XMLStreamMock.Close()
+            ]))
+        run_coroutine(self.xmlstream.run_test([
+        ]))

@@ -666,6 +666,16 @@ class XMLStreamMock(InteractivityMock):
         )
         yield from fut
 
+    @asyncio.coroutine
+    def close_and_wait(self):
+        fut = asyncio.Future()
+        self.on_closing.connect(fut, callbacks.AdHocSignal.AUTO_FUTURE)
+        self.close()
+        try:
+            yield from fut
+        except Exception as exc:
+            pass
+
     def can_starttls(self):
         return self.can_starttls_value
 

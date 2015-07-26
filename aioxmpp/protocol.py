@@ -305,6 +305,12 @@ class XMLStream(asyncio.Protocol):
     def _rx_exception(self, exc):
         if isinstance(exc, stanza.PayloadParsingError):
             self._logger.warn("payload parsing error: %s", exc)
+
+            if self._smachine.state >= State.CLOSING:
+                self._logger.warn("ignoring payload parsing error, "
+                                  "we’re closing")
+                return
+
             try:
                 iq_response = exc.partial_obj.make_reply(type_="error")
             except ValueError:
@@ -318,6 +324,12 @@ class XMLStream(asyncio.Protocol):
                 self.send_xso(iq_response)
         elif isinstance(exc, stanza.UnknownIQPayload):
             self._logger.warn("unknown IQ payload: %s", exc)
+
+            if self._smachine.state >= State.CLOSING:
+                self._logger.warn("ignoring unknown IQ payload, "
+                                  "we’re closing")
+                return
+
             try:
                 iq_response = exc.partial_obj.make_reply(type_="error")
             except ValueError:
@@ -329,6 +341,12 @@ class XMLStream(asyncio.Protocol):
                 )
                 self.send_xso(iq_response)
         elif isinstance(exc, xso.UnknownTopLevelTag):
+            if self._smachine.state >= State.CLOSING:
+                self._logger.info("ignoring unknown top-level tag, "
+                                  "we’re closing")
+                return
+
+
             raise errors.StreamError(
                 condition=(namespaces.streams, "unsupported-stanza-type"),
                 text="unsupported stanza: {}".format(

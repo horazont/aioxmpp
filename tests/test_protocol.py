@@ -1201,49 +1201,154 @@ class TestXMLStream(unittest.TestCase):
             protocol.State.CLOSED
         )
 
-    # def test_ignore_incoming_stanzas_while_closing(self):
-    #     catch_iq = unittest.mock.Mock()
-    #     catch_failure = unittest.mock.Mock()
+    def test_ignore_unknown_stanzas_while_closing(self):
+        # XXX: Without PEP 479, this test does never fail.
 
-    #     t, p = self._make_stream(to=TEST_PEER)
-    #     p.stanza_parser.add_class(FakeIQ, catch_iq)
+        catch_closing = unittest.mock.Mock()
 
-    #     p.on_closing.connect(catch_failure)
+        t, p = self._make_stream(to=TEST_PEER)
 
-    #     run_coroutine(t.run_test(
-    #         [
-    #             TransportMock.Write(
-    #                 STREAM_HEADER,
-    #                 response=[
-    #                     TransportMock.Receive(self._make_peer_header()),
-    #                 ]),
-    #         ],
-    #         partial=True
-    #     ))
+        p.on_closing.connect(catch_closing)
 
-    #     p.close()
+        run_coroutine(t.run_test(
+            [
+                TransportMock.Write(
+                    STREAM_HEADER,
+                    response=[
+                        TransportMock.Receive(self._make_peer_header()),
+                    ]),
+            ],
+            partial=True
+        ))
 
-    #     run_coroutine(t.run_test(
-    #         [
-    #             TransportMock.Write(b"</stream:stream>"),
-    #             TransportMock.WriteEof(
-    #                 response=[
-    #                     TransportMock.Receive(b"</stream:stream>"),
-    #                     TransportMock.ReceiveEof(),
-    #                 ]
-    #             ),
-    #             TransportMock.Close(),
-    #         ],
-    #         stimulus=[
-    #             TransportMock.Receive(
-    #                 b'<iq to="foo@foo.example" from="foo@bar.example"'
-    #                 b' id="1234" type="get">'
-    #                 b'</iq>'),
-    #         ]
-    #     ))
+        p.close()
 
-    #     self.assertFalse(catch_iq.mock_calls)
-    #     self.assertFalse(catch_failure.mock_calls)
+        run_coroutine(t.run_test(
+            [
+                TransportMock.Write(b"</stream:stream>"),
+                TransportMock.WriteEof(
+                    response=[
+                        TransportMock.Receive(b"</stream:stream>"),
+                        TransportMock.ReceiveEof(),
+                    ]
+                ),
+                TransportMock.Close(),
+            ],
+            stimulus=[
+                TransportMock.Receive(
+                    b'<iq to="foo@foo.example" from="foo@bar.example"'
+                    b' id="1234" type="get">'
+                    b'</iq>'),
+            ]
+        ))
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(None),
+            ],
+            catch_closing.mock_calls
+        )
+
+    def test_ignore_unknown_iq_payload_while_closing(self):
+        # XXX: Without PEP 479, this test does never fail.
+
+        catch_iq = unittest.mock.Mock()
+        catch_closing = unittest.mock.Mock()
+
+        t, p = self._make_stream(to=TEST_PEER)
+
+        p.on_closing.connect(catch_closing)
+        p.stanza_parser.add_class(FakeIQ, catch_iq)
+
+        run_coroutine(t.run_test(
+            [
+                TransportMock.Write(
+                    STREAM_HEADER,
+                    response=[
+                        TransportMock.Receive(self._make_peer_header()),
+                    ]),
+            ],
+            partial=True
+        ))
+
+        p.close()
+
+        run_coroutine(t.run_test(
+            [
+                TransportMock.Write(b"</stream:stream>"),
+                TransportMock.WriteEof(
+                    response=[
+                        TransportMock.Receive(b"</stream:stream>"),
+                        TransportMock.ReceiveEof(),
+                    ]
+                ),
+                TransportMock.Close(),
+            ],
+            stimulus=[
+                TransportMock.Receive(
+                    b'<iq to="foo@foo.example" from="foo@bar.example"'
+                    b' id="1234" type="get"><fnord xmlns="fnord" />'
+                    b'</iq>'),
+            ]
+        ))
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(None),
+            ],
+            catch_closing.mock_calls
+        )
+
+    def test_ignore_incorrect_payload_while_closing(self):
+        # XXX: Without PEP 479, this test does never fail.
+
+        catch_iq = unittest.mock.Mock()
+        catch_closing = unittest.mock.Mock()
+
+        t, p = self._make_stream(to=TEST_PEER)
+
+        p.on_closing.connect(catch_closing)
+        p.stanza_parser.add_class(FakeIQ, catch_iq)
+
+        run_coroutine(t.run_test(
+            [
+                TransportMock.Write(
+                    STREAM_HEADER,
+                    response=[
+                        TransportMock.Receive(self._make_peer_header()),
+                    ]),
+            ],
+            partial=True
+        ))
+
+        p.close()
+
+        run_coroutine(t.run_test(
+            [
+                TransportMock.Write(b"</stream:stream>"),
+                TransportMock.WriteEof(
+                    response=[
+                        TransportMock.Receive(b"</stream:stream>"),
+                        TransportMock.ReceiveEof(),
+                    ]
+                ),
+                TransportMock.Close(),
+            ],
+            stimulus=[
+                TransportMock.Receive(
+                    b'<iq to="foo@foo.example" from="foo@bar.example"'
+                    b' id="1234" type="get">'
+                    b'<payload xmlns="uri:foo"/>'
+                    b'</iq>'),
+            ]
+        ))
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(None),
+            ],
+            catch_closing.mock_calls
+        )
 
     def test_handle_unexpected_stream_footer(self):
         fun = unittest.mock.MagicMock()

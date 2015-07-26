@@ -1219,13 +1219,14 @@ class StanzaStream:
         if not self.running:
             return
         xmlstream = self._xmlstream
-        try:
-            yield from self.wait_stop()
-            self._xmlstream.close()
-        except Exception as exc:
+        yield from self._xmlstream.close_and_wait() # does not raise
+        yield from self.wait_stop()
+
+        if self._xmlstream_exception is not None:
+            exc = self._xmlstream_exception
             if self.sm_enabled:
                 if self.sm_resumable:
-                    raise
+                    raise exc
                 self._destroy_stream_state(exc)
                 self.stop_sm()
                 return
