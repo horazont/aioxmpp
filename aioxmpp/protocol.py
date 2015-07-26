@@ -63,12 +63,10 @@ class State(Enum):
     """
     The possible states of a :class:`XMLStream`:
 
-    .. attribute:: CLOSED
+    .. attribute:: READY
 
        The initial state; this is the case when no underlying transport is
-       connected. This state is entered from any other state when the
-       underlying transport calls :meth:`XMLStream.connection_lost` on the xml
-       stream.
+       connected.
 
     .. attribute:: STREAM_HEADER_SENT
 
@@ -86,12 +84,18 @@ class State(Enum):
        After :meth:`XMLStream.close` is called, this state is entered. The
        underlying transport was asked to close itself.
 
+    .. attribute:: CLOSED
+
+       This state is entered when the connection is lost in any way. This is
+       the final state.
+
     """
 
-    CLOSED = 0
+    READY = 0
     STREAM_HEADER_SENT = 1
     OPEN = 2
     CLOSING = 3
+    CLOSED = 4
 
 
 class XMLStream(asyncio.Protocol):
@@ -163,7 +167,7 @@ class XMLStream(asyncio.Protocol):
                  loop=None):
         self._to = to
         self._sorted_attributes = sorted_attributes
-        self._state = State.CLOSED
+        self._state = State.READY
         self._logger = base_logger.getChild("XMLStream")
         self._transport = None
         self._features_future = features_future
@@ -284,7 +288,7 @@ class XMLStream(asyncio.Protocol):
             )
 
     def connection_made(self, transport):
-        if self._state != State.CLOSED:
+        if self._state != State.READY:
             raise self._invalid_state("connection_made")
 
         assert self._transport is None

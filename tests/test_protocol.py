@@ -119,7 +119,7 @@ class TestXMLStream(unittest.TestCase):
     def test_init(self):
         t, p = self._make_stream(to=TEST_PEER)
         self.assertEqual(
-            protocol.State.CLOSED,
+            protocol.State.READY,
             p.state
         )
 
@@ -855,7 +855,7 @@ class TestXMLStream(unittest.TestCase):
             ctx.exception.condition
         )
 
-    def test_exception_is_reset_on_reconnect(self):
+    def test_streams_are_not_reusable(self):
         exc = ValueError()
         t, p = self._make_stream(to=TEST_PEER)
         run_coroutine(
@@ -870,17 +870,16 @@ class TestXMLStream(unittest.TestCase):
                 partial=True
             )
         )
-        run_coroutine(
-            t.run_test(
-                [
-                    TransportMock.Write(STREAM_HEADER),
-                ],
-                partial=True
+        with self.assertRaisesRegex(RuntimeError,
+                                    r"invalid state: State\.CLOSED"):
+            run_coroutine(
+                t.run_test(
+                    [
+                        TransportMock.Write(STREAM_HEADER),
+                    ],
+                    partial=True
+                )
             )
-        )
-        with self.assertRaisesRegexp(ConnectionError,
-                                     "not connected"):
-            p.send_xso(object())
 
     def test_on_failure_fires_on_connection_lost_with_error(self):
         fun = unittest.mock.MagicMock()
@@ -1107,33 +1106,13 @@ class Testsend_and_wait_for(xmltestutils.XMLTestCase):
                     R
                 ],
                 [
-                ],
-                clear_exception=False
+                ]
             )
 
-        # this both cleans up and asserts that the send did not do anything
+        # asserts that the send did not do anything
         run_coroutine(self.xmlstream.run_test(
             [],
-            clear_exception=True
         ))
-
-        # now test that cleanup happened correctly
-        result = self._run_test(
-            [
-                Q(),
-            ],
-            [
-                R
-            ],
-            [
-                XMLStreamMock.Send(
-                    Q(),
-                    response=XMLStreamMock.Receive(instance)
-                )
-            ]
-        )
-
-        self.assertIs(result, instance)
 
     def test_send_and_return_response(self):
         class Q(xso.XSO):
@@ -1250,25 +1229,12 @@ class Testreset_stream_and_get_features(xmltestutils.XMLTestCase):
             self._run_test(
                 [
                 ],
-                clear_exception=False
             )
 
-        # this both cleans up and asserts that the send did not do anything
+        # asserts that the send did not do anything
         run_coroutine(self.xmlstream.run_test(
             [],
-            clear_exception=True
         ))
-
-        # now test that cleanup happened correctly
-        result = self._run_test(
-            [
-                XMLStreamMock.Reset(
-                    response=XMLStreamMock.Receive(features)
-                )
-            ]
-        )
-
-        self.assertIs(result, features)
 
     def test_do_not_timeout_if_stream_fails(self):
         features = stream_xsos.StreamFeatures()
@@ -1280,8 +1246,7 @@ class Testreset_stream_and_get_features(xmltestutils.XMLTestCase):
                 [
                     XMLStreamMock.Reset(response=XMLStreamMock.Fail(
                         exc=exc))
-                ],
-                clear_exception=False
+                ]
             )
 
     def tearDown(self):

@@ -708,6 +708,12 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
         # self refers to a StanzaBase object!
         self.id_ = "autoset"
 
+    @property
+    def xmlstream(self):
+        if self._xmlstream is None or self._xmlstream._exception:
+            self._xmlstream = XMLStreamMock(self, loop=self.loop)
+        return self._xmlstream
+
     def setUp(self):
         self.connect_secured_xmlstream_rec = unittest.mock.MagicMock()
         self.failure_rec = unittest.mock.MagicMock()
@@ -727,7 +733,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
         ]
         self.connect_secured_xmlstream, _ = (patch.start()
                                              for patch in self.patches)
-        self.xmlstream = XMLStreamMock(self, loop=self.loop)
+        self._xmlstream = XMLStreamMock(self, loop=self.loop)
         self.test_jid = structs.JID.fromstr("foo@bar.example/baz")
         self.features = stream_xsos.StreamFeatures()
         self.features[...] = rfc6120.BindFeature()
@@ -901,10 +907,14 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
                             XMLStreamMock.Fail(
                                 exc=ConnectionError()
                             ),
-                            XMLStreamMock.CleanFailure()
                         ]
                     ),
-                ]+self.resource_binding
+                ]
+            )
+        )
+        run_coroutine(
+            self.xmlstream.run_test(
+                self.resource_binding
             )
         )
 
@@ -1065,9 +1075,12 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
                         XMLStreamMock.Fail(
                             exc=ConnectionError()
                         ),
-                        XMLStreamMock.CleanFailure()
                     ]
                 ),
+            ]))
+
+            # new xmlstream here after failure
+            run_coroutine(self.xmlstream.run_test([
                 XMLStreamMock.Send(
                     stream_xsos.SMResume(counter=0, previd="foobar"),
                     response=[
@@ -1102,10 +1115,10 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
                     XMLStreamMock.Fail(
                     exc=ConnectionError()
                     ),
-                    XMLStreamMock.CleanFailure()
                 ]
             ),
         ]))
+        # new xmlstream after failure
 
         del self.features[stream_xsos.StreamManagementFeature]
 
@@ -1141,9 +1154,11 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
                     XMLStreamMock.Fail(
                         exc=ConnectionError()
                     ),
-                    XMLStreamMock.CleanFailure()
                 ]
             ),
+        ]))
+        # new xmlstream after failure
+        run_coroutine(self.xmlstream.run_test([
             XMLStreamMock.Send(
                 stream_xsos.SMResume(counter=0, previd="foobar"),
                 response=[
@@ -1219,9 +1234,11 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
                     XMLStreamMock.Fail(
                         exc=ConnectionError()
                     ),
-                    XMLStreamMock.CleanFailure()
                 ]
             ),
+        ]))
+        # new xmlstream after failure
+        run_coroutine(self.xmlstream.run_test([
             XMLStreamMock.Send(
                 stream_xsos.SMResume(counter=0, previd="foobar"),
                 response=[
@@ -1530,6 +1547,12 @@ class TestPresenceManagedClient(xmltestutils.XMLTestCase):
         # self refers to a StanzaBase object!
         self.id_ = "autoset"
 
+    @property
+    def xmlstream(self):
+        if self._xmlstream is None or self._xmlstream._exception:
+            self._xmlstream = XMLStreamMock(self, loop=self.loop)
+        return self._xmlstream
+
     def setUp(self):
         self.connect_secured_xmlstream_rec = unittest.mock.MagicMock()
         self.failure_rec = unittest.mock.MagicMock()
@@ -1551,7 +1574,7 @@ class TestPresenceManagedClient(xmltestutils.XMLTestCase):
         ]
         self.connect_secured_xmlstream, _ = (patch.start()
                                              for patch in self.patches)
-        self.xmlstream = XMLStreamMock(self, loop=self.loop)
+        self._xmlstream = XMLStreamMock(self, loop=self.loop)
         self.test_jid = structs.JID.fromstr("foo@bar.example/baz")
         self.features = stream_xsos.StreamFeatures()
         self.features[...] = rfc6120.BindFeature()

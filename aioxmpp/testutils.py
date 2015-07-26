@@ -491,14 +491,6 @@ class XMLStreamMock(InteractivityMock):
                     fut.set_exception(self.exc)
             xmlstream.on_failure(self.exc)
 
-    class CleanFailure(collections.namedtuple("CleanFailure", [])):
-        def do(self, xmlstream):
-            xmlstream._tester.assertIsNotNone(
-                xmlstream._exception,
-                "no failure to clean up"
-            )
-            xmlstream._exception = None
-
     class Send(collections.namedtuple("Send", ["obj", "response"])):
         def __new__(cls, obj, *, response=None):
             return super().__new__(cls, obj, response)
@@ -526,6 +518,7 @@ class XMLStreamMock(InteractivityMock):
         super().__init__(tester, loop=loop)
         self._queue = asyncio.Queue()
         self._exception = None
+        self._closed = False
         self.stanza_parser = xso.XSOParser()
         self.can_starttls_value = False
         self._error_futures = []
@@ -535,12 +528,9 @@ class XMLStreamMock(InteractivityMock):
 
     @asyncio.coroutine
     def run_test(self, actions,
-                 stimulus=None,
-                 clear_exception=True):
+                 stimulus=None):
         self._done = asyncio.Future()
         self._actions = actions
-        if clear_exception:
-            self._exception = None
 
         self._execute_response(stimulus)
 
