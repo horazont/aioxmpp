@@ -83,8 +83,23 @@ class State(Enum):
 
     .. attribute:: CLOSING
 
-       After :meth:`XMLStream.close` is called, this state is entered. The
-       underlying transport was asked to close itself.
+       After :meth:`XMLStream.close` is called, this state is entered. We sent
+       a stream footer and an EOF, if the underlying transport supports
+       this. We still have to wait for the peer to close the stream.
+
+       In this state and all following states, :class:`ConnectionError`
+       instances are raised whenever an attempt is made to write to the
+       stream. The exact instance depends on the reason of the closure.
+
+       In this state, the stream waits for the remote to send a stream footer
+       and the connection to shut down. For application purposes, the stream is
+       already closed.
+
+    .. attribute:: CLOSING_STREAM_FOOTER_RECEIVED
+
+       At this point, the stream is properly closed on the XML stream
+       level. This is the point where :meth:`XMLStream.close_and_wait`
+       returns.
 
     .. attribute:: CLOSED
 
@@ -100,7 +115,8 @@ class State(Enum):
     STREAM_HEADER_SENT = 1
     OPEN = 2
     CLOSING = 3
-    CLOSED = 4
+    CLOSING_STREAM_FOOTER_RECEIVED = 4
+    CLOSED = 6
 
 
 class XMLStream(asyncio.Protocol):
@@ -161,9 +177,17 @@ class XMLStream(asyncio.Protocol):
        When the callback is fired, the stream is already in
        :attr:`~State.CLOSED` state.
 
+    Timeouts:
+
+    .. attribute:: shutdown_timeout
+
+       The maximum time to wait for the peer ``</stream:stream>`` before
+       forcing to close the transport and considering the stream closed.
+
     """
 
     on_failure = callbacks.Signal()
+    shutdown_timeout = 15
 
     def __init__(self, to,
                  features_future,
@@ -179,6 +203,15 @@ class XMLStream(asyncio.Protocol):
         self._loop = loop or asyncio.get_event_loop()
         self._error_futures = []
         self._smachine = statemachine.OrderedStateMachine(State.READY)
+        self._transport_closing = False
+        asyncio.async(
+            self._smachine.wait_for_at_least(
+                State.CLOSING_STREAM_FOOTER_RECEIVED
+            ),
+            loop=loop
+        ).add_done_callback(
+            self._stream_shut_down
+        )
         self.stanza_parser = xso.XSOParser()
         self.stanza_parser.add_class(stream_xsos.StreamError,
                                      self._rx_stream_error)
@@ -198,6 +231,20 @@ class XMLStream(asyncio.Protocol):
         if at:
             text += " (at: {})".format(at)
         return RuntimeError(text)
+
+    def _close_transport(self):
+        if self._transport_closing:
+            return
+        self._transport_closing = True
+        self._transport.close()
+
+    def _stream_shut_down(self, task):
+        if self._exception is not None:
+            self.on_failure(self._exception)
+            for fut in self._error_futures:
+                if not fut.done():
+                    fut.set_exception(self._exception)
+        self._error_futures.clear()
 
     def _fail(self, err):
         self._exception = err
@@ -261,7 +308,14 @@ class XMLStream(asyncio.Protocol):
         self._fail(err.to_exception())
 
     def _rx_stream_footer(self):
-        self.close()
+        if self._smachine.state != State.CLOSING:
+            # any other state, this is an issue
+            if self._exception is None:
+                self._fail(ConnectionError("stream closed by peer"))
+            self.close()
+
+        self._close_transport()
+        self._smachine.state = State.CLOSING_STREAM_FOOTER_RECEIVED
 
     def _rx_stream_features(self, features):
         self.stanza_parser.remove_class(stream_xsos.StreamFeatures)
@@ -305,6 +359,9 @@ class XMLStream(asyncio.Protocol):
         self.reset()
 
     def connection_lost(self, exc):
+        print("connection_lost")
+        # in connection_lost, we really cannot do anything except shutting down
+        # the stream without sending any more data
         if self._smachine.state == State.CLOSED:
             return
         self._smachine.state = State.CLOSED
@@ -312,13 +369,6 @@ class XMLStream(asyncio.Protocol):
         self._kill_state()
         self._writer = None
         self._transport = None
-
-        if self._exception is not None:
-            self.on_failure(self._exception)
-            for fut in self._error_futures:
-                if not fut.done():
-                    fut.set_exception(self._exception)
-        self._error_futures.clear()
 
     def data_received(self, blob):
         self._logger.debug("RECV %r", blob)
@@ -328,6 +378,26 @@ class XMLStream(asyncio.Protocol):
             stanza_obj = stream_xsos.StreamError.from_exception(exc)
             self._writer.send(stanza_obj)
             self._fail(exc)
+            # shutdown, we do not really care about </stream:stream> by the
+            # server at this point
+            self._close_transport()
+
+    def eof_received(self):
+        if self._smachine.state == State.OPEN:
+            # close and set to EOF received
+            self.close()
+            # common actions below
+        elif (self._smachine.state == State.CLOSING or
+              self._smachine.state == State.CLOSING_STREAM_FOOTER_RECEIVED):
+            # these states are fine, common actions below
+            pass
+        else:
+            self._logger.warn("unexpected eof_received (in %s state)",
+                              self._smachine.state)
+            # common actions below
+
+        self._smachine.state = State.CLOSING_STREAM_FOOTER_RECEIVED
+        self._close_transport()
 
     def close(self):
         """
@@ -348,11 +418,30 @@ class XMLStream(asyncio.Protocol):
         if     (self._smachine.state == State.CLOSING or
                 self._smachine.state == State.CLOSED):
             return
-        self._smachine.state = State.CLOSING
         self._writer.close()
         if self._transport.can_write_eof():
             self._transport.write_eof()
-        self._transport.close()
+        if self._smachine.state == State.STREAM_HEADER_SENT:
+            # at this point, we cannot wait for the peer to send
+            # </stream:stream>
+            self._close_transport()
+        self._smachine.state = State.CLOSING
+
+    @asyncio.coroutine
+    def close_and_wait(self):
+        """
+        Close the XML stream and the underlying transport and wait for for the
+        XML stream to be properly terminated.
+
+        The underlying transport may still be open when this coroutine returns,
+        but closing has already been initiated.
+
+        The other remarks about :meth:`close` hold.
+        """
+        self.close()
+        yield from self._smachine.wait_for_at_least(
+            State.CLOSING_STREAM_FOOTER_RECEIVED
+        )
 
     def _kill_state(self):
         if self._writer:

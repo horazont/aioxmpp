@@ -175,7 +175,7 @@ class TestXMLStream(unittest.TestCase):
             TransportMock.Close()
         ]))
 
-    def test_close(self):
+    def test_close_before_peer_header(self):
         t, p = self._make_stream(to=TEST_PEER)
         run_coroutine(
             t.run_test(
@@ -195,6 +195,40 @@ class TestXMLStream(unittest.TestCase):
                 [
                     TransportMock.Write(b"</stream:stream>"),
                     TransportMock.WriteEof(),
+                    TransportMock.Close(),
+                ],
+            ))
+        self.assertEqual(protocol.State.CLOSED, p.state)
+
+    def test_close_after_peer_header(self):
+        t, p = self._make_stream(to=TEST_PEER)
+        run_coroutine(
+            t.run_test(
+                [
+                    TransportMock.Write(
+                        STREAM_HEADER,
+                        response=[
+                            TransportMock.Receive(
+                                self._make_peer_header(version=(1, 0))
+                            )
+                        ]
+                    ),
+                ],
+                partial=True
+            ))
+        p.close()
+        self.assertEqual(protocol.State.CLOSING, p.state)
+        p.close()
+        self.assertEqual(protocol.State.CLOSING, p.state)
+        run_coroutine(
+            t.run_test(
+                [
+                    TransportMock.Write(b"</stream:stream>"),
+                    TransportMock.WriteEof(
+                        response=[
+                            TransportMock.Receive(b"</stream:stream>"),
+                        ]
+                    ),
                     TransportMock.Close(),
                 ],
             ))
@@ -350,8 +384,12 @@ class TestXMLStream(unittest.TestCase):
                             text="unsupported stanza: {uri:bar}foo",
                         ).encode("utf-8")),
                     TransportMock.Write(b"</stream:stream>"),
-                    TransportMock.WriteEof(),
-                    TransportMock.Close(),
+                    TransportMock.WriteEof(
+                        response=[
+                            TransportMock.Receive(self._make_eos()),
+                        ]
+                    ),
+                    TransportMock.Close()
                 ]
             ))
 
@@ -989,6 +1027,213 @@ class TestXMLStream(unittest.TestCase):
             exc.condition
         )
 
+    def test_mutual_shutdown(self):
+        t, p = self._make_stream(to=TEST_PEER)
+
+        run_coroutine(t.run_test(
+            [
+                TransportMock.Write(
+                    STREAM_HEADER,
+                    response=[
+                        TransportMock.Receive(
+                            self._make_peer_header(version=(1, 0))
+                        ),
+                    ]),
+            ],
+            partial=True
+        ))
+
+        self.assertEqual(
+            p.state,
+            protocol.State.OPEN
+        )
+
+        p.close()
+
+        run_coroutine(t.run_test(
+            [
+                TransportMock.Write(b"</stream:stream>"),
+                TransportMock.WriteEof(),
+            ],
+            partial=True
+        ))
+
+        run_coroutine(t.run_test(
+            [
+                TransportMock.Close()
+            ],
+            stimulus=[
+                TransportMock.Receive(self._make_eos()),
+                TransportMock.ReceiveEof()
+            ]
+        ))
+
+    def test_close_and_wait(self):
+        t, p = self._make_stream(to=TEST_PEER)
+
+
+        run_coroutine(t.run_test(
+            [
+                TransportMock.Write(
+                    STREAM_HEADER,
+                    response=[
+                        TransportMock.Receive(
+                            self._make_peer_header(version=(1, 0))
+                        ),
+                    ]),
+            ],
+            partial=True
+        ))
+
+        self.assertEqual(
+            p.state,
+            protocol.State.OPEN
+        )
+
+        fut = asyncio.async(p.close_and_wait())
+
+        run_coroutine(t.run_test(
+            [
+                TransportMock.Write(b"</stream:stream>"),
+                TransportMock.WriteEof(),
+            ],
+            partial=True
+        ))
+
+        self.assertEqual(
+            p.state,
+            protocol.State.CLOSING
+        )
+
+        self.assertFalse(fut.done())
+
+        run_coroutine(t.run_test(
+            [
+                TransportMock.Close()
+            ],
+            stimulus=[
+                TransportMock.Receive(self._make_eos()),
+                TransportMock.ReceiveEof()
+            ]
+        ))
+
+        self.assertEqual(
+            p.state,
+            protocol.State.CLOSED
+        )
+
+        self.assertTrue(fut.done())
+        self.assertIsNone(fut.result())
+
+    def test_close_and_wait_timeout(self):
+        t, p = self._make_stream(to=TEST_PEER)
+
+        self.assertEqual(
+            15,
+            p.shutdown_timeout
+        )
+
+        run_coroutine(t.run_test(
+            [
+                TransportMock.Write(
+                    STREAM_HEADER,
+                    response=[
+                        TransportMock.Receive(
+                            self._make_peer_header(version=(1, 0))
+                        ),
+                    ]),
+            ],
+            partial=True
+        ))
+
+        self.assertEqual(
+            p.state,
+            protocol.State.OPEN
+        )
+
+        fut = asyncio.async(p.close_and_wait())
+
+        run_coroutine(t.run_test(
+            [
+                TransportMock.Write(b"</stream:stream>"),
+                TransportMock.WriteEof(),
+            ],
+            partial=True
+        ))
+
+        self.assertEqual(
+            p.state,
+            protocol.State.CLOSING
+        )
+
+        self.assertFalse(fut.done())
+
+        run_coroutine(t.run_test(
+            [
+                TransportMock.Close()
+            ],
+            stimulus=[
+                TransportMock.Receive(self._make_eos()),
+            ],
+            partial=True
+        ))
+
+        self.assertEqual(
+            p.state,
+            protocol.State.CLOSING_STREAM_FOOTER_RECEIVED
+        )
+
+        self.assertTrue(fut.done())
+        self.assertIsNone(fut.result())
+
+        run_coroutine(t.run_test(
+            []
+        ))
+
+    def test_handle_unexpected_stream_footer(self):
+        fun = unittest.mock.MagicMock()
+        fun.return_value = True
+        t, p = self._make_stream(to=TEST_PEER)
+        p.on_failure.connect(fun)
+
+        run_coroutine(t.run_test(
+            [
+                TransportMock.Write(
+                    STREAM_HEADER,
+                    response=[
+                        TransportMock.Receive(
+                            self._make_peer_header(version=(1, 0)) +
+                            self._make_eos()),
+                    ]
+                ),
+                TransportMock.Write(b"</stream:stream>"),
+                TransportMock.WriteEof(),
+                TransportMock.Close()
+            ],
+            partial=True
+        ))
+
+        self.assertEqual(
+            protocol.State.CLOSING_STREAM_FOOTER_RECEIVED,
+            p.state
+        )
+
+        self.assertIsNotNone(fun.call_args, "on_failure did not fire")
+        args = fun.call_args
+        self.assertIsInstance(args[0][0], ConnectionError)
+        self.assertRegex(
+            str(args[0][0]),
+            r"stream closed by peer"
+        )
+
+        run_coroutine(t.run_test(
+            []
+        ))
+
+        self.assertEqual(
+            protocol.State.CLOSED,
+            p.state
+        )
 
     def tearDown(self):
         self.loop.set_exception_handler(

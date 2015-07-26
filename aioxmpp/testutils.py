@@ -333,7 +333,10 @@ class TransportMock(InteractivityMock,
         if not self._connection_made:
             self._execute_response(self.MakeConnection())
         if stimulus:
-            self._execute_response(self.Receive(stimulus))
+            if isinstance(stimulus, bytes):
+                self._execute_response(self.Receive(stimulus))
+            else:
+                self._execute_response(stimulus)
 
         while not self._queue.empty() or self._actions:
             done, pending = yield from asyncio.wait(
