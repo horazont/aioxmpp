@@ -492,7 +492,7 @@ class XMLStreamMock(InteractivityMock):
             for fut in xmlstream._error_futures:
                 if not fut.done():
                     fut.set_exception(self.exc)
-            xmlstream.on_failure(self.exc)
+            xmlstream.on_closing(self.exc)
 
     class Send(collections.namedtuple("Send", ["obj", "response"])):
         def __new__(cls, obj, *, response=None):
@@ -515,7 +515,7 @@ class XMLStreamMock(InteractivityMock):
                                    post_handshake_callback,
                                    response)
 
-    on_failure = callbacks.Signal()
+    on_closing = callbacks.Signal()
 
     def __init__(self, tester, *, loop=None):
         super().__init__(tester, loop=loop)
@@ -601,6 +601,10 @@ class XMLStreamMock(InteractivityMock):
     def _close(self):
         self._basic("close", self.Close)
         self._exception = ConnectionError("not connected")
+        self.on_closing(None)
+        for fut in self._error_futures:
+            if not fut.done():
+                fut.set_exception(self._exception)
 
     @asyncio.coroutine
     def _starttls(self, ssl_context, post_handshake_callback, fut):

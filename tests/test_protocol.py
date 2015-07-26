@@ -943,13 +943,13 @@ class TestXMLStream(unittest.TestCase):
                 )
             )
 
-    def test_on_failure_fires_on_connection_lost_with_error(self):
+    def test_on_closing_fires_on_connection_lost_with_error(self):
         fun = unittest.mock.MagicMock()
         fun.return_value = True
         exc = ValueError()
 
         t, p = self._make_stream(to=TEST_PEER)
-        p.on_failure.connect(fun)
+        p.on_closing.connect(fun)
         run_coroutine(
             t.run_test(
                 [
@@ -963,16 +963,15 @@ class TestXMLStream(unittest.TestCase):
             )
         )
 
-
-        self.assertIsNotNone(fun.call_args, "on_failure did not fire")
+        self.assertIsNotNone(fun.call_args, "on_closing did not fire")
         args = fun.call_args
         self.assertIs(exc, args[0][0])
 
-    def test_on_failure_fires_on_stream_error(self):
+    def test_on_closing_fires_on_stream_error(self):
         fun = unittest.mock.MagicMock()
         fun.return_value = True
         t, p = self._make_stream(to=TEST_PEER)
-        p.on_failure.connect(fun)
+        p.on_closing.connect(fun)
 
         run_coroutine(t.run_test([
             TransportMock.Write(
@@ -989,7 +988,7 @@ class TestXMLStream(unittest.TestCase):
             TransportMock.Close()
         ]))
 
-        self.assertIsNotNone(fun.call_args, "on_failure did not fire")
+        self.assertIsNotNone(fun.call_args, "on_closing did not fire")
         args = fun.call_args
         self.assertIsInstance(args[0][0], errors.StreamError)
         self.assertEqual(
@@ -1133,6 +1132,8 @@ class TestXMLStream(unittest.TestCase):
             p.shutdown_timeout
         )
 
+        p.shutdown_timeout = 0.1
+
         run_coroutine(t.run_test(
             [
                 TransportMock.Write(
@@ -1168,15 +1169,11 @@ class TestXMLStream(unittest.TestCase):
 
         self.assertFalse(fut.done())
 
-        run_coroutine(t.run_test(
-            [
-                TransportMock.Close()
-            ],
-            stimulus=[
-                TransportMock.Receive(self._make_eos()),
-            ],
-            partial=True
-        ))
+        run_coroutine(asyncio.sleep(0.08))
+
+        self.assertFalse(fut.done())
+
+        run_coroutine(asyncio.sleep(0.03))
 
         self.assertEqual(
             p.state,
@@ -1187,14 +1184,72 @@ class TestXMLStream(unittest.TestCase):
         self.assertIsNone(fut.result())
 
         run_coroutine(t.run_test(
-            []
+            [
+                TransportMock.Close(
+                    response=[
+                        TransportMock.Receive(
+                            self._make_eos(),
+                        ),
+                        TransportMock.ReceiveEof(),
+                    ]
+                ),
+            ]
         ))
+
+        self.assertEqual(
+            p.state,
+            protocol.State.CLOSED
+        )
+
+    # def test_ignore_incoming_stanzas_while_closing(self):
+    #     catch_iq = unittest.mock.Mock()
+    #     catch_failure = unittest.mock.Mock()
+
+    #     t, p = self._make_stream(to=TEST_PEER)
+    #     p.stanza_parser.add_class(FakeIQ, catch_iq)
+
+    #     p.on_closing.connect(catch_failure)
+
+    #     run_coroutine(t.run_test(
+    #         [
+    #             TransportMock.Write(
+    #                 STREAM_HEADER,
+    #                 response=[
+    #                     TransportMock.Receive(self._make_peer_header()),
+    #                 ]),
+    #         ],
+    #         partial=True
+    #     ))
+
+    #     p.close()
+
+    #     run_coroutine(t.run_test(
+    #         [
+    #             TransportMock.Write(b"</stream:stream>"),
+    #             TransportMock.WriteEof(
+    #                 response=[
+    #                     TransportMock.Receive(b"</stream:stream>"),
+    #                     TransportMock.ReceiveEof(),
+    #                 ]
+    #             ),
+    #             TransportMock.Close(),
+    #         ],
+    #         stimulus=[
+    #             TransportMock.Receive(
+    #                 b'<iq to="foo@foo.example" from="foo@bar.example"'
+    #                 b' id="1234" type="get">'
+    #                 b'</iq>'),
+    #         ]
+    #     ))
+
+    #     self.assertFalse(catch_iq.mock_calls)
+    #     self.assertFalse(catch_failure.mock_calls)
 
     def test_handle_unexpected_stream_footer(self):
         fun = unittest.mock.MagicMock()
         fun.return_value = True
         t, p = self._make_stream(to=TEST_PEER)
-        p.on_failure.connect(fun)
+        p.on_closing.connect(fun)
 
         run_coroutine(t.run_test(
             [
@@ -1218,7 +1273,7 @@ class TestXMLStream(unittest.TestCase):
             p.state
         )
 
-        self.assertIsNotNone(fun.call_args, "on_failure did not fire")
+        self.assertIsNotNone(fun.call_args, "on_closing did not fire")
         args = fun.call_args
         self.assertIsInstance(args[0][0], ConnectionError)
         self.assertRegex(

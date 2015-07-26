@@ -1114,7 +1114,7 @@ class StanzaStream:
             type_, from_)
 
     def _start_prepare(self, xmlstream, receiver):
-        self._xmlstream_failure_token = xmlstream.on_failure.connect(
+        self._xmlstream_failure_token = xmlstream.on_closing.connect(
             self._xmlstream_failed
         )
 
@@ -1141,7 +1141,7 @@ class StanzaStream:
             xmlstream.stanza_parser.remove_class(
                 stream_xsos.SMAcknowledgement)
 
-        xmlstream.on_failure.disconnect(
+        xmlstream.on_closing.disconnect(
             self._xmlstream_failure_token
         )
 

@@ -62,7 +62,7 @@ def make_mocked_streams(loop):
     sent_stanzas = asyncio.Queue()
     xmlstream = unittest.mock.MagicMock()
     xmlstream.send_xso = _on_send_xso
-    xmlstream.on_failure = callbacks.AdHocSignal()
+    xmlstream.on_closing = callbacks.AdHocSignal()
     stanzastream = stream.StanzaStream(loop=loop)
 
     return sent_stanzas, xmlstream, stanzastream
@@ -880,7 +880,7 @@ class TestStanzaStream(StanzaStreamTestBase):
     def test_wait_stop_does_not_reemit_failures(self):
         self.stream.start(self.xmlstream)
         run_coroutine(asyncio.sleep(0))
-        self.xmlstream.on_failure(ConnectionError())
+        self.xmlstream.on_closing(ConnectionError())
         self.assertTrue(self.stream.running)
         run_coroutine(self.stream.wait_stop())
         self.assertFalse(self.stream.running)
@@ -930,7 +930,7 @@ class TestStanzaStream(StanzaStreamTestBase):
 
         self.stream.start(self.xmlstream)
         run_coroutine(asyncio.sleep(0))
-        self.xmlstream.on_failure(exc)
+        self.xmlstream.on_closing(exc)
         self.assertTrue(self.stream.running)
         run_coroutine(self.stream.close())
         self.assertFalse(self.stream.running)
@@ -1251,7 +1251,7 @@ class TestStanzaStream(StanzaStreamTestBase):
 
         self.stream.start(self.xmlstream)
         run_coroutine(asyncio.sleep(0))
-        self.xmlstream.on_failure(exc)
+        self.xmlstream.on_closing(exc)
         run_coroutine(asyncio.sleep(0))
         self.assertIs(caught_exc, exc)
         self.assertFalse(self.stream.running)
@@ -1668,6 +1668,32 @@ class TestStanzaStream(StanzaStreamTestBase):
             ],
             mock.mock_calls
         )
+
+    def test_handle_on_closing_with_None_argument(self):
+        failure_handler = unittest.mock.Mock()
+        failure_handler.return_value = False
+
+        def fail(xso):
+            raise ConnectionError("xmlstream not connected")
+
+        self.stream.on_failure.connect(failure_handler)
+        self.stream.start(self.xmlstream)
+        self.xmlstream.send_xso = fail
+
+        msg = make_test_message()
+        msg.autoset_id()
+
+        self.stream.enqueue_stanza(msg)
+
+        self.xmlstream.on_closing(None)
+
+        run_coroutine(asyncio.sleep(0))
+
+        # we expect the stream to wait with the failure until it gets told the
+        # actual problem by the XML stream through the on_failure callback
+        self.assertFalse(self.stream.running)
+
+        self.assertFalse(failure_handler.mock_calls)
 
 
 class TestStanzaStreamSM(StanzaStreamTestBase):

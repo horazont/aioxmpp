@@ -662,7 +662,12 @@ class TestXMLStreamMock(XMLTestCase):
             ))
 
     def test_close(self):
+        closing_handler = unittest.mock.Mock()
+        fut = self.xmlstream.error_future()
+
         obj = self.Cls()
+
+        self.xmlstream.on_closing.connect(closing_handler)
 
         def handler(obj):
             self.xmlstream.close()
@@ -674,6 +679,19 @@ class TestXMLStreamMock(XMLTestCase):
             ],
             stimulus=XMLStreamMock.Receive(obj)
         ))
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(None),
+            ],
+            closing_handler.mock_calls
+        )
+
+        self.assertTrue(fut.done())
+        self.assertIsInstance(
+            fut.exception(),
+            ConnectionError
+        )
 
     def test_catch_surplus_close(self):
         self.xmlstream.close()
@@ -792,7 +810,7 @@ class TestXMLStreamMock(XMLTestCase):
 
         ec_future = asyncio.async(self.xmlstream.error_future())
 
-        self.xmlstream.on_failure.connect(fun)
+        self.xmlstream.on_closing.connect(fun)
 
         run_coroutine(self.xmlstream.run_test(
             [

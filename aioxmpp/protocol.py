@@ -167,15 +167,25 @@ class XMLStream(asyncio.Protocol):
 
     Signals:
 
-    .. autoattribute:: on_failure
+    .. autoattribute:: on_closing
 
        A :class:`~aioxmpp.callbacks.Signal` which fires when the underlying
        transport of the stream reports an error or when a stream error is
        received. The signal is fired with the corresponding exception as the
        only argument.
 
-       When the callback is fired, the stream is already in
-       :attr:`~State.CLOSED` state.
+       If the stream gets closed by the application without any error, the
+       argument is :data:`None`.
+
+       By the time the callback fires, the stream is already unusable for
+       sending stanzas. It *may* however still receive stanzas, if the stream
+       shutdown was initiated by the application and the peer has not yet send
+       its stream footer.
+
+       If the application is not able to handle these stanzas, it is legitimate
+       to disconnect their handlers from the :attr:`stanza_parser`; the stream
+       will be able to deal with unhandled top level stanzas correctly at this
+       point (by ignoring them).
 
     Timeouts:
 
@@ -186,7 +196,7 @@ class XMLStream(asyncio.Protocol):
 
     """
 
-    on_failure = callbacks.Signal()
+    on_closing = callbacks.Signal()
     shutdown_timeout = 15
 
     def __init__(self, to,
@@ -204,14 +214,16 @@ class XMLStream(asyncio.Protocol):
         self._error_futures = []
         self._smachine = statemachine.OrderedStateMachine(State.READY)
         self._transport_closing = False
+
         asyncio.async(
-            self._smachine.wait_for_at_least(
-                State.CLOSING_STREAM_FOOTER_RECEIVED
+            self._smachine.wait_for(
+                State.CLOSING
             ),
             loop=loop
         ).add_done_callback(
-            self._stream_shut_down
+            self._stream_starts_closing
         )
+
         self.stanza_parser = xso.XSOParser()
         self.stanza_parser.add_class(stream_xsos.StreamError,
                                      self._rx_stream_error)
@@ -238,13 +250,42 @@ class XMLStream(asyncio.Protocol):
         self._transport_closing = True
         self._transport.close()
 
-    def _stream_shut_down(self, task):
-        if self._exception is not None:
-            self.on_failure(self._exception)
-            for fut in self._error_futures:
-                if not fut.done():
-                    fut.set_exception(self._exception)
+    def _stream_starts_closing(self, task):
+        exc = self._exception
+        if exc is None:
+            exc = ConnectionError("stream shut down")
+
+        self.on_closing(self._exception)
+        for fut in self._error_futures:
+            if not fut.done():
+                fut.set_exception(exc)
         self._error_futures.clear()
+
+        if task.exception() is not None:
+            # this happens if we skip over the CLOSING state, which implies
+            # that the stream footer has been seen; no reason to worry about
+            # the timeout in that case.
+            return
+        task.result()
+
+        asyncio.async(
+            self._stream_footer_timeout(),
+            loop=self._loop
+        ).add_done_callback(lambda x: x.result())
+
+    @asyncio.coroutine
+    def _stream_footer_timeout(self):
+        self._logger.debug(
+            "waiting for at most %s seconds for peer stream footer",
+            self.shutdown_timeout
+        )
+        yield from asyncio.sleep(self.shutdown_timeout)
+        if self._smachine.state >= State.CLOSING_STREAM_FOOTER_RECEIVED:
+            # state already reached, stop
+            return
+        self._logger.info("timeout while waiting for stream footer")
+        self._close_transport()
+        self._smachine.state = State.CLOSING_STREAM_FOOTER_RECEIVED
 
     def _fail(self, err):
         self._exception = err
@@ -308,11 +349,14 @@ class XMLStream(asyncio.Protocol):
         self._fail(err.to_exception())
 
     def _rx_stream_footer(self):
-        if self._smachine.state != State.CLOSING:
+        if self._smachine.state < State.CLOSING:
             # any other state, this is an issue
             if self._exception is None:
                 self._fail(ConnectionError("stream closed by peer"))
             self.close()
+        elif self._smachine.state >= State.CLOSING_STREAM_FOOTER_RECEIVED:
+            self._logger.info("late stream footer received")
+            return
 
         self._close_transport()
         self._smachine.state = State.CLOSING_STREAM_FOOTER_RECEIVED
@@ -359,7 +403,6 @@ class XMLStream(asyncio.Protocol):
         self.reset()
 
     def connection_lost(self, exc):
-        print("connection_lost")
         # in connection_lost, we really cannot do anything except shutting down
         # the stream without sending any more data
         if self._smachine.state == State.CLOSED:
