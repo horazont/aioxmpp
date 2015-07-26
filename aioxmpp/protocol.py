@@ -31,6 +31,7 @@ Enumerations
 """
 
 import asyncio
+import functools
 import inspect
 import logging
 
@@ -39,7 +40,7 @@ from enum import Enum
 import xml.sax as sax
 import xml.parsers.expat as pyexpat
 
-from . import xml, errors, xso, stream_xsos, stanza, callbacks
+from . import xml, errors, xso, stream_xsos, stanza, callbacks, statemachine
 from .utils import namespaces
 
 logger = logging.getLogger(__name__)
@@ -59,6 +60,7 @@ class Mode(Enum):
     C2S = namespaces.client
 
 
+@functools.total_ordering
 class State(Enum):
     """
     The possible states of a :class:`XMLStream`:
@@ -90,6 +92,9 @@ class State(Enum):
        the final state.
 
     """
+
+    def __lt__(self, other):
+        return self.value < other.value
 
     READY = 0
     STREAM_HEADER_SENT = 1
@@ -167,13 +172,13 @@ class XMLStream(asyncio.Protocol):
                  loop=None):
         self._to = to
         self._sorted_attributes = sorted_attributes
-        self._state = State.READY
         self._logger = base_logger.getChild("XMLStream")
         self._transport = None
         self._features_future = features_future
         self._exception = None
         self._loop = loop or asyncio.get_event_loop()
         self._error_futures = []
+        self._smachine = statemachine.OrderedStateMachine(State.READY)
         self.stanza_parser = xso.XSOParser()
         self.stanza_parser.add_class(stream_xsos.StreamError,
                                      self._rx_stream_error)
@@ -182,14 +187,14 @@ class XMLStream(asyncio.Protocol):
 
     def _invalid_transition(self, to, via=None):
         text = "invalid state transition: from={} to={}".format(
-            self._state,
+            self._smachine.state,
             to)
         if via:
             text += " (via: {})".format(via)
         return RuntimeError(text)
 
     def _invalid_state(self, at=None):
-        text = "invalid state: {}".format(self._state)
+        text = "invalid state: {}".format(self._smachine.state)
         if at:
             text += " (at: {})".format(at)
         return RuntimeError(text)
@@ -199,9 +204,9 @@ class XMLStream(asyncio.Protocol):
         self.close()
 
     def _require_connection(self, accept_partial=False):
-        if     (self._state == State.OPEN
+        if     (self._smachine.state == State.OPEN
                 or (accept_partial
-                    and self._state == State.STREAM_HEADER_SENT)):
+                    and self._smachine.state == State.STREAM_HEADER_SENT)):
             return
 
         if self._exception:
@@ -250,7 +255,7 @@ class XMLStream(asyncio.Protocol):
             raise errors.StreamError(
                 (namespaces.streams, "unsupported-version"),
                 text="unsupported version")
-        self._state = State.OPEN
+        self._smachine.state = State.OPEN
 
     def _rx_stream_error(self, err):
         self._fail(err.to_exception())
@@ -288,7 +293,7 @@ class XMLStream(asyncio.Protocol):
             )
 
     def connection_made(self, transport):
-        if self._state != State.READY:
+        if self._smachine.state != State.READY:
             raise self._invalid_state("connection_made")
 
         assert self._transport is None
@@ -296,13 +301,13 @@ class XMLStream(asyncio.Protocol):
         self._writer = None
         self._exception = None
         # we need to set the state before we call reset()
-        self._state = State.STREAM_HEADER_SENT
+        self._smachine.state = State.STREAM_HEADER_SENT
         self.reset()
 
     def connection_lost(self, exc):
-        if self._state == State.CLOSED:
+        if self._smachine.state == State.CLOSED:
             return
-        self._state = State.CLOSED
+        self._smachine.state = State.CLOSED
         self._exception = self._exception or exc
         self._kill_state()
         self._writer = None
@@ -340,9 +345,10 @@ class XMLStream(asyncio.Protocol):
         Calling :meth:`close` while the stream is closing or closed is a
         no-op.
         """
-        if self._state == State.CLOSING or self._state == State.CLOSED:
+        if     (self._smachine.state == State.CLOSING or
+                self._smachine.state == State.CLOSED):
             return
-        self._state = State.CLOSING
+        self._smachine.state = State.CLOSING
         self._writer.close()
         if self._transport.can_write_eof():
             self._transport.write_eof()
@@ -397,7 +403,7 @@ class XMLStream(asyncio.Protocol):
         self._require_connection(accept_partial=True)
         self._reset_state()
         next(self._writer)
-        self._state = State.STREAM_HEADER_SENT
+        self._smachine.rewind(State.STREAM_HEADER_SENT)
 
     def send_xso(self, obj):
         """
@@ -479,7 +485,7 @@ class XMLStream(asyncio.Protocol):
 
         This attribute cannot be set.
         """
-        return self._state
+        return self._smachine.state
 
 
 @asyncio.coroutine

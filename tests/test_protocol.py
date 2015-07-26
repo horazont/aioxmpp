@@ -200,13 +200,37 @@ class TestXMLStream(unittest.TestCase):
             ))
         self.assertEqual(protocol.State.CLOSED, p.state)
 
-    def test_reset(self):
+    def test_reset_before_peer_header(self):
         t, p = self._make_stream(to=TEST_PEER)
         run_coroutine(
             t.run_test(
                 [
                     TransportMock.Write(
                         STREAM_HEADER,
+                    ),
+                ],
+                partial=True
+            ))
+        p.reset()
+        run_coroutine(
+            t.run_test(
+                [
+                    TransportMock.Write(
+                        STREAM_HEADER,
+                    ),
+                ],
+            ))
+
+    def test_reset_after_peer_header(self):
+        t, p = self._make_stream(to=TEST_PEER)
+        run_coroutine(
+            t.run_test(
+                [
+                    TransportMock.Write(
+                        STREAM_HEADER,
+                        response=[
+                            TransportMock.Receive(self._make_peer_header()),
+                        ]
                     ),
                 ],
                 partial=True
