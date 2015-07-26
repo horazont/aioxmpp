@@ -680,6 +680,10 @@ class PresenceManagedClient(AbstractClient):
         an `available` presence, the client will attempt to connect to the
         server. If the presence is `unavailable` and the client is currently
         connected, it will disconnect.
+
+        Instead of setting the presence to unavailable, :meth:`stop` can also
+        be called. The :attr:`presence` attribute is *not* affected by calls to
+        :meth:`start` or :meth:`stop`.
         """
         return self._presence
 
