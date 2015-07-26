@@ -46,7 +46,7 @@ def main(jid, password):
         )
     )
     client.on_stream_established.connect(connected)
-    client.on_stream_destroyed.connect(disconnected)
+    client.on_stopped.connect(disconnected)
 
     disco = client.summon(aioxmpp.disco.Service)
 
