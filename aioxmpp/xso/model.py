@@ -1794,6 +1794,9 @@ class XSOParser:
         ctx = Context()
         while True:
             ev_type, *ev_args = yield
+            if ev_type == "text" and not ev_args[0].strip():
+                continue
+
             tag = ev_args[0], ev_args[1]
             try:
                 cls, cb = self._tag_map[tag]

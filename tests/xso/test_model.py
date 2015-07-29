@@ -4494,6 +4494,29 @@ class TestXSOParser(XMLTestCase):
         p.remove_class(Foo)
         self.assertFalse(p.get_tag_map())
 
+    def test_ignore_toplevel_whitespace(self):
+        class Foo(xso.XSO):
+            TAG = "foo"
+
+        cb = unittest.mock.Mock()
+
+        p = xso.XSOParser()
+        suspendable = p()
+        next(suspendable)
+        suspendable.send(("text", "\n\t "))
+
+        p.add_class(Foo, cb)
+
+        suspendable.send(("start", None, "foo", {}))
+        suspendable.send(("end", None, "foo"))
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(unittest.mock.ANY)
+            ],
+            cb.mock_calls
+        )
+
 
 class TestContext(unittest.TestCase):
     def setUp(self):
