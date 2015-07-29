@@ -884,8 +884,11 @@ class Testmake_connected_client(unittest.TestCase):
     def test_attributes(self):
         cc = make_connected_client()
         self.assertTrue(hasattr(cc, "stream"))
+        self.assertTrue(hasattr(cc, "start"))
+        self.assertTrue(hasattr(cc, "stop"))
 
         self.assertIsInstance(cc.on_failure, callbacks.AdHocSignal)
+        self.assertIsInstance(cc.on_stopped, callbacks.AdHocSignal)
         self.assertIsInstance(cc.on_stream_destroyed, callbacks.AdHocSignal)
         self.assertIsInstance(cc.on_stream_established, callbacks.AdHocSignal)
 

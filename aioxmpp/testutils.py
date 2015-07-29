@@ -92,6 +92,7 @@ class ConnectedClientMock(unittest.mock.Mock):
     on_stream_established = callbacks.Signal()
     on_stream_destroyed = callbacks.Signal()
     on_failure = callbacks.Signal()
+    on_stopped = callbacks.Signal()
 
     before_stream_established = callbacks.SyncSignal()
 
@@ -100,6 +101,8 @@ class ConnectedClientMock(unittest.mock.Mock):
     def __init__(self):
         super().__init__([
             "stream",
+            "start",
+            "stop"
         ])
 
         self.stream_features = stream_xsos.StreamFeatures()
