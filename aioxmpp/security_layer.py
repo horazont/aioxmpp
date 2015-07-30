@@ -67,6 +67,7 @@ import abc
 import asyncio
 import functools
 import logging
+import ssl
 
 import pyasn1
 import pyasn1.codec.der.decoder
@@ -78,6 +79,61 @@ from . import errors, sasl, stream_xsos, xso, protocol
 from .utils import namespaces
 
 logger = logging.getLogger(__name__)
+
+
+def extract_python_dict_from_x509(x509):
+    """
+    Extract a python dictionary similar to the return value of
+    :meth:`ssl.SSLSocket.getpeercert` from the given
+    :class:`OpenSSL.crypto.X509` `x509` object.
+
+    Note that by far not all attributes are included; only those required to
+    use :func:`ssl.match_hostname` are extracted and put in the result.
+
+    In the future, more attributes may be added.
+    """
+    result = {
+        "subject": (
+            (("commonName", x509.get_subject().commonName),),
+        )
+    }
+
+    for ext_idx in range(x509.get_extension_count()):
+        ext = x509.get_extension(ext_idx)
+        sn = ext.get_short_name()
+        if sn != b"subjectAltName":
+            continue
+
+        data = pyasn1.codec.der.decoder.decode(
+            ext.get_data(),
+            asn1Spec=pyasn1_modules.rfc2459.SubjectAltName())[0]
+        for name in data:
+            dNSName = name.getComponentByPosition(2)
+            if dNSName is None:
+                continue
+
+            result.setdefault("subjectAltName", []).append(
+                ("DNS", str(dNSName))
+            )
+
+    return result
+
+
+def check_x509_hostname(x509, hostname):
+    """
+    Check whether the given :class:`OpenSSL.crypto.X509` certificate `x509`
+    matches the given `hostname`.
+
+    Return :data:`True` if the name matches and :data:`False` otherwise. This
+    uses :func:`ssl.match_hostname` and :func:`extract_python_dict_from_x509`.
+    """
+
+    cert_structure = extract_python_dict_from_x509(x509)
+    try:
+        ssl.match_hostname(cert_structure, hostname)
+    except ssl.CertificateError:
+        return False
+    return True
 
 
 class CertificateVerifier(metaclass=abc.ABCMeta):
@@ -142,55 +198,19 @@ class PKIXCertificateVerifier(CertificateVerifier):
 
     def verify_callback(self, ctx, x509, errno, errdepth, returncode):
         logger.info("verifying certificate (preverify=%s)", returncode)
+
         if not returncode:
             logger.warning("certificate verification failed (by OpenSSL)")
             return returncode
 
-        import ssl
-        cert = x509
-
-        fake_cert_structure = {
-            "subject": (
-                (("commonName", str(cert.get_subject().commonName)),),
-            )
-        }
-
-        for ext_idx in range(cert.get_extension_count()):
-            ext = cert.get_extension(ext_idx)
-            sn = ext.get_short_name()
-            if sn != b"subjectAltName":
-                continue
-
-            data = pyasn1.codec.der.decoder.decode(
-                ext.get_data(),
-                asn1Spec=pyasn1_modules.rfc2459.SubjectAltName())[0]
-            for name in data:
-                dNSName = name.getComponentByPosition(2)
-                if dNSName is None:
-                    continue
-                fake_cert_structure.setdefault(
-                    "subjectAltName",
-                    []).append((
-                        "DNS",
-                        str(dNSName)))
-
-        if     ("subjectAltName" in fake_cert_structure and
-                fake_cert_structure["subjectAltName"]):
-            del fake_cert_structure["subject"]
-
-        logger.info("extracted structure: %r", fake_cert_structure)
-
-        try:
-            ssl.match_hostname(
-                fake_cert_structure,
-                self.transport.get_extra_info("server_hostname"))
-        except ssl.CertificateError as err:
-            logger.warning("certificate does not match server hostname %r",
-                           self.transport.get_extra_info("server_hostname"))
+        hostname = self.transport.get_extra_info("server_hostname")
+        if not check_x509_hostname(
+                x509,
+                hostname):
+            logger.warning("certificate hostname mismatch "
+                           "(doesn’t match for %r)",
+                           hostname)
             return False
-        else:
-            logger.info("hostname check passed against %r",
-                        self.transport.get_extra_info("server_hostname"))
 
         return returncode
 

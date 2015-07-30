@@ -1,5 +1,11 @@
 import asyncio
+import contextlib
+import socket
+import ssl
 import unittest
+
+import OpenSSL.crypto
+import OpenSSL.SSL
 
 import aioxmpp.errors as errors
 import aioxmpp.sasl as sasl
@@ -16,6 +22,271 @@ from aioxmpp.testutils import (
     CoroutineMock
 )
 from aioxmpp import xmltestutils
+
+
+# class SSLVerificationTestBase(unittest.TestCase):
+#     def setUp(self):
+#         self.server_ctx = OpenSSL.SSL.Context(
+#             OpenSSL.SSL.SSLv23_METHOD,
+#         )
+#         self.server_raw_sock, self.client_raw_sock = socket.socketpair()
+#         self.server_sock = OpenSSL.SSL.Connection(
+#             self.server_ctx,
+#             self.server_raw_sock
+#         )
+#         self.server_sock.set_accept_state()
+
+#     def tearDown(self):
+#         self.server_sock.close()
+#         self.server_raw_sock.close()
+#         self.client_raw_sock.close()
+
+
+crt_zombofant_net = b"""\
+-----BEGIN CERTIFICATE-----
+MIIGSTCCBDGgAwIBAgIDEFeyMA0GCSqGSIb3DQEBDQUAMHkxEDAOBgNVBAoTB1Jv
+b3QgQ0ExHjAcBgNVBAsTFWh0dHA6Ly93d3cuY2FjZXJ0Lm9yZzEiMCAGA1UEAxMZ
+Q0EgQ2VydCBTaWduaW5nIEF1dGhvcml0eTEhMB8GCSqGSIb3DQEJARYSc3VwcG9y
+dEBjYWNlcnQub3JnMB4XDTE1MDMwNzExMzE1N1oXDTE1MDkwMzExMzE1N1owGDEW
+MBQGA1UEAxMNem9tYm9mYW50Lm5ldDCCAiIwDQYJKoZIhvcNAQEBBQADggIPADCC
+AgoCggIBALzAsX9qMkd2nECtTApw0zMVHs5HUkyGHW0hSRR0Q7MHm4HTm6I8xzD2
+yZxX/TyYBDo/JcdOqtVmKSht7l4oxU8xd5QyOFHTnHUGElwxKNhtBTCRf5mIWrd6
+8CUWAgvhCmQk2qD2w1z0hiPCl5dVnxQccZRNJlwyNEBAbk5cHajEQjOvT+NxBX3w
+q9lVlyJjuFzXaJRTlDNWfBd7mC077ag3LqFiR2D1IHi0R6b6gjSE9rfjAZxyon98
+sgKA20nbmVNiSCSmqVBoC6ELQdzCa4HEP0jrw1OrmIqRJVIAjouYQkALGHzozBYy
+x/9vIGI8vmG2TFgdLDQ8rr1nXrwY7m/fvnw43vb0nPsCNnFjI8IkB0ind44ajXWP
+oBV4FQlg+hx9eL/+XkPhLP5BJ1kHttvda/NXV5zSk8Z6y2dt4tYHWDjXykA1nWMW
+7tjwvb6pqp8kahKzlQF9rKCBOL4PpcPctZ9ookwCU1aPGvjCS6H7cRIzM4U+ZKHq
+yvlSlFe7KrrUGgR8dx6I6csD0jiOD3d+gbK7Oiu6NG7fxXELCCIAfFQIFEY79yz6
+z2qZBjqQaNuNP3QkmZLDPEyvHZCWPpMIyIuUK8k3oWt0OdCUBRV6p+3EYEcPeamt
+aMWXc1PQMioj3W1ndCehyOZ9tlXmvVaSHTLuZXyFm6/4+2rKj84jAgMBAAGjggE5
+MIIBNTAMBgNVHRMBAf8EAjAAMA4GA1UdDwEB/wQEAwIDqDA0BgNVHSUELTArBggr
+BgEFBQcDAgYIKwYBBQUHAwEGCWCGSAGG+EIEAQYKKwYBBAGCNwoDAzAzBggrBgEF
+BQcBAQQnMCUwIwYIKwYBBQUHMAGGF2h0dHA6Ly9vY3NwLmNhY2VydC5vcmcvMDEG
+A1UdHwQqMCgwJqAkoCKGIGh0dHA6Ly9jcmwuY2FjZXJ0Lm9yZy9yZXZva2UuY3Js
+MHcGA1UdEQRwMG6CDXpvbWJvZmFudC5uZXSgGwYIKwYBBQUHCAWgDwwNem9tYm9m
+YW50Lm5ldIIYY29uZmVyZW5jZS56b21ib2ZhbnQubmV0oCYGCCsGAQUFBwgFoBoM
+GGNvbmZlcmVuY2Uuem9tYm9mYW50Lm5ldDANBgkqhkiG9w0BAQ0FAAOCAgEAd7hJ
+KdfqC0pdFLlIKzaLSuhK2FbqrZAd+wAZs1OfHPxZ1m0ygvCN3t2fm01DXKk34Wj7
+ZTnZSgmsIudFBSco8z+ne6rHKd9qqJd7C/YR/pz53UnZR+ost26shr2ARb1+ve+6
+OyCiDi81IV2FxahMzqvYbxzr0XxkOZlmkgNOWNz9Da29wvgvVCyhzbdH8oVohOSw
+Vq/aP56vBbTwDK2LKMAU+m3AgDwjauRt96HhBMMS9yH2Ct5S8OFSFHd58AtLu6fP
+LIsp75t4RVoShci1HiVudeCCfcPdvzGsxp1BxPx5OnTZerbHZ30WuS4QF9Nfo+yE
+4S9reB5qaNQxzlFplmJCoDN6mLshvZ3CMwR9d8Al6Cv6X/sneNOWu5fmAXSAHjdu
+jbAg2J/Ohw+WWJ6NfvbUYWVuvO3NPFoSenDopMSWSjM70BeVApl/t3gAgUBHFYgB
+DKkO6BDIyEuopYlyVoiBBQbzJTG2/P5/tzHZJGOjy4R9wZERj3Ol4COvVFnM28sU
+tv785oJggyTqCsRHxFxv3ouYrC6O3imDdhfuWTBep4o+OwII9K0T2/i3aPsX92Zg
+d11q4Mhgsy1A8B1T+cwPzRQ8aa1//QGOa7KQ5lIYRQGq6Clg7XfZWeKsYOAoUGaS
+74eNdQYv+etdKem7oSf/oA/aSKGeyVqgvf2/WH0=
+-----END CERTIFICATE-----
+"""
+
+
+class Testextract_python_dict_from_x509(unittest.TestCase):
+    def test_zombofant_net(self):
+        x509 = OpenSSL.crypto.load_certificate(
+            OpenSSL.crypto.FILETYPE_PEM,
+            crt_zombofant_net)
+        d = security_layer.extract_python_dict_from_x509(x509)
+
+        self.assertDictEqual(
+            {
+                "subject": (
+                    (("commonName", "zombofant.net"),),
+                ),
+                "subjectAltName": [
+                    ("DNS", "zombofant.net"),
+                    ("DNS", "conference.zombofant.net"),
+                ]
+            },
+            d
+        )
+
+
+class Testcheck_x509_hostname(unittest.TestCase):
+    def test_pass(self):
+        x509 = OpenSSL.crypto.load_certificate(
+            OpenSSL.crypto.FILETYPE_PEM,
+            crt_zombofant_net)
+        hostname = object()
+
+        with contextlib.ExitStack() as stack:
+            extract_python_dict_from_x509 = stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.security_layer.extract_python_dict_from_x509"
+                )
+            )
+            match_hostname = stack.enter_context(unittest.mock.patch(
+                "ssl.match_hostname"
+            ))
+            match_hostname.return_value = None
+
+            result = security_layer.check_x509_hostname(
+                x509,
+                hostname
+            )
+
+        self.assertTrue(result)
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(x509)
+            ],
+            extract_python_dict_from_x509.mock_calls
+        )
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(
+                    extract_python_dict_from_x509(),
+                    hostname
+                )
+            ],
+            match_hostname.mock_calls
+        )
+
+    def test_fail(self):
+        x509 = OpenSSL.crypto.load_certificate(
+            OpenSSL.crypto.FILETYPE_PEM,
+            crt_zombofant_net)
+        hostname = object()
+
+        with contextlib.ExitStack() as stack:
+            extract_python_dict_from_x509 = stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.security_layer.extract_python_dict_from_x509"
+                )
+            )
+            match_hostname = stack.enter_context(unittest.mock.patch(
+                "ssl.match_hostname"
+            ))
+            match_hostname.side_effect = ssl.CertificateError("foo")
+
+            result = security_layer.check_x509_hostname(
+                x509,
+                hostname
+            )
+
+        self.assertFalse(result)
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(x509)
+            ],
+            extract_python_dict_from_x509.mock_calls
+        )
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(
+                    extract_python_dict_from_x509(),
+                    hostname
+                )
+            ],
+            match_hostname.mock_calls
+        )
+
+
+class TestPKIXCertificateVerifier(unittest.TestCase):
+    def test_verify_callback_checks_hostname(self):
+        x509 = OpenSSL.crypto.load_certificate(
+            OpenSSL.crypto.FILETYPE_PEM,
+            crt_zombofant_net)
+        verifier = security_layer.PKIXCertificateVerifier()
+        verifier.transport = unittest.mock.Mock()
+
+        with unittest.mock.patch(
+                "aioxmpp.security_layer.check_x509_hostname"
+        ) as check_x509_hostname:
+            check_x509_hostname.return_value = True
+
+            result = verifier.verify_callback(
+                None,
+                x509,
+                0, 0,
+                True)
+
+        self.assertTrue(result)
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call.get_extra_info("server_hostname"),
+            ],
+            verifier.transport.mock_calls
+        )
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(x509, verifier.transport.get_extra_info()),
+            ],
+            check_x509_hostname.mock_calls
+        )
+
+    def test_verify_callback_returns_false_on_hostname_mismatch(self):
+        x509 = OpenSSL.crypto.load_certificate(
+            OpenSSL.crypto.FILETYPE_PEM,
+            crt_zombofant_net)
+        verifier = security_layer.PKIXCertificateVerifier()
+        verifier.transport = unittest.mock.Mock()
+
+        with unittest.mock.patch(
+                "aioxmpp.security_layer.check_x509_hostname"
+        ) as check_x509_hostname:
+            check_x509_hostname.return_value = False
+
+            result = verifier.verify_callback(
+                None,
+                x509,
+                0, 0,
+                True)
+
+        self.assertFalse(result)
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call.get_extra_info("server_hostname"),
+            ],
+            verifier.transport.mock_calls
+        )
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(x509, verifier.transport.get_extra_info()),
+            ],
+            check_x509_hostname.mock_calls
+        )
+
+    def test_verify_callback_skip_hostname_check_on_precheck_fail(self):
+        x509 = OpenSSL.crypto.load_certificate(
+            OpenSSL.crypto.FILETYPE_PEM,
+            crt_zombofant_net)
+        verifier = security_layer.PKIXCertificateVerifier()
+        verifier.transport = unittest.mock.Mock()
+
+        with unittest.mock.patch(
+                "aioxmpp.security_layer.check_x509_hostname"
+        ) as check_x509_hostname:
+            check_x509_hostname.return_value = False
+
+            result = verifier.verify_callback(
+                None,
+                x509,
+                0, 0,
+                False)
+
+        self.assertFalse(result)
+
+        self.assertSequenceEqual(
+            [
+            ],
+            verifier.transport.mock_calls
+        )
+
+        self.assertSequenceEqual(
+            [
+            ],
+            check_x509_hostname.mock_calls
+        )
 
 
 class TestSTARTTLSProvider(xmltestutils.XMLTestCase):
