@@ -203,14 +203,15 @@ class PKIXCertificateVerifier(CertificateVerifier):
             logger.warning("certificate verification failed (by OpenSSL)")
             return returncode
 
-        hostname = self.transport.get_extra_info("server_hostname")
-        if not check_x509_hostname(
-                x509,
-                hostname):
-            logger.warning("certificate hostname mismatch "
-                           "(doesn’t match for %r)",
-                           hostname)
-            return False
+        if errdepth == 0:
+            hostname = self.transport.get_extra_info("server_hostname")
+            if not check_x509_hostname(
+                    x509,
+                    hostname):
+                logger.warning("certificate hostname mismatch "
+                               "(doesn’t match for %r)",
+                               hostname)
+                return False
 
         return returncode
 
