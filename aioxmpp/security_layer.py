@@ -22,8 +22,6 @@ To verify the peer certificate provided by the server, different
 
 .. autoclass:: PKIXCertificateVerifier
 
-.. seealso:: :mod:`dane` provides DANE based verification.
-
 To implement your own verifiers, see the documentation at the base class for
 certificate verifiers:
 
