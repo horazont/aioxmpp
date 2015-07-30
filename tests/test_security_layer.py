@@ -1,5 +1,7 @@
 import asyncio
 import contextlib
+import itertools
+import random
 import socket
 import ssl
 import unittest
@@ -41,6 +43,122 @@ from aioxmpp import xmltestutils
 #         self.server_raw_sock.close()
 #         self.client_raw_sock.close()
 
+# NOTE: the variables contents following this comment are distributed under the
+# following license:
+#
+# 1. Terms
+#
+# "CAcert Inc" means CAcert Incorporated, a non-profit association incorporated
+# in New South Wales, Australia.
+# "CAcert Community Agreement" means the agreement entered into by each person
+# wishing to RELY.
+# "Member" means a natural or legal person who has agreed to the CAcert
+# Community Agreement.
+# "Certificate" means any certificate or like device to which CAcert Inc's
+# digital signature has been affixed.
+# "CAcert Root Certificates" means any certificate issued by CAcert Inc to
+# itself for the purposes of signing further CAcert Roots or for signing
+# certificates of Members.
+# "RELY" means the human act in taking on a risk or liability on the basis of
+# the claim(s) bound within a certificate issued by CAcert.
+# "Embedded" means a certificate that is contained within a software
+# application or hardware system, when and only when, that software application
+# or system is distributed in binary form only.
+#
+# 2. Copyright
+#
+# CAcert Root Certificates are Copyright CAcert Incorporated. All rights
+# reserved.
+#
+# 3. License
+#
+# You may copy and distribute CAcert Root Certificates only in accordance with
+# this license.
+#
+# CAcert Inc grants you a free, non-exclusive license to copy and distribute
+# CAcert Root Certificates in any medium, with or without modification,
+# provided that the following conditions are met:
+#
+# *    Redistributions of Embedded CAcert Root Certificates must take reasonable
+# steps to inform the recipient of the disclaimer in section 4 or reproduce
+# this license and copyright notice in full in the documentation provided with
+# the distribution.
+#
+# *    Redistributions in all other forms must reproduce this license and
+# copyright notice in full.
+#
+# 4. Disclaimer
+#
+# THE CACERT ROOT CERTIFICATES ARE PROVIDED "AS IS" AND ANY EXPRESS OR IMPLIED
+# WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+# MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED TO THE
+# MAXIMUM EXTENT PERMITTED BY LAW. IN NO EVENT SHALL CACERT INC, ITS MEMBERS,
+# AGENTS, SUBSIDIARIES OR RELATED PARTIES BE LIABLE TO THE LICENSEE OR ANY THIRD
+# PARTY FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+# CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+# SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+# INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+# CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+# ARISING IN ANY WAY OUT OF THE USE OF THESE CERTIFICATES, EVEN IF ADVISED OF
+# THE POSSIBILITY OF SUCH DAMAGE. IN ANY EVENT, CACERT'S LIABILITY SHALL NOT
+# EXCEED $1,000.00 AUSTRALIAN DOLLARS.
+#
+# THIS LICENSE SPECIFICALLY DOES NOT PERMIT YOU TO RELY UPON ANY CERTIFICATES
+# ISSUED BY CACERT INC. IF YOU WISH TO RELY ON CERTIFICATES ISSUED BY CACERT
+# INC, YOU MUST ENTER INTO A SEPARATE AGREEMENT WITH CACERT INC.
+#
+# 5. Statutory Rights
+#
+# Nothing in this license affects any statutory rights that cannot be waived or
+# limited by contract. In the event that any provision of this license is held
+# to be invalid or unenforceable, the remaining provisions of this license
+# remain in full force and effect.
+#
+# END OF license for the following variable
+crt_cacert_root = b"""\
+-----BEGIN CERTIFICATE-----
+MIIHPTCCBSWgAwIBAgIBADANBgkqhkiG9w0BAQQFADB5MRAwDgYDVQQKEwdSb290
+IENBMR4wHAYDVQQLExVodHRwOi8vd3d3LmNhY2VydC5vcmcxIjAgBgNVBAMTGUNB
+IENlcnQgU2lnbmluZyBBdXRob3JpdHkxITAfBgkqhkiG9w0BCQEWEnN1cHBvcnRA
+Y2FjZXJ0Lm9yZzAeFw0wMzAzMzAxMjI5NDlaFw0zMzAzMjkxMjI5NDlaMHkxEDAO
+BgNVBAoTB1Jvb3QgQ0ExHjAcBgNVBAsTFWh0dHA6Ly93d3cuY2FjZXJ0Lm9yZzEi
+MCAGA1UEAxMZQ0EgQ2VydCBTaWduaW5nIEF1dGhvcml0eTEhMB8GCSqGSIb3DQEJ
+ARYSc3VwcG9ydEBjYWNlcnQub3JnMIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIIC
+CgKCAgEAziLA4kZ97DYoB1CW8qAzQIxL8TtmPzHlawI229Z89vGIj053NgVBlfkJ
+8BLPRoZzYLdufujAWGSuzbCtRRcMY/pnCujW0r8+55jE8Ez64AO7NV1sId6eINm6
+zWYyN3L69wj1x81YyY7nDl7qPv4coRQKFWyGhFtkZip6qUtTefWIonvuLwphK42y
+fk1WpRPs6tqSnqxEQR5YYGUFZvjARL3LlPdCfgv3ZWiYUQXw8wWRBB0bF4LsyFe7
+w2t6iPGwcswlWyCR7BYCEo8y6RcYSNDHBS4CMEK4JZwFaz+qOqfrU0j36NK2B5jc
+G8Y0f3/JHIJ6BVgrCFvzOKKrF11myZjXnhCLotLddJr3cQxyYN/Nb5gznZY0dj4k
+epKwDpUeb+agRThHqtdB7Uq3EvbXG4OKDy7YCbZZ16oE/9KTfWgu3YtLq1i6L43q
+laegw1SJpfvbi1EinbLDvhG+LJGGi5Z4rSDTii8aP8bQUWWHIbEZAWV/RRyH9XzQ
+QUxPKZgh/TMfdQwEUfoZd9vUFBzugcMd9Zi3aQaRIt0AUMyBMawSB3s42mhb5ivU
+fslfrejrckzzAeVLIL+aplfKkQABi6F1ITe1Yw1nPkZPcCBnzsXWWdsC4PDSy826
+YreQQejdIOQpvGQpQsgi3Hia/0PsmBsJUUtaWsJx8cTLc6nloQsCAwEAAaOCAc4w
+ggHKMB0GA1UdDgQWBBQWtTIb1Mfz4OaO873SsDrusjkY0TCBowYDVR0jBIGbMIGY
+gBQWtTIb1Mfz4OaO873SsDrusjkY0aF9pHsweTEQMA4GA1UEChMHUm9vdCBDQTEe
+MBwGA1UECxMVaHR0cDovL3d3dy5jYWNlcnQub3JnMSIwIAYDVQQDExlDQSBDZXJ0
+IFNpZ25pbmcgQXV0aG9yaXR5MSEwHwYJKoZIhvcNAQkBFhJzdXBwb3J0QGNhY2Vy
+dC5vcmeCAQAwDwYDVR0TAQH/BAUwAwEB/zAyBgNVHR8EKzApMCegJaAjhiFodHRw
+czovL3d3dy5jYWNlcnQub3JnL3Jldm9rZS5jcmwwMAYJYIZIAYb4QgEEBCMWIWh0
+dHBzOi8vd3d3LmNhY2VydC5vcmcvcmV2b2tlLmNybDA0BglghkgBhvhCAQgEJxYl
+aHR0cDovL3d3dy5jYWNlcnQub3JnL2luZGV4LnBocD9pZD0xMDBWBglghkgBhvhC
+AQ0ESRZHVG8gZ2V0IHlvdXIgb3duIGNlcnRpZmljYXRlIGZvciBGUkVFIGhlYWQg
+b3ZlciB0byBodHRwOi8vd3d3LmNhY2VydC5vcmcwDQYJKoZIhvcNAQEEBQADggIB
+ACjH7pyCArpcgBLKNQodgW+JapnM8mgPf6fhjViVPr3yBsOQWqy1YPaZQwGjiHCc
+nWKdpIevZ1gNMDY75q1I08t0AoZxPuIrA2jxNGJARjtT6ij0rPtmlVOKTV39O9lg
+18p5aTuxZZKmxoGCXJzN600BiqXfEVWqFcofN8CCmHBh22p8lqOOLlQ+TyGpkO/c
+gr/c6EWtTZBzCDyUZbAEmXZ/4rzCahWqlwQ3JNgelE5tDlG+1sSPypZt90Pf6DBl
+Jzt7u0NDY8RD97LsaMzhGY4i+5jhe1o+ATc7iwiwovOVThrLm82asduycPAtStvY
+sONvRUgzEv/+PDIqVPfE94rwiCPCR/5kenHA0R6mY7AHfqQv0wGP3J8rtsYIqQ+T
+SCX8Ev2fQtzzxD72V7DX3WnRBnc0CkvSyqD/HMaMyRa+xMwyN2hzXwj7UfdJUzYF
+CpUCTPJ5GhD22Dp1nPMd8aINcGeGG7MW9S/lpOt5hvk9C8JzC6WZrG/8Z7jlLwum
+GCSNe9FINSkYQKyTYOGWhlC0elnYjyELn8+CkcY7v2vcB5G5l1YjqrZslMZIBjzk
+zk6q5PYvCdxTby78dOs6Y5nCpqyJvKeyRKANihDjbPIky/qbn3BHLt4Ui9SyIAmW
+omTxJBzcoTWcFbLUvFUufQb1nA5V9FrWk9p2rSVzTMVD
+-----END CERTIFICATE-----
+"""
+# END OF variable covered by the above license
 
 crt_zombofant_net = b"""\
 -----BEGIN CERTIFICATE-----
@@ -188,7 +306,7 @@ class Testcheck_x509_hostname(unittest.TestCase):
 
 
 class TestPKIXCertificateVerifier(unittest.TestCase):
-    def test_verify_callback_checks_hostname(self):
+    def test_verify_callback_checks_hostname_on_depth_0(self):
         x509 = OpenSSL.crypto.load_certificate(
             OpenSSL.crypto.FILETYPE_PEM,
             crt_zombofant_net)
@@ -287,6 +405,376 @@ class TestPKIXCertificateVerifier(unittest.TestCase):
             ],
             check_x509_hostname.mock_calls
         )
+
+    def test_verify_callback_skip_hostname_check_on_nonzero_depth(self):
+        x509 = OpenSSL.crypto.load_certificate(
+            OpenSSL.crypto.FILETYPE_PEM,
+            crt_zombofant_net)
+        verifier = security_layer.PKIXCertificateVerifier()
+        verifier.transport = unittest.mock.Mock()
+
+        with unittest.mock.patch(
+                "aioxmpp.security_layer.check_x509_hostname"
+        ) as check_x509_hostname:
+            check_x509_hostname.return_value = False
+
+            result = verifier.verify_callback(
+                None,
+                x509,
+                0, 1,
+                True)
+
+        self.assertSequenceEqual(
+            [
+            ],
+            verifier.transport.mock_calls
+        )
+
+        self.assertSequenceEqual(
+            [
+            ],
+            check_x509_hostname.mock_calls
+        )
+
+        self.assertTrue(result)
+
+
+class TestHookablePKIXCertificateVerifier(unittest.TestCase):
+    def setUp(self):
+        self.transport = unittest.mock.Mock()
+        self.quick_check = unittest.mock.Mock()
+        self.post_handshake_deferred_failure = CoroutineMock()
+        self.post_handshake_success = CoroutineMock()
+
+        self.x509_root = OpenSSL.crypto.load_certificate(
+            OpenSSL.crypto.FILETYPE_PEM,
+            crt_cacert_root)
+        self.x509 = OpenSSL.crypto.load_certificate(
+            OpenSSL.crypto.FILETYPE_PEM,
+            crt_zombofant_net)
+
+        self.verifier = security_layer.HookablePKIXCertificateVerifier(
+            self.quick_check,
+            self.post_handshake_deferred_failure,
+            self.post_handshake_success
+        )
+        self.verifier.transport = self.transport
+
+        self.deferrable_errors = [
+            (19, None),
+            (18, 0),
+            (27, 0),
+        ]
+
+    def test_is_certificate_verifier(self):
+        self.assertTrue(issubclass(
+            security_layer.HookablePKIXCertificateVerifier,
+            security_layer.CertificateVerifier
+        ))
+
+    def _test_hardwired_set(self, s):
+        self.assertIs(
+            False,
+            self.verifier.verify_recorded(
+                self.x509,
+                s
+            )
+        )
+
+        self.assertSequenceEqual([], self.quick_check.mock_calls)
+
+        self.quick_check.reset_mock()
+
+    def _test_hardwired(self, errno, errdepth):
+        if   ((errno, errdepth) in self.deferrable_errors or
+              (errno, None) in self.deferrable_errors):
+            return
+
+        self._test_hardwired_set(
+            {
+                (self.x509_root, errno, errdepth),
+            }
+        )
+
+        self._test_hardwired_set(
+            {
+                (self.x509_root, errno, errdepth),
+            }|{
+                (self.x509_root, )+random.choice(self.deferrable_errors)
+            }
+        )
+
+    def test_verify_callback_records_and_returns_true(self):
+        x509_2 = object()
+        x509_1 = object()
+        x509_0 = object()
+
+        with contextlib.ExitStack() as stack:
+            verify_recorded = stack.enter_context(
+                unittest.mock.patch.object(self.verifier, "verify_recorded")
+            )
+
+            self.assertSetEqual(
+                set(),
+                self.verifier.recorded_errors
+            )
+
+            self.assertTrue(
+                self.verifier.verify_callback(None, x509_2, 10, 2, False)
+            )
+            self.assertSetEqual(
+                {
+                    (x509_2, 10, 2),
+                },
+                self.verifier.recorded_errors
+            )
+
+            self.assertTrue(
+                self.verifier.verify_callback(None, x509_2, 0, 2, True)
+            )
+            self.assertSetEqual(
+                {
+                    (x509_2, 10, 2),
+                },
+                self.verifier.recorded_errors
+            )
+
+            self.assertTrue(
+                self.verifier.verify_callback(None, x509_1, 19, 1, False)
+            )
+            self.assertSetEqual(
+                {
+                    (x509_2, 10, 2),
+                    (x509_1, 19, 1),
+                },
+                self.verifier.recorded_errors
+            )
+
+            self.assertTrue(
+                self.verifier.verify_callback(None, x509_1, 0, 1, True)
+            )
+            self.assertSetEqual(
+                {
+                    (x509_2, 10, 2),
+                    (x509_1, 19, 1),
+                },
+                self.verifier.recorded_errors
+            )
+
+            self.assertTrue(
+                self.verifier.verify_callback(None, x509_0, 18, 0, True)
+            )
+            self.assertSetEqual(
+                {
+                    (x509_2, 10, 2),
+                    (x509_1, 19, 1),
+                    (x509_0, 18, 0),
+                },
+                self.verifier.recorded_errors
+            )
+
+        self.assertSequenceEqual([], verify_recorded.mock_calls)
+
+    def test_verify_callback_checks_recorded_and_determines_hostname_matchon_last(self):
+        errors = object()
+        self.verifier.recorded_errors = errors
+
+        self.assertFalse(self.verifier.hostname_matches)
+        self.assertIsNone(self.verifier.leaf_x509)
+
+        with contextlib.ExitStack() as stack:
+            verify_recorded = stack.enter_context(
+                unittest.mock.patch.object(self.verifier, "verify_recorded")
+            )
+
+            check_x509_hostname = stack.enter_context(unittest.mock.patch(
+                "aioxmpp.security_layer.check_x509_hostname"
+            ))
+
+            result = self.verifier.verify_callback(
+                None,
+                self.x509,
+                0, 0,
+                True)
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call.get_extra_info("server_hostname"),
+            ],
+            self.transport.mock_calls
+        )
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(self.x509, self.transport.get_extra_info()),
+            ],
+            check_x509_hostname.mock_calls
+        )
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(self.x509, errors)
+            ],
+            verify_recorded.mock_calls
+        )
+
+        self.assertEqual(
+            verify_recorded(),
+            result
+        )
+
+        self.assertEqual(
+            check_x509_hostname(),
+            self.verifier.hostname_matches
+        )
+
+        self.assertIs(
+            self.x509,
+            self.verifier.leaf_x509
+        )
+
+    def test_verify_recorded_rejects_non_deferrable_errors(self):
+        for i in range(800//2):
+            errno = random.randint(1, 100)
+            depth = 0
+            self._test_hardwired(errno, depth)
+
+        for i in range(200//2):
+            errno = random.randint(1, 100)
+            depth = random.randint(1, 10)
+            self._test_hardwired(errno, depth)
+
+    def test_verify_recorded_calls_quick_check_for_deferrable_error(self):
+        for errno, errdepth in self.deferrable_errors:
+            errdepth = errdepth if errdepth is not None else 1
+            self.quick_check.return_value = True
+
+            result = self.verifier.verify_recorded(
+                self.x509,
+                {
+                    (self.x509_root, errno, errdepth)
+                }
+            )
+
+            self.assertSequenceEqual(
+                [
+                    unittest.mock.call(self.x509)
+                ],
+                self.quick_check.mock_calls
+            )
+
+            self.assertTrue(result)
+            self.assertFalse(self.verifier.deferred)
+
+            self.quick_check.reset_mock()
+
+    def test_verify_recorded_quick_check_unsure(self):
+        for errno, errdepth in self.deferrable_errors:
+            errdepth = errdepth if errdepth is not None else 1
+            self.quick_check.return_value = None
+
+            result = self.verifier.verify_recorded(
+                self.x509,
+                {
+                    (self.x509_root, errno, errdepth)
+                }
+            )
+
+            self.assertSequenceEqual(
+                [
+                    unittest.mock.call(self.x509)
+                ],
+                self.quick_check.mock_calls
+            )
+
+            self.assertTrue(result)
+            self.assertTrue(self.verifier.deferred)
+
+            self.quick_check.reset_mock()
+
+    def test_verify_recorded_quick_check_rejects(self):
+        for errno, errdepth in self.deferrable_errors:
+            errdepth = errdepth if errdepth is not None else 1
+            self.quick_check.return_value = False
+
+            result = self.verifier.verify_recorded(
+                self.x509,
+                {
+                    (self.x509_root, errno, errdepth)
+                }
+            )
+
+            self.assertSequenceEqual(
+                [
+                    unittest.mock.call(self.x509)
+                ],
+                self.quick_check.mock_calls
+            )
+
+            self.assertFalse(result)
+            self.assertFalse(self.verifier.deferred)
+
+            self.quick_check.reset_mock()
+
+    def test_verify_recorded_does_not_call_quick_check_on_no_errors(self):
+        result = self.verifier.verify_recorded(
+            self.x509,
+            {
+            }
+        )
+
+        self.assertTrue(result)
+
+        self.assertSequenceEqual(
+            [
+            ],
+            self.quick_check.mock_calls
+        )
+
+    def test_post_handshake_success_on_non_deferred(self):
+        self.verifier.deferred = False
+
+        run_coroutine(self.verifier.post_handshake(self.transport))
+
+        self.assertSequenceEqual(
+            [],
+            self.post_handshake_deferred_failure.mock_calls)
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(),
+            ],
+            self.post_handshake_success.mock_calls
+        )
+
+    def test_post_handshake_deferred_failure_passes(self):
+        self.verifier.deferred = True
+
+        self.post_handshake_deferred_failure.return_value = True
+
+        run_coroutine(self.verifier.post_handshake(self.transport))
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(self.verifier),
+            ],
+            self.post_handshake_deferred_failure.mock_calls
+        )
+
+        self.assertSequenceEqual(
+            [
+            ],
+            self.post_handshake_success.mock_calls
+        )
+
+    def test_post_handshake_deferred_failure_returns_false_value(self):
+        self.verifier.deferred = True
+
+        for value in [None, False, ""]:
+            self.post_handshake_deferred_failure.return_value = value
+
+            with self.assertRaisesRegex(errors.TLSFailure,
+                                        "certificate verification failed"):
+                run_coroutine(self.verifier.post_handshake(self.transport))
 
 
 class TestSTARTTLSProvider(xmltestutils.XMLTestCase):

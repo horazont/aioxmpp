@@ -224,6 +224,129 @@ class PKIXCertificateVerifier(CertificateVerifier):
         pass
 
 
+class HookablePKIXCertificateVerifier(CertificateVerifier):
+    """
+    This PKIX-based verifier has several hooks which allow overriding of the
+    checking process, for example to implement key or certificate pinning.
+
+    It provides three callbacks:
+
+    * `quick_check` is a synchronous callback (and must be a plain function)
+      which is called from :meth:`verify_callback`. It is only called if the
+      certificate fails full PKIX verification, and only for certain cases. For
+      example, expired certificates do not get a second chance and are rejected
+      immediately.
+
+      It is called with the leaf certificate as its only argument. It must
+      return :data:`True` if the certificate is known good and should pass the
+      verification. If the certificate is known bad and should fail the
+      verification immediately, it must return :data:`False`.
+
+      If the certificate is unknown and the check should be deferred to the
+      `post_handshake_deferred_failure` callback, :data:`None` must be
+      returned.
+
+    * `post_handshake_deferred_failure` must be a coroutine. It is called after
+      the handshake is done but before the STARTTLS negotiation has finished
+      and allows the application to take more time to decide on a certificate
+      and possibly request user input.
+
+      The coroutine receives the verifier instance as its argument and can make
+      use of all the verification attributes to present the user with a
+      sensible choice.
+
+    * `post_handshake_success` is only called if the certificate has passed the
+      verification (either because it flawlessly passed by OpenSSL or the
+      `quick_check` callback returned :data:`True`).
+
+    The following attributes are available when the post handshake callbacks
+    are called:
+
+    .. attribute:: recorded_errors
+
+       This is a :class:`set` with tuples consisting of a
+       :class:`OpenSSL.crypto.X509` instance, an OpenSSL error number and the
+       depth of the certificate in the verification chain (0 is the leaf
+       certificate).
+
+       It is a collection of all errors which were passed into
+       :meth:`verify_callback` by OpenSSL.
+
+    .. attribute:: hostname_matches
+
+       This is :data:`True` if the host name in the leaf certificate matches
+       the domain part of the JID for which we are connecting (i.e. the usual
+       server name check).
+
+    .. attribute:: leaf_x509
+
+       The :class:`OpenSSL.crypto.X509` object which represents the leaf
+       certificate.
+
+    """
+
+    _DEFERRABLE_ERRORS = {
+        (19, None),
+        (18, 0),
+        (27, 0),
+    }
+
+    def __init__(self,
+                 quick_check,
+                 post_handshake_deferred_failure,
+                 post_handshake_success):
+        self._quick_check = quick_check
+        self._post_handshake_success = post_handshake_success
+        self._post_handshake_deferred_failure = post_handshake_deferred_failure
+
+        self.recorded_errors = set()
+        self.deferred = True
+        self.hostname_matches = False
+        self.leaf_x509 = None
+
+    def verify_callback(self, ctx, x509, errno, depth, preverify):
+        if errno != 0:
+            self.recorded_errors.add((x509, errno, depth))
+            return True
+
+        if depth == 0:
+            hostname = self.transport.get_extra_info("server_hostname")
+            self.hostname_matches = check_x509_hostname(x509, hostname)
+            self.leaf_x509 = x509
+            return self.verify_recorded(x509, self.recorded_errors)
+
+        return True
+
+    def verify_recorded(self, leaf_x509, records):
+        self.deferred = False
+
+        if not records:
+            return True
+
+        hostname = self.transport.get_extra_info("server_hostname")
+        self.hostname_matches = check_x509_hostname(leaf_x509, hostname)
+
+        for x509, errno, depth in records:
+            if     ((errno, depth) not in self._DEFERRABLE_ERRORS and
+                    (errno, None) not in self._DEFERRABLE_ERRORS):
+                return False
+
+        result = self._quick_check(leaf_x509)
+        if result is None:
+            self.deferred = True
+
+        return result is not False
+
+    @asyncio.coroutine
+    def post_handshake(self, transport):
+        if self.deferred:
+            result = yield from self._post_handshake_deferred_failure(self)
+            if not result:
+                raise errors.TLSFailure("certificate verification failed")
+        else:
+            yield from self._post_handshake_success()
+
+
 class ErrorRecordingVerifier(CertificateVerifier):
     def __init__(self):
         super().__init__()
