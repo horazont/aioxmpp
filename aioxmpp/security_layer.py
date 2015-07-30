@@ -98,18 +98,16 @@ class CertificateVerifier(metaclass=abc.ABCMeta):
     This baseclass provides a bit of boilerplate.
     """
 
-    def _callback_wrapper(self, conn, *args):
-        return self.verify_callback(conn.get_app_data(), *args)
-
     @asyncio.coroutine
     def pre_handshake(self, transport):
         pass
 
-    def setup_context(self, ctx):
-        ctx.set_verify(OpenSSL.SSL.VERIFY_PEER, self._callback_wrapper)
+    def setup_context(self, ctx, transport):
+        self.transport = transport
+        ctx.set_verify(OpenSSL.SSL.VERIFY_PEER, self.verify_callback)
 
     @abc.abstractmethod
-    def verify_callback(self, transport, x509, errno, errdepth, returncode):
+    def verify_callback(self, conn, x509, errno, errdepth, returncode):
         return returncode
 
     @abc.abstractmethod
@@ -142,18 +140,14 @@ class PKIXCertificateVerifier(CertificateVerifier):
 
     """
 
-    def verify_callback(self, transport, x509, errno, errdepth, returncode):
-        return super().verify_callback(
-            transport, x509, errno, errdepth, returncode)
+    def verify_callback(self, ctx, x509, errno, errdepth, returncode):
+        logger.info("verifying certificate (preverify=%s)", returncode)
+        if not returncode:
+            logger.warning("certificate verification failed (by OpenSSL)")
+            return returncode
 
-    def setup_context(self, ctx):
-        super().setup_context(ctx)
-        ctx.set_default_verify_paths()
-
-    @asyncio.coroutine
-    def post_handshake(self, transport):
         import ssl
-        cert = transport.get_extra_info("conn").get_peer_certificate()
+        cert = x509
 
         fake_cert_structure = {
             "subject": (
@@ -164,29 +158,49 @@ class PKIXCertificateVerifier(CertificateVerifier):
         for ext_idx in range(cert.get_extension_count()):
             ext = cert.get_extension(ext_idx)
             sn = ext.get_short_name()
-            if sn == b"subjectAltName":
-                data = pyasn1.codec.der.decoder.decode(
-                    ext.get_data(),
-                    asn1Spec=pyasn1_modules.rfc2459.SubjectAltName())[0]
-                for name in data:
-                    dNSName = name.getComponentByPosition(2)
-                    if dNSName is None:
-                        continue
-                    fake_cert_structure.setdefault(
-                        "subjectAltName",
-                        []).append((
-                            "DNS",
-                            str(dNSName)))
+            if sn != b"subjectAltName":
+                continue
+
+            data = pyasn1.codec.der.decoder.decode(
+                ext.get_data(),
+                asn1Spec=pyasn1_modules.rfc2459.SubjectAltName())[0]
+            for name in data:
+                dNSName = name.getComponentByPosition(2)
+                if dNSName is None:
+                    continue
+                fake_cert_structure.setdefault(
+                    "subjectAltName",
+                    []).append((
+                        "DNS",
+                        str(dNSName)))
 
         if     ("subjectAltName" in fake_cert_structure and
                 fake_cert_structure["subjectAltName"]):
             del fake_cert_structure["subject"]
 
+        logger.info("extracted structure: %r", fake_cert_structure)
+
         try:
-            ssl.match_hostname(fake_cert_structure,
-                               transport.get_extra_info("server_hostname"))
+            ssl.match_hostname(
+                fake_cert_structure,
+                self.transport.get_extra_info("server_hostname"))
         except ssl.CertificateError as err:
-            raise errors.TLSError(str(err))
+            logger.warning("certificate does not match server hostname %r",
+                           self.transport.get_extra_info("server_hostname"))
+            return False
+        else:
+            logger.info("hostname check passed against %r",
+                        self.transport.get_extra_info("server_hostname"))
+
+        return returncode
+
+    def setup_context(self, ctx, transport):
+        super().setup_context(ctx, transport)
+        ctx.set_default_verify_paths()
+
+    @asyncio.coroutine
+    def post_handshake(self, transport):
+        pass
 
 
 class ErrorRecordingVerifier(CertificateVerifier):
@@ -197,7 +211,7 @@ class ErrorRecordingVerifier(CertificateVerifier):
     def _record_verify_info(self, x509, errno, depth):
         self._errors.append((x509, errno, depth))
 
-    def verify_callback(self, transport, x509, errno, depth, returncode):
+    def verify_callback(self, x509, errno, depth, returncode):
         self._record_verify_info(x509, errno, depth)
         return True
 
@@ -313,7 +327,7 @@ class STARTTLSProvider:
                 verifier = self._certificate_verifier_factory()
                 yield from verifier.pre_handshake(xmlstream.transport)
                 ctx = self._ssl_context_factory()
-                verifier.setup_context(ctx)
+                verifier.setup_context(ctx, xmlstream.transport)
                 logger.debug("using certificate verifier: %s", verifier)
                 yield from xmlstream.starttls(
                     ssl_context=ctx,

@@ -12,7 +12,8 @@ from aioxmpp.utils import namespaces
 from aioxmpp.testutils import (
     XMLStreamMock,
     run_coroutine,
-    run_coroutine_with_peer
+    run_coroutine_with_peer,
+    CoroutineMock
 )
 from aioxmpp import xmltestutils
 
@@ -28,8 +29,18 @@ class TestSTARTTLSProvider(xmltestutils.XMLTestCase):
         self.xmlstream = XMLStreamMock(self, loop=self.loop)
         self.xmlstream.transport = self.transport
 
-        self.ssl_context_factory = unittest.mock.MagicMock()
-        self.certificate_verifier_factory = unittest.mock.MagicMock()
+        self.ssl_context_factory = unittest.mock.Mock()
+        self.certificate_verifier_factory = unittest.mock.Mock()
+
+        self.ssl_context = self.ssl_context_factory()
+        self.ssl_context_factory.return_value = self.ssl_context
+        self.ssl_context_factory.mock_calls.clear()
+
+        self.verifier = self.certificate_verifier_factory()
+        self.verifier.pre_handshake = CoroutineMock()
+        self.verifier.post_handshake = CoroutineMock()
+        self.certificate_verifier_factory.return_value = self.verifier
+        self.certificate_verifier_factory.mock_calls.clear()
 
     def _test_provider(self, provider, features, actions=[], stimulus=None):
         return run_coroutine_with_peer(
@@ -124,14 +135,32 @@ class TestSTARTTLSProvider(xmltestutils.XMLTestCase):
                     )
                 ),
                 XMLStreamMock.STARTTLS(
-                    ssl_context=self.ssl_context_factory(),
-                    post_handshake_callback=
-                    self.certificate_verifier_factory().post_handshake
+                    ssl_context=self.ssl_context,
+                    post_handshake_callback=self.verifier.post_handshake
                 )
             ]
         )
 
         self.assertIs(result, self.transport)
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(),
+            ],
+            self.ssl_context_factory.mock_calls
+        )
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(),
+                unittest.mock.call().pre_handshake(self.xmlstream.transport),
+                unittest.mock.call().setup_context(
+                    self.ssl_context, self.xmlstream.transport),
+                unittest.mock.call().post_handshake(
+                    self.xmlstream.transport)
+            ],
+            self.certificate_verifier_factory.mock_calls
+        )
 
     def test_propagate_and_wrap_error(self):
         provider = security_layer.STARTTLSProvider(
