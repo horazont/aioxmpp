@@ -71,6 +71,7 @@ import ssl
 
 import pyasn1
 import pyasn1.codec.der.decoder
+import pyasn1.codec.der.encoder
 import pyasn1_modules.rfc2459
 
 import OpenSSL.SSL
@@ -117,6 +118,44 @@ def extract_python_dict_from_x509(x509):
             )
 
     return result
+
+
+def extract_blob(x509):
+    """
+    Extract an ASN.1 blob from the given :class:`OpenSSL.crypto.X509`
+    certificate. Return the resulting :class:`bytes` object.
+    """
+
+    return OpenSSL.crypto.dump_certificate(
+        OpenSSL.crypto.FILETYPE_ASN1,
+        x509)
+
+
+def blob_to_pyasn1(blob):
+    """
+    Convert an ASN.1 encoded certificate (such as obtained from
+    :func:`extract_blob`) to a :mod:`pyasn1` structure and return the result.
+    """
+
+    return pyasn1.codec.der.decoder.decode(
+        blob,
+        asn1Spec=pyasn1_modules.rfc2459.Certificate()
+    )[0]
+
+
+def extract_pk_blob_from_pyasn1(pyasn1_struct):
+    """
+    Extract an ASN.1 encoded public key blob from the given :mod:`pyasn1`
+    structure (which must represent a certificate).
+    """
+
+    pk = pyasn1_struct.getComponentByName(
+        "tbsCertificate"
+    ).getComponentByName(
+        "subjectPublicKeyInfo"
+    )
+
+    return pyasn1.codec.der.encoder.encode(pk)
 
 
 def check_x509_hostname(x509, hostname):

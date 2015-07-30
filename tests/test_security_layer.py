@@ -221,6 +221,104 @@ class Testextract_python_dict_from_x509(unittest.TestCase):
         )
 
 
+class Testextract_blob(unittest.TestCase):
+    def test_generic(self):
+        x509 = object()
+
+        with unittest.mock.patch(
+                "OpenSSL.crypto.dump_certificate"
+        ) as dump_certificate:
+            blob = security_layer.extract_blob(x509)
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(OpenSSL.crypto.FILETYPE_ASN1,
+                                   x509),
+            ],
+            dump_certificate.mock_calls
+        )
+
+        self.assertEqual(
+            dump_certificate(),
+            blob
+        )
+
+
+class Testblob_to_pyasn1(unittest.TestCase):
+    def test_generic(self):
+        blob = object()
+
+        with contextlib.ExitStack() as stack:
+            decode = stack.enter_context(unittest.mock.patch(
+                "pyasn1.codec.der.decoder.decode"
+            ))
+
+            Certificate = stack.enter_context(unittest.mock.patch(
+                "pyasn1_modules.rfc2459.Certificate"
+            ))
+
+            pyasn1_struct = security_layer.blob_to_pyasn1(blob)
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(),
+            ],
+            Certificate.mock_calls
+        )
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(
+                    blob,
+                    asn1Spec=Certificate()
+                ),
+            ],
+            decode.mock_calls[:1]
+        )
+
+        self.assertEqual(
+            decode()[0],
+            pyasn1_struct
+        )
+
+
+class Testextract_pk_blob_from_pyasn1(unittest.TestCase):
+    def test_generic(self):
+        pyasn1_struct = unittest.mock.Mock()
+
+        with contextlib.ExitStack() as stack:
+            encode = stack.enter_context(unittest.mock.patch(
+                "pyasn1.codec.der.encoder.encode"
+            ))
+
+            result = security_layer.extract_pk_blob_from_pyasn1(
+                pyasn1_struct
+            )
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call.getComponentByName("tbsCertificate"),
+                unittest.mock.call.getComponentByName().getComponentByName(
+                    "subjectPublicKeyInfo")
+            ],
+            pyasn1_struct.mock_calls
+        )
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(
+                    pyasn1_struct.getComponentByName().getComponentByName()
+                )
+            ],
+            encode.mock_calls
+        )
+
+        self.assertEqual(
+            encode(),
+            result
+        )
+
+
 class Testcheck_x509_hostname(unittest.TestCase):
     def test_pass(self):
         x509 = OpenSSL.crypto.load_certificate(
