@@ -126,6 +126,21 @@ class TestNodeprep(unittest.TestCase):
                 msg="Nodeprep requirement: prohibited character (custom)"):
             nodeprep(">")
 
+    def test_unassigned(self):
+        with self.assertRaises(
+                ValueError,
+                msg="Nodeprep requirement: unassigned"):
+            nodeprep("\u0221", allow_unassigned=False)
+
+        with self.assertRaises(
+                ValueError,
+                msg="enforce no unassigned by default"):
+            nodeprep("\u0221")
+
+        self.assertEqual(
+            "\u0221",
+            nodeprep("\u0221", allow_unassigned=True))
+
 
 class TestNameprep(unittest.TestCase):
     def test_map_to_nothing(self):
@@ -193,6 +208,21 @@ class TestNameprep(unittest.TestCase):
                 msg="Nameprep requirement: prohibited character (C.9)"):
             nameprep("\U000E0001")
 
+    def test_unassigned(self):
+        with self.assertRaises(
+                ValueError,
+                msg="Nameprep requirement: unassigned"):
+            nameprep("\u0221", allow_unassigned=False)
+
+        with self.assertRaises(
+                ValueError,
+                msg="enforce no unassigned by default"):
+            nameprep("\u0221")
+
+        self.assertEqual(
+            "\u0221",
+            nameprep("\u0221", allow_unassigned=True))
+
 
 class TestResourceprep(unittest.TestCase):
     def test_map_to_nothing(self):
@@ -225,3 +255,18 @@ class TestResourceprep(unittest.TestCase):
                 msg="Resourceprep requirement: "
                     "prohibited character (C.8)"):
             resourceprep("\u200E")
+
+    def test_unassigned(self):
+        with self.assertRaises(
+                ValueError,
+                msg="Resourceprep requirement: unassigned"):
+            resourceprep("\u0221", allow_unassigned=False)
+
+        with self.assertRaises(
+                ValueError,
+                msg="enforce no unassigned by default"):
+            resourceprep("\u0221")
+
+        self.assertEqual(
+            "\u0221",
+            resourceprep("\u0221", allow_unassigned=True))

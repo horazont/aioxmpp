@@ -208,6 +208,14 @@ def nodeprep(string, allow_unassigned=False):
         ))
     check_bidi(chars)
 
+    if not allow_unassigned:
+        check_unassigned(
+            chars,
+            (
+                stringprep.in_table_a1,
+            )
+        )
+
     return "".join(chars)
 
 
@@ -246,6 +254,14 @@ def resourceprep(string, allow_unassigned=False):
             stringprep.in_table_c9,
         ))
     check_bidi(chars)
+
+    if not allow_unassigned:
+        check_unassigned(
+            chars,
+            (
+                stringprep.in_table_a1,
+            )
+        )
 
     return "".join(chars)
 
