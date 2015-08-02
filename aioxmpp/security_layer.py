@@ -285,6 +285,10 @@ class HookablePKIXCertificateVerifier(CertificateVerifier):
       `post_handshake_deferred_failure` callback, :data:`None` must be
       returned.
 
+      Passing :data:`None` to `quick_check` is the same as if a callable passed
+      to `quick_check` would return :data:`None` always (i.e. the decision is
+      deferred).
+
     * `post_handshake_deferred_failure` must be a coroutine. It is called after
       the handshake is done but before the STARTTLS negotiation has finished
       and allows the application to take more time to decide on a certificate
@@ -294,9 +298,15 @@ class HookablePKIXCertificateVerifier(CertificateVerifier):
       use of all the verification attributes to present the user with a
       sensible choice.
 
+      If `post_handshake_deferred_failure` is :data:`None`, the result is
+      identical to returning :data:`False` from the callback.
+
     * `post_handshake_success` is only called if the certificate has passed the
       verification (either because it flawlessly passed by OpenSSL or the
       `quick_check` callback returned :data:`True`).
+
+      You may pass :data:`None` to this argument to disable the callback
+      without any further side effects.
 
     The following attributes are available when the post handshake callbacks
     are called:
@@ -370,7 +380,11 @@ class HookablePKIXCertificateVerifier(CertificateVerifier):
                     (errno, None) not in self._DEFERRABLE_ERRORS):
                 return False
 
-        result = self._quick_check(leaf_x509)
+        if self._quick_check is not None:
+            result = self._quick_check(leaf_x509)
+        else:
+            result = None
+
         if result is None:
             self.deferred = True
 
@@ -379,11 +393,16 @@ class HookablePKIXCertificateVerifier(CertificateVerifier):
     @asyncio.coroutine
     def post_handshake(self, transport):
         if self.deferred:
-            result = yield from self._post_handshake_deferred_failure(self)
+            if self._post_handshake_deferred_failure is not None:
+                result = yield from self._post_handshake_deferred_failure(self)
+            else:
+                result = False
+
             if not result:
                 raise errors.TLSFailure("certificate verification failed")
         else:
-            yield from self._post_handshake_success()
+            if self._post_handshake_success is not None:
+                yield from self._post_handshake_success()
 
 
 class ErrorRecordingVerifier(CertificateVerifier):

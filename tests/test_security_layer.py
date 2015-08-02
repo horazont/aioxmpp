@@ -790,6 +790,31 @@ class TestHookablePKIXCertificateVerifier(unittest.TestCase):
 
             self.quick_check.reset_mock()
 
+    def test_verify_recorded_quick_check_None_is_unsure(self):
+        verifier = security_layer.HookablePKIXCertificateVerifier(
+            None, None, None)
+        verifier.transport = self.transport
+
+        for errno, errdepth in self.deferrable_errors:
+            errdepth = errdepth if errdepth is not None else 1
+
+            result = verifier.verify_recorded(
+                self.x509,
+                {
+                    (self.x509_root, errno, errdepth)
+                }
+            )
+
+            self.assertSequenceEqual(
+                [],
+                self.quick_check.mock_calls
+            )
+
+            self.assertTrue(result)
+            self.assertTrue(verifier.deferred)
+
+            self.quick_check.reset_mock()
+
     def test_verify_recorded_quick_check_rejects(self):
         for errno, errdepth in self.deferrable_errors:
             errdepth = errdepth if errdepth is not None else 1
@@ -844,6 +869,25 @@ class TestHookablePKIXCertificateVerifier(unittest.TestCase):
             self.post_handshake_success.mock_calls
         )
 
+    def test_post_handshake_success_not_called_if_None(self):
+        verifier = security_layer.HookablePKIXCertificateVerifier(
+            self.quick_check,
+            self.post_handshake_deferred_failure,
+            None
+        )
+
+        verifier.deferred = False
+
+        run_coroutine(verifier.post_handshake(self.transport))
+
+        self.assertSequenceEqual(
+            [],
+            self.post_handshake_deferred_failure.mock_calls)
+        self.assertSequenceEqual(
+            [],
+            self.post_handshake_success.mock_calls
+        )
+
     def test_post_handshake_deferred_failure_passes(self):
         self.verifier.deferred = True
 
@@ -861,6 +905,26 @@ class TestHookablePKIXCertificateVerifier(unittest.TestCase):
         self.assertSequenceEqual(
             [
             ],
+            self.post_handshake_success.mock_calls
+        )
+
+    def test_post_handshake_deferred_failure_not_called_if_None_and_fails(self):
+        verifier = security_layer.HookablePKIXCertificateVerifier(
+            self.quick_check,
+            None,
+            self.post_handshake_success
+        )
+
+        verifier.deferred = True
+
+        with self.assertRaises(errors.TLSFailure):
+            run_coroutine(verifier.post_handshake(self.transport))
+
+        self.assertSequenceEqual(
+            [],
+            self.post_handshake_deferred_failure.mock_calls)
+        self.assertSequenceEqual(
+            [],
             self.post_handshake_success.mock_calls
         )
 
