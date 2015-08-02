@@ -405,6 +405,67 @@ class HookablePKIXCertificateVerifier(CertificateVerifier):
                 yield from self._post_handshake_success()
 
 
+class AbstractPinStore(metaclass=abc.ABCMeta):
+    def __init__(self):
+        self._storage = {}
+
+    @abc.abstractmethod
+    def _x509_key(self, key):
+        pass
+
+    def pin(self, hostname, x509):
+        key = self._x509_key(x509)
+        self._storage.setdefault(hostname, set()).add(key)
+
+    def query(self, hostname, x509):
+        key = self._x509_key(x509)
+        try:
+            pins = self._storage[hostname]
+        except KeyError:
+            return None
+
+        if key in pins:
+            return True
+
+        return None
+
+    def get_pinned_for_host(self, hostname):
+        try:
+            return frozenset(self._storage[hostname])
+        except KeyError:
+            return frozenset()
+
+    def export_to_json(self):
+        return {
+            hostname: sorted(pins)
+            for hostname, pins in self._storage.items()
+        }
+
+    def import_from_json(self, data, *, override=False):
+        if override:
+            self._storage = {
+                hostname: set(pins)
+                for hostname, pins in data.items()
+            }
+            return
+
+        for hostname, pins in data.items():
+            existing_pins = self._storage.setdefault(hostname, set())
+            existing_pins.update(pins)
+
+
+class PublicKeyPinStore(AbstractPinStore):
+    def _x509_key(self, x509):
+        blob = extract_blob(x509)
+        pyasn1_struct = blob_to_pyasn1(blob)
+        return extract_pk_blob_from_pyasn1(pyasn1_struct)
+
+
+class CertificatePinStore(AbstractPinStore):
+    def _x509_key(self, x509):
+        return extract_blob(x509)
+
+
 class PinningPKIXCertificateVerifier(HookablePKIXCertificateVerifier):
     """
     The :class:`PinningPKIXCertificateVerifier` is a subclass of the

@@ -939,6 +939,343 @@ class TestHookablePKIXCertificateVerifier(unittest.TestCase):
                 run_coroutine(self.verifier.post_handshake(self.transport))
 
 
+class TestAbstractPinStore(unittest.TestCase):
+    class FakePinStore(security_layer.AbstractPinStore):
+        def _x509_key(self, x509):
+            pass
+
+    def setUp(self):
+        self.x509 = OpenSSL.crypto.load_certificate(
+            OpenSSL.crypto.FILETYPE_PEM,
+            crt_zombofant_net)
+        self.x509_other = OpenSSL.crypto.load_certificate(
+            OpenSSL.crypto.FILETYPE_PEM,
+            crt_cacert_root)
+        self.store = self.FakePinStore()
+        self.x509_key = unittest.mock.Mock()
+        self.store._x509_key = self.x509_key
+
+    def test_is_abstract(self):
+        with self.assertRaisesRegex(TypeError, "abstract"):
+            security_layer.AbstractPinStore()
+
+    def test_pin_uses__x509_key_method(self):
+        x509 = object()
+
+        self.store.pin("host.example", x509)
+
+        self.assertSequenceEqual(
+            self.x509_key.mock_calls,
+            [
+                unittest.mock.call(x509),
+            ]
+        )
+
+    def test_query_returns_true_for_matching_hostname_and_key(self):
+        x509 = object()
+
+        self.x509_key.return_value = 1
+
+        self.store.pin("host.example", x509)
+
+        self.assertSequenceEqual(
+            self.x509_key.mock_calls,
+            [
+                unittest.mock.call(x509),
+            ]
+        )
+        self.x509_key.mock_calls.clear()
+
+        self.assertIs(
+            self.store.query("host.example", x509),
+            True
+        )
+
+        self.assertSequenceEqual(
+            self.x509_key.mock_calls,
+            [
+                unittest.mock.call(x509),
+            ]
+        )
+
+    def test_query_returns_None_for_mismatching_hostname(self):
+        x509 = object()
+
+        self.x509_key.return_value = 1
+
+        self.store.pin("host.example", x509)
+
+        self.assertSequenceEqual(
+            self.x509_key.mock_calls,
+            [
+                unittest.mock.call(x509),
+            ]
+        )
+        self.x509_key.mock_calls.clear()
+
+        self.assertIsNone(
+            self.store.query("host.invalid", x509)
+        )
+
+        self.assertSequenceEqual(
+            self.x509_key.mock_calls,
+            [
+                unittest.mock.call(x509),
+            ]
+        )
+
+    def test_query_returns_None_for_mismatching_key(self):
+        x509 = object()
+
+        self.x509_key.return_value = 1
+
+        self.store.pin("host.example", x509)
+
+        self.assertSequenceEqual(
+            self.x509_key.mock_calls,
+            [
+                unittest.mock.call(x509),
+            ]
+        )
+        self.x509_key.mock_calls.clear()
+
+        self.x509_key.return_value = 2
+        self.assertIsNone(
+            self.store.query("host.example", x509)
+        )
+
+        self.assertSequenceEqual(
+            self.x509_key.mock_calls,
+            [
+                unittest.mock.call(x509),
+            ]
+        )
+
+    def test_pin_multiple(self):
+        x509 = object()
+
+        self.x509_key.return_value = 1
+        self.store.pin("host.example", x509)
+
+        self.x509_key.return_value = 2
+        self.store.pin("host.example", x509)
+
+        self.assertIs(
+            self.store.query("host.example", x509),
+            True
+        )
+
+        self.x509_key.return_value = 1
+
+        self.assertIs(
+            self.store.query("host.example", x509),
+            True
+        )
+
+        self.x509_key.return_value = 3
+
+        self.assertIs(
+            self.store.query("host.example", x509),
+            None
+        )
+
+    def test_get_pinned_for_host(self):
+        x509 = object()
+
+        self.x509_key.return_value = 456
+        self.store.pin("host.example", x509)
+
+        self.x509_key.return_value = 123
+        self.store.pin("host.example", x509)
+
+        self.assertSetEqual(
+            set(self.store.get_pinned_for_host("host.example")),
+            {123, 456},
+        )
+
+    def test_get_pinned_for_host_with_unknown_host(self):
+        self.assertSetEqual(
+            set(self.store.get_pinned_for_host("host.invalid")),
+            set(),
+        )
+
+    def test_export_to_json(self):
+        x509 = object()
+
+        self.x509_key.return_value = 456
+        self.store.pin("host.example", x509)
+
+        self.x509_key.return_value = 123
+        self.store.pin("host.example", x509)
+
+        self.x509_key.return_value = 789
+        self.store.pin("another.example", x509)
+
+        d1 = self.store.export_to_json()
+        self.assertDictEqual(
+            d1,
+            {
+                "host.example": [123, 456],
+                "another.example": [789]
+            }
+        )
+
+        d2 = self.store.export_to_json()
+        self.assertDictEqual(
+            d2,
+            {
+                "host.example": [123, 456],
+                "another.example": [789]
+            }
+        )
+
+        self.assertIsNot(d1, d2)
+
+    def test_import_from_json_override(self):
+        x509 = object()
+
+        self.x509_key.return_value = 1000
+        self.store.pin("host.example", x509)
+
+        self.store.import_from_json(
+            {
+                "host.example": [123],
+                "another.example": [234],
+            },
+            override=True)
+
+        self.assertSetEqual(
+            set(self.store.get_pinned_for_host("host.example")),
+            {123}
+        )
+
+        self.assertSetEqual(
+            set(self.store.get_pinned_for_host("another.example")),
+            {234}
+        )
+
+    def test_import_from_json_default(self):
+        x509 = object()
+
+        self.x509_key.return_value = 1000
+        self.store.pin("host.example", x509)
+
+        self.store.import_from_json(
+            {
+                "host.example": [123],
+                "another.example": [234],
+            }
+        )
+
+        self.assertSetEqual(
+            set(self.store.get_pinned_for_host("host.example")),
+            {123, 1000}
+        )
+
+        self.assertSetEqual(
+            set(self.store.get_pinned_for_host("another.example")),
+            {234}
+        )
+
+    def tearDown(self):
+        del self.store
+        del self.x509
+
+
+class TestPublicKeyPinStore(unittest.TestCase):
+    def setUp(self):
+        self.store = security_layer.PublicKeyPinStore()
+
+    def test_is_abstract_pin_store(self):
+        self.assertTrue(issubclass(
+            security_layer.PublicKeyPinStore,
+            security_layer.AbstractPinStore
+        ))
+
+    def test__x509_key_extracts_public_key_blob(self):
+        x509 = object()
+
+        with contextlib.ExitStack() as stack:
+            extract_blob = stack.enter_context(unittest.mock.patch(
+                "aioxmpp.security_layer.extract_blob"
+            ))
+            blob_to_pyasn1 = stack.enter_context(unittest.mock.patch(
+                "aioxmpp.security_layer.blob_to_pyasn1"
+            ))
+            extract_pk_blob_from_pyasn1 = stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.security_layer.extract_pk_blob_from_pyasn1"
+                )
+            )
+
+            result = self.store._x509_key(x509)
+
+        self.assertSequenceEqual(
+            extract_blob.mock_calls,
+            [
+                unittest.mock.call(x509),
+            ]
+        )
+
+        self.assertSequenceEqual(
+            blob_to_pyasn1.mock_calls,
+            [
+                unittest.mock.call(extract_blob()),
+            ]
+        )
+
+        self.assertSequenceEqual(
+            extract_pk_blob_from_pyasn1.mock_calls,
+            [
+                unittest.mock.call(blob_to_pyasn1()),
+            ]
+        )
+
+        self.assertEqual(
+            result,
+            extract_pk_blob_from_pyasn1()
+        )
+
+    def tearDown(self):
+        del self.store
+
+
+class TestCertificatePinStore(unittest.TestCase):
+    def setUp(self):
+        self.store = security_layer.CertificatePinStore()
+
+    def test_is_abstract_pin_store(self):
+        self.assertTrue(issubclass(
+            security_layer.CertificatePinStore,
+            security_layer.AbstractPinStore
+        ))
+
+    def test__x509_key_extracts_public_key_blob(self):
+        x509 = object()
+
+        with contextlib.ExitStack() as stack:
+            extract_blob = stack.enter_context(unittest.mock.patch(
+                "aioxmpp.security_layer.extract_blob"
+            ))
+
+            result = self.store._x509_key(x509)
+
+        self.assertSequenceEqual(
+            extract_blob.mock_calls,
+            [
+                unittest.mock.call(x509),
+            ]
+        )
+
+        self.assertEqual(
+            result,
+            extract_blob()
+        )
+
+    def tearDown(self):
+        del self.store
+
+
 class TestPinningPKIXCertificateVerifier(unittest.TestCase):
     def setUp(self):
         self.query_pin = unittest.mock.Mock()
