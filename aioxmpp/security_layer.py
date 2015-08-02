@@ -27,6 +27,30 @@ certificate verifiers:
 
 .. autoclass:: CertificateVerifier
 
+Certificate and key pinning
+---------------------------
+
+Often in the XMPP world, we need certificate or public key pinning, as most
+XMPP servers do not have certificates trusted by the usual certificate
+stores. This module also provide certificate verifiers which can be used for
+that purpose, as well as stores for saving the pinned information.
+
+.. autoclass:: PinningPKIXCertificateVerifier
+
+.. autoclass:: CertificatePinStore
+
+.. autoclass:: PublicKeyPinStore
+
+Base classes
+^^^^^^^^^^^^
+
+For future expansion or customization, the base classes of the above utilities
+can be subclassed and extended:
+
+.. autoclass:: HookablePKIXCertificateVerifier
+
+.. autoclass:: AbstractPinStore
+
 Partial security providers
 ==========================
 
@@ -406,18 +430,63 @@ class HookablePKIXCertificateVerifier(CertificateVerifier):
 
 
 class AbstractPinStore(metaclass=abc.ABCMeta):
+    """
+    This is the abstract base class for both :class:`PublicKeyPinStore` and
+    :class:`CerificatePinStore`. The interface for both types of pinning is
+    identical; the only difference is in which information is stored.
+
+    .. automethod:: pin
+
+    .. automethod:: query
+
+    .. automethod:: get_pinned_for_host
+
+    .. automethod:: export_to_json
+
+    .. automethod:: import_from_json
+
+    For subclasses:
+
+    .. automethod:: _x509_key
+
+
+    """
+
     def __init__(self):
         self._storage = {}
 
     @abc.abstractmethod
     def _x509_key(self, key):
-        pass
+        """
+        Return a hashable value which identifies the given `x509` certificate
+        for the purposes of the key store. See the implementations
+        :meth:`PublicKeyPinStore._x509_key` and
+        :meth:`CertificatePinStore._x509_key` for details on what is stored for
+        the respective subclasses.
+
+        This method is abstract and must be implemented in subclasses.
+        """
 
     def pin(self, hostname, x509):
+        """
+        Pin an :class:`OpenSSL.crypto.X509` object `x509` for use with the
+        given `hostname`. Which information exactly is used to identify the
+        certificate depends :meth:`_x509_key`.
+        """
+
         key = self._x509_key(x509)
         self._storage.setdefault(hostname, set()).add(key)
 
     def query(self, hostname, x509):
+        """
+        Return true if the given :class:`OpenSSL.crypto.X509` object `x509` has
+        previously been pinned for use with the given `hostname` and
+        :data:`None` otherwise.
+
+        Returning :data:`None` allows this method to be used with
+        :class:`PinningPKIXCertificateVerifier`.
+        """
+
         key = self._x509_key(x509)
         try:
             pins = self._storage[hostname]
@@ -430,18 +499,38 @@ class AbstractPinStore(metaclass=abc.ABCMeta):
         return None
 
     def get_pinned_for_host(self, hostname):
+        """
+        Return the set of hashable values which are used to identify the X.509
+        certificates which are accepted for the given `hostname`.
+
+        If no values have previously been pinned, this returns the empty set.
+        """
         try:
             return frozenset(self._storage[hostname])
         except KeyError:
             return frozenset()
 
     def export_to_json(self):
+        """
+        Return a JSON dictionary which contains all the pins stored in this
+        store.
+        """
+
         return {
             hostname: sorted(pins)
             for hostname, pins in self._storage.items()
         }
 
     def import_from_json(self, data, *, override=False):
+        """
+        Import a JSON dictionary which must have the same format as exported by
+        :meth:`export`.
+
+        If *override* is true, the existing data in the pin store will be
+        overriden with the data from `data`. Otherwise, the `data` will be
+        merged into the store.
+        """
+
         if override:
             self._storage = {
                 hostname: set(pins)
@@ -455,6 +544,11 @@ class AbstractPinStore(metaclass=abc.ABCMeta):
 
 
 class PublicKeyPinStore(AbstractPinStore):
+    """
+    This pin store stores the public keys of the X.509 objects which are passed
+    to its :meth:`pin` method.
+    """
+
     def _x509_key(self, x509):
         blob = extract_blob(x509)
         pyasn1_struct = blob_to_pyasn1(blob)
@@ -462,6 +556,11 @@ class PublicKeyPinStore(AbstractPinStore):
 
 
 class CertificatePinStore(AbstractPinStore):
+    """
+    This pin store stores the whole certificates which are passed to its
+    :meth:`pin` method.
+    """
+
     def _x509_key(self, x509):
         return extract_blob(x509)
 
@@ -489,6 +588,12 @@ class PinningPKIXCertificateVerifier(HookablePKIXCertificateVerifier):
 
     The coroutine receives the verifier as its only argument. It can use all
     the attributes described by :class:`HookablePKIXCertificateVerifier`.
+
+    .. seealso::
+
+       :meth:`AbstractPinStore.query` is a method which can be passed as
+       `query_pin` callback.
+
     """
 
     def __init__(self,
