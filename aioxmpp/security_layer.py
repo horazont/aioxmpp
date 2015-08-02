@@ -405,6 +405,48 @@ class HookablePKIXCertificateVerifier(CertificateVerifier):
                 yield from self._post_handshake_success()
 
 
+class PinningPKIXCertificateVerifier(HookablePKIXCertificateVerifier):
+    """
+    The :class:`PinningPKIXCertificateVerifier` is a subclass of the
+    :class:`HookablePKIXCertificateVerifier` which uses the hooks to implement
+    certificate or public key pinning.
+
+    It does not store the pins itself. Instead, the user must pass a callable
+    to the `query_pin` argument. That callable will be called with two
+    arguments: the `servername` and the `x509`. The `x509` is a
+    :class:`OpenSSL.crypto.X509` instance, which is the leaf certificate which
+    attempts to identify the host. The `servername` is the name of the server
+    we try to connect to (the identifying name, like the domain part of the
+    JID). The callable must return :data:`True` (to accept the certificate),
+    :data:`False` (to reject the certificate) or :data:`None` (to defer the
+    decision to the `decide` callback). `query_pin` must not block; if it needs
+    to do blocking operations, it should defer.
+
+    The `decide` argument must be a coroutine which is called if `query_pin`
+    returned :data:`None` during the handshake. Returning false from that
+    coroutine will abort the connection, as will raising an exception.
+
+    The coroutine receives the verifier as its only argument. It can use all
+    the attributes described by :class:`HookablePKIXCertificateVerifier`.
+    """
+
+    def __init__(self,
+                 query_pin,
+                 post_handshake_deferred_failure,
+                 post_handshake_success=None):
+        super().__init__(
+            self._quick_check_query_pin,
+            post_handshake_deferred_failure,
+            post_handshake_success
+        )
+
+        self._query_pin = query_pin
+
+    def _quick_check_query_pin(self, leaf_x509):
+        hostname = self.transport.get_extra_info("server_hostname")
+        return self._query_pin(hostname, leaf_x509)
+
+
 class ErrorRecordingVerifier(CertificateVerifier):
     def __init__(self):
         super().__init__()

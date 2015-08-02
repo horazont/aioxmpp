@@ -939,6 +939,60 @@ class TestHookablePKIXCertificateVerifier(unittest.TestCase):
                 run_coroutine(self.verifier.post_handshake(self.transport))
 
 
+class TestPinningPKIXCertificateVerifier(unittest.TestCase):
+    def setUp(self):
+        self.query_pin = unittest.mock.Mock()
+        self.decide = CoroutineMock()
+        self.post_handshake_success = CoroutineMock()
+        self.transport = unittest.mock.Mock()
+        self.verifier = security_layer.PinningPKIXCertificateVerifier(
+            self.query_pin,
+            self.decide
+        )
+        self.verifier.transport = self.transport
+
+    def test_is_hookable_pkix_certificate_verifier(self):
+        self.assertTrue(issubclass(
+            security_layer.PinningPKIXCertificateVerifier,
+            security_layer.HookablePKIXCertificateVerifier
+        ))
+
+    def test_call_query_pin_on_quick_check(self):
+        x509 = object()
+        result = self.verifier._quick_check(x509)
+
+        self.assertSequenceEqual(
+            self.transport.mock_calls,
+            [
+                unittest.mock.call.get_extra_info("server_hostname"),
+            ]
+        )
+
+        self.assertSequenceEqual(
+            self.query_pin.mock_calls,
+            [
+                unittest.mock.call(
+                    self.transport.get_extra_info(),
+                    x509)
+            ]
+        )
+
+        self.assertEqual(
+            result,
+            self.query_pin()
+        )
+
+    def test_decide_is_used_as_post_handshake_deferred_failure_callback(self):
+        self.assertIs(
+            self.decide,
+            self.verifier._post_handshake_deferred_failure
+        )
+
+    def tearDown(self):
+        del self.verifier
+        del self.query_pin
+
+
 class TestSTARTTLSProvider(xmltestutils.XMLTestCase):
     def setUp(self):
         self.client_jid = structs.JID.fromstr("foo@bar.example")
