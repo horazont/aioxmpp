@@ -89,6 +89,7 @@ used:
 """
 import abc
 import asyncio
+import base64
 import functools
 import logging
 import ssl
@@ -447,6 +448,10 @@ class AbstractPinStore(metaclass=abc.ABCMeta):
 
     For subclasses:
 
+    .. automethod:: _encode_key
+
+    .. automethod:: _decode_key
+
     .. automethod:: _x509_key
 
 
@@ -466,6 +471,28 @@ class AbstractPinStore(metaclass=abc.ABCMeta):
 
         This method is abstract and must be implemented in subclasses.
         """
+
+    def _encode_key(self, key):
+        """
+        Encode the `key` (which has previously been obtained from
+        :meth:`_x509_key`) into a string which is both JSON compatible and can
+        be used as XML text (which means that it must not contain control
+        characters, for example).
+
+        The method is called by :meth:`export_to_json`. The default
+        implementation returns `key`.
+        """
+        return key
+
+    def _decode_key(self, obj):
+        """
+        Decode the `obj` into a key which is compatible to the values returned
+        by :meth:`_x509_key`.
+
+        The method is called by :meth:`import_from_json`. The default
+        implementation returns `obj`.
+        """
+        return obj
 
     def pin(self, hostname, x509):
         """
@@ -517,7 +544,7 @@ class AbstractPinStore(metaclass=abc.ABCMeta):
         """
 
         return {
-            hostname: sorted(pins)
+            hostname: sorted(self._encode_key(key) for key in pins)
             for hostname, pins in self._storage.items()
         }
 
@@ -533,14 +560,14 @@ class AbstractPinStore(metaclass=abc.ABCMeta):
 
         if override:
             self._storage = {
-                hostname: set(pins)
+                hostname: set(self._decode_key(key) for key in pins)
                 for hostname, pins in data.items()
             }
             return
 
         for hostname, pins in data.items():
             existing_pins = self._storage.setdefault(hostname, set())
-            existing_pins.update(pins)
+            existing_pins.update(self._decode_key(key) for key in pins)
 
 
 class PublicKeyPinStore(AbstractPinStore):
@@ -554,6 +581,12 @@ class PublicKeyPinStore(AbstractPinStore):
         pyasn1_struct = blob_to_pyasn1(blob)
         return extract_pk_blob_from_pyasn1(pyasn1_struct)
 
+    def _encode_key(self, key):
+        return base64.b64encode(key).decode("ascii")
+
+    def _decode_key(self, obj):
+        return base64.b64decode(obj.encode("ascii"))
+
 
 class CertificatePinStore(AbstractPinStore):
     """
@@ -563,6 +596,12 @@ class CertificatePinStore(AbstractPinStore):
 
     def _x509_key(self, x509):
         return extract_blob(x509)
+
+    def _encode_key(self, key):
+        return base64.b64encode(key).decode("ascii")
+
+    def _decode_key(self, obj):
+        return base64.b64decode(obj.encode("ascii"))
 
 
 class PinningPKIXCertificateVerifier(HookablePKIXCertificateVerifier):

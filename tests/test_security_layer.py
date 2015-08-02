@@ -944,6 +944,14 @@ class TestAbstractPinStore(unittest.TestCase):
         def _x509_key(self, x509):
             pass
 
+        def _encode_key(self, *args, **kwargs):
+            self._encode_key_rec(*args, **kwargs)
+            return super()._encode_key(*args, **kwargs)
+
+        def _decode_key(self, *args, **kwargs):
+            self._decode_key_rec(*args, **kwargs)
+            return super()._decode_key(*args, **kwargs)
+
     def setUp(self):
         self.x509 = OpenSSL.crypto.load_certificate(
             OpenSSL.crypto.FILETYPE_PEM,
@@ -953,7 +961,11 @@ class TestAbstractPinStore(unittest.TestCase):
             crt_cacert_root)
         self.store = self.FakePinStore()
         self.x509_key = unittest.mock.Mock()
+        self.encode_key = unittest.mock.Mock()
+        self.decode_key = unittest.mock.Mock()
         self.store._x509_key = self.x509_key
+        self.store._encode_key_rec = self.encode_key
+        self.store._decode_key_rec = self.decode_key
 
     def test_is_abstract(self):
         with self.assertRaisesRegex(TypeError, "abstract"):
@@ -1112,6 +1124,24 @@ class TestAbstractPinStore(unittest.TestCase):
         self.store.pin("another.example", x509)
 
         d1 = self.store.export_to_json()
+
+        self.assertIn(
+            unittest.mock.call(123),
+            self.encode_key.mock_calls
+        )
+
+        self.assertIn(
+            unittest.mock.call(456),
+            self.encode_key.mock_calls
+        )
+
+        self.assertIn(
+            unittest.mock.call(789),
+            self.encode_key.mock_calls
+        )
+
+        self.assertEqual(len(self.encode_key.mock_calls), 3)
+
         self.assertDictEqual(
             d1,
             {
@@ -1144,6 +1174,18 @@ class TestAbstractPinStore(unittest.TestCase):
             },
             override=True)
 
+        self.assertIn(
+            unittest.mock.call(123),
+            self.decode_key.mock_calls
+        )
+
+        self.assertIn(
+            unittest.mock.call(234),
+            self.decode_key.mock_calls
+        )
+
+        self.assertEqual(len(self.decode_key.mock_calls), 2)
+
         self.assertSetEqual(
             set(self.store.get_pinned_for_host("host.example")),
             {123}
@@ -1166,6 +1208,18 @@ class TestAbstractPinStore(unittest.TestCase):
                 "another.example": [234],
             }
         )
+
+        self.assertIn(
+            unittest.mock.call(123),
+            self.decode_key.mock_calls
+        )
+
+        self.assertIn(
+            unittest.mock.call(234),
+            self.decode_key.mock_calls
+        )
+
+        self.assertEqual(len(self.decode_key.mock_calls), 2)
 
         self.assertSetEqual(
             set(self.store.get_pinned_for_host("host.example")),
@@ -1236,6 +1290,50 @@ class TestPublicKeyPinStore(unittest.TestCase):
             extract_pk_blob_from_pyasn1()
         )
 
+    def test__encode_key_applies_base64(self):
+        key = object()
+
+        with unittest.mock.patch("base64.b64encode") as b64encode:
+            result = self.store._encode_key(key)
+
+        self.assertSequenceEqual(
+            b64encode.mock_calls,
+            [
+                unittest.mock.call(key),
+                unittest.mock.call().decode("ascii")
+            ]
+        )
+
+        self.assertEqual(
+            result,
+            b64encode().decode()
+        )
+
+    def test__decode_key_unapplies_base64(self):
+        obj = unittest.mock.Mock()
+
+        with unittest.mock.patch("base64.b64decode") as b64decode:
+            result = self.store._decode_key(obj)
+
+        self.assertSequenceEqual(
+            obj.mock_calls,
+            [
+                unittest.mock.call.encode("ascii"),
+            ]
+        )
+
+        self.assertSequenceEqual(
+            b64decode.mock_calls,
+            [
+                unittest.mock.call(obj.encode())
+            ]
+        )
+
+        self.assertEqual(
+            result,
+            b64decode()
+        )
+
     def tearDown(self):
         del self.store
 
@@ -1270,6 +1368,50 @@ class TestCertificatePinStore(unittest.TestCase):
         self.assertEqual(
             result,
             extract_blob()
+        )
+
+    def test__encode_key_applies_base64(self):
+        key = object()
+
+        with unittest.mock.patch("base64.b64encode") as b64encode:
+            result = self.store._encode_key(key)
+
+        self.assertSequenceEqual(
+            b64encode.mock_calls,
+            [
+                unittest.mock.call(key),
+                unittest.mock.call().decode("ascii")
+            ]
+        )
+
+        self.assertEqual(
+            result,
+            b64encode().decode()
+        )
+
+    def test__decode_key_unapplies_base64(self):
+        obj = unittest.mock.Mock()
+
+        with unittest.mock.patch("base64.b64decode") as b64decode:
+            result = self.store._decode_key(obj)
+
+        self.assertSequenceEqual(
+            obj.mock_calls,
+            [
+                unittest.mock.call.encode("ascii"),
+            ]
+        )
+
+        self.assertSequenceEqual(
+            b64decode.mock_calls,
+            [
+                unittest.mock.call(obj.encode())
+            ]
+        )
+
+        self.assertEqual(
+            result,
+            b64decode()
         )
 
     def tearDown(self):
