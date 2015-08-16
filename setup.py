@@ -2,7 +2,7 @@
 import codecs
 import os.path
 
-from setuptools import setup
+from setuptools import setup, find_packages
 
 here = os.path.abspath(os.path.dirname(__file__))
 
@@ -28,5 +28,5 @@ setup(
         "Topic :: Communications :: Chat",
     ],
     keywords="asyncio xmpp library",
-    packages=["aioxmpp"],
+    packages=find_packages()
 )
