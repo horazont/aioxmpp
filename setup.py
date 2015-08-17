@@ -29,5 +29,5 @@ setup(
     ],
     keywords="asyncio xmpp library",
     install_requires=['dnspython3', 'lxml', 'orderedset', 'pyOpenSSL', 'pyasn1_modules', 'tzlocal'],
-    packages=find_packages()
+    packages=find_packages(exclude=["tests*"])
 )
