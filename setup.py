@@ -2,7 +2,7 @@
 import codecs
 import os.path
 
-from setuptools import setup
+from setuptools import setup, find_packages
 
 here = os.path.abspath(os.path.dirname(__file__))
 
@@ -28,5 +28,6 @@ setup(
         "Topic :: Communications :: Chat",
     ],
     keywords="asyncio xmpp library",
-    packages=["aioxmpp"],
+    install_requires=['dnspython3', 'lxml', 'orderedset', 'pyOpenSSL', 'pyasn1_modules', 'tzlocal'],
+    packages=find_packages()
 )
