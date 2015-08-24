@@ -162,6 +162,10 @@ class STARTTLSTransport(asyncio.Transport):
             server_hostname=server_hostname
         )
 
+        # this is a list set of tasks which will also be cancelled if the
+        # _waiter is cancelled
+        self._chained_pending = set()
+
         self._paused = False
         self._closing = False
 
@@ -175,6 +179,14 @@ class STARTTLSTransport(asyncio.Transport):
             self._initiate_tls()
         else:
             self._initiate_raw()
+
+    def _waiter_done(self, fut):
+        self._trace_logger.debug("_waiter future done (%r)", fut)
+        if fut.cancelled():
+            for chained in self._chained_pending:
+                self._trace_logger.debug("cancelling chained %r", chained)
+                chained.cancel()
+            self._chained_pending.clear()
 
     def _invalid_transition(self, via=None, to=None):
         via_text = (" via {}".format(via)) if via is not None else ""
@@ -323,11 +335,13 @@ class STARTTLSTransport(asyncio.Transport):
             self._trace_logger.debug("post handshake scheduled via callback")
             task = asyncio.async(self._tls_post_handshake_callback(self))
             task.add_done_callback(self._tls_post_handshake_done)
+            self._chained_pending.add(task)
             self._tls_post_handshake_callback = None
         else:
             self._tls_post_handshake(None)
 
     def _tls_post_handshake_done(self, task):
+        self._chained_pending.discard(task)
         try:
             task.result()
         except BaseException as err:
@@ -339,7 +353,7 @@ class STARTTLSTransport(asyncio.Transport):
         self._trace_logger.debug("_tls_post_handshake called")
         if exc is not None:
             self._fatal_error(exc, "Fatal error on post-handshake callback")
-            if self._waiter is not None:
+            if self._waiter is not None and not self._waiter.done():
                 self._waiter.set_exception(exc)
             return
 
@@ -592,6 +606,7 @@ class STARTTLSTransport(asyncio.Transport):
             self._tls_post_handshake_callback = post_handshake_callback
 
         self._waiter = asyncio.Future()
+        self._waiter.add_done_callback(self._waiter_done)
         self._initiate_tls()
         try:
             yield from self._waiter
