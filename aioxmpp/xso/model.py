@@ -617,6 +617,14 @@ class Attr(Text):
        :class:`LangAttr`, which is a subclass of :class:`Attr` specialized for
        describing ``xml:lang`` attributes.
 
+    .. note::
+
+       The `default` argument does not need to comply with either `type_` or
+       `validator`. This can be used to convey meaning with the absence of the
+       attribute. Note that assigning the default value is not possible if it
+       does not comply with `type_` or `validator` and the ``del`` operator
+       must be used instead.
+
     .. automethod:: from_value
 
     .. automethod:: handle_missing

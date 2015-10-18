@@ -85,6 +85,11 @@ strictly type-checked.
 Scalar descriptors
 ^^^^^^^^^^^^^^^^^^
 
+Many of the arguments and attributes used for the scalar descriptors are
+similar. They are described in detail on the :class:`Attr` class and not
+repeated that detailed on the other classes. Refer to the documentation of the
+:class:`Attr` class in those cases.
+
 .. autoclass:: Attr(name, type_=xso.String(), default=None, required=False, validator=None, validate=ValidateMode.FROM_RECV, missing=None)
 
 .. autoclass:: LangAttr(default=None, required=False, validator=None, validate=ValidateMode.FROM_RECV)
