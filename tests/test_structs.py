@@ -285,6 +285,11 @@ class TestPresenceState(unittest.TestCase):
             structs.PresenceState(available=True, show="dnd")
         )
 
+    def test_equality_deals_with_different_types(self):
+        self.assertNotEqual(structs.PresenceState(), None)
+        self.assertNotEqual(structs.PresenceState(), "foo")
+        self.assertNotEqual(structs.PresenceState(), 123)
+
     def test_repr(self):
         self.assertEqual(
             "<PresenceState>",

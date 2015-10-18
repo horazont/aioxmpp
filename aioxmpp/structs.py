@@ -233,11 +233,11 @@ class PresenceState:
         return my_key < other_key
 
     def __eq__(self, other):
-        return (self.available == other.available and
-                self.show == other.show)
-
-    def __ne__(self, other):
-        return not self == other
+        try:
+            return (self.available == other.available and
+                    self.show == other.show)
+        except AttributeError:
+            return NotImplemented
 
     def __repr__(self):
         more = ""
