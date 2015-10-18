@@ -1776,6 +1776,35 @@ class TestXSO(XMLTestCase):
             child_validate.mock_calls
         )
 
+    def test_init_takes_no_arguments(self):
+        with self.assertRaisesRegexp(
+                TypeError,
+                "takes no parameters"):
+            xso.XSO("foo")
+        with self.assertRaisesRegexp(
+                TypeError,
+                "takes no parameters"):
+            xso.XSO(bar="foo")
+
+    def test_init_forwards_to_base_class(self):
+        class Test:
+            def __init__(self, *args, **kwargs):
+                self.args = args
+                self.kwargs = kwargs
+
+        class TestXSO(xso.XSO, Test):
+            pass
+
+        obj = TestXSO("foo", bar="baz")
+        self.assertEqual(
+            obj.args,
+            ("foo",)
+        )
+        self.assertDictEqual(
+            obj.kwargs,
+            {"bar": "baz"}
+        )
+
     def tearDown(self):
         del self.obj
         del self.Cls

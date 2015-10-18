@@ -1532,6 +1532,9 @@ class XSO(metaclass=XMLStreamClass):
         result._stanza_props = dict()
         return result
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
     def validate(self):
         """
         Validate the objects structure beyond the values of individual fields
