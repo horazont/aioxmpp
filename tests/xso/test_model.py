@@ -3330,6 +3330,30 @@ class TestChildMap(XMLTestCase):
             bar_validate.mock_calls
         )
 
+    def test_fill_into_dict(self):
+        class Bar(xso.XSO):
+            TAG = "bar"
+
+        class Foo(xso.XSO):
+            TAG = "foo"
+
+        instance = make_instance_mock()
+
+        prop = xso.ChildMap([Foo, Bar])
+
+        data = collections.defaultdict(lambda: [])
+        instances = [Foo(), Bar(), Foo(), Foo(), Bar()]
+        prop.fill_into_dict(instances, data)
+
+        self.maxDiff = None
+        self.assertDictEqual(
+            data,
+            {
+                Foo.TAG: [instances[0], instances[2], instances[3]],
+                Bar.TAG: [instances[1], instances[4]]
+            }
+        )
+
 
 class TestChildLangMap(unittest.TestCase):
     def setUp(self):
