@@ -116,3 +116,8 @@ class TestAbstractTextChild(unittest.TestCase):
 
         self.assertTrue(atc1 == atc2)
         self.assertFalse(atc1 != atc2)
+
+    def test_equality_handles_incorrect_peer_type_gracefully(self):
+        atc = xso.AbstractTextChild()
+        self.assertFalse(atc == None)
+        self.assertFalse(atc == "foo")

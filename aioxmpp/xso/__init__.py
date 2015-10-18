@@ -387,4 +387,8 @@ class AbstractTextChild(XSO):
         self.lang = lang
 
     def __eq__(self, other):
-        return (self.lang, self.text) == (other.lang, other.text)
+        try:
+            other_key = (other.lang, other.text)
+        except AttributeError:
+            return NotImplemented
+        return (self.lang, self.text) == other_key
