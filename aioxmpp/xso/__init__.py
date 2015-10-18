@@ -372,3 +372,6 @@ class AbstractTextChild(XSO):
 
     lang = LangAttr()
     text = Text()
+
+    def __eq__(self, other):
+        return (self.lang, self.text) == (other.lang, other.text)

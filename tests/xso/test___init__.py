@@ -1,5 +1,6 @@
 import unittest
 
+import aioxmpp.structs as structs
 import aioxmpp.xso as xso
 
 
@@ -80,3 +81,26 @@ class TestAbstractTextChild(unittest.TestCase):
             xso.AbstractTextChild.text,
             xso.Text
         )
+
+    def test_equality(self):
+        atc1 = xso.AbstractTextChild()
+        atc2 = xso.AbstractTextChild()
+
+        self.assertTrue(atc1 == atc2)
+        self.assertFalse(atc1 != atc2)
+
+        atc1.text = "foo"
+
+        self.assertFalse(atc1 == atc2)
+        self.assertTrue(atc1 != atc2)
+
+        atc2.text = "foo"
+        atc2.lang = structs.LanguageTag.fromstr("de-DE")
+
+        self.assertFalse(atc1 == atc2)
+        self.assertTrue(atc1 != atc2)
+
+        atc1.lang = atc2.lang
+
+        self.assertTrue(atc1 == atc2)
+        self.assertFalse(atc1 != atc2)
