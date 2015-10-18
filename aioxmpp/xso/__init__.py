@@ -350,6 +350,9 @@ class AbstractTextChild(XSO):
     subclass to represent an XML node which has only character data and an
     ``xml:lang`` attribute.
 
+    The `text` and `lang` arguments to the constructor can be used to
+    initialize the attributes.
+
     This class provides exactly that. It inherits from :class:`XSO`.
 
     .. attribute:: lang
@@ -372,6 +375,11 @@ class AbstractTextChild(XSO):
 
     lang = LangAttr()
     text = Text()
+
+    def __init__(self, text=None, lang=None):
+        super().__init__()
+        self.text = text
+        self.lang = lang
 
     def __eq__(self, other):
         return (self.lang, self.text) == (other.lang, other.text)

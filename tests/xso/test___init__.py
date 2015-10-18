@@ -82,6 +82,18 @@ class TestAbstractTextChild(unittest.TestCase):
             xso.Text
         )
 
+    def test_init_default(self):
+        atc = xso.AbstractTextChild()
+        self.assertIsNone(atc.lang)
+        self.assertFalse(atc.text)
+
+    def test_init_args(self):
+        atc = xso.AbstractTextChild(
+            "foo",
+            lang=structs.LanguageTag.fromstr("de-DE"))
+        self.assertEqual(atc.text, "foo")
+        self.assertEqual(atc.lang, structs.LanguageTag.fromstr("de-DE"))
+
     def test_equality(self):
         atc1 = xso.AbstractTextChild()
         atc2 = xso.AbstractTextChild()
