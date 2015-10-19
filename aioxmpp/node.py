@@ -641,6 +641,8 @@ class PresenceManagedClient(AbstractClient):
 
     .. autoattribute:: presence
 
+    .. automethod:: set_presence
+
     Signals:
 
     .. attribute:: on_presence_sent
@@ -655,12 +657,14 @@ class PresenceManagedClient(AbstractClient):
 
     def __init__(self, jid, security_layer, **kwargs):
         super().__init__(jid, security_layer, **kwargs)
-        self._presence = structs.PresenceState()
+        self._presence = structs.PresenceState(), []
         self.on_stream_established.connect(self._handle_stream_established)
 
     def _resend_presence(self):
         pres = stanza.Presence()
-        self._presence.apply_to_stanza(pres)
+        state, status = self._presence
+        state.apply_to_stanza(pres)
+        pres.status.extend(status)
         pres.autoset_id()
         self.stream.enqueue_stanza(pres)
 
@@ -668,12 +672,29 @@ class PresenceManagedClient(AbstractClient):
         self._resend_presence()
         self.on_presence_sent()
 
+    def _update_presence(self):
+        if self._presence[0].available:
+            if not self.running:
+                self.start()
+            elif self.established:
+                self._resend_presence()
+        else:
+            if self.running:
+                self.stop()
+
     @property
     def presence(self):
         """
-        Control or query the current presence of the client. Note that when
+        Control or query the current presence state (see
+        :class:`~.structs.PresenceState`) of the client. Note that when
         reading, the property only returns the "set" value, not the actual
-        value known to the server (and others).
+        value known to the server (and others). This may differ if the
+        connection is still being established.
+
+        .. seealso::
+           Setting the presence state using :attr:`presence` clears the
+           `status` of the presence. To set the status and state at once,
+           use :meth:`set_presence`.
 
         Upon setting this attribute, the :class:`PresenceManagedClient` will do
         whatever neccessary to achieve the given presence. If the presence is
@@ -685,16 +706,26 @@ class PresenceManagedClient(AbstractClient):
         be called. The :attr:`presence` attribute is *not* affected by calls to
         :meth:`start` or :meth:`stop`.
         """
-        return self._presence
+        return self._presence[0]
 
     @presence.setter
     def presence(self, value):
-        self._presence = value
-        if self._presence.available:
-            if not self.running:
-                self.start()
-            elif self.established:
-                self._resend_presence()
+        self._presence = value, []
+        self._update_presence()
+
+    def set_presence(self, state, status):
+        """
+        Set the presence `state` and `status` on the client. This has the same
+        effects as writing `state` to :attr:`presence`, but the status of the
+        presence is also set at the same time.
+
+        `status` must be either a string or an iterable containing
+        :class:`.stanza.Status` objects. The :class:`.stanza.Status` instances
+        are saved and added to the presence stanza when it is time to send it.
+        """
+        if isinstance(status, str):
+            status = [stanza.Status(status)]
         else:
-            if self.running:
-                self.stop()
+            status = list(status)
+        self._presence = state, status
+        self._update_presence()

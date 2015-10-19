@@ -102,7 +102,8 @@ class ConnectedClientMock(unittest.mock.Mock):
         super().__init__([
             "stream",
             "start",
-            "stop"
+            "stop",
+            "set_presence",
         ])
 
         self.stream_features = stream_xsos.StreamFeatures()

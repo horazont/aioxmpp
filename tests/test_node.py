@@ -1803,6 +1803,86 @@ class TestPresenceManagedClient(xmltestutils.XMLTestCase):
         )
         self.presence_sent_rec.reset_mock()
 
+    def test_set_presence_with_texts(self):
+        status_texts = [
+            stanza.Status("de", structs.LanguageTag.fromstr("de")),
+            stanza.Status("generic"),
+        ]
+
+        self.client.set_presence(
+            structs.PresenceState(
+                available=True,
+                show="chat"),
+            status=status_texts
+        )
+
+        expected = stanza.Presence(type_=None,
+                                   show="chat",
+                                   id_="autoset")
+        expected.status.extend(status_texts)
+
+        run_coroutine(self.xmlstream.run_test([
+        ]+self.resource_binding+[
+            XMLStreamMock.Send(
+                expected
+            )
+        ]))
+
+        self.presence_sent_rec.assert_called_once_with()
+
+    def test_set_presence_with_single_string(self):
+        self.client.set_presence(
+            structs.PresenceState(
+                available=True,
+                show="chat"),
+            status="foobar"
+        )
+
+        expected = stanza.Presence(type_=None,
+                                   show="chat",
+                                   id_="autoset")
+        expected.status.append(
+            stanza.Status("foobar")
+        )
+
+        run_coroutine(self.xmlstream.run_test([
+        ]+self.resource_binding+[
+            XMLStreamMock.Send(
+                expected
+            )
+        ]))
+
+        self.presence_sent_rec.assert_called_once_with()
+
+    def test_set_presence_is_robust_against_modification_of_the_argument(self):
+        status_texts = [
+            stanza.Status("de", structs.LanguageTag.fromstr("de")),
+            stanza.Status("generic"),
+        ]
+
+        self.client.set_presence(
+            structs.PresenceState(
+                available=True,
+                show="chat"),
+            status=status_texts
+        )
+
+        expected = stanza.Presence(type_=None,
+                                   show="chat",
+                                   id_="autoset")
+        expected.status.extend(status_texts)
+
+        del status_texts[0]
+
+        run_coroutine(self.xmlstream.run_test([
+        ]+self.resource_binding+[
+            XMLStreamMock.Send(
+                expected
+            )
+        ]))
+
+        self.presence_sent_rec.assert_called_once_with()
+
     def tearDown(self):
         for patch in self.patches:
             patch.stop()
