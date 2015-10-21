@@ -471,7 +471,7 @@ class Service(aioxmpp.service.Service):
             ])
 
         yield from self.client.stream.send_iq_and_wait_for_reply(
-            stanza.IQ(payload=roster_xso.Query(items=[
+            stanza.IQ("set", payload=roster_xso.Query(items=[
                 item
             ])),
             timeout=timeout
@@ -492,7 +492,7 @@ class Service(aioxmpp.service.Service):
         the connection gets fatally terminated while waiting for a response.
         """
         yield from self.client.stream.send_iq_and_wait_for_reply(
-            stanza.IQ(payload=roster_xso.Query(items=[
+            stanza.IQ("set", payload=roster_xso.Query(items=[
                 roster_xso.Item(
                     jid=jid,
                     subscription="remove"

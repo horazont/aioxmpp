@@ -50,15 +50,14 @@ class TestStanzaBase(unittest.TestCase):
         self.assertIsInstance(
             stanza.StanzaBase.error,
             xso.Child)
+        self.assertIs(stanza.StanzaBase.error.default, None)
 
     def test_autoset_id_generates_random_str_on_none(self):
         s = stanza.StanzaBase()
-        # we fake the ID attribute here, StanzaBase does not have one by default
-        s.id_ = None
         s.autoset_id()
         id1 = s.id_
         self.assertTrue(s.id_)
-        s.id_ = None
+        del s.id_
         s.autoset_id()
         self.assertTrue(s.id_)
         self.assertNotEqual(id1, s.id_)
@@ -72,40 +71,6 @@ class TestStanzaBase(unittest.TestCase):
         s.id_ = "foo"
         s.autoset_id()
         self.assertEqual("foo", s.id_)
-
-    def test_make_reply(self):
-        s = stanza.StanzaBase()
-        s.from_ = TEST_FROM
-        s.to = TEST_TO
-        s.id_ = "id"
-
-        r = s._make_reply()
-        self.assertIsInstance(r, type(s))
-        self.assertEqual(
-            r.from_,
-            s.to)
-        self.assertEqual(
-            r.to,
-            s.from_)
-        self.assertEqual(
-            r.id_,
-            s.id_)
-
-    def test_make_error(self):
-        s = stanza.StanzaBase()
-        s.from_ = TEST_FROM
-        s.to = TEST_TO
-        s.id_ = "foobar"
-
-        err = stanza.Error()
-
-        r = s.make_error(err)
-        self.assertIs(r.error, err)
-        self.assertEqual(r.to, TEST_FROM)
-        self.assertEqual(r.from_, TEST_TO)
-        self.assertEqual(r.id_, "foobar")
-
-        self.assertEqual(r.type_, "error")
 
     def test_init(self):
         id_ = "someid"
@@ -161,9 +126,9 @@ class TestSubject(unittest.TestCase):
 
 class TestMessage(unittest.TestCase):
     def test_inheritance(self):
-        self.assertIsInstance(
-            stanza.Message(),
-            stanza.StanzaBase)
+        self.assertTrue(issubclass(
+            stanza.Message,
+            stanza.StanzaBase))
 
     def test_id_attr(self):
         self.assertIsInstance(
@@ -172,7 +137,7 @@ class TestMessage(unittest.TestCase):
         self.assertEqual(
             (None, "id"),
             stanza.Message.id_.tag)
-        self.assertFalse(stanza.Message.id_.required)
+        self.assertIs(stanza.Message.id_.default, None)
 
     def test_tag(self):
         self.assertEqual(
@@ -198,8 +163,6 @@ class TestMessage(unittest.TestCase):
                 "normal",
             },
             stanza.Message.type_.validator.values)
-        self.assertTrue(
-            stanza.Message.type_.required)
 
     def test_ext_attr(self):
         self.assertIsInstance(
@@ -245,9 +208,9 @@ class TestMessage(unittest.TestCase):
             "groupchat",
             s.type_)
 
-    def test_init_default(self):
-        s = stanza.Message()
-        self.assertEqual("chat", s.type_)
+    def test_reject_init_without_type(self):
+        with self.assertRaisesRegexp(TypeError, "type_"):
+            stanza.Message()
 
     def test_make_reply(self):
         s = stanza.Message(from_=TEST_FROM,
@@ -308,7 +271,7 @@ class TestPresence(unittest.TestCase):
         self.assertEqual(
             (None, "id"),
             stanza.Presence.id_.tag)
-        self.assertFalse(stanza.Presence.id_.required)
+        self.assertIs(stanza.Presence.id_.default, None)
 
     def test_tag(self):
         self.assertEqual(
@@ -336,8 +299,7 @@ class TestPresence(unittest.TestCase):
                 "unsubscribed",
             },
             stanza.Presence.type_.validator.values)
-        self.assertFalse(
-            stanza.Presence.type_.required)
+        self.assertIs(stanza.Presence.type_.default, None)
 
     def test_show_attr(self):
         self.assertIsInstance(
@@ -476,8 +438,6 @@ class TestError(unittest.TestCase):
                 "wait",
             },
             stanza.Error.type_.validator.values)
-        self.assertTrue(
-            stanza.Error.type_.required)
 
     def test_from_exception(self):
         exc = errors.XMPPWaitError(
@@ -558,9 +518,9 @@ class TestError(unittest.TestCase):
 
 class TestIQ(unittest.TestCase):
     def test_inheritance(self):
-        self.assertIsInstance(
-            stanza.IQ(),
-            stanza.StanzaBase)
+        self.assertTrue(issubclass(
+            stanza.IQ,
+            stanza.StanzaBase))
 
     def test_id_attr(self):
         self.assertIsInstance(
@@ -569,7 +529,6 @@ class TestIQ(unittest.TestCase):
         self.assertEqual(
             (None, "id"),
             stanza.IQ.id_.tag)
-        self.assertTrue(stanza.IQ.id_.required)
 
     def test_tag(self):
         self.assertEqual(
@@ -594,8 +553,6 @@ class TestIQ(unittest.TestCase):
                 "result",
             },
             stanza.IQ.type_.validator.values)
-        self.assertTrue(
-            stanza.IQ.type_.required)
 
     def test_error(self):
         self.assertIsInstance(
@@ -606,6 +563,11 @@ class TestIQ(unittest.TestCase):
         self.assertIsInstance(
             stanza.IQ.payload,
             xso.Child)
+        self.assertIsNone(stanza.IQ.payload.default)
+
+    def test_reject_init_without_type(self):
+        with self.assertRaisesRegexp(TypeError, "type_"):
+            stanza.IQ()
 
     def test_init(self):
         payload = object()
@@ -710,7 +672,7 @@ class TestIQ(unittest.TestCase):
         )
 
     def test_validate_requires_id(self):
-        iq = stanza.IQ()
+        iq = stanza.IQ("get")
         with self.assertRaisesRegexp(
                 ValueError,
                 "IQ requires ID"):

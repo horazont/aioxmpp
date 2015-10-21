@@ -101,7 +101,7 @@ class TestFilter(unittest.TestCase):
 
         self.f.register(func, 0)
 
-        iq = stanza.IQ()
+        iq = stanza.IQ("get")
 
         self.assertIsNone(self.f.filter(iq))
         self.assertSequenceEqual(
@@ -1182,7 +1182,6 @@ class TestStanzaStream(StanzaStreamTestBase):
 
     def test_send_iq_and_wait_for_reply_autosets_id(self):
         iq = make_test_iq(autoset_id=False)
-        self.assertIsNone(iq.id_)
 
         task = asyncio.async(
             self.stream.send_iq_and_wait_for_reply(iq),
@@ -1449,7 +1448,7 @@ class TestStanzaStream(StanzaStreamTestBase):
         class Service(service.Service):
             pass
 
-        msg = stanza.Message()
+        msg = stanza.Message("chat")
 
         mock = unittest.mock.Mock()
         mock.service.return_value = msg
@@ -1644,7 +1643,7 @@ class TestStanzaStream(StanzaStreamTestBase):
         class Service(service.Service):
             pass
 
-        msg = stanza.Message()
+        msg = stanza.Message("chat")
         msg.autoset_id()
 
         mock = unittest.mock.Mock()

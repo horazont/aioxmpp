@@ -14,10 +14,12 @@ class Option(xso.XSO):
 
     label = xso.Attr(
         tag="label",
+        default=None,
     )
 
     value = xso.ChildText(
         (namespaces.xep0004_data, "value"),
+        default=None,
     )
 
     def validate(self):
@@ -35,7 +37,8 @@ class Field(xso.XSO):
         allow_none=True)
 
     desc = xso.ChildText(
-        (namespaces.xep0004_data, "desc")
+        (namespaces.xep0004_data, "desc"),
+        default=None
     )
 
     values = xso.ChildList([Value])
@@ -44,6 +47,7 @@ class Field(xso.XSO):
 
     var = xso.Attr(
         (None, "var"),
+        default=None
     )
 
     type_ = xso.Attr(
@@ -60,12 +64,16 @@ class Field(xso.XSO):
             "text-private",
             "text-single",
         ]),
-        default="text-single",
     )
 
     label = xso.Attr(
         (None, "label"),
+        default=None
     )
+
+    def __init__(self):
+        super().__init__()
+        self.type_ = "text-single"
 
     def validate(self):
         super().validate()
@@ -124,7 +132,6 @@ class Data(AbstractItem):
             "result",
         }),
         validate=xso.ValidateMode.ALWAYS,
-        required=True
     )
 
     title = xso.ChildList([Title])
@@ -133,7 +140,7 @@ class Data(AbstractItem):
 
     items = xso.ChildList([Item])
 
-    reported = xso.Child([Reported])
+    reported = xso.Child([Reported], required=False)
 
     def _validate_result(self):
         if self.fields:

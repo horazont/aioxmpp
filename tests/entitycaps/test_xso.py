@@ -37,8 +37,9 @@ class TestCaps(unittest.TestCase):
             (None, "node"),
             entitycaps_xso.Caps.node.tag
         )
-        self.assertTrue(
-            entitycaps_xso.Caps.node.required
+        self.assertIs(
+            entitycaps_xso.Caps.node.default,
+            xso.NO_DEFAULT
         )
 
     def test_hash_attr(self):
@@ -50,9 +51,6 @@ class TestCaps(unittest.TestCase):
             (None, "hash"),
             entitycaps_xso.Caps.hash_.tag
         )
-        self.assertTrue(
-            entitycaps_xso.Caps.hash_.required
-        )
         self.assertIsInstance(
             entitycaps_xso.Caps.hash_.validator,
             xso.Nmtoken
@@ -60,6 +58,10 @@ class TestCaps(unittest.TestCase):
         self.assertEqual(
             xso.ValidateMode.FROM_CODE,
             entitycaps_xso.Caps.hash_.validate
+        )
+        self.assertIs(
+            entitycaps_xso.Caps.hash_.default,
+            xso.NO_DEFAULT
         )
 
     def test_ver_attr(self):
@@ -71,8 +73,9 @@ class TestCaps(unittest.TestCase):
             (None, "ver"),
             entitycaps_xso.Caps.ver.tag
         )
-        self.assertTrue(
-            entitycaps_xso.Caps.ver.required
+        self.assertIs(
+            entitycaps_xso.Caps.ver.default,
+            xso.NO_DEFAULT
         )
 
     def test_ext_attr(self):
@@ -83,6 +86,10 @@ class TestCaps(unittest.TestCase):
         self.assertEqual(
             (None, "ext"),
             entitycaps_xso.Caps.ext.tag
+        )
+        self.assertIs(
+            entitycaps_xso.Caps.ext.default,
+            None
         )
 
     def test_attr_on_Presence(self):

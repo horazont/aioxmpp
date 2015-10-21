@@ -166,10 +166,6 @@ class TestField(unittest.TestCase):
             },
             forms_xso.Field.type_.validator.values
         )
-        self.assertEqual(
-            "text-single",
-            forms_xso.Field.type_.default
-        )
 
     def test_label_attr(self):
         self.assertIsInstance(
@@ -303,6 +299,10 @@ class TestField(unittest.TestCase):
                                      "duplicate option label"):
             f.validate()
 
+    def test_init(self):
+        f = forms_xso.Field()
+        self.assertEqual(f.type_, "text-single")
+
 
 class TestTitle(unittest.TestCase):
     def test_is_AbstractTextChild(self):
@@ -422,7 +422,6 @@ class TestData(unittest.TestCase):
             xso.ValidateMode.ALWAYS,
             forms_xso.Data.type_.validate
         )
-        self.assertTrue(forms_xso.Data.type_.required)
 
     def test_title_attr(self):
         self.assertIsInstance(

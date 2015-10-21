@@ -235,7 +235,16 @@ class XSOList(list):
 
 
 class _PropBase:
-    def __init__(self, default,
+    class NO_DEFAULT:
+        def __repr__(self):
+            return "no default"
+
+        def __bool__(self):
+            raise TypeError("cannot convert NO_DEFAULT to bool")
+
+    NO_DEFAULT = NO_DEFAULT()
+
+    def __init__(self, default=NO_DEFAULT,
                  *,
                  validator=None,
                  validate=ValidateMode.FROM_RECV):
@@ -270,10 +279,17 @@ class _PropBase:
         try:
             return instance._stanza_props[self]
         except KeyError:
+            if self.default is self.NO_DEFAULT:
+                raise AttributeError(
+                    "attribute is unset ({} on instance of {})".format(self, cls)
+                ) from None
             return self.default
 
     def validate_contents(self, instance):
-        pass
+        try:
+            self.__get__(instance, type(instance))
+        except AttributeError as exc:
+            raise ValueError(str(exc)) from None
 
     def to_node(self, instance, parent):
         handler = lxml.sax.ElementTreeContentHandler(
@@ -286,11 +302,10 @@ class _PropBase:
 
 
 class _TypedPropBase(_PropBase):
-    def __init__(self, default,
-                 *,
+    def __init__(self, *,
                  type_=xso_types.String(),
                  **kwargs):
-        super().__init__(default, **kwargs)
+        super().__init__(**kwargs)
         self.type_ = type_
 
     def __set__(self, instance, value):
@@ -317,11 +332,6 @@ class Text(_TypedPropBase):
     .. automethod:: to_sax
 
     """
-
-    def __init__(self,
-                 default=None,
-                 **kwargs):
-        super().__init__(default, **kwargs)
 
     def from_value(self, instance, value):
         """
@@ -389,8 +399,11 @@ class Child(_ChildPropBase):
     The tags among the `classes` must be unique, otherwise :class:`ValueError`
     is raised on construction.
 
-    The `default` and `required` arguments behave like in
-    :class:`Attr`. Validators are not supported.
+    Instead of the `default` argument like supplied by :class:`Attr`,
+    :class:`Child` only supports `required`: if `required` is a false value
+    (the default), a missing child is tolerated and :data:`None` is valid value
+    for the described attribute. Otherwise, a missing matching child is an
+    error and the attribute cannot be set to :data:`None`.
 
     .. automethod:: get_tag_map
 
@@ -399,9 +412,15 @@ class Child(_ChildPropBase):
     .. automethod:: to_sax
     """
 
-    def __init__(self, classes, default=None, required=False):
-        super().__init__(classes, default=default)
-        self.required = required
+    def __init__(self, classes, required=False):
+        super().__init__(
+            classes,
+            default=_PropBase.NO_DEFAULT if required else None
+        )
+
+    @property
+    def required(self):
+        return self.default is _PropBase.NO_DEFAULT
 
     def __set__(self, instance, value):
         if value is None and self.required:
@@ -429,12 +448,12 @@ class Child(_ChildPropBase):
         return obj
 
     def validate_contents(self, instance):
-        obj = self.__get__(instance, type(instance))
-        if obj is None:
-            if self.required:
-                raise ValueError("missing required member")
-            return
-        obj.validate()
+        try:
+            obj = self.__get__(instance, type(instance))
+        except AttributeError:
+            raise ValueError("missing required member")
+        if obj is not None:
+            obj.validate()
 
     def to_sax(self, instance, dest):
         """
@@ -602,9 +621,12 @@ class Attr(Text):
                      but be liberal with incoming values. This defaults to
                      :attr:`ValidateMode.FROM_RECV`.
     :param default: The value which the attribute has if no value has been
-                    assigned. This defaults to :data:`None`.
-    :param required: Whether the absence of data for this object during parsing
-                     is a fatal error. This defaults to :data:`False`.
+                    assigned. This must be given to allow the attribute to be
+                    missing. It defaults to a special value. If the attribute
+                    has not been assigned to and `default` has not been set,
+                    accessing the attribute for reading raises
+                    :class:`AttributeError`. An attribute with `default` value
+                    is not emitted in the output.
     :param missing: A callable which takes a :class:`Context` instance. It is
                     called whenever the attribute is missing (independent from
                     the fact whether it is required or not). The callable shall
@@ -633,25 +655,18 @@ class Attr(Text):
 
     """
 
-    def __init__(self, tag,
+    def __init__(self, tag, *,
                  type_=xso_types.String(),
-                 default=None,
-                 required=False,
                  missing=None,
                  **kwargs):
-        super().__init__(type_=type_, default=default, **kwargs)
+        super().__init__(type_=type_, **kwargs)
         self.tag = normalize_tag(tag)
-        self.required = required
         self.missing = missing
 
     def __set__(self, instance, value):
-        if self.required and value == self.default:
-            raise AttributeError("cannot set required attribute to default")
         super().__set__(instance, value)
 
     def __delete__(self, instance):
-        if self.required:
-            raise AttributeError("cannot delete required attribute")
         try:
             del instance._stanza_props[self]
         except KeyError:
@@ -679,19 +694,21 @@ class Attr(Text):
                 self._set_from_code(instance, value)
                 return
 
-        if self.required:
+        if self.default is _PropBase.NO_DEFAULT:
             raise ValueError("missing attribute {} on {}".format(
                 tag_to_str(self.tag),
                 tag_to_str(instance.TAG),
             ))
 
+        # no need to set explicitly, it will be handled by _PropBase.__get__
+
     def validate_contents(self, instance):
-        if self.required:
-            value = self.__get__(instance, type(instance))
-            if value == self.default:
-                raise ValueError("non-default value required for {}".format(
-                    tag_to_str(self.tag)
-                ))
+        try:
+            self.__get__(instance, type(instance))
+        except AttributeError:
+            raise ValueError("non-None value required for {}".format(
+                tag_to_str(self.tag)
+            )) from None
 
     def to_dict(self, instance, d):
         """
@@ -702,7 +719,7 @@ class Attr(Text):
         """
 
         value = self.__get__(instance, type(instance))
-        if value is None:
+        if value == self.default:
             return
 
         d[self.tag] = self.type_.format(value)
@@ -715,11 +732,15 @@ class LangAttr(Attr):
     to the ``(namespaces.xml, "lang")`` value to match ``xml:lang``
     attributes. `type_` is a :class:`xso.LanguageTag` instance and `missing` is
     set to :func:`lang_attr`.
+
+    Note that :class:`LangAttr` overrides `default` to be :data:`None` by
+    default.
     """
 
-    def __init__(self, **kwargs):
+    def __init__(self, default=None, **kwargs):
         super().__init__(
             (namespaces.xml, "lang"),
+            default=default,
             type_=xso_types.LanguageTag(),
             missing=lang_attr
         )
@@ -750,14 +771,12 @@ class ChildText(_TypedPropBase):
 
     def __init__(self, tag,
                  *,
-                 default=None,
                  child_policy=UnknownChildPolicy.FAIL,
                  attr_policy=UnknownAttrPolicy.FAIL,
                  declare_prefix=False,
                  **kwargs):
-        super().__init__(default=default, **kwargs)
+        super().__init__(**kwargs)
         self.tag = normalize_tag(tag)
-        self.default = default
         self.child_policy = child_policy
         self.attr_policy = attr_policy
         self.declare_prefix = declare_prefix
@@ -820,7 +839,7 @@ class ChildText(_TypedPropBase):
         """
 
         value = self.__get__(instance, type(instance))
-        if value is None:
+        if value == self.default:
             return
 
         if self.declare_prefix is not False and self.tag[0]:
@@ -963,8 +982,6 @@ class ChildTag(_PropBase):
     valid, non-:data:`False` value in this context!), the namespace is
     explicitly declared using the given prefix when serializing to SAX.
 
-    `default` works as for :class:`Attr`.
-
     .. automethod:: from_events
 
     .. automethod:: to_sax
@@ -989,7 +1006,6 @@ class ChildTag(_PropBase):
                  child_policy=UnknownChildPolicy.FAIL,
                  attr_policy=UnknownAttrPolicy.FAIL,
                  allow_none=False,
-                 default=None,
                  declare_prefix=False):
         tags = {
             (ns or default_ns, localname)
@@ -998,7 +1014,7 @@ class ChildTag(_PropBase):
         if allow_none:
             tags.add(None)
         super().__init__(
-            default=default,
+            default=None if allow_none else _PropBase.NO_DEFAULT,
             validator=xso_types.RestrictToSet(tags),
             validate=ValidateMode.ALWAYS)
         self.type_ = self.ElementTreeTag()
@@ -1006,6 +1022,10 @@ class ChildTag(_PropBase):
         self.attr_policy = attr_policy
         self.child_policy = child_policy
         self.declare_prefix = declare_prefix
+
+    @property
+    def allow_none(self):
+        return self.default is not _PropBase.NO_DEFAULT
 
     def get_tag_map(self):
         return self.validator.values

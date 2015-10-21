@@ -67,13 +67,13 @@ STANZA_ERROR_TEMPLATE_WITH_TEXT = '''\
 class Child(xso.XSO):
     TAG = ("uri:foo", "payload")
 
-    attr = xso.Attr("a", required=True)
+    attr = xso.Attr("a")
 
 
 class RuntimeErrorRaisingStanza(stanza.StanzaBase):
     TAG = ("jabber:client", "foo")
 
-    a = xso.Attr("a", required=True)
+    a = xso.Attr("a")
 
     def xso_error_handler(self, *args):
         raise RuntimeError("foobar")
@@ -557,11 +557,10 @@ class TestXMLStream(unittest.TestCase):
         )
 
     def test_send_xso(self):
-        st = FakeIQ()
+        st = FakeIQ("get")
         st.id_ = "id"
         st.from_ = JID.fromstr("u1@foo.example/test")
         st.to = JID.fromstr("u2@foo.example/test")
-        st.type_ = "get"
         st.payload = Child()
         st.payload.attr = "foo"
 
@@ -853,7 +852,7 @@ class TestXMLStream(unittest.TestCase):
             )
         )
         with self.assertRaises(ValueError) as ctx:
-            p.send_xso(stanza.IQ())
+            p.send_xso(stanza.IQ("get"))
         self.assertIs(exc, ctx.exception)
 
     def test_starttls_reraises_connection_lost_error(self):

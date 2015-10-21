@@ -121,3 +121,41 @@ class TestAbstractTextChild(unittest.TestCase):
         atc = xso.AbstractTextChild()
         self.assertFalse(atc == None)
         self.assertFalse(atc == "foo")
+
+
+class TestNO_DEFAULT(unittest.TestCase):
+    def test_unequal_to_things(self):
+        NO_DEFAULT = xso.NO_DEFAULT
+        self.assertFalse(NO_DEFAULT == None)
+        self.assertFalse(NO_DEFAULT == True)
+        self.assertFalse(NO_DEFAULT == False)
+        self.assertFalse(NO_DEFAULT == "")
+        self.assertFalse(NO_DEFAULT == "foo")
+        self.assertFalse(NO_DEFAULT == 0)
+        self.assertFalse(NO_DEFAULT == 123)
+        self.assertFalse(NO_DEFAULT == 0.)
+        self.assertFalse(NO_DEFAULT == float("nan"))
+
+    def test_equal_to_itself(self):
+        self.assertTrue(xso.NO_DEFAULT == xso.NO_DEFAULT)
+        self.assertFalse(xso.NO_DEFAULT != xso.NO_DEFAULT)
+
+    def test___bool__raises(self):
+        with self.assertRaises(TypeError):
+            bool(xso.NO_DEFAULT)
+
+    def test___index__raises(self):
+        with self.assertRaises(TypeError):
+            int(xso.NO_DEFAULT)
+
+    def test___float__raises(self):
+        with self.assertRaises(TypeError):
+            float(xso.NO_DEFAULT)
+
+    def test___lt__raises(self):
+        with self.assertRaises(TypeError):
+            xso.NO_DEFAULT < xso.NO_DEFAULT
+
+    def test___gt__raises(self):
+        with self.assertRaises(TypeError):
+            xso.NO_DEFAULT > xso.NO_DEFAULT

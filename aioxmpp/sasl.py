@@ -123,7 +123,6 @@ class SASLFailure(xso.XSO):
         ],
         default_ns=namespaces.sasl,
         allow_none=False,
-        default=(namespaces.sasl, "temporary-auth-failure"),
         declare_prefix=None,
     )
     text = xso.ChildText(
@@ -132,10 +131,9 @@ class SASLFailure(xso.XSO):
         default=None,
         declare_prefix=None)
 
-    def __init__(self, condition=None):
+    def __init__(self, condition=(namespaces.sasl, "temporary-auth-failure")):
         super().__init__()
-        if condition is not None:
-            self.condition = condition
+        self.condition = condition
 
 
 class SASLSuccess(xso.XSO):

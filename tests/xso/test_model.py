@@ -887,7 +887,6 @@ class TestXMLStreamClass(unittest.TestCase):
 
             attr = xso.Attr(
                 tag=(None, "attr"),
-                required=True
             )
 
         Cls.xso_error_handler = unittest.mock.MagicMock()
@@ -919,7 +918,6 @@ class TestXMLStreamClass(unittest.TestCase):
 
             attr = xso.Attr(
                 tag=(None, "attr"),
-                required=True
             )
 
         Cls.xso_error_handler = unittest.mock.MagicMock()
@@ -1088,6 +1086,7 @@ class TestXMLStreamClass(unittest.TestCase):
 
             lang = xso.Attr(
                 tag=(namespaces.xml, "lang"),
+                default=None
             )
 
             child = xso.Child([Baz])
@@ -1944,10 +1943,14 @@ class Test_PropBase(unittest.TestCase):
         self.Cls = Cls
         self.obj = Cls()
 
-    def test_get_unset(self):
-        self.assertIs(
-            self.default,
-            self.obj.prop)
+    def test_get_unset_without_default(self):
+        class Cls(xso.XSO):
+            prop = xso_model._PropBase()
+
+        with self.assertRaisesRegexp(
+                AttributeError,
+                "attribute is unset"):
+            Cls().prop
 
     def test_set_get_cycle(self):
         self.obj.prop = "foo"
@@ -2117,6 +2120,14 @@ class Test_PropBase(unittest.TestCase):
                 unittest.mock.call.validate("bar"),
             ],
             validator.mock_calls)
+
+    def test_validate_raises_if_unset_and_undefaulted(self):
+        prop = xso_model._PropBase()
+        instance = make_instance_mock()
+
+        with self.assertRaisesRegexp(ValueError,
+                                     "attribute is unset"):
+            prop.validate_contents(instance)
 
     def tearDown(self):
         del self.obj
@@ -2297,6 +2308,27 @@ class TestChild(XMLTestCase):
 
         self.ctx = xso_model.Context()
 
+    def test_default_default_is_None(self):
+        prop = xso.Child([])
+        self.assertIs(prop.default, None)
+        prop = xso.Child([], required=False)
+        self.assertIs(prop.default, None)
+
+    def test_default_for_required_is_no_default(self):
+        prop = xso.Child([], required=True)
+        self.assertIs(prop.default, xso.NO_DEFAULT)
+
+    def test_default_required_is_not_writable(self):
+        prop = xso.Child([], required=True)
+        with self.assertRaises(AttributeError):
+            prop.required = False
+
+    def test_default_required_reflects_argument(self):
+        prop = xso.Child([], required=True)
+        self.assertIs(prop.required, True)
+        prop = xso.Child([], required="")
+        self.assertIs(prop.required, False)
+
     def test_match_map(self):
         self.assertDictEqual(
             {self.ClsLeaf.TAG: self.ClsLeaf},
@@ -2434,6 +2466,15 @@ class TestChild(XMLTestCase):
         with self.assertRaisesRegex(AttributeError,
                                     "cannot delete required member"):
             del instance.prop
+
+    def test_cannot_access_if_required_and_unset(self):
+        class Cls(xso.XSO):
+            prop = xso.Child([], required=True)
+
+        instance = Cls()
+        with self.assertRaisesRegex(AttributeError,
+                                    "attribute is unset"):
+            instance.prop
 
     def test_delete_sets_to_None_if_not_required(self):
         class Cls(xso.XSO):
@@ -2656,6 +2697,14 @@ class TestCollector(XMLTestCase):
 
 
 class TestAttr(XMLTestCase):
+    def test_rejects_required_kwarg(self):
+        with self.assertRaises(TypeError):
+            prop = xso.Attr("foo", required=False)
+
+    def test_default_defaults_to_no_default(self):
+        prop = xso.Attr("foo")
+        self.assertIs(prop.default, xso.NO_DEFAULT)
+
     def test_tag_attribute(self):
         prop = xso.Attr("foo")
         self.assertEqual(
@@ -2688,20 +2737,23 @@ class TestAttr(XMLTestCase):
             instance._stanza_props
         )
 
-    def test_missing_passes_if_not_required(self):
+    def test_missing_passes_if_defaulted(self):
+        ctx = xso_model.Context()
+
+        instance = make_instance_mock()
+
+        default = object()
+        prop = xso.Attr("foo", default=default)
+        prop.handle_missing(instance, ctx)
+
+        self.assertIs(prop.__get__(instance, type(instance)), default)
+
+    def test_missing_raises_if_not_defaulted(self):
         ctx = xso_model.Context()
 
         instance = make_instance_mock()
 
         prop = xso.Attr("foo")
-        prop.handle_missing(instance, ctx)
-
-    def test_missing_raises_if_required(self):
-        ctx = xso_model.Context()
-
-        instance = make_instance_mock()
-
-        prop = xso.Attr("foo", required=True)
         with self.assertRaisesRegexp(ValueError,
                                      r"missing attribute foo"):
             prop.handle_missing(instance, ctx)
@@ -2719,19 +2771,17 @@ class TestAttr(XMLTestCase):
             },
             d)
 
-    def test_to_dict_unset(self):
-        prop = xso.Attr("foo", default="bar")
+    def test_to_dict_unset_and_undefaulted_raises(self):
+        prop = xso.Attr("foo")
         instance = make_instance_mock()
 
-        d = {}
-        prop.to_dict(instance, d)
-        self.assertDictEqual(
-            {
-                (None, "foo"): "bar"
-            },
-            d)
+        with self.assertRaises(AttributeError):
+            d = {}
+            prop.to_dict(instance, d)
 
-        instance._stanza_props = {prop: None}
+    def test_to_dict_defaulted(self):
+        prop = xso.Attr("foo", default="bar")
+        instance = make_instance_mock({prop: "bar"})
 
         d = {}
         prop.to_dict(instance, d)
@@ -2739,6 +2789,7 @@ class TestAttr(XMLTestCase):
             {
             },
             d)
+
 
     def test_validates(self):
         validator = unittest.mock.MagicMock()
@@ -2799,70 +2850,33 @@ class TestAttr(XMLTestCase):
             prop.__get__(instance, type(instance))
         )
 
-    def test_validate_rejects_value_equal_to_default_if_required(self):
+    def test_validate_contents_rejects_unset_and_undefaulted(self):
         instance = make_instance_mock()
+        prop = xso.Attr("foo")
 
-        prop = xso.Attr("foo",
-                        default="bar",
-                        required=True)
-
-        with self.assertRaisesRegex(ValueError,
-                                    "non-default value required for"):
+        with self.assertRaisesRegexp(ValueError, "value required for"):
             prop.validate_contents(instance)
 
-    def test_validate_accepts_value_equal_to_default_if_not_required(self):
-        instance = make_instance_mock()
+    def test_delete_reverts_to_default_if_available(self):
+        class Cls(xso.XSO):
+            prop = xso.Attr("foo", default="bar")
 
-        prop = xso.Attr("foo",
-                        default="bar",
-                        required=False)
-        prop.__set__(instance, "bar")
-        prop.validate_contents(instance)
+        obj = Cls()
+        obj.prop = "foo"
+        self.assertEqual(obj.prop, "foo")
+        del obj.prop
+        self.assertEqual(obj.prop, "bar")
 
-    def test_validate_accepts_non_default_value_if_required(self):
-        instance = make_instance_mock()
+    def test_delete_reverts_to_unset_if_default_not_available(self):
+        class Cls(xso.XSO):
+            prop = xso.Attr("foo")
 
-        prop = xso.Attr("foo",
-                        default="bar",
-                        required=True)
-        prop.__set__(instance, "foo")
-        prop.validate_contents(instance)
-
-    def test_reject_delete_if_required(self):
-        class Foo(xso.XSO):
-            prop = xso.Attr("foo", default="bar", required=True)
-
-        foo = Foo()
-
-        with self.assertRaisesRegex(AttributeError,
-                                    "cannot delete required attribute"):
-            del foo.prop
-
-    def test_delete_resets_to_default_if_not_required(self):
-        class Foo(xso.XSO):
-            prop = xso.Attr("foo", default="bar", required=False)
-
-        foo = Foo()
-        del foo.prop
-
-        foo.prop = "foo"
-
-        del foo.prop
-        self.assertEqual(
-            "bar",
-            foo.prop
-        )
-
-    def test_setattr_rejects_default_if_required(self):
-        class Foo(xso.XSO):
-            prop = xso.Attr("foo", default="bar", required=True)
-
-        foo = Foo()
-
-        with self.assertRaisesRegex(
-                AttributeError,
-                "cannot set required attribute to default"):
-            foo.prop = "bar"
+        obj = Cls()
+        obj.prop = "foo"
+        self.assertEqual(obj.prop, "foo")
+        del obj.prop
+        with self.assertRaises(AttributeError):
+            obj.prop
 
 
 class TestChildText(XMLTestCase):
@@ -2886,6 +2900,10 @@ class TestChildText(XMLTestCase):
         self.assertIs(
             validator_mock,
             prop.validator)
+        self.assertIs(
+            prop.default,
+            xso.NO_DEFAULT
+        )
 
     def test_from_events_with_type_and_validation(self):
         type_mock = unittest.mock.MagicMock()
@@ -3078,7 +3096,16 @@ class TestChildText(XMLTestCase):
             ],
             type_mock.mock_calls)
 
-    def test_to_sax_unset(self):
+    def test_to_sax_unset_raises(self):
+        prop = xso.ChildText("body")
+
+        instance = make_instance_mock()
+
+        dest = unittest.mock.MagicMock()
+        with self.assertRaises(AttributeError):
+            prop.to_sax(instance, dest)
+
+    def test_to_sax_defaulting(self):
         prop = xso.ChildText("body", default="foo")
 
         instance = make_instance_mock()
@@ -3087,9 +3114,6 @@ class TestChildText(XMLTestCase):
         prop.to_sax(instance, dest)
         self.assertSequenceEqual(
             [
-                unittest.mock.call.startElementNS((None, "body"), None, {}),
-                unittest.mock.call.characters("foo"),
-                unittest.mock.call.endElementNS((None, "body"), None)
             ],
             dest.mock_calls)
 
@@ -3098,6 +3122,9 @@ class TestChildText(XMLTestCase):
         prop.to_sax(instance, dest)
         self.assertSequenceEqual(
             [
+                unittest.mock.call.startElementNS((None, "body"), None, {}),
+                unittest.mock.call.characters("None"),
+                unittest.mock.call.endElementNS((None, "body"), None)
             ],
             dest.mock_calls)
 
@@ -3125,6 +3152,14 @@ class TestChildText(XMLTestCase):
             ],
             type_.mock_calls
         )
+
+    def test_validate_contents_rejects_unset_and_undefaulted(self):
+        instance = make_instance_mock()
+
+        prop = xso.ChildText("body")
+
+        with self.assertRaises(ValueError):
+            prop.validate_contents(instance)
 
 
 class TestChildMap(XMLTestCase):
@@ -3438,30 +3473,26 @@ class TestLangAttr(unittest.TestCase):
             prop.type_,
             xso.LanguageTag
         )
-
-class TestLangAttr(unittest.TestCase):
-    def test_init(self):
-        prop = xso.LangAttr()
-        self.assertIsInstance(
-            prop,
-            xso.Attr)
-        self.assertEqual(
-            prop.tag,
-            (namespaces.xml, "lang")
-        )
-        self.assertEqual(
-            prop.missing,
-            xso.lang_attr
-        )
-        self.assertIsInstance(
-            prop.type_,
-            xso.LanguageTag
-        )
+        self.assertIs(prop.default, None)
 
 
 class TestChildTag(unittest.TestCase):
     def setUp(self):
         self.ctx = xso_model.Context()
+
+    def test_allow_none_maps_to_default_and_vice_versa(self):
+        prop = xso.ChildTag([], allow_none="foo")
+        self.assertIs(prop.default, None)
+        self.assertIs(prop.allow_none, True)
+
+        prop = xso.ChildTag([], allow_none="")
+        self.assertIs(prop.default, xso.NO_DEFAULT)
+        self.assertIs(prop.allow_none, False)
+
+    def test_allow_none_is_not_writable(self):
+        prop = xso.ChildTag([], allow_none=False)
+        with self.assertRaises(AttributeError):
+            prop.allow_none = True
 
     def test_from_events(self):
         instance = make_instance_mock()
@@ -3706,6 +3737,19 @@ class TestChildTag(unittest.TestCase):
                     None),
             ],
             dest.mock_calls)
+
+    def test_validate_contents_rejects_unset_and_undefaulted(self):
+        prop = xso.ChildTag(
+            tags=[
+                "foo",
+                "bar"
+            ])
+
+        instance = make_instance_mock()
+
+        with self.assertRaises(ValueError):
+            prop.validate_contents(instance)
+
 
 
 class Testdrop_handler(unittest.TestCase):
@@ -4181,7 +4225,6 @@ class ChildTag(XMLTestCase):
         class ClsWONone(xso.XSO):
             prop = xso.ChildTag(
                 self.prop.get_tag_map(),
-                default=("uri:bar", "foo"),
                 allow_none=False)
 
         w_none = ClsWNone()
@@ -4331,7 +4374,7 @@ class TestXSOParser(XMLTestCase):
 
         class TestStanza(xso.XSO):
             TAG = None, "foo"
-            attr = xso.Attr("a", required=True)
+            attr = xso.Attr("a")
 
         with self.assertRaises(ValueError):
             self.run_parser_one([TestStanza], tree)

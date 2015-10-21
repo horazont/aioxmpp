@@ -19,7 +19,7 @@ class Group(xso.XSO):
     """
     TAG = (namespaces.rfc6121_roster, "group")
 
-    name = xso.Text()
+    name = xso.Text(default=None)
 
     def __init__(self, *, name=None):
         super().__init__()
@@ -87,17 +87,18 @@ class Item(xso.XSO):
             None,
             "subscribe",
         }),
-        validate=xso.ValidateMode.ALWAYS
+        validate=xso.ValidateMode.ALWAYS,
+        default=None,
     )
 
     jid = xso.Attr(
         "jid",
         type_=xso.JID(),
-        required=True,
     )
 
     name = xso.Attr(
         "name",
+        default=None,
     )
 
     subscription = xso.Attr(
@@ -110,13 +111,11 @@ class Item(xso.XSO):
             "remove",
         }),
         validate=xso.ValidateMode.ALWAYS,
-        default="none",
     )
 
     groups = xso.ChildList([Group])
 
-    def __init__(self, *,
-                 jid=None,
+    def __init__(self, jid, *,
                  name=None,
                  groups=(),
                  subscription="none",

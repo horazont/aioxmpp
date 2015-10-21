@@ -90,17 +90,17 @@ similar. They are described in detail on the :class:`Attr` class and not
 repeated that detailed on the other classes. Refer to the documentation of the
 :class:`Attr` class in those cases.
 
-.. autoclass:: Attr(name, type_=xso.String(), default=None, required=False, validator=None, validate=ValidateMode.FROM_RECV, missing=None)
+.. autoclass:: Attr(name, *[, type_=xso.String()][, validator=None][, validate=ValidateMode.FROM_RECV][, missing=None][, default])
 
-.. autoclass:: LangAttr(default=None, required=False, validator=None, validate=ValidateMode.FROM_RECV)
+.. autoclass:: LangAttr(*[, validator=None][, validate=ValidateMode.FROM_RECV][, default=None])
 
-.. autoclass:: Child(classes, default=None)
+.. autoclass:: Child(classes, *[, required=False])
 
-.. autoclass:: ChildTag(tags, *, text_policy=UnknownTextPolicy.FAIL, child_policy=UnknownChildPolicy.FAIL, attr_policy=UnknownAttrPolicy.FAIL, default_ns=None, default=None, allow_none=False)
+.. autoclass:: ChildTag(tags, *[, text_policy=UnknownTextPolicy.FAIL][, child_policy=UnknownChildPolicy.FAIL][, attr_policy=UnknownAttrPolicy.FAIL][, default_ns=None][, allow_none=False])
 
-.. autoclass:: ChildText(tag, child_policy=UnknownChildPolicy.FAIL, attr_policy=UnknownAttrPolicy.FAIL, type_=xso.String(), default=None, validator=None, validate=ValidateMode.FROM_RECV)
+.. autoclass:: ChildText(tag, *[, child_policy=UnknownChildPolicy.FAIL][, attr_policy=UnknownAttrPolicy.FAIL][, type_=xso.String()][, validator=None][, validate=ValidateMode.FROM_RECV][, default])
 
-.. autoclass:: Text(type_=xso.String(), default=None, validator=None, validate=ValidateMode.FROM_RECV)
+.. autoclass:: Text(*[, type_=xso.String()][, validator=None][, validate=ValidateMode.FROM_RECV][, default])
 
 Non-scalar descriptors
 ^^^^^^^^^^^^^^^^^^^^^^
@@ -176,6 +176,18 @@ The values of the following enumerations are used on "magic" attributes of
 The following exceptions are generated at some places in this module:
 
 .. autoclass:: UnknownTopLevelTag
+
+The following special value is used to indicate that no default is used with a
+descriptor:
+
+.. data:: NO_DEFAULT
+
+   This is a special value which is used to indicate that no defaulting should
+   take place. It can be passed to the `default` arguments of descriptors, and
+   usually is the default value of these arguments.
+
+   It compares unequal to everything but itself, does not support ordering,
+   conversion to bool, float or integer.
 
 Handlers for missing attributes
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -392,3 +404,7 @@ class AbstractTextChild(XSO):
         except AttributeError:
             return NotImplemented
         return (self.lang, self.text) == other_key
+
+from .model import _PropBase
+NO_DEFAULT = _PropBase.NO_DEFAULT
+del _PropBase

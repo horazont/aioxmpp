@@ -37,20 +37,9 @@ class Identity(xso.XSO):
     """
     TAG = (namespaces.xep0030_info, "identity")
 
-    category = xso.Attr(
-        tag="category",
-        required=True,
-    )
-
-    type_ = xso.Attr(
-        tag="type",
-        required=True,
-    )
-
-    name = xso.Attr(
-        tag="name",
-    )
-
+    category = xso.Attr(tag="category")
+    type_ = xso.Attr(tag="type")
+    name = xso.Attr(tag="name", default=None)
     lang = xso.LangAttr()
 
     def __init__(self, *,
@@ -80,15 +69,11 @@ class Feature(xso.XSO):
 
     TAG = (namespaces.xep0030_info, "feature")
 
-    var = xso.Attr(
-        tag="var",
-        required=True
-    )
+    var = xso.Attr(tag="var")
 
-    def __init__(self, *, var=None):
+    def __init__(self, var):
         super().__init__()
-        if var is not None:
-            self.var = var
+        self.var = var
 
 
 @stanza.IQ.as_payload_class
@@ -116,7 +101,7 @@ class InfoQuery(xso.XSO):
     """
     TAG = (namespaces.xep0030_info, "query")
 
-    node = xso.Attr(tag="node")
+    node = xso.Attr(tag="node", default=None)
 
     identities = xso.ChildList([Identity])
     features = xso.ChildList([Feature])
@@ -155,25 +140,23 @@ class Item(xso.XSO):
         tag="jid",
         type_=xso.JID(),
         # FIXME: validator for full jid
-        required=True,
     )
 
     name = xso.Attr(
-        tag="name"
+        tag="name",
+        default=None,
     )
 
     node = xso.Attr(
-        tag="node"
+        tag="node",
+        default=None,
     )
 
-    def __init__(self, *, jid=None, name=None, node=None):
+    def __init__(self, jid, name=None, node=None):
         super().__init__()
-        if jid is not None:
-            self.jid = jid
-        if name is not None:
-            self.name = name
-        if node is not None:
-            self.node = node
+        self.jid = jid
+        self.name = name
+        self.node = node
 
 
 @stanza.IQ.as_payload_class
@@ -196,7 +179,7 @@ class ItemsQuery(xso.XSO):
     """
     TAG = (namespaces.xep0030_items, "query")
 
-    node = xso.Attr(tag="node")
+    node = xso.Attr(tag="node", default=None)
 
     items = xso.ChildList([Item])
 

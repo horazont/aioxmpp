@@ -262,7 +262,7 @@ class TestService(unittest.TestCase):
         self.assertEqual("some bar user", self.s.items[self.user2].name)
 
     def test_handle_roster_push_rejects_push_with_nonempty_from(self):
-        iq = stanza.IQ()
+        iq = stanza.IQ("set")
         iq.from_ = structs.JID.fromstr("foo@bar.example")
 
         with self.assertRaises(errors.XMPPAuthError) as ctx:
@@ -290,7 +290,7 @@ class TestService(unittest.TestCase):
             ver="foobar"
         )
 
-        iq = stanza.IQ()
+        iq = stanza.IQ("set")
         iq.payload = request
 
         self.assertIsNone(
@@ -314,7 +314,7 @@ class TestService(unittest.TestCase):
             ver="foobarbaz"
         )
 
-        iq = stanza.IQ()
+        iq = stanza.IQ("set")
         iq.payload = request
 
         self.assertIsNone(
@@ -338,7 +338,7 @@ class TestService(unittest.TestCase):
             ver="foobar"
         )
 
-        iq = stanza.IQ()
+        iq = stanza.IQ("set")
         iq.payload = request
 
         self.assertIsNone(
@@ -456,7 +456,7 @@ class TestService(unittest.TestCase):
             ver="foobar"
         )
 
-        iq = stanza.IQ()
+        iq = stanza.IQ("set")
         iq.payload = request
 
         cb = unittest.mock.Mock()
@@ -484,7 +484,7 @@ class TestService(unittest.TestCase):
             ver="foobar"
         )
 
-        iq = stanza.IQ()
+        iq = stanza.IQ("set")
         iq.payload = request
 
         cb = unittest.mock.Mock()
@@ -510,7 +510,7 @@ class TestService(unittest.TestCase):
             ver="foobar"
         )
 
-        iq = stanza.IQ()
+        iq = stanza.IQ("set")
         iq.payload = request
 
         old_item = self.s.items[self.user1]
@@ -540,7 +540,7 @@ class TestService(unittest.TestCase):
             ver="foobar"
         )
 
-        iq = stanza.IQ()
+        iq = stanza.IQ("set")
         iq.payload = request
 
         cb = unittest.mock.Mock()
@@ -751,7 +751,8 @@ class TestService(unittest.TestCase):
             )
         ])
 
-        run_coroutine(self.s.handle_roster_push(stanza.IQ(payload=request)))
+        run_coroutine(self.s.handle_roster_push(stanza.IQ(
+            "set", payload=request)))
 
         self.assertNotIn("group3", self.s.groups)
         self.assertSetEqual(
@@ -789,7 +790,8 @@ class TestService(unittest.TestCase):
             stack.enter_context(
                 self.s.on_entry_removed_from_group.context_connect(removed_cb)
             )
-            run_coroutine(self.s.handle_roster_push(stanza.IQ(payload=request)))
+            run_coroutine(self.s.handle_roster_push(stanza.IQ(
+                "set", payload=request)))
 
         self.assertSequenceEqual(
             [
@@ -860,7 +862,8 @@ class TestService(unittest.TestCase):
             stack.enter_context(
                 self.s.on_entry_removed_from_group.context_connect(removed_cb)
             )
-            run_coroutine(self.s.handle_roster_push(stanza.IQ(payload=request)))
+            run_coroutine(self.s.handle_roster_push(stanza.IQ(
+                "set", payload=request)))
 
         self.assertSequenceEqual([], added_cb.mock_calls)
         self.assertSequenceEqual([], removed_cb.mock_calls)

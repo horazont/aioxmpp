@@ -294,6 +294,7 @@ def _(s):
     """
     return LocalizableString(s)
 
+
 def ngettext(singular, plural, number_index):
     """
     Return a new plural :class:`LocalizableString` with the given arguments;

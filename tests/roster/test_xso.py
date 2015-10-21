@@ -10,6 +10,9 @@ import aioxmpp.xso.model as xso_model
 from aioxmpp.utils import namespaces
 
 
+TEST_JID = structs.JID.fromstr("foo@bar.example")
+
+
 class TestNamespaces(unittest.TestCase):
     def test_roster_namespace(self):
         self.assertEqual(
@@ -112,11 +115,6 @@ class TestItem(unittest.TestCase):
             roster_xso.Item.jid.type_,
             xso.JID
         )
-        self.assertTrue(roster_xso.Item.jid.required)
-        self.assertEqual(
-            None,
-            roster_xso.Item.jid.default
-        )
 
     def test_name_attr(self):
         self.assertIsInstance(
@@ -155,10 +153,6 @@ class TestItem(unittest.TestCase):
             },
             roster_xso.Item.subscription.validator.values
         )
-        self.assertEqual(
-            "none",
-            roster_xso.Item.subscription.default
-        )
 
     def test_groups_attr(self):
         self.assertIsInstance(
@@ -173,15 +167,15 @@ class TestItem(unittest.TestCase):
         )
 
     def test_init(self):
-        item = roster_xso.Item()
-        self.assertIsNone(item.jid)
+        jid = structs.JID.fromstr("foo@bar.example")
+        item = roster_xso.Item(jid)
+        self.assertEqual(item.jid, jid)
         self.assertIsNone(item.name)
         self.assertSequenceEqual([], item.groups)
         self.assertEqual("none", item.subscription)
         self.assertIs(False, item.approved)
         self.assertIsNone(item.ask)
 
-        jid = structs.JID.fromstr("foo@bar.example")
         group = roster_xso.Group()
         item = roster_xso.Item(
             jid=jid,
@@ -235,7 +229,7 @@ class TestQuery(unittest.TestCase):
         self.assertIsNone(q.ver)
         self.assertSequenceEqual([], q.items)
 
-        item = roster_xso.Item()
+        item = roster_xso.Item(TEST_JID)
         q = roster_xso.Query(
             ver="foobar",
             items=(item,)

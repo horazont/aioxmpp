@@ -16,6 +16,9 @@ from aioxmpp.testutils import (
 )
 
 
+TEST_JID = structs.JID.fromstr("foo@bar.example")
+
+
 class TestNode(unittest.TestCase):
     def test_init(self):
         n = disco_service.Node()
@@ -248,8 +251,8 @@ class TestStaticNode(unittest.TestCase):
         self.assertIsInstance(self.n, disco_service.Node)
 
     def test_add_items(self):
-        item1 = disco_xso.Item()
-        item2 = disco_xso.Item()
+        item1 = disco_xso.Item(TEST_JID.replace(localpart="foo"))
+        item2 = disco_xso.Item(TEST_JID.replace(localpart="bar"))
         self.n.items.append(item1)
         self.n.items.append(item2)
 
@@ -269,12 +272,14 @@ class TestService(unittest.TestCase):
         self.cc.reset_mock()
 
         self.request_iq = stanza.IQ(
+            "get",
             from_=structs.JID.fromstr("user@foo.example/res1"),
             to=structs.JID.fromstr("user@bar.example/res2"))
         self.request_iq.autoset_id()
         self.request_iq.payload = disco_xso.InfoQuery()
 
         self.request_items_iq = stanza.IQ(
+            "get",
             from_=structs.JID.fromstr("user@foo.example/res1"),
             to=structs.JID.fromstr("user@bar.example/res2"))
         self.request_items_iq.autoset_id()
@@ -728,8 +733,8 @@ class TestService(unittest.TestCase):
             )
 
     def test_items_query_returns_items_of_mounted_node(self):
-        item1 = disco_xso.Item()
-        item2 = disco_xso.Item()
+        item1 = disco_xso.Item(TEST_JID.replace(localpart="foo"))
+        item2 = disco_xso.Item(TEST_JID.replace(localpart="bar"))
 
         node = disco_service.StaticNode()
         node.register_identity("hierarchy", "leaf")

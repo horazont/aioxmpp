@@ -265,10 +265,9 @@ class TestSMEnabled(unittest.TestCase):
 
 
 class TestSMResume(unittest.TestCase):
-    def test_default_init(self):
-        obj = stream_xsos.SMResume()
-        self.assertIsNone(obj.counter)
-        self.assertIsNone(obj.previd)
+    def test_default_init_not_possible(self):
+        with self.assertRaises(TypeError):
+            stream_xsos.SMResume()
 
     def test_init(self):
         obj = stream_xsos.SMResume(
@@ -280,9 +279,8 @@ class TestSMResume(unittest.TestCase):
 
 class TestSMResumed(unittest.TestCase):
     def test_default_init(self):
-        obj = stream_xsos.SMResumed()
-        self.assertIsNone(obj.counter)
-        self.assertIsNone(obj.previd)
+        with self.assertRaises(TypeError):
+            stream_xsos.SMResumed()
 
     def test_init(self):
         obj = stream_xsos.SMResumed(

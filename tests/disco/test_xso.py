@@ -43,10 +43,10 @@ class TestIdentity(unittest.TestCase):
             (None, "category"),
             disco_xso.Identity.category.tag
         )
-        self.assertIsNone(
+        self.assertIs(
+            xso.NO_DEFAULT,
             disco_xso.Identity.category.default
         )
-        self.assertTrue(disco_xso.Identity.category.required)
 
     def test_type_attr(self):
         self.assertIsInstance(
@@ -57,10 +57,10 @@ class TestIdentity(unittest.TestCase):
             (None, "type"),
             disco_xso.Identity.type_.tag
         )
-        self.assertIsNone(
+        self.assertIs(
+            xso.NO_DEFAULT,
             disco_xso.Identity.type_.default
         )
-        self.assertTrue(disco_xso.Identity.type_.required)
 
     def test_name_attr(self):
         self.assertIsInstance(
@@ -71,12 +71,15 @@ class TestIdentity(unittest.TestCase):
             (None, "name"),
             disco_xso.Identity.name.tag
         )
-        self.assertFalse(disco_xso.Identity.name.required)
+        self.assertIs(disco_xso.Identity.name.default, None)
 
     def test_lang_attr(self):
         self.assertIsInstance(
             disco_xso.Identity.lang,
             xso.LangAttr
+        )
+        self.assertIsNone(
+            disco_xso.Identity.lang.default
         )
 
     def test_init(self):
@@ -117,11 +120,14 @@ class TestFeature(unittest.TestCase):
             (None, "var"),
             disco_xso.Feature.var.tag
         )
-        self.assertTrue(disco_xso.Feature.var.required)
+        self.assertIs(
+            xso.NO_DEFAULT,
+            disco_xso.Feature.var.default
+        )
 
     def test_init(self):
-        f = disco_xso.Feature()
-        self.assertIsNone(f.var)
+        with self.assertRaises(TypeError):
+            disco_xso.Feature()
 
         f = disco_xso.Feature(var="foobar")
         self.assertEqual("foobar", f.var)
@@ -146,7 +152,7 @@ class TestInfoQuery(unittest.TestCase):
             (None, "node"),
             disco_xso.InfoQuery.node.tag
         )
-        self.assertFalse(disco_xso.InfoQuery.node.required)
+        self.assertIs(disco_xso.InfoQuery.node.default, None)
 
     def test_identities_attr(self):
         self.assertIsInstance(
@@ -219,7 +225,10 @@ class TestItem(unittest.TestCase):
             disco_xso.Item.jid.type_,
             xso.JID
         )
-        self.assertTrue(disco_xso.Item.jid.required)
+        self.assertIs(
+            disco_xso.Item.jid.default,
+            xso.NO_DEFAULT
+        )
 
     def test_name_attr(self):
         self.assertIsInstance(
@@ -230,7 +239,7 @@ class TestItem(unittest.TestCase):
             (None, "name"),
             disco_xso.Item.name.tag
         )
-        self.assertFalse(disco_xso.Item.name.required)
+        self.assertIs(disco_xso.Item.name.default, None)
 
     def test_node_attr(self):
         self.assertIsInstance(
@@ -241,7 +250,7 @@ class TestItem(unittest.TestCase):
             (None, "node"),
             disco_xso.Item.node.tag
         )
-        self.assertFalse(disco_xso.Item.node.required)
+        self.assertIs(disco_xso.Item.node.default, None)
 
     def test_unknown_child_policy(self):
         self.assertEqual(
@@ -250,12 +259,14 @@ class TestItem(unittest.TestCase):
         )
 
     def test_init(self):
-        item = disco_xso.Item()
-        self.assertIsNone(item.jid)
+        with self.assertRaises(TypeError):
+            disco_xso.Item()
+        jid = structs.JID.fromstr("foo@bar.example/baz")
+
+        item = disco_xso.Item(jid)
         self.assertIsNone(item.name)
         self.assertIsNone(item.node)
 
-        jid = structs.JID.fromstr("foo@bar.example/baz")
         item = disco_xso.Item(jid=jid, name="fnord", node="test")
         self.assertEqual(jid, item.jid)
         self.assertEqual("fnord", item.name)
@@ -281,7 +292,7 @@ class TestItemsQuery(unittest.TestCase):
             (None, "node"),
             disco_xso.ItemsQuery.node.tag
         )
-        self.assertFalse(disco_xso.ItemsQuery.node.required)
+        self.assertIs(disco_xso.ItemsQuery.node.default, None)
 
     def test_items_attr(self):
         self.assertIsInstance(

@@ -178,8 +178,7 @@ class Error(xso.XSO):
             "continue",
             "modify",
             "wait",
-        }),
-        required=True,
+        })
     )
     text = xso.ChildText(
         tag=(namespaces.stanzas, "text"),
@@ -190,7 +189,6 @@ class Error(xso.XSO):
         tags=STANZA_ERROR_TAGS,
         default_ns="urn:ietf:params:xml:ns:xmpp-stanzas",
         allow_none=False,
-        default=("urn:ietf:params:xml:ns:xmpp-stanzas", "undefined-condition"),
         declare_prefix=None,
     )
 
@@ -271,10 +269,12 @@ class StanzaBase(xso.XSO):
 
     from_ = xso.Attr(
         tag="from",
-        type_=xso.JID())
+        type_=xso.JID(),
+        default=None)
     to = xso.Attr(
         tag="to",
-        type_=xso.JID())
+        type_=xso.JID(),
+        default=None)
 
     lang = xso.LangAttr(
         tag=(namespaces.xml, "lang")
@@ -305,7 +305,11 @@ class StanzaBase(xso.XSO):
            define the :attr:`id_` attribute.
 
         """
-        if self.id_:
+        try:
+            self.id_
+        except AttributeError:
+            pass
+        else:
             return
 
         self.id_ = base64.b64encode(random.getrandbits(
@@ -314,8 +318,8 @@ class StanzaBase(xso.XSO):
             RANDOM_ID_BYTES, "little"
         )).decode("ascii")
 
-    def _make_reply(self):
-        obj = type(self)()
+    def _make_reply(self, type_):
+        obj = type(self)(type_)
         obj.from_ = self.to
         obj.to = self.from_
         obj.id_ = self.id_
@@ -361,7 +365,8 @@ class Thread(xso.XSO):
     parent = xso.Attr(
         tag="parent",
         validator=xso.Nmtoken(),
-        validate=xso.ValidateMode.FROM_CODE
+        validate=xso.ValidateMode.FROM_CODE,
+        default=None
     )
 
 
@@ -452,7 +457,7 @@ class Message(StanzaBase):
 
     TAG = (namespaces.client, "message")
 
-    id_ = xso.Attr(tag="id")
+    id_ = xso.Attr(tag="id", default=None)
     type_ = xso.Attr(
         tag="type",
         validator=xso.RestrictToSet({
@@ -460,8 +465,7 @@ class Message(StanzaBase):
             "groupchat",
             "error",
             "headline",
-            "normal"}),
-        required=True
+            "normal"})
     )
 
     body = xso.ChildList([Body])
@@ -469,7 +473,7 @@ class Message(StanzaBase):
     thread = xso.Child([Thread])
     ext = xso.ChildMap([])
 
-    def __init__(self, *, type_="chat", **kwargs):
+    def __init__(self, type_, **kwargs):
         super().__init__(**kwargs)
         self.type_ = type_
 
@@ -482,8 +486,7 @@ class Message(StanzaBase):
 
         The new :class:`Message` object is returned.
         """
-        obj = super()._make_reply()
-        obj.type_ = self.type_
+        obj = super()._make_reply(self.type_)
         obj.id_ = None
         return obj
 
@@ -560,7 +563,7 @@ class Presence(StanzaBase):
 
     TAG = (namespaces.client, "presence")
 
-    id_ = xso.Attr(tag="id")
+    id_ = xso.Attr(tag="id", default=None)
     type_ = xso.Attr(
         tag="type",
         validator=xso.RestrictToSet({
@@ -571,7 +574,7 @@ class Presence(StanzaBase):
             "unavailable",
             "unsubscribe",
             "unsubscribed"}),
-        required=False,
+        default=None,
     )
 
     show = xso.ChildText(
@@ -583,7 +586,8 @@ class Presence(StanzaBase):
             None,
             "chat",
         }),
-        validate=xso.ValidateMode.ALWAYS
+        validate=xso.ValidateMode.ALWAYS,
+        default=None,
     )
 
     status = xso.ChildList([Status])
@@ -644,35 +648,34 @@ class IQ(StanzaBase):
     """
     TAG = (namespaces.client, "iq")
 
-    id_ = xso.Attr(tag="id", required=True)
+    id_ = xso.Attr(tag="id")
     type_ = xso.Attr(
         tag="type",
         validator=xso.RestrictToSet({
             "get",
             "set",
             "result",
-            "error"}),
-        required=True,
+            "error"})
     )
     payload = xso.Child([])
 
-    def __init__(self, *, type_=None, payload=None, error=None, **kwargs):
+    def __init__(self, type_, *, payload=None, error=None, **kwargs):
         super().__init__(**kwargs)
-        if type_ is not None:
-            self.type_ = type_
+        self.type_ = type_
         self.payload = payload
         self.error = error
 
     def validate(self):
+        try:
+            self.id_
+        except AttributeError:
+            raise ValueError("IQ requires ID") from None
         super().validate()
-        if not self.id_:
-            raise ValueError("IQ requires ID")
 
     def make_reply(self, type_):
         if self.type_ != "get" and self.type_ != "set":
             raise ValueError("make_reply requires request IQ")
-        obj = super()._make_reply()
-        obj.type_ = type_
+        obj = super()._make_reply(type_)
         return obj
 
     def xso_error_handler(self, descriptor, ev_args, exc_info):

@@ -88,14 +88,14 @@ class StreamError(xso.XSO):
         ],
         default_ns=namespaces.streams,
         allow_none=False,
-        default=(namespaces.streams, "undefined-condition"),
         declare_prefix=None,
     )
 
-    def __init__(self, condition=None, text=None):
+    def __init__(self,
+                 condition=(namespaces.streams, "undefined-condition"),
+                 text=None):
         super().__init__()
-        if condition is not None:
-            self.condition = condition
+        self.condition = condition
         self.text = text
 
     @classmethod
@@ -271,8 +271,7 @@ class SMAcknowledgement(SMXSO):
 
     counter = xso.Attr(
         "h",
-        type_=xso.Integer(),
-        required=True,
+        type_=xso.Integer()
     )
 
     def __init__(self, counter=0, **kwargs):
@@ -368,19 +367,14 @@ class SMResume(SMXSO):
 
     counter = xso.Attr(
         "h",
-        type_=xso.Integer(),
-        required=True,
+        type_=xso.Integer()
     )
-    previd = xso.Attr(
-        "previd",
-        required=True)
+    previd = xso.Attr("previd")
 
-    def __init__(self, counter=None, previd=None):
+    def __init__(self, counter, previd):
         super().__init__()
-        if counter is not None:
-            self.counter = counter
-        if previd is not None:
-            self.previd = previd
+        self.counter = counter
+        self.previd = previd
 
 
 class SMResumed(SMXSO):
@@ -402,18 +396,13 @@ class SMResumed(SMXSO):
 
     counter = xso.Attr(
         "h",
-        type_=xso.Integer(),
-        required=True)
-    previd = xso.Attr(
-        "previd",
-        required=True)
+        type_=xso.Integer())
+    previd = xso.Attr("previd")
 
-    def __init__(self, counter=None, previd=None):
+    def __init__(self, counter, previd):
         super().__init__()
-        if counter is not None:
-            self.counter = counter
-        if previd is not None:
-            self.previd = previd
+        self.counter = counter
+        self.previd = previd
 
 
 class SMFailed(SMXSO):
@@ -427,11 +416,12 @@ class SMFailed(SMXSO):
         tags=stanza.STANZA_ERROR_TAGS,
         default_ns=namespaces.stanzas,
         allow_none=False,
-        default=(namespaces.stanzas, "undefined-condition"),
         declare_prefix=None,
     )
 
-    def __init__(self, condition=None, **kwargs):
+    def __init__(self,
+                 condition=(namespaces.stanzas, "undefined-condition"),
+                 **kwargs):
         super().__init__(**kwargs)
         if condition is not None:
             self.condition = condition

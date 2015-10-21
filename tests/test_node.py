@@ -900,7 +900,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
         self.client.negotiation_timeout = timedelta(seconds=0.01)
         self.client.start()
 
-        iq = stanza.IQ()
+        iq = stanza.IQ("get")
         iq.autoset_id()
         @asyncio.coroutine
         def stimulus():
@@ -1097,7 +1097,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
                     stream_xsos.SMResume(counter=0, previd="foobar"),
                     response=[
                         XMLStreamMock.Receive(
-                            stream_xsos.SMResumed(counter=0)
+                            stream_xsos.SMResumed(counter=0, previd="foobar")
                         )
                     ]
                 )
@@ -1175,7 +1175,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
                 stream_xsos.SMResume(counter=0, previd="foobar"),
                 response=[
                     XMLStreamMock.Receive(
-                        stream_xsos.SMResumed(counter=0)
+                        stream_xsos.SMResumed(counter=0, previd="foobar")
                     )
                 ]
             )
