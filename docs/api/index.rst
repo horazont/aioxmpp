@@ -10,6 +10,7 @@ The API reference provides the documented API of :mod:`aioxmpp`.
 .. toctree::
    :maxdepth: 2
 
+   stability.rst
    public/index.rst
    plugins/index.rst
    extension/index.rst
