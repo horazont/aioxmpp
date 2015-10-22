@@ -14,3 +14,4 @@ The API reference provides the documented API of :mod:`aioxmpp`.
    plugins/index.rst
    extension/index.rst
    internal/index.rst
+   changelog.rst
