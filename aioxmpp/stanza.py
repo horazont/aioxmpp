@@ -158,6 +158,16 @@ class Error(xso.XSO):
        The descriptive error text which is part of the error stanza, if any
        (otherwise :data:`None`).
 
+    Any child elements unknown to the XSO are dropped. This is to support
+    application-specific conditions used by other applications. To register
+    your own use :meth:`.xso.XSO.register_child` on
+    :attr:`application_condition`:
+
+    .. attribute:: application_condition
+
+       A :class:`.xso.XSO.Child` which can be used to register support for
+       application-specific errors.
+
     """
 
     TAG = (namespaces.client, "error")
@@ -170,6 +180,8 @@ class Error(xso.XSO):
         "continue": errors.XMPPContinueError,
     }
 
+    UNKNOWN_CHILD_POLICY = xso.UnknownChildPolicy.DROP
+
     type_ = xso.Attr(
         tag="type",
         validator=xso.RestrictToSet({
@@ -180,17 +192,21 @@ class Error(xso.XSO):
             "wait",
         })
     )
+
     text = xso.ChildText(
         tag=(namespaces.stanzas, "text"),
         attr_policy=xso.UnknownAttrPolicy.DROP,
         default=None,
         declare_prefix=None)
+
     condition = xso.ChildTag(
         tags=STANZA_ERROR_TAGS,
         default_ns="urn:ietf:params:xml:ns:xmpp-stanzas",
         allow_none=False,
         declare_prefix=None,
     )
+
+    application_condition = xso.Child([], required=False)
 
     def __init__(self,
                  condition=(namespaces.stanzas, "undefined-condition"),

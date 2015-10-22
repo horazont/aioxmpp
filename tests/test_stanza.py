@@ -419,6 +419,12 @@ class TestError(unittest.TestCase):
             ("jabber:client", "error"),
             stanza.Error.TAG)
 
+    def test_unknown_child_policy(self):
+        self.assertIs(
+            stanza.Error.UNKNOWN_CHILD_POLICY,
+            xso.UnknownChildPolicy.DROP
+        )
+
     def test_type_attr(self):
         self.assertIsInstance(
             stanza.Error.type_,
@@ -438,6 +444,12 @@ class TestError(unittest.TestCase):
                 "wait",
             },
             stanza.Error.type_.validator.values)
+
+    def test_application_condition_attr(self):
+        self.assertIsInstance(
+            stanza.Error.application_condition,
+            xso.Child)
+        self.assertFalse(stanza.Error.application_condition.required)
 
     def test_from_exception(self):
         exc = errors.XMPPWaitError(
