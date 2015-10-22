@@ -146,7 +146,9 @@ class XSOList(list):
 
     def _filter_lang(self, chained_results, lang):
         # first, filter on availability of the "lang" attribute
-        result = [item for item in chained_results if hasattr(item, "lang")]
+        result = [item
+                  for item in chained_results
+                  if hasattr(item, "lang") and item.lang is not None]
 
         # get a sorted list of all languages in the current result set
         languages = sorted(

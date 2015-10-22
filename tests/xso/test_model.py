@@ -1893,6 +1893,20 @@ class TestXSOList(unittest.TestCase):
                                   structs.LanguageRange.fromstr("de-ch")])
         )
 
+    def test_filter_by_languages_skips_None(self):
+        self.a_s[0].lang = structs.LanguageTag.fromstr("en-GB")
+        self.a_s[1].lang = structs.LanguageTag.fromstr("en-gb")
+        self.a_s[2].lang = structs.LanguageTag.fromstr("de-DE")
+
+        self.b_s[0].lang = structs.LanguageTag.fromstr("fr")
+        self.b_s[1].lang = None
+
+        self.assertSequenceEqual(
+            [self.a_s[2]],
+            self.l.filtered(lang=[structs.LanguageRange.fromstr("in"),
+                                  structs.LanguageRange.fromstr("de-ch")])
+        )
+
     def test_filter_by_generic_attribute(self):
         self.a_s[0].foo = "a"
         self.a_s[1].foo = "b"
