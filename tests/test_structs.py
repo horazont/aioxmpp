@@ -219,6 +219,30 @@ class TestJID(unittest.TestCase):
         with self.assertRaises(ValueError):
             structs.JID.fromstr("foo@bar.baz/")
 
+    def test_reject_long_localpart(self):
+        with self.assertRaisesRegexp(ValueError, "too long"):
+            structs.JID("x"*1024, "foo", None)
+        with self.assertRaisesRegexp(ValueError, "too long"):
+            structs.JID("ü"*512, "foo", None)
+        with self.assertRaisesRegexp(ValueError, "too long"):
+            structs.JID.fromstr("ü"*512 + "@foo")
+
+    def test_reject_long_domainpart(self):
+        with self.assertRaisesRegexp(ValueError, "too long"):
+            structs.JID(None, "x"*1024, None)
+        with self.assertRaisesRegexp(ValueError, "too long"):
+            structs.JID(None, "ü"*512, None)
+        with self.assertRaisesRegexp(ValueError, "too long"):
+            structs.JID.fromstr("ü"*512)
+
+    def test_reject_long_resource(self):
+        with self.assertRaisesRegexp(ValueError, "too long"):
+            structs.JID(None, "foo", "x"*1024)
+        with self.assertRaisesRegexp(ValueError, "too long"):
+            structs.JID(None, "foo", "ü"*512)
+        with self.assertRaisesRegexp(ValueError, "too long"):
+            structs.JID.fromstr("foo/" + "ü"*512)
+
 
 class TestPresenceState(unittest.TestCase):
     def test_immutable(self):

@@ -75,10 +75,18 @@ class JID(collections.namedtuple("JID", ["localpart", "domain", "resource"])):
 
         if not domain:
             raise ValueError("domain must not be empty or None")
-        if localpart is not None and not localpart:
-            raise ValueError("localpart must not be empty")
-        if resource is not None and not resource:
-            raise ValueError("resource must not be empty")
+        if len(domain.encode("utf-8")) > 1023:
+            raise ValueError("domain too long")
+        if localpart is not None:
+            if not localpart:
+                raise ValueError("localpart must not be empty")
+            if len(localpart.encode("utf-8")) > 1023:
+                raise ValueError("localpart too long")
+        if resource is not None:
+            if not resource:
+                raise ValueError("resource must not be empty")
+            if len(resource.encode("utf-8")) > 1023:
+                raise ValueError("resource too long")
 
         return super().__new__(cls, localpart, domain, resource)
 
