@@ -66,17 +66,20 @@ class JID(collections.namedtuple("JID", ["localpart", "domain", "resource"])):
     __slots__ = []
 
     def __new__(cls, localpart, domain, resource):
+        if localpart:
+            localpart = nodeprep(localpart)
+        if domain is not None:
+            domain = nameprep(domain)
+        if resource:
+            resource = resourceprep(resource)
+
         if not domain:
             raise ValueError("domain must not be empty or None")
+        if localpart is not None and not localpart:
+            raise ValueError("localpart must not be empty")
+        if resource is not None and not resource:
+            raise ValueError("resource must not be empty")
 
-        localpart = localpart or None
-        resource = resource or None
-
-        if localpart is not None:
-            localpart = nodeprep(localpart)
-        domain = nameprep(domain)
-        if resource is not None:
-            resource = resourceprep(resource)
         return super().__new__(cls, localpart, domain, resource)
 
     def replace(self, **kwargs):
@@ -163,7 +166,9 @@ class JID(collections.namedtuple("JID", ["localpart", "domain", "resource"])):
             domain = localpart
             localpart = None
 
-        domain, _, resource = domain.partition("/")
+        domain, sep, resource = domain.partition("/")
+        if not sep:
+            resource = None
         return cls(localpart, domain, resource)
 
 

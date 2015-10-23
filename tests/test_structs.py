@@ -28,15 +28,15 @@ class TestJID(unittest.TestCase):
 
         self.assertEqual(
             "ssa",
-            structs.JID("ßA", "example.test", "").localpart)
+            structs.JID("ßA", "example.test", None).localpart)
 
         self.assertEqual(
             "ix.test",
-            structs.JID("", "IX.test", "").domain)
+            structs.JID(None, "IX.test", None).domain)
 
         self.assertEqual(
             "IX",
-            structs.JID("", "example.test", "\u2168").resource)
+            structs.JID(None, "example.test", "\u2168").resource)
 
     def test_replace(self):
         j = structs.JID("foo", "example.com", "bar")
@@ -146,14 +146,6 @@ class TestJID(unittest.TestCase):
         with self.assertRaises(TypeError):
             j.replace(foobar="baz")
 
-    def test_alias_empty_to_none(self):
-        j = structs.JID("", "example.test", "")
-        self.assertIsNone(j.resource)
-        self.assertIsNone(j.localpart)
-        self.assertEqual(
-            "example.test",
-            j.domain)
-
     def test_immutable(self):
         j = structs.JID(None, "example.test", None)
         with self.assertRaises(AttributeError):
@@ -208,6 +200,24 @@ class TestJID(unittest.TestCase):
             structs.JID(None, "IX.test", None),
             structs.JID.fromstr("ix.test")
         )
+
+    def test_reject_empty_localpart(self):
+        with self.assertRaises(ValueError):
+            structs.JID("", "bar.baz", None)
+        with self.assertRaises(ValueError):
+            structs.JID.fromstr("@bar.baz")
+
+    def test_reject_empty_domainpart(self):
+        with self.assertRaises(ValueError):
+            structs.JID("foo", "", None)
+        with self.assertRaises(ValueError):
+            structs.JID.fromstr("foo@")
+
+    def test_reject_empty_resource(self):
+        with self.assertRaises(ValueError):
+            structs.JID("foo", "bar.baz", "")
+        with self.assertRaises(ValueError):
+            structs.JID.fromstr("foo@bar.baz/")
 
 
 class TestPresenceState(unittest.TestCase):
