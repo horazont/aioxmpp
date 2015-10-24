@@ -11,7 +11,7 @@ class BindFeature(xso.XSO):
     class Required(xso.XSO):
         TAG = (namespaces.rfc6120_bind, "required")
 
-    required = xso.Child([Required])
+    required = xso.Child([Required], required=False)
 
 class Bind(xso.XSO):
     TAG = (namespaces.rfc6120_bind, "bind")
@@ -22,6 +22,7 @@ class Bind(xso.XSO):
     )
     resource = xso.ChildText(
         (namespaces.rfc6120_bind, "resource"),
+        default=None
     )
 
     def __init__(self, jid=None, resource=None):

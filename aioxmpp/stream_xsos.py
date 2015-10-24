@@ -335,7 +335,8 @@ class SMEnabled(SMXSO):
         default=None)
     max_ = xso.Attr(
         "max",
-        type_=xso.Integer())
+        type_=xso.Integer(),
+        default=None)
 
     def __init__(self,
                  resume=False,

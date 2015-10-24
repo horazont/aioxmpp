@@ -224,7 +224,33 @@ class TestStreamFeatures(unittest.TestCase):
         )
 
 
+class TestSMRequest(unittest.TestCase):
+    def test_is_sm_xso(self):
+        self.assertTrue(issubclass(
+            stream_xsos.SMRequest,
+            stream_xsos.SMXSO
+        ))
+
+    def test_tag(self):
+        self.assertEqual(
+            stream_xsos.SMRequest.TAG,
+            (namespaces.stream_management, "r")
+        )
+
+
 class TestSMAcknowledgement(unittest.TestCase):
+    def test_is_sm_xso(self):
+        self.assertTrue(issubclass(
+            stream_xsos.SMAcknowledgement,
+            stream_xsos.SMXSO
+        ))
+
+    def test_tag(self):
+        self.assertEqual(
+            stream_xsos.SMAcknowledgement.TAG,
+            (namespaces.stream_management, "a")
+        )
+
     def test_default_init(self):
         obj = stream_xsos.SMAcknowledgement()
         self.assertEqual(0, obj.counter)
@@ -235,6 +261,18 @@ class TestSMAcknowledgement(unittest.TestCase):
 
 
 class TestSMEnable(unittest.TestCase):
+    def test_is_sm_xso(self):
+        self.assertTrue(issubclass(
+            stream_xsos.SMEnable,
+            stream_xsos.SMXSO
+        ))
+
+    def test_tag(self):
+        self.assertEqual(
+            stream_xsos.SMEnable.TAG,
+            (namespaces.stream_management, "enable")
+        )
+
     def test_default_init(self):
         obj = stream_xsos.SMEnable()
         self.assertFalse(obj.resume)
@@ -243,8 +281,38 @@ class TestSMEnable(unittest.TestCase):
         obj = stream_xsos.SMEnable(resume=True)
         self.assertTrue(obj.resume)
 
+    def test_resume(self):
+        self.assertIsInstance(
+            stream_xsos.SMEnable.resume,
+            xso.Attr
+        )
+        self.assertEqual(
+            (None, "resume"),
+            stream_xsos.SMEnable.resume.tag
+        )
+        self.assertIsInstance(
+            stream_xsos.SMEnable.resume.type_,
+            xso.Bool
+        )
+        self.assertIs(
+            stream_xsos.SMEnable.resume.default,
+            False
+        )
+
 
 class TestSMEnabled(unittest.TestCase):
+    def test_is_sm_xso(self):
+        self.assertTrue(issubclass(
+            stream_xsos.SMEnabled,
+            stream_xsos.SMXSO
+        ))
+
+    def test_tag(self):
+        self.assertEqual(
+            stream_xsos.SMEnabled.TAG,
+            (namespaces.stream_management, "enabled")
+        )
+
     def test_default_init(self):
         obj = stream_xsos.SMEnabled()
         self.assertFalse(obj.resume)
@@ -263,8 +331,88 @@ class TestSMEnabled(unittest.TestCase):
         self.assertEqual(("bar", 1234), obj.location)
         self.assertEqual(1023, obj.max_)
 
+    def test_id(self):
+        self.assertIsInstance(
+            stream_xsos.SMEnabled.id_,
+            xso.Attr
+        )
+        self.assertEqual(
+            (None, "id"),
+            stream_xsos.SMEnabled.id_.tag
+        )
+        self.assertIs(
+            stream_xsos.SMEnabled.id_.default,
+            xso.NO_DEFAULT
+        )
+
+    def test_location(self):
+        self.assertIsInstance(
+            stream_xsos.SMEnabled.location,
+            xso.Attr
+        )
+        self.assertEqual(
+            (None, "location"),
+            stream_xsos.SMEnabled.location.tag
+        )
+        self.assertIsInstance(
+            stream_xsos.SMEnabled.location.type_,
+            xso.ConnectionLocation
+        )
+        self.assertIs(
+            stream_xsos.SMEnabled.location.default,
+            None
+        )
+
+    def test_max(self):
+        self.assertIsInstance(
+            stream_xsos.SMEnabled.max_,
+            xso.Attr
+        )
+        self.assertEqual(
+            (None, "max"),
+            stream_xsos.SMEnabled.max_.tag
+        )
+        self.assertIsInstance(
+            stream_xsos.SMEnabled.max_.type_,
+            xso.Integer
+        )
+        self.assertIs(
+            stream_xsos.SMEnabled.max_.default,
+            None
+        )
+
+    def test_resume(self):
+        self.assertIsInstance(
+            stream_xsos.SMEnabled.resume,
+            xso.Attr
+        )
+        self.assertEqual(
+            (None, "resume"),
+            stream_xsos.SMEnabled.resume.tag
+        )
+        self.assertIsInstance(
+            stream_xsos.SMEnabled.resume.type_,
+            xso.Bool
+        )
+        self.assertIs(
+            stream_xsos.SMEnabled.resume.default,
+            False
+        )
+
 
 class TestSMResume(unittest.TestCase):
+    def test_is_sm_xso(self):
+        self.assertTrue(issubclass(
+            stream_xsos.SMResume,
+            stream_xsos.SMXSO
+        ))
+
+    def test_tag(self):
+        self.assertEqual(
+            stream_xsos.SMResume.TAG,
+            (namespaces.stream_management, "resume")
+        )
+
     def test_default_init_not_possible(self):
         with self.assertRaises(TypeError):
             stream_xsos.SMResume()
@@ -276,8 +424,44 @@ class TestSMResume(unittest.TestCase):
         self.assertEqual(1, obj.counter)
         self.assertEqual("foobar", obj.previd)
 
+    def test_resume(self):
+        self.assertIsInstance(
+            stream_xsos.SMResume.counter,
+            xso.Attr
+        )
+        self.assertEqual(
+            (None, "h"),
+            stream_xsos.SMResume.counter.tag
+        )
+        self.assertIsInstance(
+            stream_xsos.SMResume.counter.type_,
+            xso.Integer
+        )
+
+    def test_previd(self):
+        self.assertIsInstance(
+            stream_xsos.SMResume.previd,
+            xso.Attr
+        )
+        self.assertEqual(
+            (None, "previd"),
+            stream_xsos.SMResume.previd.tag
+        )
+
 
 class TestSMResumed(unittest.TestCase):
+    def test_is_sm_xso(self):
+        self.assertTrue(issubclass(
+            stream_xsos.SMResumed,
+            stream_xsos.SMXSO
+        ))
+
+    def test_tag(self):
+        self.assertEqual(
+            stream_xsos.SMResumed.TAG,
+            (namespaces.stream_management, "resumed")
+        )
+
     def test_default_init(self):
         with self.assertRaises(TypeError):
             stream_xsos.SMResumed()
@@ -289,8 +473,44 @@ class TestSMResumed(unittest.TestCase):
         self.assertEqual(1, obj.counter)
         self.assertEqual("foobar", obj.previd)
 
+    def test_resume(self):
+        self.assertIsInstance(
+            stream_xsos.SMResumed.counter,
+            xso.Attr
+        )
+        self.assertEqual(
+            (None, "h"),
+            stream_xsos.SMResumed.counter.tag
+        )
+        self.assertIsInstance(
+            stream_xsos.SMResumed.counter.type_,
+            xso.Integer
+        )
+
+    def test_previd(self):
+        self.assertIsInstance(
+            stream_xsos.SMResumed.previd,
+            xso.Attr
+        )
+        self.assertEqual(
+            (None, "previd"),
+            stream_xsos.SMResumed.previd.tag
+        )
+
 
 class TestSMFailed(unittest.TestCase):
+    def test_is_sm_xso(self):
+        self.assertTrue(issubclass(
+            stream_xsos.SMFailed,
+            stream_xsos.SMXSO
+        ))
+
+    def test_tag(self):
+        self.assertEqual(
+            stream_xsos.SMFailed.TAG,
+            (namespaces.stream_management, "failed")
+        )
+
     def test_default_init(self):
         obj = stream_xsos.SMFailed()
         self.assertEqual(
