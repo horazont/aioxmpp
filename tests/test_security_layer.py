@@ -156,8 +156,7 @@ CpUCTPJ5GhD22Dp1nPMd8aINcGeGG7MW9S/lpOt5hvk9C8JzC6WZrG/8Z7jlLwum
 GCSNe9FINSkYQKyTYOGWhlC0elnYjyELn8+CkcY7v2vcB5G5l1YjqrZslMZIBjzk
 zk6q5PYvCdxTby78dOs6Y5nCpqyJvKeyRKANihDjbPIky/qbn3BHLt4Ui9SyIAmW
 omTxJBzcoTWcFbLUvFUufQb1nA5V9FrWk9p2rSVzTMVD
------END CERTIFICATE-----
-"""
+-----END CERTIFICATE-----\n"""
 # END OF variable covered by the above license
 
 crt_zombofant_net = b"""\
@@ -196,8 +195,7 @@ DKkO6BDIyEuopYlyVoiBBQbzJTG2/P5/tzHZJGOjy4R9wZERj3Ol4COvVFnM28sU
 tv785oJggyTqCsRHxFxv3ouYrC6O3imDdhfuWTBep4o+OwII9K0T2/i3aPsX92Zg
 d11q4Mhgsy1A8B1T+cwPzRQ8aa1//QGOa7KQ5lIYRQGq6Clg7XfZWeKsYOAoUGaS
 74eNdQYv+etdKem7oSf/oA/aSKGeyVqgvf2/WH0=
------END CERTIFICATE-----
-"""
+-----END CERTIFICATE-----\n"""
 
 
 class Testextract_python_dict_from_x509(unittest.TestCase):
