@@ -237,8 +237,9 @@ class CertificateVerifier(metaclass=abc.ABCMeta):
 
 
 class _NullVerifier(CertificateVerifier):
-    def setup_context(self, ctx):
-        ctx.set_verify(OpenSSL.SSL.VERIFY_NONE, self._callback_wrapper)
+    def setup_context(self, ctx, transport):
+        self.transport = transport
+        ctx.set_verify(OpenSSL.SSL.VERIFY_NONE, self.verify_callback)
 
     def verify_callback(self, *args):
         return True
