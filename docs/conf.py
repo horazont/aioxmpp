@@ -111,6 +111,7 @@ html_theme_options = {
 html_sidebars = {
     '**': [
         'about.html',
+        'localtoc.html',
         'navigation.html',
         'relations.html',
         'searchbox.html',
