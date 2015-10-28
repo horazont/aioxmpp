@@ -586,7 +586,7 @@ class AbstractClient:
         are not there already). Afterwards, the class itself is summoned and
         the instance is returned.
         """
-        requirements = sorted(class_.SERVICE_AFTER)
+        requirements = sorted(class_.ORDER_AFTER)
         for req in requirements:
             self._summon(req)
         return self._summon(class_)

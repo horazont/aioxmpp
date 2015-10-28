@@ -25,3 +25,15 @@ Version 0.3
   Children do not support default values other than :data:`None`; thus, they
   are simply controlled by a boolean flag `required` which needs to be passed
   to the constructor.
+
+* The class attributes :attr:`~aioxmpp.service.Meta.SERVICE_BEFORE` and
+  :attr:`~aioxmpp.service.Meta.SERVICE_AFTER` have been
+  renamed to :attr:`~aioxmpp.service.Meta.ORDER_BEFORE` and
+  :attr:`~aioxmpp.service.Meta.ORDER_AFTER` respectively.
+
+  The :class:`aioxmpp.service.Service` class has additional support to handle
+  the old attributes, but will emit a DeprecationWarning if they are used on a
+  class declaration.
+
+  See :attr:`aioxmpp.service.Meta.SERVICE_AFTER` for more information on the
+  deprecation cycle of these attributes.

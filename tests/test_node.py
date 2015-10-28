@@ -1471,14 +1471,14 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
                 getattr(svc_init, type(self).__name__)(*args, **kwargs)
 
         class Svc2(service.Service):
-            SERVICE_BEFORE = [Svc1]
+            ORDER_BEFORE = [Svc1]
 
             def __init__(self, *args, **kwargs):
                 super().__init__(*args, **kwargs)
                 getattr(svc_init, type(self).__name__)(*args, **kwargs)
 
         class Svc3(service.Service):
-            SERVICE_BEFORE = [Svc2]
+            ORDER_BEFORE = [Svc2]
 
             def __init__(self, *args, **kwargs):
                 super().__init__(*args, **kwargs)

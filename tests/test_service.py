@@ -18,11 +18,11 @@ class TestServiceMeta(unittest.TestCase):
 
         self.assertSetEqual(
             set(),
-            Foo.SERVICE_BEFORE
+            Foo.ORDER_BEFORE
         )
         self.assertSetEqual(
             set(),
-            Foo.SERVICE_AFTER
+            Foo.ORDER_AFTER
         )
 
     def test_configure_ordering(self):
@@ -30,23 +30,23 @@ class TestServiceMeta(unittest.TestCase):
             pass
 
         class Bar(metaclass=service.Meta):
-            SERVICE_BEFORE = [Foo]
+            ORDER_BEFORE = [Foo]
 
         self.assertSetEqual(
             {Foo},
-            Bar.SERVICE_BEFORE
+            Bar.ORDER_BEFORE
         )
         self.assertSetEqual(
             set(),
-            Bar.SERVICE_AFTER
+            Bar.ORDER_AFTER
         )
         self.assertSetEqual(
             {Bar},
-            Foo.SERVICE_AFTER
+            Foo.ORDER_AFTER
         )
         self.assertSetEqual(
             set(),
-            Foo.SERVICE_BEFORE
+            Foo.ORDER_BEFORE
         )
 
     def test_transitive_before_ordering(self):
@@ -54,34 +54,34 @@ class TestServiceMeta(unittest.TestCase):
             pass
 
         class Bar(metaclass=service.Meta):
-            SERVICE_BEFORE = [Foo]
+            ORDER_BEFORE = [Foo]
 
         class Baz(metaclass=service.Meta):
-            SERVICE_BEFORE = [Bar]
+            ORDER_BEFORE = [Bar]
 
         self.assertSetEqual(
             {Foo},
-            Bar.SERVICE_BEFORE
+            Bar.ORDER_BEFORE
         )
         self.assertSetEqual(
             {Foo, Bar},
-            Baz.SERVICE_BEFORE
+            Baz.ORDER_BEFORE
         )
         self.assertSetEqual(
             {Bar, Baz},
-            Foo.SERVICE_AFTER
+            Foo.ORDER_AFTER
         )
         self.assertSetEqual(
             {Baz},
-            Bar.SERVICE_AFTER
+            Bar.ORDER_AFTER
         )
         self.assertSetEqual(
             set(),
-            Foo.SERVICE_BEFORE
+            Foo.ORDER_BEFORE
         )
         self.assertSetEqual(
             set(),
-            Baz.SERVICE_AFTER
+            Baz.ORDER_AFTER
         )
 
     def test_transitive_after_ordering(self):
@@ -89,34 +89,34 @@ class TestServiceMeta(unittest.TestCase):
             pass
 
         class Bar(metaclass=service.Meta):
-            SERVICE_AFTER = [Foo]
+            ORDER_AFTER = [Foo]
 
         class Baz(metaclass=service.Meta):
-            SERVICE_AFTER = [Bar]
+            ORDER_AFTER = [Bar]
 
         self.assertSetEqual(
             {Foo},
-            Bar.SERVICE_AFTER
+            Bar.ORDER_AFTER
         )
         self.assertSetEqual(
             {Foo, Bar},
-            Baz.SERVICE_AFTER
+            Baz.ORDER_AFTER
         )
         self.assertSetEqual(
             {Bar, Baz},
-            Foo.SERVICE_BEFORE
+            Foo.ORDER_BEFORE
         )
         self.assertSetEqual(
             {Baz},
-            Bar.SERVICE_BEFORE
+            Bar.ORDER_BEFORE
         )
         self.assertSetEqual(
             set(),
-            Foo.SERVICE_AFTER
+            Foo.ORDER_AFTER
         )
         self.assertSetEqual(
             set(),
-            Baz.SERVICE_BEFORE
+            Baz.ORDER_BEFORE
         )
 
     def test_loop_detect(self):
@@ -124,31 +124,31 @@ class TestServiceMeta(unittest.TestCase):
             pass
 
         class Bar(metaclass=service.Meta):
-            SERVICE_AFTER = [Foo]
+            ORDER_AFTER = [Foo]
 
         with self.assertRaisesRegexp(
                 ValueError,
                 "dependency loop: Fnord loops through .*\.(Foo|Bar)"):
 
             class Fnord(metaclass=service.Meta):
-                SERVICE_BEFORE = [Foo]
-                SERVICE_AFTER = [Bar]
+                ORDER_BEFORE = [Foo]
+                ORDER_AFTER = [Bar]
 
-            print(Fnord.SERVICE_BEFORE)
-            print(Fnord.SERVICE_AFTER)
+            print(Fnord.ORDER_BEFORE)
+            print(Fnord.ORDER_AFTER)
 
     def test_partial_dependency_ordering_puts_earliest_first(self):
         class Foo(metaclass=service.Meta):
             pass
 
         class Bar(metaclass=service.Meta):
-            SERVICE_BEFORE = [Foo]
+            ORDER_BEFORE = [Foo]
 
         class Baz(metaclass=service.Meta):
-            SERVICE_BEFORE = [Bar]
+            ORDER_BEFORE = [Bar]
 
         class Fourth(metaclass=service.Meta):
-            SERVICE_BEFORE = [Bar]
+            ORDER_BEFORE = [Bar]
 
         self.assertLess(Baz, Bar)
         self.assertLess(Fourth, Bar)
@@ -207,29 +207,29 @@ class TestServiceMeta(unittest.TestCase):
             pass
 
         class A(metaclass=service.Meta):
-            SERVICE_BEFORE = [Foo]
-            SERVICE_AFTER = [Bar]
+            ORDER_BEFORE = [Foo]
+            ORDER_AFTER = [Bar]
 
         class B(A):
             pass
 
-        self.assertSetEqual(A.SERVICE_BEFORE, B.SERVICE_BEFORE)
-        self.assertSetEqual(A.SERVICE_AFTER, B.SERVICE_AFTER)
+        self.assertSetEqual(A.ORDER_BEFORE, B.ORDER_BEFORE)
+        self.assertSetEqual(A.ORDER_AFTER, B.ORDER_AFTER)
 
-        self.assertIsNot(A.SERVICE_BEFORE, B.SERVICE_BEFORE)
-        self.assertIsNot(A.SERVICE_AFTER, B.SERVICE_AFTER)
+        self.assertIsNot(A.ORDER_BEFORE, B.ORDER_BEFORE)
+        self.assertIsNot(A.ORDER_AFTER, B.ORDER_AFTER)
 
     def test_inheritance_ignores_non_service_classes(self):
         class Foo(metaclass=service.Meta):
             pass
 
         class Bar:
-            SERVICE_BEFORE = [Foo]
+            ORDER_BEFORE = [Foo]
 
         class Baz(Bar, metaclass=service.Meta):
             pass
 
-        self.assertSetEqual(set(), Baz.SERVICE_BEFORE)
+        self.assertSetEqual(set(), Baz.ORDER_BEFORE)
 
     def test_diamond_inheritance(self):
         class Foo(metaclass=service.Meta):
@@ -242,47 +242,78 @@ class TestServiceMeta(unittest.TestCase):
             pass
 
         class A(metaclass=service.Meta):
-            SERVICE_BEFORE = [Foo]
+            ORDER_BEFORE = [Foo]
 
         class B1(A):
-            SERVICE_AFTER = [Bar]
+            ORDER_AFTER = [Bar]
 
         class B2(A):
-            SERVICE_BEFORE = [Baz]
+            ORDER_BEFORE = [Baz]
 
         class D(B1, B2):
             pass
 
         self.assertSetEqual(
             {A, B1, B2, D},
-            Foo.SERVICE_AFTER
+            Foo.ORDER_AFTER
         )
         self.assertSetEqual(
             {B1, D},
-            Bar.SERVICE_BEFORE
+            Bar.ORDER_BEFORE
         )
         self.assertSetEqual(
             {B2, D},
-            Baz.SERVICE_AFTER
+            Baz.ORDER_AFTER
         )
         self.assertSetEqual(
             {Foo, Baz},
-            D.SERVICE_BEFORE
+            D.ORDER_BEFORE
         )
         self.assertSetEqual(
             {Foo, Baz},
-            B2.SERVICE_BEFORE
+            B2.ORDER_BEFORE
         )
         self.assertSetEqual(
             {Bar},
-            D.SERVICE_AFTER
+            D.ORDER_AFTER
         )
         self.assertSetEqual(
             {Bar},
-            B1.SERVICE_AFTER
+            B1.ORDER_AFTER
         )
 
     def test_inherit_dependencies_False(self):
+        class Foo(metaclass=service.Meta):
+            pass
+
+        class Bar(metaclass=service.Meta):
+            pass
+
+        class A(metaclass=service.Meta):
+            ORDER_BEFORE = [Foo]
+            ORDER_AFTER = [Bar]
+
+        class B(A, inherit_dependencies=False):
+            ORDER_AFTER = [Foo]
+
+        self.assertSetEqual(
+            {A},
+            Foo.ORDER_AFTER
+        )
+        self.assertSetEqual(
+            {B},
+            Foo.ORDER_BEFORE
+        )
+        self.assertSetEqual(
+            {Foo, A, Bar},
+            B.ORDER_AFTER
+        )
+        self.assertSetEqual(
+            set(),
+            B.ORDER_BEFORE
+        )
+
+    def test_support_pre_0_3_attributes_on_class(self):
         class Foo(metaclass=service.Meta):
             pass
 
@@ -298,19 +329,64 @@ class TestServiceMeta(unittest.TestCase):
 
         self.assertSetEqual(
             {A},
-            Foo.SERVICE_AFTER
+            Foo.ORDER_AFTER
         )
         self.assertSetEqual(
             {B},
-            Foo.SERVICE_BEFORE
+            Foo.ORDER_BEFORE
         )
         self.assertSetEqual(
             {Foo, A, Bar},
-            B.SERVICE_AFTER
+            B.ORDER_AFTER
         )
         self.assertSetEqual(
             set(),
-            B.SERVICE_BEFORE
+            B.ORDER_BEFORE
+        )
+
+    def test_support_pre_0_3_attributes_on_read(self):
+        class Foo(metaclass=service.Meta):
+            pass
+
+        self.assertIs(Foo.ORDER_BEFORE, Foo.SERVICE_BEFORE)
+        self.assertIs(Foo.ORDER_AFTER, Foo.SERVICE_AFTER)
+
+    def test_support_pre_0_3_attributes_raise_if_both_are_given(self):
+        class Foo(metaclass=service.Meta):
+            pass
+
+        with self.assertRaisesRegexp(ValueError, "mixes old and new"):
+            class Bar(metaclass=service.Meta):
+                ORDER_BEFORE = [Foo]
+                SERVICE_BEFORE = [Foo]
+
+        with self.assertRaisesRegexp(ValueError, "mixes old and new"):
+            class Bar(metaclass=service.Meta):
+                ORDER_AFTER = [Foo]
+                SERVICE_AFTER = [Foo]
+
+        with self.assertRaisesRegexp(ValueError, "mixes old and new"):
+            class Bar(metaclass=service.Meta):
+                ORDER_BEFORE = [Foo]
+                SERVICE_AFTER = [Foo]
+
+    def test_support_pre_0_3_attributes_with_deprecation_warning(self):
+        class Foo(metaclass=service.Meta):
+            pass
+
+        with unittest.mock.patch("warnings.warn") as warn:
+            class Bar(metaclass=service.Meta):
+                SERVICE_BEFORE = [Foo]
+            class Bar(metaclass=service.Meta):
+                SERVICE_AFTER = [Foo]
+
+        s = "SERVICE_BEFORE/AFTER used on class; use ORDER_BEFORE/AFTER"
+        self.assertSequenceEqual(
+            warn.mock_calls,
+            [
+                unittest.mock.call(s, DeprecationWarning),
+                unittest.mock.call(s, DeprecationWarning),
+            ]
         )
 
 
