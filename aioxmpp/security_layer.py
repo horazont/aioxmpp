@@ -713,11 +713,6 @@ class STARTTLSProvider:
     `certificate_verifier_factory` must be a callable providing a
     :class:`CertificateVerifer` instance which will hooked up to the transport
     and the SSL context to perform certificate validation.
-
-    .. note::
-
-       Partial DANE support is provided by :mod:`dane`.
-
     """
 
     def __init__(self,
