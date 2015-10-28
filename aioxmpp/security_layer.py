@@ -254,11 +254,8 @@ class PKIXCertificateVerifier(CertificateVerifier):
     This verifier enables the default PKIX based verification of certificates
     as implemented by OpenSSL.
 
-    .. warning::
-
-       No additional checks are performed, in particular, the host name is not
-       matched against the host name. This is TBD.
-
+    The :meth:`verify_callback` checks that the certificate subject matches the
+    domain name of the JID of the connection.
     """
 
     def verify_callback(self, ctx, x509, errno, errdepth, returncode):
@@ -619,15 +616,11 @@ class PinningPKIXCertificateVerifier(HookablePKIXCertificateVerifier):
     we try to connect to (the identifying name, like the domain part of the
     JID). The callable must return :data:`True` (to accept the certificate),
     :data:`False` (to reject the certificate) or :data:`None` (to defer the
-    decision to the `decide` callback). `query_pin` must not block; if it needs
-    to do blocking operations, it should defer.
+    decision to the `post_handshake_deferred_failure` callback). `query_pin`
+    must not block; if it needs to do blocking operations, it should defer.
 
-    The `decide` argument must be a coroutine which is called if `query_pin`
-    returned :data:`None` during the handshake. Returning false from that
-    coroutine will abort the connection, as will raising an exception.
-
-    The coroutine receives the verifier as its only argument. It can use all
-    the attributes described by :class:`HookablePKIXCertificateVerifier`.
+    The other two arguments are coroutines with semantics identical to those of
+    the same-named arguments in :class:`HookablePKIXCertificateVerifier`.
 
     .. seealso::
 

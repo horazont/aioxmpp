@@ -722,6 +722,9 @@ class PresenceManagedClient(AbstractClient):
         `status` must be either a string or an iterable containing
         :class:`.stanza.Status` objects. The :class:`.stanza.Status` instances
         are saved and added to the presence stanza when it is time to send it.
+
+        The `status` is the text shown alongside the `state` (indicating
+        availability such as *away*, *do not disturb* and *free to chat*).
         """
         if isinstance(status, str):
             status = [stanza.Status(status)]
