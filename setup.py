@@ -11,7 +11,7 @@ with open(os.path.join(here, "README.rst"), encoding="utf-8") as f:
 
 setup(
     name="aioxmpp",
-    version="0.2",
+    version=None,
     description="Pure-python XMPP library for asyncio",
     long_description=long_description,
     url="https://github.com/horazont/aioxmpp",
@@ -28,6 +28,12 @@ setup(
         "Topic :: Communications :: Chat",
     ],
     keywords="asyncio xmpp library",
-    install_requires=['dnspython3', 'lxml', 'orderedset', 'pyOpenSSL', 'pyasn1_modules', 'tzlocal'],
+    install_requires=['dnspython3',
+                      'lxml',
+                      'orderedset',
+                      'pyOpenSSL',
+                      'pyasn1',
+                      'pyasn1_modules',
+                      'tzlocal'],
     packages=find_packages(exclude=["tests*"])
 )

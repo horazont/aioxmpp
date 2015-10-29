@@ -40,3 +40,11 @@ Design goals
 * Reliable message transmission even under dire network circumstances
 * Well-tested code base
 * A more compelling README than this
+
+Change log
+----------
+
+The `change log`_ is included in the `official documentation`__.
+
+.. _change log: http://docs.zombofant.net/aioxmpp/devel/api/changelog.html
+__ http://docs.zombofant.net/aioxmpp/devel/
