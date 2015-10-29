@@ -371,9 +371,10 @@ class TestDateTimeType(unittest.TestCase):
     def test_format_timezoned_nonutc(self):
         t = xso.DateTime()
         self.assertEqual(
-            "2014-01-26T19:47:10Z",
-            t.format(datetime(2014, 1, 26, 20, 40, 10,
-                              tzinfo=pytz.timezone("Europe/Berlin")))
+            "2014-01-26T19:40:10Z",
+            t.format(pytz.timezone("Europe/Berlin").localize(
+                datetime(2014, 1, 26, 20, 40, 10)
+            ))
         )
 
     def test_require_datetime(self):
