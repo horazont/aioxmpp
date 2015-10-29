@@ -64,7 +64,7 @@ class Meta(abc.ABCMeta):
        these classes is requested, it is made sure that *this* class is
        instanciated before.
 
-       .. newinversion:: 0.3
+       .. versionadded:: 0.3
 
     .. attribute:: SERVICE_AFTER
 
