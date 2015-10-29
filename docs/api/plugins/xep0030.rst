@@ -1,1 +1,0 @@
-.. automodule:: aioxmpp.plugins.xep0030

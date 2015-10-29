@@ -1,6 +1,6 @@
 """
-:mod:`aioxmpp.xso` --- Working with XML stream contents
-#######################################################
+:mod:`~aioxmpp.xso` --- Working with XML stream contents
+########################################################
 
 This subpackage deals with **X**\ ML **S**\ tream **O**\ bjects. XSOs can be
 stanzas, but in general anything which is sent after the XML stream header.

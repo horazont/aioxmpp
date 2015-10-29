@@ -1,3 +1,42 @@
+"""
+:mod:`~aioxmpp.sasl` -- SASL helpers
+####################################
+
+This module is used to implement SASL in :mod:`aioxmpp.security_layer`. It
+provides a state machine for use by the different SASL mechanisms and
+implementations of some SASL mechansims.
+
+SASL mechansims
+===============
+
+.. autoclass:: PLAIN
+
+.. autoclass:: SCRAM
+
+Base class
+----------
+
+.. autoclass:: SASLMechanism
+
+SASL state machine and XSOs
+===========================
+
+.. autoclass:: SASLStateMachine
+
+.. autoclass:: SASLAuth
+
+.. autoclass:: SASLChallenge
+
+.. autoclass:: SASLResponse
+
+.. autoclass:: SASLFailure
+
+.. autoclass:: SASLSuccess
+
+.. autoclass:: SASLAbort
+
+"""
+
 import abc
 import asyncio
 import base64
@@ -73,6 +112,21 @@ except ImportError:
 
 
 class SASLAuth(xso.XSO):
+    """
+    Start SASL authentication.
+
+    .. attribute:: mechanism
+
+       The mechanism to authenticate with.
+
+    .. attribute:: payload
+
+       For mechanisms which use an initial client-supplied payload, this can be
+       a string. It is automatically encoded as base64 according to the XMPP
+       SASL specification.
+
+    """
+
     TAG = (namespaces.sasl, "auth")
 
     mechanism = xso.Attr("mechanism")
@@ -85,6 +139,16 @@ class SASLAuth(xso.XSO):
 
 
 class SASLChallenge(xso.XSO):
+    """
+    A SASL challenge sent by the server.
+
+    .. attribute:: payload
+
+       The (decoded) SASL payload. Base64 en/decoding is handled by the XSO
+       stack.
+
+    """
+
     TAG = (namespaces.sasl, "challenge")
 
     payload = xso.Text(type_=xso.Base64Binary(empty_as_equal=True))
@@ -95,6 +159,16 @@ class SASLChallenge(xso.XSO):
 
 
 class SASLResponse(xso.XSO):
+    """
+    A SASL challenge sent by the client.
+
+    .. attribute:: payload
+
+       The (decoded) SASL payload. Base64 en/decoding is handled by the XSO
+       stack.
+
+    """
+
     TAG = (namespaces.sasl, "response")
 
     payload = xso.Text(type_=xso.Base64Binary(empty_as_equal=True))
@@ -105,6 +179,19 @@ class SASLResponse(xso.XSO):
 
 
 class SASLFailure(xso.XSO):
+    """
+    Indication of SASL failure.
+
+    .. attribute:: condition
+
+       The condition which caused the authentication to fail.
+
+    .. attribute:: text
+
+       Optional human-readable text.
+
+    """
+
     TAG = (namespaces.sasl, "failure")
 
     condition = xso.ChildTag(
@@ -137,12 +224,25 @@ class SASLFailure(xso.XSO):
 
 
 class SASLSuccess(xso.XSO):
+    """
+    Indication of SASL success, with optional final payload supplied by the
+    server.
+
+    .. attribute:: payload
+
+       The (decoded) SASL payload. Base64 en/decoding is handled by the XSO
+       stack.
+
+    """
     TAG = (namespaces.sasl, "success")
 
     payload = xso.Text(type_=xso.Base64Binary(empty_as_equal=True))
 
 
 class SASLAbort(xso.XSO):
+    """
+    Request to abort the SASL authentication.
+    """
     TAG = (namespaces.sasl, "abort")
 
 

@@ -12,6 +12,14 @@ Main public API
    errors
    i18n
    structs
+   callbacks
+
+Protocol part and XEP implementations
+#####################################
+
+.. toctree::
+   :maxdepth: 2
+
    disco
    roster
-   callbacks
+   rfc6120
