@@ -254,6 +254,7 @@ class SASLStateMachine:
     SASL handshake, optionally with server-supplied payload.
 
     Valid next states are:
+
     * ``('challenge', payload)`` (with `payload` being a :class:`bytes` object
       obtained from base64-decoding the servers challenge)
     * ``('success', None)`` – after successful authentication
