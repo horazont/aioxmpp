@@ -11,7 +11,7 @@ with open(os.path.join(here, "README.rst"), encoding="utf-8") as f:
 
 setup(
     name="aioxmpp",
-    version=None,
+    version="0.3",
     description="Pure-python XMPP library for asyncio",
     long_description=long_description,
     url="https://github.com/horazont/aioxmpp",
