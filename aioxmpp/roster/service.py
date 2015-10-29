@@ -181,14 +181,24 @@ class Service(aioxmpp.service.Service):
        Fires when the initial roster has been received. Note that if roster
        versioning is used, the initial roster may not be up-to-date. The server
        is allowed to tell the client to re-use its local state and deliver
-       changes using roster pushes.
+       changes using roster pushes. In that case, the
+       :meth:`on_initial_roster_received` event fires immediately, so that the
+       user sees whatever roster has been set up for versioning before the
+       stream was established; updates pushed by the server are delivered using
+       the normal events.
 
        The roster data has already been imported at the time the callback is
        fired.
 
+       Note that the initial roster is diffed against whatever is in the local
+       store and events are fired just like for normal push updates. Thus, in
+       general, you won’t need this signal; it might be better to listen for
+       the events below.
+
     .. method:: on_entry_added(item)
 
-       Fires when an `item` has been added to the roster.
+       Fires when an `item` has been added to the roster. The attributes of the
+       `item` are up-to-date when this callback fires.
 
     .. method:: on_entry_name_changed(item)
 
@@ -201,8 +211,8 @@ class Service(aioxmpp.service.Service):
        :attr:`Item.ask` or :attr:`Item.approved` attributes. The new values are
        already applied to `item`.
 
-       The event always fires once per update; even if the update changes
-       multiple of the above attributes, the event is only fired once.
+       The event always fires once per update, even if the update changes
+       more than one of the above attributes.
 
     .. method:: on_entry_added_to_group(item, group_name)
 
@@ -439,7 +449,9 @@ class Service(aioxmpp.service.Service):
 
         If the entry does not exist, it will be created on the server side.
 
-        `remove_from_groups` takes precedence over `add_to_groups`.
+        The `remove_from_groups` and `add_to_groups` arguments have to be based
+        on the locally cached state, as XMPP does not support sending
+        diffs. `remove_from_groups` takes precedence over `add_to_groups`.
 
         `timeout` is the time in seconds to wait for a confirmation by the
         server.
@@ -448,11 +460,11 @@ class Service(aioxmpp.service.Service):
         coroutine returns in the :attr:`items` and :attr:`groups`
         attributes. The :class:`Service` waits for the "official" roster push
         from the server for updating the data structures and firing events, to
+        ensure that consistent state with other clients is achieved.
 
         This may raise arbitrary :class:`.errors.XMPPError` exceptions if the
         server replies with an error and also any kind of connection error if
         the connection gets fatally terminated while waiting for a response.
-        prevent going out-of-sync with other clients.
         """
 
         existing = self.items.get(jid, Item(jid))
