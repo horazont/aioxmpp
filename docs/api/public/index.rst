@@ -14,3 +14,4 @@ Main public API
    structs
    disco
    roster
+   callbacks
