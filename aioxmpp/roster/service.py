@@ -174,6 +174,13 @@ class Service(aioxmpp.service.Service):
        At no point one can observe empty :class:`set` instances in this
        dictionary.
 
+    The :class:`Item` instances stay the same, as long as they represent the
+    identical roster entry on the remote side. That is, if the name or
+    subscription state are changed in the server side roster, the :class:`Item`
+    instance stays the same, but the attributes are mutated. However, if the
+    entry is removed from the server roster and re-added later for the same
+    JID, it will be a different :class:`Item` instance.
+
     Signals:
 
     .. signal:: on_initial_roster_received()
