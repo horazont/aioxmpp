@@ -18,6 +18,8 @@ Version 0.4
 * :mod:`aioxmpp.stream` and :mod:`aioxmpp.stream_xso` are part of the public
   API now.
 
+* :class:`aioxmpp.xso.XSO` subclasses now support copying and deepcopying.
+
 Version 0.3
 ===========
 

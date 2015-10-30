@@ -1,6 +1,7 @@
 import collections
 import collections.abc
 import contextlib
+import copy
 import functools
 import unittest
 import unittest.mock
@@ -1803,6 +1804,48 @@ class TestXSO(XMLTestCase):
             obj.kwargs,
             {"bar": "baz"}
         )
+
+    def test_copy_does_not_call_init_and_copies_props(self):
+        base = unittest.mock.Mock()
+        class Test(xso.XSO):
+            a = xso.Attr("foo")
+
+            def __init__(self, *args, **kwargs):
+                super().__init__(*args, **kwargs)
+                base.init(*args, **kwargs)
+
+        t = Test()
+        t.a = "foo"
+
+        base.mock_calls.clear()
+
+        t2 = copy.copy(t)
+        self.assertFalse(base.mock_calls)
+        self.assertIsNot(t._stanza_props, t2._stanza_props)
+        self.assertEqual(t._stanza_props, t2._stanza_props)
+
+    def test_deepcopy_does_not_call_init_and_deepcopies_props(self):
+        base = unittest.mock.Mock()
+        class Child(xso.XSO):
+            TAG = (None, "foo")
+
+        class Test(xso.XSO):
+            a = xso.Child([Child])
+
+            def __init__(self, *args, **kwargs):
+                super().__init__(*args, **kwargs)
+                base.init(*args, **kwargs)
+
+        t = Test()
+        t.a = Child()
+
+        base.mock_calls.clear()
+
+        t2 = copy.deepcopy(t)
+        self.assertFalse(base.mock_calls)
+        self.assertIsNot(t._stanza_props, t2._stanza_props)
+        self.assertIsNot(t._stanza_props[Test.a],
+                         t2._stanza_props[Test.a])
 
     def tearDown(self):
         del self.obj

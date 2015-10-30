@@ -5,6 +5,7 @@
 See :mod:`aioxmpp.xso` for documentation.
 """
 import collections
+import copy
 import sys
 import xml.sax.handler
 
@@ -1474,6 +1475,18 @@ class XSO(metaclass=XMLStreamClass):
     called during deserialization. A way to execute code after successful
     deserialization is provided through :meth:`xso_after_load`.
 
+    :class:`XSO` objects support copying. Like with deserialisation,
+    ``__init__`` is not called during copy. The default implementation only
+    copies the XSO descriptors’ values (with deepcopy, they are copied
+    deeply). If you have more attributes to copy, you need to override
+    ``__copy__`` and ``__deepcopy__`` methods.
+
+    .. versionchanged:: 0.4
+
+       Copy and deepcopy support has been added. Previously, copy copied not
+       enough data, while deepcopy copied too much data (including descriptor
+       objects).
+
     To declare an XSO, inherit from :class:`XSO` and provide
     the following attributes on your class:
 
@@ -1583,6 +1596,19 @@ class XSO(metaclass=XMLStreamClass):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+
+    def __copy__(self):
+        result = type(self).__new__(type(self))
+        result._stanza_props.update(self._stanza_props)
+        return result
+
+    def __deepcopy__(self, memo):
+        result = type(self).__new__(type(self))
+        result._stanza_props = {
+            k: copy.deepcopy(v, memo)
+            for k, v in self._stanza_props.items()
+        }
+        return result
 
     def validate(self):
         """
