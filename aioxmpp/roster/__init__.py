@@ -3,7 +3,7 @@
 #########################################################
 
 This subpackage provides a :class:`aioxmpp.service.Service` to interact with
-`RFC 6121 <https://tools.ietf.org/html/rfc6121>`_ rosters.
+`RFC 6121`_ rosters.
 
 .. autoclass:: Service
 
@@ -30,7 +30,7 @@ versioning:
 
 .. autoclass:: RosterVersioningFeature()
 
-
+.. _RFC 6121: https://tools.ietf.org/html/rfc6121
 """
 
 from .service import Service, Item

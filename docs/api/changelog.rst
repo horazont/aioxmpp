@@ -12,6 +12,9 @@ Version 0.4
   The latter has been added to relevant places and the former automatically
   improves the documentations quality.
 
+* :class:`aioxmpp.roster.Service` now implements presence subscription
+  management.
+
 Version 0.3
 ===========
 

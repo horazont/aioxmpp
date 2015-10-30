@@ -256,6 +256,49 @@ class Service(aioxmpp.service.Service):
 
     .. automethod:: remove_entry
 
+    Managing presence subscriptions:
+
+    .. automethod:: approve
+
+    .. automethod:: subscribe
+
+    .. signal:: on_subscribe(stanza)
+
+       Fires when a peer requested a subscription. The whole stanza recevied is
+       included as `stanza`.
+
+       .. seealso::
+
+          To approve a subscription request, use :meth:`approve`.
+
+    .. signal:: on_subscribed(stanza)
+
+       Fires when a peer has confirmed a previous subscription request. The
+       ``"subscribed"`` stanza is included as `stanza`.
+
+    .. signal:: on_unsubscribe(stanza)
+
+       Fires when a peer cancelled their subscription for our presence. As per
+       `RFC 6121`_, the server forwards the ``"unsubscribe"`` presence stanza
+       (which is included as `stanza` argument) *before* sending the roster
+       push.
+
+       Unless your application is interested in the specific cause of a
+       subscription state change, it is not neccessary to use this signal; the
+       subscription state change will be covered by
+       :meth:`on_entry_subscription_state_changed`.
+
+    .. signal:: on_unsubscribed(stanza)
+
+       Fires when a peer cancelled our subscription. As per `RFC 6121`_, the
+       server forwards the ``"unsubscribed"`` presence stanza (which is
+       included as `stanza` argument) *before* sending the roster push.
+
+       Unless your application is interested in the specific cause of a
+       subscription state change, it is not neccessary to use this signal; the
+       subscription state change will be covered by
+       :meth:`on_entry_subscription_state_changed`.
+
     Import/Export of roster data:
 
     .. automethod:: export_as_json
@@ -279,6 +322,11 @@ class Service(aioxmpp.service.Service):
     on_entry_added_to_group = callbacks.Signal()
     on_entry_removed_from_group = callbacks.Signal()
 
+    on_subscribed = callbacks.Signal()
+    on_subscribe = callbacks.Signal()
+    on_unsubscribed = callbacks.Signal()
+    on_unsubscribe = callbacks.Signal()
+
     def __init__(self, client):
         super().__init__(client)
 
@@ -290,6 +338,22 @@ class Service(aioxmpp.service.Service):
             "set",
             roster_xso.Query,
             self.handle_roster_push)
+        client.stream.register_presence_callback(
+            "subscribe",
+            None,
+            self.handle_subscribe)
+        client.stream.register_presence_callback(
+            "subscribed",
+            None,
+            self.handle_subscribed)
+        client.stream.register_presence_callback(
+            "unsubscribed",
+            None,
+            self.handle_unsubscribed)
+        client.stream.register_presence_callback(
+            "unsubscribe",
+            None,
+            self.handle_unsubscribe)
 
         self.items = {}
         self.groups = {}
@@ -297,6 +361,18 @@ class Service(aioxmpp.service.Service):
 
     @asyncio.coroutine
     def _shutdown(self):
+        self.client.stream.unregister_presence_callback(
+            "unsubscribe",
+            None)
+        self.client.stream.unregister_presence_callback(
+            "unsubscribed",
+            None)
+        self.client.stream.unregister_presence_callback(
+            "subscribed",
+            None)
+        self.client.stream.unregister_presence_callback(
+            "subscribe",
+            None)
         self.client.stream.unregister_iq_request_coro(
             "set",
             roster_xso.Query)
@@ -369,6 +445,18 @@ class Service(aioxmpp.service.Service):
                 self._update_entry(item)
 
         self.version = request.ver
+
+    def handle_subscribe(self, stanza):
+        self.on_subscribe(stanza)
+
+    def handle_subscribed(self, stanza):
+        self.on_subscribed(stanza)
+
+    def handle_unsubscribed(self, stanza):
+        self.on_unsubscribed(stanza)
+
+    def handle_unsubscribe(self, stanza):
+        self.on_unsubscribe(stanza)
 
     @asyncio.coroutine
     def _request_initial_roster(self):
@@ -518,4 +606,44 @@ class Service(aioxmpp.service.Service):
                 )
             ])),
             timeout=timeout
+        )
+
+    def approve(self, peer_jid):
+        """
+        (Pre-)approve a subscription request from `peer_jid`.
+
+        This sends a ``"subscribed"`` presence to the peer; if the peer has
+        previously asked for a subscription, this will seal the deal and create
+        the subscription.
+
+        If the peer has not requested a subscription (yet), it is marked as
+        pre-approved by the server. A future subscription request by the peer
+        will then be confirmed by the server automatically.
+        """
+        self.client.stream.enqueue_stanza(
+            stanza.Presence(type_="subscribed",
+                            to=peer_jid)
+        )
+
+    def subscribe(self, peer_jid):
+        """
+        Request presence subscription with the given `peer_jid`.
+
+        This is deliberately not a coroutine; we don’t know whether the peer is
+        online (usually) and they may defer the confirmation very long, if they
+        confirm at all. Use :meth:`on_subscribed` to get notified when a peer
+        accepted a subscription request.
+        """
+        self.client.stream.enqueue_stanza(
+            stanza.Presence(type_="subscribe",
+                            to=peer_jid)
+        )
+
+    def unsubscribe(self, peer_jid):
+        """
+        Unsubscribe from the presence of the given `peer_jid`.
+        """
+        self.client.stream.enqueue_stanza(
+            stanza.Presence(type_="unsubscribe",
+                            to=peer_jid)
         )
