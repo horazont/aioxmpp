@@ -1316,6 +1316,9 @@ class StanzaStream:
         Enqueue a `stanza` to be sent. Return a :class:`StanzaToken` to track
         the stanza. The `kwargs` are passed to the :class:`StanzaToken`
         constructor.
+
+        This method calls :meth:`~.stanza.StanzaBase.autoset_id` on the stanza
+        automatically.
         """
 
         stanza.validate()
