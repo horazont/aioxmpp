@@ -24,4 +24,5 @@ Protocol part and XEP implementations
 
    disco
    roster
+   presence
    rfc6120

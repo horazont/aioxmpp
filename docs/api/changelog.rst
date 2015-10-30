@@ -20,6 +20,8 @@ Version 0.4
 
 * :class:`aioxmpp.xso.XSO` subclasses now support copying and deepcopying.
 
+* :mod:`aioxmpp.presence` implemented.
+
 Version 0.3
 ===========
 
