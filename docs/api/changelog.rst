@@ -3,6 +3,15 @@
 Changelog
 #########
 
+Version 0.4
+===========
+
+* Documentation change: A simple sphinx extension has been added which
+  auto-detects coroutines and adds a directive to mark up signals.
+
+  The latter has been added to relevant places and the former automatically
+  improves the documentations quality.
+
 Version 0.3
 ===========
 

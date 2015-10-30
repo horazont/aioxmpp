@@ -176,7 +176,7 @@ class Service(aioxmpp.service.Service):
 
     Signals:
 
-    .. method:: on_initial_roster_received()
+    .. signal:: on_initial_roster_received()
 
        Fires when the initial roster has been received. Note that if roster
        versioning is used, the initial roster may not be up-to-date. The server
@@ -195,17 +195,17 @@ class Service(aioxmpp.service.Service):
        general, you won’t need this signal; it might be better to listen for
        the events below.
 
-    .. method:: on_entry_added(item)
+    .. signal:: on_entry_added(item)
 
        Fires when an `item` has been added to the roster. The attributes of the
        `item` are up-to-date when this callback fires.
 
-    .. method:: on_entry_name_changed(item)
+    .. signal:: on_entry_name_changed(item)
 
        Fires when a roster update changed the name of the `item`. The new name
        is already applied to the `item`.
 
-    .. method:: on_entry_subscription_state_changed(item)
+    .. signal:: on_entry_subscription_state_changed(item)
 
        Fires when a roster update changes any of the :attr:`Item.subscription`,
        :attr:`Item.ask` or :attr:`Item.approved` attributes. The new values are
@@ -214,7 +214,7 @@ class Service(aioxmpp.service.Service):
        The event always fires once per update, even if the update changes
        more than one of the above attributes.
 
-    .. method:: on_entry_added_to_group(item, group_name)
+    .. signal:: on_entry_added_to_group(item, group_name)
 
        Fires when an update adds an `item` to a group. The :attr:`Item.groups`
        attribute is already updated (not only with this, but also other group
@@ -225,7 +225,7 @@ class Service(aioxmpp.service.Service):
 
        The name of the new group is in `group_name`.
 
-    .. method:: on_entry_removed_from_group(item, group_name)
+    .. signal:: on_entry_removed_from_group(item, group_name)
 
        Fires when an update removes an `item` from a group. The
        :attr:`Item.groups` attribute is already updated (not only with this,
@@ -237,7 +237,7 @@ class Service(aioxmpp.service.Service):
 
        The name of the new group is in `group_name`.
 
-    .. method:: on_entry_removed(item)
+    .. signal:: on_entry_removed(item)
 
        Fires after an entry has been removed from the roster. The entry is
        already removed from all bookkeeping structures, but the values on the

@@ -496,9 +496,9 @@ class StanzaStream:
 
     Signals:
 
-    .. method:: on_failure(exc)
+    .. signal:: on_failure(exc)
 
-       A :class:`Signal` which will fire when the stream has failed. A failure
+       A signal which will fire when the stream has failed. A failure
        occurs whenever the main task of the :class:`StanzaStream` (the one
        started by :meth:`start`) terminates with an exception.
 
@@ -508,14 +508,14 @@ class StanzaStream:
 
        The exception which occured is given as `exc`.
 
-    .. method:: on_stream_destroyed()
+    .. signal:: on_stream_destroyed()
 
        When a stream is destroyed so that all state shall be discarded (for
        example, pending futures), this signal is fired.
 
        This happens if a non-SM stream is stopped or if SM is being disabled.
 
-    .. method:: on_stream_established()
+    .. signal:: on_stream_established()
 
        When a stream is newly established, this signal is fired. This happens
        whenever a non-SM stream is started and whenever a stream which
