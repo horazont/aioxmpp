@@ -15,6 +15,9 @@ Version 0.4
 * :class:`aioxmpp.roster.Service` now implements presence subscription
   management.
 
+* :mod:`aioxmpp.stream` and :mod:`aioxmpp.stream_xso` are part of the public
+  API now.
+
 Version 0.3
 ===========
 

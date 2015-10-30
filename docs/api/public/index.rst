@@ -5,7 +5,9 @@ Main public API
    :maxdepth: 2
 
    node
+   stream
    stanza
+   stream_xsos
    security_layer
    sasl
    protocol
