@@ -22,6 +22,8 @@ Version 0.4
 
 * :mod:`aioxmpp.presence` implemented.
 
+* :mod:`aioxmpp.protocol` has been moved into the internal API part.
+
 Version 0.3
 ===========
 

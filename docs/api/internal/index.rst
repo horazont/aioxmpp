@@ -10,5 +10,6 @@ Internal tools
 .. toctree::
    :maxdepth: 2
 
+   protocol
    ssl_transport
    xml

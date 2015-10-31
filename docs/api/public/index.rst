@@ -10,7 +10,6 @@ Main public API
    stream_xsos
    security_layer
    sasl
-   protocol
    errors
    i18n
    structs
