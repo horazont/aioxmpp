@@ -5,9 +5,18 @@
 These classes provide a way to hold structured data which is commonly
 encountered in the XMPP realm.
 
+Jabber IDs
+==========
+
 .. autoclass:: JID(localpart, domain, resource)
 
+Presence
+========
+
 .. autoclass:: PresenceState
+
+Languages
+=========
 
 .. autoclass:: LanguageTag
 
@@ -16,7 +25,7 @@ encountered in the XMPP realm.
 .. autoclass:: LanguageMap
 
 Functions for working with language tags
-========================================
+----------------------------------------
 
 .. autofunction:: basic_filter_languages
 
