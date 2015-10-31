@@ -15,7 +15,7 @@ Version 0.4
 * :class:`aioxmpp.roster.Service` now implements presence subscription
   management.
 
-* :mod:`aioxmpp.stream` and :mod:`aioxmpp.stream_xso` are part of the public
+* :mod:`aioxmpp.stream` and :mod:`aioxmpp.stream_xsos` are part of the public
   API now.
 
 * :class:`aioxmpp.xso.XSO` subclasses now support copying and deepcopying.
