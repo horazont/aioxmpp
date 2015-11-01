@@ -448,6 +448,43 @@ class TestService(unittest.TestCase):
             cb.mock_calls
         )
 
+    def test_initial_roster_does_not_emit_entry_added_for_existing(self):
+        old_item = self.s.items[self.user2]
+
+        response = roster_xso.Query(
+            items=[
+                roster_xso.Item(
+                    jid=self.user2,
+                    name="new name",
+                    subscription="both"
+                ),
+                roster_xso.Item(
+                    jid=self.user2.replace(localpart="user2"),
+                    name="other name",
+                )
+            ],
+            ver="foobar"
+        )
+
+        mock = unittest.mock.Mock()
+        mock.return_value = False
+        self.s.on_entry_added.connect(mock)
+
+        self.cc.stream.send_iq_and_wait_for_reply.return_value = response
+
+        task = asyncio.async(self.cc.before_stream_established())
+
+        run_coroutine(asyncio.sleep(0))
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(
+                    self.s.items[self.user2.replace(localpart="user2")]
+                ),
+            ],
+            mock.mock_calls
+        )
+
     def test_initial_roster_keeps_existing_entries_alive(self):
         old_item = self.s.items[self.user2]
 
