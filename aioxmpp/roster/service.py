@@ -1,4 +1,5 @@
 import asyncio
+import logging
 
 import aioxmpp.service
 
@@ -10,6 +11,9 @@ import aioxmpp.structs as structs
 from aioxmpp.utils import namespaces
 
 from . import xso as roster_xso
+
+
+logger = logging.getLogger(__name__)
 
 
 _Sentinel = object()
@@ -463,8 +467,11 @@ class Service(aioxmpp.service.Service):
         iq = stanza.IQ(type_="get")
         iq.payload = roster_xso.Query()
 
+        logger.debug("requesting initial roster")
         if self.client.stream_features.has_feature(
                 roster_xso.RosterVersioningFeature):
+            logger.debug("requesting incremental updates (old ver = %s)",
+                         self.version)
             iq.payload.ver = self.version
 
         response = yield from self.client.stream.send_iq_and_wait_for_reply(
@@ -473,18 +480,24 @@ class Service(aioxmpp.service.Service):
         )
 
         if response is None:
+            logger.debug("roster will be updated incrementally")
             self.on_initial_roster_received()
             return True
 
         self.version = response.ver
+        logger.debug("roster update received (new ver = %s)", self.version)
 
         actual_jids = {item.jid for item in response.items}
         known_jids = set(self.items.keys())
 
-        for removed_jid in known_jids - actual_jids:
+        removed_jids = known_jids - actual_jids
+        logger.debug("jids dropped: %r", removed_jids)
+
+        for removed_jid in removed_jids:
             old_item = self.items.pop(removed_jid)
             self.on_entry_removed(old_item)
 
+        logger.debug("jids updated: %r", actual_jids - removed_jids)
         for item in response.items:
             self._update_entry(item)
 
