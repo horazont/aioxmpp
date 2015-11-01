@@ -158,10 +158,12 @@ def connect_secured_xmlstream(jid, security_layer,
     the transport returned is :data:`None`, use the
     :attr:`~aioxmpp.protocol.XMLStream.transport` of the XML stream.
 
-    If the connection fails or the domain does not support XMPP,
-    :class:`OSError` is raised. That OSError may in fact be a
-    :class:`~aioxmpp.errors.MultiOSError`, which gives more information on the
-    different errors which occured.
+    If the connection fails :class:`OSError` is raised. That OSError may in
+    fact be a :class:`~aioxmpp.errors.MultiOSError`, which gives more
+    information on the different errors which occured.
+
+    If the domain does not support XMPP at all (by indicating that fact in the
+    SRV records), :class:`ValueError` is raised.
 
     If SASL or TLS negotiation fails, the corresponding exception type from
     :mod:`aioxmpp.errors` is raised. Most notably, authentication failures
