@@ -67,10 +67,12 @@ def connect_to_xmpp_server(jid, *, override_peer=None, loop=None):
     :class:`~aioxmpp.protocol.XMLStream` instance and a :class:`asyncio.Future`
     on the first :class:`~aioxmpp.stream_xsos.StreamFeatures` node.
 
-    If the connection fails or the domain does not support XMPP,
-    :class:`OSError` is raised. That OSError may in fact be a
-    :class:`~aioxmpp.errors.MultiOSError`, which gives more information on the
-    different errors which occured.
+    If the connection fails :class:`OSError` is raised. That OSError may in
+    fact be a :class:`~aioxmpp.errors.MultiOSError`, which gives more
+    information on the different errors which occured.
+
+    If the domain does not support XMPP at all (by indicating that fact in the
+    SRV records), :class:`ValueError` is raised.
     """
     loop = loop or asyncio.get_event_loop()
 
@@ -116,7 +118,9 @@ def connect_to_xmpp_server(jid, *, override_peer=None, loop=None):
     else:
         if not exceptions:
             # domain does not support XMPP (no options at all to connect to it)
-            raise OSError("domain {} does not support XMPP".format(jid.domain))
+            raise OSError(
+                "no options to connect to {}".format(jid.domain)
+            )
 
         if len(exceptions) == 1:
             raise exceptions[0]

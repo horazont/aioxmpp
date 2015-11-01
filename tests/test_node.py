@@ -249,12 +249,12 @@ class Testconnect_to_xmpp_server(unittest.TestCase):
             create_starttls_connection_mock.mock_calls
         )
 
-    def test_raise_if_no_hosts_discovered(self):
+    def test_raise_OSError_if_no_hosts_discovered(self):
         self.srv_records.clear()
         self.group_and_order_srv_records.return_value = []
 
         with self.assertRaisesRegexp(OSError,
-                                     "does not support XMPP"):
+                                     "no options to connect to"):
             transport, protocol, features_future = run_coroutine(
                 node.connect_to_xmpp_server(
                     self.test_jid
