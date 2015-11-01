@@ -24,6 +24,10 @@ Version 0.4
 
 * :mod:`aioxmpp.protocol` has been moved into the internal API part.
 
+* :class:`aioxmpp.stanza.Message` specification fixed to have
+  ``"normal"`` as default for :attr:`~aioxmpp.stanza.Message.type_` and relax
+  the unknown child policy.
+
 Version 0.3
 ===========
 

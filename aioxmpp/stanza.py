@@ -473,6 +473,8 @@ class Message(StanzaBase):
 
     TAG = (namespaces.client, "message")
 
+    UNKNOWN_CHILD_POLICY = xso.UnknownChildPolicy.DROP
+
     id_ = xso.Attr(tag="id", default=None)
     type_ = xso.Attr(
         tag="type",

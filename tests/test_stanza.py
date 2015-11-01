@@ -130,6 +130,12 @@ class TestMessage(unittest.TestCase):
             stanza.Message,
             stanza.StanzaBase))
 
+    def test_unknown_child_policy(self):
+        self.assertEqual(
+            stanza.Message.UNKNOWN_CHILD_POLICY,
+            xso.UnknownChildPolicy.DROP
+        )
+
     def test_id_attr(self):
         self.assertIsInstance(
             stanza.Message.id_,
