@@ -163,6 +163,10 @@ class TestMessage(unittest.TestCase):
                 "normal",
             },
             stanza.Message.type_.validator.values)
+        self.assertEqual(
+            stanza.Message.type_.default,
+            "normal"
+        )
 
     def test_ext_attr(self):
         self.assertIsInstance(

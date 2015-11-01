@@ -481,7 +481,8 @@ class Message(StanzaBase):
             "groupchat",
             "error",
             "headline",
-            "normal"})
+            "normal"}),
+        default="normal",
     )
 
     body = xso.ChildList([Body])
