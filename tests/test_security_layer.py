@@ -557,6 +557,7 @@ class TestHookablePKIXCertificateVerifier(unittest.TestCase):
         self.verifier.transport = self.transport
 
         self.deferrable_errors = [
+            (20, None),
             (19, None),
             (18, 0),
             (27, 0),
