@@ -153,6 +153,18 @@ class XMLStream(asyncio.Protocol):
        register class callbacks on it using
        :meth:`~aioxmpp.xso.XSOParser.add_class`.
 
+    .. attribute:: error_handler
+
+       This should be assigned a callable, taking two arguments: a
+       :class:`xso.XSO` instance, which is the partial(!) top-level stream
+       element and an exception indicating the failure.
+
+       Partial here means that it is not guaranteed that anything but the
+       attributes on the partial XSO itself are there. Any children or text
+       payload is most likely missing, as it probably caused the error.
+
+       .. versionadded:: 0.4
+
     Sending XSOs:
 
     .. automethod:: send_xso
@@ -167,7 +179,7 @@ class XMLStream(asyncio.Protocol):
 
     Signals:
 
-    .. autoattribute:: on_closing
+    .. signal:: on_closing
 
        A :class:`~aioxmpp.callbacks.Signal` which fires when the underlying
        transport of the stream reports an error or when a stream error is
@@ -229,6 +241,7 @@ class XMLStream(asyncio.Protocol):
                                      self._rx_stream_error)
         self.stanza_parser.add_class(stream_xsos.StreamFeatures,
                                      self._rx_stream_features)
+        self.error_handler = None
 
     def _invalid_transition(self, to, via=None):
         text = "invalid state transition: from={} to={}".format(
@@ -303,43 +316,10 @@ class XMLStream(asyncio.Protocol):
         raise ConnectionError("xmlstream not connected")
 
     def _rx_exception(self, exc):
-        if isinstance(exc, stanza.PayloadParsingError):
-            self._logger.warn("payload parsing error: %s", exc)
-
-            if self._smachine.state >= State.CLOSING:
-                self._logger.warn("ignoring payload parsing error, "
-                                  "we’re closing")
-                return
-
-            try:
-                iq_response = exc.partial_obj.make_reply(type_="error")
-            except ValueError:
-                pass
-            else:
-                iq_response.error = stanza.Error(
-                    condition=(namespaces.stanzas, "bad-request"),
-                    type_="modify",
-                    text=str(exc.__context__)
-                )
-                self.send_xso(iq_response)
-        elif isinstance(exc, stanza.UnknownIQPayload):
-            self._logger.warn("unknown IQ payload: %s", exc)
-
-            if self._smachine.state >= State.CLOSING:
-                self._logger.warn("ignoring unknown IQ payload, "
-                                  "we’re closing")
-                return
-
-            try:
-                iq_response = exc.partial_obj.make_reply(type_="error")
-            except ValueError:
-                pass
-            else:
-                iq_response.error = stanza.Error(
-                    condition=(namespaces.stanzas, "feature-not-implemented"),
-                    type_="cancel",
-                )
-                self.send_xso(iq_response)
+        if isinstance(exc, (stanza.PayloadParsingError,
+                            stanza.UnknownIQPayload)):
+            if self.error_handler:
+                self.error_handler(exc.partial_obj, exc)
         elif isinstance(exc, xso.UnknownTopLevelTag):
             if self._smachine.state >= State.CLOSING:
                 self._logger.info("ignoring unknown top-level tag, "

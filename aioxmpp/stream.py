@@ -754,26 +754,31 @@ class StanzaStream:
                 stanza_obj.id_
             )
 
-    def _process_incoming(self, xmlstream, stanza_obj):
+    def _process_incoming_errornous_stanza(self, stanza_obj, exc):
+        if isinstance(exc, stanza.PayloadParsingError):
+            reply = stanza_obj.make_error(error=stanza.Error(condition=(
+                namespaces.stanzas,
+                "bad-request")
+            ))
+            self.enqueue_stanza(reply)
+        elif isinstance(exc, stanza.UnknownIQPayload):
+            reply = stanza_obj.make_error(error=stanza.Error(condition=(
+                namespaces.stanzas,
+                "feature-not-implemented")
+            ))
+            self.enqueue_stanza(reply)
+
+    def _process_incoming(self, xmlstream, queue_entry):
         """
         Dispatch to the different methods responsible for the different stanza
         types or handle a non-stanza stream-level element from `stanza_obj`,
         which has arrived over the given `xmlstream`.
         """
 
-        if isinstance(stanza_obj, stanza.IQ):
-            if self._sm_enabled:
-                self._sm_inbound_ctr += 1
-            self._process_incoming_iq(stanza_obj)
-        elif isinstance(stanza_obj, stanza.Message):
-            if self._sm_enabled:
-                self._sm_inbound_ctr += 1
-            self._process_incoming_message(stanza_obj)
-        elif isinstance(stanza_obj, stanza.Presence):
-            if self._sm_enabled:
-                self._sm_inbound_ctr += 1
-            self._process_incoming_presence(stanza_obj)
-        elif isinstance(stanza_obj, stream_xsos.SMAcknowledgement):
+        stanza_obj, exc = queue_entry
+
+        # first, handle SM stream objects
+        if isinstance(stanza_obj, stream_xsos.SMAcknowledgement):
             self._logger.debug("received SM ack: %r", stanza_obj)
             if not self._sm_enabled:
                 self._logger.warning("received SM ack, but SM not enabled")
@@ -785,7 +790,7 @@ class StanzaStream:
                 self._next_ping_event_type = PingEventType.SEND_OPPORTUNISTIC
                 self._next_ping_event_at = (datetime.utcnow() +
                                             self.ping_interval)
-
+            return
         elif isinstance(stanza_obj, stream_xsos.SMRequest):
             self._logger.debug("received SM request: %r", stanza_obj)
             if not self._sm_enabled:
@@ -795,9 +800,28 @@ class StanzaStream:
             response.counter = self._sm_inbound_ctr
             self._logger.debug("sending SM ack: %r", stanza_obj)
             xmlstream.send_xso(response)
-        else:
+            return
+
+        # raise if it is not a stanza
+        if not isinstance(stanza_obj, stanza.StanzaBase):
             raise RuntimeError(
                 "unexpected stanza class: {}".format(stanza_obj))
+
+        # now handle stanzas, these always increment the SM counter
+        if self._sm_enabled:
+            self._sm_inbound_ctr += 1
+
+        # check if the stanza has errors
+        if exc is not None:
+            self._process_incoming_errornous_stanza(stanza_obj, exc)
+            return
+
+        if isinstance(stanza_obj, stanza.IQ):
+            self._process_incoming_iq(stanza_obj)
+        elif isinstance(stanza_obj, stanza.Message):
+            self._process_incoming_message(stanza_obj)
+        elif isinstance(stanza_obj, stanza.Presence):
+            self._process_incoming_presence(stanza_obj)
 
     def flush_incoming(self):
         """
@@ -1132,6 +1156,7 @@ class StanzaStream:
         xmlstream.stanza_parser.add_class(stanza.IQ, receiver)
         xmlstream.stanza_parser.add_class(stanza.Message, receiver)
         xmlstream.stanza_parser.add_class(stanza.Presence, receiver)
+        xmlstream.error_handler = self.recv_errornous_stanza
 
         if self._sm_enabled:
             self._logger.debug("using SM")
@@ -1143,6 +1168,7 @@ class StanzaStream:
         self._xmlstream_exception = None
 
     def _start_rollback(self, xmlstream):
+        xmlstream.error_handler = None
         xmlstream.stanza_parser.remove_class(stanza.Presence)
         xmlstream.stanza_parser.remove_class(stanza.Message)
         xmlstream.stanza_parser.remove_class(stanza.IQ)
@@ -1320,7 +1346,10 @@ class StanzaStream:
         """
         Inject a `stanza` into the incoming queue.
         """
-        self._incoming_queue.put_nowait(stanza)
+        self._incoming_queue.put_nowait((stanza, None))
+
+    def recv_errornous_stanza(self, partial_obj, exc):
+        self._incoming_queue.put_nowait((partial_obj, exc))
 
     def enqueue_stanza(self, stanza, **kwargs):
         """

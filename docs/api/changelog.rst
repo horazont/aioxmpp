@@ -41,6 +41,9 @@ Version 0.4
   local certificate store. This is, with respect to trust, treated equivalent
   to a self-signed cert.
 
+* Fix stream management state going out-of-sync when an errornous stanza
+  (unknown payload, type or validator errors on the payload) was received.
+
 Version 0.3
 ===========
 

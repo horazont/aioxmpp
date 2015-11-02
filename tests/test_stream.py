@@ -427,6 +427,10 @@ class TestStanzaStream(StanzaStreamTestBase):
             ],
             self.xmlstream.stanza_parser.mock_calls
         )
+        self.assertEqual(
+            self.xmlstream.error_handler,
+            self.stream.recv_errornous_stanza
+        )
         self.xmlstream.stanza_parser.mock_calls.clear()
 
         self.stream.stop()
@@ -443,6 +447,7 @@ class TestStanzaStream(StanzaStreamTestBase):
             ],
             self.xmlstream.stanza_parser.mock_calls
         )
+        self.assertIsNone(self.xmlstream.error_handler)
 
     def test_unregister_iq_response(self):
         fut = asyncio.Future()
@@ -770,8 +775,8 @@ class TestStanzaStream(StanzaStreamTestBase):
         self.stream.recv_stanza(pres)
         self.stream.stop()
 
-        self.assertIs(
-            pres,
+        self.assertEqual(
+            (pres, None),
             run_coroutine(self.stream._incoming_queue.get())
         )
 
@@ -802,8 +807,8 @@ class TestStanzaStream(StanzaStreamTestBase):
 
         self.stream.recv_stanza(pres)
 
-        self.assertIs(
-            pres,
+        self.assertEqual(
+            (pres, None),
             run_coroutine(self.stream._incoming_queue.get())
         )
 
@@ -1695,6 +1700,171 @@ class TestStanzaStream(StanzaStreamTestBase):
         self.assertFalse(self.stream.running)
 
         self.assertFalse(failure_handler.mock_calls)
+
+    def test_handle_PayloadParsingError_at_iq_with_error_response(self):
+        iq = make_test_iq()
+        self.stream.recv_errornous_stanza(
+            iq,
+            stanza.PayloadParsingError(iq, ('end', 'foo'))
+        )
+
+        run_coroutine(asyncio.sleep(0.01))
+
+        self.stream.start(self.xmlstream)
+
+        obj = run_coroutine(self.sent_stanzas.get())
+        self.assertIsInstance(
+            obj,
+            stanza.IQ
+        )
+        self.assertEqual(
+            obj.type_,
+            "error"
+        )
+        self.assertEqual(
+            obj.id_,
+            iq.id_
+        )
+        self.assertEqual(
+            obj.from_,
+            iq.to
+        )
+        self.assertEqual(
+            obj.to,
+            iq.from_
+        )
+        self.assertIsInstance(
+            obj.error,
+            stanza.Error
+        )
+        self.assertEqual(
+            obj.error.condition,
+            (namespaces.stanzas, "bad-request")
+        )
+
+    def test_handle_PayloadParsingError_at_message_with_error_response(self):
+        msg = make_test_message()
+        self.stream.recv_errornous_stanza(
+            msg,
+            stanza.PayloadParsingError(msg, ('end', 'foo'))
+        )
+
+        run_coroutine(asyncio.sleep(0.01))
+
+        self.stream.start(self.xmlstream)
+
+        obj = run_coroutine(self.sent_stanzas.get())
+        self.assertIsInstance(
+            obj,
+            stanza.Message
+        )
+        self.assertEqual(
+            obj.type_,
+            "error"
+        )
+        self.assertEqual(
+            obj.id_,
+            msg.id_
+        )
+        self.assertEqual(
+            obj.from_,
+            msg.to
+        )
+        self.assertEqual(
+            obj.to,
+            msg.from_
+        )
+        self.assertIsInstance(
+            obj.error,
+            stanza.Error
+        )
+        self.assertEqual(
+            obj.error.condition,
+            (namespaces.stanzas, "bad-request")
+        )
+
+    def test_handle_PayloadParsingError_at_presence_with_error_response(self):
+        pres = make_test_message()
+        self.stream.recv_errornous_stanza(
+            pres,
+            stanza.PayloadParsingError(pres, ('end', 'foo'))
+        )
+
+        run_coroutine(asyncio.sleep(0.01))
+
+        self.stream.start(self.xmlstream)
+
+        obj = run_coroutine(self.sent_stanzas.get())
+        self.assertIsInstance(
+            obj,
+            stanza.Message
+        )
+        self.assertEqual(
+            obj.type_,
+            "error"
+        )
+        self.assertEqual(
+            obj.id_,
+            pres.id_
+        )
+        self.assertEqual(
+            obj.from_,
+            pres.to
+        )
+        self.assertEqual(
+            obj.to,
+            pres.from_
+        )
+        self.assertIsInstance(
+            obj.error,
+            stanza.Error
+        )
+        self.assertEqual(
+            obj.error.condition,
+            (namespaces.stanzas, "bad-request")
+        )
+
+    def test_handle_UnknownIQPayload_at_iq_with_error_response(self):
+        iq = make_test_iq()
+        self.stream.recv_errornous_stanza(
+            iq,
+            stanza.UnknownIQPayload(iq, ('end', 'foo'))
+        )
+
+        run_coroutine(asyncio.sleep(0.01))
+
+        self.stream.start(self.xmlstream)
+
+        obj = run_coroutine(self.sent_stanzas.get())
+        self.assertIsInstance(
+            obj,
+            stanza.IQ
+        )
+        self.assertEqual(
+            obj.type_,
+            "error"
+        )
+        self.assertEqual(
+            obj.id_,
+            iq.id_
+        )
+        self.assertEqual(
+            obj.from_,
+            iq.to
+        )
+        self.assertEqual(
+            obj.to,
+            iq.from_
+        )
+        self.assertIsInstance(
+            obj.error,
+            stanza.Error
+        )
+        self.assertEqual(
+            obj.error.condition,
+            (namespaces.stanzas, "feature-not-implemented")
+        )
+
 
 
 class TestStanzaStreamSM(StanzaStreamTestBase):
