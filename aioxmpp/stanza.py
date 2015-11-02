@@ -332,7 +332,7 @@ class StanzaBase(xso.XSO):
         else:
             return
 
-        self.id_ = base64.b64encode(random.getrandbits(
+        self.id_ = "x"+base64.b64encode(random.getrandbits(
             RANDOM_ID_BYTES * 8
         ).to_bytes(
             RANDOM_ID_BYTES, "little"
