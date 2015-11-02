@@ -12,6 +12,19 @@ General XSOs
 
 .. autoclass:: StreamFeatures()
 
+StartTLS related XSOs
+=====================
+
+.. autoclass:: StartTLSXSO()
+
+.. autoclass:: StartTLSFeature()
+
+.. autoclass:: StartTLS()
+
+.. autoclass:: StartTLSProceed()
+
+.. autoclass:: StartTLSFailure()
+
 Stream management related XSOs
 ==============================
 
@@ -174,6 +187,10 @@ class StreamFeatures(xso.XSO):
         cls.register_child(cls.features, other_cls)
         return other_cls
 
+    @classmethod
+    def is_feature(cls, other_cls):
+        return cls.CHILD_MAP.get(other_cls.TAG, None) is cls.features
+
     def __getitem__(self, feature_cls):
         tag = feature_cls.TAG
         try:
@@ -220,21 +237,51 @@ class StreamFeatures(xso.XSO):
         return itertools.chain(*self.features.values())
 
 
+class StartTLSXSO(xso.XSO):
+    """
+    Base class for starttls related XSOs.
+
+    This base class merely defines the namespaces to declare when serialising
+    the derived XSOs
+    """
+
+    DECLARE_NS = {None: namespaces.starttls}
+
+
 @StreamFeatures.as_feature_class
-class StreamManagementFeature(xso.XSO):
+class StartTLSFeature(StartTLSXSO):
     """
-    Stream management stream feature
+    Start TLS capability stream feature
     """
-    TAG = (namespaces.stream_management, "sm")
+
+    TAG = (namespaces.starttls, "starttls")
 
     class Required(xso.XSO):
-        TAG = (namespaces.stream_management, "required")
+        TAG = (namespaces.starttls, "required")
 
-    class Optional(xso.XSO):
-        TAG = (namespaces.stream_management, "optional")
+    required = xso.Child([Required], required=False)
 
-    required = xso.Child([Required])
-    optional = xso.Child([Optional])
+
+class StartTLS(StartTLSXSO):
+    """
+    XSO indicating that the client wants to start TLS now.
+    """
+
+    TAG = (namespaces.starttls, "starttls")
+
+
+class StartTLSFailure(StartTLSXSO):
+    """
+    Server refusing to start TLS.
+    """
+    TAG = (namespaces.starttls, "failure")
+
+
+class StartTLSProceed(StartTLSXSO):
+    """
+    Server allows start TLS.
+    """
+    TAG = (namespaces.starttls, "proceed")
 
 
 class SMXSO(xso.XSO):
@@ -248,6 +295,23 @@ class SMXSO(xso.XSO):
     DECLARE_NS = {
         None: namespaces.stream_management
     }
+
+
+@StreamFeatures.as_feature_class
+class StreamManagementFeature(SMXSO):
+    """
+    Stream management stream feature
+    """
+    TAG = (namespaces.stream_management, "sm")
+
+    class Required(xso.XSO):
+        TAG = (namespaces.stream_management, "required")
+
+    class Optional(xso.XSO):
+        TAG = (namespaces.stream_management, "optional")
+
+    required = xso.Child([Required])
+    optional = xso.Child([Optional])
 
 
 class SMRequest(SMXSO):

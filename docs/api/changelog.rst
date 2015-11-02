@@ -28,6 +28,14 @@ Version 0.4
   ``"normal"`` as default for :attr:`~aioxmpp.stanza.Message.type_` and relax
   the unknown child policy.
 
+* Moved the XSO classes for Start TLS to :mod:`aioxmpp.stream_xsos`, where they
+  belong.
+
+* Make sure that :class:`aioxmpp.stream_xsos.StartTLS` declares a prefixless
+  namespace---otherwise, connections to some versions of ejabberd fail in a
+  very humorous way: client says "I want to start TLS", server says "You have
+  to use TLS" and closes the stream with a policy-violation stream error.
+
 Version 0.3
 ===========
 

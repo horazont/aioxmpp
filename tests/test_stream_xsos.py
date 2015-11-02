@@ -80,9 +80,17 @@ class TestStreamFeatures(unittest.TestCase):
         )
 
     def test_as_feature_class_decorator(self):
-        @stream_xsos.StreamFeatures.as_feature_class
         class FakeFeature(xso.XSO):
             TAG = ("uri:foo", "bar")
+
+        self.assertNotIn(
+            FakeFeature.TAG,
+            stream_xsos.StreamFeatures.CHILD_MAP
+        )
+
+        FakeFeature = stream_xsos.StreamFeatures.as_feature_class(
+            FakeFeature
+        )
 
         self.assertTrue(issubclass(FakeFeature, xso.XSO))
 
@@ -94,6 +102,16 @@ class TestStreamFeatures(unittest.TestCase):
             stream_xsos.StreamFeatures.features,
             stream_xsos.StreamFeatures.CHILD_MAP[FakeFeature.TAG]
         )
+
+    def test_is_feature(self):
+        class FakeFeature(xso.XSO):
+            TAG = ("uri:foo", "baz")
+
+        self.assertFalse(stream_xsos.StreamFeatures.is_feature(FakeFeature))
+
+        stream_xsos.StreamFeatures.as_feature_class(FakeFeature)
+
+        self.assertTrue(stream_xsos.StreamFeatures.is_feature(FakeFeature))
 
     def test__getitem__(self):
         class FakeFeature(xso.XSO):
@@ -221,6 +239,193 @@ class TestStreamFeatures(unittest.TestCase):
                 instance2
             },
             set(features)
+        )
+
+
+class TestStartTLSXSO(unittest.TestCase):
+    def test_is_xso(self):
+        self.assertTrue(issubclass(
+            stream_xsos.StartTLSXSO,
+            xso.XSO
+        ))
+
+    def test_declare_ns(self):
+        self.assertDictEqual(
+            stream_xsos.StartTLSXSO.DECLARE_NS,
+            {
+                None: namespaces.starttls
+            }
+        )
+
+
+class TestStartTLSFeature(unittest.TestCase):
+    def test_is_starttls_xso(self):
+        self.assertTrue(issubclass(
+            stream_xsos.StartTLSFeature,
+            stream_xsos.StartTLSXSO
+        ))
+
+    def test_tag(self):
+        self.assertEqual(
+            stream_xsos.StartTLSFeature.TAG,
+            (namespaces.starttls, "starttls")
+        )
+
+    def test_required(self):
+        self.assertIsInstance(
+            stream_xsos.StartTLSFeature.required,
+            xso.Child
+        )
+        self.assertSetEqual(
+            stream_xsos.StartTLSFeature.required._classes,
+            {stream_xsos.StartTLSFeature.Required},
+        )
+        self.assertFalse(stream_xsos.StartTLSFeature.required.required)
+
+    def test_is_registered_stream_feature(self):
+        self.assertTrue(stream_xsos.StreamFeatures.is_feature(
+            stream_xsos.StartTLSFeature
+        ))
+
+
+class TestStartTLSFeature_Required(unittest.TestCase):
+    def test_is_starttls_xso(self):
+        self.assertTrue(issubclass(
+            stream_xsos.StartTLSFeature.Required,
+            xso.XSO,
+        ))
+
+    def test_tag(self):
+        self.assertEqual(
+            stream_xsos.StartTLSFeature.Required.TAG,
+            (namespaces.starttls, "required")
+        )
+
+
+class TestStartTLS(unittest.TestCase):
+    def test_is_starttls_xso(self):
+        self.assertTrue(issubclass(
+            stream_xsos.StartTLS,
+            stream_xsos.StartTLSXSO
+        ))
+
+    def test_tag(self):
+        self.assertEqual(
+            stream_xsos.StartTLS.TAG,
+            (namespaces.starttls, "starttls")
+        )
+
+
+class TestStartTLSFailure(unittest.TestCase):
+    def test_is_starttls_xso(self):
+        self.assertTrue(issubclass(
+            stream_xsos.StartTLSFailure,
+            stream_xsos.StartTLSXSO
+        ))
+
+    def test_tag(self):
+        self.assertEqual(
+            stream_xsos.StartTLSFailure.TAG,
+            (namespaces.starttls, "failure")
+        )
+
+
+class TestStartTLSProceed(unittest.TestCase):
+    def test_is_starttls_xso(self):
+        self.assertTrue(issubclass(
+            stream_xsos.StartTLSProceed,
+            stream_xsos.StartTLSXSO
+        ))
+
+    def test_tag(self):
+        self.assertEqual(
+            stream_xsos.StartTLSProceed.TAG,
+            (namespaces.starttls, "proceed")
+        )
+
+
+class TestSMXSO(unittest.TestCase):
+    def test_is_xso(self):
+        self.assertTrue(issubclass(
+            stream_xsos.SMXSO,
+            xso.XSO
+        ))
+
+    def test_declare_ns(self):
+        self.assertDictEqual(
+            stream_xsos.SMXSO.DECLARE_NS,
+            {
+                None: namespaces.stream_management
+            }
+        )
+
+
+class TestStreamManagementFeature(unittest.TestCase):
+    def test_is_sm_xso(self):
+        self.assertTrue(issubclass(
+            stream_xsos.StreamManagementFeature,
+            stream_xsos.SMXSO
+        ))
+
+    def test_tag(self):
+        self.assertEqual(
+            stream_xsos.StreamManagementFeature.TAG,
+            (namespaces.stream_management, "sm")
+        )
+
+    def test_required(self):
+        self.assertIsInstance(
+            stream_xsos.StreamManagementFeature.required,
+            xso.Child
+        )
+        self.assertSetEqual(
+            stream_xsos.StreamManagementFeature.required._classes,
+            {stream_xsos.StreamManagementFeature.Required},
+        )
+        self.assertFalse(stream_xsos.StreamManagementFeature.required.required)
+
+    def test_optional(self):
+        self.assertIsInstance(
+            stream_xsos.StreamManagementFeature.optional,
+            xso.Child
+        )
+        self.assertSetEqual(
+            stream_xsos.StreamManagementFeature.optional._classes,
+            {stream_xsos.StreamManagementFeature.Optional},
+        )
+        self.assertFalse(stream_xsos.StreamManagementFeature.optional.required)
+
+    def test_is_registered_stream_feature(self):
+        self.assertTrue(stream_xsos.StreamFeatures.is_feature(
+            stream_xsos.StreamManagementFeature
+        ))
+
+
+class TestStreamManagementFeature_Required(unittest.TestCase):
+    def test_is_xso(self):
+        self.assertTrue(issubclass(
+            stream_xsos.StreamManagementFeature.Required,
+            xso.XSO,
+        ))
+
+    def test_tag(self):
+        self.assertEqual(
+            stream_xsos.StreamManagementFeature.Required.TAG,
+            (namespaces.stream_management, "required")
+        )
+
+
+class TestStreamManagementFeature_Optional(unittest.TestCase):
+    def test_is_xso(self):
+        self.assertTrue(issubclass(
+            stream_xsos.StreamManagementFeature.Optional,
+            xso.XSO,
+        ))
+
+    def test_tag(self):
+        self.assertEqual(
+            stream_xsos.StreamManagementFeature.Optional.TAG,
+            (namespaces.stream_management, "optional")
         )
 
 
