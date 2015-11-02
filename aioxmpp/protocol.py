@@ -119,6 +119,26 @@ class State(Enum):
     CLOSED = 6
 
 
+class DebugWrapper:
+    def __init__(self, dest, logger):
+        self.dest = dest
+        self.logger = logger
+        if hasattr(dest, "flush"):
+            self._flush = dest.flush
+        else:
+            self._flush = lambda:None
+        self._pieces = []
+
+    def write(self, data):
+        self._pieces.append(data)
+        self.dest.write(data)
+
+    def flush(self):
+        self.logger.debug("SENT %r", b"".join(self._pieces))
+        self._pieces = []
+        self._flush
+
+
 class XMLStream(asyncio.Protocol):
     """
     XML stream implementation. This is an streaming :class:`asyncio.Protocol`
@@ -508,8 +528,12 @@ class XMLStream(asyncio.Protocol):
         self._parser = xml.make_parser()
         self._parser.setContentHandler(self._processor)
 
+        if self._logger.getEffectiveLevel() <= logging.DEBUG:
+            dest = DebugWrapper(self._transport, self._logger)
+        else:
+            dest = self._transport
         self._writer = xml.write_xmlstream(
-            self._transport,
+            dest,
             self._to,
             nsmap={None: "jabber:client"},
             sorted_attributes=self._sorted_attributes)
@@ -546,8 +570,6 @@ class XMLStream(asyncio.Protocol):
         re-raised instead of the :class:`ConnectionError`.
         """
         self._require_connection()
-        if self._logger.getEffectiveLevel() <= logging.DEBUG:
-            self._logger.debug("SEND %s", xml.serialize_single_xso(obj))
         self._writer.send(obj)
 
     def can_starttls(self):
