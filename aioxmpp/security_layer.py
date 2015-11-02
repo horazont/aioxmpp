@@ -358,10 +358,12 @@ class HookablePKIXCertificateVerifier(CertificateVerifier):
 
     """
 
+    # these are the errors for which we allow pinning the certificate
     _DEFERRABLE_ERRORS = {
-        (19, None),
-        (18, 0),
-        (27, 0),
+        (20, None),  # issuer certificate not available locally
+        (19, None),  # self-signed cert in chain
+        (18, 0),     # depth-zero self-signed cert
+        (27, 0),     # cert untrusted
     }
 
     def __init__(self,

@@ -36,6 +36,11 @@ Version 0.4
   very humorous way: client says "I want to start TLS", server says "You have
   to use TLS" and closes the stream with a policy-violation stream error.
 
+* Allow pinning of certificates for which no issuer certificate is available,
+  because it is missing in the server-provided chain and not available in the
+  local certificate store. This is, with respect to trust, treated equivalent
+  to a self-signed cert.
+
 Version 0.3
 ===========
 
