@@ -219,6 +219,10 @@ class TestQuery(unittest.TestCase):
             (None, "ver"),
             roster_xso.Query.ver.tag
         )
+        self.assertIs(
+            roster_xso.Query.ver.default,
+            None
+        )
 
     def test_items_attr(self):
         self.assertIsInstance(
