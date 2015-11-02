@@ -25,3 +25,4 @@ Protocol part and XEP implementations
    roster
    presence
    rfc6120
+   rfc3921

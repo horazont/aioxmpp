@@ -37,6 +37,7 @@ from . import (
     stream,
     callbacks,
     stream_xsos,
+    rfc3921,
     rfc6120,
     stanza,
     structs,
@@ -250,6 +251,10 @@ class AbstractClient:
     client fails and :attr:`on_failure` is fired. :attr:`running` becomes false
     and the client needs to be re-started manually by calling :meth:`start`.
 
+    .. versionchanged:: 0.4
+
+       Since 0.4, support for legacy XMPP sessions has been implemented. Mainly
+       for compatiblity with ejabberd.
 
     Controlling the client:
 
@@ -417,6 +422,20 @@ class AbstractClient:
         return True
 
     @asyncio.coroutine
+    def _negotiate_legacy_session(self):
+        self._logger.debug(
+            "remote server announces support for legacy sessions"
+        )
+        yield from self.stream.send_iq_and_wait_for_reply(
+            stanza.IQ(type_="set",
+                      payload=rfc3921.Session()
+            )
+        )
+        self._logger.debug(
+            "legacy session negotiated (upgrade your server!)"
+        )
+
+    @asyncio.coroutine
     def _negotiate_stream(self, xmlstream, features):
         server_can_do_sm = True
         try:
@@ -452,6 +471,13 @@ class AbstractClient:
             except errors.StreamNegotiationFailure:
                 self._logger.debug("stream management failed to start")
             self._logger.debug("stream management started")
+
+        try:
+            features[rfc3921.SessionFeature]
+        except KeyError:
+            pass  # yay
+        else:
+            yield from self._negotiate_legacy_session()
 
         self._established = True
 

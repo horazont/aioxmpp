@@ -55,6 +55,8 @@ Version 0.4
   To get the old behaviour for your class, you have to put ``DECLARE_NS = {}``
   in its declaration.
 
+* Support for legacy (`RFC 3921`_) XMPP session negotiation. Hi, ejabberd!
+
 Version 0.3
 ===========
 

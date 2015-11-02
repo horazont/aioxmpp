@@ -2,6 +2,7 @@ import asyncio
 import contextlib
 import functools
 import ipaddress
+import logging
 import unittest
 import unittest.mock
 
@@ -12,6 +13,7 @@ import aioxmpp.structs as structs
 import aioxmpp.stream_xsos as stream_xsos
 import aioxmpp.errors as errors
 import aioxmpp.stanza as stanza
+import aioxmpp.rfc3921 as rfc3921
 import aioxmpp.rfc6120 as rfc6120
 import aioxmpp.service as service
 
@@ -1063,6 +1065,70 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
 
         self.established_rec.assert_called_once_with()
         self.assertFalse(self.destroyed_rec.mock_calls)
+
+    def test_negotiate_legacy_session(self):
+        self.features[...] = rfc3921.SessionFeature()
+
+        iqreq = stanza.IQ(type_="set")
+        iqreq.payload = rfc3921.Session()
+        iqreq.id_ = "autoset"
+
+        iqresp = stanza.IQ(type_="result")
+        iqresp.id_ = "autoset"
+
+        self.client.start()
+        run_coroutine(self.xmlstream.run_test(
+            self.resource_binding+
+            [
+                XMLStreamMock.Send(
+                    iqreq,
+                )
+            ],
+        ))
+
+        self.assertFalse(self.client.established)
+
+        run_coroutine(self.xmlstream.run_test(
+            [
+            ],
+            stimulus=[
+                XMLStreamMock.Receive(iqresp)
+            ]
+        ))
+
+        run_coroutine(asyncio.sleep(0))
+
+    def test_negotiate_legacy_session_after_stream_management(self):
+        self.features[...] = rfc3921.SessionFeature()
+        self.features[...] = stream_xsos.StreamManagementFeature()
+
+        iqreq = stanza.IQ(type_="set")
+        iqreq.payload = rfc3921.Session()
+        iqreq.id_ = "autoset"
+
+        iqresp = stanza.IQ(type_="result")
+        iqresp.id_ = "autoset"
+
+        self.client.start()
+        run_coroutine(self.xmlstream.run_test(
+            self.resource_binding+
+            self.sm_negotiation_exchange+
+            [
+                XMLStreamMock.Send(
+                    iqreq,
+                    response=[
+                        XMLStreamMock.Receive(iqresp),
+                    ]
+                ),
+                XMLStreamMock.Send(
+                    stream_xsos.SMRequest()
+                )
+            ],
+        ))
+
+        run_coroutine(asyncio.sleep(0))
+
+        self.assertTrue(self.client.established)
 
     def test_resume_stream_management(self):
         self.features[...] = stream_xsos.StreamManagementFeature()
