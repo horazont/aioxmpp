@@ -239,6 +239,31 @@ class TestMessage(unittest.TestCase):
             r.from_)
         self.assertIsNone(r.id_)
 
+    def test_make_error(self):
+        e = stanza.Error(
+            condition=(namespaces.stanzas, "feature-not-implemented")
+        )
+        s = stanza.Message(from_=TEST_FROM,
+                           to=TEST_TO,
+                           id_="someid",
+                           type_="groupchat")
+        r = s.make_error(e)
+
+        self.assertIsInstance(r, stanza.Message)
+
+        self.assertEqual(
+            r.type_,
+            "error")
+        self.assertEqual(
+            TEST_FROM,
+            r.to)
+        self.assertEqual(
+            TEST_TO,
+            r.from_)
+        self.assertEqual(
+            s.id_,
+            r.id_)
+
     def test_repr(self):
         s = stanza.Message(from_=TEST_FROM,
                            to=TEST_TO,
@@ -393,6 +418,31 @@ class TestPresence(unittest.TestCase):
         s = stanza.Presence()
         self.assertIsNone(s.type_)
         self.assertIsNone(s.show)
+
+    def test_make_error(self):
+        e = stanza.Error(
+            condition=(namespaces.stanzas, "gone")
+        )
+        s = stanza.Presence(from_=TEST_FROM,
+                            to=TEST_TO,
+                            id_="someid",
+                            type_="unavailable")
+        r = s.make_error(e)
+
+        self.assertIsInstance(r, stanza.Presence)
+
+        self.assertEqual(
+            r.type_,
+            "error")
+        self.assertEqual(
+            TEST_FROM,
+            r.to)
+        self.assertEqual(
+            TEST_TO,
+            r.from_)
+        self.assertEqual(
+            s.id_,
+            r.id_)
 
     def test_repr(self):
         s = stanza.Presence(
@@ -654,6 +704,31 @@ class TestIQ(unittest.TestCase):
         s.type_ = "result"
         with self.assertRaises(ValueError):
             s.make_reply("error")
+
+    def test_make_error(self):
+        e = stanza.Error(
+            condition=(namespaces.stanzas, "bad-request")
+        )
+        s = stanza.IQ(from_=TEST_FROM,
+                      to=TEST_TO,
+                      id_="someid",
+                      type_="get")
+        r = s.make_error(e)
+
+        self.assertIsInstance(r, stanza.IQ)
+
+        self.assertEqual(
+            r.type_,
+            "error")
+        self.assertEqual(
+            TEST_FROM,
+            r.to)
+        self.assertEqual(
+            TEST_TO,
+            r.from_)
+        self.assertEqual(
+            s.id_,
+            r.id_)
 
     def test_repr(self):
         s = stanza.IQ(

@@ -352,9 +352,9 @@ class StanzaBase(xso.XSO):
         the :attr:`type_` is set to ``"error"``.
         """
         obj = type(self)(from_=self.to,
-                         to=self.from_)
+                         to=self.from_,
+                         type_="error")
         obj.id_ = self.id_
-        obj.type_ = "error"
         obj.error = error
         return obj
 
