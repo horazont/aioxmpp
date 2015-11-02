@@ -65,7 +65,9 @@ def make_mocked_streams(loop):
     xmlstream.send_xso = _on_send_xso
     xmlstream.on_closing = callbacks.AdHocSignal()
     xmlstream.close_and_wait = CoroutineMock()
-    stanzastream = stream.StanzaStream(loop=loop)
+    stanzastream = stream.StanzaStream(
+        TEST_FROM.bare(),
+        loop=loop)
 
     return sent_stanzas, xmlstream, stanzastream
 
@@ -252,6 +254,20 @@ class TestStanzaStream(StanzaStreamTestBase):
             timedelta(seconds=15),
             self.stream.ping_opportunistic_interval
         )
+
+    def test_init(self):
+        self.assertEqual(
+            self.stream.local_jid,
+            TEST_FROM.bare()
+        )
+
+    def test_init_default(self):
+        s = stream.StanzaStream()
+        self.assertIsNone(s.local_jid)
+
+    def test_local_jid_is_not_writable(self):
+        with self.assertRaises(AttributeError):
+            self.stream.local_jid = TEST_TO.bare()
 
     def test_broker_iq_response(self):
         iq = make_test_iq(type_="result")
@@ -1864,6 +1880,25 @@ class TestStanzaStream(StanzaStreamTestBase):
             obj.error.condition,
             (namespaces.stanzas, "feature-not-implemented")
         )
+
+    def test_map_iq_from_bare_local_jid_to_None(self):
+        iq = make_test_iq(from_=TEST_FROM.bare(), type_="result")
+        iq.autoset_id()
+
+        fut = asyncio.Future()
+
+        self.stream.register_iq_response_callback(
+            None,
+            iq.id_,
+            fut.set_result)
+        self.stream.start(self.xmlstream)
+        self.stream.recv_stanza(iq)
+
+        run_coroutine(fut)
+
+        self.stream.stop()
+
+        self.assertIs(iq, fut.result())
 
 
 

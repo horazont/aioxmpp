@@ -284,12 +284,20 @@ class StanzaStream:
     :class:`StanzaStream` has to make sure that the XML streams are compatible,
     identity-wise (use the same JID).
 
+    `local_jid` may be the **bare** sender JID associated with the stanza
+    stream. This is required for compatibility with ejabberd. If it is omitted,
+    communication with ejabberd instances may not work.
+
     `loop` may be used to explicitly specify the :class:`asyncio.BaseEventLoop`
     to use, otherwise the current event loop is used.
 
     `base_logger` can be used to explicitly specify a :class:`logging.Logger`
     instance to fork off the logger from. The :class:`StanzaStream` will use a
     child logger of `base_logger` called ``StanzaStream``.
+
+    .. versionchanged:: 0.4
+
+       The `local_jid` argument was added.
 
     The stanza stream takes care of ensuring stream liveness. For that, pings
     are sent in a periodic interval. If stream management is enabled, stream
@@ -505,6 +513,10 @@ class StanzaStream:
 
     .. autoattribute:: sm_resumable
 
+    Miscellaneous:
+
+    .. autoattribute:: local_jid
+
     Signals:
 
     .. signal:: on_failure(exc)
@@ -539,6 +551,7 @@ class StanzaStream:
     on_stream_established = callbacks.Signal()
 
     def __init__(self,
+                 local_jid=None,
                  *,
                  loop=None,
                  base_logger=logging.getLogger("aioxmpp")):
@@ -546,6 +559,8 @@ class StanzaStream:
         self._loop = loop or asyncio.get_event_loop()
         self._logger = base_logger.getChild("StanzaStream")
         self._task = None
+
+        self._local_jid = local_jid
 
         self._active_queue = custom_queue.AsyncDeque(loop=self._loop)
         self._incoming_queue = custom_queue.AsyncDeque(loop=self._loop)
@@ -581,6 +596,13 @@ class StanzaStream:
 
         self.app_outbound_message_filter = AppFilter()
         self.service_outbound_message_filter = Filter()
+
+    @property
+    def local_jid(self):
+        """
+        The `local_jid` argument to the constructor. This cannot be changed.
+        """
+        return self._local_jid
 
     def _done_handler(self, task):
         """
@@ -645,6 +667,8 @@ class StanzaStream:
             # iq response
             self._logger.debug("iq is response")
             key = (stanza_obj.from_, stanza_obj.id_)
+            if key[0] == self._local_jid:
+                key = (None, key[1])
             try:
                 self._iq_response_map.unicast(key, stanza_obj)
             except KeyError:

@@ -24,6 +24,8 @@ namespaces.rfc3921_session = "urn:ietf:params:xml:ns:xmpp-session"
 class Session(xso.XSO):
     """
     IQ payload to establish a legacy XMPP session.
+
+    .. versionadded:: 0.4
     """
 
     UNKNOWN_CHILD_POLICY = xso.UnknownChildPolicy.DROP
@@ -37,6 +39,8 @@ class SessionFeature(xso.XSO):
     """
     Stream feature which the server uses to announce that it supports legacy
     XMPP sessions.
+
+    .. versionadded:: 0.4
     """
 
     UNKNOWN_CHILD_POLICY = xso.UnknownChildPolicy.DROP

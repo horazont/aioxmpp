@@ -57,6 +57,9 @@ Version 0.4
 
 * Support for legacy (`RFC 3921`_) XMPP session negotiation. Hi, ejabberd!
 
+* :class:`aioxmpp.stream.StanzaStream` has a positional, optional argument
+  (`local_jid`) for ejabberd compatiblity.
+
 Version 0.3
 ===========
 

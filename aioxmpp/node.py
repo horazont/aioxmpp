@@ -382,7 +382,7 @@ class AbstractClient:
         self.backoff_factor = 1.2
         self.backoff_cap = timedelta(seconds=60)
 
-        self.stream = stream.StanzaStream()
+        self.stream = stream.StanzaStream(local_jid.bare())
 
     def _stream_failure(self, exc):
         self._failure_future.set_result(exc)

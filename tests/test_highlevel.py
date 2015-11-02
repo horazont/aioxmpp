@@ -74,7 +74,7 @@ class TestProtocol(unittest.TestCase):
             sorted_attributes=True,
             features_future=fut)
         t = TransportMock(self, p)
-        s = aioxmpp.stream.StanzaStream()
+        s = aioxmpp.stream.StanzaStream(TEST_FROM.bare())
 
         run_coroutine(t.run_test(
             [

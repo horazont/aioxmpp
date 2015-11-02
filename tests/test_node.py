@@ -787,6 +787,10 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
             self.client.negotiation_timeout,
             timedelta(seconds=60)
         )
+        self.assertEqual(
+            self.client.local_jid.bare(),
+            self.client.stream.local_jid
+        )
 
     def test_setup(self):
         client = node.AbstractClient(
