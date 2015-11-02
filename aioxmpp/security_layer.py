@@ -402,6 +402,9 @@ class HookablePKIXCertificateVerifier(CertificateVerifier):
         for x509, errno, depth in records:
             if     ((errno, depth) not in self._DEFERRABLE_ERRORS and
                     (errno, None) not in self._DEFERRABLE_ERRORS):
+                logger.warning("non-deferrable certificate error: "
+                               "depth=%d, errno=%d",
+                               depth, errno)
                 return False
 
         if self._quick_check is not None:
