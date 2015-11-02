@@ -23,17 +23,7 @@ SASL state machine and XSOs
 
 .. autoclass:: SASLStateMachine
 
-.. autoclass:: SASLAuth
-
-.. autoclass:: SASLChallenge
-
-.. autoclass:: SASLResponse
-
-.. autoclass:: SASLFailure
-
-.. autoclass:: SASLSuccess
-
-.. autoclass:: SASLAbort
+The XSOs for SASL authentication can be found in :mod:`aioxmpp.stream_xsos`.
 
 """
 
@@ -51,6 +41,15 @@ import time
 
 from .stringprep import saslprep
 from . import errors, xso, protocol
+
+from .stream_xsos import (
+    SASLAuth,
+    SASLChallenge,
+    SASLResponse,
+    SASLFailure,
+    SASLSuccess,
+    SASLAbort
+)
 
 from .utils import namespaces
 
@@ -109,141 +108,6 @@ except ImportError:
             for i in range(1, block_count + 1))
 
         return result[:dklen]
-
-
-class SASLAuth(xso.XSO):
-    """
-    Start SASL authentication.
-
-    .. attribute:: mechanism
-
-       The mechanism to authenticate with.
-
-    .. attribute:: payload
-
-       For mechanisms which use an initial client-supplied payload, this can be
-       a string. It is automatically encoded as base64 according to the XMPP
-       SASL specification.
-
-    """
-
-    TAG = (namespaces.sasl, "auth")
-
-    mechanism = xso.Attr("mechanism")
-    payload = xso.Text(type_=xso.Base64Binary(empty_as_equal=True))
-
-    def __init__(self, mechanism=None, payload=None):
-        super().__init__()
-        self.mechanism = mechanism
-        self.payload = payload
-
-
-class SASLChallenge(xso.XSO):
-    """
-    A SASL challenge sent by the server.
-
-    .. attribute:: payload
-
-       The (decoded) SASL payload. Base64 en/decoding is handled by the XSO
-       stack.
-
-    """
-
-    TAG = (namespaces.sasl, "challenge")
-
-    payload = xso.Text(type_=xso.Base64Binary(empty_as_equal=True))
-
-    def __init__(self, payload=None):
-        super().__init__()
-        self.payload = payload
-
-
-class SASLResponse(xso.XSO):
-    """
-    A SASL challenge sent by the client.
-
-    .. attribute:: payload
-
-       The (decoded) SASL payload. Base64 en/decoding is handled by the XSO
-       stack.
-
-    """
-
-    TAG = (namespaces.sasl, "response")
-
-    payload = xso.Text(type_=xso.Base64Binary(empty_as_equal=True))
-
-    def __init__(self, payload=None):
-        super().__init__()
-        self.payload = payload
-
-
-class SASLFailure(xso.XSO):
-    """
-    Indication of SASL failure.
-
-    .. attribute:: condition
-
-       The condition which caused the authentication to fail.
-
-    .. attribute:: text
-
-       Optional human-readable text.
-
-    """
-
-    TAG = (namespaces.sasl, "failure")
-
-    condition = xso.ChildTag(
-        tags=[
-            "aborted",
-            "account-disabled",
-            "credentials-expired",
-            "encryption-required",
-            "incorrect-encoding",
-            "invalid-authzid",
-            "invalid-mechanism",
-            "malformed-request",
-            "mechanism-too-weak",
-            "not-authorized",
-            "temporary-auth-failure",
-        ],
-        default_ns=namespaces.sasl,
-        allow_none=False,
-        declare_prefix=None,
-    )
-    text = xso.ChildText(
-        tag=(namespaces.sasl, "text"),
-        attr_policy=xso.UnknownAttrPolicy.DROP,
-        default=None,
-        declare_prefix=None)
-
-    def __init__(self, condition=(namespaces.sasl, "temporary-auth-failure")):
-        super().__init__()
-        self.condition = condition
-
-
-class SASLSuccess(xso.XSO):
-    """
-    Indication of SASL success, with optional final payload supplied by the
-    server.
-
-    .. attribute:: payload
-
-       The (decoded) SASL payload. Base64 en/decoding is handled by the XSO
-       stack.
-
-    """
-    TAG = (namespaces.sasl, "success")
-
-    payload = xso.Text(type_=xso.Base64Binary(empty_as_equal=True))
-
-
-class SASLAbort(xso.XSO):
-    """
-    Request to abort the SASL authentication.
-    """
-    TAG = (namespaces.sasl, "abort")
 
 
 class SASLStateMachine:

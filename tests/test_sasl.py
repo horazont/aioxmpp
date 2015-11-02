@@ -74,53 +74,6 @@ class SASLStateMachineMock(sasl.SASLStateMachine):
             "Not all actions performed")
 
 
-class TestSASLAuth(unittest.TestCase):
-    def test_init(self):
-        obj = sasl.SASLAuth(mechanism="foo", payload=b"bar")
-        self.assertEqual("foo", obj.mechanism)
-        self.assertEqual(b"bar", obj.payload)
-
-    def test_default_init(self):
-        obj = sasl.SASLAuth()
-        self.assertIsNone(obj.mechanism)
-        self.assertIsNone(obj.payload)
-
-
-class TestSASLChallenge(unittest.TestCase):
-    def test_init(self):
-        obj = sasl.SASLChallenge(payload=b"bar")
-        self.assertEqual(b"bar", obj.payload)
-
-    def test_default_init(self):
-        obj = sasl.SASLChallenge()
-        self.assertIsNone(obj.payload)
-
-
-class TestSASLResponse(unittest.TestCase):
-    def test_init(self):
-        obj = sasl.SASLResponse(payload=b"bar")
-        self.assertEqual(b"bar", obj.payload)
-
-    def test_default_init(self):
-        obj = sasl.SASLResponse()
-        self.assertIsNone(obj.payload)
-
-
-class TestSASLFailure(unittest.TestCase):
-    def test_init(self):
-        obj = sasl.SASLFailure(condition=(namespaces.sasl,
-                                          "invalid-mechanism"))
-        self.assertEqual(
-            (namespaces.sasl, "invalid-mechanism"),
-            obj.condition)
-
-    def test_default_init(self):
-        obj = sasl.SASLFailure()
-        self.assertEqual(
-            (namespaces.sasl, "temporary-auth-failure"),
-            obj.condition)
-
-
 class TestSASLStateMachine(xmltestutils.XMLTestCase):
     def setUp(self):
         self.loop = asyncio.get_event_loop()
