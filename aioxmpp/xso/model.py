@@ -1119,6 +1119,46 @@ class XMLStreamClass(type):
        A set of all :class:`~.xso.Child` (or :class:`~.xso.ChildList`)
        descriptor objects of this class.
 
+    .. attribute:: DECLARE_NS
+
+       A dictionary which defines the namespace mappings which shall be
+       declared when serializing this element. It must map namespace prefixes
+       (such as :data:`None` or ``"foo"``) to namespace URIs.
+
+       For maximum compatibility with legacy XMPP implementations (I’m looking
+       at you, ejabberd!), :attr:`DECLARE_NS` is set by this metaclass unless
+       it is provided explicitly when declaring the class:
+
+       * If no :attr:`TAG` is set, :attr:`DECLARE_NS` is also not set. The
+         attribute does not exist on the class in that case, unless it is
+         inherited from a base class.
+
+       * If :attr:`TAG` is set and at least one base class has a
+         :attr:`DECLARE_NS`, :attr:`DECLARE_NS` is not auto generated, so that
+         inheritance can take place.
+
+       * If :attr:`TAG` is set and has a namespace (and no base class has a
+         :attr:`DECLARE_NS`), :attr:`DECLARE_NS` is set to
+         ``{ None: namespace }``, where ``namespace`` is the namespace of the
+         :attr:`TAG`.
+
+       * If :attr:`TAG` is set and does not have a namespace,
+         :attr:`DECLARE_NS` is set to the empty dict. This should not occur
+         outside testing, and support for tags without namespace might be
+         removed in future versions.
+
+       .. warning::
+
+          It is discouraged to use namespace prefixes of the format
+          ``"ns{:d}".format(n)``, for any given number `n`. These prefixes are
+          reserved for ad-hoc namespace declarations, and attempting to use
+          them may have unwanted side-effects.
+
+       .. versionchanged:: 0.4
+
+          The automatic generation of the :attr:`DECLARE_NS` attribute was
+          added in 0.4.
+
     .. note::
 
        :class:`~.xso.XSO` defines defaults for more attributes which also
@@ -1221,12 +1261,24 @@ class XMLStreamClass(type):
         try:
             tag = namespace["TAG"]
         except KeyError:
-            pass
+            tag = None
         else:
             try:
-                namespace["TAG"] = normalize_tag(tag)
+                namespace["TAG"] = tag = normalize_tag(tag)
             except ValueError:
                 raise TypeError("TAG attribute has incorrect format")
+
+
+
+        if     (tag is not None and
+                "DECLARE_NS" not in namespace and
+                not any(hasattr(base, "DECLARE_NS") for base in bases)):
+            if tag[0] is None:
+                namespace["DECLARE_NS"] = {}
+            else:
+                namespace["DECLARE_NS"] = {
+                    None: tag[0]
+                }
 
         return super().__new__(mcls, name, bases, namespace)
 
@@ -1527,20 +1579,6 @@ class XSO(metaclass=XMLStreamClass):
        behaviour if an attribute is encountered for which no matching
        descriptor is found.
 
-    .. attribute:: DECLARE_NS = None
-
-       Either a dictionary which defines the namespace mappings which shall be
-       declared when serializing this element or :data:`None`. If it is a
-       dictionary, it must map namespace prefixes (such as :data:`None` or
-       ``"foo"``) to namespace URIs.
-
-       .. warning::
-
-          It is discouraged to use namespace prefixes of the format
-          ``"ns{:d}".format(n)``, for any given number `n`. These prefixes are
-          reserved for ad-hoc namespace declarations, and attempting to use
-          them may have unwanted side-effects.
-
     Example::
 
         class Body(aioxmpp.xso.XSO):
@@ -1585,7 +1623,6 @@ class XSO(metaclass=XMLStreamClass):
     """
     UNKNOWN_CHILD_POLICY = UnknownChildPolicy.FAIL
     UNKNOWN_ATTR_POLICY = UnknownAttrPolicy.FAIL
-    DECLARE_NS = None
 
     def __new__(cls, *args, **kwargs):
         # XXX: is it always correct to omit the arguments here?

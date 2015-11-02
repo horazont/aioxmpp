@@ -19,6 +19,12 @@ class TestPayload(xso.XSO):
 
 
 class TestStanzaBase(unittest.TestCase):
+    def test_declare_ns(self):
+        self.assertDictEqual(
+            stanza.StanzaBase.DECLARE_NS,
+            {}
+        )
+
     def test_from_attr(self):
         self.assertIsInstance(
             stanza.StanzaBase.from_,
@@ -474,6 +480,12 @@ class TestPresence(unittest.TestCase):
 
 
 class TestError(unittest.TestCase):
+    def test_declare_ns(self):
+        self.assertDictEqual(
+            stanza.Error.DECLARE_NS,
+            {}
+        )
+
     def test_tag(self):
         self.assertEqual(
             ("jabber:client", "error"),

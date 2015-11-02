@@ -1541,6 +1541,54 @@ class TestXMLStreamClass(unittest.TestCase):
             new.mock_calls
         )
 
+    def test_default_declare_ns_to_empty_dict_for_namespaceless_tag(self):
+        class Cls(metaclass=xso_model.XMLStreamClass):
+            TAG = "foo"
+
+        self.assertDictEqual(Cls.DECLARE_NS, {})
+
+    def test_default_declare_ns_to_declare_tag_namespace(self):
+        class Cls(metaclass=xso_model.XMLStreamClass):
+            TAG = ("uri:foo", "foo")
+
+        self.assertDictEqual(Cls.DECLARE_NS, {
+            None: "uri:foo"
+        })
+
+    def test_do_not_declare_ns_if_tag_is_not_set(self):
+        class ClsA(metaclass=xso_model.XMLStreamClass):
+            TAG = ("uri:foo", "foo")
+
+        class ClsB(metaclass=xso_model.XMLStreamClass):
+            pass
+
+        self.assertNotIn(
+            "DECLARE_NS",
+            ClsB.__dict__
+        )
+
+    def test_user_defined_declare_ns_takes_precedence(self):
+        d = dict()
+
+        class Cls(metaclass=xso_model.XMLStreamClass):
+            TAG = ("uri:foo", "foo")
+
+            DECLARE_NS = d
+
+        self.assertIs(Cls.DECLARE_NS, d)
+
+    def test_user_defined_declare_ns_takes_precedence_in_inheritance(self):
+        d = dict()
+
+        class ClsA(metaclass=xso_model.XMLStreamClass):
+            DECLARE_NS = d
+
+        class ClsB(ClsA):
+            TAG = ("uri:foo", "foo")
+
+        self.assertIs(ClsA.DECLARE_NS, d)
+        self.assertIs(ClsB.DECLARE_NS, d)
+
 
 class TestXSO(XMLTestCase):
     def _unparse_test(self, obj, tree):
@@ -1574,7 +1622,7 @@ class TestXSO(XMLTestCase):
             self.Cls.UNKNOWN_ATTR_POLICY)
 
     def test_declare_ns(self):
-        self.assertIsNone(self.Cls.DECLARE_NS)
+        self.assertEqual(self.Cls.DECLARE_NS, {})
 
         class Cls(xso.XSO):
             TAG = ("uri:foo", "foo")

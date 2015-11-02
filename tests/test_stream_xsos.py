@@ -8,6 +8,12 @@ from aioxmpp.utils import namespaces
 
 
 class TestStreamError(unittest.TestCase):
+    def test_declare_ns(self):
+        self.assertDictEqual(
+            stream_xsos.StreamError.DECLARE_NS,
+            {}
+        )
+
     def test_from_exception(self):
         obj = stream_xsos.StreamError.from_exception(errors.StreamError(
             (namespaces.streams, "undefined-condition"),

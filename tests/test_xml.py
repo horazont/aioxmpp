@@ -54,6 +54,8 @@ TEST_TREE = b"""<weatherdata xmlns:xsi="http://www.w3.org/2001/XMLSchema-instanc
 class Cls(xso.XSO):
     TAG = ("uri:foo", "bar")
 
+    DECLARE_NS = {}
+
 
 class TestxmlValidateNameValue_str(unittest.TestCase):
     def test_foo(self):

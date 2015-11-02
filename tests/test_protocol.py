@@ -561,7 +561,7 @@ class TestXMLStream(unittest.TestCase):
                     TransportMock.Write(
                         b'<iq from="u1@foo.example/test" id="id"'
                         b' to="u2@foo.example/test" type="get">'
-                        b'<ns0:payload xmlns:ns0="uri:foo" a="foo"/>'
+                        b'<payload xmlns="uri:foo" a="foo"/>'
                         b'</iq>'),
                 ],
                 partial=True

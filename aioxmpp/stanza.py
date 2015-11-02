@@ -172,6 +172,8 @@ class Error(xso.XSO):
 
     TAG = (namespaces.client, "error")
 
+    DECLARE_NS = {}
+
     EXCEPTION_CLS_MAP = {
         "modify": errors.XMPPModifyError,
         "cancel": errors.XMPPCancelError,
@@ -282,6 +284,8 @@ class StanzaBase(xso.XSO):
     .. automethod:: make_error
 
     """
+
+    DECLARE_NS = {}
 
     from_ = xso.Attr(
         tag="from",

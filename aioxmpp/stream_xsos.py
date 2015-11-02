@@ -83,6 +83,8 @@ class StreamError(xso.XSO):
 
     TAG = (namespaces.xmlstream, "error")
 
+    DECLARE_NS = {}
+
     text = xso.ChildText(
         tag=(namespaces.streams, "text"),
         attr_policy=xso.UnknownAttrPolicy.DROP,
