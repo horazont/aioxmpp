@@ -778,7 +778,10 @@ class StanzaStream:
                 stanza_obj.id_
             )
 
-    def _process_incoming_errornous_stanza(self, stanza_obj, exc):
+    def _process_incoming_errorneous_stanza(self, stanza_obj, exc):
+        if stanza_obj.type_ == "error" or stanza_obj.type_ == "result":
+            return
+
         if isinstance(exc, stanza.PayloadParsingError):
             reply = stanza_obj.make_error(error=stanza.Error(condition=(
                 namespaces.stanzas,
@@ -837,7 +840,7 @@ class StanzaStream:
 
         # check if the stanza has errors
         if exc is not None:
-            self._process_incoming_errornous_stanza(stanza_obj, exc)
+            self._process_incoming_errorneous_stanza(stanza_obj, exc)
             return
 
         if isinstance(stanza_obj, stanza.IQ):
@@ -1180,7 +1183,7 @@ class StanzaStream:
         xmlstream.stanza_parser.add_class(stanza.IQ, receiver)
         xmlstream.stanza_parser.add_class(stanza.Message, receiver)
         xmlstream.stanza_parser.add_class(stanza.Presence, receiver)
-        xmlstream.error_handler = self.recv_errornous_stanza
+        xmlstream.error_handler = self.recv_errorneous_stanza
 
         if self._sm_enabled:
             self._logger.debug("using SM")
@@ -1372,7 +1375,7 @@ class StanzaStream:
         """
         self._incoming_queue.put_nowait((stanza, None))
 
-    def recv_errornous_stanza(self, partial_obj, exc):
+    def recv_errorneous_stanza(self, partial_obj, exc):
         self._incoming_queue.put_nowait((partial_obj, exc))
 
     def enqueue_stanza(self, stanza, **kwargs):

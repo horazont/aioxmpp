@@ -173,3 +173,121 @@ class TestProtocol(unittest.TestCase):
                 partial=True
             )
         )
+
+    def test_iq_errors_are_not_replied_to(self):
+        import aioxmpp.protocol
+        import aioxmpp.stream
+
+        version = (1, 0)
+
+        fut = asyncio.Future()
+        p = aioxmpp.protocol.XMLStream(
+            to=TEST_PEER,
+            sorted_attributes=True,
+            features_future=fut)
+        t = TransportMock(self, p)
+        s = aioxmpp.stream.StanzaStream(TEST_FROM.bare())
+
+        run_coroutine(t.run_test(
+            [
+                TransportMock.Write(
+                    STREAM_HEADER,
+                    response=[
+                        TransportMock.Receive(
+                            PEER_STREAM_HEADER_TEMPLATE.format(
+                                minor=version[1],
+                                major=version[0]).encode("utf-8")),
+                    ]
+                ),
+            ],
+            partial=True
+        ))
+
+        self.assertEqual(p.state, aioxmpp.protocol.State.OPEN)
+
+        s.start(p)
+
+        run_coroutine(
+            t.run_test(
+                [
+                ],
+                stimulus=[
+                    TransportMock.Receive(
+                        b'<iq type="error" id="foo"><payload xmlns="fnord"/></iq>'
+                    )
+                ],
+                partial=True,
+            )
+        )
+
+        s.flush_incoming()
+
+        run_coroutine(asyncio.sleep(0))
+
+        run_coroutine(
+            t.run_test(
+                [
+                ],
+            )
+        )
+
+        s.stop()
+
+    def test_iq_results_are_not_replied_to(self):
+        import aioxmpp.protocol
+        import aioxmpp.stream
+
+        version = (1, 0)
+
+        fut = asyncio.Future()
+        p = aioxmpp.protocol.XMLStream(
+            to=TEST_PEER,
+            sorted_attributes=True,
+            features_future=fut)
+        t = TransportMock(self, p)
+        s = aioxmpp.stream.StanzaStream(TEST_FROM.bare())
+
+        run_coroutine(t.run_test(
+            [
+                TransportMock.Write(
+                    STREAM_HEADER,
+                    response=[
+                        TransportMock.Receive(
+                            PEER_STREAM_HEADER_TEMPLATE.format(
+                                minor=version[1],
+                                major=version[0]).encode("utf-8")),
+                    ]
+                ),
+            ],
+            partial=True
+        ))
+
+        self.assertEqual(p.state, aioxmpp.protocol.State.OPEN)
+
+        s.start(p)
+
+        run_coroutine(
+            t.run_test(
+                [
+                ],
+                stimulus=[
+                    TransportMock.Receive(
+                        b'<iq type="result" id="foo"><payload xmlns="fnord"/></iq>'
+                    )
+                ],
+                partial=True,
+            )
+        )
+
+        s.flush_incoming()
+
+        run_coroutine(asyncio.sleep(0))
+
+        run_coroutine(
+            t.run_test(
+                [
+                ],
+            )
+        )
+
+        s.stop()

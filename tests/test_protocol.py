@@ -454,7 +454,7 @@ class TestXMLStream(unittest.TestCase):
             stanza.UnknownIQPayload
         )
 
-    def test_errornous_iq_payload_ignored_without_error_handler(self):
+    def test_errorneous_iq_payload_ignored_without_error_handler(self):
         def catch_iq(obj):
             pass
 
@@ -473,7 +473,7 @@ class TestXMLStream(unittest.TestCase):
                 ]),
         ]))
 
-    def test_dispatch_errornous_iq_payload_to_error_handler(self):
+    def test_dispatch_errorneous_iq_payload_to_error_handler(self):
         base = unittest.mock.Mock()
 
         t, p = self._make_stream(to=TEST_PEER)

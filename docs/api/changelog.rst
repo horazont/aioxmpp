@@ -41,7 +41,7 @@ Version 0.4
   local certificate store. This is, with respect to trust, treated equivalent
   to a self-signed cert.
 
-* Fix stream management state going out-of-sync when an errornous stanza
+* Fix stream management state going out-of-sync when an errorneous stanza
   (unknown payload, type or validator errors on the payload) was received.
 
 * Move SASL XSOs to :mod:`aioxmpp.stream_xsos`; they are still (inofficially)
