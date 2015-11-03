@@ -182,10 +182,12 @@ class XMPPXMLGenerator:
             if name[0] == "http://www.w3.org/XML/1998/namespace":
                 return "xml:" + name[1]
             try:
-                prefix = self._curr_ns_map[name[0]]
+                prefix = self._ns_decls_floating_in[name[0]]
             except KeyError:
                 try:
-                    prefix = self._ns_decls_floating_in[name[0]]
+                    prefix = self._curr_ns_map[name[0]]
+                    if prefix in self._ns_prefixes_floating_in:
+                        raise KeyError()
                 except KeyError:
                     # namespace is undeclared, we have to declare it..
                     prefix = self._roll_prefix()

@@ -62,6 +62,10 @@ __ https://tools.ietf.org/html/rfc3921
 * :class:`aioxmpp.stream.StanzaStream` has a positional, optional argument
   (`local_jid`) for ejabberd compatiblity.
 
+* Fixed a bug in :class:`aioxmpp.xml.XMPPXMLGenerator` which would emit
+  elements in the wrong namespace if the meaning of a XML namespace prefix was
+  being changed at the same time an element was emitted using that namespace.
+
 Version 0.3
 ===========
 
