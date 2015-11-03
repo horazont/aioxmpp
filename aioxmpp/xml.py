@@ -222,11 +222,22 @@ class XMPPXMLGenerator:
                 old_counter
             )
         )
+
+        cleared_new_prefixes = dict(new_prefixes)
+        for uri, prefix in self._curr_ns_map.items():
+            try:
+                new_uri = cleared_new_prefixes[prefix]
+            except KeyError:
+                pass
+            else:
+                if new_uri == uri:
+                    del cleared_new_prefixes[prefix]
+
         self._curr_ns_map.update(new_decls)
         self._ns_decls_floating_in = {}
         self._ns_prefixes_floating_in = {}
 
-        return new_prefixes
+        return cleared_new_prefixes
 
     def startDocument(self):
         """
