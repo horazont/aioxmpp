@@ -184,6 +184,8 @@ class Error(xso.XSO):
 
     UNKNOWN_CHILD_POLICY = xso.UnknownChildPolicy.DROP
 
+    UNKNOWN_ATTR_POLICY = xso.UnknownAttrPolicy.DROP
+
     type_ = xso.Attr(
         tag="type",
         validator=xso.RestrictToSet({

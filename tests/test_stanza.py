@@ -499,6 +499,12 @@ class TestError(unittest.TestCase):
             xso.UnknownChildPolicy.DROP
         )
 
+    def test_unknown_attr_policy(self):
+        self.assertIs(
+            stanza.Error.UNKNOWN_ATTR_POLICY,
+            xso.UnknownAttrPolicy.DROP
+        )
+
     def test_type_attr(self):
         self.assertIsInstance(
             stanza.Error.type_,
