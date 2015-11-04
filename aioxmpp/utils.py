@@ -5,8 +5,6 @@ import lxml.etree as etree
 __all__ = [
     "etree",
     "namespaces",
-    "split_tag",
-    "LogETree",
 ]
 
 namespaces = types.SimpleNamespace()
