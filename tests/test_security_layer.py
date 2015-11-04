@@ -557,6 +557,7 @@ class TestHookablePKIXCertificateVerifier(unittest.TestCase):
         self.verifier.transport = self.transport
 
         self.deferrable_errors = [
+            (20, None),
             (19, None),
             (18, 0),
             (27, 0),
@@ -1531,8 +1532,8 @@ class TestSTARTTLSProvider(xmltestutils.XMLTestCase):
             require_starttls=False)
 
         features = stream_xsos.StreamFeatures()
-        instance = security_layer.STARTTLSFeature()
-        instance.required = security_layer.STARTTLSFeature.STARTTLSRequired()
+        instance = stream_xsos.StartTLSFeature()
+        instance.required = stream_xsos.StartTLSFeature.Required()
         features[...] = instance
 
         self.xmlstream.can_starttls_value = False
@@ -1548,7 +1549,7 @@ class TestSTARTTLSProvider(xmltestutils.XMLTestCase):
             require_starttls=True)
 
         features = stream_xsos.StreamFeatures()
-        features[...] = security_layer.STARTTLSFeature()
+        features[...] = stream_xsos.StartTLSFeature()
 
         self.xmlstream.can_starttls_value = True
 
@@ -1558,9 +1559,9 @@ class TestSTARTTLSProvider(xmltestutils.XMLTestCase):
                 provider, features,
                 actions=[
                     XMLStreamMock.Send(
-                        security_layer.STARTTLS(),
+                        stream_xsos.StartTLS(),
                         response=XMLStreamMock.Receive(
-                            security_layer.STARTTLSFailure()
+                            stream_xsos.StartTLSFailure()
                         )
                     )
                 ]
@@ -1573,7 +1574,7 @@ class TestSTARTTLSProvider(xmltestutils.XMLTestCase):
             require_starttls=True)
 
         features = stream_xsos.StreamFeatures()
-        features[...] = security_layer.STARTTLSFeature()
+        features[...] = stream_xsos.StartTLSFeature()
 
         self.xmlstream.can_starttls_value = True
 
@@ -1581,9 +1582,9 @@ class TestSTARTTLSProvider(xmltestutils.XMLTestCase):
             provider, features,
             actions=[
                 XMLStreamMock.Send(
-                    security_layer.STARTTLS(),
+                    stream_xsos.StartTLS(),
                     response=XMLStreamMock.Receive(
-                        security_layer.STARTTLSProceed()
+                        stream_xsos.StartTLSProceed()
                     )
                 ),
                 XMLStreamMock.STARTTLS(
@@ -1621,7 +1622,7 @@ class TestSTARTTLSProvider(xmltestutils.XMLTestCase):
             require_starttls=True)
 
         features = stream_xsos.StreamFeatures()
-        features[...] = security_layer.STARTTLSFeature()
+        features[...] = stream_xsos.StartTLSFeature()
 
         self.xmlstream.can_starttls_value = True
 
@@ -1634,9 +1635,9 @@ class TestSTARTTLSProvider(xmltestutils.XMLTestCase):
                 provider, features,
                 actions=[
                     XMLStreamMock.Send(
-                        security_layer.STARTTLS(),
+                        stream_xsos.StartTLS(),
                         response=XMLStreamMock.Receive(
-                            security_layer.STARTTLSProceed()
+                            stream_xsos.StartTLSProceed()
                         )
                     ),
                     XMLStreamMock.STARTTLS(
@@ -1654,7 +1655,7 @@ class TestSTARTTLSProvider(xmltestutils.XMLTestCase):
             require_starttls=True)
 
         features = stream_xsos.StreamFeatures()
-        features[...] = security_layer.STARTTLSFeature()
+        features[...] = stream_xsos.StartTLSFeature()
 
         self.xmlstream.can_starttls_value = True
 
@@ -1666,9 +1667,9 @@ class TestSTARTTLSProvider(xmltestutils.XMLTestCase):
                 provider, features,
                 actions=[
                     XMLStreamMock.Send(
-                        security_layer.STARTTLS(),
+                        stream_xsos.StartTLS(),
                         response=XMLStreamMock.Receive(
-                            security_layer.STARTTLSProceed()
+                            stream_xsos.StartTLSProceed()
                         )
                     ),
                     XMLStreamMock.STARTTLS(
@@ -1983,7 +1984,7 @@ class Testnegotiate_stream_security(xmltestutils.XMLTestCase):
         self.features = stream_xsos.StreamFeatures()
         self.mechanisms = security_layer.SASLMechanisms()
         self.features[...] = self.mechanisms
-        self.features[...] = security_layer.STARTTLSFeature()
+        self.features[...] = stream_xsos.StartTLSFeature()
 
         self.post_tls_features = stream_xsos.StreamFeatures()
         self.features[...] = self.mechanisms

@@ -172,6 +172,8 @@ class Error(xso.XSO):
 
     TAG = (namespaces.client, "error")
 
+    DECLARE_NS = {}
+
     EXCEPTION_CLS_MAP = {
         "modify": errors.XMPPModifyError,
         "cancel": errors.XMPPCancelError,
@@ -181,6 +183,8 @@ class Error(xso.XSO):
     }
 
     UNKNOWN_CHILD_POLICY = xso.UnknownChildPolicy.DROP
+
+    UNKNOWN_ATTR_POLICY = xso.UnknownAttrPolicy.DROP
 
     type_ = xso.Attr(
         tag="type",
@@ -224,6 +228,10 @@ class Error(xso.XSO):
                    text=exc.text)
 
     def to_exception(self):
+        if hasattr(self.application_condition, "to_exception"):
+            result = self.application_condition.to_exception(self.type_)
+            if isinstance(result, Exception):
+                return result
         return self.EXCEPTION_CLS_MAP[self.type_](
             condition=self.condition,
             text=self.text
@@ -283,6 +291,8 @@ class StanzaBase(xso.XSO):
 
     """
 
+    DECLARE_NS = {}
+
     from_ = xso.Attr(
         tag="from",
         type_=xso.JID(),
@@ -328,7 +338,7 @@ class StanzaBase(xso.XSO):
         else:
             return
 
-        self.id_ = base64.b64encode(random.getrandbits(
+        self.id_ = "x"+base64.b64encode(random.getrandbits(
             RANDOM_ID_BYTES * 8
         ).to_bytes(
             RANDOM_ID_BYTES, "little"
@@ -352,9 +362,9 @@ class StanzaBase(xso.XSO):
         the :attr:`type_` is set to ``"error"``.
         """
         obj = type(self)(from_=self.to,
-                         to=self.from_)
+                         to=self.from_,
+                         type_="error")
         obj.id_ = self.id_
-        obj.type_ = "error"
         obj.error = error
         return obj
 
@@ -416,7 +426,8 @@ class Subject(xso.AbstractTextChild):
 
     .. attribute:: lang
 
-       The ``xml:lang`` of this subject part, as :class:`~.structs.LanguageTag`.
+       The ``xml:lang`` of this subject part, as
+       :class:`~.structs.LanguageTag`.
 
     .. attribute:: text
 
@@ -473,6 +484,8 @@ class Message(StanzaBase):
 
     TAG = (namespaces.client, "message")
 
+    UNKNOWN_CHILD_POLICY = xso.UnknownChildPolicy.DROP
+
     id_ = xso.Attr(tag="id", default=None)
     type_ = xso.Attr(
         tag="type",
@@ -481,7 +494,8 @@ class Message(StanzaBase):
             "groupchat",
             "error",
             "headline",
-            "normal"})
+            "normal"}),
+        default="normal",
     )
 
     body = xso.ChildList([Body])
@@ -536,8 +550,8 @@ class Status(xso.AbstractTextChild):
 
 class Presence(StanzaBase):
     """
-    An XMPP presence stanza. The keyword arguments can be used to initialize the
-    attributes of the :class:`Presence`.
+    An XMPP presence stanza. The keyword arguments can be used to initialize
+    the attributes of the :class:`Presence`.
 
     .. attribute:: id_
 
@@ -663,6 +677,8 @@ class IQ(StanzaBase):
 
     """
     TAG = (namespaces.client, "iq")
+
+    UNKNOWN_CHILD_POLICY = xso.UnknownChildPolicy.FAIL
 
     id_ = xso.Attr(tag="id")
     type_ = xso.Attr(

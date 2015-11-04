@@ -202,6 +202,14 @@ class TestQuery(unittest.TestCase):
             roster_xso.Query.TAG
         )
 
+    def test_declare_ns(self):
+        self.assertDictEqual(
+            roster_xso.Query.DECLARE_NS,
+            {
+                None: namespaces.rfc6121_roster
+            }
+        )
+
     def test_ver_attr(self):
         self.assertIsInstance(
             roster_xso.Query.ver,
@@ -210,6 +218,10 @@ class TestQuery(unittest.TestCase):
         self.assertEqual(
             (None, "ver"),
             roster_xso.Query.ver.tag
+        )
+        self.assertIs(
+            roster_xso.Query.ver.default,
+            None
         )
 
     def test_items_attr(self):

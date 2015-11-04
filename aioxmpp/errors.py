@@ -10,6 +10,8 @@ Exception classes mapping to XMPP stream errors
 Exception classes mapping to XMPP stanza errors
 ===============================================
 
+.. autoclass:: StanzaError
+
 .. autoclass:: XMPPError
 
 .. autoclass:: XMPPAuthError
@@ -21,6 +23,8 @@ Exception classes mapping to XMPP stanza errors
 .. autoclass:: XMPPWaitError
 
 .. autoclass:: XMPPContinueError
+
+.. autoclass:: ErrorneousStanza
 
 Stream negotiation exceptions
 =============================
@@ -77,7 +81,11 @@ class StreamError(ConnectionError):
         self.text = text
 
 
-class XMPPError(Exception):
+class StanzaError(Exception):
+    pass
+
+
+class XMPPError(StanzaError):
     TYPE = "cancel"
 
     def __init__(self,
@@ -115,6 +123,26 @@ class XMPPWaitError(XMPPError):
 
 class XMPPContinueError(XMPPWarning):
     TYPE = "continue"
+
+
+class ErrorneousStanza(StanzaError):
+    """
+    This exception is thrown into listeners for IQ responses by
+    :class:`aioxmpp.stream.StanzaStream` if a response for an IQ was received,
+    but could not be decoded (due to malformed or unsupported payload).
+
+    .. attribute:: partial_obj
+
+       Contains the partially decoded stanza XSO. Do not rely on any members
+       except those representing XML attributes (:attr:`~.StanzaBase.to`,
+       :attr:`~.StanzaBase.from_`, :attr:`~.StanzaBase.type_`).
+
+    """
+
+    def __init__(self, partial_obj):
+        super().__init__("errorneous stanza received: {!r}".format(
+            partial_obj))
+        self.partial_obj = partial_obj
 
 
 class StreamNegotiationFailure(ConnectionError):

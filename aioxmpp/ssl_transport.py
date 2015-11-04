@@ -30,6 +30,8 @@ from enum import Enum
 
 import OpenSSL.SSL
 
+from . import errors
+
 logger = logging.getLogger(__name__)
 
 
@@ -251,8 +253,9 @@ class STARTTLSTransport(asyncio.Transport):
             self._protocol.connection_lost(exc)
         finally:
             self._rawsock.close()
-            self._tls_conn.set_app_data(None)
-            self._tls_conn = None
+            if self._tls_conn is not None:
+                self._tls_conn.set_app_data(None)
+                self._tls_conn = None
             self._rawsock = None
             self._protocol = None
             self._loop = None

@@ -48,6 +48,23 @@ class Testformat_error_text(unittest.TestCase):
         )
 
 
+class TestErrorneousStanza(unittest.TestCase):
+    def test_is_exception(self):
+        self.assertTrue(issubclass(
+            errors.ErrorneousStanza,
+            errors.StanzaError
+        ))
+
+    def test_init(self):
+        obj = object()
+        exc = errors.ErrorneousStanza(obj)
+        self.assertIs(exc.partial_obj, obj)
+        self.assertTrue(
+            str(exc),
+            "errorneous stanza received: {!r}".format(obj)
+        )
+
+
 class TestMultiOSError(unittest.TestCase):
     def test_message(self):
         exc = errors.MultiOSError("foo",
@@ -58,7 +75,6 @@ class TestMultiOSError(unittest.TestCase):
             "foo: multiple errors: bar, baz",
             str(exc)
         )
-
 
     def test_flatten(self):
         base_excs1 = [OSError(), OSError()]
@@ -124,7 +140,6 @@ class TestUserError(unittest.TestCase):
 
         s = unittest.mock.Mock()
         ue = errors.UserError(s, 10, abc="baz")
-
 
         expected_result = s.localize()
 

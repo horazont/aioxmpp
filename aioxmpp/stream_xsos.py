@@ -12,6 +12,36 @@ General XSOs
 
 .. autoclass:: StreamFeatures()
 
+StartTLS related XSOs
+=====================
+
+.. autoclass:: StartTLSXSO()
+
+.. autoclass:: StartTLSFeature()
+
+.. autoclass:: StartTLS()
+
+.. autoclass:: StartTLSProceed()
+
+.. autoclass:: StartTLSFailure()
+
+SASL related XSOs
+=================
+
+.. autoclass:: SASLXSO
+
+.. autoclass:: SASLAuth
+
+.. autoclass:: SASLChallenge
+
+.. autoclass:: SASLResponse
+
+.. autoclass:: SASLFailure
+
+.. autoclass:: SASLSuccess
+
+.. autoclass:: SASLAbort
+
 Stream management related XSOs
 ==============================
 
@@ -52,6 +82,8 @@ class StreamError(xso.XSO):
     """
 
     TAG = (namespaces.xmlstream, "error")
+
+    DECLARE_NS = {}
 
     text = xso.ChildText(
         tag=(namespaces.streams, "text"),
@@ -174,6 +206,10 @@ class StreamFeatures(xso.XSO):
         cls.register_child(cls.features, other_cls)
         return other_cls
 
+    @classmethod
+    def is_feature(cls, other_cls):
+        return cls.CHILD_MAP.get(other_cls.TAG, None) is cls.features
+
     def __getitem__(self, feature_cls):
         tag = feature_cls.TAG
         try:
@@ -220,21 +256,205 @@ class StreamFeatures(xso.XSO):
         return itertools.chain(*self.features.values())
 
 
+class StartTLSXSO(xso.XSO):
+    """
+    Base class for starttls related XSOs.
+
+    This base class merely defines the namespaces to declare when serialising
+    the derived XSOs
+    """
+
+    DECLARE_NS = {None: namespaces.starttls}
+
+
 @StreamFeatures.as_feature_class
-class StreamManagementFeature(xso.XSO):
+class StartTLSFeature(StartTLSXSO):
     """
-    Stream management stream feature
+    Start TLS capability stream feature
     """
-    TAG = (namespaces.stream_management, "sm")
+
+    TAG = (namespaces.starttls, "starttls")
 
     class Required(xso.XSO):
-        TAG = (namespaces.stream_management, "required")
+        TAG = (namespaces.starttls, "required")
 
-    class Optional(xso.XSO):
-        TAG = (namespaces.stream_management, "optional")
+    required = xso.Child([Required], required=False)
 
-    required = xso.Child([Required])
-    optional = xso.Child([Optional])
+
+class StartTLS(StartTLSXSO):
+    """
+    XSO indicating that the client wants to start TLS now.
+    """
+
+    TAG = (namespaces.starttls, "starttls")
+
+
+class StartTLSFailure(StartTLSXSO):
+    """
+    Server refusing to start TLS.
+    """
+    TAG = (namespaces.starttls, "failure")
+
+
+class StartTLSProceed(StartTLSXSO):
+    """
+    Server allows start TLS.
+    """
+    TAG = (namespaces.starttls, "proceed")
+
+
+class SASLXSO(xso.XSO):
+    DECLARE_NS = {
+        None: namespaces.sasl
+    }
+
+
+class SASLAuth(SASLXSO):
+    """
+    Start SASL authentication.
+
+    .. attribute:: mechanism
+
+       The mechanism to authenticate with.
+
+    .. attribute:: payload
+
+       For mechanisms which use an initial client-supplied payload, this can be
+       a string. It is automatically encoded as base64 according to the XMPP
+       SASL specification.
+
+    """
+
+    TAG = (namespaces.sasl, "auth")
+
+    mechanism = xso.Attr("mechanism")
+    payload = xso.Text(
+        type_=xso.Base64Binary(empty_as_equal=True),
+        default=None
+    )
+
+    def __init__(self, mechanism, payload=None):
+        super().__init__()
+        self.mechanism = mechanism
+        self.payload = payload
+
+
+class SASLChallenge(SASLXSO):
+    """
+    A SASL challenge.
+
+    .. attribute:: payload
+
+       The (decoded) SASL payload as :class:`bytes`. Base64 en/decoding is
+       handled by the XSO stack.
+
+    """
+
+    TAG = (namespaces.sasl, "challenge")
+
+    payload = xso.Text(
+        type_=xso.Base64Binary(empty_as_equal=True),
+    )
+
+    def __init__(self, payload):
+        super().__init__()
+        self.payload = payload
+
+
+class SASLResponse(SASLXSO):
+    """
+    A SASL response.
+
+    .. attribute:: payload
+
+       The (decoded) SASL payload as :class:`bytes`. Base64 en/decoding is
+       handled by the XSO stack.
+
+    """
+
+    TAG = (namespaces.sasl, "response")
+
+    payload = xso.Text(
+        type_=xso.Base64Binary(empty_as_equal=True)
+    )
+
+    def __init__(self, payload):
+        super().__init__()
+        self.payload = payload
+
+
+class SASLFailure(SASLXSO):
+    """
+    Indication of SASL failure.
+
+    .. attribute:: condition
+
+       The condition which caused the authentication to fail.
+
+    .. attribute:: text
+
+       Optional human-readable text.
+
+    """
+
+    TAG = (namespaces.sasl, "failure")
+
+    condition = xso.ChildTag(
+        tags=[
+            "aborted",
+            "account-disabled",
+            "credentials-expired",
+            "encryption-required",
+            "incorrect-encoding",
+            "invalid-authzid",
+            "invalid-mechanism",
+            "malformed-request",
+            "mechanism-too-weak",
+            "not-authorized",
+            "temporary-auth-failure",
+        ],
+        default_ns=namespaces.sasl,
+        allow_none=False,
+        declare_prefix=None,
+    )
+
+    text = xso.ChildText(
+        (namespaces.sasl, "text"),
+        attr_policy=xso.UnknownAttrPolicy.DROP,
+        default=None,
+        declare_prefix=None
+    )
+
+    def __init__(self, condition=(namespaces.sasl, "temporary-auth-failure")):
+        super().__init__()
+        self.condition = condition
+
+
+class SASLSuccess(SASLXSO):
+    """
+    Indication of SASL success, with optional final payload supplied by the
+    server.
+
+    .. attribute:: payload
+
+       The (decoded) SASL payload. Base64 en/decoding is handled by the XSO
+       stack.
+
+    """
+
+    TAG = (namespaces.sasl, "success")
+
+    payload = xso.Text(
+        type_=xso.Base64Binary(empty_as_equal=True),
+        default=None
+    )
+
+
+class SASLAbort(SASLXSO):
+    """
+    Request to abort the SASL authentication.
+    """
+    TAG = (namespaces.sasl, "abort")
 
 
 class SMXSO(xso.XSO):
@@ -248,6 +468,23 @@ class SMXSO(xso.XSO):
     DECLARE_NS = {
         None: namespaces.stream_management
     }
+
+
+@StreamFeatures.as_feature_class
+class StreamManagementFeature(SMXSO):
+    """
+    Stream management stream feature
+    """
+    TAG = (namespaces.stream_management, "sm")
+
+    class Required(xso.XSO):
+        TAG = (namespaces.stream_management, "required")
+
+    class Optional(xso.XSO):
+        TAG = (namespaces.stream_management, "optional")
+
+    required = xso.Child([Required])
+    optional = xso.Child([Optional])
 
 
 class SMRequest(SMXSO):

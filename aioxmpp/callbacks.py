@@ -173,6 +173,14 @@ class TagDispatcher:
         if cb.data(data):
             del self._listeners[tag]
 
+    def unicast_error(self, tag, exc):
+        cb = self._listeners[tag]
+        if not cb.is_valid():
+            del self._listeners[tag]
+            self._listeners[tag]
+        if cb.error(exc):
+            del self._listeners[tag]
+
     def remove_listener(self, tag):
         del self._listeners[tag]
 
@@ -198,8 +206,8 @@ class AbstractAdHocSignal:
 
     def disconnect(self, token):
         """
-        Disconnect the connection identified by `token`. This never raises, even
-        if an invalid `token` is passed.
+        Disconnect the connection identified by `token`. This never raises,
+        even if an invalid `token` is passed.
         """
         try:
             del self._connections[token]

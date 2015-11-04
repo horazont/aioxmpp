@@ -8,13 +8,10 @@ import functools
 import logging
 import unittest
 import unittest.mock
-import sys
 
 from datetime import timedelta
-from enum import Enum
 
 import aioxmpp.callbacks as callbacks
-import aioxmpp.protocol
 import aioxmpp.xso as xso
 import aioxmpp.stream_xsos as stream_xsos
 
@@ -253,7 +250,8 @@ class TransportMock(InteractivityMock,
         replace = _Write._replace
 
     class STARTTLS(_STARTTLS):
-        def __new__(cls, ssl_context, post_handshake_callback, *, response=None):
+        def __new__(cls, ssl_context, post_handshake_callback, *,
+                    response=None):
             return _STARTTLS.__new__(cls,
                                      ssl_context,
                                      post_handshake_callback,
@@ -426,7 +424,8 @@ class TransportMock(InteractivityMock,
         head = self._actions[0]
         self._tester.assertIsInstance(
             head, self.STARTTLS,
-            self._format_unexpected_action("starttls", "expected something else"),
+            self._format_unexpected_action("starttls",
+                                           "expected something else"),
         )
         self._actions.pop(0)
 
@@ -476,7 +475,6 @@ class TransportMock(InteractivityMock,
             ("starttls", ssl_context, post_handshake_callback, fut)
         )
         yield from fut
-
 
 
 class XMLStreamMock(InteractivityMock):
@@ -619,7 +617,8 @@ class XMLStreamMock(InteractivityMock):
         head = self._actions[0]
         self._tester.assertIsInstance(
             head, self.STARTTLS,
-            self._format_unexpected_action("starttls", "expected something else"),
+            self._format_unexpected_action("starttls",
+                                           "expected something else"),
         )
         self._actions.pop(0)
 
@@ -677,7 +676,7 @@ class XMLStreamMock(InteractivityMock):
         self.close()
         try:
             yield from fut
-        except Exception as exc:
+        except Exception:
             pass
 
     def can_starttls(self):

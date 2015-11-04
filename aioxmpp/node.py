@@ -23,10 +23,8 @@ Connecting streams low-level
 """
 import asyncio
 import contextlib
-import itertools
 import logging
 
-from enum import Enum
 from datetime import timedelta
 
 from . import (
@@ -37,6 +35,7 @@ from . import (
     stream,
     callbacks,
     stream_xsos,
+    rfc3921,
     rfc6120,
     stanza,
     structs,
@@ -50,6 +49,7 @@ def lookup_addresses(loop, jid):
         jid.domain)
 
     return network.group_and_order_srv_records(addresses)
+
 
 @asyncio.coroutine
 def connect_to_xmpp_server(jid, *, override_peer=None, loop=None):
@@ -67,13 +67,14 @@ def connect_to_xmpp_server(jid, *, override_peer=None, loop=None):
     :class:`~aioxmpp.protocol.XMLStream` instance and a :class:`asyncio.Future`
     on the first :class:`~aioxmpp.stream_xsos.StreamFeatures` node.
 
-    If the connection fails or the domain does not support XMPP,
-    :class:`OSError` is raised. That OSError may in fact be a
-    :class:`~aioxmpp.errors.MultiOSError`, which gives more information on the
-    different errors which occured.
+    If the connection fails :class:`OSError` is raised. That OSError may in
+    fact be a :class:`~aioxmpp.errors.MultiOSError`, which gives more
+    information on the different errors which occured.
+
+    If the domain does not support XMPP at all (by indicating that fact in the
+    SRV records), :class:`ValueError` is raised.
     """
     loop = loop or asyncio.get_event_loop()
-
 
     features_future = asyncio.Future()
 
@@ -116,7 +117,9 @@ def connect_to_xmpp_server(jid, *, override_peer=None, loop=None):
     else:
         if not exceptions:
             # domain does not support XMPP (no options at all to connect to it)
-            raise OSError("domain {} does not support XMPP".format(jid.domain))
+            raise OSError(
+                "no options to connect to {}".format(jid.domain)
+            )
 
         if len(exceptions) == 1:
             raise exceptions[0]
@@ -154,10 +157,12 @@ def connect_secured_xmlstream(jid, security_layer,
     the transport returned is :data:`None`, use the
     :attr:`~aioxmpp.protocol.XMLStream.transport` of the XML stream.
 
-    If the connection fails or the domain does not support XMPP,
-    :class:`OSError` is raised. That OSError may in fact be a
-    :class:`~aioxmpp.errors.MultiOSError`, which gives more information on the
-    different errors which occured.
+    If the connection fails :class:`OSError` is raised. That OSError may in
+    fact be a :class:`~aioxmpp.errors.MultiOSError`, which gives more
+    information on the different errors which occured.
+
+    If the domain does not support XMPP at all (by indicating that fact in the
+    SRV records), :class:`ValueError` is raised.
 
     If SASL or TLS negotiation fails, the corresponding exception type from
     :mod:`aioxmpp.errors` is raised. Most notably, authentication failures
@@ -167,7 +172,9 @@ def connect_secured_xmlstream(jid, security_layer,
 
     try:
         transport, xmlstream, features_future = yield from asyncio.wait_for(
-            connect_to_xmpp_server(jid, override_peer=override_peer, loop=loop),
+            connect_to_xmpp_server(jid,
+                                   override_peer=override_peer,
+                                   loop=loop),
             timeout=negotiation_timeout,
             loop=loop
         )
@@ -244,6 +251,10 @@ class AbstractClient:
     client fails and :attr:`on_failure` is fired. :attr:`running` becomes false
     and the client needs to be re-started manually by calling :meth:`start`.
 
+    .. versionchanged:: 0.4
+
+       Since 0.4, support for legacy XMPP sessions has been implemented. Mainly
+       for compatiblity with ejabberd.
 
     Controlling the client:
 
@@ -303,28 +314,27 @@ class AbstractClient:
 
     Signals:
 
-    .. method:: on_failure()
+    .. signal:: on_failure()
 
-       A :class:`~aioxmpp.callbacks.Signal` which is fired when the client
-       fails and stops.
+       This signal is fired when the client fails and stops.
 
-    .. method:: before_stream_established()
+    .. syncsignal:: before_stream_established()
 
-       This is a :class:`~aioxmpp.callbacks.SyncSignal` which is executed right
-       before :attr:`on_stream_established` fires.
+       This coroutine signal is executed right before
+       :meth:`on_stream_established` fires.
 
-    .. method:: on_stopped()
+    .. signal:: on_stopped()
 
-       A :class:`~aioxmpp.callbacks.Signal` which is fired when the client
-       stops gracefully. This is the counterpart to :meth:`on_failure`.
+       Fires when the client stops gracefully. This is the counterpart to
+       :meth:`on_failure`.
 
-    .. method:: on_stream_established()
+    .. signal:: on_stream_established()
 
        When the stream is established and resource binding took place, this
        event is fired. It means that the stream can now be used for XMPP
        interactions.
 
-    .. method:: on_stream_destroyed()
+    .. signal:: on_stream_destroyed()
 
        This is called whenever a stream is destroyed. The conditions for this
        are the same as for :attr:`.StanzaStream.on_stream_destroyed`.
@@ -372,7 +382,7 @@ class AbstractClient:
         self.backoff_factor = 1.2
         self.backoff_cap = timedelta(seconds=60)
 
-        self.stream = stream.StanzaStream()
+        self.stream = stream.StanzaStream(local_jid.bare())
 
     def _stream_failure(self, exc):
         self._failure_future.set_result(exc)
@@ -412,6 +422,19 @@ class AbstractClient:
         return True
 
     @asyncio.coroutine
+    def _negotiate_legacy_session(self):
+        self._logger.debug(
+            "remote server announces support for legacy sessions"
+        )
+        yield from self.stream.send_iq_and_wait_for_reply(
+            stanza.IQ(type_="set",
+                      payload=rfc3921.Session())
+        )
+        self._logger.debug(
+            "legacy session negotiated (upgrade your server!)"
+        )
+
+    @asyncio.coroutine
     def _negotiate_stream(self, xmlstream, features):
         server_can_do_sm = True
         try:
@@ -447,6 +470,13 @@ class AbstractClient:
             except errors.StreamNegotiationFailure:
                 self._logger.debug("stream management failed to start")
             self._logger.debug("stream management started")
+
+        try:
+            features[rfc3921.SessionFeature]
+        except KeyError:
+            pass  # yay
+        else:
+            yield from self._negotiate_legacy_session()
 
         self._established = True
 
@@ -520,11 +550,11 @@ class AbstractClient:
                 self._failure_future = asyncio.Future()
                 try:
                     yield from self._main_impl()
-                except errors.StreamNegotiationFailure as exc:
+                except errors.StreamNegotiationFailure:
                     if self.stream.sm_enabled:
                         self.stream.stop_sm()
                     raise
-                except OSError as exc:
+                except OSError:
                     if self._backoff_time is None:
                         self._backoff_time = self.backoff_start.total_seconds()
                     yield from asyncio.sleep(self._backoff_time)
@@ -532,7 +562,6 @@ class AbstractClient:
                     if self._backoff_time > self.backoff_cap.total_seconds():
                         self._backoff_time = self.backoff_cap.total_seconds()
                     continue  # retry
-
 
     def start(self):
         """

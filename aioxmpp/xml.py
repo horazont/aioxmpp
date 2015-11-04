@@ -182,10 +182,12 @@ class XMPPXMLGenerator:
             if name[0] == "http://www.w3.org/XML/1998/namespace":
                 return "xml:" + name[1]
             try:
-                prefix = self._curr_ns_map[name[0]]
+                prefix = self._ns_decls_floating_in[name[0]]
             except KeyError:
                 try:
-                    prefix = self._ns_decls_floating_in[name[0]]
+                    prefix = self._curr_ns_map[name[0]]
+                    if prefix in self._ns_prefixes_floating_in:
+                        raise KeyError()
                 except KeyError:
                     # namespace is undeclared, we have to declare it..
                     prefix = self._roll_prefix()
@@ -220,11 +222,22 @@ class XMPPXMLGenerator:
                 old_counter
             )
         )
+
+        cleared_new_prefixes = dict(new_prefixes)
+        for uri, prefix in self._curr_ns_map.items():
+            try:
+                new_uri = cleared_new_prefixes[prefix]
+            except KeyError:
+                pass
+            else:
+                if new_uri == uri:
+                    del cleared_new_prefixes[prefix]
+
         self._curr_ns_map.update(new_decls)
         self._ns_decls_floating_in = {}
         self._ns_prefixes_floating_in = {}
 
-        return new_prefixes
+        return cleared_new_prefixes
 
     def startDocument(self):
         """

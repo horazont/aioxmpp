@@ -151,6 +151,7 @@ class Query(xso.XSO):
 
     ver = xso.Attr(
         "ver",
+        default=None
     )
 
     items = xso.ChildList([Item])

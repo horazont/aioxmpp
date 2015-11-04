@@ -8,6 +8,12 @@ from aioxmpp.utils import namespaces
 
 
 class TestStreamError(unittest.TestCase):
+    def test_declare_ns(self):
+        self.assertDictEqual(
+            stream_xsos.StreamError.DECLARE_NS,
+            {}
+        )
+
     def test_from_exception(self):
         obj = stream_xsos.StreamError.from_exception(errors.StreamError(
             (namespaces.streams, "undefined-condition"),
@@ -80,9 +86,17 @@ class TestStreamFeatures(unittest.TestCase):
         )
 
     def test_as_feature_class_decorator(self):
-        @stream_xsos.StreamFeatures.as_feature_class
         class FakeFeature(xso.XSO):
             TAG = ("uri:foo", "bar")
+
+        self.assertNotIn(
+            FakeFeature.TAG,
+            stream_xsos.StreamFeatures.CHILD_MAP
+        )
+
+        FakeFeature = stream_xsos.StreamFeatures.as_feature_class(
+            FakeFeature
+        )
 
         self.assertTrue(issubclass(FakeFeature, xso.XSO))
 
@@ -94,6 +108,16 @@ class TestStreamFeatures(unittest.TestCase):
             stream_xsos.StreamFeatures.features,
             stream_xsos.StreamFeatures.CHILD_MAP[FakeFeature.TAG]
         )
+
+    def test_is_feature(self):
+        class FakeFeature(xso.XSO):
+            TAG = ("uri:foo", "baz")
+
+        self.assertFalse(stream_xsos.StreamFeatures.is_feature(FakeFeature))
+
+        stream_xsos.StreamFeatures.as_feature_class(FakeFeature)
+
+        self.assertTrue(stream_xsos.StreamFeatures.is_feature(FakeFeature))
 
     def test__getitem__(self):
         class FakeFeature(xso.XSO):
@@ -221,6 +245,463 @@ class TestStreamFeatures(unittest.TestCase):
                 instance2
             },
             set(features)
+        )
+
+
+class TestStartTLSXSO(unittest.TestCase):
+    def test_is_xso(self):
+        self.assertTrue(issubclass(
+            stream_xsos.StartTLSXSO,
+            xso.XSO
+        ))
+
+    def test_declare_ns(self):
+        self.assertDictEqual(
+            stream_xsos.StartTLSXSO.DECLARE_NS,
+            {
+                None: namespaces.starttls
+            }
+        )
+
+
+class TestStartTLSFeature(unittest.TestCase):
+    def test_is_starttls_xso(self):
+        self.assertTrue(issubclass(
+            stream_xsos.StartTLSFeature,
+            stream_xsos.StartTLSXSO
+        ))
+
+    def test_tag(self):
+        self.assertEqual(
+            stream_xsos.StartTLSFeature.TAG,
+            (namespaces.starttls, "starttls")
+        )
+
+    def test_required(self):
+        self.assertIsInstance(
+            stream_xsos.StartTLSFeature.required,
+            xso.Child
+        )
+        self.assertSetEqual(
+            stream_xsos.StartTLSFeature.required._classes,
+            {stream_xsos.StartTLSFeature.Required},
+        )
+        self.assertFalse(stream_xsos.StartTLSFeature.required.required)
+
+    def test_is_registered_stream_feature(self):
+        self.assertTrue(stream_xsos.StreamFeatures.is_feature(
+            stream_xsos.StartTLSFeature
+        ))
+
+
+class TestStartTLSFeature_Required(unittest.TestCase):
+    def test_is_starttls_xso(self):
+        self.assertTrue(issubclass(
+            stream_xsos.StartTLSFeature.Required,
+            xso.XSO,
+        ))
+
+    def test_tag(self):
+        self.assertEqual(
+            stream_xsos.StartTLSFeature.Required.TAG,
+            (namespaces.starttls, "required")
+        )
+
+
+class TestStartTLS(unittest.TestCase):
+    def test_is_starttls_xso(self):
+        self.assertTrue(issubclass(
+            stream_xsos.StartTLS,
+            stream_xsos.StartTLSXSO
+        ))
+
+    def test_tag(self):
+        self.assertEqual(
+            stream_xsos.StartTLS.TAG,
+            (namespaces.starttls, "starttls")
+        )
+
+
+class TestStartTLSFailure(unittest.TestCase):
+    def test_is_starttls_xso(self):
+        self.assertTrue(issubclass(
+            stream_xsos.StartTLSFailure,
+            stream_xsos.StartTLSXSO
+        ))
+
+    def test_tag(self):
+        self.assertEqual(
+            stream_xsos.StartTLSFailure.TAG,
+            (namespaces.starttls, "failure")
+        )
+
+
+class TestStartTLSProceed(unittest.TestCase):
+    def test_is_starttls_xso(self):
+        self.assertTrue(issubclass(
+            stream_xsos.StartTLSProceed,
+            stream_xsos.StartTLSXSO
+        ))
+
+    def test_tag(self):
+        self.assertEqual(
+            stream_xsos.StartTLSProceed.TAG,
+            (namespaces.starttls, "proceed")
+        )
+
+
+class TestSASLXSO(unittest.TestCase):
+    def test_is_xso(self):
+        self.assertTrue(issubclass(
+            stream_xsos.SASLXSO,
+            xso.XSO
+        ))
+
+    def test_declare_ns(self):
+        self.assertDictEqual(
+            stream_xsos.SASLXSO.DECLARE_NS,
+            {
+                None: namespaces.sasl
+            }
+        )
+
+
+class TestSASLAuth(unittest.TestCase):
+    def test_is_sasl_xso(self):
+        self.assertTrue(issubclass(
+            stream_xsos.SASLAuth,
+            stream_xsos.SASLXSO
+        ))
+
+    def test_tag(self):
+        self.assertEqual(
+            stream_xsos.SASLAuth.TAG,
+            (namespaces.sasl, "auth")
+        )
+
+    def test_mechanism(self):
+        self.assertIsInstance(
+            stream_xsos.SASLAuth.mechanism,
+            xso.Attr
+        )
+        self.assertIs(stream_xsos.SASLAuth.mechanism.default,
+                      xso.NO_DEFAULT)
+
+
+    def test_payload(self):
+        self.assertIsInstance(
+            stream_xsos.SASLAuth.payload,
+            xso.Text
+        )
+        self.assertIsInstance(
+            stream_xsos.SASLAuth.payload.type_,
+            xso.Base64Binary
+        )
+        self.assertIs(
+            stream_xsos.SASLAuth.payload.default,
+            None
+        )
+
+    def test_init(self):
+        auth = stream_xsos.SASLAuth("foo")
+        self.assertEqual(auth.mechanism, "foo")
+        self.assertEqual(auth.payload, None)
+
+        auth = stream_xsos.SASLAuth(mechanism="foo",
+                                    payload=b"foobar")
+        self.assertEqual(auth.mechanism, "foo")
+        self.assertEqual(auth.payload, b"foobar")
+
+
+class TestSASLChallenge(unittest.TestCase):
+    def test_is_sasl_xso(self):
+        self.assertTrue(issubclass(
+            stream_xsos.SASLChallenge,
+            stream_xsos.SASLXSO
+        ))
+
+    def test_tag(self):
+        self.assertEqual(
+            stream_xsos.SASLChallenge.TAG,
+            (namespaces.sasl, "challenge")
+        )
+
+    def test_payload(self):
+        self.assertIsInstance(
+            stream_xsos.SASLChallenge.payload,
+            xso.Text
+        )
+        self.assertIsInstance(
+            stream_xsos.SASLChallenge.payload.type_,
+            xso.Base64Binary
+        )
+        self.assertIs(
+            stream_xsos.SASLChallenge.payload.default,
+            xso.NO_DEFAULT
+        )
+
+    def test_init(self):
+        challenge = stream_xsos.SASLChallenge(b"foo")
+        self.assertEqual(challenge.payload, b"foo")
+
+        challenge = stream_xsos.SASLChallenge(payload=b"foo")
+        self.assertEqual(challenge.payload, b"foo")
+
+        with self.assertRaisesRegexp(TypeError, "positional argument"):
+            stream_xsos.SASLChallenge()
+
+
+class TestSASLResponse(unittest.TestCase):
+    def test_is_sasl_xso(self):
+        self.assertTrue(issubclass(
+            stream_xsos.SASLResponse,
+            stream_xsos.SASLXSO
+        ))
+
+    def test_tag(self):
+        self.assertEqual(
+            stream_xsos.SASLResponse.TAG,
+            (namespaces.sasl, "response")
+        )
+
+    def test_payload(self):
+        self.assertIsInstance(
+            stream_xsos.SASLResponse.payload,
+            xso.Text
+        )
+        self.assertIsInstance(
+            stream_xsos.SASLResponse.payload.type_,
+            xso.Base64Binary
+        )
+        self.assertIs(
+            stream_xsos.SASLResponse.payload.default,
+            xso.NO_DEFAULT
+        )
+
+    def test_init(self):
+        challenge = stream_xsos.SASLResponse(b"foo")
+        self.assertEqual(challenge.payload, b"foo")
+
+        challenge = stream_xsos.SASLResponse(payload=b"foo")
+        self.assertEqual(challenge.payload, b"foo")
+
+        with self.assertRaisesRegexp(TypeError, "positional argument"):
+            stream_xsos.SASLResponse()
+
+
+class TestSASLFailure(unittest.TestCase):
+    def test_is_sasl_xso(self):
+        self.assertTrue(issubclass(
+            stream_xsos.SASLFailure,
+            stream_xsos.SASLXSO
+        ))
+
+    def test_tag(self):
+        self.assertEqual(
+            stream_xsos.SASLFailure.TAG,
+            (namespaces.sasl, "failure")
+        )
+
+    def test_condition(self):
+        self.assertIsInstance(
+            stream_xsos.SASLFailure.condition,
+            xso.ChildTag
+        )
+        self.assertIsInstance(
+            stream_xsos.SASLFailure.condition.validator,
+            xso.RestrictToSet
+        )
+        self.assertSetEqual(
+            stream_xsos.SASLFailure.condition.validator.values,
+            {
+                (namespaces.sasl, key)
+                for key in [
+                        "aborted",
+                        "account-disabled",
+                        "credentials-expired",
+                        "encryption-required",
+                        "incorrect-encoding",
+                        "invalid-authzid",
+                        "invalid-mechanism",
+                        "malformed-request",
+                        "mechanism-too-weak",
+                        "not-authorized",
+                        "temporary-auth-failure",
+                ]
+            }
+        )
+        self.assertEqual(
+            stream_xsos.SASLFailure.condition.declare_prefix,
+            None
+        )
+        self.assertIs(
+            stream_xsos.SASLFailure.condition.default,
+            xso.NO_DEFAULT
+        )
+
+    def test_text(self):
+        self.assertIsInstance(
+            stream_xsos.SASLFailure.text,
+            xso.ChildText
+        )
+        self.assertEqual(
+            stream_xsos.SASLFailure.text.tag,
+            (namespaces.sasl, "text")
+        )
+        self.assertEqual(
+            stream_xsos.SASLFailure.text.attr_policy,
+            xso.UnknownAttrPolicy.DROP
+        )
+        self.assertIs(
+            stream_xsos.SASLFailure.text.default,
+            None
+        )
+        self.assertIs(
+            stream_xsos.SASLFailure.text.declare_prefix,
+            None
+        )
+
+    def test_init(self):
+        fail = stream_xsos.SASLFailure()
+        self.assertEqual(
+            fail.condition,
+            (namespaces.sasl, "temporary-auth-failure")
+        )
+
+        fail = stream_xsos.SASLFailure(
+            condition=(namespaces.sasl, "invalid-authzid")
+        )
+        self.assertEqual(
+            fail.condition,
+            (namespaces.sasl, "invalid-authzid")
+        )
+
+
+class TestSASLSuccess(unittest.TestCase):
+    def test_is_sasl_xso(self):
+        self.assertTrue(issubclass(
+            stream_xsos.SASLSuccess,
+            stream_xsos.SASLXSO
+        ))
+
+    def test_tag(self):
+        self.assertEqual(
+            stream_xsos.SASLSuccess.TAG,
+            (namespaces.sasl, "success")
+        )
+
+    def test_payload(self):
+        self.assertIsInstance(
+            stream_xsos.SASLSuccess.payload,
+            xso.Text
+        )
+        self.assertIsInstance(
+            stream_xsos.SASLSuccess.payload.type_,
+            xso.Base64Binary
+        )
+        self.assertIs(
+            stream_xsos.SASLSuccess.payload.default,
+            None
+        )
+
+
+class TestSASLAbort(unittest.TestCase):
+    def test_is_sasl_xso(self):
+        self.assertTrue(issubclass(
+            stream_xsos.SASLAbort,
+            stream_xsos.SASLXSO
+        ))
+
+    def test_tag(self):
+        self.assertEqual(
+            stream_xsos.SASLAbort.TAG,
+            (namespaces.sasl, "abort")
+        )
+
+
+
+class TestSMXSO(unittest.TestCase):
+    def test_is_xso(self):
+        self.assertTrue(issubclass(
+            stream_xsos.SMXSO,
+            xso.XSO
+        ))
+
+    def test_declare_ns(self):
+        self.assertDictEqual(
+            stream_xsos.SMXSO.DECLARE_NS,
+            {
+                None: namespaces.stream_management
+            }
+        )
+
+
+class TestStreamManagementFeature(unittest.TestCase):
+    def test_is_sm_xso(self):
+        self.assertTrue(issubclass(
+            stream_xsos.StreamManagementFeature,
+            stream_xsos.SMXSO
+        ))
+
+    def test_tag(self):
+        self.assertEqual(
+            stream_xsos.StreamManagementFeature.TAG,
+            (namespaces.stream_management, "sm")
+        )
+
+    def test_required(self):
+        self.assertIsInstance(
+            stream_xsos.StreamManagementFeature.required,
+            xso.Child
+        )
+        self.assertSetEqual(
+            stream_xsos.StreamManagementFeature.required._classes,
+            {stream_xsos.StreamManagementFeature.Required},
+        )
+        self.assertFalse(stream_xsos.StreamManagementFeature.required.required)
+
+    def test_optional(self):
+        self.assertIsInstance(
+            stream_xsos.StreamManagementFeature.optional,
+            xso.Child
+        )
+        self.assertSetEqual(
+            stream_xsos.StreamManagementFeature.optional._classes,
+            {stream_xsos.StreamManagementFeature.Optional},
+        )
+        self.assertFalse(stream_xsos.StreamManagementFeature.optional.required)
+
+    def test_is_registered_stream_feature(self):
+        self.assertTrue(stream_xsos.StreamFeatures.is_feature(
+            stream_xsos.StreamManagementFeature
+        ))
+
+
+class TestStreamManagementFeature_Required(unittest.TestCase):
+    def test_is_xso(self):
+        self.assertTrue(issubclass(
+            stream_xsos.StreamManagementFeature.Required,
+            xso.XSO,
+        ))
+
+    def test_tag(self):
+        self.assertEqual(
+            stream_xsos.StreamManagementFeature.Required.TAG,
+            (namespaces.stream_management, "required")
+        )
+
+
+class TestStreamManagementFeature_Optional(unittest.TestCase):
+    def test_is_xso(self):
+        self.assertTrue(issubclass(
+            stream_xsos.StreamManagementFeature.Optional,
+            xso.XSO,
+        ))
+
+    def test_tag(self):
+        self.assertEqual(
+            stream_xsos.StreamManagementFeature.Optional.TAG,
+            (namespaces.stream_management, "optional")
         )
 
 

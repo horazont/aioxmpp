@@ -119,6 +119,26 @@ class State(Enum):
     CLOSED = 6
 
 
+class DebugWrapper:
+    def __init__(self, dest, logger):
+        self.dest = dest
+        self.logger = logger
+        if hasattr(dest, "flush"):
+            self._flush = dest.flush
+        else:
+            self._flush = lambda: None
+        self._pieces = []
+
+    def write(self, data):
+        self._pieces.append(data)
+        self.dest.write(data)
+
+    def flush(self):
+        self.logger.debug("SENT %r", b"".join(self._pieces))
+        self._pieces = []
+        self._flush
+
+
 class XMLStream(asyncio.Protocol):
     """
     XML stream implementation. This is an streaming :class:`asyncio.Protocol`
@@ -153,6 +173,18 @@ class XMLStream(asyncio.Protocol):
        register class callbacks on it using
        :meth:`~aioxmpp.xso.XSOParser.add_class`.
 
+    .. attribute:: error_handler
+
+       This should be assigned a callable, taking two arguments: a
+       :class:`xso.XSO` instance, which is the partial(!) top-level stream
+       element and an exception indicating the failure.
+
+       Partial here means that it is not guaranteed that anything but the
+       attributes on the partial XSO itself are there. Any children or text
+       payload is most likely missing, as it probably caused the error.
+
+       .. versionadded:: 0.4
+
     Sending XSOs:
 
     .. automethod:: send_xso
@@ -167,7 +199,7 @@ class XMLStream(asyncio.Protocol):
 
     Signals:
 
-    .. autoattribute:: on_closing
+    .. signal:: on_closing
 
        A :class:`~aioxmpp.callbacks.Signal` which fires when the underlying
        transport of the stream reports an error or when a stream error is
@@ -229,6 +261,7 @@ class XMLStream(asyncio.Protocol):
                                      self._rx_stream_error)
         self.stanza_parser.add_class(stream_xsos.StreamFeatures,
                                      self._rx_stream_features)
+        self.error_handler = None
 
     def _invalid_transition(self, to, via=None):
         text = "invalid state transition: from={} to={}".format(
@@ -303,49 +336,15 @@ class XMLStream(asyncio.Protocol):
         raise ConnectionError("xmlstream not connected")
 
     def _rx_exception(self, exc):
-        if isinstance(exc, stanza.PayloadParsingError):
-            self._logger.warn("payload parsing error: %s", exc)
-
-            if self._smachine.state >= State.CLOSING:
-                self._logger.warn("ignoring payload parsing error, "
-                                  "we’re closing")
-                return
-
-            try:
-                iq_response = exc.partial_obj.make_reply(type_="error")
-            except ValueError:
-                pass
-            else:
-                iq_response.error = stanza.Error(
-                    condition=(namespaces.stanzas, "bad-request"),
-                    type_="modify",
-                    text=str(exc.__context__)
-                )
-                self.send_xso(iq_response)
-        elif isinstance(exc, stanza.UnknownIQPayload):
-            self._logger.warn("unknown IQ payload: %s", exc)
-
-            if self._smachine.state >= State.CLOSING:
-                self._logger.warn("ignoring unknown IQ payload, "
-                                  "we’re closing")
-                return
-
-            try:
-                iq_response = exc.partial_obj.make_reply(type_="error")
-            except ValueError:
-                pass
-            else:
-                iq_response.error = stanza.Error(
-                    condition=(namespaces.stanzas, "feature-not-implemented"),
-                    type_="cancel",
-                )
-                self.send_xso(iq_response)
+        if isinstance(exc, (stanza.PayloadParsingError,
+                            stanza.UnknownIQPayload)):
+            if self.error_handler:
+                self.error_handler(exc.partial_obj, exc)
         elif isinstance(exc, xso.UnknownTopLevelTag):
             if self._smachine.state >= State.CLOSING:
                 self._logger.info("ignoring unknown top-level tag, "
                                   "we’re closing")
                 return
-
 
             raise errors.StreamError(
                 condition=(namespaces.streams, "unsupported-stanza-type"),
@@ -528,8 +527,12 @@ class XMLStream(asyncio.Protocol):
         self._parser = xml.make_parser()
         self._parser.setContentHandler(self._processor)
 
+        if self._logger.getEffectiveLevel() <= logging.DEBUG:
+            dest = DebugWrapper(self._transport, self._logger)
+        else:
+            dest = self._transport
         self._writer = xml.write_xmlstream(
-            self._transport,
+            dest,
             self._to,
             nsmap={None: "jabber:client"},
             sorted_attributes=self._sorted_attributes)
@@ -566,8 +569,6 @@ class XMLStream(asyncio.Protocol):
         re-raised instead of the :class:`ConnectionError`.
         """
         self._require_connection()
-        if self._logger.getEffectiveLevel() <= logging.DEBUG:
-            self._logger.debug("SEND %s", xml.serialize_single_xso(obj))
         self._writer.send(obj)
 
     def can_starttls(self):
@@ -616,7 +617,6 @@ class XMLStream(asyncio.Protocol):
         fut = asyncio.Future(loop=self._loop)
         self._error_futures.append(fut)
         return fut
-
 
     @property
     def transport(self):

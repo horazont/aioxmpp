@@ -54,5 +54,5 @@ Item queries
 
 """
 
-from . import xso
-from .service import Service, Node, StaticNode
+from . import xso  # NOQA
+from .service import Service, Node, StaticNode  # NOQA

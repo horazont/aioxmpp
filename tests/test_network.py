@@ -1,11 +1,18 @@
+import asyncio
 import collections
 import random
 import unittest
+import unittest.mock
 
 import dns
 import dns.flags
 
 import aioxmpp.network as network
+
+from aioxmpp.testutils import (
+    run_coroutine
+)
+
 
 MockSRVRecord = collections.namedtuple(
     "MockRecord",
@@ -440,3 +447,107 @@ class Testgroup_and_order_srv_records(unittest.TestCase):
         self.assertEqual(
             0.51,
             host_chances[3][3])
+
+
+class Testfind_xmpp_host_addr(unittest.TestCase):
+    def test_returns_items_if_available(self):
+        base = unittest.mock.Mock()
+
+        nattempts = object()
+        items = object()
+
+        with unittest.mock.patch(
+                "aioxmpp.network.lookup_srv",
+                new=base.lookup_srv) as lookup_srv:
+            lookup_srv.return_value = items
+
+            result = run_coroutine(network.find_xmpp_host_addr(
+                asyncio.get_event_loop(),
+                base.domain,
+                attempts=nattempts
+            ))
+
+        calls = list(base.mock_calls)
+        self.assertSequenceEqual(
+            calls,
+            [
+                unittest.mock.call.domain.encode("IDNA"),
+                unittest.mock.call.lookup_srv(
+                    service=b"xmpp-client",
+                    domain=base.domain.encode(),
+                    nattempts=nattempts
+                )
+            ]
+        )
+
+        self.assertIs(result, items)
+
+    def test_creates_fake_srv_if_no_srvs_available(self):
+        base = unittest.mock.Mock()
+
+        nattempts = object()
+
+        with unittest.mock.patch(
+                "aioxmpp.network.lookup_srv",
+                new=base.lookup_srv) as lookup_srv:
+            lookup_srv.return_value = None
+
+            result = run_coroutine(network.find_xmpp_host_addr(
+                asyncio.get_event_loop(),
+                base.domain,
+                attempts=nattempts
+            ))
+
+        calls = list(base.mock_calls)
+        self.assertSequenceEqual(
+            calls,
+            [
+                unittest.mock.call.domain.encode("IDNA"),
+                unittest.mock.call.lookup_srv(
+                    service=b"xmpp-client",
+                    domain=base.domain.encode(),
+                    nattempts=nattempts
+                )
+            ]
+        )
+
+        self.assertSequenceEqual(
+            result,
+            [
+                (0, 0, (base.domain.encode(), 5222)),
+            ]
+        )
+
+    def test_propagates_OSError_from_lookup_srv(self):
+        base = unittest.mock.Mock()
+
+        nattempts = object()
+
+        with unittest.mock.patch(
+                "aioxmpp.network.lookup_srv",
+                new=base.lookup_srv) as lookup_srv:
+            lookup_srv.side_effect = OSError()
+
+            with self.assertRaises(OSError):
+                run_coroutine(network.find_xmpp_host_addr(
+                    asyncio.get_event_loop(),
+                    base.domain,
+                    attempts=nattempts
+                ))
+
+    def test_propagates_ValueError_from_lookup_srv(self):
+        base = unittest.mock.Mock()
+
+        nattempts = object()
+
+        with unittest.mock.patch(
+                "aioxmpp.network.lookup_srv",
+                new=base.lookup_srv) as lookup_srv:
+            lookup_srv.side_effect = ValueError()
+
+            with self.assertRaises(ValueError):
+                run_coroutine(network.find_xmpp_host_addr(
+                    asyncio.get_event_loop(),
+                    base.domain,
+                    attempts=nattempts
+                ))

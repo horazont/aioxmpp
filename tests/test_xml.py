@@ -54,6 +54,8 @@ TEST_TREE = b"""<weatherdata xmlns:xsi="http://www.w3.org/2001/XMLSchema-instanc
 class Cls(xso.XSO):
     TAG = ("uri:foo", "bar")
 
+    DECLARE_NS = {}
+
 
 class TestxmlValidateNameValue_str(unittest.TestCase):
     def test_foo(self):
@@ -520,6 +522,106 @@ class TestXMPPXMLGenerator(XMLTestCase):
         gen.endElementNS((None, "foo"), None)
         gen.endDocument()
         gen.flush()
+
+    def test_redeclaration_of_namespace_prefixes(self):
+        gen = xml.XMPPXMLGenerator(self.buf, short_empty_elements=True)
+        gen.startDocument()
+        gen.startPrefixMapping("ns0", "uri:foo")
+        gen.startElementNS(("uri:foo", "foo"), None, {})
+        gen.startPrefixMapping("ns0", "uri:bar")
+        gen.startElementNS(("uri:foo", "bar"), None, {})
+        gen.endElementNS(("uri:foo", "bar"), None)
+        gen.endPrefixMapping("ns0")
+        gen.endElementNS(("uri:foo", "foo"), None)
+        gen.endPrefixMapping("ns0")
+        gen.endDocument()
+        self.assertEqual(
+            b'<?xml version="1.0"?>'
+            b'<ns0:foo xmlns:ns0="uri:foo">'
+            b'<ns1:bar xmlns:ns0="uri:bar" xmlns:ns1="uri:foo"/>'
+            b'</ns0:foo>',
+            self.buf.getvalue()
+        )
+
+    def test_redeclaration_of_default_namespace(self):
+        gen = xml.XMPPXMLGenerator(self.buf, short_empty_elements=True)
+        gen.startDocument()
+        gen.startPrefixMapping(None, "uri:foo")
+        gen.startElementNS(("uri:foo", "foo"), None, {})
+        gen.startPrefixMapping(None, "uri:bar")
+        gen.startElementNS(("uri:foo", "bar"), None, {})
+        gen.endElementNS(("uri:foo", "bar"), None)
+        gen.endPrefixMapping(None)
+        gen.endElementNS(("uri:foo", "foo"), None)
+        gen.endPrefixMapping(None)
+        gen.endDocument()
+        self.assertEqual(
+            b'<?xml version="1.0"?>'
+            b'<foo xmlns="uri:foo">'
+            b'<ns0:bar xmlns="uri:bar" xmlns:ns0="uri:foo"/>'
+            b'</foo>',
+            self.buf.getvalue()
+        )
+
+    def test_deduplication_of_prefix_declarations(self):
+        gen = xml.XMPPXMLGenerator(self.buf, short_empty_elements=True)
+        gen.startDocument()
+        gen.startPrefixMapping(None, "uri:foo")
+        gen.startElementNS(("uri:foo", "foo"), None, {})
+        gen.startPrefixMapping(None, "uri:foo")
+        gen.startElementNS(("uri:foo", "bar"), None, {})
+        gen.endElementNS(("uri:foo", "bar"), None)
+        gen.endPrefixMapping(None)
+        gen.endElementNS(("uri:foo", "foo"), None)
+        gen.endPrefixMapping(None)
+        gen.endDocument()
+        self.assertEqual(
+            b'<?xml version="1.0"?>'
+            b'<foo xmlns="uri:foo">'
+            b'<bar/>'
+            b'</foo>',
+            self.buf.getvalue()
+        )
+
+    def test_deduplication_of_prefix_declarations(self):
+        gen = xml.XMPPXMLGenerator(self.buf, short_empty_elements=True)
+        gen.startDocument()
+        gen.startPrefixMapping(None, "uri:foo")
+        gen.startElementNS(("uri:foo", "foo"), None, {})
+        gen.startPrefixMapping(None, "uri:foo")
+        gen.startElementNS(("uri:foo", "bar"), None, {})
+        gen.endElementNS(("uri:foo", "bar"), None)
+        gen.endPrefixMapping(None)
+        gen.endElementNS(("uri:foo", "foo"), None)
+        gen.endPrefixMapping(None)
+        gen.endDocument()
+        self.assertEqual(
+            b'<?xml version="1.0"?>'
+            b'<foo xmlns="uri:foo">'
+            b'<bar/>'
+            b'</foo>',
+            self.buf.getvalue()
+        )
+
+    def test_always_use_innermost_prefix_mapping(self):
+        gen = xml.XMPPXMLGenerator(self.buf, short_empty_elements=True)
+        gen.startDocument()
+        gen.startPrefixMapping(None, "uri:foo")
+        gen.startElementNS(("uri:foo", "foo"), None, {})
+        gen.startPrefixMapping("foo", "uri:foo")
+        gen.startElementNS(("uri:foo", "bar"), None, {})
+        gen.endElementNS(("uri:foo", "bar"), None)
+        gen.endPrefixMapping("foo")
+        gen.endElementNS(("uri:foo", "foo"), None)
+        gen.endPrefixMapping(None)
+        gen.endDocument()
+        self.assertEqual(
+            b'<?xml version="1.0"?>'
+            b'<foo xmlns="uri:foo">'
+            b'<foo:bar xmlns:foo="uri:foo"/>'
+            b'</foo>',
+            self.buf.getvalue()
+        )
 
     def tearDown(self):
         del self.buf

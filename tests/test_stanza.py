@@ -1,5 +1,6 @@
 import itertools
 import unittest
+import unittest.mock
 
 import aioxmpp.xso as xso
 import aioxmpp.stanza as stanza
@@ -19,6 +20,12 @@ class TestPayload(xso.XSO):
 
 
 class TestStanzaBase(unittest.TestCase):
+    def test_declare_ns(self):
+        self.assertDictEqual(
+            stanza.StanzaBase.DECLARE_NS,
+            {}
+        )
+
     def test_from_attr(self):
         self.assertIsInstance(
             stanza.StanzaBase.from_,
@@ -56,12 +63,14 @@ class TestStanzaBase(unittest.TestCase):
         s = stanza.StanzaBase()
         s.autoset_id()
         id1 = s.id_
+        self.assertTrue(id1.startswith("x"))
         self.assertTrue(s.id_)
         del s.id_
         s.autoset_id()
         self.assertTrue(s.id_)
         self.assertNotEqual(id1, s.id_)
         self.assertIsInstance(s.id_, str)
+        self.assertTrue(s.id_.startswith("x"))
 
         # ensure that there are not too many A chars (i.e. zero bits)
         self.assertLess(sum(1 for c in id1 if c == "A"), 5)
@@ -130,6 +139,12 @@ class TestMessage(unittest.TestCase):
             stanza.Message,
             stanza.StanzaBase))
 
+    def test_unknown_child_policy(self):
+        self.assertEqual(
+            stanza.Message.UNKNOWN_CHILD_POLICY,
+            xso.UnknownChildPolicy.DROP
+        )
+
     def test_id_attr(self):
         self.assertIsInstance(
             stanza.Message.id_,
@@ -163,6 +178,10 @@ class TestMessage(unittest.TestCase):
                 "normal",
             },
             stanza.Message.type_.validator.values)
+        self.assertEqual(
+            stanza.Message.type_.default,
+            "normal"
+        )
 
     def test_ext_attr(self):
         self.assertIsInstance(
@@ -228,6 +247,31 @@ class TestMessage(unittest.TestCase):
             TEST_TO,
             r.from_)
         self.assertIsNone(r.id_)
+
+    def test_make_error(self):
+        e = stanza.Error(
+            condition=(namespaces.stanzas, "feature-not-implemented")
+        )
+        s = stanza.Message(from_=TEST_FROM,
+                           to=TEST_TO,
+                           id_="someid",
+                           type_="groupchat")
+        r = s.make_error(e)
+
+        self.assertIsInstance(r, stanza.Message)
+
+        self.assertEqual(
+            r.type_,
+            "error")
+        self.assertEqual(
+            TEST_FROM,
+            r.to)
+        self.assertEqual(
+            TEST_TO,
+            r.from_)
+        self.assertEqual(
+            s.id_,
+            r.id_)
 
     def test_repr(self):
         s = stanza.Message(from_=TEST_FROM,
@@ -384,6 +428,31 @@ class TestPresence(unittest.TestCase):
         self.assertIsNone(s.type_)
         self.assertIsNone(s.show)
 
+    def test_make_error(self):
+        e = stanza.Error(
+            condition=(namespaces.stanzas, "gone")
+        )
+        s = stanza.Presence(from_=TEST_FROM,
+                            to=TEST_TO,
+                            id_="someid",
+                            type_="unavailable")
+        r = s.make_error(e)
+
+        self.assertIsInstance(r, stanza.Presence)
+
+        self.assertEqual(
+            r.type_,
+            "error")
+        self.assertEqual(
+            TEST_FROM,
+            r.to)
+        self.assertEqual(
+            TEST_TO,
+            r.from_)
+        self.assertEqual(
+            s.id_,
+            r.id_)
+
     def test_repr(self):
         s = stanza.Presence(
             from_=TEST_FROM,
@@ -414,6 +483,12 @@ class TestPresence(unittest.TestCase):
 
 
 class TestError(unittest.TestCase):
+    def test_declare_ns(self):
+        self.assertDictEqual(
+            stanza.Error.DECLARE_NS,
+            {}
+        )
+
     def test_tag(self):
         self.assertEqual(
             ("jabber:client", "error"),
@@ -423,6 +498,12 @@ class TestError(unittest.TestCase):
         self.assertIs(
             stanza.Error.UNKNOWN_CHILD_POLICY,
             xso.UnknownChildPolicy.DROP
+        )
+
+    def test_unknown_attr_policy(self):
+        self.assertIs(
+            stanza.Error.UNKNOWN_ATTR_POLICY,
+            xso.UnknownAttrPolicy.DROP
         )
 
     def test_type_attr(self):
@@ -510,6 +591,73 @@ class TestError(unittest.TestCase):
                 exc.text
             )
 
+    def test_to_exception_with_application_condition(self):
+        cond = unittest.mock.Mock(["to_exception"])
+
+        obj = stanza.Error(
+            type_="continue",
+            condition=(namespaces.stanzas, "undefined-condition")
+        )
+        obj.application_condition = cond
+        cond.to_exception.return_value = Exception()
+
+        result = obj.to_exception()
+
+        self.assertSequenceEqual(
+            cond.mock_calls,
+            [
+                unittest.mock.call.to_exception(obj.type_)
+            ]
+        )
+
+        self.assertEqual(result, cond.to_exception())
+
+    def test_to_exception_with_application_condition_only_if_cond_supports(self):
+        cond = unittest.mock.Mock([])
+
+        obj = stanza.Error(
+            type_="continue",
+            condition=(namespaces.stanzas, "undefined-condition")
+        )
+        obj.application_condition = cond
+
+        result = obj.to_exception()
+
+        self.assertIsInstance(
+            result,
+            errors.XMPPContinueError
+        )
+
+        self.assertSequenceEqual(
+            cond.mock_calls,
+            [
+            ]
+        )
+
+    def test_override_with_default_exception_if_result_of_app_cond_is_no_exception(self):
+        cond = unittest.mock.Mock(["to_exception"])
+
+        obj = stanza.Error(
+            type_="continue",
+            condition=(namespaces.stanzas, "undefined-condition")
+        )
+        obj.application_condition = cond
+        cond.to_exception.return_value = object()
+
+        result = obj.to_exception()
+
+        self.assertIsInstance(
+            result,
+            errors.XMPPContinueError
+        )
+
+        self.assertSequenceEqual(
+            cond.mock_calls,
+            [
+                unittest.mock.call.to_exception(obj.type_)
+            ]
+        )
+
     def test_repr(self):
         obj = stanza.Error()
         self.assertEqual(
@@ -533,6 +681,12 @@ class TestIQ(unittest.TestCase):
         self.assertTrue(issubclass(
             stanza.IQ,
             stanza.StanzaBase))
+
+    def test_unknown_child_policy(self):
+        self.assertEqual(
+            stanza.IQ.UNKNOWN_CHILD_POLICY,
+            xso.UnknownChildPolicy.FAIL
+        )
 
     def test_id_attr(self):
         self.assertIsInstance(
@@ -644,6 +798,31 @@ class TestIQ(unittest.TestCase):
         s.type_ = "result"
         with self.assertRaises(ValueError):
             s.make_reply("error")
+
+    def test_make_error(self):
+        e = stanza.Error(
+            condition=(namespaces.stanzas, "bad-request")
+        )
+        s = stanza.IQ(from_=TEST_FROM,
+                      to=TEST_TO,
+                      id_="someid",
+                      type_="get")
+        r = s.make_error(e)
+
+        self.assertIsInstance(r, stanza.IQ)
+
+        self.assertEqual(
+            r.type_,
+            "error")
+        self.assertEqual(
+            TEST_FROM,
+            r.to)
+        self.assertEqual(
+            TEST_TO,
+            r.from_)
+        self.assertEqual(
+            s.id_,
+            r.id_)
 
     def test_repr(self):
         s = stanza.IQ(

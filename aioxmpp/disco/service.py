@@ -398,7 +398,8 @@ class Service(service.Service, Node):
         return result
 
     @asyncio.coroutine
-    def query_items(self, jid, *, node=None, require_fresh=False, timeout=None):
+    def query_items(self, jid, *,
+                    node=None, require_fresh=False, timeout=None):
         key = jid, node
 
         if not require_fresh:

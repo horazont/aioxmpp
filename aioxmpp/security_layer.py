@@ -104,6 +104,7 @@ import OpenSSL.SSL
 from . import errors, sasl, stream_xsos, xso, protocol
 from .utils import namespaces
 
+
 logger = logging.getLogger(__name__)
 
 
@@ -357,10 +358,12 @@ class HookablePKIXCertificateVerifier(CertificateVerifier):
 
     """
 
+    # these are the errors for which we allow pinning the certificate
     _DEFERRABLE_ERRORS = {
-        (19, None),
-        (18, 0),
-        (27, 0),
+        (20, None),  # issuer certificate not available locally
+        (19, None),  # self-signed cert in chain
+        (18, 0),     # depth-zero self-signed cert
+        (27, 0),     # cert untrusted
     }
 
     def __init__(self,
@@ -401,6 +404,9 @@ class HookablePKIXCertificateVerifier(CertificateVerifier):
         for x509, errno, depth in records:
             if     ((errno, depth) not in self._DEFERRABLE_ERRORS and
                     (errno, None) not in self._DEFERRABLE_ERRORS):
+                logger.warning("non-deferrable certificate error: "
+                               "depth=%d, errno=%d",
+                               depth, errno)
                 return False
 
         if self._quick_check is not None:
@@ -666,28 +672,6 @@ class ErrorRecordingVerifier(CertificateVerifier):
                     ", ".join(map(str, self._errors))))
 
 
-@stream_xsos.StreamFeatures.as_feature_class
-class STARTTLSFeature(xso.XSO):
-    class STARTTLSRequired(xso.XSO):
-        TAG = (namespaces.starttls, "required")
-
-    TAG = (namespaces.starttls, "starttls")
-
-    required = xso.Child([STARTTLSRequired])
-
-
-class STARTTLS(xso.XSO):
-    TAG = (namespaces.starttls, "starttls")
-
-
-class STARTTLSFailure(xso.XSO):
-    TAG = (namespaces.starttls, "failure")
-
-
-class STARTTLSProceed(xso.XSO):
-    TAG = (namespaces.starttls, "proceed")
-
-
 class STARTTLSProvider:
     """
     A TLS provider to negotiate STARTTLS on an existing XML stream. This
@@ -738,7 +722,7 @@ class STARTTLSProvider:
         """
 
         try:
-            feature = features[STARTTLSFeature]
+            feature = features[stream_xsos.StartTLSFeature]
         except KeyError:
             return self._fail_if_required("STARTTLS not supported by peer")
 
@@ -751,11 +735,11 @@ class STARTTLSProvider:
         response = yield from protocol.send_and_wait_for(
             xmlstream,
             [
-                STARTTLS()
+                stream_xsos.StartTLS()
             ],
             [
-                STARTTLSFailure,
-                STARTTLSProceed,
+                stream_xsos.StartTLSFailure,
+                stream_xsos.StartTLSProceed,
             ]
         )
 
@@ -792,6 +776,7 @@ class SASLMechanism(xso.XSO):
     def __init__(self, name=None):
         super().__init__()
         self.name = name
+
 
 @stream_xsos.StreamFeatures.as_feature_class
 class SASLMechanisms(xso.XSO):

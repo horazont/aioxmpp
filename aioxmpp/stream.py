@@ -11,6 +11,17 @@ possible.
 
 .. autoclass:: StanzaStream
 
+Low-level stanza tracking
+=========================
+
+The following classes are used to track stanzas in the XML stream to the
+server. This is independent of things like `XEP-0184 Message Delivery
+Receipts`__; it only provides tracking to the remote server and even that only
+if stream management is used. Otherwise, it only provides tracking in the
+:mod:`aioxmpp` internal queues.
+
+__ http://xmpp.org/extensions/xep-0184.html
+
 .. autoclass:: StanzaToken
 
 .. autoclass:: StanzaState
@@ -273,12 +284,20 @@ class StanzaStream:
     :class:`StanzaStream` has to make sure that the XML streams are compatible,
     identity-wise (use the same JID).
 
+    `local_jid` may be the **bare** sender JID associated with the stanza
+    stream. This is required for compatibility with ejabberd. If it is omitted,
+    communication with ejabberd instances may not work.
+
     `loop` may be used to explicitly specify the :class:`asyncio.BaseEventLoop`
     to use, otherwise the current event loop is used.
 
     `base_logger` can be used to explicitly specify a :class:`logging.Logger`
     instance to fork off the logger from. The :class:`StanzaStream` will use a
     child logger of `base_logger` called ``StanzaStream``.
+
+    .. versionchanged:: 0.4
+
+       The `local_jid` argument was added.
 
     The stanza stream takes care of ensuring stream liveness. For that, pings
     are sent in a periodic interval. If stream management is enabled, stream
@@ -494,11 +513,15 @@ class StanzaStream:
 
     .. autoattribute:: sm_resumable
 
+    Miscellaneous:
+
+    .. autoattribute:: local_jid
+
     Signals:
 
-    .. method:: on_failure(exc)
+    .. signal:: on_failure(exc)
 
-       A :class:`Signal` which will fire when the stream has failed. A failure
+       A signal which will fire when the stream has failed. A failure
        occurs whenever the main task of the :class:`StanzaStream` (the one
        started by :meth:`start`) terminates with an exception.
 
@@ -508,14 +531,14 @@ class StanzaStream:
 
        The exception which occured is given as `exc`.
 
-    .. method:: on_stream_destroyed()
+    .. signal:: on_stream_destroyed()
 
        When a stream is destroyed so that all state shall be discarded (for
        example, pending futures), this signal is fired.
 
        This happens if a non-SM stream is stopped or if SM is being disabled.
 
-    .. method:: on_stream_established()
+    .. signal:: on_stream_established()
 
        When a stream is newly established, this signal is fired. This happens
        whenever a non-SM stream is started and whenever a stream which
@@ -528,6 +551,7 @@ class StanzaStream:
     on_stream_established = callbacks.Signal()
 
     def __init__(self,
+                 local_jid=None,
                  *,
                  loop=None,
                  base_logger=logging.getLogger("aioxmpp")):
@@ -535,6 +559,8 @@ class StanzaStream:
         self._loop = loop or asyncio.get_event_loop()
         self._logger = base_logger.getChild("StanzaStream")
         self._task = None
+
+        self._local_jid = local_jid
 
         self._active_queue = custom_queue.AsyncDeque(loop=self._loop)
         self._incoming_queue = custom_queue.AsyncDeque(loop=self._loop)
@@ -570,6 +596,13 @@ class StanzaStream:
 
         self.app_outbound_message_filter = AppFilter()
         self.service_outbound_message_filter = Filter()
+
+    @property
+    def local_jid(self):
+        """
+        The `local_jid` argument to the constructor. This cannot be changed.
+        """
+        return self._local_jid
 
     def _done_handler(self, task):
         """
@@ -634,6 +667,8 @@ class StanzaStream:
             # iq response
             self._logger.debug("iq is response")
             key = (stanza_obj.from_, stanza_obj.id_)
+            if key[0] == self._local_jid:
+                key = (None, key[1])
             try:
                 self._iq_response_map.unicast(key, stanza_obj)
             except KeyError:
@@ -743,26 +778,44 @@ class StanzaStream:
                 stanza_obj.id_
             )
 
-    def _process_incoming(self, xmlstream, stanza_obj):
+    def _process_incoming_errorneous_stanza(self, stanza_obj, exc):
+        if stanza_obj.type_ == "error" or stanza_obj.type_ == "result":
+            if     (isinstance(stanza_obj, stanza.IQ) and
+                    stanza_obj.from_ is not None):
+                key = (stanza_obj.from_, stanza_obj.id_)
+                try:
+                    self._iq_response_map.unicast_error(
+                        key,
+                        errors.ErrorneousStanza(stanza_obj)
+                    )
+                except KeyError:
+                    pass
+            return
+
+        if isinstance(exc, stanza.PayloadParsingError):
+            reply = stanza_obj.make_error(error=stanza.Error(condition=(
+                namespaces.stanzas,
+                "bad-request")
+            ))
+            self.enqueue_stanza(reply)
+        elif isinstance(exc, stanza.UnknownIQPayload):
+            reply = stanza_obj.make_error(error=stanza.Error(condition=(
+                namespaces.stanzas,
+                "feature-not-implemented")
+            ))
+            self.enqueue_stanza(reply)
+
+    def _process_incoming(self, xmlstream, queue_entry):
         """
         Dispatch to the different methods responsible for the different stanza
         types or handle a non-stanza stream-level element from `stanza_obj`,
         which has arrived over the given `xmlstream`.
         """
 
-        if isinstance(stanza_obj, stanza.IQ):
-            if self._sm_enabled:
-                self._sm_inbound_ctr += 1
-            self._process_incoming_iq(stanza_obj)
-        elif isinstance(stanza_obj, stanza.Message):
-            if self._sm_enabled:
-                self._sm_inbound_ctr += 1
-            self._process_incoming_message(stanza_obj)
-        elif isinstance(stanza_obj, stanza.Presence):
-            if self._sm_enabled:
-                self._sm_inbound_ctr += 1
-            self._process_incoming_presence(stanza_obj)
-        elif isinstance(stanza_obj, stream_xsos.SMAcknowledgement):
+        stanza_obj, exc = queue_entry
+
+        # first, handle SM stream objects
+        if isinstance(stanza_obj, stream_xsos.SMAcknowledgement):
             self._logger.debug("received SM ack: %r", stanza_obj)
             if not self._sm_enabled:
                 self._logger.warning("received SM ack, but SM not enabled")
@@ -774,7 +827,7 @@ class StanzaStream:
                 self._next_ping_event_type = PingEventType.SEND_OPPORTUNISTIC
                 self._next_ping_event_at = (datetime.utcnow() +
                                             self.ping_interval)
-
+            return
         elif isinstance(stanza_obj, stream_xsos.SMRequest):
             self._logger.debug("received SM request: %r", stanza_obj)
             if not self._sm_enabled:
@@ -784,9 +837,28 @@ class StanzaStream:
             response.counter = self._sm_inbound_ctr
             self._logger.debug("sending SM ack: %r", stanza_obj)
             xmlstream.send_xso(response)
-        else:
+            return
+
+        # raise if it is not a stanza
+        if not isinstance(stanza_obj, stanza.StanzaBase):
             raise RuntimeError(
                 "unexpected stanza class: {}".format(stanza_obj))
+
+        # now handle stanzas, these always increment the SM counter
+        if self._sm_enabled:
+            self._sm_inbound_ctr += 1
+
+        # check if the stanza has errors
+        if exc is not None:
+            self._process_incoming_errorneous_stanza(stanza_obj, exc)
+            return
+
+        if isinstance(stanza_obj, stanza.IQ):
+            self._process_incoming_iq(stanza_obj)
+        elif isinstance(stanza_obj, stanza.Message):
+            self._process_incoming_message(stanza_obj)
+        elif isinstance(stanza_obj, stanza.Presence):
+            self._process_incoming_presence(stanza_obj)
 
     def flush_incoming(self):
         """
@@ -947,6 +1019,17 @@ class StanzaStream:
         :class:`~aioxmpp.structs.JID` `from_` with the id `id_`.
 
         The callback is called at most once.
+
+        .. note::
+
+           In contrast to :meth:`register_iq_response_future`, errors which
+           occur on a level below XMPP stanzas cannot be caught using a
+           callback.
+
+           If you need notification about other errors and still want to use
+           callbacks, use of a future with
+           :meth:`asyncio.Future.add_done_callback` is recommended.
+
         """
 
         self._iq_response_map.add_listener(
@@ -966,6 +1049,27 @@ class StanzaStream:
         to the future. If the type of the IQ stanza is ``error``, the stanzas
         error field is converted to an exception and set as the exception of
         the future.
+
+        The future might also receive different exceptions:
+
+        * :class:`.errors.ErrorneousStanza`, if the response stanza received
+          could not be parsed.
+
+          Note that this exception is not emitted if the ``from`` address of
+          the stanza is unset, because the code cannot determine whether a
+          sender deliberately used an errorneous address to make parsing fail
+          or no sender address was used. In the former case, an attacker could
+          use that to inject a stanza which would be taken as a stanza from the
+          peer server. Thus, the future will never be fulfilled in these
+          cases.
+
+          Also note that this exception does not derive from
+          :class:`.errors.XMPPError`, as it cannot provide the same
+          attributes. Instead, it dervies from :class:`.errors.StanzaError`,
+          from which :class:`.errors.XMPPError` also derives; to catch all
+          possible stanza errors, catching :class:`.errors.StanzaError` is
+          sufficient and future-proof.
+
         """
 
         self._iq_response_map.add_listener(
@@ -1121,6 +1225,7 @@ class StanzaStream:
         xmlstream.stanza_parser.add_class(stanza.IQ, receiver)
         xmlstream.stanza_parser.add_class(stanza.Message, receiver)
         xmlstream.stanza_parser.add_class(stanza.Presence, receiver)
+        xmlstream.error_handler = self.recv_errorneous_stanza
 
         if self._sm_enabled:
             self._logger.debug("using SM")
@@ -1132,6 +1237,7 @@ class StanzaStream:
         self._xmlstream_exception = None
 
     def _start_rollback(self, xmlstream):
+        xmlstream.error_handler = None
         xmlstream.stanza_parser.remove_class(stanza.Presence)
         xmlstream.stanza_parser.remove_class(stanza.Message)
         xmlstream.stanza_parser.remove_class(stanza.IQ)
@@ -1218,8 +1324,7 @@ class StanzaStream:
         """
         if not self.running:
             return
-        xmlstream = self._xmlstream
-        yield from self._xmlstream.close_and_wait() # does not raise
+        yield from self._xmlstream.close_and_wait()  # does not raise
         yield from self.wait_stop()
 
         if self._xmlstream_exception is not None:
@@ -1265,7 +1370,8 @@ class StanzaStream:
                             loop=self._loop)
 
                     if incoming_fut in done:
-                        self._process_incoming(xmlstream, incoming_fut.result())
+                        self._process_incoming(xmlstream,
+                                               incoming_fut.result())
                         incoming_fut = asyncio.async(
                             self._incoming_queue.get(),
                             loop=self._loop)
@@ -1304,18 +1410,23 @@ class StanzaStream:
             if self._xmlstream_exception:
                 raise self._xmlstream_exception
 
-
     def recv_stanza(self, stanza):
         """
         Inject a `stanza` into the incoming queue.
         """
-        self._incoming_queue.put_nowait(stanza)
+        self._incoming_queue.put_nowait((stanza, None))
+
+    def recv_errorneous_stanza(self, partial_obj, exc):
+        self._incoming_queue.put_nowait((partial_obj, exc))
 
     def enqueue_stanza(self, stanza, **kwargs):
         """
         Enqueue a `stanza` to be sent. Return a :class:`StanzaToken` to track
         the stanza. The `kwargs` are passed to the :class:`StanzaToken`
         constructor.
+
+        This method calls :meth:`~.stanza.StanzaBase.autoset_id` on the stanza
+        automatically.
         """
 
         stanza.validate()
@@ -1685,6 +1796,12 @@ class StanzaStream:
         :attr:`~aioxmpp.stanza.IQ.payload` attribute is returned. Otherwise,
         the exception generated from the :attr:`~aioxmpp.stanza.IQ.error`
         attribute is raised.
+
+        .. seealso::
+
+           :meth:`register_iq_request_future` for other cases raising
+           exceptions.
+
         """
         iq.autoset_id()
         fut = asyncio.Future(loop=self._loop)

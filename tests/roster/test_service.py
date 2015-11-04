@@ -14,9 +14,12 @@ from aioxmpp.utils import namespaces
 from aioxmpp.testutils import make_connected_client, run_coroutine
 
 
+TEST_JID = structs.JID.fromstr("user@foo.example")
+
+
 class TestItem(unittest.TestCase):
     def setUp(self):
-        self.jid = structs.JID.fromstr("user@foo.example")
+        self.jid = TEST_JID
 
     def test_init(self):
         item = roster_service.Item(self.jid)
@@ -224,6 +227,26 @@ class TestService(unittest.TestCase):
                     roster_xso.Query,
                     self.s.handle_roster_push
                 ),
+                unittest.mock.call.stream.register_presence_callback(
+                    "subscribe",
+                    None,
+                    self.s.handle_subscribe
+                ),
+                unittest.mock.call.stream.register_presence_callback(
+                    "subscribed",
+                    None,
+                    self.s.handle_subscribed
+                ),
+                unittest.mock.call.stream.register_presence_callback(
+                    "unsubscribed",
+                    None,
+                    self.s.handle_unsubscribed
+                ),
+                unittest.mock.call.stream.register_presence_callback(
+                    "unsubscribe",
+                    None,
+                    self.s.handle_unsubscribe
+                ),
                 unittest.mock.call.stream.send_iq_and_wait_for_reply(
                     unittest.mock.ANY,
                     timeout=self.cc.negotiation_timeout.total_seconds()
@@ -233,17 +256,25 @@ class TestService(unittest.TestCase):
         )
 
     def test_shutdown(self):
+        self.cc.mock_calls.clear()
         run_coroutine(self.s.shutdown())
         self.assertSequenceEqual(
             [
-                unittest.mock.call.stream.register_iq_request_coro(
-                    "set",
-                    roster_xso.Query,
-                    unittest.mock.ANY
+                unittest.mock.call.stream.unregister_presence_callback(
+                    "unsubscribe",
+                    None
                 ),
-                unittest.mock.call.stream.send_iq_and_wait_for_reply(
-                    unittest.mock.ANY,
-                    timeout=self.cc.negotiation_timeout.total_seconds()
+                unittest.mock.call.stream.unregister_presence_callback(
+                    "unsubscribed",
+                    None
+                ),
+                unittest.mock.call.stream.unregister_presence_callback(
+                    "subscribed",
+                    None
+                ),
+                unittest.mock.call.stream.unregister_presence_callback(
+                    "subscribe",
+                    None
                 ),
                 unittest.mock.call.stream.unregister_iq_request_coro(
                     "set",
@@ -349,6 +380,8 @@ class TestService(unittest.TestCase):
         self.assertEqual("both", old_item.subscription)
 
     def test_initial_roster_discards_information(self):
+        self.cc.mock_calls.clear()
+
         response = roster_xso.Query(
             items=[
                 roster_xso.Item(
@@ -365,15 +398,6 @@ class TestService(unittest.TestCase):
         run_coroutine(self.cc.before_stream_established())
         self.assertSequenceEqual(
             [
-                unittest.mock.call.stream.register_iq_request_coro(
-                    "set",
-                    roster_xso.Query,
-                    self.s.handle_roster_push
-                ),
-                unittest.mock.call.stream.send_iq_and_wait_for_reply(
-                    unittest.mock.ANY,
-                    timeout=self.cc.negotiation_timeout.total_seconds()
-                ),
                 unittest.mock.call.stream.send_iq_and_wait_for_reply(
                     unittest.mock.ANY,
                     timeout=self.cc.negotiation_timeout.total_seconds()
@@ -422,6 +446,43 @@ class TestService(unittest.TestCase):
                 unittest.mock.call(),
             ],
             cb.mock_calls
+        )
+
+    def test_initial_roster_does_not_emit_entry_added_for_existing(self):
+        old_item = self.s.items[self.user2]
+
+        response = roster_xso.Query(
+            items=[
+                roster_xso.Item(
+                    jid=self.user2,
+                    name="new name",
+                    subscription="both"
+                ),
+                roster_xso.Item(
+                    jid=self.user2.replace(localpart="user2"),
+                    name="other name",
+                )
+            ],
+            ver="foobar"
+        )
+
+        mock = unittest.mock.Mock()
+        mock.return_value = False
+        self.s.on_entry_added.connect(mock)
+
+        self.cc.stream.send_iq_and_wait_for_reply.return_value = response
+
+        task = asyncio.async(self.cc.before_stream_established())
+
+        run_coroutine(asyncio.sleep(0))
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(
+                    self.s.items[self.user2.replace(localpart="user2")]
+                ),
+            ],
+            mock.mock_calls
         )
 
     def test_initial_roster_keeps_existing_entries_alive(self):
@@ -1033,3 +1094,109 @@ class TestService(unittest.TestCase):
         self.assertFalse(item.approved)
         self.assertFalse(item.groups)
         self.assertIsNone(item.name)
+
+    def test_handle_subscribe_emits_event(self):
+        st = stanza.Presence(type_="subscribe", from_=TEST_JID)
+
+        mock = unittest.mock.Mock()
+        self.s.on_subscribe.connect(mock)
+        self.s.handle_subscribe(st)
+        self.assertSequenceEqual(
+            mock.mock_calls,
+            [
+                unittest.mock.call(st)
+            ]
+        )
+
+    def test_handle_subscribed_emits_event(self):
+        st = stanza.Presence(type_="subscribed", from_=TEST_JID)
+
+        mock = unittest.mock.Mock()
+        self.s.on_subscribed.connect(mock)
+        self.s.handle_subscribed(st)
+        self.assertSequenceEqual(
+            mock.mock_calls,
+            [
+                unittest.mock.call(st)
+            ]
+        )
+
+    def test_handle_unsubscribed_emits_event(self):
+        st = stanza.Presence(type_="unsubscribed", from_=TEST_JID)
+
+        mock = unittest.mock.Mock()
+        self.s.on_unsubscribed.connect(mock)
+        self.s.handle_unsubscribed(st)
+        self.assertSequenceEqual(
+            mock.mock_calls,
+            [
+                unittest.mock.call(st)
+            ]
+        )
+
+    def test_handle_unsubscribe_emits_event(self):
+        st = stanza.Presence(type_="unsubscribe", from_=TEST_JID)
+
+        mock = unittest.mock.Mock()
+        self.s.on_unsubscribe.connect(mock)
+        self.s.handle_unsubscribe(st)
+        self.assertSequenceEqual(
+            mock.mock_calls,
+            [
+                unittest.mock.call(st)
+            ]
+        )
+
+    def test_approve_sends_subscribed_presence(self):
+        self.s.approve(TEST_JID)
+
+        self.assertSequenceEqual(
+            self.cc.stream.enqueue_stanza.mock_calls,
+            [
+                unittest.mock.call(unittest.mock.ANY),
+            ]
+        )
+
+        call, = self.cc.stream.enqueue_stanza.mock_calls
+        _, call_args, _ = call
+
+        st, = call_args
+        self.assertIsInstance(st, stanza.Presence)
+        self.assertEqual(st.to, TEST_JID)
+        self.assertEqual(st.type_, "subscribed")
+
+    def test_subscribe_sends_subscribe_presence(self):
+        self.s.subscribe(TEST_JID)
+
+        self.assertSequenceEqual(
+            self.cc.stream.enqueue_stanza.mock_calls,
+            [
+                unittest.mock.call(unittest.mock.ANY),
+            ]
+        )
+
+        call, = self.cc.stream.enqueue_stanza.mock_calls
+        _, call_args, _ = call
+
+        st, = call_args
+        self.assertIsInstance(st, stanza.Presence)
+        self.assertEqual(st.to, TEST_JID)
+        self.assertEqual(st.type_, "subscribe")
+
+    def test_unsubscribe_sends_unsubscribe_presence(self):
+        self.s.unsubscribe(TEST_JID)
+
+        self.assertSequenceEqual(
+            self.cc.stream.enqueue_stanza.mock_calls,
+            [
+                unittest.mock.call(unittest.mock.ANY),
+            ]
+        )
+
+        call, = self.cc.stream.enqueue_stanza.mock_calls
+        _, call_args, _ = call
+
+        st, = call_args
+        self.assertIsInstance(st, stanza.Presence)
+        self.assertEqual(st.to, TEST_JID)
+        self.assertEqual(st.type_, "unsubscribe")

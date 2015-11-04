@@ -1,3 +1,26 @@
+"""
+:mod:`~aioxmpp.network` --- DNS resolution utilities
+####################################################
+
+This module uses DNSPython to resolve SRV records.
+
+Querying SRV records
+====================
+
+.. autofunction:: find_xmpp_host_addr
+
+.. autofunction:: lookup_srv
+
+.. autofunction:: repeated_query
+
+Ordering SRV records
+====================
+
+.. autofunction:: group_and_order_srv_records
+
+
+"""
+
 import asyncio
 import functools
 import itertools
@@ -15,6 +38,28 @@ def repeated_query(qname, rdtype,
                    nattempts=3,
                    resolver=None,
                    require_ad=False):
+    """
+    Repeatedly fire a DNS query until either the number of allowed attempts
+    (``nattempts``) is excedeed or a result is found.
+
+    ``qname`` must be the (IDNA encoded, as :class:`bytes`) name to query,
+    ``rdtype`` the record type to query for. If `resolver` is not :data:`None`,
+    it must be a DNSPython :class:`dns.resolver.Resolver` instance; if it is
+    :data:`None`, the current default resolver is used.
+
+    If `require_ad` is :data:`True`, the peer resolver is asked to do DNSSEC
+    validation and if the AD flag is missing in the response,
+    :class:`ValueError` is raised.
+
+    The resolution automatically starts using the TCP transport after the first
+    attempt.
+
+    If no result is received before the number of allowed attempts is exceeded,
+    :class:`TimeoutError` is raised.
+
+    Return the result set or :data:`None` if the domain does not exist.
+    """
+
     if nattempts <= 0:
         raise ValueError("Query cannot succeed with zero or less attempts")
 
@@ -46,6 +91,24 @@ def repeated_query(qname, rdtype,
 
 
 def lookup_srv(domain, service, transport=b"tcp", **kwargs):
+    """
+    Look up and format the SRV records for the given ``service`` over
+    ``transport`` at the given ``domain``.
+
+    Keyword arguments are passed to :func:`repeated_query`.
+
+    Returns a list of tuples ``(prio, weight, (hostname, port))``, where
+    ``hostname`` is a IDNA-encoded :class:`bytes` object containing the
+    hostname obtained from the SRV record. The other fields are also those
+    obtained from the SRV record.
+
+    If the query returns an empty result, :data:`None` is returned.
+
+    If any of the SRV records indicates the ``.`` host name (the root name),
+    the domain indicates that the service is not available and
+    :class:`ValueError` is raised.
+    """
+
     record = b".".join([
         b"_" + service,
         b"_" + transport,
@@ -100,6 +163,15 @@ def lookup_tlsa(domain, port, transport=b"tcp", require_ad=True, **kwargs):
 
 
 def group_and_order_srv_records(all_records, rng=None):
+    """
+    Order a list of SRV record information (as returned by :func:`lookup_srv`)
+    and group and order them as specified by the RFC.
+
+    Return an iterable, yielding each ``(hostname, port)`` tuple inside the
+    SRV records in the order specified by the RFC. For hosts with the same
+    priority, the given `rng` implementation is used (if none is given, the
+    :mod:`random` module is used).
+    """
     rng = rng or random
 
     all_records.sort()

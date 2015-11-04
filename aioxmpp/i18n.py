@@ -137,7 +137,6 @@ class LocalizingFormatter(string.Formatter):
         else:
             return super().format_field(value, format_spec)
 
-
     def convert_field(self, value, conversion, locale=None, tzinfo=None):
         if conversion != "s":
             return super().convert_field(value, conversion)
@@ -187,7 +186,9 @@ class LocalizableString:
       >>> import aioxmpp.i18n, pytz, babel, gettext
       >>> fmt = aioxmpp.i18n.LocalizingFormatter()
       >>> translator = gettext.NullTranslations()
-      >>> s1 = aioxmpp.i18n.LocalizableString("{count} thing", "{count} things", "count")
+      >>> s1 = aioxmpp.i18n.LocalizableString(
+      ...     "{count} thing",
+      ...     "{count} things", "count")
       >>> s1.localize(fmt, translator, count=1)
       '1 thing'
       >>> s1.localize(fmt, translator, count=10)

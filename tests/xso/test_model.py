@@ -1,6 +1,7 @@
 import collections
 import collections.abc
 import contextlib
+import copy
 import functools
 import unittest
 import unittest.mock
@@ -1540,6 +1541,54 @@ class TestXMLStreamClass(unittest.TestCase):
             new.mock_calls
         )
 
+    def test_default_declare_ns_to_empty_dict_for_namespaceless_tag(self):
+        class Cls(metaclass=xso_model.XMLStreamClass):
+            TAG = "foo"
+
+        self.assertDictEqual(Cls.DECLARE_NS, {})
+
+    def test_default_declare_ns_to_declare_tag_namespace(self):
+        class Cls(metaclass=xso_model.XMLStreamClass):
+            TAG = ("uri:foo", "foo")
+
+        self.assertDictEqual(Cls.DECLARE_NS, {
+            None: "uri:foo"
+        })
+
+    def test_do_not_declare_ns_if_tag_is_not_set(self):
+        class ClsA(metaclass=xso_model.XMLStreamClass):
+            TAG = ("uri:foo", "foo")
+
+        class ClsB(metaclass=xso_model.XMLStreamClass):
+            pass
+
+        self.assertNotIn(
+            "DECLARE_NS",
+            ClsB.__dict__
+        )
+
+    def test_user_defined_declare_ns_takes_precedence(self):
+        d = dict()
+
+        class Cls(metaclass=xso_model.XMLStreamClass):
+            TAG = ("uri:foo", "foo")
+
+            DECLARE_NS = d
+
+        self.assertIs(Cls.DECLARE_NS, d)
+
+    def test_user_defined_declare_ns_takes_precedence_in_inheritance(self):
+        d = dict()
+
+        class ClsA(metaclass=xso_model.XMLStreamClass):
+            DECLARE_NS = d
+
+        class ClsB(ClsA):
+            TAG = ("uri:foo", "foo")
+
+        self.assertIs(ClsA.DECLARE_NS, d)
+        self.assertIs(ClsB.DECLARE_NS, d)
+
 
 class TestXSO(XMLTestCase):
     def _unparse_test(self, obj, tree):
@@ -1566,14 +1615,14 @@ class TestXSO(XMLTestCase):
 
     def test_policies(self):
         self.assertEqual(
-            xso.UnknownChildPolicy.FAIL,
+            xso.UnknownChildPolicy.DROP,
             self.Cls.UNKNOWN_CHILD_POLICY)
         self.assertEqual(
-            xso.UnknownAttrPolicy.FAIL,
+            xso.UnknownAttrPolicy.DROP,
             self.Cls.UNKNOWN_ATTR_POLICY)
 
     def test_declare_ns(self):
-        self.assertIsNone(self.Cls.DECLARE_NS)
+        self.assertEqual(self.Cls.DECLARE_NS, {})
 
         class Cls(xso.XSO):
             TAG = ("uri:foo", "foo")
@@ -1803,6 +1852,48 @@ class TestXSO(XMLTestCase):
             obj.kwargs,
             {"bar": "baz"}
         )
+
+    def test_copy_does_not_call_init_and_copies_props(self):
+        base = unittest.mock.Mock()
+        class Test(xso.XSO):
+            a = xso.Attr("foo")
+
+            def __init__(self, *args, **kwargs):
+                super().__init__(*args, **kwargs)
+                base.init(*args, **kwargs)
+
+        t = Test()
+        t.a = "foo"
+
+        base.mock_calls.clear()
+
+        t2 = copy.copy(t)
+        self.assertFalse(base.mock_calls)
+        self.assertIsNot(t._stanza_props, t2._stanza_props)
+        self.assertEqual(t._stanza_props, t2._stanza_props)
+
+    def test_deepcopy_does_not_call_init_and_deepcopies_props(self):
+        base = unittest.mock.Mock()
+        class Child(xso.XSO):
+            TAG = (None, "foo")
+
+        class Test(xso.XSO):
+            a = xso.Child([Child])
+
+            def __init__(self, *args, **kwargs):
+                super().__init__(*args, **kwargs)
+                base.init(*args, **kwargs)
+
+        t = Test()
+        t.a = Child()
+
+        base.mock_calls.clear()
+
+        t2 = copy.deepcopy(t)
+        self.assertFalse(base.mock_calls)
+        self.assertIsNot(t._stanza_props, t2._stanza_props)
+        self.assertIsNot(t._stanza_props[Test.a],
+                         t2._stanza_props[Test.a])
 
     def tearDown(self):
         del self.obj
@@ -4331,6 +4422,8 @@ class TestXSOParser(XMLTestCase):
         class TestStanza(xso.XSO):
             TAG = None, "foo"
 
+            UNKNOWN_CHILD_POLICY = xso.UnknownAttrPolicy.FAIL
+
         with self.assertRaises(ValueError):
             self.run_parser_one([TestStanza], tree)
 
@@ -4361,6 +4454,8 @@ class TestXSOParser(XMLTestCase):
 
         class TestStanza(xso.XSO):
             TAG = None, "foo"
+
+            UNKNOWN_ATTR_POLICY = xso.UnknownAttrPolicy.FAIL
 
         with self.assertRaises(ValueError):
             self.run_parser_one([TestStanza], tree)
