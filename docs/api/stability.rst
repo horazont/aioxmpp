@@ -25,11 +25,11 @@ versions.
 
 __ http://semver.org/spec/v2.0.0.html
 
-Up to version 1.0
-=================
+Up to version 1.0.0
+===================
 
-Up to version 1.0, the API inside the :mod:`aioxmpp` package MAY change without
-notice in advance. These changes MAY break code in ways which makes it
+Up to version 1.0.0, the API inside the :mod:`aioxmpp` package MAY change
+without notice in advance. These changes MAY break code in ways which makes it
 impossible to have code which works with both the old and the new version.
 
 Changes to the public, non-plugin API SHOULD NOT break code in a way which
@@ -41,7 +41,7 @@ break existing code.
 The below text, which describes the behaviour for versions from 1.0 onwards,
 MAY change without notice in advance.
 
-From version 1.0 onwards
-========================
+From version 1.0.0 onwards
+==========================
 
 Still to be done.
