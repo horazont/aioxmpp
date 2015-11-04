@@ -1615,10 +1615,10 @@ class TestXSO(XMLTestCase):
 
     def test_policies(self):
         self.assertEqual(
-            xso.UnknownChildPolicy.FAIL,
+            xso.UnknownChildPolicy.DROP,
             self.Cls.UNKNOWN_CHILD_POLICY)
         self.assertEqual(
-            xso.UnknownAttrPolicy.FAIL,
+            xso.UnknownAttrPolicy.DROP,
             self.Cls.UNKNOWN_ATTR_POLICY)
 
     def test_declare_ns(self):
@@ -4422,6 +4422,8 @@ class TestXSOParser(XMLTestCase):
         class TestStanza(xso.XSO):
             TAG = None, "foo"
 
+            UNKNOWN_CHILD_POLICY = xso.UnknownAttrPolicy.FAIL
+
         with self.assertRaises(ValueError):
             self.run_parser_one([TestStanza], tree)
 
@@ -4452,6 +4454,8 @@ class TestXSOParser(XMLTestCase):
 
         class TestStanza(xso.XSO):
             TAG = None, "foo"
+
+            UNKNOWN_ATTR_POLICY = xso.UnknownAttrPolicy.FAIL
 
         with self.assertRaises(ValueError):
             self.run_parser_one([TestStanza], tree)

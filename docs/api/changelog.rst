@@ -73,6 +73,10 @@ __ https://tools.ietf.org/html/rfc3921
   :meth:`aioxmpp.stanza.StanzaStream.register_iq_response_future` method for
   details on the semantics of the exception.
 
+* The defaults for  unknown child and attribute policies on
+  :class:`aioxmpp.xso.XSO` are now ``DROP`` and not ``FAIL``. This is for
+  better compatibility with old implementations and future features.
+
 Version 0.3
 ===========
 

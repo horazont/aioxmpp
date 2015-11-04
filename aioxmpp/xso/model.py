@@ -1563,7 +1563,7 @@ class XSO(metaclass=XMLStreamClass):
     To further influence the parsing behaviour of a class, two attributes are
     provided which give policies for unexpected elements in the XML tree:
 
-    .. attribute:: UNKNOWN_CHILD_POLICY = UnknownChildPolicy.FAIL
+    .. attribute:: UNKNOWN_CHILD_POLICY = UnknownChildPolicy.DROP
 
        A value from the :class:`UnknownChildPolicy` enum which defines the
        behaviour if a child is encountered for which no matching attribute is
@@ -1573,7 +1573,7 @@ class XSO(metaclass=XMLStreamClass):
        is present, as it takes all children for which no other descriptor
        exists, thus all children are known.
 
-    .. attribute:: UNKNOWN_ATTR_POLICY = UnknownAttrPolicy.FAIL
+    .. attribute:: UNKNOWN_ATTR_POLICY = UnknownAttrPolicy.DROP
 
        A value from the :class:`UnknownAttrPolicy` enum which defines the
        behaviour if an attribute is encountered for which no matching
@@ -1621,8 +1621,8 @@ class XSO(metaclass=XMLStreamClass):
     .. automethod:: xso_error_handler
 
     """
-    UNKNOWN_CHILD_POLICY = UnknownChildPolicy.FAIL
-    UNKNOWN_ATTR_POLICY = UnknownAttrPolicy.FAIL
+    UNKNOWN_CHILD_POLICY = UnknownChildPolicy.DROP
+    UNKNOWN_ATTR_POLICY = UnknownAttrPolicy.DROP
 
     def __new__(cls, *args, **kwargs):
         # XXX: is it always correct to omit the arguments here?

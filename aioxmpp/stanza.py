@@ -677,6 +677,8 @@ class IQ(StanzaBase):
     """
     TAG = (namespaces.client, "iq")
 
+    UNKNOWN_CHILD_POLICY = xso.UnknownChildPolicy.FAIL
+
     id_ = xso.Attr(tag="id")
     type_ = xso.Attr(
         tag="type",

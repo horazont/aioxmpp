@@ -682,6 +682,12 @@ class TestIQ(unittest.TestCase):
             stanza.IQ,
             stanza.StanzaBase))
 
+    def test_unknown_child_policy(self):
+        self.assertEqual(
+            stanza.IQ.UNKNOWN_CHILD_POLICY,
+            xso.UnknownChildPolicy.FAIL
+        )
+
     def test_id_attr(self):
         self.assertIsInstance(
             stanza.IQ.id_,
