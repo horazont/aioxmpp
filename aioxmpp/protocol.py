@@ -126,7 +126,7 @@ class DebugWrapper:
         if hasattr(dest, "flush"):
             self._flush = dest.flush
         else:
-            self._flush = lambda:None
+            self._flush = lambda: None
         self._pieces = []
 
     def write(self, data):
@@ -345,7 +345,6 @@ class XMLStream(asyncio.Protocol):
                 self._logger.info("ignoring unknown top-level tag, "
                                   "we’re closing")
                 return
-
 
             raise errors.StreamError(
                 condition=(namespaces.streams, "unsupported-stanza-type"),
@@ -618,7 +617,6 @@ class XMLStream(asyncio.Protocol):
         fut = asyncio.Future(loop=self._loop)
         self._error_futures.append(fut)
         return fut
-
 
     @property
     def transport(self):

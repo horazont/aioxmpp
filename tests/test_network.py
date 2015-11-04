@@ -486,7 +486,6 @@ class Testfind_xmpp_host_addr(unittest.TestCase):
         base = unittest.mock.Mock()
 
         nattempts = object()
-        items = object()
 
         with unittest.mock.patch(
                 "aioxmpp.network.lookup_srv",
@@ -523,7 +522,6 @@ class Testfind_xmpp_host_addr(unittest.TestCase):
         base = unittest.mock.Mock()
 
         nattempts = object()
-        items = object()
 
         with unittest.mock.patch(
                 "aioxmpp.network.lookup_srv",
@@ -541,7 +539,6 @@ class Testfind_xmpp_host_addr(unittest.TestCase):
         base = unittest.mock.Mock()
 
         nattempts = object()
-        items = object()
 
         with unittest.mock.patch(
                 "aioxmpp.network.lookup_srv",

@@ -40,7 +40,7 @@ import random
 import time
 
 from .stringprep import saslprep
-from . import errors, xso, protocol
+from . import errors, protocol
 
 from .stream_xsos import (
     SASLAuth,
@@ -50,8 +50,6 @@ from .stream_xsos import (
     SASLSuccess,
     SASLAbort
 )
-
-from .utils import namespaces
 
 logger = logging.getLogger(__name__)
 
@@ -225,7 +223,8 @@ class SASLStateMachine:
         else:
             raise errors.SASLFailure(
                 "aborted",
-                text="unexpected non-failure after abort: {}".format(self._state)
+                text="unexpected non-failure after abort: "
+                "{}".format(self._state)
             )
 
 

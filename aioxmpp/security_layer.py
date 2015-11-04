@@ -777,6 +777,7 @@ class SASLMechanism(xso.XSO):
         super().__init__()
         self.name = name
 
+
 @stream_xsos.StreamFeatures.as_feature_class
 class SASLMechanisms(xso.XSO):
     TAG = (namespaces.sasl, "mechanisms")

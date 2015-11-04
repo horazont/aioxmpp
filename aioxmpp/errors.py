@@ -84,6 +84,7 @@ class StreamError(ConnectionError):
 class StanzaError(Exception):
     pass
 
+
 class XMPPError(StanzaError):
     TYPE = "cancel"
 

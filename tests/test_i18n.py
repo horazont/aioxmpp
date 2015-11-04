@@ -2,7 +2,7 @@ import contextlib
 import unittest
 import unittest.mock
 
-from datetime import datetime, timedelta, date, time
+from datetime import datetime, timedelta, date
 
 import babel
 import babel.dates
@@ -35,7 +35,8 @@ class TestLocalizingFormatter(unittest.TestCase):
         self.assertEqual(formatter.locale, self.foreign_locale)
 
     def test_init_with_explicit_timezone(self):
-        formatter = i18n.LocalizingFormatter(self.foreign_locale, self.foreign_timezone)
+        formatter = i18n.LocalizingFormatter(self.foreign_locale,
+                                             self.foreign_timezone)
         self.assertEqual(formatter.tzinfo, self.foreign_timezone)
 
     def test_convert_field_datetime_locale(self):
@@ -69,8 +70,8 @@ class TestLocalizingFormatter(unittest.TestCase):
         formatter = i18n.LocalizingFormatter()
 
         dt = datetime.now(tz=pytz.utc)
-        with unittest.mock.patch("babel.dates.format_datetime") \
-                 as format_datetime:
+        with unittest.mock.patch(
+                "babel.dates.format_datetime") as format_datetime:
             s = formatter.convert_field(dt, "s")
 
         self.assertSequenceEqual(
@@ -91,8 +92,8 @@ class TestLocalizingFormatter(unittest.TestCase):
         loc = object()
 
         dt = datetime.now(tz=pytz.utc)
-        with unittest.mock.patch("babel.dates.format_datetime") \
-                 as format_datetime:
+        with unittest.mock.patch(
+                "babel.dates.format_datetime") as format_datetime:
             r = formatter.convert_field(dt, "r", locale=loc)
 
         self.assertEqual(
@@ -110,8 +111,8 @@ class TestLocalizingFormatter(unittest.TestCase):
         loc = object()
 
         td = timedelta(seconds=123)
-        with unittest.mock.patch("babel.dates.format_timedelta") \
-                 as format_timedelta:
+        with unittest.mock.patch(
+                "babel.dates.format_timedelta") as format_timedelta:
             s = formatter.convert_field(td, "s", locale=loc)
 
         self.assertSequenceEqual(
@@ -130,8 +131,8 @@ class TestLocalizingFormatter(unittest.TestCase):
         formatter = i18n.LocalizingFormatter()
 
         td = timedelta(seconds=123)
-        with unittest.mock.patch("babel.dates.format_timedelta") \
-                 as format_timedelta:
+        with unittest.mock.patch(
+                "babel.dates.format_timedelta") as format_timedelta:
             s = formatter.convert_field(td, "s")
 
         self.assertSequenceEqual(
@@ -150,8 +151,8 @@ class TestLocalizingFormatter(unittest.TestCase):
         formatter = i18n.LocalizingFormatter()
 
         td = timedelta(seconds=123)
-        with unittest.mock.patch("babel.dates.format_timedelta") \
-                 as format_timedelta:
+        with unittest.mock.patch(
+                "babel.dates.format_timedelta") as format_timedelta:
             r = formatter.convert_field(td, "r")
 
         self.assertSequenceEqual(
@@ -170,8 +171,8 @@ class TestLocalizingFormatter(unittest.TestCase):
         loc = object()
 
         d = date.today()
-        with unittest.mock.patch("babel.dates.format_date") \
-                 as format_date:
+        with unittest.mock.patch(
+                "babel.dates.format_date") as format_date:
             s = formatter.convert_field(d, "s", locale=loc)
 
         self.assertSequenceEqual(
@@ -190,8 +191,8 @@ class TestLocalizingFormatter(unittest.TestCase):
         formatter = i18n.LocalizingFormatter()
 
         d = date.today()
-        with unittest.mock.patch("babel.dates.format_date") \
-                 as format_date:
+        with unittest.mock.patch(
+                "babel.dates.format_date") as format_date:
             s = formatter.convert_field(d, "s")
 
         self.assertSequenceEqual(
@@ -210,8 +211,8 @@ class TestLocalizingFormatter(unittest.TestCase):
         formatter = i18n.LocalizingFormatter()
 
         d = date.today()
-        with unittest.mock.patch("babel.dates.format_date") \
-                 as format_date:
+        with unittest.mock.patch(
+                "babel.dates.format_date") as format_date:
             r = formatter.convert_field(d, "r")
 
         self.assertSequenceEqual(
@@ -230,8 +231,8 @@ class TestLocalizingFormatter(unittest.TestCase):
         loc = object()
 
         t = datetime.now(tz=pytz.utc).time()
-        with unittest.mock.patch("babel.dates.format_time") \
-                 as format_time:
+        with unittest.mock.patch(
+                "babel.dates.format_time") as format_time:
             s = formatter.convert_field(t, "s", locale=loc)
 
         self.assertSequenceEqual(
@@ -250,8 +251,8 @@ class TestLocalizingFormatter(unittest.TestCase):
         formatter = i18n.LocalizingFormatter()
 
         t = datetime.now(tz=pytz.utc).timetz()
-        with unittest.mock.patch("babel.dates.format_time") \
-                 as format_time:
+        with unittest.mock.patch(
+                "babel.dates.format_time") as format_time:
             s = formatter.convert_field(t, "s")
 
         self.assertSequenceEqual(
@@ -270,8 +271,8 @@ class TestLocalizingFormatter(unittest.TestCase):
         formatter = i18n.LocalizingFormatter()
 
         t = datetime.now(tz=pytz.utc).timetz()
-        with unittest.mock.patch("babel.dates.format_time") \
-                 as format_time:
+        with unittest.mock.patch(
+                "babel.dates.format_time") as format_time:
             r = formatter.convert_field(t, "r")
 
         self.assertSequenceEqual(
@@ -889,7 +890,7 @@ class TestLocalizableString(unittest.TestCase):
         ls = i18n.LocalizableString(s)
 
         with unittest.mock.patch.object(formatter, "vformat") as vformat:
-            result = ls.localize(
+            ls.localize(
                 formatter,
                 translator,
                 "foobar",
@@ -933,7 +934,7 @@ class TestLocalizableString(unittest.TestCase):
             )
             get_field.return_value = 123, "a"
 
-            result = ls.localize(
+            ls.localize(
                 formatter,
                 translator,
                 "foobar",

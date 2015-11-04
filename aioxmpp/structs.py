@@ -521,8 +521,8 @@ def basic_filter_languages(languages, ranges):
                 continue
 
             if len(range_str) < len(match_str):
-                if (match_str[:len(range_str)] == range_str and
-                    match_str[len(range_str)] == "-"):
+                if     (match_str[:len(range_str)] == range_str and
+                        match_str[len(range_str)] == "-"):
                     yield language
                     found.add(language)
                     continue

@@ -2,7 +2,6 @@ import asyncio
 import functools
 import unittest
 import unittest.mock
-import weakref
 
 from aioxmpp.callbacks import (
     TagDispatcher,
@@ -186,7 +185,6 @@ class TestTagDispatcher(unittest.TestCase):
             nh.unicast("tag", obj)
 
     def test_unicast_fails_for_invalid(self):
-        fut = asyncio.Future()
         obj = object()
         l = unittest.mock.Mock()
         l.is_valid.return_value = False
@@ -506,7 +504,6 @@ class TestFutureListener(unittest.TestCase):
     def test_signals_non_existance_with_cancelled_future(self):
         loop = asyncio.get_event_loop()
         fut = asyncio.Future(loop=loop)
-        obj = object()
         tl = FutureListener(fut)
 
         self.assertTrue(tl.is_valid())
@@ -877,6 +874,7 @@ class TestSyncAdHocSignal(unittest.TestCase):
 
     def test_ordered_calls(self):
         calls = []
+
         def make_coro(i):
             @asyncio.coroutine
             def coro():

@@ -1324,8 +1324,7 @@ class StanzaStream:
         """
         if not self.running:
             return
-        xmlstream = self._xmlstream
-        yield from self._xmlstream.close_and_wait() # does not raise
+        yield from self._xmlstream.close_and_wait()  # does not raise
         yield from self.wait_stop()
 
         if self._xmlstream_exception is not None:
@@ -1371,7 +1370,8 @@ class StanzaStream:
                             loop=self._loop)
 
                     if incoming_fut in done:
-                        self._process_incoming(xmlstream, incoming_fut.result())
+                        self._process_incoming(xmlstream,
+                                               incoming_fut.result())
                         incoming_fut = asyncio.async(
                             self._incoming_queue.get(),
                             loop=self._loop)
@@ -1409,7 +1409,6 @@ class StanzaStream:
 
             if self._xmlstream_exception:
                 raise self._xmlstream_exception
-
 
     def recv_stanza(self, stanza):
         """

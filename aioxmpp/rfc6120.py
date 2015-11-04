@@ -47,6 +47,7 @@ class BindFeature(xso.XSO):
 
     required = xso.Child([Required], required=False)
 
+
 class Bind(xso.XSO):
     """
     The :class:`.IQ` payload for binding to a resource.

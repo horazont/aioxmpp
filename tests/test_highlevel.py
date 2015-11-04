@@ -86,7 +86,9 @@ class TestProtocol(unittest.TestCase):
                                 minor=version[1],
                                 major=version[0]).encode("utf-8")),
                         TransportMock.Receive(
-                            b"<stream:features><sm xmlns='urn:xmpp:sm:3'/></stream:features>")
+                            b"<stream:features><sm xmlns='urn:xmpp:sm:3'/>"
+                            b"</stream:features>"
+                        )
                     ]
                 ),
             ],
@@ -109,7 +111,8 @@ class TestProtocol(unittest.TestCase):
                         b'<enable xmlns="urn:xmpp:sm:3" resume="true"/>',
                         response=[
                             TransportMock.Receive(
-                                b'<enabled xmlns="urn:xmpp:sm:3" resume="true" id="foo"/>'
+                                b'<enabled xmlns="urn:xmpp:sm:3" '
+                                b'resume="true" id="foo"/>'
                             )
                         ]
                     )
@@ -148,7 +151,10 @@ class TestProtocol(unittest.TestCase):
             t.run_test(
                 [
                     TransportMock.Write(
-                        b'<iq id="foo" type="error"><error type="cancel"><feature-not-implemented xmlns="urn:ietf:params:xml:ns:xmpp-stanzas"/></error></iq>'
+                        b'<iq id="foo" type="error"><error type="cancel">'
+                        b'<feature-not-implemented'
+                        b' xmlns="urn:ietf:params:xml:ns:xmpp-stanzas"/>'
+                        b'</error></iq>'
                     ),
                     TransportMock.Write(
                         b'<r xmlns="urn:xmpp:sm:3"/>',
@@ -167,7 +173,9 @@ class TestProtocol(unittest.TestCase):
                 ],
                 stimulus=[
                     TransportMock.Receive(
-                        b'<iq type="get" id="foo"><payload xmlns="fnord"/></iq>'
+                        b'<iq type="get" id="foo">'
+                        b'<payload xmlns="fnord"/>'
+                        b'</iq>'
                     )
                 ],
                 partial=True
@@ -213,7 +221,9 @@ class TestProtocol(unittest.TestCase):
                 ],
                 stimulus=[
                     TransportMock.Receive(
-                        b'<iq type="error" id="foo"><payload xmlns="fnord"/></iq>'
+                        b'<iq type="error" id="foo">'
+                        b'<payload xmlns="fnord"/>'
+                        b'</iq>'
                     )
                 ],
                 partial=True,
@@ -272,7 +282,9 @@ class TestProtocol(unittest.TestCase):
                 ],
                 stimulus=[
                     TransportMock.Receive(
-                        b'<iq type="result" id="foo"><payload xmlns="fnord"/></iq>'
+                        b'<iq type="result" id="foo">'
+                        b'<payload xmlns="fnord"/>'
+                        b'</iq>'
                     )
                 ],
                 partial=True,

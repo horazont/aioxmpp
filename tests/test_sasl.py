@@ -4,10 +4,7 @@ import hashlib
 import hmac
 import unittest
 
-import lxml.builder
-
 import aioxmpp.sasl as sasl
-import aioxmpp.xml as xml
 import aioxmpp.errors as errors
 
 from aioxmpp.utils import namespaces
@@ -42,8 +39,9 @@ class SASLStateMachineMock(sasl.SASLStateMachine):
              new_state,
              result_payload) = self._action_sequence.pop(0)
         except ValueError:
-            raise AssertionFailed(
-                "SASL action performed unexpectedly: {} with payload {}".format(
+            raise AssertionError(
+                "SASL action performed unexpectedly: "
+                "{} with payload {}".format(
                     action,
                     payload))
 
@@ -191,7 +189,8 @@ class TestSASLStateMachine(xmltestutils.XMLTestCase):
                         sasl.SASLResponse(payload=b"bar"),
                         response=XMLStreamMock.Receive(
                             sasl.SASLFailure(
-                                condition=(namespaces.sasl, "credentials-expired")
+                                condition=(namespaces.sasl,
+                                           "credentials-expired")
                             )
                         )
                     )
@@ -279,9 +278,10 @@ class TestSASLStateMachine(xmltestutils.XMLTestCase):
                         sasl.SASLAbort(),
                         response=XMLStreamMock.Receive(
                             sasl.SASLFailure(
-                                condition=(namespaces.sasl, "mechanism-too-weak")
+                                condition=(namespaces.sasl,
+                                           "mechanism-too-weak")
                             )
-                    )
+                        )
                     )
                 ]
             )
@@ -290,7 +290,6 @@ class TestSASLStateMachine(xmltestutils.XMLTestCase):
             "mechanism-too-weak",
             ctx.exception.xmpp_error
         )
-
 
     def tearDown(self):
         del self.xmlstream
@@ -345,7 +344,7 @@ class TestPLAIN(unittest.TestCase):
 
         def run():
             plain = sasl.PLAIN(provide_credentials)
-            result = yield from plain.authenticate(
+            yield from plain.authenticate(
                 smmock,
                 "PLAIN")
 
@@ -435,7 +434,8 @@ class TestSCRAM(unittest.TestCase):
             base64.b64encode(self.salt),
             b",i=4096"
         ])
-        self.client_final_message_without_proof = b"c=biws,r=Zm9vAAAAAAAAAAAAAAAA3rfcNHYJY1ZVvWVs7j"
+        self.client_final_message_without_proof = \
+            b"c=biws,r=Zm9vAAAAAAAAAAAAAAAA3rfcNHYJY1ZVvWVs7j"
 
         self.auth_message = b",".join([
             self.client_first_message_bare,
@@ -481,10 +481,9 @@ class TestSCRAM(unittest.TestCase):
                 ("auth;SCRAM-SHA-1",
                  b"n,,"+self.client_first_message_bare,
                  "challenge",
-                 self.server_first_message
-                ),
+                 self.server_first_message),
                 ("response",
-                 self.client_final_message_without_proof+
+                 self.client_final_message_without_proof +
                      b",p="+base64.b64encode(self.client_proof),
                  "success",
                  b"v="+base64.b64encode(self.server_signature))
@@ -512,7 +511,7 @@ class TestSCRAM(unittest.TestCase):
             str(ctx.exception).lower()
         )
 
-    def test_malformed_reply(self):
+    def test_other_malformed_reply(self):
         smmock = SASLStateMachineMock(
             self,
             [
@@ -556,7 +555,7 @@ class TestSCRAM(unittest.TestCase):
                  "challenge",
                  self.server_first_message),
                 ("response",
-                 self.client_final_message_without_proof+
+                 self.client_final_message_without_proof +
                      b",p="+base64.b64encode(self.client_proof),
                  "success",
                  b"v="+base64.b64encode(b"fnord"))
@@ -648,10 +647,9 @@ class TestSCRAM(unittest.TestCase):
                 ("auth;SCRAM-SHA-1",
                  b"n,,"+self.client_first_message_bare,
                  "challenge",
-                 self.server_first_message
-                ),
+                 self.server_first_message),
                 ("response",
-                 self.client_final_message_without_proof+
+                 self.client_final_message_without_proof +
                      b",p="+base64.b64encode(self.client_proof),
                  "failure",
                  ("credentials-expired", None))
@@ -672,10 +670,9 @@ class TestSCRAM(unittest.TestCase):
                 ("auth;SCRAM-SHA-1",
                  b"n,,"+self.client_first_message_bare,
                  "challenge",
-                 self.server_first_message
-                ),
+                 self.server_first_message),
                 ("response",
-                 self.client_final_message_without_proof+
+                 self.client_final_message_without_proof +
                      b",p="+base64.b64encode(self.client_proof),
                  "challenge",
                  b"foo")

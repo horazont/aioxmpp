@@ -5,4 +5,4 @@
 .. autoclass:: Service
 """
 
-from .service import Service
+from .service import Service  # NOQA

@@ -426,7 +426,8 @@ class Subject(xso.AbstractTextChild):
 
     .. attribute:: lang
 
-       The ``xml:lang`` of this subject part, as :class:`~.structs.LanguageTag`.
+       The ``xml:lang`` of this subject part, as
+       :class:`~.structs.LanguageTag`.
 
     .. attribute:: text
 
@@ -549,8 +550,8 @@ class Status(xso.AbstractTextChild):
 
 class Presence(StanzaBase):
     """
-    An XMPP presence stanza. The keyword arguments can be used to initialize the
-    attributes of the :class:`Presence`.
+    An XMPP presence stanza. The keyword arguments can be used to initialize
+    the attributes of the :class:`Presence`.
 
     .. attribute:: id_
 

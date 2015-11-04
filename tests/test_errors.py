@@ -76,7 +76,6 @@ class TestMultiOSError(unittest.TestCase):
             str(exc)
         )
 
-
     def test_flatten(self):
         base_excs1 = [OSError(), OSError()]
         base_excs2 = [OSError(), OSError()]
@@ -141,7 +140,6 @@ class TestUserError(unittest.TestCase):
 
         s = unittest.mock.Mock()
         ue = errors.UserError(s, 10, abc="baz")
-
 
         expected_result = s.localize()
 

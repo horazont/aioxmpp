@@ -206,8 +206,8 @@ class AbstractAdHocSignal:
 
     def disconnect(self, token):
         """
-        Disconnect the connection identified by `token`. This never raises, even
-        if an invalid `token` is passed.
+        Disconnect the connection identified by `token`. This never raises,
+        even if an invalid `token` is passed.
         """
         try:
             del self._connections[token]

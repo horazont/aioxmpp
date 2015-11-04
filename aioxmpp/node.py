@@ -23,10 +23,8 @@ Connecting streams low-level
 """
 import asyncio
 import contextlib
-import itertools
 import logging
 
-from enum import Enum
 from datetime import timedelta
 
 from . import (
@@ -52,6 +50,7 @@ def lookup_addresses(loop, jid):
 
     return network.group_and_order_srv_records(addresses)
 
+
 @asyncio.coroutine
 def connect_to_xmpp_server(jid, *, override_peer=None, loop=None):
     """
@@ -76,7 +75,6 @@ def connect_to_xmpp_server(jid, *, override_peer=None, loop=None):
     SRV records), :class:`ValueError` is raised.
     """
     loop = loop or asyncio.get_event_loop()
-
 
     features_future = asyncio.Future()
 
@@ -174,7 +172,9 @@ def connect_secured_xmlstream(jid, security_layer,
 
     try:
         transport, xmlstream, features_future = yield from asyncio.wait_for(
-            connect_to_xmpp_server(jid, override_peer=override_peer, loop=loop),
+            connect_to_xmpp_server(jid,
+                                   override_peer=override_peer,
+                                   loop=loop),
             timeout=negotiation_timeout,
             loop=loop
         )
@@ -428,8 +428,7 @@ class AbstractClient:
         )
         yield from self.stream.send_iq_and_wait_for_reply(
             stanza.IQ(type_="set",
-                      payload=rfc3921.Session()
-            )
+                      payload=rfc3921.Session())
         )
         self._logger.debug(
             "legacy session negotiated (upgrade your server!)"
@@ -551,11 +550,11 @@ class AbstractClient:
                 self._failure_future = asyncio.Future()
                 try:
                     yield from self._main_impl()
-                except errors.StreamNegotiationFailure as exc:
+                except errors.StreamNegotiationFailure:
                     if self.stream.sm_enabled:
                         self.stream.stop_sm()
                     raise
-                except OSError as exc:
+                except OSError:
                     if self._backoff_time is None:
                         self._backoff_time = self.backoff_start.total_seconds()
                     yield from asyncio.sleep(self._backoff_time)
@@ -563,7 +562,6 @@ class AbstractClient:
                     if self._backoff_time > self.backoff_cap.total_seconds():
                         self._backoff_time = self.backoff_cap.total_seconds()
                     continue  # retry
-
 
     def start(self):
         """

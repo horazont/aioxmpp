@@ -33,4 +33,4 @@ versioning:
 .. _RFC 6121: https://tools.ietf.org/html/rfc6121
 """
 
-from .service import Service, Item
+from .service import Service, Item  # NOQA

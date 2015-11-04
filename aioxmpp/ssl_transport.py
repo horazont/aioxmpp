@@ -30,6 +30,8 @@ from enum import Enum
 
 import OpenSSL.SSL
 
+from . import errors
+
 logger = logging.getLogger(__name__)
 
 
