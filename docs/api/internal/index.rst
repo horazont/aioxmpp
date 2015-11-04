@@ -1,3 +1,5 @@
+.. _internal-api:
+
 Internal tools
 ##############
 

@@ -1,11 +1,29 @@
-On API stability
-################
+.. _api-stability:
+
+On API stability and versioning
+###############################
 
 The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT", "SHOULD",
 "SHOULD NOT", "RECOMMENDED", "NOT RECOMMENDED", "MAY", and "OPTIONAL" in this
 section are to be interpreted as described in `RFC 2119`__.
 
 __ https://tools.ietf.org/html/rfc2119
+
+Semantic versioning and version numbers
+=======================================
+
+:mod:`aioxmpp` complies with `Semantic Versioning 2.0.0`__. The key points
+related to API stability are summarized below for your convenience.
+
+The version of the :mod:`aioxmpp` package can be obtained by inspecting
+:data:`aioxmpp.__version__`, which contains the version as a string. Unreleased
+versions have the ``-devel`` (up to and including version 0.4) or ``-dev``
+(since 0.5) suffix. An additional way to access the version number is
+:data:`aioxmpp.version_info`, which provides a tuple which can be compared
+against other version tuples to check for a specific range of :mod:`aioxmpp`
+versions.
+
+__ http://semver.org/spec/v2.0.0.html
 
 Up to version 1.0
 =================

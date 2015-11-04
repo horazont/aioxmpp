@@ -1,5 +1,8 @@
-Main public API
-###############
+Main classes
+############
+
+This section of the API covers the classes which are directly instantiated or
+used to communicate with an XMPP server.
 
 .. toctree::
    :maxdepth: 2
@@ -7,16 +10,15 @@ Main public API
    node
    stream
    stanza
-   stream_xsos
    security_layer
-   sasl
-   errors
-   i18n
-   structs
-   callbacks
+
 
 Protocol part and XEP implementations
 #####################################
+
+This section contains services (cf. :mod:`aioxmpp.service`) which can be
+summoned (cf. :meth:`aioxmpp.node.AbstractClient.summon`) into a client, to
+extend its functionality or provide backwards compatibility.
 
 .. toctree::
    :maxdepth: 2
@@ -26,3 +28,37 @@ Protocol part and XEP implementations
    presence
    rfc6120
    rfc3921
+
+
+Less common and helper classes
+##############################
+
+The modules in this section implement some of the tools which are used to
+provide the functionality of the main classes (such as
+:mod:`aioxmpp.callbacks`). In addition, classes and modules which are rarely
+used directly by basic clients (such as the :mod:`aioxmpp.sasl` module) are
+sorted into this section.
+
+.. toctree::
+   :maxdepth: 2
+
+   stream_xsos
+   sasl
+   errors
+   i18n
+   structs
+   callbacks
+
+
+APIs mainly relevant for extension developers
+#############################################
+
+These APIs are used by many of the other modules, but detailed knowledge is
+usually required (for users of :mod:`aioxmpp`) only if extensions are to be
+developed.
+
+.. toctree::
+   :maxdepth: 2
+
+   service
+   xso
