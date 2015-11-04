@@ -1,5 +1,6 @@
 import itertools
 import unittest
+import unittest.mock
 
 import aioxmpp.xso as xso
 import aioxmpp.stanza as stanza
@@ -589,6 +590,73 @@ class TestError(unittest.TestCase):
                 text,
                 exc.text
             )
+
+    def test_to_exception_with_application_condition(self):
+        cond = unittest.mock.Mock(["to_exception"])
+
+        obj = stanza.Error(
+            type_="continue",
+            condition=(namespaces.stanzas, "undefined-condition")
+        )
+        obj.application_condition = cond
+        cond.to_exception.return_value = Exception()
+
+        result = obj.to_exception()
+
+        self.assertSequenceEqual(
+            cond.mock_calls,
+            [
+                unittest.mock.call.to_exception(obj.type_)
+            ]
+        )
+
+        self.assertEqual(result, cond.to_exception())
+
+    def test_to_exception_with_application_condition_only_if_cond_supports(self):
+        cond = unittest.mock.Mock([])
+
+        obj = stanza.Error(
+            type_="continue",
+            condition=(namespaces.stanzas, "undefined-condition")
+        )
+        obj.application_condition = cond
+
+        result = obj.to_exception()
+
+        self.assertIsInstance(
+            result,
+            errors.XMPPContinueError
+        )
+
+        self.assertSequenceEqual(
+            cond.mock_calls,
+            [
+            ]
+        )
+
+    def test_override_with_default_exception_if_result_of_app_cond_is_no_exception(self):
+        cond = unittest.mock.Mock(["to_exception"])
+
+        obj = stanza.Error(
+            type_="continue",
+            condition=(namespaces.stanzas, "undefined-condition")
+        )
+        obj.application_condition = cond
+        cond.to_exception.return_value = object()
+
+        result = obj.to_exception()
+
+        self.assertIsInstance(
+            result,
+            errors.XMPPContinueError
+        )
+
+        self.assertSequenceEqual(
+            cond.mock_calls,
+            [
+                unittest.mock.call.to_exception(obj.type_)
+            ]
+        )
 
     def test_repr(self):
         obj = stanza.Error()

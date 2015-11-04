@@ -228,6 +228,10 @@ class Error(xso.XSO):
                    text=exc.text)
 
     def to_exception(self):
+        if hasattr(self.application_condition, "to_exception"):
+            result = self.application_condition.to_exception(self.type_)
+            if isinstance(result, Exception):
+                return result
         return self.EXCEPTION_CLS_MAP[self.type_](
             condition=self.condition,
             text=self.text
