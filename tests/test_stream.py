@@ -1980,6 +1980,81 @@ class TestStanzaStream(StanzaStreamTestBase):
 
         self.assertIs(iq, fut.result())
 
+    def test_unicast_error_on_errorneous_iq_result(self):
+        req = make_test_iq(type_="get", to=TEST_TO)
+        resp = req.make_reply(type_="result")
+
+        self.stream.recv_errorneous_stanza(
+            resp,
+            stanza.UnknownIQPayload(resp, ('end', 'foo'))
+        )
+
+        fut = asyncio.Future()
+        self.stream.register_iq_response_future(
+            TEST_TO,
+            req.id_,
+            fut)
+
+        self.stream.start(self.xmlstream)
+        with self.assertRaises(errors.ErrorneousStanza) as ctx:
+            run_coroutine(fut)
+
+        self.assertIs(ctx.exception.partial_obj, resp)
+
+    def test_unicast_error_on_errorneous_iq_error(self):
+        req = make_test_iq(type_="get", to=TEST_TO)
+        resp = req.make_reply(type_="error")
+
+        self.stream.recv_errorneous_stanza(
+            resp,
+            stanza.UnknownIQPayload(resp, ('end', 'foo'))
+        )
+
+        fut = asyncio.Future()
+        self.stream.register_iq_response_future(
+            TEST_TO,
+            req.id_,
+            fut)
+
+        self.stream.start(self.xmlstream)
+        with self.assertRaises(errors.ErrorneousStanza) as ctx:
+            run_coroutine(fut)
+
+        self.assertIs(ctx.exception.partial_obj, resp)
+
+    def test_unicast_error_on_errorneous_iq_error_unless_from_is_None(self):
+        req = make_test_iq(type_="get", to=None)
+        resp = req.make_reply(type_="error")
+
+        self.stream.recv_errorneous_stanza(
+            resp,
+            stanza.UnknownIQPayload(resp, ('end', 'foo'))
+        )
+
+        fut = asyncio.Future()
+        self.stream.register_iq_response_future(
+            req.to,
+            req.id_,
+            fut)
+
+        self.stream.start(self.xmlstream)
+        with self.assertRaises(asyncio.TimeoutError):
+            run_coroutine(fut, timeout=0.1)
+
+    def test_do_not_crash_on_unsolicited_errorneous_iq_response(self):
+        req = make_test_iq(type_="get", to=TEST_TO)
+        resp = req.make_reply(type_="result")
+
+        self.stream.recv_errorneous_stanza(
+            resp,
+            stanza.UnknownIQPayload(resp, ('end', 'foo'))
+        )
+
+        self.stream.start(self.xmlstream)
+
+        run_coroutine(asyncio.sleep(0))
+        self.assertTrue(self.stream.running)
+
 
 
 class TestStanzaStreamSM(StanzaStreamTestBase):

@@ -48,6 +48,23 @@ class Testformat_error_text(unittest.TestCase):
         )
 
 
+class TestErrorneousStanza(unittest.TestCase):
+    def test_is_exception(self):
+        self.assertTrue(issubclass(
+            errors.ErrorneousStanza,
+            errors.StanzaError
+        ))
+
+    def test_init(self):
+        obj = object()
+        exc = errors.ErrorneousStanza(obj)
+        self.assertIs(exc.partial_obj, obj)
+        self.assertTrue(
+            str(exc),
+            "errorneous stanza received: {!r}".format(obj)
+        )
+
+
 class TestMultiOSError(unittest.TestCase):
     def test_message(self):
         exc = errors.MultiOSError("foo",

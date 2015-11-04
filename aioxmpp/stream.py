@@ -780,6 +780,16 @@ class StanzaStream:
 
     def _process_incoming_errorneous_stanza(self, stanza_obj, exc):
         if stanza_obj.type_ == "error" or stanza_obj.type_ == "result":
+            if     (isinstance(stanza_obj, stanza.IQ) and
+                    stanza_obj.from_ is not None):
+                key = (stanza_obj.from_, stanza_obj.id_)
+                try:
+                    self._iq_response_map.unicast_error(
+                        key,
+                        errors.ErrorneousStanza(stanza_obj)
+                    )
+                except KeyError:
+                    pass
             return
 
         if isinstance(exc, stanza.PayloadParsingError):
@@ -1009,6 +1019,17 @@ class StanzaStream:
         :class:`~aioxmpp.structs.JID` `from_` with the id `id_`.
 
         The callback is called at most once.
+
+        .. note::
+
+           In contrast to :meth:`register_iq_response_future`, errors which
+           occur on a level below XMPP stanzas cannot be caught using a
+           callback.
+
+           If you need notification about other errors and still want to use
+           callbacks, use of a future with
+           :meth:`asyncio.Future.add_done_callback` is recommended.
+
         """
 
         self._iq_response_map.add_listener(
@@ -1028,6 +1049,27 @@ class StanzaStream:
         to the future. If the type of the IQ stanza is ``error``, the stanzas
         error field is converted to an exception and set as the exception of
         the future.
+
+        The future might also receive different exceptions:
+
+        * :class:`.errors.ErrorneousStanza`, if the response stanza received
+          could not be parsed.
+
+          Note that this exception is not emitted if the ``from`` address of
+          the stanza is unset, because the code cannot determine whether a
+          sender deliberately used an errorneous address to make parsing fail
+          or no sender address was used. In the former case, an attacker could
+          use that to inject a stanza which would be taken as a stanza from the
+          peer server. Thus, the future will never be fulfilled in these
+          cases.
+
+          Also note that this exception does not derive from
+          :class:`.errors.XMPPError`, as it cannot provide the same
+          attributes. Instead, it dervies from :class:`.errors.StanzaError`,
+          from which :class:`.errors.XMPPError` also derives; to catch all
+          possible stanza errors, catching :class:`.errors.StanzaError` is
+          sufficient and future-proof.
+
         """
 
         self._iq_response_map.add_listener(
@@ -1755,6 +1797,12 @@ class StanzaStream:
         :attr:`~aioxmpp.stanza.IQ.payload` attribute is returned. Otherwise,
         the exception generated from the :attr:`~aioxmpp.stanza.IQ.error`
         attribute is raised.
+
+        .. seealso::
+
+           :meth:`register_iq_request_future` for other cases raising
+           exceptions.
+
         """
         iq.autoset_id()
         fut = asyncio.Future(loop=self._loop)

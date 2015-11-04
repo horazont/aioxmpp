@@ -66,6 +66,13 @@ __ https://tools.ietf.org/html/rfc3921
   elements in the wrong namespace if the meaning of a XML namespace prefix was
   being changed at the same time an element was emitted using that namespace.
 
+* IQ response futures (and thus also the use of
+  :meth:`aioxmpp.stream.StanzaStream.send_iq_and_wait_for_reply`) now raises a
+  specialized exception (:class:`aioxmpp.errors.ErrorneousStanza`) when an
+  unparseable stanza is received in response to an IQ. See the
+  :meth:`aioxmpp.stanza.StanzaStream.register_iq_response_future` method for
+  details on the semantics of the exception.
+
 Version 0.3
 ===========
 
