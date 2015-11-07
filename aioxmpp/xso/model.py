@@ -1167,6 +1167,8 @@ class ChildTextMap(ChildValueMap):
     :class:`TextChildMap` together with :class:`.structs.LanguageMap` to
     convert the :class:`AbstractTextChild` subclass `xso_type` to and from
     a language-text mapping.
+
+    For an example, see :class:`.stanza.Message`.
     """
 
     def __init__(self, xso_type):

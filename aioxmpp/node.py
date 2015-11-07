@@ -693,7 +693,7 @@ class PresenceManagedClient(AbstractClient):
         pres = stanza.Presence()
         state, status = self._presence
         state.apply_to_stanza(pres)
-        pres.status.extend(status)
+        pres.status.update(status)
         pres.autoset_id()
         self.stream.enqueue_stanza(pres)
 
@@ -756,8 +756,8 @@ class PresenceManagedClient(AbstractClient):
         availability such as *away*, *do not disturb* and *free to chat*).
         """
         if isinstance(status, str):
-            status = [stanza.Status(status)]
+            status = {None: status}
         else:
-            status = list(status)
+            status = dict(status)
         self._presence = state, status
         self._update_presence()

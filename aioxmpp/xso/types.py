@@ -388,6 +388,8 @@ class TextChildMap(AbstractType):
     :attr:`~.xso.AbstractTextChild.text`, respectively and support the
     same-named keyword arguments for those attributes at the consturctor.
 
+    For an example see the source of :class:`aioxmpp.stanza.Message`.
+
     .. versionadded:: 0.5
     """
 

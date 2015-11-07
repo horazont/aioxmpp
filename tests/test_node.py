@@ -1874,82 +1874,158 @@ class TestPresenceManagedClient(xmltestutils.XMLTestCase):
         self.presence_sent_rec.reset_mock()
 
     def test_set_presence_with_texts(self):
-        status_texts = [
-            stanza.Status("de", structs.LanguageTag.fromstr("de")),
-            stanza.Status("generic"),
-        ]
-
-        self.client.set_presence(
-            structs.PresenceState(
-                available=True,
-                show="chat"),
-            status=status_texts
-        )
+        status_texts = {
+            None: "generic",
+            structs.LanguageTag.fromstr("de"): "de"
+        }
 
         expected = stanza.Presence(type_=None,
                                    show="chat",
                                    id_="autoset")
-        expected.status.extend(status_texts)
+        expected.status.update(status_texts)
 
-        run_coroutine(self.xmlstream.run_test([
-        ]+self.resource_binding+[
-            XMLStreamMock.Send(
-                expected
+        base = unittest.mock.Mock()
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(unittest.mock.patch.object(
+                self.client,
+                "stream",
+                new=base.stream
+            ))
+
+            stack.enter_context(unittest.mock.patch.object(
+                self.client,
+                "start",
+                new=base.start
+            ))
+
+            self.client.set_presence(
+                structs.PresenceState(
+                    available=True,
+                    show="chat"),
+                status=status_texts
             )
-        ]))
+
+            self.client.on_stream_established()
+
+        self.assertSequenceEqual(
+            base.mock_calls,
+            [
+                unittest.mock.call.start(),
+                unittest.mock.call.stream.enqueue_stanza(unittest.mock.ANY)
+            ]
+        )
+
+        _, (sent,), _ = base.mock_calls[-1]
+
+        self.assertDictEqual(
+            sent.status,
+            expected.status
+        )
+        self.assertEqual(sent.type_, expected.type_)
+        self.assertEqual(sent.show, expected.show)
 
         self.presence_sent_rec.assert_called_once_with()
 
     def test_set_presence_with_single_string(self):
-        self.client.set_presence(
-            structs.PresenceState(
-                available=True,
-                show="chat"),
-            status="foobar"
-        )
-
         expected = stanza.Presence(type_=None,
                                    show="chat",
                                    id_="autoset")
-        expected.status.append(
-            stanza.Status("foobar")
+        expected.status[None] = "foobar"
+
+        base = unittest.mock.Mock()
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(unittest.mock.patch.object(
+                self.client,
+                "stream",
+                new=base.stream
+            ))
+
+            stack.enter_context(unittest.mock.patch.object(
+                self.client,
+                "start",
+                new=base.start
+            ))
+
+            self.client.set_presence(
+                structs.PresenceState(
+                    available=True,
+                    show="chat"),
+                status="foobar"
+            )
+
+            self.client.on_stream_established()
+
+        self.assertSequenceEqual(
+            base.mock_calls,
+            [
+                unittest.mock.call.start(),
+                unittest.mock.call.stream.enqueue_stanza(unittest.mock.ANY)
+            ]
         )
 
-        run_coroutine(self.xmlstream.run_test([
-        ]+self.resource_binding+[
-            XMLStreamMock.Send(
-                expected
-            )
-        ]))
+        _, (sent,), _ = base.mock_calls[-1]
+
+        self.assertDictEqual(
+            sent.status,
+            expected.status
+        )
+        self.assertEqual(sent.type_, expected.type_)
+        self.assertEqual(sent.show, expected.show)
 
         self.presence_sent_rec.assert_called_once_with()
 
     def test_set_presence_is_robust_against_modification_of_the_argument(self):
-        status_texts = [
-            stanza.Status("de", structs.LanguageTag.fromstr("de")),
-            stanza.Status("generic"),
-        ]
-
-        self.client.set_presence(
-            structs.PresenceState(
-                available=True,
-                show="chat"),
-            status=status_texts
-        )
+        status_texts = {
+            None: "generic",
+            structs.LanguageTag.fromstr("de"): "de",
+        }
 
         expected = stanza.Presence(type_=None,
                                    show="chat",
                                    id_="autoset")
-        expected.status.extend(status_texts)
+        expected.status.update(status_texts)
 
-        del status_texts[0]
+        base = unittest.mock.Mock()
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(unittest.mock.patch.object(
+                self.client,
+                "stream",
+                new=base.stream
+            ))
 
-        run_coroutine(self.xmlstream.run_test([
-        ]+self.resource_binding+[
-            XMLStreamMock.Send(
-                expected
+            stack.enter_context(unittest.mock.patch.object(
+                self.client,
+                "start",
+                new=base.start
+            ))
+
+            self.client.set_presence(
+                structs.PresenceState(
+                    available=True,
+                    show="chat"),
+                status=status_texts
             )
-        ]))
+
+            del status_texts[None]
+
+            self.client.on_stream_established()
+
+        self.assertSequenceEqual(
+            base.mock_calls,
+            [
+                unittest.mock.call.start(),
+                unittest.mock.call.stream.enqueue_stanza(unittest.mock.ANY)
+            ]
+        )
+
+        _, (sent,), _ = base.mock_calls[-1]
+
+        self.assertDictEqual(
+            sent.status,
+            expected.status
+        )
+        self.assertEqual(sent.type_, expected.type_)
+        self.assertEqual(sent.show, expected.show)
 
         self.presence_sent_rec.assert_called_once_with()
 

@@ -10,6 +10,10 @@ Version 0.5
   :class:`aioxmpp.xso.ChildValueMap` and :class:`aioxmpp.xso.ChildValueList`
   implemented.
 
+* **Breaking change**: :attr:`aioxmpp.stanza.Presence.status`,
+  :attr:`aioxmpp.stanza.Message.subject` and
+  :attr:`aioxmpp.stanza.Message.body` now use :class:`aioxmpp.xso.ChildTextMap`.
+
 Version 0.4
 ===========
 

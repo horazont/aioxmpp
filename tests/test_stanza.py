@@ -191,7 +191,7 @@ class TestMessage(unittest.TestCase):
     def test_body_attr(self):
         self.assertIsInstance(
             stanza.Message.body,
-            xso.ChildList)
+            xso.ChildTextMap)
         self.assertSetEqual(
             {stanza.Body},
             set(stanza.Message.body._classes)
@@ -200,7 +200,7 @@ class TestMessage(unittest.TestCase):
     def test_subject_attr(self):
         self.assertIsInstance(
             stanza.Message.subject,
-            xso.ChildList)
+            xso.ChildTextMap)
         self.assertSetEqual(
             {stanza.Subject},
             set(stanza.Message.subject._classes)
@@ -375,7 +375,7 @@ class TestPresence(unittest.TestCase):
     def test_status_attr(self):
         self.assertIsInstance(
             stanza.Presence.status,
-            xso.ChildList)
+            xso.ChildTextMap)
         self.assertSetEqual(
             {stanza.Status},
             set(stanza.Presence.status._classes)
