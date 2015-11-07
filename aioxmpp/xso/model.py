@@ -284,7 +284,8 @@ class _PropBase:
         except KeyError:
             if self.default is self.NO_DEFAULT:
                 raise AttributeError(
-                    "attribute is unset ({} on instance of {})".format(self, cls)
+                    "attribute is unset ({} on instance of {})".format(
+                        self, cls)
                 ) from None
             return self.default
 
@@ -1267,8 +1268,6 @@ class XMLStreamClass(type):
                 namespace["TAG"] = tag = normalize_tag(tag)
             except ValueError:
                 raise TypeError("TAG attribute has incorrect format")
-
-
 
         if     (tag is not None and
                 "DECLARE_NS" not in namespace and
