@@ -4434,6 +4434,43 @@ class TestChildValueList(unittest.TestCase):
         self.assertIsNot(obj1.values, obj2.values)
         self.assertIs(obj2.values, obj2.values)
 
+    def test_container_type_argument(self):
+        mock = unittest.mock.Mock()
+
+        class Cls(xso.XSO):
+            TAG = ("uri:foo", "p")
+
+            values = xso_model.ChildValueList(
+                self.ChildValueType,
+                container_type=mock
+            )
+
+        obj = Cls()
+        container = obj.values
+        self.assertEqual(container, mock())
+
+    def test_container_type_not_called_if_attr_already_created(self):
+        mock = unittest.mock.Mock()
+
+        class Cls(xso.XSO):
+            TAG = ("uri:foo", "p")
+
+            values = xso_model.ChildValueList(
+                self.ChildValueType,
+                container_type=mock
+            )
+
+        obj = Cls()
+        obj.values
+        obj.values
+
+        self.assertSequenceEqual(
+            mock.mock_calls,
+            [
+                unittest.mock.call(),
+            ]
+        )
+
     def test_set_is_prohibited(self):
         obj = self.Cls()
         with self.assertRaises(AttributeError):
@@ -4519,6 +4556,74 @@ class TestChildValueList(unittest.TestCase):
                 base.parse(),
                 base.parse(),
             ]
+        )
+
+    def test_from_events_works_with_set_container(self):
+        class Cls(xso.XSO):
+            TAG = ("uri:foo", "p")
+
+            values = xso_model.ChildValueList(
+                self.ChildValueType,
+                container_type=set
+            )
+
+        obj = Cls()
+
+        def process(mock, *args, **kwargs):
+            return mock(*args, **kwargs)
+            yield None
+
+        base = unittest.mock.Mock()
+        process_mock = base.process
+        base.process = functools.partial(process, process_mock)
+
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(unittest.mock.patch.object(
+                self.ChildValueType,
+                "parse",
+                new=base.parse
+            ))
+
+            stack.enter_context(unittest.mock.patch.object(
+                Cls.values,
+                "_process",
+                new=base.process
+            ))
+
+            base.parse.return_value = 1
+            with self.assertRaises(StopIteration):
+                gen = Cls.values.from_events(
+                    obj,
+                    base.ev_args,
+                    base.ctx,
+                )
+                next(gen)
+
+            base.parse.return_value = 2
+            with self.assertRaises(StopIteration):
+                gen = Cls.values.from_events(
+                    obj,
+                    base.ev_args,
+                    base.ctx,
+                )
+                next(gen)
+
+        calls = list(base.mock_calls)
+        self.assertSequenceEqual(
+            calls,
+            [
+                unittest.mock.call.process(obj, base.ev_args, base.ctx),
+                unittest.mock.call.parse(process_mock()),
+                unittest.mock.call.process(obj, base.ev_args, base.ctx),
+                unittest.mock.call.parse(process_mock()),
+            ]
+        )
+
+        self.assertSetEqual(
+            obj.values,
+            {
+                1, 2
+            }
         )
 
     def tearDown(self):

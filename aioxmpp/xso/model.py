@@ -1083,17 +1083,32 @@ class ChildValueList(_ChildPropBase):
     :meth:`~.xso.AbstractType.format`. The XSO is then serialised as child of
     the object this descriptor is applied to.
 
+    The optional `container_type` argument must, if given, be a callable which
+    returns a mutable container supporting either :meth:`add` or :meth:`append`
+    of the values used with the `type_` and iteration. It will be used instead
+    of :class:`list` to create the values for the descriptor.
+
     .. versionadded:: 0.5
     """
 
-    def __init__(self, type_):
+    def __init__(self, type_, *, container_type=list):
         super().__init__([type_.get_formatted_type()])
         self.type_ = type_
+        self.container_type = container_type
+        try:
+            self._add = container_type.append
+        except AttributeError:
+            self._add = container_type.add
 
     def __get__(self, instance, type_):
         if instance is None:
             return self
-        return instance._stanza_props.setdefault(self, [])
+        try:
+            return instance._stanza_props[self]
+        except KeyError:
+            result = self.container_type()
+            instance._stanza_props[self] = result
+            return result
 
     def __set__(self, instance, value):
         raise AttributeError("child value list not writable")
@@ -1101,7 +1116,7 @@ class ChildValueList(_ChildPropBase):
     def from_events(self, instance, ev_args, ctx):
         obj = yield from self._process(instance, ev_args, ctx)
         value = self.type_.parse(obj)
-        self.__get__(instance, type(instance)).append(value)
+        self._add(self.__get__(instance, type(instance)), value)
 
     def to_sax(self, instance, dest):
         for value in self.__get__(instance, type(instance)):
@@ -1119,8 +1134,8 @@ class ChildValueMap(_ChildPropBase):
     :meth:`.xso.AbstractType.parse` and must accept such key-value pairs in
     :meth:`.xso.AbstractType.format`.
 
-    The optional `mapping_factory` argument must, if given, be a callable which
-    returns a :class:`collections.abc.MutableSequence` supporting the keys and
+    The optional `mapping_type` argument must, if given, be a callable which
+    returns a :class:`collections.abc.MutableMapping` supporting the keys and
     values used by the `type_`. It will be used instead of :class:`dict` to
     create the values for the descriptor. A possible use-case is using
     :class:`.structs.LanguageMap` together with :class:`~.xso.TextChildMap`.
