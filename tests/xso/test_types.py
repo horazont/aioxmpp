@@ -29,6 +29,9 @@ class TestAbstractType(unittest.TestCase):
     def test_parse_method(self):
         self.assertTrue(inspect.isfunction(xso.AbstractType.parse))
 
+    def test_get_formatted_type(self):
+        self.assertIs(xso.AbstractType.get_formatted_type(object()), str)
+
     def test_format_method(self):
         self.assertTrue(inspect.isfunction(xso.AbstractType.format))
         self.assertEqual(
@@ -790,6 +793,39 @@ class TestLanguageTag(unittest.TestCase):
                     TypeError,
                     "is not a LanguageTag"):
                 t.coerce(value)
+
+
+class TestTextChildMap(unittest.TestCase):
+    def test_is_abstract_type(self):
+        self.assertTrue(issubclass(
+            xso.TextChildMap,
+            xso.AbstractType
+        ))
+
+    def setUp(self):
+        self.type_ = xso.TextChildMap(xso.AbstractTextChild)
+
+    def test_get_formatted_type(self):
+        self.assertIs(self.type_.get_formatted_type(),
+                      xso.AbstractTextChild)
+
+    def test_parse(self):
+        text, lang = "foo", structs.LanguageTag.fromstr("en-gb")
+        item = xso.AbstractTextChild(text, lang)
+        self.assertEqual(
+            (lang, text),
+            self.type_.parse(item)
+        )
+
+    def test_format(self):
+        text, lang = "foo", structs.LanguageTag.fromstr("en-gb")
+        item = self.type_.format((lang, text))
+
+        self.assertEqual(item.text, text)
+        self.assertEqual(item.lang, lang)
+
+    def tearDown(self):
+        del self.type_
 
 
 

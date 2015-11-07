@@ -27,12 +27,29 @@ class AbstractType(metaclass=abc.ABCMeta):
     """
     This is the interface all types must implement.
 
+    .. automethod:: get_formatted_type
+
     .. automethod:: coerce
 
     .. automethod:: parse
 
     .. automethod:: format
     """
+
+    def get_formatted_type(self):
+        """
+        Return the type of the values returned by :meth:`format`.
+
+        The default implementation returns :class:`str`. For
+        :class:`AbstractType` subclasses which are used for anything different
+        than text, it might make sense to return a different type.
+
+        :class:`.xso.Attr` and :class:`.xso.Text` require that this function
+        returns :class:`str`.
+
+        .. versionadded:: 0.5
+        """
+        return str
 
     def coerce(self, v):
         """
@@ -357,6 +374,37 @@ class LanguageTag(AbstractType):
         if not isinstance(v, structs.LanguageTag):
             raise TypeError("{!r} is not a LanguageTag", v)
         return v
+
+
+class TextChildMap(AbstractType):
+    """
+    A type for use with :class:`.xso.ChildValueMap` and descendants of
+    :class:`.xso.AbstractTextChild`.
+
+    This type performs the packing and unpacking of language-text-pairs to and
+    from the `xso_type`. `xso_type` must have an interface compatible with
+    :class:`.xso.AbstractTextChild`, which means that it must have the language
+    and text at :attr:`~.xso.AbstractTextChild.lang` and
+    :attr:`~.xso.AbstractTextChild.text`, respectively and support the
+    same-named keyword arguments for those attributes at the consturctor.
+
+    .. versionadded:: 0.5
+    """
+
+    def __init__(self, xso_type):
+        super().__init__()
+        self.xso_type = xso_type
+
+    def get_formatted_type(self):
+        return self.xso_type
+
+    def parse(self, obj):
+        return obj.lang, obj.text
+
+    def format(self, item):
+        lang, text = item
+        xso = self.xso_type(text=text, lang=lang)
+        return xso
 
 
 class AbstractValidator(metaclass=abc.ABCMeta):

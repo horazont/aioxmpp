@@ -111,6 +111,12 @@ Non-scalar descriptors
 
 .. autoclass:: ChildLangMap(classes)
 
+.. autoclass:: ChildValueList(type_)
+
+.. autoclass:: ChildValueMap(type_, *, mapping_type=dict)
+
+.. autoclass:: ChildTextMap(xso_type)
+
 .. autoclass:: Collector()
 
 Container for child lists
@@ -216,8 +222,8 @@ The basic type interface
 
 .. autoclass:: AbstractType
 
-Implementations
-^^^^^^^^^^^^^^^
+Attribute and text types
+^^^^^^^^^^^^^^^^^^^^^^^^
 
 .. autoclass:: String
 
@@ -236,6 +242,11 @@ Implementations
 .. autoclass:: ConnectionLocation
 
 .. autoclass:: LanguageTag
+
+Child list and map types
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. autoclass:: TextChildMap
 
 Validators
 ----------
@@ -330,6 +341,7 @@ from .types import (  # NOQA
     JID,
     ConnectionLocation,
     LanguageTag,
+    TextChildMap,
     AbstractValidator,
     RestrictToSet,
     Nmtoken,
@@ -354,6 +366,9 @@ from .model import (  # NOQA
     ChildText,
     Collector,
     Text,
+    ChildValueList,
+    ChildValueMap,
+    ChildTextMap,
     XSOParser,
     SAXDriver,
     XSO,

@@ -3,6 +3,13 @@
 Changelog
 #########
 
+Version 0.5
+===========
+
+* :meth:`aioxmpp.xso.AbstractType.get_formatted_type`,
+  :class:`aioxmpp.xso.ChildValueMap` and :class:`aioxmpp.xso.ChildValueList`
+  implemented.
+
 Version 0.4
 ===========
 

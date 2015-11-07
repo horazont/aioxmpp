@@ -453,15 +453,21 @@ class Message(StanzaBase):
 
     .. attribute:: body
 
-       A :class:`~aioxmpp.xso.model.XSOList` of :class:`Body` elements. To
-       get a body element matching the users language, use the
-       :meth:`~aioxmpp.xso.model.XSOList.filter` method on the list.
+       A :class:`~.structs.LanguageMap` mapping the languages of the different
+       body elements to their text.
+
+       .. versionchanged:: 0.5
+
+          Before 0.5, this was a :class:`~aioxmpp.xso.model.XSOList`.
 
     .. attribute:: subject
 
-       A :class:`~aioxmpp.xso.model.XSOList` of :class:`Subject` elements. To
-       get a subject element matching the users language, use the
-       :meth:`~aioxmpp.xso.model.XSOList.filter` method on the list.
+       A :class:`~.structs.LanguageMap` mapping the languages of the different
+       subject elements to their text.
+
+       .. versionchanged:: 0.5
+
+          Before 0.5, this was a :class:`~aioxmpp.xso.model.XSOList`.
 
     .. attribute:: thread
 
