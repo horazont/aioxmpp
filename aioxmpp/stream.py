@@ -723,6 +723,9 @@ class StanzaStream:
             return
 
         keys = [(stanza_obj.type_, stanza_obj.from_),
+                (stanza_obj.type_, stanza_obj.from_.bare()),
+                (None, stanza_obj.from_),
+                (None, stanza_obj.from_.bare()),
                 (stanza_obj.type_, None),
                 (None, None)]
 
@@ -731,7 +734,8 @@ class StanzaStream:
                 cb = self._message_map[key]
             except KeyError:
                 continue
-            self._logger.debug("dispatching message using key: %r", key)
+            self._logger.debug("dispatching message using key %r to %r",
+                               key, cb)
             self._loop.call_soon(cb, stanza_obj)
             break
         else:
@@ -1154,13 +1158,21 @@ class StanzaStream:
         :class:`~aioxmpp.structs.JID` `from_` arrives.
 
         Both `type_` and `from_` can be :data:`None`, each, to indicate a
-        wildcard match. It is not allowed for both `type_` and `from_` to be
-        :data:`None` at the same time.
+        wildcard match.
 
-        More specific callbacks win over less specific callbacks. That is, a
-        callback registered for type ``"chat"`` and from a specific JID
-        will win over a callback registered for type ``"chat"`` with from set
-        to :data:`None`.
+        More specific callbacks win over less specific callbacks, and the
+        match on the `from_` address takes precedence over the match on the
+        `type_`.
+
+        To be explicit, the order in which callbacks are searched for a given
+        ``type`` and ``from_`` of a stanza is:
+
+        * ``type``, ``from_``
+        * ``type``, ``from_.bare()``
+        * ``None``, ``from_``
+        * ``None``, ``from_.bare()``
+        * ``type``, ``None``
+        * ``None``, ``None``
         """
         self._message_map[type_, from_] = cb
         self._logger.debug(

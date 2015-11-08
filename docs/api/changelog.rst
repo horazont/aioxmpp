@@ -12,7 +12,11 @@ Version 0.5
 
 * **Breaking change**: :attr:`aioxmpp.stanza.Presence.status`,
   :attr:`aioxmpp.stanza.Message.subject` and
-  :attr:`aioxmpp.stanza.Message.body` now use :class:`aioxmpp.xso.ChildTextMap`.
+  :attr:`aioxmpp.stanza.Message.body` now use
+  :class:`aioxmpp.xso.ChildTextMap`.
+
+* :meth:`aioxmpp.stream.StanzaStream.register_message_callback` is more clearly
+  specified now, a bug in the documentation has been fixed.
 
 Version 0.4
 ===========

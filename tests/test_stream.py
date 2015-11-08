@@ -709,6 +709,24 @@ class TestStanzaStream(StanzaStreamTestBase):
 
         self.assertIs(msg, fut.result())
 
+    def test_run_message_callback_to_bare_jid(self):
+        msg = make_test_message(from_=TEST_FROM)
+
+        fut = asyncio.Future()
+
+        self.stream.register_message_callback(
+            None,
+            TEST_FROM.bare(),
+            fut.set_result)
+        self.stream.start(self.xmlstream)
+        self.stream.recv_stanza(msg)
+
+        run_coroutine(fut)
+
+        self.stream.stop()
+
+        self.assertIs(msg, fut.result())
+
     def test_unregister_message_callback(self):
         cb = unittest.mock.Mock()
 
@@ -1361,7 +1379,9 @@ class TestStanzaStream(StanzaStreamTestBase):
         self.assertTrue(self.stream.running)
 
     def test_app_inbound_presence_filter(self):
-        self._test_inbound_presence_filter(self.stream.app_inbound_presence_filter)
+        self._test_inbound_presence_filter(
+            self.stream.app_inbound_presence_filter
+        )
 
     def test_service_inbound_presence_filter(self):
         class Service(service.Service):
@@ -1401,8 +1421,8 @@ class TestStanzaStream(StanzaStreamTestBase):
         )
 
     def _test_inbound_message_filter(self, filter_attr, **register_kwargs):
-        msg = stanza.Message(type_="chat")
-        out = stanza.Message(type_="groupchat")
+        msg = stanza.Message(type_="chat", from_=TEST_FROM)
+        out = stanza.Message(type_="groupchat", from_=TEST_FROM)
 
         cb = unittest.mock.Mock([])
         cb.return_value = None
@@ -2055,6 +2075,82 @@ class TestStanzaStream(StanzaStreamTestBase):
         run_coroutine(asyncio.sleep(0))
         self.assertTrue(self.stream.running)
 
+    def test_message_callback_fallback_order(self):
+        base = unittest.mock.Mock()
+
+        self.stream.register_message_callback(
+            "chat", TEST_FROM,
+            base.chat_full
+        )
+        base.chat_full.return_value = None
+        base.chat_full._is_coroutine = False
+
+        self.stream.register_message_callback(
+            "chat", TEST_FROM.bare(),
+            base.chat_bare
+        )
+        base.chat_bare.return_value = None
+        base.chat_bare._is_coroutine = False
+
+        self.stream.register_message_callback(
+            None, TEST_FROM,
+            base.wildcard_full
+        )
+        base.wildcard_full.return_value = None
+        base.wildcard_full._is_coroutine = False
+
+        self.stream.register_message_callback(
+            None, TEST_FROM.bare(),
+            base.wildcard_bare
+        )
+        base.wildcard_bare.return_value = None
+        base.wildcard_bare._is_coroutine = False
+
+        self.stream.register_message_callback(
+            "chat", None,
+            base.chat_wildcard
+        )
+        base.chat_wildcard.return_value = None
+        base.chat_wildcard._is_coroutine = False
+
+        self.stream.register_message_callback(
+            None, None,
+            base.fallback
+        )
+        base.fallback.return_value = None
+        base.fallback._is_coroutine = False
+
+        test_set = [
+            ("chat", TEST_FROM, "chat_full"),
+            ("chat", TEST_FROM.replace(resource="r2"), "chat_bare"),
+            ("chat", TEST_FROM.bare(), "chat_bare"),
+            ("chat", TEST_FROM.replace(domain="bar.example"), "chat_wildcard"),
+            ("headline", TEST_FROM, "wildcard_full"),
+            ("headline", TEST_FROM.replace(resource="r2"), "wildcard_bare"),
+            ("headline", TEST_FROM.bare(), "wildcard_bare"),
+            ("headline", TEST_FROM.replace(domain="bar.example"), "fallback"),
+        ]
+
+        stanza_set = []
+
+        self.stream.start(self.xmlstream)
+
+        for type_, from_, dest in test_set:
+            stanza = make_test_message(type_=type_, from_=from_)
+            stanza_set.append((stanza, dest))
+            self.stream.recv_stanza(
+                stanza
+            )
+
+        run_coroutine(asyncio.sleep(0.01))
+
+        self.assertSequenceEqual(
+            base.mock_calls,
+            [
+                getattr(unittest.mock.call, dest)(st)
+                for st, dest in stanza_set
+            ]
+        )
 
 
 class TestStanzaStreamSM(StanzaStreamTestBase):
