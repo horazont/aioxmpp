@@ -103,6 +103,8 @@ class ConnectedClientMock(unittest.mock.Mock):
             "set_presence",
         ])
 
+        self.established = True
+
         self.stream_features = stream_xsos.StreamFeatures()
         self.stream.send_iq_and_wait_for_reply = CoroutineMock()
         self.mock_services = {}
