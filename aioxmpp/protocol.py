@@ -197,6 +197,8 @@ class XMLStream(asyncio.Protocol):
 
     .. automethod:: close
 
+    .. automethod:: abort
+
     Signals:
 
     .. signal:: on_closing
@@ -557,6 +559,28 @@ class XMLStream(asyncio.Protocol):
         self._reset_state()
         next(self._writer)
         self._smachine.rewind(State.STREAM_HEADER_SENT)
+
+    def abort(self):
+        """
+        Abort the stream by writing an EOF if possible and closing the
+        transport.
+
+        The transport is closed using :meth:`asyncio.BaseTransport.close`, so
+        buffered data is sent, but no more data will be received. The stream is
+        in :attr:`State.CLOSED` state afterwards.
+
+        This also works if the stream is currently closing, that is, waiting
+        for the peer to send a stream footer. In that case, the stream will be
+        closed locally as if the stream footer had been received.
+
+        .. versionadded:: 0.5
+        """
+        if self._smachine.state == State.CLOSED:
+            return
+        if     (self._smachine.state != State.CLOSING and
+                self._transport.can_write_eof()):
+            self._transport.write_eof()
+        self._close_transport()
 
     def send_xso(self, obj):
         """

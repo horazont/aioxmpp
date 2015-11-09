@@ -1046,7 +1046,6 @@ class TestXMLStream(unittest.TestCase):
     def test_close_and_wait(self):
         t, p = self._make_stream(to=TEST_PEER)
 
-
         run_coroutine(t.run_test(
             [
                 TransportMock.Write(
@@ -1369,6 +1368,127 @@ class TestXMLStream(unittest.TestCase):
         self.assertEqual(
             protocol.State.CLOSED,
             p.state
+        )
+
+    def test_abort(self):
+        t, p = self._make_stream(to=TEST_PEER)
+
+        run_coroutine(t.run_test(
+            [
+                TransportMock.Write(
+                    STREAM_HEADER,
+                    response=[
+                        TransportMock.Receive(
+                            self._make_peer_header(version=(1, 0))
+                        ),
+                    ]),
+            ],
+            partial=True
+        ))
+
+        self.assertEqual(
+            p.state,
+            protocol.State.OPEN
+        )
+
+        p.abort()
+
+        run_coroutine(t.run_test(
+            [
+                TransportMock.WriteEof(),
+                TransportMock.Close()
+            ],
+        ))
+
+        self.assertEqual(
+            p.state,
+            protocol.State.CLOSED
+        )
+
+    def test_abort_is_noop_if_closed(self):
+        t, p = self._make_stream(to=TEST_PEER)
+
+        run_coroutine(t.run_test(
+            [
+                TransportMock.Write(
+                    STREAM_HEADER,
+                    response=[
+                        TransportMock.Receive(
+                            self._make_peer_header(version=(1, 0))
+                        ),
+                    ]),
+            ],
+            partial=True
+        ))
+
+        self.assertEqual(
+            p.state,
+            protocol.State.OPEN
+        )
+
+        p.abort()
+
+        run_coroutine(t.run_test(
+            [
+                TransportMock.WriteEof(),
+                TransportMock.Close()
+            ],
+        ))
+
+        self.assertEqual(
+            p.state,
+            protocol.State.CLOSED
+        )
+
+        p.abort()
+
+    def test_abort_aborts_while_waiting_for_stream_footer(self):
+        t, p = self._make_stream(to=TEST_PEER)
+
+        run_coroutine(t.run_test(
+            [
+                TransportMock.Write(
+                    STREAM_HEADER,
+                    response=[
+                        TransportMock.Receive(
+                            self._make_peer_header(version=(1, 0))
+                        ),
+                    ]),
+            ],
+            partial=True
+        ))
+
+        self.assertEqual(
+            p.state,
+            protocol.State.OPEN
+        )
+
+        p.close()
+
+        run_coroutine(t.run_test(
+            [
+                TransportMock.Write(b"</stream:stream>"),
+                TransportMock.WriteEof(),
+            ],
+            partial=True,
+        ))
+
+        self.assertEqual(
+            p.state,
+            protocol.State.CLOSING
+        )
+
+        p.abort()
+
+        run_coroutine(t.run_test(
+            [
+                TransportMock.Close()
+            ],
+        ))
+
+        self.assertEqual(
+            p.state,
+            protocol.State.CLOSED
         )
 
     def tearDown(self):
