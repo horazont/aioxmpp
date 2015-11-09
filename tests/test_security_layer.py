@@ -1615,7 +1615,7 @@ class TestSTARTTLSProvider(xmltestutils.XMLTestCase):
             self.certificate_verifier_factory.mock_calls
         )
 
-    def test_propagate_and_wrap_error(self):
+    def test_propagate_and_wrap_OSError(self):
         provider = security_layer.STARTTLSProvider(
             self.ssl_context_factory,
             self.certificate_verifier_factory,
@@ -1626,7 +1626,7 @@ class TestSTARTTLSProvider(xmltestutils.XMLTestCase):
 
         self.xmlstream.can_starttls_value = True
 
-        exc = ValueError("foobar")
+        exc = OSError("foobar")
         self.certificate_verifier_factory().post_handshake.side_effect = exc
 
         with self.assertRaisesRegexp(errors.TLSFailure,
@@ -1647,6 +1647,40 @@ class TestSTARTTLSProvider(xmltestutils.XMLTestCase):
                     )
                 ]
             )
+
+    def test_do_not_wrap_other_exceptions(self):
+        provider = security_layer.STARTTLSProvider(
+            self.ssl_context_factory,
+            self.certificate_verifier_factory,
+            require_starttls=True)
+
+        features = stream_xsos.StreamFeatures()
+        features[...] = stream_xsos.StartTLSFeature()
+
+        self.xmlstream.can_starttls_value = True
+
+        exc = ValueError("foobar")
+        self.certificate_verifier_factory().post_handshake.side_effect = exc
+
+        with self.assertRaises(ValueError) as ctx:
+            self._test_provider(
+                provider, features,
+                actions=[
+                    XMLStreamMock.Send(
+                        stream_xsos.StartTLS(),
+                        response=XMLStreamMock.Receive(
+                            stream_xsos.StartTLSProceed()
+                        )
+                    ),
+                    XMLStreamMock.STARTTLS(
+                        ssl_context=self.ssl_context_factory(),
+                        post_handshake_callback=
+                        self.certificate_verifier_factory().post_handshake
+                    )
+                ]
+            )
+
+        self.assertIs(ctx.exception, exc)
 
     def test_propagate_tls_error(self):
         provider = security_layer.STARTTLSProvider(

@@ -758,7 +758,7 @@ class STARTTLSProvider:
                 # no need to re-wrap that
                 logger.exception("STARTTLS failed:")
                 raise
-            except Exception as err:
+            except OSError as err:
                 logger.exception("STARTTLS failed:")
                 raise errors.TLSFailure(
                     "TLS connection failed: {}".format(err)
