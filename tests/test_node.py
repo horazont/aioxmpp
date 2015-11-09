@@ -1054,6 +1054,32 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
         self.client.stop()
         run_coroutine(asyncio.sleep(0))
 
+    def test_fail_on_value_error_while_live(self):
+        call = unittest.mock.call(
+            self.test_jid,
+            self.security_layer,
+            negotiation_timeout=60.0,
+            override_peer=None,
+            loop=self.loop)
+
+        self.client.backoff_start = timedelta(seconds=0.01)
+        self.client.backoff_factor = 2
+        self.client.backoff_cap = timedelta(seconds=0.1)
+        self.client.start()
+
+        run_coroutine(self.xmlstream.run_test(
+            self.resource_binding
+        ))
+        run_coroutine(asyncio.sleep(0))
+
+        exc = ValueError()
+        self.client._stream_failure(exc)
+        run_coroutine(asyncio.sleep(0))
+        self.failure_rec.assert_called_with(exc)
+
+        self.assertFalse(self.client.running)
+        self.assertFalse(self.client.stream.running)
+
     def test_negotiate_stream_management(self):
         self.features[...] = stream_xsos.StreamManagementFeature()
 
@@ -1382,7 +1408,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
                         id_="autoset"
                     )
                 )
-            )
+            ),
         ]))
         run_coroutine(asyncio.sleep(0))
 

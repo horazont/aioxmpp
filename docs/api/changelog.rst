@@ -20,6 +20,10 @@ Version 0.5
 
 * Fix a race during stream management resumption.
 
+* More reliably kill the stream when a non-:class:`OSError` emerges from the
+  :class:`.StanzaStream`. This prevents connect loops when a stanza handler
+  raises an exception.
+
 Version 0.4
 ===========
 
