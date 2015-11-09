@@ -314,7 +314,7 @@ class AbstractClient:
 
     Signals:
 
-    .. signal:: on_failure()
+    .. signal:: on_failure(err)
 
        This signal is fired when the client fails and stops.
 
