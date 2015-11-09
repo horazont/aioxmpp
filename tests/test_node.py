@@ -1580,7 +1580,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
                 super().__init__(*args, **kwargs)
                 getattr(svc_init, type(self).__name__)(*args, **kwargs)
 
-        svc2 = self.client.summon(Svc2)
+        self.client.summon(Svc2)
 
         self.assertSequenceEqual(
             [
@@ -1590,7 +1590,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
             svc_init.mock_calls
         )
 
-        svc3 = self.client.summon(Svc3)
+        self.client.summon(Svc3)
 
         self.assertSequenceEqual(
             [
@@ -1600,7 +1600,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
             svc_init.mock_calls
         )
 
-        svc1 = self.client.summon(Svc1)
+        self.client.summon(Svc1)
 
         self.assertSequenceEqual(
             [
