@@ -907,6 +907,37 @@ class TestStanzaStream(StanzaStreamTestBase):
 
         self.assertIsNone(caught_exc)
 
+    def test_stop_removes_stanza_handlers(self):
+        caught_exc = None
+
+        def failure_handler(exc):
+            nonlocal caught_exc
+            caught_exc = exc
+
+        iq = make_test_iq()
+        self.stream.on_failure.connect(failure_handler)
+
+        self.stream.start(self.xmlstream)
+        self.stream.enqueue_stanza(iq)
+
+        iq_sent = run_coroutine(self.sent_stanzas.get())
+        self.assertIs(iq, iq_sent)
+
+        self.xmlstream.send_xso = unittest.mock.MagicMock(
+            side_effect=RuntimeError())
+        self.stream.enqueue_stanza(iq)
+        self.stream.recv_stanza(iq)
+        self.stream.stop()
+
+        self.assertIsNone(caught_exc)
+
+        def cb():
+            pass
+
+        self.xmlstream.stanza_parser.add_class(stanza.IQ, cb)
+        self.xmlstream.stanza_parser.add_class(stanza.Presence, cb)
+        self.xmlstream.stanza_parser.add_class(stanza.Message, cb)
+
     def test_wait_stop(self):
         self.stream.start(self.xmlstream)
         self.assertTrue(self.stream.running)
@@ -2178,7 +2209,6 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
 
         del self.sent_stanzas
 
-
     def test_sm_initialization_only_in_stopped_state(self):
         with self.assertRaisesRegexp(RuntimeError, "is not running"):
             run_coroutine(self.stream.start_sm())
@@ -2590,6 +2620,77 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
                 XMLStreamMock.Send(iqs[2]),
                 XMLStreamMock.Send(additional_iq),
                 XMLStreamMock.Send(stream_xsos.SMRequest()),
+            ])
+        )
+
+        self.assertFalse(self.established_rec.mock_calls)
+
+        self.stream.stop()
+        run_coroutine(asyncio.sleep(0))
+        self.stream.stop_sm()
+        self.destroyed_rec.assert_called_once_with()
+
+    def test_sm_race(self):
+        iqs = [make_test_iq() for i in range(4)]
+
+        additional_iq = iqs.pop()
+
+        self.stream.start(self.xmlstream)
+        run_coroutine_with_peer(
+            self.stream.start_sm(),
+            self.xmlstream.run_test(self.successful_sm)
+        )
+
+        for iq in iqs:
+            self.stream.enqueue_stanza(iq)
+
+        run_coroutine(asyncio.sleep(0))
+
+        self.established_rec.assert_called_once_with()
+        self.established_rec.reset_mock()
+
+        run_coroutine(self.xmlstream.run_test([
+            XMLStreamMock.Send(iqs[0]),
+            XMLStreamMock.Send(iqs[1]),
+            XMLStreamMock.Send(iqs[2]),
+            XMLStreamMock.Send(
+                stream_xsos.SMRequest(),
+                response=XMLStreamMock.Receive(
+                    stream_xsos.SMAcknowledgement(counter=1)
+                )
+            )
+        ]))
+
+        self.stream.stop()
+
+        run_coroutine(asyncio.sleep(0))
+
+        self.assertFalse(self.destroyed_rec.mock_calls)
+
+        # enqueue a stanza before resumption and check that the sequence is
+        # correct (resumption-generated stanzas before new stanzas)
+        self.stream.enqueue_stanza(additional_iq)
+
+        run_coroutine_with_peer(
+            self.stream.resume_sm(self.xmlstream),
+            self.xmlstream.run_test([
+                XMLStreamMock.Send(
+                    stream_xsos.SMResume(previd="foobar",
+                                         counter=0),
+                    response=[
+                        XMLStreamMock.Receive(
+                            stream_xsos.SMResumed(previd="foobar",
+                                                  counter=2)
+                        ),
+                        XMLStreamMock.Receive(
+                            stream_xsos.SMRequest()
+                        )
+                    ]
+                ),
+                XMLStreamMock.Send(iqs[2]),
+                XMLStreamMock.Send(additional_iq),
+                XMLStreamMock.Send(stream_xsos.SMRequest()),
+                XMLStreamMock.Send(stream_xsos.SMAcknowledgement(counter=0)),
             ])
         )
 
@@ -3012,6 +3113,124 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
 
         self.assertFalse(self.stream.sm_enabled)
         self.destroyed_rec.assert_called_once_with()
+
+    def test_stop_removes_stanza_handlers(self):
+        caught_exc = None
+
+        def failure_handler(exc):
+            nonlocal caught_exc
+            caught_exc = exc
+
+        # we need interaction here to show that SM gets negotiated
+        xmlstream = XMLStreamMock(self, loop=self.loop)
+
+        iq = make_test_iq()
+        self.stream.on_failure.connect(failure_handler)
+
+        self.stream.start(xmlstream)
+
+        run_coroutine_with_peer(
+            self.stream.start_sm(request_resumption=True),
+            xmlstream.run_test(
+                [
+                    XMLStreamMock.Send(
+                        stream_xsos.SMEnable(resume=True),
+                        response=XMLStreamMock.Receive(
+                            stream_xsos.SMEnabled(resume=True,
+                                                  id_="foobar",
+                                                  location=("fe80::", 5222),
+                                                  max_=1200)
+                        )
+                    )
+                ]
+            )
+        )
+
+        self.assertTrue(self.stream.running)
+        self.assertTrue(self.stream.sm_enabled)
+        self.stream.stop()
+        run_coroutine(asyncio.sleep(0))
+        self.assertFalse(self.stream.running)
+
+        def cb():
+            pass
+
+        xmlstream.stanza_parser.add_class(stanza.IQ, cb)
+        xmlstream.stanza_parser.add_class(stanza.Presence, cb)
+        xmlstream.stanza_parser.add_class(stanza.Message, cb)
+        xmlstream.stanza_parser.add_class(stream_xsos.SMRequest, cb)
+        xmlstream.stanza_parser.add_class(
+            stream_xsos.SMAcknowledgement, cb)
+
+    def test_stop_removes_stanza_handlers_even_on_failure_during_resumption(
+            self):
+        caught_exc = None
+
+        def failure_handler(exc):
+            nonlocal caught_exc
+            caught_exc = exc
+
+        # we need interaction here to show that SM gets negotiated
+        xmlstream = XMLStreamMock(self, loop=self.loop)
+
+        iq = make_test_iq()
+        self.stream.on_failure.connect(failure_handler)
+
+        self.stream.start(xmlstream)
+
+        run_coroutine_with_peer(
+            self.stream.start_sm(request_resumption=True),
+            xmlstream.run_test(
+                [
+                    XMLStreamMock.Send(
+                        stream_xsos.SMEnable(resume=True),
+                        response=[
+                            XMLStreamMock.Receive(
+                                stream_xsos.SMEnabled(resume=True,
+                                                      id_="foobar",
+                                                      location=("fe80::", 5222),
+                                                      max_=1200)
+                            ),
+                            XMLStreamMock.Fail(
+                                ConnectionError()
+                            )
+                        ]
+                    )
+                ]
+            )
+        )
+
+        self.assertFalse(self.stream.running)
+        self.assertTrue(self.stream.sm_enabled)
+
+        xmlstream = XMLStreamMock(self, loop=self.loop)
+
+        with self.assertRaises(errors.StreamNegotiationFailure):
+            run_coroutine_with_peer(
+                self.stream.resume_sm(xmlstream),
+                xmlstream.run_test(
+                    [
+                        XMLStreamMock.Send(
+                            stream_xsos.SMResume(counter=0, previd="foobar"),
+                            response=[
+                                XMLStreamMock.Receive(
+                                    stream_xsos.SMFailed()
+                                ),
+                            ]
+                        )
+                    ]
+                )
+            )
+
+        def cb():
+            pass
+
+        xmlstream.stanza_parser.add_class(stanza.IQ, cb)
+        xmlstream.stanza_parser.add_class(stanza.Presence, cb)
+        xmlstream.stanza_parser.add_class(stanza.Message, cb)
+        xmlstream.stanza_parser.add_class(stream_xsos.SMRequest, cb)
+        xmlstream.stanza_parser.add_class(
+            stream_xsos.SMAcknowledgement, cb)
 
     def tearDown(self):
         run_coroutine(self.xmlstream.run_test([]))

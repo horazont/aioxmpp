@@ -672,7 +672,7 @@ class XMLStreamMock(InteractivityMock):
     @asyncio.coroutine
     def close_and_wait(self):
         fut = asyncio.Future()
-        self.on_closing.connect(fut, callbacks.AdHocSignal.AUTO_FUTURE)
+        self.on_closing.connect(fut, self.on_closing.AUTO_FUTURE)
         self.close()
         try:
             yield from fut

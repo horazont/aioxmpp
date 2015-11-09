@@ -18,6 +18,8 @@ Version 0.5
 * :meth:`aioxmpp.stream.StanzaStream.register_message_callback` is more clearly
   specified now, a bug in the documentation has been fixed.
 
+* Fix a race during stream management resumption.
+
 Version 0.4
 ===========
 

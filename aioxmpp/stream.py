@@ -378,6 +378,10 @@ class StanzaStream:
     but the stream may have references to its contents. See below for a
     guideline on when to use stanza filters.
 
+    .. warning::
+
+       Raising an exception from within a stanza filter kills the stream.
+
     Note that if a filter function drops an incoming stanza (by returning
     :data:`None`), it **must** ensure that the client still behaves RFC
     compliant.
@@ -1709,25 +1713,34 @@ class StanzaStream:
             raise RuntimeError("Cannot resume Stream Management while"
                                " StanzaStream is running")
 
-        response = yield from protocol.send_and_wait_for(
-            xmlstream,
-            [
-                stream_xsos.SMResume(previd=self.sm_id,
-                                     counter=self._sm_inbound_ctr)
-            ],
-            [
-                stream_xsos.SMResumed,
-                stream_xsos.SMFailed
-            ]
-        )
+        self._start_prepare(xmlstream, self.recv_stanza)
+        try:
+            response = yield from protocol.send_and_wait_for(
+                xmlstream,
+                [
+                    stream_xsos.SMResume(previd=self.sm_id,
+                                         counter=self._sm_inbound_ctr)
+                ],
+                [
+                    stream_xsos.SMResumed,
+                    stream_xsos.SMFailed
+                ]
+            )
 
-        if isinstance(response, stream_xsos.SMFailed):
-            self.stop_sm()
-            raise errors.StreamNegotiationFailure(
-                "Server rejected SM resumption")
+            if isinstance(response, stream_xsos.SMFailed):
+                xmlstream.stanza_parser.remove_class(
+                    stream_xsos.SMRequest)
+                xmlstream.stanza_parser.remove_class(
+                    stream_xsos.SMAcknowledgement)
+                self.stop_sm()
+                raise errors.StreamNegotiationFailure(
+                    "Server rejected SM resumption")
 
-        self._resume_sm(response.counter)
-        self.start(xmlstream)
+            self._resume_sm(response.counter)
+        except:
+            self._start_rollback(xmlstream)
+            raise
+        self._start_commit(xmlstream)
 
     def _stop_sm(self):
         """
