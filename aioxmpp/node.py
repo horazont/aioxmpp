@@ -27,6 +27,8 @@ import logging
 
 from datetime import timedelta
 
+import dns.resolver
+
 from . import (
     network,
     ssl_transport,
@@ -563,7 +565,7 @@ class AbstractClient:
                     if self.stream.sm_enabled:
                         self.stream.stop_sm()
                     raise
-                except OSError:
+                except (OSError, dns.resolver.NoNameservers):
                     if self._backoff_time is None:
                         self._backoff_time = self.backoff_start.total_seconds()
                     yield from asyncio.sleep(self._backoff_time)
