@@ -24,6 +24,8 @@ Version 0.5
   :class:`.StanzaStream`. This prevents connect loops when a stanza handler
   raises an exception.
 
+* :mod:`aioxmpp.muc` implementation.
+
 Version 0.4
 ===========
 

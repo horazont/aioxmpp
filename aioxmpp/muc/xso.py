@@ -39,6 +39,14 @@ class History(xso.XSO):
         default=None,
     )
 
+    def __init__(self, *,
+                 maxchars=None, maxstanzas=None, seconds=None, since=None):
+        super().__init__()
+        self.maxchars = maxchars
+        self.maxstanzas = maxstanzas
+        self.seconds = seconds
+        self.since = since
+
 
 class GenericExt(xso.XSO):
     TAG = (namespaces.xep0045_muc, "x")
@@ -47,6 +55,7 @@ class GenericExt(xso.XSO):
 
     password = xso.ChildText(
         (namespaces.xep0045_muc, "password"),
+        default=None
     )
 
 
@@ -164,6 +173,7 @@ class ItemBase(xso.XSO):
             "none",
             "outcast",
             "owner",
+            None,
         }),
         validate=xso.ValidateMode.ALWAYS,
         default=None,
@@ -188,10 +198,22 @@ class ItemBase(xso.XSO):
             "none",
             "participant",
             "visitor",
+            None,
         }),
         validate=xso.ValidateMode.ALWAYS,
         default=None,
     )
+
+    def __init__(self,
+                 affiliation=None,
+                 jid=None,
+                 nick=None,
+                 role=None):
+        super().__init__()
+        self.affiliation = affiliation
+        self.jid = jid
+        self.nick = nick
+        self.role = role
 
 
 class UserActor(ActorBase):
@@ -241,6 +263,22 @@ class UserExt(xso.XSO):
         (namespaces.xep0045_muc_user, "password"),
         default=None
     )
+
+    def __init__(self,
+                 status_codes=[],
+                 destroy=None,
+                 decline=None,
+                 invites=[],
+                 items=[],
+                 password=None):
+        super().__init__()
+        self.status_codes.update(status_codes)
+        self.destroy = destroy
+        self.decline = decline
+        self.invites.extend(invites)
+        self.items.extend(items)
+        self.password = password
+
 
 aioxmpp.stanza.Presence.xep0045_muc_user = xso.Child([
     UserExt

@@ -24,8 +24,9 @@ extend its functionality or provide backwards compatibility.
    :maxdepth: 2
 
    disco
-   roster
+   muc
    presence
+   roster
    rfc6120
    rfc3921
 

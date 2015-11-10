@@ -1,11 +1,19 @@
 import unittest
 
+from datetime import datetime
+
 import aioxmpp.forms as forms
 import aioxmpp.muc.xso as muc_xso
 import aioxmpp.stanza as stanza
+import aioxmpp.structs
 import aioxmpp.stringprep
 import aioxmpp.utils as utils
 import aioxmpp.xso as xso
+
+
+TEST_JID = aioxmpp.structs.JID.fromstr(
+    "foo@bar.example/fnord"
+)
 
 
 class TestNamespaces(unittest.TestCase):
@@ -119,6 +127,28 @@ class TestHistory(unittest.TestCase):
             None
         )
 
+    def test_init(self):
+        hist = muc_xso.History()
+        self.assertIsNone(hist.seconds)
+        self.assertIsNone(hist.since)
+        self.assertIsNone(hist.maxstanzas)
+        self.assertIsNone(hist.maxchars)
+
+        now = datetime.utcnow()
+        hist = muc_xso.History(
+            since=now,
+            seconds=123,
+            maxstanzas=345,
+            maxchars=456
+        )
+        self.assertEqual(hist.seconds, 123)
+        self.assertEqual(hist.since, now)
+        self.assertEqual(hist.maxchars, 456)
+        self.assertEqual(hist.maxstanzas, 345)
+
+        with self.assertRaisesRegexp(TypeError, "positional argument"):
+            hist = muc_xso.History(123)
+
 
 class TestGenericExt(unittest.TestCase):
     def test_is_xso(self):
@@ -154,6 +184,9 @@ class TestGenericExt(unittest.TestCase):
         self.assertEqual(
             muc_xso.GenericExt.password.tag,
             (utils.namespaces.xep0045_muc, "password")
+        )
+        self.assertIsNone(
+            muc_xso.GenericExt.password.default
         )
 
     def test_Presence_attr(self):
@@ -477,6 +510,7 @@ class TestItemBase(unittest.TestCase):
                 "none",
                 "outcast",
                 "owner",
+                None,
             }
         )
         self.assertEqual(
@@ -541,6 +575,7 @@ class TestItemBase(unittest.TestCase):
                 "none",
                 "participant",
                 "visitor",
+                None,
             }
         )
         self.assertEqual(
@@ -642,6 +677,40 @@ class TestUserItem(unittest.TestCase):
         )
         self.assertIsNone(
             muc_xso.UserItem.reason.default
+        )
+
+    def test_init(self):
+        item = muc_xso.UserItem()
+        self.assertIsNone(item.affiliation)
+        self.assertIsNone(item.jid)
+        self.assertIsNone(item.nick)
+        self.assertIsNone(item.role)
+        self.assertIsNone(item.actor)
+        self.assertIsNone(item.continue_)
+        self.assertIsNone(item.reason)
+
+        item = muc_xso.UserItem(
+            affiliation="admin",
+            role="moderator",
+            jid=TEST_JID,
+            nick="foo"
+        )
+
+        self.assertEqual(
+            item.affiliation,
+            "admin"
+        )
+        self.assertEqual(
+            item.jid,
+            TEST_JID
+        )
+        self.assertEqual(
+            item.nick,
+            "foo"
+        )
+        self.assertEqual(
+            item.role,
+            "moderator",
         )
 
 
@@ -748,6 +817,44 @@ class TestUserExt(unittest.TestCase):
         self.assertFalse(
             stanza.Message.xep0045_muc_user.required
         )
+
+    def test_init(self):
+        user_ext = muc_xso.UserExt()
+        self.assertSetEqual(user_ext.status_codes, set())
+        self.assertIsNone(user_ext.destroy)
+        self.assertIsNone(user_ext.decline)
+        self.assertFalse(user_ext.invites)
+        self.assertFalse(user_ext.items)
+        self.assertIsNone(user_ext.password)
+
+        items = [
+            muc_xso.UserItem(),
+            muc_xso.UserItem(),
+        ]
+
+        invites = [
+            muc_xso.Invite(),
+            muc_xso.Invite(),
+        ]
+
+        destroy = muc_xso.DestroyNotification()
+
+        decline = muc_xso.Decline()
+
+        user_ext = muc_xso.UserExt(
+            status_codes=[110, 110, 200],
+            destroy=destroy,
+            decline=decline,
+            invites=invites,
+            items=items,
+            password="foobar",
+        )
+        self.assertSetEqual(user_ext.status_codes, {110, 110, 200})
+        self.assertIs(user_ext.destroy, destroy)
+        self.assertIs(user_ext.decline, decline)
+        self.assertSequenceEqual(user_ext.invites, invites)
+        self.assertSequenceEqual(user_ext.items, items)
+        self.assertEqual(user_ext.password, "foobar")
 
 
 class TestAdminActor(unittest.TestCase):
