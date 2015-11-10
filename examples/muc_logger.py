@@ -142,6 +142,7 @@ def main(jid, password, mucjid, nick):
         yield from failure_future  # this will raise
         return
 
+    yield from room_future
     print("joined room successfully")
 
     cancel_future = asyncio.Future()
