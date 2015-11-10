@@ -816,6 +816,15 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
             1.2
         )
 
+        self.assertEqual(client.on_stopped.logger,
+                         client._logger.getChild("on_stopped"))
+        self.assertEqual(client.on_failure.logger,
+                         client._logger.getChild("on_failure"))
+        self.assertEqual(client.on_stream_established.logger,
+                         client._logger.getChild("on_stream_established"))
+        self.assertEqual(client.on_stream_destroyed.logger,
+                         client._logger.getChild("on_stream_destroyed"))
+
         with self.assertRaises(AttributeError):
             client.local_jid = structs.JID.fromstr("bar@bar.example/baz")
 
