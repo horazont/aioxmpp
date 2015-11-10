@@ -5,6 +5,11 @@ import locale
 import logging
 import signal
 
+try:
+    import readline
+except ImportError:
+    pass
+
 from datetime import datetime
 
 import aioxmpp.security_layer
