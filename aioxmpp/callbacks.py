@@ -68,7 +68,11 @@ import abc
 import asyncio
 import collections
 import functools
+import logging
 import weakref
+
+
+logger = logging.getLogger(__name__)
 
 
 class TagListener:
@@ -198,6 +202,7 @@ class AbstractAdHocSignal:
     def __init__(self):
         super().__init__()
         self._connections = collections.OrderedDict()
+        self.logger = logger
 
     def _connect(self, wrapper):
         token = object()
@@ -278,6 +283,8 @@ class AdHocSignal(AbstractAdHocSignal):
 
     @classmethod
     def STRONG(cls, f):
+        if not hasattr(f, "__call__"):
+            raise TypeError("must be callable, got {!r}".format(f))
         return functools.partial(cls._strong_wrapper, f)
 
     @classmethod
@@ -286,6 +293,8 @@ class AdHocSignal(AbstractAdHocSignal):
             loop = asyncio.get_event_loop()
 
         def create_wrapper(f):
+            if not hasattr(f, "__call__"):
+                raise TypeError("must be callable, got {!r}".format(f))
             return functools.partial(cls._async_wrapper,
                                      f,
                                      loop)
@@ -294,6 +303,8 @@ class AdHocSignal(AbstractAdHocSignal):
 
     @classmethod
     def WEAK(cls, f):
+        if not hasattr(f, "__call__"):
+            raise TypeError("must be callable, got {!r}".format(f))
         return functools.partial(cls._weakref_wrapper, weakref.ref(f))
 
     @classmethod
@@ -362,7 +373,9 @@ class AdHocSignal(AbstractAdHocSignal):
 
         Existing modes are listed below.
         """
+
         mode = mode or self.STRONG
+        self.logger.debug("connecting %r with mode %r", f, mode)
         return self._connect(mode(f))
 
     def context_connect(self, f, mode=None):
@@ -385,12 +398,19 @@ class AdHocSignal(AbstractAdHocSignal):
         Emit the signal, calling all connected objects in-line with the given
         arguments and in the order they were registered.
 
+        If any of the attached objects raises an exception, the emission of the
+        signal stops and the exception propagates out of :meth:`fire`.
+
         Instead of calling :meth:`fire` explicitly, the ad-hoc signal object
         itself can be called, too.
         """
-        for token, wrapper in list(self._connections.items()):
-            if not wrapper(args, kwargs):
-                del self._connections[token]
+        try:
+            for token, wrapper in list(self._connections.items()):
+                if not wrapper(args, kwargs):
+                    del self._connections[token]
+        except:
+            self.logger.exception("listener attached to signal raised")
+            raise
 
     __call__ = fire
 

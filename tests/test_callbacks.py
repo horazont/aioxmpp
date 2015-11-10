@@ -525,6 +525,21 @@ class TestFutureListener(unittest.TestCase):
 
 
 class TestAdHocSignal(unittest.TestCase):
+    def test_STRONG_rejects_non_callable(self):
+        signal = AdHocSignal()
+        with self.assertRaisesRegexp(TypeError, "must be callable"):
+            signal.STRONG(object())
+
+    def test_WEAK_rejects_non_callable(self):
+        signal = AdHocSignal()
+        with self.assertRaisesRegexp(TypeError, "must be callable"):
+            signal.WEAK(object())
+
+    def test_ASYNC_WITH_LOOP_rejects_non_callable(self):
+        signal = AdHocSignal()
+        with self.assertRaisesRegexp(TypeError, "must be callable"):
+            signal.ASYNC_WITH_LOOP(asyncio.get_event_loop())(object())
+
     def test_connect_and_fire(self):
         signal = AdHocSignal()
 
@@ -827,6 +842,35 @@ class TestAdHocSignal(unittest.TestCase):
                 unittest.mock.call.done(),
             ],
             fut.mock_calls
+        )
+
+    def test_logger_on_connect(self):
+        logger = unittest.mock.Mock()
+        signal = AdHocSignal()
+        signal.logger = logger
+
+        a = unittest.mock.Mock()
+        signal.connect(a)
+
+        logger.debug.assert_called_with(
+            "connecting %r with mode %r",
+            a, signal.STRONG)
+
+    def test_logger_on_emit_with_exception(self):
+        logger = unittest.mock.Mock()
+        signal = AdHocSignal()
+        signal.logger = logger
+
+        a = unittest.mock.Mock()
+        signal.connect(a)
+
+        a.side_effect = Exception()
+
+        with self.assertRaises(Exception):
+            signal()
+
+        logger.exception.assert_called_with(
+            "listener attached to signal raised"
         )
 
 
