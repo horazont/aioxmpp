@@ -26,6 +26,8 @@ Version 0.5
 
 * :mod:`aioxmpp.muc` implementation.
 
+* :class:`aioxmpp.callbacks.AdHocSignal` now provides full exception isolation.
+
 Version 0.4
 ===========
 
