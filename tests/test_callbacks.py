@@ -787,21 +787,19 @@ class TestAdHocSignal(unittest.TestCase):
             fut.mock_calls
         )
 
-    def test_connect_auto_future_TypeErrors_if_more_than_one_argument(self):
-        signal = AdHocSignal()
-
-        obj = object()
-
+    def test_connect_auto_future_fails_if_more_than_one_argument(self):
         fut = unittest.mock.Mock()
         fut.done.return_value = False
 
-        signal.connect(fut, AdHocSignal.AUTO_FUTURE)
+        obj = object()
+
+        wrapped = AdHocSignal.AUTO_FUTURE(fut)
 
         with self.assertRaises(TypeError):
-            signal(obj, "foo")
+            wrapped(obj, "foo")
 
         with self.assertRaises(TypeError):
-            signal(obj, fnord="foo")
+            wrapped(obj, fnord="foo")
 
     def test_connect_auto_future_converts_exceptions(self):
         signal = AdHocSignal()
@@ -866,11 +864,56 @@ class TestAdHocSignal(unittest.TestCase):
 
         a.side_effect = Exception()
 
-        with self.assertRaises(Exception):
-            signal()
+        signal()
 
         logger.exception.assert_called_with(
             "listener attached to signal raised"
+        )
+
+    def test_full_isolation(self):
+        signal = AdHocSignal()
+
+        base = unittest.mock.Mock()
+
+        base.a.return_value = None
+        base.a.side_effect = OSError()
+
+        base.b.return_value = None
+        base.b.side_effect = Exception()
+
+        base.c.return_value = None
+
+        base.d.return_value = None
+        base.d.side_effect = ValueError()
+
+        signal.connect(base.a)
+        signal.connect(base.b)
+        signal.connect(base.c)
+        signal.connect(base.d)
+
+        signal()
+
+        self.assertSequenceEqual(
+            base.mock_calls,
+            [
+                unittest.mock.call.a(),
+                unittest.mock.call.b(),
+                unittest.mock.call.c(),
+                unittest.mock.call.d(),
+            ]
+        )
+
+        signal()
+
+        self.assertSequenceEqual(
+            base.mock_calls,
+            [
+                unittest.mock.call.a(),
+                unittest.mock.call.b(),
+                unittest.mock.call.c(),
+                unittest.mock.call.d(),
+                unittest.mock.call.c(),
+            ]
         )
 
 

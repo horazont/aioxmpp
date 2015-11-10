@@ -229,6 +229,15 @@ class AdHocSignal(AbstractAdHocSignal):
 
     .. automethod:: connect
 
+    .. attribute:: logger
+
+       This may be a :class:`logging.Logger` instance to allow the signal to
+       log errors and debug events to a specific logger instead of the default
+       logger (``aioxmpp.callbacks``).
+
+       This attribute must not be :data:`None`, and it is initialised to the
+       default logger on creation of the :class:`AdHocSignal`.
+
     The different ways callables can be connected to an ad-hoc signal are shown
     below:
 
@@ -398,19 +407,23 @@ class AdHocSignal(AbstractAdHocSignal):
         Emit the signal, calling all connected objects in-line with the given
         arguments and in the order they were registered.
 
-        If any of the attached objects raises an exception, the emission of the
-        signal stops and the exception propagates out of :meth:`fire`.
+        :class:`AdHocSignal` provides full isolation with respect to
+        exceptions. If a connected listener raises an exception, the other
+        listeners are executed as normal, but the raising listener is removed
+        from the signal. The exception is logged to :attr:`logger` and *not*
+        re-raised, so that the caller of the signal is also not affected.
 
         Instead of calling :meth:`fire` explicitly, the ad-hoc signal object
         itself can be called, too.
         """
-        try:
-            for token, wrapper in list(self._connections.items()):
-                if not wrapper(args, kwargs):
-                    del self._connections[token]
-        except:
-            self.logger.exception("listener attached to signal raised")
-            raise
+        for token, wrapper in list(self._connections.items()):
+            try:
+                keep = wrapper(args, kwargs)
+            except Exception:
+                self.logger.exception("listener attached to signal raised")
+                keep = False
+            if not keep:
+                del self._connections[token]
 
     __call__ = fire
 
