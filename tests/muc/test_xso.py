@@ -693,7 +693,8 @@ class TestUserItem(unittest.TestCase):
             affiliation="admin",
             role="moderator",
             jid=TEST_JID,
-            nick="foo"
+            nick="foo",
+            reason="fnord"
         )
 
         self.assertEqual(
@@ -711,6 +712,10 @@ class TestUserItem(unittest.TestCase):
         self.assertEqual(
             item.role,
             "moderator",
+        )
+        self.assertEqual(
+            item.reason,
+            "fnord"
         )
 
 
@@ -907,6 +912,44 @@ class TestAdminItem(unittest.TestCase):
             muc_xso.AdminItem.reason.default
         )
 
+    def test_init(self):
+        item = muc_xso.AdminItem()
+        self.assertIsNone(item.affiliation)
+        self.assertIsNone(item.jid)
+        self.assertIsNone(item.nick)
+        self.assertIsNone(item.role)
+        self.assertIsNone(item.actor)
+        self.assertIsNone(item.reason)
+
+        item = muc_xso.AdminItem(
+            affiliation="admin",
+            role="moderator",
+            jid=TEST_JID,
+            nick="foo",
+            reason="foobar",
+        )
+
+        self.assertEqual(
+            item.affiliation,
+            "admin"
+        )
+        self.assertEqual(
+            item.jid,
+            TEST_JID
+        )
+        self.assertEqual(
+            item.nick,
+            "foo"
+        )
+        self.assertEqual(
+            item.role,
+            "moderator",
+        )
+        self.assertEqual(
+            item.reason,
+            "foobar"
+        )
+
 
 class TestAdminQuery(unittest.TestCase):
     def test_is_xso(self):
@@ -940,6 +983,22 @@ class TestAdminQuery(unittest.TestCase):
             stanza.IQ.CHILD_MAP[muc_xso.AdminQuery.TAG],
             stanza.IQ.payload
         )
+
+    def test_init(self):
+        query = muc_xso.AdminQuery()
+        self.assertFalse(query.items)
+
+        item = muc_xso.AdminItem()
+        query = muc_xso.AdminQuery(
+            items=[
+                item
+            ]
+        )
+
+        self.assertEqual(query.items[0], item)
+
+        with self.assertRaisesRegex(TypeError, "positional argument"):
+            muc_xso.AdminQuery([])
 
 
 class TestDestroyRequest(unittest.TestCase):

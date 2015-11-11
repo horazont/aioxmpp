@@ -208,12 +208,14 @@ class ItemBase(xso.XSO):
                  affiliation=None,
                  jid=None,
                  nick=None,
-                 role=None):
+                 role=None,
+                 reason=None):
         super().__init__()
         self.affiliation = affiliation
         self.jid = jid
         self.nick = nick
         self.role = role
+        self.reason = reason
 
 
 class UserActor(ActorBase):
@@ -311,6 +313,10 @@ class AdminQuery(xso.XSO):
     TAG = (namespaces.xep0045_muc_admin, "query")
 
     items = xso.ChildList([AdminItem])
+
+    def __init__(self, *, items=[]):
+        super().__init__()
+        self.items[:] = items
 
 
 class DestroyRequest(xso.XSO):

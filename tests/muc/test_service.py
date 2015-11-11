@@ -12,10 +12,12 @@ import aioxmpp.muc.xso as muc_xso
 import aioxmpp.service as service
 import aioxmpp.stanza
 import aioxmpp.structs
+import aioxmpp.utils as utils
 
 from aioxmpp.testutils import (
     make_connected_client,
     run_coroutine,
+    CoroutineMock,
 )
 
 
@@ -1445,10 +1447,259 @@ class TestRoom(unittest.TestCase):
         )
         self.assertFalse(self.jmuc.active)
 
+    def test_set_role(self):
+        new_role = "participant"
+
+        with unittest.mock.patch.object(
+                self.base.service.client.stream,
+                "send_iq_and_wait_for_reply",
+                new=CoroutineMock()) as send_iq:
+            send_iq.return_value = None
+
+            run_coroutine(self.jmuc.set_role(
+                "thirdwitch",
+                new_role,
+                reason="foobar",
+            ))
+
+        _, (iq,), _ = send_iq.mock_calls[-1]
+
+        self.assertIsInstance(
+            iq,
+            aioxmpp.stanza.IQ
+        )
+        self.assertEqual(
+            iq.type_,
+            "set"
+        )
+        self.assertEqual(
+            iq.to,
+            self.mucjid
+        )
+
+        self.assertIsInstance(
+            iq.payload,
+            muc_xso.AdminQuery
+        )
+
+        self.assertEqual(
+            len(iq.payload.items),
+            1
+        )
+        item = iq.payload.items[0]
+        self.assertIsInstance(
+            item,
+            muc_xso.AdminItem
+        )
+        self.assertEqual(
+            item.nick,
+            "thirdwitch"
+        )
+        self.assertEqual(
+            item.reason,
+            "foobar"
+        )
+        self.assertEqual(
+            item.role,
+            new_role
+        )
+
+    def test_set_role_rejects_None_nick(self):
+        with unittest.mock.patch.object(
+                self.base.service.client.stream,
+                "send_iq_and_wait_for_reply",
+                new=CoroutineMock()) as send_iq:
+            send_iq.return_value = None
+
+            with self.assertRaisesRegex(ValueError,
+                                        "nick must not be None"):
+                run_coroutine(self.jmuc.set_role(
+                    None,
+                    "participant",
+                    reason="foobar",
+                ))
+
+        self.assertFalse(send_iq.mock_calls)
+
+    def test_set_role_rejects_None_role(self):
+        with unittest.mock.patch.object(
+                self.base.service.client.stream,
+                "send_iq_and_wait_for_reply",
+                new=CoroutineMock()) as send_iq:
+            send_iq.return_value = None
+
+            with self.assertRaisesRegex(ValueError,
+                                        "role must not be None"):
+                run_coroutine(self.jmuc.set_role(
+                    "thirdwitch",
+                    None,
+                    reason="foobar",
+                ))
+
+        self.assertFalse(send_iq.mock_calls)
+
+    def test_set_role_fails(self):
+        with unittest.mock.patch.object(
+                self.base.service.client.stream,
+                "send_iq_and_wait_for_reply",
+                new=CoroutineMock()) as send_iq:
+            send_iq.return_value = None
+            send_iq.side_effect = aioxmpp.errors.XMPPCancelError(
+                condition=(utils.namespaces.stanzas, "forbidden")
+            )
+
+            with self.assertRaises(aioxmpp.errors.XMPPCancelError):
+                run_coroutine(self.jmuc.set_role(
+                    "thirdwitch",
+                    "participant",
+                    reason="foobar",
+                ))
+
+    def test_set_affiliation(self):
+        new_affiliation = "owner"
+
+        with unittest.mock.patch.object(
+                self.base.service.client.stream,
+                "send_iq_and_wait_for_reply",
+                new=CoroutineMock()) as send_iq:
+            send_iq.return_value = None
+
+            run_coroutine(self.jmuc.set_affiliation(
+                TEST_ENTITY_JID,
+                new_affiliation,
+                reason="foobar",
+            ))
+
+        _, (iq,), _ = send_iq.mock_calls[-1]
+
+        self.assertIsInstance(
+            iq,
+            aioxmpp.stanza.IQ
+        )
+        self.assertEqual(
+            iq.type_,
+            "set"
+        )
+        self.assertEqual(
+            iq.to,
+            self.mucjid
+        )
+
+        self.assertIsInstance(
+            iq.payload,
+            muc_xso.AdminQuery
+        )
+
+        self.assertEqual(
+            len(iq.payload.items),
+            1
+        )
+        item = iq.payload.items[0]
+        self.assertIsInstance(
+            item,
+            muc_xso.AdminItem
+        )
+        self.assertIsNone(item.nick)
+        self.assertEqual(
+            item.reason,
+            "foobar"
+        )
+        self.assertEqual(
+            item.affiliation,
+            new_affiliation
+        )
+        self.assertEqual(
+            item.jid,
+            TEST_ENTITY_JID
+        )
+
+    def test_set_affiliation_rejects_None_affiliation(self):
+        with unittest.mock.patch.object(
+                self.base.service.client.stream,
+                "send_iq_and_wait_for_reply",
+                new=CoroutineMock()) as send_iq:
+            send_iq.return_value = None
+
+            with self.assertRaisesRegex(ValueError,
+                                        "affiliation must not be None"):
+                run_coroutine(self.jmuc.set_affiliation(
+                    TEST_ENTITY_JID,
+                    None,
+                    reason="foobar",
+                ))
+
+        self.assertFalse(send_iq.mock_calls)
+
+    def test_set_affiliation_rejects_None_jid(self):
+        with unittest.mock.patch.object(
+                self.base.service.client.stream,
+                "send_iq_and_wait_for_reply",
+                new=CoroutineMock()) as send_iq:
+            send_iq.return_value = None
+
+            with self.assertRaisesRegex(ValueError,
+                                        "jid must not be None"):
+                run_coroutine(self.jmuc.set_affiliation(
+                    None,
+                    "outcast",
+                    reason="foobar",
+                ))
+
+        self.assertFalse(send_iq.mock_calls)
+
+    def test_set_affiliation_fails(self):
+        with unittest.mock.patch.object(
+                self.base.service.client.stream,
+                "send_iq_and_wait_for_reply",
+                new=CoroutineMock()) as send_iq:
+            send_iq.return_value = None
+            send_iq.side_effect = aioxmpp.errors.XMPPCancelError(
+                condition=(utils.namespaces.stanzas, "forbidden")
+            )
+
+            with self.assertRaises(aioxmpp.errors.XMPPCancelError):
+                run_coroutine(self.jmuc.set_affiliation(
+                    TEST_ENTITY_JID,
+                    "owner",
+                    reason="foobar",
+                ))
+
+    def test_set_subject(self):
+        d = {
+            None: "foobar"
+        }
+
+        result = self.jmuc.set_subject(d)
+
+        _, (stanza,), _ = self.base.service.client.stream.\
+            enqueue_stanza.mock_calls[-1]
+
+        self.assertIsInstance(
+            stanza,
+            aioxmpp.stanza.Message
+        )
+        self.assertEqual(
+            stanza.type_,
+            "groupchat"
+        )
+        self.assertEqual(
+            stanza.to,
+            self.mucjid
+        )
+
+        self.assertDictEqual(
+            stanza.subject,
+            d
+        )
+        self.assertFalse(stanza.body)
+
+        self.assertEqual(
+            result,
+            self.base.service.client.stream.enqueue_stanza()
+        )
+
     def test_leave(self):
-        fut = asyncio.async(self.jmuc.leave())
-        run_coroutine(asyncio.sleep(0))
-        self.assertFalse(fut.done())
+        self.jmuc.leave()
 
         _, (stanza,), _ = self.base.service.client.stream.\
             enqueue_stanza.mock_calls[-1]
@@ -1468,11 +1719,84 @@ class TestRoom(unittest.TestCase):
         self.assertFalse(stanza.status)
         self.assertIsNone(stanza.show)
 
-        self.jmuc.on_exit(object(), object(), object())
+    def test_leave_and_wait(self):
+        with unittest.mock.patch.object(
+                self.jmuc,
+                "leave") as leave:
+            fut = asyncio.async(self.jmuc.leave_and_wait())
+            run_coroutine(asyncio.sleep(0))
+            self.assertFalse(fut.done())
 
-        self.assertIsNone(run_coroutine(fut))
+            leave.assert_called_with()
 
-        self.jmuc.on_exit(object(), object(), object())
+            self.jmuc.on_exit(object(), object(), object())
+
+            self.assertIsNone(run_coroutine(fut))
+
+            self.jmuc.on_exit(object(), object(), object())
+
+
+    def test_occupants(self):
+        presence = aioxmpp.stanza.Presence(
+            type_=None,
+            from_=TEST_MUC_JID.replace(resource="firstwitch")
+        )
+        presence.xep0045_muc_user = muc_xso.UserExt(
+            status_codes={},
+            items=[
+                muc_xso.UserItem(affiliation="owner",
+                                 role="participant"),
+            ]
+        )
+        self.jmuc._inbound_muc_user_presence(presence)
+
+        presence = aioxmpp.stanza.Presence(
+            type_=None,
+            from_=TEST_MUC_JID.replace(resource="secondwitch")
+        )
+        presence.xep0045_muc_user = muc_xso.UserExt(
+            status_codes={},
+            items=[
+                muc_xso.UserItem(affiliation="admin",
+                                 role="participant"),
+            ]
+        )
+        self.jmuc._inbound_muc_user_presence(presence)
+
+        occupants = [
+            occupant
+            for _, (_, occupant, *_), _ in self.base.on_join.mock_calls
+        ]
+
+        self.assertSetEqual(
+            set(occupants),
+            set(self.jmuc.occupants)
+        )
+
+        presence = aioxmpp.stanza.Presence(
+            type_=None,
+            from_=TEST_MUC_JID.replace(resource="thirdwitch")
+        )
+        presence.xep0045_muc_user = muc_xso.UserExt(
+            status_codes={110},
+            items=[
+                muc_xso.UserItem(affiliation="member",
+                                 role="visitor"),
+            ]
+        )
+        self.jmuc._inbound_muc_user_presence(presence)
+
+        occupants += [
+            occupant
+            for _, (_, occupant, *_), _ in self.base.on_enter.mock_calls
+        ]
+
+        self.assertSetEqual(
+            set(occupants),
+            set(self.jmuc.occupants)
+        )
+
+        self.assertIs(self.jmuc.occupants[0], self.jmuc.this_occupant)
 
     def tearDown(self):
         del self.jmuc

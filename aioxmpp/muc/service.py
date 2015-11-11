@@ -141,7 +141,20 @@ class Room:
        :data:`None`, this can be cleared after :meth:`on_enter` has been
        emitted.
 
+    The following methods and properties provide interaction with the MUC
+    itself:
+
+    .. autoattribute:: occupants
+
+    .. automethod:: set_role
+
+    .. automethod:: set_affiliation
+
+    .. automethod:: set_subject
+
     .. automethod:: leave
+
+    .. automethod:: leave_and_wait
 
     The interface provides signals for most of the rooms events. The following
     keyword arguments are used at several signal handlers (which is also noted
@@ -280,7 +293,7 @@ class Room:
        and/or `reason` keyword arguments which provide details on who triggered
        the leave and for what reason.
 
-    .. signal:: on_affiliation_change(occupant, presence, **kwargs)
+    .. signal:: on_affiliation_change(presence, occupant, **kwargs)
 
        Emits when the affiliation of an `occupant` with the room changes.
 
@@ -290,7 +303,7 @@ class Room:
        There may be `actor` and/or `reason` keyword arguments which provide
        details on who triggered the change in affiliation and for what reason.
 
-    .. signal:: on_role_change(occupant, presence, **kwargs)
+    .. signal:: on_role_change(presence, occupant, **kwargs)
 
        Emits when the role of an `occupant` in the room changes.
 
@@ -300,7 +313,7 @@ class Room:
        There may be `actor` and/or `reason` keyword arguments which provide
        details on who triggered the change in role and for what reason.
 
-    .. signal:: on_status_change(occupant, presence, **kwargs)
+    .. signal:: on_status_change(presence, occupant, **kwargs)
 
        Emits when the presence state and/or status of an `occupant` in the room
        changes.
@@ -308,7 +321,7 @@ class Room:
        `occupant` is the :class:`Occupant` instance tracking the occupant whose
        status changed.
 
-    .. signal:: on_nick_change(occupant, presence, **kwargs)
+    .. signal:: on_nick_change(presence, occupant, **kwargs)
 
        Emits when the nick name (room name) of an `occupant` changes.
 
@@ -411,6 +424,20 @@ class Room:
         tracks.
         """
         return self._mucjid
+
+    @property
+    def occupants(self):
+        """
+        A copy of the list of occupants. The local user is always the first
+        item in the list, unless the :meth:`on_enter` has not fired yet.
+        """
+
+        if self._this_occupant is not None:
+            items = [self._this_occupant]
+        else:
+            items = []
+        items += list(self._occupant_info.values())
+        return items
 
     def _suspend(self):
         self.on_suspend()
@@ -577,14 +604,128 @@ class Room:
             del self._occupant_info[existing.occupantjid]
 
     @asyncio.coroutine
-    def leave(self):
-        fut = asyncio.Future()
+    def set_role(self, nick, role, *, reason=None):
+        """
+        Change the role of an occupant, identified by their `nick`, to the
+        given new `role`. Optionally, a `reason` for the role change can be
+        provided.
 
+        Setting the different roles require different privilegues of the local
+        user. The details can be checked in `XEP-0045`_ and are enforced solely
+        by the server, not local code.
+
+        The coroutine returns when the kick has been acknowledged by the
+        server. If the server returns an error, an appropriate
+        :class:`aioxmpp.errors.XMPPError` subclass is raised.
+        """
+
+        if nick is None:
+            raise ValueError("nick must not be None")
+
+        if role is None:
+            raise ValueError("role must not be None")
+
+        iq = aioxmpp.stanza.IQ(
+            type_="set",
+            to=self.mucjid
+        )
+
+        iq.payload = muc_xso.AdminQuery(
+            items=[
+                muc_xso.AdminItem(nick=nick,
+                                  reason=reason,
+                                  role=role)
+            ]
+        )
+
+        yield from self.service.client.stream.send_iq_and_wait_for_reply(
+            iq
+        )
+
+    @asyncio.coroutine
+    def set_affiliation(self, jid, affiliation, *, reason=None):
+        """
+        Change the affiliation of the given `jid` with the MUC to the given new
+        `affiliation`. Optionally, a  `reason` can be given.
+
+        Setting the different affiliations require different privilegues of the
+        local user. The details can be checked in `XEP-0045`_ and are enforced
+        solely by the server, not local code.
+
+        The coroutine returns when the change in affiliation has been
+        acknowledged by the server. If the server returns an error, an
+        appropriate :class:`aioxmpp.errors.XMPPError` subclass is raised.
+        """
+
+        if jid is None:
+            raise ValueError("jid must not be None")
+
+        if affiliation is None:
+            raise ValueError("affiliation must not be None")
+
+        iq = aioxmpp.stanza.IQ(
+            type_="set",
+            to=self.mucjid
+        )
+
+        iq.payload = muc_xso.AdminQuery(
+            items=[
+                muc_xso.AdminItem(jid=jid,
+                                  reason=reason,
+                                  affiliation=affiliation)
+            ]
+        )
+
+        yield from self.service.client.stream.send_iq_and_wait_for_reply(
+            iq
+        )
+
+    def set_subject(self, subject):
+        """
+        Request to set the subject to `subject`. `subject` must be a mapping
+        which maps :class:`~.structs.LanguageTag` tags to strings; :data:`None`
+        is a valid key.
+
+        Return the :class:`~.stream.StanzaToken` obtained from the stream.
+        """
+
+        msg = aioxmpp.stanza.Message(
+            type_="groupchat",
+            to=self.mucjid
+        )
+        msg.subject.update(subject)
+
+        return self.service.client.stream.enqueue_stanza(msg)
+
+    def leave(self):
+        """
+        Request to leave the MUC.
+
+        This sends unavailable presence to the bare :attr:`mucjid`. When the
+        leave is completed, :meth:`on_exit` fires.
+
+        .. seealso::
+
+           Method :meth:`leave_and_wait`
+             A coroutine which calls :meth:`leave` and returns when
+             :meth:`on_exit` is fired.
+
+        """
         presence = aioxmpp.stanza.Presence(
             type_="unavailable",
             to=self._mucjid
         )
         self.service.client.stream.enqueue_stanza(presence)
+
+    @asyncio.coroutine
+    def leave_and_wait(self):
+        """
+        Request to leave the MUC and wait for it. This effectively calls
+        :meth:`leave` and waits for the next :meth:`on_exit` event.
+        """
+        fut = asyncio.Future()
+
+        self.leave()
 
         def on_exit(*args):
             fut.set_result(None)
@@ -761,6 +902,47 @@ class Service(aioxmpp.service.Service):
 
     def join(self, mucjid, nick, *,
              password=None, history=None, autorejoin=True):
+        """
+        Join a multi-user chat at `mucjid` with `nick`. Return a :class:`Room`
+        instance which is used to track the MUC locally and a
+        :class:`aioxmpp.Future` which becomes done when the join succeeded
+        (with a :data:`None` value) or failed (with an exception).
+
+        It is recommended to attach the desired signals to the :class:`Room`
+        before yielding next, to avoid races with the server. It is guaranteed
+        that no signals are emitted before the next yield, and thus, it is safe
+        to attach the signals right after :meth:`join` returned. (This is also
+        the reason why :meth:`join` is not a coroutine, but instead returns the
+        room and a future to wait for.)
+
+        Any other interaction with the room must go through the :class:`Room`
+        instance.
+
+        If the multi-user chat at `mucjid` is already or currently being
+        joined, :class:`ValueError` is raised.
+
+        If the `mucjid` is not a bare JID, :class:`ValueError` is raised.
+
+        `password` may be a string used as password for the MUC. It will be
+        remembered and stored at the returned :class:`Room` instance.
+
+        `history` may be a :class:`History` instance to request a specific
+        amount of history; otherwise, the server will return a default amount
+        of history.
+
+        If `autorejoin` is true, the MUC will be re-joined after the stream has
+        been destroyed and re-established. In that case, the service will
+        request history since the stream destruction and ignore the `history`
+        object passed here.
+
+        .. todo:
+
+           Use the timestamp of the last received message instead of the
+           timestamp of stream destruction.
+
+        If the stream is currently not established, the join is deferred until
+        the stream is established.
+        """
         if history is not None and not isinstance(history, muc_xso.History):
             raise TypeError("history must be {!s}, got {!r}".format(
                 muc_xso.History.__name__,
