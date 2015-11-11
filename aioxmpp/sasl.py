@@ -23,7 +23,7 @@ SASL state machine and XSOs
 
 .. autoclass:: SASLStateMachine
 
-The XSOs for SASL authentication can be found in :mod:`aioxmpp.stream_xsos`.
+The XSOs for SASL authentication can be found in :mod:`aioxmpp.nonza`.
 
 """
 
@@ -42,7 +42,7 @@ import time
 from .stringprep import saslprep
 from . import errors, protocol
 
-from .stream_xsos import (
+from .nonza import (
     SASLAuth,
     SASLChallenge,
     SASLResponse,

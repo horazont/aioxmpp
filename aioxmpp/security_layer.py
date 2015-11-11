@@ -101,7 +101,7 @@ import pyasn1_modules.rfc2459
 
 import OpenSSL.SSL
 
-from . import errors, sasl, stream_xsos, xso, protocol
+from . import errors, sasl, nonza, xso, protocol
 from .utils import namespaces
 
 
@@ -722,7 +722,7 @@ class STARTTLSProvider:
         """
 
         try:
-            feature = features[stream_xsos.StartTLSFeature]
+            feature = features[nonza.StartTLSFeature]
         except KeyError:
             return self._fail_if_required("STARTTLS not supported by peer")
 
@@ -735,11 +735,11 @@ class STARTTLSProvider:
         response = yield from protocol.send_and_wait_for(
             xmlstream,
             [
-                stream_xsos.StartTLS()
+                nonza.StartTLS()
             ],
             [
-                stream_xsos.StartTLSFailure,
-                stream_xsos.StartTLSProceed,
+                nonza.StartTLSFailure,
+                nonza.StartTLSProceed,
             ]
         )
 
@@ -778,7 +778,7 @@ class SASLMechanism(xso.XSO):
         self.name = name
 
 
-@stream_xsos.StreamFeatures.as_feature_class
+@nonza.StreamFeatures.as_feature_class
 class SASLMechanisms(xso.XSO):
     TAG = (namespaces.sasl, "mechanisms")
 

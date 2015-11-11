@@ -3,7 +3,7 @@ import unittest
 import aioxmpp.rfc6120 as rfc6120
 import aioxmpp.stanza as stanza
 import aioxmpp.structs as structs
-import aioxmpp.stream_xsos as stream_xsos
+import aioxmpp.nonza as nonza
 import aioxmpp.xso as xso
 
 from aioxmpp.utils import namespaces
@@ -13,7 +13,7 @@ class TestBindFeature(unittest.TestCase):
     def test_registered_at_StreamFeatures(self):
         self.assertIn(
             rfc6120.BindFeature.TAG,
-            stream_xsos.StreamFeatures.CHILD_MAP
+            nonza.StreamFeatures.CHILD_MAP
         )
 
 

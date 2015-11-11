@@ -2,7 +2,7 @@ import unittest
 
 import aioxmpp.rfc3921 as rfc3921
 import aioxmpp.stanza as stanza
-import aioxmpp.stream_xsos as stream_xsos
+import aioxmpp.nonza as nonza
 import aioxmpp.xso as xso
 
 from aioxmpp.utils import namespaces
@@ -74,7 +74,7 @@ class TestSessionFeature(unittest.TestCase):
         )
 
     def test_is_stream_feature(self):
-        self.assertTrue(stream_xsos.StreamFeatures.is_feature(
+        self.assertTrue(nonza.StreamFeatures.is_feature(
             rfc3921.SessionFeature
         ))
 

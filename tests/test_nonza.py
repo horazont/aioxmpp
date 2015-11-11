@@ -1,7 +1,7 @@
 import unittest
 
 import aioxmpp.errors as errors
-import aioxmpp.stream_xsos as stream_xsos
+import aioxmpp.nonza as nonza
 import aioxmpp.xso as xso
 
 from aioxmpp.utils import namespaces
@@ -10,12 +10,12 @@ from aioxmpp.utils import namespaces
 class TestStreamError(unittest.TestCase):
     def test_declare_ns(self):
         self.assertDictEqual(
-            stream_xsos.StreamError.DECLARE_NS,
+            nonza.StreamError.DECLARE_NS,
             {}
         )
 
     def test_from_exception(self):
-        obj = stream_xsos.StreamError.from_exception(errors.StreamError(
+        obj = nonza.StreamError.from_exception(errors.StreamError(
             (namespaces.streams, "undefined-condition"),
             text="foobar"))
         self.assertEqual(
@@ -28,7 +28,7 @@ class TestStreamError(unittest.TestCase):
         )
 
     def test_to_exception(self):
-        obj = stream_xsos.StreamError()
+        obj = nonza.StreamError()
         obj.condition = (namespaces.streams, "restricted-xml")
         obj.text = "foobar"
 
@@ -46,7 +46,7 @@ class TestStreamError(unittest.TestCase):
         )
 
     def test_default_init(self):
-        obj = stream_xsos.StreamError()
+        obj = nonza.StreamError()
         self.assertEqual(
             (namespaces.streams, "undefined-condition"),
             obj.condition
@@ -54,7 +54,7 @@ class TestStreamError(unittest.TestCase):
         self.assertIsNone(obj.text)
 
     def test_init(self):
-        obj = stream_xsos.StreamError(
+        obj = nonza.StreamError(
             condition=(namespaces.streams, "reset"),
             text="foobar"
         )
@@ -72,17 +72,17 @@ class TestStreamFeatures(unittest.TestCase):
     def test_setup(self):
         self.assertEqual(
             (namespaces.xmlstream, "features"),
-            stream_xsos.StreamFeatures.TAG
+            nonza.StreamFeatures.TAG
         )
         self.assertDictEqual(
             {
                 None: namespaces.xmlstream,
             },
-            stream_xsos.StreamFeatures.DECLARE_NS
+            nonza.StreamFeatures.DECLARE_NS
         )
         self.assertEqual(
             xso.UnknownChildPolicy.DROP,
-            stream_xsos.StreamFeatures.UNKNOWN_CHILD_POLICY
+            nonza.StreamFeatures.UNKNOWN_CHILD_POLICY
         )
 
     def test_as_feature_class_decorator(self):
@@ -91,10 +91,10 @@ class TestStreamFeatures(unittest.TestCase):
 
         self.assertNotIn(
             FakeFeature.TAG,
-            stream_xsos.StreamFeatures.CHILD_MAP
+            nonza.StreamFeatures.CHILD_MAP
         )
 
-        FakeFeature = stream_xsos.StreamFeatures.as_feature_class(
+        FakeFeature = nonza.StreamFeatures.as_feature_class(
             FakeFeature
         )
 
@@ -102,22 +102,22 @@ class TestStreamFeatures(unittest.TestCase):
 
         self.assertIn(
             FakeFeature.TAG,
-            stream_xsos.StreamFeatures.CHILD_MAP
+            nonza.StreamFeatures.CHILD_MAP
         )
         self.assertEqual(
-            stream_xsos.StreamFeatures.features,
-            stream_xsos.StreamFeatures.CHILD_MAP[FakeFeature.TAG]
+            nonza.StreamFeatures.features,
+            nonza.StreamFeatures.CHILD_MAP[FakeFeature.TAG]
         )
 
     def test_is_feature(self):
         class FakeFeature(xso.XSO):
             TAG = ("uri:foo", "baz")
 
-        self.assertFalse(stream_xsos.StreamFeatures.is_feature(FakeFeature))
+        self.assertFalse(nonza.StreamFeatures.is_feature(FakeFeature))
 
-        stream_xsos.StreamFeatures.as_feature_class(FakeFeature)
+        nonza.StreamFeatures.as_feature_class(FakeFeature)
 
-        self.assertTrue(stream_xsos.StreamFeatures.is_feature(FakeFeature))
+        self.assertTrue(nonza.StreamFeatures.is_feature(FakeFeature))
 
     def test__getitem__(self):
         class FakeFeature(xso.XSO):
@@ -128,7 +128,7 @@ class TestStreamFeatures(unittest.TestCase):
 
         instance = FakeFeature()
 
-        features = stream_xsos.StreamFeatures()
+        features = nonza.StreamFeatures()
         features.features[FakeFeature.TAG].append(instance)
 
         self.assertIs(
@@ -152,7 +152,7 @@ class TestStreamFeatures(unittest.TestCase):
 
         instance = FakeFeature()
 
-        features = stream_xsos.StreamFeatures()
+        features = nonza.StreamFeatures()
         features.features[FakeFeature.TAG].append(instance)
 
         del features[FakeFeature]
@@ -172,7 +172,7 @@ class TestStreamFeatures(unittest.TestCase):
 
         instance = FakeFeature()
 
-        features = stream_xsos.StreamFeatures()
+        features = nonza.StreamFeatures()
         features[...] = instance
 
         self.assertIs(
@@ -197,7 +197,7 @@ class TestStreamFeatures(unittest.TestCase):
 
         default = object()
 
-        features = stream_xsos.StreamFeatures()
+        features = nonza.StreamFeatures()
         features.features[FakeFeature.TAG].append(instance)
 
         self.assertIs(instance, features.get_feature(FakeFeature))
@@ -214,14 +214,14 @@ class TestStreamFeatures(unittest.TestCase):
         class NotAFeature(xso.XSO):
             TAG = ("uri:foo", "bar")
 
-        features = stream_xsos.StreamFeatures()
+        features = nonza.StreamFeatures()
         features.features[FakeFeature.TAG].append(FakeFeature())
 
         self.assertTrue(features.has_feature(FakeFeature))
         self.assertFalse(features.has_feature(NotAFeature))
 
     def test_contains(self):
-        features = stream_xsos.StreamFeatures()
+        features = nonza.StreamFeatures()
         with self.assertRaisesRegexp(TypeError,
                                      "membership test not supported"):
             "foo" in features
@@ -235,7 +235,7 @@ class TestStreamFeatures(unittest.TestCase):
 
         instance1, instance2 = FakeFeatureA(), FakeFeatureB()
 
-        features = stream_xsos.StreamFeatures()
+        features = nonza.StreamFeatures()
         features[...] = instance1
         features[...] = instance2
 
@@ -251,13 +251,13 @@ class TestStreamFeatures(unittest.TestCase):
 class TestStartTLSXSO(unittest.TestCase):
     def test_is_xso(self):
         self.assertTrue(issubclass(
-            stream_xsos.StartTLSXSO,
+            nonza.StartTLSXSO,
             xso.XSO
         ))
 
     def test_declare_ns(self):
         self.assertDictEqual(
-            stream_xsos.StartTLSXSO.DECLARE_NS,
+            nonza.StartTLSXSO.DECLARE_NS,
             {
                 None: namespaces.starttls
             }
@@ -267,43 +267,43 @@ class TestStartTLSXSO(unittest.TestCase):
 class TestStartTLSFeature(unittest.TestCase):
     def test_is_starttls_xso(self):
         self.assertTrue(issubclass(
-            stream_xsos.StartTLSFeature,
-            stream_xsos.StartTLSXSO
+            nonza.StartTLSFeature,
+            nonza.StartTLSXSO
         ))
 
     def test_tag(self):
         self.assertEqual(
-            stream_xsos.StartTLSFeature.TAG,
+            nonza.StartTLSFeature.TAG,
             (namespaces.starttls, "starttls")
         )
 
     def test_required(self):
         self.assertIsInstance(
-            stream_xsos.StartTLSFeature.required,
+            nonza.StartTLSFeature.required,
             xso.Child
         )
         self.assertSetEqual(
-            stream_xsos.StartTLSFeature.required._classes,
-            {stream_xsos.StartTLSFeature.Required},
+            nonza.StartTLSFeature.required._classes,
+            {nonza.StartTLSFeature.Required},
         )
-        self.assertFalse(stream_xsos.StartTLSFeature.required.required)
+        self.assertFalse(nonza.StartTLSFeature.required.required)
 
     def test_is_registered_stream_feature(self):
-        self.assertTrue(stream_xsos.StreamFeatures.is_feature(
-            stream_xsos.StartTLSFeature
+        self.assertTrue(nonza.StreamFeatures.is_feature(
+            nonza.StartTLSFeature
         ))
 
 
 class TestStartTLSFeature_Required(unittest.TestCase):
     def test_is_starttls_xso(self):
         self.assertTrue(issubclass(
-            stream_xsos.StartTLSFeature.Required,
+            nonza.StartTLSFeature.Required,
             xso.XSO,
         ))
 
     def test_tag(self):
         self.assertEqual(
-            stream_xsos.StartTLSFeature.Required.TAG,
+            nonza.StartTLSFeature.Required.TAG,
             (namespaces.starttls, "required")
         )
 
@@ -311,13 +311,13 @@ class TestStartTLSFeature_Required(unittest.TestCase):
 class TestStartTLS(unittest.TestCase):
     def test_is_starttls_xso(self):
         self.assertTrue(issubclass(
-            stream_xsos.StartTLS,
-            stream_xsos.StartTLSXSO
+            nonza.StartTLS,
+            nonza.StartTLSXSO
         ))
 
     def test_tag(self):
         self.assertEqual(
-            stream_xsos.StartTLS.TAG,
+            nonza.StartTLS.TAG,
             (namespaces.starttls, "starttls")
         )
 
@@ -325,13 +325,13 @@ class TestStartTLS(unittest.TestCase):
 class TestStartTLSFailure(unittest.TestCase):
     def test_is_starttls_xso(self):
         self.assertTrue(issubclass(
-            stream_xsos.StartTLSFailure,
-            stream_xsos.StartTLSXSO
+            nonza.StartTLSFailure,
+            nonza.StartTLSXSO
         ))
 
     def test_tag(self):
         self.assertEqual(
-            stream_xsos.StartTLSFailure.TAG,
+            nonza.StartTLSFailure.TAG,
             (namespaces.starttls, "failure")
         )
 
@@ -339,13 +339,13 @@ class TestStartTLSFailure(unittest.TestCase):
 class TestStartTLSProceed(unittest.TestCase):
     def test_is_starttls_xso(self):
         self.assertTrue(issubclass(
-            stream_xsos.StartTLSProceed,
-            stream_xsos.StartTLSXSO
+            nonza.StartTLSProceed,
+            nonza.StartTLSXSO
         ))
 
     def test_tag(self):
         self.assertEqual(
-            stream_xsos.StartTLSProceed.TAG,
+            nonza.StartTLSProceed.TAG,
             (namespaces.starttls, "proceed")
         )
 
@@ -353,13 +353,13 @@ class TestStartTLSProceed(unittest.TestCase):
 class TestSASLXSO(unittest.TestCase):
     def test_is_xso(self):
         self.assertTrue(issubclass(
-            stream_xsos.SASLXSO,
+            nonza.SASLXSO,
             xso.XSO
         ))
 
     def test_declare_ns(self):
         self.assertDictEqual(
-            stream_xsos.SASLXSO.DECLARE_NS,
+            nonza.SASLXSO.DECLARE_NS,
             {
                 None: namespaces.sasl
             }
@@ -369,45 +369,45 @@ class TestSASLXSO(unittest.TestCase):
 class TestSASLAuth(unittest.TestCase):
     def test_is_sasl_xso(self):
         self.assertTrue(issubclass(
-            stream_xsos.SASLAuth,
-            stream_xsos.SASLXSO
+            nonza.SASLAuth,
+            nonza.SASLXSO
         ))
 
     def test_tag(self):
         self.assertEqual(
-            stream_xsos.SASLAuth.TAG,
+            nonza.SASLAuth.TAG,
             (namespaces.sasl, "auth")
         )
 
     def test_mechanism(self):
         self.assertIsInstance(
-            stream_xsos.SASLAuth.mechanism,
+            nonza.SASLAuth.mechanism,
             xso.Attr
         )
-        self.assertIs(stream_xsos.SASLAuth.mechanism.default,
+        self.assertIs(nonza.SASLAuth.mechanism.default,
                       xso.NO_DEFAULT)
 
 
     def test_payload(self):
         self.assertIsInstance(
-            stream_xsos.SASLAuth.payload,
+            nonza.SASLAuth.payload,
             xso.Text
         )
         self.assertIsInstance(
-            stream_xsos.SASLAuth.payload.type_,
+            nonza.SASLAuth.payload.type_,
             xso.Base64Binary
         )
         self.assertIs(
-            stream_xsos.SASLAuth.payload.default,
+            nonza.SASLAuth.payload.default,
             None
         )
 
     def test_init(self):
-        auth = stream_xsos.SASLAuth("foo")
+        auth = nonza.SASLAuth("foo")
         self.assertEqual(auth.mechanism, "foo")
         self.assertEqual(auth.payload, None)
 
-        auth = stream_xsos.SASLAuth(mechanism="foo",
+        auth = nonza.SASLAuth(mechanism="foo",
                                     payload=b"foobar")
         self.assertEqual(auth.mechanism, "foo")
         self.assertEqual(auth.payload, b"foobar")
@@ -416,103 +416,103 @@ class TestSASLAuth(unittest.TestCase):
 class TestSASLChallenge(unittest.TestCase):
     def test_is_sasl_xso(self):
         self.assertTrue(issubclass(
-            stream_xsos.SASLChallenge,
-            stream_xsos.SASLXSO
+            nonza.SASLChallenge,
+            nonza.SASLXSO
         ))
 
     def test_tag(self):
         self.assertEqual(
-            stream_xsos.SASLChallenge.TAG,
+            nonza.SASLChallenge.TAG,
             (namespaces.sasl, "challenge")
         )
 
     def test_payload(self):
         self.assertIsInstance(
-            stream_xsos.SASLChallenge.payload,
+            nonza.SASLChallenge.payload,
             xso.Text
         )
         self.assertIsInstance(
-            stream_xsos.SASLChallenge.payload.type_,
+            nonza.SASLChallenge.payload.type_,
             xso.Base64Binary
         )
         self.assertIs(
-            stream_xsos.SASLChallenge.payload.default,
+            nonza.SASLChallenge.payload.default,
             xso.NO_DEFAULT
         )
 
     def test_init(self):
-        challenge = stream_xsos.SASLChallenge(b"foo")
+        challenge = nonza.SASLChallenge(b"foo")
         self.assertEqual(challenge.payload, b"foo")
 
-        challenge = stream_xsos.SASLChallenge(payload=b"foo")
+        challenge = nonza.SASLChallenge(payload=b"foo")
         self.assertEqual(challenge.payload, b"foo")
 
         with self.assertRaisesRegexp(TypeError, "positional argument"):
-            stream_xsos.SASLChallenge()
+            nonza.SASLChallenge()
 
 
 class TestSASLResponse(unittest.TestCase):
     def test_is_sasl_xso(self):
         self.assertTrue(issubclass(
-            stream_xsos.SASLResponse,
-            stream_xsos.SASLXSO
+            nonza.SASLResponse,
+            nonza.SASLXSO
         ))
 
     def test_tag(self):
         self.assertEqual(
-            stream_xsos.SASLResponse.TAG,
+            nonza.SASLResponse.TAG,
             (namespaces.sasl, "response")
         )
 
     def test_payload(self):
         self.assertIsInstance(
-            stream_xsos.SASLResponse.payload,
+            nonza.SASLResponse.payload,
             xso.Text
         )
         self.assertIsInstance(
-            stream_xsos.SASLResponse.payload.type_,
+            nonza.SASLResponse.payload.type_,
             xso.Base64Binary
         )
         self.assertIs(
-            stream_xsos.SASLResponse.payload.default,
+            nonza.SASLResponse.payload.default,
             xso.NO_DEFAULT
         )
 
     def test_init(self):
-        challenge = stream_xsos.SASLResponse(b"foo")
+        challenge = nonza.SASLResponse(b"foo")
         self.assertEqual(challenge.payload, b"foo")
 
-        challenge = stream_xsos.SASLResponse(payload=b"foo")
+        challenge = nonza.SASLResponse(payload=b"foo")
         self.assertEqual(challenge.payload, b"foo")
 
         with self.assertRaisesRegexp(TypeError, "positional argument"):
-            stream_xsos.SASLResponse()
+            nonza.SASLResponse()
 
 
 class TestSASLFailure(unittest.TestCase):
     def test_is_sasl_xso(self):
         self.assertTrue(issubclass(
-            stream_xsos.SASLFailure,
-            stream_xsos.SASLXSO
+            nonza.SASLFailure,
+            nonza.SASLXSO
         ))
 
     def test_tag(self):
         self.assertEqual(
-            stream_xsos.SASLFailure.TAG,
+            nonza.SASLFailure.TAG,
             (namespaces.sasl, "failure")
         )
 
     def test_condition(self):
         self.assertIsInstance(
-            stream_xsos.SASLFailure.condition,
+            nonza.SASLFailure.condition,
             xso.ChildTag
         )
         self.assertIsInstance(
-            stream_xsos.SASLFailure.condition.validator,
+            nonza.SASLFailure.condition.validator,
             xso.RestrictToSet
         )
         self.assertSetEqual(
-            stream_xsos.SASLFailure.condition.validator.values,
+            nonza.SASLFailure.condition.validator.values,
             {
                 (namespaces.sasl, key)
                 for key in [
@@ -531,44 +531,44 @@ class TestSASLFailure(unittest.TestCase):
             }
         )
         self.assertEqual(
-            stream_xsos.SASLFailure.condition.declare_prefix,
+            nonza.SASLFailure.condition.declare_prefix,
             None
         )
         self.assertIs(
-            stream_xsos.SASLFailure.condition.default,
+            nonza.SASLFailure.condition.default,
             xso.NO_DEFAULT
         )
 
     def test_text(self):
         self.assertIsInstance(
-            stream_xsos.SASLFailure.text,
+            nonza.SASLFailure.text,
             xso.ChildText
         )
         self.assertEqual(
-            stream_xsos.SASLFailure.text.tag,
+            nonza.SASLFailure.text.tag,
             (namespaces.sasl, "text")
         )
         self.assertEqual(
-            stream_xsos.SASLFailure.text.attr_policy,
+            nonza.SASLFailure.text.attr_policy,
             xso.UnknownAttrPolicy.DROP
         )
         self.assertIs(
-            stream_xsos.SASLFailure.text.default,
+            nonza.SASLFailure.text.default,
             None
         )
         self.assertIs(
-            stream_xsos.SASLFailure.text.declare_prefix,
+            nonza.SASLFailure.text.declare_prefix,
             None
         )
 
     def test_init(self):
-        fail = stream_xsos.SASLFailure()
+        fail = nonza.SASLFailure()
         self.assertEqual(
             fail.condition,
             (namespaces.sasl, "temporary-auth-failure")
         )
 
-        fail = stream_xsos.SASLFailure(
+        fail = nonza.SASLFailure(
             condition=(namespaces.sasl, "invalid-authzid")
         )
         self.assertEqual(
@@ -580,27 +580,27 @@ class TestSASLFailure(unittest.TestCase):
 class TestSASLSuccess(unittest.TestCase):
     def test_is_sasl_xso(self):
         self.assertTrue(issubclass(
-            stream_xsos.SASLSuccess,
-            stream_xsos.SASLXSO
+            nonza.SASLSuccess,
+            nonza.SASLXSO
         ))
 
     def test_tag(self):
         self.assertEqual(
-            stream_xsos.SASLSuccess.TAG,
+            nonza.SASLSuccess.TAG,
             (namespaces.sasl, "success")
         )
 
     def test_payload(self):
         self.assertIsInstance(
-            stream_xsos.SASLSuccess.payload,
+            nonza.SASLSuccess.payload,
             xso.Text
         )
         self.assertIsInstance(
-            stream_xsos.SASLSuccess.payload.type_,
+            nonza.SASLSuccess.payload.type_,
             xso.Base64Binary
         )
         self.assertIs(
-            stream_xsos.SASLSuccess.payload.default,
+            nonza.SASLSuccess.payload.default,
             None
         )
 
@@ -608,13 +608,13 @@ class TestSASLSuccess(unittest.TestCase):
 class TestSASLAbort(unittest.TestCase):
     def test_is_sasl_xso(self):
         self.assertTrue(issubclass(
-            stream_xsos.SASLAbort,
-            stream_xsos.SASLXSO
+            nonza.SASLAbort,
+            nonza.SASLXSO
         ))
 
     def test_tag(self):
         self.assertEqual(
-            stream_xsos.SASLAbort.TAG,
+            nonza.SASLAbort.TAG,
             (namespaces.sasl, "abort")
         )
 
@@ -623,13 +623,13 @@ class TestSASLAbort(unittest.TestCase):
 class TestSMXSO(unittest.TestCase):
     def test_is_xso(self):
         self.assertTrue(issubclass(
-            stream_xsos.SMXSO,
+            nonza.SMXSO,
             xso.XSO
         ))
 
     def test_declare_ns(self):
         self.assertDictEqual(
-            stream_xsos.SMXSO.DECLARE_NS,
+            nonza.SMXSO.DECLARE_NS,
             {
                 None: namespaces.stream_management
             }
@@ -639,54 +639,54 @@ class TestSMXSO(unittest.TestCase):
 class TestStreamManagementFeature(unittest.TestCase):
     def test_is_sm_xso(self):
         self.assertTrue(issubclass(
-            stream_xsos.StreamManagementFeature,
-            stream_xsos.SMXSO
+            nonza.StreamManagementFeature,
+            nonza.SMXSO
         ))
 
     def test_tag(self):
         self.assertEqual(
-            stream_xsos.StreamManagementFeature.TAG,
+            nonza.StreamManagementFeature.TAG,
             (namespaces.stream_management, "sm")
         )
 
     def test_required(self):
         self.assertIsInstance(
-            stream_xsos.StreamManagementFeature.required,
+            nonza.StreamManagementFeature.required,
             xso.Child
         )
         self.assertSetEqual(
-            stream_xsos.StreamManagementFeature.required._classes,
-            {stream_xsos.StreamManagementFeature.Required},
+            nonza.StreamManagementFeature.required._classes,
+            {nonza.StreamManagementFeature.Required},
         )
-        self.assertFalse(stream_xsos.StreamManagementFeature.required.required)
+        self.assertFalse(nonza.StreamManagementFeature.required.required)
 
     def test_optional(self):
         self.assertIsInstance(
-            stream_xsos.StreamManagementFeature.optional,
+            nonza.StreamManagementFeature.optional,
             xso.Child
         )
         self.assertSetEqual(
-            stream_xsos.StreamManagementFeature.optional._classes,
-            {stream_xsos.StreamManagementFeature.Optional},
+            nonza.StreamManagementFeature.optional._classes,
+            {nonza.StreamManagementFeature.Optional},
         )
-        self.assertFalse(stream_xsos.StreamManagementFeature.optional.required)
+        self.assertFalse(nonza.StreamManagementFeature.optional.required)
 
     def test_is_registered_stream_feature(self):
-        self.assertTrue(stream_xsos.StreamFeatures.is_feature(
-            stream_xsos.StreamManagementFeature
+        self.assertTrue(nonza.StreamFeatures.is_feature(
+            nonza.StreamManagementFeature
         ))
 
 
 class TestStreamManagementFeature_Required(unittest.TestCase):
     def test_is_xso(self):
         self.assertTrue(issubclass(
-            stream_xsos.StreamManagementFeature.Required,
+            nonza.StreamManagementFeature.Required,
             xso.XSO,
         ))
 
     def test_tag(self):
         self.assertEqual(
-            stream_xsos.StreamManagementFeature.Required.TAG,
+            nonza.StreamManagementFeature.Required.TAG,
             (namespaces.stream_management, "required")
         )
 
@@ -694,13 +694,13 @@ class TestStreamManagementFeature_Required(unittest.TestCase):
 class TestStreamManagementFeature_Optional(unittest.TestCase):
     def test_is_xso(self):
         self.assertTrue(issubclass(
-            stream_xsos.StreamManagementFeature.Optional,
+            nonza.StreamManagementFeature.Optional,
             xso.XSO,
         ))
 
     def test_tag(self):
         self.assertEqual(
-            stream_xsos.StreamManagementFeature.Optional.TAG,
+            nonza.StreamManagementFeature.Optional.TAG,
             (namespaces.stream_management, "optional")
         )
 
@@ -708,13 +708,13 @@ class TestStreamManagementFeature_Optional(unittest.TestCase):
 class TestSMRequest(unittest.TestCase):
     def test_is_sm_xso(self):
         self.assertTrue(issubclass(
-            stream_xsos.SMRequest,
-            stream_xsos.SMXSO
+            nonza.SMRequest,
+            nonza.SMXSO
         ))
 
     def test_tag(self):
         self.assertEqual(
-            stream_xsos.SMRequest.TAG,
+            nonza.SMRequest.TAG,
             (namespaces.stream_management, "r")
         )
 
@@ -722,61 +722,61 @@ class TestSMRequest(unittest.TestCase):
 class TestSMAcknowledgement(unittest.TestCase):
     def test_is_sm_xso(self):
         self.assertTrue(issubclass(
-            stream_xsos.SMAcknowledgement,
-            stream_xsos.SMXSO
+            nonza.SMAcknowledgement,
+            nonza.SMXSO
         ))
 
     def test_tag(self):
         self.assertEqual(
-            stream_xsos.SMAcknowledgement.TAG,
+            nonza.SMAcknowledgement.TAG,
             (namespaces.stream_management, "a")
         )
 
     def test_default_init(self):
-        obj = stream_xsos.SMAcknowledgement()
+        obj = nonza.SMAcknowledgement()
         self.assertEqual(0, obj.counter)
 
     def test_init(self):
-        obj = stream_xsos.SMAcknowledgement(counter=1234)
+        obj = nonza.SMAcknowledgement(counter=1234)
         self.assertEqual(1234, obj.counter)
 
 
 class TestSMEnable(unittest.TestCase):
     def test_is_sm_xso(self):
         self.assertTrue(issubclass(
-            stream_xsos.SMEnable,
-            stream_xsos.SMXSO
+            nonza.SMEnable,
+            nonza.SMXSO
         ))
 
     def test_tag(self):
         self.assertEqual(
-            stream_xsos.SMEnable.TAG,
+            nonza.SMEnable.TAG,
             (namespaces.stream_management, "enable")
         )
 
     def test_default_init(self):
-        obj = stream_xsos.SMEnable()
+        obj = nonza.SMEnable()
         self.assertFalse(obj.resume)
 
     def test_init(self):
-        obj = stream_xsos.SMEnable(resume=True)
+        obj = nonza.SMEnable(resume=True)
         self.assertTrue(obj.resume)
 
     def test_resume(self):
         self.assertIsInstance(
-            stream_xsos.SMEnable.resume,
+            nonza.SMEnable.resume,
             xso.Attr
         )
         self.assertEqual(
             (None, "resume"),
-            stream_xsos.SMEnable.resume.tag
+            nonza.SMEnable.resume.tag
         )
         self.assertIsInstance(
-            stream_xsos.SMEnable.resume.type_,
+            nonza.SMEnable.resume.type_,
             xso.Bool
         )
         self.assertIs(
-            stream_xsos.SMEnable.resume.default,
+            nonza.SMEnable.resume.default,
             False
         )
 
@@ -784,25 +784,25 @@ class TestSMEnable(unittest.TestCase):
 class TestSMEnabled(unittest.TestCase):
     def test_is_sm_xso(self):
         self.assertTrue(issubclass(
-            stream_xsos.SMEnabled,
-            stream_xsos.SMXSO
+            nonza.SMEnabled,
+            nonza.SMXSO
         ))
 
     def test_tag(self):
         self.assertEqual(
-            stream_xsos.SMEnabled.TAG,
+            nonza.SMEnabled.TAG,
             (namespaces.stream_management, "enabled")
         )
 
     def test_default_init(self):
-        obj = stream_xsos.SMEnabled()
+        obj = nonza.SMEnabled()
         self.assertFalse(obj.resume)
         self.assertIsNone(obj.id_)
         self.assertIsNone(obj.location)
         self.assertIsNone(obj.max_)
 
     def test_init(self):
-        obj = stream_xsos.SMEnabled(
+        obj = nonza.SMEnabled(
             resume=True,
             id_="foobar",
             location=("bar", 1234),
@@ -814,69 +814,69 @@ class TestSMEnabled(unittest.TestCase):
 
     def test_id(self):
         self.assertIsInstance(
-            stream_xsos.SMEnabled.id_,
+            nonza.SMEnabled.id_,
             xso.Attr
         )
         self.assertEqual(
             (None, "id"),
-            stream_xsos.SMEnabled.id_.tag
+            nonza.SMEnabled.id_.tag
         )
         self.assertIs(
-            stream_xsos.SMEnabled.id_.default,
+            nonza.SMEnabled.id_.default,
             xso.NO_DEFAULT
         )
 
     def test_location(self):
         self.assertIsInstance(
-            stream_xsos.SMEnabled.location,
+            nonza.SMEnabled.location,
             xso.Attr
         )
         self.assertEqual(
             (None, "location"),
-            stream_xsos.SMEnabled.location.tag
+            nonza.SMEnabled.location.tag
         )
         self.assertIsInstance(
-            stream_xsos.SMEnabled.location.type_,
+            nonza.SMEnabled.location.type_,
             xso.ConnectionLocation
         )
         self.assertIs(
-            stream_xsos.SMEnabled.location.default,
+            nonza.SMEnabled.location.default,
             None
         )
 
     def test_max(self):
         self.assertIsInstance(
-            stream_xsos.SMEnabled.max_,
+            nonza.SMEnabled.max_,
             xso.Attr
         )
         self.assertEqual(
             (None, "max"),
-            stream_xsos.SMEnabled.max_.tag
+            nonza.SMEnabled.max_.tag
         )
         self.assertIsInstance(
-            stream_xsos.SMEnabled.max_.type_,
+            nonza.SMEnabled.max_.type_,
             xso.Integer
         )
         self.assertIs(
-            stream_xsos.SMEnabled.max_.default,
+            nonza.SMEnabled.max_.default,
             None
         )
 
     def test_resume(self):
         self.assertIsInstance(
-            stream_xsos.SMEnabled.resume,
+            nonza.SMEnabled.resume,
             xso.Attr
         )
         self.assertEqual(
             (None, "resume"),
-            stream_xsos.SMEnabled.resume.tag
+            nonza.SMEnabled.resume.tag
         )
         self.assertIsInstance(
-            stream_xsos.SMEnabled.resume.type_,
+            nonza.SMEnabled.resume.type_,
             xso.Bool
         )
         self.assertIs(
-            stream_xsos.SMEnabled.resume.default,
+            nonza.SMEnabled.resume.default,
             False
         )
 
@@ -884,22 +884,22 @@ class TestSMEnabled(unittest.TestCase):
 class TestSMResume(unittest.TestCase):
     def test_is_sm_xso(self):
         self.assertTrue(issubclass(
-            stream_xsos.SMResume,
-            stream_xsos.SMXSO
+            nonza.SMResume,
+            nonza.SMXSO
         ))
 
     def test_tag(self):
         self.assertEqual(
-            stream_xsos.SMResume.TAG,
+            nonza.SMResume.TAG,
             (namespaces.stream_management, "resume")
         )
 
     def test_default_init_not_possible(self):
         with self.assertRaises(TypeError):
-            stream_xsos.SMResume()
+            nonza.SMResume()
 
     def test_init(self):
-        obj = stream_xsos.SMResume(
+        obj = nonza.SMResume(
             counter=1,
             previd="foobar")
         self.assertEqual(1, obj.counter)
@@ -907,48 +907,48 @@ class TestSMResume(unittest.TestCase):
 
     def test_resume(self):
         self.assertIsInstance(
-            stream_xsos.SMResume.counter,
+            nonza.SMResume.counter,
             xso.Attr
         )
         self.assertEqual(
             (None, "h"),
-            stream_xsos.SMResume.counter.tag
+            nonza.SMResume.counter.tag
         )
         self.assertIsInstance(
-            stream_xsos.SMResume.counter.type_,
+            nonza.SMResume.counter.type_,
             xso.Integer
         )
 
     def test_previd(self):
         self.assertIsInstance(
-            stream_xsos.SMResume.previd,
+            nonza.SMResume.previd,
             xso.Attr
         )
         self.assertEqual(
             (None, "previd"),
-            stream_xsos.SMResume.previd.tag
+            nonza.SMResume.previd.tag
         )
 
 
 class TestSMResumed(unittest.TestCase):
     def test_is_sm_xso(self):
         self.assertTrue(issubclass(
-            stream_xsos.SMResumed,
-            stream_xsos.SMXSO
+            nonza.SMResumed,
+            nonza.SMXSO
         ))
 
     def test_tag(self):
         self.assertEqual(
-            stream_xsos.SMResumed.TAG,
+            nonza.SMResumed.TAG,
             (namespaces.stream_management, "resumed")
         )
 
     def test_default_init(self):
         with self.assertRaises(TypeError):
-            stream_xsos.SMResumed()
+            nonza.SMResumed()
 
     def test_init(self):
-        obj = stream_xsos.SMResumed(
+        obj = nonza.SMResumed(
             counter=1,
             previd="foobar")
         self.assertEqual(1, obj.counter)
@@ -956,51 +956,51 @@ class TestSMResumed(unittest.TestCase):
 
     def test_resume(self):
         self.assertIsInstance(
-            stream_xsos.SMResumed.counter,
+            nonza.SMResumed.counter,
             xso.Attr
         )
         self.assertEqual(
             (None, "h"),
-            stream_xsos.SMResumed.counter.tag
+            nonza.SMResumed.counter.tag
         )
         self.assertIsInstance(
-            stream_xsos.SMResumed.counter.type_,
+            nonza.SMResumed.counter.type_,
             xso.Integer
         )
 
     def test_previd(self):
         self.assertIsInstance(
-            stream_xsos.SMResumed.previd,
+            nonza.SMResumed.previd,
             xso.Attr
         )
         self.assertEqual(
             (None, "previd"),
-            stream_xsos.SMResumed.previd.tag
+            nonza.SMResumed.previd.tag
         )
 
 
 class TestSMFailed(unittest.TestCase):
     def test_is_sm_xso(self):
         self.assertTrue(issubclass(
-            stream_xsos.SMFailed,
-            stream_xsos.SMXSO
+            nonza.SMFailed,
+            nonza.SMXSO
         ))
 
     def test_tag(self):
         self.assertEqual(
-            stream_xsos.SMFailed.TAG,
+            nonza.SMFailed.TAG,
             (namespaces.stream_management, "failed")
         )
 
     def test_default_init(self):
-        obj = stream_xsos.SMFailed()
+        obj = nonza.SMFailed()
         self.assertEqual(
             (namespaces.stanzas, "undefined-condition"),
             obj.condition
         )
 
     def test_init(self):
-        obj = stream_xsos.SMFailed(
+        obj = nonza.SMFailed(
             condition=(namespaces.stanzas, "item-not-found")
         )
         self.assertEqual(

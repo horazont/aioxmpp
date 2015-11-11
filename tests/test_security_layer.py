@@ -13,7 +13,7 @@ import aioxmpp.errors as errors
 import aioxmpp.sasl as sasl
 import aioxmpp.structs as structs
 import aioxmpp.security_layer as security_layer
-import aioxmpp.stream_xsos as stream_xsos
+import aioxmpp.nonza as nonza
 
 from aioxmpp.utils import namespaces
 
@@ -1509,7 +1509,7 @@ class TestSTARTTLSProvider(xmltestutils.XMLTestCase):
             self.certificate_verifier_factory,
             require_starttls=True)
 
-        features = stream_xsos.StreamFeatures()
+        features = nonza.StreamFeatures()
 
         with self.assertRaisesRegexp(errors.TLSUnavailable,
                                      "not supported by peer"):
@@ -1521,7 +1521,7 @@ class TestSTARTTLSProvider(xmltestutils.XMLTestCase):
             self.certificate_verifier_factory,
             require_starttls=False)
 
-        features = stream_xsos.StreamFeatures()
+        features = nonza.StreamFeatures()
 
         self.assertIsNone(self._test_provider(provider, features))
 
@@ -1531,9 +1531,9 @@ class TestSTARTTLSProvider(xmltestutils.XMLTestCase):
             self.certificate_verifier_factory,
             require_starttls=False)
 
-        features = stream_xsos.StreamFeatures()
-        instance = stream_xsos.StartTLSFeature()
-        instance.required = stream_xsos.StartTLSFeature.Required()
+        features = nonza.StreamFeatures()
+        instance = nonza.StartTLSFeature()
+        instance.required = nonza.StartTLSFeature.Required()
         features[...] = instance
 
         self.xmlstream.can_starttls_value = False
@@ -1548,8 +1548,8 @@ class TestSTARTTLSProvider(xmltestutils.XMLTestCase):
             self.certificate_verifier_factory,
             require_starttls=True)
 
-        features = stream_xsos.StreamFeatures()
-        features[...] = stream_xsos.StartTLSFeature()
+        features = nonza.StreamFeatures()
+        features[...] = nonza.StartTLSFeature()
 
         self.xmlstream.can_starttls_value = True
 
@@ -1559,9 +1559,9 @@ class TestSTARTTLSProvider(xmltestutils.XMLTestCase):
                 provider, features,
                 actions=[
                     XMLStreamMock.Send(
-                        stream_xsos.StartTLS(),
+                        nonza.StartTLS(),
                         response=XMLStreamMock.Receive(
-                            stream_xsos.StartTLSFailure()
+                            nonza.StartTLSFailure()
                         )
                     )
                 ]
@@ -1573,8 +1573,8 @@ class TestSTARTTLSProvider(xmltestutils.XMLTestCase):
             self.certificate_verifier_factory,
             require_starttls=True)
 
-        features = stream_xsos.StreamFeatures()
-        features[...] = stream_xsos.StartTLSFeature()
+        features = nonza.StreamFeatures()
+        features[...] = nonza.StartTLSFeature()
 
         self.xmlstream.can_starttls_value = True
 
@@ -1582,9 +1582,9 @@ class TestSTARTTLSProvider(xmltestutils.XMLTestCase):
             provider, features,
             actions=[
                 XMLStreamMock.Send(
-                    stream_xsos.StartTLS(),
+                    nonza.StartTLS(),
                     response=XMLStreamMock.Receive(
-                        stream_xsos.StartTLSProceed()
+                        nonza.StartTLSProceed()
                     )
                 ),
                 XMLStreamMock.STARTTLS(
@@ -1621,8 +1621,8 @@ class TestSTARTTLSProvider(xmltestutils.XMLTestCase):
             self.certificate_verifier_factory,
             require_starttls=True)
 
-        features = stream_xsos.StreamFeatures()
-        features[...] = stream_xsos.StartTLSFeature()
+        features = nonza.StreamFeatures()
+        features[...] = nonza.StartTLSFeature()
 
         self.xmlstream.can_starttls_value = True
 
@@ -1635,9 +1635,9 @@ class TestSTARTTLSProvider(xmltestutils.XMLTestCase):
                 provider, features,
                 actions=[
                     XMLStreamMock.Send(
-                        stream_xsos.StartTLS(),
+                        nonza.StartTLS(),
                         response=XMLStreamMock.Receive(
-                            stream_xsos.StartTLSProceed()
+                            nonza.StartTLSProceed()
                         )
                     ),
                     XMLStreamMock.STARTTLS(
@@ -1654,8 +1654,8 @@ class TestSTARTTLSProvider(xmltestutils.XMLTestCase):
             self.certificate_verifier_factory,
             require_starttls=True)
 
-        features = stream_xsos.StreamFeatures()
-        features[...] = stream_xsos.StartTLSFeature()
+        features = nonza.StreamFeatures()
+        features[...] = nonza.StartTLSFeature()
 
         self.xmlstream.can_starttls_value = True
 
@@ -1667,9 +1667,9 @@ class TestSTARTTLSProvider(xmltestutils.XMLTestCase):
                 provider, features,
                 actions=[
                     XMLStreamMock.Send(
-                        stream_xsos.StartTLS(),
+                        nonza.StartTLS(),
                         response=XMLStreamMock.Receive(
-                            stream_xsos.StartTLSProceed()
+                            nonza.StartTLSProceed()
                         )
                     ),
                     XMLStreamMock.STARTTLS(
@@ -1688,8 +1688,8 @@ class TestSTARTTLSProvider(xmltestutils.XMLTestCase):
             self.certificate_verifier_factory,
             require_starttls=True)
 
-        features = stream_xsos.StreamFeatures()
-        features[...] = stream_xsos.StartTLSFeature()
+        features = nonza.StreamFeatures()
+        features[...] = nonza.StartTLSFeature()
 
         self.xmlstream.can_starttls_value = True
 
@@ -1701,9 +1701,9 @@ class TestSTARTTLSProvider(xmltestutils.XMLTestCase):
                 provider, features,
                 actions=[
                     XMLStreamMock.Send(
-                        stream_xsos.StartTLS(),
+                        nonza.StartTLS(),
                         response=XMLStreamMock.Receive(
-                            stream_xsos.StartTLSProceed()
+                            nonza.StartTLSProceed()
                         )
                     ),
                     XMLStreamMock.STARTTLS(
@@ -1740,7 +1740,7 @@ class TestPasswordSASLProvider(xmltestutils.XMLTestCase):
         self.xmlstream = XMLStreamMock(self, loop=self.loop)
         self.xmlstream.transport = self.transport
 
-        self.features = stream_xsos.StreamFeatures()
+        self.features = nonza.StreamFeatures()
         self.mechanisms = security_layer.SASLMechanisms()
         self.features[...] = self.mechanisms
 
@@ -2015,15 +2015,15 @@ class Testnegotiate_stream_security(xmltestutils.XMLTestCase):
         self.xmlstream = XMLStreamMock(self, loop=self.loop)
         self.xmlstream.transport = self.transport
 
-        self.features = stream_xsos.StreamFeatures()
+        self.features = nonza.StreamFeatures()
         self.mechanisms = security_layer.SASLMechanisms()
         self.features[...] = self.mechanisms
-        self.features[...] = stream_xsos.StartTLSFeature()
+        self.features[...] = nonza.StartTLSFeature()
 
-        self.post_tls_features = stream_xsos.StreamFeatures()
+        self.post_tls_features = nonza.StreamFeatures()
         self.features[...] = self.mechanisms
 
-        self.post_sasl_features = stream_xsos.StreamFeatures()
+        self.post_sasl_features = nonza.StreamFeatures()
 
         self.password_provider = unittest.mock.MagicMock()
 

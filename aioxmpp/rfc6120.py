@@ -12,7 +12,7 @@ This module contains XSO-related classes for implementation of RFC 6120.
 
 """
 
-from . import xso, stanza, stream_xsos
+from . import xso, stanza, nonza
 from .utils import namespaces
 
 namespaces.rfc6120_bind = "urn:ietf:params:xml:ns:xmpp-bind"
@@ -26,10 +26,10 @@ class Required(xso.XSO):
     TAG = (namespaces.rfc6120_bind, "required")
 
 
-@stream_xsos.StreamFeatures.as_feature_class
+@nonza.StreamFeatures.as_feature_class
 class BindFeature(xso.XSO):
     """
-    A stream feature for use with :class:`.stream_xsos.StreamFeatures` which
+    A stream feature for use with :class:`.nonza.StreamFeatures` which
     indicates that the server allows resource binding.
 
     .. attribute:: required

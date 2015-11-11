@@ -45,7 +45,7 @@ sorted into this section.
 
    structs
    tracking
-   stream_xsos
+   nonza
    sasl
    errors
    i18n

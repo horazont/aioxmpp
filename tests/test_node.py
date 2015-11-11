@@ -12,7 +12,7 @@ import dns.resolver
 
 import aioxmpp.node as node
 import aioxmpp.structs as structs
-import aioxmpp.stream_xsos as stream_xsos
+import aioxmpp.nonza as nonza
 import aioxmpp.errors as errors
 import aioxmpp.stanza as stanza
 import aioxmpp.rfc3921 as rfc3921
@@ -441,7 +441,7 @@ class Testconnect_secured_xmlstream(unittest.TestCase):
         override_peer = object()
         xmlstream = unittest.mock.MagicMock()
 
-        final_features = stream_xsos.StreamFeatures()
+        final_features = nonza.StreamFeatures()
         tls_transport = object()
         security_layer = functools.partial(
             self._security_layer,
@@ -449,7 +449,7 @@ class Testconnect_secured_xmlstream(unittest.TestCase):
             tls_transport,
             final_features)
 
-        features = stream_xsos.StreamFeatures()
+        features = nonza.StreamFeatures()
 
         with unittest.mock.patch("aioxmpp.node.connect_to_xmpp_server",
                                  functools.partial(
@@ -494,7 +494,7 @@ class Testconnect_secured_xmlstream(unittest.TestCase):
         transport = object()
         xmlstream = unittest.mock.MagicMock()
 
-        final_features = stream_xsos.StreamFeatures()
+        final_features = nonza.StreamFeatures()
         tls_transport = object()
         security_layer = functools.partial(
             self._security_layer,
@@ -502,7 +502,7 @@ class Testconnect_secured_xmlstream(unittest.TestCase):
             tls_transport,
             final_features)
 
-        features = stream_xsos.StreamFeatures()
+        features = nonza.StreamFeatures()
 
         @asyncio.coroutine
         def sleeper(jid, override_peer, loop):
@@ -533,7 +533,7 @@ class Testconnect_secured_xmlstream(unittest.TestCase):
         transport = object()
         xmlstream = unittest.mock.MagicMock()
 
-        final_features = stream_xsos.StreamFeatures()
+        final_features = nonza.StreamFeatures()
         tls_transport = object()
         security_layer = functools.partial(
             self._security_layer,
@@ -541,7 +541,7 @@ class Testconnect_secured_xmlstream(unittest.TestCase):
             tls_transport,
             final_features)
 
-        features = stream_xsos.StreamFeatures()
+        features = nonza.StreamFeatures()
 
         with unittest.mock.patch("aioxmpp.node.connect_to_xmpp_server",
                                  functools.partial(
@@ -591,7 +591,7 @@ class Testconnect_secured_xmlstream(unittest.TestCase):
         transport = object()
         xmlstream = unittest.mock.MagicMock()
 
-        final_features = stream_xsos.StreamFeatures()
+        final_features = nonza.StreamFeatures()
         tls_transport = object()
         security_layer = functools.partial(
             self._security_layer,
@@ -599,7 +599,7 @@ class Testconnect_secured_xmlstream(unittest.TestCase):
             tls_transport,
             final_features)
 
-        features = stream_xsos.StreamFeatures()
+        features = nonza.StreamFeatures()
 
         with unittest.mock.patch("aioxmpp.node.connect_to_xmpp_server",
                                  functools.partial(
@@ -651,7 +651,7 @@ class Testconnect_secured_xmlstream(unittest.TestCase):
         transport = object()
         xmlstream = unittest.mock.MagicMock()
 
-        final_features = stream_xsos.StreamFeatures()
+        final_features = nonza.StreamFeatures()
         tls_transport = object()
         security_layer = functools.partial(
             self._security_layer,
@@ -659,7 +659,7 @@ class Testconnect_secured_xmlstream(unittest.TestCase):
             tls_transport,
             final_features)
 
-        features = stream_xsos.StreamFeatures()
+        features = nonza.StreamFeatures()
 
         with unittest.mock.patch("aioxmpp.node.connect_to_xmpp_server",
                                  functools.partial(
@@ -739,7 +739,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
                                              for patch in self.patches)
         self._xmlstream = XMLStreamMock(self, loop=self.loop)
         self.test_jid = structs.JID.fromstr("foo@bar.example/baz")
-        self.features = stream_xsos.StreamFeatures()
+        self.features = nonza.StreamFeatures()
         self.features[...] = rfc6120.BindFeature()
 
         self.client = node.AbstractClient(
@@ -753,9 +753,9 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
         # some XMLStreamMock test case parts
         self.sm_negotiation_exchange = [
             XMLStreamMock.Send(
-                stream_xsos.SMEnable(resume=True),
+                nonza.SMEnable(resume=True),
                 response=XMLStreamMock.Receive(
-                    stream_xsos.SMEnabled(resume=True,
+                    nonza.SMEnabled(resume=True,
                                           id_="foobar")
                 )
             )
@@ -780,7 +780,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
         ]
         self.sm_request = [
             XMLStreamMock.Send(
-                stream_xsos.SMRequest()
+                nonza.SMRequest()
             )
         ]
 
@@ -1166,7 +1166,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
         self.assertFalse(self.client.stream.running)
 
     def test_negotiate_stream_management(self):
-        self.features[...] = stream_xsos.StreamManagementFeature()
+        self.features[...] = nonza.StreamManagementFeature()
 
         self.client.start()
         run_coroutine(self.xmlstream.run_test(
@@ -1215,7 +1215,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
 
     def test_negotiate_legacy_session_after_stream_management(self):
         self.features[...] = rfc3921.SessionFeature()
-        self.features[...] = stream_xsos.StreamManagementFeature()
+        self.features[...] = nonza.StreamManagementFeature()
 
         iqreq = stanza.IQ(type_="set")
         iqreq.payload = rfc3921.Session()
@@ -1236,7 +1236,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
                     ]
                 ),
                 XMLStreamMock.Send(
-                    stream_xsos.SMRequest()
+                    nonza.SMRequest()
                 )
             ],
         ))
@@ -1246,7 +1246,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
         self.assertTrue(self.client.established)
 
     def test_resume_stream_management(self):
-        self.features[...] = stream_xsos.StreamManagementFeature()
+        self.features[...] = nonza.StreamManagementFeature()
 
         self.client.backoff_start = timedelta(seconds=0)
         self.client.start()
@@ -1258,10 +1258,10 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
 
             run_coroutine(self.xmlstream.run_test(self.resource_binding+[
                 XMLStreamMock.Send(
-                    stream_xsos.SMEnable(resume=True),
+                    nonza.SMEnable(resume=True),
                     response=[
                         XMLStreamMock.Receive(
-                            stream_xsos.SMEnabled(resume=True,
+                            nonza.SMEnabled(resume=True,
                                                   id_="foobar"),
 
                         ),
@@ -1275,10 +1275,10 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
             # new xmlstream here after failure
             run_coroutine(self.xmlstream.run_test([
                 XMLStreamMock.Send(
-                    stream_xsos.SMResume(counter=0, previd="foobar"),
+                    nonza.SMResume(counter=0, previd="foobar"),
                     response=[
                         XMLStreamMock.Receive(
-                            stream_xsos.SMResumed(counter=0, previd="foobar")
+                            nonza.SMResumed(counter=0, previd="foobar")
                         )
                     ]
                 )
@@ -1290,7 +1290,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
         self.assertFalse(self.destroyed_rec.mock_calls)
 
     def test_stop_stream_management_if_remote_stops_providing_support(self):
-        self.features[...] = stream_xsos.StreamManagementFeature()
+        self.features[...] = nonza.StreamManagementFeature()
 
         self.client.backoff_start = timedelta(seconds=0)
         self.client.start()
@@ -1298,10 +1298,10 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
         run_coroutine(self.xmlstream.run_test([
         ]+self.resource_binding+[
             XMLStreamMock.Send(
-                stream_xsos.SMEnable(resume=True),
+                nonza.SMEnable(resume=True),
                 response=[
                     XMLStreamMock.Receive(
-                        stream_xsos.SMEnabled(resume=True,
+                        nonza.SMEnabled(resume=True,
                                               id_="foobar"),
 
                     ),
@@ -1313,7 +1313,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
         ]))
         # new xmlstream after failure
 
-        del self.features[stream_xsos.StreamManagementFeature]
+        del self.features[nonza.StreamManagementFeature]
 
         run_coroutine(self.xmlstream.run_test(self.resource_binding))
         run_coroutine(asyncio.sleep(0))
@@ -1327,7 +1327,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
         self.destroyed_rec.assert_called_once_with()
 
     def test_reconnect_at_advised_location_for_resumable_stream(self):
-        self.features[...] = stream_xsos.StreamManagementFeature()
+        self.features[...] = nonza.StreamManagementFeature()
 
         self.client.backoff_start = timedelta(seconds=0)
         self.client.start()
@@ -1335,10 +1335,10 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
         run_coroutine(self.xmlstream.run_test([
         ]+self.resource_binding+[
             XMLStreamMock.Send(
-                stream_xsos.SMEnable(resume=True),
+                nonza.SMEnable(resume=True),
                 response=[
                     XMLStreamMock.Receive(
-                        stream_xsos.SMEnabled(
+                        nonza.SMEnabled(
                             resume=True,
                             id_="foobar",
                             location=(ipaddress.IPv6Address("fe80::"), 5222)),
@@ -1353,10 +1353,10 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
         # new xmlstream after failure
         run_coroutine(self.xmlstream.run_test([
             XMLStreamMock.Send(
-                stream_xsos.SMResume(counter=0, previd="foobar"),
+                nonza.SMResume(counter=0, previd="foobar"),
                 response=[
                     XMLStreamMock.Receive(
-                        stream_xsos.SMResumed(counter=0, previd="foobar")
+                        nonza.SMResumed(counter=0, previd="foobar")
                     )
                 ]
             )
@@ -1384,7 +1384,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
         self.assertFalse(self.destroyed_rec.mock_calls)
 
     def test_degrade_to_non_sm_if_sm_fails(self):
-        self.features[...] = stream_xsos.StreamManagementFeature()
+        self.features[...] = nonza.StreamManagementFeature()
 
         self.client.backoff_start = timedelta(seconds=0)
         self.client.start()
@@ -1392,10 +1392,10 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
         run_coroutine(self.xmlstream.run_test([
         ]+self.resource_binding+[
             XMLStreamMock.Send(
-                stream_xsos.SMEnable(resume=True),
+                nonza.SMEnable(resume=True),
                 response=[
                     XMLStreamMock.Receive(
-                        stream_xsos.SMFailed(),
+                        nonza.SMFailed(),
                     ),
                 ]
             ),
@@ -1409,7 +1409,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
         self.assertFalse(self.destroyed_rec.mock_calls)
 
     def test_retry_sm_restart_if_sm_resumption_fails(self):
-        self.features[...] = stream_xsos.StreamManagementFeature()
+        self.features[...] = nonza.StreamManagementFeature()
 
         self.client.backoff_start = timedelta(seconds=0)
         self.client.start()
@@ -1417,10 +1417,10 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
         run_coroutine(self.xmlstream.run_test([
         ]+self.resource_binding+[
             XMLStreamMock.Send(
-                stream_xsos.SMEnable(resume=True),
+                nonza.SMEnable(resume=True),
                 response=[
                     XMLStreamMock.Receive(
-                        stream_xsos.SMEnabled(resume=True,
+                        nonza.SMEnabled(resume=True,
                                               id_="foobar"),
 
                     ),
@@ -1433,19 +1433,19 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
         # new xmlstream after failure
         run_coroutine(self.xmlstream.run_test([
             XMLStreamMock.Send(
-                stream_xsos.SMResume(counter=0, previd="foobar"),
+                nonza.SMResume(counter=0, previd="foobar"),
                 response=[
                     XMLStreamMock.Receive(
-                        stream_xsos.SMFailed()
+                        nonza.SMFailed()
                     )
                 ]
             ),
         ]+self.resource_binding+[
             XMLStreamMock.Send(
-                stream_xsos.SMEnable(resume=True),
+                nonza.SMEnable(resume=True),
                 response=[
                     XMLStreamMock.Receive(
-                        stream_xsos.SMEnabled(resume=True,
+                        nonza.SMEnabled(resume=True,
                                               id_="foobar"),
 
                     ),
@@ -1620,7 +1620,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
         self.assertFalse(self.client.established)
 
     def test_signals_fire_correctly_on_fail_after_established_sm_connection(self):
-        self.features[...] = stream_xsos.StreamManagementFeature()
+        self.features[...] = nonza.StreamManagementFeature()
 
         self.client.backoff_start = timedelta(seconds=0)
         self.client.start()
@@ -1773,7 +1773,7 @@ class TestPresenceManagedClient(xmltestutils.XMLTestCase):
                                              for patch in self.patches)
         self._xmlstream = XMLStreamMock(self, loop=self.loop)
         self.test_jid = structs.JID.fromstr("foo@bar.example/baz")
-        self.features = stream_xsos.StreamFeatures()
+        self.features = nonza.StreamFeatures()
         self.features[...] = rfc6120.BindFeature()
 
         self.client = node.PresenceManagedClient(

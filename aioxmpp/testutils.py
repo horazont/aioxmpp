@@ -13,7 +13,7 @@ from datetime import timedelta
 
 import aioxmpp.callbacks as callbacks
 import aioxmpp.xso as xso
-import aioxmpp.stream_xsos as stream_xsos
+import aioxmpp.nonza as nonza
 
 from aioxmpp.utils import etree
 
@@ -105,7 +105,7 @@ class ConnectedClientMock(unittest.mock.Mock):
 
         self.established = True
 
-        self.stream_features = stream_xsos.StreamFeatures()
+        self.stream_features = nonza.StreamFeatures()
         self.stream.send_iq_and_wait_for_reply = CoroutineMock()
         self.mock_services = {}
 

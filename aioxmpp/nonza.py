@@ -1,9 +1,15 @@
 """
-:mod:`~aioxmpp.stream_xsos` --- Non-stanza stream-level XSOs
-############################################################
+:mod:`~aioxmpp.nonza` --- Non-stanza stream-level XSOs (Nonzas)
+###############################################################
 
 This module contains XSO models for stream-level elements which are not
-stanzas.
+stanzas. Since `XEP-0360`__, these are called "nonzas".
+
+__ https://xmpp.org/extensions/xep-0360.html
+
+.. versionchanged:: 0.5
+
+   Before version 0.5, this module was called :mod:`aioxmpp.stream_xsos`.
 
 General XSOs
 ============

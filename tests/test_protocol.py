@@ -4,7 +4,7 @@ import unittest.mock
 
 import aioxmpp.stanza as stanza
 import aioxmpp.xso as xso
-import aioxmpp.stream_xsos as stream_xsos
+import aioxmpp.nonza as nonza
 import aioxmpp.errors as errors
 
 from aioxmpp.testutils import (
@@ -653,7 +653,7 @@ class TestXMLStream(unittest.TestCase):
         )
 
         self.assertTrue(fut.done())
-        self.assertIsInstance(fut.result(), stream_xsos.StreamFeatures)
+        self.assertIsInstance(fut.result(), nonza.StreamFeatures)
 
     def test_transport_attribute(self):
         t, p = self._make_stream(to=TEST_PEER)
@@ -1694,7 +1694,7 @@ class Testreset_stream_and_get_features(xmltestutils.XMLTestCase):
         )[0]
 
     def test_send_and_return_features(self):
-        features = stream_xsos.StreamFeatures()
+        features = nonza.StreamFeatures()
 
         result = self._run_test(
             [
@@ -1707,7 +1707,7 @@ class Testreset_stream_and_get_features(xmltestutils.XMLTestCase):
         self.assertIs(result, features)
 
     def test_receive_exactly_one(self):
-        features = stream_xsos.StreamFeatures()
+        features = nonza.StreamFeatures()
 
         with self.assertRaisesRegexp(AssertionError,
                                      "no handler registered for"):
@@ -1723,7 +1723,7 @@ class Testreset_stream_and_get_features(xmltestutils.XMLTestCase):
             )
 
     def test_timeout(self):
-        features = stream_xsos.StreamFeatures()
+        features = nonza.StreamFeatures()
 
         with self.assertRaises(TimeoutError):
             self._run_test(
@@ -1741,7 +1741,7 @@ class Testreset_stream_and_get_features(xmltestutils.XMLTestCase):
             ))
 
     def test_clean_up_if_sending_fails(self):
-        features = stream_xsos.StreamFeatures()
+        features = nonza.StreamFeatures()
 
         exc = ValueError()
 
@@ -1762,7 +1762,7 @@ class Testreset_stream_and_get_features(xmltestutils.XMLTestCase):
         ))
 
     def test_do_not_timeout_if_stream_fails(self):
-        features = stream_xsos.StreamFeatures()
+        features = nonza.StreamFeatures()
 
         exc = ValueError()
 
@@ -1793,7 +1793,7 @@ class Testsend_stream_error_and_close(xmltestutils.XMLTestCase):
 
         run_coroutine(self.xmlstream.run_test([
             XMLStreamMock.Send(
-                stream_xsos.StreamError(
+                nonza.StreamError(
                     condition=(namespaces.streams, "connection-timeout"),
                     text="foobar")
             ),

@@ -36,7 +36,7 @@ from . import (
     errors,
     stream,
     callbacks,
-    stream_xsos,
+    nonza,
     rfc3921,
     rfc6120,
     stanza,
@@ -67,7 +67,7 @@ def connect_to_xmpp_server(jid, *, override_peer=None, loop=None):
 
     Return a triple consisting of the `transport`, the
     :class:`~aioxmpp.protocol.XMLStream` instance and a :class:`asyncio.Future`
-    on the first :class:`~aioxmpp.stream_xsos.StreamFeatures` node.
+    on the first :class:`~aioxmpp.nonza.StreamFeatures` node.
 
     If the connection fails :class:`OSError` is raised. That OSError may in
     fact be a :class:`~aioxmpp.errors.MultiOSError`, which gives more
@@ -153,7 +153,7 @@ def connect_secured_xmlstream(jid, security_layer,
 
     Return a triple consisting of the `transport`, the
     :class:`~aioxmpp.protocol.XMLStream` and the current
-    :class:`~aioxmpp.stream_xsos.StreamFeatures` node. The `transport` returned
+    :class:`~aioxmpp.nonza.StreamFeatures` node. The `transport` returned
     in the triple is the one returned by the security layer and is :data:`None`
     if no starttls has been negotiated. To gain access to the transport used if
     the transport returned is :data:`None`, use the
@@ -284,7 +284,7 @@ class AbstractClient:
 
     .. attribute:: stream_features
 
-       An instance of :class:`~aioxmpp.stream_xsos.StreamFeatures`. This is the
+       An instance of :class:`~aioxmpp.nonza.StreamFeatures`. This is the
        most-recently received stream features information (the one received
        right before resource binding).
 
@@ -447,7 +447,7 @@ class AbstractClient:
     def _negotiate_stream(self, xmlstream, features):
         server_can_do_sm = True
         try:
-            features[stream_xsos.StreamManagementFeature]
+            features[nonza.StreamManagementFeature]
         except KeyError:
             if self.stream.sm_enabled:
                 self._logger.warn("server isn’t advertising SM anymore")

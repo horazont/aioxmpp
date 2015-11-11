@@ -28,6 +28,11 @@ Version 0.5
 
 * :class:`aioxmpp.callbacks.AdHocSignal` now provides full exception isolation.
 
+* :mod:`aioxmpp.stream_xsos` renamed to :mod:`aioxmpp.nonza`, in accordance
+  with `XEP-0360`__.
+
+  __ https://xmpp.org/extensions/xep-0360.html
+
 Version 0.4
 ===========
 
@@ -41,8 +46,8 @@ Version 0.4
   management. To track the presence of peers, :mod:`aioxmpp.presence` has been
   added.
 
-* :mod:`aioxmpp.stream` and :mod:`aioxmpp.stream_xsos` are part of the public
-  API now. :mod:`aioxmpp.stream_xsos` has gained the XSOs for SASL (previously
+* :mod:`aioxmpp.stream` and :mod:`aioxmpp.nonza` are part of the public
+  API now. :mod:`aioxmpp.nonza` has gained the XSOs for SASL (previously
   in :mod:`aioxmpp.sasl`) and StartTLS (previously in
   :mod:`aioxmpp.security_layer`).
 
@@ -67,7 +72,7 @@ Version 0.4
 
 * Several fixes and workarounds, finally providing ejabberd compatibility:
 
-  * :class:`aioxmpp.stream_xsos.StartTLS` declares its namespace
+  * :class:`aioxmpp.nonza.StartTLS` declares its namespace
     prefixless. Otherwise, connections to some versions of ejabberd fail in a
     very humorous way: client says "I want to start TLS", server says "You have
     to use TLS" and closes the stream with a policy-violation stream error.

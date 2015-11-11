@@ -12,7 +12,8 @@ This module was introduced to ensure compatibility with legacy XMPP servers
 """
 
 
-from . import stanza, stream_xsos, xso
+
+from . import stanza, nonza, xso
 
 from .utils import namespaces
 
@@ -34,7 +35,7 @@ class Session(xso.XSO):
     TAG = (namespaces.rfc3921_session, "session")
 
 
-@stream_xsos.StreamFeatures.as_feature_class
+@nonza.StreamFeatures.as_feature_class
 class SessionFeature(xso.XSO):
     """
     Stream feature which the server uses to announce that it supports legacy

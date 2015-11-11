@@ -49,7 +49,7 @@ from . import (
     stanza,
     errors,
     custom_queue,
-    stream_xsos,
+    nonza,
     callbacks,
     protocol,
 )
@@ -823,7 +823,7 @@ class StanzaStream:
         stanza_obj, exc = queue_entry
 
         # first, handle SM stream objects
-        if isinstance(stanza_obj, stream_xsos.SMAcknowledgement):
+        if isinstance(stanza_obj, nonza.SMAcknowledgement):
             self._logger.debug("received SM ack: %r", stanza_obj)
             if not self._sm_enabled:
                 self._logger.warning("received SM ack, but SM not enabled")
@@ -836,12 +836,12 @@ class StanzaStream:
                 self._next_ping_event_at = (datetime.utcnow() +
                                             self.ping_interval)
             return
-        elif isinstance(stanza_obj, stream_xsos.SMRequest):
+        elif isinstance(stanza_obj, nonza.SMRequest):
             self._logger.debug("received SM request: %r", stanza_obj)
             if not self._sm_enabled:
                 self._logger.warning("received SM request, but SM not enabled")
                 return
-            response = stream_xsos.SMAcknowledgement()
+            response = nonza.SMAcknowledgement()
             response.counter = self._sm_inbound_ctr
             self._logger.debug("sending SM ack: %r", stanza_obj)
             xmlstream.send_xso(response)
@@ -980,7 +980,7 @@ class StanzaStream:
 
         if self._sm_enabled:
             self._logger.debug("sending SM req")
-            xmlstream.send_xso(stream_xsos.SMRequest())
+            xmlstream.send_xso(nonza.SMRequest())
         else:
             request = stanza.IQ(type_="get")
             request.payload = xep0199.Ping()
@@ -1245,9 +1245,9 @@ class StanzaStream:
 
         if self._sm_enabled:
             self._logger.debug("using SM")
-            xmlstream.stanza_parser.add_class(stream_xsos.SMAcknowledgement,
+            xmlstream.stanza_parser.add_class(nonza.SMAcknowledgement,
                                               receiver)
-            xmlstream.stanza_parser.add_class(stream_xsos.SMRequest,
+            xmlstream.stanza_parser.add_class(nonza.SMRequest,
                                               receiver)
 
         self._xmlstream_exception = None
@@ -1259,9 +1259,9 @@ class StanzaStream:
         xmlstream.stanza_parser.remove_class(stanza.IQ)
         if self._sm_enabled:
             xmlstream.stanza_parser.remove_class(
-                stream_xsos.SMRequest)
+                nonza.SMRequest)
             xmlstream.stanza_parser.remove_class(
-                stream_xsos.SMAcknowledgement)
+                nonza.SMAcknowledgement)
 
         xmlstream.on_closing.disconnect(
             self._xmlstream_failure_token
@@ -1503,15 +1503,15 @@ class StanzaStream:
             response = yield from protocol.send_and_wait_for(
                 self._xmlstream,
                 [
-                    stream_xsos.SMEnable(resume=bool(request_resumption)),
+                    nonza.SMEnable(resume=bool(request_resumption)),
                 ],
                 [
-                    stream_xsos.SMEnabled,
-                    stream_xsos.SMFailed
+                    nonza.SMEnabled,
+                    nonza.SMFailed
                 ]
             )
 
-            if isinstance(response, stream_xsos.SMFailed):
+            if isinstance(response, nonza.SMFailed):
                 raise errors.StreamNegotiationFailure(
                     "Server rejected SM request")
 
@@ -1535,10 +1535,10 @@ class StanzaStream:
             #         raise self._xmlstream_exception
 
             self._xmlstream.stanza_parser.add_class(
-                stream_xsos.SMRequest,
+                nonza.SMRequest,
                 self.recv_stanza)
             self._xmlstream.stanza_parser.add_class(
-                stream_xsos.SMAcknowledgement,
+                nonza.SMAcknowledgement,
                 self.recv_stanza)
 
     @property
@@ -1606,7 +1606,7 @@ class StanzaStream:
     def sm_max(self):
         """
         The value of the ``max`` attribute of the
-        :class:`~.stream_xsos.SMEnabled` response from the server.
+        :class:`~.nonza.SMEnabled` response from the server.
 
         .. note::
 
@@ -1623,7 +1623,7 @@ class StanzaStream:
     def sm_location(self):
         """
         The value of the ``location`` attribute of the
-        :class:`~.stream_xsos.SMEnabled` response from the server.
+        :class:`~.nonza.SMEnabled` response from the server.
 
         .. note::
 
@@ -1640,7 +1640,7 @@ class StanzaStream:
     def sm_id(self):
         """
         The value of the ``id`` attribute of the
-        :class:`~.stream_xsos.SMEnabled` response from the server.
+        :class:`~.nonza.SMEnabled` response from the server.
 
         .. note::
 
@@ -1657,7 +1657,7 @@ class StanzaStream:
     def sm_resumable(self):
         """
         The value of the ``resume`` attribute of the
-        :class:`~.stream_xsos.SMEnabled` response from the server.
+        :class:`~.nonza.SMEnabled` response from the server.
 
         .. note::
 
@@ -1718,20 +1718,20 @@ class StanzaStream:
             response = yield from protocol.send_and_wait_for(
                 xmlstream,
                 [
-                    stream_xsos.SMResume(previd=self.sm_id,
+                    nonza.SMResume(previd=self.sm_id,
                                          counter=self._sm_inbound_ctr)
                 ],
                 [
-                    stream_xsos.SMResumed,
-                    stream_xsos.SMFailed
+                    nonza.SMResumed,
+                    nonza.SMFailed
                 ]
             )
 
-            if isinstance(response, stream_xsos.SMFailed):
+            if isinstance(response, nonza.SMFailed):
                 xmlstream.stanza_parser.remove_class(
-                    stream_xsos.SMRequest)
+                    nonza.SMRequest)
                 xmlstream.stanza_parser.remove_class(
-                    stream_xsos.SMAcknowledgement)
+                    nonza.SMAcknowledgement)
                 self.stop_sm()
                 raise errors.StreamNegotiationFailure(
                     "Server rejected SM resumption")
