@@ -6,6 +6,8 @@ This subpackage provides client-side support for `XEP-0045`_.
 
 .. _xep-0045: https://xmpp.org/extensions/xep-0045.html
 
+.. versionadded:: 0.5
+
 Using Multi-User-Chats
 ======================
 
