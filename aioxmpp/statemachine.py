@@ -1,6 +1,11 @@
 """
-:mod:`statemachine` -- Utils for implementing a state machine
-#############################################################
+:mod:`~aioxmpp.statemachine` -- Utils for implementing a state machine
+######################################################################
+
+.. autoclass:: OrderedStateMachine
+
+.. autoclass:: OrderedStateSkipped
+
 """
 import asyncio
 
