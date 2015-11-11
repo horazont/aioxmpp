@@ -1555,114 +1555,24 @@ class TestRoom(unittest.TestCase):
                     reason="foobar",
                 ))
 
-    def test_set_affiliation(self):
-        new_affiliation = "owner"
-
+    def test_set_affiliation_delegates_to_service(self):
         with unittest.mock.patch.object(
-                self.base.service.client.stream,
-                "send_iq_and_wait_for_reply",
-                new=CoroutineMock()) as send_iq:
-            send_iq.return_value = None
+                self.base.service,
+                "set_affiliation",
+                new=CoroutineMock()) as set_affiliation:
+            jid, aff, reason = object(), object(), object()
 
-            run_coroutine(self.jmuc.set_affiliation(
-                TEST_ENTITY_JID,
-                new_affiliation,
-                reason="foobar",
+            result = run_coroutine(self.jmuc.set_affiliation(
+                jid, aff, reason=reason
             ))
 
-        _, (iq,), _ = send_iq.mock_calls[-1]
-
-        self.assertIsInstance(
-            iq,
-            aioxmpp.stanza.IQ
+        set_affiliation.assert_called_with(
+            self.mucjid,
+            jid,
+            aff,
+            reason=reason
         )
-        self.assertEqual(
-            iq.type_,
-            "set"
-        )
-        self.assertEqual(
-            iq.to,
-            self.mucjid
-        )
-
-        self.assertIsInstance(
-            iq.payload,
-            muc_xso.AdminQuery
-        )
-
-        self.assertEqual(
-            len(iq.payload.items),
-            1
-        )
-        item = iq.payload.items[0]
-        self.assertIsInstance(
-            item,
-            muc_xso.AdminItem
-        )
-        self.assertIsNone(item.nick)
-        self.assertEqual(
-            item.reason,
-            "foobar"
-        )
-        self.assertEqual(
-            item.affiliation,
-            new_affiliation
-        )
-        self.assertEqual(
-            item.jid,
-            TEST_ENTITY_JID
-        )
-
-    def test_set_affiliation_rejects_None_affiliation(self):
-        with unittest.mock.patch.object(
-                self.base.service.client.stream,
-                "send_iq_and_wait_for_reply",
-                new=CoroutineMock()) as send_iq:
-            send_iq.return_value = None
-
-            with self.assertRaisesRegex(ValueError,
-                                        "affiliation must not be None"):
-                run_coroutine(self.jmuc.set_affiliation(
-                    TEST_ENTITY_JID,
-                    None,
-                    reason="foobar",
-                ))
-
-        self.assertFalse(send_iq.mock_calls)
-
-    def test_set_affiliation_rejects_None_jid(self):
-        with unittest.mock.patch.object(
-                self.base.service.client.stream,
-                "send_iq_and_wait_for_reply",
-                new=CoroutineMock()) as send_iq:
-            send_iq.return_value = None
-
-            with self.assertRaisesRegex(ValueError,
-                                        "jid must not be None"):
-                run_coroutine(self.jmuc.set_affiliation(
-                    None,
-                    "outcast",
-                    reason="foobar",
-                ))
-
-        self.assertFalse(send_iq.mock_calls)
-
-    def test_set_affiliation_fails(self):
-        with unittest.mock.patch.object(
-                self.base.service.client.stream,
-                "send_iq_and_wait_for_reply",
-                new=CoroutineMock()) as send_iq:
-            send_iq.return_value = None
-            send_iq.side_effect = aioxmpp.errors.XMPPCancelError(
-                condition=(utils.namespaces.stanzas, "forbidden")
-            )
-
-            with self.assertRaises(aioxmpp.errors.XMPPCancelError):
-                run_coroutine(self.jmuc.set_affiliation(
-                    TEST_ENTITY_JID,
-                    "owner",
-                    reason="foobar",
-                ))
+        self.assertEqual(result, run_coroutine(set_affiliation()))
 
     def test_set_subject(self):
         d = {
@@ -2683,6 +2593,155 @@ class TestService(unittest.TestCase):
 
         with self.assertRaises(KeyError):
             self.s.get_muc(TEST_MUC_JID.replace(localpart="foo"))
+
+    def test_set_affiliation(self):
+        new_affiliation = "owner"
+
+        with unittest.mock.patch.object(
+                self.cc.stream,
+                "send_iq_and_wait_for_reply",
+                new=CoroutineMock()) as send_iq:
+            send_iq.return_value = None
+
+            run_coroutine(self.s.set_affiliation(
+                TEST_MUC_JID,
+                TEST_ENTITY_JID,
+                new_affiliation,
+                reason="foobar",
+            ))
+
+        _, (iq,), _ = send_iq.mock_calls[-1]
+
+        self.assertIsInstance(
+            iq,
+            aioxmpp.stanza.IQ
+        )
+        self.assertEqual(
+            iq.type_,
+            "set"
+        )
+        self.assertEqual(
+            iq.to,
+            TEST_MUC_JID,
+        )
+
+        self.assertIsInstance(
+            iq.payload,
+            muc_xso.AdminQuery
+        )
+
+        self.assertEqual(
+            len(iq.payload.items),
+            1
+        )
+        item = iq.payload.items[0]
+        self.assertIsInstance(
+            item,
+            muc_xso.AdminItem
+        )
+        self.assertIsNone(item.nick)
+        self.assertEqual(
+            item.reason,
+            "foobar"
+        )
+        self.assertEqual(
+            item.affiliation,
+            new_affiliation
+        )
+        self.assertEqual(
+            item.jid,
+            TEST_ENTITY_JID
+        )
+
+    def test_set_affiliation_rejects_None_affiliation(self):
+        with unittest.mock.patch.object(
+                self.cc.stream,
+                "send_iq_and_wait_for_reply",
+                new=CoroutineMock()) as send_iq:
+            send_iq.return_value = None
+
+            with self.assertRaisesRegex(ValueError,
+                                        "affiliation must not be None"):
+                run_coroutine(self.s.set_affiliation(
+                    TEST_MUC_JID,
+                    TEST_ENTITY_JID,
+                    None,
+                    reason="foobar",
+                ))
+
+        self.assertFalse(send_iq.mock_calls)
+
+    def test_set_affiliation_rejects_None_jid(self):
+        with unittest.mock.patch.object(
+                self.cc.stream,
+                "send_iq_and_wait_for_reply",
+                new=CoroutineMock()) as send_iq:
+            send_iq.return_value = None
+
+            with self.assertRaisesRegex(ValueError,
+                                        "jid must not be None"):
+                run_coroutine(self.s.set_affiliation(
+                    TEST_MUC_JID,
+                    None,
+                    "outcast",
+                    reason="foobar",
+                ))
+
+        self.assertFalse(send_iq.mock_calls)
+
+    def test_set_affiliation_rejects_None_mucjid(self):
+        with unittest.mock.patch.object(
+                self.cc.stream,
+                "send_iq_and_wait_for_reply",
+                new=CoroutineMock()) as send_iq:
+            send_iq.return_value = None
+
+            with self.assertRaisesRegex(ValueError,
+                                        "mucjid must be bare JID"):
+                run_coroutine(self.s.set_affiliation(
+                    None,
+                    TEST_ENTITY_JID,
+                    "outcast",
+                    reason="foobar",
+                ))
+
+        self.assertFalse(send_iq.mock_calls)
+
+    def test_set_affiliation_rejects_full_mucjid(self):
+        with unittest.mock.patch.object(
+                self.cc.stream,
+                "send_iq_and_wait_for_reply",
+                new=CoroutineMock()) as send_iq:
+            send_iq.return_value = None
+
+            with self.assertRaisesRegex(ValueError,
+                                        "mucjid must be bare JID"):
+                run_coroutine(self.s.set_affiliation(
+                    TEST_MUC_JID.replace(resource="thirdwitch"),
+                    TEST_ENTITY_JID,
+                    "outcast",
+                    reason="foobar",
+                ))
+
+        self.assertFalse(send_iq.mock_calls)
+
+    def test_set_affiliation_fails(self):
+        with unittest.mock.patch.object(
+                self.cc.stream,
+                "send_iq_and_wait_for_reply",
+                new=CoroutineMock()) as send_iq:
+            send_iq.return_value = None
+            send_iq.side_effect = aioxmpp.errors.XMPPCancelError(
+                condition=(utils.namespaces.stanzas, "forbidden")
+            )
+
+            with self.assertRaises(aioxmpp.errors.XMPPCancelError):
+                run_coroutine(self.s.set_affiliation(
+                    TEST_MUC_JID,
+                    TEST_ENTITY_JID,
+                    "owner",
+                    reason="foobar",
+                ))
 
     def tearDow(self):
         del self.s

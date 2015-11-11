@@ -645,40 +645,14 @@ class Room:
     @asyncio.coroutine
     def set_affiliation(self, jid, affiliation, *, reason=None):
         """
-        Change the affiliation of the given `jid` with the MUC to the given new
-        `affiliation`. Optionally, a  `reason` can be given.
-
-        Setting the different affiliations require different privilegues of the
-        local user. The details can be checked in `XEP-0045`_ and are enforced
-        solely by the server, not local code.
-
-        The coroutine returns when the change in affiliation has been
-        acknowledged by the server. If the server returns an error, an
-        appropriate :class:`aioxmpp.errors.XMPPError` subclass is raised.
+        Convenience wrapper around :meth:`Service.set_affiliation`. See there
+        for details, and consider its `mucjid` argument to be set to
+        :attr:`mucjid`.
         """
-
-        if jid is None:
-            raise ValueError("jid must not be None")
-
-        if affiliation is None:
-            raise ValueError("affiliation must not be None")
-
-        iq = aioxmpp.stanza.IQ(
-            type_="set",
-            to=self.mucjid
-        )
-
-        iq.payload = muc_xso.AdminQuery(
-            items=[
-                muc_xso.AdminItem(jid=jid,
-                                  reason=reason,
-                                  affiliation=affiliation)
-            ]
-        )
-
-        yield from self.service.client.stream.send_iq_and_wait_for_reply(
-            iq
-        )
+        return (yield from self.service.set_affiliation(
+            self.mucjid,
+            jid, affiliation,
+            reason=reason))
 
     def set_subject(self, subject):
         """
@@ -748,9 +722,13 @@ def _connect_to_signal(signal, func):
 
 class Service(aioxmpp.service.Service):
     """
-    Client service implementing the a Multi-User Chat client.
+    Client service implementing the a Multi-User Chat client. By loading it
+    into a client, it is possible to join multi-user chats and implement
+    interaction with them.
 
     .. automethod:: join
+
+    .. automethod:: set_affiliation
 
     """
     on_muc_joined = aioxmpp.callbacks.Signal()
@@ -985,3 +963,49 @@ class Service(aioxmpp.service.Service):
             self._send_join_presence(mucjid, history, nick, password)
 
         return room, fut
+
+    @asyncio.coroutine
+    def set_affiliation(self, mucjid, jid, affiliation, *, reason=None):
+        """
+        Change the affiliation of the given `jid` with the MUC identified by
+        the bare `mucjid` to the given new `affiliation`. Optionally, a
+        `reason` can be given.
+
+        If you are joined in the MUC, :meth:`Room.set_affiliation` may be more
+        convenient, but it is possible to modify the affiliations of a MUC
+        without being joined, given sufficient privilegues.
+
+        Setting the different affiliations require different privilegues of the
+        local user. The details can be checked in `XEP-0045`_ and are enforced
+        solely by the server, not local code.
+
+        The coroutine returns when the change in affiliation has been
+        acknowledged by the server. If the server returns an error, an
+        appropriate :class:`aioxmpp.errors.XMPPError` subclass is raised.
+        """
+
+        if mucjid is None or not mucjid.is_bare:
+            raise ValueError("mucjid must be bare JID")
+
+        if jid is None:
+            raise ValueError("jid must not be None")
+
+        if affiliation is None:
+            raise ValueError("affiliation must not be None")
+
+        iq = aioxmpp.stanza.IQ(
+            type_="set",
+            to=mucjid
+        )
+
+        iq.payload = muc_xso.AdminQuery(
+            items=[
+                muc_xso.AdminItem(jid=jid,
+                                  reason=reason,
+                                  affiliation=affiliation)
+            ]
+        )
+
+        yield from self.client.stream.send_iq_and_wait_for_reply(
+            iq
+        )
