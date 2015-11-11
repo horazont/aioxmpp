@@ -1140,12 +1140,6 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
         run_coroutine(asyncio.sleep(0))
 
     def test_fail_on_value_error_while_live(self):
-        call = unittest.mock.call(
-            self.test_jid,
-            self.security_layer,
-            negotiation_timeout=60.0,
-            override_peer=None,
-            loop=self.loop)
 
         self.client.backoff_start = timedelta(seconds=0.01)
         self.client.backoff_factor = 2
@@ -1165,12 +1159,35 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
         self.assertFalse(self.client.running)
         self.assertFalse(self.client.stream.running)
 
+    def test_fail_on_conflict_stream_error_while_live(self):
+        self.client.backoff_start = timedelta(seconds=0.01)
+        self.client.backoff_factor = 2
+        self.client.backoff_cap = timedelta(seconds=0.1)
+        self.client.start()
+
+        run_coroutine(self.xmlstream.run_test(
+            self.resource_binding
+        ))
+        run_coroutine(asyncio.sleep(0))
+
+        exc = errors.StreamError(
+            condition=(namespaces.streams, "conflict")
+        )
+        # stream would have been terminated normally, so we stop it manually
+        # here
+        self.client.stream._xmlstream_failed(exc)
+        run_coroutine(asyncio.sleep(0))
+        self.failure_rec.assert_called_with(exc)
+
+        self.assertFalse(self.client.running)
+        self.assertFalse(self.client.stream.running)
+
     def test_negotiate_stream_management(self):
         self.features[...] = nonza.StreamManagementFeature()
 
         self.client.start()
         run_coroutine(self.xmlstream.run_test(
-            self.resource_binding+
+            self.resource_binding +
             self.sm_negotiation_exchange
         ))
 
@@ -1609,7 +1626,8 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
         ]))
 
         run_coroutine(self.xmlstream.run_test(
-            [],
+            [
+            ],
             stimulus=XMLStreamMock.Fail(exc=ConnectionError())
         ))
 
@@ -1618,6 +1636,11 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
         self.established_rec.assert_called_once_with()
         self.destroyed_rec.assert_called_once_with()
         self.assertFalse(self.client.established)
+
+        # stop the client to avoid tearDown to wait for a close which isn’t
+        # gonna happen
+        self.client.stop()
+        run_coroutine(asyncio.sleep(0))
 
     def test_signals_fire_correctly_on_fail_after_established_sm_connection(self):
         self.features[...] = nonza.StreamManagementFeature()

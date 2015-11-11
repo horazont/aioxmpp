@@ -536,8 +536,7 @@ class AbstractClient:
 
             exc = yield from failure_future
             self._logger.error("stream failed: %s", exc)
-            if not isinstance(exc, OSError):
-                raise exc
+            raise exc
         except asyncio.CancelledError:
             self._logger.info("client shutting down")
             # cancelled, this means a clean shutdown is requested
@@ -561,6 +560,11 @@ class AbstractClient:
                 self._failure_future = asyncio.Future()
                 try:
                     yield from self._main_impl()
+                except errors.StreamError as err:
+                    if err.condition == (namespaces.streams, "conflict"):
+                        self._logger.debug("conflict!")
+                        raise
+                    pass
                 except errors.StreamNegotiationFailure:
                     if self.stream.sm_enabled:
                         self.stream.stop_sm()
