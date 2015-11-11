@@ -43,11 +43,12 @@ sorted into this section.
 .. toctree::
    :maxdepth: 2
 
+   structs
+   tracking
    stream_xsos
    sasl
    errors
    i18n
-   structs
    callbacks
 
 
