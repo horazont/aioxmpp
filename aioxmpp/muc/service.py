@@ -1,13 +1,14 @@
 import asyncio
 import functools
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from enum import Enum
 
 import aioxmpp.callbacks
 import aioxmpp.service
 import aioxmpp.stanza
 import aioxmpp.structs
+import aioxmpp.tracking
 
 from . import xso as muc_xso
 
@@ -156,6 +157,8 @@ class Room:
 
     .. automethod:: leave_and_wait
 
+    .. automethod:: send_tracked_message
+
     The interface provides signals for most of the rooms events. The following
     keyword arguments are used at several signal handlers (which is also noted
     at their respective documentation):
@@ -195,13 +198,6 @@ class Room:
        2. if the room is configured to not emit presence for occupants in
           certain roles, no :class:`Occupant` instances are created and tracked
           for those occupants
-
-    .. signal:: on_private_message(message, occupant, **kwargs)
-
-       Emits when a private (non-group) chat, headline or normal
-       :class:`~.stanza.Message` `message` is received through the room.
-
-       The `occupant` argument refers to the sender of the message.
 
     .. signal:: on_subject_change(message, subject, **kwargs)
 
@@ -331,7 +327,6 @@ class Room:
     """
 
     on_message = aioxmpp.callbacks.Signal()
-    on_private_message = aioxmpp.callbacks.Signal()
 
     # this occupant state events
     on_enter = aioxmpp.callbacks.Signal()
@@ -360,8 +355,17 @@ class Room:
         self._joined = False
         self._active = False
         self._this_occupant = None
+        self._tracking = {}
         self.autorejoin = False
         self.password = None
+
+        self.on_exit.connect(self._cleanup_tracking)
+        self.on_resume.connect(self._cleanup_tracking)
+
+    def _cleanup_tracking(self, *args, **kwargs):
+        for tracker in self._tracking.values():
+            tracker.state = aioxmpp.tracking.MessageState.UNKNOWN
+        self._tracking.clear()
 
     @property
     def service(self):
@@ -471,10 +475,18 @@ class Room:
                 occupant=self._occupant_info.get(stanza.from_, None)
             )
         elif stanza.body:
-            if stanza.type_ == "groupchat":
-                self.on_message(stanza, occupant=None)
-            elif stanza.type_ in ["chat", "normal", "headline"]:
-                self.on_private_message(stanza, occupant=None)
+            self.on_message(stanza, occupant=None)
+
+        try:
+            tracker = self._tracking.pop(stanza.id_)
+        except KeyError:
+            pass
+        else:
+            try:
+                tracker.state = \
+                    aioxmpp.tracking.MessageState.DELIVERED_TO_RECIPIENT
+            except ValueError:
+                pass
 
     def _diff_presence(self, stanza, info, existing):
         if    (not info.presence_state.available and
@@ -711,6 +723,77 @@ class Room:
 
         yield from fut
 
+    def _tracking_timeout(self, id_, tracker):
+        tracker.state = aioxmpp.tracking.MessageState.TIMED_OUT
+        try:
+            existing = self._tracking.pop[id_]
+        except KeyError:
+            pass
+        else:
+            if existing is tracker:
+                del self._tracking[id_]
+
+    def send_tracked_message(self, body_or_stanza, *,
+                             timeout=timedelta(seconds=120)):
+        """
+        Send a tracked message. The first argument can either be a
+        :class:`~.stanza.Message` or a mapping compatible with
+        :attr:`~.stanza.Message.body`.
+
+        Return a :class:`~.tracking.MessageTracker` which tracks the
+        message. See the documentation of :class:`~.MessageTracker` and
+        :class:`~.MessageState` for more details on tracking in general.
+
+        Tracking a MUC groupchat message supports tracking up to the
+        :attr:`~.MessageState.DELIVERED_TO_RECIPIENT` state. If a `timeout` is
+        given, it must be a :class:`~datetime.timedelta` indicating the time
+        span after which the tracking shall time out. `timeout` may be
+        :data:`None` to let the tracking never expire.
+
+        .. warning::
+
+           Some MUC implementations rewrite the ``id`` when the message is
+           reflected in the MUC. In that case, tracking cannot succeed beyond
+           the :attr:`~.MessageState.DELIVERED_TO_SERVER` state, which is
+           provided by the basic tracking interface.
+
+           To support these implementations, the `timeout` defaults at 120
+           seconds; this avoids that sending a message becomes a memory leak.
+
+        If the chat is exited in the meantime, the messages are set to
+        :attr:`~.MessageState.UNKNOWN` state. This also happens on suspension
+        and resumption.
+        """
+        if isinstance(body_or_stanza, aioxmpp.stanza.Message):
+            message = body_or_stanza
+            message.type_ = "groupchat"
+            message.to = self.mucjid
+        else:
+            message = aioxmpp.stanza.Message(
+                type_="groupchat",
+                to=self.mucjid
+            )
+            message.body.update(body_or_stanza)
+
+        tracker = aioxmpp.tracking.MessageTracker()
+        token = self.service.client.stream.enqueue_stanza(
+            message,
+            on_state_change=tracker.on_stanza_state_change
+        )
+        tracker.token = token
+
+        self._tracking[message.id_] = tracker
+
+        if timeout is not None:
+            asyncio.get_event_loop().call_later(
+                timeout.total_seconds(),
+                self._tracking_timeout,
+                message.id_,
+                tracker
+            )
+
+        return tracker
+
 
 def _connect_to_filter(filter, func, service):
     return filter, filter.register(func, service)
@@ -934,7 +1017,7 @@ class Service(aioxmpp.service.Service):
 
         try:
             self.client.stream.register_message_callback(
-                None,
+                "groupchat",
                 mucjid,
                 self._inbound_message
             )

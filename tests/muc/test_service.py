@@ -3,7 +3,7 @@ import contextlib
 import functools
 import unittest
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import aioxmpp.callbacks
 import aioxmpp.errors
@@ -12,6 +12,7 @@ import aioxmpp.muc.xso as muc_xso
 import aioxmpp.service as service
 import aioxmpp.stanza
 import aioxmpp.structs
+import aioxmpp.tracking as tracking
 import aioxmpp.utils as utils
 
 from aioxmpp.testutils import (
@@ -236,10 +237,8 @@ class TestRoom(unittest.TestCase):
 
         # messaging events
         self.base.on_message.return_value = None
-        self.base.on_private_message.return_value = None
 
         self.jmuc.on_message.connect(self.base.on_message)
-        self.jmuc.on_private_message.connect(self.base.on_private_message)
 
         # room meta events
         self.base.on_subject_change.return_value = None
@@ -267,10 +266,10 @@ class TestRoom(unittest.TestCase):
             self.jmuc.on_message,
             aioxmpp.callbacks.AdHocSignal
         )
-        self.assertIsInstance(
-            self.jmuc.on_private_message,
-            aioxmpp.callbacks.AdHocSignal
-        )
+        self.assertFalse(hasattr(
+            self.jmuc,
+            "on_private_message"
+        ))
         self.assertIsInstance(
             self.jmuc.on_join,
             aioxmpp.callbacks.AdHocSignal
@@ -1320,55 +1319,6 @@ class TestRoom(unittest.TestCase):
             ]
         )
 
-    def test__inbound_chat_message_with_body_emits_on_private_message(self):
-        msg = aioxmpp.stanza.Message(
-            from_=TEST_MUC_JID.replace(resource="secondwitch"),
-            type_="chat"
-        )
-        msg.body[None] = "foo"
-
-        self.jmuc._inbound_message(msg)
-
-        self.assertSequenceEqual(
-            self.base.mock_calls,
-            [
-                unittest.mock.call.on_private_message(msg, occupant=None)
-            ]
-        )
-
-    def test__inbound_normal_message_with_body_emits_on_private_message(self):
-        msg = aioxmpp.stanza.Message(
-            from_=TEST_MUC_JID.replace(resource="secondwitch"),
-            type_="normal"
-        )
-        msg.body[None] = "foo"
-
-        self.jmuc._inbound_message(msg)
-
-        self.assertSequenceEqual(
-            self.base.mock_calls,
-            [
-                unittest.mock.call.on_private_message(msg, occupant=None)
-            ]
-        )
-
-    def test__inbound_headline_message_with_body_emits_on_private_message(
-            self):
-        msg = aioxmpp.stanza.Message(
-            from_=TEST_MUC_JID.replace(resource="secondwitch"),
-            type_="headline"
-        )
-        msg.body[None] = "foo"
-
-        self.jmuc._inbound_message(msg)
-
-        self.assertSequenceEqual(
-            self.base.mock_calls,
-            [
-                unittest.mock.call.on_private_message(msg, occupant=None)
-            ]
-        )
-
     def test__inbound_muc_user_presence_emits_on_enter_and_on_exit(self):
         presence = aioxmpp.stanza.Presence(
             type_=None,
@@ -1708,6 +1658,287 @@ class TestRoom(unittest.TestCase):
 
         self.assertIs(self.jmuc.occupants[0], self.jmuc.this_occupant)
 
+    def test_send_tracked_message_with_body(self):
+        stanza = None
+        set_on_state_change = None
+        result = object()
+
+        def setup_stanza(stanza_to_send, *, on_state_change=None):
+            nonlocal stanza, set_on_state_change
+            self.assertIsNone(stanza)
+            stanza_to_send.autoset_id()
+            stanza = stanza_to_send
+            set_on_state_change = on_state_change
+            return result
+
+        body = {
+            None: "foo"
+        }
+
+        with unittest.mock.patch.object(
+                self.base.service.client.stream,
+                "enqueue_stanza",
+                new=setup_stanza):
+            tracker = self.jmuc.send_tracked_message(body)
+
+        self.assertIsNotNone(stanza)
+        self.assertIsInstance(
+            stanza,
+            aioxmpp.stanza.Message
+        )
+        self.assertEqual(
+            stanza.type_,
+            "groupchat"
+        )
+        self.assertEqual(
+            stanza.to,
+            self.mucjid
+        )
+        self.assertDictEqual(
+            stanza.body,
+            body
+        )
+
+        self.assertEqual(
+            set_on_state_change,
+            tracker.on_stanza_state_change
+        )
+
+        self.assertIsInstance(
+            tracker,
+            tracking.MessageTracker
+        )
+        self.assertEqual(
+            tracker.token,
+            result,
+        )
+
+        self.assertEqual(
+            tracker.state,
+            tracking.MessageState.IN_TRANSIT
+        )
+
+        reflected = aioxmpp.stanza.Message(
+            type_="groupchat",
+            id_=stanza.id_
+        )
+
+        self.jmuc._inbound_message(reflected)
+
+        self.assertEqual(
+            tracker.state,
+            tracking.MessageState.DELIVERED_TO_RECIPIENT
+        )
+
+    def test_tracking_deals_with_invalid_state(self):
+        stanza = None
+        set_on_state_change = None
+        result = object()
+
+        def setup_stanza(stanza_to_send, *, on_state_change=None):
+            nonlocal stanza, set_on_state_change
+            self.assertIsNone(stanza)
+            stanza_to_send.autoset_id()
+            stanza = stanza_to_send
+            set_on_state_change = on_state_change
+            return result
+
+        body = {
+            None: "foo"
+        }
+
+        with unittest.mock.patch.object(
+                self.base.service.client.stream,
+                "enqueue_stanza",
+                new=setup_stanza):
+            tracker = self.jmuc.send_tracked_message(body)
+
+        self.assertIsNotNone(stanza)
+        self.assertIsInstance(
+            stanza,
+            aioxmpp.stanza.Message
+        )
+        self.assertEqual(
+            stanza.type_,
+            "groupchat"
+        )
+        self.assertEqual(
+            stanza.to,
+            self.mucjid
+        )
+        self.assertDictEqual(
+            stanza.body,
+            body
+        )
+
+        self.assertEqual(
+            set_on_state_change,
+            tracker.on_stanza_state_change
+        )
+
+        self.assertIsInstance(
+            tracker,
+            tracking.MessageTracker
+        )
+        self.assertEqual(
+            tracker.token,
+            result,
+        )
+
+        self.assertEqual(
+            tracker.state,
+            tracking.MessageState.IN_TRANSIT
+        )
+
+        tracker.state = tracking.MessageState.SEEN_BY_RECIPIENT
+
+        reflected = aioxmpp.stanza.Message(
+            type_="groupchat",
+            id_=stanza.id_
+        )
+
+        self.jmuc._inbound_message(reflected)
+
+    def test_send_tracked_message_with_timeout(self):
+        stanza = None
+        set_on_state_change = None
+        result = object()
+
+        def setup_stanza(stanza_to_send, *, on_state_change=None):
+            nonlocal stanza, set_on_state_change
+            self.assertIsNone(stanza)
+            stanza_to_send.autoset_id()
+            stanza = stanza_to_send
+            set_on_state_change = on_state_change
+            return result
+
+        body = {
+            None: "foo"
+        }
+
+        with unittest.mock.patch.object(
+                self.base.service.client.stream,
+                "enqueue_stanza",
+                new=setup_stanza):
+            tracker = self.jmuc.send_tracked_message(
+                body,
+                timeout=timedelta(seconds=0.05)
+            )
+
+        self.assertEqual(
+            tracker.state,
+            tracking.MessageState.IN_TRANSIT
+        )
+
+        run_coroutine(asyncio.sleep(0.06))
+
+        self.assertEqual(
+            tracker.state,
+            tracking.MessageState.TIMED_OUT
+        )
+
+    def test_send_tracked_message_with_stanza(self):
+        stanza = aioxmpp.stanza.Message(
+            type_="chat",
+            to=TEST_ENTITY_JID
+        )
+
+        def setup_stanza(stanza_to_send, *, on_state_change=None):
+            nonlocal set_stanza, set_on_state_change
+            self.assertIsNone(set_stanza)
+            stanza_to_send.autoset_id()
+            set_stanza = stanza_to_send
+            set_on_state_change = on_state_change
+            return result
+
+        set_stanza = None
+        set_on_state_change = None
+        result = object()
+
+        with unittest.mock.patch.object(
+                self.base.service.client.stream,
+                "enqueue_stanza",
+                new=setup_stanza):
+            tracker = self.jmuc.send_tracked_message(
+                stanza,
+            )
+
+        self.assertIs(set_stanza, stanza)
+
+        # assure that critical attributes are overriden
+        self.assertEqual(stanza.type_, "groupchat")
+        self.assertEqual(stanza.to, self.mucjid)
+
+    def test_tracked_messages_are_set_to_unknown_on_exit(self):
+        stanza = aioxmpp.stanza.Message(
+            type_="chat",
+            to=TEST_ENTITY_JID
+        )
+
+        def setup_stanza(stanza_to_send, *, on_state_change=None):
+            nonlocal set_stanza, set_on_state_change
+            self.assertIsNone(set_stanza)
+            stanza_to_send.autoset_id()
+            set_stanza = stanza_to_send
+            set_on_state_change = on_state_change
+            return result
+
+        set_stanza = None
+        set_on_state_change = None
+        result = object()
+
+        with unittest.mock.patch.object(
+                self.base.service.client.stream,
+                "enqueue_stanza",
+                new=setup_stanza):
+            tracker = self.jmuc.send_tracked_message(
+                stanza,
+            )
+
+        self.assertIs(set_stanza, stanza)
+
+        self.jmuc.on_exit(object(), object(), object())
+
+        self.assertEqual(
+            tracker.state,
+            tracking.MessageState.UNKNOWN
+        )
+
+    def test_tracked_messages_are_set_to_unknown_on_resume(self):
+        stanza = aioxmpp.stanza.Message(
+            type_="chat",
+            to=TEST_ENTITY_JID
+        )
+
+        def setup_stanza(stanza_to_send, *, on_state_change=None):
+            nonlocal set_stanza, set_on_state_change
+            self.assertIsNone(set_stanza)
+            stanza_to_send.autoset_id()
+            set_stanza = stanza_to_send
+            set_on_state_change = on_state_change
+            return result
+
+        set_stanza = None
+        set_on_state_change = None
+        result = object()
+
+        with unittest.mock.patch.object(
+                self.base.service.client.stream,
+                "enqueue_stanza",
+                new=setup_stanza):
+            tracker = self.jmuc.send_tracked_message(
+                stanza,
+            )
+
+        self.assertIs(set_stanza, stanza)
+
+        self.jmuc.on_resume()
+
+        self.assertEqual(
+            tracker.state,
+            tracking.MessageState.UNKNOWN
+        )
+
     def tearDown(self):
         del self.jmuc
 
@@ -1828,7 +2059,7 @@ class TestService(unittest.TestCase):
         )
 
         self.cc.stream.register_message_callback.assert_called_with(
-            None,
+            "groupchat",
             TEST_MUC_JID,
             self.s._inbound_message
         )

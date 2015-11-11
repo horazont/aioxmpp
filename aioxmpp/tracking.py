@@ -5,9 +5,18 @@
 This submodule provides interfaces for tracking messages to the recipient. The
 actual tracking is not implemented here.
 
+Interfaces
+==========
+
 .. autoclass:: MessageTracker
 
 .. autoclass:: MessageState
+
+Supplied tracking implementations
+=================================
+
+* The Multi-User Chat implementation in :mod:`~.muc` supports message tracking
+  through :meth:`~.muc.Room.send_tracked_message`.
 
 """
 from enum import Enum
