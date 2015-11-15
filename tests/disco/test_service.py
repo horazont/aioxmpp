@@ -13,6 +13,7 @@ from aioxmpp.utils import namespaces
 from aioxmpp.testutils import (
     make_connected_client,
     run_coroutine,
+    CoroutineMock,
 )
 
 
@@ -470,17 +471,21 @@ class TestService(unittest.TestCase):
         with self.assertRaisesRegexp(ValueError, "feature already claimed"):
             self.s.register_feature(namespaces.xep0030_info)
 
-    def test_query_info(self):
+    def test_send_and_decode_info_query(self):
         to = structs.JID.fromstr("user@foo.example/res1")
+        node = "foobar"
         response = disco_xso.InfoQuery()
 
         self.cc.stream.send_iq_and_wait_for_reply.return_value = response
 
-        result = run_coroutine(
-            self.s.query_info(to)
-        )
+        with unittest.mock.patch.object(response, "to_dict") as to_dict:
+            result = run_coroutine(
+                self.s.send_and_decode_info_query(to, node)
+            )
 
-        self.assertIs(result, response)
+        to_dict.assert_called_with()
+        self.assertEqual(result, to_dict())
+
         self.assertEqual(
             1,
             len(self.cc.stream.send_iq_and_wait_for_reply.mock_calls)
@@ -501,192 +506,256 @@ class TestService(unittest.TestCase):
         self.assertIsInstance(request_iq.payload, disco_xso.InfoQuery)
         self.assertFalse(request_iq.payload.features)
         self.assertFalse(request_iq.payload.identities)
-        self.assertIsNone(request_iq.payload.node)
+        self.assertIs(request_iq.payload.node, node)
+
+    def test_query_info(self):
+        to = structs.JID.fromstr("user@foo.example/res1")
+        response = {}
+
+        with unittest.mock.patch.object(
+                self.s,
+                "send_and_decode_info_query",
+                new=CoroutineMock()) as send_and_decode:
+            send_and_decode.return_value = response
+
+            result = run_coroutine(
+                self.s.query_info(to)
+            )
+
+        send_and_decode.assert_called_with(to, None)
+        self.assertIs(response, result)
+
+    def test_query_response_leads_to_signal_emission(self):
+        handler = unittest.mock.Mock()
+        handler.return_value = None
+
+        to = structs.JID.fromstr("user@foo.example/res1")
+        response = {}
+
+        with unittest.mock.patch.object(
+                self.s,
+                "send_and_decode_info_query",
+                new=CoroutineMock()) as send_and_decode:
+            send_and_decode.return_value = response
+
+            self.s.on_info_result.connect(handler)
+
+            run_coroutine(
+                self.s.query_info(to)
+            )
+
+        handler.assert_called_with(to, None, response)
+
+    def test_query_response_for_node_leads_to_signal_emission(self):
+        handler = unittest.mock.Mock()
+        handler.return_value = None
+
+        to = structs.JID.fromstr("user@foo.example/res1")
+        response = {}
+
+        with unittest.mock.patch.object(
+                self.s,
+                "send_and_decode_info_query",
+                new=CoroutineMock()) as send_and_decode:
+            send_and_decode.return_value = response
+
+            self.s.on_info_result.connect(handler)
+
+            run_coroutine(
+                self.s.query_info(to, node="foo")
+            )
+
+        handler.assert_called_with(to, "foo", response)
 
     def test_query_info_with_node(self):
         to = structs.JID.fromstr("user@foo.example/res1")
-        response = disco_xso.InfoQuery()
-
-        self.cc.stream.send_iq_and_wait_for_reply.return_value = response
+        response = {}
 
         with self.assertRaises(TypeError):
             self.s.query_info(to, "foobar")
 
-        result = run_coroutine(
-            self.s.query_info(to, node="foobar")
-        )
+        with unittest.mock.patch.object(
+                self.s,
+                "send_and_decode_info_query",
+                new=CoroutineMock()) as send_and_decode:
+            send_and_decode.return_value = response
 
+            result = run_coroutine(
+                self.s.query_info(to, node="foobar")
+            )
+
+        send_and_decode.assert_called_with(to, "foobar")
         self.assertIs(result, response)
-        self.assertEqual(
-            1,
-            len(self.cc.stream.send_iq_and_wait_for_reply.mock_calls)
-        )
-
-        call, = self.cc.stream.send_iq_and_wait_for_reply.mock_calls
-        # call[1] are args
-        request_iq, = call[1]
-
-        self.assertEqual(
-            to,
-            request_iq.to
-        )
-        self.assertEqual(
-            "get",
-            request_iq.type_
-        )
-        self.assertIsInstance(request_iq.payload, disco_xso.InfoQuery)
-        self.assertFalse(request_iq.payload.features)
-        self.assertFalse(request_iq.payload.identities)
-        self.assertEqual("foobar", request_iq.payload.node)
 
     def test_query_info_caches(self):
         to = structs.JID.fromstr("user@foo.example/res1")
-        response = disco_xso.InfoQuery()
+        response = {}
 
-        self.cc.stream.send_iq_and_wait_for_reply.return_value = response
+        with unittest.mock.patch.object(
+                self.s,
+                "send_and_decode_info_query",
+                new=CoroutineMock()) as send_and_decode:
+            send_and_decode.return_value = response
 
-        with self.assertRaises(TypeError):
-            self.s.query_info(to, "foobar")
+            result1 = run_coroutine(
+                self.s.query_info(to, node="foobar")
+            )
+            result2 = run_coroutine(
+                self.s.query_info(to, node="foobar")
+            )
 
-        result1 = run_coroutine(
-            self.s.query_info(to, node="foobar")
-        )
-        result2 = run_coroutine(
-            self.s.query_info(to, node="foobar")
-        )
-
-        self.assertIs(result1, response)
-        self.assertIs(result2, response)
+            self.assertIs(result1, response)
+            self.assertIs(result2, response)
 
         self.assertEqual(
             1,
-            len(self.cc.stream.send_iq_and_wait_for_reply.mock_calls)
+            len(send_and_decode.mock_calls)
         )
 
     def test_query_info_cache_override(self):
         to = structs.JID.fromstr("user@foo.example/res1")
 
-        response1 = disco_xso.InfoQuery()
-        self.cc.stream.send_iq_and_wait_for_reply.return_value = response1
+        with unittest.mock.patch.object(
+                self.s,
+                "send_and_decode_info_query",
+                new=CoroutineMock()) as send_and_decode:
+            response1 = {}
 
-        with self.assertRaises(TypeError):
-            self.s.query_info(to, "foobar")
+            send_and_decode.return_value = response1
 
-        result1 = run_coroutine(
-            self.s.query_info(to, node="foobar")
-        )
+            result1 = run_coroutine(
+                self.s.query_info(to, node="foobar")
+            )
 
-        response2 = disco_xso.InfoQuery()
-        self.cc.stream.send_iq_and_wait_for_reply.return_value = response2
+            response2 = {}
+            send_and_decode.return_value = response2
 
-        result2 = run_coroutine(
-            self.s.query_info(to, node="foobar", require_fresh=True)
-        )
+            result2 = run_coroutine(
+                self.s.query_info(to, node="foobar", require_fresh=True)
+            )
 
         self.assertIs(result1, response1)
         self.assertIs(result2, response2)
 
         self.assertEqual(
             2,
-            len(self.cc.stream.send_iq_and_wait_for_reply.mock_calls)
+            len(send_and_decode.mock_calls)
         )
 
     def test_query_info_cache_clears_on_disconnect(self):
         to = structs.JID.fromstr("user@foo.example/res1")
 
-        response1 = disco_xso.InfoQuery()
-        self.cc.stream.send_iq_and_wait_for_reply.return_value = response1
+        with unittest.mock.patch.object(
+                self.s,
+                "send_and_decode_info_query",
+                new=CoroutineMock()) as send_and_decode:
+            response1 = {}
 
-        with self.assertRaises(TypeError):
-            self.s.query_info(to, "foobar")
+            send_and_decode.return_value = response1
 
-        result1 = run_coroutine(
-            self.s.query_info(to, node="foobar")
-        )
+            result1 = run_coroutine(
+                self.s.query_info(to, node="foobar")
+            )
 
-        self.cc.on_stream_destroyed()
+            self.cc.on_stream_destroyed()
 
-        response2 = disco_xso.InfoQuery()
-        self.cc.stream.send_iq_and_wait_for_reply.return_value = response2
+            response2 = {}
+            send_and_decode.return_value = response2
 
-        result2 = run_coroutine(
-            self.s.query_info(to, node="foobar")
-        )
+            result2 = run_coroutine(
+                self.s.query_info(to, node="foobar")
+            )
 
         self.assertIs(result1, response1)
         self.assertIs(result2, response2)
 
         self.assertEqual(
             2,
-            len(self.cc.stream.send_iq_and_wait_for_reply.mock_calls)
+            len(send_and_decode.mock_calls)
         )
 
     def test_query_info_timeout(self):
         to = structs.JID.fromstr("user@foo.example/res1")
-        response = disco_xso.InfoQuery()
+        with unittest.mock.patch.object(
+                self.s,
+                "send_and_decode_info_query",
+                new=CoroutineMock()) as send_and_decode:
+            response = {}
 
-        self.cc.stream.send_iq_and_wait_for_reply.delay = 1
-        self.cc.stream.send_iq_and_wait_for_reply.return_value = response
+            send_and_decode.delay = 1
+            send_and_decode.return_value = response
 
-        with self.assertRaises(TimeoutError):
-            result = run_coroutine(
-                self.s.query_info(to, timeout=0.01)
-            )
+            with self.assertRaises(TimeoutError):
+                result = run_coroutine(
+                    self.s.query_info(to, timeout=0.01)
+                )
 
-        self.assertSequenceEqual(
-            [
-                unittest.mock.call(unittest.mock.ANY),
-            ],
-            self.cc.stream.send_iq_and_wait_for_reply.mock_calls
-        )
+                self.assertSequenceEqual(
+                    [
+                        unittest.mock.call(to, None),
+                    ],
+                    send_and_decode.mock_calls
+                )
 
     def test_query_info_deduplicate_requests(self):
         to = structs.JID.fromstr("user@foo.example/res1")
         response = disco_xso.InfoQuery()
 
-        self.cc.stream.send_iq_and_wait_for_reply.return_value = response
+        with unittest.mock.patch.object(
+                self.s,
+                "send_and_decode_info_query",
+                new=CoroutineMock()) as send_and_decode:
+            response = {}
 
-        result = run_coroutine(
-            asyncio.gather(
-                self.s.query_info(to, timeout=10),
-                self.s.query_info(to, timeout=10),
+            send_and_decode.return_value = response
+
+            result = run_coroutine(
+                asyncio.gather(
+                    self.s.query_info(to, timeout=10),
+                    self.s.query_info(to, timeout=10),
+                )
             )
-        )
 
-        self.assertIs(result[0], response)
-        self.assertIs(result[1], response)
+            self.assertIs(result[0], response)
+            self.assertIs(result[1], response)
 
         self.assertSequenceEqual(
             [
-                unittest.mock.call(unittest.mock.ANY),
+                unittest.mock.call(to, None),
             ],
-            self.cc.stream.send_iq_and_wait_for_reply.mock_calls
+            send_and_decode.mock_calls
         )
 
     def test_query_info_transparent_deduplication_when_cancelled(self):
         to = structs.JID.fromstr("user@foo.example/res1")
         response = disco_xso.InfoQuery()
 
-        self.cc.stream.send_iq_and_wait_for_reply.return_value = response
-        self.cc.stream.send_iq_and_wait_for_reply.delay = 0.1
+        with unittest.mock.patch.object(
+                self.s,
+                "send_and_decode_info_query",
+                new=CoroutineMock()) as send_and_decode:
+            response = {}
 
-        q1 = asyncio.async(self.s.query_info(to))
-        q2 = asyncio.async(self.s.query_info(to))
+            send_and_decode.return_value = response
+            send_and_decode.delay = 0.1
 
-        run_coroutine(asyncio.sleep(0.05))
+            q1 = asyncio.async(self.s.query_info(to))
+            q2 = asyncio.async(self.s.query_info(to))
 
-        q1.cancel()
+            run_coroutine(asyncio.sleep(0.05))
 
-        result = run_coroutine(q2)
+            q1.cancel()
+
+            result = run_coroutine(q2)
 
         self.assertIs(result, response)
 
         self.assertSequenceEqual(
             [
-                unittest.mock.call(unittest.mock.ANY),
-                unittest.mock.call(unittest.mock.ANY),
+                unittest.mock.call(to, None),
+                unittest.mock.call(to, None),
             ],
-            self.cc.stream.send_iq_and_wait_for_reply.mock_calls
+            send_and_decode.mock_calls
         )
 
     def test_mount_node_produces_response(self):
@@ -969,3 +1038,22 @@ class TestService(unittest.TestCase):
             ],
             self.cc.stream.send_iq_and_wait_for_reply.mock_calls
         )
+
+    def test_set_info_cache(self):
+        to = structs.JID.fromstr("user@foo.example/res1")
+        response = disco_xso.ItemsQuery()
+
+        self.s.set_info_cache(
+            to,
+            None,
+            response
+        )
+
+        other_response = disco_xso.InfoQuery()
+        self.cc.stream.send_iq_and_wait_for_reply.return_value = \
+            other_response
+
+        result = run_coroutine(self.s.query_info(to, node=None))
+
+        self.assertIs(result, response)
+        self.assertFalse(self.cc.stream.mock_calls)

@@ -1,6 +1,8 @@
 import asyncio
+import functools
 import itertools
 
+import aioxmpp.callbacks
 import aioxmpp.errors as errors
 import aioxmpp.service as service
 import aioxmpp.structs as structs
@@ -191,6 +193,12 @@ class Service(service.Service, Node):
 
     .. automethod:: query_info
 
+    .. automethod:: query_items
+
+    To prime the cache with information, the following method can be used:
+
+    .. automethod:: set_info_cache
+
     Services inherit from :class:`Node` to manage the identities and features
     of the JID itself. The identities and features declared in the service
     using the :class:`Node` interface on the :class:`Service` instance are
@@ -234,6 +242,8 @@ class Service(service.Service, Node):
       )
 
     """
+
+    on_info_result = aioxmpp.callbacks.Signal()
 
     def __init__(self, client, *, logger=None):
         super().__init__(client, logger=logger)
@@ -283,6 +293,13 @@ class Service(service.Service, Node):
             if not fut.done():
                 fut.cancel()
         self._items_pending.clear()
+
+    def _handle_info_received(self, jid, node, task):
+        try:
+            result = task.result()
+        except Exception:
+            return
+        self.on_info_result(jid, node, result)
 
     def mount_node(self, mountpoint, node):
         self._node_mounts[mountpoint] = node
@@ -337,13 +354,24 @@ class Service(service.Service, Node):
         return response
 
     @asyncio.coroutine
+    def send_and_decode_info_query(self, jid, node):
+        request_iq = stanza.IQ(to=jid, type_="get")
+        request_iq.payload = disco_xso.InfoQuery(node=node)
+
+        response = yield from self.client.stream.send_iq_and_wait_for_reply(
+            request_iq
+        )
+
+        return response.to_dict()
+
+    @asyncio.coroutine
     def query_info(self, jid, *, node=None, require_fresh=False, timeout=None):
         """
         Query the features and identities of the specified entity. The entity
         is identified by the `jid` and the optional `node`.
 
-        Return the :class:`.xso.InfoQuery` instance returned by the peer. If an
-        error is returned, that error is raised as :class:`.errors.XMPPError`.
+        Return the dict representation of the :class:`.xso.InfoQuery` instance
+        returned by the peer. See :meth:`.xso.InfoQuery.to_dict` for details.
 
         The requests are cached. This means that only one request is ever fired
         for a given target (identified by the `jid` and the `node`). The
@@ -363,8 +391,8 @@ class Service(service.Service, Node):
         not need to use `require_fresh`, as all requests are implicitly
         cancelled whenever the underlying session gets destroyed.
 
-        `timeout` is passed to
-        :meth:`.StanzaStream.send_iq_and_wait_for_reply`.
+        The `timeout` can be used to restrict the time to wait for a
+        response. If the timeout triggers, :class:`TimeoutError` is raised.
         """
         key = jid, node
 
@@ -379,17 +407,23 @@ class Service(service.Service, Node):
                 except asyncio.CancelledError:
                     pass
 
-        request_iq = stanza.IQ(to=jid, type_="get")
-        request_iq.payload = disco_xso.InfoQuery(node=node)
-
         request = asyncio.async(
-            self.client.stream.send_iq_and_wait_for_reply(request_iq)
+            self.send_and_decode_info_query(jid, node)
+        )
+        request.add_done_callback(
+            functools.partial(
+                self._handle_info_received,
+                jid,
+                node
+            )
         )
 
         self._info_pending[key] = request
         if timeout is not None:
             try:
-                result = yield from asyncio.wait_for(request, timeout=timeout)
+                result = yield from asyncio.wait_for(
+                    request,
+                    timeout=timeout)
             except asyncio.TimeoutError:
                 raise TimeoutError()
         else:
@@ -400,6 +434,12 @@ class Service(service.Service, Node):
     @asyncio.coroutine
     def query_items(self, jid, *,
                     node=None, require_fresh=False, timeout=None):
+        """
+        Send an items query to the given `jid`, querying for the items at the
+        `node`. Return the :class:`~.xso.ItemsQuery` result.
+
+        The arguments have the same semantics as with :meth:`query_info`.
+        """
         key = jid, node
 
         if not require_fresh:
@@ -430,3 +470,29 @@ class Service(service.Service, Node):
             result = yield from request
 
         return result
+
+    def set_info_cache(self, jid, node, info):
+        """
+        Override the cache entry (if one exists) for :meth:`query_info` of the
+        `jid` and `node` combination with the given `info`.
+
+        `info` must be a :class:`~.xso.InfoQuery` instance. Queries which are
+        already running are not affected by this, but future queries will see
+        the data from `info` instead.
+
+        As usual, the cache can be refreshed by passing `require_fresh` to
+        :meth:`query_info`.
+
+        .. seealso::
+
+           Module :mod:`aioxmpp.entitycaps`
+             `XEP-0115`__ implementation which uses this method to prime the
+             cache with information derived from Entity Capability
+             announcements.
+
+             __ https://xmpp.org/extensions/xep-0115.html
+
+        """
+        fut = asyncio.Future()
+        fut.set_result(info)
+        self._info_pending[jid, node] = fut

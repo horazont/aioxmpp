@@ -1,3 +1,5 @@
-from .xso import ( # NOQA
+from . import xso
+
+from .xso import (  # NOQA
     Data
 )

@@ -1,11 +1,11 @@
 import unittest
 
-import aioxmpp.disco as disco
 import aioxmpp.disco.xso as disco_xso
-import aioxmpp.xso as xso
-import aioxmpp.xso.model as xso_model
+import aioxmpp.forms.xso as forms_xso
 import aioxmpp.structs as structs
 import aioxmpp.stanza as stanza
+import aioxmpp.xso as xso
+import aioxmpp.xso.model as xso_model
 
 from aioxmpp.utils import namespaces
 
@@ -174,6 +174,16 @@ class TestInfoQuery(unittest.TestCase):
             set(disco_xso.InfoQuery.features._classes)
         )
 
+    def test_exts_attr(self):
+        self.assertIsInstance(
+            disco_xso.InfoQuery.exts,
+            xso.ChildList
+        )
+        self.assertSetEqual(
+            {forms_xso.Data},
+            set(disco_xso.InfoQuery.exts._classes)
+        )
+
     def test_init(self):
         iq = disco_xso.InfoQuery()
         self.assertFalse(iq.features)
@@ -199,6 +209,78 @@ class TestInfoQuery(unittest.TestCase):
         self.assertIn(
             disco_xso.InfoQuery.TAG,
             stanza.IQ.CHILD_MAP
+        )
+
+    def test_to_dict(self):
+        q = disco_xso.InfoQuery()
+        q.identities.extend([
+            disco_xso.Identity(
+                category="client",
+                type_="pc",
+                name="foobar"
+            ),
+            disco_xso.Identity(
+                category="client",
+                type_="pc",
+                name="baz",
+                lang=structs.LanguageTag.fromstr("en-GB")
+            ),
+        ])
+
+        q.features.extend(
+            disco_xso.Feature(var)
+            for var in [
+                "foo",
+                "bar",
+                "baz",
+            ]
+        )
+
+        f = forms_xso.Data()
+        f.fields.extend([
+            forms_xso.Field(type_="hidden",
+                            var="FORM_TYPE",
+                            values=[
+                                "fnord",
+                            ]),
+            forms_xso.Field(type_="text-single",
+                            var="uiae",
+                            values=[
+                                "nrtd",
+                            ]),
+            forms_xso.Field(type_="fixed"),
+        ])
+        q.exts.append(f)
+
+        self.assertDictEqual(
+            q.to_dict(),
+            {
+                "features": {
+                    "bar",
+                    "baz",
+                    "foo",
+                },
+                "identities": [
+                    {
+                        "category": "client",
+                        "type": "pc",
+                        "name": "foobar",
+                    },
+                    {
+                        "category": "client",
+                        "type": "pc",
+                        "name": "baz",
+                        "lang": "en-gb",
+                    },
+                ],
+                "forms": {
+                    "fnord": {
+                        "uiae": {
+                            "nrtd",
+                        }
+                    }
+                }
+            }
         )
 
 

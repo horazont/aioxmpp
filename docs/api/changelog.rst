@@ -33,6 +33,21 @@ Version 0.5
 
   __ https://xmpp.org/extensions/xep-0360.html
 
+* **Breaking change**: :meth:`aioxmpp.disco.Service.query_info` returns a dict
+  now instead of a :class:`aioxmpp.disco.xso.InfoQuery` instance. See the
+  documentation of :meth:`~aioxmpp.disco.Service.query_info` for details on the
+  format.
+
+  The rationale for this change is support for `XEP-0128`_. The form payload
+  *could* be cached in total, but it is better to have it normalized (so the
+  field types and all fields without var are stripped). This allows for using
+  the `capsdb`_ for `XEP-0115`_ implementation and also normalized behaviour
+  across different peers returning semantically equivalent information.
+
+  .. _XEP-0115: https://xmpp.org/extensions/xep-0115.html
+  .. _XEP-0128: https://xmpp.org/extensions/xep-0128.html
+  .. _capsdb: https://github.com/xnyhps/capsdb
+
 Version 0.4
 ===========
 

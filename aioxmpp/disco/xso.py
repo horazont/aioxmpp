@@ -1,5 +1,6 @@
-import aioxmpp.xso as xso
+import aioxmpp.forms.xso as forms_xso
 import aioxmpp.stanza as stanza
+import aioxmpp.xso as xso
 
 from aioxmpp.utils import namespaces
 
@@ -98,13 +99,29 @@ class InfoQuery(xso.XSO):
 
        The features of the entity, as :class:`Feature` instances.
 
+    .. automethod:: to_dict
+
+       Convert the query result to a normalized JSON-like
+       representation. Features and form field values are stored in sets, which
+       makes the dict non-JSON. To serialize to JSON, all sets need to be
+       converted to lists.
+
+       The format is a subset of the format used by the `capsdb`__. Obviously,
+       the node name and hash type are not included; otherwise (and for the
+       usage of sets vs. lists), the format is identical.
+
+       __ https://github.com/xnyhps/capsdb
+
     """
     TAG = (namespaces.xep0030_info, "query")
 
     node = xso.Attr(tag="node", default=None)
 
     identities = xso.ChildList([Identity])
+
     features = xso.ChildList([Feature])
+
+    exts = xso.ChildList([forms_xso.Data])
 
     def __init__(self, *, identities=(), features=(), node=None):
         super().__init__()
@@ -112,6 +129,43 @@ class InfoQuery(xso.XSO):
         self.features.extend(features)
         if node is not None:
             self.node = node
+
+    def to_dict(self):
+        identities = []
+        for identity in self.identities:
+            identity_dict = {
+                "category": identity.category,
+                "type": identity.type_,
+            }
+            if identity.lang is not None:
+                identity_dict["lang"] = identity.lang.match_str
+            if identity.name is not None:
+                identity_dict["name"] = identity.name
+            identities.append(identity_dict)
+
+        features = {
+            feature.var
+            for feature in self.features
+        }
+
+        forms = {}
+        for form in self.exts:
+            form_dict = {
+                field.var: set(field.values)
+                for field in form.fields
+                if field.var != "FORM_TYPE" and field.var is not None
+            }
+            forms[form.fields.filtered(
+                attrs={"var": "FORM_TYPE"}
+            )[0].values[0]] = form_dict
+
+        result = {
+            "identities": identities,
+            "features": features,
+            "forms": forms
+        }
+
+        return result
 
 
 class Item(xso.XSO):
