@@ -1,0 +1,33 @@
+Licenses
+========
+
+The whole ``aioxmpp`` is distributed under the GPLv3. See ``COPYING.gpl3`` for
+the full license text.
+
+An exception is made for the ``aioxmpp/ssl_transport.py``, which is
+substantially based on the ``_SelectorSslTransport`` class found in the
+[asyncio package][1] (at the time of writing, in ``selector_events.py``). The
+[asyncio][1] package is distributed under the Apache 2.0 license (see
+``COPYING.apache20``), and permission is granted to use
+``aioxmpp/ssl_transport.py`` under the very same license.
+
+Dependencies
+------------
+
+The licenses of the dependencies shall be listed here, too:
+
+* ``pyOpenSSL`` uses Apache 2.0 (see ``COPYING.apache20``)
+
+* ``pyasn1`` and ``pyasn1_modules`` use 2-clause BSD (see
+  ``docs/licenses/pyasn1.txt``)
+
+* ``dnspython`` uses a BSD-ish license (see ``docs/licenses/dnspython.txt``)
+
+* ``orderedset`` and ``lxml`` use 3-clause BSD (see
+  ``docs/licenses/orderedset.txt``, ``docs/licenses/lxml.txt``)
+
+* ``tzlocal`` is in the public domain (via CC0 license)
+
+* ``libxml2`` uses the Expat MIT license (see ``docs/licenses/libxml2.txt``)
+
+   [1]: https://pypi.python.org/pypi/asyncio/3.4.3
