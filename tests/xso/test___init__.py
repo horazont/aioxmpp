@@ -81,6 +81,9 @@ class TestAbstractTextChild(unittest.TestCase):
             xso.AbstractTextChild.text,
             xso.Text
         )
+        self.assertIsNone(
+            xso.AbstractTextChild.text.default
+        )
 
     def test_init_default(self):
         atc = xso.AbstractTextChild()

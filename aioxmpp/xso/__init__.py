@@ -406,7 +406,7 @@ class AbstractTextChild(XSO):
     """
 
     lang = LangAttr()
-    text = Text()
+    text = Text(default=None)
 
     def __init__(self, text=None, lang=None):
         super().__init__()
