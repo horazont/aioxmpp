@@ -564,7 +564,6 @@ class AbstractClient:
                     if err.condition == (namespaces.streams, "conflict"):
                         self._logger.debug("conflict!")
                         raise
-                    pass
                 except errors.StreamNegotiationFailure:
                     if self.stream.sm_enabled:
                         self.stream.stop_sm()
