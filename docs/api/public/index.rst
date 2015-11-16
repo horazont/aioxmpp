@@ -24,6 +24,7 @@ extend its functionality or provide backwards compatibility.
    :maxdepth: 2
 
    disco
+   entitycaps
    muc
    presence
    roster

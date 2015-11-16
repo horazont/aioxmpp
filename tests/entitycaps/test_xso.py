@@ -61,7 +61,7 @@ class TestCaps(unittest.TestCase):
         )
         self.assertIs(
             entitycaps_xso.Caps.hash_.default,
-            xso.NO_DEFAULT
+            None
         )
 
     def test_ver_attr(self):
@@ -103,3 +103,18 @@ class TestCaps(unittest.TestCase):
             },
             set(stanza.Presence.xep0115_caps._classes)
         )
+
+    def test_init(self):
+        caps = entitycaps_xso.Caps(
+            "node",
+            "ver",
+            "hash",
+        )
+
+        self.assertEqual(caps.node, "node")
+        self.assertEqual(caps.ver, "ver")
+        self.assertEqual(caps.hash_, "hash")
+
+        with self.assertRaisesRegex(TypeError,
+                                    "positional argument"):
+            entitycaps_xso.Caps()

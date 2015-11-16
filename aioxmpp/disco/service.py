@@ -473,15 +473,25 @@ class Service(service.Service, Node):
 
     def set_info_cache(self, jid, node, info):
         """
+        This is a wrapper around :meth:`set_info_future` which creates a future
+        and immediately assigns `info` as its result.
+
+        """
+        fut = asyncio.Future()
+        fut.set_result(info)
+        self.set_info_future(jid, node, fut)
+
+    def set_info_future(self, jid, node, fut):
+        """
         Override the cache entry (if one exists) for :meth:`query_info` of the
-        `jid` and `node` combination with the given `info`.
+        `jid` and `node` combination with the given :class:`asyncio.Future`
+        fut.
 
-        `info` must be a :class:`~.xso.InfoQuery` instance. Queries which are
-        already running are not affected by this, but future queries will see
-        the data from `info` instead.
+        The future must receive a :class:`dict` compatible to the output of
+        :meth:`.xso.InfoQuery.to_dict`.
 
-        As usual, the cache can be refreshed by passing `require_fresh` to
-        :meth:`query_info`.
+        As usual, the cache can be bypassed and cleared by passing
+        `require_fresh` to :meth:`query_info`.
 
         .. seealso::
 
@@ -491,8 +501,5 @@ class Service(service.Service, Node):
              announcements.
 
              __ https://xmpp.org/extensions/xep-0115.html
-
         """
-        fut = asyncio.Future()
-        fut.set_result(info)
         self._info_pending[jid, node] = fut

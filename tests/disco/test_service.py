@@ -1057,3 +1057,26 @@ class TestService(unittest.TestCase):
 
         self.assertIs(result, response)
         self.assertFalse(self.cc.stream.mock_calls)
+
+    def test_set_info_future(self):
+        to = structs.JID.fromstr("user@foo.example/res1")
+
+        fut = asyncio.Future()
+
+        self.s.set_info_future(
+            to,
+            None,
+            fut
+        )
+
+        request = asyncio.async(
+            self.s.query_info(to)
+        )
+
+        run_coroutine(asyncio.sleep(0))
+        self.assertFalse(request.done())
+
+        result = object()
+        fut.set_result(result)
+
+        self.assertIs(run_coroutine(request), result)

@@ -101,17 +101,6 @@ class InfoQuery(xso.XSO):
 
     .. automethod:: to_dict
 
-       Convert the query result to a normalized JSON-like
-       representation. Features and form field values are stored in sets, which
-       makes the dict non-JSON. To serialize to JSON, all sets need to be
-       converted to lists.
-
-       The format is a subset of the format used by the `capsdb`__. Obviously,
-       the node name and hash type are not included; otherwise (and for the
-       usage of sets vs. lists), the format is identical.
-
-       __ https://github.com/xnyhps/capsdb
-
     """
     TAG = (namespaces.xep0030_info, "query")
 
@@ -131,6 +120,18 @@ class InfoQuery(xso.XSO):
             self.node = node
 
     def to_dict(self):
+        """
+        Convert the query result to a normalized JSON-like
+        representation. Features and form field values are stored in sets,
+        which makes the dict non-JSON. To serialize to JSON, all sets need to
+        be converted to lists.
+
+        The format is a subset of the format used by the `capsdb`__. Obviously,
+        the node name and hash type are not included; otherwise (and for the
+        usage of sets vs. lists), the format is identical.
+
+        __ https://github.com/xnyhps/capsdb
+        """
         identities = []
         for identity in self.identities:
             identity_dict = {
