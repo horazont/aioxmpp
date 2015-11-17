@@ -43,6 +43,13 @@ class Node(object):
 
     .. automethod:: iter_items
 
+    Signals provide information about changes:
+
+    .. signal:: on_info_changed()
+
+       This signal emits when a feature or identity is registered or
+       unregistered.
+
     As mentioned, bare :class:`Node` objects have no items; there are
     subclasses of :class:`Node` which support items:
 
@@ -53,6 +60,8 @@ class Node(object):
 
     """
     STATIC_FEATURES = frozenset({namespaces.xep0030_info})
+
+    on_info_changed = aioxmpp.callbacks.Signal()
 
     def __init__(self):
         super().__init__()
@@ -105,6 +114,7 @@ class Node(object):
         if var in self._features or var in self.STATIC_FEATURES:
             raise ValueError("feature already claimed: {!r}".format(var))
         self._features.add(var)
+        self.on_info_changed()
 
     def register_identity(self, category, type_, *, names={}):
         """
@@ -122,6 +132,7 @@ class Node(object):
         if key in self._identities:
             raise ValueError("identity already claimed: {!r}".format(key))
         self._identities[key] = names
+        self.on_info_changed()
 
     def unregister_feature(self, var):
         """
@@ -140,6 +151,7 @@ class Node(object):
 
         """
         self._features.remove(var)
+        self.on_info_changed()
 
     def unregister_identity(self, category, type_):
         """
@@ -159,6 +171,7 @@ class Node(object):
         if len(self._identities) == 1:
             raise ValueError("cannot remove last identity")
         del self._identities[key]
+        self.on_info_changed()
 
 
 class StaticNode(Node):

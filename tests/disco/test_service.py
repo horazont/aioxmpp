@@ -38,7 +38,11 @@ class TestNode(unittest.TestCase):
 
     def test_register_feature_adds_the_feature(self):
         n = disco_service.Node()
+        cb = unittest.mock.Mock()
+        n.on_info_changed.connect(cb)
+
         n.register_feature("uri:foo")
+
         self.assertSetEqual(
             {
                 "uri:foo",
@@ -47,9 +51,15 @@ class TestNode(unittest.TestCase):
             set(n.iter_features())
         )
 
+        cb.assert_called_with()
+
     def test_register_feature_prohibits_duplicate_registration(self):
         n = disco_service.Node()
+        cb = unittest.mock.Mock()
+        n.on_info_changed.connect(cb)
+
         n.register_feature("uri:bar")
+        cb.mock_calls.clear()
 
         with self.assertRaisesRegexp(ValueError,
                                      "feature already claimed"):
@@ -63,16 +73,27 @@ class TestNode(unittest.TestCase):
             set(n.iter_features())
         )
 
+        self.assertFalse(cb.mock_calls)
+
     def test_register_feature_prohibits_registration_of_xep0030_features(self):
         n = disco_service.Node()
+
+        cb = unittest.mock.Mock()
+        n.on_info_changed.connect(cb)
+
         with self.assertRaisesRegexp(ValueError,
                                      "feature already claimed"):
             n.register_feature(namespaces.xep0030_info)
+
+        self.assertFalse(cb.mock_calls)
 
     def test_unregister_feature_removes_the_feature(self):
         n = disco_service.Node()
         n.register_feature("uri:foo")
         n.register_feature("uri:bar")
+
+        cb = unittest.mock.Mock()
+        n.on_info_changed.connect(cb)
 
         self.assertSetEqual(
             {
@@ -84,6 +105,9 @@ class TestNode(unittest.TestCase):
         )
 
         n.unregister_feature("uri:foo")
+
+        cb.assert_called_with()
+        cb.mock_calls.clear()
 
         self.assertSetEqual(
             {
@@ -102,14 +126,25 @@ class TestNode(unittest.TestCase):
             set(n.iter_features())
         )
 
+        cb.assert_called_with()
+        cb.mock_calls.clear()
+
     def test_unregister_feature_prohibts_removal_of_nonexistant_feature(self):
         n = disco_service.Node()
+
+        cb = unittest.mock.Mock()
+        n.on_info_changed.connect(cb)
 
         with self.assertRaises(KeyError):
             n.unregister_feature("uri:foo")
 
+        self.assertFalse(cb.mock_calls)
+
     def test_unregister_feature_prohibts_removal_of_xep0030_features(self):
         n = disco_service.Node()
+
+        cb = unittest.mock.Mock()
+        n.on_info_changed.connect(cb)
 
         with self.assertRaises(KeyError):
             n.unregister_feature(namespaces.xep0030_info)
@@ -121,8 +156,13 @@ class TestNode(unittest.TestCase):
             set(n.iter_features())
         )
 
+        self.assertFalse(cb.mock_calls)
+
     def test_register_identity_defines_identity(self):
         n = disco_service.Node()
+
+        cb = unittest.mock.Mock()
+        n.on_info_changed.connect(cb)
 
         n.register_identity(
             "client", "pc"
@@ -135,16 +175,26 @@ class TestNode(unittest.TestCase):
             set(n.iter_identities())
         )
 
+        cb.assert_called_with()
+
     def test_register_identity_prohibits_duplicate_registration(self):
         n = disco_service.Node()
+
+        cb = unittest.mock.Mock()
+        n.on_info_changed.connect(cb)
 
         n.register_identity(
             "client", "pc"
         )
 
+        cb.assert_called_with()
+        cb.mock_calls.clear()
+
         with self.assertRaisesRegexp(ValueError,
                                      "identity already claimed"):
             n.register_identity("client", "pc")
+
+        self.assertFalse(cb.mock_calls)
 
         self.assertSetEqual(
             {
@@ -156,6 +206,9 @@ class TestNode(unittest.TestCase):
     def test_register_identity_with_names(self):
         n = disco_service.Node()
 
+        cb = unittest.mock.Mock()
+        n.on_info_changed.connect(cb)
+
         n.register_identity(
             "client", "pc",
             names={
@@ -163,6 +216,8 @@ class TestNode(unittest.TestCase):
                 structs.LanguageTag.fromstr("de"): "Testidentität",
             }
         )
+
+        cb.assert_called_with()
 
         self.assertSetEqual(
             {
@@ -177,6 +232,9 @@ class TestNode(unittest.TestCase):
     def test_unregister_identity_prohibits_removal_of_last_identity(self):
         n = disco_service.Node()
 
+        cb = unittest.mock.Mock()
+        n.on_info_changed.connect(cb)
+
         n.register_identity(
             "client", "pc",
             names={
@@ -185,13 +243,19 @@ class TestNode(unittest.TestCase):
             }
         )
 
+        cb = unittest.mock.Mock()
+        n.on_info_changed.connect(cb)
+
         with self.assertRaisesRegexp(ValueError,
                                      "cannot remove last identity"):
             n.unregister_identity(
                 "client", "pc",
             )
 
-    def test_unregister_identity_prohibits_removal_of_undeclared_identity(self):
+        self.assertFalse(cb.mock_calls)
+
+    def test_unregister_identity_prohibits_removal_of_undeclared_identity(
+            self):
         n = disco_service.Node()
 
         n.register_identity(
@@ -202,8 +266,13 @@ class TestNode(unittest.TestCase):
             }
         )
 
+        cb = unittest.mock.Mock()
+        n.on_info_changed.connect(cb)
+
         with self.assertRaises(KeyError):
             n.unregister_identity("foo", "bar")
+
+        self.assertFalse(cb.mock_calls)
 
     def test_unregister_identity_removes_identity(self):
         n = disco_service.Node()
@@ -231,7 +300,12 @@ class TestNode(unittest.TestCase):
             set(n.iter_identities())
         )
 
+        cb = unittest.mock.Mock()
+        n.on_info_changed.connect(cb)
+
         n.unregister_identity("foo", "bar")
+
+        cb.assert_called_with()
 
         self.assertSetEqual(
             {
@@ -779,6 +853,18 @@ class TestService(unittest.TestCase):
         node = disco_service.StaticNode()
 
         self.s.mount_node("foo", node)
+
+        self.request_iq.payload.node = "foo"
+        with self.assertRaises(errors.XMPPModifyError):
+            run_coroutine(self.s.handle_info_request(self.request_iq))
+
+    def test_unmount_node(self):
+        node = disco_service.StaticNode()
+        node.register_identity("hierarchy", "leaf")
+
+        self.s.mount_node("foo", node)
+
+        self.s.unmount_node("foo", node)
 
         self.request_iq.payload.node = "foo"
         with self.assertRaises(errors.XMPPModifyError):
