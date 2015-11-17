@@ -212,6 +212,8 @@ class Service(service.Service, Node):
 
     .. automethod:: set_info_cache
 
+    .. automethod:: set_info_future
+
     Services inherit from :class:`Node` to manage the identities and features
     of the JID itself. The identities and features declared in the service
     using the :class:`Node` interface on the :class:`Service` instance are
