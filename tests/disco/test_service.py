@@ -864,7 +864,7 @@ class TestService(unittest.TestCase):
 
         self.s.mount_node("foo", node)
 
-        self.s.unmount_node("foo", node)
+        self.s.unmount_node("foo")
 
         self.request_iq.payload.node = "foo"
         with self.assertRaises(errors.XMPPModifyError):

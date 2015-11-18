@@ -524,6 +524,16 @@ class TestService(unittest.TestCase):
         self.disco.mock_calls.clear()
         self.cc.mock_calls.clear()
 
+        self.disco.iter_features.return_value = [
+            "http://jabber.org/protocol/disco#items",
+            "http://jabber.org/protocol/disco#info",
+        ]
+
+        self.disco.iter_identities.return_value = [
+            ("client", "pc", None, None),
+            ("client", "pc", structs.LanguageTag.fromstr("en"), "foo"),
+        ]
+
     def test_is_Service_subclass(self):
         self.assertTrue(issubclass(
             entitycaps_service.Service,
@@ -553,6 +563,11 @@ class TestService(unittest.TestCase):
                     s.handle_inbound_presence,
                     entitycaps_service.Service
                 ),
+                unittest.mock.call.
+                stream.service_outbound_presence_filter.register(
+                    s.handle_outbound_presence,
+                    entitycaps_service.Service
+                ),
             ]
         )
         cc.mock_calls.clear()
@@ -560,6 +575,12 @@ class TestService(unittest.TestCase):
         self.assertSequenceEqual(
             disco_service.mock_calls,
             [
+                # make sure that the callback is connected first, this will
+                # make us receive the on_info_changed which causes the hash to
+                # update
+                unittest.mock.call.on_info_changed.connect(
+                    s._info_changed
+                ),
                 unittest.mock.call.register_feature(
                     "http://jabber.org/protocol/caps"
                 ),
@@ -574,15 +595,23 @@ class TestService(unittest.TestCase):
             calls,
             [
                 unittest.mock.call.
+                stream.service_outbound_presence_filter.unregister(
+                    cc.stream.service_outbound_presence_filter.register(),
+                ),
+                unittest.mock.call.
                 stream.service_inbound_presence_filter.unregister(
                     cc.stream.service_inbound_presence_filter.register(),
                 )
             ],
         )
 
+        calls = list(disco_service.mock_calls)
         self.assertSequenceEqual(
-            disco_service.mock_calls,
+            calls,
             [
+                unittest.mock.call.on_info_changed.disconnect(
+                    disco_service.on_info_changed.connect()
+                ),
                 unittest.mock.call.unregister_feature(
                     "http://jabber.org/protocol/caps"
                 ),
@@ -1188,5 +1217,257 @@ class TestService(unittest.TestCase):
         self.assertIs(result2, query_result2)
         self.assertIs(result3, query_result3)
 
+    def test_update_hash(self):
+        self.disco.iter_features.return_value = iter([
+            "http://jabber.org/protocol/caps",
+            "http://jabber.org/protocol/disco#items",
+            "http://jabber.org/protocol/disco#info",
+        ])
+
+        self.disco.iter_identities.return_value = iter([
+            ("client", "pc", None, None),
+            ("client", "pc", structs.LanguageTag.fromstr("en"), "foo"),
+        ])
+
+        self.s.ver = "old_ver"
+        old_ver = self.s.ver
+
+        base = unittest.mock.Mock()
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(unittest.mock.patch(
+                "aioxmpp.entitycaps.service.hash_query",
+                new=base.hash_query
+            ))
+            base.hash_query.return_value = "hash_query_result"
+
+            self.s.update_hash()
+
+        base.hash_query.assert_called_with(
+            {
+                "features": [
+                    "http://jabber.org/protocol/caps",
+                    "http://jabber.org/protocol/disco#items",
+                    "http://jabber.org/protocol/disco#info",
+                ],
+                "identities": [
+                    {
+                        "category": "client",
+                        "type": "pc",
+                    },
+                    {
+                        "category": "client",
+                        "type": "pc",
+                        "lang": "en",
+                        "name": "foo",
+                    }
+                ],
+                "forms": {}
+            },
+            "sha1",
+        )
+
+        calls = list(self.disco.mock_calls)
+        self.assertSequenceEqual(
+            calls,
+            [
+                unittest.mock.call.iter_identities(),
+                unittest.mock.call.iter_features(),
+                unittest.mock.call.unmount_node(
+                    "http://aioxmpp.zombofant.net/#"+old_ver
+                ),
+                unittest.mock.call.mount_node(
+                    "http://aioxmpp.zombofant.net/#"+base.hash_query(),
+                    self.disco
+                ),
+            ]
+        )
+
+        self.assertEqual(
+            self.s.ver,
+            base.hash_query()
+        )
+
+    def test_update_hash_emits_on_ver_changed(self):
+        self.disco.iter_features.return_value = iter([
+            "http://jabber.org/protocol/caps",
+            "http://jabber.org/protocol/disco#items",
+            "http://jabber.org/protocol/disco#info",
+        ])
+
+        self.disco.iter_identities.return_value = iter([
+            ("client", "pc", None, None),
+            ("client", "pc", structs.LanguageTag.fromstr("en"), "foo"),
+        ])
+
+        self.s.ver = "old_ver"
+
+        cb = unittest.mock.Mock()
+
+        self.s.on_ver_changed.connect(cb)
+
+        self.s.update_hash()
+
+        cb.assert_called_with()
+
+    def test_update_hash_noop_if_unchanged(self):
+        self.s.ver = "hash_query_result"
+
+        cb = unittest.mock.Mock()
+
+        self.s.on_ver_changed.connect(cb)
+
+        base = unittest.mock.Mock()
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(unittest.mock.patch(
+                "aioxmpp.entitycaps.service.hash_query",
+                new=base.hash_query
+            ))
+            base.hash_query.return_value = "hash_query_result"
+
+            self.s.update_hash()
+
+        self.assertFalse(cb.mock_calls)
+        calls = list(self.disco.mock_calls)
+        self.assertSequenceEqual(
+            calls,
+            [
+                unittest.mock.call.iter_identities(),
+                unittest.mock.call.iter_features(),
+            ]
+        )
+
+    def test_update_hash_no_unmount_if_previous_was_None(self):
+        self.s.ver = None
+
+        base = unittest.mock.Mock()
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(unittest.mock.patch(
+                "aioxmpp.entitycaps.service.hash_query",
+                new=base.hash_query
+            ))
+            base.hash_query.return_value = "hash_query_result"
+
+            self.s.update_hash()
+
+        calls = list(self.disco.mock_calls)
+        self.assertSequenceEqual(
+            calls,
+            [
+                unittest.mock.call.iter_identities(),
+                unittest.mock.call.iter_features(),
+                unittest.mock.call.mount_node(
+                    "http://aioxmpp.zombofant.net/#"+base.hash_query(),
+                    self.disco
+                ),
+            ]
+        )
+
+    def test_update_hash_unmount_on_shutdown(self):
+        self.s.ver = None
+
+        base = unittest.mock.Mock()
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(unittest.mock.patch(
+                "aioxmpp.entitycaps.service.hash_query",
+                new=base.hash_query
+            ))
+            base.hash_query.return_value = "hash_query_result"
+
+            self.s.update_hash()
+
+        calls = list(self.disco.mock_calls)
+        self.assertSequenceEqual(
+            calls,
+            [
+                unittest.mock.call.iter_identities(),
+                unittest.mock.call.iter_features(),
+                unittest.mock.call.mount_node(
+                    "http://aioxmpp.zombofant.net/#"+base.hash_query(),
+                    self.disco
+                ),
+            ]
+        )
+
+        self.disco.mock_calls.clear()
+
+        run_coroutine(self.s.shutdown())
+
+        calls = list(self.disco.mock_calls)
+        self.assertIn(
+            unittest.mock.call.unmount_node(
+                "http://aioxmpp.zombofant.net/#"+base.hash_query(),
+            ),
+            calls
+        )
+
+    def test__info_changed_calls_update_hash_soon(self):
+        with contextlib.ExitStack() as stack:
+            get_event_loop = stack.enter_context(unittest.mock.patch(
+                "asyncio.get_event_loop"
+            ))
+
+            self.s._info_changed()
+
+        get_event_loop.assert_called_with()
+        get_event_loop().call_soon.assert_called_with(
+            self.s.update_hash
+        )
+
+    def test_handle_outbound_presence_does_not_attach_caps_if_ver_is_None(
+            self):
+        self.s.ver = None
+
+        presence = stanza.Presence()
+        result = self.s.handle_outbound_presence(presence)
+        self.assertIs(result, presence)
+
+        self.assertIsNone(presence.xep0115_caps, None)
+
+    def test_handle_outbound_presence_attaches_caps_if_not_None(self):
+        self.s.ver = "foo"
+
+        presence = stanza.Presence()
+        result = self.s.handle_outbound_presence(presence)
+        self.assertIs(result, presence)
+
+        self.assertIsInstance(
+            presence.xep0115_caps,
+            entitycaps_xso.Caps
+        )
+        self.assertEqual(
+            presence.xep0115_caps.ver,
+            self.s.ver
+        )
+        self.assertEqual(
+            presence.xep0115_caps.node,
+            self.s.NODE
+        )
+        self.assertEqual(
+            presence.xep0115_caps.hash_,
+            "sha-1"
+        )
+        self.assertEqual(
+            presence.xep0115_caps.ext,
+            None
+        )
+
+    def test_handle_outbound_presence_does_not_attach_caps_to_non_available(
+            self):
+        self.s.ver = "foo"
+
+        types = [
+            "unavailable",
+            "subscribe",
+            "unsubscribe",
+            "subscribed",
+            "unsubscribed",
+            "error",
+        ]
+
+        for type_ in types:
+            presence = stanza.Presence(type_=type_)
+            result = self.s.handle_outbound_presence(presence)
+            self.assertIs(result, presence)
+            self.assertIsNone(result.xep0115_caps)
 
 # foo

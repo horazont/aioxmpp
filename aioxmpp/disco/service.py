@@ -518,3 +518,6 @@ class Service(service.Service, Node):
              __ https://xmpp.org/extensions/xep-0115.html
         """
         self._info_pending[jid, node] = fut
+
+    def unmount_node(self, mountpoint):
+        del self._node_mounts[mountpoint]

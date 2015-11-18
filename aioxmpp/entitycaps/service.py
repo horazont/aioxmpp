@@ -4,11 +4,11 @@ import hashlib
 
 from xml.sax.saxutils import escape
 
+import aioxmpp.callbacks
 import aioxmpp.disco as disco
 import aioxmpp.service
 
-# this must be imported
-from . import xso  # NOQA
+from . import xso as my_xso
 
 
 def build_identities_string(identities):
@@ -92,22 +92,54 @@ class Service(aioxmpp.service.Service):
     """
     This service implements `XEP-0115`_, transparently. Besides loading the
     service, no interaction is required to get some of the benefits of
-    `XEP-0115`_. For full performance, it is recommended to save the cache to
-    persistent storage and re-load it after summoning the service.
+    `XEP-0115`_.
+
+    Two additional things need to be done by users to get full support and
+    performance:
+
+    1. To make sure that peers are always up-to-date with the current
+       capabilities, it is required that users listen on the
+       :meth:`on_ver_changed` signal and re-emit their current presence when it
+       fires.
+
+       The service takes care of attaching capabilities information on the
+       outgoing stanza, using a stanza filter.
+
+    2. Users should save and load the database of hashes using
+       :meth:`db_to_json` and :meth:`db_from_json`. This increases performance
+       and accuracy, especially if a source such as the `capsdb`_ is used.
+
+       .. _capsdb: https://github.com/xnyhps/capsdb
 
     .. _XEP-0115: https://xmpp.org/extensions/xep-0115.html
 
     .. automethod:: db_to_json
 
     .. automethod:: db_from_json
+
+    .. signal:: on_ver_changed
+
+       The signal emits whenever the ``ver`` of the local client changes. This
+       happens when the set of features or identities announced in the
+       :class:`.disco.Service` changes.
+
     """
 
     ORDER_AFTER = {disco.Service}
 
+    NODE = "http://aioxmpp.zombofant.net/"
+
+    on_ver_changed = aioxmpp.callbacks.Signal()
+
     def __init__(self, node):
         super().__init__(node)
 
+        self.ver = None
+
         self.disco = node.summon(disco.Service)
+        self._info_changed_token = self.disco.on_info_changed.connect(
+            self._info_changed
+        )
         self.disco.register_feature(
             "http://jabber.org/protocol/caps"
         )
@@ -118,8 +150,19 @@ class Service(aioxmpp.service.Service):
                 type(self)
             )
 
+        self._outbound_filter_token = \
+            node.stream.service_outbound_presence_filter.register(
+                self.handle_outbound_presence,
+                type(self)
+            )
+
         self._lookup_future_cache = {}
         self._hash_cache = {}
+
+    def _info_changed(self):
+        asyncio.get_event_loop().call_soon(
+            self.update_hash
+        )
 
     def lookup_in_cache(self, ver, hash_):
         item = dict(self._hash_cache[ver])
@@ -131,12 +174,22 @@ class Service(aioxmpp.service.Service):
 
     @asyncio.coroutine
     def _shutdown(self):
+        self.client.stream.service_outbound_presence_filter.unregister(
+            self._outbound_filter_token
+        )
         self.client.stream.service_inbound_presence_filter.unregister(
             self._inbound_filter_token
+        )
+        self.disco.on_info_changed.disconnect(
+            self._info_changed_token
         )
         self.disco.unregister_feature(
             "http://jabber.org/protocol/caps"
         )
+        if self.ver is not None:
+            self.disco.unmount_node(
+                self.NODE + "#" + self.ver
+            )
 
     @asyncio.coroutine
     def query_and_cache(self, jid, node, ver, hash_, fut):
@@ -206,6 +259,15 @@ class Service(aioxmpp.service.Service):
 
         return info
 
+    def handle_outbound_presence(self, presence):
+        if self.ver is not None and presence.type_ is None:
+            presence.xep0115_caps = my_xso.Caps(
+                self.NODE,
+                self.ver,
+                "sha-1",
+            )
+        return presence
+
     def handle_inbound_presence(self, presence):
         caps = presence.xep0115_caps
         presence.xep0115_caps = None
@@ -237,3 +299,32 @@ class Service(aioxmpp.service.Service):
         Import data from a capsdb-compatible source.
         """
         self._hash_cache.update(data)
+
+    def update_hash(self):
+        identities = []
+        for category, type_, lang, name in self.disco.iter_identities():
+            identity_dict = {
+                "category": category,
+                "type": type_,
+            }
+            if lang is not None:
+                identity_dict["lang"] = lang.match_str
+            if name is not None:
+                identity_dict["name"] = name
+            identities.append(identity_dict)
+
+        new_ver = hash_query(
+            {
+                "features": list(self.disco.iter_features()),
+                "identities": identities,
+                "forms": {},
+            },
+            "sha1",
+        )
+
+        if self.ver != new_ver:
+            if self.ver is not None:
+                self.disco.unmount_node(self.NODE + "#" + self.ver)
+            self.ver = new_ver
+            self.disco.mount_node(self.NODE + "#" + self.ver, self.disco)
+            self.on_ver_changed()
