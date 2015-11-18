@@ -388,7 +388,7 @@ class Service(aioxmpp.service.Service):
                 to_save = dict(data)
                 to_save["node"] = node
                 to_save["hash"] = hash_
-                self.cache.add_cache_entry(to_save)
+                self.cache.add_cache_entry(ver, to_save)
                 fut.set_result(data)
             else:
                 fut.set_exception(ValueError("hash mismatch"))

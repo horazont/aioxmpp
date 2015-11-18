@@ -67,7 +67,7 @@ def main(jid, password):
     except (OSError, ValueError) as exc:
         logging.warn("failed to preload db: %s", exc)
     else:
-        caps.db_from_json(preloadable)
+        caps.cache.load_trusted_from_json(preloadable)
         logging.info("preloaded %d entries", len(preloadable))
         del preloadable
 

@@ -1128,6 +1128,7 @@ class TestService(unittest.TestCase):
                     "sha1"
                 ),
                 unittest.mock.call.add_cache_entry(
+                    ver,
                     expected,
                 ),
                 unittest.mock.call.fut.set_result(
