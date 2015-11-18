@@ -1,5 +1,7 @@
 import asyncio
 import base64
+import copy
+import functools
 import hashlib
 
 from xml.sax.saxutils import escape
@@ -88,6 +90,176 @@ def hash_query(query, algo):
     return base64.b64encode(hashimpl.digest()).decode("ascii")
 
 
+class Cache:
+    """
+    This provides a two-level cache for entity capabilities information. The
+    idea is to have a trusted database, e.g. installed system-wide or shipped
+    with :mod:`aioxmpp` and in addition a user-level database which is
+    automatically filled with hashes which have been found by the
+    :class:`Service`.
+
+    The trusted database is taken as read-only and overrides the user-collected
+    database. When a hash is in both databases, it is removed from the
+    user-collected database (to save space).
+
+    In addition to serving the databases, it provides deduplication for queries
+    by holding a cache of futures looking up the same hash.
+
+    Database management (user API):
+
+    .. automethod:: load_trusted_from_json
+
+    .. automethod:: load_user_from_json
+
+    .. automethod:: save_user_to_json
+
+    Queries (API intended for :class:`Service`):
+
+    .. automethod:: create_query_future
+
+    .. automethod:: lookup_in_database
+
+    .. automethod:: lookup
+    """
+
+    def __init__(self):
+        self._trusted = {}
+        self._user = {}
+        self._lookup_cache = {}
+
+    def _erase_future(self, for_hash, fut):
+        try:
+            existing = self._lookup_cache[for_hash]
+        except KeyError:
+            pass
+        else:
+            if existing is fut:
+                del self._lookup_cache[for_hash]
+
+    def load_trusted_from_json(self, json):
+        """
+        Load the trusted database from the JSON-compatible dict `json`.
+
+        The expected format is identical to the format used by the `capsdb`_.
+
+        .. _capsdb: https://github.com/xnyhps/capsdb
+
+        .. seealso::
+
+           Method :meth:`lookup_in_database`
+             for details on the lookup strategy.
+
+        """
+        self._trusted = copy.deepcopy(json)
+
+    def load_user_from_json(self, json):
+        """
+        Load the user-level database from the JSON-compatible dict `json`.
+
+        The expected format is identical to the format used by the `capsdb`_,
+        which is also the format used with :meth:`save_user_to_json`.
+
+        .. _capsdb: https://github.com/xnyhps/capsdb
+
+        .. seealso::
+
+           Method :meth:`lookup_in_database`
+             for details on the lookup strategy.
+
+        """
+        self._user = copy.deepcopy(json)
+
+    def save_user_to_json(self):
+        """
+        Return a JSON-compatible dict in the `capsdb`_ format which holds the
+        user-level database. Any entries which are also in the trusted database
+        are omitted from this result.
+
+        .. _capsdb: https://github.com/xnyhps/capsdb
+        """
+        return {
+            key: copy.deepcopy(value)
+            for key, value in self._user.items()
+            if key not in self._trusted
+        }
+
+    def lookup_in_database(self, hash_):
+        """
+        Look up a hash in the database. This first checks the trusted database
+        and only if the hash is not found there, the user-level database is
+        checked.
+
+        The first database to return a result is used. If no database contains
+        the given `hash_`, :class:`KeyError` is raised.
+
+        The ``"node"`` and ``"hash"`` keys are removed from the result. The
+        result is also deep-copied to avoid accidental modification of the
+        database.
+        """
+        try:
+            data = self._trusted[hash_]
+        except KeyError:
+            data = self._user[hash_]
+        data = copy.deepcopy(data)
+        del data["node"]
+        del data["hash"]
+        return data
+
+    @asyncio.coroutine
+    def lookup(self, hash_):
+        """
+        Look up the given `hash_` first in the database and then by waiting on
+        the futures created with :meth:`create_query_future` for that hash.
+
+        If the hash is not in the database, :meth:`lookup` iterates as long as
+        there are pending futures for the given `hash_`. If there are no
+        pending futures, :class:`KeyError` is raised. If a future raises a
+        :class:`ValueError`, it is ignored. If the future returns a value, it
+        is used as the result.
+        """
+        try:
+            result = self.lookup_in_database(hash_)
+        except KeyError:
+            pass
+        else:
+            return result
+
+        while True:
+            fut = self._lookup_cache[hash_]
+            try:
+                result = yield from fut
+            except ValueError:
+                continue
+            else:
+                return result
+
+    def create_query_future(self, hash_):
+        """
+        Create and return a :class:`asyncio.Future` for the given `hash_`. The
+        future is referenced internally and used by any calls to :meth:`lookup`
+        which are made while the future is pending. The future is removed from
+        the internal storage automatically when a result or exception is set
+        for it.
+
+        This allows for deduplication of queries for the same hash.
+        """
+        fut = asyncio.Future()
+        fut.add_done_callback(
+            functools.partial(self._erase_future, hash_)
+        )
+        self._lookup_cache[hash_] = fut
+        return fut
+
+    def add_cache_entry(self, hash_, entry):
+        """
+        Add the given `entry` to the user-level database keyed with
+        `hash_`. The `entry` is **not** validated to actually map to
+        `hash_`, it is expected that the caller perfoms the validation. It must
+        also contain valid ``"node"`` and ``"hash"`` keys.
+        """
+        self._user[hash_] = entry
+
+
 class Service(aioxmpp.service.Service):
     """
     This service implements `XEP-0115`_, transparently. Besides loading the
@@ -105,23 +277,23 @@ class Service(aioxmpp.service.Service):
        The service takes care of attaching capabilities information on the
        outgoing stanza, using a stanza filter.
 
-    2. Users should save and load the database of hashes using
-       :meth:`db_to_json` and :meth:`db_from_json`. This increases performance
-       and accuracy, especially if a source such as the `capsdb`_ is used.
+    2. Users should use a process-wide :class:`Cache` instance and assign it to
+       the :attr:`cache` of each :class:`.entitycaps.Service` they use. This
+       improves performance by sharing (verified) hashes among :class:`Service`
+       instances.
 
-       .. _capsdb: https://github.com/xnyhps/capsdb
+       In addition, the hashes should be saved and restored on shutdown/start
+       of the process. See the :class:`Cache` for details.
 
     .. _XEP-0115: https://xmpp.org/extensions/xep-0115.html
-
-    .. automethod:: db_to_json
-
-    .. automethod:: db_from_json
 
     .. signal:: on_ver_changed
 
        The signal emits whenever the ``ver`` of the local client changes. This
        happens when the set of features or identities announced in the
        :class:`.disco.Service` changes.
+
+    .. autoattribute:: cache
 
     """
 
@@ -135,6 +307,7 @@ class Service(aioxmpp.service.Service):
         super().__init__(node)
 
         self.ver = None
+        self._cache = Cache()
 
         self.disco = node.summon(disco.Service)
         self._info_changed_token = self.disco.on_info_changed.connect(
@@ -156,21 +329,29 @@ class Service(aioxmpp.service.Service):
                 type(self)
             )
 
-        self._lookup_future_cache = {}
-        self._hash_cache = {}
+    @property
+    def cache(self):
+        """
+        The :class:`Cache` instance used for this :class:`Service`. Deleting
+        this attribute will automatically create a new :class:`Cache` instance.
+
+        The attribute can be used to share a single :class:`Cache` among
+        multiple :class:`Service` instances.
+        """
+        return self._cache
+
+    @cache.setter
+    def cache(self, v):
+        self._cache = v
+
+    @cache.deleter
+    def cache(self):
+        self._cache = Cache()
 
     def _info_changed(self):
         asyncio.get_event_loop().call_soon(
             self.update_hash
         )
-
-    def lookup_in_cache(self, ver, hash_):
-        item = dict(self._hash_cache[ver])
-        if item["hash"] != hash_:
-            raise KeyError(ver)
-        del item["hash"]
-        del item["node"]
-        return item
 
     @asyncio.coroutine
     def _shutdown(self):
@@ -207,8 +388,8 @@ class Service(aioxmpp.service.Service):
                 to_save = dict(data)
                 to_save["node"] = node
                 to_save["hash"] = hash_
-                self._hash_cache[ver] = to_save
-                fut.set_result(to_save)
+                self.cache.add_cache_entry(to_save)
+                fut.set_result(data)
             else:
                 fut.set_exception(ValueError("hash mismatch"))
 
@@ -216,46 +397,20 @@ class Service(aioxmpp.service.Service):
 
     @asyncio.coroutine
     def lookup_info(self, jid, node, ver, hash_):
-        key = ver, hash_
-
         try:
-            info = self.lookup_in_cache(*key)
+            info = yield from self.cache.lookup(ver)
         except KeyError:
             pass
         else:
             self.logger.debug("found ver=%r in cache", ver)
             return info
 
-        while True:
-            # check if a lookup is currently going on
-            try:
-                fut = self._lookup_future_cache[key]
-            except KeyError:
-                # no lookup going on, we have to start our own
-                break
-            self.logger.debug("attaching to existing query")
-            try:
-                # try to use the value from the lookup
-                info = yield from fut
-            except ValueError:
-                # lookup did not pass the check to be valid for all
-                # instances of this hash, retry
-                self.logger.debug("existing query failed, retrying")
-            else:
-                # lookup did pass the validity check, return result
-                self.logger.debug("re-used result from existing query")
-                return info
-
         self.logger.debug("have to query for ver=%r", ver)
-        fut = asyncio.Future()
-        self._lookup_future_cache[key] = fut
+        fut = self.cache.create_query_future(ver)
         info = yield from self.query_and_cache(
             jid, node, ver, hash_,
             fut
         )
-
-        if self._lookup_future_cache[key] == fut:
-            del self._lookup_future_cache[key]
 
         return info
 
@@ -286,19 +441,6 @@ class Service(aioxmpp.service.Service):
             self.disco.set_info_future(presence.from_, None, task)
 
         return presence
-
-    def db_to_json(self):
-        """
-        Return the internal hash cache as JSON-serialisable dict. The format is
-        compatible with the capsdb format.
-        """
-        return self._hash_cache
-
-    def db_from_json(self, data):
-        """
-        Import data from a capsdb-compatible source.
-        """
-        self._hash_cache.update(data)
 
     def update_hash(self):
         identities = []

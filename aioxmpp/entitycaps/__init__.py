@@ -13,6 +13,8 @@ Service
 
 .. autoclass:: Service
 
+.. autoclass:: Cache
+
 .. currentmodule:: aioxmpp.entitycaps.xso
 
 :mod:`.entitycaps.xso` --- Presence payload
@@ -32,5 +34,5 @@ not loaded, the :class:`Caps` instance is available at
 
 """
 
-from .service import Service  # NOQA
+from .service import Service, Cache  # NOQA
 from . import xso  # NOQA

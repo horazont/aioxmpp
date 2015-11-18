@@ -512,6 +512,348 @@ TEST_DB = {
 }
 
 
+class TestCache(unittest.TestCase):
+    def setUp(self):
+        self.c = entitycaps_service.Cache()
+
+    def test_load_trusted_from_json_yields_lookup(self):
+        self.c.load_trusted_from_json(TEST_DB)
+
+        expected = dict(TEST_DB["+9oi6+VEwgu5cRmjErECReGvCC0="])
+        del expected["node"]
+        del expected["hash"]
+
+        self.assertDictEqual(
+            self.c.lookup_in_database("+9oi6+VEwgu5cRmjErECReGvCC0="),
+            expected
+        )
+
+    def test_load_trusted_from_json_copies(self):
+        data = dict(TEST_DB)
+
+        self.c.load_trusted_from_json(data)
+
+        del data["+9oi6+VEwgu5cRmjErECReGvCC0="]
+
+        expected = dict(TEST_DB["+9oi6+VEwgu5cRmjErECReGvCC0="])
+        del expected["node"]
+        del expected["hash"]
+
+        self.assertDictEqual(
+            self.c.lookup_in_database("+9oi6+VEwgu5cRmjErECReGvCC0="),
+            expected
+        )
+
+    def test_load_trusted_from_json_deepcopies(self):
+        data = copy.deepcopy(TEST_DB)
+
+        self.c.load_trusted_from_json(data)
+
+        del data["+9oi6+VEwgu5cRmjErECReGvCC0="]["features"]
+
+        expected = dict(TEST_DB["+9oi6+VEwgu5cRmjErECReGvCC0="])
+        del expected["node"]
+        del expected["hash"]
+
+        self.assertDictEqual(
+            self.c.lookup_in_database("+9oi6+VEwgu5cRmjErECReGvCC0="),
+            expected
+        )
+
+    def test_load_user_from_json_yields_lookup(self):
+        self.c.load_user_from_json(TEST_DB)
+
+        expected = dict(TEST_DB["+9oi6+VEwgu5cRmjErECReGvCC0="])
+        del expected["node"]
+        del expected["hash"]
+
+        self.assertDictEqual(
+            self.c.lookup_in_database("+9oi6+VEwgu5cRmjErECReGvCC0="),
+            expected
+        )
+
+    def test_load_user_from_json_deepcopies(self):
+        data = copy.deepcopy(TEST_DB)
+
+        self.c.load_user_from_json(data)
+
+        del data["+9oi6+VEwgu5cRmjErECReGvCC0="]["features"]
+
+        expected = dict(TEST_DB["+9oi6+VEwgu5cRmjErECReGvCC0="])
+        del expected["node"]
+        del expected["hash"]
+
+        self.assertDictEqual(
+            self.c.lookup_in_database("+9oi6+VEwgu5cRmjErECReGvCC0="),
+            expected
+        )
+
+    def test_trusted_wins_over_user(self):
+        userdb = copy.deepcopy(TEST_DB)
+        userdb["+9oi6+VEwgu5cRmjErECReGvCC0="]["features"] = []
+
+        trusteddb = dict(TEST_DB)
+
+        self.c.load_trusted_from_json(trusteddb)
+        self.c.load_user_from_json(userdb)
+
+        expected = dict(TEST_DB["+9oi6+VEwgu5cRmjErECReGvCC0="])
+        del expected["node"]
+        del expected["hash"]
+
+        self.assertDictEqual(
+            self.c.lookup_in_database("+9oi6+VEwgu5cRmjErECReGvCC0="),
+            expected
+        )
+
+    def test_lookup_in_database_deepcopies(self):
+        data = copy.deepcopy(TEST_DB)
+
+        self.c.load_user_from_json(data)
+
+        expected = dict(TEST_DB["+9oi6+VEwgu5cRmjErECReGvCC0="])
+        del expected["node"]
+        del expected["hash"]
+
+        result = self.c.lookup_in_database("+9oi6+VEwgu5cRmjErECReGvCC0=")
+        self.assertDictEqual(
+            result,
+            expected
+        )
+
+        result["features"].pop()
+
+        self.assertDictEqual(
+            self.c.lookup_in_database("+9oi6+VEwgu5cRmjErECReGvCC0="),
+            expected
+        )
+
+    def test_userdb_is_empty_by_default(self):
+        self.assertDictEqual({}, self.c.save_user_to_json())
+
+    def test_load_user_from_json_fills_savev(self):
+        self.c.load_user_from_json(TEST_DB)
+
+        expected = dict(TEST_DB["+9oi6+VEwgu5cRmjErECReGvCC0="])
+        del expected["node"]
+        del expected["hash"]
+
+        self.assertDictEqual(
+            self.c.lookup_in_database("+9oi6+VEwgu5cRmjErECReGvCC0="),
+            expected
+        )
+
+    def test_load_user_from_json_populates_userdb(self):
+        self.c.load_user_from_json(TEST_DB)
+        self.assertDictEqual(TEST_DB, self.c.save_user_to_json())
+
+    def test_save_user_to_json_deepcopies(self):
+        self.c.load_user_from_json(TEST_DB)
+
+        result1 = self.c.save_user_to_json()
+        result1["+9oi6+VEwgu5cRmjErECReGvCC0="]["features"].pop()
+
+        self.assertDictEqual(TEST_DB, self.c.save_user_to_json())
+
+    def test_save_user_to_json_does_not_emit_entries_which_are_in_trusted(
+            self):
+        self.c.load_user_from_json(TEST_DB)
+
+        trusted = dict(TEST_DB)
+        del trusted["+9oi6+VEwgu5cRmjErECReGvCC0="]
+        self.c.load_trusted_from_json(trusted)
+
+        expected = dict(TEST_DB)
+        del expected["+0mnUAF1ozCEc37cmdPPsYbsfhg="]
+
+        self.assertDictEqual(expected, self.c.save_user_to_json())
+
+    def test_lookup_in_database_key_errors_if_no_such_entry(self):
+        with self.assertRaises(KeyError):
+            self.c.lookup_in_database("+9oi6+VEwgu5cRmjErECReGvCC0=")
+
+    def test_lookup_uses_lookup_in_database(self):
+        hash_ = object()
+        with unittest.mock.patch.object(
+                self.c,
+                "lookup_in_database") as lookup_in_database:
+            result = run_coroutine(self.c.lookup(hash_))
+
+        lookup_in_database.assert_called_with(hash_)
+        self.assertEqual(result, lookup_in_database())
+
+    def test_create_query_future_used_by_lookup(self):
+        fut = asyncio.Future()
+
+        base = unittest.mock.Mock()
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(unittest.mock.patch(
+                "asyncio.Future",
+                new=base.Future
+            ))
+
+            stack.enter_context(unittest.mock.patch.object(
+                self.c,
+                "lookup_in_database",
+                new=base.lookup_in_database
+            ))
+
+            base.lookup_in_database.side_effect = KeyError()
+            base.Future.return_value = fut
+
+            self.assertIs(
+                self.c.create_query_future(base.hash_),
+                fut,
+            )
+
+            task = asyncio.async(
+                self.c.lookup(base.hash_)
+            )
+            run_coroutine(asyncio.sleep(0))
+
+            self.assertFalse(task.done())
+
+            fut.set_result(base.result)
+
+            run_coroutine(asyncio.sleep(0))
+
+            self.assertIs(task.result(), base.result)
+
+    def test_lookup_key_errors_if_no_matching_entry_or_future(self):
+        fut = asyncio.Future()
+
+        base = unittest.mock.Mock()
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(unittest.mock.patch(
+                "asyncio.Future",
+                new=base.Future
+            ))
+
+            stack.enter_context(unittest.mock.patch.object(
+                self.c,
+                "lookup_in_database",
+                new=base.lookup_in_database
+            ))
+
+            base.lookup_in_database.side_effect = KeyError()
+            base.Future.return_value = fut
+
+            self.assertIs(
+                self.c.create_query_future(base.hash_),
+                fut,
+            )
+
+            with self.assertRaises(KeyError):
+                run_coroutine(self.c.lookup(base.other_hash))
+
+    def test_lookup_loops_on_query_futures(self):
+        fut1 = asyncio.Future()
+        fut2 = asyncio.Future()
+        fut3 = asyncio.Future()
+
+        base = unittest.mock.Mock()
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(unittest.mock.patch(
+                "asyncio.Future",
+                new=base.Future
+            ))
+
+            stack.enter_context(unittest.mock.patch.object(
+                self.c,
+                "lookup_in_database",
+                new=base.lookup_in_database
+            ))
+
+            base.lookup_in_database.side_effect = KeyError()
+            base.Future.return_value = fut1
+            self.c.create_query_future(base.hash_)
+
+            task = asyncio.async(
+                self.c.lookup(base.hash_)
+            )
+            run_coroutine(asyncio.sleep(0))
+
+            self.assertFalse(task.done())
+
+            fut1.set_exception(ValueError())
+
+            base.Future.return_value = fut2
+            self.c.create_query_future(base.hash_)
+
+            run_coroutine(asyncio.sleep(0))
+
+            self.assertFalse(task.done())
+
+            fut2.set_exception(ValueError())
+
+            base.Future.return_value = fut3
+            self.c.create_query_future(base.hash_)
+
+            run_coroutine(asyncio.sleep(0))
+
+            self.assertFalse(task.done())
+
+            fut3.set_result(base.result)
+
+            run_coroutine(asyncio.sleep(0))
+
+            self.assertIs(task.result(), base.result)
+
+    def test_lookup_key_errors_if_last_query_future_fails(self):
+        fut = asyncio.Future()
+
+        base = unittest.mock.Mock()
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(unittest.mock.patch(
+                "asyncio.Future",
+                new=base.Future
+            ))
+
+            stack.enter_context(unittest.mock.patch.object(
+                self.c,
+                "lookup_in_database",
+                new=base.lookup_in_database
+            ))
+
+            base.lookup_in_database.side_effect = KeyError()
+            base.Future.return_value = fut
+
+            self.assertIs(
+                self.c.create_query_future(base.hash_),
+                fut,
+            )
+
+            task = asyncio.async(
+                self.c.lookup(base.hash_)
+            )
+            run_coroutine(asyncio.sleep(0))
+
+            self.assertFalse(task.done())
+
+            fut.set_exception(ValueError())
+
+            run_coroutine(asyncio.sleep(0))
+
+            with self.assertRaises(KeyError):
+                run_coroutine(task)
+
+    def test_add_cache_entry_populates_user_database(self):
+        self.c.add_cache_entry(
+            "+9oi6+VEwgu5cRmjErECReGvCC0=",
+            TEST_DB["+9oi6+VEwgu5cRmjErECReGvCC0="],
+        )
+        self.assertDictEqual(
+            self.c.save_user_to_json(),
+            {
+                "+9oi6+VEwgu5cRmjErECReGvCC0=":
+                TEST_DB["+9oi6+VEwgu5cRmjErECReGvCC0="]
+            },
+        )
+
+    def tearDown(self):
+        del self.c
+
+
 class TestService(unittest.TestCase):
     def setUp(self):
         self.cc = make_connected_client()
@@ -618,6 +960,24 @@ class TestService(unittest.TestCase):
             ]
         )
 
+    def test_cache_defaults(self):
+        self.assertIsInstance(
+            self.s.cache,
+            entitycaps_service.Cache
+        )
+
+    def test_cache_defaults_when_deleted(self):
+        c1 = self.s.cache
+        del self.s.cache
+        c2 = self.s.cache
+        self.assertIsNot(c1, c2)
+        self.assertIsInstance(c2, entitycaps_service.Cache)
+
+    def test_cache_can_be_set(self):
+        c = unittest.mock.Mock()
+        self.s.cache = c
+        self.assertIs(self.s.cache, c)
+
     def test_handle_inbound_presence_queries_disco(self):
         caps = entitycaps_xso.Caps(
             "node",
@@ -716,48 +1076,6 @@ class TestService(unittest.TestCase):
 
         self.assertIsNone(presence.xep0115_caps)
 
-    def test_db_to_json(self):
-        self.assertDictEqual(self.s.db_to_json(), {})
-
-    def test_db_from_json(self):
-        self.s.db_from_json(TEST_DB)
-
-        self.assertDictEqual(
-            self.s.db_to_json(),
-            TEST_DB
-        )
-
-    def test_lookup_in_cache(self):
-        self.s.db_from_json(TEST_DB)
-
-        ver = "+0mnUAF1ozCEc37cmdPPsYbsfhg="
-
-        info = self.s.lookup_in_cache(ver, "sha-1")
-
-        expected = dict(TEST_DB[ver])
-        del expected["node"]
-        del expected["hash"]
-        self.assertDictEqual(
-            info,
-            expected
-        )
-
-    def test_lookup_in_cache_raises_KeyError_on_miss(self):
-        self.s.db_from_json(TEST_DB)
-
-        ver = "fnord"
-
-        with self.assertRaises(KeyError):
-            self.s.lookup_in_cache(ver, "sha-1")
-
-    def test_lookup_in_cache_raises_KeyError_on_hash_fun_mismatch(self):
-        self.s.db_from_json(TEST_DB)
-
-        ver = "+0mnUAF1ozCEc37cmdPPsYbsfhg="
-
-        with self.assertRaises(KeyError):
-            self.s.lookup_in_cache(ver, "md5")
-
     def test_query_and_cache(self):
         self.maxDiff = None
 
@@ -773,6 +1091,12 @@ class TestService(unittest.TestCase):
             stack.enter_context(unittest.mock.patch(
                 "aioxmpp.entitycaps.service.hash_query",
                 new=base.hash_query
+            ))
+
+            stack.enter_context(unittest.mock.patch.object(
+                self.s.cache,
+                "add_cache_entry",
+                new=base.add_cache_entry
             ))
 
             base.disco.query_info.return_value = response
@@ -803,21 +1127,16 @@ class TestService(unittest.TestCase):
                     response,
                     "sha1"
                 ),
-                unittest.mock.call.fut.set_result(
+                unittest.mock.call.add_cache_entry(
                     expected,
+                ),
+                unittest.mock.call.fut.set_result(
+                    result,
                 )
             ]
         )
 
         self.assertEqual(result, response)
-
-        db = self.s.db_to_json()
-        self.assertDictEqual(
-            db,
-            {
-                ver: expected
-            }
-        )
 
     def test_query_and_cache_checks_hash(self):
         self.maxDiff = None
@@ -834,6 +1153,12 @@ class TestService(unittest.TestCase):
             stack.enter_context(unittest.mock.patch(
                 "aioxmpp.entitycaps.service.hash_query",
                 new=base.hash_query
+            ))
+
+            stack.enter_context(unittest.mock.patch.object(
+                self.s.cache,
+                "add_cache_entry",
+                new=base.add_cache_entry
             ))
 
             base.disco.query_info.return_value = response
@@ -869,8 +1194,6 @@ class TestService(unittest.TestCase):
 
         self.assertEqual(result, response)
 
-        self.assertFalse(self.s.db_to_json())
-
     def test_query_and_cache_does_not_cache_on_ValueError(self):
         self.maxDiff = None
 
@@ -886,6 +1209,12 @@ class TestService(unittest.TestCase):
             stack.enter_context(unittest.mock.patch(
                 "aioxmpp.entitycaps.service.hash_query",
                 new=base.hash_query
+            ))
+
+            stack.enter_context(unittest.mock.patch.object(
+                self.s.cache,
+                "add_cache_entry",
+                new=base.add_cache_entry
             ))
 
             base.disco.query_info.return_value = response
@@ -919,19 +1248,18 @@ class TestService(unittest.TestCase):
 
         self.assertEqual(result, response)
 
-        self.assertFalse(self.s.db_to_json())
-
     def test_lookup_info_asks_cache_first_and_returns_value(self):
         base = unittest.mock.Mock()
         base.disco = self.disco
         base.disco.query_info.side_effect = None
         base.query_and_cache = CoroutineMock()
+        base.lookup = CoroutineMock()
 
         with contextlib.ExitStack() as stack:
             stack.enter_context(unittest.mock.patch.object(
-                self.s,
-                "lookup_in_cache",
-                new=base.lookup_in_cache
+                self.s.cache,
+                "lookup",
+                new=base.lookup,
             ))
 
             stack.enter_context(unittest.mock.patch.object(
@@ -941,7 +1269,7 @@ class TestService(unittest.TestCase):
             ))
 
             cache_result = {}
-            base.lookup_in_cache.return_value = cache_result
+            base.lookup.return_value = cache_result
 
             result = run_coroutine(self.s.lookup_info(
                 TEST_FROM,
@@ -953,7 +1281,7 @@ class TestService(unittest.TestCase):
         self.assertSequenceEqual(
             base.mock_calls,
             [
-                unittest.mock.call.lookup_in_cache("ver", "hash")
+                unittest.mock.call.lookup("ver"),
             ]
         )
 
@@ -966,15 +1294,16 @@ class TestService(unittest.TestCase):
         base.query_and_cache = CoroutineMock()
 
         with contextlib.ExitStack() as stack:
-            stack.enter_context(unittest.mock.patch(
-                "asyncio.Future",
-                new=base.Future
+            stack.enter_context(unittest.mock.patch.object(
+                self.s.cache,
+                "lookup",
+                new=base.lookup
             ))
 
             stack.enter_context(unittest.mock.patch.object(
-                self.s,
-                "lookup_in_cache",
-                new=base.lookup_in_cache
+                self.s.cache,
+                "create_query_future",
+                new=base.create_query_future
             ))
 
             stack.enter_context(unittest.mock.patch.object(
@@ -984,7 +1313,7 @@ class TestService(unittest.TestCase):
             ))
 
             query_result = {}
-            base.lookup_in_cache.side_effect = KeyError()
+            base.lookup.side_effect = KeyError()
             base.query_and_cache.return_value = query_result
 
             result = run_coroutine(self.s.lookup_info(
@@ -998,224 +1327,19 @@ class TestService(unittest.TestCase):
         self.assertSequenceEqual(
             calls,
             [
-                unittest.mock.call.lookup_in_cache("ver", "hash"),
-                unittest.mock.call.Future(),
+                unittest.mock.call.lookup("ver"),
+                unittest.mock.call.create_query_future("ver"),
                 unittest.mock.call.query_and_cache(
                     TEST_FROM,
                     "foobar",
                     "ver",
                     "hash",
-                    base.Future(),
+                    base.create_query_future()
                 )
             ]
         )
 
         self.assertIs(result, query_result)
-
-    def test_concurrent_lookup_info_reuse_query_and_cache_result(self):
-        query_future = asyncio.Future()
-        cache_future = asyncio.Future()
-
-        base = unittest.mock.Mock()
-        base.disco = self.disco
-        base.disco.query_info.side_effect = None
-        base.query_and_cache.return_value = query_future
-        base.Future.return_value = cache_future
-
-        query_result = {}
-
-        with contextlib.ExitStack() as stack:
-            stack.enter_context(unittest.mock.patch(
-                "asyncio.Future",
-                new=base.Future
-            ))
-
-            stack.enter_context(unittest.mock.patch.object(
-                self.s,
-                "lookup_in_cache",
-                new=base.lookup_in_cache
-            ))
-
-            stack.enter_context(unittest.mock.patch.object(
-                self.s,
-                "query_and_cache",
-                new=base.query_and_cache
-            ))
-
-            query_result = {}
-            base.lookup_in_cache.side_effect = KeyError()
-
-            task1 = asyncio.async(self.s.lookup_info(
-                TEST_FROM,
-                "foobar",
-                "ver",
-                "hash"
-            ))
-
-            run_coroutine(asyncio.sleep(0))
-
-            task2 = asyncio.async(self.s.lookup_info(
-                TEST_FROM,
-                "foobar",
-                "ver",
-                "hash"
-            ))
-
-            task3 = asyncio.async(self.s.lookup_info(
-                TEST_FROM,
-                "foobar",
-                "ver",
-                "hash"
-            ))
-
-            run_coroutine(asyncio.sleep(0))
-
-            query_future.set_result(query_result)
-            cache_future.set_result(query_result)
-
-            result1 = run_coroutine(task1)
-            result2 = run_coroutine(task2)
-            result3 = run_coroutine(task3)
-
-        calls = list(base.mock_calls)
-        self.assertSequenceEqual(
-            calls,
-            [
-                unittest.mock.call.lookup_in_cache("ver", "hash"),
-                unittest.mock.call.Future(),
-                unittest.mock.call.query_and_cache(
-                    TEST_FROM,
-                    "foobar",
-                    "ver",
-                    "hash",
-                    base.Future(),
-                ),
-                unittest.mock.call.lookup_in_cache("ver", "hash"),
-                unittest.mock.call.lookup_in_cache("ver", "hash"),
-            ]
-        )
-
-        self.assertIs(result1, query_result)
-        self.assertIs(result2, query_result)
-        self.assertIs(result3, query_result)
-
-    def test_concurrent_lookup_info_cascade_requery_if_cache_future_fails(self):
-        query_future1 = asyncio.Future()
-        query_future2 = asyncio.Future()
-        query_future3 = asyncio.Future()
-        cache_future1 = asyncio.Future()
-        cache_future2 = asyncio.Future()
-
-        base = unittest.mock.Mock()
-        base.disco = self.disco
-        base.disco.query_info.side_effect = None
-
-        query_result1 = {}
-        query_result2 = {}
-        query_result3 = {}
-
-        with contextlib.ExitStack() as stack:
-            stack.enter_context(unittest.mock.patch(
-                "asyncio.Future",
-                new=base.Future
-            ))
-
-            stack.enter_context(unittest.mock.patch.object(
-                self.s,
-                "lookup_in_cache",
-                new=base.lookup_in_cache
-            ))
-
-            stack.enter_context(unittest.mock.patch.object(
-                self.s,
-                "query_and_cache",
-                new=base.query_and_cache
-            ))
-
-            base.lookup_in_cache.side_effect = KeyError()
-
-            base.Future.return_value = cache_future1
-            base.query_and_cache.return_value = query_future1
-            task1 = asyncio.async(self.s.lookup_info(
-                TEST_FROM,
-                "foobar",
-                "ver",
-                "hash"
-            ))
-
-            run_coroutine(asyncio.sleep(0))
-
-            task2 = asyncio.async(self.s.lookup_info(
-                TEST_FROM,
-                "foobar",
-                "ver",
-                "hash"
-            ))
-
-            run_coroutine(asyncio.sleep(0))
-
-            task3 = asyncio.async(self.s.lookup_info(
-                TEST_FROM,
-                "foobar",
-                "ver",
-                "hash"
-            ))
-
-            run_coroutine(asyncio.sleep(0))
-
-            query_future1.set_result(query_result1)
-            cache_future1.set_exception(ValueError())
-            base.query_and_cache.return_value = query_future2
-            base.Future.return_value = cache_future2
-
-            run_coroutine(asyncio.sleep(0))
-
-            query_future2.set_result(query_result2)
-            cache_future2.set_exception(ValueError())
-            base.query_and_cache.return_value = query_future3
-            query_future3.set_result(query_result3)
-
-            result1 = run_coroutine(task1)
-            result2 = run_coroutine(task2)
-            result3 = run_coroutine(task3)
-
-        calls = list(base.mock_calls)
-        self.assertSequenceEqual(
-            calls,
-            [
-                unittest.mock.call.lookup_in_cache("ver", "hash"),
-                unittest.mock.call.Future(),
-                unittest.mock.call.query_and_cache(
-                    TEST_FROM,
-                    "foobar",
-                    "ver",
-                    "hash",
-                    cache_future1,
-                ),
-                unittest.mock.call.lookup_in_cache("ver", "hash"),
-                unittest.mock.call.lookup_in_cache("ver", "hash"),
-                unittest.mock.call.Future(),
-                unittest.mock.call.query_and_cache(
-                    TEST_FROM,
-                    "foobar",
-                    "ver",
-                    "hash",
-                    cache_future2,
-                ),
-                unittest.mock.call.Future(),
-                unittest.mock.call.query_and_cache(
-                    TEST_FROM,
-                    "foobar",
-                    "ver",
-                    "hash",
-                    base.Future(),
-                ),
-            ]
-        )
-
-        self.assertIs(result1, query_result1)
-        self.assertIs(result2, query_result2)
-        self.assertIs(result3, query_result3)
 
     def test_update_hash(self):
         self.disco.iter_features.return_value = iter([

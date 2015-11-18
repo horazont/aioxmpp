@@ -122,13 +122,11 @@ class InfoQuery(xso.XSO):
     def to_dict(self):
         """
         Convert the query result to a normalized JSON-like
-        representation. Features and form field values are stored in sets,
-        which makes the dict non-JSON. To serialize to JSON, all sets need to
-        be converted to lists.
+        representation.
 
         The format is a subset of the format used by the `capsdb`__. Obviously,
-        the node name and hash type are not included; otherwise (and for the
-        usage of sets vs. lists), the format is identical.
+        the node name and hash type are not included; otherwise, the format is
+        identical.
 
         __ https://github.com/xnyhps/capsdb
         """
@@ -144,15 +142,15 @@ class InfoQuery(xso.XSO):
                 identity_dict["name"] = identity.name
             identities.append(identity_dict)
 
-        features = {
+        features = [
             feature.var
             for feature in self.features
-        }
+        ]
 
         forms = {}
         for form in self.exts:
             form_dict = {
-                field.var: set(field.values)
+                field.var: list(field.values)
                 for field in form.fields
                 if field.var != "FORM_TYPE" and field.var is not None
             }

@@ -247,6 +247,7 @@ class TestInfoQuery(unittest.TestCase):
                             var="uiae",
                             values=[
                                 "nrtd",
+                                "asdf",
                             ]),
             forms_xso.Field(type_="fixed"),
         ])
@@ -255,11 +256,11 @@ class TestInfoQuery(unittest.TestCase):
         self.assertDictEqual(
             q.to_dict(),
             {
-                "features": {
+                "features": [
+                    "foo",
                     "bar",
                     "baz",
-                    "foo",
-                },
+                ],
                 "identities": [
                     {
                         "category": "client",
@@ -275,9 +276,10 @@ class TestInfoQuery(unittest.TestCase):
                 ],
                 "forms": {
                     "fnord": {
-                        "uiae": {
+                        "uiae": [
                             "nrtd",
-                        }
+                            "asdf",
+                        ]
                     }
                 }
             }
