@@ -8,6 +8,8 @@ documentation for more information.
 
 __ https://xmpp.org/extensions/xep-0115.html
 
+.. versionadded:: 0.5
+
 Service
 =======
 

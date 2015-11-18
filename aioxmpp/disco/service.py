@@ -522,6 +522,7 @@ class Service(service.Service, Node):
         This is a wrapper around :meth:`set_info_future` which creates a future
         and immediately assigns `info` as its result.
 
+        .. versionadded:: 0.5
         """
         fut = asyncio.Future()
         fut.set_result(info)
@@ -553,6 +554,8 @@ class Service(service.Service, Node):
            uses `require_fresh`.
 
              __ https://xmpp.org/extensions/xep-0115.html
+
+        .. versionadded:: 0.5
         """
         self._info_pending[jid, node] = fut
 
