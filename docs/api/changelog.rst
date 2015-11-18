@@ -48,6 +48,8 @@ Version 0.5
   .. _XEP-0128: https://xmpp.org/extensions/xep-0128.html
   .. _capsdb: https://github.com/xnyhps/capsdb
 
+* :mod:`aioxmpp.entitycaps` implementation.
+
 Version 0.4
 ===========
 
