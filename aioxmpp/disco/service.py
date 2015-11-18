@@ -408,6 +408,12 @@ class Service(service.Service, Node):
 
         The `timeout` can be used to restrict the time to wait for a
         response. If the timeout triggers, :class:`TimeoutError` is raised.
+
+        If :meth:`~.StanzaStream.send_iq_and_wait_for_reply` raises an
+        exception, all queries which were running simultanously for the same
+        target re-raise that exception. The result is not cached though. If a
+        new query is sent at a later point for the same target, a new query is
+        actually sent, independent of the value chosen for `require_fresh`.
         """
         key = jid, node
 
@@ -434,15 +440,26 @@ class Service(service.Service, Node):
         )
 
         self._info_pending[key] = request
-        if timeout is not None:
-            try:
-                result = yield from asyncio.wait_for(
-                    request,
-                    timeout=timeout)
-            except asyncio.TimeoutError:
-                raise TimeoutError()
-        else:
-            result = yield from request
+        try:
+            if timeout is not None:
+                try:
+                    result = yield from asyncio.wait_for(
+                        request,
+                        timeout=timeout)
+                except asyncio.TimeoutError:
+                    raise TimeoutError()
+            else:
+                result = yield from request
+        except:
+            if request.done():
+                try:
+                    pending = self._info_pending[key]
+                except KeyError:
+                    pass
+                else:
+                    if pending is request:
+                        del self._info_pending[key]
+            raise
 
         return result
 
@@ -453,7 +470,8 @@ class Service(service.Service, Node):
         Send an items query to the given `jid`, querying for the items at the
         `node`. Return the :class:`~.xso.ItemsQuery` result.
 
-        The arguments have the same semantics as with :meth:`query_info`.
+        The arguments have the same semantics as with :meth:`query_info`, as
+        does the caching and error handling.
         """
         key = jid, node
 
@@ -476,13 +494,26 @@ class Service(service.Service, Node):
         )
 
         self._items_pending[key] = request
-        if timeout is not None:
-            try:
-                result = yield from asyncio.wait_for(request, timeout=timeout)
-            except asyncio.TimeoutError:
-                raise TimeoutError()
-        else:
-            result = yield from request
+        try:
+            if timeout is not None:
+                try:
+                    result = yield from asyncio.wait_for(
+                        request,
+                        timeout=timeout)
+                except asyncio.TimeoutError:
+                    raise TimeoutError()
+            else:
+                result = yield from request
+        except:
+            if request.done():
+                try:
+                    pending = self._items_pending[key]
+                except KeyError:
+                    pass
+                else:
+                    if pending is request:
+                        del self._items_pending[key]
+            raise
 
         return result
 
@@ -514,6 +545,12 @@ class Service(service.Service, Node):
              `XEP-0115`__ implementation which uses this method to prime the
              cache with information derived from Entity Capability
              announcements.
+
+        .. note::
+
+           If a future is set to exception state, it will still remain and make
+           all queries for that target fail with that exception, until a query
+           uses `require_fresh`.
 
              __ https://xmpp.org/extensions/xep-0115.html
         """

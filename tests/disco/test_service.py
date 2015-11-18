@@ -686,6 +686,63 @@ class TestService(unittest.TestCase):
             len(send_and_decode.mock_calls)
         )
 
+    def test_query_info_reraises_and_aliases_exception(self):
+        to = structs.JID.fromstr("user@foo.example/res1")
+
+        ncall = 0
+
+        @asyncio.coroutine
+        def mock(*args, **kwargs):
+            nonlocal ncall
+            ncall += 1
+            if ncall == 1:
+                raise errors.XMPPCancelError(
+                    condition=(namespaces.stanzas, "feature-not-implemented"),
+                )
+            else:
+                raise ConnectionError()
+
+        with unittest.mock.patch.object(
+                self.s,
+                "send_and_decode_info_query",
+                new=mock):
+
+            task1 = asyncio.async(
+                self.s.query_info(to, node="foobar")
+            )
+            task2 = asyncio.async(
+                self.s.query_info(to, node="foobar")
+            )
+
+            with self.assertRaises(errors.XMPPCancelError):
+                run_coroutine(task1)
+
+            with self.assertRaises(errors.XMPPCancelError):
+                run_coroutine(task2)
+
+    def test_query_info_reraises_but_does_not_cache_exception(self):
+        to = structs.JID.fromstr("user@foo.example/res1")
+
+        with unittest.mock.patch.object(
+                self.s,
+                "send_and_decode_info_query",
+                new=CoroutineMock()) as send_and_decode:
+            send_and_decode.side_effect = errors.XMPPCancelError(
+                condition=(namespaces.stanzas, "feature-not-implemented"),
+            )
+
+            with self.assertRaises(errors.XMPPCancelError):
+                run_coroutine(
+                    self.s.query_info(to, node="foobar")
+                )
+
+            send_and_decode.side_effect = ConnectionError()
+
+            with self.assertRaises(ConnectionError):
+                run_coroutine(
+                    self.s.query_info(to, node="foobar")
+                )
+
     def test_query_info_cache_override(self):
         to = structs.JID.fromstr("user@foo.example/res1")
 
@@ -999,6 +1056,61 @@ class TestService(unittest.TestCase):
             len(self.cc.stream.send_iq_and_wait_for_reply.mock_calls)
         )
 
+    def test_query_items_reraises_and_aliases_exception(self):
+        to = structs.JID.fromstr("user@foo.example/res1")
+
+        ncall = 0
+
+        @asyncio.coroutine
+        def mock(*args, **kwargs):
+            nonlocal ncall
+            ncall += 1
+            if ncall == 1:
+                raise errors.XMPPCancelError(
+                    condition=(namespaces.stanzas, "feature-not-implemented"),
+                )
+            else:
+                raise ConnectionError()
+
+        with unittest.mock.patch.object(
+                self.cc.stream,
+                "send_iq_and_wait_for_reply",
+                new=mock):
+
+            task1 = asyncio.async(
+                self.s.query_info(to, node="foobar")
+            )
+            task2 = asyncio.async(
+                self.s.query_info(to, node="foobar")
+            )
+
+            with self.assertRaises(errors.XMPPCancelError):
+                run_coroutine(task1)
+
+            with self.assertRaises(errors.XMPPCancelError):
+                run_coroutine(task2)
+
+    def test_query_info_reraises_but_does_not_cache_exception(self):
+        to = structs.JID.fromstr("user@foo.example/res1")
+
+        self.cc.stream.send_iq_and_wait_for_reply.side_effect = \
+            errors.XMPPCancelError(
+                condition=(namespaces.stanzas, "feature-not-implemented"),
+            )
+
+        with self.assertRaises(errors.XMPPCancelError):
+            run_coroutine(
+                self.s.query_items(to, node="foobar")
+            )
+
+        self.cc.stream.send_iq_and_wait_for_reply.side_effect = \
+            ConnectionError()
+
+        with self.assertRaises(ConnectionError):
+            run_coroutine(
+                self.s.query_items(to, node="foobar")
+            )
+
     def test_query_items_cache_override(self):
         to = structs.JID.fromstr("user@foo.example/res1")
 
@@ -1166,3 +1278,29 @@ class TestService(unittest.TestCase):
         fut.set_result(result)
 
         self.assertIs(run_coroutine(request), result)
+
+    def test_set_info_future_stays_even_with_exception(self):
+        exc = ConnectionError()
+        to = structs.JID.fromstr("user@foo.example/res1")
+
+        fut = asyncio.Future()
+
+        self.s.set_info_future(
+            to,
+            None,
+            fut
+        )
+
+        request = asyncio.async(
+            self.s.query_info(to)
+        )
+
+        run_coroutine(asyncio.sleep(0))
+        self.assertFalse(request.done())
+
+        fut.set_exception(exc)
+
+        with self.assertRaises(Exception) as ctx:
+            run_coroutine(request)
+
+        self.assertIs(ctx.exception, exc)
