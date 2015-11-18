@@ -24,6 +24,8 @@ Inside rooms, there are occupants:
 
 .. autoclass:: Occupant
 
+.. currentmodule:: aioxmpp.muc.xso
+
 XSOs
 ====
 
@@ -71,20 +73,4 @@ Owner namespace
 
 """
 from .service import Service, Occupant, Room  # NOQA
-from .xso import (  # NOQA
-    GenericExt,
-    History,
-    UserExt,
-    Status,
-    DestroyNotification,
-    Decline,
-    Invite,
-    UserItem,
-    UserActor,
-    Continue,
-    AdminQuery,
-    AdminItem,
-    AdminActor,
-    OwnerQuery,
-    DestroyRequest
-)
+from . import xso  # NOQA
