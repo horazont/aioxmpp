@@ -50,6 +50,14 @@ Version 0.5
 
 * :mod:`aioxmpp.entitycaps` implementation.
 
+* Support for the legacy format in :class:`aioxmpp.xso.DateTime`.
+
+* :class:`aioxmpp.xso.Date` and :class:`aioxmpp.xso.Time` are now available to
+  for `XEP-0082`__ use.
+
+  __ https://xmpp.org/extensions/xep-0082.html
+
+
 Version 0.4
 ===========
 

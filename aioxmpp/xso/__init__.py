@@ -233,6 +233,10 @@ Attribute and text types
 
 .. autoclass:: DateTime
 
+.. autoclass:: Date
+
+.. autoclass:: Time
+
 .. autoclass:: Base64Binary
 
 .. autoclass:: HexBinary
@@ -336,6 +340,8 @@ from .types import (  # NOQA
     Float,
     Bool,
     DateTime,
+    Date,
+    Time,
     Base64Binary,
     HexBinary,
     JID,

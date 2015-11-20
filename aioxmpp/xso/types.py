@@ -18,7 +18,7 @@ import re
 
 import pytz
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date, time
 
 from .. import structs, i18n
 
@@ -193,10 +193,30 @@ class DateTime(AbstractType):
     correctly tagged with UTC tzinfo). Values without timezone specification
     are not tagged.
 
+    If `legacy` is true, the formatted dates use the legacy date/time format
+    (``CCYYMMDDThh:mm:ss``), as used for example in `XEP-0082`_ or `XEP-0009`_
+    (whereas in the latter it is not legacy, but defined by XML RPC). In any
+    case, parsing of the legacy format is transparently supported. Timestamps
+    in the legacy format are assumed to be in UTC, and datetime objects are
+    converted to UTC before emitting the legacy format. The timezone designator
+    is never emitted with the legacy format, and ignored if given.
+
+    .. _XEP-0009: https://xmpp.org/extensions/xep-0009.html
+    .. _XEP-0082: https://xmpp.org/extensions/xep-0082.html
+
     This class makes use of :mod:`pytz`.
+
+    .. versionadded:: 0.5
+
+       The `legacy` argument was added.
+
     """
 
     tzextract = re.compile("((Z)|([+-][0-9]{2}):([0-9]{2}))$")
+
+    def __init__(self, *, legacy=False):
+        super().__init__()
+        self.legacy = legacy
 
     def coerce(self, v):
         if not isinstance(v, datetime):
@@ -224,19 +244,110 @@ class DateTime(AbstractType):
         try:
             dt = datetime.strptime(v, "%Y-%m-%dT%H:%M:%S.%f")
         except ValueError:
-            dt = datetime.strptime(v, "%Y-%m-%dT%H:%M:%S")
+            try:
+                dt = datetime.strptime(v, "%Y-%m-%dT%H:%M:%S")
+            except ValueError:
+                dt = datetime.strptime(v, "%Y%m%dT%H:%M:%S")
+                tzinfo = pytz.utc
+                offset = timedelta(0)
 
         return dt.replace(tzinfo=tzinfo) - offset
 
     def format(self, v):
         if v.tzinfo:
             v = pytz.utc.normalize(v)
+        if self.legacy:
+            return v.strftime("%Y%m%dT%H:%M:%S")
+
         result = v.strftime("%Y-%m-%dT%H:%M:%S")
         if v.microsecond:
             result += ".{:06d}".format(v.microsecond).rstrip("0")
         if v.tzinfo:
             result += "Z"
         return result
+
+
+class Date(AbstractType):
+    """
+    Implement the Date type from `XEP-0082`_.
+
+    Values must have the :class:`date` type, :class:`datetime` is forbidden to
+    avoid silent loss of information.
+
+    .. _XEP-0082: https://xmpp.org/extensions/xep-0082.html
+
+    .. versionadded:: 0.5
+    """
+
+    def parse(self, s):
+        return datetime.strptime(s, "%Y-%m-%d").date()
+
+    def coerce(self, v):
+        if not isinstance(v, date) or isinstance(v, datetime):
+            raise TypeError("must be a date object")
+        return v
+
+
+class Time(AbstractType):
+    """
+    Implement the Time type from `XEP-0082`_.
+
+    Values must have the :class:`time` type, :class:`datetime` is forbidden to
+    avoid silent loss of information. Assignment of :class:`time` values in
+    time zones which are not UTC is not allowed either. The reason is that the
+    translation to UTC on formatting is not properly defined without an
+    accompanying date (think daylight saving time transitions, redefinitions of
+    time zones, …).
+
+    .. _XEP-0082: https://xmpp.org/extensions/xep-0082.html
+
+    .. versionadded:: 0.5
+    """
+
+    def parse(self, v):
+        v = v.strip()
+        m = DateTime.tzextract.search(v)
+        if m:
+            _, utc, hour_offset, minute_offset = m.groups()
+            if utc:
+                hour_offset = 0
+                minute_offset = 0
+            else:
+                hour_offset = int(hour_offset)
+                minute_offset = int(minute_offset)
+            tzinfo = pytz.utc
+            offset = timedelta(minutes=minute_offset + 60 * hour_offset)
+            v = v[:m.start()]
+        else:
+            tzinfo = None
+            offset = timedelta(0)
+
+        try:
+            dt = datetime.strptime(v, "%H:%M:%S.%f")
+        except ValueError:
+            dt = datetime.strptime(v, "%H:%M:%S")
+
+        return (dt.replace(tzinfo=tzinfo) - offset).timetz()
+
+    def format(self, v):
+        if v.tzinfo:
+            v = pytz.utc.normalize(v)
+
+        result = v.strftime("%H:%M:%S")
+        if v.microsecond:
+            result += ".{:06d}".format(v.microsecond).rstrip("0")
+        if v.tzinfo:
+            result += "Z"
+        return result
+
+    def coerce(self, t):
+        if not isinstance(t, time):
+            raise TypeError("must be a time object")
+        if t.tzinfo is None:
+            return t
+        if t.tzinfo == pytz.utc:
+            return t
+        raise ValueError("time must have UTC timezone or none at all")
 
 
 class _BinaryType(AbstractType):
