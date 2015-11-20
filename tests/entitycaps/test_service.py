@@ -146,8 +146,11 @@ class Testbuild_features_string(unittest.TestCase):
 
 class Testbuild_forms_string(unittest.TestCase):
     def test_xep_form(self):
-        data = {
-            "urn:xmpp:dataforms:softwareinfo": {
+        data = [
+            {
+                "FORM_TYPE": [
+                    "urn:xmpp:dataforms:softwareinfo",
+                ],
                 "os_version": [
                     "10.5.1",
                 ],
@@ -165,7 +168,7 @@ class Testbuild_forms_string(unittest.TestCase):
                     "0.11",
                 ]
             }
-        }
+        ]
 
         self.assertEqual(
             b"urn:xmpp:dataforms:softwareinfo<"
@@ -178,8 +181,11 @@ class Testbuild_forms_string(unittest.TestCase):
         )
 
     def test_value_and_var_escaping(self):
-        data = {
-            "urn:xmpp:<dataforms:softwareinfo": {
+        data = [
+            {
+                "FORM_TYPE": [
+                    "urn:xmpp:<dataforms:softwareinfo",
+                ],
                 "os_version": [
                     "10.&5.1",
                 ],
@@ -187,7 +193,7 @@ class Testbuild_forms_string(unittest.TestCase):
                     "Mac"
                 ]
             }
-        }
+        ]
 
         self.assertEqual(
             b"urn:xmpp:&lt;dataforms:softwareinfo<"
@@ -196,11 +202,146 @@ class Testbuild_forms_string(unittest.TestCase):
             entitycaps_service.build_forms_string(data)
         )
 
+    def test_reject_multiple_identical_form_types(self):
+        data = [
+            {
+                "FORM_TYPE": [
+                    "urn:xmpp:dataforms:softwareinfo",
+                ],
+                "os_version": [
+                    "10.5.1",
+                ],
+                "os": [
+                    "Mac"
+                ]
+            },
+            {
+                "FORM_TYPE": [
+                    "urn:xmpp:dataforms:softwareinfo",
+                ],
+                "os_version": [
+                    "10.5.1",
+                ],
+                "os": [
+                    "Mac"
+                ]
+            }
+        ]
+
+        with self.assertRaisesRegex(
+                ValueError,
+                "multiple forms of type b'urn:xmpp:dataforms:softwareinfo'"):
+            entitycaps_service.build_forms_string(data)
+
+    def test_reject_form_with_multiple_different_types(self):
+        data = [
+            {
+                "FORM_TYPE": [
+                    "urn:xmpp:dataforms:softwareinfo",
+                    "urn:xmpp:dataforms:softwarefoo",
+                ],
+                "os_version": [
+                    "10.5.1",
+                ],
+                "os": [
+                    "Mac"
+                ]
+            },
+        ]
+
+        with self.assertRaisesRegex(
+                ValueError,
+                "form with multiple types"):
+            entitycaps_service.build_forms_string(data)
+
+    def test_ignore_form_without_type(self):
+        data = [
+            {
+                "FORM_TYPE": [
+                ],
+                "foo": [
+                    "bar",
+                ],
+            },
+            {
+                "FORM_TYPE": [
+                    "urn:xmpp:dataforms:softwareinfo",
+                ],
+                "os_version": [
+                    "10.5.1",
+                ],
+                "os": [
+                    "Mac"
+                ]
+            }
+        ]
+
+        self.assertEqual(
+            b"urn:xmpp:dataforms:softwareinfo<"
+            b"os<Mac<"
+            b"os_version<10.5.1<",
+            entitycaps_service.build_forms_string(data)
+        )
+
+        data = [
+            {
+                "FORM_TYPE": [
+                ],
+                "foo": [
+                    "bar",
+                ],
+            },
+            {
+                "FORM_TYPE": [
+                    "urn:xmpp:dataforms:softwareinfo",
+                ],
+                "os_version": [
+                    "10.5.1",
+                ],
+                "os": [
+                    "Mac"
+                ]
+            }
+        ]
+
+        self.assertEqual(
+            b"urn:xmpp:dataforms:softwareinfo<"
+            b"os<Mac<"
+            b"os_version<10.5.1<",
+            entitycaps_service.build_forms_string(data)
+        )
+
+    def test_accept_form_with_multiple_identical_types(self):
+        data = [
+            {
+                "FORM_TYPE": [
+                    "urn:xmpp:dataforms:softwareinfo",
+                    "urn:xmpp:dataforms:softwareinfo",
+                ],
+                "os_version": [
+                    "10.5.1",
+                ],
+                "os": [
+                    "Mac"
+                ]
+            },
+        ]
+
+        entitycaps_service.build_forms_string(data)
+
     def test_multiple(self):
-        data = {
-            "uri:foo": {},
-            "uri:bar": {},
-        }
+        data = [
+            {
+                "FORM_TYPE": [
+                    "uri:foo",
+                ]
+            },
+            {
+                "FORM_TYPE": [
+                    "uri:bar",
+                ]
+            },
+        ]
 
         self.assertEqual(
             b"uri:bar<uri:foo<",
@@ -307,7 +448,7 @@ class Testhash_query(unittest.TestCase):
         )
 
     def test_complex_xep_data(self):
-        info = {
+        info ={
             "identities": [
                 {
                     "category": "client",
@@ -328,8 +469,11 @@ class Testhash_query(unittest.TestCase):
                 "http://jabber.org/protocol/disco#items",
                 "http://jabber.org/protocol/muc",
             ],
-            "forms": {
-                "urn:xmpp:dataforms:softwareinfo": {
+            "forms": [
+                {
+                    "FORM_TYPE": [
+                        "urn:xmpp:dataforms:softwareinfo"
+                    ],
                     "ip_version": [
                         "ipv4",
                         "ipv6",
@@ -347,7 +491,7 @@ class Testhash_query(unittest.TestCase):
                         "0.11",
                     ]
                 }
-            }
+            ]
         }
 
         self.assertEqual(
@@ -400,7 +544,16 @@ TEST_INFO = {
 }
 
 TEST_INFO_HASH = "sha-1"
-TEST_INFO_VER = entitycaps_service.hash_query(TEST_INFO, "sha1")
+
+_tmp = dict(TEST_INFO)
+_tmp["forms"] = [
+    dict(value,
+         FORM_TYPE=[key])
+    for key, value in _tmp["forms"].items()
+]
+
+TEST_INFO_VER = entitycaps_service.hash_query(_tmp, "sha1")
+del _tmp
 
 TEST_DB = {
     "+0mnUAF1ozCEc37cmdPPsYbsfhg=": {
@@ -512,6 +665,14 @@ TEST_DB = {
 }
 
 
+def wrap_forms(d):
+    d["forms"] = [
+        dict(value,
+             FORM_TYPE=[key])
+        for key, value in d["forms"].items()
+    ]
+
+
 class TestCache(unittest.TestCase):
     def setUp(self):
         self.c = entitycaps_service.Cache()
@@ -522,6 +683,7 @@ class TestCache(unittest.TestCase):
         expected = dict(TEST_DB["+9oi6+VEwgu5cRmjErECReGvCC0="])
         del expected["node"]
         del expected["hash"]
+        wrap_forms(expected)
 
         self.assertDictEqual(
             self.c.lookup_in_database("+9oi6+VEwgu5cRmjErECReGvCC0="),
@@ -538,6 +700,7 @@ class TestCache(unittest.TestCase):
         expected = dict(TEST_DB["+9oi6+VEwgu5cRmjErECReGvCC0="])
         del expected["node"]
         del expected["hash"]
+        wrap_forms(expected)
 
         self.assertDictEqual(
             self.c.lookup_in_database("+9oi6+VEwgu5cRmjErECReGvCC0="),
@@ -554,6 +717,7 @@ class TestCache(unittest.TestCase):
         expected = dict(TEST_DB["+9oi6+VEwgu5cRmjErECReGvCC0="])
         del expected["node"]
         del expected["hash"]
+        wrap_forms(expected)
 
         self.assertDictEqual(
             self.c.lookup_in_database("+9oi6+VEwgu5cRmjErECReGvCC0="),
@@ -566,6 +730,7 @@ class TestCache(unittest.TestCase):
         expected = dict(TEST_DB["+9oi6+VEwgu5cRmjErECReGvCC0="])
         del expected["node"]
         del expected["hash"]
+        wrap_forms(expected)
 
         self.assertDictEqual(
             self.c.lookup_in_database("+9oi6+VEwgu5cRmjErECReGvCC0="),
@@ -582,6 +747,7 @@ class TestCache(unittest.TestCase):
         expected = dict(TEST_DB["+9oi6+VEwgu5cRmjErECReGvCC0="])
         del expected["node"]
         del expected["hash"]
+        wrap_forms(expected)
 
         self.assertDictEqual(
             self.c.lookup_in_database("+9oi6+VEwgu5cRmjErECReGvCC0="),
@@ -600,6 +766,7 @@ class TestCache(unittest.TestCase):
         expected = dict(TEST_DB["+9oi6+VEwgu5cRmjErECReGvCC0="])
         del expected["node"]
         del expected["hash"]
+        wrap_forms(expected)
 
         self.assertDictEqual(
             self.c.lookup_in_database("+9oi6+VEwgu5cRmjErECReGvCC0="),
@@ -614,6 +781,7 @@ class TestCache(unittest.TestCase):
         expected = dict(TEST_DB["+9oi6+VEwgu5cRmjErECReGvCC0="])
         del expected["node"]
         del expected["hash"]
+        wrap_forms(expected)
 
         result = self.c.lookup_in_database("+9oi6+VEwgu5cRmjErECReGvCC0=")
         self.assertDictEqual(
@@ -637,6 +805,7 @@ class TestCache(unittest.TestCase):
         expected = dict(TEST_DB["+9oi6+VEwgu5cRmjErECReGvCC0="])
         del expected["node"]
         del expected["hash"]
+        wrap_forms(expected)
 
         self.assertDictEqual(
             self.c.lookup_in_database("+9oi6+VEwgu5cRmjErECReGvCC0="),
@@ -1083,6 +1252,15 @@ class TestService(unittest.TestCase):
         response = dict(TEST_DB[ver])
         del response["node"]
         del response["hash"]
+        response["forms"] = [
+            dict(
+                value,
+                FORM_TYPE=[
+                    key,
+                ],
+            )
+            for key, value in response["forms"].items()
+        ]
 
         base = unittest.mock.Mock()
         base.disco = self.disco
@@ -1110,9 +1288,10 @@ class TestService(unittest.TestCase):
                 base.fut,
             ))
 
-        expected = dict(response)
-        expected["node"] = "foobar"
-        expected["hash"] = "sha-1"
+        cache_entry = dict(response)
+        cache_entry["node"] = "foobar"
+        cache_entry["hash"] = "sha-1"
+        cache_entry["forms"] = dict(TEST_DB[ver]["forms"])
 
         calls = list(base.mock_calls)
         self.assertSequenceEqual(
@@ -1129,7 +1308,7 @@ class TestService(unittest.TestCase):
                 ),
                 unittest.mock.call.add_cache_entry(
                     ver,
-                    expected,
+                    cache_entry,
                 ),
                 unittest.mock.call.fut.set_result(
                     result,

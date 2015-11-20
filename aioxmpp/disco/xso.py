@@ -147,16 +147,13 @@ class InfoQuery(xso.XSO):
             for feature in self.features
         ]
 
-        forms = {}
+        forms = []
         for form in self.exts:
-            form_dict = {
+            forms.append({
                 field.var: list(field.values)
                 for field in form.fields
-                if field.var != "FORM_TYPE" and field.var is not None
-            }
-            forms[form.fields.filtered(
-                attrs={"var": "FORM_TYPE"}
-            )[0].values[0]] = form_dict
+                if field.var is not None
+            })
 
         result = {
             "identities": identities,

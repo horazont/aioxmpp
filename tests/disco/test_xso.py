@@ -274,14 +274,109 @@ class TestInfoQuery(unittest.TestCase):
                         "lang": "en-gb",
                     },
                 ],
-                "forms": {
-                    "fnord": {
+                "forms": [
+                    {
+                        "FORM_TYPE": [
+                            "fnord",
+                        ],
                         "uiae": [
                             "nrtd",
                             "asdf",
                         ]
                     }
-                }
+                ]
+            }
+        )
+
+    def test_to_dict_emits_forms_with_identical_type(self):
+        q = disco_xso.InfoQuery()
+        q.identities.extend([
+            disco_xso.Identity(
+                category="client",
+                type_="pc",
+                name="foobar"
+            ),
+            disco_xso.Identity(
+                category="client",
+                type_="pc",
+                name="baz",
+                lang=structs.LanguageTag.fromstr("en-GB")
+            ),
+        ])
+
+        q.features.extend(
+            disco_xso.Feature(var)
+            for var in [
+                "foo",
+                "bar",
+                "baz",
+            ]
+        )
+
+        f = forms_xso.Data()
+        f.fields.extend([
+            forms_xso.Field(type_="hidden",
+                            var="FORM_TYPE",
+                            values=[
+                                "fnord",
+                            ]),
+            forms_xso.Field(type_="text-single",
+                            var="uiae",
+                            values=[
+                                "nrtd",
+                                "asdf",
+                            ]),
+            forms_xso.Field(type_="fixed"),
+        ])
+        q.exts.append(f)
+
+        f = forms_xso.Data()
+        f.fields.extend([
+            forms_xso.Field(type_="hidden",
+                            var="FORM_TYPE",
+                            values=[
+                                "fnord",
+                            ]),
+        ])
+        q.exts.append(f)
+
+        self.assertDictEqual(
+            q.to_dict(),
+            {
+                "features": [
+                    "foo",
+                    "bar",
+                    "baz",
+                ],
+                "identities": [
+                    {
+                        "category": "client",
+                        "type": "pc",
+                        "name": "foobar",
+                    },
+                    {
+                        "category": "client",
+                        "type": "pc",
+                        "name": "baz",
+                        "lang": "en-gb",
+                    },
+                ],
+                "forms": [
+                    {
+                        "FORM_TYPE": [
+                            "fnord",
+                        ],
+                        "uiae": [
+                            "nrtd",
+                            "asdf",
+                        ]
+                    },
+                    {
+                        "FORM_TYPE": [
+                            "fnord",
+                        ],
+                    }
+                ]
             }
         )
 

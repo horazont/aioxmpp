@@ -44,23 +44,36 @@ def build_features_string(features):
 
 
 def build_forms_string(forms):
-    forms = sorted(
-        (
-            (escape(key).encode("utf-8"), value)
-            for key, value in forms.items()
-        ),
-        key=lambda x: x[0]
-    )
+    types = set()
+    forms_list = []
+    for form in forms:
+        try:
+            form_types = set(form["FORM_TYPE"])
+        except KeyError:
+            continue
+
+        if len(form_types) > 1:
+            raise ValueError("form with multiple types")
+        elif not form_types:
+            continue
+
+        type_ = escape(next(iter(form_types))).encode("utf-8")
+        if type_ in types:
+            raise ValueError("multiple forms of type {!r}".format(type_))
+        types.add(type_)
+        forms_list.append((type_, form))
+    forms_list.sort()
 
     parts = []
 
-    for type_, fields in forms:
+    for type_, fields in forms_list:
         parts.append(type_)
 
         field_list = sorted(
             (
                 (escape(var).encode("utf-8"), values)
                 for var, values in fields.items()
+                if var != "FORM_TYPE"
             ),
             key=lambda x: x[0]
         )
@@ -203,6 +216,11 @@ class Cache:
         data = copy.deepcopy(data)
         del data["node"]
         del data["hash"]
+        data["forms"] = [
+            dict(value,
+                 FORM_TYPE=[key])
+            for key, value in data["forms"].items()
+        ]
         return data
 
     @asyncio.coroutine
@@ -388,6 +406,14 @@ class Service(aioxmpp.service.Service):
                 to_save = dict(data)
                 to_save["node"] = node
                 to_save["hash"] = hash_
+
+                transformed_forms = {}
+                for form in to_save["forms"]:
+                    new_form = dict(form)
+                    transformed_forms[new_form["FORM_TYPE"][0]] = new_form
+                    del new_form["FORM_TYPE"]
+                to_save["forms"] = transformed_forms
+
                 self.cache.add_cache_entry(ver, to_save)
                 fut.set_result(data)
             else:
