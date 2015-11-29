@@ -438,7 +438,10 @@ class XMLStream(asyncio.Protocol):
             self._rx_feed(blob)
         except errors.StreamError as exc:
             stanza_obj = nonza.StreamError.from_exception(exc)
-            self._writer.send(stanza_obj)
+            try:
+                self._writer.send(stanza_obj)
+            except StopIteration:
+                pass
             self._fail(exc)
             # shutdown, we do not really care about </stream:stream> by the
             # server at this point
