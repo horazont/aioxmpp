@@ -57,6 +57,13 @@ Version 0.5
 
   __ https://xmpp.org/extensions/xep-0082.html
 
+* Improve Python 3.5 compatibility of the test suite. In a corner-case,
+  :class:`StopIteration` was emitted from ``data_received``, which caused a
+  test to fail with a :class:`RuntimeError` due to implementation of
+  `PEP-0479`__ in Python 3.5.
+
+  __ https://www.python.org/dev/peps/pep-0479/
+
 
 Version 0.4
 ===========
