@@ -32,6 +32,10 @@ Dependencies
   .. _pyasn1: https://pypi.python.org/pypi/pyasn1
   __ https://pypi.python.org/pypi/pyasn1-modules
 
+* `aiosasl`__
+
+  __ https://pypi.python.org/pypi/aiosasl
+
 
 Design goals
 ------------

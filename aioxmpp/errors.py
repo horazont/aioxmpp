@@ -33,15 +33,11 @@ Stream negotiation exceptions
 
 .. autoclass:: SecurityNegotiationFailure
 
-.. autoclass:: SASLFailure
-
 .. autoclass:: SASLUnavailable
 
 .. autoclass:: TLSFailure
 
 .. autoclass:: TLSUnavailable
-
-.. autoclass:: AuthenticationFailure
 
 I18N exceptions
 ===============
@@ -57,6 +53,8 @@ Other exceptions
 
 """
 import gettext
+
+import aiosasl
 
 from . import xso, i18n
 
@@ -161,17 +159,7 @@ class SecurityNegotiationFailure(StreamNegotiationFailure):
         self.text = text
 
 
-class SASLFailure(SecurityNegotiationFailure):
-    def __init__(self, xmpp_error, text=None):
-        super().__init__(xmpp_error, text=text, kind="SASL failure")
-
-    def promote_to_authentication_failure(self):
-        return AuthenticationFailure(
-            xmpp_error=self.xmpp_error,
-            text=self.text)
-
-
-class SASLUnavailable(SASLFailure):
+class SASLUnavailable(SecurityNegotiationFailure):
     # we use this to tell the Client that SASL has not been available at all,
     # or that we could not agree on mechansims.
     # it might be helpful to notify the peer about this before dying.
@@ -185,11 +173,6 @@ class TLSFailure(SecurityNegotiationFailure):
 
 class TLSUnavailable(TLSFailure):
     pass
-
-
-class AuthenticationFailure(SecurityNegotiationFailure):
-    def __init__(self, xmpp_error, text=None):
-        super().__init__(xmpp_error, text=text, kind="Authentication failure")
 
 
 error_type_map = {

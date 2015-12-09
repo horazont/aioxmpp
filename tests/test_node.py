@@ -2,13 +2,14 @@ import asyncio
 import contextlib
 import functools
 import ipaddress
-import logging
 import unittest
 import unittest.mock
 
 from datetime import timedelta
 
 import dns.resolver
+
+import aiosasl
 
 import aioxmpp.node as node
 import aioxmpp.structs as structs
@@ -576,7 +577,7 @@ class Testconnect_secured_xmlstream(unittest.TestCase):
         send_stream_error_and_close.assert_called_once_with(
             xmlstream,
             condition=(namespaces.streams, "policy-violation"),
-            text="SASL failure: invalid-mechanism")
+            text="Security negotiation failure: invalid-mechanism")
 
     @unittest.mock.patch("aioxmpp.protocol.send_stream_error_and_close")
     def test_send_stream_error_on_tls_unavailable_and_re_raise(
@@ -643,7 +644,7 @@ class Testconnect_secured_xmlstream(unittest.TestCase):
     ):
         connect_to_xmpp_server_recorder = unittest.mock.MagicMock()
         security_layer_recorder = unittest.mock.MagicMock()
-        exc = errors.SASLFailure(
+        exc = aiosasl.SASLFailure(
             "malformed-request",
             text="Nonce does not match")
         security_layer_recorder.side_effect = exc
@@ -669,7 +670,7 @@ class Testconnect_secured_xmlstream(unittest.TestCase):
                                      xmlstream,
                                      connect_to_xmpp_server_recorder
                                  )):
-            with self.assertRaises(errors.SASLFailure):
+            with self.assertRaises(aiosasl.SASLFailure):
                 run_coroutine(
                     node.connect_secured_xmlstream(
                         self.test_jid,
@@ -964,7 +965,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
         self.assertTrue(self.client.established)
 
     def test_fail_on_authentication_failure(self):
-        exc = errors.AuthenticationFailure("not-authorized")
+        exc = aiosasl.AuthenticationFailure("not-authorized")
         self.connect_secured_xmlstream_rec.side_effect = exc
         self.client.start()
         run_coroutine(asyncio.sleep(0))
@@ -1601,7 +1602,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
 
         run_coroutine(self.xmlstream.run_test([]))
 
-        exc = errors.AuthenticationFailure("not-authorized")
+        exc = aiosasl.AuthenticationFailure("not-authorized")
         self.connect_secured_xmlstream_rec.side_effect = exc
 
         run_coroutine(self.xmlstream.run_test([
@@ -1653,7 +1654,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
             self.sm_negotiation_exchange
         ))
 
-        exc = errors.AuthenticationFailure("not-authorized")
+        exc = aiosasl.AuthenticationFailure("not-authorized")
         self.connect_secured_xmlstream_rec.side_effect = exc
 
         run_coroutine(self.xmlstream.run_test(

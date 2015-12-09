@@ -1,16 +1,15 @@
 import asyncio
 import contextlib
-import itertools
 import random
-import socket
 import ssl
 import unittest
 
 import OpenSSL.crypto
 import OpenSSL.SSL
 
+import aiosasl
+
 import aioxmpp.errors as errors
-import aioxmpp.sasl as sasl
 import aioxmpp.structs as structs
 import aioxmpp.security_layer as security_layer
 import aioxmpp.nonza as nonza
@@ -1726,8 +1725,8 @@ class TestSTARTTLSProvider(xmltestutils.XMLTestCase):
 
 class TestPasswordSASLProvider(xmltestutils.XMLTestCase):
     def setUp(self):
-        sasl._system_random = unittest.mock.MagicMock()
-        sasl._system_random.getrandbits.return_value = int.from_bytes(
+        aiosasl._system_random = unittest.mock.MagicMock()
+        aiosasl._system_random.getrandbits.return_value = int.from_bytes(
             b"foo",
             "little")
 
@@ -1792,7 +1791,7 @@ class TestPasswordSASLProvider(xmltestutils.XMLTestCase):
 
         self.password_provider.return_value = None
 
-        with self.assertRaisesRegexp(errors.AuthenticationFailure,
+        with self.assertRaisesRegexp(aiosasl.AuthenticationFailure,
                                      "aborted by user"):
             self._test_provider(provider, tls_transport=True)
 
@@ -1807,16 +1806,16 @@ class TestPasswordSASLProvider(xmltestutils.XMLTestCase):
         payload = b"\0foo\0foo"
         self.password_provider.return_value = "foo"
 
-        with self.assertRaisesRegexp(errors.SASLFailure,
+        with self.assertRaisesRegexp(aiosasl.SASLFailure,
                                      "malformed-request"):
             self._test_provider(
                 provider,
                 actions=[
                     XMLStreamMock.Send(
-                        sasl.SASLAuth(mechanism="PLAIN",
-                                      payload=payload),
+                        nonza.SASLAuth(mechanism="PLAIN",
+                                       payload=payload),
                         response=XMLStreamMock.Receive(
-                            sasl.SASLFailure(
+                            nonza.SASLFailure(
                                 condition=(namespaces.sasl,
                                            "malformed-request")
                             )
@@ -1843,11 +1842,11 @@ class TestPasswordSASLProvider(xmltestutils.XMLTestCase):
                 provider,
                 actions=[
                     XMLStreamMock.Send(
-                        sasl.SASLAuth(
+                        nonza.SASLAuth(
                             mechanism="PLAIN",
                             payload=payload),
                         response=XMLStreamMock.Receive(
-                            sasl.SASLSuccess())
+                            nonza.SASLSuccess())
                     )
                 ],
                 tls_transport=True)
@@ -1879,20 +1878,20 @@ class TestPasswordSASLProvider(xmltestutils.XMLTestCase):
                 provider,
                 actions=[
                     XMLStreamMock.Send(
-                        sasl.SASLAuth(
+                        nonza.SASLAuth(
                             mechanism="SCRAM-SHA-1",
                             payload=b"n,,n=foo,r=Zm9vAAAAAAAAAAAAAAAA"),
                         response=XMLStreamMock.Receive(
-                            sasl.SASLFailure(
+                            nonza.SASLFailure(
                                 condition=(namespaces.sasl, "invalid-mechanism")
                             ))
                     ),
                     XMLStreamMock.Send(
-                        sasl.SASLAuth(
+                        nonza.SASLAuth(
                             mechanism="PLAIN",
                             payload=plain_payload),
                         response=XMLStreamMock.Receive(
-                            sasl.SASLSuccess()
+                            nonza.SASLSuccess()
                         )
                     ),
                 ],
@@ -1922,16 +1921,16 @@ class TestPasswordSASLProvider(xmltestutils.XMLTestCase):
         plain_payload = (b"\0"+str(self.client_jid.localpart).encode("utf-8")+
                          b"\0"+"foobar".encode("utf-8"))
 
-        with self.assertRaises(errors.AuthenticationFailure):
+        with self.assertRaises(aiosasl.AuthenticationFailure):
             self._test_provider(
                 provider,
                 actions=[
                     XMLStreamMock.Send(
-                        sasl.SASLAuth(
+                        nonza.SASLAuth(
                             mechanism="PLAIN",
                             payload=plain_payload),
                         response=XMLStreamMock.Receive(
-                            sasl.SASLFailure(
+                            nonza.SASLFailure(
                                 condition=(namespaces.sasl, "not-authorized")
                             )
                         )
@@ -1969,21 +1968,21 @@ class TestPasswordSASLProvider(xmltestutils.XMLTestCase):
                 provider,
                 actions=[
                     XMLStreamMock.Send(
-                        sasl.SASLAuth(
+                        nonza.SASLAuth(
                             mechanism="SCRAM-SHA-1",
                             payload=b"n,,n=foo,r=Zm9vAAAAAAAAAAAAAAAA"),
                         response=XMLStreamMock.Receive(
-                            sasl.SASLFailure(
+                            nonza.SASLFailure(
                                 condition=(namespaces.sasl,
                                            "invalid-mechanism")
                             )
                         )
                     ),
                     XMLStreamMock.Send(
-                        sasl.SASLAuth(mechanism="PLAIN",
-                                      payload=plain_payload),
+                        nonza.SASLAuth(mechanism="PLAIN",
+                                       payload=plain_payload),
                         response=XMLStreamMock.Receive(
-                            sasl.SASLFailure(
+                            nonza.SASLFailure(
                                 condition=(namespaces.sasl,
                                            "mechanism-too-weak")
                             )
@@ -2001,7 +2000,7 @@ class TestPasswordSASLProvider(xmltestutils.XMLTestCase):
         del self.client_jid
 
         import random
-        sasl._system_random = random.SystemRandom()
+        aiosasl._system_random = random.SystemRandom()
 
 
 class Testnegotiate_stream_security(xmltestutils.XMLTestCase):
@@ -2193,7 +2192,7 @@ class Testnegotiate_stream_security(xmltestutils.XMLTestCase):
         tls_provider = unittest.mock.MagicMock()
         tls_provider.execute.return_value = self._coro_return(self.transport)
 
-        exc = errors.AuthenticationFailure("credentials-expired")
+        exc = aiosasl.AuthenticationFailure("credentials-expired")
 
         sasl_provider1 = unittest.mock.MagicMock()
         sasl_provider1.execute.side_effect = exc
@@ -2201,7 +2200,7 @@ class Testnegotiate_stream_security(xmltestutils.XMLTestCase):
         sasl_provider2 = unittest.mock.MagicMock()
         sasl_provider2.execute.return_value = self._coro_return(False)
 
-        with self.assertRaises(errors.AuthenticationFailure) as ctx:
+        with self.assertRaises(aiosasl.AuthenticationFailure) as ctx:
             self._test_provider(
                 security_layer.negotiate_stream_security(
                     tls_provider,
@@ -2242,7 +2241,7 @@ class Testnegotiate_stream_security(xmltestutils.XMLTestCase):
         tls_provider = unittest.mock.MagicMock()
         tls_provider.execute.return_value = self._coro_return(self.transport)
 
-        exc = errors.AuthenticationFailure("credentials-expired")
+        exc = aiosasl.AuthenticationFailure("credentials-expired")
 
         sasl_provider1 = unittest.mock.MagicMock()
         sasl_provider1.execute.side_effect = exc

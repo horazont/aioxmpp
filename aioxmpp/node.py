@@ -29,6 +29,8 @@ from datetime import timedelta
 
 import dns.resolver
 
+import aiosasl
+
 from . import (
     network,
     ssl_transport,
@@ -205,7 +207,7 @@ def connect_secured_xmlstream(jid, security_layer,
             text=str(exc)
         )
         raise
-    except errors.SASLFailure as exc:
+    except aiosasl.SASLError as exc:
         protocol.send_stream_error_and_close(
             xmlstream,
             condition=(namespaces.streams, "undefined-condition"),
@@ -564,7 +566,8 @@ class AbstractClient:
                     if err.condition == (namespaces.streams, "conflict"):
                         self._logger.debug("conflict!")
                         raise
-                except errors.StreamNegotiationFailure:
+                except (errors.StreamNegotiationFailure,
+                        aiosasl.SASLError):
                     if self.stream.sm_enabled:
                         self.stream.stop_sm()
                     raise

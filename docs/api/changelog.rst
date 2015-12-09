@@ -64,6 +64,9 @@ Version 0.5
 
   __ https://www.python.org/dev/peps/pep-0479/
 
+* Refactor large parts of :mod:`aioxmpp.sasl` into a new, independent package,
+  :mod:`aiosasl`.
+
 
 Version 0.4
 ===========

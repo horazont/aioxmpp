@@ -269,4 +269,5 @@ intersphinx_mapping = {
     'https://docs.python.org/3/': None,
     'https://pyopenssl.readthedocs.org/en/latest/': None,
     'http://babel.pocoo.org/docs/': None,
+    'http://docs.zombofant.net/aiosasl/devel/': None,
 }
