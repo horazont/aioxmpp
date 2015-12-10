@@ -78,7 +78,7 @@ class Feature(xso.XSO):
 
 
 @stanza.IQ.as_payload_class
-class InfoQuery(xso.XSO):
+class InfoQuery(xso.CapturingXSO):
     """
     A query for features and identities of an entity. The keyword arguments to
     the constructor can be used to initialize the attributes. Note that
@@ -99,6 +99,15 @@ class InfoQuery(xso.XSO):
 
        The features of the entity, as :class:`Feature` instances.
 
+    .. attribute:: captured_events
+
+       If the object was created by parsing an XML stream, this attribute holds
+       a list of events which were used when parsing it.
+
+       Otherwise, this is :data:`None`.
+
+       .. versionadded:: 0.5
+
     .. automethod:: to_dict
 
     """
@@ -111,6 +120,8 @@ class InfoQuery(xso.XSO):
     features = xso.ChildList([Feature])
 
     exts = xso.ChildList([forms_xso.Data])
+
+    captured_events = None
 
     def __init__(self, *, identities=(), features=(), node=None):
         super().__init__()
@@ -162,6 +173,9 @@ class InfoQuery(xso.XSO):
         }
 
         return result
+
+    def _set_captured_events(self, events):
+        self.captured_events = events
 
 
 class Item(xso.XSO):

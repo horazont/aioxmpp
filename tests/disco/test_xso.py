@@ -134,8 +134,8 @@ class TestFeature(unittest.TestCase):
 
 
 class TestInfoQuery(unittest.TestCase):
-    def test_is_xso(self):
-        self.assertTrue(issubclass(disco_xso.InfoQuery, xso.XSO))
+    def test_is_capturing_xso(self):
+        self.assertTrue(issubclass(disco_xso.InfoQuery, xso.CapturingXSO))
 
     def test_tag(self):
         self.assertEqual(
@@ -186,6 +186,7 @@ class TestInfoQuery(unittest.TestCase):
 
     def test_init(self):
         iq = disco_xso.InfoQuery()
+        self.assertIsNone(iq.captured_events)
         self.assertFalse(iq.features)
         self.assertFalse(iq.identities)
         self.assertIsNone(iq.node)
@@ -193,6 +194,7 @@ class TestInfoQuery(unittest.TestCase):
         iq = disco_xso.InfoQuery(node="foobar",
                                  features=(1, 2),
                                  identities=(3,))
+        self.assertIsNone(iq.captured_events)
         self.assertIsInstance(iq.features, xso_model.XSOList)
         self.assertSequenceEqual(
             [1, 2],
@@ -379,6 +381,13 @@ class TestInfoQuery(unittest.TestCase):
                 ]
             }
         )
+
+    def test__set_captured_events(self):
+        data = object()
+
+        iq = disco_xso.InfoQuery()
+        iq._set_captured_events(data)
+        self.assertIs(iq.captured_events, data)
 
 
 class TestItem(unittest.TestCase):
