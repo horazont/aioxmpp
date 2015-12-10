@@ -67,6 +67,9 @@ Version 0.5
 * Refactor large parts of :mod:`aioxmpp.sasl` into a new, independent package,
   :mod:`aiosasl`.
 
+* :class:`aioxmpp.xso.CapturingXSO` and :meth:`aioxmpp.xso.capture_events` were
+  added.
+
 
 Version 0.4
 ===========

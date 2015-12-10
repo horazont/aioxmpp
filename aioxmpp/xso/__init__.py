@@ -155,6 +155,8 @@ identical interface.
 
 .. autoclass:: XSO()
 
+.. autoclass:: CapturingXSO()
+
 The metaclass takes care of collecting the special descriptors in attributes
 where they can be used by the SAX event interpreter to fill the class with
 data. It also provides a class method for late registration of child classes.
@@ -194,6 +196,8 @@ descriptor:
 
    It compares unequal to everything but itself, does not support ordering,
    conversion to bool, float or integer.
+
+.. autofunction:: capture_events
 
 Handlers for missing attributes
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -378,7 +382,9 @@ from .model import (  # NOQA
     XSOParser,
     SAXDriver,
     XSO,
-    lang_attr
+    CapturingXSO,
+    lang_attr,
+    capture_events,
 )
 
 

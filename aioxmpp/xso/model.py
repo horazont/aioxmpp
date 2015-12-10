@@ -4,6 +4,7 @@
 
 See :mod:`aioxmpp.xso` for documentation.
 """
+import abc
 import collections
 import copy
 import sys
@@ -1193,7 +1194,7 @@ class ChildTextMap(ChildValueMap):
         )
 
 
-class XMLStreamClass(type):
+class XMLStreamClass(abc.ABCMeta):
     """
     There should be no need to use this metaclass directly when implementing
     your own XSO classes. Instead, derive from :class:`~.xso.XSO`.
@@ -1637,6 +1638,41 @@ class XMLStreamClass(type):
         cls.CHILD_MAP[child_cls.TAG] = prop
 
 
+# I know it makes only partially sense to have a separate metasubclass for
+# this, but I like how :meth:`parse_events` is *not* accessible from
+# instances.
+class CapturingXMLStreamClass(XMLStreamClass):
+    """
+    This is a subclass of :meth:`XMLStreamClass`. It overrides the
+    :meth:`parse_events` to capture the incoming events, including the initial
+    event.
+
+    .. see::
+
+       :class:`CapturingXSO`
+
+    .. automethod:: parse_events
+    """
+
+    def parse_events(cls, ev_args, parent_ctx):
+        """
+        Capture the events sent to :meth:`.XSO.parse_events`,
+        including the initial `ev_args` to a list and call
+        :meth:`_set_captured_events` on the result of
+        :meth:`.XSO.parse_events`.
+
+        Like the method it overrides, :meth:`parse_events` is suspendable.
+        """
+
+        dest = [ev_args]
+        result = yield from capture_events(
+            super().parse_events(ev_args, parent_ctx),
+            dest
+        )
+        result._set_captured_events(dest)
+        return result
+
+
 class XSO(metaclass=XMLStreamClass):
     """
     XSO is short for **X**\ ML **S**\ tream **O**\ bject and means an object
@@ -1871,6 +1907,32 @@ class XSO(metaclass=XMLStreamClass):
         parent.extend(handler.etree.getroot())
 
 
+class CapturingXSO(XSO, metaclass=CapturingXMLStreamClass):
+    """
+    The following **class methods** is provided by the metaclass (which is not
+    publicly available, but a subclass of :class:`~.XMLStreamClass`):
+
+    .. automethod:: parse_events
+
+    The :meth:`_set_captured_events` method can be overriden by subclasses to
+    make use of the captured events:
+
+    .. automethod:: _set_captured_events
+
+    .. versionadded:: 0.5
+    """
+
+    @abc.abstractmethod
+    def _set_captured_events(self, events):
+        """
+        This method is called by :meth:`parse_events` after parsing the
+        object. `events` is the list of event tuples which this object was
+        deserialised from.
+
+        Subclasses must override this method.
+        """
+
+
 class SAXDriver(xml.sax.handler.ContentHandler):
     """
     This is a :class:`xml.sax.handler.ContentHandler` subclass which *only*
@@ -2102,3 +2164,71 @@ def lang_attr(instance, ctx):
     behaviour for a given attribute.
     """
     return ctx.lang
+
+
+def capture_events(receiver, dest):
+    """
+    Capture all events sent to `receiver` in the sequence `dest`. This is a
+    generator, and it is best used with ``yield from``. The observable effect
+    of using this generator with ``yield from`` is identical to the effect of
+    using `receiver` with ``yield from`` directly (including the return value),
+    but in addition, the values which are *sent* to the receiver are captured
+    in `dest`.
+
+    If `receiver` raises an exception or the generator is closed prematurely
+    using its :meth:`close`, `dest` is cleared.
+
+    This can be used in subclasses of :class:`XSO` to capture the raw events
+    sent to it during the execution of the :meth:`~.parse_events`. A use case
+    for this is to be able to re-play the exact event sequence after more
+    plugins have been loaded, or to serialise XML semantically equivalent to
+    the XML received regardless of schema support.
+
+    .. versionadded:: 0.5
+    """
+    # the following code is a copy of the formal definition of `yield from`
+    # in PEP 380, with modifications to capture the value sent during yield
+    _i = iter(receiver)
+    try:
+        _y = next(_i)
+    except StopIteration as _e:
+        return _e.value
+
+    try:
+        while True:
+            try:
+                _s = yield _y
+            except GeneratorExit as _e:
+                try:
+                    _m = _i.close
+                except AttributeError:
+                    pass
+                else:
+                    _m()
+                    raise _e
+            except BaseException as _e:
+                _x = sys.exc_info()
+                try:
+                    _m = _i.throw
+                except AttributeError:
+                    raise _e
+                else:
+                    try:
+                        _y = _m(*_x)
+                    except StopIteration as _e:
+                        _r = _e.value
+                        break
+            else:
+                dest.append(_s)
+                try:
+                    if _s is None:
+                        _y = next(_i)
+                    else:
+                        _y = _i.send(_s)
+                except StopIteration as _e:
+                    _r = _e.value
+                    break
+    except:
+        dest.clear()
+        raise
+    return _r

@@ -1,3 +1,4 @@
+import abc
 import collections
 import collections.abc
 import contextlib
@@ -44,6 +45,9 @@ def make_instance_mock(mapping={}):
 class TestXMLStreamClass(unittest.TestCase):
     def setUp(self):
         self.ctx = xso_model.Context()
+
+    def test_is_abc_meta(self):
+        self.assertTrue(issubclass(xso_model.XMLStreamClass, abc.ABCMeta))
 
     def test_init(self):
         class Cls(metaclass=xso_model.XMLStreamClass):
@@ -1590,6 +1594,76 @@ class TestXMLStreamClass(unittest.TestCase):
         self.assertIs(ClsB.DECLARE_NS, d)
 
 
+class TestCapturingXMLStreamClass(unittest.TestCase):
+    def test_parse_events_uses_capture(self):
+        class Cls(metaclass=xso_model.CapturingXMLStreamClass):
+            pass
+
+        capture_events_mock = unittest.mock.Mock()
+        result = unittest.mock.Mock()
+
+        def capture_events(receiver, dest):
+            mock = capture_events_mock(receiver, dest)
+            mock.next()
+            mock.send((yield))
+            return result
+
+        ev_args = object()
+        parent_ctx = object()
+        with contextlib.ExitStack() as stack:
+            parse_events = stack.enter_context(
+                unittest.mock.patch.object(
+                    xso_model.XMLStreamClass,
+                    "parse_events")
+            )
+
+            self.assertIsInstance(Cls, xso_model.XMLStreamClass)
+
+            stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.xso.model.capture_events",
+                    new=capture_events
+                )
+            )
+
+            i = Cls.parse_events(ev_args, parent_ctx)
+            next(i)
+
+        parse_events.assert_called_with(ev_args, parent_ctx)
+
+        self.assertSequenceEqual(
+            capture_events_mock.mock_calls,
+            [
+                unittest.mock.call(parse_events(), unittest.mock.ANY),
+                unittest.mock.call().next(),
+            ]
+        )
+        _, (_, dest), _ = capture_events_mock.mock_calls[0]
+        capture_events_mock.mock_calls.clear()
+
+        self.assertSequenceEqual(
+            dest,
+            [
+                ev_args
+            ]
+        )
+
+        with self.assertRaises(StopIteration) as ctx:
+            i.send("foo")
+
+        self.assertSequenceEqual(
+            capture_events_mock.mock_calls,
+            [
+                unittest.mock.call().send("foo"),
+            ]
+        )
+        capture_events_mock.mock_calls.clear()
+
+        result._set_captured_events.assert_called_with(dest)
+
+        self.assertIs(ctx.exception.value, result)
+
+
 class TestXSO(XMLTestCase):
     def _unparse_test(self, obj, tree):
         parent = etree.Element("foo")
@@ -1898,6 +1972,24 @@ class TestXSO(XMLTestCase):
     def tearDown(self):
         del self.obj
         del self.Cls
+
+
+class TestCapturingXSO(unittest.TestCase):
+    def test_is_capturing_xml_stream_class(self):
+        self.assertIsInstance(
+            xso_model.CapturingXSO,
+            xso_model.CapturingXMLStreamClass
+        )
+
+    def test_is_xso(self):
+        self.assertTrue(
+            issubclass(xso_model.CapturingXSO, xso_model.XSO)
+        )
+
+    def test_is_abstract(self):
+        with self.assertRaisesRegex(TypeError,
+                                    r"abstract methods _set_captured_events"):
+            xso_model.CapturingXSO()
 
 
 class TestXSOList(unittest.TestCase):
@@ -5273,3 +5365,144 @@ class TestContext(unittest.TestCase):
 
     def tearDown(self):
         del self.ctx
+
+
+class Testcapture_events(unittest.TestCase):
+    def test_capture_initiation(self):
+        receiver_mock = unittest.mock.Mock()
+
+        def receiver():
+            receiver_mock.next()
+            while True:
+                receiver_mock.send((yield))
+
+        dest = []
+
+        capturer = iter(xso_model.capture_events(receiver(), dest))
+
+        self.assertIsNone(next(capturer))
+        receiver_mock.next.assert_called_with()
+        self.assertSequenceEqual(
+            [],
+            dest
+        )
+
+    def test_capture_and_forward_events(self):
+        receiver_mock = unittest.mock.Mock()
+
+        def receiver():
+            receiver_mock.next()
+            while True:
+                receiver_mock.send((yield))
+
+        dest = []
+
+        capturer = iter(xso_model.capture_events(receiver(), dest))
+
+        more_args = [object(), object(), object()]
+        next(capturer)
+        for i, arg in enumerate(more_args):
+            capturer.send(arg)
+            receiver_mock.send.assert_called_with(arg)
+            self.assertSequenceEqual(
+                more_args[:i+1],
+                dest
+            )
+
+    def test_clear_destination_on_exception(self):
+        receiver_mock = unittest.mock.Mock()
+
+        def receiver():
+            receiver_mock.next()
+            receiver_mock.send((yield))
+            receiver_mock.send((yield))
+            raise BaseException()
+
+        dest = []
+
+        capturer = iter(xso_model.capture_events(receiver(), dest))
+
+        more_args = [object(), object()]
+        next(capturer)
+        for i, arg in enumerate(more_args[:1]):
+            capturer.send(arg)
+            receiver_mock.send.assert_called_with(arg)
+            self.assertSequenceEqual(
+                more_args[:i+1],
+                dest
+            )
+
+        with self.assertRaises(BaseException):
+            capturer.send(more_args[-1])
+
+        self.assertSequenceEqual([], dest)
+
+    def test_clear_destination_on_exception_during_startup(self):
+        def receiver():
+            raise BaseException()
+            yield
+
+        dest = []
+
+        capturer = iter(xso_model.capture_events(receiver(), dest))
+
+        with self.assertRaises(BaseException):
+            next(capturer)
+
+        self.assertSequenceEqual([], dest)
+
+    def test_clear_destination_on_close_while_active(self):
+        receiver_mock = unittest.mock.Mock()
+
+        def receiver():
+            receiver_mock.next()
+            receiver_mock.send((yield))
+            receiver_mock.send((yield))
+
+        dest = []
+
+        capturer = iter(xso_model.capture_events(receiver(), dest))
+
+        next(capturer)
+        capturer.close()
+
+        self.assertSequenceEqual([], dest)
+
+    def test_keep_destination_on_close_afterwards(self):
+        receiver_mock = unittest.mock.Mock()
+
+        def receiver():
+            receiver_mock.next()
+            receiver_mock.send((yield))
+
+        dest = []
+        ev_args = object()
+
+        capturer = iter(xso_model.capture_events(receiver(), dest))
+
+        next(capturer)
+        with self.assertRaises(StopIteration):
+            capturer.send(ev_args)
+        capturer.close()
+
+        self.assertSequenceEqual([ev_args], dest)
+
+    def test_forward_result_from_receiver(self):
+        result = object()
+        receiver_mock = unittest.mock.Mock()
+
+        def receiver():
+            receiver_mock.next()
+            receiver_mock.send((yield))
+            return result
+
+        dest = []
+        ev_args = object()
+
+        capturer = iter(xso_model.capture_events(receiver(), dest))
+
+        next(capturer)
+        with self.assertRaises(StopIteration) as ctx:
+            capturer.send(ev_args)
+
+        self.assertIs(ctx.exception.value, result)
