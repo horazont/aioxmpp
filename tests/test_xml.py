@@ -1401,6 +1401,28 @@ class Testserialize_single_xso(unittest.TestCase):
         )
 
 
+class Testwrite_single_xso(unittest.TestCase):
+    def test_simple(self):
+        class TestXSO(xso.XSO):
+            TAG = ("uri:foo", "bar")
+            DECLARE_NS = {
+                None: "uri:foo",
+            }
+
+            attr = xso.Attr("foo")
+
+        b = io.BytesIO()
+        x = TestXSO()
+        x.attr = "test"
+
+        xml.write_single_xso(x, b)
+
+        self.assertEqual(
+            b'<bar xmlns="uri:foo" foo="test"/>',
+            b.getvalue(),
+        )
+
+
 class Testread_xso(unittest.TestCase):
     def test_read_from_io(self):
         base = unittest.mock.Mock()

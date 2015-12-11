@@ -74,8 +74,8 @@ Version 0.5
   :class:`aioxmpp.xso.CapturingXSO` and the
   :attr:`~aioxmpp.disco.xso.InfoQuery.captured_events` attribute was added.
 
-* :func:`aioxmpp.xml.read_xso` and :func:`aioxmpp.xml.read_single_xso` were
-  added.
+* :func:`aioxmpp.xml.write_single_xso`, :func:`aioxmpp.xml.read_xso` and
+  :func:`aioxmpp.xml.read_single_xso` were added.
 
 
 Version 0.4

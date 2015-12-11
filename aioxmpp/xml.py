@@ -39,6 +39,8 @@ Utility functions
 
 .. autofunction:: serialize_single_xso
 
+.. autofunction:: write_single_xso
+
 .. autofunction:: read_xso
 
 .. autofunction:: read_single_xso
@@ -858,6 +860,16 @@ def serialize_single_xso(x):
                            sorted_attributes=True)
     x.unparse_to_sax(gen)
     return buf.getvalue().decode("utf8")
+
+
+def write_single_xso(x, dest):
+    """
+    Write a single XSO `x` to a binary file-like object `dest`.
+    """
+    gen = XMPPXMLGenerator(dest,
+                           short_empty_elements=True,
+                           sorted_attributes=True)
+    x.unparse_to_sax(gen)
 
 
 def read_xso(src, xsomap):
