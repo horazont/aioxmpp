@@ -62,6 +62,11 @@ Version 0.5
 * :func:`aioxmpp.xml.write_single_xso`, :func:`aioxmpp.xml.read_xso` and
   :func:`aioxmpp.xml.read_single_xso` were added.
 
+* :attr:`aioxmpp.disco.xso.InfoQuery.features` now uses
+  :class:`aioxmpp.xso.ChildValueList`, which maps the
+  :class:`~aioxmpp.disco.xso.Feature` children to a set of ``var`` values. This
+  hides away invalid payload while we’re at it.
+
 
 Version 0.4
 ===========
