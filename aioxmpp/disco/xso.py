@@ -77,6 +77,17 @@ class Feature(xso.XSO):
         self.var = var
 
 
+class FeatureSet(xso.AbstractType):
+    def get_formatted_type(self):
+        return Feature
+
+    def parse(self, item):
+        return item.var
+
+    def format(self, var):
+        return Feature(var)
+
+
 @stanza.IQ.as_payload_class
 class InfoQuery(xso.CapturingXSO):
     """
@@ -117,7 +128,10 @@ class InfoQuery(xso.CapturingXSO):
 
     identities = xso.ChildList([Identity])
 
-    features = xso.ChildList([Feature])
+    features = xso.ChildValueList(
+        FeatureSet(),
+        container_type=set
+    )
 
     exts = xso.ChildList([forms_xso.Data])
 
@@ -126,7 +140,7 @@ class InfoQuery(xso.CapturingXSO):
     def __init__(self, *, identities=(), features=(), node=None):
         super().__init__()
         self.identities.extend(identities)
-        self.features.extend(features)
+        self.features.update(features)
         if node is not None:
             self.node = node
 
@@ -153,10 +167,7 @@ class InfoQuery(xso.CapturingXSO):
                 identity_dict["name"] = identity.name
             identities.append(identity_dict)
 
-        features = [
-            feature.var
-            for feature in self.features
-        ]
+        features = sorted(self.features)
 
         forms = []
         for form in self.exts:

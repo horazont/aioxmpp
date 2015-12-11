@@ -345,10 +345,7 @@ class Service(service.Service, Node):
                 condition=(namespaces.stanzas, "item-not-found"),
             )
 
-        for feature in node.iter_features():
-            response.features.append(disco_xso.Feature(
-                var=feature
-            ))
+        response.features.update(node.iter_features())
 
         return response
 

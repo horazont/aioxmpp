@@ -66,7 +66,7 @@ def main(jid, password):
 
         print("features:")
         for feature in info.features:
-            print("  {!r}".format(feature.var))
+            print("  {!r}".format(feature))
 
         print("identities:")
         identities = list(info.identities)

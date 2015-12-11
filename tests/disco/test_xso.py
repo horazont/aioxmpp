@@ -133,6 +133,42 @@ class TestFeature(unittest.TestCase):
         self.assertEqual("foobar", f.var)
 
 
+class TestFeatureSet(unittest.TestCase):
+    def test_is_abstract_type(self):
+        self.assertTrue(issubclass(
+            disco_xso.FeatureSet,
+            xso.AbstractType
+        ))
+
+    def setUp(self):
+        self.type_ = disco_xso.FeatureSet()
+
+    def test_get_formatted_type(self):
+        self.assertIs(self.type_.get_formatted_type(),
+                      disco_xso.Feature)
+
+    def test_parse(self):
+        item = disco_xso.Feature(var="foobar")
+        self.assertEqual(
+            "foobar",
+            self.type_.parse(item)
+        )
+
+    def test_format(self):
+        item = self.type_.format("foobar")
+        self.assertIsInstance(
+            item,
+            disco_xso.Feature
+        )
+        self.assertEqual(
+            item.var,
+            "foobar"
+        )
+
+    def tearDown(self):
+        del self.type_
+
+
 class TestInfoQuery(unittest.TestCase):
     def test_is_capturing_xso(self):
         self.assertTrue(issubclass(disco_xso.InfoQuery, xso.CapturingXSO))
@@ -167,11 +203,19 @@ class TestInfoQuery(unittest.TestCase):
     def test_features_attr(self):
         self.assertIsInstance(
             disco_xso.InfoQuery.features,
-            xso.ChildList
+            xso.ChildValueList,
         )
         self.assertSetEqual(
             {disco_xso.Feature},
             set(disco_xso.InfoQuery.features._classes)
+        )
+        self.assertIsInstance(
+            disco_xso.InfoQuery.features.type_,
+            disco_xso.FeatureSet
+        )
+        self.assertIs(
+            disco_xso.InfoQuery.features.container_type,
+            set
         )
 
     def test_exts_attr(self):
@@ -195,9 +239,8 @@ class TestInfoQuery(unittest.TestCase):
                                  features=(1, 2),
                                  identities=(3,))
         self.assertIsNone(iq.captured_events)
-        self.assertIsInstance(iq.features, xso_model.XSOList)
-        self.assertSequenceEqual(
-            [1, 2],
+        self.assertSetEqual(
+            {1, 2},
             iq.features
         )
         self.assertIsInstance(iq.identities, xso_model.XSOList)
@@ -229,9 +272,8 @@ class TestInfoQuery(unittest.TestCase):
             ),
         ])
 
-        q.features.extend(
-            disco_xso.Feature(var)
-            for var in [
+        q.features.update(
+            [
                 "foo",
                 "bar",
                 "baz",
@@ -259,9 +301,9 @@ class TestInfoQuery(unittest.TestCase):
             q.to_dict(),
             {
                 "features": [
-                    "foo",
                     "bar",
                     "baz",
+                    "foo",
                 ],
                 "identities": [
                     {
@@ -306,9 +348,8 @@ class TestInfoQuery(unittest.TestCase):
             ),
         ])
 
-        q.features.extend(
-            disco_xso.Feature(var)
-            for var in [
+        q.features.update(
+            [
                 "foo",
                 "bar",
                 "baz",
@@ -346,9 +387,9 @@ class TestInfoQuery(unittest.TestCase):
             q.to_dict(),
             {
                 "features": [
-                    "foo",
                     "bar",
                     "baz",
+                    "foo",
                 ],
                 "identities": [
                     {

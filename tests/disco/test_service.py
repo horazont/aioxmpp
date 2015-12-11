@@ -402,7 +402,7 @@ class TestService(unittest.TestCase):
 
         self.assertSetEqual(
             {namespaces.xep0030_info},
-            set(item.var for item in response.features)
+            response.features,
         )
 
         self.assertSetEqual(
@@ -435,7 +435,7 @@ class TestService(unittest.TestCase):
 
         self.assertSetEqual(
             {"uri:foo", "uri:bar", namespaces.xep0030_info},
-            set(item.var for item in response.features)
+            response.features,
         )
 
     def test_unregister_feature_removes_it_from_response(self):
@@ -448,7 +448,7 @@ class TestService(unittest.TestCase):
 
         self.assertSetEqual(
             {"uri:foo", namespaces.xep0030_info},
-            set(item.var for item in response.features)
+            response.features
         )
 
     def test_unregister_feature_raises_KeyError_if_feature_has_not_been_registered(self):
