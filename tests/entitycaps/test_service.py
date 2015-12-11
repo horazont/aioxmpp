@@ -1,8 +1,10 @@
 import asyncio
 import contextlib
 import copy
+import io
 import unittest
 import unittest.mock
+import urllib.parse
 
 import aioxmpp.disco as disco
 import aioxmpp.service as service
@@ -10,6 +12,7 @@ import aioxmpp.stanza as stanza
 import aioxmpp.structs as structs
 import aioxmpp.forms as forms
 import aioxmpp.forms.xso as forms_xso
+import aioxmpp.xml
 
 import aioxmpp.entitycaps.service as entitycaps_service
 import aioxmpp.entitycaps.xso as entitycaps_xso
@@ -27,21 +30,15 @@ TEST_FROM = structs.JID.fromstr("foo@bar.example/r1")
 class Testbuild_identities_string(unittest.TestCase):
     def test_identities(self):
         identities = [
-            {
-                "category": "fnord",
-                "type": "bar",
-            },
-            {
-                "category": "client",
-                "type": "bot",
-                "name": "aioxmpp library",
-            },
-            {
-                "category": "client",
-                "type": "bot",
-                "lang": "de-de",
-                "name": "aioxmpp Bibliothek",
-            }
+            disco.xso.Identity(category="fnord",
+                               type_="bar"),
+            disco.xso.Identity(category="client",
+                               type_="bot",
+                               name="aioxmpp library"),
+            disco.xso.Identity(category="client",
+                               type_="bot",
+                               name="aioxmpp Bibliothek",
+                               lang=structs.LanguageTag.fromstr("de-de")),
         ]
 
         self.assertEqual(
@@ -53,21 +50,15 @@ class Testbuild_identities_string(unittest.TestCase):
 
     def test_escaping(self):
         identities = [
-            {
-                "category": "fnord",
-                "type": "bar",
-            },
-            {
-                "category": "client",
-                "type": "bot",
-                "name": "aioxmpp library > 0.5",
-            },
-            {
-                "category": "client",
-                "type": "bot",
-                "lang": "de-de",
-                "name": "aioxmpp Bibliothek <& 0.5",
-            }
+            disco.xso.Identity(category="fnord",
+                               type_="bar"),
+            disco.xso.Identity(category="client",
+                               type_="bot",
+                               name="aioxmpp library > 0.5"),
+            disco.xso.Identity(category="client",
+                               type_="bot",
+                               name="aioxmpp Bibliothek <& 0.5",
+                               lang=structs.LanguageTag.fromstr("de-de")),
         ]
 
         self.assertEqual(
@@ -79,26 +70,18 @@ class Testbuild_identities_string(unittest.TestCase):
 
     def test_reject_duplicate_identities(self):
         identities = [
-            {
-                "category": "fnord",
-                "type": "bar",
-            },
-            {
-                "category": "client",
-                "type": "bot",
-                "name": "aioxmpp library > 0.5",
-            },
-            {
-                "category": "client",
-                "type": "bot",
-                "lang": "de-de",
-                "name": "aioxmpp Bibliothek <& 0.5",
-            },
-            {
-                "category": "client",
-                "type": "bot",
-                "name": "aioxmpp library > 0.5",
-            },
+            disco.xso.Identity(category="fnord",
+                               type_="bar"),
+            disco.xso.Identity(category="client",
+                               type_="bot",
+                               name="aioxmpp library > 0.5"),
+            disco.xso.Identity(category="client",
+                               type_="bot",
+                               name="aioxmpp Bibliothek <& 0.5",
+                               lang=structs.LanguageTag.fromstr("de-de")),
+            disco.xso.Identity(category="client",
+                               type_="bot",
+                               name="aioxmpp library > 0.5"),
         ]
 
         with self.assertRaisesRegexp(ValueError,
@@ -146,29 +129,51 @@ class Testbuild_features_string(unittest.TestCase):
 
 class Testbuild_forms_string(unittest.TestCase):
     def test_xep_form(self):
-        data = [
-            {
-                "FORM_TYPE": [
+        forms = [forms_xso.Data()]
+        forms[0].fields.extend([
+            forms_xso.Field(
+                var="FORM_TYPE",
+                values=[
                     "urn:xmpp:dataforms:softwareinfo",
-                ],
-                "os_version": [
+                ]
+            ),
+
+            forms_xso.Field(
+                var="os_version",
+                values=[
                     "10.5.1",
-                ],
-                "os": [
+                ]
+            ),
+
+            forms_xso.Field(
+                var="os",
+                values=[
                     "Mac",
-                ],
-                "ip_version": [
-                    "ipv6",
+                ]
+            ),
+
+            forms_xso.Field(
+                var="ip_version",
+                values=[
                     "ipv4",
-                ],
-                "software": [
+                    "ipv6",
+                ]
+            ),
+
+            forms_xso.Field(
+                var="software",
+                values=[
                     "Psi",
-                ],
-                "software_version": [
+                ]
+            ),
+
+            forms_xso.Field(
+                var="software_version",
+                values=[
                     "0.11",
                 ]
-            }
-        ]
+            ),
+        ])
 
         self.assertEqual(
             b"urn:xmpp:dataforms:softwareinfo<"
@@ -177,175 +182,221 @@ class Testbuild_forms_string(unittest.TestCase):
             b"os_version<10.5.1<"
             b"software<Psi<"
             b"software_version<0.11<",
-            entitycaps_service.build_forms_string(data)
+            entitycaps_service.build_forms_string(forms)
         )
 
     def test_value_and_var_escaping(self):
-        data = [
-            {
-                "FORM_TYPE": [
+        forms = [forms_xso.Data()]
+        forms[0].fields.extend([
+            forms_xso.Field(
+                var="FORM_TYPE",
+                values=[
                     "urn:xmpp:<dataforms:softwareinfo",
-                ],
-                "os_version": [
-                    "10.&5.1",
-                ],
-                "os>": [
-                    "Mac"
                 ]
-            }
-        ]
+            ),
+
+            forms_xso.Field(
+                var="os_version",
+                values=[
+                    "10.&5.1",
+                ]
+            ),
+
+            forms_xso.Field(
+                var="os>",
+                values=[
+                    "Mac",
+                ]
+            ),
+        ])
 
         self.assertEqual(
             b"urn:xmpp:&lt;dataforms:softwareinfo<"
             b"os&gt;<Mac<"
             b"os_version<10.&amp;5.1<",
-            entitycaps_service.build_forms_string(data)
+            entitycaps_service.build_forms_string(forms)
         )
 
     def test_reject_multiple_identical_form_types(self):
-        data = [
-            {
-                "FORM_TYPE": [
+        forms = [forms_xso.Data(), forms_xso.Data()]
+
+        forms[0].fields.extend([
+            forms_xso.Field(
+                var="FORM_TYPE",
+                values=[
                     "urn:xmpp:dataforms:softwareinfo",
-                ],
-                "os_version": [
-                    "10.5.1",
-                ],
-                "os": [
-                    "Mac"
                 ]
-            },
-            {
-                "FORM_TYPE": [
+            ),
+
+            forms_xso.Field(
+                var="os_version",
+                values=[
+                    "10.5.1",
+                ]
+            ),
+
+            forms_xso.Field(
+                var="os",
+                values=[
+                    "Mac",
+                ]
+            ),
+        ])
+
+        forms[1].fields.extend([
+            forms_xso.Field(
+                var="FORM_TYPE",
+                values=[
                     "urn:xmpp:dataforms:softwareinfo",
-                ],
-                "os_version": [
-                    "10.5.1",
-                ],
-                "os": [
-                    "Mac"
                 ]
-            }
-        ]
+            ),
+
+            forms_xso.Field(
+                var="os_version",
+                values=[
+                    "10.5.1",
+                ]
+            ),
+
+            forms_xso.Field(
+                var="os",
+                values=[
+                    "Mac",
+                ]
+            ),
+        ])
 
         with self.assertRaisesRegex(
                 ValueError,
                 "multiple forms of type b'urn:xmpp:dataforms:softwareinfo'"):
-            entitycaps_service.build_forms_string(data)
+            entitycaps_service.build_forms_string(forms)
 
     def test_reject_form_with_multiple_different_types(self):
-        data = [
-            {
-                "FORM_TYPE": [
+        forms = [forms_xso.Data()]
+
+        forms[0].fields.extend([
+            forms_xso.Field(
+                var="FORM_TYPE",
+                values=[
                     "urn:xmpp:dataforms:softwareinfo",
                     "urn:xmpp:dataforms:softwarefoo",
-                ],
-                "os_version": [
-                    "10.5.1",
-                ],
-                "os": [
-                    "Mac"
                 ]
-            },
-        ]
+            ),
+
+            forms_xso.Field(
+                var="os_version",
+                values=[
+                    "10.5.1",
+                ]
+            ),
+
+            forms_xso.Field(
+                var="os",
+                values=[
+                    "Mac",
+                ]
+            ),
+        ])
 
         with self.assertRaisesRegex(
                 ValueError,
                 "form with multiple types"):
-            entitycaps_service.build_forms_string(data)
+            entitycaps_service.build_forms_string(forms)
 
     def test_ignore_form_without_type(self):
-        data = [
-            {
-                "FORM_TYPE": [
-                ],
-                "foo": [
-                    "bar",
-                ],
-            },
-            {
-                "FORM_TYPE": [
-                    "urn:xmpp:dataforms:softwareinfo",
-                ],
-                "os_version": [
-                    "10.5.1",
-                ],
-                "os": [
-                    "Mac"
+        forms = [forms_xso.Data(), forms_xso.Data()]
+
+        forms[0].fields.extend([
+            forms_xso.Field(
+                var="FORM_TYPE",
+                values=[
                 ]
-            }
-        ]
+            ),
+
+            forms_xso.Field(
+                var="os_version",
+                values=[
+                    "10.5.1",
+                ]
+            ),
+        ])
+
+        forms[1].fields.extend([
+            forms_xso.Field(
+                var="FORM_TYPE",
+                values=[
+                    "urn:xmpp:dataforms:softwareinfo",
+                ]
+            ),
+
+            forms_xso.Field(
+                var="os_version",
+                values=[
+                    "10.5.1",
+                ]
+            ),
+
+            forms_xso.Field(
+                var="os",
+                values=[
+                    "Mac",
+                ]
+            ),
+        ])
 
         self.assertEqual(
             b"urn:xmpp:dataforms:softwareinfo<"
             b"os<Mac<"
             b"os_version<10.5.1<",
-            entitycaps_service.build_forms_string(data)
-        )
-
-        data = [
-            {
-                "FORM_TYPE": [
-                ],
-                "foo": [
-                    "bar",
-                ],
-            },
-            {
-                "FORM_TYPE": [
-                    "urn:xmpp:dataforms:softwareinfo",
-                ],
-                "os_version": [
-                    "10.5.1",
-                ],
-                "os": [
-                    "Mac"
-                ]
-            }
-        ]
-
-        self.assertEqual(
-            b"urn:xmpp:dataforms:softwareinfo<"
-            b"os<Mac<"
-            b"os_version<10.5.1<",
-            entitycaps_service.build_forms_string(data)
+            entitycaps_service.build_forms_string(forms)
         )
 
     def test_accept_form_with_multiple_identical_types(self):
-        data = [
-            {
-                "FORM_TYPE": [
-                    "urn:xmpp:dataforms:softwareinfo",
-                    "urn:xmpp:dataforms:softwareinfo",
-                ],
-                "os_version": [
-                    "10.5.1",
-                ],
-                "os": [
-                    "Mac"
-                ]
-            },
-        ]
+        forms = [forms_xso.Data()]
 
-        entitycaps_service.build_forms_string(data)
+        forms[0].fields.extend([
+            forms_xso.Field(
+                var="FORM_TYPE",
+                values=[
+                    "urn:xmpp:dataforms:softwareinfo",
+                    "urn:xmpp:dataforms:softwareinfo",
+                ]
+            ),
+
+            forms_xso.Field(
+                var="os_version",
+                values=[
+                    "10.5.1",
+                ]
+            ),
+        ])
+
+        entitycaps_service.build_forms_string(forms)
 
     def test_multiple(self):
-        data = [
-            {
-                "FORM_TYPE": [
+        forms = [forms_xso.Data(), forms_xso.Data()]
+
+        forms[0].fields.extend([
+            forms_xso.Field(
+                var="FORM_TYPE",
+                values=[
                     "uri:foo",
                 ]
-            },
-            {
-                "FORM_TYPE": [
+            ),
+        ])
+
+        forms[1].fields.extend([
+            forms_xso.Field(
+                var="FORM_TYPE",
+                values=[
                     "uri:bar",
                 ]
-            },
-        ]
+            ),
+        ])
 
         self.assertEqual(
             b"uri:bar<uri:foo<",
-            entitycaps_service.build_forms_string(data)
+            entitycaps_service.build_forms_string(forms)
         )
 
 
@@ -390,23 +441,20 @@ class Testhash_query(unittest.TestCase):
             calls,
             [
                 unittest.mock.call.hashlib_new(base.algo),
-                unittest.mock.call.query.get("identities", []),
                 unittest.mock.call.build_identities_string(
-                    base.query.get(),
+                    base.query.identities,
                 ),
                 unittest.mock.call.hashlib_new().update(
                     base.build_identities_string()
                 ),
-                unittest.mock.call.query.get("features", []),
                 unittest.mock.call.build_features_string(
-                    base.query.get(),
+                    base.query.features
                 ),
                 unittest.mock.call.hashlib_new().update(
                     base.build_features_string()
                 ),
-                unittest.mock.call.query.get("forms", {}),
                 unittest.mock.call.build_forms_string(
-                    base.query.get(),
+                    base.query.exts
                 ),
                 unittest.mock.call.hashlib_new().update(
                     base.build_forms_string()
@@ -425,22 +473,19 @@ class Testhash_query(unittest.TestCase):
         )
 
     def test_simple_xep_data(self):
-        info = {
-            "identities": [
-                {
-                    "category": "client",
-                    "name": "Exodus 0.9.1",
-                    "type": "pc",
-                },
-            ],
-            "features": [
+        info = disco.xso.InfoQuery()
+        info.identities.extend([
+            disco.xso.Identity(category="client",
+                               name="Exodus 0.9.1",
+                               type_="pc"),
+        ])
+
+        info.features.update({
                 "http://jabber.org/protocol/caps",
                 "http://jabber.org/protocol/disco#info",
                 "http://jabber.org/protocol/disco#items",
                 "http://jabber.org/protocol/muc",
-            ],
-            "forms": {},
-        }
+        })
 
         self.assertEqual(
             "QgayPKawpkPSDYmwT/WM94uAlu0=",
@@ -448,51 +493,69 @@ class Testhash_query(unittest.TestCase):
         )
 
     def test_complex_xep_data(self):
-        info ={
-            "identities": [
-                {
-                    "category": "client",
-                    "name": "Psi 0.11",
-                    "type": "pc",
-                    "lang": "en",
-                },
-                {
-                    "category": "client",
-                    "name": "Ψ 0.11",
-                    "type": "pc",
-                    "lang": "el",
-                },
-            ],
-            "features": [
-                "http://jabber.org/protocol/caps",
-                "http://jabber.org/protocol/disco#info",
-                "http://jabber.org/protocol/disco#items",
-                "http://jabber.org/protocol/muc",
-            ],
-            "forms": [
-                {
-                    "FORM_TYPE": [
-                        "urn:xmpp:dataforms:softwareinfo"
-                    ],
-                    "ip_version": [
-                        "ipv4",
-                        "ipv6",
-                    ],
-                    "os": [
-                        "Mac",
-                    ],
-                    "os_version": [
-                        "10.5.1",
-                    ],
-                    "software": [
-                        "Psi",
-                    ],
-                    "software_version": [
-                        "0.11",
-                    ]
-                }
-            ]
-        }
+        info = disco.xso.InfoQuery()
+        info.identities.extend([
+            disco.xso.Identity(category="client",
+                               name="Psi 0.11",
+                               type_="pc",
+                               lang=structs.LanguageTag.fromstr("en")),
+            disco.xso.Identity(category="client",
+                               name="Ψ 0.11",
+                               type_="pc",
+                               lang=structs.LanguageTag.fromstr("el")),
+        ])
+
+        info.features.update({
+            "http://jabber.org/protocol/caps",
+            "http://jabber.org/protocol/disco#info",
+            "http://jabber.org/protocol/disco#items",
+            "http://jabber.org/protocol/muc",
+        })
+
+        ext_form = forms_xso.Data()
+
+        ext_form.fields.extend([
+            forms_xso.Field(
+                var="FORM_TYPE",
+                values=[
+                    "urn:xmpp:dataforms:softwareinfo"
+                ]
+            ),
+
+            forms_xso.Field(
+                var="ip_version",
+                values=[
+                    "ipv6",
+                    "ipv4",
+                ]
+            ),
+            forms_xso.Field(
+                var="os",
+                values=[
+                    "Mac"
+                ]
+            ),
+            forms_xso.Field(
+                var="os_version",
+                values=[
+                    "10.5.1",
+                ]
+            ),
+            forms_xso.Field(
+                var="software",
+                values=[
+                    "Psi",
+                ]
+            ),
+            forms_xso.Field(
+                var="software_version",
+                values=[
+                    "0.11"
+                ]
+            ),
+        ])
+
+        info.exts.append(ext_form)
 
         self.assertEqual(
             "q07IKJEyjvHSyhy//CH0CxmKi8w=",
@@ -500,355 +563,197 @@ class Testhash_query(unittest.TestCase):
         )
 
 
-TEST_INFO = {
-    "identities": [
-        {
-            "category": "client",
-            "name": "Psi 0.11",
-            "type": "pc",
-            "lang": "en",
-        },
-        {
-            "category": "client",
-            "name": "Ψ 0.11",
-            "type": "pc",
-            "lang": "el",
-        },
-    ],
-    "features": [
-        "http://jabber.org/protocol/caps",
-        "http://jabber.org/protocol/disco#info",
-        "http://jabber.org/protocol/disco#items",
-        "http://jabber.org/protocol/muc",
-    ],
-    "forms": {
-        "urn:xmpp:dataforms:softwareinfo": {
-            "ip_version": [
-                "ipv4",
-                "ipv6",
-            ],
-            "os": [
-                "Mac",
-            ],
-            "os_version": [
-                "10.5.1",
-            ],
-            "software": [
-                "Psi",
-            ],
-            "software_version": [
-                "0.11",
-            ]
-        }
-    }
-}
-
-TEST_INFO_HASH = "sha-1"
-
-_tmp = dict(TEST_INFO)
-_tmp["forms"] = [
-    dict(value,
-         FORM_TYPE=[key])
-    for key, value in _tmp["forms"].items()
-]
-
-TEST_INFO_VER = entitycaps_service.hash_query(_tmp, "sha1")
-del _tmp
-
-TEST_DB = {
-    "+0mnUAF1ozCEc37cmdPPsYbsfhg=": {
-        "features": [
-            "games:board",
-            "http://jabber.org/protocol/activity",
-            "http://jabber.org/protocol/activity+notify",
-            "http://jabber.org/protocol/bytestreams",
-            "http://jabber.org/protocol/chatstates",
-            "http://jabber.org/protocol/commands",
-            "http://jabber.org/protocol/disco#info",
-            "http://jabber.org/protocol/disco#items",
-            "http://jabber.org/protocol/geoloc",
-            "http://jabber.org/protocol/geoloc+notify",
-            "http://jabber.org/protocol/ibb",
-            "http://jabber.org/protocol/iqibb",
-            "http://jabber.org/protocol/mood",
-            "http://jabber.org/protocol/mood+notify",
-            "http://jabber.org/protocol/rosterx",
-            "http://jabber.org/protocol/si",
-            "http://jabber.org/protocol/si/profile/file-transfer",
-            "http://jabber.org/protocol/tune",
-            "jabber:iq:avatar",
-            "jabber:iq:browse",
-            "jabber:iq:last",
-            "jabber:iq:oob",
-            "jabber:iq:privacy",
-            "jabber:iq:roster",
-            "jabber:iq:time",
-            "jabber:iq:version",
-            "jabber:x:data",
-            "jabber:x:event",
-            "jabber:x:oob",
-            "urn:xmpp:ping",
-            "urn:xmpp:time"
-        ],
-        "forms": {
-            "urn:xmpp:dataforms:softwareinfo": {
-                "os": [
-                    "FreeBSD"
-                ],
-                "os_version": [
-                    "10.0-STABLE"
-                ],
-                "software": [
-                    "Tkabber"
-                ],
-                "software_version": [
-                    "1.0-svn-20140122 (Tcl/Tk 8.4.20)"
-                ]
-            }
-        },
-        "hash": "sha-1",
-        "identities": [
-            {
-                "category": "client",
-                "name": "Tkabber",
-                "type": "pc"
-            }
-        ],
-        "node": "http://tkabber.jabber.ru/"
-    },
-    "+9oi6+VEwgu5cRmjErECReGvCC0=": {
-        "features": [
-            "http://jabber.org/protocol/bytestreams",
-            "http://jabber.org/protocol/caps",
-            "http://jabber.org/protocol/chatstates",
-            "http://jabber.org/protocol/disco#info",
-            "http://jabber.org/protocol/disco#items",
-            "http://jabber.org/protocol/ibb",
-            "http://jabber.org/protocol/mood",
-            "http://jabber.org/protocol/mood+notify",
-            "http://jabber.org/protocol/muc",
-            "http://jabber.org/protocol/muc#user",
-            "http://jabber.org/protocol/nick",
-            "http://jabber.org/protocol/nick+notify",
-            "http://jabber.org/protocol/si",
-            "http://jabber.org/protocol/si/profile/file-transfer",
-            "http://jabber.org/protocol/tune",
-            "http://jabber.org/protocol/tune+notify",
-            "http://jabber.org/protocol/xhtml-im",
-            "jabber:iq:last",
-            "jabber:iq:oob",
-            "jabber:iq:version",
-            "jabber:x:conference",
-            "urn:xmpp:attention:0",
-            "urn:xmpp:avatar:data",
-            "urn:xmpp:avatar:metadata",
-            "urn:xmpp:avatar:metadata+notify",
-            "urn:xmpp:bob",
-            "urn:xmpp:jingle:1",
-            "urn:xmpp:jingle:apps:rtp:1",
-            "urn:xmpp:jingle:transports:ice-udp:1",
-            "urn:xmpp:jingle:transports:raw-udp:1",
-            "urn:xmpp:ping",
-            "urn:xmpp:time"
-        ],
-        "forms": {},
-        "hash": "sha-1",
-        "identities": [
-            {
-                "category": "client",
-                "name": "minbif",
-                "type": "pc"
-            }
-        ],
-        "node": "http://pidgin.im/"
-    },
-}
-
-
-def wrap_forms(d):
-    d["forms"] = [
-        dict(value,
-             FORM_TYPE=[key])
-        for key, value in d["forms"].items()
-    ]
+_src = io.BytesIO(b"""\
+<?xml version="1.0" ?><query node="http://tkabber.jabber.ru/#+0mnUAF1ozCEc37cm\
+dPPsYbsfhg=" xmlns="http://jabber.org/protocol/disco#info"><identity category=\
+"client" name="Tkabber" type="pc"/><feature var="games:board"/><feature var="h\
+ttp://jabber.org/protocol/activity"/><feature var="http://jabber.org/protocol/\
+activity+notify"/><feature var="http://jabber.org/protocol/bytestreams"/><feat\
+ure var="http://jabber.org/protocol/chatstates"/><feature var="http://jabber.o\
+rg/protocol/commands"/><feature var="http://jabber.org/protocol/disco#info"/><\
+feature var="http://jabber.org/protocol/disco#items"/><feature var="http://jab\
+ber.org/protocol/geoloc"/><feature var="http://jabber.org/protocol/geoloc+noti\
+fy"/><feature var="http://jabber.org/protocol/ibb"/><feature var="http://jabbe\
+r.org/protocol/iqibb"/><feature var="http://jabber.org/protocol/mood"/><featur\
+e var="http://jabber.org/protocol/mood+notify"/><feature var="http://jabber.or\
+g/protocol/rosterx"/><feature var="http://jabber.org/protocol/si"/><feature va\
+r="http://jabber.org/protocol/si/profile/file-transfer"/><feature var="http://\
+jabber.org/protocol/tune"/><feature var="jabber:iq:avatar"/><feature var="jabb\
+er:iq:browse"/><feature var="jabber:iq:last"/><feature var="jabber:iq:oob"/><f\
+eature var="jabber:iq:privacy"/><feature var="jabber:iq:roster"/><feature var=\
+"jabber:iq:time"/><feature var="jabber:iq:version"/><feature var="jabber:x:dat\
+a"/><feature var="jabber:x:event"/><feature var="jabber:x:oob"/><feature var="\
+urn:xmpp:ping"/><feature var="urn:xmpp:time"/><x type="result" xmlns="jabber:x\
+:data"><field type="hidden" var="FORM_TYPE"><value>urn:xmpp:dataforms:software\
+info</value></field><field var="software"><value>Tkabber</value></field><field\
+ var="software_version"><value>1.0-svn-20140122 (Tcl/Tk 8.4.20)</value></field\
+><field var="os"><value>FreeBSD</value></field><field var="os_version"><value>\
+10.0-STABLE</value></field></x></query>""")
+TEST_DB_ENTRY = aioxmpp.xml.read_single_xso(_src, disco.xso.InfoQuery)
+TEST_DB_ENTRY_VER = "+0mnUAF1ozCEc37cmdPPsYbsfhg="
+TEST_DB_ENTRY_HASH = "sha-1"
+TEST_DB_ENTRY_NODE_BARE = "http://tkabber.jabber.ru/"
 
 
 class TestCache(unittest.TestCase):
     def setUp(self):
         self.c = entitycaps_service.Cache()
 
-    def test_load_trusted_from_json_yields_lookup(self):
-        self.c.load_trusted_from_json(TEST_DB)
-
-        expected = dict(TEST_DB["+9oi6+VEwgu5cRmjErECReGvCC0="])
-        del expected["node"]
-        del expected["hash"]
-        wrap_forms(expected)
-
-        self.assertDictEqual(
-            self.c.lookup_in_database("+9oi6+VEwgu5cRmjErECReGvCC0="),
-            expected
-        )
-
-    def test_load_trusted_from_json_copies(self):
-        data = dict(TEST_DB)
-
-        self.c.load_trusted_from_json(data)
-
-        del data["+9oi6+VEwgu5cRmjErECReGvCC0="]
-
-        expected = dict(TEST_DB["+9oi6+VEwgu5cRmjErECReGvCC0="])
-        del expected["node"]
-        del expected["hash"]
-        wrap_forms(expected)
-
-        self.assertDictEqual(
-            self.c.lookup_in_database("+9oi6+VEwgu5cRmjErECReGvCC0="),
-            expected
-        )
-
-    def test_load_trusted_from_json_deepcopies(self):
-        data = copy.deepcopy(TEST_DB)
-
-        self.c.load_trusted_from_json(data)
-
-        del data["+9oi6+VEwgu5cRmjErECReGvCC0="]["features"]
-
-        expected = dict(TEST_DB["+9oi6+VEwgu5cRmjErECReGvCC0="])
-        del expected["node"]
-        del expected["hash"]
-        wrap_forms(expected)
-
-        self.assertDictEqual(
-            self.c.lookup_in_database("+9oi6+VEwgu5cRmjErECReGvCC0="),
-            expected
-        )
-
-    def test_load_user_from_json_yields_lookup(self):
-        self.c.load_user_from_json(TEST_DB)
-
-        expected = dict(TEST_DB["+9oi6+VEwgu5cRmjErECReGvCC0="])
-        del expected["node"]
-        del expected["hash"]
-        wrap_forms(expected)
-
-        self.assertDictEqual(
-            self.c.lookup_in_database("+9oi6+VEwgu5cRmjErECReGvCC0="),
-            expected
-        )
-
-    def test_load_user_from_json_deepcopies(self):
-        data = copy.deepcopy(TEST_DB)
-
-        self.c.load_user_from_json(data)
-
-        del data["+9oi6+VEwgu5cRmjErECReGvCC0="]["features"]
-
-        expected = dict(TEST_DB["+9oi6+VEwgu5cRmjErECReGvCC0="])
-        del expected["node"]
-        del expected["hash"]
-        wrap_forms(expected)
-
-        self.assertDictEqual(
-            self.c.lookup_in_database("+9oi6+VEwgu5cRmjErECReGvCC0="),
-            expected
-        )
-
-    def test_trusted_wins_over_user(self):
-        userdb = copy.deepcopy(TEST_DB)
-        userdb["+9oi6+VEwgu5cRmjErECReGvCC0="]["features"] = []
-
-        trusteddb = dict(TEST_DB)
-
-        self.c.load_trusted_from_json(trusteddb)
-        self.c.load_user_from_json(userdb)
-
-        expected = dict(TEST_DB["+9oi6+VEwgu5cRmjErECReGvCC0="])
-        del expected["node"]
-        del expected["hash"]
-        wrap_forms(expected)
-
-        self.assertDictEqual(
-            self.c.lookup_in_database("+9oi6+VEwgu5cRmjErECReGvCC0="),
-            expected
-        )
-
-    def test_lookup_in_database_deepcopies(self):
-        data = copy.deepcopy(TEST_DB)
-
-        self.c.load_user_from_json(data)
-
-        expected = dict(TEST_DB["+9oi6+VEwgu5cRmjErECReGvCC0="])
-        del expected["node"]
-        del expected["hash"]
-        wrap_forms(expected)
-
-        result = self.c.lookup_in_database("+9oi6+VEwgu5cRmjErECReGvCC0=")
-        self.assertDictEqual(
-            result,
-            expected
-        )
-
-        result["features"].pop()
-
-        self.assertDictEqual(
-            self.c.lookup_in_database("+9oi6+VEwgu5cRmjErECReGvCC0="),
-            expected
-        )
-
-    def test_userdb_is_empty_by_default(self):
-        self.assertDictEqual({}, self.c.save_user_to_json())
-
-    def test_load_user_from_json_fills_savev(self):
-        self.c.load_user_from_json(TEST_DB)
-
-        expected = dict(TEST_DB["+9oi6+VEwgu5cRmjErECReGvCC0="])
-        del expected["node"]
-        del expected["hash"]
-        wrap_forms(expected)
-
-        self.assertDictEqual(
-            self.c.lookup_in_database("+9oi6+VEwgu5cRmjErECReGvCC0="),
-            expected
-        )
-
-    def test_load_user_from_json_populates_userdb(self):
-        self.c.load_user_from_json(TEST_DB)
-        self.assertDictEqual(TEST_DB, self.c.save_user_to_json())
-
-    def test_save_user_to_json_deepcopies(self):
-        self.c.load_user_from_json(TEST_DB)
-
-        result1 = self.c.save_user_to_json()
-        result1["+9oi6+VEwgu5cRmjErECReGvCC0="]["features"].pop()
-
-        self.assertDictEqual(TEST_DB, self.c.save_user_to_json())
-
-    def test_save_user_to_json_does_not_emit_entries_which_are_in_trusted(
-            self):
-        self.c.load_user_from_json(TEST_DB)
-
-        trusted = dict(TEST_DB)
-        del trusted["+9oi6+VEwgu5cRmjErECReGvCC0="]
-        self.c.load_trusted_from_json(trusted)
-
-        expected = dict(TEST_DB)
-        del expected["+0mnUAF1ozCEc37cmdPPsYbsfhg="]
-
-        self.assertDictEqual(expected, self.c.save_user_to_json())
-
     def test_lookup_in_database_key_errors_if_no_such_entry(self):
         with self.assertRaises(KeyError):
-            self.c.lookup_in_database("+9oi6+VEwgu5cRmjErECReGvCC0=")
+            self.c.lookup_in_database("sha-1", "+9oi6+VEwgu5cRmjErECReGvCC0=")
+
+    def test_system_db_path_used_in_lookup(self):
+        base = unittest.mock.Mock()
+        base.p = unittest.mock.MagicMock()
+        base.quote = unittest.mock.Mock(wraps=urllib.parse.quote)
+        node = "http://foobar/#baz"
+        self.c.set_system_db_path(base.p)
+
+        with contextlib.ExitStack() as stack:
+            quote = stack.enter_context(unittest.mock.patch(
+                "urllib.parse.quote",
+                new=base.quote
+            ))
+
+            read_single_xso = stack.enter_context(unittest.mock.patch(
+                "aioxmpp.xml.read_single_xso",
+                new=base.read_single_xso
+            ))
+
+            result = self.c.lookup_in_database("sha-1", node)
+
+        calls = list(base.mock_calls)
+        self.assertSequenceEqual(
+            calls,
+            [
+                unittest.mock.call.quote(node, safe=""),
+                unittest.mock.call.p.__truediv__(
+                    "sha-1_http%3A%2F%2Ffoobar%2F%23baz.xml"),
+                unittest.mock.call.p.__truediv__().open("rb"),
+                unittest.mock.call.p.__truediv__().open().__enter__(),
+                unittest.mock.call.read_single_xso(
+                    base.p.__truediv__().open(),
+                    disco.xso.InfoQuery,
+                ),
+                unittest.mock.call.p.__truediv__().open().__exit__(
+                    None, None, None
+                ),
+            ]
+        )
+
+        self.assertEqual(
+            result,
+            base.read_single_xso()
+        )
+
+    def test_user_db_path_used_in_lookup_as_fallback(self):
+        base = unittest.mock.Mock()
+        base.p = unittest.mock.MagicMock()
+        base.userp = unittest.mock.MagicMock()
+        base.quote = unittest.mock.Mock(wraps=urllib.parse.quote)
+        node = "http://foobar/#baz"
+        self.c.set_system_db_path(base.p)
+        self.c.set_user_db_path(base.userp)
+
+        with contextlib.ExitStack() as stack:
+            quote = stack.enter_context(unittest.mock.patch(
+                "urllib.parse.quote",
+                new=base.quote
+            ))
+
+            read_single_xso = stack.enter_context(unittest.mock.patch(
+                "aioxmpp.xml.read_single_xso",
+                new=base.read_single_xso
+            ))
+
+            base.p.__truediv__().open.side_effect = FileNotFoundError()
+            base.mock_calls.clear()
+
+            result = self.c.lookup_in_database("sha-1", node)
+
+        calls = list(base.mock_calls)
+        self.assertSequenceEqual(
+            calls,
+            [
+                unittest.mock.call.quote(node, safe=""),
+                unittest.mock.call.p.__truediv__(
+                    "sha-1_http%3A%2F%2Ffoobar%2F%23baz.xml"),
+                unittest.mock.call.p.__truediv__().open("rb"),
+                unittest.mock.call.userp.__truediv__(
+                    "sha-1_http%3A%2F%2Ffoobar%2F%23baz.xml"),
+                unittest.mock.call.userp.__truediv__().open("rb"),
+                unittest.mock.call.userp.__truediv__().open().__enter__(),
+                unittest.mock.call.read_single_xso(
+                    base.userp.__truediv__().open(),
+                    disco.xso.InfoQuery,
+                ),
+                unittest.mock.call.userp.__truediv__().open().__exit__(
+                    None, None, None
+                ),
+            ]
+        )
+
+        self.assertEqual(
+            result,
+            base.read_single_xso()
+        )
+
+    def test_user_db_path_used_if_system_db_is_unset(self):
+        base = unittest.mock.Mock()
+        base.p = unittest.mock.MagicMock()
+        base.userp = unittest.mock.MagicMock()
+        base.quote = unittest.mock.Mock(wraps=urllib.parse.quote)
+        node = "http://foobar/#baz"
+        self.c.set_user_db_path(base.userp)
+
+        with contextlib.ExitStack() as stack:
+            quote = stack.enter_context(unittest.mock.patch(
+                "urllib.parse.quote",
+                new=base.quote
+            ))
+
+            read_single_xso = stack.enter_context(unittest.mock.patch(
+                "aioxmpp.xml.read_single_xso",
+                new=base.read_single_xso
+            ))
+
+            result = self.c.lookup_in_database("sha-1", node)
+
+        calls = list(base.mock_calls)
+        self.assertSequenceEqual(
+            calls,
+            [
+                unittest.mock.call.quote(node, safe=""),
+                unittest.mock.call.userp.__truediv__(
+                    "sha-1_http%3A%2F%2Ffoobar%2F%23baz.xml"),
+                unittest.mock.call.userp.__truediv__().open("rb"),
+                unittest.mock.call.userp.__truediv__().open().__enter__(),
+                unittest.mock.call.read_single_xso(
+                    base.userp.__truediv__().open(),
+                    disco.xso.InfoQuery,
+                ),
+                unittest.mock.call.userp.__truediv__().open().__exit__(
+                    None, None, None
+                ),
+            ]
+        )
+
+        self.assertEqual(
+            result,
+            base.read_single_xso()
+        )
 
     def test_lookup_uses_lookup_in_database(self):
         hash_ = object()
+        node = object()
+
         with unittest.mock.patch.object(
                 self.c,
                 "lookup_in_database") as lookup_in_database:
-            result = run_coroutine(self.c.lookup(hash_))
+            result = run_coroutine(self.c.lookup(hash_, node))
 
-        lookup_in_database.assert_called_with(hash_)
+        lookup_in_database.assert_called_with(hash_, node)
         self.assertEqual(result, lookup_in_database())
 
     def test_create_query_future_used_by_lookup(self):
@@ -871,12 +776,12 @@ class TestCache(unittest.TestCase):
             base.Future.return_value = fut
 
             self.assertIs(
-                self.c.create_query_future(base.hash_),
+                self.c.create_query_future(base.hash_, base.node),
                 fut,
             )
 
             task = asyncio.async(
-                self.c.lookup(base.hash_)
+                self.c.lookup(base.hash_, base.node)
             )
             run_coroutine(asyncio.sleep(0))
 
@@ -908,12 +813,12 @@ class TestCache(unittest.TestCase):
             base.Future.return_value = fut
 
             self.assertIs(
-                self.c.create_query_future(base.hash_),
+                self.c.create_query_future(base.hash_, base.node),
                 fut,
             )
 
             with self.assertRaises(KeyError):
-                run_coroutine(self.c.lookup(base.other_hash))
+                run_coroutine(self.c.lookup(base.hash_, base.other_node))
 
     def test_lookup_loops_on_query_futures(self):
         fut1 = asyncio.Future()
@@ -935,10 +840,10 @@ class TestCache(unittest.TestCase):
 
             base.lookup_in_database.side_effect = KeyError()
             base.Future.return_value = fut1
-            self.c.create_query_future(base.hash_)
+            self.c.create_query_future(base.hash_, base.node)
 
             task = asyncio.async(
-                self.c.lookup(base.hash_)
+                self.c.lookup(base.hash_, base.node)
             )
             run_coroutine(asyncio.sleep(0))
 
@@ -947,7 +852,7 @@ class TestCache(unittest.TestCase):
             fut1.set_exception(ValueError())
 
             base.Future.return_value = fut2
-            self.c.create_query_future(base.hash_)
+            self.c.create_query_future(base.hash_, base.node)
 
             run_coroutine(asyncio.sleep(0))
 
@@ -956,7 +861,7 @@ class TestCache(unittest.TestCase):
             fut2.set_exception(ValueError())
 
             base.Future.return_value = fut3
-            self.c.create_query_future(base.hash_)
+            self.c.create_query_future(base.hash_, base.node)
 
             run_coroutine(asyncio.sleep(0))
 
@@ -988,12 +893,12 @@ class TestCache(unittest.TestCase):
             base.Future.return_value = fut
 
             self.assertIs(
-                self.c.create_query_future(base.hash_),
+                self.c.create_query_future(base.hash_, base.node),
                 fut,
             )
 
             task = asyncio.async(
-                self.c.lookup(base.hash_)
+                self.c.lookup(base.hash_, base.node)
             )
             run_coroutine(asyncio.sleep(0))
 
@@ -1006,18 +911,81 @@ class TestCache(unittest.TestCase):
             with self.assertRaises(KeyError):
                 run_coroutine(task)
 
-    def test_add_cache_entry_populates_user_database(self):
-        self.c.add_cache_entry(
-            "+9oi6+VEwgu5cRmjErECReGvCC0=",
-            TEST_DB["+9oi6+VEwgu5cRmjErECReGvCC0="],
+    def test_add_cache_entry_is_immediately_visible_in_lookup_and_defers_writeback(self):
+        q = disco.xso.InfoQuery()
+        p = unittest.mock.Mock()
+        hash_ = object()
+        node = object()
+        self.c.set_user_db_path(p)
+
+        with contextlib.ExitStack() as stack:
+            copy = stack.enter_context(unittest.mock.patch(
+                "copy.copy"
+            ))
+
+            run_in_executor = stack.enter_context(unittest.mock.patch.object(
+                asyncio.get_event_loop(),
+                "run_in_executor"
+            ))
+
+            async = stack.enter_context(unittest.mock.patch(
+                "asyncio.async"
+            ))
+
+            self.c.add_cache_entry(
+                hash_,
+                node,
+                q,
+            )
+
+        copy.assert_called_with(q)
+        run_in_executor.assert_called_with(
+            None,
+            entitycaps_service.writeback,
+            p,
+            hash_,
+            node,
+            q.captured_events,
         )
-        self.assertDictEqual(
-            self.c.save_user_to_json(),
-            {
-                "+9oi6+VEwgu5cRmjErECReGvCC0=":
-                TEST_DB["+9oi6+VEwgu5cRmjErECReGvCC0="]
-            },
-        )
+        async.assert_called_with(run_in_executor())
+
+        result = self.c.lookup_in_database(hash_, node)
+        self.assertEqual(result, copy())
+        self.assertEqual(result.node, node)
+
+    def test_add_cache_entry_does_not_perform_writeback_if_no_userdb_is_set(self):
+        q = disco.xso.InfoQuery()
+        p = unittest.mock.Mock()
+        hash_ = object()
+        node = object()
+
+        with contextlib.ExitStack() as stack:
+            copy = stack.enter_context(unittest.mock.patch(
+                "copy.copy"
+            ))
+
+            run_in_executor = stack.enter_context(unittest.mock.patch.object(
+                asyncio.get_event_loop(),
+                "run_in_executor"
+            ))
+
+            async = stack.enter_context(unittest.mock.patch(
+                "asyncio.async"
+            ))
+
+            self.c.add_cache_entry(
+                hash_,
+                node,
+                q,
+            )
+
+        copy.assert_called_with(q)
+        self.assertFalse(run_in_executor.mock_calls)
+        self.assertFalse(async.mock_calls)
+
+        result = self.c.lookup_in_database(hash_, node)
+        self.assertEqual(result, copy())
+        self.assertEqual(result.node, node)
 
     def tearDown(self):
         del self.c
@@ -1149,9 +1117,9 @@ class TestService(unittest.TestCase):
 
     def test_handle_inbound_presence_queries_disco(self):
         caps = entitycaps_xso.Caps(
-            "node",
-            TEST_INFO_VER,
-            TEST_INFO_HASH,
+            TEST_DB_ENTRY_NODE_BARE,
+            TEST_DB_ENTRY_VER,
+            TEST_DB_ENTRY_HASH,
         )
 
         presence = stanza.Presence()
@@ -1219,9 +1187,9 @@ class TestService(unittest.TestCase):
 
     def test_handle_inbound_presence_discards_if_hash_unset(self):
         caps = entitycaps_xso.Caps(
-            "node",
-            TEST_INFO_VER,
-            "foo",
+            TEST_DB_ENTRY_NODE_BARE,
+            TEST_DB_ENTRY_VER,
+            TEST_DB_ENTRY_HASH,
         )
 
         # we have to hack deeply here, the validators are too smart for us
@@ -1248,19 +1216,8 @@ class TestService(unittest.TestCase):
     def test_query_and_cache(self):
         self.maxDiff = None
 
-        ver = "+0mnUAF1ozCEc37cmdPPsYbsfhg="
-        response = dict(TEST_DB[ver])
-        del response["node"]
-        del response["hash"]
-        response["forms"] = [
-            dict(
-                value,
-                FORM_TYPE=[
-                    key,
-                ],
-            )
-            for key, value in response["forms"].items()
-        ]
+        ver = TEST_DB_ENTRY_VER
+        response = TEST_DB_ENTRY
 
         base = unittest.mock.Mock()
         base.disco = self.disco
@@ -1288,11 +1245,6 @@ class TestService(unittest.TestCase):
                 base.fut,
             ))
 
-        cache_entry = dict(response)
-        cache_entry["node"] = "foobar"
-        cache_entry["hash"] = "sha-1"
-        cache_entry["forms"] = dict(TEST_DB[ver]["forms"])
-
         calls = list(base.mock_calls)
         self.assertSequenceEqual(
             calls,
@@ -1307,8 +1259,9 @@ class TestService(unittest.TestCase):
                     "sha1"
                 ),
                 unittest.mock.call.add_cache_entry(
-                    ver,
-                    cache_entry,
+                    "sha-1",
+                    "foobar#"+ver,
+                    response,
                 ),
                 unittest.mock.call.fut.set_result(
                     result,
@@ -1321,10 +1274,8 @@ class TestService(unittest.TestCase):
     def test_query_and_cache_checks_hash(self):
         self.maxDiff = None
 
-        ver = "+0mnUAF1ozCEc37cmdPPsYbsfhg="
-        response = dict(TEST_DB[ver])
-        del response["node"]
-        del response["hash"]
+        ver = TEST_DB_ENTRY_VER
+        response = TEST_DB_ENTRY
 
         base = unittest.mock.Mock()
         base.disco = self.disco
@@ -1377,10 +1328,8 @@ class TestService(unittest.TestCase):
     def test_query_and_cache_does_not_cache_on_ValueError(self):
         self.maxDiff = None
 
-        ver = "+0mnUAF1ozCEc37cmdPPsYbsfhg="
-        response = dict(TEST_DB[ver])
-        del response["node"]
-        del response["hash"]
+        ver = TEST_DB_ENTRY_VER
+        response = TEST_DB_ENTRY
 
         base = unittest.mock.Mock()
         base.disco = self.disco
@@ -1461,7 +1410,7 @@ class TestService(unittest.TestCase):
         self.assertSequenceEqual(
             base.mock_calls,
             [
-                unittest.mock.call.lookup("ver"),
+                unittest.mock.call.lookup("hash", "foobar#ver"),
             ]
         )
 
@@ -1507,8 +1456,8 @@ class TestService(unittest.TestCase):
         self.assertSequenceEqual(
             calls,
             [
-                unittest.mock.call.lookup("ver"),
-                unittest.mock.call.create_query_future("ver"),
+                unittest.mock.call.lookup("hash", "foobar#ver"),
+                unittest.mock.call.create_query_future("hash", "foobar#ver"),
                 unittest.mock.call.query_and_cache(
                     TEST_FROM,
                     "foobar",
@@ -1522,11 +1471,13 @@ class TestService(unittest.TestCase):
         self.assertIs(result, query_result)
 
     def test_update_hash(self):
-        self.disco.iter_features.return_value = iter([
+        iter_features_result = iter([
             "http://jabber.org/protocol/caps",
             "http://jabber.org/protocol/disco#items",
             "http://jabber.org/protocol/disco#info",
         ])
+
+        self.disco.iter_features.return_value = iter_features_result
 
         self.disco.iter_identities.return_value = iter([
             ("client", "pc", None, None),
@@ -1542,31 +1493,30 @@ class TestService(unittest.TestCase):
                 "aioxmpp.entitycaps.service.hash_query",
                 new=base.hash_query
             ))
+
+            stack.enter_context(unittest.mock.patch(
+                "aioxmpp.disco.xso.InfoQuery",
+                new=base.InfoQuery
+            ))
+
             base.hash_query.return_value = "hash_query_result"
 
             self.s.update_hash()
 
+        base.InfoQuery.assert_called_with(
+            identities=[
+                disco.xso.Identity(category="client",
+                                   type_="pc"),
+                disco.xso.Identity(category="client",
+                                   type_="pc",
+                                   lang=structs.LanguageTag.fromstr("en"),
+                                   name="foo"),
+            ],
+            features=iter_features_result
+        )
+
         base.hash_query.assert_called_with(
-            {
-                "features": [
-                    "http://jabber.org/protocol/caps",
-                    "http://jabber.org/protocol/disco#items",
-                    "http://jabber.org/protocol/disco#info",
-                ],
-                "identities": [
-                    {
-                        "category": "client",
-                        "type": "pc",
-                    },
-                    {
-                        "category": "client",
-                        "type": "pc",
-                        "lang": "en",
-                        "name": "foo",
-                    }
-                ],
-                "forms": {}
-            },
+            base.InfoQuery(),
             "sha1",
         )
 
@@ -1773,5 +1723,172 @@ class TestService(unittest.TestCase):
             result = self.s.handle_outbound_presence(presence)
             self.assertIs(result, presence)
             self.assertIsNone(result.xep0115_caps)
+
+
+class Testwriteback(unittest.TestCase):
+    def test_uses_tempfile_atomically_and_serialises_xso(self):
+        base = unittest.mock.Mock()
+        base.p = unittest.mock.MagicMock()
+        base.NamedTemporaryFile = unittest.mock.MagicMock()
+        base.hash_ = "sha-1"
+        base.node = "http://fnord/#foo"
+
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(unittest.mock.patch(
+                "tempfile.NamedTemporaryFile",
+                new=base.NamedTemporaryFile
+            ))
+
+            stack.enter_context(unittest.mock.patch(
+                "os.replace",
+                new=base.replace
+            ))
+
+            stack.enter_context(unittest.mock.patch(
+                "os.unlink",
+                new=base.unlink
+            ))
+
+            base.quote = unittest.mock.Mock(wraps=urllib.parse.quote)
+            stack.enter_context(unittest.mock.patch(
+                "urllib.parse.quote",
+                new=base.quote,
+            ))
+
+            stack.enter_context(unittest.mock.patch(
+                "aioxmpp.xml.XMPPXMLGenerator",
+                new=base.XMPPXMLGenerator
+            ))
+
+            stack.enter_context(unittest.mock.patch(
+                "aioxmpp.xso.events_to_sax",
+                new=base.events_to_sax
+            ))
+
+            entitycaps_service.writeback(base.p,
+                                         base.hash_,
+                                         base.node,
+                                         base.data)
+
+        calls = list(base.mock_calls)
+        self.assertSequenceEqual(
+            calls,
+            [
+                unittest.mock.call.quote(base.node, safe=""),
+                unittest.mock.call.p.__truediv__(
+                    "sha-1_http%3A%2F%2Ffnord%2F%23foo.xml"
+                ),
+                unittest.mock._Call(("p.__str__", (), {})),
+                unittest.mock.call.NamedTemporaryFile(
+                    dir=str(base.p),
+                    delete=False
+                ),
+                unittest.mock.call.NamedTemporaryFile().__enter__(),
+                unittest.mock.call.XMPPXMLGenerator(
+                    base.NamedTemporaryFile().__enter__(),
+                    short_empty_elements=True,
+                ),
+                unittest.mock.call.XMPPXMLGenerator().startDocument(),
+                unittest.mock.call.events_to_sax(
+                    base.data,
+                    base.XMPPXMLGenerator()
+                ),
+                unittest.mock.call.XMPPXMLGenerator().endDocument(),
+                unittest.mock._Call(("p.__truediv__().__str__", (), {})),
+                unittest.mock.call.replace(
+                    base.NamedTemporaryFile().__enter__().name,
+                    str(base.p.__truediv__()),
+                ),
+                unittest.mock.call.NamedTemporaryFile().__exit__(
+                    None, None, None
+                ),
+            ]
+        )
+
+    def test_unlinks_tempfile_on_error(self):
+        base = unittest.mock.Mock()
+        base.p = unittest.mock.MagicMock()
+        base.NamedTemporaryFile = unittest.mock.MagicMock()
+        base.hash_ = "sha-1"
+        base.node = "http://fnord/#foo"
+
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(unittest.mock.patch(
+                "tempfile.NamedTemporaryFile",
+                new=base.NamedTemporaryFile
+            ))
+
+            stack.enter_context(unittest.mock.patch(
+                "os.replace",
+                new=base.replace
+            ))
+
+            stack.enter_context(unittest.mock.patch(
+                "os.unlink",
+                new=base.unlink
+            ))
+
+            base.quote = unittest.mock.Mock(wraps=urllib.parse.quote)
+            stack.enter_context(unittest.mock.patch(
+                "urllib.parse.quote",
+                new=base.quote,
+            ))
+
+            stack.enter_context(unittest.mock.patch(
+                "aioxmpp.xml.XMPPXMLGenerator",
+                new=base.XMPPXMLGenerator
+            ))
+
+            stack.enter_context(unittest.mock.patch(
+                "aioxmpp.xso.events_to_sax",
+                new=base.events_to_sax
+            ))
+
+            exc = Exception()
+            base.events_to_sax.side_effect = exc
+
+            with self.assertRaises(Exception) as ctx:
+                entitycaps_service.writeback(
+                    base.p,
+                    base.hash_,
+                    base.node,
+                    base.data)
+
+
+        self.assertIs(ctx.exception, exc)
+
+        calls = list(base.mock_calls)
+        self.assertSequenceEqual(
+            calls,
+            [
+                unittest.mock.call.quote(base.node, safe=""),
+                unittest.mock.call.p.__truediv__(
+                    "sha-1_http%3A%2F%2Ffnord%2F%23foo.xml"
+                ),
+                unittest.mock._Call(("p.__str__", (), {})),
+                unittest.mock.call.NamedTemporaryFile(
+                    dir=str(base.p),
+                    delete=False
+                ),
+                unittest.mock.call.NamedTemporaryFile().__enter__(),
+                unittest.mock.call.XMPPXMLGenerator(
+                    base.NamedTemporaryFile().__enter__(),
+                    short_empty_elements=True,
+                ),
+                unittest.mock.call.XMPPXMLGenerator().startDocument(),
+                unittest.mock.call.events_to_sax(
+                    base.data,
+                    base.XMPPXMLGenerator()
+                ),
+                unittest.mock.call.unlink(
+                    base.NamedTemporaryFile().__enter__().name
+                ),
+                unittest.mock.call.NamedTemporaryFile().__exit__(
+                    unittest.mock.ANY,
+                    unittest.mock.ANY,
+                    unittest.mock.ANY,
+                ),
+            ]
+        )
 
 # foo

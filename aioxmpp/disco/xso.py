@@ -56,6 +56,24 @@ class Identity(xso.XSO):
         if lang is not None:
             self.lang = lang
 
+    def __eq__(self, other):
+        try:
+            return (self.category == other.category and
+                    self.type_ == other.type_ and
+                    self.name == other.name and
+                    self.lang == other.lang)
+        except AttributeError:
+            return NotImplemented
+
+    def __repr__(self):
+        return "{}.{}(category={!r}, type_={!r}, name={!r}, lang={!r})".format(
+            self.__class__.__module__,
+            self.__class__.__qualname__,
+            self.category,
+            self.type_,
+            self.name,
+            self.lang)
+
 
 class Feature(xso.XSO):
     """

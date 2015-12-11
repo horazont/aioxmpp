@@ -596,15 +596,31 @@ class TestData(unittest.TestCase):
                 obj.validate()
             obj.items.clear()
 
-    def test_validate_rejects_fields_for_results(self):
+    def test_validate_rejects_fields_for_results_if_report(self):
+        field = forms_xso.Field()
+        field.type_ = "fixed"
+        obj = forms_xso.Data()
+        obj.type_ = "result"
+        obj.fields.append(field)
+        obj.reported = forms_xso.Reported()
+
+        with self.assertRaisesRegexp(ValueError, "field in report result"):
+            obj.validate()
+
+        obj.reported = None
+        obj.items.append(forms_xso.Item())
+
+        with self.assertRaisesRegexp(ValueError, "field in report result"):
+            obj.validate()
+
+    def test_validate_accepts_fields_for_results_without_report(self):
         field = forms_xso.Field()
         field.type_ = "fixed"
         obj = forms_xso.Data()
         obj.type_ = "result"
         obj.fields.append(field)
 
-        with self.assertRaisesRegexp(ValueError, "field in report result"):
-            obj.validate()
+        obj.validate()
 
     def test_validate_reject_empty_reported(self):
         obj = forms_xso.Data()

@@ -100,6 +100,77 @@ class TestIdentity(unittest.TestCase):
         self.assertEqual("Foobar", ident.name)
         self.assertEqual(structs.LanguageTag.fromstr("DE"), ident.lang)
 
+    def test_equality(self):
+        ident1 = disco_xso.Identity()
+        self.assertEqual("client", ident1.category)
+        self.assertEqual("bot", ident1.type_)
+        self.assertIsNone(ident1.name)
+        self.assertIsNone(ident1.lang)
+
+        ident2 = disco_xso.Identity()
+        self.assertEqual("client", ident2.category)
+        self.assertEqual("bot", ident2.type_)
+        self.assertIsNone(ident2.name)
+        self.assertIsNone(ident2.lang)
+
+        self.assertTrue(ident1 == ident2)
+        self.assertFalse(ident1 != ident2)
+
+        ident1.category = "foo"
+
+        self.assertFalse(ident1 == ident2)
+        self.assertTrue(ident1 != ident2)
+
+        ident2.category = "foo"
+
+        self.assertTrue(ident1 == ident2)
+        self.assertFalse(ident1 != ident2)
+
+        ident1.type_ = "bar"
+
+        self.assertFalse(ident1 == ident2)
+        self.assertTrue(ident1 != ident2)
+
+        ident2.type_ = "bar"
+
+        self.assertTrue(ident1 == ident2)
+        self.assertFalse(ident1 != ident2)
+
+        ident1.name = "baz"
+
+        self.assertFalse(ident1 == ident2)
+        self.assertTrue(ident1 != ident2)
+
+        ident2.name = "baz"
+
+        self.assertTrue(ident1 == ident2)
+        self.assertFalse(ident1 != ident2)
+
+        ident1.lang = structs.LanguageTag.fromstr("en")
+
+        self.assertFalse(ident1 == ident2)
+        self.assertTrue(ident1 != ident2)
+
+        ident2.lang = structs.LanguageTag.fromstr("en")
+
+        self.assertTrue(ident1 == ident2)
+        self.assertFalse(ident1 != ident2)
+
+    def test_equality_is_robust_against_other_data_types(self):
+        ident1 = disco_xso.Identity()
+        self.assertEqual("client", ident1.category)
+        self.assertEqual("bot", ident1.type_)
+        self.assertIsNone(ident1.name)
+        self.assertIsNone(ident1.lang)
+
+        self.assertFalse(ident1 == None)  # NOQA
+        self.assertFalse(ident1 == 1)
+        self.assertFalse(ident1 == "foo")
+
+        self.assertTrue(ident1 != None)  # NOQA
+        self.assertTrue(ident1 != 1)
+        self.assertTrue(ident1 != "foo")
+
 
 class TestFeature(unittest.TestCase):
     def test_is_xso(self):

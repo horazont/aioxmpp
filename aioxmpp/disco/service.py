@@ -374,7 +374,7 @@ class Service(service.Service, Node):
             request_iq
         )
 
-        return response.to_dict()
+        return response
 
     @asyncio.coroutine
     def query_info(self, jid, *, node=None, require_fresh=False, timeout=None):

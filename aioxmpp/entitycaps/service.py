@@ -3,23 +3,32 @@ import base64
 import copy
 import functools
 import hashlib
+import logging
+import os
+import tempfile
+import urllib.parse
 
 from xml.sax.saxutils import escape
 
 import aioxmpp.callbacks
 import aioxmpp.disco as disco
 import aioxmpp.service
+import aioxmpp.xml
+import aioxmpp.xso
 
 from . import xso as my_xso
+
+
+logger = logging.getLogger("aioxmpp.entitycaps")
 
 
 def build_identities_string(identities):
     identities = [
         b"/".join([
-            escape(identity["category"]).encode("utf-8"),
-            escape(identity["type"]).encode("utf-8"),
-            escape(identity.get("lang", "")).encode("utf-8"),
-            escape(identity.get("name", "")).encode("utf-8"),
+            escape(identity.category).encode("utf-8"),
+            escape(identity.type_).encode("utf-8"),
+            escape(str(identity.lang or "")).encode("utf-8"),
+            escape(identity.name or "").encode("utf-8"),
         ])
         for identity in identities
     ]
@@ -48,7 +57,11 @@ def build_forms_string(forms):
     forms_list = []
     for form in forms:
         try:
-            form_types = set(form["FORM_TYPE"])
+            form_types = set(
+                value
+                for field in form.fields.filter(attrs={"var": "FORM_TYPE"})
+                for value in field.values
+            )
         except KeyError:
             continue
 
@@ -66,14 +79,14 @@ def build_forms_string(forms):
 
     parts = []
 
-    for type_, fields in forms_list:
+    for type_, form in forms_list:
         parts.append(type_)
 
         field_list = sorted(
             (
-                (escape(var).encode("utf-8"), values)
-                for var, values in fields.items()
-                if var != "FORM_TYPE"
+                (escape(field.var).encode("utf-8"), field.values)
+                for field in form.fields
+                if field.var != "FORM_TYPE"
             ),
             key=lambda x: x[0]
         )
@@ -91,13 +104,13 @@ def build_forms_string(forms):
 def hash_query(query, algo):
     hashimpl = hashlib.new(algo)
     hashimpl.update(
-        build_identities_string(query.get("identities", []))
+        build_identities_string(query.identities)
     )
     hashimpl.update(
-        build_features_string(query.get("features", []))
+        build_features_string(query.features)
     )
     hashimpl.update(
-        build_forms_string(query.get("forms", {}))
+        build_forms_string(query.exts)
     )
 
     return base64.b64encode(hashimpl.digest()).decode("ascii")
@@ -120,11 +133,9 @@ class Cache:
 
     Database management (user API):
 
-    .. automethod:: load_trusted_from_json
+    .. automethod:: set_system_db_path
 
-    .. automethod:: load_user_from_json
-
-    .. automethod:: save_user_to_json
+    .. automethod:: set_user_db_path
 
     Queries (API intended for :class:`Service`):
 
@@ -136,114 +147,84 @@ class Cache:
     """
 
     def __init__(self):
-        self._trusted = {}
-        self._user = {}
         self._lookup_cache = {}
+        self._memory_overlay = {}
+        self._system_db_path = None
+        self._user_db_path = None
 
-    def _erase_future(self, for_hash, fut):
+    def _erase_future(self, for_hash, for_node, fut):
         try:
-            existing = self._lookup_cache[for_hash]
+            existing = self._lookup_cache[for_hash, for_node]
         except KeyError:
             pass
         else:
             if existing is fut:
-                del self._lookup_cache[for_hash]
+                del self._lookup_cache[for_hash, for_node]
 
-    def load_trusted_from_json(self, json):
-        """
-        Load the trusted database from the JSON-compatible dict `json`.
+    def set_system_db_path(self, path):
+        self._system_db_path = path
 
-        The expected format is identical to the format used by the `capsdb`_.
+    def set_user_db_path(self, path):
+        self._user_db_path = path
 
-        .. _capsdb: https://github.com/xnyhps/capsdb
-
-        .. seealso::
-
-           Method :meth:`lookup_in_database`
-             for details on the lookup strategy.
-
-        """
-        self._trusted = copy.deepcopy(json)
-
-    def load_user_from_json(self, json):
-        """
-        Load the user-level database from the JSON-compatible dict `json`.
-
-        The expected format is identical to the format used by the `capsdb`_,
-        which is also the format used with :meth:`save_user_to_json`.
-
-        .. _capsdb: https://github.com/xnyhps/capsdb
-
-        .. seealso::
-
-           Method :meth:`lookup_in_database`
-             for details on the lookup strategy.
-
-        """
-        self._user = copy.deepcopy(json)
-
-    def save_user_to_json(self):
-        """
-        Return a JSON-compatible dict in the `capsdb`_ format which holds the
-        user-level database. Any entries which are also in the trusted database
-        are omitted from this result.
-
-        .. _capsdb: https://github.com/xnyhps/capsdb
-        """
-        return {
-            key: copy.deepcopy(value)
-            for key, value in self._user.items()
-            if key not in self._trusted
-        }
-
-    def lookup_in_database(self, hash_):
-        """
-        Look up a hash in the database. This first checks the trusted database
-        and only if the hash is not found there, the user-level database is
-        checked.
-
-        The first database to return a result is used. If no database contains
-        the given `hash_`, :class:`KeyError` is raised.
-
-        The ``"node"`` and ``"hash"`` keys are removed from the result. The
-        result is also deep-copied to avoid accidental modification of the
-        database.
-        """
+    def lookup_in_database(self, hash_, node):
         try:
-            data = self._trusted[hash_]
+            result = self._memory_overlay[hash_, node]
         except KeyError:
-            data = self._user[hash_]
-        data = copy.deepcopy(data)
-        del data["node"]
-        del data["hash"]
-        data["forms"] = [
-            dict(value,
-                 FORM_TYPE=[key])
-            for key, value in data["forms"].items()
-        ]
-        return data
+            pass
+        else:
+            logger.debug("memory cache hit: %s %r", hash_, node)
+            return result
+
+        quoted = urllib.parse.quote(node, safe="")
+        if self._system_db_path is not None:
+            try:
+                f = (
+                    self._system_db_path / "{}_{}.xml".format(hash_, quoted)
+                ).open("rb")
+            except OSError:
+                pass
+            else:
+                logger.debug("system db hit: %s %r", hash_, node)
+                with f:
+                    return aioxmpp.xml.read_single_xso(f, disco.xso.InfoQuery)
+
+        if self._user_db_path is not None:
+            try:
+                f = (
+                    self._user_db_path / "{}_{}.xml".format(hash_, quoted)
+                ).open("rb")
+            except OSError:
+                pass
+            else:
+                logger.debug("user db hit: %s %r", hash_, node)
+                with f:
+                    return aioxmpp.xml.read_single_xso(f, disco.xso.InfoQuery)
+
+        raise KeyError(node)
 
     @asyncio.coroutine
-    def lookup(self, hash_):
+    def lookup(self, hash_, node):
         """
-        Look up the given `hash_` first in the database and then by waiting on
-        the futures created with :meth:`create_query_future` for that hash.
+        Look up the given `node` URL using the given `hash_` first in the
+        database and then by waiting on the futures created with
+        :meth:`create_query_future` for that node URL and hash.
 
         If the hash is not in the database, :meth:`lookup` iterates as long as
-        there are pending futures for the given `hash_`. If there are no
-        pending futures, :class:`KeyError` is raised. If a future raises a
-        :class:`ValueError`, it is ignored. If the future returns a value, it
+        there are pending futures for the given `hash_` and `node`. If there
+        are no pending futures, :class:`KeyError` is raised. If a future raises
+        a :class:`ValueError`, it is ignored. If the future returns a value, it
         is used as the result.
         """
         try:
-            result = self.lookup_in_database(hash_)
+            result = self.lookup_in_database(hash_, node)
         except KeyError:
             pass
         else:
             return result
 
         while True:
-            fut = self._lookup_cache[hash_]
+            fut = self._lookup_cache[hash_, node]
             try:
                 result = yield from fut
             except ValueError:
@@ -251,31 +232,42 @@ class Cache:
             else:
                 return result
 
-    def create_query_future(self, hash_):
+    def create_query_future(self, hash_, node):
         """
-        Create and return a :class:`asyncio.Future` for the given `hash_`. The
-        future is referenced internally and used by any calls to :meth:`lookup`
-        which are made while the future is pending. The future is removed from
-        the internal storage automatically when a result or exception is set
-        for it.
+        Create and return a :class:`asyncio.Future` for the given `hash_`
+        function and `node` URL. The future is referenced internally and used
+        by any calls to :meth:`lookup` which are made while the future is
+        pending. The future is removed from the internal storage automatically
+        when a result or exception is set for it.
 
         This allows for deduplication of queries for the same hash.
         """
         fut = asyncio.Future()
         fut.add_done_callback(
-            functools.partial(self._erase_future, hash_)
+            functools.partial(self._erase_future, hash_, node)
         )
-        self._lookup_cache[hash_] = fut
+        self._lookup_cache[hash_, node] = fut
         return fut
 
-    def add_cache_entry(self, hash_, entry):
+    def add_cache_entry(self, hash_, node, entry):
         """
-        Add the given `entry` to the user-level database keyed with
-        `hash_`. The `entry` is **not** validated to actually map to
-        `hash_`, it is expected that the caller perfoms the validation. It must
-        also contain valid ``"node"`` and ``"hash"`` keys.
+        Add the given `entry` (which must be a :class:`~.disco.xso.InfoQuery`
+        instance) to the user-level database keyed with the hash function type
+        `hash_` and the `node` URL. The `entry` is **not** validated to
+        actually map to `node` with the given `hash_` function, it is expected
+        that the caller perfoms the validation.
         """
-        self._user[hash_] = entry
+        copied_entry = copy.copy(entry)
+        copied_entry.node = node
+        self._memory_overlay[hash_, node] = copied_entry
+        if self._user_db_path is not None:
+            asyncio.async(asyncio.get_event_loop().run_in_executor(
+                None,
+                writeback,
+                self._user_db_path,
+                hash_,
+                node,
+                entry.captured_events))
 
 
 class Service(aioxmpp.service.Service):
@@ -403,18 +395,7 @@ class Service(aioxmpp.service.Service):
             fut.set_exception(exc)
         else:
             if expected == ver:
-                to_save = dict(data)
-                to_save["node"] = node
-                to_save["hash"] = hash_
-
-                transformed_forms = {}
-                for form in to_save["forms"]:
-                    new_form = dict(form)
-                    transformed_forms[new_form["FORM_TYPE"][0]] = new_form
-                    del new_form["FORM_TYPE"]
-                to_save["forms"] = transformed_forms
-
-                self.cache.add_cache_entry(ver, to_save)
+                self.cache.add_cache_entry(hash_, node+"#"+ver, data)
                 fut.set_result(data)
             else:
                 fut.set_exception(ValueError("hash mismatch"))
@@ -424,7 +405,7 @@ class Service(aioxmpp.service.Service):
     @asyncio.coroutine
     def lookup_info(self, jid, node, ver, hash_):
         try:
-            info = yield from self.cache.lookup(ver)
+            info = yield from self.cache.lookup(hash_, node+"#"+ver)
         except KeyError:
             pass
         else:
@@ -432,7 +413,7 @@ class Service(aioxmpp.service.Service):
             return info
 
         self.logger.debug("have to query for ver=%r", ver)
-        fut = self.cache.create_query_future(ver)
+        fut = self.cache.create_query_future(hash_, node+"#"+ver)
         info = yield from self.query_and_cache(
             jid, node, ver, hash_,
             fut
@@ -471,22 +452,19 @@ class Service(aioxmpp.service.Service):
     def update_hash(self):
         identities = []
         for category, type_, lang, name in self.disco.iter_identities():
-            identity_dict = {
-                "category": category,
-                "type": type_,
-            }
+            identity = disco.xso.Identity(category=category,
+                                          type_=type_)
             if lang is not None:
-                identity_dict["lang"] = lang.match_str
+                identity.lang = lang
             if name is not None:
-                identity_dict["name"] = name
-            identities.append(identity_dict)
+                identity.name = name
+            identities.append(identity)
 
         new_ver = hash_query(
-            {
-                "features": list(self.disco.iter_features()),
-                "identities": identities,
-                "forms": {},
-            },
+            disco.xso.InfoQuery(
+                identities=identities,
+                features=self.disco.iter_features(),
+            ),
             "sha1",
         )
 
@@ -496,3 +474,22 @@ class Service(aioxmpp.service.Service):
             self.ver = new_ver
             self.disco.mount_node(self.NODE + "#" + self.ver, self.disco)
             self.on_ver_changed()
+
+
+def writeback(base_path, hash_, node, captured_events):
+    import pprint
+    pprint.pprint(captured_events)
+    quoted = urllib.parse.quote(node, safe="")
+    dest_path = base_path / "{}_{}.xml".format(hash_, quoted)
+    with tempfile.NamedTemporaryFile(dir=str(base_path), delete=False) as tmpf:
+        try:
+            generator = aioxmpp.xml.XMPPXMLGenerator(
+                tmpf,
+                short_empty_elements=True)
+            generator.startDocument()
+            aioxmpp.xso.events_to_sax(captured_events, generator)
+            generator.endDocument()
+        except:
+            os.unlink(tmpf.name)
+            raise
+        os.replace(tmpf.name, str(dest_path))

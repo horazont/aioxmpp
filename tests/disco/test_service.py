@@ -557,8 +557,8 @@ class TestService(unittest.TestCase):
                 self.s.send_and_decode_info_query(to, node)
             )
 
-        to_dict.assert_called_with()
-        self.assertEqual(result, to_dict())
+        self.assertFalse(to_dict.mock_calls)
+        self.assertEqual(result, response)
 
         self.assertEqual(
             1,

@@ -1,9 +1,9 @@
 import asyncio
 import functools
 import getpass
-import json
+import itertools
 import logging
-import pprint
+import pathlib
 
 try:
     import readline  # NOQA
@@ -22,7 +22,21 @@ import aioxmpp.presence
 def show_info(from_, disco):
     info = yield from disco.query_info(from_)
     print("{}:".format(from_))
-    pprint.pprint(info)
+    print("  features:")
+    for feature in info.features:
+        print("    {!r}".format(feature))
+
+    print("  identities:")
+    identities = list(info.identities)
+    identity_key = lambda ident: (ident.category, ident.type_)
+    identities.sort(key=identity_key)
+    for (category, type_), identities in (
+            itertools.groupby(info.identities, identity_key)):
+        print("    category={!r} type={!r}".format(category, type_))
+        subidentities = list(identities)
+        subidentities.sort(key=lambda ident: ident.lang)
+        for identity in subidentities:
+            print("      [{}] {!r}".format(identity.lang, identity.name))
 
 
 def on_available(disco, full_jid, stanza):
@@ -44,6 +58,7 @@ def main(jid, password):
         jid,
         aioxmpp.security_layer.tls_with_password_based_authentication(
             get_password,
+            certificate_verifier_factory=aioxmpp.security_layer._NullVerifier
         )
     )
     failure_future = asyncio.Future()
@@ -60,16 +75,9 @@ def main(jid, password):
     # summon the entitycaps service
     caps = client.summon(aioxmpp.entitycaps.Service)
 
-    # try to preload the capsdb
-    try:
-        with open("capsdb.json", "r") as f:
-            preloadable = json.load(f)
-    except (OSError, ValueError) as exc:
-        logging.warn("failed to preload db: %s", exc)
-    else:
-        caps.cache.load_trusted_from_json(preloadable)
-        logging.info("preloaded %d entries", len(preloadable))
-        del preloadable
+    # set a possible path for the capsdb cache
+    caps.cache.set_system_db_path(pathlib.Path("./hashes/").absolute())
+    caps.cache.set_user_db_path(pathlib.Path("./user_hashes/").absolute())
 
     # use the presence service to find targets for querying the info
     presence_tracker = client.summon(aioxmpp.presence.Service)

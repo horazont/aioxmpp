@@ -206,5 +206,6 @@ class Data(AbstractItem):
                 (self.reported is not None or self.items)):
             raise ValueError("report in non-result")
 
-        if self.type_ == "result":
+        if     (self.type_ == "result" and
+                (self.reported is not None or self.items)):
             self._validate_result()
