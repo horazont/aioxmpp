@@ -1664,12 +1664,13 @@ class CapturingXMLStreamClass(XMLStreamClass):
         Like the method it overrides, :meth:`parse_events` is suspendable.
         """
 
-        dest = [ev_args]
+        dest = [("start", )+tuple(ev_args)]
         result = yield from capture_events(
             super().parse_events(ev_args, parent_ctx),
             dest
         )
         result._set_captured_events(dest)
+
         return result
 
 

@@ -1608,7 +1608,7 @@ class TestCapturingXMLStreamClass(unittest.TestCase):
             mock.send((yield))
             return result
 
-        ev_args = object()
+        ev_args = [1, 2, 3]
         parent_ctx = object()
         with contextlib.ExitStack() as stack:
             parse_events = stack.enter_context(
@@ -1644,7 +1644,7 @@ class TestCapturingXMLStreamClass(unittest.TestCase):
         self.assertSequenceEqual(
             dest,
             [
-                ev_args
+                ("start", )+tuple(ev_args)
             ]
         )
 
