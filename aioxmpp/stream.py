@@ -16,9 +16,10 @@ Low-level stanza tracking
 
 The following classes are used to track stanzas in the XML stream to the
 server. This is independent of things like `XEP-0184 Message Delivery
-Receipts`__; it only provides tracking to the remote server and even that only
-if stream management is used. Otherwise, it only provides tracking in the
-:mod:`aioxmpp` internal queues.
+Receipts`__ (for which services are provided at :mod:`aioxmpp.tracking`); it
+only provides tracking to the remote server and even that only if stream
+management is used. Otherwise, it only provides tracking in the :mod:`aioxmpp`
+internal queues.
 
 __ http://xmpp.org/extensions/xep-0184.html
 
