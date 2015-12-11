@@ -1,5 +1,5 @@
 import collections
-# import numbers
+import contextlib
 import io
 import unittest
 import unittest.mock
@@ -1398,4 +1398,54 @@ class Testserialize_single_xso(unittest.TestCase):
         self.assertEqual(
             '<bar xmlns="uri:foo" foo="test"/>',
             xml.serialize_single_xso(x)
+        )
+
+
+class Testread_xso(unittest.TestCase):
+    def test_read_from_io(self):
+        base = unittest.mock.Mock()
+
+        xso_parser = base.XSOParser()
+        sax_driver = base.SAXDriver()
+
+        base.mock_calls.clear()
+
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(unittest.mock.patch(
+                "aioxmpp.xso.XSOParser",
+                base.XSOParser
+            ))
+            stack.enter_context(unittest.mock.patch(
+                "aioxmpp.xso.SAXDriver",
+                base.SAXDriver
+            ))
+            stack.enter_context(unittest.mock.patch(
+                "xml.sax.make_parser",
+                base.make_parser
+            ))
+
+            xml.read_xso(base.src, {
+                base.A: base.cb,
+            })
+
+        self.assertSequenceEqual(
+            base.mock_calls,
+            [
+                unittest.mock.call.XSOParser(),
+                unittest.mock.call.XSOParser().add_class(
+                    base.A,
+                    base.cb
+                ),
+                unittest.mock.call.SAXDriver(xso_parser),
+                unittest.mock.call.make_parser(),
+                unittest.mock.call.make_parser().setFeature(
+                    saxhandler.feature_namespaces,
+                    True),
+                unittest.mock.call.make_parser().setFeature(
+                    saxhandler.feature_external_ges,
+                    False),
+                unittest.mock.call.make_parser().setContentHandler(
+                    sax_driver),
+                unittest.mock.call.make_parser().parse(base.src)
+            ]
         )

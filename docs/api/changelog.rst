@@ -70,6 +70,12 @@ Version 0.5
 * :class:`aioxmpp.xso.CapturingXSO` and :meth:`aioxmpp.xso.capture_events` were
   added.
 
+* :class:`aioxmpp.disco.xso.InfoQuery` now inherits from
+  :class:`aioxmpp.xso.CapturingXSO` and the
+  :attr:`~aioxmpp.disco.xso.InfoQuery.captured_events` attribute was added.
+
+* :func:`aioxmpp.xml.read_xso` added.
+
 
 Version 0.4
 ===========
