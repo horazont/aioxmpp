@@ -2232,3 +2232,22 @@ def capture_events(receiver, dest):
         dest.clear()
         raise
     return _r
+
+
+def events_to_sax(events, dest):
+    """
+    Convert an iterable `events` of XSO events to SAX events by calling the
+    matching SAX methods on `dest`
+    """
+    name_stack = []
+
+    for ev_type, *ev_args in events:
+        if ev_type == "start":
+            name = (ev_args[0], ev_args[1])
+            dest.startElementNS(name, None, ev_args[2])
+            name_stack.append(name)
+        elif ev_type == "end":
+            name = name_stack.pop()
+            dest.endElementNS(name, None)
+        elif ev_type == "text":
+            dest.characters(ev_args[0])

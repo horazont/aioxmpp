@@ -67,8 +67,8 @@ Version 0.5
 * Refactor large parts of :mod:`aioxmpp.sasl` into a new, independent package,
   :mod:`aiosasl`.
 
-* :class:`aioxmpp.xso.CapturingXSO` and :meth:`aioxmpp.xso.capture_events` were
-  added.
+* :class:`aioxmpp.xso.CapturingXSO`, :meth:`aioxmpp.xso.capture_events` and
+  :meth:`aioxmpp.xso.events_to_sax` were added.
 
 * :class:`aioxmpp.disco.xso.InfoQuery` now inherits from
   :class:`aioxmpp.xso.CapturingXSO` and the

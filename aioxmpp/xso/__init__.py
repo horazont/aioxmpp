@@ -199,6 +199,8 @@ descriptor:
 
 .. autofunction:: capture_events
 
+.. autofunction:: events_to_sax
+
 Handlers for missing attributes
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -385,6 +387,7 @@ from .model import (  # NOQA
     CapturingXSO,
     lang_attr,
     capture_events,
+    events_to_sax,
 )
 
 

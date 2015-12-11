@@ -5506,3 +5506,120 @@ class Testcapture_events(unittest.TestCase):
             capturer.send(ev_args)
 
         self.assertIs(ctx.exception.value, result)
+
+
+class Testevents_to_sax(unittest.TestCase):
+    def setUp(self):
+        self.dest = unittest.mock.Mock()
+
+    def test_start(self):
+        xso_model.events_to_sax(
+            [
+                ("start", "uri:foo", "bar", {"a": "b"}),
+            ],
+            self.dest
+        )
+        self.dest.startElementNS.assert_called_with(
+            ("uri:foo", "bar"),
+            None,
+            {"a": "b"}
+        )
+
+    def test_start_and_end(self):
+        xso_model.events_to_sax(
+            [
+                ("start", "uri:foo", "bar", {"a": "b"}),
+                ("end", ),
+            ],
+            self.dest
+        )
+
+        self.assertSequenceEqual(
+            self.dest.mock_calls,
+            [
+                unittest.mock.call.startElementNS(
+                    ("uri:foo", "bar"),
+                    None,
+                    {"a": "b"}
+                ),
+                unittest.mock.call.endElementNS(
+                    ("uri:foo", "bar"),
+                    None,
+                ),
+            ]
+        )
+
+    def test_text(self):
+        xso_model.events_to_sax(
+            [
+                ("start", "uri:foo", "bar", {"a": "b"}),
+                ("text", "foo"),
+                ("end", ),
+            ],
+            self.dest
+        )
+
+        self.assertSequenceEqual(
+            self.dest.mock_calls,
+            [
+                unittest.mock.call.startElementNS(
+                    ("uri:foo", "bar"),
+                    None,
+                    {"a": "b"}
+                ),
+                unittest.mock.call.characters("foo"),
+                unittest.mock.call.endElementNS(
+                    ("uri:foo", "bar"),
+                    None,
+                ),
+            ]
+        )
+
+    def test_nested_stuff(self):
+        xso_model.events_to_sax(
+            [
+                ("start", "uri:foo", "bar", {"a": "b"}),
+                ("start", "uri:foo", "baz", {}),
+                ("end", ),
+                ("start", "uri:foo", "baz", {}),
+                ("end", ),
+                ("end", ),
+            ],
+            self.dest
+        )
+
+        self.assertSequenceEqual(
+            self.dest.mock_calls,
+            [
+                unittest.mock.call.startElementNS(
+                    ("uri:foo", "bar"),
+                    None,
+                    {"a": "b"}
+                ),
+                unittest.mock.call.startElementNS(
+                    ("uri:foo", "baz"),
+                    None,
+                    {}
+                ),
+                unittest.mock.call.endElementNS(
+                    ("uri:foo", "baz"),
+                    None,
+                ),
+                unittest.mock.call.startElementNS(
+                    ("uri:foo", "baz"),
+                    None,
+                    {}
+                ),
+                unittest.mock.call.endElementNS(
+                    ("uri:foo", "baz"),
+                    None,
+                ),
+                unittest.mock.call.endElementNS(
+                    ("uri:foo", "bar"),
+                    None,
+                ),
+            ]
+        )
+
+    def tearDown(self):
+        del self.dest
