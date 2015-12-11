@@ -41,6 +41,8 @@ Utility functions
 
 .. autofunction:: read_xso
 
+.. autofunction:: read_single_xso
+
 """
 
 import ctypes
@@ -889,3 +891,20 @@ def read_xso(src, xsomap):
     parser.setContentHandler(driver)
 
     parser.parse(src)
+
+
+def read_single_xso(src, type_):
+    """
+    Read a single :class:`~.XSO` of the given `type_` from the binary file-like
+    input `src` and return the instance.
+    """
+
+    result = None
+
+    def cb(instance):
+        nonlocal result
+        result = instance
+
+    read_xso(src, {type_: cb})
+
+    return result

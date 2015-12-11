@@ -1449,3 +1449,39 @@ class Testread_xso(unittest.TestCase):
                 unittest.mock.call.make_parser().parse(base.src)
             ]
         )
+
+
+class Testread_single_xso(unittest.TestCase):
+    def test_uses_read_xso_with_custom_callback(self):
+        base = unittest.mock.Mock()
+
+        def read_xso(src, xsomap):
+            result = base.read_xso(src, xsomap)
+            self.assertEqual(len(xsomap), 1)
+            _, cb = next(iter(xsomap.items()))
+            cb(result)
+
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(unittest.mock.patch(
+                "aioxmpp.xml.read_xso",
+                new=read_xso
+            ))
+
+            result = xml.read_single_xso(base.src, base.Cls)
+
+        self.assertSequenceEqual(
+            base.mock_calls,
+            [
+                unittest.mock.call.read_xso(
+                    base.src,
+                    {
+                        base.Cls: unittest.mock.ANY
+                    }
+                ),
+            ]
+        )
+
+        self.assertEqual(
+            result,
+            base.read_xso()
+        )
