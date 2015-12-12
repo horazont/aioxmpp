@@ -1920,6 +1920,14 @@ class CapturingXSO(XSO, metaclass=CapturingXMLStreamClass):
 
     .. automethod:: _set_captured_events
 
+    An example use case for this class is :class:`.disco.InfoQuery`, combined
+    with :mod:`aioxmpp.entitycaps`. We want to be able to store hashes and the
+    generating XML data for use with future versions, including XML data which
+    cannot be parsed by an XSO in the current process (for example, due to an
+    unknown namespace or a plugin which is available but not loaded). With the
+    captured events, it is possible to re-create XML semantically equivalent to
+    the XML originally received.
+
     .. versionadded:: 0.5
     """
 
@@ -2179,11 +2187,8 @@ def capture_events(receiver, dest):
     If `receiver` raises an exception or the generator is closed prematurely
     using its :meth:`close`, `dest` is cleared.
 
-    This can be used in subclasses of :class:`XSO` to capture the raw events
-    sent to it during the execution of the :meth:`~.parse_events`. A use case
-    for this is to be able to re-play the exact event sequence after more
-    plugins have been loaded, or to serialise XML semantically equivalent to
-    the XML received regardless of schema support.
+    This is used to implement :class:`CapturingXSO`. See the documentation
+    there for use cases.
 
     .. versionadded:: 0.5
     """
