@@ -2,7 +2,7 @@ import unittest
 
 import aioxmpp.roster.xso as roster_xso
 import aioxmpp.stanza as stanza
-import aioxmpp.stream_xsos as stream_xsos
+import aioxmpp.nonza as nonza
 import aioxmpp.structs as structs
 import aioxmpp.xso as xso
 import aioxmpp.xso.model as xso_model
@@ -272,5 +272,5 @@ class TestRosterVersioningFeature(unittest.TestCase):
     def test_is_registered_as_feature(self):
         self.assertIn(
             roster_xso.RosterVersioningFeature.TAG,
-            stream_xsos.StreamFeatures.CHILD_MAP
+            nonza.StreamFeatures.CHILD_MAP
         )

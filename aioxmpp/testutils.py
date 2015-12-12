@@ -13,7 +13,7 @@ from datetime import timedelta
 
 import aioxmpp.callbacks as callbacks
 import aioxmpp.xso as xso
-import aioxmpp.stream_xsos as stream_xsos
+import aioxmpp.nonza as nonza
 
 from aioxmpp.utils import etree
 
@@ -103,7 +103,9 @@ class ConnectedClientMock(unittest.mock.Mock):
             "set_presence",
         ])
 
-        self.stream_features = stream_xsos.StreamFeatures()
+        self.established = True
+
+        self.stream_features = nonza.StreamFeatures()
         self.stream.send_iq_and_wait_for_reply = CoroutineMock()
         self.mock_services = {}
 
@@ -672,7 +674,7 @@ class XMLStreamMock(InteractivityMock):
     @asyncio.coroutine
     def close_and_wait(self):
         fut = asyncio.Future()
-        self.on_closing.connect(fut, callbacks.AdHocSignal.AUTO_FUTURE)
+        self.on_closing.connect(fut, self.on_closing.AUTO_FUTURE)
         self.close()
         try:
             yield from fut

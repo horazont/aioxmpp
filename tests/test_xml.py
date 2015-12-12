@@ -1,5 +1,5 @@
 import collections
-# import numbers
+import contextlib
 import io
 import unittest
 import unittest.mock
@@ -1398,4 +1398,112 @@ class Testserialize_single_xso(unittest.TestCase):
         self.assertEqual(
             '<bar xmlns="uri:foo" foo="test"/>',
             xml.serialize_single_xso(x)
+        )
+
+
+class Testwrite_single_xso(unittest.TestCase):
+    def test_simple(self):
+        class TestXSO(xso.XSO):
+            TAG = ("uri:foo", "bar")
+            DECLARE_NS = {
+                None: "uri:foo",
+            }
+
+            attr = xso.Attr("foo")
+
+        b = io.BytesIO()
+        x = TestXSO()
+        x.attr = "test"
+
+        xml.write_single_xso(x, b)
+
+        self.assertEqual(
+            b'<bar xmlns="uri:foo" foo="test"/>',
+            b.getvalue(),
+        )
+
+
+class Testread_xso(unittest.TestCase):
+    def test_read_from_io(self):
+        base = unittest.mock.Mock()
+
+        xso_parser = base.XSOParser()
+        sax_driver = base.SAXDriver()
+
+        base.mock_calls.clear()
+
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(unittest.mock.patch(
+                "aioxmpp.xso.XSOParser",
+                base.XSOParser
+            ))
+            stack.enter_context(unittest.mock.patch(
+                "aioxmpp.xso.SAXDriver",
+                base.SAXDriver
+            ))
+            stack.enter_context(unittest.mock.patch(
+                "xml.sax.make_parser",
+                base.make_parser
+            ))
+
+            xml.read_xso(base.src, {
+                base.A: base.cb,
+            })
+
+        self.assertSequenceEqual(
+            base.mock_calls,
+            [
+                unittest.mock.call.XSOParser(),
+                unittest.mock.call.XSOParser().add_class(
+                    base.A,
+                    base.cb
+                ),
+                unittest.mock.call.SAXDriver(xso_parser),
+                unittest.mock.call.make_parser(),
+                unittest.mock.call.make_parser().setFeature(
+                    saxhandler.feature_namespaces,
+                    True),
+                unittest.mock.call.make_parser().setFeature(
+                    saxhandler.feature_external_ges,
+                    False),
+                unittest.mock.call.make_parser().setContentHandler(
+                    sax_driver),
+                unittest.mock.call.make_parser().parse(base.src)
+            ]
+        )
+
+
+class Testread_single_xso(unittest.TestCase):
+    def test_uses_read_xso_with_custom_callback(self):
+        base = unittest.mock.Mock()
+
+        def read_xso(src, xsomap):
+            result = base.read_xso(src, xsomap)
+            self.assertEqual(len(xsomap), 1)
+            _, cb = next(iter(xsomap.items()))
+            cb(result)
+
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(unittest.mock.patch(
+                "aioxmpp.xml.read_xso",
+                new=read_xso
+            ))
+
+            result = xml.read_single_xso(base.src, base.Cls)
+
+        self.assertSequenceEqual(
+            base.mock_calls,
+            [
+                unittest.mock.call.read_xso(
+                    base.src,
+                    {
+                        base.Cls: unittest.mock.ANY
+                    }
+                ),
+            ]
+        )
+
+        self.assertEqual(
+            result,
+            base.read_xso()
         )

@@ -3,12 +3,15 @@ import getpass
 import itertools
 import logging
 
-from datetime import timedelta
-
 import aioxmpp.security_layer
 import aioxmpp.node
 import aioxmpp.structs
 import aioxmpp.disco
+
+try:
+    import readline
+except ImportError:
+    pass
 
 
 @asyncio.coroutine
@@ -31,7 +34,6 @@ def main(jid, password):
 
     tls_provider = aioxmpp.security_layer.STARTTLSProvider(
         aioxmpp.security_layer.default_ssl_context,
-        certificate_verifier_factory=aioxmpp.security_layer._NullVerifier
     )
 
     sasl_provider = aioxmpp.security_layer.PasswordSASLProvider(
@@ -66,7 +68,7 @@ def main(jid, password):
 
         print("features:")
         for feature in info.features:
-            print("  {!r}".format(feature.var))
+            print("  {!r}".format(feature))
 
         print("identities:")
         identities = list(info.identities)

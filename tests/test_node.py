@@ -2,15 +2,18 @@ import asyncio
 import contextlib
 import functools
 import ipaddress
-import logging
 import unittest
 import unittest.mock
 
 from datetime import timedelta
 
+import dns.resolver
+
+import aiosasl
+
 import aioxmpp.node as node
 import aioxmpp.structs as structs
-import aioxmpp.stream_xsos as stream_xsos
+import aioxmpp.nonza as nonza
 import aioxmpp.errors as errors
 import aioxmpp.stanza as stanza
 import aioxmpp.rfc3921 as rfc3921
@@ -439,7 +442,7 @@ class Testconnect_secured_xmlstream(unittest.TestCase):
         override_peer = object()
         xmlstream = unittest.mock.MagicMock()
 
-        final_features = stream_xsos.StreamFeatures()
+        final_features = nonza.StreamFeatures()
         tls_transport = object()
         security_layer = functools.partial(
             self._security_layer,
@@ -447,7 +450,7 @@ class Testconnect_secured_xmlstream(unittest.TestCase):
             tls_transport,
             final_features)
 
-        features = stream_xsos.StreamFeatures()
+        features = nonza.StreamFeatures()
 
         with unittest.mock.patch("aioxmpp.node.connect_to_xmpp_server",
                                  functools.partial(
@@ -492,7 +495,7 @@ class Testconnect_secured_xmlstream(unittest.TestCase):
         transport = object()
         xmlstream = unittest.mock.MagicMock()
 
-        final_features = stream_xsos.StreamFeatures()
+        final_features = nonza.StreamFeatures()
         tls_transport = object()
         security_layer = functools.partial(
             self._security_layer,
@@ -500,7 +503,7 @@ class Testconnect_secured_xmlstream(unittest.TestCase):
             tls_transport,
             final_features)
 
-        features = stream_xsos.StreamFeatures()
+        features = nonza.StreamFeatures()
 
         @asyncio.coroutine
         def sleeper(jid, override_peer, loop):
@@ -531,7 +534,7 @@ class Testconnect_secured_xmlstream(unittest.TestCase):
         transport = object()
         xmlstream = unittest.mock.MagicMock()
 
-        final_features = stream_xsos.StreamFeatures()
+        final_features = nonza.StreamFeatures()
         tls_transport = object()
         security_layer = functools.partial(
             self._security_layer,
@@ -539,7 +542,7 @@ class Testconnect_secured_xmlstream(unittest.TestCase):
             tls_transport,
             final_features)
 
-        features = stream_xsos.StreamFeatures()
+        features = nonza.StreamFeatures()
 
         with unittest.mock.patch("aioxmpp.node.connect_to_xmpp_server",
                                  functools.partial(
@@ -574,7 +577,7 @@ class Testconnect_secured_xmlstream(unittest.TestCase):
         send_stream_error_and_close.assert_called_once_with(
             xmlstream,
             condition=(namespaces.streams, "policy-violation"),
-            text="SASL failure: invalid-mechanism")
+            text="Security negotiation failure: invalid-mechanism")
 
     @unittest.mock.patch("aioxmpp.protocol.send_stream_error_and_close")
     def test_send_stream_error_on_tls_unavailable_and_re_raise(
@@ -589,7 +592,7 @@ class Testconnect_secured_xmlstream(unittest.TestCase):
         transport = object()
         xmlstream = unittest.mock.MagicMock()
 
-        final_features = stream_xsos.StreamFeatures()
+        final_features = nonza.StreamFeatures()
         tls_transport = object()
         security_layer = functools.partial(
             self._security_layer,
@@ -597,7 +600,7 @@ class Testconnect_secured_xmlstream(unittest.TestCase):
             tls_transport,
             final_features)
 
-        features = stream_xsos.StreamFeatures()
+        features = nonza.StreamFeatures()
 
         with unittest.mock.patch("aioxmpp.node.connect_to_xmpp_server",
                                  functools.partial(
@@ -641,7 +644,7 @@ class Testconnect_secured_xmlstream(unittest.TestCase):
     ):
         connect_to_xmpp_server_recorder = unittest.mock.MagicMock()
         security_layer_recorder = unittest.mock.MagicMock()
-        exc = errors.SASLFailure(
+        exc = aiosasl.SASLFailure(
             "malformed-request",
             text="Nonce does not match")
         security_layer_recorder.side_effect = exc
@@ -649,7 +652,7 @@ class Testconnect_secured_xmlstream(unittest.TestCase):
         transport = object()
         xmlstream = unittest.mock.MagicMock()
 
-        final_features = stream_xsos.StreamFeatures()
+        final_features = nonza.StreamFeatures()
         tls_transport = object()
         security_layer = functools.partial(
             self._security_layer,
@@ -657,7 +660,7 @@ class Testconnect_secured_xmlstream(unittest.TestCase):
             tls_transport,
             final_features)
 
-        features = stream_xsos.StreamFeatures()
+        features = nonza.StreamFeatures()
 
         with unittest.mock.patch("aioxmpp.node.connect_to_xmpp_server",
                                  functools.partial(
@@ -667,7 +670,7 @@ class Testconnect_secured_xmlstream(unittest.TestCase):
                                      xmlstream,
                                      connect_to_xmpp_server_recorder
                                  )):
-            with self.assertRaises(errors.SASLFailure):
+            with self.assertRaises(aiosasl.SASLFailure):
                 run_coroutine(
                     node.connect_secured_xmlstream(
                         self.test_jid,
@@ -737,7 +740,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
                                              for patch in self.patches)
         self._xmlstream = XMLStreamMock(self, loop=self.loop)
         self.test_jid = structs.JID.fromstr("foo@bar.example/baz")
-        self.features = stream_xsos.StreamFeatures()
+        self.features = nonza.StreamFeatures()
         self.features[...] = rfc6120.BindFeature()
 
         self.client = node.AbstractClient(
@@ -751,9 +754,9 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
         # some XMLStreamMock test case parts
         self.sm_negotiation_exchange = [
             XMLStreamMock.Send(
-                stream_xsos.SMEnable(resume=True),
+                nonza.SMEnable(resume=True),
                 response=XMLStreamMock.Receive(
-                    stream_xsos.SMEnabled(resume=True,
+                    nonza.SMEnabled(resume=True,
                                           id_="foobar")
                 )
             )
@@ -778,7 +781,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
         ]
         self.sm_request = [
             XMLStreamMock.Send(
-                stream_xsos.SMRequest()
+                nonza.SMRequest()
             )
         ]
 
@@ -815,6 +818,15 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
             client.backoff_factor,
             1.2
         )
+
+        self.assertEqual(client.on_stopped.logger,
+                         client._logger.getChild("on_stopped"))
+        self.assertEqual(client.on_failure.logger,
+                         client._logger.getChild("on_failure"))
+        self.assertEqual(client.on_stream_established.logger,
+                         client._logger.getChild("on_stream_established"))
+        self.assertEqual(client.on_stream_destroyed.logger,
+                         client._logger.getChild("on_stream_destroyed"))
 
         with self.assertRaises(AttributeError):
             client.local_jid = structs.JID.fromstr("bar@bar.example/baz")
@@ -953,7 +965,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
         self.assertTrue(self.client.established)
 
     def test_fail_on_authentication_failure(self):
-        exc = errors.AuthenticationFailure("not-authorized")
+        exc = aiosasl.AuthenticationFailure("not-authorized")
         self.connect_secured_xmlstream_rec.side_effect = exc
         self.client.start()
         run_coroutine(asyncio.sleep(0))
@@ -1054,12 +1066,129 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
         self.client.stop()
         run_coroutine(asyncio.sleep(0))
 
+    def test_exponential_backoff_on_no_nameservers(self):
+        call = unittest.mock.call(
+            self.test_jid,
+            self.security_layer,
+            negotiation_timeout=60.0,
+            override_peer=None,
+            loop=self.loop)
+
+        exc = dns.resolver.NoNameservers()
+        self.connect_secured_xmlstream_rec.side_effect = exc
+        self.client.backoff_start = timedelta(seconds=0.01)
+        self.client.backoff_factor = 2
+        self.client.backoff_cap = timedelta(seconds=0.1)
+        self.client.start()
+        run_coroutine(asyncio.sleep(0))
+        self.assertTrue(self.client.running)
+        self.assertFalse(self.client.stream.running)
+
+        self.assertSequenceEqual(
+            [call],
+            self.connect_secured_xmlstream_rec.mock_calls
+        )
+
+        run_coroutine(asyncio.sleep(0.01))
+
+        self.assertSequenceEqual(
+            [call]*2,
+            self.connect_secured_xmlstream_rec.mock_calls
+        )
+
+        run_coroutine(asyncio.sleep(0.02))
+
+        self.assertSequenceEqual(
+            [call]*3,
+            self.connect_secured_xmlstream_rec.mock_calls
+        )
+
+        run_coroutine(asyncio.sleep(0.04))
+
+        self.assertSequenceEqual(
+            [call]*4,
+            self.connect_secured_xmlstream_rec.mock_calls
+        )
+
+        run_coroutine(asyncio.sleep(0.08))
+
+        self.assertSequenceEqual(
+            [call]*5,
+            self.connect_secured_xmlstream_rec.mock_calls
+        )
+
+        run_coroutine(asyncio.sleep(0.1))
+
+        self.assertSequenceEqual(
+            [call]*6,
+            self.connect_secured_xmlstream_rec.mock_calls
+        )
+
+        run_coroutine(asyncio.sleep(0.1))
+
+        self.assertSequenceEqual(
+            [call]*7,
+            self.connect_secured_xmlstream_rec.mock_calls
+        )
+
+        self.assertSequenceEqual(
+            [
+            ],
+            self.failure_rec.mock_calls
+        )
+
+        self.client.stop()
+        run_coroutine(asyncio.sleep(0))
+
+    def test_fail_on_value_error_while_live(self):
+
+        self.client.backoff_start = timedelta(seconds=0.01)
+        self.client.backoff_factor = 2
+        self.client.backoff_cap = timedelta(seconds=0.1)
+        self.client.start()
+
+        run_coroutine(self.xmlstream.run_test(
+            self.resource_binding
+        ))
+        run_coroutine(asyncio.sleep(0))
+
+        exc = ValueError()
+        self.client._stream_failure(exc)
+        run_coroutine(asyncio.sleep(0))
+        self.failure_rec.assert_called_with(exc)
+
+        self.assertFalse(self.client.running)
+        self.assertFalse(self.client.stream.running)
+
+    def test_fail_on_conflict_stream_error_while_live(self):
+        self.client.backoff_start = timedelta(seconds=0.01)
+        self.client.backoff_factor = 2
+        self.client.backoff_cap = timedelta(seconds=0.1)
+        self.client.start()
+
+        run_coroutine(self.xmlstream.run_test(
+            self.resource_binding
+        ))
+        run_coroutine(asyncio.sleep(0))
+
+        exc = errors.StreamError(
+            condition=(namespaces.streams, "conflict")
+        )
+        # stream would have been terminated normally, so we stop it manually
+        # here
+        self.client.stream._xmlstream_failed(exc)
+        run_coroutine(asyncio.sleep(0))
+        self.failure_rec.assert_called_with(exc)
+
+        self.assertFalse(self.client.running)
+        self.assertFalse(self.client.stream.running)
+
     def test_negotiate_stream_management(self):
-        self.features[...] = stream_xsos.StreamManagementFeature()
+        self.features[...] = nonza.StreamManagementFeature()
 
         self.client.start()
         run_coroutine(self.xmlstream.run_test(
-            self.resource_binding+
+            self.resource_binding +
             self.sm_negotiation_exchange
         ))
 
@@ -1104,7 +1233,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
 
     def test_negotiate_legacy_session_after_stream_management(self):
         self.features[...] = rfc3921.SessionFeature()
-        self.features[...] = stream_xsos.StreamManagementFeature()
+        self.features[...] = nonza.StreamManagementFeature()
 
         iqreq = stanza.IQ(type_="set")
         iqreq.payload = rfc3921.Session()
@@ -1125,7 +1254,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
                     ]
                 ),
                 XMLStreamMock.Send(
-                    stream_xsos.SMRequest()
+                    nonza.SMRequest()
                 )
             ],
         ))
@@ -1135,7 +1264,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
         self.assertTrue(self.client.established)
 
     def test_resume_stream_management(self):
-        self.features[...] = stream_xsos.StreamManagementFeature()
+        self.features[...] = nonza.StreamManagementFeature()
 
         self.client.backoff_start = timedelta(seconds=0)
         self.client.start()
@@ -1147,10 +1276,10 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
 
             run_coroutine(self.xmlstream.run_test(self.resource_binding+[
                 XMLStreamMock.Send(
-                    stream_xsos.SMEnable(resume=True),
+                    nonza.SMEnable(resume=True),
                     response=[
                         XMLStreamMock.Receive(
-                            stream_xsos.SMEnabled(resume=True,
+                            nonza.SMEnabled(resume=True,
                                                   id_="foobar"),
 
                         ),
@@ -1164,10 +1293,10 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
             # new xmlstream here after failure
             run_coroutine(self.xmlstream.run_test([
                 XMLStreamMock.Send(
-                    stream_xsos.SMResume(counter=0, previd="foobar"),
+                    nonza.SMResume(counter=0, previd="foobar"),
                     response=[
                         XMLStreamMock.Receive(
-                            stream_xsos.SMResumed(counter=0, previd="foobar")
+                            nonza.SMResumed(counter=0, previd="foobar")
                         )
                     ]
                 )
@@ -1179,7 +1308,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
         self.assertFalse(self.destroyed_rec.mock_calls)
 
     def test_stop_stream_management_if_remote_stops_providing_support(self):
-        self.features[...] = stream_xsos.StreamManagementFeature()
+        self.features[...] = nonza.StreamManagementFeature()
 
         self.client.backoff_start = timedelta(seconds=0)
         self.client.start()
@@ -1187,10 +1316,10 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
         run_coroutine(self.xmlstream.run_test([
         ]+self.resource_binding+[
             XMLStreamMock.Send(
-                stream_xsos.SMEnable(resume=True),
+                nonza.SMEnable(resume=True),
                 response=[
                     XMLStreamMock.Receive(
-                        stream_xsos.SMEnabled(resume=True,
+                        nonza.SMEnabled(resume=True,
                                               id_="foobar"),
 
                     ),
@@ -1202,7 +1331,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
         ]))
         # new xmlstream after failure
 
-        del self.features[stream_xsos.StreamManagementFeature]
+        del self.features[nonza.StreamManagementFeature]
 
         run_coroutine(self.xmlstream.run_test(self.resource_binding))
         run_coroutine(asyncio.sleep(0))
@@ -1216,7 +1345,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
         self.destroyed_rec.assert_called_once_with()
 
     def test_reconnect_at_advised_location_for_resumable_stream(self):
-        self.features[...] = stream_xsos.StreamManagementFeature()
+        self.features[...] = nonza.StreamManagementFeature()
 
         self.client.backoff_start = timedelta(seconds=0)
         self.client.start()
@@ -1224,10 +1353,10 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
         run_coroutine(self.xmlstream.run_test([
         ]+self.resource_binding+[
             XMLStreamMock.Send(
-                stream_xsos.SMEnable(resume=True),
+                nonza.SMEnable(resume=True),
                 response=[
                     XMLStreamMock.Receive(
-                        stream_xsos.SMEnabled(
+                        nonza.SMEnabled(
                             resume=True,
                             id_="foobar",
                             location=(ipaddress.IPv6Address("fe80::"), 5222)),
@@ -1242,10 +1371,10 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
         # new xmlstream after failure
         run_coroutine(self.xmlstream.run_test([
             XMLStreamMock.Send(
-                stream_xsos.SMResume(counter=0, previd="foobar"),
+                nonza.SMResume(counter=0, previd="foobar"),
                 response=[
                     XMLStreamMock.Receive(
-                        stream_xsos.SMResumed(counter=0, previd="foobar")
+                        nonza.SMResumed(counter=0, previd="foobar")
                     )
                 ]
             )
@@ -1273,7 +1402,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
         self.assertFalse(self.destroyed_rec.mock_calls)
 
     def test_degrade_to_non_sm_if_sm_fails(self):
-        self.features[...] = stream_xsos.StreamManagementFeature()
+        self.features[...] = nonza.StreamManagementFeature()
 
         self.client.backoff_start = timedelta(seconds=0)
         self.client.start()
@@ -1281,10 +1410,10 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
         run_coroutine(self.xmlstream.run_test([
         ]+self.resource_binding+[
             XMLStreamMock.Send(
-                stream_xsos.SMEnable(resume=True),
+                nonza.SMEnable(resume=True),
                 response=[
                     XMLStreamMock.Receive(
-                        stream_xsos.SMFailed(),
+                        nonza.SMFailed(),
                     ),
                 ]
             ),
@@ -1298,7 +1427,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
         self.assertFalse(self.destroyed_rec.mock_calls)
 
     def test_retry_sm_restart_if_sm_resumption_fails(self):
-        self.features[...] = stream_xsos.StreamManagementFeature()
+        self.features[...] = nonza.StreamManagementFeature()
 
         self.client.backoff_start = timedelta(seconds=0)
         self.client.start()
@@ -1306,10 +1435,10 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
         run_coroutine(self.xmlstream.run_test([
         ]+self.resource_binding+[
             XMLStreamMock.Send(
-                stream_xsos.SMEnable(resume=True),
+                nonza.SMEnable(resume=True),
                 response=[
                     XMLStreamMock.Receive(
-                        stream_xsos.SMEnabled(resume=True,
+                        nonza.SMEnabled(resume=True,
                                               id_="foobar"),
 
                     ),
@@ -1322,19 +1451,19 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
         # new xmlstream after failure
         run_coroutine(self.xmlstream.run_test([
             XMLStreamMock.Send(
-                stream_xsos.SMResume(counter=0, previd="foobar"),
+                nonza.SMResume(counter=0, previd="foobar"),
                 response=[
                     XMLStreamMock.Receive(
-                        stream_xsos.SMFailed()
+                        nonza.SMFailed()
                     )
                 ]
             ),
         ]+self.resource_binding+[
             XMLStreamMock.Send(
-                stream_xsos.SMEnable(resume=True),
+                nonza.SMEnable(resume=True),
                 response=[
                     XMLStreamMock.Receive(
-                        stream_xsos.SMEnabled(resume=True,
+                        nonza.SMEnabled(resume=True,
                                               id_="foobar"),
 
                     ),
@@ -1382,7 +1511,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
                         id_="autoset"
                     )
                 )
-            )
+            ),
         ]))
         run_coroutine(asyncio.sleep(0))
 
@@ -1473,7 +1602,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
 
         run_coroutine(self.xmlstream.run_test([]))
 
-        exc = errors.AuthenticationFailure("not-authorized")
+        exc = aiosasl.AuthenticationFailure("not-authorized")
         self.connect_secured_xmlstream_rec.side_effect = exc
 
         run_coroutine(self.xmlstream.run_test([
@@ -1498,7 +1627,8 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
         ]))
 
         run_coroutine(self.xmlstream.run_test(
-            [],
+            [
+            ],
             stimulus=XMLStreamMock.Fail(exc=ConnectionError())
         ))
 
@@ -1508,8 +1638,13 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
         self.destroyed_rec.assert_called_once_with()
         self.assertFalse(self.client.established)
 
+        # stop the client to avoid tearDown to wait for a close which isn’t
+        # gonna happen
+        self.client.stop()
+        run_coroutine(asyncio.sleep(0))
+
     def test_signals_fire_correctly_on_fail_after_established_sm_connection(self):
-        self.features[...] = stream_xsos.StreamManagementFeature()
+        self.features[...] = nonza.StreamManagementFeature()
 
         self.client.backoff_start = timedelta(seconds=0)
         self.client.start()
@@ -1519,7 +1654,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
             self.sm_negotiation_exchange
         ))
 
-        exc = errors.AuthenticationFailure("not-authorized")
+        exc = aiosasl.AuthenticationFailure("not-authorized")
         self.connect_secured_xmlstream_rec.side_effect = exc
 
         run_coroutine(self.xmlstream.run_test(
@@ -1554,7 +1689,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
                 super().__init__(*args, **kwargs)
                 getattr(svc_init, type(self).__name__)(*args, **kwargs)
 
-        svc2 = self.client.summon(Svc2)
+        self.client.summon(Svc2)
 
         self.assertSequenceEqual(
             [
@@ -1564,7 +1699,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
             svc_init.mock_calls
         )
 
-        svc3 = self.client.summon(Svc3)
+        self.client.summon(Svc3)
 
         self.assertSequenceEqual(
             [
@@ -1574,7 +1709,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
             svc_init.mock_calls
         )
 
-        svc1 = self.client.summon(Svc1)
+        self.client.summon(Svc1)
 
         self.assertSequenceEqual(
             [
@@ -1662,7 +1797,7 @@ class TestPresenceManagedClient(xmltestutils.XMLTestCase):
                                              for patch in self.patches)
         self._xmlstream = XMLStreamMock(self, loop=self.loop)
         self.test_jid = structs.JID.fromstr("foo@bar.example/baz")
-        self.features = stream_xsos.StreamFeatures()
+        self.features = nonza.StreamFeatures()
         self.features[...] = rfc6120.BindFeature()
 
         self.client = node.PresenceManagedClient(
@@ -1874,82 +2009,158 @@ class TestPresenceManagedClient(xmltestutils.XMLTestCase):
         self.presence_sent_rec.reset_mock()
 
     def test_set_presence_with_texts(self):
-        status_texts = [
-            stanza.Status("de", structs.LanguageTag.fromstr("de")),
-            stanza.Status("generic"),
-        ]
-
-        self.client.set_presence(
-            structs.PresenceState(
-                available=True,
-                show="chat"),
-            status=status_texts
-        )
+        status_texts = {
+            None: "generic",
+            structs.LanguageTag.fromstr("de"): "de"
+        }
 
         expected = stanza.Presence(type_=None,
                                    show="chat",
                                    id_="autoset")
-        expected.status.extend(status_texts)
+        expected.status.update(status_texts)
 
-        run_coroutine(self.xmlstream.run_test([
-        ]+self.resource_binding+[
-            XMLStreamMock.Send(
-                expected
+        base = unittest.mock.Mock()
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(unittest.mock.patch.object(
+                self.client,
+                "stream",
+                new=base.stream
+            ))
+
+            stack.enter_context(unittest.mock.patch.object(
+                self.client,
+                "start",
+                new=base.start
+            ))
+
+            self.client.set_presence(
+                structs.PresenceState(
+                    available=True,
+                    show="chat"),
+                status=status_texts
             )
-        ]))
+
+            self.client.on_stream_established()
+
+        self.assertSequenceEqual(
+            base.mock_calls,
+            [
+                unittest.mock.call.start(),
+                unittest.mock.call.stream.enqueue_stanza(unittest.mock.ANY)
+            ]
+        )
+
+        _, (sent,), _ = base.mock_calls[-1]
+
+        self.assertDictEqual(
+            sent.status,
+            expected.status
+        )
+        self.assertEqual(sent.type_, expected.type_)
+        self.assertEqual(sent.show, expected.show)
 
         self.presence_sent_rec.assert_called_once_with()
 
     def test_set_presence_with_single_string(self):
-        self.client.set_presence(
-            structs.PresenceState(
-                available=True,
-                show="chat"),
-            status="foobar"
-        )
-
         expected = stanza.Presence(type_=None,
                                    show="chat",
                                    id_="autoset")
-        expected.status.append(
-            stanza.Status("foobar")
+        expected.status[None] = "foobar"
+
+        base = unittest.mock.Mock()
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(unittest.mock.patch.object(
+                self.client,
+                "stream",
+                new=base.stream
+            ))
+
+            stack.enter_context(unittest.mock.patch.object(
+                self.client,
+                "start",
+                new=base.start
+            ))
+
+            self.client.set_presence(
+                structs.PresenceState(
+                    available=True,
+                    show="chat"),
+                status="foobar"
+            )
+
+            self.client.on_stream_established()
+
+        self.assertSequenceEqual(
+            base.mock_calls,
+            [
+                unittest.mock.call.start(),
+                unittest.mock.call.stream.enqueue_stanza(unittest.mock.ANY)
+            ]
         )
 
-        run_coroutine(self.xmlstream.run_test([
-        ]+self.resource_binding+[
-            XMLStreamMock.Send(
-                expected
-            )
-        ]))
+        _, (sent,), _ = base.mock_calls[-1]
+
+        self.assertDictEqual(
+            sent.status,
+            expected.status
+        )
+        self.assertEqual(sent.type_, expected.type_)
+        self.assertEqual(sent.show, expected.show)
 
         self.presence_sent_rec.assert_called_once_with()
 
     def test_set_presence_is_robust_against_modification_of_the_argument(self):
-        status_texts = [
-            stanza.Status("de", structs.LanguageTag.fromstr("de")),
-            stanza.Status("generic"),
-        ]
-
-        self.client.set_presence(
-            structs.PresenceState(
-                available=True,
-                show="chat"),
-            status=status_texts
-        )
+        status_texts = {
+            None: "generic",
+            structs.LanguageTag.fromstr("de"): "de",
+        }
 
         expected = stanza.Presence(type_=None,
                                    show="chat",
                                    id_="autoset")
-        expected.status.extend(status_texts)
+        expected.status.update(status_texts)
 
-        del status_texts[0]
+        base = unittest.mock.Mock()
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(unittest.mock.patch.object(
+                self.client,
+                "stream",
+                new=base.stream
+            ))
 
-        run_coroutine(self.xmlstream.run_test([
-        ]+self.resource_binding+[
-            XMLStreamMock.Send(
-                expected
+            stack.enter_context(unittest.mock.patch.object(
+                self.client,
+                "start",
+                new=base.start
+            ))
+
+            self.client.set_presence(
+                structs.PresenceState(
+                    available=True,
+                    show="chat"),
+                status=status_texts
             )
-        ]))
+
+            del status_texts[None]
+
+            self.client.on_stream_established()
+
+        self.assertSequenceEqual(
+            base.mock_calls,
+            [
+                unittest.mock.call.start(),
+                unittest.mock.call.stream.enqueue_stanza(unittest.mock.ANY)
+            ]
+        )
+
+        _, (sent,), _ = base.mock_calls[-1]
+
+        self.assertDictEqual(
+            sent.status,
+            expected.status
+        )
+        self.assertEqual(sent.type_, expected.type_)
+        self.assertEqual(sent.show, expected.show)
 
         self.presence_sent_rec.assert_called_once_with()
 

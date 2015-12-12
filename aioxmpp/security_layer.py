@@ -101,7 +101,9 @@ import pyasn1_modules.rfc2459
 
 import OpenSSL.SSL
 
-from . import errors, sasl, stream_xsos, xso, protocol
+import aiosasl
+
+from . import errors, sasl, nonza, xso, protocol
 from .utils import namespaces
 
 
@@ -722,7 +724,7 @@ class STARTTLSProvider:
         """
 
         try:
-            feature = features[stream_xsos.StartTLSFeature]
+            feature = features[nonza.StartTLSFeature]
         except KeyError:
             return self._fail_if_required("STARTTLS not supported by peer")
 
@@ -735,11 +737,11 @@ class STARTTLSProvider:
         response = yield from protocol.send_and_wait_for(
             xmlstream,
             [
-                stream_xsos.StartTLS()
+                nonza.StartTLS()
             ],
             [
-                stream_xsos.StartTLSFailure,
-                stream_xsos.StartTLSProceed,
+                nonza.StartTLSFailure,
+                nonza.StartTLSProceed,
             ]
         )
 
@@ -758,7 +760,7 @@ class STARTTLSProvider:
                 # no need to re-wrap that
                 logger.exception("STARTTLS failed:")
                 raise
-            except Exception as err:
+            except OSError as err:
                 logger.exception("STARTTLS failed:")
                 raise errors.TLSFailure(
                     "TLS connection failed: {}".format(err)
@@ -778,7 +780,7 @@ class SASLMechanism(xso.XSO):
         self.name = name
 
 
-@stream_xsos.StreamFeatures.as_feature_class
+@nonza.StreamFeatures.as_feature_class
 class SASLMechanisms(xso.XSO):
     TAG = (namespaces.sasl, "mechanisms")
 
@@ -797,7 +799,7 @@ class SASLProvider:
         Return a supported SASL mechanism class, by looking the given
         stream features `features`.
 
-        If SASL is not supported at all, :class:`~.errors.SASLFailure` is
+        If SASL is not supported at all, :class:`aiosasl.SASLFailure` is
         raised. If no matching mechanism is found, ``(None, None)`` is
         returned. Otherwise, a pair consisting of the mechanism class and the
         value returned by the respective
@@ -835,21 +837,21 @@ class SASLProvider:
     }
 
     @asyncio.coroutine
-    def _execute(self, xmlstream, mechanism, token):
+    def _execute(self, intf, mechanism, token):
         """
         Execute SASL negotiation using the given `mechanism` instance and
-        `token` on the `xmlstream`.
+        `token` using the :class:`~.sasl.SASLXMPPInterface` `intf`.
         """
-        sm = sasl.SASLStateMachine(xmlstream)
+        sm = aiosasl.SASLStateMachine(intf)
         try:
             yield from mechanism.authenticate(sm, token)
             return True
-        except errors.SASLFailure as err:
-            if err.xmpp_error in self.AUTHENTICATION_FAILURES:
-                raise errors.AuthenticationFailure(
-                    xmpp_error=err.xmpp_error,
+        except aiosasl.SASLFailure as err:
+            if err.opaque_error in self.AUTHENTICATION_FAILURES:
+                raise aiosasl.AuthenticationFailure(
+                    opaque_error=err.opaque_error,
                     text=err.text)
-            elif err.xmpp_error in self.MECHANISM_REJECTED_FAILURES:
+            elif err.opaque_error in self.MECHANISM_REJECTED_FAILURES:
                 return False
             raise
 
@@ -870,7 +872,7 @@ class SASLProvider:
         provider supporting ``EXTERNAL`` in front of password-based providers).
 
         Any other error case, such as no SASL support on the remote side or
-        authentication failure results in an :class:`~.errors.SASLFailure`
+        authentication failure results in an :class:`aiosasl.SASLFailure`
         exception to be raised.
         """
 
@@ -889,8 +891,8 @@ class PasswordSASLProvider(SASLProvider):
     authentication error of the last attempt is raised.
 
     The SASL mechanisms used depend on whether TLS has been negotiated
-    successfully before. In any case, :class:`~.sasl.SCRAM` is used. If TLS has
-    been negotiated, :class:`~.sasl.PLAIN` is also supported.
+    successfully before. In any case, :class:`aiosasl.SCRAM` is used. If TLS has
+    been negotiated, :class:`aiosasl.PLAIN` is also supported.
     """
 
     def __init__(self, password_provider, *,
@@ -921,17 +923,19 @@ class PasswordSASLProvider(SASLProvider):
                 client_jid, nattempt)
             if password is None:
                 password_signalled_abort = True
-                raise errors.AuthenticationFailure(
-                    "Authentication aborted by user")
+                raise aiosasl.AuthenticationFailure(
+                    "user intervention",
+                    text="authentication aborted by user")
             cached_credentials = password
             return client_jid.localpart, password
 
         classes = [
-            sasl.SCRAM
+            aiosasl.SCRAM
         ]
         if tls_transport is not None:
-            classes.append(sasl.PLAIN)
+            classes.append(aiosasl.PLAIN)
 
+        intf = sasl.SASLXMPPInterface(xmlstream)
         while classes:
             # go over all mechanisms available. some errors disable a mechanism
             # (like encryption-required or mechansim-too-weak)
@@ -944,8 +948,8 @@ class PasswordSASLProvider(SASLProvider):
             for nattempt in range(self._max_auth_attempts):
                 try:
                     mechanism_worked = yield from self._execute(
-                        xmlstream, mechanism, token)
-                except errors.AuthenticationFailure as err:
+                        intf, mechanism, token)
+                except aiosasl.AuthenticationFailure as err:
                     if password_signalled_abort:
                         # immediately re-raise
                         raise
@@ -991,12 +995,12 @@ def negotiate_stream_security(tls_provider, sasl_providers,
     After TLS has been tried, SASL is negotiated, by sequentially attempting
     SASL negotiation using the providers in the `sasl_providers` list. If a
     provider fails to negotiate SASL with an
-    :class:`~.errors.AuthenticationFailure` or has no mechanisms in common with
+    :class:`aiosasl.AuthenticationFailure` or has no mechanisms in common with
     the peer server, the next provider can continue. Otherwise, the exception
     propagates upwards.
 
     If no provider succeeds and there was an authentication failure, that error
-    is re-raised. Otherwise, a dedicated :class:`~.errors.SASLFailure`
+    is re-raised. Otherwise, a dedicated :class:`aiosasl.SASLFailure`
     exception is raised, which states that no common mechanisms were found.
 
     On success, a pair of ``(tls_transport, features)`` is returned. If TLS has
@@ -1007,9 +1011,9 @@ def negotiate_stream_security(tls_provider, sasl_providers,
     negotiation.
 
     On failure, an appropriate exception is raised. Authentication failures
-    can be caught as :class:`.errors.AuthenticationFailure`. Errors related
+    can be caught as :class:`aiosasl.AuthenticationFailure`. Errors related
     to SASL or TLS negotiation itself can be caught using
-    :class:`~.errors.SASLFailure` and :class:`~.errors.TLSFailure`
+    :class:`aiosasl.SASLFailure` and :class:`~.errors.TLSFailure`
     respectively.
     """
 
@@ -1025,7 +1029,7 @@ def negotiate_stream_security(tls_provider, sasl_providers,
         try:
             result = yield from sasl_provider.execute(
                 jid, features, xmlstream, tls_transport)
-        except errors.AuthenticationFailure as err:
+        except aiosasl.AuthenticationFailure as err:
             last_auth_error = err
             continue
 

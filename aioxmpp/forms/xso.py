@@ -5,8 +5,23 @@ from aioxmpp.utils import namespaces
 namespaces.xep0004_data = "jabber:x:data"
 
 
-class Value(xso.AbstractTextChild):
+class Value(xso.XSO):
     TAG = (namespaces.xep0004_data, "value")
+
+    value = xso.Text(default="")
+
+
+class ValueElement(xso.AbstractType):
+    def parse(self, item):
+        return item.value
+
+    def format(self, value):
+        v = Value()
+        v.value = value
+        return v
+
+    def get_formatted_type(self):
+        return Value
 
 
 class Option(xso.XSO):
@@ -27,6 +42,21 @@ class Option(xso.XSO):
             raise ValueError("option is missing a value")
 
 
+class OptionElement(xso.AbstractType):
+    def parse(self, item):
+        return (item.value, item.label)
+
+    def format(self, value):
+        value, label = value
+        o = Option()
+        o.value = value
+        o.label = label
+        return o
+
+    def get_formatted_type(self):
+        return Option
+
+
 class Field(xso.XSO):
     TAG = (namespaces.xep0004_data, "field")
 
@@ -41,9 +71,13 @@ class Field(xso.XSO):
         default=None
     )
 
-    values = xso.ChildList([Value])
+    values = xso.ChildValueList(
+        type_=ValueElement()
+    )
 
-    options = xso.ChildList([Option])
+    options = xso.ChildValueMap(
+        type_=OptionElement()
+    )
 
     var = xso.Attr(
         (None, "var"),
@@ -64,6 +98,7 @@ class Field(xso.XSO):
             "text-private",
             "text-single",
         ]),
+        default="text-single"
     )
 
     label = xso.Attr(
@@ -71,9 +106,23 @@ class Field(xso.XSO):
         default=None
     )
 
-    def __init__(self):
+    def __init__(self, *,
+                 type_="text-single",
+                 options={},
+                 values=[],
+                 desc=None,
+                 label=None,
+                 required=False,
+                 var=None):
         super().__init__()
-        self.type_ = "text-single"
+        self.type_ = type_
+        self.options.update(options)
+        self.values[:] = values
+        self.desc = desc
+        self.label = label
+        if required:
+            self.required = (namespaces.xep0004_data, "required")
+        self.var = var
 
     def validate(self):
         super().validate()
@@ -87,17 +136,11 @@ class Field(xso.XSO):
         if not self.type_.endswith("-multi") and len(self.values) > 1:
             raise ValueError("too many values on non-multi field")
 
-        labels_list = [opt.label for opt in self.options]
-        labels_set = set(labels_list)
-
-        if len(labels_list) != len(labels_set):
-            raise ValueError("duplicate option label")
-
-        values_list = [opt.value for opt in self.options]
+        values_list = [opt for opt in self.options.values()]
         values_set = set(values_list)
 
         if len(values_list) != len(values_set):
-            raise ValueError("duplicate option label")
+            raise ValueError("duplicate option value")
 
 
 class AbstractItem(xso.XSO):
@@ -163,5 +206,6 @@ class Data(AbstractItem):
                 (self.reported is not None or self.items)):
             raise ValueError("report in non-result")
 
-        if self.type_ == "result":
+        if     (self.type_ == "result" and
+                (self.reported is not None or self.items)):
             self._validate_result()

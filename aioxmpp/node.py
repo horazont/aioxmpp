@@ -27,6 +27,10 @@ import logging
 
 from datetime import timedelta
 
+import dns.resolver
+
+import aiosasl
+
 from . import (
     network,
     ssl_transport,
@@ -34,7 +38,7 @@ from . import (
     errors,
     stream,
     callbacks,
-    stream_xsos,
+    nonza,
     rfc3921,
     rfc6120,
     stanza,
@@ -65,7 +69,7 @@ def connect_to_xmpp_server(jid, *, override_peer=None, loop=None):
 
     Return a triple consisting of the `transport`, the
     :class:`~aioxmpp.protocol.XMLStream` instance and a :class:`asyncio.Future`
-    on the first :class:`~aioxmpp.stream_xsos.StreamFeatures` node.
+    on the first :class:`~aioxmpp.nonza.StreamFeatures` node.
 
     If the connection fails :class:`OSError` is raised. That OSError may in
     fact be a :class:`~aioxmpp.errors.MultiOSError`, which gives more
@@ -151,7 +155,7 @@ def connect_secured_xmlstream(jid, security_layer,
 
     Return a triple consisting of the `transport`, the
     :class:`~aioxmpp.protocol.XMLStream` and the current
-    :class:`~aioxmpp.stream_xsos.StreamFeatures` node. The `transport` returned
+    :class:`~aioxmpp.nonza.StreamFeatures` node. The `transport` returned
     in the triple is the one returned by the security layer and is :data:`None`
     if no starttls has been negotiated. To gain access to the transport used if
     the transport returned is :data:`None`, use the
@@ -203,7 +207,7 @@ def connect_secured_xmlstream(jid, security_layer,
             text=str(exc)
         )
         raise
-    except errors.SASLFailure as exc:
+    except aiosasl.SASLError as exc:
         protocol.send_stream_error_and_close(
             xmlstream,
             condition=(namespaces.streams, "undefined-condition"),
@@ -282,7 +286,7 @@ class AbstractClient:
 
     .. attribute:: stream_features
 
-       An instance of :class:`~aioxmpp.stream_xsos.StreamFeatures`. This is the
+       An instance of :class:`~aioxmpp.nonza.StreamFeatures`. This is the
        most-recently received stream features information (the one received
        right before resource binding).
 
@@ -314,7 +318,7 @@ class AbstractClient:
 
     Signals:
 
-    .. signal:: on_failure()
+    .. signal:: on_failure(err)
 
        This signal is fired when the client fails and stops.
 
@@ -382,6 +386,13 @@ class AbstractClient:
         self.backoff_factor = 1.2
         self.backoff_cap = timedelta(seconds=60)
 
+        self.on_stopped.logger = self._logger.getChild("on_stopped")
+        self.on_failure.logger = self._logger.getChild("on_failure")
+        self.on_stream_established.logger = \
+            self._logger.getChild("on_stream_established")
+        self.on_stream_destroyed.logger = \
+            self._logger.getChild("on_stream_destroyed")
+
         self.stream = stream.StanzaStream(local_jid.bare())
 
     def _stream_failure(self, exc):
@@ -438,7 +449,7 @@ class AbstractClient:
     def _negotiate_stream(self, xmlstream, features):
         server_can_do_sm = True
         try:
-            features[stream_xsos.StreamManagementFeature]
+            features[nonza.StreamManagementFeature]
         except KeyError:
             if self.stream.sm_enabled:
                 self._logger.warn("server isn’t advertising SM anymore")
@@ -527,6 +538,7 @@ class AbstractClient:
 
             exc = yield from failure_future
             self._logger.error("stream failed: %s", exc)
+            raise exc
         except asyncio.CancelledError:
             self._logger.info("client shutting down")
             # cancelled, this means a clean shutdown is requested
@@ -550,11 +562,16 @@ class AbstractClient:
                 self._failure_future = asyncio.Future()
                 try:
                     yield from self._main_impl()
-                except errors.StreamNegotiationFailure:
+                except errors.StreamError as err:
+                    if err.condition == (namespaces.streams, "conflict"):
+                        self._logger.debug("conflict!")
+                        raise
+                except (errors.StreamNegotiationFailure,
+                        aiosasl.SASLError):
                     if self.stream.sm_enabled:
                         self.stream.stop_sm()
                     raise
-                except OSError:
+                except (OSError, dns.resolver.NoNameservers):
                     if self._backoff_time is None:
                         self._backoff_time = self.backoff_start.total_seconds()
                     yield from asyncio.sleep(self._backoff_time)
@@ -693,7 +710,7 @@ class PresenceManagedClient(AbstractClient):
         pres = stanza.Presence()
         state, status = self._presence
         state.apply_to_stanza(pres)
-        pres.status.extend(status)
+        pres.status.update(status)
         pres.autoset_id()
         self.stream.enqueue_stanza(pres)
 
@@ -756,8 +773,8 @@ class PresenceManagedClient(AbstractClient):
         availability such as *away*, *do not disturb* and *free to chat*).
         """
         if isinstance(status, str):
-            status = [stanza.Status(status)]
+            status = {None: status}
         else:
-            status = list(status)
+            status = dict(status)
         self._presence = state, status
         self._update_presence()

@@ -17,11 +17,14 @@ related to API stability are summarized below for your convenience.
 
 The version of the :mod:`aioxmpp` package can be obtained by inspecting
 :data:`aioxmpp.__version__`, which contains the version as a string. Unreleased
-versions have the ``-devel`` (up to and including version 0.4) or ``-dev``
+versions have the ``-devel`` (up to and including version 0.4) or ``-a0``
 (since 0.5) suffix. An additional way to access the version number is
 :data:`aioxmpp.version_info`, which provides a tuple which can be compared
 against other version tuples to check for a specific range of :mod:`aioxmpp`
 versions.
+
+Versions with ``-a0`` suffix are never released; if there will ever be
+pre-releases, they start at ``-a1``.
 
 __ http://semver.org/spec/v2.0.0.html
 

@@ -453,15 +453,21 @@ class Message(StanzaBase):
 
     .. attribute:: body
 
-       A :class:`~aioxmpp.xso.model.XSOList` of :class:`Body` elements. To
-       get a body element matching the users language, use the
-       :meth:`~aioxmpp.xso.model.XSOList.filter` method on the list.
+       A :class:`~.structs.LanguageMap` mapping the languages of the different
+       body elements to their text.
+
+       .. versionchanged:: 0.5
+
+          Before 0.5, this was a :class:`~aioxmpp.xso.model.XSOList`.
 
     .. attribute:: subject
 
-       A :class:`~aioxmpp.xso.model.XSOList` of :class:`Subject` elements. To
-       get a subject element matching the users language, use the
-       :meth:`~aioxmpp.xso.model.XSOList.filter` method on the list.
+       A :class:`~.structs.LanguageMap` mapping the languages of the different
+       subject elements to their text.
+
+       .. versionchanged:: 0.5
+
+          Before 0.5, this was a :class:`~aioxmpp.xso.model.XSOList`.
 
     .. attribute:: thread
 
@@ -498,8 +504,8 @@ class Message(StanzaBase):
         default="normal",
     )
 
-    body = xso.ChildList([Body])
-    subject = xso.ChildList([Subject])
+    body = xso.ChildTextMap(Body)
+    subject = xso.ChildTextMap(Subject)
     thread = xso.Child([Thread])
     ext = xso.ChildMap([])
 
@@ -576,9 +582,12 @@ class Presence(StanzaBase):
 
     .. attribute:: status
 
-       A :class:`~aioxmpp.xso.model.XSOList` of :class:`Status` elements. To
-       get a status matching the users language, use the
-       :meth:`~aioxmpp.xso.model.XSOList.filter` method on the list.
+       A :class:`~.structs.LanguageMap` mapping the languages of the different
+       status elements to their text.
+
+       .. versionchanged:: 0.5
+
+          Before 0.5, this was a :class:`~aioxmpp.xso.model.XSOList`.
 
     Note that some attributes are inherited from :class:`StanzaBase`:
 
@@ -620,7 +629,7 @@ class Presence(StanzaBase):
         default=None,
     )
 
-    status = xso.ChildList([Status])
+    status = xso.ChildTextMap(Status)
 
     priority = xso.ChildText(
         tag=(namespaces.client, "priority"),

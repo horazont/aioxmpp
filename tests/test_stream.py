@@ -7,7 +7,7 @@ import aioxmpp.structs as structs
 import aioxmpp.xso as xso
 import aioxmpp.stanza as stanza
 import aioxmpp.stream as stream
-import aioxmpp.stream_xsos as stream_xsos
+import aioxmpp.nonza as nonza
 import aioxmpp.errors as errors
 import aioxmpp.callbacks as callbacks
 import aioxmpp.service as service
@@ -709,6 +709,24 @@ class TestStanzaStream(StanzaStreamTestBase):
 
         self.assertIs(msg, fut.result())
 
+    def test_run_message_callback_to_bare_jid(self):
+        msg = make_test_message(from_=TEST_FROM)
+
+        fut = asyncio.Future()
+
+        self.stream.register_message_callback(
+            None,
+            TEST_FROM.bare(),
+            fut.set_result)
+        self.stream.start(self.xmlstream)
+        self.stream.recv_stanza(msg)
+
+        run_coroutine(fut)
+
+        self.stream.stop()
+
+        self.assertIs(msg, fut.result())
+
     def test_unregister_message_callback(self):
         cb = unittest.mock.Mock()
 
@@ -889,6 +907,37 @@ class TestStanzaStream(StanzaStreamTestBase):
 
         self.assertIsNone(caught_exc)
 
+    def test_stop_removes_stanza_handlers(self):
+        caught_exc = None
+
+        def failure_handler(exc):
+            nonlocal caught_exc
+            caught_exc = exc
+
+        iq = make_test_iq()
+        self.stream.on_failure.connect(failure_handler)
+
+        self.stream.start(self.xmlstream)
+        self.stream.enqueue_stanza(iq)
+
+        iq_sent = run_coroutine(self.sent_stanzas.get())
+        self.assertIs(iq, iq_sent)
+
+        self.xmlstream.send_xso = unittest.mock.MagicMock(
+            side_effect=RuntimeError())
+        self.stream.enqueue_stanza(iq)
+        self.stream.recv_stanza(iq)
+        self.stream.stop()
+
+        self.assertIsNone(caught_exc)
+
+        def cb():
+            pass
+
+        self.xmlstream.stanza_parser.add_class(stanza.IQ, cb)
+        self.xmlstream.stanza_parser.add_class(stanza.Presence, cb)
+        self.xmlstream.stanza_parser.add_class(stanza.Message, cb)
+
     def test_wait_stop(self):
         self.stream.start(self.xmlstream)
         self.assertTrue(self.stream.running)
@@ -1027,7 +1076,7 @@ class TestStanzaStream(StanzaStreamTestBase):
             caught_exc = exc
 
         self.stream.start(self.xmlstream)
-        self.stream.recv_stanza(stream_xsos.SMAcknowledgement())
+        self.stream.recv_stanza(nonza.SMAcknowledgement())
         run_coroutine(asyncio.sleep(0))
         self.stream.stop()
 
@@ -1041,7 +1090,7 @@ class TestStanzaStream(StanzaStreamTestBase):
             caught_exc = exc
 
         self.stream.start(self.xmlstream)
-        self.stream.recv_stanza(stream_xsos.SMRequest())
+        self.stream.recv_stanza(nonza.SMRequest())
         run_coroutine(asyncio.sleep(0))
         self.stream.stop()
 
@@ -1361,7 +1410,9 @@ class TestStanzaStream(StanzaStreamTestBase):
         self.assertTrue(self.stream.running)
 
     def test_app_inbound_presence_filter(self):
-        self._test_inbound_presence_filter(self.stream.app_inbound_presence_filter)
+        self._test_inbound_presence_filter(
+            self.stream.app_inbound_presence_filter
+        )
 
     def test_service_inbound_presence_filter(self):
         class Service(service.Service):
@@ -1401,8 +1452,8 @@ class TestStanzaStream(StanzaStreamTestBase):
         )
 
     def _test_inbound_message_filter(self, filter_attr, **register_kwargs):
-        msg = stanza.Message(type_="chat")
-        out = stanza.Message(type_="groupchat")
+        msg = stanza.Message(type_="chat", from_=TEST_FROM)
+        out = stanza.Message(type_="groupchat", from_=TEST_FROM)
 
         cb = unittest.mock.Mock([])
         cb.return_value = None
@@ -2055,6 +2106,82 @@ class TestStanzaStream(StanzaStreamTestBase):
         run_coroutine(asyncio.sleep(0))
         self.assertTrue(self.stream.running)
 
+    def test_message_callback_fallback_order(self):
+        base = unittest.mock.Mock()
+
+        self.stream.register_message_callback(
+            "chat", TEST_FROM,
+            base.chat_full
+        )
+        base.chat_full.return_value = None
+        base.chat_full._is_coroutine = False
+
+        self.stream.register_message_callback(
+            "chat", TEST_FROM.bare(),
+            base.chat_bare
+        )
+        base.chat_bare.return_value = None
+        base.chat_bare._is_coroutine = False
+
+        self.stream.register_message_callback(
+            None, TEST_FROM,
+            base.wildcard_full
+        )
+        base.wildcard_full.return_value = None
+        base.wildcard_full._is_coroutine = False
+
+        self.stream.register_message_callback(
+            None, TEST_FROM.bare(),
+            base.wildcard_bare
+        )
+        base.wildcard_bare.return_value = None
+        base.wildcard_bare._is_coroutine = False
+
+        self.stream.register_message_callback(
+            "chat", None,
+            base.chat_wildcard
+        )
+        base.chat_wildcard.return_value = None
+        base.chat_wildcard._is_coroutine = False
+
+        self.stream.register_message_callback(
+            None, None,
+            base.fallback
+        )
+        base.fallback.return_value = None
+        base.fallback._is_coroutine = False
+
+        test_set = [
+            ("chat", TEST_FROM, "chat_full"),
+            ("chat", TEST_FROM.replace(resource="r2"), "chat_bare"),
+            ("chat", TEST_FROM.bare(), "chat_bare"),
+            ("chat", TEST_FROM.replace(domain="bar.example"), "chat_wildcard"),
+            ("headline", TEST_FROM, "wildcard_full"),
+            ("headline", TEST_FROM.replace(resource="r2"), "wildcard_bare"),
+            ("headline", TEST_FROM.bare(), "wildcard_bare"),
+            ("headline", TEST_FROM.replace(domain="bar.example"), "fallback"),
+        ]
+
+        stanza_set = []
+
+        self.stream.start(self.xmlstream)
+
+        for type_, from_, dest in test_set:
+            stanza = make_test_message(type_=type_, from_=from_)
+            stanza_set.append((stanza, dest))
+            self.stream.recv_stanza(
+                stanza
+            )
+
+        run_coroutine(asyncio.sleep(0.01))
+
+        self.assertSequenceEqual(
+            base.mock_calls,
+            [
+                getattr(unittest.mock.call, dest)(st)
+                for st, dest in stanza_set
+            ]
+        )
 
 
 class TestStanzaStreamSM(StanzaStreamTestBase):
@@ -2064,24 +2191,23 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
 
         self.successful_sm = [
             XMLStreamMock.Send(
-                stream_xsos.SMEnable(resume=True),
+                nonza.SMEnable(resume=True),
                 response=XMLStreamMock.Receive(
-                    stream_xsos.SMEnabled(resume=True,
+                    nonza.SMEnabled(resume=True,
                                           id_="foobar")
                 )
             )
         ]
         self.sm_without_resume = [
             XMLStreamMock.Send(
-                stream_xsos.SMEnable(resume=True),
+                nonza.SMEnable(resume=True),
                 response=XMLStreamMock.Receive(
-                    stream_xsos.SMEnabled(resume=False)
+                    nonza.SMEnabled(resume=False)
                 )
             )
         ]
 
         del self.sent_stanzas
-
 
     def test_sm_initialization_only_in_stopped_state(self):
         with self.assertRaisesRegexp(RuntimeError, "is not running"):
@@ -2100,9 +2226,9 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
             xmlstream.run_test(
                 [
                     XMLStreamMock.Send(
-                        stream_xsos.SMEnable(resume=True),
+                        nonza.SMEnable(resume=True),
                         response=XMLStreamMock.Receive(
-                            stream_xsos.SMEnabled(resume=True,
+                            nonza.SMEnabled(resume=True,
                                                   id_="foobar",
                                                   location=("fe80::", 5222),
                                                   max_=1200)
@@ -2154,9 +2280,9 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
                 self.stream.start_sm(),
                 self.xmlstream.run_test([
                     XMLStreamMock.Send(
-                        stream_xsos.SMEnable(resume=True),
+                        nonza.SMEnable(resume=True),
                         response=XMLStreamMock.Receive(
-                            stream_xsos.SMFailed()
+                            nonza.SMFailed()
                         )
                     )
                 ])
@@ -2174,7 +2300,7 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
                 self.stream.start_sm(),
                 self.xmlstream.run_test([
                     XMLStreamMock.Send(
-                        stream_xsos.SMEnable(resume=True),
+                        nonza.SMEnable(resume=True),
                         response=XMLStreamMock.Fail(
                             exc
                         )
@@ -2196,10 +2322,10 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
             self.stream.start_sm(),
             self.xmlstream.run_test([
                 XMLStreamMock.Send(
-                    stream_xsos.SMEnable(resume=True),
+                    nonza.SMEnable(resume=True),
                     response=[
                         XMLStreamMock.Receive(
-                            stream_xsos.SMEnabled(resume=True,
+                            nonza.SMEnabled(resume=True,
                                                   id_="foobar"),
                         ),
                         XMLStreamMock.Fail(exc)
@@ -2223,10 +2349,10 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
             self.stream.start_sm(),
             self.xmlstream.run_test([
                 XMLStreamMock.Send(
-                    stream_xsos.SMEnable(resume=True),
+                    nonza.SMEnable(resume=True),
                     response=[
                         XMLStreamMock.Receive(
-                            stream_xsos.SMEnabled(resume=False),
+                            nonza.SMEnabled(resume=False),
                         ),
                         XMLStreamMock.Fail(exc)
                     ]
@@ -2259,10 +2385,10 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
             starter(),
             self.xmlstream.run_test([
                 XMLStreamMock.Send(
-                    stream_xsos.SMEnable(resume=True),
+                    nonza.SMEnable(resume=True),
                     response=[
                         XMLStreamMock.Receive(
-                            stream_xsos.SMEnabled(resume=True,
+                            nonza.SMEnabled(resume=True,
                                                   id_="barbaz")
                         ),
                         XMLStreamMock.Receive(iq)
@@ -2271,9 +2397,9 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
                 XMLStreamMock.Send(
                     iq_sent,
                 ),
-                XMLStreamMock.Send(stream_xsos.SMRequest()),
+                XMLStreamMock.Send(nonza.SMRequest()),
                 XMLStreamMock.Send(error_iq),
-                XMLStreamMock.Send(stream_xsos.SMRequest()),
+                XMLStreamMock.Send(nonza.SMRequest()),
             ])
         )
 
@@ -2432,11 +2558,11 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
 
         run_coroutine(self.xmlstream.run_test([
             XMLStreamMock.Send(error_iqs.pop()),
-            XMLStreamMock.Send(stream_xsos.SMRequest()),
+            XMLStreamMock.Send(nonza.SMRequest()),
             XMLStreamMock.Send(error_iqs.pop()),
-            XMLStreamMock.Send(stream_xsos.SMRequest()),
+            XMLStreamMock.Send(nonza.SMRequest()),
             XMLStreamMock.Send(error_iqs.pop()),
-            XMLStreamMock.Send(stream_xsos.SMRequest()),
+            XMLStreamMock.Send(nonza.SMRequest()),
         ]))
 
     def test_sm_resume(self):
@@ -2463,9 +2589,9 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
             XMLStreamMock.Send(iqs[1]),
             XMLStreamMock.Send(iqs[2]),
             XMLStreamMock.Send(
-                stream_xsos.SMRequest(),
+                nonza.SMRequest(),
                 response=XMLStreamMock.Receive(
-                    stream_xsos.SMAcknowledgement(counter=1)
+                    nonza.SMAcknowledgement(counter=1)
                 )
             )
         ]))
@@ -2484,16 +2610,87 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
             self.stream.resume_sm(self.xmlstream),
             self.xmlstream.run_test([
                 XMLStreamMock.Send(
-                    stream_xsos.SMResume(previd="foobar",
+                    nonza.SMResume(previd="foobar",
                                          counter=0),
                     response=XMLStreamMock.Receive(
-                        stream_xsos.SMResumed(previd="foobar",
+                        nonza.SMResumed(previd="foobar",
                                               counter=2)
                     )
                 ),
                 XMLStreamMock.Send(iqs[2]),
                 XMLStreamMock.Send(additional_iq),
-                XMLStreamMock.Send(stream_xsos.SMRequest()),
+                XMLStreamMock.Send(nonza.SMRequest()),
+            ])
+        )
+
+        self.assertFalse(self.established_rec.mock_calls)
+
+        self.stream.stop()
+        run_coroutine(asyncio.sleep(0))
+        self.stream.stop_sm()
+        self.destroyed_rec.assert_called_once_with()
+
+    def test_sm_race(self):
+        iqs = [make_test_iq() for i in range(4)]
+
+        additional_iq = iqs.pop()
+
+        self.stream.start(self.xmlstream)
+        run_coroutine_with_peer(
+            self.stream.start_sm(),
+            self.xmlstream.run_test(self.successful_sm)
+        )
+
+        for iq in iqs:
+            self.stream.enqueue_stanza(iq)
+
+        run_coroutine(asyncio.sleep(0))
+
+        self.established_rec.assert_called_once_with()
+        self.established_rec.reset_mock()
+
+        run_coroutine(self.xmlstream.run_test([
+            XMLStreamMock.Send(iqs[0]),
+            XMLStreamMock.Send(iqs[1]),
+            XMLStreamMock.Send(iqs[2]),
+            XMLStreamMock.Send(
+                nonza.SMRequest(),
+                response=XMLStreamMock.Receive(
+                    nonza.SMAcknowledgement(counter=1)
+                )
+            )
+        ]))
+
+        self.stream.stop()
+
+        run_coroutine(asyncio.sleep(0))
+
+        self.assertFalse(self.destroyed_rec.mock_calls)
+
+        # enqueue a stanza before resumption and check that the sequence is
+        # correct (resumption-generated stanzas before new stanzas)
+        self.stream.enqueue_stanza(additional_iq)
+
+        run_coroutine_with_peer(
+            self.stream.resume_sm(self.xmlstream),
+            self.xmlstream.run_test([
+                XMLStreamMock.Send(
+                    nonza.SMResume(previd="foobar",
+                                         counter=0),
+                    response=[
+                        XMLStreamMock.Receive(
+                            nonza.SMResumed(previd="foobar",
+                                                  counter=2)
+                        ),
+                        XMLStreamMock.Receive(
+                            nonza.SMRequest()
+                        )
+                    ]
+                ),
+                XMLStreamMock.Send(iqs[2]),
+                XMLStreamMock.Send(additional_iq),
+                XMLStreamMock.Send(nonza.SMRequest()),
+                XMLStreamMock.Send(nonza.SMAcknowledgement(counter=0)),
             ])
         )
 
@@ -2517,10 +2714,10 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
                 self.stream.resume_sm(self.xmlstream),
                 self.xmlstream.run_test([
                     XMLStreamMock.Send(
-                        stream_xsos.SMResume(previd="foobar",
+                        nonza.SMResume(previd="foobar",
                                              counter=0),
                         response=XMLStreamMock.Receive(
-                            stream_xsos.SMFailed()
+                            nonza.SMFailed()
                         )
                     )
                 ])
@@ -2610,7 +2807,7 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
         run_coroutine(asyncio.sleep(0.009))
 
         run_coroutine(self.xmlstream.run_test([
-            XMLStreamMock.Send(stream_xsos.SMRequest())
+            XMLStreamMock.Send(nonza.SMRequest())
         ]))
 
     def test_sm_ping_opportunistic(self):
@@ -2629,14 +2826,14 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
         run_coroutine(self.xmlstream.run_test([
             XMLStreamMock.Send(iq),
             XMLStreamMock.Send(
-                stream_xsos.SMRequest()
+                nonza.SMRequest()
             )
         ]))
 
         run_coroutine(self.xmlstream.run_test(
             [],
             stimulus=XMLStreamMock.Receive(
-                stream_xsos.SMAcknowledgement(counter=1)
+                nonza.SMAcknowledgement(counter=1)
             )
         ))
 
@@ -2668,9 +2865,9 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
 
         run_coroutine(self.xmlstream.run_test([
             XMLStreamMock.Send(iqs[0]),
-            XMLStreamMock.Send(stream_xsos.SMRequest()),
+            XMLStreamMock.Send(nonza.SMRequest()),
             XMLStreamMock.Send(iqs[1]),
-            XMLStreamMock.Send(stream_xsos.SMRequest()),
+            XMLStreamMock.Send(nonza.SMRequest()),
         ]))
 
         # at this point, the first ping must have timed out, and failure should
@@ -2701,15 +2898,15 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
         self.stream.enqueue_stanza(iqs[0])
         run_coroutine(self.xmlstream.run_test([
             XMLStreamMock.Send(iqs[0]),
-            XMLStreamMock.Send(stream_xsos.SMRequest()),
+            XMLStreamMock.Send(nonza.SMRequest()),
         ]))
         self.stream.enqueue_stanza(iqs[1])
         run_coroutine(self.xmlstream.run_test([
             XMLStreamMock.Send(iqs[1]),
             XMLStreamMock.Send(
-                stream_xsos.SMRequest(),
+                nonza.SMRequest(),
                 response=XMLStreamMock.Receive(
-                    stream_xsos.SMAcknowledgement(counter=1)
+                    nonza.SMAcknowledgement(counter=1)
                 )
             ),
         ]))
@@ -2729,9 +2926,9 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
 
         run_coroutine(self.xmlstream.run_test(
             [
-                XMLStreamMock.Send(stream_xsos.SMAcknowledgement(counter=0))
+                XMLStreamMock.Send(nonza.SMAcknowledgement(counter=0))
             ],
-            stimulus=XMLStreamMock.Receive(stream_xsos.SMRequest())
+            stimulus=XMLStreamMock.Receive(nonza.SMRequest())
         ))
 
     def test_sm_unacked_list_is_a_copy(self):
@@ -2810,7 +3007,7 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
             XMLStreamMock.Send(iqs[0]),
             XMLStreamMock.Send(iqs[1]),
             XMLStreamMock.Send(iqs[2]),
-            XMLStreamMock.Send(stream_xsos.SMRequest()),
+            XMLStreamMock.Send(nonza.SMRequest()),
         ]))
 
         self.stream.stop()
@@ -2916,6 +3113,124 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
 
         self.assertFalse(self.stream.sm_enabled)
         self.destroyed_rec.assert_called_once_with()
+
+    def test_stop_removes_stanza_handlers(self):
+        caught_exc = None
+
+        def failure_handler(exc):
+            nonlocal caught_exc
+            caught_exc = exc
+
+        # we need interaction here to show that SM gets negotiated
+        xmlstream = XMLStreamMock(self, loop=self.loop)
+
+        iq = make_test_iq()
+        self.stream.on_failure.connect(failure_handler)
+
+        self.stream.start(xmlstream)
+
+        run_coroutine_with_peer(
+            self.stream.start_sm(request_resumption=True),
+            xmlstream.run_test(
+                [
+                    XMLStreamMock.Send(
+                        nonza.SMEnable(resume=True),
+                        response=XMLStreamMock.Receive(
+                            nonza.SMEnabled(resume=True,
+                                                  id_="foobar",
+                                                  location=("fe80::", 5222),
+                                                  max_=1200)
+                        )
+                    )
+                ]
+            )
+        )
+
+        self.assertTrue(self.stream.running)
+        self.assertTrue(self.stream.sm_enabled)
+        self.stream.stop()
+        run_coroutine(asyncio.sleep(0))
+        self.assertFalse(self.stream.running)
+
+        def cb():
+            pass
+
+        xmlstream.stanza_parser.add_class(stanza.IQ, cb)
+        xmlstream.stanza_parser.add_class(stanza.Presence, cb)
+        xmlstream.stanza_parser.add_class(stanza.Message, cb)
+        xmlstream.stanza_parser.add_class(nonza.SMRequest, cb)
+        xmlstream.stanza_parser.add_class(
+            nonza.SMAcknowledgement, cb)
+
+    def test_stop_removes_stanza_handlers_even_on_failure_during_resumption(
+            self):
+        caught_exc = None
+
+        def failure_handler(exc):
+            nonlocal caught_exc
+            caught_exc = exc
+
+        # we need interaction here to show that SM gets negotiated
+        xmlstream = XMLStreamMock(self, loop=self.loop)
+
+        iq = make_test_iq()
+        self.stream.on_failure.connect(failure_handler)
+
+        self.stream.start(xmlstream)
+
+        run_coroutine_with_peer(
+            self.stream.start_sm(request_resumption=True),
+            xmlstream.run_test(
+                [
+                    XMLStreamMock.Send(
+                        nonza.SMEnable(resume=True),
+                        response=[
+                            XMLStreamMock.Receive(
+                                nonza.SMEnabled(resume=True,
+                                                      id_="foobar",
+                                                      location=("fe80::", 5222),
+                                                      max_=1200)
+                            ),
+                            XMLStreamMock.Fail(
+                                ConnectionError()
+                            )
+                        ]
+                    )
+                ]
+            )
+        )
+
+        self.assertFalse(self.stream.running)
+        self.assertTrue(self.stream.sm_enabled)
+
+        xmlstream = XMLStreamMock(self, loop=self.loop)
+
+        with self.assertRaises(errors.StreamNegotiationFailure):
+            run_coroutine_with_peer(
+                self.stream.resume_sm(xmlstream),
+                xmlstream.run_test(
+                    [
+                        XMLStreamMock.Send(
+                            nonza.SMResume(counter=0, previd="foobar"),
+                            response=[
+                                XMLStreamMock.Receive(
+                                    nonza.SMFailed()
+                                ),
+                            ]
+                        )
+                    ]
+                )
+            )
+
+        def cb():
+            pass
+
+        xmlstream.stanza_parser.add_class(stanza.IQ, cb)
+        xmlstream.stanza_parser.add_class(stanza.Presence, cb)
+        xmlstream.stanza_parser.add_class(stanza.Message, cb)
+        xmlstream.stanza_parser.add_class(nonza.SMRequest, cb)
+        xmlstream.stanza_parser.add_class(
+            nonza.SMAcknowledgement, cb)
 
     def tearDown(self):
         run_coroutine(self.xmlstream.run_test([]))

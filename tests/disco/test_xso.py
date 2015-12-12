@@ -1,11 +1,11 @@
 import unittest
 
-import aioxmpp.disco as disco
 import aioxmpp.disco.xso as disco_xso
-import aioxmpp.xso as xso
-import aioxmpp.xso.model as xso_model
+import aioxmpp.forms.xso as forms_xso
 import aioxmpp.structs as structs
 import aioxmpp.stanza as stanza
+import aioxmpp.xso as xso
+import aioxmpp.xso.model as xso_model
 
 from aioxmpp.utils import namespaces
 
@@ -100,6 +100,77 @@ class TestIdentity(unittest.TestCase):
         self.assertEqual("Foobar", ident.name)
         self.assertEqual(structs.LanguageTag.fromstr("DE"), ident.lang)
 
+    def test_equality(self):
+        ident1 = disco_xso.Identity()
+        self.assertEqual("client", ident1.category)
+        self.assertEqual("bot", ident1.type_)
+        self.assertIsNone(ident1.name)
+        self.assertIsNone(ident1.lang)
+
+        ident2 = disco_xso.Identity()
+        self.assertEqual("client", ident2.category)
+        self.assertEqual("bot", ident2.type_)
+        self.assertIsNone(ident2.name)
+        self.assertIsNone(ident2.lang)
+
+        self.assertTrue(ident1 == ident2)
+        self.assertFalse(ident1 != ident2)
+
+        ident1.category = "foo"
+
+        self.assertFalse(ident1 == ident2)
+        self.assertTrue(ident1 != ident2)
+
+        ident2.category = "foo"
+
+        self.assertTrue(ident1 == ident2)
+        self.assertFalse(ident1 != ident2)
+
+        ident1.type_ = "bar"
+
+        self.assertFalse(ident1 == ident2)
+        self.assertTrue(ident1 != ident2)
+
+        ident2.type_ = "bar"
+
+        self.assertTrue(ident1 == ident2)
+        self.assertFalse(ident1 != ident2)
+
+        ident1.name = "baz"
+
+        self.assertFalse(ident1 == ident2)
+        self.assertTrue(ident1 != ident2)
+
+        ident2.name = "baz"
+
+        self.assertTrue(ident1 == ident2)
+        self.assertFalse(ident1 != ident2)
+
+        ident1.lang = structs.LanguageTag.fromstr("en")
+
+        self.assertFalse(ident1 == ident2)
+        self.assertTrue(ident1 != ident2)
+
+        ident2.lang = structs.LanguageTag.fromstr("en")
+
+        self.assertTrue(ident1 == ident2)
+        self.assertFalse(ident1 != ident2)
+
+    def test_equality_is_robust_against_other_data_types(self):
+        ident1 = disco_xso.Identity()
+        self.assertEqual("client", ident1.category)
+        self.assertEqual("bot", ident1.type_)
+        self.assertIsNone(ident1.name)
+        self.assertIsNone(ident1.lang)
+
+        self.assertFalse(ident1 == None)  # NOQA
+        self.assertFalse(ident1 == 1)
+        self.assertFalse(ident1 == "foo")
+
+        self.assertTrue(ident1 != None)  # NOQA
+        self.assertTrue(ident1 != 1)
+        self.assertTrue(ident1 != "foo")
+
 
 class TestFeature(unittest.TestCase):
     def test_is_xso(self):
@@ -133,9 +204,45 @@ class TestFeature(unittest.TestCase):
         self.assertEqual("foobar", f.var)
 
 
+class TestFeatureSet(unittest.TestCase):
+    def test_is_abstract_type(self):
+        self.assertTrue(issubclass(
+            disco_xso.FeatureSet,
+            xso.AbstractType
+        ))
+
+    def setUp(self):
+        self.type_ = disco_xso.FeatureSet()
+
+    def test_get_formatted_type(self):
+        self.assertIs(self.type_.get_formatted_type(),
+                      disco_xso.Feature)
+
+    def test_parse(self):
+        item = disco_xso.Feature(var="foobar")
+        self.assertEqual(
+            "foobar",
+            self.type_.parse(item)
+        )
+
+    def test_format(self):
+        item = self.type_.format("foobar")
+        self.assertIsInstance(
+            item,
+            disco_xso.Feature
+        )
+        self.assertEqual(
+            item.var,
+            "foobar"
+        )
+
+    def tearDown(self):
+        del self.type_
+
+
 class TestInfoQuery(unittest.TestCase):
-    def test_is_xso(self):
-        self.assertTrue(issubclass(disco_xso.InfoQuery, xso.XSO))
+    def test_is_capturing_xso(self):
+        self.assertTrue(issubclass(disco_xso.InfoQuery, xso.CapturingXSO))
 
     def test_tag(self):
         self.assertEqual(
@@ -167,15 +274,34 @@ class TestInfoQuery(unittest.TestCase):
     def test_features_attr(self):
         self.assertIsInstance(
             disco_xso.InfoQuery.features,
-            xso.ChildList
+            xso.ChildValueList,
         )
         self.assertSetEqual(
             {disco_xso.Feature},
             set(disco_xso.InfoQuery.features._classes)
         )
+        self.assertIsInstance(
+            disco_xso.InfoQuery.features.type_,
+            disco_xso.FeatureSet
+        )
+        self.assertIs(
+            disco_xso.InfoQuery.features.container_type,
+            set
+        )
+
+    def test_exts_attr(self):
+        self.assertIsInstance(
+            disco_xso.InfoQuery.exts,
+            xso.ChildList
+        )
+        self.assertSetEqual(
+            {forms_xso.Data},
+            set(disco_xso.InfoQuery.exts._classes)
+        )
 
     def test_init(self):
         iq = disco_xso.InfoQuery()
+        self.assertIsNone(iq.captured_events)
         self.assertFalse(iq.features)
         self.assertFalse(iq.identities)
         self.assertIsNone(iq.node)
@@ -183,9 +309,9 @@ class TestInfoQuery(unittest.TestCase):
         iq = disco_xso.InfoQuery(node="foobar",
                                  features=(1, 2),
                                  identities=(3,))
-        self.assertIsInstance(iq.features, xso_model.XSOList)
-        self.assertSequenceEqual(
-            [1, 2],
+        self.assertIsNone(iq.captured_events)
+        self.assertSetEqual(
+            {1, 2},
             iq.features
         )
         self.assertIsInstance(iq.identities, xso_model.XSOList)
@@ -200,6 +326,180 @@ class TestInfoQuery(unittest.TestCase):
             disco_xso.InfoQuery.TAG,
             stanza.IQ.CHILD_MAP
         )
+
+    def test_to_dict(self):
+        q = disco_xso.InfoQuery()
+        q.identities.extend([
+            disco_xso.Identity(
+                category="client",
+                type_="pc",
+                name="foobar"
+            ),
+            disco_xso.Identity(
+                category="client",
+                type_="pc",
+                name="baz",
+                lang=structs.LanguageTag.fromstr("en-GB")
+            ),
+        ])
+
+        q.features.update(
+            [
+                "foo",
+                "bar",
+                "baz",
+            ]
+        )
+
+        f = forms_xso.Data()
+        f.fields.extend([
+            forms_xso.Field(type_="hidden",
+                            var="FORM_TYPE",
+                            values=[
+                                "fnord",
+                            ]),
+            forms_xso.Field(type_="text-single",
+                            var="uiae",
+                            values=[
+                                "nrtd",
+                                "asdf",
+                            ]),
+            forms_xso.Field(type_="fixed"),
+        ])
+        q.exts.append(f)
+
+        self.assertDictEqual(
+            q.to_dict(),
+            {
+                "features": [
+                    "bar",
+                    "baz",
+                    "foo",
+                ],
+                "identities": [
+                    {
+                        "category": "client",
+                        "type": "pc",
+                        "name": "foobar",
+                    },
+                    {
+                        "category": "client",
+                        "type": "pc",
+                        "name": "baz",
+                        "lang": "en-gb",
+                    },
+                ],
+                "forms": [
+                    {
+                        "FORM_TYPE": [
+                            "fnord",
+                        ],
+                        "uiae": [
+                            "nrtd",
+                            "asdf",
+                        ]
+                    }
+                ]
+            }
+        )
+
+    def test_to_dict_emits_forms_with_identical_type(self):
+        q = disco_xso.InfoQuery()
+        q.identities.extend([
+            disco_xso.Identity(
+                category="client",
+                type_="pc",
+                name="foobar"
+            ),
+            disco_xso.Identity(
+                category="client",
+                type_="pc",
+                name="baz",
+                lang=structs.LanguageTag.fromstr("en-GB")
+            ),
+        ])
+
+        q.features.update(
+            [
+                "foo",
+                "bar",
+                "baz",
+            ]
+        )
+
+        f = forms_xso.Data()
+        f.fields.extend([
+            forms_xso.Field(type_="hidden",
+                            var="FORM_TYPE",
+                            values=[
+                                "fnord",
+                            ]),
+            forms_xso.Field(type_="text-single",
+                            var="uiae",
+                            values=[
+                                "nrtd",
+                                "asdf",
+                            ]),
+            forms_xso.Field(type_="fixed"),
+        ])
+        q.exts.append(f)
+
+        f = forms_xso.Data()
+        f.fields.extend([
+            forms_xso.Field(type_="hidden",
+                            var="FORM_TYPE",
+                            values=[
+                                "fnord",
+                            ]),
+        ])
+        q.exts.append(f)
+
+        self.assertDictEqual(
+            q.to_dict(),
+            {
+                "features": [
+                    "bar",
+                    "baz",
+                    "foo",
+                ],
+                "identities": [
+                    {
+                        "category": "client",
+                        "type": "pc",
+                        "name": "foobar",
+                    },
+                    {
+                        "category": "client",
+                        "type": "pc",
+                        "name": "baz",
+                        "lang": "en-gb",
+                    },
+                ],
+                "forms": [
+                    {
+                        "FORM_TYPE": [
+                            "fnord",
+                        ],
+                        "uiae": [
+                            "nrtd",
+                            "asdf",
+                        ]
+                    },
+                    {
+                        "FORM_TYPE": [
+                            "fnord",
+                        ],
+                    }
+                ]
+            }
+        )
+
+    def test__set_captured_events(self):
+        data = object()
+
+        iq = disco_xso.InfoQuery()
+        iq._set_captured_events(data)
+        self.assertIs(iq.captured_events, data)
 
 
 class TestItem(unittest.TestCase):

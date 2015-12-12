@@ -32,6 +32,10 @@ Dependencies
   .. _pyasn1: https://pypi.python.org/pypi/pyasn1
   __ https://pypi.python.org/pypi/pyasn1-modules
 
+* `aiosasl`__
+
+  __ https://pypi.python.org/pypi/aiosasl
+
 
 Design goals
 ------------
@@ -46,5 +50,10 @@ Change log
 
 The `change log`_ is included in the `official documentation`__.
 
+<<<<<<< HEAD
 .. _change log: http://docs.zombofant.net/aioxmpp/0.4/api/changelog.html
 __ http://docs.zombofant.net/aioxmpp/0.4/
+=======
+.. _change log: http://docs.zombofant.net/aioxmpp/devel/api/changelog.html
+__ http://docs.zombofant.net/aioxmpp/0.5/
+>>>>>>> release-0.5

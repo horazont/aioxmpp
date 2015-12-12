@@ -16,9 +16,10 @@ Low-level stanza tracking
 
 The following classes are used to track stanzas in the XML stream to the
 server. This is independent of things like `XEP-0184 Message Delivery
-Receipts`__; it only provides tracking to the remote server and even that only
-if stream management is used. Otherwise, it only provides tracking in the
-:mod:`aioxmpp` internal queues.
+Receipts`__ (for which services are provided at :mod:`aioxmpp.tracking`); it
+only provides tracking to the remote server and even that only if stream
+management is used. Otherwise, it only provides tracking in the :mod:`aioxmpp`
+internal queues.
 
 __ http://xmpp.org/extensions/xep-0184.html
 
@@ -49,7 +50,7 @@ from . import (
     stanza,
     errors,
     custom_queue,
-    stream_xsos,
+    nonza,
     callbacks,
     protocol,
 )
@@ -377,6 +378,10 @@ class StanzaStream:
     restrictions as to what processing may take place on a stanza, as no one
     but the stream may have references to its contents. See below for a
     guideline on when to use stanza filters.
+
+    .. warning::
+
+       Raising an exception from within a stanza filter kills the stream.
 
     Note that if a filter function drops an incoming stanza (by returning
     :data:`None`), it **must** ensure that the client still behaves RFC
@@ -723,6 +728,9 @@ class StanzaStream:
             return
 
         keys = [(stanza_obj.type_, stanza_obj.from_),
+                (stanza_obj.type_, stanza_obj.from_.bare()),
+                (None, stanza_obj.from_),
+                (None, stanza_obj.from_.bare()),
                 (stanza_obj.type_, None),
                 (None, None)]
 
@@ -731,7 +739,8 @@ class StanzaStream:
                 cb = self._message_map[key]
             except KeyError:
                 continue
-            self._logger.debug("dispatching message using key: %r", key)
+            self._logger.debug("dispatching message using key %r to %r",
+                               key, cb)
             self._loop.call_soon(cb, stanza_obj)
             break
         else:
@@ -815,7 +824,7 @@ class StanzaStream:
         stanza_obj, exc = queue_entry
 
         # first, handle SM stream objects
-        if isinstance(stanza_obj, stream_xsos.SMAcknowledgement):
+        if isinstance(stanza_obj, nonza.SMAcknowledgement):
             self._logger.debug("received SM ack: %r", stanza_obj)
             if not self._sm_enabled:
                 self._logger.warning("received SM ack, but SM not enabled")
@@ -828,12 +837,12 @@ class StanzaStream:
                 self._next_ping_event_at = (datetime.utcnow() +
                                             self.ping_interval)
             return
-        elif isinstance(stanza_obj, stream_xsos.SMRequest):
+        elif isinstance(stanza_obj, nonza.SMRequest):
             self._logger.debug("received SM request: %r", stanza_obj)
             if not self._sm_enabled:
                 self._logger.warning("received SM request, but SM not enabled")
                 return
-            response = stream_xsos.SMAcknowledgement()
+            response = nonza.SMAcknowledgement()
             response.counter = self._sm_inbound_ctr
             self._logger.debug("sending SM ack: %r", stanza_obj)
             xmlstream.send_xso(response)
@@ -972,7 +981,7 @@ class StanzaStream:
 
         if self._sm_enabled:
             self._logger.debug("sending SM req")
-            xmlstream.send_xso(stream_xsos.SMRequest())
+            xmlstream.send_xso(nonza.SMRequest())
         else:
             request = stanza.IQ(type_="get")
             request.payload = xep0199.Ping()
@@ -1154,13 +1163,21 @@ class StanzaStream:
         :class:`~aioxmpp.structs.JID` `from_` arrives.
 
         Both `type_` and `from_` can be :data:`None`, each, to indicate a
-        wildcard match. It is not allowed for both `type_` and `from_` to be
-        :data:`None` at the same time.
+        wildcard match.
 
-        More specific callbacks win over less specific callbacks. That is, a
-        callback registered for type ``"chat"`` and from a specific JID
-        will win over a callback registered for type ``"chat"`` with from set
-        to :data:`None`.
+        More specific callbacks win over less specific callbacks, and the
+        match on the `from_` address takes precedence over the match on the
+        `type_`.
+
+        To be explicit, the order in which callbacks are searched for a given
+        ``type`` and ``from_`` of a stanza is:
+
+        * ``type``, ``from_``
+        * ``type``, ``from_.bare()``
+        * ``None``, ``from_``
+        * ``None``, ``from_.bare()``
+        * ``type``, ``None``
+        * ``None``, ``None``
         """
         self._message_map[type_, from_] = cb
         self._logger.debug(
@@ -1229,9 +1246,9 @@ class StanzaStream:
 
         if self._sm_enabled:
             self._logger.debug("using SM")
-            xmlstream.stanza_parser.add_class(stream_xsos.SMAcknowledgement,
+            xmlstream.stanza_parser.add_class(nonza.SMAcknowledgement,
                                               receiver)
-            xmlstream.stanza_parser.add_class(stream_xsos.SMRequest,
+            xmlstream.stanza_parser.add_class(nonza.SMRequest,
                                               receiver)
 
         self._xmlstream_exception = None
@@ -1243,9 +1260,9 @@ class StanzaStream:
         xmlstream.stanza_parser.remove_class(stanza.IQ)
         if self._sm_enabled:
             xmlstream.stanza_parser.remove_class(
-                stream_xsos.SMRequest)
+                nonza.SMRequest)
             xmlstream.stanza_parser.remove_class(
-                stream_xsos.SMAcknowledgement)
+                nonza.SMAcknowledgement)
 
         xmlstream.on_closing.disconnect(
             self._xmlstream_failure_token
@@ -1487,15 +1504,15 @@ class StanzaStream:
             response = yield from protocol.send_and_wait_for(
                 self._xmlstream,
                 [
-                    stream_xsos.SMEnable(resume=bool(request_resumption)),
+                    nonza.SMEnable(resume=bool(request_resumption)),
                 ],
                 [
-                    stream_xsos.SMEnabled,
-                    stream_xsos.SMFailed
+                    nonza.SMEnabled,
+                    nonza.SMFailed
                 ]
             )
 
-            if isinstance(response, stream_xsos.SMFailed):
+            if isinstance(response, nonza.SMFailed):
                 raise errors.StreamNegotiationFailure(
                     "Server rejected SM request")
 
@@ -1519,10 +1536,10 @@ class StanzaStream:
             #         raise self._xmlstream_exception
 
             self._xmlstream.stanza_parser.add_class(
-                stream_xsos.SMRequest,
+                nonza.SMRequest,
                 self.recv_stanza)
             self._xmlstream.stanza_parser.add_class(
-                stream_xsos.SMAcknowledgement,
+                nonza.SMAcknowledgement,
                 self.recv_stanza)
 
     @property
@@ -1590,7 +1607,7 @@ class StanzaStream:
     def sm_max(self):
         """
         The value of the ``max`` attribute of the
-        :class:`~.stream_xsos.SMEnabled` response from the server.
+        :class:`~.nonza.SMEnabled` response from the server.
 
         .. note::
 
@@ -1607,7 +1624,7 @@ class StanzaStream:
     def sm_location(self):
         """
         The value of the ``location`` attribute of the
-        :class:`~.stream_xsos.SMEnabled` response from the server.
+        :class:`~.nonza.SMEnabled` response from the server.
 
         .. note::
 
@@ -1624,7 +1641,7 @@ class StanzaStream:
     def sm_id(self):
         """
         The value of the ``id`` attribute of the
-        :class:`~.stream_xsos.SMEnabled` response from the server.
+        :class:`~.nonza.SMEnabled` response from the server.
 
         .. note::
 
@@ -1641,7 +1658,7 @@ class StanzaStream:
     def sm_resumable(self):
         """
         The value of the ``resume`` attribute of the
-        :class:`~.stream_xsos.SMEnabled` response from the server.
+        :class:`~.nonza.SMEnabled` response from the server.
 
         .. note::
 
@@ -1697,25 +1714,34 @@ class StanzaStream:
             raise RuntimeError("Cannot resume Stream Management while"
                                " StanzaStream is running")
 
-        response = yield from protocol.send_and_wait_for(
-            xmlstream,
-            [
-                stream_xsos.SMResume(previd=self.sm_id,
-                                     counter=self._sm_inbound_ctr)
-            ],
-            [
-                stream_xsos.SMResumed,
-                stream_xsos.SMFailed
-            ]
-        )
+        self._start_prepare(xmlstream, self.recv_stanza)
+        try:
+            response = yield from protocol.send_and_wait_for(
+                xmlstream,
+                [
+                    nonza.SMResume(previd=self.sm_id,
+                                         counter=self._sm_inbound_ctr)
+                ],
+                [
+                    nonza.SMResumed,
+                    nonza.SMFailed
+                ]
+            )
 
-        if isinstance(response, stream_xsos.SMFailed):
-            self.stop_sm()
-            raise errors.StreamNegotiationFailure(
-                "Server rejected SM resumption")
+            if isinstance(response, nonza.SMFailed):
+                xmlstream.stanza_parser.remove_class(
+                    nonza.SMRequest)
+                xmlstream.stanza_parser.remove_class(
+                    nonza.SMAcknowledgement)
+                self.stop_sm()
+                raise errors.StreamNegotiationFailure(
+                    "Server rejected SM resumption")
 
-        self._resume_sm(response.counter)
-        self.start(xmlstream)
+            self._resume_sm(response.counter)
+        except:
+            self._start_rollback(xmlstream)
+            raise
+        self._start_commit(xmlstream)
 
     def _stop_sm(self):
         """

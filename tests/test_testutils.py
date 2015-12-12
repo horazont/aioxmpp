@@ -17,7 +17,7 @@ from aioxmpp.xmltestutils import XMLTestCase
 
 import aioxmpp.xso as xso
 import aioxmpp.callbacks as callbacks
-import aioxmpp.stream_xsos as stream_xsos
+import aioxmpp.nonza as nonza
 
 from aioxmpp.utils import etree
 
@@ -886,6 +886,9 @@ class Testmake_connected_client(unittest.TestCase):
         self.assertTrue(hasattr(cc, "stream"))
         self.assertTrue(hasattr(cc, "start"))
         self.assertTrue(hasattr(cc, "stop"))
+        self.assertTrue(hasattr(cc, "established"))
+
+        self.assertIs(cc.established, True)
 
         self.assertIsInstance(cc.on_failure, callbacks.AdHocSignal)
         self.assertIsInstance(cc.on_stopped, callbacks.AdHocSignal)
@@ -908,7 +911,7 @@ class Testmake_connected_client(unittest.TestCase):
         self.assertIsInstance(cc.stream.send_iq_and_wait_for_reply,
                               CoroutineMock)
 
-        self.assertIsInstance(cc.stream_features, stream_xsos.StreamFeatures)
+        self.assertIsInstance(cc.stream_features, nonza.StreamFeatures)
 
     def test_summon_uses_services_dict(self):
         cc = make_connected_client()

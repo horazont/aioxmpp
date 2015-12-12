@@ -1,5 +1,6 @@
-import aioxmpp.xso as xso
+import aioxmpp.forms.xso as forms_xso
 import aioxmpp.stanza as stanza
+import aioxmpp.xso as xso
 
 from aioxmpp.utils import namespaces
 
@@ -55,6 +56,24 @@ class Identity(xso.XSO):
         if lang is not None:
             self.lang = lang
 
+    def __eq__(self, other):
+        try:
+            return (self.category == other.category and
+                    self.type_ == other.type_ and
+                    self.name == other.name and
+                    self.lang == other.lang)
+        except AttributeError:
+            return NotImplemented
+
+    def __repr__(self):
+        return "{}.{}(category={!r}, type_={!r}, name={!r}, lang={!r})".format(
+            self.__class__.__module__,
+            self.__class__.__qualname__,
+            self.category,
+            self.type_,
+            self.name,
+            self.lang)
+
 
 class Feature(xso.XSO):
     """
@@ -76,8 +95,19 @@ class Feature(xso.XSO):
         self.var = var
 
 
+class FeatureSet(xso.AbstractType):
+    def get_formatted_type(self):
+        return Feature
+
+    def parse(self, item):
+        return item.var
+
+    def format(self, var):
+        return Feature(var)
+
+
 @stanza.IQ.as_payload_class
-class InfoQuery(xso.XSO):
+class InfoQuery(xso.CapturingXSO):
     """
     A query for features and identities of an entity. The keyword arguments to
     the constructor can be used to initialize the attributes. Note that
@@ -96,7 +126,20 @@ class InfoQuery(xso.XSO):
 
     .. attribute:: features
 
-       The features of the entity, as :class:`Feature` instances.
+       The features of the entity, as a set of strings. Each string represents
+       a :class:`Feature` instance with the corresponding :attr:`~.Feature.var`
+       attribute.
+
+    .. attribute:: captured_events
+
+       If the object was created by parsing an XML stream, this attribute holds
+       a list of events which were used when parsing it.
+
+       Otherwise, this is :data:`None`.
+
+       .. versionadded:: 0.5
+
+    .. automethod:: to_dict
 
     """
     TAG = (namespaces.xep0030_info, "query")
@@ -104,14 +147,66 @@ class InfoQuery(xso.XSO):
     node = xso.Attr(tag="node", default=None)
 
     identities = xso.ChildList([Identity])
-    features = xso.ChildList([Feature])
+
+    features = xso.ChildValueList(
+        FeatureSet(),
+        container_type=set
+    )
+
+    exts = xso.ChildList([forms_xso.Data])
+
+    captured_events = None
 
     def __init__(self, *, identities=(), features=(), node=None):
         super().__init__()
         self.identities.extend(identities)
-        self.features.extend(features)
+        self.features.update(features)
         if node is not None:
             self.node = node
+
+    def to_dict(self):
+        """
+        Convert the query result to a normalized JSON-like
+        representation.
+
+        The format is a subset of the format used by the `capsdb`__. Obviously,
+        the node name and hash type are not included; otherwise, the format is
+        identical.
+
+        __ https://github.com/xnyhps/capsdb
+        """
+        identities = []
+        for identity in self.identities:
+            identity_dict = {
+                "category": identity.category,
+                "type": identity.type_,
+            }
+            if identity.lang is not None:
+                identity_dict["lang"] = identity.lang.match_str
+            if identity.name is not None:
+                identity_dict["name"] = identity.name
+            identities.append(identity_dict)
+
+        features = sorted(self.features)
+
+        forms = []
+        for form in self.exts:
+            forms.append({
+                field.var: list(field.values)
+                for field in form.fields
+                if field.var is not None
+            })
+
+        result = {
+            "identities": identities,
+            "features": features,
+            "forms": forms
+        }
+
+        return result
+
+    def _set_captured_events(self, events):
+        self.captured_events = events
 
 
 class Item(xso.XSO):

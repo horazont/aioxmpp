@@ -2,10 +2,7 @@
 Stringprep support
 ##################
 
-This module implements the SASLprep (`RFC 4013`_), Nodeprep (`RFC 6122`_) and
-Resourceprep (`RFC 6122`_) stringprep profiles.
-
-.. autofunction:: saslprep
+This module implements the Nodeprep (`RFC 6122`_) and Resourceprep (`RFC 6122`_) stringprep profiles.
 
 .. autofunction:: nodeprep
 
@@ -14,7 +11,6 @@ Resourceprep (`RFC 6122`_) stringprep profiles.
 .. autofunction:: nameprep
 
 .. _RFC 3454: https://tools.ietf.org/html/rfc3454
-.. _RFC 4013: https://tools.ietf.org/html/rfc4013
 .. _RFC 6122: https://tools.ietf.org/html/rfc6122
 
 """
@@ -112,59 +108,6 @@ def check_unassigned(chars, bad_tables):
     if violator is not None:
         raise ValueError("Input contains unassigned code point: "
                          "U+{:04x}".format(ord(violator)))
-
-
-def _saslprep_do_mapping(chars):
-    """
-    Perform the stringprep mapping step of SASLprep. Operates in-place on a
-    list of unicode characters provided in `chars`.
-    """
-    i = 0
-    while i < len(chars):
-        c = chars[i]
-        if stringprep.in_table_c12(c):
-            chars[i] = "\u0020"
-        elif stringprep.in_table_b1(c):
-            del chars[i]
-            continue
-        i += 1
-
-
-def saslprep(string, allow_unassigned=False):
-    """
-    Process the given `string` using the SASLprep profile. In the error cases
-    defined in `RFC 3454`_ (stringprep), a :class:`ValueError` is raised.
-    """
-
-    chars = list(string)
-    _saslprep_do_mapping(chars)
-    do_normalization(chars)
-    check_prohibited_output(
-        chars,
-        (
-            stringprep.in_table_c12,
-            stringprep.in_table_c21,
-            stringprep.in_table_c22,
-            stringprep.in_table_c3,
-            stringprep.in_table_c4,
-            stringprep.in_table_c5,
-            stringprep.in_table_c6,
-            stringprep.in_table_c7,
-            stringprep.in_table_c8,
-            stringprep.in_table_c9
-        )
-    )
-    check_bidi(chars)
-
-    if not allow_unassigned:
-        check_unassigned(
-            chars,
-            (
-                stringprep.in_table_a1,
-            )
-        )
-
-    return "".join(chars)
 
 
 def _nodeprep_do_mapping(chars):

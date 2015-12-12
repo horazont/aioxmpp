@@ -24,8 +24,10 @@ extend its functionality or provide backwards compatibility.
    :maxdepth: 2
 
    disco
-   roster
+   entitycaps
+   muc
    presence
+   roster
    rfc6120
    rfc3921
 
@@ -42,11 +44,12 @@ sorted into this section.
 .. toctree::
    :maxdepth: 2
 
-   stream_xsos
+   structs
+   tracking
+   nonza
    sasl
    errors
    i18n
-   structs
    callbacks
 
 

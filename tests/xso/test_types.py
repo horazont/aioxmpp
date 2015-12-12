@@ -8,7 +8,7 @@ import unittest.mock
 
 import pytz
 
-from datetime import datetime
+from datetime import datetime, date, time
 
 import aioxmpp.xso as xso
 import aioxmpp.structs as structs
@@ -28,6 +28,9 @@ class TestAbstractType(unittest.TestCase):
 
     def test_parse_method(self):
         self.assertTrue(inspect.isfunction(xso.AbstractType.parse))
+
+    def test_get_formatted_type(self):
+        self.assertIs(xso.AbstractType.get_formatted_type(object()), str)
 
     def test_format_method(self):
         self.assertTrue(inspect.isfunction(xso.AbstractType.format))
@@ -377,6 +380,37 @@ class TestDateTimeType(unittest.TestCase):
             ))
         )
 
+    def test_parse_xep0082_examples(self):
+        t = xso.DateTime()
+        self.assertEqual(
+            t.parse("1969-07-21T02:56:15Z"),
+            datetime(1969, 7, 21, 2, 56, 15, tzinfo=pytz.utc)
+        )
+        self.assertEqual(
+            t.parse("1969-07-20T21:56:15-05:00"),
+            datetime(1969, 7, 21, 2, 56, 15, tzinfo=pytz.utc)
+        )
+
+    def test_parse_legacy_format(self):
+        t = xso.DateTime()
+        self.assertEqual(
+            t.parse("19690721T02:56:15"),
+            datetime(1969, 7, 21, 2, 56, 15, tzinfo=pytz.utc)
+        )
+
+    def test_emit_legacy_format_with_switch(self):
+        t = xso.DateTime(legacy=True)
+        self.assertEqual(
+            "19690721T02:56:15",
+            t.format(datetime(1969, 7, 21, 2, 56, 15, tzinfo=pytz.utc))
+        )
+        self.assertEqual(
+            "20140126T19:40:10",
+            t.format(pytz.timezone("Europe/Berlin").localize(
+                datetime(2014, 1, 26, 20, 40, 10)
+            ))
+        )
+
     def test_require_datetime(self):
         t = xso.DateTime()
 
@@ -401,6 +435,147 @@ class TestDateTimeType(unittest.TestCase):
             dt,
             t.coerce(dt)
         )
+
+
+class TestDate(unittest.TestCase):
+    def test_is_abstract_type(self):
+        self.assertIsInstance(
+            xso.Date(),
+            xso.AbstractType)
+
+    def test_parse(self):
+        t = xso.Date()
+        self.assertEqual(
+            t.parse("1776-07-04"),
+            date(1776, 7, 4),
+        )
+
+    def test_format(self):
+        t = xso.Date()
+        self.assertEqual(
+            t.format(date(1776, 7, 4)),
+            "1776-07-04",
+        )
+
+    def test_coerce_rejects_datetime(self):
+        t = xso.Date()
+        with self.assertRaisesRegex(
+                TypeError,
+                "must be a date object"):
+            t.coerce(datetime.utcnow())
+
+    def test_coerce_rejects_time(self):
+        t = xso.Date()
+        with self.assertRaisesRegex(
+                TypeError,
+                "must be a date object"):
+            t.coerce(datetime.utcnow().time())
+
+    def test_coerce_accepts_date(self):
+        t = xso.Date()
+        v = datetime.utcnow().date()
+        self.assertEqual(t.coerce(v), v)
+
+
+class TestTime(unittest.TestCase):
+    def test_is_abstract_type(self):
+        self.assertIsInstance(
+            xso.Time(),
+            xso.AbstractType)
+
+    def test_parse_example(self):
+        t = xso.Time()
+        self.assertEqual(
+            time(19, 40, 10, tzinfo=pytz.utc),
+            t.parse("19:40:10Z"))
+
+    def test_parse_timezoned(self):
+        t = xso.Time()
+        self.assertEqual(
+            time(19, 40, 10, tzinfo=pytz.utc),
+            t.parse("20:40:10+01:00"))
+
+    def test_parse_local(self):
+        t = xso.Time()
+        self.assertEqual(
+            time(20, 40, 10),
+            t.parse("20:40:10"))
+
+    def test_parse_milliseconds(self):
+        t = xso.Time()
+        self.assertEqual(
+            time(20, 40, 10, 123456),
+            t.parse("20:40:10.123456"))
+
+    def test_parse_milliseconds_timezoned(self):
+        t = xso.Time()
+        self.assertEqual(
+            time(19, 40, 10, 123456, tzinfo=pytz.utc),
+            t.parse("20:40:10.123456+01:00"))
+
+    def test_format_timezoned(self):
+        t = xso.Time()
+        self.assertEqual(
+            "19:40:10Z",
+            t.format(time(19, 40, 10, tzinfo=pytz.utc))
+        )
+
+    def test_format_timezoned_microseconds(self):
+        t = xso.Time()
+        self.assertEqual(
+            "19:40:10.1234Z",
+            t.format(time(19, 40, 10, 123400,
+                          tzinfo=pytz.utc))
+        )
+
+    def test_format_naive(self):
+        t = xso.Time()
+        self.assertEqual(
+            "19:40:10",
+            t.format(time(19, 40, 10))
+        )
+
+    def test_format_naive_microseconds(self):
+        t = xso.Time()
+        self.assertEqual(
+            "19:40:10.1234",
+            t.format(time(19, 40, 10, 123400))
+        )
+
+    def test_coerce_rejects_non_utc_timezone(self):
+        t = xso.Time()
+        with self.assertRaisesRegex(
+                ValueError,
+                "time must have UTC timezone or none at all"):
+            t.coerce(pytz.timezone("Europe/Berlin").localize(
+                datetime(2014, 1, 26, 20, 40, 10)
+            ).timetz())
+
+    def test_coerce_accepts_naive_timezone(self):
+        t = xso.Time()
+        v = time(20, 40, 10)
+        result = t.coerce(v)
+        self.assertEqual(v, result)
+
+    def test_coerce_accepts_utc_timezone(self):
+        t = xso.Time()
+        v = time(20, 40, 10, tzinfo=pytz.utc)
+        result = t.coerce(v)
+        self.assertEqual(v, result)
+
+    def test_coerce_rejects_datetime(self):
+        t = xso.Time()
+        with self.assertRaisesRegex(
+                TypeError,
+                "must be a time object"):
+            t.coerce(datetime.utcnow())
+
+    def test_coerce_rejects_date(self):
+        t = xso.Time()
+        with self.assertRaisesRegex(
+                TypeError,
+                "must be a time object"):
+            t.coerce(datetime.utcnow().date())
 
 
 class TestBase64Binary(unittest.TestCase):
@@ -790,6 +965,39 @@ class TestLanguageTag(unittest.TestCase):
                     TypeError,
                     "is not a LanguageTag"):
                 t.coerce(value)
+
+
+class TestTextChildMap(unittest.TestCase):
+    def test_is_abstract_type(self):
+        self.assertTrue(issubclass(
+            xso.TextChildMap,
+            xso.AbstractType
+        ))
+
+    def setUp(self):
+        self.type_ = xso.TextChildMap(xso.AbstractTextChild)
+
+    def test_get_formatted_type(self):
+        self.assertIs(self.type_.get_formatted_type(),
+                      xso.AbstractTextChild)
+
+    def test_parse(self):
+        text, lang = "foo", structs.LanguageTag.fromstr("en-gb")
+        item = xso.AbstractTextChild(text, lang)
+        self.assertEqual(
+            (lang, text),
+            self.type_.parse(item)
+        )
+
+    def test_format(self):
+        text, lang = "foo", structs.LanguageTag.fromstr("en-gb")
+        item = self.type_.format((lang, text))
+
+        self.assertEqual(item.text, text)
+        self.assertEqual(item.lang, lang)
+
+    def tearDown(self):
+        del self.type_
 
 
 

@@ -4,7 +4,7 @@ import unittest.mock
 
 import aioxmpp.stanza as stanza
 import aioxmpp.xso as xso
-import aioxmpp.stream_xsos as stream_xsos
+import aioxmpp.nonza as nonza
 import aioxmpp.errors as errors
 
 from aioxmpp.testutils import (
@@ -653,7 +653,7 @@ class TestXMLStream(unittest.TestCase):
         )
 
         self.assertTrue(fut.done())
-        self.assertIsInstance(fut.result(), stream_xsos.StreamFeatures)
+        self.assertIsInstance(fut.result(), nonza.StreamFeatures)
 
     def test_transport_attribute(self):
         t, p = self._make_stream(to=TEST_PEER)
@@ -1046,7 +1046,6 @@ class TestXMLStream(unittest.TestCase):
     def test_close_and_wait(self):
         t, p = self._make_stream(to=TEST_PEER)
 
-
         run_coroutine(t.run_test(
             [
                 TransportMock.Write(
@@ -1371,6 +1370,127 @@ class TestXMLStream(unittest.TestCase):
             p.state
         )
 
+    def test_abort(self):
+        t, p = self._make_stream(to=TEST_PEER)
+
+        run_coroutine(t.run_test(
+            [
+                TransportMock.Write(
+                    STREAM_HEADER,
+                    response=[
+                        TransportMock.Receive(
+                            self._make_peer_header(version=(1, 0))
+                        ),
+                    ]),
+            ],
+            partial=True
+        ))
+
+        self.assertEqual(
+            p.state,
+            protocol.State.OPEN
+        )
+
+        p.abort()
+
+        run_coroutine(t.run_test(
+            [
+                TransportMock.WriteEof(),
+                TransportMock.Close()
+            ],
+        ))
+
+        self.assertEqual(
+            p.state,
+            protocol.State.CLOSED
+        )
+
+    def test_abort_is_noop_if_closed(self):
+        t, p = self._make_stream(to=TEST_PEER)
+
+        run_coroutine(t.run_test(
+            [
+                TransportMock.Write(
+                    STREAM_HEADER,
+                    response=[
+                        TransportMock.Receive(
+                            self._make_peer_header(version=(1, 0))
+                        ),
+                    ]),
+            ],
+            partial=True
+        ))
+
+        self.assertEqual(
+            p.state,
+            protocol.State.OPEN
+        )
+
+        p.abort()
+
+        run_coroutine(t.run_test(
+            [
+                TransportMock.WriteEof(),
+                TransportMock.Close()
+            ],
+        ))
+
+        self.assertEqual(
+            p.state,
+            protocol.State.CLOSED
+        )
+
+        p.abort()
+
+    def test_abort_aborts_while_waiting_for_stream_footer(self):
+        t, p = self._make_stream(to=TEST_PEER)
+
+        run_coroutine(t.run_test(
+            [
+                TransportMock.Write(
+                    STREAM_HEADER,
+                    response=[
+                        TransportMock.Receive(
+                            self._make_peer_header(version=(1, 0))
+                        ),
+                    ]),
+            ],
+            partial=True
+        ))
+
+        self.assertEqual(
+            p.state,
+            protocol.State.OPEN
+        )
+
+        p.close()
+
+        run_coroutine(t.run_test(
+            [
+                TransportMock.Write(b"</stream:stream>"),
+                TransportMock.WriteEof(),
+            ],
+            partial=True,
+        ))
+
+        self.assertEqual(
+            p.state,
+            protocol.State.CLOSING
+        )
+
+        p.abort()
+
+        run_coroutine(t.run_test(
+            [
+                TransportMock.Close()
+            ],
+        ))
+
+        self.assertEqual(
+            p.state,
+            protocol.State.CLOSED
+        )
+
     def tearDown(self):
         self.loop.set_exception_handler(
             type(self.loop).default_exception_handler
@@ -1574,7 +1694,7 @@ class Testreset_stream_and_get_features(xmltestutils.XMLTestCase):
         )[0]
 
     def test_send_and_return_features(self):
-        features = stream_xsos.StreamFeatures()
+        features = nonza.StreamFeatures()
 
         result = self._run_test(
             [
@@ -1587,7 +1707,7 @@ class Testreset_stream_and_get_features(xmltestutils.XMLTestCase):
         self.assertIs(result, features)
 
     def test_receive_exactly_one(self):
-        features = stream_xsos.StreamFeatures()
+        features = nonza.StreamFeatures()
 
         with self.assertRaisesRegexp(AssertionError,
                                      "no handler registered for"):
@@ -1603,7 +1723,7 @@ class Testreset_stream_and_get_features(xmltestutils.XMLTestCase):
             )
 
     def test_timeout(self):
-        features = stream_xsos.StreamFeatures()
+        features = nonza.StreamFeatures()
 
         with self.assertRaises(TimeoutError):
             self._run_test(
@@ -1621,7 +1741,7 @@ class Testreset_stream_and_get_features(xmltestutils.XMLTestCase):
             ))
 
     def test_clean_up_if_sending_fails(self):
-        features = stream_xsos.StreamFeatures()
+        features = nonza.StreamFeatures()
 
         exc = ValueError()
 
@@ -1642,7 +1762,7 @@ class Testreset_stream_and_get_features(xmltestutils.XMLTestCase):
         ))
 
     def test_do_not_timeout_if_stream_fails(self):
-        features = stream_xsos.StreamFeatures()
+        features = nonza.StreamFeatures()
 
         exc = ValueError()
 
@@ -1673,7 +1793,7 @@ class Testsend_stream_error_and_close(xmltestutils.XMLTestCase):
 
         run_coroutine(self.xmlstream.run_test([
             XMLStreamMock.Send(
-                stream_xsos.StreamError(
+                nonza.StreamError(
                     condition=(namespaces.streams, "connection-timeout"),
                     text="foobar")
             ),

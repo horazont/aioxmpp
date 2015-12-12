@@ -1,3 +1,4 @@
+import abc
 import collections
 import collections.abc
 import contextlib
@@ -44,6 +45,9 @@ def make_instance_mock(mapping={}):
 class TestXMLStreamClass(unittest.TestCase):
     def setUp(self):
         self.ctx = xso_model.Context()
+
+    def test_is_abc_meta(self):
+        self.assertTrue(issubclass(xso_model.XMLStreamClass, abc.ABCMeta))
 
     def test_init(self):
         class Cls(metaclass=xso_model.XMLStreamClass):
@@ -1590,6 +1594,76 @@ class TestXMLStreamClass(unittest.TestCase):
         self.assertIs(ClsB.DECLARE_NS, d)
 
 
+class TestCapturingXMLStreamClass(unittest.TestCase):
+    def test_parse_events_uses_capture(self):
+        class Cls(metaclass=xso_model.CapturingXMLStreamClass):
+            pass
+
+        capture_events_mock = unittest.mock.Mock()
+        result = unittest.mock.Mock()
+
+        def capture_events(receiver, dest):
+            mock = capture_events_mock(receiver, dest)
+            mock.next()
+            mock.send((yield))
+            return result
+
+        ev_args = [1, 2, 3]
+        parent_ctx = object()
+        with contextlib.ExitStack() as stack:
+            parse_events = stack.enter_context(
+                unittest.mock.patch.object(
+                    xso_model.XMLStreamClass,
+                    "parse_events")
+            )
+
+            self.assertIsInstance(Cls, xso_model.XMLStreamClass)
+
+            stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.xso.model.capture_events",
+                    new=capture_events
+                )
+            )
+
+            i = Cls.parse_events(ev_args, parent_ctx)
+            next(i)
+
+        parse_events.assert_called_with(ev_args, parent_ctx)
+
+        self.assertSequenceEqual(
+            capture_events_mock.mock_calls,
+            [
+                unittest.mock.call(parse_events(), unittest.mock.ANY),
+                unittest.mock.call().next(),
+            ]
+        )
+        _, (_, dest), _ = capture_events_mock.mock_calls[0]
+        capture_events_mock.mock_calls.clear()
+
+        self.assertSequenceEqual(
+            dest,
+            [
+                ("start", )+tuple(ev_args)
+            ]
+        )
+
+        with self.assertRaises(StopIteration) as ctx:
+            i.send("foo")
+
+        self.assertSequenceEqual(
+            capture_events_mock.mock_calls,
+            [
+                unittest.mock.call().send("foo"),
+            ]
+        )
+        capture_events_mock.mock_calls.clear()
+
+        result._set_captured_events.assert_called_with(dest)
+
+        self.assertIs(ctx.exception.value, result)
+
+
 class TestXSO(XMLTestCase):
     def _unparse_test(self, obj, tree):
         parent = etree.Element("foo")
@@ -1898,6 +1972,24 @@ class TestXSO(XMLTestCase):
     def tearDown(self):
         del self.obj
         del self.Cls
+
+
+class TestCapturingXSO(unittest.TestCase):
+    def test_is_capturing_xml_stream_class(self):
+        self.assertIsInstance(
+            xso_model.CapturingXSO,
+            xso_model.CapturingXMLStreamClass
+        )
+
+    def test_is_xso(self):
+        self.assertTrue(
+            issubclass(xso_model.CapturingXSO, xso_model.XSO)
+        )
+
+    def test_is_abstract(self):
+        with self.assertRaisesRegex(TypeError,
+                                    r"abstract methods _set_captured_events"):
+            xso_model.CapturingXSO()
 
 
 class TestXSOList(unittest.TestCase):
@@ -4350,6 +4442,535 @@ class ChildTag(XMLTestCase):
         del self.prop
 
 
+class TestChildValueList(unittest.TestCase):
+    class ChildXSO(xso.XSO):
+        TAG = ("uri:foo", "foo")
+
+        attr = xso.Attr("a", type_=xso.Integer())
+
+    class ChildValueType(xso.AbstractType):
+        @classmethod
+        def get_formatted_type(cls):
+            return TestChildValueList.ChildXSO
+
+        def coerce(self, value):
+            return TestChildValueList.ChildXSO.attr.type_.coerce(value)
+
+        def format(self, value):
+            item = TestChildValueList.ChildXSO()
+            item.attr = value
+            return item
+
+        def parse(self, value):
+            return value.attr
+
+    def setUp(self):
+        class Cls(xso.XSO):
+            TAG = ("uri:foo", "p")
+
+            values = xso_model.ChildValueList(self.ChildValueType)
+
+        self.Cls = Cls
+
+    def test_is_prop_base(self):
+        self.assertTrue(issubclass(
+            xso_model.ChildValueList,
+            xso_model._ChildPropBase
+        ))
+
+    def test_get_tag_map_and_classes(self):
+        self.assertDictEqual(
+            {
+                self.ChildXSO.TAG: self.ChildXSO
+            },
+            self.Cls.values.get_tag_map()
+        )
+        self.assertSetEqual(
+            self.Cls.values._classes,
+            {self.ChildXSO}
+        )
+
+    def test_registered_at_class_child_map(self):
+        self.assertIn(
+            self.ChildXSO.TAG,
+            self.Cls.CHILD_MAP
+        )
+        self.assertIs(
+            self.Cls.CHILD_MAP[self.ChildXSO.TAG],
+            self.Cls.values
+        )
+        self.assertIn(
+            self.Cls.values,
+            self.Cls.CHILD_PROPS
+        )
+
+    def test_get_on_class_returns_descriptor(self):
+        desc = xso_model.ChildValueList(self.ChildValueType)
+
+        class Cls(xso.XSO):
+            values = desc
+
+        self.assertIs(desc, Cls.values)
+
+    def test_initial_value_is_a_mutable_sequence(self):
+        obj = self.Cls()
+        self.assertIsInstance(
+            obj.values,
+            collections.abc.MutableSequence)
+        self.assertSequenceEqual(obj.values, [])
+
+    def test_get_returns_per_instance_list(self):
+        obj1 = self.Cls()
+        obj2 = self.Cls()
+        self.assertIs(obj1.values, obj1.values)
+        self.assertIsNot(obj1.values, obj2.values)
+        self.assertIs(obj2.values, obj2.values)
+
+    def test_container_type_argument(self):
+        mock = unittest.mock.Mock()
+
+        class Cls(xso.XSO):
+            TAG = ("uri:foo", "p")
+
+            values = xso_model.ChildValueList(
+                self.ChildValueType,
+                container_type=mock
+            )
+
+        obj = Cls()
+        container = obj.values
+        self.assertEqual(container, mock())
+
+    def test_container_type_not_called_if_attr_already_created(self):
+        mock = unittest.mock.Mock()
+
+        class Cls(xso.XSO):
+            TAG = ("uri:foo", "p")
+
+            values = xso_model.ChildValueList(
+                self.ChildValueType,
+                container_type=mock
+            )
+
+        obj = Cls()
+        obj.values
+        obj.values
+
+        self.assertSequenceEqual(
+            mock.mock_calls,
+            [
+                unittest.mock.call(),
+            ]
+        )
+
+    def test_set_is_prohibited(self):
+        obj = self.Cls()
+        with self.assertRaises(AttributeError):
+            obj.values = [1]
+
+    def test_to_sax_calls_format(self):
+        obj = self.Cls()
+        obj.values.append(10)
+
+        base = unittest.mock.Mock()
+
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(unittest.mock.patch.object(
+                self.ChildValueType,
+                "format",
+                new=base.format
+            ))
+
+            self.Cls.values.to_sax(obj, base.dest)
+
+        self.assertSequenceEqual(
+            base.mock_calls,
+            [
+                unittest.mock.call.format(10),
+                unittest.mock.call.format().unparse_to_sax(base.dest)
+            ]
+        )
+
+    def test_from_events_uses__process_and_parse(self):
+        obj = self.Cls()
+
+        def process(mock, *args, **kwargs):
+            return mock(*args, **kwargs)
+            yield None
+
+        base = unittest.mock.Mock()
+        process_mock = base.process
+        base.process = functools.partial(process, process_mock)
+
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(unittest.mock.patch.object(
+                self.ChildValueType,
+                "parse",
+                new=base.parse
+            ))
+
+            stack.enter_context(unittest.mock.patch.object(
+                self.Cls.values,
+                "_process",
+                new=base.process
+            ))
+
+            with self.assertRaises(StopIteration):
+                gen = self.Cls.values.from_events(
+                    obj,
+                    base.ev_args,
+                    base.ctx,
+                )
+                next(gen)
+
+            with self.assertRaises(StopIteration):
+                gen = self.Cls.values.from_events(
+                    obj,
+                    base.ev_args,
+                    base.ctx,
+                )
+                next(gen)
+
+        calls = list(base.mock_calls)
+        self.assertSequenceEqual(
+            calls,
+            [
+                unittest.mock.call.process(obj, base.ev_args, base.ctx),
+                unittest.mock.call.parse(process_mock()),
+                unittest.mock.call.process(obj, base.ev_args, base.ctx),
+                unittest.mock.call.parse(process_mock()),
+            ]
+        )
+
+        self.assertSequenceEqual(
+            obj.values,
+            [
+                base.parse(),
+                base.parse(),
+            ]
+        )
+
+    def test_from_events_works_with_set_container(self):
+        class Cls(xso.XSO):
+            TAG = ("uri:foo", "p")
+
+            values = xso_model.ChildValueList(
+                self.ChildValueType,
+                container_type=set
+            )
+
+        obj = Cls()
+
+        def process(mock, *args, **kwargs):
+            return mock(*args, **kwargs)
+            yield None
+
+        base = unittest.mock.Mock()
+        process_mock = base.process
+        base.process = functools.partial(process, process_mock)
+
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(unittest.mock.patch.object(
+                self.ChildValueType,
+                "parse",
+                new=base.parse
+            ))
+
+            stack.enter_context(unittest.mock.patch.object(
+                Cls.values,
+                "_process",
+                new=base.process
+            ))
+
+            base.parse.return_value = 1
+            with self.assertRaises(StopIteration):
+                gen = Cls.values.from_events(
+                    obj,
+                    base.ev_args,
+                    base.ctx,
+                )
+                next(gen)
+
+            base.parse.return_value = 2
+            with self.assertRaises(StopIteration):
+                gen = Cls.values.from_events(
+                    obj,
+                    base.ev_args,
+                    base.ctx,
+                )
+                next(gen)
+
+        calls = list(base.mock_calls)
+        self.assertSequenceEqual(
+            calls,
+            [
+                unittest.mock.call.process(obj, base.ev_args, base.ctx),
+                unittest.mock.call.parse(process_mock()),
+                unittest.mock.call.process(obj, base.ev_args, base.ctx),
+                unittest.mock.call.parse(process_mock()),
+            ]
+        )
+
+        self.assertSetEqual(
+            obj.values,
+            {
+                1, 2
+            }
+        )
+
+    def tearDown(self):
+        del self.Cls
+
+
+class TestChildValueMap(unittest.TestCase):
+    class ChildXSO(xso.XSO):
+        TAG = ("uri:foo", "foo")
+
+        key = xso.Attr("k", type_=xso.Integer())
+        value = xso.Attr("v", type_=xso.Integer())
+
+    class ChildValueType(xso.AbstractType):
+        @classmethod
+        def get_formatted_type(cls):
+            return TestChildValueMap.ChildXSO
+
+        def format(self, item):
+            key, value = item
+            item = TestChildValueMap.ChildXSO()
+            item.key = key
+            item.value = value
+            return item
+
+        def parse(self, item):
+            return item.key, item.value
+
+    def setUp(self):
+        class Cls(xso.XSO):
+            TAG = ("uri:foo", "p")
+
+            values = xso_model.ChildValueMap(self.ChildValueType)
+
+        self.Cls = Cls
+
+    def test_is_child_prop_base(self):
+        self.assertTrue(issubclass(
+            xso_model.ChildValueMap,
+            xso_model._ChildPropBase
+        ))
+
+    def test_get_tag_map_and_classes(self):
+        self.assertDictEqual(
+            self.Cls.values.get_tag_map(),
+            {
+                self.ChildXSO.TAG: self.ChildXSO,
+            }
+        )
+        self.assertSetEqual(
+            self.Cls.values._classes,
+            {self.ChildXSO}
+        )
+
+    def test_registered_at_class_child_map(self):
+        self.assertIn(
+            self.ChildXSO.TAG,
+            self.Cls.CHILD_MAP
+        )
+        self.assertIs(
+            self.Cls.CHILD_MAP[self.ChildXSO.TAG],
+            self.Cls.values
+        )
+        self.assertIn(
+            self.Cls.values,
+            self.Cls.CHILD_PROPS
+        )
+
+    def test_get_on_class_returns_descriptor(self):
+        desc = xso_model.ChildValueList(self.ChildValueType)
+
+        class Cls(xso.XSO):
+            values = desc
+
+        self.assertIs(desc, Cls.values)
+
+    def test_initial_value_is_a_mutable_mapping(self):
+        obj = self.Cls()
+        self.assertIsInstance(
+            obj.values,
+            collections.abc.MutableMapping)
+        self.assertSequenceEqual(obj.values, {})
+
+    def test_get_returns_per_instance_dict(self):
+        obj1 = self.Cls()
+        obj2 = self.Cls()
+        self.assertIs(obj1.values, obj1.values)
+        self.assertIsNot(obj1.values, obj2.values)
+        self.assertIs(obj2.values, obj2.values)
+
+    def test_mapping_type_argument(self):
+        mock = unittest.mock.Mock()
+
+        class Cls(xso.XSO):
+            TAG = ("uri:foo", "p")
+
+            values = xso_model.ChildValueMap(
+                self.ChildValueType,
+                mapping_type=mock
+            )
+
+        obj = Cls()
+        mapping = obj.values
+        self.assertEqual(mapping, mock())
+
+    def test_mapping_type_not_called_if_attr_already_created(self):
+        mock = unittest.mock.Mock()
+
+        class Cls(xso.XSO):
+            TAG = ("uri:foo", "p")
+
+            values = xso_model.ChildValueMap(
+                self.ChildValueType,
+                mapping_type=mock
+            )
+
+        obj = Cls()
+        obj.values
+        obj.values
+
+        self.assertSequenceEqual(
+            mock.mock_calls,
+            [
+                unittest.mock.call(),
+            ]
+        )
+
+    def test_set_is_prohibited(self):
+        obj = self.Cls()
+        with self.assertRaises(AttributeError):
+            obj.values = {}
+
+    def test_to_sax_calls_format(self):
+        obj = self.Cls()
+        obj.values[10] = 20
+
+        base = unittest.mock.Mock()
+
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(unittest.mock.patch.object(
+                self.ChildValueType,
+                "format",
+                new=base.format
+            ))
+
+            self.Cls.values.to_sax(obj, base.dest)
+
+        self.assertSequenceEqual(
+            base.mock_calls,
+            [
+                unittest.mock.call.format((10, 20)),
+                unittest.mock.call.format().unparse_to_sax(base.dest)
+            ]
+        )
+
+    def test_from_events_uses__process_and_parse(self):
+        obj = self.Cls()
+
+        def process(mock, *args, **kwargs):
+            return mock(*args, **kwargs)
+            yield None
+
+        base = unittest.mock.Mock()
+        process_mock = base.process
+        base.process = functools.partial(process, process_mock)
+
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(unittest.mock.patch.object(
+                self.ChildValueType,
+                "parse",
+                new=base.parse
+            ))
+
+            stack.enter_context(unittest.mock.patch.object(
+                self.Cls.values,
+                "_process",
+                new=base.process
+            ))
+
+            base.parse.return_value = (1, "a")
+            with self.assertRaises(StopIteration):
+                gen = self.Cls.values.from_events(
+                    obj,
+                    base.ev_args,
+                    base.ctx,
+                )
+                next(gen)
+
+            base.parse.return_value = (2, "b")
+            with self.assertRaises(StopIteration):
+                gen = self.Cls.values.from_events(
+                    obj,
+                    base.ev_args,
+                    base.ctx,
+                )
+                next(gen)
+
+        calls = list(base.mock_calls)
+        self.assertSequenceEqual(
+            calls,
+            [
+                unittest.mock.call.process(obj, base.ev_args, base.ctx),
+                unittest.mock.call.parse(process_mock()),
+                unittest.mock.call.process(obj, base.ev_args, base.ctx),
+                unittest.mock.call.parse(process_mock()),
+            ]
+        )
+
+        self.assertDictEqual(
+            obj.values,
+            {
+                1: "a",
+                2: "b"
+            }
+        )
+
+    def tearDown(self):
+        del self.Cls
+
+
+class TestChildTextMap(unittest.TestCase):
+    def test_init(self):
+        base = unittest.mock.Mock()
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(unittest.mock.patch.object(
+                xso_model.ChildValueMap,
+                "__init__",
+                new=base.ChildValueMap
+            ))
+
+            stack.enter_context(unittest.mock.patch(
+                "aioxmpp.xso.types.TextChildMap",
+                new=base.TextChildMap
+            ))
+
+            obj = xso_model.ChildTextMap(base.xso)
+
+        calls = list(base.mock_calls)
+        self.assertSequenceEqual(
+            calls,
+            [
+                unittest.mock.call.TextChildMap(base.xso),
+                unittest.mock.call.ChildValueMap(
+                    base.TextChildMap(),
+                    mapping_type=structs.LanguageMap,
+                ),
+            ]
+        )
+
+        self.assertIsInstance(
+            obj,
+            xso_model.ChildTextMap
+        )
+
+
 class TestXSOParser(XMLTestCase):
     def run_parser(self, classes, tree):
         results = []
@@ -4744,3 +5365,261 @@ class TestContext(unittest.TestCase):
 
     def tearDown(self):
         del self.ctx
+
+
+class Testcapture_events(unittest.TestCase):
+    def test_capture_initiation(self):
+        receiver_mock = unittest.mock.Mock()
+
+        def receiver():
+            receiver_mock.next()
+            while True:
+                receiver_mock.send((yield))
+
+        dest = []
+
+        capturer = iter(xso_model.capture_events(receiver(), dest))
+
+        self.assertIsNone(next(capturer))
+        receiver_mock.next.assert_called_with()
+        self.assertSequenceEqual(
+            [],
+            dest
+        )
+
+    def test_capture_and_forward_events(self):
+        receiver_mock = unittest.mock.Mock()
+
+        def receiver():
+            receiver_mock.next()
+            while True:
+                receiver_mock.send((yield))
+
+        dest = []
+
+        capturer = iter(xso_model.capture_events(receiver(), dest))
+
+        more_args = [object(), object(), object()]
+        next(capturer)
+        for i, arg in enumerate(more_args):
+            capturer.send(arg)
+            receiver_mock.send.assert_called_with(arg)
+            self.assertSequenceEqual(
+                more_args[:i+1],
+                dest
+            )
+
+    def test_clear_destination_on_exception(self):
+        receiver_mock = unittest.mock.Mock()
+
+        def receiver():
+            receiver_mock.next()
+            receiver_mock.send((yield))
+            receiver_mock.send((yield))
+            raise BaseException()
+
+        dest = []
+
+        capturer = iter(xso_model.capture_events(receiver(), dest))
+
+        more_args = [object(), object()]
+        next(capturer)
+        for i, arg in enumerate(more_args[:1]):
+            capturer.send(arg)
+            receiver_mock.send.assert_called_with(arg)
+            self.assertSequenceEqual(
+                more_args[:i+1],
+                dest
+            )
+
+        with self.assertRaises(BaseException):
+            capturer.send(more_args[-1])
+
+        self.assertSequenceEqual([], dest)
+
+    def test_clear_destination_on_exception_during_startup(self):
+        def receiver():
+            raise BaseException()
+            yield
+
+        dest = []
+
+        capturer = iter(xso_model.capture_events(receiver(), dest))
+
+        with self.assertRaises(BaseException):
+            next(capturer)
+
+        self.assertSequenceEqual([], dest)
+
+    def test_clear_destination_on_close_while_active(self):
+        receiver_mock = unittest.mock.Mock()
+
+        def receiver():
+            receiver_mock.next()
+            receiver_mock.send((yield))
+            receiver_mock.send((yield))
+
+        dest = []
+
+        capturer = iter(xso_model.capture_events(receiver(), dest))
+
+        next(capturer)
+        capturer.close()
+
+        self.assertSequenceEqual([], dest)
+
+    def test_keep_destination_on_close_afterwards(self):
+        receiver_mock = unittest.mock.Mock()
+
+        def receiver():
+            receiver_mock.next()
+            receiver_mock.send((yield))
+
+        dest = []
+        ev_args = object()
+
+        capturer = iter(xso_model.capture_events(receiver(), dest))
+
+        next(capturer)
+        with self.assertRaises(StopIteration):
+            capturer.send(ev_args)
+        capturer.close()
+
+        self.assertSequenceEqual([ev_args], dest)
+
+    def test_forward_result_from_receiver(self):
+        result = object()
+        receiver_mock = unittest.mock.Mock()
+
+        def receiver():
+            receiver_mock.next()
+            receiver_mock.send((yield))
+            return result
+
+        dest = []
+        ev_args = object()
+
+        capturer = iter(xso_model.capture_events(receiver(), dest))
+
+        next(capturer)
+        with self.assertRaises(StopIteration) as ctx:
+            capturer.send(ev_args)
+
+        self.assertIs(ctx.exception.value, result)
+
+
+class Testevents_to_sax(unittest.TestCase):
+    def setUp(self):
+        self.dest = unittest.mock.Mock()
+
+    def test_start(self):
+        xso_model.events_to_sax(
+            [
+                ("start", "uri:foo", "bar", {"a": "b"}),
+            ],
+            self.dest
+        )
+        self.dest.startElementNS.assert_called_with(
+            ("uri:foo", "bar"),
+            None,
+            {"a": "b"}
+        )
+
+    def test_start_and_end(self):
+        xso_model.events_to_sax(
+            [
+                ("start", "uri:foo", "bar", {"a": "b"}),
+                ("end", ),
+            ],
+            self.dest
+        )
+
+        self.assertSequenceEqual(
+            self.dest.mock_calls,
+            [
+                unittest.mock.call.startElementNS(
+                    ("uri:foo", "bar"),
+                    None,
+                    {"a": "b"}
+                ),
+                unittest.mock.call.endElementNS(
+                    ("uri:foo", "bar"),
+                    None,
+                ),
+            ]
+        )
+
+    def test_text(self):
+        xso_model.events_to_sax(
+            [
+                ("start", "uri:foo", "bar", {"a": "b"}),
+                ("text", "foo"),
+                ("end", ),
+            ],
+            self.dest
+        )
+
+        self.assertSequenceEqual(
+            self.dest.mock_calls,
+            [
+                unittest.mock.call.startElementNS(
+                    ("uri:foo", "bar"),
+                    None,
+                    {"a": "b"}
+                ),
+                unittest.mock.call.characters("foo"),
+                unittest.mock.call.endElementNS(
+                    ("uri:foo", "bar"),
+                    None,
+                ),
+            ]
+        )
+
+    def test_nested_stuff(self):
+        xso_model.events_to_sax(
+            [
+                ("start", "uri:foo", "bar", {"a": "b"}),
+                ("start", "uri:foo", "baz", {}),
+                ("end", ),
+                ("start", "uri:foo", "baz", {}),
+                ("end", ),
+                ("end", ),
+            ],
+            self.dest
+        )
+
+        self.assertSequenceEqual(
+            self.dest.mock_calls,
+            [
+                unittest.mock.call.startElementNS(
+                    ("uri:foo", "bar"),
+                    None,
+                    {"a": "b"}
+                ),
+                unittest.mock.call.startElementNS(
+                    ("uri:foo", "baz"),
+                    None,
+                    {}
+                ),
+                unittest.mock.call.endElementNS(
+                    ("uri:foo", "baz"),
+                    None,
+                ),
+                unittest.mock.call.startElementNS(
+                    ("uri:foo", "baz"),
+                    None,
+                    {}
+                ),
+                unittest.mock.call.endElementNS(
+                    ("uri:foo", "baz"),
+                    None,
+                ),
+                unittest.mock.call.endElementNS(
+                    ("uri:foo", "bar"),
+                    None,
+                ),
+            ]
+        )
+
+    def tearDown(self):
+        del self.dest

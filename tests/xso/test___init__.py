@@ -81,6 +81,9 @@ class TestAbstractTextChild(unittest.TestCase):
             xso.AbstractTextChild.text,
             xso.Text
         )
+        self.assertIsNone(
+            xso.AbstractTextChild.text.default
+        )
 
     def test_init_default(self):
         atc = xso.AbstractTextChild()
@@ -119,16 +122,16 @@ class TestAbstractTextChild(unittest.TestCase):
 
     def test_equality_handles_incorrect_peer_type_gracefully(self):
         atc = xso.AbstractTextChild()
-        self.assertFalse(atc == None)
+        self.assertFalse(atc is None)
         self.assertFalse(atc == "foo")
 
 
 class TestNO_DEFAULT(unittest.TestCase):
     def test_unequal_to_things(self):
         NO_DEFAULT = xso.NO_DEFAULT
-        self.assertFalse(NO_DEFAULT == None)
-        self.assertFalse(NO_DEFAULT == True)
-        self.assertFalse(NO_DEFAULT == False)
+        self.assertFalse(NO_DEFAULT is None)
+        self.assertFalse(NO_DEFAULT is True)
+        self.assertFalse(NO_DEFAULT is False)
         self.assertFalse(NO_DEFAULT == "")
         self.assertFalse(NO_DEFAULT == "foo")
         self.assertFalse(NO_DEFAULT == 0)

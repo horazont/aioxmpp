@@ -39,6 +39,12 @@ Utility functions
 
 .. autofunction:: serialize_single_xso
 
+.. autofunction:: write_single_xso
+
+.. autofunction:: read_xso
+
+.. autofunction:: read_single_xso
+
 """
 
 import ctypes
@@ -854,3 +860,63 @@ def serialize_single_xso(x):
                            sorted_attributes=True)
     x.unparse_to_sax(gen)
     return buf.getvalue().decode("utf8")
+
+
+def write_single_xso(x, dest):
+    """
+    Write a single XSO `x` to a binary file-like object `dest`.
+    """
+    gen = XMPPXMLGenerator(dest,
+                           short_empty_elements=True,
+                           sorted_attributes=True)
+    x.unparse_to_sax(gen)
+
+
+def read_xso(src, xsomap):
+    """
+    Read a single XSO from a binary file-like input `src` containing an XML
+    document.
+
+    `xsomap` must be a mapping which maps :class:`~.XSO` subclasses
+    to callables. These will be registered at a newly created
+    :class:`.xso.XSOParser` instance which will be used to parse the  document
+    in `src`.
+
+    The `xsomap` is thus used to determine the class parsing the root element
+    of the XML document. This can be used to support multiple versions.
+    """
+
+    xso_parser = xso.XSOParser()
+
+    for class_, cb in xsomap.items():
+        xso_parser.add_class(class_, cb)
+
+    driver = xso.SAXDriver(xso_parser)
+
+    parser = xml.sax.make_parser()
+    parser.setFeature(
+        xml.sax.handler.feature_namespaces,
+        True)
+    parser.setFeature(
+        xml.sax.handler.feature_external_ges,
+        False)
+    parser.setContentHandler(driver)
+
+    parser.parse(src)
+
+
+def read_single_xso(src, type_):
+    """
+    Read a single :class:`~.XSO` of the given `type_` from the binary file-like
+    input `src` and return the instance.
+    """
+
+    result = None
+
+    def cb(instance):
+        nonlocal result
+        result = instance
+
+    read_xso(src, {type_: cb})
+
+    return result

@@ -40,7 +40,7 @@ from enum import Enum
 import xml.sax as sax
 import xml.parsers.expat as pyexpat
 
-from . import xml, errors, xso, stream_xsos, stanza, callbacks, statemachine
+from . import xml, errors, xso, nonza, stanza, callbacks, statemachine
 from .utils import namespaces
 
 logger = logging.getLogger(__name__)
@@ -148,7 +148,7 @@ class XMLStream(asyncio.Protocol):
     domain to which the stream shall connect.
 
     `features_future` must be a :class:`asyncio.Future` instance; the XML
-    stream will set the first :class:`~aioxmpp.stream_xsos.StreamFeatures` node
+    stream will set the first :class:`~aioxmpp.nonza.StreamFeatures` node
     it receives as the result of the future.
 
     `sorted_attributes` is mainly for unittesting purposes; this is an argument
@@ -196,6 +196,8 @@ class XMLStream(asyncio.Protocol):
     .. automethod:: reset
 
     .. automethod:: close
+
+    .. automethod:: abort
 
     Signals:
 
@@ -257,9 +259,9 @@ class XMLStream(asyncio.Protocol):
         )
 
         self.stanza_parser = xso.XSOParser()
-        self.stanza_parser.add_class(stream_xsos.StreamError,
+        self.stanza_parser.add_class(nonza.StreamError,
                                      self._rx_stream_error)
-        self.stanza_parser.add_class(stream_xsos.StreamFeatures,
+        self.stanza_parser.add_class(nonza.StreamFeatures,
                                      self._rx_stream_features)
         self.error_handler = None
 
@@ -379,7 +381,7 @@ class XMLStream(asyncio.Protocol):
         self._smachine.state = State.CLOSING_STREAM_FOOTER_RECEIVED
 
     def _rx_stream_features(self, features):
-        self.stanza_parser.remove_class(stream_xsos.StreamFeatures)
+        self.stanza_parser.remove_class(nonza.StreamFeatures)
         self._features_future.set_result(features)
         self._features_future = None
 
@@ -435,8 +437,11 @@ class XMLStream(asyncio.Protocol):
         try:
             self._rx_feed(blob)
         except errors.StreamError as exc:
-            stanza_obj = stream_xsos.StreamError.from_exception(exc)
-            self._writer.send(stanza_obj)
+            stanza_obj = nonza.StreamError.from_exception(exc)
+            try:
+                self._writer.send(stanza_obj)
+            except StopIteration:
+                pass
             self._fail(exc)
             # shutdown, we do not really care about </stream:stream> by the
             # server at this point
@@ -557,6 +562,28 @@ class XMLStream(asyncio.Protocol):
         self._reset_state()
         next(self._writer)
         self._smachine.rewind(State.STREAM_HEADER_SENT)
+
+    def abort(self):
+        """
+        Abort the stream by writing an EOF if possible and closing the
+        transport.
+
+        The transport is closed using :meth:`asyncio.BaseTransport.close`, so
+        buffered data is sent, but no more data will be received. The stream is
+        in :attr:`State.CLOSED` state afterwards.
+
+        This also works if the stream is currently closing, that is, waiting
+        for the peer to send a stream footer. In that case, the stream will be
+        closed locally as if the stream footer had been received.
+
+        .. versionadded:: 0.5
+        """
+        if self._smachine.state == State.CLOSED:
+            return
+        if     (self._smachine.state != State.CLOSING and
+                self._transport.can_write_eof()):
+            self._transport.write_eof()
+        self._close_transport()
 
     def send_xso(self, obj):
         """
@@ -692,7 +719,7 @@ def reset_stream_and_get_features(xmlstream, timeout=None):
     fut = asyncio.Future()
 
     def cleanup():
-        xmlstream.stanza_parser.remove_class(stream_xsos.StreamFeatures)
+        xmlstream.stanza_parser.remove_class(nonza.StreamFeatures)
 
     def receive(obj):
         nonlocal fut
@@ -702,7 +729,7 @@ def reset_stream_and_get_features(xmlstream, timeout=None):
     failure_future = xmlstream.error_future()
 
     xmlstream.stanza_parser.add_class(
-        stream_xsos.StreamFeatures,
+        nonza.StreamFeatures,
         receive)
 
     try:
@@ -737,7 +764,7 @@ def send_stream_error_and_close(
         condition,
         text,
         custom_condition=None):
-    xmlstream.send_xso(stream_xsos.StreamError(
+    xmlstream.send_xso(nonza.StreamError(
         condition=condition,
         text=text))
     if custom_condition is not None:

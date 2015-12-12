@@ -1,5 +1,5 @@
 import aioxmpp.stanza as stanza
-import aioxmpp.stream_xsos as stream_xsos
+import aioxmpp.nonza as nonza
 import aioxmpp.xso as xso
 
 from aioxmpp.utils import namespaces
@@ -162,14 +162,14 @@ class Query(xso.XSO):
         self.items.extend(items)
 
 
-@stream_xsos.StreamFeatures.as_feature_class
+@nonza.StreamFeatures.as_feature_class
 class RosterVersioningFeature(xso.XSO):
     """
     Roster versioning feature.
 
     .. seealso::
 
-       :class:`aioxmpp.stream_xsos.StreamFeatures`
+       :class:`aioxmpp.nonza.StreamFeatures`
 
     """
     TAG = (namespaces.rfc6121_roster_versioning, "ver")

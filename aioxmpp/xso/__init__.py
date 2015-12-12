@@ -111,6 +111,12 @@ Non-scalar descriptors
 
 .. autoclass:: ChildLangMap(classes)
 
+.. autoclass:: ChildValueList(type_)
+
+.. autoclass:: ChildValueMap(type_, *, mapping_type=dict)
+
+.. autoclass:: ChildTextMap(xso_type)
+
 .. autoclass:: Collector()
 
 Container for child lists
@@ -148,6 +154,8 @@ work with this module, it must derive from :class:`XSO` or provide an
 identical interface.
 
 .. autoclass:: XSO()
+
+.. autoclass:: CapturingXSO()
 
 The metaclass takes care of collecting the special descriptors in attributes
 where they can be used by the SAX event interpreter to fill the class with
@@ -189,6 +197,10 @@ descriptor:
    It compares unequal to everything but itself, does not support ordering,
    conversion to bool, float or integer.
 
+.. autofunction:: capture_events
+
+.. autofunction:: events_to_sax
+
 Handlers for missing attributes
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -216,8 +228,8 @@ The basic type interface
 
 .. autoclass:: AbstractType
 
-Implementations
-^^^^^^^^^^^^^^^
+Attribute and text types
+^^^^^^^^^^^^^^^^^^^^^^^^
 
 .. autoclass:: String
 
@@ -226,6 +238,10 @@ Implementations
 .. autoclass:: Bool
 
 .. autoclass:: DateTime
+
+.. autoclass:: Date
+
+.. autoclass:: Time
 
 .. autoclass:: Base64Binary
 
@@ -236,6 +252,11 @@ Implementations
 .. autoclass:: ConnectionLocation
 
 .. autoclass:: LanguageTag
+
+Child list and map types
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. autoclass:: TextChildMap
 
 Validators
 ----------
@@ -325,11 +346,14 @@ from .types import (  # NOQA
     Float,
     Bool,
     DateTime,
+    Date,
+    Time,
     Base64Binary,
     HexBinary,
     JID,
     ConnectionLocation,
     LanguageTag,
+    TextChildMap,
     AbstractValidator,
     RestrictToSet,
     Nmtoken,
@@ -354,10 +378,16 @@ from .model import (  # NOQA
     ChildText,
     Collector,
     Text,
+    ChildValueList,
+    ChildValueMap,
+    ChildTextMap,
     XSOParser,
     SAXDriver,
     XSO,
-    lang_attr
+    CapturingXSO,
+    lang_attr,
+    capture_events,
+    events_to_sax,
 )
 
 
@@ -391,7 +421,7 @@ class AbstractTextChild(XSO):
     """
 
     lang = LangAttr()
-    text = Text()
+    text = Text(default=None)
 
     def __init__(self, text=None, lang=None):
         super().__init__()
