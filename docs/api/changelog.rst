@@ -6,66 +6,111 @@ Changelog
 Version 0.5
 ===========
 
-* :meth:`aioxmpp.xso.AbstractType.get_formatted_type`,
-  :class:`aioxmpp.xso.ChildValueMap` and :class:`aioxmpp.xso.ChildValueList`
-  implemented.
+* Support for `XEP-0045`__ multi-user chats is now available in the
+  :mod:`aioxmpp.muc` subpackage.
 
-* **Breaking change**: :attr:`aioxmpp.stanza.Presence.status`,
-  :attr:`aioxmpp.stanza.Message.subject` and
-  :attr:`aioxmpp.stanza.Message.body` now use
-  :class:`aioxmpp.xso.ChildTextMap`.
+  __ https://xmpp.org/extensions/xep-0045.html
+
+* Mostly transparent support for `XEP-0115`__ (Entity Capabilities) is now
+  available using the :mod:`aioxmpp.entitycaps` subpackage.
+
+  __ https://xmpp.org/extensions/xep-0115.html
+
+* Support for transparent non-scalar attributes, which get mapped to XSOs. Use
+  cases are dicts mapping language tags to strings (such as for message
+  ``body`` elements) or sets of values which are represented by discrete XML
+  elements.
+
+  For this, the method :meth:`~aioxmpp.xso.AbstractType.get_formatted_type` was
+  added to :class:`aioxmpp.xso.AbstractType` and two new descriptors,
+  :class:`aioxmpp.xso.ChildValueMap` and :class:`aioxmpp.xso.ChildValueList`,
+  were implemented.
+
+  .. autosummary::
+
+     ~aioxmpp.xso.ChildValueMap
+     ~aioxmpp.xso.ChildValueList
+     ~aioxmpp.xso.ChildTextMap
+
+  **Breaking change**: The above descriptors are now used at several places,
+  breaking the way these attributes need to be accessed:
+
+  * :attr:`aioxmpp.stanza.Message.subject`,
+  * :attr:`aioxmpp.stanza.Message.body`,
+  * :attr:`aioxmpp.stanza.Presence.status`,
+  * :attr:`aioxmpp.disco.xso.InfoQuery.features`,
+  * and possibly others.
+
+* Several stability improvements have been made. A race condition during stream
+  management resumption was fixed and :class:`aioxmpp.node.AbstractClient`
+  instances now stop if non-:class:`OSError` exceptions emerge from the
+  stream (as these usually indicate an implementation or user error).
+
+  :class:`aioxmpp.callbacks.AdHocSignal` now provides full exception
+  isolation.
+
+* Support for capturing the raw XML events used for creating
+  :class:`aioxmpp.xso.XSO` instances from SAX is now provided through
+  :class:`aioxmpp.xso.CapturingXSO`. Helper functions to work with these events
+  are also provided, most notably :func:`aioxmpp.xso.events_to_sax`, which can
+  be used to re-create the original XML from those events.
+
+  The main use case is to be able to write out a transcript of received XML
+  data, independent of XSO-level understanding for the data received, provided
+  the parts which are understood are semantically correct (transcripts will be
+  incomplete if parsing fails due to incorrect contents).
+
+  .. autosummary::
+
+     ~aioxmpp.xso.CapturingXSO
+     ~aioxmpp.xso.capture_events
+     ~aioxmpp.xso.events_to_sax
+
+  This feature is already used in :class:`aioxmpp.disco.xso.InfoQuery`, which
+  now inherits from :class:`~aioxmpp.xso.CapturingXSO` and provides its
+  transcript (if available) at
+  :attr:`~aioxmpp.disco.xso.InfoQuery.captured_events`.
+
+* The core SASL implementation has been refactored in its own independent
+  package, :mod:`aiosasl`. Only the XMPP specific parts reside in
+  :mod:`aioxmpp.sasl` and :mod:`aioxmpp` now depends on :mod:`aiosasl`.
 
 * :meth:`aioxmpp.stream.StanzaStream.register_message_callback` is more clearly
   specified now, a bug in the documentation has been fixed.
 
-* Fix a race during stream management resumption.
-
-* More reliably kill the stream when a non-:class:`OSError` emerges from the
-  :class:`.StanzaStream`. This prevents connect loops when a stanza handler
-  raises an exception.
-
-* :mod:`aioxmpp.muc` implementation.
-
-* :class:`aioxmpp.callbacks.AdHocSignal` now provides full exception isolation.
-
-* :mod:`aioxmpp.stream_xsos` renamed to :mod:`aioxmpp.nonza`, in accordance
+* :mod:`aioxmpp.stream_xsos` is now called :mod:`aioxmpp.nonza`, in accordance
   with `XEP-0360`__.
 
   __ https://xmpp.org/extensions/xep-0360.html
 
-* :mod:`aioxmpp.entitycaps` implementation.
-
-* Support for the legacy format in :class:`aioxmpp.xso.DateTime`.
-
 * :class:`aioxmpp.xso.Date` and :class:`aioxmpp.xso.Time` are now available to
-  for `XEP-0082`__ use.
+  for `XEP-0082`__ use. In addition, support for the legacy date time format is
+  now provided in :class:`aioxmpp.xso.DateTime`.
+
+  .. autosummary::
+
+     ~aioxmpp.xso.Date
+     ~aioxmpp.xso.Time
+     ~aioxmpp.xso.DateTime
 
   __ https://xmpp.org/extensions/xep-0082.html
 
-* Improve Python 3.5 compatibility of the test suite. In a corner-case,
-  :class:`StopIteration` was emitted from ``data_received``, which caused a
-  test to fail with a :class:`RuntimeError` due to implementation of
-  `PEP-0479`__ in Python 3.5.
+* The Python 3.5 compatibility of the test suite has been improved. In a
+  corner-case, :class:`StopIteration` was emitted from ``data_received``, which
+  caused a test to fail with a :class:`RuntimeError` due to implementation of
+  `PEP-0479`__ in Python 3.5. See the `issue at github
+  <https://github.com/horazont/aioxmpp/issues/3>`_.
 
   __ https://www.python.org/dev/peps/pep-0479/
 
-* Refactor large parts of :mod:`aioxmpp.sasl` into a new, independent package,
-  :mod:`aiosasl`.
+* Helper functions for reading and writing single XSOs (and their children) to
+  binary file-like objects have been introduced.
 
-* :class:`aioxmpp.xso.CapturingXSO`, :meth:`aioxmpp.xso.capture_events` and
-  :meth:`aioxmpp.xso.events_to_sax` were added.
+  .. autosummary::
 
-* :class:`aioxmpp.disco.xso.InfoQuery` now inherits from
-  :class:`aioxmpp.xso.CapturingXSO` and the
-  :attr:`~aioxmpp.disco.xso.InfoQuery.captured_events` attribute was added.
-
-* :func:`aioxmpp.xml.write_single_xso`, :func:`aioxmpp.xml.read_xso` and
-  :func:`aioxmpp.xml.read_single_xso` were added.
-
-* :attr:`aioxmpp.disco.xso.InfoQuery.features` now uses
-  :class:`aioxmpp.xso.ChildValueList`, which maps the
-  :class:`~aioxmpp.disco.xso.Feature` children to a set of ``var`` values. This
-  hides away invalid payload while we’re at it.
+     ~aioxmpp.xml.write_single_xso
+     ~aioxmpp.xml.read_xso
+     ~aioxmpp.xml.read_single_xso
 
 
 Version 0.4

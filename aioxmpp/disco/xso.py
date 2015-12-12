@@ -126,7 +126,9 @@ class InfoQuery(xso.CapturingXSO):
 
     .. attribute:: features
 
-       The features of the entity, as :class:`Feature` instances.
+       The features of the entity, as a set of strings. Each string represents
+       a :class:`Feature` instance with the corresponding :attr:`~.Feature.var`
+       attribute.
 
     .. attribute:: captured_events
 

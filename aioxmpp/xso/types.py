@@ -269,12 +269,11 @@ class DateTime(AbstractType):
 
 class Date(AbstractType):
     """
-    Implement the Date type from `XEP-0082`_.
+    Implement the Date type from `XEP-0082
+    <https://xmpp.org/extensions/xep-0082.html>`_.
 
     Values must have the :class:`date` type, :class:`datetime` is forbidden to
     avoid silent loss of information.
-
-    .. _XEP-0082: https://xmpp.org/extensions/xep-0082.html
 
     .. versionadded:: 0.5
     """
@@ -290,7 +289,8 @@ class Date(AbstractType):
 
 class Time(AbstractType):
     """
-    Implement the Time type from `XEP-0082`_.
+    Implement the Time type from `XEP-0082
+    <https://xmpp.org/extensions/xep-0082.html>`_.
 
     Values must have the :class:`time` type, :class:`datetime` is forbidden to
     avoid silent loss of information. Assignment of :class:`time` values in
