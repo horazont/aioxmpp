@@ -108,14 +108,17 @@ if __name__ == "__main__":
     import os
 
     print("""\
-Tip: symlink the [capsdb][1] db.json file to
+Tip: symlink the [capsdb][1] hashes directory to
 
-    {}/capsdb.json
+    {}/hashes
 
-This will allow this example to pre-load a huge amount of entitycaps hashes,
-saving bandwidth and performance.
+This will allow the implementation to load hashes from the capsdb, improving
+performance by not having to query the peers for their capabilities. In
+addition, creating a ``user_hashes`` directory in the same directory as the
+hashes symlink will allow the implementation to store hashes which were not in
+the capsdb for future use.
 
-   [1]: https://github.com/xnyhps/capsdb/blob/master/db.json""".format(
+   [1]: https://github.com/xnyhps/capsdb""".format(
         os.getcwd()
     ))
     print()

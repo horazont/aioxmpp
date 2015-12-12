@@ -3,12 +3,15 @@ import getpass
 import itertools
 import logging
 
-from datetime import timedelta
-
 import aioxmpp.security_layer
 import aioxmpp.node
 import aioxmpp.structs
 import aioxmpp.disco
+
+try:
+    import readline
+except ImportError:
+    pass
 
 
 @asyncio.coroutine

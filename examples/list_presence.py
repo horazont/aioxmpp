@@ -8,6 +8,13 @@ import aioxmpp.security_layer
 import aioxmpp.node
 import aioxmpp.structs
 
+
+try:
+    import readline
+except ImportError:
+    pass
+
+
 class PresenceCollector:
     def __init__(self, done_timeout=timedelta(seconds=1)):
         self.presences = []
@@ -54,7 +61,6 @@ def main(jid, password):
 
     tls_provider = aioxmpp.security_layer.STARTTLSProvider(
         aioxmpp.security_layer.default_ssl_context,
-        certificate_verifier_factory=aioxmpp.security_layer._NullVerifier
     )
 
     sasl_provider = aioxmpp.security_layer.PasswordSASLProvider(
@@ -94,12 +100,11 @@ def main(jid, password):
         print("  peer: {}".format(pres.from_))
         print("  type: {}".format(pres.type_))
         print("  show: {}".format(pres.show))
-        if pres.status:
-            print("  status: ")
-            for status in pres.status:
-                print("    (lang={}) {!r}".format(
-                    status.lang,
-                    status.text))
+        print("  status: ")
+        for lang, text in pres.status.items():
+            print("    (lang={}) {!r}".format(
+                lang,
+                text))
 
 
 if __name__ == "__main__":
