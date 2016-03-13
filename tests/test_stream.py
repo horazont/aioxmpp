@@ -1214,9 +1214,10 @@ class TestStanzaStream(StanzaStreamTestBase):
         response = iq.make_reply(type_="result")
         response.payload = FancyTestIQ()
 
-        task = asyncio.async(
+        task = asyncio.ensure_future(
             self.stream.send_iq_and_wait_for_reply(iq),
-            loop=self.loop)
+            loop=self.loop,
+        )
 
         self.stream.start(self.xmlstream)
         run_coroutine(asyncio.sleep(0))
@@ -1224,7 +1225,7 @@ class TestStanzaStream(StanzaStreamTestBase):
         result = run_coroutine(task)
         self.assertIs(
             response.payload,
-            result
+            result,
         )
 
     def test_send_iq_and_wait_for_reply_with_error(self):
@@ -1236,9 +1237,10 @@ class TestStanzaStream(StanzaStreamTestBase):
             )
         )
 
-        task = asyncio.async(
+        task = asyncio.ensure_future(
             self.stream.send_iq_and_wait_for_reply(iq),
-            loop=self.loop)
+            loop=self.loop,
+        )
 
         self.stream.start(self.xmlstream)
         run_coroutine(asyncio.sleep(0))
@@ -1253,9 +1255,10 @@ class TestStanzaStream(StanzaStreamTestBase):
     def test_send_iq_and_wait_for_reply_autosets_id(self):
         iq = make_test_iq(autoset_id=False)
 
-        task = asyncio.async(
+        task = asyncio.ensure_future(
             self.stream.send_iq_and_wait_for_reply(iq),
-            loop=self.loop)
+            loop=self.loop,
+        )
 
         self.stream.start(self.xmlstream)
         run_coroutine(asyncio.sleep(0))
@@ -1273,7 +1276,7 @@ class TestStanzaStream(StanzaStreamTestBase):
     def test_send_iq_and_wait_for_reply_timeout(self):
         iq = make_test_iq()
 
-        task = asyncio.async(
+        task = asyncio.ensure_future(
             self.stream.send_iq_and_wait_for_reply(
                 iq,
                 timeout=0.01),
@@ -2377,7 +2380,7 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
 
         @asyncio.coroutine
         def starter():
-            sm_start_future = asyncio.async(self.stream.start_sm())
+            asyncio.ensure_future(self.stream.start_sm())
             self.stream.enqueue_stanza(iq_sent)
 
         self.stream.start(self.xmlstream)

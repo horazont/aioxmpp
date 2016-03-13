@@ -1064,7 +1064,7 @@ class TestXMLStream(unittest.TestCase):
             protocol.State.OPEN
         )
 
-        fut = asyncio.async(p.close_and_wait())
+        fut = asyncio.ensure_future(p.close_and_wait())
 
         run_coroutine(t.run_test(
             [
@@ -1127,7 +1127,7 @@ class TestXMLStream(unittest.TestCase):
             protocol.State.OPEN
         )
 
-        fut = asyncio.async(p.close_and_wait())
+        fut = asyncio.ensure_future(p.close_and_wait())
 
         run_coroutine(t.run_test(
             [

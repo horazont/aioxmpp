@@ -249,11 +249,9 @@ class XMLStream(asyncio.Protocol):
         self._smachine = statemachine.OrderedStateMachine(State.READY)
         self._transport_closing = False
 
-        asyncio.async(
-            self._smachine.wait_for(
-                State.CLOSING
-            ),
-            loop=loop
+        asyncio.ensure_future(
+            self._smachine.wait_for(State.CLOSING),
+            loop=loop,
         ).add_done_callback(
             self._stream_starts_closing
         )
@@ -303,9 +301,9 @@ class XMLStream(asyncio.Protocol):
             return
         task.result()
 
-        asyncio.async(
+        asyncio.ensure_future(
             self._stream_footer_timeout(),
-            loop=self._loop
+            loop=self._loop,
         ).add_done_callback(lambda x: x.result())
 
     @asyncio.coroutine

@@ -707,10 +707,10 @@ class TestService(unittest.TestCase):
                 "send_and_decode_info_query",
                 new=mock):
 
-            task1 = asyncio.async(
+            task1 = asyncio.ensure_future(
                 self.s.query_info(to, node="foobar")
             )
-            task2 = asyncio.async(
+            task2 = asyncio.ensure_future(
                 self.s.query_info(to, node="foobar")
             )
 
@@ -870,8 +870,8 @@ class TestService(unittest.TestCase):
             send_and_decode.return_value = response
             send_and_decode.delay = 0.1
 
-            q1 = asyncio.async(self.s.query_info(to))
-            q2 = asyncio.async(self.s.query_info(to))
+            q1 = asyncio.ensure_future(self.s.query_info(to))
+            q2 = asyncio.ensure_future(self.s.query_info(to))
 
             run_coroutine(asyncio.sleep(0.05))
 
@@ -1077,10 +1077,10 @@ class TestService(unittest.TestCase):
                 "send_iq_and_wait_for_reply",
                 new=mock):
 
-            task1 = asyncio.async(
+            task1 = asyncio.ensure_future(
                 self.s.query_info(to, node="foobar")
             )
-            task2 = asyncio.async(
+            task2 = asyncio.ensure_future(
                 self.s.query_info(to, node="foobar")
             )
 
@@ -1090,7 +1090,7 @@ class TestService(unittest.TestCase):
             with self.assertRaises(errors.XMPPCancelError):
                 run_coroutine(task2)
 
-    def test_query_info_reraises_but_does_not_cache_exception(self):
+    def test_query_info_reraises_but_does_not_cache_exception_2(self):
         to = structs.JID.fromstr("user@foo.example/res1")
 
         self.cc.stream.send_iq_and_wait_for_reply.side_effect = \
@@ -1218,8 +1218,8 @@ class TestService(unittest.TestCase):
         self.cc.stream.send_iq_and_wait_for_reply.return_value = response
         self.cc.stream.send_iq_and_wait_for_reply.delay = 0.1
 
-        q1 = asyncio.async(self.s.query_items(to))
-        q2 = asyncio.async(self.s.query_items(to))
+        q1 = asyncio.ensure_future(self.s.query_items(to))
+        q2 = asyncio.ensure_future(self.s.query_items(to))
 
         run_coroutine(asyncio.sleep(0.05))
 
@@ -1267,7 +1267,7 @@ class TestService(unittest.TestCase):
             fut
         )
 
-        request = asyncio.async(
+        request = asyncio.ensure_future(
             self.s.query_info(to)
         )
 
@@ -1291,7 +1291,7 @@ class TestService(unittest.TestCase):
             fut
         )
 
-        request = asyncio.async(
+        request = asyncio.ensure_future(
             self.s.query_info(to)
         )
 

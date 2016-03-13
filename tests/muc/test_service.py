@@ -1583,7 +1583,7 @@ class TestRoom(unittest.TestCase):
         with unittest.mock.patch.object(
                 self.jmuc,
                 "leave") as leave:
-            fut = asyncio.async(self.jmuc.leave_and_wait())
+            fut = asyncio.ensure_future(self.jmuc.leave_and_wait())
             run_coroutine(asyncio.sleep(0))
             self.assertFalse(fut.done())
 
