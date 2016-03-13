@@ -167,7 +167,7 @@ class TestFilter(unittest.TestCase):
         self.assertFalse(func.mock_calls)
 
     def test_unregister_raises_ValueError_if_token_not_found(self):
-        with self.assertRaisesRegexp(ValueError, "unregistered token"):
+        with self.assertRaisesRegex(ValueError, "unregistered token"):
             self.f.unregister(object())
 
     def test_register_with_order(self):
@@ -2625,7 +2625,7 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
         del self.sent_stanzas
 
     def test_sm_initialization_only_in_stopped_state(self):
-        with self.assertRaisesRegexp(RuntimeError, "is not running"):
+        with self.assertRaisesRegex(RuntimeError, "is not running"):
             run_coroutine(self.stream.start_sm())
 
     def test_start_sm(self):
@@ -2835,7 +2835,7 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
         )
 
     def test_sm_ack_requires_enabled_sm(self):
-        with self.assertRaisesRegexp(RuntimeError, "is not enabled"):
+        with self.assertRaisesRegex(RuntimeError, "is not enabled"):
             self.stream.sm_ack(0)
 
     def test_sm_outbound(self):
@@ -3148,19 +3148,17 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
             self.xmlstream.run_test(self.successful_sm)
         )
         self.assertTrue(self.stream.running)
-        with self.assertRaisesRegexp(RuntimeError, "is running"):
+        with self.assertRaisesRegex(RuntimeError, "is running"):
             run_coroutine(self.stream.resume_sm(self.xmlstream))
 
     def test_sm_stop_requires_stopped_stream(self):
         self.stream.start_sm()
         self.stream.start(self.xmlstream)
-        with self.assertRaisesRegexp(RuntimeError,
-                                     "is running"):
+        with self.assertRaisesRegex(RuntimeError, "is running"):
             self.stream.stop_sm()
 
     def test_sm_stop_requires_enabled_sm(self):
-        with self.assertRaisesRegexp(RuntimeError,
-                                     "not enabled"):
+        with self.assertRaisesRegex(RuntimeError, "not enabled"):
             self.stream.stop_sm()
 
     def test_sm_start_requires_disabled_sm(self):
@@ -3169,13 +3167,12 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
             self.stream.start_sm(),
             self.xmlstream.run_test(self.successful_sm)
         )
-        with self.assertRaisesRegexp(RuntimeError,
-                                     "Stream Management already enabled"):
+        with self.assertRaisesRegex(RuntimeError,
+                                    "Stream Management already enabled"):
             run_coroutine(self.stream.start_sm())
 
     def test_sm_resume_requires_enabled_sm(self):
-        with self.assertRaisesRegexp(RuntimeError,
-                                     "not enabled"):
+        with self.assertRaisesRegex(RuntimeError, "not enabled"):
             run_coroutine(self.stream.resume_sm(self.xmlstream))
 
     def test_stop_sm(self):
@@ -3402,8 +3399,8 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
         run_coroutine(asyncio.sleep(0))
         self.assertFalse(self.stream.running)
 
-        with self.assertRaisesRegexp(ValueError,
-                                     "only one listener is allowed"):
+        with self.assertRaisesRegex(ValueError,
+                                    "only one listener is allowed"):
             self.stream.register_iq_response_callback(
                 structs.JID("foo", "bar", None), "baz",
                 fun)
@@ -3784,7 +3781,7 @@ class TestStanzaToken(unittest.TestCase):
         for state in set(stream.StanzaState) - {stream.StanzaState.ACTIVE,
                                                 stream.StanzaState.ABORTED}:
             token._set_state(stream.StanzaState.SENT)
-            with self.assertRaisesRegexp(RuntimeError, "already sent"):
+            with self.assertRaisesRegex(RuntimeError, "already sent"):
                 token.abort()
 
     def test_abort_while_aborted(self):

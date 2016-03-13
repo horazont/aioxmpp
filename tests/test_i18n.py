@@ -788,7 +788,7 @@ class TestLocalizableString(unittest.TestCase):
         )
 
     def test_init_rejects_number_index_without_plural_string(self):
-        with self.assertRaisesRegexp(ValueError, "plural is required"):
+        with self.assertRaisesRegex(ValueError, "plural is required"):
             i18n.LocalizableString("abc", number_index=12)
 
     def test_compares_to_other_localizable_strings(self):
