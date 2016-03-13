@@ -19,11 +19,12 @@ setup(
     url="https://github.com/horazont/aioxmpp",
     author="Jonas Wielicki",
     author_email="jonas@wielicki.name",
-    license="Apache20",
+    license="GPLv3",
     classifiers=[
         "Development Status :: 3 - Alpha",
         "Intended Audience :: Developers",
         "Operating System :: POSIX",
+        "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
         "Programming Language :: Python :: 3 :: Only",
         "Programming Language :: Python :: 3.3",
         "Programming Language :: Python :: 3.4",
