@@ -228,7 +228,7 @@ class TestMessage(unittest.TestCase):
             s.type_)
 
     def test_reject_init_without_type(self):
-        with self.assertRaisesRegexp(TypeError, "type_"):
+        with self.assertRaisesRegex(TypeError, "type_"):
             stanza.Message()
 
     def test_make_reply(self):
@@ -732,7 +732,7 @@ class TestIQ(unittest.TestCase):
         self.assertIsNone(stanza.IQ.payload.default)
 
     def test_reject_init_without_type(self):
-        with self.assertRaisesRegexp(TypeError, "type_"):
+        with self.assertRaisesRegex(TypeError, "type_"):
             stanza.IQ()
 
     def test_init(self):
@@ -864,7 +864,7 @@ class TestIQ(unittest.TestCase):
 
     def test_validate_requires_id(self):
         iq = stanza.IQ("get")
-        with self.assertRaisesRegexp(
+        with self.assertRaisesRegex(
                 ValueError,
                 "IQ requires ID"):
             iq.validate()

@@ -126,7 +126,7 @@ class TestServiceMeta(unittest.TestCase):
         class Bar(metaclass=service.Meta):
             ORDER_AFTER = [Foo]
 
-        with self.assertRaisesRegexp(
+        with self.assertRaisesRegex(
                 ValueError,
                 "dependency loop: Fnord loops through .*\.(Foo|Bar)"):
 
@@ -355,17 +355,17 @@ class TestServiceMeta(unittest.TestCase):
         class Foo(metaclass=service.Meta):
             pass
 
-        with self.assertRaisesRegexp(ValueError, "mixes old and new"):
+        with self.assertRaisesRegex(ValueError, "mixes old and new"):
             class Bar(metaclass=service.Meta):
                 ORDER_BEFORE = [Foo]
                 SERVICE_BEFORE = [Foo]
 
-        with self.assertRaisesRegexp(ValueError, "mixes old and new"):
+        with self.assertRaisesRegex(ValueError, "mixes old and new"):
             class Bar(metaclass=service.Meta):
                 ORDER_AFTER = [Foo]
                 SERVICE_AFTER = [Foo]
 
-        with self.assertRaisesRegexp(ValueError, "mixes old and new"):
+        with self.assertRaisesRegex(ValueError, "mixes old and new"):
             class Bar(metaclass=service.Meta):
                 ORDER_BEFORE = [Foo]
                 SERVICE_AFTER = [Foo]

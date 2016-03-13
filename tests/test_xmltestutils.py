@@ -33,7 +33,7 @@ class TestXMLTestCase(XMLTestCase):
         t1 = etree.fromstring("<foo />")
         t2 = etree.fromstring("<bar />")
 
-        with self.assertRaisesRegexp(AssertionError, "tag mismatch"):
+        with self.assertRaisesRegex(AssertionError, "tag mismatch"):
             self.assertSubtreeEqual(t1, t2)
 
     def test_assertSubtreeEqual_attr_key_missing(self):
