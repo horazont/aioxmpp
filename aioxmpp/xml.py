@@ -49,6 +49,7 @@ Utility functions
 
 import ctypes
 import io
+import os
 
 import xml.sax
 import xml.sax.saxutils
@@ -59,7 +60,10 @@ from . import errors, structs, xso
 from .utils import namespaces
 
 
-libxml2 = ctypes.cdll.LoadLibrary("libxml2.so")
+if os.uname().sysname == 'Darwin':
+    libxml2 = ctypes.cdll.LoadLibrary('libxml2.dylib')
+else:
+    libxml2 = ctypes.cdll.LoadLibrary('libxml2.so')
 
 
 def xmlValidateNameValue_str(s):
