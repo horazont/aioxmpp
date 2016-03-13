@@ -261,7 +261,7 @@ class Cache:
         copied_entry.node = node
         self._memory_overlay[hash_, node] = copied_entry
         if self._user_db_path is not None:
-            asyncio.async(asyncio.get_event_loop().run_in_executor(
+            asyncio.ensure_future(asyncio.get_event_loop().run_in_executor(
                 None,
                 writeback,
                 self._user_db_path,
@@ -439,7 +439,7 @@ class Service(aioxmpp.service.Service):
                 "inbound presence with ver=%r and hash=%r from %s",
                 caps.ver, caps.hash_,
                 presence.from_)
-            task = asyncio.async(
+            task = asyncio.ensure_future(
                 self.lookup_info(presence.from_,
                                  caps.node,
                                  caps.ver,

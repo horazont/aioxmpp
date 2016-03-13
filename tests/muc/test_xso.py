@@ -146,7 +146,7 @@ class TestHistory(unittest.TestCase):
         self.assertEqual(hist.maxchars, 456)
         self.assertEqual(hist.maxstanzas, 345)
 
-        with self.assertRaisesRegexp(TypeError, "positional argument"):
+        with self.assertRaisesRegex(TypeError, "positional argument"):
             hist = muc_xso.History(123)
 
 

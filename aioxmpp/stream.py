@@ -702,7 +702,7 @@ class StanzaStream:
                 self.enqueue_stanza(response)
                 return
 
-            task = asyncio.async(coro(stanza_obj))
+            task = asyncio.ensure_future(coro(stanza_obj))
             task.add_done_callback(
                 functools.partial(
                     self._iq_request_coro_done,
@@ -1273,7 +1273,10 @@ class StanzaStream:
             self.on_stream_established()
             self._established = True
 
-        self._task = asyncio.async(self._run(xmlstream), loop=self._loop)
+        self._task = asyncio.ensure_future(
+            self._run(xmlstream),
+            loop=self._loop,
+        )
         self._task.add_done_callback(self._done_handler)
         self._logger.debug("broker task started as %r", self._task)
 
@@ -1360,10 +1363,14 @@ class StanzaStream:
     @asyncio.coroutine
     def _run(self, xmlstream):
         self._xmlstream = xmlstream
-        active_fut = asyncio.async(self._active_queue.get(),
-                                   loop=self._loop)
-        incoming_fut = asyncio.async(self._incoming_queue.get(),
-                                     loop=self._loop)
+        active_fut = asyncio.ensure_future(
+            self._active_queue.get(),
+           loop=self._loop,
+        )
+        incoming_fut = asyncio.ensure_future(
+            self._incoming_queue.get(),
+            loop=self._loop,
+        )
 
         try:
             while True:
@@ -1382,16 +1389,18 @@ class StanzaStream:
                 with (yield from self._broker_lock):
                     if active_fut in done:
                         self._process_outgoing(xmlstream, active_fut.result())
-                        active_fut = asyncio.async(
+                        active_fut = asyncio.ensure_future(
                             self._active_queue.get(),
-                            loop=self._loop)
+                            loop=self._loop,
+                        )
 
                     if incoming_fut in done:
                         self._process_incoming(xmlstream,
                                                incoming_fut.result())
-                        incoming_fut = asyncio.async(
+                        incoming_fut = asyncio.ensure_future(
                             self._incoming_queue.get(),
-                            loop=self._loop)
+                            loop=self._loop,
+                        )
 
                     timeout = self._next_ping_event_at - datetime.utcnow()
                     if timeout.total_seconds() <= 0:
