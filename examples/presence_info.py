@@ -40,7 +40,7 @@ def show_info(from_, disco):
 
 
 def on_available(disco, full_jid, stanza):
-    asyncio.async(
+    asyncio.ensure_future(
         show_info(full_jid, disco)
     )
 

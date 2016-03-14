@@ -211,8 +211,8 @@ class Testlookup_srv(unittest.TestCase):
             ),
         ])
 
-        with self.assertRaisesRegexp(ValueError,
-                                     "Protocol explicitly not supported"):
+        with self.assertRaisesRegex(ValueError,
+                                    "Protocol explicitly not supported"):
             network.lookup_srv(b"foo.test.", b"xmpp-client",
                                resolver=self.resolver)
 

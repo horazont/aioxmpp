@@ -61,8 +61,8 @@ class TestNode(unittest.TestCase):
         n.register_feature("uri:bar")
         cb.mock_calls.clear()
 
-        with self.assertRaisesRegexp(ValueError,
-                                     "feature already claimed"):
+        with self.assertRaisesRegex(ValueError,
+                                    "feature already claimed"):
             n.register_feature("uri:bar")
 
         self.assertSetEqual(
@@ -81,8 +81,8 @@ class TestNode(unittest.TestCase):
         cb = unittest.mock.Mock()
         n.on_info_changed.connect(cb)
 
-        with self.assertRaisesRegexp(ValueError,
-                                     "feature already claimed"):
+        with self.assertRaisesRegex(ValueError,
+                                    "feature already claimed"):
             n.register_feature(namespaces.xep0030_info)
 
         self.assertFalse(cb.mock_calls)
@@ -190,8 +190,8 @@ class TestNode(unittest.TestCase):
         cb.assert_called_with()
         cb.mock_calls.clear()
 
-        with self.assertRaisesRegexp(ValueError,
-                                     "identity already claimed"):
+        with self.assertRaisesRegex(ValueError,
+                                   "identity already claimed"):
             n.register_identity("client", "pc")
 
         self.assertFalse(cb.mock_calls)
@@ -246,8 +246,8 @@ class TestNode(unittest.TestCase):
         cb = unittest.mock.Mock()
         n.on_info_changed.connect(cb)
 
-        with self.assertRaisesRegexp(ValueError,
-                                     "cannot remove last identity"):
+        with self.assertRaisesRegex(ValueError,
+                                    "cannot remove last identity"):
             n.unregister_identity(
                 "client", "pc",
             )
@@ -452,7 +452,7 @@ class TestService(unittest.TestCase):
         )
 
     def test_unregister_feature_raises_KeyError_if_feature_has_not_been_registered(self):
-        with self.assertRaisesRegexp(KeyError, "uri:foo"):
+        with self.assertRaisesRegex(KeyError, "uri:foo"):
             self.s.unregister_feature("uri:foo")
 
     def test_unregister_feature_disallows_unregistering_disco_info_feature(self):
@@ -504,7 +504,7 @@ class TestService(unittest.TestCase):
         )
 
     def test_unregister_identity_raises_KeyError_if_not_registered(self):
-        with self.assertRaisesRegexp(KeyError, r"\('client', 'pc'\)"):
+        with self.assertRaisesRegex(KeyError, r"\('client', 'pc'\)"):
             self.s.unregister_identity("client", "pc")
 
     def test_register_identity_with_names(self):
@@ -535,14 +535,14 @@ class TestService(unittest.TestCase):
 
     def test_register_identity_disallows_duplicates(self):
         self.s.register_identity("client", "pc")
-        with self.assertRaisesRegexp(ValueError, "identity already claimed"):
+        with self.assertRaisesRegex(ValueError, "identity already claimed"):
             self.s.register_identity("client", "pc")
 
     def test_register_feature_disallows_duplicates(self):
         self.s.register_feature("uri:foo")
-        with self.assertRaisesRegexp(ValueError, "feature already claimed"):
+        with self.assertRaisesRegex(ValueError, "feature already claimed"):
             self.s.register_feature("uri:foo")
-        with self.assertRaisesRegexp(ValueError, "feature already claimed"):
+        with self.assertRaisesRegex(ValueError, "feature already claimed"):
             self.s.register_feature(namespaces.xep0030_info)
 
     def test_send_and_decode_info_query(self):
@@ -707,10 +707,10 @@ class TestService(unittest.TestCase):
                 "send_and_decode_info_query",
                 new=mock):
 
-            task1 = asyncio.async(
+            task1 = asyncio.ensure_future(
                 self.s.query_info(to, node="foobar")
             )
-            task2 = asyncio.async(
+            task2 = asyncio.ensure_future(
                 self.s.query_info(to, node="foobar")
             )
 
@@ -870,8 +870,8 @@ class TestService(unittest.TestCase):
             send_and_decode.return_value = response
             send_and_decode.delay = 0.1
 
-            q1 = asyncio.async(self.s.query_info(to))
-            q2 = asyncio.async(self.s.query_info(to))
+            q1 = asyncio.ensure_future(self.s.query_info(to))
+            q2 = asyncio.ensure_future(self.s.query_info(to))
 
             run_coroutine(asyncio.sleep(0.05))
 
@@ -1077,10 +1077,10 @@ class TestService(unittest.TestCase):
                 "send_iq_and_wait_for_reply",
                 new=mock):
 
-            task1 = asyncio.async(
+            task1 = asyncio.ensure_future(
                 self.s.query_info(to, node="foobar")
             )
-            task2 = asyncio.async(
+            task2 = asyncio.ensure_future(
                 self.s.query_info(to, node="foobar")
             )
 
@@ -1090,7 +1090,7 @@ class TestService(unittest.TestCase):
             with self.assertRaises(errors.XMPPCancelError):
                 run_coroutine(task2)
 
-    def test_query_info_reraises_but_does_not_cache_exception(self):
+    def test_query_info_reraises_but_does_not_cache_exception_2(self):
         to = structs.JID.fromstr("user@foo.example/res1")
 
         self.cc.stream.send_iq_and_wait_for_reply.side_effect = \
@@ -1218,8 +1218,8 @@ class TestService(unittest.TestCase):
         self.cc.stream.send_iq_and_wait_for_reply.return_value = response
         self.cc.stream.send_iq_and_wait_for_reply.delay = 0.1
 
-        q1 = asyncio.async(self.s.query_items(to))
-        q2 = asyncio.async(self.s.query_items(to))
+        q1 = asyncio.ensure_future(self.s.query_items(to))
+        q2 = asyncio.ensure_future(self.s.query_items(to))
 
         run_coroutine(asyncio.sleep(0.05))
 
@@ -1267,7 +1267,7 @@ class TestService(unittest.TestCase):
             fut
         )
 
-        request = asyncio.async(
+        request = asyncio.ensure_future(
             self.s.query_info(to)
         )
 
@@ -1291,7 +1291,7 @@ class TestService(unittest.TestCase):
             fut
         )
 
-        request = asyncio.async(
+        request = asyncio.ensure_future(
             self.s.query_info(to)
         )
 

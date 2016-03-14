@@ -175,7 +175,7 @@ class TestOccupant(unittest.TestCase):
             from_=TEST_MUC_JID.replace(resource="firstwitch"),
         )
 
-        with self.assertRaisesRegexp(ValueError, "mismatch"):
+        with self.assertRaisesRegex(ValueError, "mismatch"):
             occ.update(muc_service.Occupant.from_presence(presence))
 
     def test_update_updates_all_the_fields(self):
@@ -1583,7 +1583,7 @@ class TestRoom(unittest.TestCase):
         with unittest.mock.patch.object(
                 self.jmuc,
                 "leave") as leave:
-            fut = asyncio.async(self.jmuc.leave_and_wait())
+            fut = asyncio.ensure_future(self.jmuc.leave_and_wait())
             run_coroutine(asyncio.sleep(0))
             self.assertFalse(fut.done())
 
@@ -2203,7 +2203,7 @@ class TestService(unittest.TestCase):
 
     def test_join_rejects_joining_a_pending_muc(self):
         self.s.join(TEST_MUC_JID, "firstwitch")
-        with self.assertRaisesRegexp(
+        with self.assertRaisesRegex(
                 ValueError,
                 "already joined"):
             self.s.join(
@@ -2212,7 +2212,7 @@ class TestService(unittest.TestCase):
             )
 
     def test_join_rejects_non_bare_muc_jid(self):
-        with self.assertRaisesRegexp(
+        with self.assertRaisesRegex(
                 ValueError,
                 "MUC JID must be bare"):
             self.s.join(
@@ -2223,7 +2223,7 @@ class TestService(unittest.TestCase):
     def test_join_raises_if_message_callback_is_in_use(self):
         self.cc.stream.register_message_callback.side_effect = ValueError()
 
-        with self.assertRaisesRegexp(
+        with self.assertRaisesRegex(
                 RuntimeError,
                 "message callback for MUC already in use"):
             self.s.join(

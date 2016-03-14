@@ -23,7 +23,7 @@ class PresenceCollector:
         self._reset_timer()
 
     def _reset_timer(self):
-        self._done_task = asyncio.async(
+        self._done_task = asyncio.ensure_future(
             asyncio.sleep(self.done_timeout.total_seconds())
         )
         self._done_task.add_done_callback(self._sleep_done)

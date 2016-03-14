@@ -180,7 +180,7 @@ class TestStreamFeatures(unittest.TestCase):
             features[FakeFeature]
         )
 
-        with self.assertRaisesRegexp(ValueError, "incorrect XSO class"):
+        with self.assertRaisesRegex(ValueError, "incorrect XSO class"):
             features[NotAFeature] = instance
 
         del features[FakeFeature]
@@ -222,8 +222,8 @@ class TestStreamFeatures(unittest.TestCase):
 
     def test_contains(self):
         features = nonza.StreamFeatures()
-        with self.assertRaisesRegexp(TypeError,
-                                     "membership test not supported"):
+        with self.assertRaisesRegex(TypeError,
+                                    "membership test not supported"):
             "foo" in features
 
     def test_iter_features(self):
@@ -447,7 +447,7 @@ class TestSASLChallenge(unittest.TestCase):
         challenge = nonza.SASLChallenge(payload=b"foo")
         self.assertEqual(challenge.payload, b"foo")
 
-        with self.assertRaisesRegexp(TypeError, "positional argument"):
+        with self.assertRaisesRegex(TypeError, "positional argument"):
             nonza.SASLChallenge()
 
 
@@ -485,7 +485,7 @@ class TestSASLResponse(unittest.TestCase):
         challenge = nonza.SASLResponse(payload=b"foo")
         self.assertEqual(challenge.payload, b"foo")
 
-        with self.assertRaisesRegexp(TypeError, "positional argument"):
+        with self.assertRaisesRegex(TypeError, "positional argument"):
             nonza.SASLResponse()
 
 

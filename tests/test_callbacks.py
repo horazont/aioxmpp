@@ -57,7 +57,7 @@ class TestTagDispatcher(unittest.TestCase):
 
         nh = TagDispatcher()
         nh.add_callback("tag", mock)
-        with self.assertRaisesRegexp(ValueError,
+        with self.assertRaisesRegex(ValueError,
                                      "only one listener is allowed"):
             nh.add_callback("tag", mock)
 
@@ -68,7 +68,7 @@ class TestTagDispatcher(unittest.TestCase):
 
         nh = TagDispatcher()
         nh.add_listener("tag", l)
-        with self.assertRaisesRegexp(ValueError,
+        with self.assertRaisesRegex(ValueError,
                                      "only one listener is allowed"):
             nh.add_listener("tag", l)
 
@@ -527,17 +527,17 @@ class TestFutureListener(unittest.TestCase):
 class TestAdHocSignal(unittest.TestCase):
     def test_STRONG_rejects_non_callable(self):
         signal = AdHocSignal()
-        with self.assertRaisesRegexp(TypeError, "must be callable"):
+        with self.assertRaisesRegex(TypeError, "must be callable"):
             signal.STRONG(object())
 
     def test_WEAK_rejects_non_callable(self):
         signal = AdHocSignal()
-        with self.assertRaisesRegexp(TypeError, "must be callable"):
+        with self.assertRaisesRegex(TypeError, "must be callable"):
             signal.WEAK(object())
 
     def test_ASYNC_WITH_LOOP_rejects_non_callable(self):
         signal = AdHocSignal()
-        with self.assertRaisesRegexp(TypeError, "must be callable"):
+        with self.assertRaisesRegex(TypeError, "must be callable"):
             signal.ASYNC_WITH_LOOP(asyncio.get_event_loop())(object())
 
     def test_connect_and_fire(self):

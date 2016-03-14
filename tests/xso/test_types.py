@@ -78,8 +78,7 @@ class TestStringType(unittest.TestCase):
         ]
 
         for value in values:
-            with self.assertRaisesRegexp(TypeError,
-                                         "must be a str"):
+            with self.assertRaisesRegex(TypeError, "must be a str"):
                 t.coerce(value)
 
     def test_coerce_stringprep(self):
@@ -171,7 +170,7 @@ class TestIntegerType(unittest.TestCase):
         ]
 
         for value in values:
-            with self.assertRaisesRegexp(
+            with self.assertRaisesRegex(
                     TypeError,
                     "must be integral number"):
                 t.coerce(value)
@@ -241,7 +240,7 @@ class TestFloatType(unittest.TestCase):
         ]
 
         for value in values:
-            with self.assertRaisesRegexp(
+            with self.assertRaisesRegex(
                     TypeError,
                     "must be real number"):
                 t.coerce(value)
@@ -422,7 +421,7 @@ class TestDateTimeType(unittest.TestCase):
         ]
 
         for value in values:
-            with self.assertRaisesRegexp(
+            with self.assertRaisesRegex(
                     TypeError,
                     "must be a datetime object"):
                 t.coerce(value)
@@ -634,8 +633,8 @@ class TestBase64Binary(unittest.TestCase):
 
     def test_coerce_rejects_int(self):
         t = xso.Base64Binary()
-        with self.assertRaisesRegexp(TypeError,
-                                     "must be convertible to bytes"):
+        with self.assertRaisesRegex(TypeError,
+                                    "must be convertible to bytes"):
             t.coerce(12)
 
     def test_coerce_accepts_bytes_bytearray_array(self):
@@ -696,8 +695,8 @@ class TestHexBinary(unittest.TestCase):
 
     def test_coerce_rejects_int(self):
         t = xso.HexBinary()
-        with self.assertRaisesRegexp(TypeError,
-                                     "must be convertible to bytes"):
+        with self.assertRaisesRegex(TypeError,
+                                    "must be convertible to bytes"):
             t.coerce(12)
 
     def test_coerce_accepts_bytes_bytearray_array(self):
@@ -760,13 +759,13 @@ class TestJID(unittest.TestCase):
         t = xso.JID()
         types = [str, int, float, object]
         for type_ in types:
-            with self.assertRaisesRegexp(TypeError,
-                                         "not a JID"):
+            with self.assertRaisesRegex(TypeError,
+                                        "not a JID"):
                 t.coerce(type_())
 
     def test_coerce_rejects_str_jids(self):
         t = xso.JID()
-        with self.assertRaisesRegexp(
+        with self.assertRaisesRegex(
                 TypeError,
                 "<class 'str'> object 'foo@bar' is not a JID"):
             t.coerce("foo@bar")
@@ -860,8 +859,8 @@ class TestConnectionLocation(unittest.TestCase):
         ]
 
         for value in values:
-            with self.assertRaisesRegexp(TypeError,
-                                         "2-tuple required"):
+            with self.assertRaisesRegex(TypeError,
+                                        "2-tuple required"):
                 t.coerce(value)
 
     def test_coerce_parses_ip_addresses(self):
@@ -888,7 +887,7 @@ class TestConnectionLocation(unittest.TestCase):
         ]
 
         for err_value in err_values:
-            with self.assertRaisesRegexp(ValueError, "out of range"):
+            with self.assertRaisesRegex(ValueError, "out of range"):
                 t.coerce(err_value)
 
         ok_values = [
@@ -913,7 +912,7 @@ class TestConnectionLocation(unittest.TestCase):
         ]
 
         for value in values:
-            with self.assertRaisesRegexp(
+            with self.assertRaisesRegex(
                     TypeError,
                     "port number must be integral number"):
                 t.coerce(value)
@@ -961,7 +960,7 @@ class TestLanguageTag(unittest.TestCase):
         ]
 
         for value in values:
-            with self.assertRaisesRegexp(
+            with self.assertRaisesRegex(
                     TypeError,
                     "is not a LanguageTag"):
                 t.coerce(value)

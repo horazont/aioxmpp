@@ -146,9 +146,9 @@ class TestSASLXMPPInterface(xmltestutils.XMLTestCase):
     def test_abort_reject_non_failure(self):
         self.sm._state = "challenge"
 
-        with self.assertRaisesRegexp(
-                aiosasl.SASLFailure,
-                "unexpected non-failure"
+        with self.assertRaisesRegex(
+            aiosasl.SASLFailure,
+            "unexpected non-failure"
         ) as ctx:
             self._run_test(
                 self.sm.abort(),

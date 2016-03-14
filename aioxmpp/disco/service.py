@@ -425,7 +425,7 @@ class Service(service.Service, Node):
                 except asyncio.CancelledError:
                     pass
 
-        request = asyncio.async(
+        request = asyncio.ensure_future(
             self.send_and_decode_info_query(jid, node)
         )
         request.add_done_callback(
@@ -486,7 +486,7 @@ class Service(service.Service, Node):
         request_iq = stanza.IQ(to=jid, type_="get")
         request_iq.payload = disco_xso.ItemsQuery(node=node)
 
-        request = asyncio.async(
+        request = asyncio.ensure_future(
             self.client.stream.send_iq_and_wait_for_reply(request_iq)
         )
 

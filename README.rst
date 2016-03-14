@@ -51,4 +51,4 @@ Change log
 The `change log`_ is included in the `official documentation`__.
 
 .. _change log: http://docs.zombofant.net/aioxmpp/devel/api/changelog.html
-__ http://docs.zombofant.net/aioxmpp/devel/
+__ http://docs.zombofant.net/aioxmpp/0.5/
