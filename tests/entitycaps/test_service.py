@@ -84,8 +84,8 @@ class Testbuild_identities_string(unittest.TestCase):
                                name="aioxmpp library > 0.5"),
         ]
 
-        with self.assertRaisesRegexp(ValueError,
-                                     "duplicate identity"):
+        with self.assertRaisesRegex(ValueError,
+                                    "duplicate identity"):
             entitycaps_service.build_identities_string(identities)
 
 
@@ -122,8 +122,8 @@ class Testbuild_features_string(unittest.TestCase):
             "http://jabber.org/protocol/caps",
         ]
 
-        with self.assertRaisesRegexp(ValueError,
-                                     "duplicate feature"):
+        with self.assertRaisesRegex(ValueError,
+                                    "duplicate feature"):
             entitycaps_service.build_features_string(features)
 
 
@@ -780,7 +780,7 @@ class TestCache(unittest.TestCase):
                 fut,
             )
 
-            task = asyncio.async(
+            task = asyncio.ensure_future(
                 self.c.lookup(base.hash_, base.node)
             )
             run_coroutine(asyncio.sleep(0))
@@ -842,7 +842,7 @@ class TestCache(unittest.TestCase):
             base.Future.return_value = fut1
             self.c.create_query_future(base.hash_, base.node)
 
-            task = asyncio.async(
+            task = asyncio.ensure_future(
                 self.c.lookup(base.hash_, base.node)
             )
             run_coroutine(asyncio.sleep(0))
@@ -897,7 +897,7 @@ class TestCache(unittest.TestCase):
                 fut,
             )
 
-            task = asyncio.async(
+            task = asyncio.ensure_future(
                 self.c.lookup(base.hash_, base.node)
             )
             run_coroutine(asyncio.sleep(0))
@@ -929,7 +929,7 @@ class TestCache(unittest.TestCase):
             ))
 
             async = stack.enter_context(unittest.mock.patch(
-                "asyncio.async"
+                "asyncio.ensure_future"
             ))
 
             self.c.add_cache_entry(
@@ -970,7 +970,7 @@ class TestCache(unittest.TestCase):
             ))
 
             async = stack.enter_context(unittest.mock.patch(
-                "asyncio.async"
+                "asyncio.ensure_future"
             ))
 
             self.c.add_cache_entry(
@@ -1128,7 +1128,7 @@ class TestService(unittest.TestCase):
 
         with contextlib.ExitStack() as stack:
             async = stack.enter_context(
-                unittest.mock.patch("asyncio.async")
+                unittest.mock.patch("asyncio.ensure_future")
             )
 
             lookup_info = stack.enter_context(
@@ -1166,7 +1166,7 @@ class TestService(unittest.TestCase):
 
         with contextlib.ExitStack() as stack:
             async = stack.enter_context(
-                unittest.mock.patch("asyncio.async")
+                unittest.mock.patch("asyncio.ensure_future")
             )
 
             lookup_info = stack.enter_context(
@@ -1201,7 +1201,7 @@ class TestService(unittest.TestCase):
         presence = stanza.Presence()
         presence.xep0115_caps = caps
 
-        with unittest.mock.patch("asyncio.async") as async:
+        with unittest.mock.patch("asyncio.ensure_future") as async:
             result = self.s.handle_inbound_presence(presence)
 
         self.assertFalse(async.mock_calls)

@@ -591,9 +591,9 @@ class AbstractClient:
         if self.running:
             raise RuntimeError("client already running")
 
-        self._main_task = asyncio.async(
+        self._main_task = asyncio.ensure_future(
             self._main(),
-            loop=self._loop
+            loop=self._loop,
         )
         self._main_task.add_done_callback(self._on_main_done)
 

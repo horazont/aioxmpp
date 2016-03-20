@@ -258,8 +258,8 @@ class Testconnect_to_xmpp_server(unittest.TestCase):
         self.srv_records.clear()
         self.group_and_order_srv_records.return_value = []
 
-        with self.assertRaisesRegexp(OSError,
-                                     "no options to connect to"):
+        with self.assertRaisesRegex(OSError,
+                                    "no options to connect to"):
             transport, protocol, features_future = run_coroutine(
                 node.connect_to_xmpp_server(
                     self.test_jid
@@ -511,8 +511,8 @@ class Testconnect_secured_xmlstream(unittest.TestCase):
 
         with unittest.mock.patch("aioxmpp.node.connect_to_xmpp_server",
                                  sleeper):
-            with self.assertRaisesRegexp(TimeoutError,
-                                         "connection to .* timed out"):
+            with self.assertRaisesRegex(TimeoutError,
+                                        "connection to .* timed out"):
                 run_coroutine(
                     node.connect_secured_xmlstream(
                         self.test_jid,
@@ -849,8 +849,8 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
 
     def test_reject_start_twice(self):
         self.client.start()
-        with self.assertRaisesRegexp(RuntimeError,
-                                     "already running"):
+        with self.assertRaisesRegex(RuntimeError,
+                                    "already running"):
             self.client.start()
 
         self.client.stop()

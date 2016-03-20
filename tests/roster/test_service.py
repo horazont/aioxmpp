@@ -433,7 +433,7 @@ class TestService(unittest.TestCase):
         self.cc.stream.send_iq_and_wait_for_reply.return_value = response
         self.cc.stream.send_iq_and_wait_for_reply.delay = 0.05
 
-        task = asyncio.async(self.cc.before_stream_established())
+        task = asyncio.ensure_future(self.cc.before_stream_established())
 
         run_coroutine(asyncio.sleep(0.01))
 
@@ -472,7 +472,7 @@ class TestService(unittest.TestCase):
 
         self.cc.stream.send_iq_and_wait_for_reply.return_value = response
 
-        task = asyncio.async(self.cc.before_stream_established())
+        task = asyncio.ensure_future(self.cc.before_stream_established())
 
         run_coroutine(asyncio.sleep(0))
 

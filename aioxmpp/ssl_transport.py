@@ -336,7 +336,8 @@ class STARTTLSTransport(asyncio.Transport):
 
         if self._tls_post_handshake_callback:
             self._trace_logger.debug("post handshake scheduled via callback")
-            task = asyncio.async(self._tls_post_handshake_callback(self))
+            task = asyncio.ensure_future(
+                self._tls_post_handshake_callback(self))
             task.add_done_callback(self._tls_post_handshake_done)
             self._chained_pending.add(task)
             self._tls_post_handshake_callback = None
