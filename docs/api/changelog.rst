@@ -3,6 +3,11 @@
 Changelog
 #########
 
+Version 0.6
+===========
+
+* :class:`aioxmpp.xso.NumericRange`.
+
 Version 0.5
 ===========
 

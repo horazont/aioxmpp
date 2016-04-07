@@ -1475,3 +1475,39 @@ class TestIsInstance(unittest.TestCase):
         self.assertTrue(
             v.validate("str")
         )
+
+
+class TestNumericRange(unittest.TestCase):
+    def test_is_abstract_validator(self):
+        self.assertTrue(issubclass(
+            xso.NumericRange,
+            xso.AbstractValidator
+        ))
+
+    def test_validate_ok(self):
+        v = xso.NumericRange(min_=10, max_=20)
+        for i in range(10, 21):
+            self.assertTrue(
+                v.validate(i),
+            )
+
+    def test_validate_detailed_out_of_bounds(self):
+        v = xso.NumericRange(min_=10, max_=20)
+        for i in range(0, 10):
+            self.assertFalse(
+                v.validate(i),
+            )
+
+    def test_validate_detailed_too_small(self):
+        v = xso.NumericRange(min_=10)
+        for i in range(0, 10):
+            self.assertFalse(
+                v.validate(i),
+            )
+
+    def test_validate_detailed_too_large(self):
+        v = xso.NumericRange(max_=-1)
+        for i in range(0, 10):
+            self.assertFalse(
+                v.validate(i),
+            )

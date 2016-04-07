@@ -282,6 +282,8 @@ Implementations
 
 .. autoclass:: IsInstance
 
+.. autoclass:: NumericRange
+
 .. currentmodule:: aioxmpp.xso
 
 Predefined XSO base classes
@@ -358,6 +360,7 @@ from .types import (  # NOQA
     RestrictToSet,
     Nmtoken,
     IsInstance,
+    NumericRange,
 )
 
 from .model import (  # NOQA

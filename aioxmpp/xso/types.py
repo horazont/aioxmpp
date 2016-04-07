@@ -641,3 +641,58 @@ class IsInstance(AbstractValidator):
                 )
             ]
         return []
+
+
+class NumericRange(AbstractValidator):
+    """
+    To be used with orderable types, such as :class:`.DateTime` or
+    :class:`.Integer`.
+
+    The value is enforced to be within *[min, max]* (this is the interval from
+    `min_` to `max_`, including both ends).
+
+    Setting `min_` or `max_` to :data:`None` disables enforcement of that end
+    of the interval. A common use is ``NumericRange(min_=1)`` in conjunction
+    with :class:`.Integer` to enforce the use of positive integers.
+
+    .. versionadded:: 0.6
+
+    """
+
+    def __init__(self, min_=None, max_=None):
+        super().__init__()
+        self.min_ = min_
+        self.max_ = max_
+
+    def validate_detailed(self, v):
+        from ..errors import UserValueError
+        if self.min_ is None:
+            if self.max_ is None:
+                return []
+            if not v <= self.max_:
+                return [
+                    UserValueError(
+                        i18n._("{} is too large (max is {})"),
+                        v,
+                        self.max_
+                    )
+                ]
+        elif self.max_ is None:
+            if not self.min_ <= v:
+                return [
+                    UserValueError(
+                        i18n._("{} is too small (min is {})"),
+                        v,
+                        self.max_
+                    )
+                ]
+        elif not self.min_ <= v <= self.max_:
+            return [
+                UserValueError(
+                    i18n._("{} is out of bounds ({}..{})"),
+                    v,
+                    self.min_,
+                    self.max_
+                )
+            ]
+        return []
