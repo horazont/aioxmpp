@@ -768,7 +768,7 @@ class TestSubscription(unittest.TestCase):
                 "none",
                 "pending",
                 "subscribed",
-                "unsubscribed"
+                "unconfigured"
             }
         )
         self.assertIs(

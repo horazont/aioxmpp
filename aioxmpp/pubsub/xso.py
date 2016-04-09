@@ -291,7 +291,7 @@ class Subscription(xso.XSO):
             "none",
             "pending",
             "subscribed",
-            "unsubscribed",
+            "unconfigured",
         }),
         default=None
     )
