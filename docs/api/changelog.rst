@@ -7,6 +7,7 @@ Version 0.6
 ===========
 
 * :class:`aioxmpp.xso.NumericRange`.
+* :meth:`aioxmpp.stanza.Error.as_application_condition`
 
 Version 0.5
 ===========

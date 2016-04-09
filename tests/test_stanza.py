@@ -675,6 +675,15 @@ class TestError(unittest.TestCase):
             repr(obj)
         )
 
+    def test_as_application_condition(self):
+        @stanza.Error.as_application_condition
+        class Foo(xso.XSO):
+            TAG = ("uri:foo", "test_as_payload_class")
+
+        self.assertIn(Foo.TAG, stanza.Error.CHILD_MAP)
+        self.assertIs(stanza.Error.CHILD_MAP[Foo.TAG],
+                      stanza.Error.application_condition)
+
 
 class TestIQ(unittest.TestCase):
     def test_inheritance(self):

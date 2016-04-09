@@ -168,6 +168,10 @@ class Error(xso.XSO):
        A :class:`.xso.XSO.Child` which can be used to register support for
        application-specific errors.
 
+    To register a class as application condition, use:
+
+    .. automethod:: as_application_condition
+
     """
 
     TAG = (namespaces.client, "error")
@@ -236,6 +240,16 @@ class Error(xso.XSO):
             condition=self.condition,
             text=self.text
         )
+
+    @classmethod
+    def as_application_condition(cls, other_cls):
+        """
+        Register `other_cls` as child class for the
+        :attr:`application_condition` attribute. Doing so will allows the class
+        to be parsed instead of being discarded.
+        """
+        cls.register_child(cls.application_condition, other_cls)
+        return other_cls
 
     def __repr__(self):
         payload = ""
@@ -741,5 +755,9 @@ class IQ(StanzaBase):
 
     @classmethod
     def as_payload_class(cls, other_cls):
+        """
+        Register `other_cls` as possible :class:`IQ` :attr:`payload`. Doing so
+        is required in order to receive IQs with such payload.
+        """
         cls.register_child(cls.payload, other_cls)
         return other_cls
