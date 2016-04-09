@@ -1,10 +1,16 @@
 import unittest
+import unittest.mock
 
 import aioxmpp.forms as forms
 import aioxmpp.pubsub.xso as pubsub_xso
+import aioxmpp.stanza as stanza
+import aioxmpp.structs as structs
 import aioxmpp.xso as xso
 
 from aioxmpp.utils import namespaces
+
+
+TEST_JID = structs.JID.fromstr("foo@bar.example/baz")
 
 
 class TestNamespaces(unittest.TestCase):
@@ -18,6 +24,12 @@ class TestNamespaces(unittest.TestCase):
         self.assertEqual(
             namespaces.xep0060,
             "http://jabber.org/protocol/pubsub"
+        )
+
+    def test_errors(self):
+        self.assertEqual(
+            namespaces.xep0060_errors,
+            "http://jabber.org/protocol/pubsub#errors"
         )
 
 
@@ -85,6 +97,18 @@ class TestAffiliation(unittest.TestCase):
             xso.NO_DEFAULT,
         )
 
+    def test_init(self):
+        with self.assertRaises(TypeError):
+            a = pubsub_xso.Affiliation()
+
+        a = pubsub_xso.Affiliation("owner")
+        self.assertEqual(a.node, None)
+        self.assertEqual(a.affiliation, "owner")
+
+        a = pubsub_xso.Affiliation("outcast", node="foo")
+        self.assertEqual(a.node, "foo")
+        self.assertEqual(a.affiliation, "outcast")
+
 
 class TestAffiliations(unittest.TestCase):
     def test_is_xso(self):
@@ -129,6 +153,22 @@ class TestAffiliations(unittest.TestCase):
             }
         )
 
+    def test_init(self):
+        as_ = pubsub_xso.Affiliations()
+        self.assertIsNone(as_.node)
+        self.assertSequenceEqual(as_.affiliations, [])
+
+        a1 = pubsub_xso.Affiliation("owner")
+        a2 = pubsub_xso.Affiliation("member")
+        as_ = pubsub_xso.Affiliations([a1, a2], node="foo")
+        self.assertEqual(as_.node, "foo")
+        self.assertSequenceEqual(
+            as_.affiliations,
+            [
+                a1, a2
+            ]
+        )
+
 
 class TestConfigure(unittest.TestCase):
     def test_is_xso(self):
@@ -171,20 +211,81 @@ class TestCreate(unittest.TestCase):
 
     def test_node(self):
         self.assertIsInstance(
-            pubsub_xso.Affiliations.node,
+            pubsub_xso.Create.node,
             xso.Attr
         )
         self.assertEqual(
-            pubsub_xso.Affiliations.node.tag,
+            pubsub_xso.Create.node.tag,
             (None, "node")
         )
         self.assertIsInstance(
-            pubsub_xso.Affiliations.node.type_,
+            pubsub_xso.Create.node.type_,
             xso.String
         )
         self.assertIs(
-            pubsub_xso.Affiliations.node.default,
+            pubsub_xso.Create.node.default,
             None
+        )
+
+
+class TestDefault(unittest.TestCase):
+    def test_is_xso(self):
+        self.assertTrue(issubclass(
+            pubsub_xso.Default,
+            xso.XSO
+        ))
+
+    def test_tag(self):
+        self.assertEqual(
+            pubsub_xso.Default.TAG,
+            (namespaces.xep0060, "default")
+        )
+
+    def test_node(self):
+        self.assertIsInstance(
+            pubsub_xso.Default.node,
+            xso.Attr
+        )
+        self.assertEqual(
+            pubsub_xso.Default.node.tag,
+            (None, "node")
+        )
+        self.assertIsInstance(
+            pubsub_xso.Default.node.type_,
+            xso.String
+        )
+        self.assertIs(
+            pubsub_xso.Default.node.default,
+            None
+        )
+
+    def test_type_(self):
+        self.assertIsInstance(
+            pubsub_xso.Default.type_,
+            xso.Attr
+        )
+        self.assertEqual(
+            pubsub_xso.Default.type_.tag,
+            (None, "type")
+        )
+        self.assertIsInstance(
+            pubsub_xso.Default.type_.type_,
+            xso.String
+        )
+        self.assertIs(
+            pubsub_xso.Default.type_.default,
+            "leaf",
+        )
+        self.assertIsInstance(
+            pubsub_xso.Default.type_.validator,
+            xso.RestrictToSet
+        )
+        self.assertSetEqual(
+            pubsub_xso.Default.type_.validator.values,
+            {
+                "leaf",
+                "collection",
+            }
         )
 
 
@@ -531,6 +632,20 @@ class TestSubscribe(unittest.TestCase):
             None
         )
 
+    def test_init(self):
+        with self.assertRaises(TypeError):
+            s = pubsub_xso.Subscribe()
+
+        s = pubsub_xso.Subscribe(TEST_JID)
+        self.assertEqual(s.jid, TEST_JID)
+        self.assertEqual(s.node, None)
+
+        s = pubsub_xso.Subscribe(
+            TEST_JID.replace(localpart="fnord"),
+            node="foo")
+        self.assertEqual(s.jid, TEST_JID.replace(localpart="fnord"))
+        self.assertEqual(s.node, "foo")
+
 
 class TestSubscribeOptions(unittest.TestCase):
     def test_is_xso(self):
@@ -660,6 +775,26 @@ class TestSubscription(unittest.TestCase):
             pubsub_xso.Subscription.subscription.default,
             None
         )
+
+    def test_init(self):
+        with self.assertRaises(TypeError):
+            s = pubsub_xso.Subscription()
+
+        s = pubsub_xso.Subscription(TEST_JID)
+        self.assertEqual(s.jid, TEST_JID)
+        self.assertIsNone(s.node)
+        self.assertIsNone(s.subid)
+        self.assertIsNone(s.subscription)
+
+        s = pubsub_xso.Subscription(
+            TEST_JID.replace(localpart="fnord"),
+            node="foo",
+            subid="bar",
+            subscription="subscribed")
+        self.assertEqual(s.jid, TEST_JID.replace(localpart="fnord"))
+        self.assertEqual(s.node, "foo")
+        self.assertEqual(s.subid, "bar")
+        self.assertEqual(s.subscription, "subscribed")
 
 
 class TestSubscriptions(unittest.TestCase):
@@ -797,9 +932,14 @@ class TestRequest(unittest.TestCase):
             {
                 pubsub_xso.Affiliations,
                 pubsub_xso.Create,
+                pubsub_xso.Default,
+                pubsub_xso.Items,
+                pubsub_xso.Publish,
+                pubsub_xso.Retract,
                 pubsub_xso.Subscribe,
                 pubsub_xso.Subscription,
                 pubsub_xso.Subscriptions,
+                pubsub_xso.Unsubscribe,
             }
         )
 
@@ -827,6 +967,162 @@ class TestRequest(unittest.TestCase):
             }
         )
 
+    def test_is_registered_iq_payload(self):
+        self.assertIn(
+            pubsub_xso.Request,
+            stanza.IQ.payload._classes
+        )
+
+    def test_init(self):
+        r = pubsub_xso.Request()
+        self.assertIsNone(r.payload)
+
+        m = unittest.mock.Mock()
+        r = pubsub_xso.Request(m)
+        self.assertIs(r.payload, m)
+
+
+class TestSimpleErrors(unittest.TestCase):
+    ERROR_CLASSES = [
+        ("ClosedNode", "closed-node"),
+        ("ConfigurationRequired", "configuration-required"),
+        ("InvalidJID", "invalid-jid"),
+        ("InvalidOptions", "invalid-options"),
+        ("InvalidPayload", "invalid-payload"),
+        ("InvalidSubID", "invalid-subid"),
+        ("ItemForbidden", "item-forbidden"),
+        ("ItemRequired", "item-required"),
+        ("JIDRequired", "jid-required"),
+        ("MaxItemsExceeded", "max-items-exceeded"),
+        ("MaxNodesExceeded", "max-nodes-exceeded"),
+        ("NodeIDRequired", "nodeid-required"),
+        ("NotInRosterGroup", "not-in-roster-group"),
+        ("NotSubscribed", "not-subscribed"),
+        ("PayloadTooBig", "payload-too-big"),
+        ("PayloadRequired", "payload-required"),
+        ("PendingSubscription", "pending-subscription"),
+        ("PresenceSubscriptionRequired",
+         "presence-subscription-required"),
+        ("SubIDRequired", "subid-required"),
+        ("TooManySubscriptions", "too-many-subscriptions"),
+    ]
+
+    def _run_tests(self, func):
+        for clsname, *args in self.ERROR_CLASSES:
+            cls = getattr(pubsub_xso, clsname)
+            func(cls, args)
+
+    def _test_is_xso(self, cls, args):
+        self.assertTrue(issubclass(
+            cls,
+            xso.XSO
+        ))
+
+    def test_is_xso(self):
+        self._run_tests(self._test_is_xso)
+
+    def _test_tag(self, cls, args):
+        self.assertEqual(
+            (namespaces.xep0060_errors, args[0]),
+            cls.TAG
+        )
+
+    def test_tag(self):
+        self._run_tests(self._test_tag)
+
+    def _test_is_application_error(self, cls, args):
+        self.assertIn(
+            cls,
+            stanza.Error.application_condition._classes
+        )
+
+    def test_is_application_error(self):
+        self._run_tests(self._test_is_application_error)
+
+
+class TestUnsupported(unittest.TestCase):
+    def test_is_xso(self):
+        self.assertTrue(issubclass(
+            pubsub_xso.Unsupported,
+            xso.XSO
+        ))
+
+    def test_tag(self):
+        self.assertEqual(
+            (namespaces.xep0060_errors, "unsupported"),
+            pubsub_xso.Unsupported.TAG
+        )
+
+    def test_feature(self):
+        self.assertIsInstance(
+            pubsub_xso.Unsupported.feature,
+            xso.Attr
+        )
+        self.assertEqual(
+            pubsub_xso.Unsupported.feature.tag,
+            (None, "feature")
+        )
+        self.assertIsInstance(
+            pubsub_xso.Unsupported.feature.validator,
+            xso.RestrictToSet
+        )
+        self.assertSetEqual(
+            pubsub_xso.Unsupported.feature.validator.values,
+            {
+                "access-authorize",
+                "access-open",
+                "access-presence",
+                "access-roster",
+                "access-whitelist",
+                "auto-create",
+                "auto-subscribe",
+                "collections",
+                "config-node",
+                "create-and-configure",
+                "create-nodes",
+                "delete-items",
+                "delete-nodes",
+                "filtered-notifications",
+                "get-pending",
+                "instant-nodes",
+                "item-ids",
+                "last-published",
+                "leased-subscription",
+                "manage-subscriptions",
+                "member-affiliation",
+                "meta-data",
+                "modify-affiliations",
+                "multi-collection",
+                "multi-subscribe",
+                "outcast-affiliation",
+                "persistent-items",
+                "presence-notifications",
+                "presence-subscribe",
+                "publish",
+                "publish-options",
+                "publish-only-affiliation",
+                "publisher-affiliation",
+                "purge-nodes",
+                "retract-items",
+                "retrieve-affiliations",
+                "retrieve-default",
+                "retrieve-items",
+                "retrieve-subscriptions",
+                "subscribe",
+                "subscription-options",
+                "subscription-notifications",
+            }
+        )
+        self.assertIs(
+            pubsub_xso.Unsupported.feature.default,
+            xso.NO_DEFAULT
+        )
+
+    def test_is_application_error(self):
+        self.assertIn(
+            pubsub_xso.Unsupported,
+            stanza.Error.application_condition._classes
+        )
 
 
 # foo

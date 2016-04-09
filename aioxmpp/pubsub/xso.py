@@ -1,4 +1,5 @@
 import aioxmpp.forms
+import aioxmpp.stanza
 import aioxmpp.xso as xso
 
 from enum import Enum
@@ -68,6 +69,7 @@ class Features(Enum):
 
 namespaces.xep0060_features = Features
 namespaces.xep0060 = "http://jabber.org/protocol/pubsub"
+namespaces.xep0060_errors = "http://jabber.org/protocol/pubsub#errors"
 
 
 class Affiliation(xso.XSO):
@@ -90,6 +92,11 @@ class Affiliation(xso.XSO):
         }),
     )
 
+    def __init__(self, affiliation, node=None):
+        super().__init__()
+        self.affiliation = affiliation
+        self.node = node
+
 
 class Affiliations(xso.XSO):
     TAG = (namespaces.xep0060, "affiliations")
@@ -102,6 +109,11 @@ class Affiliations(xso.XSO):
     affiliations = xso.ChildList(
         [Affiliation],
     )
+
+    def __init__(self, affiliations=[], node=None):
+        super().__init__()
+        self.affiliations[:] = affiliations
+        self.node = node
 
 
 class Configure(xso.XSO):
@@ -118,6 +130,24 @@ class Create(xso.XSO):
     node = xso.Attr(
         "node",
         default=None
+    )
+
+
+class Default(xso.XSO):
+    TAG = (namespaces.xep0060, "default")
+
+    node = xso.Attr(
+        "node",
+        default=None
+    )
+
+    type_ = xso.Attr(
+        "type",
+        validator=xso.RestrictToSet({
+            "leaf",
+            "collection",
+        }),
+        default="leaf",
     )
 
 
@@ -220,6 +250,11 @@ class Subscribe(xso.XSO):
         default=None
     )
 
+    def __init__(self, jid, node=None):
+        super().__init__()
+        self.jid = jid
+        self.node = node
+
 
 class SubscribeOptions(xso.XSO):
     TAG = (namespaces.xep0060, "subscribe-options")
@@ -261,6 +296,13 @@ class Subscription(xso.XSO):
         default=None
     )
 
+    def __init__(self, jid, node=None, subid=None, *, subscription=None):
+        super().__init__()
+        self.jid = jid
+        self.node = node
+        self.subid = subid
+        self.subscription = subscription
+
 
 class Subscriptions(xso.XSO):
     TAG = (namespaces.xep0060, "subscriptions")
@@ -294,15 +336,21 @@ class Unsubscribe(xso.XSO):
     )
 
 
+@aioxmpp.stanza.IQ.as_payload_class
 class Request(xso.XSO):
     TAG = (namespaces.xep0060, "pubsub")
 
     payload = xso.Child([
         Affiliations,
         Create,
+        Default,
+        Items,
+        Publish,
+        Retract,
         Subscribe,
         Subscription,
         Subscriptions,
+        Unsubscribe,
     ])
 
     options = xso.Child([
@@ -312,6 +360,164 @@ class Request(xso.XSO):
     configure = xso.Child([
         Configure,
     ])
+
+    def __init__(self, payload=None):
+        super().__init__()
+        self.payload = payload
+
+
+ClosedNode = aioxmpp.stanza.make_application_error(
+    "ClosedNode",
+    (namespaces.xep0060_errors, "closed-node"),
+)
+
+ConfigurationRequired = aioxmpp.stanza.make_application_error(
+    "ConfigurationRequired",
+    (namespaces.xep0060_errors, "configuration-required"),
+)
+
+InvalidJID = aioxmpp.stanza.make_application_error(
+    "InvalidJID",
+    (namespaces.xep0060_errors, "invalid-jid"),
+)
+
+InvalidOptions = aioxmpp.stanza.make_application_error(
+    "InvalidOptions",
+    (namespaces.xep0060_errors, "invalid-options"),
+)
+
+InvalidPayload = aioxmpp.stanza.make_application_error(
+    "InvalidPayload",
+    (namespaces.xep0060_errors, "invalid-payload"),
+)
+
+InvalidSubID = aioxmpp.stanza.make_application_error(
+    "InvalidSubID",
+    (namespaces.xep0060_errors, "invalid-subid"),
+)
+
+ItemForbidden = aioxmpp.stanza.make_application_error(
+    "ItemForbidden",
+    (namespaces.xep0060_errors, "item-forbidden"),
+)
+
+ItemRequired = aioxmpp.stanza.make_application_error(
+    "ItemRequired",
+    (namespaces.xep0060_errors, "item-required"),
+)
+
+JIDRequired = aioxmpp.stanza.make_application_error(
+    "JIDRequired",
+    (namespaces.xep0060_errors, "jid-required"),
+)
+
+MaxItemsExceeded = aioxmpp.stanza.make_application_error(
+    "MaxItemsExceeded",
+    (namespaces.xep0060_errors, "max-items-exceeded"),
+)
+
+MaxNodesExceeded = aioxmpp.stanza.make_application_error(
+    "MaxNodesExceeded",
+    (namespaces.xep0060_errors, "max-nodes-exceeded"),
+)
+
+NodeIDRequired = aioxmpp.stanza.make_application_error(
+    "NodeIDRequired",
+    (namespaces.xep0060_errors, "nodeid-required"),
+)
+
+NotInRosterGroup = aioxmpp.stanza.make_application_error(
+    "NotInRosterGroup",
+    (namespaces.xep0060_errors, "not-in-roster-group"),
+)
+
+NotSubscribed = aioxmpp.stanza.make_application_error(
+    "NotSubscribed",
+    (namespaces.xep0060_errors, "not-subscribed"),
+)
+
+PayloadTooBig = aioxmpp.stanza.make_application_error(
+    "PayloadTooBig",
+    (namespaces.xep0060_errors, "payload-too-big"),
+)
+
+PayloadRequired = aioxmpp.stanza.make_application_error(
+    "PayloadRequired",
+    (namespaces.xep0060_errors, "payload-required"),
+)
+
+PendingSubscription = aioxmpp.stanza.make_application_error(
+    "PendingSubscription",
+    (namespaces.xep0060_errors, "pending-subscription"),
+)
+
+PresenceSubscriptionRequired = aioxmpp.stanza.make_application_error(
+    "PresenceSubscriptionRequired",
+    (namespaces.xep0060_errors, "presence-subscription-required"),
+)
+
+SubIDRequired = aioxmpp.stanza.make_application_error(
+    "SubIDRequired",
+    (namespaces.xep0060_errors, "subid-required"),
+)
+
+TooManySubscriptions = aioxmpp.stanza.make_application_error(
+    "TooManySubscriptions",
+    (namespaces.xep0060_errors, "too-many-subscriptions"),
+)
+
+
+@aioxmpp.stanza.Error.as_application_condition
+class Unsupported(xso.XSO):
+    TAG = (namespaces.xep0060_errors, "unsupported")
+
+    feature = xso.Attr(
+        "feature",
+        validator=xso.RestrictToSet({
+            "access-authorize",
+            "access-open",
+            "access-presence",
+            "access-roster",
+            "access-whitelist",
+            "auto-create",
+            "auto-subscribe",
+            "collections",
+            "config-node",
+            "create-and-configure",
+            "create-nodes",
+            "delete-items",
+            "delete-nodes",
+            "filtered-notifications",
+            "get-pending",
+            "instant-nodes",
+            "item-ids",
+            "last-published",
+            "leased-subscription",
+            "manage-subscriptions",
+            "member-affiliation",
+            "meta-data",
+            "modify-affiliations",
+            "multi-collection",
+            "multi-subscribe",
+            "outcast-affiliation",
+            "persistent-items",
+            "presence-notifications",
+            "presence-subscribe",
+            "publish",
+            "publish-options",
+            "publish-only-affiliation",
+            "publisher-affiliation",
+            "purge-nodes",
+            "retract-items",
+            "retrieve-affiliations",
+            "retrieve-default",
+            "retrieve-items",
+            "retrieve-subscriptions",
+            "subscribe",
+            "subscription-options",
+            "subscription-notifications",
+        })
+    )
 
 
 # foo
