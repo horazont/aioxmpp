@@ -28,6 +28,8 @@ attributes:
 
 .. autoclass:: Error(*[, condition][, type_][, text])
 
+.. autofunction:: make_application_error
+
 For messages
 ------------
 
@@ -247,6 +249,13 @@ class Error(xso.XSO):
         Register `other_cls` as child class for the
         :attr:`application_condition` attribute. Doing so will allows the class
         to be parsed instead of being discarded.
+
+
+        .. seealso::
+
+           :func:`make_application_error` --- creates and automatically
+           registers a new application error condition.
+
         """
         cls.register_child(cls.application_condition, other_cls)
         return other_cls
@@ -761,3 +770,26 @@ class IQ(StanzaBase):
         """
         cls.register_child(cls.payload, other_cls)
         return other_cls
+
+
+def make_application_error(name, tag):
+    """
+    Create and return a **class** inheriting from :class:`.xso.XSO`. The
+    :attr:`.xso.XSO.TAG` is set to `tag` and the class’ name will be `name`.
+
+    In addition, the class is automatically registered with
+    :attr:`.Error.application_condition` using
+    :meth:`~.Error.as_application_condition`.
+
+    Keep in mind that if you subclass the class returned by this function, the
+    subclass is not registered with :class:`.Error`. In addition, if you do not
+    override the :attr:`~.xso.XSO.TAG`, you will not be able to register
+    the subclass as application defined condition as it has the same tag as the
+    class returned by this function, which has already been registered as
+    application condition.
+    """
+    cls = type(xso.XSO)(name, (xso.XSO,), {
+        "TAG": tag,
+    })
+    Error.as_application_condition(cls)
+    return cls

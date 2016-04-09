@@ -8,6 +8,7 @@ Version 0.6
 
 * :class:`aioxmpp.xso.NumericRange`.
 * :meth:`aioxmpp.stanza.Error.as_application_condition`
+* :meth:`aioxmpp.stanza.make_application_error`
 
 Version 0.5
 ===========

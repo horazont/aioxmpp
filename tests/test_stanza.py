@@ -1,3 +1,4 @@
+import contextlib
 import itertools
 import unittest
 import unittest.mock
@@ -885,3 +886,40 @@ class TestIQ(unittest.TestCase):
 
         self.assertIn(Foo.TAG, stanza.IQ.CHILD_MAP)
         self.assertIs(stanza.IQ.CHILD_MAP[Foo.TAG], stanza.IQ.payload)
+
+
+class Testmake_application_error(unittest.TestCase):
+    def setUp(self):
+        self._stack_ctx = contextlib.ExitStack()
+        self._stack = self._stack_ctx.__enter__()
+        self._as_application_condition = self._stack.enter_context(
+            unittest.mock.patch.object(stanza.Error,
+                                       "as_application_condition")
+        )
+
+    def test_creates_xso_class(self):
+        Cls = stanza.make_application_error(
+            "TestError",
+            ("uri:foo", "bar"),
+        )
+        self.assertTrue(issubclass(Cls, xso.XSO))
+        self.assertIsInstance(Cls, xso.model.XMLStreamClass)
+        self.assertEqual(Cls.TAG, ("uri:foo", "bar"))
+        self.assertEqual(Cls.__name__, "TestError")
+
+    def test_registers_class(self):
+        Cls = stanza.make_application_error(
+            "TestError",
+            ("uri:foo", "bar"),
+        )
+        self.assertSequenceEqual(
+            self._as_application_condition.mock_calls,
+            [
+                unittest.mock.call(Cls)
+            ]
+        )
+
+    def tearDown(self):
+        self._stack_ctx.__exit__(None, None, None)
+        del self._stack
+        del self._stack_ctx
