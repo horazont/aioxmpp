@@ -9,6 +9,18 @@ Version 0.6
 * :class:`aioxmpp.xso.NumericRange`.
 * :meth:`aioxmpp.stanza.Error.as_application_condition`
 * :meth:`aioxmpp.stanza.make_application_error`
+* :mod:`aioxmpp.network` was rewritten for 0.5.4
+
+  The control over the used DNS resolver is now more sophisticated. Most
+  notably, :mod:`aioxmpp.network` uses a thread-local resolver which is used for
+  all queries by default.
+
+  Normally, :func:`aioxmpp.network.repeated_query` will now re-configure the
+  resolver from system-wide resolver configuration after the first timeout
+  occurs.
+
+  The resolver can be overridden (disabling the reconfiguration magic) using
+  :func:`aioxmpp.network.set_resolver`.
 
 Version 0.5
 ===========
