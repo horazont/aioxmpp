@@ -119,6 +119,10 @@ Version 0.5
      ~aioxmpp.xml.read_xso
      ~aioxmpp.xml.read_single_xso
 
+* In 0.5.4, :mod:`aioxmpp.network` was re-written. More details will follow in
+  the 0.6 changelog. The takeaway is that the network stack now automatically
+  reloads the DNS configuration after the first timeout, to accomodate to
+  changing resolvers.
 
 Version 0.4
 ===========
