@@ -1315,7 +1315,39 @@ class TestRoom(unittest.TestCase):
         self.assertSequenceEqual(
             self.base.mock_calls,
             [
-                unittest.mock.call.on_message(msg, occupant=None)
+                unittest.mock.call.on_message(
+                    msg,
+                    occupant=None
+                )
+            ]
+        )
+
+    def test__inbound_groupchat_message_with_body_emits_on_message_with_occupant(self):
+        pres = aioxmpp.stanza.Presence(
+            from_=TEST_MUC_JID.replace(resource="secondwitch"),
+        )
+        pres.xep0045_muc_user = muc_xso.UserExt()
+
+        self.jmuc._inbound_muc_user_presence(pres)
+
+        _, (_, occupant), _ = self.base.on_join.mock_calls[-1]
+        self.base.mock_calls.clear()
+
+        msg = aioxmpp.stanza.Message(
+            from_=TEST_MUC_JID.replace(resource="secondwitch"),
+            type_="groupchat"
+        )
+        msg.body[None] = "foo"
+
+        self.jmuc._inbound_message(msg)
+
+        self.assertSequenceEqual(
+            self.base.mock_calls,
+            [
+                unittest.mock.call.on_message(
+                    msg,
+                    occupant=occupant
+                )
             ]
         )
 

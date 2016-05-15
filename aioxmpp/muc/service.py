@@ -475,7 +475,10 @@ class Room:
                 occupant=self._occupant_info.get(stanza.from_, None)
             )
         elif stanza.body:
-            self.on_message(stanza, occupant=None)
+            self.on_message(
+                stanza,
+                occupant=self._occupant_info.get(stanza.from_, None)
+            )
 
         try:
             tracker = self._tracking.pop(stanza.id_)
