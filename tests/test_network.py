@@ -1,5 +1,8 @@
 import asyncio
 import collections
+import concurrent.futures
+import contextlib
+import functools
 import random
 import unittest
 import unittest.mock
@@ -10,8 +13,62 @@ import dns.flags
 import aioxmpp.network as network
 
 from aioxmpp.testutils import (
-    run_coroutine
+    run_coroutine,
+    CoroutineMock
 )
+
+
+class Testthreadlocal_resolver_instance(unittest.TestCase):
+    def test_get_resolver_returns_Resolver_instance(self):
+        self.assertIsInstance(
+            network.get_resolver(),
+            dns.resolver.Resolver,
+        )
+
+    def test_get_resolver_returns_consistent_Resolver_instance(self):
+        i1 = network.get_resolver()
+        i2 = network.get_resolver()
+
+        self.assertIs(i1, i2)
+
+    def test_get_resolver_is_not_dnspython_default_resolver(self):
+        self.assertIsNot(
+            network.get_resolver(),
+            dns.resolver.get_default_resolver(),
+        )
+
+    def test_get_resolver_is_thread_local(self):
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            fut = executor.submit(network.get_resolver)
+            done, waiting = concurrent.futures.wait([fut])
+            self.assertSetEqual(done, {fut})
+            i1 = fut.result()
+        i2 = network.get_resolver()
+        self.assertIsNot(i1, i2)
+
+    def test_reconfigure_resolver(self):
+        with unittest.mock.patch("dns.resolver.Resolver") as Resolver:
+            network.reconfigure_resolver()
+
+        Resolver.assert_called_with()
+
+        self.assertEqual(network.get_resolver(), Resolver())
+
+    def test_set_resolver(self):
+        network.set_resolver(unittest.mock.sentinel.resolver)
+        self.assertIs(
+            network.get_resolver(),
+            unittest.mock.sentinel.resolver,
+        )
+
+    def test_reconfigure_resolver_works_after_set_resolver(self):
+        network.set_resolver(unittest.mock.sentinel.resolver)
+        with unittest.mock.patch("dns.resolver.Resolver") as Resolver:
+            network.reconfigure_resolver()
+
+        Resolver.assert_called_with()
+
+        self.assertEqual(network.get_resolver(), Resolver())
 
 
 MockSRVRecord = collections.namedtuple(
@@ -54,9 +111,10 @@ class MockAnswer:
 
 
 class MockResolver:
-    def __init__(self, tester):
-        self.actions = []
+    def __init__(self, tester, actions=[]):
+        self.actions = list(actions)
         self.tester = tester
+        self.nameservers = ["10.0.0.1"]
         self._flags = None
 
     def _get_key(self, qname, rdtype, rdclass, tcp):
@@ -66,6 +124,14 @@ class MockResolver:
         if self._flags is not None:
             result += (self._flags,)
         return result
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, tb):
+        if exc_type is not None:
+            return
+        self.finalize()
 
     def set_flags(self, flags):
         self._flags = flags
@@ -99,191 +165,900 @@ class MockResolver:
 
         return response
 
+    def finalize(self):
+        self.tester.assertSequenceEqual(
+            self.actions,
+            [],
+            "client did not execute all actions",
+        )
+
+
+class Testrepeated_query(unittest.TestCase):
+    def setUp(self):
+        self.tlr = MockResolver(self)
+        base = unittest.mock.Mock()
+        self.base = base
+        self.run_in_executor = unittest.mock.Mock()
+
+        @asyncio.coroutine
+        def run_in_executor(executor, func, *args):
+            self.run_in_executor(executor, func, *args)
+            return func(*args)
+
+        self.patches = [
+            unittest.mock.patch(
+                "aioxmpp.network.get_resolver",
+                new=base.get_resolver,
+            ),
+            unittest.mock.patch(
+                "aioxmpp.network.reconfigure_resolver",
+                new=base.reconfigure_resolver,
+            ),
+            unittest.mock.patch.object(
+                asyncio.get_event_loop(),
+                "run_in_executor",
+                new=run_in_executor
+            )
+        ]
+
+        self.answer = MockAnswer([])
+
+        # ensure consistent state
+        network.reconfigure_resolver()
+
+        for patch in self.patches:
+            patch.start()
+
+        base.get_resolver.return_value = self.tlr
+
+    def tearDown(self):
+        for patch in self.patches:
+            patch.stop()
+
+        # ensure consistent state
+        network.reconfigure_resolver()
+
+    def test_reject_non_positive_number_of_attempts(self):
+        with self.assertRaisesRegex(
+                ValueError,
+                "query cannot succeed with non-positive amount of attempts"):
+            run_coroutine(network.repeated_query(
+                unittest.mock.sentinel.name,
+                unittest.mock.sentinel.rdtype,
+                nattempts=0))
+
+    def test_use_resolver_from_arguments(self):
+        resolver = MockResolver(self)
+        resolver.define_actions([
+            (
+                (
+                    "xn--4ca0bs.example.com",
+                    dns.rdatatype.A,
+                    dns.rdataclass.IN,
+                    False,
+                    (dns.flags.RD | dns.flags.AD),
+                ),
+                self.answer
+            )
+        ])
+
+        with resolver:
+            result = run_coroutine(network.repeated_query(
+                "äöü.example.com".encode("idna"),
+                dns.rdatatype.A,
+                resolver=resolver,
+            ))
+
+        self.assertIs(
+            result,
+            self.answer,
+        )
+
+        self.assertSequenceEqual(self.base.mock_calls, [])
+
+    def test_run_query_in_executor(self):
+        with contextlib.ExitStack() as stack:
+            partial = stack.enter_context(
+                unittest.mock.patch(
+                    "functools.partial",
+                    spec=functools.partial)
+            )
+
+            run_coroutine(network.repeated_query(
+                self.base.qname,
+                unittest.mock.sentinel.rdtype,
+                executor=unittest.mock.sentinel.executor,
+            ))
+
+        self.assertIn(
+            unittest.mock.call(
+                network.get_resolver().query,
+                self.base.qname.decode(),
+                unittest.mock.sentinel.rdtype,
+                tcp=False,
+            ),
+            partial.mock_calls
+        )
+
+        self.run_in_executor.assert_called_with(
+            unittest.mock.sentinel.executor,
+            partial(),
+        )
+
+    def test_run_query_in_default_executor_by_default(self):
+        with contextlib.ExitStack() as stack:
+            partial = stack.enter_context(
+                unittest.mock.patch(
+                    "functools.partial",
+                    spec=functools.partial)
+            )
+
+            run_coroutine(network.repeated_query(
+                self.base.qname,
+                unittest.mock.sentinel.rdtype,
+            ))
+
+        self.assertIn(
+            unittest.mock.call(
+                network.get_resolver().query,
+                self.base.qname.decode(),
+                unittest.mock.sentinel.rdtype,
+                tcp=False,
+            ),
+            partial.mock_calls
+        )
+
+        self.run_in_executor.assert_called_with(
+            None,
+            partial(),
+        )
+
+    def test_retry_with_tcp_on_first_timeout_with_fixed_resolver(self):
+        resolver = MockResolver(self)
+        resolver.define_actions([
+            (
+                (
+                    "xn--4ca0bs.example.com",
+                    dns.rdatatype.A,
+                    dns.rdataclass.IN,
+                    False,
+                    (dns.flags.RD | dns.flags.AD),
+                ),
+                dns.resolver.Timeout()
+            ),
+            (
+                (
+                    "xn--4ca0bs.example.com",
+                    dns.rdatatype.A,
+                    dns.rdataclass.IN,
+                    True,
+                    (dns.flags.RD | dns.flags.AD),
+                ),
+                self.answer,
+            )
+        ])
+
+        with resolver:
+            result = run_coroutine(network.repeated_query(
+                "äöü.example.com".encode("idna"),
+                dns.rdatatype.A,
+                resolver=resolver,
+            ))
+
+        self.assertIs(
+            result,
+            self.answer,
+        )
+
+        self.assertSequenceEqual(self.base.mock_calls, [])
+
+    def test_retry_up_to_2_times_with_fixed_resolver(self):
+        resolver = MockResolver(self)
+        resolver.define_actions([
+            (
+                (
+                    "xn--4ca0bs.example.com",
+                    dns.rdatatype.A,
+                    dns.rdataclass.IN,
+                    False,
+                    (dns.flags.RD | dns.flags.AD),
+                ),
+                dns.resolver.Timeout()
+            ),
+            (
+                (
+                    "xn--4ca0bs.example.com",
+                    dns.rdatatype.A,
+                    dns.rdataclass.IN,
+                    True,
+                    (dns.flags.RD | dns.flags.AD),
+                ),
+                dns.resolver.Timeout()
+            ),
+        ])
+
+        with resolver:
+            with self.assertRaises(TimeoutError):
+                run_coroutine(network.repeated_query(
+                    "äöü.example.com".encode("idna"),
+                    dns.rdatatype.A,
+                    resolver=resolver,
+                ))
+
+        self.assertSequenceEqual(self.base.mock_calls, [])
+
+    def test_use_thread_local_resolver(self):
+        self.tlr.define_actions([
+            (
+                (
+                    "xn--4ca0bs.example.com",
+                    dns.rdatatype.A,
+                    dns.rdataclass.IN,
+                    False,
+                    (dns.flags.RD | dns.flags.AD),
+                ),
+                self.answer,
+            )
+        ])
+
+        with self.tlr:
+            result = run_coroutine(network.repeated_query(
+                "äöü.example.com".encode("idna"),
+                dns.rdatatype.A,
+            ))
+
+        self.assertSequenceEqual(
+            self.base.mock_calls,
+            [
+                unittest.mock.call.get_resolver(),
+            ]
+        )
+
+        self.assertIs(
+            result,
+            self.answer,
+        )
+
+    def test_reconfigure_resolver_after_first_timeout(self):
+        def reconfigure():
+            self.tlr.set_flags(None)
+            self.tlr.define_actions([
+                (
+                    (
+                        "xn--4ca0bs.example.com",
+                        dns.rdatatype.A,
+                        dns.rdataclass.IN,
+                        False,
+                        (dns.flags.RD | dns.flags.AD),
+                    ),
+                    self.answer,
+                )
+            ])
+
+        self.base.reconfigure_resolver.side_effect = reconfigure
+
+        self.tlr.define_actions([
+            (
+                (
+                    "xn--4ca0bs.example.com",
+                    dns.rdatatype.A,
+                    dns.rdataclass.IN,
+                    False,
+                    (dns.flags.RD | dns.flags.AD),
+                ),
+                dns.resolver.Timeout(),
+            )
+        ])
+
+        with self.tlr:
+            result = run_coroutine(network.repeated_query(
+                "äöü.example.com".encode("idna"),
+                dns.rdatatype.A,
+            ))
+
+        self.assertSequenceEqual(
+            self.base.mock_calls,
+            [
+                unittest.mock.call.get_resolver(),
+                unittest.mock.call.reconfigure_resolver(),
+                unittest.mock.call.get_resolver(),
+            ]
+        )
+
+        self.assertIs(
+            result,
+            self.answer,
+        )
+
+    def test_use_tcp_after_second_timeout(self):
+        def reconfigure():
+            self.tlr.set_flags(None)
+            self.tlr.define_actions([
+                (
+                    (
+                        "xn--4ca0bs.example.com",
+                        dns.rdatatype.A,
+                        dns.rdataclass.IN,
+                        False,
+                        (dns.flags.RD | dns.flags.AD),
+                    ),
+                    dns.resolver.Timeout(),
+                ),
+                (
+                    (
+                        "xn--4ca0bs.example.com",
+                        dns.rdatatype.A,
+                        dns.rdataclass.IN,
+                        True,
+                        (dns.flags.RD | dns.flags.AD),
+                    ),
+                    self.answer,
+                )
+            ])
+
+        self.base.reconfigure_resolver.side_effect = reconfigure
+
+        self.tlr.define_actions([
+            (
+                (
+                    "xn--4ca0bs.example.com",
+                    dns.rdatatype.A,
+                    dns.rdataclass.IN,
+                    False,
+                    (dns.flags.RD | dns.flags.AD),
+                ),
+                dns.resolver.Timeout(),
+            )
+        ])
+
+        with self.tlr:
+            result = run_coroutine(network.repeated_query(
+                "äöü.example.com".encode("idna"),
+                dns.rdatatype.A,
+            ))
+
+        self.assertSequenceEqual(
+            self.base.mock_calls,
+            [
+                unittest.mock.call.get_resolver(),
+                unittest.mock.call.reconfigure_resolver(),
+                unittest.mock.call.get_resolver(),
+            ]
+        )
+
+        self.assertIs(
+            result,
+            self.answer,
+        )
+
+    def test_retry_up_to_3_times_with_thread_local_resolver(self):
+        def reconfigure():
+            self.tlr.set_flags(None)
+            self.tlr.define_actions([
+                (
+                    (
+                        "xn--4ca0bs.example.com",
+                        dns.rdatatype.A,
+                        dns.rdataclass.IN,
+                        False,
+                        (dns.flags.RD | dns.flags.AD),
+                    ),
+                    dns.resolver.Timeout(),
+                ),
+                (
+                    (
+                        "xn--4ca0bs.example.com",
+                        dns.rdatatype.A,
+                        dns.rdataclass.IN,
+                        True,
+                        (dns.flags.RD | dns.flags.AD),
+                    ),
+                    dns.resolver.Timeout(),
+                )
+            ])
+
+        self.base.reconfigure_resolver.side_effect = reconfigure
+
+        self.tlr.define_actions([
+            (
+                (
+                    "xn--4ca0bs.example.com",
+                    dns.rdatatype.A,
+                    dns.rdataclass.IN,
+                    False,
+                    (dns.flags.RD | dns.flags.AD),
+                ),
+                dns.resolver.Timeout(),
+            )
+        ])
+
+        with self.tlr:
+            with self.assertRaises(TimeoutError):
+                run_coroutine(network.repeated_query(
+                    "äöü.example.com".encode("idna"),
+                    dns.rdatatype.A,
+                ))
+
+        self.assertSequenceEqual(
+            self.base.mock_calls,
+            [
+                unittest.mock.call.get_resolver(),
+                unittest.mock.call.reconfigure_resolver(),
+                unittest.mock.call.get_resolver(),
+            ]
+        )
+
+    def test_overridden_thread_local_behaves_like_fixed(self):
+        resolver = MockResolver(self)
+        resolver.define_actions([
+            (
+                (
+                    "xn--4ca0bs.example.com",
+                    dns.rdatatype.A,
+                    dns.rdataclass.IN,
+                    False,
+                    (dns.flags.RD | dns.flags.AD),
+                ),
+                dns.resolver.Timeout()
+            ),
+            (
+                (
+                    "xn--4ca0bs.example.com",
+                    dns.rdatatype.A,
+                    dns.rdataclass.IN,
+                    True,
+                    (dns.flags.RD | dns.flags.AD),
+                ),
+                dns.resolver.Timeout()
+            ),
+        ])
+
+        network.set_resolver(resolver)
+        self.base.get_resolver.return_value = resolver
+
+        with resolver:
+            with self.assertRaises(TimeoutError):
+                run_coroutine(network.repeated_query(
+                    "äöü.example.com".encode("idna"),
+                    dns.rdatatype.A,
+                ))
+
+        self.assertSequenceEqual(
+            self.base.mock_calls,
+            [
+                unittest.mock.call.get_resolver(),
+            ]
+        )
+
+    def test_raise_ValueError_if_AD_not_present_with_require_ad(self):
+        self.tlr.define_actions([
+            (
+                (
+                    "xn--4ca0bs.example.com",
+                    dns.rdatatype.A,
+                    dns.rdataclass.IN,
+                    False,
+                    (dns.flags.RD | dns.flags.AD),
+                ),
+                self.answer,
+            )
+        ])
+
+        with self.tlr:
+            with self.assertRaisesRegex(
+                    ValueError,
+                    "DNSSEC validation not available"):
+                run_coroutine(network.repeated_query(
+                    "äöü.example.com".encode("idna"),
+                    dns.rdatatype.A,
+                    require_ad=True,
+                ))
+
+    def test_pass_if_AD_present_with_require_ad(self):
+        answer = MockAnswer(
+            [],
+            flags=dns.flags.AD,
+        )
+
+        self.tlr.define_actions([
+            (
+                (
+                    "xn--4ca0bs.example.com",
+                    dns.rdatatype.A,
+                    dns.rdataclass.IN,
+                    False,
+                    (dns.flags.RD | dns.flags.AD),
+                ),
+                answer,
+            )
+        ])
+
+        with self.tlr:
+            result = run_coroutine(network.repeated_query(
+                "äöü.example.com".encode("idna"),
+                dns.rdatatype.A,
+                require_ad=True,
+            ))
+
+        self.assertIs(result, answer)
+
+    def test_return_None_on_no_anwser(self):
+        self.tlr.define_actions([
+            (
+                (
+                    "xn--4ca0bs.example.com",
+                    dns.rdatatype.A,
+                    dns.rdataclass.IN,
+                    False,
+                    (dns.flags.RD | dns.flags.AD),
+                ),
+                dns.resolver.NoAnswer(),
+            )
+        ])
+
+        with self.tlr:
+            result = run_coroutine(network.repeated_query(
+                "äöü.example.com".encode("idna"),
+                dns.rdatatype.A,
+                require_ad=True,
+            ))
+
+        self.assertIsNone(result)
+
+    def test_return_None_on_NXDOMAIN(self):
+        self.tlr.define_actions([
+            (
+                (
+                    "xn--4ca0bs.example.com",
+                    dns.rdatatype.A,
+                    dns.rdataclass.IN,
+                    False,
+                    (dns.flags.RD | dns.flags.AD),
+                ),
+                dns.resolver.NXDOMAIN(),
+            )
+        ])
+
+        with self.tlr:
+            result = run_coroutine(network.repeated_query(
+                "äöü.example.com".encode("idna"),
+                dns.rdatatype.A,
+                require_ad=True,
+            ))
+
+        self.assertIsNone(result)
+
+    def test_check_with_CD_set_after_NoNameservers(self):
+        self.tlr.define_actions([
+            (
+                (
+                    "xn--4ca0bs.example.com",
+                    dns.rdatatype.A,
+                    dns.rdataclass.IN,
+                    False,
+                    (dns.flags.RD | dns.flags.AD),
+                ),
+                dns.resolver.NoNameservers(),
+            ),
+            (
+                (
+                    "xn--4ca0bs.example.com",
+                    dns.rdatatype.A,
+                    dns.rdataclass.IN,
+                    False,
+                    (dns.flags.RD | dns.flags.AD | dns.flags.CD),
+                ),
+                self.answer,
+            ),
+        ])
+
+        with self.tlr:
+            with self.assertRaisesRegex(
+                    network.ValidationError,
+                    "nameserver error, most likely DNSSEC validation failed"):
+                run_coroutine(network.repeated_query(
+                    "äöü.example.com".encode("idna"),
+                    dns.rdatatype.A,
+                    require_ad=True,
+                ))
+
+    def test_treat_NoAnswer_as_succeeded_query_in_validation_query(self):
+        self.tlr.define_actions([
+            (
+                (
+                    "xn--4ca0bs.example.com",
+                    dns.rdatatype.A,
+                    dns.rdataclass.IN,
+                    False,
+                    (dns.flags.RD | dns.flags.AD),
+                ),
+                dns.resolver.NoNameservers(),
+            ),
+            (
+                (
+                    "xn--4ca0bs.example.com",
+                    dns.rdatatype.A,
+                    dns.rdataclass.IN,
+                    False,
+                    (dns.flags.RD | dns.flags.AD | dns.flags.CD),
+                ),
+                dns.resolver.NoAnswer(),
+            ),
+        ])
+
+        with self.tlr:
+            with self.assertRaisesRegex(
+                    network.ValidationError,
+                    "nameserver error, most likely DNSSEC validation failed"):
+                run_coroutine(network.repeated_query(
+                    "äöü.example.com".encode("idna"),
+                    dns.rdatatype.A,
+                    require_ad=True,
+                ))
+
+    def test_treat_NXDOMAIN_as_succeeded_query_in_validation_query(self):
+        self.tlr.define_actions([
+            (
+                (
+                    "xn--4ca0bs.example.com",
+                    dns.rdatatype.A,
+                    dns.rdataclass.IN,
+                    False,
+                    (dns.flags.RD | dns.flags.AD),
+                ),
+                dns.resolver.NoNameservers(),
+            ),
+            (
+                (
+                    "xn--4ca0bs.example.com",
+                    dns.rdatatype.A,
+                    dns.rdataclass.IN,
+                    False,
+                    (dns.flags.RD | dns.flags.AD | dns.flags.CD),
+                ),
+                dns.resolver.NXDOMAIN(),
+            ),
+        ])
+
+        with self.tlr:
+            with self.assertRaisesRegex(
+                    network.ValidationError,
+                    "nameserver error, most likely DNSSEC validation failed"):
+                run_coroutine(network.repeated_query(
+                    "äöü.example.com".encode("idna"),
+                    dns.rdatatype.A,
+                    require_ad=True,
+                ))
+
+    def test_continue_as_normal_on_timeout_after_NoNameservers(self):
+        def reconfigure():
+            self.tlr.set_flags(None)
+            self.tlr.define_actions([
+                (
+                    (
+                        "xn--4ca0bs.example.com",
+                        dns.rdatatype.A,
+                        dns.rdataclass.IN,
+                        False,
+                        (dns.flags.RD | dns.flags.AD),
+                    ),
+                    dns.resolver.Timeout(),
+                ),
+                (
+                    (
+                        "xn--4ca0bs.example.com",
+                        dns.rdatatype.A,
+                        dns.rdataclass.IN,
+                        True,
+                        (dns.flags.RD | dns.flags.AD),
+                    ),
+                    self.answer
+                ),
+            ])
+
+        self.base.reconfigure_resolver.side_effect = reconfigure
+
+        self.tlr.define_actions([
+            (
+                (
+                    "xn--4ca0bs.example.com",
+                    dns.rdatatype.A,
+                    dns.rdataclass.IN,
+                    False,
+                    (dns.flags.RD | dns.flags.AD),
+                ),
+                dns.resolver.NoNameservers(),
+            ),
+            (
+                (
+                    "xn--4ca0bs.example.com",
+                    dns.rdatatype.A,
+                    dns.rdataclass.IN,
+                    False,
+                    (dns.flags.RD | dns.flags.AD | dns.flags.CD),
+                ),
+                dns.resolver.Timeout(),
+            ),
+        ])
+
+        with self.tlr:
+            result = run_coroutine(network.repeated_query(
+                "äöü.example.com".encode("idna"),
+                dns.rdatatype.A,
+            ))
+
+        self.assertIs(result, self.answer)
+
+    def test_re_raise_NoNameservers_on_validation_query(self):
+        self.tlr.define_actions([
+            (
+                (
+                    "xn--4ca0bs.example.com",
+                    dns.rdatatype.A,
+                    dns.rdataclass.IN,
+                    False,
+                    (dns.flags.RD | dns.flags.AD),
+                ),
+                dns.resolver.NoNameservers(),
+            ),
+            (
+                (
+                    "xn--4ca0bs.example.com",
+                    dns.rdatatype.A,
+                    dns.rdataclass.IN,
+                    False,
+                    (dns.flags.RD | dns.flags.AD | dns.flags.CD),
+                ),
+                dns.resolver.NoNameservers()
+            ),
+        ])
+
+        with self.tlr:
+            with self.assertRaises(dns.resolver.NoNameservers):
+                run_coroutine(network.repeated_query(
+                    "äöü.example.com".encode("idna"),
+                    dns.rdatatype.A,
+                ))
+
 
 class Testlookup_srv(unittest.TestCase):
     def setUp(self):
-        self.resolver = MockResolver(self)
+        base = unittest.mock.Mock()
+        base.repeated_query = CoroutineMock()
 
-    def test_simple_lookup(self):
-        records = [
-            MockSRVRecord(0, 1, "xmpp.foo.test.", 5222),
-            MockSRVRecord(2, 1, "xmpp.bar.test.", 5222),
+        self.base = base
+        self.patches = [
+            unittest.mock.patch(
+                "aioxmpp.network.repeated_query",
+                new=base.repeated_query,
+            ),
         ]
 
-        self.resolver.define_actions([
-            (
-                (
-                    "_xmpp-client._tcp.foo.test.",
-                    dns.rdatatype.SRV,
-                    dns.rdataclass.IN,
-                    False
-                ),
-                records
-            )
-        ])
-
-        self.assertSequenceEqual(
-            [
-                (0, 1, ("xmpp.foo.test", 5222)),
-                (2, 1, ("xmpp.bar.test", 5222)),
-            ],
-            network.lookup_srv(b"foo.test.", b"xmpp-client",
-                               resolver=self.resolver)
-        )
-
-    def test_fallback_to_tcp(self):
-        self.resolver.define_actions([
-            (
-                (
-                    "_xmpp-client._tcp.foo.test.",
-                    dns.rdatatype.SRV,
-                    dns.rdataclass.IN,
-                    False
-                ),
-                dns.resolver.Timeout()
-            ),
-            (
-                (
-                    "_xmpp-client._tcp.foo.test.",
-                    dns.rdatatype.SRV,
-                    dns.rdataclass.IN,
-                    True
-                ),
-                dns.resolver.Timeout()
-            )
-        ])
-
-        with self.assertRaises(TimeoutError):
-            network.lookup_srv(b"foo.test.", b"xmpp-client",
-                               nattempts=2,
-                               resolver=self.resolver)
-
-    def test_handle_no_answer(self):
-        self.resolver.define_actions([
-            (
-                (
-                    "_xmpp-client._tcp.foo.test.",
-                    dns.rdatatype.SRV,
-                    dns.rdataclass.IN,
-                    False
-                ),
-                dns.resolver.NoAnswer()
-            ),
-        ])
-
-        self.assertIsNone(
-            network.lookup_srv(b"foo.test.", b"xmpp-client",
-                               resolver=self.resolver)
-        )
-
-    def test_handle_nxdomain(self):
-        self.resolver.define_actions([
-            (
-                (
-                    "_xmpp-client._tcp.foo.test.",
-                    dns.rdatatype.SRV,
-                    dns.rdataclass.IN,
-                    False
-                ),
-                dns.resolver.NXDOMAIN()
-            ),
-        ])
-
-        self.assertIsNone(
-            network.lookup_srv(b"foo.test.", b"xmpp-client",
-                               resolver=self.resolver)
-        )
-
-    def test_handle_service_disabled(self):
-        records = [
-            MockSRVRecord(0, 0, ".", 0)
-        ]
-
-        self.resolver.define_actions([
-            (
-                (
-                    "_xmpp-client._tcp.foo.test.",
-                    dns.rdatatype.SRV,
-                    dns.rdataclass.IN,
-                    False
-                ),
-                records
-            ),
-        ])
-
-        with self.assertRaisesRegexp(ValueError,
-                                     "Protocol explicitly not supported"):
-            network.lookup_srv(b"foo.test.", b"xmpp-client",
-                               resolver=self.resolver)
-
-    def test_unicode(self):
-        records = [
-            MockSRVRecord(0, 1, "xmpp.foo.test.", 5222),
-            MockSRVRecord(2, 1, "xmpp.bar.test.", 5222),
-        ]
-
-        self.resolver.define_actions([
-            (
-                (
-                    "_xmpp-client._tcp.xn--nicde-lua2b.test.",
-                    dns.rdatatype.SRV,
-                    dns.rdataclass.IN,
-                    False
-                ),
-                records
-            )
-        ])
-
-        self.assertSequenceEqual(
-            [
-                (0, 1, ("xmpp.foo.test", 5222)),
-                (2, 1, ("xmpp.bar.test", 5222)),
-            ],
-            network.lookup_srv("ünicöde.test.".encode("IDNA"),
-                               b"xmpp-client",
-                               resolver=self.resolver)
-        )
+        for patch in self.patches:
+            patch.start()
 
     def tearDown(self):
-        del self.resolver
+        for patch in self.patches:
+            patch.stop()
+
+    def test_return_formatted_records(self):
+        self.base.repeated_query.return_value = [
+            MockSRVRecord(0, 1, "xmpp.foo.test.", 5222),
+            MockSRVRecord(2, 1, "xmpp.bar.test.", 5222),
+        ]
+
+        self.assertSequenceEqual(
+            run_coroutine(network.lookup_srv(
+                b"foo.test",
+                "xmpp-client",
+                executor=unittest.mock.sentinel.executor,
+                resolver=unittest.mock.sentinel.resolver,
+            )),
+            [
+                (0, 1, ("xmpp.foo.test", 5222)),
+                (2, 1, ("xmpp.bar.test", 5222)),
+            ]
+        )
+
+        self.base.repeated_query.assert_called_with(
+            b"_xmpp-client._tcp.foo.test",
+            dns.rdatatype.SRV,
+            executor=unittest.mock.sentinel.executor,
+            resolver=unittest.mock.sentinel.resolver,
+        )
+
+    def test_return_None_on_nxdomain(self):
+        self.base.repeated_query.return_value = None
+
+        self.assertIsNone(
+            run_coroutine(network.lookup_srv(
+                b"foo.test",
+                "xmpp-client",
+            )),
+        )
+
+        self.base.repeated_query.assert_called_with(
+            b"_xmpp-client._tcp.foo.test",
+            dns.rdatatype.SRV,
+        )
+
+    def test_raise_ValueError_if_service_not_supported(self):
+        self.base.repeated_query.return_value = [
+            MockSRVRecord(0, 1, "xmpp.foo.test.", 5222),
+            MockSRVRecord(2, 1, ".", 5222),
+        ]
+
+        with self.assertRaisesRegex(
+                ValueError,
+                r"'xmpp-client' over 'tcp' not supported at b'foo\.test'"):
+            run_coroutine(network.lookup_srv(
+                b"foo.test",
+                "xmpp-client",
+            ))
 
 
 class Testlookup_tlsa(unittest.TestCase):
     def setUp(self):
-        self.resolver = MockResolver(self)
+        base = unittest.mock.Mock()
+        base.repeated_query = CoroutineMock()
 
-    def test_require_ad(self):
-        records = [
-            MockTLSARecord(3, 0, 1, b"foo"),
+        self.base = base
+        self.patches = [
+            unittest.mock.patch(
+                "aioxmpp.network.repeated_query",
+                new=base.repeated_query,
+            ),
         ]
 
-        self.resolver.define_actions([
-            (
-                (
-                    "_5222._tcp.xmpp.foo.test.",
-                    dns.rdatatype.TLSA,
-                    dns.rdataclass.IN,
-                    False,
-                    dns.flags.AD | dns.flags.RD
-                ),
-                MockAnswer(
-                    records,
-                    flags=dns.flags.AD
-                )
-            )
-        ])
-
-        self.assertSequenceEqual(
-            [
-                (3, 0, 1, b"foo"),
-            ],
-            network.lookup_tlsa("xmpp.foo.test.".encode("IDNA"),
-                                5222,
-                                resolver=self.resolver)
-        )
+        for patch in self.patches:
+            patch.start()
 
     def tearDown(self):
-        del self.resolver
+        for patch in self.patches:
+            patch.stop()
+
+    def test_return_formatted_records(self):
+        self.base.repeated_query.return_value = [
+            MockTLSARecord(3, 0, 1, b"foo"),
+            MockTLSARecord(3, 2, 1, b"bar"),
+        ]
+
+        self.assertSequenceEqual(
+            run_coroutine(network.lookup_tlsa(
+                b"foo.test",
+                5222,
+                executor=unittest.mock.sentinel.executor,
+                resolver=unittest.mock.sentinel.resolver,
+            )),
+            [
+                (3, 0, 1, b"foo"),
+                (3, 2, 1, b"bar"),
+            ]
+        )
+
+        self.base.repeated_query.assert_called_with(
+            b"_5222._tcp.foo.test",
+            dns.rdatatype.TLSA,
+            require_ad=True,
+            executor=unittest.mock.sentinel.executor,
+            resolver=unittest.mock.sentinel.resolver,
+        )
+
+    def test_return_None_on_nxdomain(self):
+        self.base.repeated_query.return_value = None
+
+        self.assertIsNone(
+            run_coroutine(network.lookup_tlsa(
+                b"foo.test",
+                5222,
+            )),
+        )
+
+        self.base.repeated_query.assert_called_with(
+            b"_5222._tcp.foo.test",
+            dns.rdatatype.TLSA,
+            require_ad=True,
+        )
 
 
 class Testgroup_and_order_srv_records(unittest.TestCase):
@@ -473,7 +1248,7 @@ class Testfind_xmpp_host_addr(unittest.TestCase):
             [
                 unittest.mock.call.domain.encode("IDNA"),
                 unittest.mock.call.lookup_srv(
-                    service=b"xmpp-client",
+                    service="xmpp-client",
                     domain=base.domain.encode(),
                     nattempts=nattempts
                 )
@@ -504,7 +1279,7 @@ class Testfind_xmpp_host_addr(unittest.TestCase):
             [
                 unittest.mock.call.domain.encode("IDNA"),
                 unittest.mock.call.lookup_srv(
-                    service=b"xmpp-client",
+                    service="xmpp-client",
                     domain=base.domain.encode(),
                     nattempts=nattempts
                 )
