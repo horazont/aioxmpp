@@ -25,6 +25,8 @@ Version 0.6
 * :meth:`aioxmpp.muc.Room.on_message` now receives a proper `occupant` argument
   if occupant data is available when the message is received.
 
+* MUCs now autorejoin correctly after a disconnect.
+
 Version 0.5
 ===========
 
