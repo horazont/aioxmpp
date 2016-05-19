@@ -172,7 +172,9 @@ class StanzaState(Enum):
     .. attribute:: ACKED
 
        The stanza has been sent over a stream with Stream Management enabled
-       and has been acked by the remote. This is a final state.
+       and has been acked by the remote.
+
+       This is a final state.
 
     .. attribute:: SENT_WITHOUT_SM
 
@@ -195,6 +197,13 @@ class StanzaState(Enum):
 
        This is a final state.
 
+    .. attribute:: DISCONNECTED
+
+       The stream has been stopped (without SM) or closed before the stanza was
+       sent.
+
+       This is a final state.
+
     """
     ACTIVE = 0
     SENT = 1
@@ -202,6 +211,7 @@ class StanzaState(Enum):
     SENT_WITHOUT_SM = 3
     ABORTED = 4
     DROPPED = 5
+    DISCONNECTED = 6
 
 
 class StanzaErrorAwareListener:
@@ -275,7 +285,7 @@ class StanzaStream:
     """
     A stanza stream. This is the next layer of abstraction above the XMPP XML
     stream, which mostly deals with stanzas (but also with certain other
-    stream-level elements, such as XEP-0198 Stream Management Request/Acks).
+    stream-level elements, such as :xep:`0198` Stream Management Request/Acks).
 
     It is independent from a specific :class:`~aioxmpp.protocol.XMLStream`
     instance. A :class:`StanzaStream` can be started with one XML stream,
@@ -300,7 +310,7 @@ class StanzaStream:
 
     The stanza stream takes care of ensuring stream liveness. For that, pings
     are sent in a periodic interval. If stream management is enabled, stream
-    management ack requests are used as pings, otherwise XEP-0199 pings are
+    management ack requests are used as pings, otherwise :xep:`0199` pings are
     used.
 
     The general idea of pinging is, to save computing power, to send pings only
@@ -578,6 +588,10 @@ class StanzaStream:
 
         self._iq_response_map = callbacks.TagDispatcher()
         self._iq_request_map = {}
+
+        # list of running IQ request coroutines: used to cancel them when the
+        # stream is destroyed
+        self._iq_request_tasks = []
         self._message_map = {}
         self._presence_map = {}
 
@@ -642,10 +656,16 @@ class StanzaStream:
 
     def _destroy_stream_state(self, exc):
         """
-        Destroy all state which does not make sense to keep after an disconnect
+        Destroy all state which does not make sense to keep after a disconnect
         (without stream management).
         """
         self._iq_response_map.close_all(exc)
+        for task in self._iq_request_tasks:
+            task.cancel()
+        while not self._active_queue.empty():
+            token = self._active_queue.get_nowait()
+            token._set_state(StanzaState.DISCONNECTED)
+
         if self._established:
             self.on_stream_destroyed()
             self._established = False
@@ -658,6 +678,7 @@ class StanzaStream:
 
         Compose a response and send that response.
         """
+        self._iq_request_tasks.remove(task)
         try:
             payload = task.result()
         except errors.XMPPError as err:
@@ -721,6 +742,7 @@ class StanzaStream:
                 functools.partial(
                     self._iq_request_coro_done,
                     stanza_obj))
+            self._iq_request_tasks.append(task)
             self._logger.debug("started task to handle request: %r", task)
 
     def _process_incoming_message(self, stanza_obj):
@@ -1093,6 +1115,13 @@ class StanzaStream:
           possible stanza errors, catching :class:`.errors.StanzaError` is
           sufficient and future-proof.
 
+        * :class:`ConnectionError` if the stream is :meth:`stop`\ -ped (only if
+          SM is not enabled) or :meth:`close`\ -ed.
+
+        * Any :class:`Exception` which may be raised from
+          :meth:`~.protocol.XMLStream.send_xso`, which are generally also
+          :class:`ConnectionError` or at least :class:`OSError` subclasses.
+
         """
 
         self._iq_response_map.add_listener(
@@ -1144,6 +1173,15 @@ class StanzaStream:
 
         If there is already a coroutine registered for the given (`type_`,
         `payload_cls`) pair, :class:`ValueError` is raised.
+
+        .. versionadded:: 0.6
+
+           If the stream is :meth:`stop`\ -ped (only if SM is not enabled) or
+           :meth:`close`\ ed, running IQ response coroutines are
+           :meth:`asyncio.Task.cancel`\ -led.
+
+           To protect against that, fork from your coroutine using
+           :func:`asyncio.ensure_future`.
         """
         key = type_, payload_cls
 
@@ -1839,7 +1877,7 @@ class StanzaStream:
 
         .. seealso::
 
-           :meth:`register_iq_request_future` for other cases raising
+           :meth:`register_iq_response_future` for other cases raising
            exceptions.
 
         """

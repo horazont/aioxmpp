@@ -37,6 +37,24 @@ Version 0.6
 
   See :meth:`aioxmpp.stream.StanzaStream.on_failure` for details.
 
+* Some behaviour changes in :class:`aioxmpp.stream.StanzaStream`:
+
+  When the stream is stopped without SM enabled, the following new behaviour has
+  been introduced:
+
+  * :attr:`~aioxmpp.stream.StanzaState.ACTIVE` stanza tokens are set to
+    :attr:`~aioxmpp.stream.StanzaState.DISCONNECTED` state.
+
+  * Coroutines which were spawned due to them being registered with
+    :meth:`~aioxmpp.stream.StanzaStream.register_iq_request_coro` are
+    :meth:`asyncio.Task.cancel`\ -ed.
+
+  The same as above holds if the stream is closed, even if SM is enabled (as
+  stream closure is clean and will broadcast unavailable presence server-side).
+
+  This provides more fail-safe behaviour while still providing enough feedback.
+
+
 Version 0.5
 ===========
 

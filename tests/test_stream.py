@@ -814,22 +814,6 @@ class TestStanzaStream(StanzaStreamTestBase):
             run_coroutine(self.stream._incoming_queue.get())
         )
 
-    def test_rescue_unprocessed_outgoing_stanza_on_stop(self):
-        pres = make_test_presence()
-        pres.autoset_id()
-
-        self.stream.start(self.xmlstream)
-
-        run_coroutine(asyncio.sleep(0))
-
-        self.stream.enqueue_stanza(pres)
-        self.stream.stop()
-
-        self.assertIs(
-            pres,
-            run_coroutine(self.stream._active_queue.get()).stanza
-        )
-
     def test_unprocessed_incoming_stanza_does_not_get_lost_after_stop(self):
         pres = make_test_presence()
 
@@ -844,23 +828,6 @@ class TestStanzaStream(StanzaStreamTestBase):
         self.assertEqual(
             (pres, None),
             run_coroutine(self.stream._incoming_queue.get())
-        )
-
-    def test_unprocessed_outgoing_stanza_does_not_get_lost_after_stop(self):
-        pres = make_test_presence()
-        pres.autoset_id()
-
-        self.stream.start(self.xmlstream)
-
-        run_coroutine(asyncio.sleep(0))
-
-        self.stream.stop()
-
-        self.stream.enqueue_stanza(pres)
-
-        self.assertIs(
-            pres,
-            run_coroutine(self.stream._active_queue.get()).stanza
         )
 
     def test_fail_on_unknown_stanza_class(self):
@@ -1009,6 +976,82 @@ class TestStanzaStream(StanzaStreamTestBase):
 
         self.assertIs(exc, caught_exc)
         # self.assertFalse(self.xmlstream.close.mock_calls)
+
+    def test_close_closes_iq_response_futures(self):
+        fut = asyncio.Future()
+        self.stream.register_iq_response_future(
+            TEST_FROM,
+            "123",
+            fut,
+        )
+
+        self.stream.start(self.xmlstream)
+        run_coroutine(asyncio.sleep(0))
+        self.assertTrue(self.stream.running)
+
+        self.assertFalse(fut.done())
+
+        run_coroutine(self.stream.close())
+        self.assertFalse(self.stream.running)
+
+        self.assertTrue(fut.done())
+        self.assertIsInstance(fut.exception(), ConnectionError)
+
+    def test_close_cancels_running_iq_request_coroutines(self):
+        exc = None
+        running = False
+
+        @asyncio.coroutine
+        def coro(stanza):
+            nonlocal exc, running
+            running = True
+            try:
+                yield from asyncio.sleep(10)
+            except Exception as inner_exc:
+                exc = inner_exc
+                raise
+
+        self.stream.register_iq_request_coro(
+            "get",
+            FancyTestIQ,
+            coro,
+        )
+
+        self.stream.start(self.xmlstream)
+        run_coroutine(asyncio.sleep(0))
+        self.assertTrue(self.stream.running)
+
+        self.stream.recv_stanza(make_test_iq())
+        run_coroutine(asyncio.sleep(0))
+        self.assertTrue(running)
+        self.assertIsNone(exc)
+
+        run_coroutine(self.stream.close())
+        self.assertFalse(self.stream.running)
+
+        self.assertIsInstance(exc, asyncio.CancelledError)
+
+    def test_close_sets_active_stanza_tokens_to_aborted(self):
+        get_mock = CoroutineMock()
+        get_mock.delay = 1000
+        # let’s mess with the processor a bit ...
+        # otherwise, the stanza is sent before the close can happen
+        with unittest.mock.patch.object(
+                self.stream._active_queue,
+                "get",
+                new=get_mock):
+
+            self.stream.start(self.xmlstream)
+            run_coroutine(asyncio.sleep(0))
+            self.assertTrue(self.stream.running)
+
+            token = self.stream.enqueue_stanza(make_test_message())
+
+            run_coroutine(self.stream.close())
+
+        self.assertFalse(self.stream.running)
+
+        self.assertEqual(token.state, stream.StanzaState.DISCONNECTED)
 
     def test_send_bulk(self):
         state_change_handler = unittest.mock.MagicMock()
@@ -3156,6 +3199,71 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
 
         self.assertFalse(self.stream.sm_enabled)
         self.destroyed_rec.assert_called_once_with()
+
+    def test_unprocessed_outgoing_stanza_does_not_get_lost_after_stop(self):
+        pres = make_test_presence()
+        pres.autoset_id()
+
+        self.stream.start(self.xmlstream)
+        run_coroutine_with_peer(
+            self.stream.start_sm(),
+            self.xmlstream.run_test(self.successful_sm)
+        )
+
+        self.stream.stop()
+
+        self.stream.enqueue_stanza(pres)
+
+        self.assertIs(
+            pres,
+            run_coroutine(self.stream._active_queue.get()).stanza
+        )
+
+    def test_rescue_unprocessed_outgoing_stanza_on_stop(self):
+        pres = make_test_presence()
+        pres.autoset_id()
+
+        self.stream.start(self.xmlstream)
+        run_coroutine_with_peer(
+            self.stream.start_sm(),
+            self.xmlstream.run_test(self.successful_sm)
+        )
+
+        self.stream.enqueue_stanza(pres)
+        self.stream.stop()
+
+        self.assertIs(
+            pres,
+            run_coroutine(self.stream._active_queue.get()).stanza
+        )
+
+    def test_close_sets_sent_stanza_tokens_to_sent_without_sm(self):
+        pres = make_test_presence()
+        pres.autoset_id()
+
+        self.stream.start(self.xmlstream)
+        run_coroutine_with_peer(
+            self.stream.start_sm(),
+            self.xmlstream.run_test(self.successful_sm)
+        )
+
+        token = self.stream.enqueue_stanza(pres)
+
+        run_coroutine_with_peer(
+            self.stream.close(),
+            self.xmlstream.run_test([
+                XMLStreamMock.Close(),
+                # this is a race-condition of the test suite
+                # in a real stream, the Send would not happen as the stream
+                # changes state immediately and raises an exception from
+                # send_xso
+                XMLStreamMock.Send(pres),
+                XMLStreamMock.Send(nonza.SMRequest()),
+            ]),
+        )
+
+        self.assertEqual(token.state,
+                         stream.StanzaState.SENT_WITHOUT_SM)
 
     def test_stop_removes_stanza_handlers(self):
         caught_exc = None
