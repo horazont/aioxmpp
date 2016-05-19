@@ -1,5 +1,6 @@
 import asyncio
 import contextlib
+import functools
 import ipaddress
 import time
 import unittest
@@ -2522,6 +2523,80 @@ class TestStanzaStream(StanzaStreamTestBase):
             self.assertTrue(task.cancelled())
 
             self.assertSequenceEqual(base.token.abort.mock_calls, [])
+
+    def test_send_iq_and_wait_for_reply_uses_send_and_wait_for_sent(
+            self):
+        mock = unittest.mock.Mock()
+
+        @asyncio.coroutine
+        def mock_send_and_wait_for_sent(orig, *args, **kwargs):
+            mock(*args, **kwargs)
+            yield from orig(*args, **kwargs)
+
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(unittest.mock.patch.object(
+                self.stream,
+                "send_and_wait_for_sent",
+                new=functools.partial(mock_send_and_wait_for_sent,
+                                      self.stream.send_and_wait_for_sent)
+            ))
+
+            iq = make_test_iq()
+            response = iq.make_reply(type_="result")
+            response.payload = FancyTestIQ()
+
+            task = asyncio.async(
+                self.stream.send_iq_and_wait_for_reply(iq),
+                loop=self.loop)
+
+            self.stream.start(self.xmlstream)
+            run_coroutine(asyncio.sleep(0))
+
+            mock.assert_called_with(iq)
+
+            self.stream.recv_stanza(response)
+            result = run_coroutine(task)
+            self.assertIs(
+                response.payload,
+                result
+            )
+
+    def test_send_iq_and_wait_for_reply_cancels_future_if_send_fails(
+            self):
+        class FooException(Exception):
+            pass
+
+        base = unittest.mock.Mock()
+        base.send_and_wait_for_sent = CoroutineMock()
+        base.send_and_wait_for_sent.side_effect = FooException()
+
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(unittest.mock.patch(
+                "asyncio.Future",
+                new=base.Future
+            ))
+
+            stack.enter_context(unittest.mock.patch.object(
+                self.stream,
+                "send_and_wait_for_sent",
+                new=base.send_and_wait_for_sent
+            ))
+
+            iq = make_test_iq()
+            response = iq.make_reply(type_="result")
+            response.payload = FancyTestIQ()
+
+            task = asyncio.async(
+                self.stream.send_iq_and_wait_for_reply(iq),
+                loop=self.loop)
+
+            self.stream.start(self.xmlstream)
+            run_coroutine(asyncio.sleep(0))
+
+            with self.assertRaises(FooException):
+                run_coroutine(task)
+
+            base.Future().cancel.assert_called_with()
 
 
 class TestStanzaStreamSM(StanzaStreamTestBase):

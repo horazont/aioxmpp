@@ -661,6 +661,7 @@ class StanzaStream:
         Destroy all state which does not make sense to keep after a disconnect
         (without stream management).
         """
+        self._logger.debug("destroying stream state")
         self._iq_response_map.close_all(exc)
         for task in self._iq_request_tasks:
             task.cancel()
@@ -713,6 +714,7 @@ class StanzaStream:
                 key = (None, key[1])
             try:
                 self._iq_response_map.unicast(key, stanza_obj)
+                self._logger.debug("iq response delivered to key %r", key)
             except KeyError:
                 self._logger.warning(
                     "unexpected IQ response: from=%r, id=%r",
@@ -1879,8 +1881,8 @@ class StanzaStream:
 
         .. seealso::
 
-           :meth:`register_iq_response_future` for other cases raising
-           exceptions.
+           :meth:`register_iq_response_future` and
+           :meth:`send_and_wait_for_sent` for other cases raising exceptions.
 
         """
         iq.autoset_id()
@@ -1889,7 +1891,11 @@ class StanzaStream:
             iq.to,
             iq.id_,
             fut)
-        self.enqueue_stanza(iq)
+        try:
+            yield from self.send_and_wait_for_sent(iq)
+        except:
+            fut.cancel()
+            raise
         if not timeout:
             reply = yield from fut
         else:
@@ -1897,7 +1903,6 @@ class StanzaStream:
                 fut, timeout=timeout,
                 loop=self._loop)
         return reply.payload
-
 
     @asyncio.coroutine
     def send_and_wait_for_sent(self, stanza):
@@ -1918,9 +1923,15 @@ class StanzaStream:
         """
         fut = asyncio.Future()
 
+        self._logger.debug("sending %r and waiting for it to be sent",
+                           stanza)
+
         def cb(token, state):
+            self._logger.debug("token %r enters state %r", token, state)
             if fut.done():
+                self._logger.warning("state change after future is done!")
                 return
+
             if state == StanzaState.ACKED:
                 fut.set_result(None)
             if state == StanzaState.SENT_WITHOUT_SM:
@@ -1933,6 +1944,7 @@ class StanzaStream:
                 fut.set_exception(RuntimeError("stanza aborted"))
 
         token = self.enqueue_stanza(stanza, on_state_change=cb)
+        self._logger.debug("using token %r", token)
 
         try:
             yield from fut

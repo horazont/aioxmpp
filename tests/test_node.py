@@ -1259,7 +1259,12 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
                     ]
                 ),
                 XMLStreamMock.Send(
-                    nonza.SMRequest()
+                    nonza.SMRequest(),
+                    response=[
+                        XMLStreamMock.Receive(
+                            nonza.SMAcknowledgement(counter=1)
+                        ),
+                    ]
                 )
             ],
         ))

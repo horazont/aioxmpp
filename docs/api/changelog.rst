@@ -54,7 +54,9 @@ Version 0.6
 
   This provides more fail-safe behaviour while still providing enough feedback.
 
-* New method: :meth:`aioxmpp.stream.StanzaStream.send_and_wait_for_sent`
+* New method: :meth:`aioxmpp.stream.StanzaStream.send_and_wait_for_sent`.
+  :meth:`~aioxmpp.stream.StanzaStream.send_iq_and_wait_for_reply` now also uses
+  this.
 
 
 Version 0.5

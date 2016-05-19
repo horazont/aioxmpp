@@ -540,7 +540,7 @@ class AbstractClient:
             self._logger.error("stream failed: %s", exc)
             raise exc
         except asyncio.CancelledError:
-            self._logger.info("client shutting down")
+            self._logger.info("client shutting down (on request)")
             # cancelled, this means a clean shutdown is requested
             yield from self.stream.close()
             raise
@@ -609,6 +609,7 @@ class AbstractClient:
         if not self.running:
             return
 
+        self._logger.debug("stopping main task of %r", self, stack_info=True)
         self._main_task.cancel()
 
     # services
