@@ -31,6 +31,12 @@ Version 0.6
   disconnects should be gone now (:class:`aioxmpp.protocol.XMLStream` now
   properly cleans up its running coroutines).
 
+* The :class:`aioxmpp.protocol.XMLStream` is now closed or aborted by the
+  :class:`aioxmpp.stream.StanzaStream` if the stream fails. This prevents
+  lingering half-open TCP streams.
+
+  See :meth:`aioxmpp.stream.StanzaStream.on_failure` for details.
+
 Version 0.5
 ===========
 

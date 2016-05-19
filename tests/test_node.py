@@ -1183,6 +1183,11 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
         self.assertFalse(self.client.running)
         self.assertFalse(self.client.stream.running)
 
+        # the XML stream is closed by the StanzaStream
+        run_coroutine(self.xmlstream.run_test([
+            XMLStreamMock.Close(),
+        ]))
+
     def test_negotiate_stream_management(self):
         self.features[...] = nonza.StreamManagementFeature()
 

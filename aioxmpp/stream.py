@@ -534,6 +534,14 @@ class StanzaStream:
        any exceptions which may be raised by the
        :meth:`aioxmpp.protocol.XMLStream.send_xso` method.
 
+       Before :meth:`on_failure` is emitted, the :class:`~.protocol.XMLStream`
+       is :meth:`~.protocol.XMLStream.abort`\ -ed if SM is enabled and
+       :meth:`~.protocol.XMLStream.close`\ -ed if SM is not enabled.
+
+       .. versionchanged:: 0.6
+
+          The closing behaviour was added.
+
        The exception which occured is given as `exc`.
 
     .. signal:: on_stream_destroyed()
@@ -619,6 +627,13 @@ class StanzaStream:
             # normal termination
             pass
         except Exception as err:
+            try:
+                if self._sm_enabled:
+                    self._xmlstream.abort()
+                else:
+                    self._xmlstream.close()
+            except Exception:
+                pass
             if self.on_failure:
                 self.on_failure(err)
             self._logger.exception("broker task failed")

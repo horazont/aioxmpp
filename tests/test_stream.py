@@ -1008,7 +1008,7 @@ class TestStanzaStream(StanzaStreamTestBase):
         self.assertFalse(self.stream.running)
 
         self.assertIs(exc, caught_exc)
-        self.assertFalse(self.xmlstream.close.mock_calls)
+        # self.assertFalse(self.xmlstream.close.mock_calls)
 
     def test_send_bulk(self):
         state_change_handler = unittest.mock.MagicMock()
@@ -2183,6 +2183,48 @@ class TestStanzaStream(StanzaStreamTestBase):
             ]
         )
 
+    def test_task_crash_leads_to_closing_of_xmlstream(self):
+        self.stream.ping_interval = timedelta(seconds=0.01)
+        self.stream.ping_opportunistic_interval = timedelta(seconds=0.01)
+
+        self.stream.start(self.xmlstream)
+        run_coroutine(asyncio.sleep(0.02))
+
+        self.sent_stanzas.get_nowait()
+        run_coroutine(asyncio.sleep(0.011))
+
+        self.assertFalse(self.stream.running)
+        self.xmlstream.close.assert_called_with()
+
+    def test_done_handler_can_deal_with_exception_from_abort(self):
+        class FooException(Exception):
+            pass
+
+        exc = None
+
+        def failure_handler(_exc):
+            nonlocal exc
+            exc = _exc
+
+        self.stream.ping_interval = timedelta(seconds=0.01)
+        self.stream.ping_opportunistic_interval = timedelta(seconds=0.01)
+        self.stream.on_failure.connect(failure_handler)
+
+        self.stream.start(self.xmlstream)
+        self.xmlstream.close.side_effect = FooException()
+        run_coroutine(asyncio.sleep(0.02))
+
+        self.sent_stanzas.get_nowait()
+        run_coroutine(asyncio.sleep(0.011))
+
+        self.assertIsInstance(
+            exc,
+            ConnectionError
+        )
+
+        self.assertFalse(self.stream.running)
+        self.xmlstream.close.assert_called_with()
+
 
 class TestStanzaStreamSM(StanzaStreamTestBase):
     def setUp(self):
@@ -2868,6 +2910,7 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
             XMLStreamMock.Send(nonza.SMRequest()),
             XMLStreamMock.Send(iqs[1]),
             XMLStreamMock.Send(nonza.SMRequest()),
+            XMLStreamMock.Abort(),
         ]))
 
         # at this point, the first ping must have timed out, and failure should

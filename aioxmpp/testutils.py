@@ -510,6 +510,10 @@ class XMLStreamMock(InteractivityMock):
         def __new__(cls, *, response=None):
             return super().__new__(cls, response)
 
+    class Abort(collections.namedtuple("Abort", ["response"])):
+        def __new__(cls, *, response=None):
+            return super().__new__(cls, response)
+
     class STARTTLS(collections.namedtuple("STARTTLS", [
             "ssl_context", "post_handshake_callback", "response"])):
         def __new__(cls, ssl_context, post_handshake_callback,
@@ -566,6 +570,8 @@ class XMLStreamMock(InteractivityMock):
                     yield from self._close(*args)
                 elif action == "starttls":
                     yield from self._starttls(*args)
+                elif action == "abort":
+                    yield from self._abort(*args)
                 else:
                     assert False
 
@@ -600,6 +606,14 @@ class XMLStreamMock(InteractivityMock):
     @asyncio.coroutine
     def _reset(self):
         self._basic("reset", self.Reset)
+
+    @asyncio.coroutine
+    def _abort(self):
+        self._basic("abort", self.Abort)
+        self._exception = ConnectionError("not connected")
+        for fut in self._error_futures:
+            if not fut.done():
+                fut.set_exception(self._exception)
 
     @asyncio.coroutine
     def _close(self):
@@ -654,6 +668,11 @@ class XMLStreamMock(InteractivityMock):
         if self._exception:
             raise self._exception
         self._queue.put_nowait(("reset",))
+
+    def abort(self):
+        if self._exception:
+            raise self._exception
+        self._queue.put_nowait(("abort",))
 
     def close(self):
         if self._exception:

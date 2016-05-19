@@ -875,6 +875,38 @@ class TestXMLStreamMock(XMLTestCase):
 
         self.assertTrue(task.done())
 
+    def test_abort(self):
+        fut = self.xmlstream.error_future()
+
+        obj = self.Cls()
+
+        def handler(obj):
+            self.xmlstream.abort()
+
+        self.xmlstream.stanza_parser.add_class(self.Cls, handler)
+        run_coroutine(self.xmlstream.run_test(
+            [
+                XMLStreamMock.Abort(),
+            ],
+            stimulus=XMLStreamMock.Receive(obj)
+        ))
+
+        self.assertTrue(fut.done())
+        self.assertIsInstance(
+            fut.exception(),
+            ConnectionError
+        )
+
+    def test_catch_surplus_abort(self):
+        self.xmlstream.abort()
+
+        with self.assertRaisesRegexp(AssertionError,
+                                     "unexpected abort"):
+            run_coroutine(self.xmlstream.run_test(
+                [
+                ],
+            ))
+
     def tearDown(self):
         del self.xmlstream
         del self.loop
