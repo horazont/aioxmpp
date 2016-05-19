@@ -257,60 +257,71 @@ class Testrepeated_query(unittest.TestCase):
         self.assertSequenceEqual(self.base.mock_calls, [])
 
     def test_run_query_in_executor(self):
-        with contextlib.ExitStack() as stack:
-            partial = stack.enter_context(
-                unittest.mock.patch(
-                    "functools.partial",
-                    spec=functools.partial)
+        resolver = MockResolver(self)
+        resolver.define_actions([
+            (
+                (
+                    "xn--4ca0bs.example.com",
+                    dns.rdatatype.A,
+                    dns.rdataclass.IN,
+                    False,
+                    (dns.flags.RD | dns.flags.AD),
+                ),
+                self.answer
             )
+        ])
 
-            run_coroutine(network.repeated_query(
-                self.base.qname,
-                unittest.mock.sentinel.rdtype,
-                executor=unittest.mock.sentinel.executor,
+        with resolver:
+            result = run_coroutine(network.repeated_query(
+                "äöü.example.com".encode("idna"),
+                dns.rdatatype.A,
+                resolver=resolver,
+                executor=unittest.mock.sentinel.executor
             ))
+
+        self.assertIs(
+            result,
+            self.answer,
+        )
 
         self.assertIn(
             unittest.mock.call(
-                network.get_resolver().query,
-                self.base.qname.decode(),
-                unittest.mock.sentinel.rdtype,
-                tcp=False,
+                unittest.mock.sentinel.executor,
+                unittest.mock.ANY,
             ),
-            partial.mock_calls
-        )
-
-        self.run_in_executor.assert_called_with(
-            unittest.mock.sentinel.executor,
-            partial(),
+            self.run_in_executor.mock_calls,
         )
 
     def test_run_query_in_default_executor_by_default(self):
-        with contextlib.ExitStack() as stack:
-            partial = stack.enter_context(
-                unittest.mock.patch(
-                    "functools.partial",
-                    spec=functools.partial)
+        resolver = MockResolver(self)
+        resolver.define_actions([
+            (
+                (
+                    "xn--4ca0bs.example.com",
+                    dns.rdatatype.A,
+                    dns.rdataclass.IN,
+                    False,
+                    (dns.flags.RD | dns.flags.AD),
+                ),
+                self.answer
             )
+        ])
 
-            run_coroutine(network.repeated_query(
-                self.base.qname,
-                unittest.mock.sentinel.rdtype,
+        with resolver:
+            result = run_coroutine(network.repeated_query(
+                "äöü.example.com".encode("idna"),
+                dns.rdatatype.A,
+                resolver=resolver,
             ))
 
-        self.assertIn(
-            unittest.mock.call(
-                network.get_resolver().query,
-                self.base.qname.decode(),
-                unittest.mock.sentinel.rdtype,
-                tcp=False,
-            ),
-            partial.mock_calls
+        self.assertIs(
+            result,
+            self.answer,
         )
 
         self.run_in_executor.assert_called_with(
             None,
-            partial(),
+            unittest.mock.ANY,
         )
 
     def test_retry_with_tcp_on_first_timeout_with_fixed_resolver(self):
