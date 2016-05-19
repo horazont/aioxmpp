@@ -143,7 +143,7 @@ def main(jid, password, recipient):
 
         sent_future = asyncio.Future()
 
-        def on_state_change(state):
+        def on_state_change(token, state):
             if (state == aioxmpp.stream.StanzaState.ACKED or
                     state == aioxmpp.stream.StanzaState.SENT_WITHOUT_SM):
                 sent_future.set_result(None)
@@ -157,7 +157,7 @@ def main(jid, password, recipient):
         print("sending message ...")
         client.stream.enqueue_stanza(
             msg,
-            on_state_changed=sent_future.set_result
+            on_state_change=on_state_change
         )
 
         _, pending = yield from asyncio.wait(
