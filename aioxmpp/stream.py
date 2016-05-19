@@ -669,6 +669,7 @@ class StanzaStream:
                 condition=(namespaces.stanzas, "undefined-condition"),
                 type_="cancel",
             )
+            self._logger.exception("IQ request coroutine failed")
         else:
             response = request.make_reply(type_="result")
             response.payload = payload
@@ -857,7 +858,7 @@ class StanzaStream:
                 return
             response = nonza.SMAcknowledgement()
             response.counter = self._sm_inbound_ctr
-            self._logger.debug("sending SM ack: %r", stanza_obj)
+            self._logger.debug("sending SM ack: %r", response)
             xmlstream.send_xso(response)
             return
 
