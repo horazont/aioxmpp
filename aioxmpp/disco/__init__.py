@@ -2,11 +2,9 @@
 :mod:`~aioxmpp.disco` --- Service discovery support (XEP-0030)
 ##############################################################
 
-This module provides support for
-`XEP-0030 (Service Discovery)
-<https://xmpp.org/extensions/xep-0030.html>`_. For this, it provides a
-:class:`~aioxmpp.service.Service` subclass which can be loaded into a client
-using :meth:`.AbstractClient.summon`.
+This module provides support for :xep:`Service Discovery <30>`. For this, it
+provides a :class:`~aioxmpp.service.Service` subclass which can be loaded into
+a client using :meth:`.AbstractClient.summon`.
 
 Service
 =======

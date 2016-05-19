@@ -3,9 +3,7 @@
 ###############################################################
 
 This module contains XSO models for stream-level elements which are not
-stanzas. Since `XEP-0360`__, these are called "nonzas".
-
-__ https://xmpp.org/extensions/xep-0360.html
+stanzas. Since :xep:`0360`, these are called "nonzas".
 
 .. versionchanged:: 0.5
 

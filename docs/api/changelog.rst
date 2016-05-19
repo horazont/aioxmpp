@@ -40,15 +40,11 @@ Version 0.6
 Version 0.5
 ===========
 
-* Support for `XEP-0045`__ multi-user chats is now available in the
+* Support for :xep:`0045` multi-user chats is now available in the
   :mod:`aioxmpp.muc` subpackage.
 
-  __ https://xmpp.org/extensions/xep-0045.html
-
-* Mostly transparent support for `XEP-0115`__ (Entity Capabilities) is now
+* Mostly transparent support for :xep:`0115` (Entity Capabilities) is now
   available using the :mod:`aioxmpp.entitycaps` subpackage.
-
-  __ https://xmpp.org/extensions/xep-0115.html
 
 * Support for transparent non-scalar attributes, which get mapped to XSOs. Use
   cases are dicts mapping language tags to strings (such as for message
@@ -113,12 +109,10 @@ Version 0.5
   specified now, a bug in the documentation has been fixed.
 
 * :mod:`aioxmpp.stream_xsos` is now called :mod:`aioxmpp.nonza`, in accordance
-  with `XEP-0360`__.
-
-  __ https://xmpp.org/extensions/xep-0360.html
+  with :xep:`0360`.
 
 * :class:`aioxmpp.xso.Date` and :class:`aioxmpp.xso.Time` are now available to
-  for `XEP-0082`__ use. In addition, support for the legacy date time format is
+  for :xep:`0082` use. In addition, support for the legacy date time format is
   now provided in :class:`aioxmpp.xso.DateTime`.
 
   .. autosummary::
@@ -127,15 +121,11 @@ Version 0.5
      ~aioxmpp.xso.Time
      ~aioxmpp.xso.DateTime
 
-  __ https://xmpp.org/extensions/xep-0082.html
-
 * The Python 3.5 compatibility of the test suite has been improved. In a
   corner-case, :class:`StopIteration` was emitted from ``data_received``, which
   caused a test to fail with a :class:`RuntimeError` due to implementation of
-  `PEP-0479`__ in Python 3.5. See the `issue at github
+  :pep:`0479` in Python 3.5. See the `issue at github
   <https://github.com/horazont/aioxmpp/issues/3>`_.
-
-  __ https://www.python.org/dev/peps/pep-0479/
 
 * Helper functions for reading and writing single XSOs (and their children) to
   binary file-like objects have been introduced.

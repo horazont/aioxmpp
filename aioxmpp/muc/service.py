@@ -116,7 +116,7 @@ class Occupant:
 
 class Room:
     """
-    Interface to a XEP-0045 multi-user-chat room.
+    Interface to a :xep:`0045` multi-user-chat room.
 
     .. autoattribute:: mucjid
 
@@ -653,7 +653,7 @@ class Room:
         provided.
 
         Setting the different roles require different privilegues of the local
-        user. The details can be checked in `XEP-0045`_ and are enforced solely
+        user. The details can be checked in :xep:`0045` and are enforced solely
         by the server, not local code.
 
         The coroutine returns when the kick has been acknowledged by the
@@ -1138,7 +1138,7 @@ class Service(aioxmpp.service.Service):
         without being joined, given sufficient privilegues.
 
         Setting the different affiliations require different privilegues of the
-        local user. The details can be checked in `XEP-0045`_ and are enforced
+        local user. The details can be checked in :xep:`0045` and are enforced
         solely by the server, not local code.
 
         The coroutine returns when the change in affiliation has been

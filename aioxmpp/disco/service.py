@@ -540,7 +540,7 @@ class Service(service.Service, Node):
         .. seealso::
 
            Module :mod:`aioxmpp.entitycaps`
-             `XEP-0115`__ implementation which uses this method to prime the
+             :xep:`0115` implementation which uses this method to prime the
              cache with information derived from Entity Capability
              announcements.
 
@@ -549,8 +549,6 @@ class Service(service.Service, Node):
            If a future is set to exception state, it will still remain and make
            all queries for that target fail with that exception, until a query
            uses `require_fresh`.
-
-             __ https://xmpp.org/extensions/xep-0115.html
 
         .. versionadded:: 0.5
         """

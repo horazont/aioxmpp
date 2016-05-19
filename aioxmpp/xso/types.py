@@ -194,15 +194,12 @@ class DateTime(AbstractType):
     are not tagged.
 
     If `legacy` is true, the formatted dates use the legacy date/time format
-    (``CCYYMMDDThh:mm:ss``), as used for example in `XEP-0082`_ or `XEP-0009`_
+    (``CCYYMMDDThh:mm:ss``), as used for example in :xep:`0082` or :xep:`0009`
     (whereas in the latter it is not legacy, but defined by XML RPC). In any
     case, parsing of the legacy format is transparently supported. Timestamps
     in the legacy format are assumed to be in UTC, and datetime objects are
     converted to UTC before emitting the legacy format. The timezone designator
     is never emitted with the legacy format, and ignored if given.
-
-    .. _XEP-0009: https://xmpp.org/extensions/xep-0009.html
-    .. _XEP-0082: https://xmpp.org/extensions/xep-0082.html
 
     This class makes use of :mod:`pytz`.
 
@@ -269,8 +266,7 @@ class DateTime(AbstractType):
 
 class Date(AbstractType):
     """
-    Implement the Date type from `XEP-0082
-    <https://xmpp.org/extensions/xep-0082.html>`_.
+    Implement the Date type from :xep:`0082`.
 
     Values must have the :class:`date` type, :class:`datetime` is forbidden to
     avoid silent loss of information.
@@ -289,8 +285,7 @@ class Date(AbstractType):
 
 class Time(AbstractType):
     """
-    Implement the Time type from `XEP-0082
-    <https://xmpp.org/extensions/xep-0082.html>`_.
+    Implement the Time type from :xep:`0082`.
 
     Values must have the :class:`time` type, :class:`datetime` is forbidden to
     avoid silent loss of information. Assignment of :class:`time` values in
@@ -298,8 +293,6 @@ class Time(AbstractType):
     translation to UTC on formatting is not properly defined without an
     accompanying date (think daylight saving time transitions, redefinitions of
     time zones, …).
-
-    .. _XEP-0082: https://xmpp.org/extensions/xep-0082.html
 
     .. versionadded:: 0.5
     """

@@ -272,9 +272,9 @@ class Cache:
 
 class Service(aioxmpp.service.Service):
     """
-    This service implements `XEP-0115`_, transparently. Besides loading the
+    This service implements :xep:`0115`, transparently. Besides loading the
     service, no interaction is required to get some of the benefits of
-    `XEP-0115`_.
+    :xep:`0115`.
 
     Two additional things need to be done by users to get full support and
     performance:
@@ -294,8 +294,6 @@ class Service(aioxmpp.service.Service):
 
        In addition, the hashes should be saved and restored on shutdown/start
        of the process. See the :class:`Cache` for details.
-
-    .. _XEP-0115: https://xmpp.org/extensions/xep-0115.html
 
     .. signal:: on_ver_changed
 
