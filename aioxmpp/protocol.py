@@ -249,12 +249,13 @@ class XMLStream(asyncio.Protocol):
         self._smachine = statemachine.OrderedStateMachine(State.READY)
         self._transport_closing = False
 
-        asyncio.async(
+        self._closing_future = asyncio.async(
             self._smachine.wait_for(
                 State.CLOSING
             ),
             loop=loop
-        ).add_done_callback(
+        )
+        self._closing_future.add_done_callback(
             self._stream_starts_closing
         )
 
@@ -296,6 +297,11 @@ class XMLStream(asyncio.Protocol):
                 fut.set_exception(exc)
         self._error_futures.clear()
 
+        if task.cancelled():
+            # this happens if connection_lost happens before we enter closing
+            # state. causes are: stream abortion, connection reset by peer etc.
+            # no need to wait for a timeout in that case
+            return
         if task.exception() is not None:
             # this happens if we skip over the CLOSING state, which implies
             # that the stream footer has been seen; no reason to worry about
@@ -431,6 +437,7 @@ class XMLStream(asyncio.Protocol):
         self._kill_state()
         self._writer = None
         self._transport = None
+        self._closing_future.cancel()
 
     def data_received(self, blob):
         self._logger.debug("RECV %r", blob)

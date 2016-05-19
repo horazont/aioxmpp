@@ -27,6 +27,10 @@ Version 0.6
 
 * MUCs now autorejoin correctly after a disconnect.
 
+* :mod:`asyncio` errors/warnings about pending tasks being destroyed after
+  disconnects should be gone now (:class:`aioxmpp.protocol.XMLStream` now
+  properly cleans up its running coroutines).
+
 Version 0.5
 ===========
 

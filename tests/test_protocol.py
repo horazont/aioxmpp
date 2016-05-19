@@ -1491,6 +1491,36 @@ class TestXMLStream(unittest.TestCase):
             protocol.State.CLOSED
         )
 
+    def test_future_for_closing_state_is_disposed_of_in_connection_lost(
+            self):
+        with unittest.mock.patch("asyncio.async") as async_:
+            t, p = self._make_stream(to=TEST_PEER)
+
+        run_coroutine(t.run_test(
+            [
+                TransportMock.Write(
+                    STREAM_HEADER,
+                    response=[
+                        TransportMock.Receive(
+                            self._make_peer_header(version=(1, 0))
+                        ),
+                    ]),
+            ],
+            partial=True
+        ))
+
+        self.assertNotIn(
+            unittest.mock.call().cancel(),
+            async_.mock_calls,
+        )
+
+        p.connection_lost(None)
+
+        self.assertIn(
+            unittest.mock.call().cancel(),
+            async_.mock_calls,
+        )
+
     def tearDown(self):
         self.loop.set_exception_handler(
             type(self.loop).default_exception_handler
