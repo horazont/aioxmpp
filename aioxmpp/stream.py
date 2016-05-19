@@ -358,6 +358,8 @@ class StanzaStream:
 
     .. automethod:: enqueue_stanza
 
+    .. automethod:: send_and_wait_for_sent
+
     .. automethod:: send_iq_and_wait_for_reply
 
     Receiving stanzas:
@@ -1895,3 +1897,46 @@ class StanzaStream:
                 fut, timeout=timeout,
                 loop=self._loop)
         return reply.payload
+
+
+    @asyncio.coroutine
+    def send_and_wait_for_sent(self, stanza):
+        """
+        Send the given `stanza` over the given :class:`StanzaStream` `stream`.
+
+        Return when the stanza reaches either
+        :attr:`~StanzaState.SENT_WITHOUT_SM` or :attr:`~StanzaState.ACKED`
+        state.
+
+        Raise :class:`ConnectionError` if :attr:`~StanzaState.DISCONNECTED` is
+        reached. Raise :class:`RuntimeError` if :attr:`~StanzaState.ABORTED` or
+        :attr:`~StanzaState.DROPPED` is reached.
+
+        Cancelling the coroutine :meth:`aborts <StanzaToken.abort>` the stanza
+        and returns immediately, even if the stanza has already left the active
+        queue.
+        """
+        fut = asyncio.Future()
+
+        def cb(token, state):
+            if fut.done():
+                return
+            if state == StanzaState.ACKED:
+                fut.set_result(None)
+            if state == StanzaState.SENT_WITHOUT_SM:
+                fut.set_result(None)
+            if state == StanzaState.DISCONNECTED:
+                fut.set_exception(ConnectionError("disconnected"))
+            if state == StanzaState.DROPPED:
+                fut.set_exception(RuntimeError("stanza dropped by filter"))
+            if state == StanzaState.ABORTED:
+                fut.set_exception(RuntimeError("stanza aborted"))
+
+        token = self.enqueue_stanza(stanza, on_state_change=cb)
+
+        try:
+            yield from fut
+        except asyncio.CancelledError:
+            if token.state == StanzaState.ACTIVE:
+                token.abort()
+            raise
