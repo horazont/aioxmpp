@@ -20,6 +20,11 @@ Connecting streams low-level
 
 .. autofunction:: connect_to_xmpp_server
 
+Utilities
+=========
+
+.. autoclass:: UseConnected
+
 """
 import asyncio
 import contextlib
@@ -341,7 +346,8 @@ class AbstractClient:
     .. signal:: on_stream_destroyed()
 
        This is called whenever a stream is destroyed. The conditions for this
-       are the same as for :attr:`.StanzaStream.on_stream_destroyed`.
+       are the same as for
+       :attr:`aioxmpp.stream.StanzaStream.on_stream_destroyed`.
 
        This event can be used to know when to discard all state about the XMPP
        connection, such as roster information.
@@ -690,6 +696,8 @@ class PresenceManagedClient(AbstractClient):
 
     .. automethod:: set_presence
 
+    .. automethod:: connected
+
     Signals:
 
     .. attribute:: on_presence_sent
@@ -779,3 +787,137 @@ class PresenceManagedClient(AbstractClient):
             status = dict(status)
         self._presence = state, status
         self._update_presence()
+
+    def connected(self, **kwargs):
+        """
+        Return an asynchronous context manager (:pep:`492`). When it is
+        entered, the presence is changed to available. The context manager
+        waits until the stream is established, and then the context is entered.
+
+        Upon leaving the context manager, the presence is changed to
+        unavailable. The context manager waits until the stream is closed
+        fully.
+
+        The keyword arguments are passed to the :class:`UseConnected` context
+        manager constructor.
+
+        .. seealso::
+
+           :class:`UseConnected` is the context manager returned here.
+
+        .. versionadded:: 0.6
+        """
+        return UseConnected(self, **kwargs)
+
+
+class UseConnected:
+    """
+    Control the given :class:`PresenceManagedClient` `client` as asynchronous
+    context manager (:pep:`492`). :class:`UseConnected` is an asynchronous
+    context manager. When the context manager is entered, the `client` is set
+    to an available presence (if the stream is not already established) and the
+    context manager waits for a connection to establish. If a fatal error
+    occurs while the stream is being established, it is re-raised.
+
+    When the context manager is left, the stream is shut down cleanly and the
+    context manager waits for the stream to shut down. Any exceptions occuring
+    in the context are not swallowed.
+
+    `timeout` is used to initialise the :attr:`timeout` attribute. `presence`
+    is used to initialise the :attr:`presence` attribute and defaults to a
+    simple available presence. `presence` must be an *available* presence.
+
+    .. versionadded:: 0.6
+
+    The following attributes control the behaviour of the context manager:
+
+    .. attribute:: timeout
+
+       Either :data:`None` or a :class:`datetime.timedelta` instance. If it is
+       the latter and it takes longer than that time to establish the stream,
+       the process is aborted and :class:`TimeoutError` is raised.
+
+    .. autoattribute:: presence
+
+    """
+
+    def __init__(self, client, *,
+                 timeout=None,
+                 presence=structs.PresenceState(True)):
+        super().__init__()
+        self._client = client
+        self.timeout = timeout
+        self.presence = presence
+
+    @property
+    def presence(self):
+        """
+        This is the presence which is sent when connecting. This must be a
+        *available* presence, otherwise, :class:`ValueError` is raised.k
+        """
+        return self._presence
+
+    @presence.setter
+    def presence(self, value):
+        if not value.available:
+            raise ValueError(
+                "presence must be available, got {!r}".format(value)
+            )
+        self._presence = value
+
+    @asyncio.coroutine
+    def __aenter__(self):
+        if self._client.established:
+            return self._client.stream
+
+        connected_future = asyncio.Future()
+
+        self._client.presence = self.presence
+        self._client.on_presence_sent.connect(
+            connected_future,
+            self._client.on_presence_sent.AUTO_FUTURE
+        )
+        self._client.on_failure.connect(
+            connected_future,
+            self._client.on_failure.AUTO_FUTURE
+        )
+
+        if self.timeout is not None:
+            try:
+                yield from asyncio.wait_for(
+                    connected_future,
+                    timeout=self.timeout.total_seconds()
+                )
+            except asyncio.TimeoutError:
+                self._client.presence = structs.PresenceState(False)
+                self._client.stop()
+                raise TimeoutError()
+        else:
+            yield from connected_future
+
+        return self._client.stream
+
+    @asyncio.coroutine
+    def __aexit__(self, exc_type, exc_value, exc_traceback):
+        self._client.presence = structs.PresenceState(False)
+
+        if not self._client.established:
+            return
+
+        disconnected_future = asyncio.Future()
+
+        self._client.on_stopped.connect(
+            disconnected_future,
+            self._client.on_stopped.AUTO_FUTURE
+        )
+
+        self._client.on_failure.connect(
+            disconnected_future,
+            self._client.on_failure.AUTO_FUTURE
+        )
+
+        try:
+            yield from disconnected_future
+        except:
+            if exc_type is None:
+                raise

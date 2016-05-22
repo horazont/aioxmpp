@@ -58,6 +58,14 @@ Version 0.6
   :meth:`~aioxmpp.stream.StanzaStream.send_iq_and_wait_for_reply` now also uses
   this.
 
+* New method :meth:`aioxmpp.node.PresenceManagedClient.connected` and new class
+  :class:`aioxmpp.node.UseConnected`.
+
+  The former uses the latter to provide an asynchronous context manager which
+  starts and stops a :class:`aioxmpp.node.PresenceManagedClient`. Intended for
+  use in situations where an XMPP client is needed in-line. It saves a lot of
+  boiler plate by taking care of properly waiting for the connection to be
+  established etc.
 
 Version 0.5
 ===========

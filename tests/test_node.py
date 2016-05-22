@@ -26,7 +26,7 @@ from aioxmpp import xmltestutils
 from aioxmpp.testutils import (
     run_coroutine,
     XMLStreamMock,
-    run_coroutine_with_peer
+    run_coroutine_with_peer,
 )
 
 
@@ -2174,6 +2174,26 @@ class TestPresenceManagedClient(xmltestutils.XMLTestCase):
 
         self.presence_sent_rec.assert_called_once_with()
 
+    def test_connected(self):
+        with unittest.mock.patch("aioxmpp.node.UseConnected") as UseConnected:
+            result = self.client.connected()
+
+        UseConnected.assert_called_with(self.client)
+
+        self.assertEqual(result, UseConnected())
+
+    def test_connected_kwargs(self):
+        with unittest.mock.patch("aioxmpp.node.UseConnected") as UseConnected:
+            result = self.client.connected(foo="bar", fnord=10)
+
+        UseConnected.assert_called_with(
+            self.client,
+            foo="bar",
+            fnord=10,
+        )
+
+        self.assertEqual(result, UseConnected())
+
     def tearDown(self):
         for patch in self.patches:
             patch.stop()
@@ -2184,3 +2204,248 @@ class TestPresenceManagedClient(xmltestutils.XMLTestCase):
             ]))
         run_coroutine(self.xmlstream.run_test([
         ]))
+
+
+class TestUseConnected(unittest.TestCase):
+    def setUp(self):
+        self.client = unittest.mock.Mock()
+        self.client.presence = structs.PresenceState(False)
+        self.client.established = False
+        self.cm = node.UseConnected(self.client)
+
+    def tearDown(self):
+        del self.client
+
+    def test_init(self):
+        self.assertIsNone(self.cm.timeout)
+
+        cm = node.UseConnected(
+            self.client,
+            timeout=timedelta(seconds=0.1),
+            presence=structs.PresenceState(True, "away")
+        )
+
+        self.assertEqual(cm.timeout, timedelta(seconds=0.1))
+        self.assertEqual(cm.presence, structs.PresenceState(True, "away"))
+
+    def test_constructor_requires_available_presence(self):
+        with self.assertRaisesRegex(
+                ValueError,
+                "presence must be available, got <PresenceState>"):
+            node.UseConnected(self.client,
+                              presence=structs.PresenceState(False))
+
+    def test_attribute_setter_requires_available_presence(self):
+        cm = node.UseConnected(self.client)
+
+        with self.assertRaisesRegex(
+                ValueError,
+                "presence must be available, got <PresenceState>"):
+            cm.presence = structs.PresenceState(False)
+
+    def test_aenter_sets_presence(self):
+        self.assertEqual(self.client.presence, structs.PresenceState(False))
+
+        task = asyncio.async(self.cm.__aenter__())
+        run_coroutine(asyncio.sleep(0.01))
+
+        self.assertEqual(self.client.presence, structs.PresenceState(True))
+
+        task.cancel()
+
+    def test_aenter_sets_custom_presence(self):
+        pres = structs.PresenceState(True, "away")
+        self.cm.presence = pres
+
+        self.assertEqual(self.client.presence, structs.PresenceState(False))
+
+        task = asyncio.async(self.cm.__aenter__())
+        run_coroutine(asyncio.sleep(0.01))
+
+        self.assertIs(self.client.presence, pres)
+
+        task.cancel()
+
+    def test_aenter_succeeds_and_returns_StanzaStream_on_presence_sent(self):
+        task = asyncio.async(self.cm.__aenter__())
+        run_coroutine(asyncio.sleep(0.01))
+
+        self.assertFalse(task.done())
+
+        self.client.on_presence_sent.connect.assert_called_with(
+            unittest.mock.ANY,
+            self.client.on_presence_sent.AUTO_FUTURE,
+        )
+
+        _, (fut, _), _ = self.client.on_presence_sent.connect.mock_calls[0]
+
+        fut.set_result(None)
+
+        self.assertEqual(
+            run_coroutine(task),
+            self.client.stream
+        )
+
+    def test_aenter_re_raises_exception_from_on_failure(self):
+        task = asyncio.async(self.cm.__aenter__())
+        run_coroutine(asyncio.sleep(0.01))
+
+        self.assertFalse(task.done())
+
+        self.client.on_failure.connect.assert_called_with(
+            unittest.mock.ANY,
+            self.client.on_failure.AUTO_FUTURE,
+        )
+
+        _, (fut, _), _ = self.client.on_failure.connect.mock_calls[0]
+
+        class FooException(Exception):
+            pass
+
+        fut.set_exception(FooException())
+
+        with self.assertRaises(FooException):
+            run_coroutine(task)
+
+    def test_aenter_does_not_wait_if_established(self):
+        self.client.established = True
+
+        task = asyncio.async(self.cm.__aenter__())
+        run_coroutine(asyncio.sleep(0.01))
+
+        self.assertTrue(task.done())
+
+        self.assertEqual(
+            run_coroutine(task),
+            self.client.stream
+        )
+
+    def test_aenter_times_out(self):
+        self.cm.timeout = timedelta(seconds=0)
+
+        with self.assertRaises(TimeoutError):
+            run_coroutine(self.cm.__aenter__())
+
+    def test_aenter_cancels_futures_stops_stream_and_resets_presence_on_timeout(self):
+        self.cm.timeout = timedelta(seconds=0.1)
+
+        task = asyncio.async(self.cm.__aenter__())
+        run_coroutine(asyncio.sleep(0.01))
+
+        _, (fut1, _), _ = self.client.on_presence_sent.connect.mock_calls[0]
+        _, (fut2, _), _ = self.client.on_failure.connect.mock_calls[0]
+
+        self.assertEqual(fut1, fut2)
+
+        with self.assertRaises(TimeoutError):
+            run_coroutine(task)
+
+        self.assertTrue(fut1.cancelled())
+        self.assertTrue(fut2.cancelled())
+
+        self.client.stop.assert_called_with()
+        self.assertEqual(self.client.presence, structs.PresenceState(False))
+
+    def test_aexit_sets_presence_to_unavailable(self):
+        self.client.established = True
+        self.client.presence = structs.PresenceState(True)
+
+        task = asyncio.async(self.cm.__aexit__(None, None, None))
+        run_coroutine(asyncio.sleep(0.01))
+
+        self.assertEqual(self.client.presence, structs.PresenceState(False))
+
+        task.cancel()
+
+    def test_aexit_waits_for_stopped_or_failed(self):
+        self.client.established = True
+        self.client.presence = structs.PresenceState(True)
+
+        task = asyncio.async(self.cm.__aexit__(None, None, None))
+        run_coroutine(asyncio.sleep(0.01))
+
+        self.client.on_stopped.connect.assert_called_with(
+            unittest.mock.ANY,
+            self.client.on_stopped.AUTO_FUTURE,
+        )
+
+        self.client.on_failure.connect.assert_called_with(
+            unittest.mock.ANY,
+            self.client.on_failure.AUTO_FUTURE,
+        )
+
+        _, (fut1, _), _ = self.client.on_stopped.connect.mock_calls[0]
+        _, (fut2, _), _ = self.client.on_failure.connect.mock_calls[0]
+
+        self.assertEqual(fut1, fut2)
+
+        fut1.set_result(None)
+
+        self.assertFalse(run_coroutine(task))
+
+    def test_aexit_re_raises_failure(self):
+        self.client.established = True
+        self.client.presence = structs.PresenceState(True)
+
+        task = asyncio.async(self.cm.__aexit__(None, None, None))
+        run_coroutine(asyncio.sleep(0.01))
+
+        self.client.on_stopped.connect.assert_called_with(
+            unittest.mock.ANY,
+            self.client.on_stopped.AUTO_FUTURE,
+        )
+
+        self.client.on_failure.connect.assert_called_with(
+            unittest.mock.ANY,
+            self.client.on_failure.AUTO_FUTURE,
+        )
+
+        _, (fut1, _), _ = self.client.on_stopped.connect.mock_calls[0]
+        _, (fut2, _), _ = self.client.on_failure.connect.mock_calls[0]
+
+        class FooException(Exception):
+            pass
+
+        fut1.set_exception(FooException())
+
+        with self.assertRaises(FooException):
+            run_coroutine(task)
+
+    def test_aexit_swallows_failure_in_exception_context(self):
+        self.client.established = True
+        self.client.presence = structs.PresenceState(True)
+
+        task = asyncio.async(self.cm.__aexit__(
+            unittest.mock.sentinel.exc_type,
+            unittest.mock.sentinel.exc_value,
+            unittest.mock.sentinel.exc_traceback,
+        ))
+        run_coroutine(asyncio.sleep(0.01))
+
+        self.client.on_stopped.connect.assert_called_with(
+            unittest.mock.ANY,
+            self.client.on_stopped.AUTO_FUTURE,
+        )
+
+        self.client.on_failure.connect.assert_called_with(
+            unittest.mock.ANY,
+            self.client.on_failure.AUTO_FUTURE,
+        )
+
+        _, (fut1, _), _ = self.client.on_stopped.connect.mock_calls[0]
+        _, (fut2, _), _ = self.client.on_failure.connect.mock_calls[0]
+
+        class FooException(Exception):
+            pass
+
+        fut1.set_exception(FooException())
+
+        self.assertFalse(run_coroutine(task))
+
+    def test_aexit_does_not_wait_if_not_established(self):
+        self.client.established = False
+        self.client.presence = structs.PresenceState(True)
+
+        self.assertFalse(run_coroutine(self.cm.__aexit__(None, None, None)))
+
+        self.assertEqual(self.client.presence, structs.PresenceState(False))
