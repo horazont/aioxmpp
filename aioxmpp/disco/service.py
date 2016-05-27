@@ -382,8 +382,7 @@ class Service(service.Service, Node):
         Query the features and identities of the specified entity. The entity
         is identified by the `jid` and the optional `node`.
 
-        Return the dict representation of the :class:`.xso.InfoQuery` instance
-        returned by the peer. See :meth:`.xso.InfoQuery.to_dict` for details.
+        Return the :class:`.xso.InfoQuery` instance returned by the peer.
 
         The requests are cached. This means that only one request is ever fired
         for a given target (identified by the `jid` and the `node`). The

@@ -67,6 +67,11 @@ Version 0.6
   boiler plate by taking care of properly waiting for the connection to be
   established etc.
 
+* Fixed incorrect documentation of :meth:`aioxmpp.disco.Service.query_info`.
+  Previously, the docstring incorrectly claimed that the method would return the
+  result of :meth:`aioxmpp.disco.xso.InfoQuery.to_dict`, while it would in fact
+  return the :class:`aioxmpp.disco.xso.InfoQuery` instance.
+
 Version 0.5
 ===========
 
