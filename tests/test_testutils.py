@@ -977,7 +977,7 @@ class TestCoroutineMock(unittest.TestCase):
             run_coroutine(m())
         )
 
-    def test_side_effect(self):
+    def test_side_effect_exception(self):
         m = CoroutineMock()
         m.side_effect = ValueError()
         with self.assertRaises(ValueError):
