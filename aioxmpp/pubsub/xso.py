@@ -7,67 +7,307 @@ from enum import Enum
 from aioxmpp.utils import namespaces
 
 
-class Features(Enum):
-    ACCESS_AUTHORIZE = "http://jabber.org/protocol/pubsub#access-authorize"
-    ACCESS_OPEN = "http://jabber.org/protocol/pubsub#access-open"
-    ACCESS_PRESENCE = "http://jabber.org/protocol/pubsub#access-presence"
-    ACCESS_ROSTER = "http://jabber.org/protocol/pubsub#access-roster"
-    ACCESS_WHITELIST = "http://jabber.org/protocol/pubsub#access-whitelist"
-    AUTO_CREATE = "http://jabber.org/protocol/pubsub#auto-create"
-    AUTO_SUBSCRIBE = "http://jabber.org/protocol/pubsub#auto-subscribe"
-    COLLECTIONS = "http://jabber.org/protocol/pubsub#collections"
-    CONFIG_NODE = "http://jabber.org/protocol/pubsub#config-node"
+class Feature(Enum):
+    """
+    .. attribute:: ACCESS_AUTHORIZE
+       :annotation: = "http://jabber.org/protocol/pubsub#access-authorize"
+
+       The default node access model is authorize.
+
+    .. attribute:: ACCESS_OPEN
+       :annotation: = "http://jabber.org/protocol/pubsub#access-open"
+
+       The default node access model is open.
+
+    .. attribute:: ACCESS_PRESENCE
+       :annotation: = "http://jabber.org/protocol/pubsub#access-presence"
+
+       The default node access model is presence.
+
+    .. attribute:: ACCESS_ROSTER
+       :annotation: = "http://jabber.org/protocol/pubsub#access-roster"
+
+       The default node access model is roster.
+
+    .. attribute:: ACCESS_WHITELIST
+       :annotation: = "http://jabber.org/protocol/pubsub#access-whitelist"
+
+       The default node access model is whitelist.
+
+    .. attribute:: AUTO_CREATE
+       :annotation: = "http://jabber.org/protocol/pubsub#auto-create"
+
+       The service supports automatic creation of nodes on first publish.
+
+    .. attribute:: AUTO_SUBSCRIBE
+       :annotation: = "http://jabber.org/protocol/pubsub#auto-subscribe"
+
+       The service supports automatic subscription to a nodes based on presence subscription.
+
+    .. attribute:: COLLECTIONS
+       :annotation: = "http://jabber.org/protocol/pubsub#collections"
+
+       Collection nodes are supported.
+
+    .. attribute:: CONFIG_NODE
+       :annotation: = "http://jabber.org/protocol/pubsub#config-node"
+
+       Configuration of node options is supported.
+
+    .. attribute:: CREATE_AND_CONFIGURE
+       :annotation: = "http://jabber.org/protocol/pubsub#create-and-configure"
+
+       Simultaneous creation and configuration of nodes is supported.
+
+    .. attribute:: CREATE_NODES
+       :annotation: = "http://jabber.org/protocol/pubsub#create-nodes"
+
+       Creation of nodes is supported.
+
+    .. attribute:: DELETE_ITEMS
+       :annotation: = "http://jabber.org/protocol/pubsub#delete-items"
+
+       Deletion of items is supported.
+
+    .. attribute:: DELETE_NODES
+       :annotation: = "http://jabber.org/protocol/pubsub#delete-nodes"
+
+       Deletion of nodes is supported.
+
+    .. attribute:: FILTERED_NOTIFICATIONS
+       :annotation: = "http://jabber.org/protocol/pubsub#filtered-notifications"
+
+       The service supports filtering of notifications based on Entity Capabilities.
+
+    .. attribute:: GET_PENDING
+       :annotation: = "http://jabber.org/protocol/pubsub#get-pending"
+
+       Retrieval of pending subscription approvals is supported.
+
+    .. attribute:: INSTANT_NODES
+       :annotation: = "http://jabber.org/protocol/pubsub#instant-nodes"
+
+       Creation of instant nodes is supported.
+
+    .. attribute:: ITEM_IDS
+       :annotation: = "http://jabber.org/protocol/pubsub#item-ids"
+
+       Publishers may specify item identifiers.
+
+    .. attribute:: LAST_PUBLISHED
+       :annotation: = "http://jabber.org/protocol/pubsub#last-published"
+
+       The service supports sending of the last published item to new subscribers and to newly available resources.
+
+    .. attribute:: LEASED_SUBSCRIPTION
+       :annotation: = "http://jabber.org/protocol/pubsub#leased-subscription"
+
+       Time-based subscriptions are supported.
+
+    .. attribute:: MANAGE_SUBSCRIPTIONS
+       :annotation: = "http://jabber.org/protocol/pubsub#manage-subscriptions"
+
+       Node owners may manage subscriptions.
+
+    .. attribute:: MEMBER_AFFILIATION
+       :annotation: = "http://jabber.org/protocol/pubsub#member-affiliation"
+
+       The member affiliation is supported.
+
+    .. attribute:: META_DATA
+       :annotation: = "http://jabber.org/protocol/pubsub#meta-data"
+
+       Node meta-data is supported.
+
+    .. attribute:: MODIFY_AFFILIATIONS
+       :annotation: = "http://jabber.org/protocol/pubsub#modify-affiliations"
+
+       Node owners may modify affiliations.
+
+    .. attribute:: MULTI_COLLECTION
+       :annotation: = "http://jabber.org/protocol/pubsub#multi-collection"
+
+       A single leaf node can be associated with multiple collections.
+
+    .. attribute:: MULTI_SUBSCRIBE
+       :annotation: = "http://jabber.org/protocol/pubsub#multi-subscribe"
+
+       A single entity may subscribe to a node multiple times.
+
+    .. attribute:: OUTCAST_AFFILIATION
+       :annotation: = "http://jabber.org/protocol/pubsub#outcast-affiliation"
+
+       The outcast affiliation is supported.
+
+    .. attribute:: PERSISTENT_ITEMS
+       :annotation: = "http://jabber.org/protocol/pubsub#persistent-items"
+
+       Persistent items are supported.
+
+    .. attribute:: PRESENCE_NOTIFICATIONS
+       :annotation: = "http://jabber.org/protocol/pubsub#presence-notifications"
+
+       Presence-based delivery of event notifications is supported.
+
+    .. attribute:: PRESENCE_SUBSCRIBE
+       :annotation: = "http://jabber.org/protocol/pubsub#presence-subscribe"
+
+       Implicit presence-based subscriptions are supported.
+
+    .. attribute:: PUBLISH
+       :annotation: = "http://jabber.org/protocol/pubsub#publish"
+
+       Publishing items is supported.
+
+    .. attribute:: PUBLISH_OPTIONS
+       :annotation: = "http://jabber.org/protocol/pubsub#publish-options"
+
+       Publication with publish options is supported.
+
+    .. attribute:: PUBLISH_ONLY_AFFILIATION
+       :annotation: = "http://jabber.org/protocol/pubsub#publish-only-affiliation"
+
+       The publish-only affiliation is supported.
+
+    .. attribute:: PUBLISHER_AFFILIATION
+       :annotation: = "http://jabber.org/protocol/pubsub#publisher-affiliation"
+
+       The publisher affiliation is supported.
+
+    .. attribute:: PURGE_NODES
+       :annotation: = "http://jabber.org/protocol/pubsub#purge-nodes"
+
+       Purging of nodes is supported.
+
+    .. attribute:: RETRACT_ITEMS
+       :annotation: = "http://jabber.org/protocol/pubsub#retract-items"
+
+       Item retraction is supported.
+
+    .. attribute:: RETRIEVE_AFFILIATIONS
+       :annotation: = "http://jabber.org/protocol/pubsub#retrieve-affiliations"
+
+       Retrieval of current affiliations is supported.
+
+    .. attribute:: RETRIEVE_DEFAULT
+       :annotation: = "http://jabber.org/protocol/pubsub#retrieve-default"
+
+       Retrieval of default node configuration is supported.
+
+    .. attribute:: RETRIEVE_ITEMS
+       :annotation: = "http://jabber.org/protocol/pubsub#retrieve-items"
+
+       Item retrieval is supported.
+
+    .. attribute:: RETRIEVE_SUBSCRIPTIONS
+       :annotation: = "http://jabber.org/protocol/pubsub#retrieve-subscriptions"
+
+       Retrieval of current subscriptions is supported.
+
+    .. attribute:: SUBSCRIBE
+       :annotation: = "http://jabber.org/protocol/pubsub#subscribe"
+
+       Subscribing and unsubscribing are supported.
+
+    .. attribute:: SUBSCRIPTION_OPTIONS
+       :annotation: = "http://jabber.org/protocol/pubsub#subscription-options"
+
+       Configuration of subscription options is supported.
+
+    .. attribute:: SUBSCRIPTION_NOTIFICATIONS
+       :annotation: = "http://jabber.org/protocol/pubsub#subscription-notifications"
+
+       Notification of subscription state changes is supported.
+
+    """
+
+    ACCESS_AUTHORIZE = \
+        "http://jabber.org/protocol/pubsub#access-authorize"
+    ACCESS_OPEN = \
+        "http://jabber.org/protocol/pubsub#access-open"
+    ACCESS_PRESENCE = \
+        "http://jabber.org/protocol/pubsub#access-presence"
+    ACCESS_ROSTER = \
+        "http://jabber.org/protocol/pubsub#access-roster"
+    ACCESS_WHITELIST = \
+        "http://jabber.org/protocol/pubsub#access-whitelist"
+    AUTO_CREATE = \
+        "http://jabber.org/protocol/pubsub#auto-create"
+    AUTO_SUBSCRIBE = \
+        "http://jabber.org/protocol/pubsub#auto-subscribe"
+    COLLECTIONS = \
+        "http://jabber.org/protocol/pubsub#collections"
+    CONFIG_NODE = \
+        "http://jabber.org/protocol/pubsub#config-node"
     CREATE_AND_CONFIGURE = \
         "http://jabber.org/protocol/pubsub#create-and-configure"
-    CREATE_NODES = "http://jabber.org/protocol/pubsub#create-nodes"
-    DELETE_ITEMS = "http://jabber.org/protocol/pubsub#delete-items"
-    DELETE_NODES = "http://jabber.org/protocol/pubsub#delete-nodes"
+    CREATE_NODES = \
+        "http://jabber.org/protocol/pubsub#create-nodes"
+    DELETE_ITEMS = \
+        "http://jabber.org/protocol/pubsub#delete-items"
+    DELETE_NODES = \
+        "http://jabber.org/protocol/pubsub#delete-nodes"
     FILTERED_NOTIFICATIONS = \
         "http://jabber.org/protocol/pubsub#filtered-notifications"
-    GET_PENDING = "http://jabber.org/protocol/pubsub#get-pending"
-    INSTANT_NODES = "http://jabber.org/protocol/pubsub#instant-nodes"
-    ITEM_IDS = "http://jabber.org/protocol/pubsub#item-ids"
-    LAST_PUBLISHED = "http://jabber.org/protocol/pubsub#last-published"
+    GET_PENDING = \
+        "http://jabber.org/protocol/pubsub#get-pending"
+    INSTANT_NODES = \
+        "http://jabber.org/protocol/pubsub#instant-nodes"
+    ITEM_IDS = \
+        "http://jabber.org/protocol/pubsub#item-ids"
+    LAST_PUBLISHED = \
+        "http://jabber.org/protocol/pubsub#last-published"
     LEASED_SUBSCRIPTION = \
         "http://jabber.org/protocol/pubsub#leased-subscription"
     MANAGE_SUBSCRIPTIONS = \
         "http://jabber.org/protocol/pubsub#manage-subscriptions"
-    MEMBER_AFFILIATION = "http://jabber.org/protocol/pubsub#member-affiliation"
-    META_DATA = "http://jabber.org/protocol/pubsub#meta-data"
+    MEMBER_AFFILIATION = \
+        "http://jabber.org/protocol/pubsub#member-affiliation"
+    META_DATA = \
+        "http://jabber.org/protocol/pubsub#meta-data"
     MODIFY_AFFILIATIONS = \
         "http://jabber.org/protocol/pubsub#modify-affiliations"
-    MULTI_COLLECTION = "http://jabber.org/protocol/pubsub#multi-collection"
-    MULTI_SUBSCRIBE = "http://jabber.org/protocol/pubsub#multi-subscribe"
+    MULTI_COLLECTION = \
+        "http://jabber.org/protocol/pubsub#multi-collection"
+    MULTI_SUBSCRIBE = \
+        "http://jabber.org/protocol/pubsub#multi-subscribe"
     OUTCAST_AFFILIATION = \
         "http://jabber.org/protocol/pubsub#outcast-affiliation"
-    PERSISTENT_ITEMS = "http://jabber.org/protocol/pubsub#persistent-items"
+    PERSISTENT_ITEMS = \
+        "http://jabber.org/protocol/pubsub#persistent-items"
     PRESENCE_NOTIFICATIONS = \
         "http://jabber.org/protocol/pubsub#presence-notifications"
-    PRESENCE_SUBSCRIBE = "http://jabber.org/protocol/pubsub#presence-subscribe"
-    PUBLISH = "http://jabber.org/protocol/pubsub#publish"
-    PUBLISH_OPTIONS = "http://jabber.org/protocol/pubsub#publish-options"
+    PRESENCE_SUBSCRIBE = \
+        "http://jabber.org/protocol/pubsub#presence-subscribe"
+    PUBLISH = \
+        "http://jabber.org/protocol/pubsub#publish"
+    PUBLISH_OPTIONS = \
+        "http://jabber.org/protocol/pubsub#publish-options"
     PUBLISH_ONLY_AFFILIATION = \
         "http://jabber.org/protocol/pubsub#publish-only-affiliation"
     PUBLISHER_AFFILIATION = \
         "http://jabber.org/protocol/pubsub#publisher-affiliation"
-    PURGE_NODES = "http://jabber.org/protocol/pubsub#purge-nodes"
-    RETRACT_ITEMS = "http://jabber.org/protocol/pubsub#retract-items"
+    PURGE_NODES = \
+        "http://jabber.org/protocol/pubsub#purge-nodes"
+    RETRACT_ITEMS = \
+        "http://jabber.org/protocol/pubsub#retract-items"
     RETRIEVE_AFFILIATIONS = \
         "http://jabber.org/protocol/pubsub#retrieve-affiliations"
-    RETRIEVE_DEFAULT = "http://jabber.org/protocol/pubsub#retrieve-default"
-    RETRIEVE_DEFAULT_SUB = \
-        "http://jabber.org/protocol/pubsub#retrieve-default-sub"
-    RETRIEVE_ITEMS = "http://jabber.org/protocol/pubsub#retrieve-items"
+    RETRIEVE_DEFAULT = \
+        "http://jabber.org/protocol/pubsub#retrieve-default"
+    RETRIEVE_ITEMS = \
+        "http://jabber.org/protocol/pubsub#retrieve-items"
     RETRIEVE_SUBSCRIPTIONS = \
         "http://jabber.org/protocol/pubsub#retrieve-subscriptions"
-    SUBSCRIBE = "http://jabber.org/protocol/pubsub#subscribe"
+    SUBSCRIBE = \
+        "http://jabber.org/protocol/pubsub#subscribe"
     SUBSCRIPTION_OPTIONS = \
         "http://jabber.org/protocol/pubsub#subscription-options"
     SUBSCRIPTION_NOTIFICATIONS = \
         "http://jabber.org/protocol/pubsub#subscription-notifications"
 
 
-namespaces.xep0060_features = Features
+namespaces.xep0060_features = Feature
 namespaces.xep0060 = "http://jabber.org/protocol/pubsub"
 namespaces.xep0060_errors = "http://jabber.org/protocol/pubsub#errors"
 
@@ -150,6 +390,15 @@ class Default(xso.XSO):
         default="leaf",
     )
 
+    data = xso.Child([
+        aioxmpp.forms.Data,
+    ])
+
+    def __init__(self, *, node=None, data=None):
+        super().__init__()
+        self.node = node
+        self.data = data
+
 
 class Item(xso.XSO):
     TAG = (namespaces.xep0060, "item")
@@ -162,6 +411,10 @@ class Item(xso.XSO):
     registered_payload = xso.Child([])
 
     unregistered_payload = xso.Collector()
+
+    def __init__(self, id_=None):
+        super().__init__()
+        self.id_ = id_
 
 
 class Items(xso.XSO):
@@ -182,6 +435,16 @@ class Items(xso.XSO):
         "subid",
         default=None
     )
+
+    items = xso.ChildList(
+        [Item]
+    )
+
+    def __init__(self, node, subid=None, max_items=None):
+        super().__init__()
+        self.node = node
+        self.subid = subid
+        self.max_items = max_items
 
 
 class Options(xso.XSO):
@@ -206,6 +469,12 @@ class Options(xso.XSO):
         aioxmpp.forms.Data,
     ])
 
+    def __init__(self, jid, node=None, subid=None):
+        super().__init__()
+        self.jid = jid
+        self.node = node
+        self.subid = subid
+
 
 class Publish(xso.XSO):
     TAG = (namespaces.xep0060, "publish")
@@ -214,7 +483,7 @@ class Publish(xso.XSO):
         "node",
     )
 
-    items = xso.ChildList([
+    item = xso.Child([
         Item
     ])
 
@@ -296,6 +565,10 @@ class Subscription(xso.XSO):
         default=None
     )
 
+    subscribe_options = xso.Child(
+        [SubscribeOptions]
+    )
+
     def __init__(self, jid, node=None, subid=None, *, subscription=None):
         super().__init__()
         self.jid = jid
@@ -316,6 +589,10 @@ class Subscriptions(xso.XSO):
         [Subscription],
     )
 
+    def __init__(self, *, node=None):
+        super().__init__()
+        self.node = node
+
 
 class Unsubscribe(xso.XSO):
     TAG = (namespaces.xep0060, "unsubscribe")
@@ -335,9 +612,57 @@ class Unsubscribe(xso.XSO):
         default=None
     )
 
+    def __init__(self, jid, node=None, subid=None):
+        super().__init__()
+        self.jid = jid
+        self.node = node
+        self.subid = subid
+
 
 @aioxmpp.stanza.IQ.as_payload_class
 class Request(xso.XSO):
+    """
+    This XSO represents the ``<pubsub/>`` IQ payload from the generic pubsub
+    namespace (``http://jabber.org/protocol/pubsub``). It can carry different
+    types of payload.
+
+    .. attribute:: payload
+
+       This is the generic payload attribute. It supports the following
+       classes:
+
+       .. autosummary::
+
+          Affiliations
+          Create
+          Default
+          Items
+          Publish
+          Retract
+          Subscribe
+          Subscription
+          Subscriptions
+          Unsubscribe
+
+    .. attribute:: options
+
+       As :class:`Options` may both be used independently and along with
+       another :attr:`payload`, they have their own attribute.
+
+       Independent of their use, :class:`Options` objects are always available
+       here. If they are used without another payload, the :attr:`payload`
+       attribute is :data:`None`.
+
+    .. attribute:: configure
+
+       As :class:`Configure` may both be used independently and along with
+       another :attr:`payload`, it has its own attribute.
+
+       Independent of their use, :class:`Configure` objects are always
+       available here. If they are used without another payload, the
+       :attr:`payload` attribute is :data:`None`.
+
+    """
     TAG = (namespaces.xep0060, "pubsub")
 
     payload = xso.Child([

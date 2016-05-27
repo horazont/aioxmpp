@@ -27,6 +27,7 @@ extend its functionality or provide backwards compatibility.
    entitycaps
    muc
    presence
+   pubsub
    roster
    rfc6120
    rfc3921

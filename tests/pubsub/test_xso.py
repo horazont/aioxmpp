@@ -288,6 +288,29 @@ class TestDefault(unittest.TestCase):
             }
         )
 
+    def test_data(self):
+        self.assertIsInstance(
+            pubsub_xso.Default.data,
+            xso.Child,
+        )
+        self.assertSetEqual(
+            pubsub_xso.Default.data._classes,
+            {
+                forms.Data,
+            }
+        )
+
+    def test_init(self):
+        d = pubsub_xso.Default()
+        self.assertIsNone(d.node)
+        self.assertEqual(d.type_, "leaf")
+        self.assertIsNone(d.data)
+
+        data = unittest.mock.Mock()
+        d = pubsub_xso.Default(node="foo", data=data)
+        self.assertEqual(d.node, "foo")
+        self.assertIs(d.data, data)
+
 
 class TestItem(unittest.TestCase):
     def test_is_xso(self):
@@ -327,6 +350,15 @@ class TestItem(unittest.TestCase):
             pubsub_xso.Item.unregistered_payload,
             xso.Collector
         )
+
+    def test_init(self):
+        i = pubsub_xso.Item()
+        self.assertIsNone(i.id_)
+        self.assertFalse(i.registered_payload)
+        self.assertFalse(i.unregistered_payload)
+
+        i = pubsub_xso.Item("foo")
+        self.assertEqual(i.id_, "foo")
 
 
 class TestItems(unittest.TestCase):
@@ -403,6 +435,32 @@ class TestItems(unittest.TestCase):
             pubsub_xso.Items.subid.default,
             None
         )
+
+    def test_items(self):
+        self.assertIsInstance(
+            pubsub_xso.Items.items,
+            xso.ChildList
+        )
+        self.assertSetEqual(
+            pubsub_xso.Items.items._classes,
+            {
+                pubsub_xso.Item
+            }
+        )
+
+    def test_init(self):
+        with self.assertRaises(TypeError):
+            i = pubsub_xso.Items()
+
+        i = pubsub_xso.Items("foo")
+        self.assertEqual(i.node, "foo")
+        self.assertIsNone(i.max_items)
+        self.assertIsNone(i.subid)
+
+        i = pubsub_xso.Items("foo", max_items=10, subid="bar")
+        self.assertEqual(i.node, "foo")
+        self.assertEqual(i.max_items, 10)
+        self.assertEqual(i.subid, "bar")
 
 
 class TestOptions(unittest.TestCase):
@@ -484,6 +542,22 @@ class TestOptions(unittest.TestCase):
             }
         )
 
+    def test_init(self):
+        with self.assertRaises(TypeError):
+            o = pubsub_xso.Options()
+
+        o = pubsub_xso.Options(TEST_JID)
+        self.assertEqual(o.jid, TEST_JID)
+        self.assertIsNone(o.node)
+        self.assertIsNone(o.subid)
+        self.assertIsNone(o.data)
+
+        o = pubsub_xso.Options(TEST_JID, node="foo", subid="bar")
+        self.assertEqual(o.jid, TEST_JID)
+        self.assertEqual(o.node, "foo")
+        self.assertEqual(o.subid, "bar")
+        self.assertIsNone(o.data)
+
 
 class TestPublish(unittest.TestCase):
     def test_is_xso(self):
@@ -512,13 +586,13 @@ class TestPublish(unittest.TestCase):
             xso.NO_DEFAULT,
         )
 
-    def test_items(self):
+    def test_item(self):
         self.assertIsInstance(
-            pubsub_xso.Publish.items,
-            xso.ChildList,
+            pubsub_xso.Publish.item,
+            xso.Child,
         )
         self.assertSetEqual(
-            pubsub_xso.Publish.items._classes,
+            pubsub_xso.Publish.item._classes,
             {
                 pubsub_xso.Item,
             }
@@ -776,6 +850,18 @@ class TestSubscription(unittest.TestCase):
             None
         )
 
+    def test_subscribe_options(self):
+        self.assertIsInstance(
+            pubsub_xso.Subscription.subscribe_options,
+            xso.Child
+        )
+        self.assertSetEqual(
+            pubsub_xso.Subscription.subscribe_options._classes,
+            {
+                pubsub_xso.SubscribeOptions
+            }
+        )
+
     def test_init(self):
         with self.assertRaises(TypeError):
             s = pubsub_xso.Subscription()
@@ -839,6 +925,15 @@ class TestSubscriptions(unittest.TestCase):
                 pubsub_xso.Subscription
             }
         )
+
+    def test_init_default(self):
+        subs = pubsub_xso.Subscriptions()
+        self.assertIsNone(subs.node)
+        self.assertSequenceEqual(subs.subscriptions, [])
+
+    def test_init(self):
+        subs = pubsub_xso.Subscriptions(node="foobar")
+        self.assertEqual(subs.node, "foobar")
 
 
 class TestUnsubscribe(unittest.TestCase):
@@ -907,6 +1002,24 @@ class TestUnsubscribe(unittest.TestCase):
             pubsub_xso.Unsubscribe.subid.default,
             None
         )
+
+    def test_init(self):
+        with self.assertRaises(TypeError):
+            u = pubsub_xso.Unsubscribe()
+
+        u = pubsub_xso.Unsubscribe(TEST_JID)
+        self.assertEqual(u.jid, TEST_JID)
+        self.assertIsNone(u.node)
+        self.assertIsNone(u.subid)
+
+        u = pubsub_xso.Unsubscribe(
+            TEST_JID.replace(localpart="fnord"),
+            node="foo",
+            subid="bar",
+        )
+        self.assertEqual(u.jid, TEST_JID.replace(localpart="fnord"))
+        self.assertEqual(u.node, "foo")
+        self.assertEqual(u.subid, "bar")
 
 
 class TestRequest(unittest.TestCase):
