@@ -9,6 +9,12 @@ section are to be interpreted as described in `RFC 2119`__.
 
 __ https://tools.ietf.org/html/rfc2119
 
+Requiring :pep:`492`
+====================
+
+Using a Python interpreter which implements :pep:`492` will not be required at
+least until 0.7. Independent of that, version 1.0.0 *will* require :pep:`492`.
+
 Semantic versioning and version numbers
 =======================================
 
