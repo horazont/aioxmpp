@@ -115,6 +115,8 @@ Non-scalar descriptors
 
 .. autoclass:: ChildValueMap(type_, *, mapping_type=dict)
 
+.. autoclass:: ChildValueMultiMap(type_, *, mapping_type=multidict.MultiDict)
+
 .. autoclass:: ChildTextMap(xso_type)
 
 .. autoclass:: Collector()
@@ -383,6 +385,7 @@ from .model import (  # NOQA
     Text,
     ChildValueList,
     ChildValueMap,
+    ChildValueMultiMap,
     ChildTextMap,
     XSOParser,
     SAXDriver,

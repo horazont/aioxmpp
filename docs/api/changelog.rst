@@ -72,6 +72,10 @@ Version 0.6
   result of :meth:`aioxmpp.disco.xso.InfoQuery.to_dict`, while it would in fact
   return the :class:`aioxmpp.disco.xso.InfoQuery` instance.
 
+* :class:`aioxmpp.xso.ChildValueMultiMap`
+
+* New dependency: :mod:`multidict`.
+
 Version 0.5
 ===========
 

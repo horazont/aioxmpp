@@ -14,6 +14,8 @@ import lxml.sax
 
 import orderedset  # get it from PyPI
 
+import multidict  # get it from PyPI
+
 from enum import Enum
 
 from aioxmpp.utils import etree, namespaces
@@ -1175,6 +1177,53 @@ class ChildValueMap(_ChildPropBase):
         obj = yield from self._process(instance, ev_args, ctx)
         key, value = self.type_.parse(obj)
         self.__get__(instance, type(instance))[key] = value
+
+
+class ChildValueMultiMap(_ChildPropBase):
+    """
+    A mapping of keys to lists of values, representing child tags.
+
+    This is very similar to :class:`ChildValueMultiMap`, but it uses a
+    :class:`multidict.MultiDict` as storage. Interface-compatible classes can
+    be substituted by passing them to `mapping_type`. Candidate for that are
+    :class:`multidict.CIMultiDict`.
+
+    The `type_` must return key-value pairs from
+    :meth:`.xso.AbstractType.parse` and must accept such key-value pairs in
+    :meth:`.xso.AbstractType.format`. Each key-value pair consists of the
+    respective dictionary key and a value from the list of values belonging to
+    that dictionary key.
+
+    .. versionadded:: 0.6
+    """
+
+    def __init__(self, type_, *, mapping_type=multidict.MultiDict):
+        super().__init__([type_.get_formatted_type()])
+        self.type_ = type_
+        self.mapping_type = mapping_type
+
+    def __get__(self, instance, type_):
+        if instance is None:
+            return self
+        try:
+            return instance._stanza_props[self]
+        except KeyError:
+            result = self.mapping_type()
+            instance._stanza_props[self] = result
+            return result
+
+    def __set__(self, instance, value):
+        raise AttributeError("child value multi map not writable")
+
+    def to_sax(self, instance, dest):
+        for key, values in self.__get__(instance, type(instance)).items():
+            for value in values:
+                self.type_.format((key, value)).unparse_to_sax(dest)
+
+    def from_events(self, instance, ev_args, ctx):
+        obj = yield from self._process(instance, ev_args, ctx)
+        key, value = self.type_.parse(obj)
+        self.__get__(instance, type(instance)).add(key, value)
 
 
 class ChildTextMap(ChildValueMap):

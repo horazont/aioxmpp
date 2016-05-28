@@ -36,6 +36,9 @@ Dependencies
 
   __ https://pypi.python.org/pypi/aiosasl
 
+* `multidict`__
+
+  __ https://pypi.python.org/pypi/multidict
 
 Design goals
 ------------
