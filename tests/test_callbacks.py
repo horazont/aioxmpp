@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import functools
 import unittest
 import unittest.mock
@@ -929,6 +930,42 @@ class TestAdHocSignal(unittest.TestCase):
                 unittest.mock.call.c(),
             ]
         )
+
+    def test_future(self):
+        signal = AdHocSignal()
+
+        with contextlib.ExitStack() as stack:
+            Future = stack.enter_context(
+                unittest.mock.patch("asyncio.Future")
+            )
+
+            connect = stack.enter_context(
+                unittest.mock.patch.object(
+                    signal,
+                    "connect"
+                )
+            )
+
+            fut = signal.future()
+
+        self.assertSequenceEqual(
+            Future.mock_calls,
+            [
+                unittest.mock.call.Future()
+            ]
+        )
+
+        self.assertSequenceEqual(
+            connect.mock_calls,
+            [
+                unittest.mock.call(
+                    Future(),
+                    signal.WEAK,
+                ),
+            ]
+        )
+
+        self.assertEqual(fut, Future())
 
 
 class TestSyncAdHocSignal(unittest.TestCase):

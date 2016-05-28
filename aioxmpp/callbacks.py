@@ -230,6 +230,8 @@ class AdHocSignal(AbstractAdHocSignal):
 
     .. automethod:: connect
 
+    .. automethod:: future
+
     .. attribute:: logger
 
        This may be a :class:`logging.Logger` instance to allow the signal to
@@ -430,6 +432,19 @@ class AdHocSignal(AbstractAdHocSignal):
                 keep = False
             if not keep:
                 del self._connections[token]
+
+    def future(self):
+        """
+        Return a :class:`asyncio.Future` which has been :meth:`connect`\ -ed
+        using :attr:`AUTO_FUTURE`.
+
+        The token returned by :meth:`connect` is not returned; to remove the
+        future from the signal, just cancel it.
+        """
+        fut = asyncio.Future()
+        self.connect(fut, self.WEAK)
+        return fut
+
 
     __call__ = fire
 
