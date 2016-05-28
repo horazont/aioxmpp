@@ -69,6 +69,7 @@ import asyncio
 import collections
 import functools
 import logging
+import types
 import weakref
 
 
@@ -252,7 +253,8 @@ class AdHocSignal(AbstractAdHocSignal):
        callable is executed directly, thus blocking the emission of the signal.
 
        If the weak reference is dead, it is automatically removed from the
-       signals connection list.
+       signals connection list. If the callable is a bound method,
+       :class:`weakref.WeakMethod` is used automatically.
 
     For both :attr:`STRONG` and :attr:`WEAK` holds: if the callable returns a
     true value, it is disconnected from the signal.
@@ -314,7 +316,11 @@ class AdHocSignal(AbstractAdHocSignal):
     def WEAK(cls, f):
         if not hasattr(f, "__call__"):
             raise TypeError("must be callable, got {!r}".format(f))
-        return functools.partial(cls._weakref_wrapper, weakref.ref(f))
+        if isinstance(f, types.MethodType):
+            ref = weakref.WeakMethod(f)
+        else:
+            ref = weakref.ref(f)
+        return functools.partial(cls._weakref_wrapper, ref)
 
     @classmethod
     def AUTO_FUTURE(cls, f):

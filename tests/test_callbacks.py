@@ -579,6 +579,20 @@ class TestAdHocSignal(unittest.TestCase):
             signal.connect(fun, AdHocSignal.WEAK)
             ref.assert_called_once_with(fun)
 
+    def test_connect_weak_uses_WeakMethod_for_methods(self):
+        signal = AdHocSignal()
+
+        class Foo:
+            def meth(self):
+                return None
+
+        f = Foo()
+
+        with unittest.mock.patch("weakref.WeakMethod") as ref:
+            signal.connect(f.meth, AdHocSignal.WEAK)
+
+        ref.assert_called_once_with(f.meth)
+
     def test_connect_does_not_use_weakref(self):
         signal = AdHocSignal()
 
