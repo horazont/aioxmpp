@@ -238,6 +238,12 @@ class Service(service.Service, Node):
        After having added another identity, that default identity can be
        removed.
 
+    Other :class:`Node` instances can be registered with the service using the
+    following methods:
+
+    .. automethod:: mount_node
+
+    .. automethod:: unmount_node
 
     Usage example, assuming that you have a :class:`.node.AbstractClient`
     `node`::
@@ -315,9 +321,6 @@ class Service(service.Service, Node):
         except Exception:
             return
         self.on_info_result(jid, node, result)
-
-    def mount_node(self, mountpoint, node):
-        self._node_mounts[mountpoint] = node
 
     @asyncio.coroutine
     def handle_info_request(self, iq):
@@ -553,5 +556,21 @@ class Service(service.Service, Node):
         """
         self._info_pending[jid, node] = fut
 
+    def mount_node(self, mountpoint, node):
+        """
+        Mount the :class:`Node` `node` to be returned when a peer requests
+        :xep:`30` information for the node `mountpoint`.
+        """
+        self._node_mounts[mountpoint] = node
+
     def unmount_node(self, mountpoint):
+        """
+        Unmount the node mounted at `mountpoint`.
+
+        .. seealso::
+
+           :meth:`mount_node`
+              for a way for mounting :class:`Node` instances.
+
+        """
         del self._node_mounts[mountpoint]
