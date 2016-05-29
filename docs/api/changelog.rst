@@ -76,6 +76,8 @@ Version 0.6
 
 * New dependency: :mod:`multidict`.
 
+* :mod:`aioxmpp.shim`
+
 Version 0.5
 ===========
 

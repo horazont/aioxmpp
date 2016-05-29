@@ -31,6 +31,7 @@ extend its functionality or provide backwards compatibility.
    roster
    rfc6120
    rfc3921
+   shim
 
 
 Less common and helper classes
