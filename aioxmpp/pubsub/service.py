@@ -59,7 +59,7 @@ class Service(aioxmpp.service.Service):
     @asyncio.coroutine
     def get_features(self, jid):
         """
-        Return the features as set of values from :class:`.xso.Features`. To
+        Return the features as set of values from :class:`.xso.Feature`. To
         get the full feature information, resort to using
         :meth:`.disco.Service.query_info` directly on `jid`.
 

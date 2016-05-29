@@ -17,7 +17,7 @@ class TestNamespaces(unittest.TestCase):
     def test_features(self):
         self.assertIs(
             namespaces.xep0060_features,
-            pubsub_xso.Features
+            pubsub_xso.Feature
         )
 
     def test_core(self):
@@ -30,6 +30,12 @@ class TestNamespaces(unittest.TestCase):
         self.assertEqual(
             namespaces.xep0060_errors,
             "http://jabber.org/protocol/pubsub#errors"
+        )
+
+    def test_event(self):
+        self.assertEqual(
+            namespaces.xep0060_event,
+            "http://jabber.org/protocol/pubsub#event"
         )
 
 
@@ -1093,6 +1099,545 @@ class TestRequest(unittest.TestCase):
         m = unittest.mock.Mock()
         r = pubsub_xso.Request(m)
         self.assertIs(r.payload, m)
+
+
+class TestEventAssociate(unittest.TestCase):
+    def test_is_xso(self):
+        self.assertTrue(issubclass(
+            pubsub_xso.EventAssociate,
+            xso.XSO,
+        ))
+
+    def test_tag(self):
+        self.assertEqual(
+            pubsub_xso.EventAssociate.TAG,
+            (namespaces.xep0060_event, "associate"),
+        )
+
+    def test_node(self):
+        self.assertIsInstance(
+            pubsub_xso.EventAssociate.node,
+            xso.Attr
+        )
+        self.assertEqual(
+            pubsub_xso.EventAssociate.node.tag,
+            (None, "node")
+        )
+        self.assertIsInstance(
+            pubsub_xso.EventAssociate.node.type_,
+            xso.String
+        )
+        self.assertIs(
+            pubsub_xso.EventAssociate.node.default,
+            xso.NO_DEFAULT,
+        )
+
+
+class TestEventDisassociate(unittest.TestCase):
+    def test_is_xso(self):
+        self.assertTrue(issubclass(
+            pubsub_xso.EventDisassociate,
+            xso.XSO,
+        ))
+
+    def test_tag(self):
+        self.assertEqual(
+            pubsub_xso.EventDisassociate.TAG,
+            (namespaces.xep0060_event, "disassociate"),
+        )
+
+    def test_node(self):
+        self.assertIsInstance(
+            pubsub_xso.EventDisassociate.node,
+            xso.Attr
+        )
+        self.assertEqual(
+            pubsub_xso.EventDisassociate.node.tag,
+            (None, "node")
+        )
+        self.assertIsInstance(
+            pubsub_xso.EventDisassociate.node.type_,
+            xso.String
+        )
+        self.assertIs(
+            pubsub_xso.EventDisassociate.node.default,
+            xso.NO_DEFAULT,
+        )
+
+
+class TestEventCollection(unittest.TestCase):
+    def test_is_xso(self):
+        self.assertTrue(issubclass(
+            pubsub_xso.EventCollection,
+            xso.XSO,
+        ))
+
+    def test_tag(self):
+        self.assertEqual(
+            pubsub_xso.EventCollection.TAG,
+            (namespaces.xep0060_event, "collection"),
+        )
+
+    def test_assoc(self):
+        self.assertIsInstance(
+            pubsub_xso.EventCollection.assoc,
+            xso.Child,
+        )
+        self.assertSetEqual(
+            set(pubsub_xso.EventCollection.assoc._classes),
+            {
+                pubsub_xso.EventAssociate,
+                pubsub_xso.EventDisassociate,
+            }
+        )
+
+
+class TestEventRedirect(unittest.TestCase):
+    def test_is_xso(self):
+        self.assertTrue(issubclass(
+            pubsub_xso.EventRedirect,
+            xso.XSO,
+        ))
+
+    def test_tag(self):
+        self.assertEqual(
+            pubsub_xso.EventRedirect.TAG,
+            (namespaces.xep0060_event, "redirect")
+        )
+
+    def test_uri(self):
+        self.assertIsInstance(
+            pubsub_xso.EventRedirect.uri,
+            xso.Attr,
+        )
+        self.assertEqual(
+            pubsub_xso.EventRedirect.uri.tag,
+            (None, "uri"),
+        )
+
+
+class TestEventDelete(unittest.TestCase):
+    def test_is_xso(self):
+        self.assertTrue(issubclass(
+            pubsub_xso.EventDelete,
+            xso.XSO,
+        ))
+
+    def test_tag(self):
+        self.assertEqual(
+            pubsub_xso.EventDelete.TAG,
+            (namespaces.xep0060_event, "delete"),
+        )
+
+    def test_redirect(self):
+        self.assertIsInstance(
+            pubsub_xso.EventDelete.redirect,
+            xso.Child,
+        )
+        self.assertSetEqual(
+            pubsub_xso.EventDelete.redirect._classes,
+            {
+                pubsub_xso.EventRedirect,
+            }
+        )
+
+    def test_node(self):
+        self.assertIsInstance(
+            pubsub_xso.EventDelete.node,
+            xso.Attr
+        )
+        self.assertEqual(
+            pubsub_xso.EventDelete.node.tag,
+            (None, "node")
+        )
+        self.assertIsInstance(
+            pubsub_xso.EventDelete.node.type_,
+            xso.String
+        )
+        self.assertIs(
+            pubsub_xso.EventDelete.node.default,
+            xso.NO_DEFAULT,
+        )
+
+
+class TestEventRetract(unittest.TestCase):
+    def test_is_xso(self):
+        self.assertTrue(issubclass(
+            pubsub_xso.EventRetract,
+            xso.XSO,
+        ))
+
+    def test_tag(self):
+        self.assertEqual(
+            pubsub_xso.EventRetract.TAG,
+            (namespaces.xep0060_event, "retract"),
+        )
+
+    def test_id_(self):
+        self.assertIsInstance(
+            pubsub_xso.EventRetract.id_,
+            xso.Attr
+        )
+        self.assertEqual(
+            pubsub_xso.EventRetract.id_.tag,
+            (None, "id")
+        )
+        self.assertIs(
+            pubsub_xso.EventRetract.id_.default,
+            xso.NO_DEFAULT
+        )
+
+
+class TestEventItem(unittest.TestCase):
+    def test_is_xso(self):
+        self.assertTrue(issubclass(
+            pubsub_xso.EventItem,
+            xso.XSO,
+        ))
+
+    def test_tag(self):
+        self.assertEqual(
+            pubsub_xso.EventItem.TAG,
+            (namespaces.xep0060_event, "item"),
+        )
+
+    def test_id_(self):
+        self.assertIsInstance(
+            pubsub_xso.EventItem.id_,
+            xso.Attr
+        )
+        self.assertEqual(
+            pubsub_xso.EventItem.id_.tag,
+            (None, "id")
+        )
+        self.assertIs(
+            pubsub_xso.EventItem.id_.default,
+            None
+        )
+
+    def test_node(self):
+        self.assertIsInstance(
+            pubsub_xso.EventItem.node,
+            xso.Attr
+        )
+        self.assertEqual(
+            pubsub_xso.EventItem.node.tag,
+            (None, "node")
+        )
+        self.assertIsInstance(
+            pubsub_xso.EventItem.node.type_,
+            xso.String
+        )
+        self.assertIs(
+            pubsub_xso.EventItem.node.default,
+            None,
+        )
+
+    def test_publisher(self):
+        self.assertIsInstance(
+            pubsub_xso.EventItem.publisher,
+            xso.Attr
+        )
+        self.assertEqual(
+            pubsub_xso.EventItem.publisher.tag,
+            (None, "publisher")
+        )
+        self.assertIsInstance(
+            pubsub_xso.EventItem.publisher.type_,
+            xso.String
+        )
+        self.assertIs(
+            pubsub_xso.EventItem.publisher.default,
+            None,
+        )
+
+    def test_registered_payload(self):
+        self.assertIsInstance(
+            pubsub_xso.EventItem.registered_payload,
+            xso.Child
+        )
+
+    def test_unknown_payload(self):
+        self.assertIsInstance(
+            pubsub_xso.EventItem.unregistered_payload,
+            xso.Collector
+        )
+
+
+class TestEventItems(unittest.TestCase):
+    def test_is_xso(self):
+        self.assertTrue(issubclass(
+            pubsub_xso.EventItems,
+            xso.XSO,
+        ))
+
+    def test_tag(self):
+        self.assertEqual(
+            pubsub_xso.EventItems.TAG,
+            (namespaces.xep0060_event, "items"),
+        )
+
+    def test_node(self):
+        self.assertIsInstance(
+            pubsub_xso.EventItems.node,
+            xso.Attr
+        )
+        self.assertEqual(
+            pubsub_xso.EventItems.node.tag,
+            (None, "node")
+        )
+        self.assertIsInstance(
+            pubsub_xso.EventItems.node.type_,
+            xso.String
+        )
+        self.assertIs(
+            pubsub_xso.EventItems.node.default,
+            xso.NO_DEFAULT,
+        )
+
+    def test_retracts(self):
+        self.assertIsInstance(
+            pubsub_xso.EventItems.retracts,
+            xso.ChildList,
+        )
+        self.assertSetEqual(
+            pubsub_xso.EventItems.retracts._classes,
+            {
+                pubsub_xso.EventRetract,
+            }
+        )
+
+    def test_items(self):
+        self.assertIsInstance(
+            pubsub_xso.EventItems.items,
+            xso.ChildList,
+        )
+        self.assertSetEqual(
+            pubsub_xso.EventItems.items._classes,
+            {
+                pubsub_xso.EventItem,
+            }
+        )
+
+
+class TestEventPurge(unittest.TestCase):
+    def test_is_xso(self):
+        self.assertTrue(issubclass(
+            pubsub_xso.EventPurge,
+            xso.XSO,
+        ))
+
+    def test_tag(self):
+        self.assertEqual(
+            pubsub_xso.EventPurge.TAG,
+            (namespaces.xep0060_event, "purge"),
+        )
+
+    def test_node(self):
+        self.assertIsInstance(
+            pubsub_xso.EventPurge.node,
+            xso.Attr
+        )
+        self.assertEqual(
+            pubsub_xso.EventPurge.node.tag,
+            (None, "node")
+        )
+        self.assertIsInstance(
+            pubsub_xso.EventPurge.node.type_,
+            xso.String
+        )
+        self.assertIs(
+            pubsub_xso.EventPurge.node.default,
+            xso.NO_DEFAULT,
+        )
+
+
+class TestEventSubscription(unittest.TestCase):
+    def test_is_xso(self):
+        self.assertTrue(issubclass(
+            pubsub_xso.EventSubscription,
+            xso.XSO,
+        ))
+
+    def test_tag(self):
+        self.assertEqual(
+            pubsub_xso.EventSubscription.TAG,
+            (namespaces.xep0060_event, "subscription"),
+        )
+
+    def test_jid(self):
+        self.assertIsInstance(
+            pubsub_xso.EventSubscription.jid,
+            xso.Attr
+        )
+        self.assertEqual(
+            pubsub_xso.EventSubscription.jid.tag,
+            (None, "jid")
+        )
+        self.assertIsInstance(
+            pubsub_xso.EventSubscription.jid.type_,
+            xso.JID
+        )
+        self.assertIs(
+            pubsub_xso.EventSubscription.jid.default,
+            xso.NO_DEFAULT
+        )
+
+    def test_node(self):
+        self.assertIsInstance(
+            pubsub_xso.EventSubscription.node,
+            xso.Attr
+        )
+        self.assertEqual(
+            pubsub_xso.EventSubscription.node.tag,
+            (None, "node")
+        )
+        self.assertIsInstance(
+            pubsub_xso.EventSubscription.node.type_,
+            xso.String
+        )
+        self.assertIs(
+            pubsub_xso.EventSubscription.node.default,
+            None
+        )
+
+    def test_subid(self):
+        self.assertIsInstance(
+            pubsub_xso.EventSubscription.subid,
+            xso.Attr
+        )
+        self.assertEqual(
+            pubsub_xso.EventSubscription.subid.tag,
+            (None, "subid")
+        )
+        self.assertIsInstance(
+            pubsub_xso.EventSubscription.subid.type_,
+            xso.String
+        )
+        self.assertIs(
+            pubsub_xso.EventSubscription.subid.default,
+            None
+        )
+
+    def test_subscription(self):
+        self.assertIsInstance(
+            pubsub_xso.EventSubscription.subscription,
+            xso.Attr
+        )
+        self.assertEqual(
+            pubsub_xso.EventSubscription.subscription.tag,
+            (None, "subscription")
+        )
+        self.assertIsInstance(
+            pubsub_xso.EventSubscription.subscription.type_,
+            xso.String
+        )
+        self.assertIsInstance(
+            pubsub_xso.EventSubscription.subscription.validator,
+            xso.RestrictToSet
+        )
+        self.assertSetEqual(
+            pubsub_xso.EventSubscription.subscription.validator.values,
+            {
+                "none",
+                "pending",
+                "subscribed",
+                "unconfigured"
+            }
+        )
+        self.assertIs(
+            pubsub_xso.EventSubscription.subscription.default,
+            None
+        )
+
+    def test_expiry(self):
+        self.assertIsInstance(
+            pubsub_xso.EventSubscription.expiry,
+            xso.Attr,
+        )
+        self.assertEqual(
+            pubsub_xso.EventSubscription.expiry.tag,
+            (None, "expiry"),
+        )
+        self.assertIsInstance(
+            pubsub_xso.EventSubscription.expiry.type_,
+            xso.DateTime,
+        )
+
+
+class TestEventConfiguration(unittest.TestCase):
+    def test_is_xso(self):
+        self.assertTrue(issubclass(
+            pubsub_xso.EventConfiguration,
+            xso.XSO,
+        ))
+
+    def test_tag(self):
+        self.assertEqual(
+            pubsub_xso.EventConfiguration.TAG,
+            (namespaces.xep0060_event, "configuration"),
+        )
+
+    def test_node(self):
+        self.assertIsInstance(
+            pubsub_xso.EventConfiguration.node,
+            xso.Attr
+        )
+        self.assertEqual(
+            pubsub_xso.EventConfiguration.node.tag,
+            (None, "node")
+        )
+        self.assertIsInstance(
+            pubsub_xso.EventConfiguration.node.type_,
+            xso.String
+        )
+        self.assertIs(
+            pubsub_xso.EventConfiguration.node.default,
+            None
+        )
+
+    def test_data(self):
+        self.assertIsInstance(
+            pubsub_xso.EventConfiguration.data,
+            xso.Child,
+        )
+        self.assertSetEqual(
+            pubsub_xso.EventConfiguration.data._classes,
+            {
+                forms.Data,
+            }
+        )
+
+
+class TestEvent(unittest.TestCase):
+    def test_is_xso(self):
+        self.assertTrue(issubclass(
+            pubsub_xso.Event,
+            xso.XSO,
+        ))
+
+    def test_tag(self):
+        self.assertEqual(
+            pubsub_xso.Event.TAG,
+            (namespaces.xep0060_event, "event"),
+        )
+
+    def test_payload(self):
+        self.assertIsInstance(
+            pubsub_xso.Event.payload,
+            xso.Child,
+        )
+        self.assertSetEqual(
+            pubsub_xso.Event.payload._classes,
+            {
+                pubsub_xso.EventCollection,
+                pubsub_xso.EventConfiguration,
+                pubsub_xso.EventDelete,
+                pubsub_xso.EventItems,
+                pubsub_xso.EventPurge,
+                pubsub_xso.EventSubscription,
+            }
+        )
 
 
 class TestSimpleErrors(unittest.TestCase):

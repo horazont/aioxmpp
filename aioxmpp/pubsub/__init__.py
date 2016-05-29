@@ -23,7 +23,7 @@ XSOs
 Features
 --------
 
-.. autoclass:: Features
+.. autoclass:: Feature
 
 Generic namespace
 -----------------
