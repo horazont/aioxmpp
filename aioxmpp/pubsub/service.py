@@ -1,5 +1,6 @@
 import asyncio
 
+import aioxmpp.callbacks
 import aioxmpp.disco
 import aioxmpp.service
 import aioxmpp.stanza
@@ -12,6 +13,13 @@ class Service(aioxmpp.service.Service):
     Client service implementing a Publish-Subscribe client. By loading it into
     a client, it is possible to subscribe to, publish to and otherwise interact
     with Publish-Subscribe nodes.
+
+    .. note::
+
+       Signal handlers attached to any of the signals below **must** accept
+       arbitrary keyword arguments for forward compatibility. If any of the
+       arguments is listed as positional in the signal signature, it is always
+       present and handed as positional argument.
 
     Meta-information about the service:
 
@@ -47,14 +55,77 @@ class Service(aioxmpp.service.Service):
 
     .. automethod:: retract
 
+    Receiving notifications:
+
+    .. signal:: on_item_published(jid, node, item, *, message=None)
+
+       Fires when a new item is published to a node to which we have a
+       subscription.
+
+       The node at which the item has been published is identified by `jid` and
+       `node`. `item` is the :class:`xso.EventItem` payload.
+
+       `message` is the :class:`.stanza.Message` which carried the
+       notification. If a notification message contains more than one published
+       item, the event is fired for each of the items, and `message` is passed
+       to all of them.
+
+    .. signal:: on_item_retracted(jid, node, id_, *, message=None)
+
+       Fires when a new item is retracted from a node to which we have a
+       subscription.
+
+       The node at which the item has been retracted is identified by `jid` and
+       `node`. `id_` is the ID of the item which has been retract.
+
+       `message` is the :class:`.stanza.Message` which carried the
+       notification. If a notification message contains more than one retracted
+       item, the event is fired for each of the items, and `message` is passed
+       to all of them.
+
     """
     ORDER_AFTER = [
         aioxmpp.disco.Service
     ]
 
+    on_item_published = aioxmpp.callbacks.Signal()
+    on_item_retracted = aioxmpp.callbacks.Signal()
+
     def __init__(self, client, **kwargs):
         super().__init__(client, **kwargs)
         self._disco = self._client.summon(aioxmpp.disco.Service)
+
+        client.stream.service_inbound_message_filter.register(
+            self.filter_inbound_message,
+            type(self)
+        )
+
+    def filter_inbound_message(self, msg):
+        if (msg.type_ != "normal" or
+                msg.xep0060_event is None):
+            return msg
+
+        if msg.xep0060_event.payload is None:
+            return
+
+        payload = msg.xep0060_event.payload
+        if isinstance(payload, pubsub_xso.EventItems):
+            for item in payload.items:
+                node = item.node or payload.node
+                self.on_item_published(
+                    msg.from_,
+                    node,
+                    item,
+                    message=msg,
+                )
+            for retract in payload.retracts:
+                node = payload.node
+                self.on_item_retracted(
+                    msg.from_,
+                    node,
+                    retract.id_,
+                    message=msg,
+                )
 
     @asyncio.coroutine
     def get_features(self, jid):

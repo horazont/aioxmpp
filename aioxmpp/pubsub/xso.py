@@ -531,6 +531,10 @@ class EventRetract(xso.XSO):
         "id",
     )
 
+    def __init__(self, id_):
+        super().__init__()
+        self.id_ = id_
+
 
 class EventItem(xso.XSO):
     TAG = (namespaces.xep0060_event, "item")
@@ -554,6 +558,11 @@ class EventItem(xso.XSO):
 
     unregistered_payload = xso.Collector()
 
+    def __init__(self, payload, *, id_=None):
+        super().__init__()
+        self.registered_payload = payload
+        self.id_ = id_
+
 
 class EventItems(xso.XSO):
     TAG = (namespaces.xep0060_event, "items")
@@ -565,6 +574,12 @@ class EventItems(xso.XSO):
     retracts = xso.ChildList([EventRetract])
 
     items = xso.ChildList([EventItem])
+
+    def __init__(self, *, items=[], retracts=[], node=None):
+        super().__init__()
+        self.items[:] = items
+        self.retracts[:] = retracts
+        self.node = node
 
 
 class EventPurge(xso.XSO):
@@ -634,6 +649,15 @@ class Event(xso.XSO):
         EventPurge,
         EventSubscription,
     ])
+
+    def __init__(self, payload=None):
+        super().__init__()
+        self.payload = payload
+
+
+aioxmpp.stanza.Message.xep0060_event = xso.Child([
+    Event
+])
 
 
 ClosedNode = aioxmpp.stanza.make_application_error(

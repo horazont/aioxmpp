@@ -1287,6 +1287,17 @@ class TestEventRetract(unittest.TestCase):
             xso.NO_DEFAULT
         )
 
+    def test_init_default(self):
+        with self.assertRaises(TypeError):
+            pubsub_xso.EventRetract()
+
+    def test_init(self):
+        r = pubsub_xso.EventRetract("some-id")
+        self.assertEqual(
+            r.id_,
+            "some-id",
+        )
+
 
 class TestEventItem(unittest.TestCase):
     def test_is_xso(self):
@@ -1363,6 +1374,28 @@ class TestEventItem(unittest.TestCase):
             xso.Collector
         )
 
+    def test_init(self):
+        with self.assertRaises(TypeError):
+            pubsub_xso.EventItem()
+
+        class Foo(xso.XSO):
+            pass
+
+        obj = Foo()
+
+        item = pubsub_xso.EventItem(obj)
+        self.assertIs(
+            item.registered_payload,
+            obj
+        )
+
+        item = pubsub_xso.EventItem(obj, id_="foo")
+        self.assertIs(
+            item.registered_payload,
+            obj
+        )
+        self.assertEqual(item.id_, "foo")
+
 
 class TestEventItems(unittest.TestCase):
     def test_is_xso(self):
@@ -1418,6 +1451,44 @@ class TestEventItems(unittest.TestCase):
                 pubsub_xso.EventItem,
             }
         )
+
+    def test_init_default(self):
+        items = pubsub_xso.EventItems()
+        self.assertSequenceEqual(items.items, [])
+        self.assertSequenceEqual(items.retracts, [])
+        self.assertIsNone(items.node)
+
+    def test_init(self):
+        items_list = [
+            unittest.mock.sentinel.item1,
+            unittest.mock.sentinel.item2,
+        ]
+
+        retracts_list = [
+            unittest.mock.sentinel.retract1,
+            unittest.mock.sentinel.retract2,
+        ]
+
+        items = pubsub_xso.EventItems(
+            items=items_list,
+            retracts=retracts_list,
+            node="foo"
+        )
+
+        self.assertSequenceEqual(
+            items.items,
+            items_list,
+        )
+
+        self.assertSequenceEqual(
+            items.retracts,
+            retracts_list,
+        )
+
+        self.assertEqual(items.node, "foo")
+
+        self.assertIsNot(items.items, items_list)
+        self.assertIsNot(items.retracts, retracts_list)
 
 
 class TestEventPurge(unittest.TestCase):
@@ -1638,6 +1709,27 @@ class TestEvent(unittest.TestCase):
                 pubsub_xso.EventSubscription,
             }
         )
+
+    def test_is_message_payload(self):
+        self.assertIsInstance(
+            stanza.Message.xep0060_event,
+            xso.Child,
+        )
+        self.assertSetEqual(
+            stanza.Message.xep0060_event._classes,
+            {
+                pubsub_xso.Event,
+            }
+        )
+
+    def test_init_default(self):
+        ev = pubsub_xso.Event()
+        self.assertIsNone(ev.payload)
+
+    def test_init(self):
+        items = pubsub_xso.EventItems()
+        ev = pubsub_xso.Event(items)
+        self.assertIs(ev.payload, items)
 
 
 class TestSimpleErrors(unittest.TestCase):

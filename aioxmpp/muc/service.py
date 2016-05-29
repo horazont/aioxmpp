@@ -174,10 +174,12 @@ class Room:
     `occupant` = :data:`None`
        The :class:`Occupant` object tracking the subject of the operation.
 
-    Signal handlers attached to any of the signals below **must** accept
-    arbitrary keyword arguments for forward compatibility. If any of the above
-    arguments is listed as positional in the signal signature, it is always
-    present and handed as positional argument.
+    .. note::
+
+       Signal handlers attached to any of the signals below **must** accept
+       arbitrary keyword arguments for forward compatibility. If any of the
+       above arguments is listed as positional in the signal signature, it is
+       always present and handed as positional argument.
 
     .. signal:: on_message(message, **kwargs)
 
