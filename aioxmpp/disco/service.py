@@ -16,11 +16,11 @@ from . import xso as disco_xso
 class Node(object):
     """
     A :class:`Node` holds the information related to a specific node within the
-    entity referred to by a JID, with respect to XEP-0030 semantics.
+    entity referred to by a JID, with respect to :xep:`30` semantics.
 
     A :class:`Node` always has at least one identity (or it will return
     as ``<item-not-found/>``). It may have zero or more features beyond the
-    XEP-0030 features which are statically included.
+    :xep:`30` features which are statically included.
 
     To manage the identities and the features of a node, use the following
     methods:
@@ -87,7 +87,7 @@ class Node(object):
         """
         Return an iterator which yields the `var` values of each feature
         declared in this :class:`Node`, including the statically declared
-        XEP-0030 features.
+        :xep:`30` features.
         """
         return itertools.chain(
             iter(self.STATIC_FEATURES),
@@ -108,7 +108,7 @@ class Node(object):
         """
         Register a feature with the namespace variable `var`.
 
-        If the feature is already registered or part of the default XEP-0030
+        If the feature is already registered or part of the default :xep:`30`
         features, a :class:`ValueError` is raised.
         """
         if var in self._features or var in self.STATIC_FEATURES:
@@ -144,7 +144,7 @@ class Node(object):
 
         .. note::
 
-           The features which are mandatory per XEP-0030 are always registered
+           The features which are mandatory per :xep:`30` are always registered
            and cannot be unregistered. For the purpose of unregistration, they
            behave as if they had never been registered; for the purpose of
            registration, they behave as if they had been registered before.
@@ -181,7 +181,7 @@ class StaticNode(Node):
     .. attribute:: items
 
        A list of :class:`.xso.Item` instances. These items will be returned
-       when the node is queried for it’s XEP-0030 items.
+       when the node is queried for it’s :xep:`30` items.
 
        It is the responsibility of the user to ensure that the set of items is
        valid. This includes avoiding duplicate items.
@@ -198,7 +198,7 @@ class StaticNode(Node):
 
 class Service(service.Service, Node):
     """
-    A service implementing XEP-0030. The service provides methods for managing
+    A service implementing :xep:`30`. The service provides methods for managing
     the own features and identities as well as querying others features and
     identities.
 
@@ -232,7 +232,7 @@ class Service(service.Service, Node):
 
        Upon construction, the :class:`Service` adds a default identity with
        category ``"client"`` and type ``"bot"`` to the root :class:`Node`. This
-       is to comply with XEP-0030 of always having an identity and not being
+       is to comply with :xep:`30` of always having an identity and not being
        forced to reply with ``<feature-not-implemented/>`` or a similar error.
 
        After having added another identity, that default identity can be

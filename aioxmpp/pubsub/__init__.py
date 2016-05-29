@@ -1,6 +1,6 @@
 """
-:mod:`~aioxmpp.pubsub` --- Publish-Subscribe support (XEP-0060)
-###############################################################
+:mod:`~aioxmpp.pubsub` --- Publish-Subscribe support (:xep:`0060`)
+##################################################################
 
 This subpackage provides client-side support for :xep:`0060` publish-subscribe
 services.

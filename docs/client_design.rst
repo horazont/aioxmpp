@@ -36,7 +36,7 @@ underlying stream:
 .. function:: connecting(nattempt)
 
    A connection attempt is currently being made. It is not known yet whether it
-   will succeed. It is the *nattempt*th attempt to establish the connection since
+   will succeed. It is the *nattempt*\ th attempt to establish the connection since
    the last successful connection.
 
 .. function:: connection_failed()

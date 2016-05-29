@@ -410,10 +410,10 @@ class StanzaStream:
        value (see :meth:`Filter.register`).
 
        This filter chain is intended to be used by library services, such as a
-       XEP-0115 implementation which may start a XEP-0030 lookup at the target
-       entity to resolve the capability hash or prime the XEP-0030 cache with
-       the service information obtained by interpreting the XEP-0115 hash
-       value.
+       :xep:`115` implementation which may start a :xep:`30` lookup at the
+       target entity to resolve the capability hash or prime the :xep:`30`
+       cache with the service information obtained by interpreting the
+       :xep:`115` hash value.
 
     .. attribute:: app_inbound_message_filter
 

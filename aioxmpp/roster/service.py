@@ -283,7 +283,7 @@ class Service(aioxmpp.service.Service):
     .. signal:: on_unsubscribe(stanza)
 
        Fires when a peer cancelled their subscription for our presence. As per
-       `RFC 6121`_, the server forwards the ``"unsubscribe"`` presence stanza
+       :rfc:`6121`, the server forwards the ``"unsubscribe"`` presence stanza
        (which is included as `stanza` argument) *before* sending the roster
        push.
 
@@ -294,7 +294,7 @@ class Service(aioxmpp.service.Service):
 
     .. signal:: on_unsubscribed(stanza)
 
-       Fires when a peer cancelled our subscription. As per `RFC 6121`_, the
+       Fires when a peer cancelled our subscription. As per :rfc:`6121`, the
        server forwards the ``"unsubscribed"`` presence stanza (which is
        included as `stanza` argument) *before* sending the roster push.
 
