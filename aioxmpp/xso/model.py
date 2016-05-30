@@ -1245,8 +1245,14 @@ class ChildTextMap(ChildValueMap):
 
 class XMLStreamClass(abc.ABCMeta):
     """
-    There should be no need to use this metaclass directly when implementing
-    your own XSO classes. Instead, derive from :class:`~.xso.XSO`.
+    This metaclass is used to implement the fancy features of :class:`.XSO`
+    classes and instances. Its documentation details on some of the
+    restrictions and features of XML Stream Classes.
+
+    .. note::
+
+       There should be no need to use this metaclass directly when implementing
+       your own XSO classes. Instead, derive from :class:`~.xso.XSO`.
 
     The following restrictions apply when a class uses the
     :class:`XMLStreamClass` metaclass:

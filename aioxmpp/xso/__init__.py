@@ -150,7 +150,7 @@ that suspendable callable from SAX events, use a :class:`SAXDriver`.
 Base and meta class
 -------------------
 
-The :class:`XSO` base class makes use of the :class:`XMLStreamClass`
+The :class:`XSO` base class makes use of the :class:`model.XMLStreamClass`
 metaclass and provides implementations for utility methods. For an object to
 work with this module, it must derive from :class:`XSO` or provide an
 identical interface.
