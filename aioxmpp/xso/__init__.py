@@ -286,6 +286,116 @@ Implementations
 
 .. autoclass:: NumericRange
 
+.. module:: aioxmpp.xso.query
+
+.. currentmodule:: aioxmpp.xso
+
+Querying data from XSOs
+=======================
+
+With XML, we have XPath as query language to retrieve data from XML trees. With
+XSOs, we have :mod:`aioxmpp.xso.query`, even though it’s not as powerful as
+XPath.
+
+Syntactically, it’s oriented on XPath. Consider the following XSO classes:
+
+.. code-block:: python
+
+    class FooXSO(xso.XSO):
+        TAG = (None, "foo")
+
+        attr = xso.Attr(
+            "attr"
+        )
+
+
+    class BarXSO(xso.XSO):
+        TAG = (None, "bar")
+
+        child = xso.Child([
+            FooXSO,
+        ])
+
+
+    class BazXSO(FooXSO):
+        TAG = (None, "baz")
+
+        attr2 = xso.Attr(
+            "attr2"
+        )
+
+
+    class RootXSO(xso.XSO):
+        TAG = (None, "root")
+
+        children = xso.ChildList([
+            FooXSO,
+            BarXSO,
+        ])
+
+        attr = xso.Attr(
+            "attr"
+        )
+
+
+To perform a query, we first need to set up a
+:class:`.query.EvaluationContext`:
+
+.. code-block:: python
+
+   root_xso = # a RootXSO instance
+   ec = xso.query.EvaluationContext()
+   ec.set_toplevel_object(root_xso)
+
+Using the context, we can now execute queries:
+
+.. code-block:: python
+
+   # to find all FooXSO children of the RootXSO
+   ec.eval(RootXSO.children / FooXSO)
+
+   # to find all BarXSO children of the RootXSO
+   ec.eval(RootXSO.children / BarXSO)
+
+   # to find all FooXSO children of the RootXSO, where FooXSO.attr
+   # is set
+   ec.eval(RootXSO.children / FooXSO[where(FooXSO.attr)])
+
+   # to find all FooXSO children of the RootXSO, where FooXSO.attr
+   # is *not* set
+   ec.eval(RootXSO.children / FooXSO[where(not FooXSO.attr)])
+
+   # to find all FooXSO children of the RootXSO, where FooXSO.attr
+   # is set to "foobar"
+   ec.eval(RootXSO.children / FooXSO[where(FooXSO.attr == "foobar")])
+
+   # to test whether there is a FooXSO which has attr set to
+   # "foobar"
+   ec.eval(RootXSO.children / FooXSO.attr == "foobar")
+
+   # to find the first three FooXSO children where attr is set
+   ec.eval(RootXSO.children / FooXSO[where(FooXSO.attr)][:3])
+
+The following operators are available in the :mod:`aioxmpp.xso` namespace:
+
+.. autoclass:: where
+
+.. autofunction:: not_
+
+The following need to be explicitly sourced from :mod:`aioxmpp.xso.query`, as
+they are rarely used directly in user code.
+
+.. currentmodule:: aioxmpp.xso.query
+
+.. autoclass:: EvaluationContext()
+
+.. note::
+
+   The implementation details of the query language are documented in the
+   source. They are not useful unless you want to implement custom query
+   operators, which is not possible without modifying the
+   :mod:`aioxmpp.xso.query` source anyways.
+
 .. currentmodule:: aioxmpp.xso
 
 Predefined XSO base classes
@@ -444,3 +554,9 @@ class AbstractTextChild(XSO):
 from .model import _PropBase
 NO_DEFAULT = _PropBase.NO_DEFAULT
 del _PropBase
+
+
+from .query import (  # NOQA
+    where,
+    not_,
+)

@@ -78,6 +78,8 @@ Version 0.6
 
 * :mod:`aioxmpp.shim`
 
+* :mod:`aioxmpp.xso.query` was added.
+
 Version 0.5
 ===========
 
