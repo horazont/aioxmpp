@@ -405,6 +405,14 @@ class BoundDescriptor(_ExprMixin, PreExpr):
             **self.xq_expr_kwargs,
         )
 
+    def __getattr__(self, name):
+        try:
+            return super().__getattr__(name)
+        except AttributeError:
+            if not name.startswith("xq_"):
+                return getattr(self.xq_descriptor, name)
+            raise
+
 
 def as_expr(thing, lhs=None):
     if isinstance(thing, Expr):

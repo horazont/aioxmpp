@@ -682,8 +682,10 @@ class TestError(unittest.TestCase):
             TAG = ("uri:foo", "test_as_payload_class")
 
         self.assertIn(Foo.TAG, stanza.Error.CHILD_MAP)
-        self.assertIs(stanza.Error.CHILD_MAP[Foo.TAG],
-                      stanza.Error.application_condition)
+        self.assertIs(
+            stanza.Error.CHILD_MAP[Foo.TAG],
+            stanza.Error.application_condition.xq_descriptor
+        )
 
 
 class TestIQ(unittest.TestCase):
@@ -885,7 +887,10 @@ class TestIQ(unittest.TestCase):
             TAG = ("uri:foo", "test_as_payload_class")
 
         self.assertIn(Foo.TAG, stanza.IQ.CHILD_MAP)
-        self.assertIs(stanza.IQ.CHILD_MAP[Foo.TAG], stanza.IQ.payload)
+        self.assertIs(
+            stanza.IQ.CHILD_MAP[Foo.TAG],
+            stanza.IQ.payload.xq_descriptor
+        )
 
 
 class Testmake_application_error(unittest.TestCase):

@@ -1195,7 +1195,7 @@ class TestService(unittest.TestCase):
         # we have to hack deeply here, the validators are too smart for us
         # it is still possible to receive such a stanza, as the validator is
         # set to FROM_CODE
-        caps._stanza_props[entitycaps_xso.Caps.hash_] = None
+        caps._stanza_props[entitycaps_xso.Caps.hash_.xq_descriptor] = None
         self.assertIsNone(caps.hash_)
 
         presence = stanza.Presence()

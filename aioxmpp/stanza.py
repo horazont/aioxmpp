@@ -744,7 +744,7 @@ class IQ(StanzaBase):
 
     def xso_error_handler(self, descriptor, ev_args, exc_info):
         # raise a specific error if the payload failed to parse
-        if descriptor == IQ.payload:
+        if descriptor == IQ.payload.xq_descriptor:
             raise PayloadParsingError(self, ev_args)
         elif descriptor is None:
             raise UnknownIQPayload(self, ev_args)

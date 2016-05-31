@@ -981,7 +981,7 @@ class TestAdminQuery(unittest.TestCase):
         )
         self.assertIs(
             stanza.IQ.CHILD_MAP[muc_xso.AdminQuery.TAG],
-            stanza.IQ.payload
+            stanza.IQ.payload.xq_descriptor
         )
 
     def test_init(self):
@@ -1096,5 +1096,5 @@ class TestOwnerQuery(unittest.TestCase):
         )
         self.assertIs(
             stanza.IQ.CHILD_MAP[muc_xso.OwnerQuery.TAG],
-            stanza.IQ.payload
+            stanza.IQ.payload.xq_descriptor
         )

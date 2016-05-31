@@ -7,6 +7,7 @@ See :mod:`aioxmpp.xso` for documentation.
 import abc
 import collections
 import copy
+import logging
 import sys
 import xml.sax.handler
 
@@ -20,9 +21,13 @@ from enum import Enum
 
 from aioxmpp.utils import etree, namespaces
 
+from . import query as xso_query
 from . import types as xso_types
 from . import tag_to_str, normalize_tag
 from .. import structs
+
+
+logger = logging.getLogger(__name__)
 
 
 class UnknownChildPolicy(Enum):
@@ -240,7 +245,15 @@ class XSOList(list):
         return list(self.filter(type_=type_, lang=lang, attrs=attrs))
 
 
-class _PropBase:
+class PropBaseMeta(type):
+    def __instancecheck__(self, instance):
+        if (isinstance(instance, xso_query.BoundDescriptor) and
+                super().__instancecheck__(instance.xq_descriptor)):
+            return True
+        return super().__instancecheck__(instance)
+
+
+class _PropBase(metaclass=PropBaseMeta):
     class NO_DEFAULT:
         def __repr__(self):
             return "no default"
@@ -279,16 +292,20 @@ class _PropBase:
             raise ValueError("invalid value")
         self._set(instance, value)
 
-    def __get__(self, instance, cls):
+    def __get__(self, instance, type_):
         if instance is None:
-            return self
+            return xso_query.BoundDescriptor(
+                type_,
+                self,
+                xso_query.GetDescriptor,
+            )
         try:
             return instance._stanza_props[self]
         except KeyError:
             if self.default is self.NO_DEFAULT:
                 raise AttributeError(
                     "attribute is unset ({} on instance of {})".format(
-                        self, cls)
+                        self, type_)
                 ) from None
             return self.default
 
@@ -493,9 +510,14 @@ class ChildList(_ChildPropBase):
     def __init__(self, classes):
         super().__init__(classes)
 
-    def __get__(self, instance, cls):
+    def __get__(self, instance, type_):
         if instance is None:
-            return super().__get__(instance, cls)
+            return xso_query.BoundDescriptor(
+                type_,
+                self,
+                xso_query.GetSequenceDescriptor,
+            )
+
         return instance._stanza_props.setdefault(self, XSOList())
 
     def _set(self, instance, value):
@@ -542,9 +564,14 @@ class Collector(_PropBase):
     def __init__(self):
         super().__init__(default=[])
 
-    def __get__(self, instance, cls):
+    def __get__(self, instance, type_):
         if instance is None:
-            return super().__get__(instance, cls)
+            return xso_query.BoundDescriptor(
+                type_,
+                self,
+                xso_query.GetSequenceDescriptor,
+            )
+
         return instance._stanza_props.setdefault(self, [])
 
     def _set(self, instance, value):
@@ -886,12 +913,18 @@ class ChildMap(_ChildPropBase):
         super().__init__(classes)
         self.key = key or (lambda obj: obj.TAG)
 
-    def __get__(self, instance, cls):
+    def __get__(self, instance, type_):
         if instance is None:
-            return super().__get__(instance, cls)
+            return xso_query.BoundDescriptor(
+                type_,
+                self,
+                xso_query.GetMappingDescriptor,
+            )
+
         return instance._stanza_props.setdefault(
             self,
-            collections.defaultdict(XSOList))
+            collections.defaultdict(XSOList)
+        )
 
     def __set__(self, instance, value):
         raise AttributeError("ChildMap attribute cannot be assigned to")
@@ -1105,7 +1138,13 @@ class ChildValueList(_ChildPropBase):
 
     def __get__(self, instance, type_):
         if instance is None:
-            return self
+            return xso_query.BoundDescriptor(
+                type_,
+                self,
+                xso_query.GetSequenceDescriptor,
+                expr_kwargs={"sequence_factory": self.container_type},
+            )
+
         try:
             return instance._stanza_props[self]
         except KeyError:
@@ -1158,7 +1197,13 @@ class ChildValueMap(_ChildPropBase):
 
     def __get__(self, instance, type_):
         if instance is None:
-            return self
+            return xso_query.BoundDescriptor(
+                type_,
+                self,
+                xso_query.GetMappingDescriptor,
+                expr_kwargs={"mapping_factory": self.mapping_type}
+            )
+
         try:
             return instance._stanza_props[self]
         except KeyError:
@@ -1204,7 +1249,13 @@ class ChildValueMultiMap(_ChildPropBase):
 
     def __get__(self, instance, type_):
         if instance is None:
-            return self
+            return xso_query.BoundDescriptor(
+                type_,
+                self,
+                xso_query.GetMappingDescriptor,
+                expr_kwargs={"mapping_factory": self.mapping_type},
+            )
+
         try:
             return instance._stanza_props[self]
         except KeyError:
@@ -1243,7 +1294,7 @@ class ChildTextMap(ChildValueMap):
         )
 
 
-class XMLStreamClass(abc.ABCMeta):
+class XMLStreamClass(xso_query.Class, abc.ABCMeta):
     """
     This metaclass is used to implement the fancy features of :class:`.XSO`
     classes and instances. Its documentation details on some of the
@@ -1382,9 +1433,9 @@ class XMLStreamClass(abc.ABCMeta):
 
             if base.TEXT_PROPERTY is not None:
                 if     (text_property is not None and
-                        base.TEXT_PROPERTY is not text_property):
+                        base.TEXT_PROPERTY.xq_descriptor is not text_property):
                     raise TypeError("multiple text properties in inheritance")
-                text_property = base.TEXT_PROPERTY
+                text_property = base.TEXT_PROPERTY.xq_descriptor
 
             for key, prop in base.CHILD_MAP.items():
                 try:
@@ -1408,10 +1459,10 @@ class XMLStreamClass(abc.ABCMeta):
 
             if base.COLLECTOR_PROPERTY is not None:
                 if     (collector_property is not None and
-                        base.COLLECTOR_PROPERTY is not collector_property):
+                        base.COLLECTOR_PROPERTY.xq_descriptor is not collector_property):
                     raise TypeError("multiple collector properties in "
                                     "inheritance")
-                collector_property = base.COLLECTOR_PROPERTY
+                collector_property = base.COLLECTOR_PROPERTY.xq_descriptor
 
         for attrname, obj in namespace.items():
             if isinstance(obj, Attr):
@@ -1467,7 +1518,7 @@ class XMLStreamClass(abc.ABCMeta):
 
     def __setattr__(cls, name, value):
         try:
-            existing = getattr(cls, name)
+            existing = getattr(cls, name).xq_descriptor
         except AttributeError:
             pass
         else:
@@ -1511,7 +1562,7 @@ class XMLStreamClass(abc.ABCMeta):
 
     def __delattr__(cls, name):
         try:
-            existing = getattr(cls, name)
+            existing = getattr(cls, name).xq_descriptor
         except AttributeError:
             pass
         else:
@@ -1560,6 +1611,7 @@ class XMLStreamClass(abc.ABCMeta):
                 try:
                     prop.from_value(obj, value)
                 except:
+                    logger.debug("while parsing XSO", exc_info=True)
                     # true means suppress
                     if not obj.xso_error_handler(
                             prop,
@@ -1571,6 +1623,7 @@ class XMLStreamClass(abc.ABCMeta):
                 try:
                     prop.handle_missing(obj, ctx)
                 except:
+                    logger.debug("while parsing XSO", exc_info=True)
                     # true means suppress
                     if not obj.xso_error_handler(
                             prop,
@@ -1608,7 +1661,7 @@ class XMLStreamClass(abc.ABCMeta):
                         handler = cls.CHILD_MAP[ev_args[0], ev_args[1]]
                     except KeyError:
                         if cls.COLLECTOR_PROPERTY:
-                            handler = cls.COLLECTOR_PROPERTY
+                            handler = cls.COLLECTOR_PROPERTY.xq_descriptor
                         else:
                             yield from enforce_unknown_child_policy(
                                 cls.UNKNOWN_CHILD_POLICY,
@@ -1621,6 +1674,7 @@ class XMLStreamClass(abc.ABCMeta):
                             ev_args
                         )
                     except:
+                        logger.debug("while parsing XSO", exc_info=True)
                         # true means suppress
                         if not obj.xso_error_handler(
                                 handler,
@@ -1631,11 +1685,15 @@ class XMLStreamClass(abc.ABCMeta):
             if collected_text:
                 collected_text = "".join(collected_text)
                 try:
-                    cls.TEXT_PROPERTY.from_value(obj, collected_text)
+                    cls.TEXT_PROPERTY.xq_descriptor.from_value(
+                        obj,
+                        collected_text
+                    )
                 except:
+                    logger.debug("while parsing XSO", exc_info=True)
                     # true means suppress
                     if not obj.xso_error_handler(
-                            cls.TEXT_PROPERTY,
+                            cls.TEXT_PROPERTY.xq_descriptor,
                             collected_text,
                             sys.exc_info()):
                         raise
@@ -1689,8 +1747,8 @@ class XMLStreamClass(abc.ABCMeta):
         if child_cls.TAG in cls.CHILD_MAP:
             raise ValueError("ambiguous Child")
 
-        prop._register(child_cls)
-        cls.CHILD_MAP[child_cls.TAG] = prop
+        prop.xq_descriptor._register(child_cls)
+        cls.CHILD_MAP[child_cls.TAG] = prop.xq_descriptor
 
 
 # I know it makes only partially sense to have a separate metasubclass for

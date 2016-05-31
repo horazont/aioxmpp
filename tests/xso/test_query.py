@@ -1473,6 +1473,32 @@ class TestBoundDescriptor(unittest.TestCase):
             expr_class()
         )
 
+    def test_bound_descriptor_proxies_to_xq_descriptor(self):
+        descriptor = unittest.mock.Mock()
+
+        bd = xso_query.BoundDescriptor(
+            unittest.mock.sentinel.class_,
+            descriptor,
+            unittest.mock.sentinel.expr_class,
+        )
+
+        self.assertEqual(
+            bd.foo,
+            descriptor.foo
+        )
+
+        descriptor.foo = "fnord"
+
+        self.assertEqual(
+            bd.foo,
+            descriptor.foo
+        )
+
+        del descriptor.foo
+
+        with self.assertRaises(AttributeError):
+            bd.foo
+
 
 class Testas_expr(unittest.TestCase):
     def test_arbitrary_type(self):

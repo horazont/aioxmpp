@@ -212,7 +212,8 @@ class StreamFeatures(xso.XSO):
 
     @classmethod
     def is_feature(cls, other_cls):
-        return cls.CHILD_MAP.get(other_cls.TAG, None) is cls.features
+        return (cls.CHILD_MAP.get(other_cls.TAG, None) is
+                cls.features.xq_descriptor)
 
     def __getitem__(self, feature_cls):
         tag = feature_cls.TAG
