@@ -15,7 +15,7 @@ validators and type parsers for content represented as strings in XML.
 Terminology
 ===========
 
-Defenition of an XSO
+Definition of an XSO
 --------------------
 
 An XSO is an object whose class inherits from
