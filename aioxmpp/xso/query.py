@@ -402,7 +402,7 @@ class BoundDescriptor(_ExprMixin, PreExpr):
         return self.xq_expr_class(
             self.xq_xso_class.xq_instantiate(expr),
             self.xq_descriptor,
-            **self.xq_expr_kwargs,
+            **self.xq_expr_kwargs
         )
 
     def __getattr__(self, name):
