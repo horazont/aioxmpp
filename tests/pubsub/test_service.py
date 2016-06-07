@@ -1094,5 +1094,135 @@ class TestService(unittest.TestCase):
             }
         )
 
+    def test_create_with_node(self):
+        payload = unittest.mock.sentinel.payload
+
+        response = pubsub_xso.Request()
+        response.payload = pubsub_xso.Create()
+
+        self.cc.stream.send_iq_and_wait_for_reply.return_value = response
+
+        result = run_coroutine(self.s.create(
+            TEST_TO,
+            "foo",
+        ))
+
+        self.assertEqual(
+            1,
+            len(self.cc.stream.send_iq_and_wait_for_reply.mock_calls)
+        )
+
+        _, (request_iq, ), _ = \
+            self.cc.stream.send_iq_and_wait_for_reply.mock_calls[0]
+
+        self.assertIsInstance(request_iq, aioxmpp.stanza.IQ)
+        self.assertEqual(request_iq.type_, "set")
+        self.assertEqual(request_iq.to, TEST_TO)
+        self.assertIsInstance(request_iq.payload, pubsub_xso.Request)
+
+        request = request_iq.payload
+        self.assertIsInstance(request.payload, pubsub_xso.Create)
+        self.assertEqual(request.payload.node, "foo")
+
+        self.assertEqual(result, "foo")
+
+    def test_create_with_node_copes_with_empty_reply(self):
+        payload = unittest.mock.sentinel.payload
+
+        response = None
+
+        self.cc.stream.send_iq_and_wait_for_reply.return_value = response
+
+        result = run_coroutine(self.s.create(
+            TEST_TO,
+            "foo",
+        ))
+
+        self.assertEqual(
+            1,
+            len(self.cc.stream.send_iq_and_wait_for_reply.mock_calls)
+        )
+
+        _, (request_iq, ), _ = \
+            self.cc.stream.send_iq_and_wait_for_reply.mock_calls[0]
+
+        self.assertIsInstance(request_iq, aioxmpp.stanza.IQ)
+        self.assertEqual(request_iq.type_, "set")
+        self.assertEqual(request_iq.to, TEST_TO)
+        self.assertIsInstance(request_iq.payload, pubsub_xso.Request)
+
+        request = request_iq.payload
+        self.assertIsInstance(request.payload, pubsub_xso.Create)
+        self.assertEqual(request.payload.node, "foo")
+
+        self.assertEqual(result, "foo")
+
+    def test_create_instant_node(self):
+        payload = unittest.mock.sentinel.payload
+
+        response = pubsub_xso.Request()
+        response.payload = pubsub_xso.Create()
+        response.payload.node = "autogen-id"
+
+        self.cc.stream.send_iq_and_wait_for_reply.return_value = response
+
+        result = run_coroutine(self.s.create(
+            TEST_TO,
+        ))
+
+        self.assertEqual(
+            1,
+            len(self.cc.stream.send_iq_and_wait_for_reply.mock_calls)
+        )
+
+        _, (request_iq, ), _ = \
+            self.cc.stream.send_iq_and_wait_for_reply.mock_calls[0]
+
+        self.assertIsInstance(request_iq, aioxmpp.stanza.IQ)
+        self.assertEqual(request_iq.type_, "set")
+        self.assertEqual(request_iq.to, TEST_TO)
+        self.assertIsInstance(request_iq.payload, pubsub_xso.Request)
+
+        request = request_iq.payload
+        self.assertIsInstance(request.payload, pubsub_xso.Create)
+        self.assertIsNone(request.payload.node)
+
+        self.assertEqual(result, "autogen-id")
+
+    def test_get_nodes_uses_disco(self):
+        response = aioxmpp.disco.xso.ItemsQuery()
+        response.items[:] = [
+            aioxmpp.disco.xso.Item(
+                TEST_TO,
+                node="foo",
+                name="foo name",
+            ),
+            aioxmpp.disco.xso.Item(
+                TEST_TO,
+                node="bar",
+            ),
+            aioxmpp.disco.xso.Item(
+                TEST_TO.replace(localpart="xyz"),
+                node="fnord",
+                name="fnord name",
+            ),
+        ]
+
+        self.disco.query_items = CoroutineMock()
+        self.disco.query_items.return_value = response
+
+        result = run_coroutine(
+            self.s.get_nodes(TEST_TO),
+        )
+
+        self.assertSequenceEqual(
+            result,
+            [
+                ("foo", "foo name"),
+                ("bar", None),
+            ]
+        )
+
+
 
 # foo

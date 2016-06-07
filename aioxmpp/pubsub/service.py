@@ -55,6 +55,12 @@ class Service(aioxmpp.service.Service):
 
     .. automethod:: retract
 
+    Manage nodes:
+
+    .. automethod:: create
+
+    .. automethod:: get_nodes
+
     Receiving notifications:
 
     .. signal:: on_item_published(jid, node, item, *, message=None)
@@ -440,3 +446,61 @@ class Service(aioxmpp.service.Service):
         )
 
         yield from self.client.stream.send_iq_and_wait_for_reply(iq)
+
+    @asyncio.coroutine
+    def create(self, jid, node=None):
+        """
+        Create a new pubsub `node` at the given `jid`.
+
+        If `node` is :data:`None`, an instant node is created (see :xep:`60`).
+        The server may not support or allow the creation of instant nodes.
+
+        Return the actual `node` identifier.
+        """
+
+        create = pubsub_xso.Create()
+        create.node = node
+
+        iq = aioxmpp.stanza.IQ(
+            type_="set",
+            to=jid,
+            payload=pubsub_xso.Request(create)
+        )
+
+        response = yield from self.client.stream.send_iq_and_wait_for_reply(iq)
+
+        if response is not None and response.payload.node is not None:
+            return response.payload.node
+
+        return node
+
+    @asyncio.coroutine
+    def get_nodes(self, jid, node=None):
+        """
+        Request the nodes available at `jid`. If `node` is not :data:`None`,
+        the request returns the children of the :xep:`248` collection node
+        `node`. Make sure to check for the appropriate server feature first.
+
+        Return a list of tuples consisting of the node names and their
+        description (if available, otherwise :data:`None`). If more information
+        is needed, use :meth:`.disco.Service.get_items` directly.
+
+        Only nodes whose :attr:`~.disco.xso.Item.jid` match the `jid` are
+        returned.
+        """
+
+        response = yield from self._disco.query_items(
+            jid,
+            node=node,
+        )
+
+        result = []
+        for item in response.items:
+            if item.jid != jid:
+                continue
+            result.append((
+                item.node,
+                item.name,
+            ))
+
+        return result
