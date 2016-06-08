@@ -304,35 +304,35 @@ class TestMessageTracker(unittest.TestCase):
             self.tr.state = tracking.MessageState.SEEN_BY_RECIPIENT
 
     def test_on_stanza_state_change_to_aborted(self):
-        self.tr.on_stanza_state_change(stream.StanzaState.ABORTED)
+        self.tr.on_stanza_state_change(self.token, stream.StanzaState.ABORTED)
         self.assertEqual(
             self.tr.state,
             tracking.MessageState.ABORTED
         )
 
     def test_on_stanza_state_change_to_acked(self):
-        self.tr.on_stanza_state_change(stream.StanzaState.ACKED)
+        self.tr.on_stanza_state_change(self.token, stream.StanzaState.ACKED)
         self.assertEqual(
             self.tr.state,
             tracking.MessageState.DELIVERED_TO_SERVER
         )
 
     def test_on_stanza_state_change_to_sent_without_sm(self):
-        self.tr.on_stanza_state_change(stream.StanzaState.SENT_WITHOUT_SM)
+        self.tr.on_stanza_state_change(self.token, stream.StanzaState.SENT_WITHOUT_SM)
         self.assertEqual(
             self.tr.state,
             tracking.MessageState.IN_TRANSIT
         )
 
     def test_on_stanza_state_change_to_sent(self):
-        self.tr.on_stanza_state_change(stream.StanzaState.SENT)
+        self.tr.on_stanza_state_change(self.token, stream.StanzaState.SENT)
         self.assertEqual(
             self.tr.state,
             tracking.MessageState.IN_TRANSIT
         )
 
     def test_on_stanza_state_change_to_dropped(self):
-        self.tr.on_stanza_state_change(stream.StanzaState.DROPPED)
+        self.tr.on_stanza_state_change(self.token, stream.StanzaState.DROPPED)
         self.assertEqual(
             self.tr.state,
             tracking.MessageState.ABORTED
@@ -340,7 +340,7 @@ class TestMessageTracker(unittest.TestCase):
 
     def test_on_stanza_state_change_does_not_fail_on_state_errors(self):
         self.tr.state = tracking.MessageState.DELIVERED_TO_SERVER
-        self.tr.on_stanza_state_change(stream.StanzaState.ABORTED)
+        self.tr.on_stanza_state_change(self.token, stream.StanzaState.ABORTED)
         self.assertEqual(
             self.tr.state,
             tracking.MessageState.DELIVERED_TO_SERVER
