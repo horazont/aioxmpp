@@ -80,6 +80,12 @@ Version 0.6
 
 * :mod:`aioxmpp.xso.query` was added.
 
+* Fix crash when using :class:`aioxmpp.tracking.MessageTracker` (e.g. indirectly
+  through :meth:`aioxmpp.muc.Room.send_tracked_message`).
+
+  Thanks to `@gudvnir <https://github.com/gudvinr>`_ over at github for pointing
+  this out (see `issue#7 <https://github.com/horazont/aioxmpp/issues/7>`_).
+
 Version 0.5
 ===========
 
