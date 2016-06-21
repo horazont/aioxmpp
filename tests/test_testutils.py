@@ -900,8 +900,8 @@ class TestXMLStreamMock(XMLTestCase):
     def test_catch_surplus_abort(self):
         self.xmlstream.abort()
 
-        with self.assertRaisesRegexp(AssertionError,
-                                     "unexpected abort"):
+        with self.assertRaisesRegex(AssertionError,
+                                    "unexpected abort"):
             run_coroutine(self.xmlstream.run_test(
                 [
                 ],
