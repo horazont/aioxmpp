@@ -99,6 +99,11 @@ Version 0.6
   the synopsis of the stanza as parsed. It also makes sure that stream
   management works correctly, even if some stanzas are not understood.
 
+* No visible side-effects: Replaced deprecated
+  :meth:`unittest.TestCase.assertRaisesRegexp` with
+  :meth:`unittest.TestCase.assertRaisesRegex` (`thanks, Maxim
+  <https://github.com/horazont/aioxmpp/pull/5>`_).
+
 Version 0.5
 ===========
 
