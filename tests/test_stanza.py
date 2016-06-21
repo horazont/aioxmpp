@@ -60,8 +60,25 @@ class TestStanzaBase(unittest.TestCase):
             xso.Child)
         self.assertIs(stanza.StanzaBase.error.default, None)
 
-    def test_autoset_id_generates_random_str_on_none(self):
+    def test_autoset_id_generates_random_str_on_unset(self):
         s = stanza.StanzaBase()
+        s.autoset_id()
+        id1 = s.id_
+        self.assertTrue(id1.startswith("x"))
+        self.assertTrue(s.id_)
+        del s.id_
+        s.autoset_id()
+        self.assertTrue(s.id_)
+        self.assertNotEqual(id1, s.id_)
+        self.assertIsInstance(s.id_, str)
+        self.assertTrue(s.id_.startswith("x"))
+
+        # ensure that there are not too many A chars (i.e. zero bits)
+        self.assertLess(sum(1 for c in id1 if c == "A"), 5)
+
+    def test_autoset_id_generates_random_str_on_None(self):
+        s = stanza.StanzaBase()
+        s.id_ = None
         s.autoset_id()
         id1 = s.id_
         self.assertTrue(id1.startswith("x"))

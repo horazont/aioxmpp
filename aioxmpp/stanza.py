@@ -379,7 +379,8 @@ class StanzaBase(xso.XSO):
         except AttributeError:
             pass
         else:
-            return
+            if self.id_:
+                return
 
         self.id_ = "x"+base64.b64encode(random.getrandbits(
             RANDOM_ID_BYTES * 8

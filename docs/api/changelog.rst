@@ -104,6 +104,9 @@ Version 0.6
   :meth:`unittest.TestCase.assertRaisesRegex` (`thanks, Maxim
   <https://github.com/horazont/aioxmpp/pull/5>`_).
 
+* Fix generation of IDs when sending stanzas. It has been broken for anything
+  but IQ stanzas for some time.
+
 Version 0.5
 ===========
 
