@@ -395,7 +395,16 @@ class JID(AbstractType):
     """
     Parse the value as Jabber ID using :meth:`~aioxmpp.structs.JID.fromstr` and
     return the :class:`aioxmpp.structs.JID` object.
+
+    `strict` is passed to :meth:`~aioxmpp.structs.JID.fromstr` and defaults to
+    false. See the :meth:`~aioxmpp.structs.JID.fromstr` method for a rationale
+    and consider that :meth:`parse` is only called for input coming from the
+    outside.
     """
+
+    def __init__(self, *, strict=False):
+        super().__init__()
+        self.strict = strict
 
     def coerce(self, v):
         if not isinstance(v, structs.JID):
@@ -405,7 +414,7 @@ class JID(AbstractType):
         return v
 
     def parse(self, v):
-        return structs.JID.fromstr(v)
+        return structs.JID.fromstr(v, strict=self.strict)
 
 
 class ConnectionLocation(AbstractType):

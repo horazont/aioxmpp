@@ -749,6 +749,30 @@ class TestJID(unittest.TestCase):
             t.parse("foo@example.test/bar")
         )
 
+    def test_parse_uses_nonstrict_by_default(self):
+        with unittest.mock.patch("aioxmpp.structs.JID") as JID:
+            t = xso.JID()
+            result = t.parse(unittest.mock.sentinel.jidstr)
+
+        JID.fromstr.assert_called_with(
+            unittest.mock.sentinel.jidstr,
+            strict=False
+        )
+
+        self.assertEqual(result, JID.fromstr())
+
+    def test_parse_can_be_set_to_strict(self):
+        with unittest.mock.patch("aioxmpp.structs.JID") as JID:
+            t = xso.JID(strict=True)
+            result = t.parse(unittest.mock.sentinel.jidstr)
+
+        JID.fromstr.assert_called_with(
+            unittest.mock.sentinel.jidstr,
+            strict=True
+        )
+
+        self.assertEqual(result, JID.fromstr())
+
     def test_format(self):
         t = xso.JID()
         self.assertEqual(

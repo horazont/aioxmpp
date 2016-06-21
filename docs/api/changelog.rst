@@ -89,6 +89,9 @@ Version 0.6
 * Added `strict` arguments to :class:`aioxmpp.structs.JID`. See the class
   docmuentation for details.
 
+* Added `strict` argument to :class:`aioxmpp.xso.JID` and made it non-strict by
+  default. See the documentation for rationale and details.
+
 Version 0.5
 ===========
 
