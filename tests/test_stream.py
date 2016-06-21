@@ -447,7 +447,7 @@ class TestStanzaStream(StanzaStreamTestBase):
         )
         self.assertEqual(
             self.xmlstream.error_handler,
-            self.stream.recv_errorneous_stanza
+            self.stream.recv_erroneous_stanza
         )
         self.xmlstream.stanza_parser.mock_calls.clear()
 
@@ -1815,9 +1815,9 @@ class TestStanzaStream(StanzaStreamTestBase):
 
     def test_handle_PayloadParsingError_at_iq_with_error_response(self):
         iq = make_test_iq()
-        self.stream.recv_errorneous_stanza(
+        self.stream.recv_erroneous_stanza(
             iq,
-            stanza.PayloadParsingError(iq, ('end', 'foo'))
+            stanza.PayloadParsingError(iq, ('end', 'foo'), None)
         )
 
         self.stream.start(self.xmlstream)
@@ -1854,9 +1854,9 @@ class TestStanzaStream(StanzaStreamTestBase):
 
     def test_do_not_respond_to_PayloadParsingError_at_error_iq(self):
         iq = make_test_iq(type_="error")
-        self.stream.recv_errorneous_stanza(
+        self.stream.recv_erroneous_stanza(
             iq,
-            stanza.PayloadParsingError(iq, ('end', 'foo'))
+            stanza.PayloadParsingError(iq, ('end', 'foo'), None)
         )
 
         self.stream.start(self.xmlstream)
@@ -1868,9 +1868,9 @@ class TestStanzaStream(StanzaStreamTestBase):
 
     def test_do_not_respond_to_PayloadParsingError_at_result_iq(self):
         iq = make_test_iq(type_="result")
-        self.stream.recv_errorneous_stanza(
+        self.stream.recv_erroneous_stanza(
             iq,
-            stanza.PayloadParsingError(iq, ('end', 'foo'))
+            stanza.PayloadParsingError(iq, ('end', 'foo'), None)
         )
 
         self.stream.start(self.xmlstream)
@@ -1882,9 +1882,9 @@ class TestStanzaStream(StanzaStreamTestBase):
 
     def test_handle_PayloadParsingError_at_message_with_error_response(self):
         msg = make_test_message()
-        self.stream.recv_errorneous_stanza(
+        self.stream.recv_erroneous_stanza(
             msg,
-            stanza.PayloadParsingError(msg, ('end', 'foo'))
+            stanza.PayloadParsingError(msg, ('end', 'foo'), None)
         )
 
         self.stream.start(self.xmlstream)
@@ -1921,9 +1921,9 @@ class TestStanzaStream(StanzaStreamTestBase):
 
     def test_do_not_respond_to_PayloadParsingError_at_error_message(self):
         msg = make_test_message(type_="error")
-        self.stream.recv_errorneous_stanza(
+        self.stream.recv_erroneous_stanza(
             msg,
-            stanza.PayloadParsingError(msg, ('end', 'foo'))
+            stanza.PayloadParsingError(msg, ('end', 'foo'), None)
         )
 
         self.stream.start(self.xmlstream)
@@ -1935,9 +1935,9 @@ class TestStanzaStream(StanzaStreamTestBase):
 
     def test_handle_PayloadParsingError_at_presence_with_error_response(self):
         pres = make_test_message()
-        self.stream.recv_errorneous_stanza(
+        self.stream.recv_erroneous_stanza(
             pres,
-            stanza.PayloadParsingError(pres, ('end', 'foo'))
+            stanza.PayloadParsingError(pres, ('end', 'foo'), None),
         )
 
         run_coroutine(asyncio.sleep(0.01))
@@ -1976,9 +1976,9 @@ class TestStanzaStream(StanzaStreamTestBase):
 
     def test_do_not_respond_to_PayloadParsingError_at_error_presence(self):
         pres = make_test_presence(type_="error")
-        self.stream.recv_errorneous_stanza(
+        self.stream.recv_erroneous_stanza(
             pres,
-            stanza.PayloadParsingError(pres, ('end', 'foo'))
+            stanza.PayloadParsingError(pres, ('end', 'foo'), None)
         )
 
         self.stream.start(self.xmlstream)
@@ -1990,9 +1990,9 @@ class TestStanzaStream(StanzaStreamTestBase):
 
     def test_handle_UnknownIQPayload_at_iq_with_error_response(self):
         iq = make_test_iq()
-        self.stream.recv_errorneous_stanza(
+        self.stream.recv_erroneous_stanza(
             iq,
-            stanza.UnknownIQPayload(iq, ('end', 'foo'))
+            stanza.UnknownIQPayload(iq, ('end', 'foo'), None)
         )
 
         run_coroutine(asyncio.sleep(0.01))
@@ -2031,9 +2031,9 @@ class TestStanzaStream(StanzaStreamTestBase):
 
     def test_ignore_UnknownIQPayload_at_error_iq(self):
         iq = make_test_iq(type_="error")
-        self.stream.recv_errorneous_stanza(
+        self.stream.recv_erroneous_stanza(
             iq,
-            stanza.UnknownIQPayload(iq, ('end', 'foo'))
+            stanza.UnknownIQPayload(iq, ('end', 'foo'), None)
         )
 
         self.stream.start(self.xmlstream)
@@ -2045,9 +2045,9 @@ class TestStanzaStream(StanzaStreamTestBase):
 
     def test_do_not_respond_to_UnknownIQPayload_at_result_iq(self):
         iq = make_test_iq(type_="result")
-        self.stream.recv_errorneous_stanza(
+        self.stream.recv_erroneous_stanza(
             iq,
-            stanza.UnknownIQPayload(iq, ('end', 'foo'))
+            stanza.UnknownIQPayload(iq, ('end', 'foo'), None)
         )
 
         self.stream.start(self.xmlstream)
@@ -2076,13 +2076,13 @@ class TestStanzaStream(StanzaStreamTestBase):
 
         self.assertIs(iq, fut.result())
 
-    def test_unicast_error_on_errorneous_iq_result(self):
+    def test_unicast_error_on_erroneous_iq_result(self):
         req = make_test_iq(type_="get", to=TEST_TO)
         resp = req.make_reply(type_="result")
 
-        self.stream.recv_errorneous_stanza(
+        self.stream.recv_erroneous_stanza(
             resp,
-            stanza.UnknownIQPayload(resp, ('end', 'foo'))
+            stanza.UnknownIQPayload(resp, ('end', 'foo'), None)
         )
 
         fut = asyncio.Future()
@@ -2092,18 +2092,18 @@ class TestStanzaStream(StanzaStreamTestBase):
             fut)
 
         self.stream.start(self.xmlstream)
-        with self.assertRaises(errors.ErrorneousStanza) as ctx:
+        with self.assertRaises(errors.ErroneousStanza) as ctx:
             run_coroutine(fut)
 
         self.assertIs(ctx.exception.partial_obj, resp)
 
-    def test_unicast_error_on_errorneous_iq_error(self):
+    def test_unicast_error_on_erroneous_iq_error(self):
         req = make_test_iq(type_="get", to=TEST_TO)
         resp = req.make_reply(type_="error")
 
-        self.stream.recv_errorneous_stanza(
+        self.stream.recv_erroneous_stanza(
             resp,
-            stanza.UnknownIQPayload(resp, ('end', 'foo'))
+            stanza.UnknownIQPayload(resp, ('end', 'foo'), None)
         )
 
         fut = asyncio.Future()
@@ -2113,18 +2113,18 @@ class TestStanzaStream(StanzaStreamTestBase):
             fut)
 
         self.stream.start(self.xmlstream)
-        with self.assertRaises(errors.ErrorneousStanza) as ctx:
+        with self.assertRaises(errors.ErroneousStanza) as ctx:
             run_coroutine(fut)
 
         self.assertIs(ctx.exception.partial_obj, resp)
 
-    def test_unicast_error_on_errorneous_iq_error_unless_from_is_None(self):
+    def test_unicast_error_on_erroneous_iq_error_unless_from_is_None(self):
         req = make_test_iq(type_="get", to=None)
         resp = req.make_reply(type_="error")
 
-        self.stream.recv_errorneous_stanza(
+        self.stream.recv_erroneous_stanza(
             resp,
-            stanza.UnknownIQPayload(resp, ('end', 'foo'))
+            stanza.UnknownIQPayload(resp, ('end', 'foo'), None)
         )
 
         fut = asyncio.Future()
@@ -2137,13 +2137,13 @@ class TestStanzaStream(StanzaStreamTestBase):
         with self.assertRaises(asyncio.TimeoutError):
             run_coroutine(fut, timeout=0.1)
 
-    def test_do_not_crash_on_unsolicited_errorneous_iq_response(self):
+    def test_do_not_crash_on_unsolicited_erroneous_iq_response(self):
         req = make_test_iq(type_="get", to=TEST_TO)
         resp = req.make_reply(type_="result")
 
-        self.stream.recv_errorneous_stanza(
+        self.stream.recv_erroneous_stanza(
             resp,
-            stanza.UnknownIQPayload(resp, ('end', 'foo'))
+            stanza.UnknownIQPayload(resp, ('end', 'foo'), None)
         )
 
         self.stream.start(self.xmlstream)

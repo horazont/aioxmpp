@@ -48,20 +48,20 @@ class Testformat_error_text(unittest.TestCase):
         )
 
 
-class TestErrorneousStanza(unittest.TestCase):
+class TestErroneousStanza(unittest.TestCase):
     def test_is_exception(self):
         self.assertTrue(issubclass(
-            errors.ErrorneousStanza,
+            errors.ErroneousStanza,
             errors.StanzaError
         ))
 
     def test_init(self):
         obj = object()
-        exc = errors.ErrorneousStanza(obj)
+        exc = errors.ErroneousStanza(obj)
         self.assertIs(exc.partial_obj, obj)
         self.assertTrue(
             str(exc),
-            "errorneous stanza received: {!r}".format(obj)
+            "erroneous stanza received: {!r}".format(obj)
         )
 
 

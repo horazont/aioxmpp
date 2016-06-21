@@ -344,8 +344,7 @@ class XMLStream(asyncio.Protocol):
         raise ConnectionError("xmlstream not connected")
 
     def _rx_exception(self, exc):
-        if isinstance(exc, (stanza.PayloadParsingError,
-                            stanza.UnknownIQPayload)):
+        if isinstance(exc, stanza.StanzaError):
             if self.error_handler:
                 self.error_handler(exc.partial_obj, exc)
         elif isinstance(exc, xso.UnknownTopLevelTag):

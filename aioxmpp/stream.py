@@ -827,30 +827,39 @@ class StanzaStream:
                 stanza_obj.id_
             )
 
-    def _process_incoming_errorneous_stanza(self, stanza_obj, exc):
+    def _process_incoming_erroneous_stanza(self, stanza_obj, exc):
+        self._logger.debug(
+            "erroneous stanza received (may be incomplete): %r",
+            stanza_obj
+        )
+
         if stanza_obj.type_ == "error" or stanza_obj.type_ == "result":
             if     (isinstance(stanza_obj, stanza.IQ) and
                     stanza_obj.from_ is not None):
+                self._logger.debug(
+                    "erroneous stanza can be forwarded to handlers as error"
+                )
+
                 key = (stanza_obj.from_, stanza_obj.id_)
                 try:
                     self._iq_response_map.unicast_error(
                         key,
-                        errors.ErrorneousStanza(stanza_obj)
+                        errors.ErroneousStanza(stanza_obj)
                     )
                 except KeyError:
                     pass
             return
 
-        if isinstance(exc, stanza.PayloadParsingError):
-            reply = stanza_obj.make_error(error=stanza.Error(condition=(
-                namespaces.stanzas,
-                "bad-request")
-            ))
-            self.enqueue_stanza(reply)
-        elif isinstance(exc, stanza.UnknownIQPayload):
+        if isinstance(exc, stanza.UnknownIQPayload):
             reply = stanza_obj.make_error(error=stanza.Error(condition=(
                 namespaces.stanzas,
                 "feature-not-implemented")
+            ))
+            self.enqueue_stanza(reply)
+        elif isinstance(exc, stanza.PayloadParsingError):
+            reply = stanza_obj.make_error(error=stanza.Error(condition=(
+                namespaces.stanzas,
+                "bad-request")
             ))
             self.enqueue_stanza(reply)
 
@@ -899,7 +908,7 @@ class StanzaStream:
 
         # check if the stanza has errors
         if exc is not None:
-            self._process_incoming_errorneous_stanza(stanza_obj, exc)
+            self._process_incoming_erroneous_stanza(stanza_obj, exc)
             return
 
         if isinstance(stanza_obj, stanza.IQ):
@@ -1101,12 +1110,12 @@ class StanzaStream:
 
         The future might also receive different exceptions:
 
-        * :class:`.errors.ErrorneousStanza`, if the response stanza received
+        * :class:`.errors.ErroneousStanza`, if the response stanza received
           could not be parsed.
 
           Note that this exception is not emitted if the ``from`` address of
           the stanza is unset, because the code cannot determine whether a
-          sender deliberately used an errorneous address to make parsing fail
+          sender deliberately used an erroneous address to make parsing fail
           or no sender address was used. In the former case, an attacker could
           use that to inject a stanza which would be taken as a stanza from the
           peer server. Thus, the future will never be fulfilled in these
@@ -1298,7 +1307,7 @@ class StanzaStream:
         xmlstream.stanza_parser.add_class(stanza.IQ, receiver)
         xmlstream.stanza_parser.add_class(stanza.Message, receiver)
         xmlstream.stanza_parser.add_class(stanza.Presence, receiver)
-        xmlstream.error_handler = self.recv_errorneous_stanza
+        xmlstream.error_handler = self.recv_erroneous_stanza
 
         if self._sm_enabled:
             self._logger.debug("using SM")
@@ -1489,7 +1498,7 @@ class StanzaStream:
         """
         self._incoming_queue.put_nowait((stanza, None))
 
-    def recv_errorneous_stanza(self, partial_obj, exc):
+    def recv_erroneous_stanza(self, partial_obj, exc):
         self._incoming_queue.put_nowait((partial_obj, exc))
 
     def enqueue_stanza(self, stanza, **kwargs):

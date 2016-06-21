@@ -92,6 +92,13 @@ Version 0.6
 * Added `strict` argument to :class:`aioxmpp.xso.JID` and made it non-strict by
   default. See the documentation for rationale and details.
 
+* Improve robustness against erroneous and malicious stanzas.
+
+  All parsing errors on stanzas are now caught and handled by
+  :meth:`aioxmpp.stream._process_incoming_erroneous_stanza`, which at least logs
+  the synopsis of the stanza as parsed. It also makes sure that stream
+  management works correctly, even if some stanzas are not understood.
+
 Version 0.5
 ===========
 
@@ -256,10 +263,10 @@ Version 0.4
   local certificate store. This is, with respect to trust, treated equivalent
   to a self-signed cert.
 
-* Fix stream management state going out-of-sync when an errorneous stanza
+* Fix stream management state going out-of-sync when an erroneous stanza
   (unknown payload, type or validator errors on the payload) was received. In
   addition, IQ replies which cannot be processed raise
-  :class:`aioxmpp.errors.ErrorneousStanza` from
+  :class:`aioxmpp.errors.ErroneousStanza` from
   :meth:`aioxmpp.stream.StanzaStream.send_iq_and_wait_for_reply` and when
   registering futures for the response using
   :meth:`aioxmpp.stream.StanzaStream.register_iq_response_future`. See the

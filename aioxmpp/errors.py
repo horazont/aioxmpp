@@ -24,7 +24,7 @@ Exception classes mapping to XMPP stanza errors
 
 .. autoclass:: XMPPContinueError
 
-.. autoclass:: ErrorneousStanza
+.. autoclass:: ErroneousStanza
 
 Stream negotiation exceptions
 =============================
@@ -123,7 +123,7 @@ class XMPPContinueError(XMPPWarning):
     TYPE = "continue"
 
 
-class ErrorneousStanza(StanzaError):
+class ErroneousStanza(StanzaError):
     """
     This exception is thrown into listeners for IQ responses by
     :class:`aioxmpp.stream.StanzaStream` if a response for an IQ was received,
@@ -138,7 +138,7 @@ class ErrorneousStanza(StanzaError):
     """
 
     def __init__(self, partial_obj):
-        super().__init__("errorneous stanza received: {!r}".format(
+        super().__init__("erroneous stanza received: {!r}".format(
             partial_obj))
         self.partial_obj = partial_obj
 

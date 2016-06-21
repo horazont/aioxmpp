@@ -89,26 +89,41 @@ STANZA_ERROR_TAGS = (
 )
 
 
-class PayloadError(Exception):
+class StanzaError(Exception):
     """
-    Base class for exceptions raised when stanza payloads cannot be processed.
+    Base class for exceptions raised when stanzas cannot be processed.
 
     .. attribute:: partial_obj
 
-       The :class:`IQ` instance which has not been parsed completely. The
-       attributes of the instance are already there, everything else is not
-       guaranteed to be there.
+       The :class:`StanzaBase` instance which has not been parsed completely.
+       There are no guarantees about any attributes. This is, if at all, only
+       useful for logging.
 
     .. attribute:: ev_args
 
        The XSO parsing event arguments which caused the parsing to fail.
 
+    .. attribute:: descriptor
+
+       The descriptor whose parsing function raised the exception.
     """
 
-    def __init__(self, msg, partial_obj, ev_args):
+    def __init__(self, msg, partial_obj, ev_args, descriptor):
         super().__init__(msg)
         self.ev_args = ev_args
         self.partial_obj = partial_obj
+        self.descriptor = descriptor
+
+
+class PayloadError(StanzaError):
+    """
+    Base class for exceptions raised when stanza payloads cannot be processed.
+
+    This is a subclass of :class:`StanzaError`. :attr:`partial_obj` has the
+    additional guarantee that the attributes :attr:`StanzaBase.from_`,
+    :attr:`StanzaBase.to`, :attr:`StanzaBase.type_` and :attr:`StanzaBase.id_`
+    are already parsed completely.
+    """
 
 
 class PayloadParsingError(PayloadError):
@@ -116,14 +131,17 @@ class PayloadParsingError(PayloadError):
     A constraint of a sub-object was not fulfilled and the stanza being
     processed is illegal. The partially parsed stanza object is provided in
     :attr:`~PayloadError.partial_obj`.
+
+    This is a subclass of :class:`PayloadError`.
     """
 
-    def __init__(self, partial_obj, ev_args):
+    def __init__(self, partial_obj, ev_args, descriptor):
         super().__init__(
             "parsing of payload {} failed".format(
                 xso.tag_to_str((ev_args[0], ev_args[1]))),
             partial_obj,
-            ev_args)
+            ev_args,
+            descriptor)
 
 
 class UnknownIQPayload(PayloadError):
@@ -132,12 +150,14 @@ class UnknownIQPayload(PayloadError):
     but without payload is available through :attr:`~PayloadError.partial_obj`.
     """
 
-    def __init__(self, partial_obj, ev_args):
+    def __init__(self, partial_obj, ev_args, descriptor):
         super().__init__(
             "unknown payload {} on iq".format(
                 xso.tag_to_str((ev_args[0], ev_args[1]))),
             partial_obj,
-            ev_args)
+            ev_args,
+            descriptor
+        )
 
 
 class Error(xso.XSO):
@@ -391,6 +411,14 @@ class StanzaBase(xso.XSO):
         obj.error = error
         return obj
 
+    def xso_error_handler(self, descriptor, ev_args, exc_info):
+        raise StanzaError(
+            "failed to parse stanza",
+            self,
+            ev_args,
+            descriptor
+        )
+
 
 class Thread(xso.XSO):
     """
@@ -550,9 +578,9 @@ class Message(StanzaBase):
         return obj
 
     def __repr__(self):
-        return "<message from='{!s}' to='{!s}' id={!r} type={!r}>".format(
-            self.from_,
-            self.to,
+        return "<message from={!s} to={!s} id={!r} type={!r}>".format(
+            self.from_ if self.from_ is None else "'{!s}'".format(self.from_),
+            self.to if self.to is None else "'{!s}'".format(self.to),
             self.id_,
             self.type_)
 
@@ -669,9 +697,9 @@ class Presence(StanzaBase):
         self.show = show
 
     def __repr__(self):
-        return "<presence from='{!s}' to='{!s}' id={!r} type={!r}>".format(
-            self.from_,
-            self.to,
+        return "<presence from={!s} to={!s} id={!r} type={!r}>".format(
+            self.from_ if self.from_ is None else "'{!s}'".format(self.from_),
+            self.to if self.to is None else "'{!s}'".format(self.to),
             self.id_,
             self.type_)
 
@@ -745,21 +773,37 @@ class IQ(StanzaBase):
     def xso_error_handler(self, descriptor, ev_args, exc_info):
         # raise a specific error if the payload failed to parse
         if descriptor == IQ.payload.xq_descriptor:
-            raise PayloadParsingError(self, ev_args)
+            raise PayloadParsingError(self, ev_args, descriptor)
         elif descriptor is None:
-            raise UnknownIQPayload(self, ev_args)
+            raise UnknownIQPayload(self, ev_args, descriptor)
+        return super().xso_error_handler(descriptor, ev_args, exc_info)
 
     def __repr__(self):
         payload = ""
-        if self.type_ == "error":
-            payload = " error={!r}".format(self.error)
-        elif self.payload:
-            payload = " data={!r}".format(self.payload)
-        return "<iq from='{!s}' to='{!s}' id={!r} type={!r}{}>".format(
-            self.from_,
-            self.to,
-            self.id_,
-            self.type_,
+
+        try:
+            type_str = repr(self.type_)
+            if self.type_ == "error":
+                payload = " error={!r}".format(self.error)
+            elif self.payload:
+                payload = " data={!r}".format(self.payload)
+        except AttributeError:
+            type_str = "<unset>"
+            payload = " error={!r} data={!r}".format(
+                self.error,
+                self.payload
+            )
+
+        try:
+            id_str = repr(self.id_)
+        except AttributeError:
+            id_str = "<unset>"
+
+        return "<iq from={!s} to={!s} id={!s} type={!s}{}>".format(
+            self.from_ if self.from_ is None else "'{!s}'".format(self.from_),
+            self.to if self.to is None else "'{!s}'".format(self.to),
+            id_str,
+            type_str,
             payload)
 
     @classmethod

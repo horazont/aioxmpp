@@ -99,6 +99,32 @@ class TestStanzaBase(unittest.TestCase):
             id_,
             s.id_)
 
+    def test_xso_error_handler_raises_StanzaError(self):
+        s = stanza.StanzaBase()
+        with self.assertRaisesRegex(
+                stanza.StanzaError,
+                "failed to parse stanza") as ctx:
+            s.xso_error_handler(
+                unittest.mock.sentinel.descriptor,
+                unittest.mock.sentinel.ev_args,
+                unittest.mock.sentinel.exc_info,
+            )
+
+        self.assertIs(
+            ctx.exception.ev_args,
+            unittest.mock.sentinel.ev_args,
+        )
+
+        self.assertIs(
+            ctx.exception.descriptor,
+            unittest.mock.sentinel.descriptor,
+        )
+
+        self.assertIs(
+            ctx.exception.partial_obj,
+            s
+        )
+
 
 class TestBody(unittest.TestCase):
     def test_tag(self):
@@ -283,6 +309,13 @@ class TestMessage(unittest.TestCase):
             "<message from='foo@example.test' to='bar@example.test'"
             " id='someid' type='groupchat'>",
             repr(s)
+        )
+
+    def test_repr_works_with_mostly_uninitialised_attributes(self):
+        s = stanza.Message.__new__(stanza.Message)
+        self.assertEqual(
+            repr(s),
+            "<message from=None to=None id=None type='normal'>"
         )
 
 
@@ -480,6 +513,13 @@ class TestPresence(unittest.TestCase):
         self.assertIsInstance(
             stanza.Presence.unhandled_children,
             xso.Collector
+        )
+
+    def test_repr_works_with_mostly_uninitialised_attributes(self):
+        s = stanza.Presence.__new__(stanza.Presence)
+        self.assertEqual(
+            repr(s),
+            "<presence from=None to=None id=None type=None>"
         )
 
 
@@ -872,6 +912,14 @@ class TestIQ(unittest.TestCase):
             "<iq from='foo@example.test' to='bar@example.test'"
             " id='someid' type='result'>",
             repr(s)
+        )
+
+    def test_repr_works_with_mostly_uninitialised_attributes(self):
+        s = stanza.IQ.__new__(stanza.IQ)
+        self.assertEqual(
+            repr(s),
+            "<iq from=None to=None id=<unset> type=<unset> "
+            "error=None data=None>"
         )
 
     def test_validate_requires_id(self):
