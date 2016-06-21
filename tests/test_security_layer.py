@@ -1510,8 +1510,8 @@ class TestSTARTTLSProvider(xmltestutils.XMLTestCase):
 
         features = nonza.StreamFeatures()
 
-        with self.assertRaisesRegexp(errors.TLSUnavailable,
-                                     "not supported by peer"):
+        with self.assertRaisesRegex(errors.TLSUnavailable,
+                                    "not supported by peer"):
             self._test_provider(provider, features)
 
     def test_pass_without_required_starttls(self):
@@ -1537,8 +1537,8 @@ class TestSTARTTLSProvider(xmltestutils.XMLTestCase):
 
         self.xmlstream.can_starttls_value = False
 
-        with self.assertRaisesRegexp(errors.TLSUnavailable,
-                                     "not supported by us"):
+        with self.assertRaisesRegex(errors.TLSUnavailable,
+                                    "not supported by us"):
             self._test_provider(provider, features)
 
     def test_fail_if_peer_reports_failure(self):
@@ -1552,8 +1552,8 @@ class TestSTARTTLSProvider(xmltestutils.XMLTestCase):
 
         self.xmlstream.can_starttls_value = True
 
-        with self.assertRaisesRegexp(errors.TLSUnavailable,
-                                     "failed on remote side"):
+        with self.assertRaisesRegex(errors.TLSUnavailable,
+                                    "failed on remote side"):
             self._test_provider(
                 provider, features,
                 actions=[
@@ -1628,8 +1628,8 @@ class TestSTARTTLSProvider(xmltestutils.XMLTestCase):
         exc = OSError("foobar")
         self.certificate_verifier_factory().post_handshake.side_effect = exc
 
-        with self.assertRaisesRegexp(errors.TLSFailure,
-                                     "TLS connection failed: foobar"):
+        with self.assertRaisesRegex(errors.TLSFailure,
+                                    "TLS connection failed: foobar"):
             self._test_provider(
                 provider, features,
                 actions=[
@@ -1767,8 +1767,8 @@ class TestPasswordSASLProvider(xmltestutils.XMLTestCase):
         provider = security_layer.PasswordSASLProvider(
             self._password_provider_wrapper)
 
-        with self.assertRaisesRegexp(errors.SASLUnavailable,
-                                     "does not support SASL"):
+        with self.assertRaisesRegex(errors.SASLUnavailable,
+                                    "does not support SASL"):
             self._test_provider(provider)
 
     def test_reject_plain_auth_over_non_tls_stream(self):
@@ -1791,8 +1791,8 @@ class TestPasswordSASLProvider(xmltestutils.XMLTestCase):
 
         self.password_provider.return_value = None
 
-        with self.assertRaisesRegexp(aiosasl.AuthenticationFailure,
-                                     "aborted by user"):
+        with self.assertRaisesRegex(aiosasl.AuthenticationFailure,
+                                    "aborted by user"):
             self._test_provider(provider, tls_transport=True)
 
     def test_raise_sasl_error_on_permanent_error(self):
@@ -1806,8 +1806,8 @@ class TestPasswordSASLProvider(xmltestutils.XMLTestCase):
         payload = b"\0foo\0foo"
         self.password_provider.return_value = "foo"
 
-        with self.assertRaisesRegexp(aiosasl.SASLFailure,
-                                     "malformed-request"):
+        with self.assertRaisesRegex(aiosasl.SASLFailure,
+                                    "malformed-request"):
             self._test_provider(
                 provider,
                 actions=[
@@ -2159,8 +2159,8 @@ class Testnegotiate_stream_security(xmltestutils.XMLTestCase):
         sasl_provider1 = unittest.mock.MagicMock()
         sasl_provider1.execute.return_value = self._coro_return(False)
 
-        with self.assertRaisesRegexp(errors.SASLUnavailable,
-                                     "No common mechanisms"):
+        with self.assertRaisesRegex(errors.SASLUnavailable,
+                                    "No common mechanisms"):
             self._test_provider(
                 security_layer.negotiate_stream_security(
                     tls_provider,

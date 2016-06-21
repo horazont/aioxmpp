@@ -335,8 +335,8 @@ class TestXMPPXMLGenerator(XMLTestCase):
         gen = xml.XMPPXMLGenerator(self.buf)
         gen.startDocument()
         gen.startElementNS((None, "foo"), None, None)
-        with self.assertRaisesRegexp(ValueError,
-                                     "restricted xml: processing instruction"):
+        with self.assertRaisesRegex(ValueError,
+                                    "restricted xml: processing instruction"):
             gen.processingInstruction("foo", "bar")
 
     def test_reject_multiple_assignments_for_prefix(self):

@@ -103,8 +103,8 @@ class TestOption(unittest.TestCase):
 
     def test_reject_missing_value(self):
         opt = forms_xso.Option()
-        with self.assertRaisesRegexp(ValueError,
-                                     "option is missing a value"):
+        with self.assertRaisesRegex(ValueError,
+                                    "option is missing a value"):
             opt.validate()
 
 
@@ -268,8 +268,8 @@ class TestField(unittest.TestCase):
         for type_ in types:
             f = forms_xso.Field()
             f.type_ = type_
-            with self.assertRaisesRegexp(ValueError,
-                                         "missing attribute var"):
+            with self.assertRaisesRegex(ValueError,
+                                        "missing attribute var"):
                 f.validate()
 
     def test_accept_missing_var_for_fixed_fields(self):
@@ -324,8 +324,8 @@ class TestField(unittest.TestCase):
             f.values.append(value)
             f.values.append(value)
 
-            with self.assertRaisesRegexp(ValueError,
-                                         "too many values on non-multi field"):
+            with self.assertRaisesRegex(ValueError,
+                                        "too many values on non-multi field"):
                 f.validate()
 
     def test_accept_multiple_values_on_multi_fields(self):
@@ -349,8 +349,8 @@ class TestField(unittest.TestCase):
         f.options["foo"] = "bar"
         f.options["baz"] = "bar"
 
-        with self.assertRaisesRegexp(ValueError,
-                                     "duplicate option value"):
+        with self.assertRaisesRegex(ValueError,
+                                    "duplicate option value"):
             f.validate()
 
     def test_init(self):
@@ -588,11 +588,11 @@ class TestData(unittest.TestCase):
             obj = forms_xso.Data()
             obj.type_ = type_
             obj.reported = rep
-            with self.assertRaisesRegexp(ValueError, "report in non-result"):
+            with self.assertRaisesRegex(ValueError, "report in non-result"):
                 obj.validate()
             obj.reported = None
             obj.items.append(item)
-            with self.assertRaisesRegexp(ValueError, "report in non-result"):
+            with self.assertRaisesRegex(ValueError, "report in non-result"):
                 obj.validate()
             obj.items.clear()
 
@@ -604,13 +604,13 @@ class TestData(unittest.TestCase):
         obj.fields.append(field)
         obj.reported = forms_xso.Reported()
 
-        with self.assertRaisesRegexp(ValueError, "field in report result"):
+        with self.assertRaisesRegex(ValueError, "field in report result"):
             obj.validate()
 
         obj.reported = None
         obj.items.append(forms_xso.Item())
 
-        with self.assertRaisesRegexp(ValueError, "field in report result"):
+        with self.assertRaisesRegex(ValueError, "field in report result"):
             obj.validate()
 
     def test_validate_accepts_fields_for_results_without_report(self):
@@ -627,7 +627,7 @@ class TestData(unittest.TestCase):
         obj.type_ = "result"
         obj.reported = forms_xso.Reported()
 
-        with self.assertRaisesRegexp(ValueError, "empty report header"):
+        with self.assertRaisesRegex(ValueError, "empty report header"):
             obj.validate()
 
     def test_validate_reject_empty_items(self):
@@ -641,7 +641,7 @@ class TestData(unittest.TestCase):
 
         obj.items.append(forms_xso.Item())
 
-        with self.assertRaisesRegexp(ValueError,
+        with self.assertRaisesRegex(ValueError,
                                      "field mismatch between row and header"):
             obj.validate()
 
@@ -661,6 +661,6 @@ class TestData(unittest.TestCase):
         item.fields.append(f2)
         obj.items.append(item)
 
-        with self.assertRaisesRegexp(ValueError,
+        with self.assertRaisesRegex(ValueError,
                                      "field mismatch between row and header"):
             obj.validate()

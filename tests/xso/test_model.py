@@ -69,13 +69,13 @@ class TestXMLStreamClass(unittest.TestCase):
         self.assertFalse(Cls.ATTR_MAP)
 
     def test_forbid_malformed_tag(self):
-        with self.assertRaisesRegexp(TypeError,
-                                     "TAG attribute has incorrect format"):
+        with self.assertRaisesRegex(TypeError,
+                                    "TAG attribute has incorrect format"):
             class ClsA(metaclass=xso_model.XMLStreamClass):
                 TAG = "foo", "bar", "baz"
 
-        with self.assertRaisesRegexp(TypeError,
-                                     "TAG attribute has incorrect format"):
+        with self.assertRaisesRegex(TypeError,
+                                    "TAG attribute has incorrect format"):
             class ClsB(metaclass=xso_model.XMLStreamClass):
                 TAG = "foo",
 
@@ -191,7 +191,7 @@ class TestXMLStreamClass(unittest.TestCase):
         class ClsB(metaclass=xso_model.XMLStreamClass):
             TAG = "foo"
 
-        with self.assertRaisesRegexp(TypeError, "ambiguous Child properties"):
+        with self.assertRaisesRegex(TypeError, "ambiguous Child properties"):
             class Cls(metaclass=xso_model.XMLStreamClass):
                 c1 = xso.Child([ClsA])
                 c2 = xso.Child([ClsB])
@@ -227,7 +227,7 @@ class TestXMLStreamClass(unittest.TestCase):
         class ClsA(metaclass=xso_model.XMLStreamClass):
             c1 = xso.Child([ClsLeafA])
 
-        with self.assertRaisesRegexp(TypeError, "ambiguous Child properties"):
+        with self.assertRaisesRegex(TypeError, "ambiguous Child properties"):
             class ClsB(ClsA):
                 c2 = xso.Child([ClsLeafA])
 
@@ -491,7 +491,7 @@ class TestXMLStreamClass(unittest.TestCase):
         class ClsB(metaclass=xso_model.XMLStreamClass):
             TAG = "foo"
 
-        with self.assertRaisesRegexp(TypeError, "ambiguous Child properties"):
+        with self.assertRaisesRegex(TypeError, "ambiguous Child properties"):
             class Cls(metaclass=xso_model.XMLStreamClass):
                 c1 = xso.ChildList([ClsA])
                 c2 = xso.Child([ClsB])
@@ -579,7 +579,7 @@ class TestXMLStreamClass(unittest.TestCase):
         class ClsB(metaclass=xso_model.XMLStreamClass):
             TAG = "baz"
 
-        with self.assertRaisesRegexp(
+        with self.assertRaisesRegex(
                 TypeError,
                 "register_child is forbidden on classes with subclasses"):
             Cls.register_child(Cls.child, ClsB)
@@ -1209,8 +1209,8 @@ class TestXMLStreamClass(unittest.TestCase):
         class Foo(metaclass=xso_model.XMLStreamClass):
             attr = xso.Attr("bar")
 
-        with self.assertRaisesRegexp(AttributeError,
-                                     "cannot rebind XSO descriptors"):
+        with self.assertRaisesRegex(AttributeError,
+                                    "cannot rebind XSO descriptors"):
             Foo.attr = xso.Attr("baz")
 
     def test_setattr_allows_to_overwrite_everything_else(self):
@@ -1244,7 +1244,7 @@ class TestXMLStreamClass(unittest.TestCase):
 
         Foo.attr = xso.Attr("bar")
 
-        with self.assertRaisesRegexp(TypeError,
+        with self.assertRaisesRegex(TypeError,
                                      "ambiguous Attr properties"):
             Foo.attr2 = xso.Attr("bar")
 
@@ -1282,8 +1282,8 @@ class TestXMLStreamClass(unittest.TestCase):
 
         Foo.child1 = xso.Child([Bar])
 
-        with self.assertRaisesRegexp(TypeError,
-                                     "ambiguous Child properties"):
+        with self.assertRaisesRegex(TypeError,
+                                    "ambiguous Child properties"):
             Foo.child2 = xso.Child([Baz])
 
     def test_setattr_Child_rejects_atomically(self):
@@ -1301,8 +1301,8 @@ class TestXMLStreamClass(unittest.TestCase):
 
         Foo.child1 = xso.Child([Bar])
 
-        with self.assertRaisesRegexp(TypeError,
-                                     "ambiguous Child properties"):
+        with self.assertRaisesRegex(TypeError,
+                                    "ambiguous Child properties"):
             Foo.child2 = xso.Child([Fnord, Baz])
 
         self.assertNotIn(
@@ -1336,8 +1336,8 @@ class TestXMLStreamClass(unittest.TestCase):
         class Foo(metaclass=xso_model.XMLStreamClass):
             child = xso.Child([Bar])
 
-        with self.assertRaisesRegexp(TypeError,
-                                     "ambiguous Child properties"):
+        with self.assertRaisesRegex(TypeError,
+                                    "ambiguous Child properties"):
             Foo.text = xso.ChildText(tag=(None, "foobar"))
 
     def test_setattr_ChildTag(self):
@@ -1374,7 +1374,7 @@ class TestXMLStreamClass(unittest.TestCase):
         class Foo(metaclass=xso_model.XMLStreamClass):
             child = xso.Child([Bar])
 
-        with self.assertRaisesRegexp(TypeError,
+        with self.assertRaisesRegex(TypeError,
                                      "ambiguous Child properties"):
             Foo.tag = xso.ChildTag(
                 [
@@ -1391,7 +1391,7 @@ class TestXMLStreamClass(unittest.TestCase):
         class Foo(metaclass=xso_model.XMLStreamClass):
             child = xso.Child([Bar])
 
-        with self.assertRaisesRegexp(TypeError,
+        with self.assertRaisesRegex(TypeError,
                                      "ambiguous Child properties"):
             Foo.tag = xso.ChildTag(
                 [
@@ -1428,7 +1428,7 @@ class TestXMLStreamClass(unittest.TestCase):
 
         Foo.collector1 = xso.Collector()
 
-        with self.assertRaisesRegexp(TypeError,
+        with self.assertRaisesRegex(TypeError,
                                      "multiple Collector properties"):
             Foo.collector2 = xso.Collector()
 
@@ -1449,7 +1449,7 @@ class TestXMLStreamClass(unittest.TestCase):
 
         Foo.text1 = xso.Text()
 
-        with self.assertRaisesRegexp(TypeError,
+        with self.assertRaisesRegex(TypeError,
                                      "multiple Text properties"):
             Foo.text2 = xso.Text()
 
@@ -1463,22 +1463,22 @@ class TestXMLStreamClass(unittest.TestCase):
         msg_regexp = ("adding descriptors is forbidden on classes with"
                       " subclasses")
 
-        with self.assertRaisesRegexp(TypeError, msg_regexp):
+        with self.assertRaisesRegex(TypeError, msg_regexp):
             Foo.attr = xso.Attr("abc")
 
-        with self.assertRaisesRegexp(TypeError, msg_regexp):
+        with self.assertRaisesRegex(TypeError, msg_regexp):
             Foo.attr = xso.Child([])
 
-        with self.assertRaisesRegexp(TypeError, msg_regexp):
+        with self.assertRaisesRegex(TypeError, msg_regexp):
             Foo.attr = xso.ChildText((None, "abc"))
 
-        with self.assertRaisesRegexp(TypeError, msg_regexp):
+        with self.assertRaisesRegex(TypeError, msg_regexp):
             Foo.attr = xso.ChildTag([(None, "abc")])
 
-        with self.assertRaisesRegexp(TypeError, msg_regexp):
+        with self.assertRaisesRegex(TypeError, msg_regexp):
             Foo.attr = xso.Text()
 
-        with self.assertRaisesRegexp(TypeError, msg_regexp):
+        with self.assertRaisesRegex(TypeError, msg_regexp):
             Foo.attr = xso.Collector()
 
     def test_setattr_permits_adding_non_descriptors_to_class_with_descendants(self):
@@ -1499,10 +1499,10 @@ class TestXMLStreamClass(unittest.TestCase):
 
         msg_regexp = "cannot unbind XSO descriptors"
 
-        with self.assertRaisesRegexp(AttributeError, msg_regexp):
+        with self.assertRaisesRegex(AttributeError, msg_regexp):
             del Foo.attr
 
-        with self.assertRaisesRegexp(AttributeError, msg_regexp):
+        with self.assertRaisesRegex(AttributeError, msg_regexp):
             del Foo.text
 
     def test_delattr_removes_everything_else(self):
@@ -1937,11 +1937,11 @@ class TestXSO(XMLTestCase):
         )
 
     def test_init_takes_no_arguments(self):
-        with self.assertRaisesRegexp(
+        with self.assertRaisesRegex(
                 TypeError,
                 "takes no parameters"):
             xso.XSO("foo")
-        with self.assertRaisesRegexp(
+        with self.assertRaisesRegex(
                 TypeError,
                 "takes no parameters"):
             xso.XSO(bar="foo")
@@ -2185,7 +2185,7 @@ class Test_PropBase(unittest.TestCase):
         class Cls(xso.XSO):
             prop = xso_model._PropBase()
 
-        with self.assertRaisesRegexp(
+        with self.assertRaisesRegex(
                 AttributeError,
                 "attribute is unset"):
             Cls().prop
@@ -2374,8 +2374,7 @@ class Test_PropBase(unittest.TestCase):
         prop = xso_model._PropBase()
         instance = make_instance_mock()
 
-        with self.assertRaisesRegexp(ValueError,
-                                     "attribute is unset"):
+        with self.assertRaisesRegex(ValueError, "attribute is unset"):
             prop.validate_contents(instance)
 
     def tearDown(self):
@@ -2588,7 +2587,7 @@ class TestChild(XMLTestCase):
         class ClsLeaf2(xso.XSO):
             TAG = "bar"
 
-        with self.assertRaisesRegexp(ValueError, "ambiguous children"):
+        with self.assertRaisesRegex(ValueError, "ambiguous children"):
             xso.Child([self.ClsLeaf, ClsLeaf2])
 
     def test__register(self):
@@ -2607,7 +2606,7 @@ class TestChild(XMLTestCase):
         class ClsLeafConflict(xso.XSO):
             TAG = "baz"
 
-        with self.assertRaisesRegexp(ValueError, "ambiguous children"):
+        with self.assertRaisesRegex(ValueError, "ambiguous children"):
             self.ClsA.test_child._register(ClsLeafConflict)
 
     def test_from_events(self):
@@ -3042,8 +3041,7 @@ class TestAttr(XMLTestCase):
         instance = make_instance_mock()
 
         prop = xso.Attr("foo")
-        with self.assertRaisesRegexp(ValueError,
-                                     r"missing attribute foo"):
+        with self.assertRaisesRegex(ValueError, "missing attribute foo"):
             prop.handle_missing(instance, ctx)
 
     def test_to_dict(self):
@@ -3142,7 +3140,7 @@ class TestAttr(XMLTestCase):
         instance = make_instance_mock()
         prop = xso.Attr("foo")
 
-        with self.assertRaisesRegexp(ValueError, "value required for"):
+        with self.assertRaisesRegex(ValueError, "value required for"):
             prop.validate_contents(instance)
 
     def test_delete_reverts_to_default_if_available(self):
