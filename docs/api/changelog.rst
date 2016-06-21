@@ -86,6 +86,9 @@ Version 0.6
   Thanks to `@gudvnir <https://github.com/gudvinr>`_ over at github for pointing
   this out (see `issue#7 <https://github.com/horazont/aioxmpp/issues/7>`_).
 
+* Added `strict` arguments to :class:`aioxmpp.structs.JID`. See the class
+  docmuentation for details.
+
 Version 0.5
 ===========
 

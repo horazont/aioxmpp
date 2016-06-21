@@ -38,6 +38,19 @@ class TestJID(unittest.TestCase):
             "IX",
             structs.JID(None, "example.test", "\u2168").resource)
 
+    def test_init_with_default_strict_errors_on_unassigned(self):
+        with self.assertRaises(ValueError):
+            structs.JID("\U0001f601", "example.com", "bar")
+        with self.assertRaises(ValueError):
+            structs.JID("foo", "\U0001f601example.com", "bar")
+        with self.assertRaises(ValueError):
+            structs.JID("foo", "example.com", "\U0001f601")
+
+    def test_init_without_strict_does_not_error_on_unassigned(self):
+        structs.JID("\U0001f601", "example.com", "bar", strict=False)
+        structs.JID("foo", "\U0001f601example.com", "bar", strict=False)
+        structs.JID("foo", "example.com", "\U0001f601", strict=False)
+
     def test_replace(self):
         j = structs.JID("foo", "example.com", "bar")
         j2 = j.replace(localpart="fnord",
@@ -146,6 +159,39 @@ class TestJID(unittest.TestCase):
         with self.assertRaises(TypeError):
             j.replace(foobar="baz")
 
+    def test_replace_ignores_problems_on_existing_parts(self):
+        j = structs.JID(
+            "\U0001f601foo", "\U0001f601example.test", "\U0001f601bar",
+            strict=False,
+        )
+
+        j2 = j.replace()
+        self.assertEqual(j, j2)
+
+    def test_replace_checks_replaced_strings(self):
+        j = structs.JID(
+            "\U0001f601foo", "\U0001f601example.test", "\U0001f601bar",
+            strict=False,
+        )
+
+        with self.assertRaises(ValueError):
+            j.replace(
+                domain=j.domain
+            )
+
+    def test_replace_nonstrict_allows_unassigned_codepoints(self):
+        j = structs.JID(
+            "\U0001f601foo", "\U0001f601example.test", "\U0001f601bar",
+            strict=False,
+        )
+
+        j2 = j.replace(
+            domain=j.domain,
+            strict=False,
+        )
+
+        self.assertEqual(j, j2)
+
     def test_immutable(self):
         j = structs.JID(None, "example.test", None)
         with self.assertRaises(AttributeError):
@@ -199,6 +245,14 @@ class TestJID(unittest.TestCase):
         self.assertEqual(
             structs.JID(None, "IX.test", None),
             structs.JID.fromstr("ix.test")
+        )
+
+    def test_fromstr_domain_nonstrict(self):
+        self.assertEqual(
+            structs.JID("\U0001f601", "\U0001f601example.test", "\U0001f601",
+                        strict=False),
+            structs.JID.fromstr("\U0001f601@\U0001f601example.test/\U0001f601",
+                                strict=False)
         )
 
     def test_reject_empty_localpart(self):
