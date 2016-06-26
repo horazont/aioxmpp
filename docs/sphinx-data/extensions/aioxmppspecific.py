@@ -71,6 +71,20 @@ class CoroutineAwareMethodDocumenter(MethodDocumenter):
         return ret
 
 
+class SignalAwareMethodDocumenter(MethodDocumenter):
+    objtype = 'signal'
+    priority = 4
+
+    def import_object(self):
+        ret = super().import_object()
+        if not ret:
+            return ret
+
+        self.directivetype = "signal"
+
+        return ret
+
+
 class PySignal(PyClassmember):
     def handle_signature(self, sig, signode):
         ret = super(PySignal, self).handle_signature(sig, signode)
@@ -144,4 +158,5 @@ def setup(app):
     app.add_directive_to_domain('py', 'syncsignal', PySyncSignal)
     app.add_autodocumenter(CoroutineAwareFunctionDocumenter)
     app.add_autodocumenter(CoroutineAwareMethodDocumenter)
+    app.add_autodocumenter(SignalAwareMethodDocumenter)
     return {'version': '1.0', 'parallel_read_safe': True}

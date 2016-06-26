@@ -536,8 +536,9 @@ class SignalConnectionContext:
 
 
 class AbstractSignal(metaclass=abc.ABCMeta):
-    def __init__(self):
+    def __init__(self, *, doc=None):
         super().__init__()
+        self.__doc__ = doc
         self._instances = weakref.WeakKeyDictionary()
 
     @abc.abstractclassmethod

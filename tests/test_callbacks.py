@@ -1089,6 +1089,18 @@ class TestSignal(unittest.TestCase):
         with self.assertRaises(AttributeError):
             del instance.s
 
+    def test_default_docstring(self):
+        class Foo:
+            s = Signal()
+
+        self.assertIsNone(Foo.s.__doc__)
+
+    def test_set_docstring(self):
+        class Foo:
+            s = Signal(doc=unittest.mock.sentinel.doc)
+
+        self.assertIs(Foo.s.__doc__, unittest.mock.sentinel.doc)
+
 
 class TestSyncSignal(unittest.TestCase):
     def test_get(self):
@@ -1122,3 +1134,15 @@ class TestSyncSignal(unittest.TestCase):
 
         with self.assertRaises(AttributeError):
             del instance.s
+
+    def test_default_docstring(self):
+        class Foo:
+            s = SyncSignal()
+
+        self.assertIsNone(Foo.s.__doc__)
+
+    def test_set_docstring(self):
+        class Foo:
+            s = SyncSignal(doc=unittest.mock.sentinel.doc)
+
+        self.assertIs(Foo.s.__doc__, unittest.mock.sentinel.doc)
