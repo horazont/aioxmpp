@@ -419,6 +419,12 @@ class AbstractClient:
         self.stream = stream.StanzaStream(local_jid.bare())
 
     def _stream_failure(self, exc):
+        if self._failure_future.done():
+            self.logger.warning(
+                "something is odd: failure future is already done ..."
+            )
+            return
+
         self._failure_future.set_result(exc)
         self._failure_future = asyncio.Future()
 
