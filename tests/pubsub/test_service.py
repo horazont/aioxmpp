@@ -16,6 +16,9 @@ from aioxmpp.testutils import (
 
 
 TEST_FROM = aioxmpp.structs.JID.fromstr("foo@bar.example/baz")
+TEST_JID1 = aioxmpp.structs.JID.fromstr("bar@bar.example/baz")
+TEST_JID2 = aioxmpp.structs.JID.fromstr("baz@bar.example/baz")
+TEST_JID3 = aioxmpp.structs.JID.fromstr("fnord@bar.example/baz")
 TEST_TO = aioxmpp.structs.JID.fromstr("pubsub.example")
 
 
@@ -81,6 +84,7 @@ class TestService(unittest.TestCase):
 
     def test_filter_inbound_message_eats_message_with_event(self):
         ev = pubsub_xso.Event()
+        ev.payload = unittest.mock.Mock()
 
         msg = aioxmpp.stanza.Message(
             type_="normal",
@@ -134,7 +138,7 @@ class TestService(unittest.TestCase):
         )
 
     def test_filter_inbound_message_retract_emits_events(self):
-        ids =["foo-id", "bar-id"]
+        ids = ["foo-id", "bar-id"]
 
         retracts = [
             pubsub_xso.EventRetract(id_)
@@ -174,6 +178,129 @@ class TestService(unittest.TestCase):
             ]
         )
 
+    def test_filter_inbound_message_affiliation_change_emits_event(self):
+        req = pubsub_xso.Request(
+            payload=pubsub_xso.Affiliations(
+                affiliations=[
+                    pubsub_xso.Affiliation(
+                        "member",
+                        node="foobar",
+                    )
+                ]
+            )
+        )
+
+        msg = aioxmpp.stanza.Message(
+            type_="normal",
+            from_=TEST_TO,
+        )
+        msg.xep0060_request = req
+
+        m = unittest.mock.Mock()
+        m.return_value = None
+
+        self.s.on_affiliation_update.connect(m)
+
+        self.assertIsNone(self.s.filter_inbound_message(msg))
+
+        self.assertSequenceEqual(
+            m.mock_calls,
+            [
+                unittest.mock.call(
+                    TEST_TO,
+                    "foobar",
+                    "member",
+                    message=msg,
+                )
+            ]
+        )
+
+    def test_filter_inbound_message_subscription_change_emits_event(self):
+        req = pubsub_xso.Request(
+            payload=pubsub_xso.Subscriptions(
+                subscriptions=[
+                    pubsub_xso.Subscription(
+                        TEST_FROM,
+                        node="foobar",
+                        subid="some-subid",
+                        subscription="subscribed",
+                    ),
+                    pubsub_xso.Subscription(
+                        TEST_FROM,
+                        node="baz",
+                        subid="some-other-subid",
+                        subscription="unconfigured",
+                    )
+                ]
+            )
+        )
+
+        msg = aioxmpp.stanza.Message(
+            type_="normal",
+            from_=TEST_TO,
+        )
+        msg.xep0060_request = req
+
+        m = unittest.mock.Mock()
+        m.return_value = None
+
+        self.s.on_subscription_update.connect(m)
+
+        self.assertIsNone(self.s.filter_inbound_message(msg))
+
+        self.assertSequenceEqual(
+            m.mock_calls,
+            [
+                unittest.mock.call(
+                    TEST_TO,
+                    "foobar",
+                    "subscribed",
+                    subid="some-subid",
+                    message=msg,
+                ),
+                unittest.mock.call(
+                    TEST_TO,
+                    "baz",
+                    "unconfigured",
+                    subid="some-other-subid",
+                    message=msg,
+                )
+            ]
+        )
+
+    def test_filter_inbound_message_node_deletion_emits_event(self):
+        ev = pubsub_xso.Event(
+            payload=pubsub_xso.EventDelete(
+                "node",
+                redirect_uri="some-uri",
+            )
+        )
+
+        msg = aioxmpp.stanza.Message(
+            type_="normal",
+            from_=TEST_TO,
+        )
+        msg.xep0060_event = ev
+
+        m = unittest.mock.Mock()
+        m.return_value = None
+
+        self.s.on_node_deleted.connect(m)
+
+        self.assertIsNone(self.s.filter_inbound_message(msg))
+
+        self.assertSequenceEqual(
+            m.mock_calls,
+            [
+                unittest.mock.call(
+                    TEST_TO,
+                    "node",
+                    redirect_uri="some-uri",
+                    message=msg,
+                )
+            ]
+        )
+
     def test_init(self):
         self.disco = unittest.mock.Mock()
         self.cc = make_connected_client()
@@ -185,10 +312,11 @@ class TestService(unittest.TestCase):
         self.cc.mock_services[aioxmpp.disco.Service] = self.disco
         self.s = pubsub_service.Service(self.cc)
 
-        self.cc.stream.service_inbound_message_filter.register.assert_called_with(
-            self.s.filter_inbound_message,
-            pubsub_service.Service
-        )
+        self.cc.stream.service_inbound_message_filter.register.\
+            assert_called_with(
+                self.s.filter_inbound_message,
+                pubsub_service.Service
+            )
 
     def test_subscribe(self):
         response = pubsub_xso.Request()
@@ -950,8 +1078,6 @@ class TestService(unittest.TestCase):
         self.assertEqual(result, "generated-id")
 
     def test_publish_without_payload(self):
-        payload = unittest.mock.sentinel.payload
-
         response = pubsub_xso.Request()
         response.payload = pubsub_xso.Publish()
 
@@ -1095,8 +1221,6 @@ class TestService(unittest.TestCase):
         )
 
     def test_create_with_node(self):
-        payload = unittest.mock.sentinel.payload
-
         response = pubsub_xso.Request()
         response.payload = pubsub_xso.Create()
 
@@ -1127,8 +1251,6 @@ class TestService(unittest.TestCase):
         self.assertEqual(result, "foo")
 
     def test_create_with_node_copes_with_empty_reply(self):
-        payload = unittest.mock.sentinel.payload
-
         response = None
 
         self.cc.stream.send_iq_and_wait_for_reply.return_value = response
@@ -1158,8 +1280,6 @@ class TestService(unittest.TestCase):
         self.assertEqual(result, "foo")
 
     def test_create_instant_node(self):
-        payload = unittest.mock.sentinel.payload
-
         response = pubsub_xso.Request()
         response.payload = pubsub_xso.Create()
         response.payload.node = "autogen-id"
@@ -1223,6 +1343,201 @@ class TestService(unittest.TestCase):
             ]
         )
 
+    def test_delete_without_redirect_uri(self):
+        self.cc.stream.send_iq_and_wait_for_reply.return_value = None
+
+        run_coroutine(
+            self.s.delete(TEST_TO, "node"),
+        )
+
+        self.assertEqual(
+            1,
+            len(self.cc.stream.send_iq_and_wait_for_reply.mock_calls)
+        )
+
+        _, (request_iq, ), _ = \
+            self.cc.stream.send_iq_and_wait_for_reply.mock_calls[0]
+
+        self.assertIsInstance(request_iq, aioxmpp.stanza.IQ)
+        self.assertEqual(request_iq.type_, "set")
+        self.assertEqual(request_iq.to, TEST_TO)
+        self.assertIsInstance(request_iq.payload, pubsub_xso.OwnerRequest)
+
+        payload = request_iq.payload.payload
+        self.assertIsInstance(payload, pubsub_xso.OwnerDelete)
+        self.assertEqual(payload.node, "node")
+        self.assertIsNone(payload.redirect_uri)
+
+    def test_delete_with_redirect_uri(self):
+        self.cc.stream.send_iq_and_wait_for_reply.return_value = None
+
+        run_coroutine(
+            self.s.delete(TEST_TO, "node", redirect_uri="fnord"),
+        )
+
+        self.assertEqual(
+            1,
+            len(self.cc.stream.send_iq_and_wait_for_reply.mock_calls)
+        )
+
+        _, (request_iq, ), _ = \
+            self.cc.stream.send_iq_and_wait_for_reply.mock_calls[0]
+
+        self.assertIsInstance(request_iq, aioxmpp.stanza.IQ)
+        self.assertEqual(request_iq.type_, "set")
+        self.assertEqual(request_iq.to, TEST_TO)
+        self.assertIsInstance(request_iq.payload, pubsub_xso.OwnerRequest)
+
+        payload = request_iq.payload.payload
+        self.assertIsInstance(payload, pubsub_xso.OwnerDelete)
+        self.assertEqual(payload.node, "node")
+        self.assertEqual(payload.redirect_uri, "fnord")
+
+    def test_get_node_affiliations(self):
+        response = pubsub_xso.OwnerRequest(
+            pubsub_xso.OwnerAffiliations(node="fnord")
+        )
+
+        self.cc.stream.send_iq_and_wait_for_reply.return_value = response
+
+        result = run_coroutine(
+            self.s.get_node_affiliations(TEST_TO, "node"),
+        )
+
+        self.assertEqual(
+            1,
+            len(self.cc.stream.send_iq_and_wait_for_reply.mock_calls)
+        )
+
+        _, (request_iq, ), _ = \
+            self.cc.stream.send_iq_and_wait_for_reply.mock_calls[0]
+
+        self.assertIsInstance(request_iq, aioxmpp.stanza.IQ)
+        self.assertEqual(request_iq.type_, "get")
+        self.assertEqual(request_iq.to, TEST_TO)
+        self.assertIsInstance(request_iq.payload, pubsub_xso.OwnerRequest)
+
+        self.assertIsInstance(request_iq.payload.payload,
+                              pubsub_xso.OwnerAffiliations)
+        self.assertEqual(request_iq.payload.payload.node,
+                         "node")
+
+        self.assertIs(result, response)
+
+    def test_get_node_subscriptions(self):
+        response = pubsub_xso.OwnerRequest(
+            pubsub_xso.OwnerSubscriptions(node="fnord")
+        )
+
+        self.cc.stream.send_iq_and_wait_for_reply.return_value = response
+
+        result = run_coroutine(
+            self.s.get_node_subscriptions(TEST_TO, "node"),
+        )
+
+        self.assertEqual(
+            1,
+            len(self.cc.stream.send_iq_and_wait_for_reply.mock_calls)
+        )
+
+        _, (request_iq, ), _ = \
+            self.cc.stream.send_iq_and_wait_for_reply.mock_calls[0]
+
+        self.assertIsInstance(request_iq, aioxmpp.stanza.IQ)
+        self.assertEqual(request_iq.type_, "get")
+        self.assertEqual(request_iq.to, TEST_TO)
+        self.assertIsInstance(request_iq.payload, pubsub_xso.OwnerRequest)
+
+        self.assertIsInstance(request_iq.payload.payload,
+                              pubsub_xso.OwnerSubscriptions)
+        self.assertEqual(request_iq.payload.payload.node,
+                         "node")
+
+        self.assertIs(result, response)
+
+    def test_change_node_affiliations(self):
+        affiliations_to_set = [
+            (TEST_JID1, "owner"),
+            (TEST_JID2, "outcast"),
+            (TEST_JID3, "none"),
+        ]
+
+        self.cc.stream.send_iq_and_wait_for_reply.return_value = None
+
+        run_coroutine(
+            self.s.change_node_affiliations(
+                TEST_TO,
+                "node",
+                affiliations_to_set,
+            )
+        )
+
+        self.assertEqual(
+            1,
+            len(self.cc.stream.send_iq_and_wait_for_reply.mock_calls)
+        )
+
+        _, (request_iq, ), _ = \
+            self.cc.stream.send_iq_and_wait_for_reply.mock_calls[0]
+
+        self.assertIsInstance(request_iq, aioxmpp.stanza.IQ)
+        self.assertEqual(request_iq.type_, "set")
+        self.assertEqual(request_iq.to, TEST_TO)
+        self.assertIsInstance(request_iq.payload, pubsub_xso.OwnerRequest)
+
+        payload = request_iq.payload.payload
+        self.assertIsInstance(payload, pubsub_xso.OwnerAffiliations)
+        self.assertEqual(payload.node, "node")
+
+        self.assertSequenceEqual(
+            affiliations_to_set,
+            [
+                (item.jid, item.affiliation)
+                for item in payload.affiliations
+            ]
+        )
+
+    def test_change_node_subscriptions(self):
+        subscriptions_to_set = [
+            (TEST_JID1, "subscribed"),
+            (TEST_JID2, "unconfigured"),
+            (TEST_JID3, "none"),
+        ]
+
+        self.cc.stream.send_iq_and_wait_for_reply.return_value = None
+
+        run_coroutine(
+            self.s.change_node_subscriptions(
+                TEST_TO,
+                "node",
+                subscriptions_to_set,
+            )
+        )
+
+        self.assertEqual(
+            1,
+            len(self.cc.stream.send_iq_and_wait_for_reply.mock_calls)
+        )
+
+        _, (request_iq, ), _ = \
+            self.cc.stream.send_iq_and_wait_for_reply.mock_calls[0]
+
+        self.assertIsInstance(request_iq, aioxmpp.stanza.IQ)
+        self.assertEqual(request_iq.type_, "set")
+        self.assertEqual(request_iq.to, TEST_TO)
+        self.assertIsInstance(request_iq.payload, pubsub_xso.OwnerRequest)
+
+        payload = request_iq.payload.payload
+        self.assertIsInstance(payload, pubsub_xso.OwnerSubscriptions)
+        self.assertEqual(payload.node, "node")
+
+        self.assertSequenceEqual(
+            subscriptions_to_set,
+            [
+                (item.jid, item.subscription)
+                for item in payload.subscriptions
+            ]
+        )
 
 
 # foo

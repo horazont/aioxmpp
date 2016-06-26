@@ -57,9 +57,19 @@ class Service(aioxmpp.service.Service):
 
     Manage nodes:
 
+    .. automethod:: change_node_affiliations
+
+    .. automethod:: change_node_subscriptions
+
     .. automethod:: create
 
+    .. automethod:: delete
+
     .. automethod:: get_nodes
+
+    .. automethod:: get_node_affiliations
+
+    .. automethod:: get_node_subscriptions
 
     Receiving notifications:
 
@@ -89,13 +99,52 @@ class Service(aioxmpp.service.Service):
        item, the event is fired for each of the items, and `message` is passed
        to all of them.
 
+    .. signal:: on_node_deleted(jid, node, *, redirect_uri=None, message=None)
+
+       Fires when a node is deleted. `jid` and `node` identify the node.
+
+       If the notification included a redirection URI, it is passed as
+       `redirect_uri`. Otherwise, :data:`None` is passed for `redirect_uri`.
+
+       `message` is the :class:`.stanza.Message` which carried the
+       notification.
+
+    .. signal:: on_affiliation_update(jid, node, affiliation, *, message=None)
+
+       Fires when the affiliation with a node is updated.
+
+       `jid` and `node` identify the node for which the affiliation was
+       updated. `affiliation` is the new affiliaton.
+
+       `message` is the :class:`.stanza.Message` which carried the
+       notification.
+
+    .. signal:: on_subscription_update(jid, node, state, *, subid=None, message=None)
+
+       Fires when the subscription state is updated.
+
+       `jid` and `node` identify the node for which the subscription was
+       updated. `subid` is optional and if it is not :data:`None` it is the
+       affected subscription id. `state` is the new subscription state.
+
+       This event can happen in several cases, for example when a subscription
+       request is approved by the node owner or when a subscription is
+       cancelled.
+
+       `message` is the :class:`.stanza.Message` which carried the
+       notification.
+
     """
+
     ORDER_AFTER = [
         aioxmpp.disco.Service
     ]
 
     on_item_published = aioxmpp.callbacks.Signal()
     on_item_retracted = aioxmpp.callbacks.Signal()
+    on_node_deleted = aioxmpp.callbacks.Signal()
+    on_affiliation_update = aioxmpp.callbacks.Signal()
+    on_subscription_update = aioxmpp.callbacks.Signal()
 
     def __init__(self, client, **kwargs):
         super().__init__(client, **kwargs)
@@ -107,31 +156,59 @@ class Service(aioxmpp.service.Service):
         )
 
     def filter_inbound_message(self, msg):
-        if (msg.type_ != "normal" or
-                msg.xep0060_event is None):
+        if msg.type_ != "normal":
             return msg
 
-        if msg.xep0060_event.payload is None:
-            return
+        if (msg.xep0060_event is not None and
+                msg.xep0060_event.payload is not None):
+            payload = msg.xep0060_event.payload
+            if isinstance(payload, pubsub_xso.EventItems):
+                for item in payload.items:
+                    node = item.node or payload.node
+                    self.on_item_published(
+                        msg.from_,
+                        node,
+                        item,
+                        message=msg,
+                    )
+                for retract in payload.retracts:
+                    node = payload.node
+                    self.on_item_retracted(
+                        msg.from_,
+                        node,
+                        retract.id_,
+                        message=msg,
+                    )
+            elif isinstance(payload, pubsub_xso.EventDelete):
+                self.on_node_deleted(
+                    msg.from_,
+                    payload.node,
+                    redirect_uri=payload.redirect_uri,
+                    message=msg,
+                )
 
-        payload = msg.xep0060_event.payload
-        if isinstance(payload, pubsub_xso.EventItems):
-            for item in payload.items:
-                node = item.node or payload.node
-                self.on_item_published(
-                    msg.from_,
-                    node,
-                    item,
-                    message=msg,
-                )
-            for retract in payload.retracts:
-                node = payload.node
-                self.on_item_retracted(
-                    msg.from_,
-                    node,
-                    retract.id_,
-                    message=msg,
-                )
+        elif (msg.xep0060_request is not None and
+              msg.xep0060_request.payload is not None):
+            payload = msg.xep0060_request.payload
+            if isinstance(payload, pubsub_xso.Affiliations):
+                for item in payload.affiliations:
+                    self.on_affiliation_update(
+                        msg.from_,
+                        item.node,
+                        item.affiliation,
+                        message=msg,
+                    )
+            elif isinstance(payload, pubsub_xso.Subscriptions):
+                for item in payload.subscriptions:
+                    self.on_subscription_update(
+                        msg.from_,
+                        item.node,
+                        item.subscription,
+                        subid=item.subid,
+                        message=msg,
+                    )
+        else:
+            return msg
 
     @asyncio.coroutine
     def get_features(self, jid):
@@ -423,7 +500,6 @@ class Service(aioxmpp.service.Service):
         """
         yield from self.publish(jid, node, None)
 
-
     @asyncio.coroutine
     def retract(self, jid, node, id_, *, notify=False):
         """
@@ -475,6 +551,29 @@ class Service(aioxmpp.service.Service):
         return node
 
     @asyncio.coroutine
+    def delete(self, jid, node, *, redirect_uri=None):
+        """
+        Delete an existing pubsub `node` at the given `jid`.
+
+        Optionally, a `redirect_uri` can be given. The `redirect_uri` will be
+        sent to subscribers in the message notifying them about the node
+        deletion.
+        """
+
+        iq = aioxmpp.stanza.IQ(
+            type_="set",
+            to=jid,
+            payload=pubsub_xso.OwnerRequest(
+                pubsub_xso.OwnerDelete(
+                    node,
+                    redirect_uri=redirect_uri
+                )
+            )
+        )
+
+        yield from self.client.stream.send_iq_and_wait_for_reply(iq)
+
+    @asyncio.coroutine
     def get_nodes(self, jid, node=None):
         """
         Request the nodes available at `jid`. If `node` is not :data:`None`,
@@ -504,3 +603,97 @@ class Service(aioxmpp.service.Service):
             ))
 
         return result
+
+    @asyncio.coroutine
+    def get_node_affiliations(self, jid, node):
+        """
+        Return the affiliations of other jids at the pubsub `node` at `jid`.
+
+        The affiliations are returned as :class:`.xso.OwnerRequest` instance
+        whose :attr:`~.xso.OwnerRequest.payload` is a
+        :class:`.xso.OwnerAffiliations` instance.
+        """
+        iq = aioxmpp.stanza.IQ(
+            type_="get",
+            to=jid,
+            payload=pubsub_xso.OwnerRequest(
+                pubsub_xso.OwnerAffiliations(node),
+            )
+        )
+
+        return (yield from self.client.stream.send_iq_and_wait_for_reply(iq))
+
+    @asyncio.coroutine
+    def get_node_subscriptions(self, jid, node):
+        """
+        Return the subscriptions of other jids at the pubsub `node` at `jid`.
+
+        The subscriptions are returned as :class:`.xso.OwnerRequest` instance
+        whose :attr:`~.xso.OwnerRequest.payload` is a
+        :class:`.xso.OwnerSubscriptions` instance.
+        """
+        iq = aioxmpp.stanza.IQ(
+            type_="get",
+            to=jid,
+            payload=pubsub_xso.OwnerRequest(
+                pubsub_xso.OwnerSubscriptions(node),
+            )
+        )
+
+        return (yield from self.client.stream.send_iq_and_wait_for_reply(iq))
+
+    @asyncio.coroutine
+    def change_node_affiliations(self, jid, node, affiliations_to_set):
+        """
+        Update the affiliations of the pubsub `node` at `jid`.
+
+        `affiliations_to_set` must be an iterable of pairs (`jid`,
+        `affiliation`), where the `jid` indicates the JID for which the
+        `affiliation` is to be set.
+        """
+        iq = aioxmpp.stanza.IQ(
+            type_="set",
+            to=jid,
+            payload=pubsub_xso.OwnerRequest(
+                pubsub_xso.OwnerAffiliations(
+                    node,
+                    affiliations=[
+                        pubsub_xso.OwnerAffiliation(
+                            jid,
+                            affiliation
+                        )
+                        for jid, affiliation in affiliations_to_set
+                    ]
+                )
+            )
+        )
+
+        yield from self.client.stream.send_iq_and_wait_for_reply(iq)
+
+    @asyncio.coroutine
+    def change_node_subscriptions(self, jid, node, subscriptions_to_set):
+        """
+        Update the subscriptions of the pubsub `node` at `jid`.
+
+        `subscriptions_to_set` must be an iterable of pairs (`jid`,
+        `subscription`), where the `jid` indicates the JID for which the
+        `subscription` is to be set.
+        """
+        iq = aioxmpp.stanza.IQ(
+            type_="set",
+            to=jid,
+            payload=pubsub_xso.OwnerRequest(
+                pubsub_xso.OwnerSubscriptions(
+                    node,
+                    subscriptions=[
+                        pubsub_xso.OwnerSubscription(
+                            jid,
+                            subscription
+                        )
+                        for jid, subscription in subscriptions_to_set
+                    ]
+                )
+            )
+        )
+
+        yield from self.client.stream.send_iq_and_wait_for_reply(iq)

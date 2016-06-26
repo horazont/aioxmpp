@@ -98,6 +98,7 @@ namespaces.xep0060_features = Feature
 namespaces.xep0060 = "http://jabber.org/protocol/pubsub"
 namespaces.xep0060_errors = "http://jabber.org/protocol/pubsub#errors"
 namespaces.xep0060_event = "http://jabber.org/protocol/pubsub#event"
+namespaces.xep0060_owner = "http://jabber.org/protocol/pubsub#owner"
 
 
 class Affiliation(xso.XSO):
@@ -283,7 +284,7 @@ class Retract(xso.XSO):
         "node",
     )
 
-    items = xso.ChildList([
+    item = xso.Child([
         Item
     ])
 
@@ -377,9 +378,10 @@ class Subscriptions(xso.XSO):
         [Subscription],
     )
 
-    def __init__(self, *, node=None):
+    def __init__(self, *, subscriptions=[], node=None):
         super().__init__()
         self.node = node
+        self.subscriptions[:] = subscriptions
 
 
 class Unsubscribe(xso.XSO):
@@ -479,6 +481,11 @@ class Request(xso.XSO):
         self.payload = payload
 
 
+aioxmpp.stanza.Message.xep0060_request = xso.Child([
+    Request
+])
+
+
 class EventAssociate(xso.XSO):
     TAG = (namespaces.xep0060_event, "associate")
 
@@ -511,17 +518,44 @@ class EventRedirect(xso.XSO):
         "uri",
     )
 
+    def __init__(self, uri):
+        super().__init__()
+        self.uri = uri
+
 
 class EventDelete(xso.XSO):
     TAG = (namespaces.xep0060_event, "delete")
 
-    redirect = xso.Child([
+    _redirect = xso.Child([
         EventRedirect,
     ])
 
     node = xso.Attr(
         "node",
     )
+
+    def __init__(self, node, *, redirect_uri=None):
+        super().__init__()
+        self.node = node
+        if redirect_uri is not None:
+            self._redirect = EventRedirect(redirect_uri)
+
+    @property
+    def redirect_uri(self):
+        if self._redirect is None:
+            return None
+        return self._redirect.uri
+
+    @redirect_uri.setter
+    def redirect_uri(self, value):
+        if value is None:
+            del self._redirect
+            return
+        self._redirect = EventRedirect(value)
+
+    @redirect_uri.deleter
+    def redirect_uri(self):
+        del self._redirect
 
 
 class EventRetract(xso.XSO):
@@ -658,6 +692,180 @@ class Event(xso.XSO):
 aioxmpp.stanza.Message.xep0060_event = xso.Child([
     Event
 ])
+
+
+class OwnerAffiliation(xso.XSO):
+    TAG = (namespaces.xep0060_owner, "affiliation")
+
+    affiliation = xso.Attr(
+        "affiliation",
+        validator=xso.RestrictToSet({
+            "member",
+            "outcast",
+            "owner",
+            "publisher",
+            "publish-only",
+            "none",
+        }),
+        validate=xso.ValidateMode.ALWAYS,
+    )
+
+    jid = xso.Attr(
+        "jid",
+        type_=xso.JID(),
+    )
+
+    def __init__(self, jid, affiliation):
+        super().__init__()
+        self.jid = jid
+        self.affiliation = affiliation
+
+
+class OwnerAffiliations(xso.XSO):
+    TAG = (namespaces.xep0060_owner, "affiliations")
+
+    affiliations = xso.ChildList([OwnerAffiliation])
+
+    node = xso.Attr(
+        "node",
+    )
+
+    def __init__(self, node, *, affiliations=[]):
+        super().__init__()
+        self.node = node
+        self.affiliations[:] = affiliations
+
+
+class OwnerConfigure(xso.XSO):
+    TAG = (namespaces.xep0060_owner, "configure")
+
+    node = xso.Attr(
+        "node",
+        default=None,
+    )
+
+    data = xso.Child([
+        aioxmpp.forms.Data,
+    ])
+
+
+class OwnerDefault(xso.XSO):
+    TAG = (namespaces.xep0060_owner, "default")
+
+    data = xso.Child([
+        aioxmpp.forms.Data,
+    ])
+
+
+class OwnerRedirect(xso.XSO):
+    TAG = (namespaces.xep0060_owner, "redirect")
+
+    uri = xso.Attr(
+        "uri",
+    )
+
+    def __init__(self, uri):
+        super().__init__()
+        self.uri = uri
+
+
+class OwnerDelete(xso.XSO):
+    TAG = (namespaces.xep0060_owner, "delete")
+
+    _redirect = xso.Child([OwnerRedirect])
+
+    node = xso.Attr(
+        "node",
+    )
+
+    def __init__(self, node, *, redirect_uri=None):
+        super().__init__()
+        self.node = node
+        if redirect_uri is not None:
+            self._redirect = OwnerRedirect(redirect_uri)
+
+    @property
+    def redirect_uri(self):
+        if self._redirect is None:
+            return None
+        return self._redirect.uri
+
+    @redirect_uri.setter
+    def redirect_uri(self, value):
+        if value is None:
+            del self._redirect
+            return
+        self._redirect = OwnerRedirect(value)
+
+    @redirect_uri.deleter
+    def redirect_uri(self):
+        del self._redirect
+
+
+class OwnerPurge(xso.XSO):
+    TAG = (namespaces.xep0060_owner, "purge")
+
+    node = xso.Attr(
+        "node",
+    )
+
+
+class OwnerSubscription(xso.XSO):
+    TAG = (namespaces.xep0060_owner, "subscription")
+
+    subscription = xso.Attr(
+        "subscription",
+        validator=xso.RestrictToSet({
+            "none",
+            "pending",
+            "subscribed",
+            "unconfigured",
+        }),
+        validate=xso.ValidateMode.ALWAYS
+    )
+
+    jid = xso.Attr(
+        "jid",
+        type_=xso.JID(),
+    )
+
+    def __init__(self, jid, subscription):
+        super().__init__()
+        self.jid = jid
+        self.subscription = subscription
+
+
+class OwnerSubscriptions(xso.XSO):
+    TAG = (namespaces.xep0060_owner, "subscriptions")
+
+    node = xso.Attr(
+        "node",
+    )
+
+    subscriptions = xso.ChildList([OwnerSubscription])
+
+    def __init__(self, node, *, subscriptions=[]):
+        super().__init__()
+        self.node = node
+        self.subscriptions[:] = subscriptions
+
+
+@aioxmpp.stanza.IQ.as_payload_class
+class OwnerRequest(xso.XSO):
+    TAG = (namespaces.xep0060_owner, "pubsub")
+
+    payload = xso.Child([
+        OwnerAffiliations,
+        OwnerConfigure,
+        OwnerDefault,
+        OwnerDelete,
+        OwnerPurge,
+        OwnerSubscriptions,
+    ])
+
+    def __init__(self, payload):
+        super().__init__()
+        self.payload = payload
 
 
 ClosedNode = aioxmpp.stanza.make_application_error(

@@ -64,6 +64,33 @@ alphabetical order.
 
 .. autoclass:: Unsubscribe
 
+Owner namespace
+---------------
+
+The top-level XSO is :class:`OwnerRequest`. Below that, several different XSOs
+are allowed, which are listed below the documentation of :class:`OwnerRequest`
+in alphabetical order.
+
+.. autoclass:: OwnerRequest
+
+.. autoclass:: OwnerAffiliation
+
+.. autoclass:: OwnerAffiliations
+
+.. autoclass:: OwnerConfigure
+
+.. autoclass:: OwnerDefault
+
+.. autoclass:: OwnerDelete
+
+.. autoclass:: OwnerPurge
+
+.. autoclass:: OwnerRedirect
+
+.. autoclass:: OwnerSubscription
+
+.. autoclass:: OwnerSubscriptions
+
 Application-condition error XSOs
 --------------------------------
 

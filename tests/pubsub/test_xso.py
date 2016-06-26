@@ -38,6 +38,12 @@ class TestNamespaces(unittest.TestCase):
             "http://jabber.org/protocol/pubsub#event"
         )
 
+    def test_owner(self):
+        self.assertEqual(
+            namespaces.xep0060_owner,
+            "http://jabber.org/protocol/pubsub#owner"
+        )
+
 
 class TestAffiliation(unittest.TestCase):
     def test_is_xso(self):
@@ -632,13 +638,13 @@ class TestRetract(unittest.TestCase):
             xso.NO_DEFAULT,
         )
 
-    def test_items(self):
+    def test_item(self):
         self.assertIsInstance(
-            pubsub_xso.Retract.items,
-            xso.ChildList,
+            pubsub_xso.Retract.item,
+            xso.Child,
         )
         self.assertSetEqual(
-            pubsub_xso.Retract.items._classes,
+            pubsub_xso.Retract.item._classes,
             {
                 pubsub_xso.Item,
             }
@@ -938,8 +944,22 @@ class TestSubscriptions(unittest.TestCase):
         self.assertSequenceEqual(subs.subscriptions, [])
 
     def test_init(self):
-        subs = pubsub_xso.Subscriptions(node="foobar")
+        subs = pubsub_xso.Subscriptions(
+            node="foobar",
+            subscriptions=[
+                unittest.mock.sentinel.s1,
+                unittest.mock.sentinel.s2,
+            ]
+        )
         self.assertEqual(subs.node, "foobar")
+
+        self.assertSequenceEqual(
+            subs.subscriptions,
+            [
+                unittest.mock.sentinel.s1,
+                unittest.mock.sentinel.s2,
+            ]
+        )
 
 
 class TestUnsubscribe(unittest.TestCase):
@@ -1092,6 +1112,18 @@ class TestRequest(unittest.TestCase):
             stanza.IQ.payload._classes
         )
 
+    def test_Message_attribute(self):
+        self.assertIsInstance(
+            stanza.Message.xep0060_request,
+            xso.Child,
+        )
+        self.assertSetEqual(
+            stanza.Message.xep0060_request._classes,
+            {
+                pubsub_xso.Request,
+            }
+        )
+
     def test_init(self):
         r = pubsub_xso.Request()
         self.assertIsNone(r.payload)
@@ -1215,6 +1247,14 @@ class TestEventRedirect(unittest.TestCase):
             (None, "uri"),
         )
 
+    def test_init_default(self):
+        with self.assertRaises(TypeError):
+            pubsub_xso.EventRedirect()
+
+    def test_init(self):
+        r = pubsub_xso.EventRedirect("foobar")
+        self.assertEqual(r.uri, "foobar")
+
 
 class TestEventDelete(unittest.TestCase):
     def test_is_xso(self):
@@ -1229,13 +1269,13 @@ class TestEventDelete(unittest.TestCase):
             (namespaces.xep0060_event, "delete"),
         )
 
-    def test_redirect(self):
+    def test__redirect(self):
         self.assertIsInstance(
-            pubsub_xso.EventDelete.redirect,
+            pubsub_xso.EventDelete._redirect,
             xso.Child,
         )
         self.assertSetEqual(
-            pubsub_xso.EventDelete.redirect._classes,
+            pubsub_xso.EventDelete._redirect._classes,
             {
                 pubsub_xso.EventRedirect,
             }
@@ -1258,6 +1298,54 @@ class TestEventDelete(unittest.TestCase):
             pubsub_xso.EventDelete.node.default,
             xso.NO_DEFAULT,
         )
+
+    def test_init_default(self):
+        with self.assertRaises(TypeError):
+            pubsub_xso.EventDelete()
+
+    def test_init(self):
+        d = pubsub_xso.EventDelete("node")
+        self.assertEqual(d.node, "node")
+        self.assertIsNone(d._redirect)
+
+        d = pubsub_xso.EventDelete("bar", redirect_uri="some-uri")
+        self.assertEqual(d.node, "bar")
+        self.assertIsInstance(d._redirect, pubsub_xso.EventRedirect)
+        self.assertEqual(d._redirect.uri, "some-uri")
+
+    def test_redirect_uri_gets_uri_of__redirect(self):
+        d = pubsub_xso.EventDelete("foo")
+        d._redirect = unittest.mock.Mock()
+
+        self.assertEqual(
+            d.redirect_uri,
+            d._redirect.uri,
+        )
+
+    def test_redirect_uri_returns_none_if_no__redirect_set(self):
+        d = pubsub_xso.EventDelete("foo")
+        self.assertIsNone(d.redirect_uri)
+
+    def test_setting_redirect_uri_sets__redirect(self):
+        d = pubsub_xso.EventDelete("foo")
+        d.redirect_uri = "foobar"
+        self.assertIsInstance(d._redirect, pubsub_xso.EventRedirect)
+        self.assertEqual(
+            d._redirect.uri,
+            "foobar"
+        )
+
+    def test_setting_redirect_uri_to_None_clears__redirect(self):
+        d = pubsub_xso.EventDelete("foo")
+        d._redirect = unittest.mock.sentinel.foo
+        d.redirect_uri = None
+        self.assertIsNone(d._redirect)
+
+    def test_deleting_redirect_uri_clears__redirect(self):
+        d = pubsub_xso.EventDelete("foo")
+        d._redirect = unittest.mock.sentinel.foo
+        del d.redirect_uri
+        self.assertIsNone(d._redirect)
 
 
 class TestEventRetract(unittest.TestCase):
@@ -1730,6 +1818,557 @@ class TestEvent(unittest.TestCase):
         items = pubsub_xso.EventItems()
         ev = pubsub_xso.Event(items)
         self.assertIs(ev.payload, items)
+
+
+class TestOwnerAffiliation(unittest.TestCase):
+    def test_is_xso(self):
+        self.assertTrue(issubclass(
+            pubsub_xso.OwnerAffiliation,
+            xso.XSO,
+        ))
+
+    def test_tag(self):
+        self.assertEqual(
+            pubsub_xso.OwnerAffiliation.TAG,
+            (namespaces.xep0060_owner, "affiliation"),
+        )
+
+    def test_affiliation(self):
+        self.assertIsInstance(
+            pubsub_xso.OwnerAffiliation.affiliation,
+            xso.Attr,
+        )
+        self.assertEqual(
+            pubsub_xso.OwnerAffiliation.affiliation.tag,
+            (None, "affiliation"),
+        )
+        self.assertIs(
+            pubsub_xso.OwnerAffiliation.affiliation.default,
+            xso.NO_DEFAULT,
+        )
+        self.assertIsInstance(
+            pubsub_xso.OwnerAffiliation.affiliation.validator,
+            xso.RestrictToSet,
+        )
+        self.assertSetEqual(
+            pubsub_xso.OwnerAffiliation.affiliation.validator.values,
+            {
+                "member",
+                "none",
+                "outcast",
+                "owner",
+                "publisher",
+                "publish-only",
+            }
+        )
+        self.assertEqual(
+            pubsub_xso.OwnerAffiliation.affiliation.validate,
+            xso.ValidateMode.ALWAYS,
+        )
+
+    def test_jid(self):
+        self.assertIsInstance(
+            pubsub_xso.OwnerAffiliation.jid,
+            xso.Attr,
+        )
+        self.assertEqual(
+            pubsub_xso.OwnerAffiliation.jid.tag,
+            (None, "jid"),
+        )
+        self.assertIs(
+            pubsub_xso.OwnerAffiliation.jid.default,
+            xso.NO_DEFAULT,
+        )
+        self.assertIsInstance(
+            pubsub_xso.OwnerAffiliation.jid.type_,
+            xso.JID,
+        )
+
+    def test_init(self):
+        with self.assertRaises(TypeError):
+            a = pubsub_xso.OwnerAffiliation()
+
+        a = pubsub_xso.OwnerAffiliation(TEST_JID, "owner")
+        self.assertEqual(a.jid, TEST_JID)
+        self.assertEqual(a.affiliation, "owner")
+
+
+class TestOwnerAffiliations(unittest.TestCase):
+    def test_is_xso(self):
+        self.assertTrue(issubclass(
+            pubsub_xso.OwnerAffiliations,
+            xso.XSO,
+        ))
+
+    def test_tag(self):
+        self.assertEqual(
+            pubsub_xso.OwnerAffiliations.TAG,
+            (namespaces.xep0060_owner, "affiliations"),
+        )
+
+    def test_affiliations(self):
+        self.assertIsInstance(
+            pubsub_xso.OwnerAffiliations.affiliations,
+            xso.ChildList,
+        )
+        self.assertSetEqual(
+            pubsub_xso.OwnerAffiliations.affiliations._classes,
+            {
+                pubsub_xso.OwnerAffiliation,
+            }
+        )
+
+    def test_node(self):
+        self.assertIsInstance(
+            pubsub_xso.OwnerAffiliations.node,
+            xso.Attr,
+        )
+        self.assertEqual(
+            pubsub_xso.OwnerAffiliations.node.tag,
+            (None, "node"),
+        )
+        self.assertIs(
+            pubsub_xso.OwnerAffiliations.node.default,
+            xso.NO_DEFAULT,
+        )
+
+    def test_init_default(self):
+        with self.assertRaises(TypeError):
+            pubsub_xso.OwnerAffiliations()
+
+    def test_init(self):
+        as_ = pubsub_xso.OwnerAffiliations("foo")
+        self.assertEqual(as_.node, "foo")
+        self.assertSequenceEqual(as_.affiliations, [])
+
+        as_ = pubsub_xso.OwnerAffiliations(
+            "foo",
+            affiliations=[
+                unittest.mock.sentinel.a1,
+                unittest.mock.sentinel.a2,
+            ]
+        )
+        self.assertEqual(as_.node, "foo")
+        self.assertSequenceEqual(
+            as_.affiliations,
+            [
+                unittest.mock.sentinel.a1,
+                unittest.mock.sentinel.a2,
+            ]
+        )
+
+
+class TestOwnerConfigure(unittest.TestCase):
+    def test_is_xso(self):
+        self.assertTrue(issubclass(
+            pubsub_xso.OwnerConfigure,
+            xso.XSO,
+        ))
+
+    def test_tag(self):
+        self.assertEqual(
+            pubsub_xso.OwnerConfigure.TAG,
+            (namespaces.xep0060_owner, "configure"),
+        )
+
+    def test_node(self):
+        self.assertIsInstance(
+            pubsub_xso.OwnerConfigure.node,
+            xso.Attr,
+        )
+        self.assertEqual(
+            pubsub_xso.OwnerConfigure.node.tag,
+            (None, "node"),
+        )
+        self.assertIs(
+            pubsub_xso.OwnerConfigure.node.default,
+            None,
+        )
+
+    def test_data(self):
+        self.assertIsInstance(
+            pubsub_xso.OwnerConfigure.data,
+            xso.Child,
+        )
+        self.assertSetEqual(
+            pubsub_xso.OwnerConfigure.data._classes,
+            {
+                forms.Data,
+            }
+        )
+
+
+class TestOwnerDefault(unittest.TestCase):
+    def test_is_xso(self):
+        self.assertTrue(issubclass(
+            pubsub_xso.OwnerDefault,
+            xso.XSO,
+        ))
+
+    def test_tag(self):
+        self.assertEqual(
+            pubsub_xso.OwnerDefault.TAG,
+            (namespaces.xep0060_owner, "default"),
+        )
+
+    def test_data(self):
+        self.assertIsInstance(
+            pubsub_xso.OwnerDefault.data,
+            xso.Child,
+        )
+        self.assertSetEqual(
+            pubsub_xso.OwnerDefault.data._classes,
+            {
+                forms.Data,
+            }
+        )
+
+
+class TestOwnerRedirect(unittest.TestCase):
+    def test_is_xso(self):
+        self.assertTrue(issubclass(
+            pubsub_xso.OwnerRedirect,
+            xso.XSO,
+        ))
+
+    def test_tag(self):
+        self.assertEqual(
+            pubsub_xso.OwnerRedirect.TAG,
+            (namespaces.xep0060_owner, "redirect"),
+        )
+
+    def test_uri(self):
+        self.assertIsInstance(
+            pubsub_xso.OwnerRedirect.uri,
+            xso.Attr,
+        )
+        self.assertEqual(
+            pubsub_xso.OwnerRedirect.uri.tag,
+            (None, "uri"),
+        )
+        self.assertIs(
+            pubsub_xso.OwnerRedirect.uri.default,
+            xso.NO_DEFAULT,
+        )
+
+    def test_init_default(self):
+        with self.assertRaises(TypeError):
+            pubsub_xso.OwnerRedirect()
+
+    def test_init(self):
+        r = pubsub_xso.OwnerRedirect("uri")
+        self.assertEqual(r.uri, "uri")
+
+
+class TestOwnerDelete(unittest.TestCase):
+    def test_is_xso(self):
+        self.assertTrue(issubclass(
+            pubsub_xso.OwnerDelete,
+            xso.XSO,
+        ))
+
+    def test_tag(self):
+        self.assertEqual(
+            pubsub_xso.OwnerDelete.TAG,
+            (namespaces.xep0060_owner, "delete"),
+        )
+
+    def test__redirect(self):
+        self.assertIsInstance(
+            pubsub_xso.OwnerDelete._redirect,
+            xso.Child,
+        )
+        self.assertSetEqual(
+            pubsub_xso.OwnerDelete._redirect._classes,
+            {
+                pubsub_xso.OwnerRedirect,
+            }
+        )
+
+    def test_node(self):
+        self.assertIsInstance(
+            pubsub_xso.OwnerDelete.node,
+            xso.Attr,
+        )
+        self.assertEqual(
+            pubsub_xso.OwnerDelete.node.tag,
+            (None, "node"),
+        )
+        self.assertIs(
+            pubsub_xso.OwnerDelete.node.default,
+            xso.NO_DEFAULT,
+        )
+
+    def test_init_default(self):
+        with self.assertRaises(TypeError):
+            pubsub_xso.OwnerDelete()
+
+    def test_init(self):
+        d = pubsub_xso.OwnerDelete("node")
+        self.assertEqual(d.node, "node")
+        self.assertIsNone(d._redirect)
+
+        d = pubsub_xso.OwnerDelete(
+            "other-node",
+            redirect_uri="foo",
+        )
+        self.assertEqual(d.node, "other-node")
+        self.assertIsInstance(d._redirect, pubsub_xso.OwnerRedirect)
+        self.assertEqual(
+            d._redirect.uri,
+            "foo"
+        )
+
+    def test_redirect_uri_gets_uri_of__redirect(self):
+        d = pubsub_xso.OwnerDelete("foo")
+        d._redirect = unittest.mock.Mock()
+
+        self.assertEqual(
+            d.redirect_uri,
+            d._redirect.uri,
+        )
+
+    def test_redirect_uri_returns_none_if_no__redirect_set(self):
+        d = pubsub_xso.OwnerDelete("foo")
+        self.assertIsNone(d.redirect_uri)
+
+    def test_setting_redirect_uri_sets__redirect(self):
+        d = pubsub_xso.OwnerDelete("foo")
+        d.redirect_uri = "foobar"
+        self.assertIsInstance(d._redirect, pubsub_xso.OwnerRedirect)
+        self.assertEqual(
+            d._redirect.uri,
+            "foobar"
+        )
+
+    def test_setting_redirect_uri_to_None_clears__redirect(self):
+        d = pubsub_xso.OwnerDelete("foo")
+        d._redirect = unittest.mock.sentinel.foo
+        d.redirect_uri = None
+        self.assertIsNone(d._redirect)
+
+    def test_deleting_redirect_uri_clears__redirect(self):
+        d = pubsub_xso.OwnerDelete("foo")
+        d._redirect = unittest.mock.sentinel.foo
+        del d.redirect_uri
+        self.assertIsNone(d._redirect)
+
+
+class TestOwnerPurge(unittest.TestCase):
+    def test_is_xso(self):
+        self.assertTrue(issubclass(
+            pubsub_xso.OwnerPurge,
+            xso.XSO,
+        ))
+
+    def test_tag(self):
+        self.assertEqual(
+            pubsub_xso.OwnerPurge.TAG,
+            (namespaces.xep0060_owner, "purge"),
+        )
+
+    def test_node(self):
+        self.assertIsInstance(
+            pubsub_xso.OwnerPurge.node,
+            xso.Attr,
+        )
+        self.assertEqual(
+            pubsub_xso.OwnerPurge.node.tag,
+            (None, "node"),
+        )
+        self.assertIs(
+            pubsub_xso.OwnerPurge.node.default,
+            xso.NO_DEFAULT,
+        )
+
+
+class TestOwnerSubscription(unittest.TestCase):
+    def test_is_xso(self):
+        self.assertTrue(issubclass(
+            pubsub_xso.OwnerSubscription,
+            xso.XSO,
+        ))
+
+    def test_tag(self):
+        self.assertEqual(
+            pubsub_xso.OwnerSubscription.TAG,
+            (namespaces.xep0060_owner, "subscription"),
+        )
+
+    def test_subscription(self):
+        self.assertIsInstance(
+            pubsub_xso.OwnerSubscription.subscription,
+            xso.Attr,
+        )
+        self.assertEqual(
+            pubsub_xso.OwnerSubscription.subscription.tag,
+            (None, "subscription"),
+        )
+        self.assertIs(
+            pubsub_xso.OwnerSubscription.subscription.default,
+            xso.NO_DEFAULT,
+        )
+        self.assertIsInstance(
+            pubsub_xso.OwnerSubscription.subscription.validator,
+            xso.RestrictToSet
+        )
+        self.assertSetEqual(
+            pubsub_xso.OwnerSubscription.subscription.validator.values,
+            {
+                "none",
+                "pending",
+                "subscribed",
+                "unconfigured",
+            }
+        )
+        self.assertEqual(
+            pubsub_xso.OwnerSubscription.subscription.validate,
+            xso.ValidateMode.ALWAYS,
+        )
+
+    def test_jid(self):
+        self.assertIsInstance(
+            pubsub_xso.OwnerSubscription.jid,
+            xso.Attr,
+        )
+        self.assertEqual(
+            pubsub_xso.OwnerSubscription.jid.tag,
+            (None, "jid"),
+        )
+        self.assertIs(
+            pubsub_xso.OwnerSubscription.jid.default,
+            xso.NO_DEFAULT,
+        )
+        self.assertIsInstance(
+            pubsub_xso.OwnerSubscription.jid.type_,
+            xso.JID
+        )
+
+    def test_init_default(self):
+        with self.assertRaises(TypeError):
+            pubsub_xso.OwnerSubscription()
+
+    def test_init(self):
+        s = pubsub_xso.OwnerSubscription(
+            TEST_JID,
+            "subscribed"
+        )
+
+        self.assertEqual(s.jid, TEST_JID)
+        self.assertEqual(s.subscription, "subscribed")
+
+
+class TestOwnerSubscriptions(unittest.TestCase):
+    def test_is_xso(self):
+        self.assertTrue(issubclass(
+            pubsub_xso.OwnerSubscriptions,
+            xso.XSO,
+        ))
+
+    def test_tag(self):
+        self.assertEqual(
+            pubsub_xso.OwnerSubscriptions.TAG,
+            (namespaces.xep0060_owner, "subscriptions"),
+        )
+
+    def test_node(self):
+        self.assertIsInstance(
+            pubsub_xso.OwnerSubscriptions.node,
+            xso.Attr,
+        )
+        self.assertEqual(
+            pubsub_xso.OwnerSubscriptions.node.tag,
+            (None, "node"),
+        )
+        self.assertIs(
+            pubsub_xso.OwnerSubscriptions.node.default,
+            xso.NO_DEFAULT,
+        )
+
+    def test_subscriptions(self):
+        self.assertIsInstance(
+            pubsub_xso.OwnerSubscriptions.subscriptions,
+            xso.ChildList,
+        )
+        self.assertSetEqual(
+            pubsub_xso.OwnerSubscriptions.subscriptions._classes,
+            {
+                pubsub_xso.OwnerSubscription,
+            }
+        )
+
+    def test_init_default(self):
+        with self.assertRaises(TypeError):
+            pubsub_xso.OwnerSubscriptions()
+
+    def test_init(self):
+        ss = pubsub_xso.OwnerSubscriptions("node")
+        self.assertEqual(ss.node, "node")
+        self.assertSequenceEqual(ss.subscriptions, [])
+
+        ss = pubsub_xso.OwnerSubscriptions(
+            "node",
+            subscriptions=[
+                unittest.mock.sentinel.s1,
+                unittest.mock.sentinel.s2,
+            ]
+        )
+        self.assertEqual(ss.node, "node")
+        self.assertSequenceEqual(
+            ss.subscriptions,
+            [
+                unittest.mock.sentinel.s1,
+                unittest.mock.sentinel.s2,
+            ]
+        )
+
+
+class TestOwnerRequest(unittest.TestCase):
+    def test_is_xso(self):
+        self.assertTrue(issubclass(
+            pubsub_xso.OwnerRequest,
+            xso.XSO,
+        ))
+
+    def test_tag(self):
+        self.assertEqual(
+            pubsub_xso.OwnerRequest.TAG,
+            (namespaces.xep0060_owner, "pubsub"),
+        )
+
+    def test_payload(self):
+        self.assertIsInstance(
+            pubsub_xso.OwnerRequest.payload,
+            xso.Child,
+        )
+        self.assertSetEqual(
+            pubsub_xso.OwnerRequest.payload._classes,
+            {
+                pubsub_xso.OwnerAffiliations,
+                pubsub_xso.OwnerConfigure,
+                pubsub_xso.OwnerDefault,
+                pubsub_xso.OwnerDelete,
+                pubsub_xso.OwnerPurge,
+                pubsub_xso.OwnerSubscriptions,
+            }
+        )
+
+    def test_is_registered_iq_payload(self):
+        self.assertIn(
+            pubsub_xso.OwnerRequest,
+            stanza.IQ.payload._classes
+        )
+
+    def test_init_default(self):
+        with self.assertRaises(TypeError):
+            pubsub_xso.OwnerRequest()
+
+    def test_init(self):
+        r = pubsub_xso.OwnerRequest(unittest.mock.sentinel.payload)
+        self.assertEqual(
+            r.payload,
+            unittest.mock.sentinel.payload
+        )
 
 
 class TestSimpleErrors(unittest.TestCase):
