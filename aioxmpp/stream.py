@@ -728,9 +728,9 @@ class StanzaStream:
                 coro = self._iq_request_map[key]
             except KeyError:
                 self._logger.warning(
-                    "unhandleable IQ request: from=%r, id=%r, payload=%r",
+                    "unhandleable IQ request: from=%r, type_=%r, payload=%r",
                     stanza_obj.from_,
-                    stanza_obj.id_,
+                    stanza_obj.type_,
                     stanza_obj.payload
                 )
                 response = stanza_obj.make_reply(type_="error")
