@@ -745,11 +745,11 @@ class PresenceManagedClient(AbstractClient):
         state, status = self._presence
         state.apply_to_stanza(pres)
         pres.status.update(status)
-        pres.autoset_id()
         self.stream.enqueue_stanza(pres)
 
     def _handle_stream_established(self):
-        self._resend_presence()
+        if self._presence[0].available:
+            self._resend_presence()
         self.on_presence_sent()
 
     def _update_presence(self):
@@ -877,17 +877,13 @@ class UseConnected:
     @property
     def presence(self):
         """
-        This is the presence which is sent when connecting. This must be a
-        *available* presence, otherwise, :class:`ValueError` is raised.k
+        This is the presence which is sent when connecting. This may be an
+        unavailable presence.
         """
         return self._presence
 
     @presence.setter
     def presence(self, value):
-        if not value.available:
-            raise ValueError(
-                "presence must be available, got {!r}".format(value)
-            )
         self._presence = value
 
     @asyncio.coroutine
@@ -898,6 +894,10 @@ class UseConnected:
         connected_future = asyncio.Future()
 
         self._client.presence = self.presence
+
+        if not self._client.running:
+            self._client.start()
+
         self._client.on_presence_sent.connect(
             connected_future,
             self._client.on_presence_sent.AUTO_FUTURE

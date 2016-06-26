@@ -2018,6 +2018,24 @@ class TestPresenceManagedClient(xmltestutils.XMLTestCase):
 
         self.presence_sent_rec.assert_called_once_with()
 
+    def test_do_not_send_presence_if_unavailable(self):
+        self.client.presence = structs.PresenceState(
+            available=False
+        )
+
+        self.client.start()
+        run_coroutine(asyncio.sleep(0))
+        self.assertTrue(self.client.running)
+        self.assertFalse(self.client.established)
+
+        run_coroutine(
+            self.xmlstream.run_test(self.resource_binding)
+        )
+
+        run_coroutine(asyncio.sleep(0.1))
+
+        self.presence_sent_rec.assert_called_once_with()
+
     def test_re_establish_on_presence_rewrite_if_disconnected(self):
         self.client.presence = structs.PresenceState(
             available=True,
@@ -2284,21 +2302,6 @@ class TestUseConnected(unittest.TestCase):
         self.assertEqual(cm.timeout, timedelta(seconds=0.1))
         self.assertEqual(cm.presence, structs.PresenceState(True, "away"))
 
-    def test_constructor_requires_available_presence(self):
-        with self.assertRaisesRegex(
-                ValueError,
-                "presence must be available, got <PresenceState>"):
-            node.UseConnected(self.client,
-                              presence=structs.PresenceState(False))
-
-    def test_attribute_setter_requires_available_presence(self):
-        cm = node.UseConnected(self.client)
-
-        with self.assertRaisesRegex(
-                ValueError,
-                "presence must be available, got <PresenceState>"):
-            cm.presence = structs.PresenceState(False)
-
     def test_aenter_sets_presence(self):
         self.assertEqual(self.client.presence, structs.PresenceState(False))
 
@@ -2306,6 +2309,45 @@ class TestUseConnected(unittest.TestCase):
         run_coroutine(asyncio.sleep(0.01))
 
         self.assertEqual(self.client.presence, structs.PresenceState(True))
+
+        task.cancel()
+
+    def test_aenter_starts_client_directly_if_presence_is_unavailable(self):
+        self.client.running = False
+
+        self.cm.presence = structs.PresenceState(False)
+
+        task = asyncio.async(self.cm.__aenter__())
+        run_coroutine(asyncio.sleep(0.01))
+
+        self.client.start.assert_called_with()
+
+        task.cancel()
+
+    def test_aenter_starts_client_after_setting_presence(self):
+        self.client.presence = unittest.mock.sentinel.foo
+
+        self.client.running = False
+
+        presence_at_start = None
+
+        def check(*args, **kwargs):
+            nonlocal presence_at_start
+            presence_at_start = self.client.presence
+
+        self.cm.presence = structs.PresenceState(False)
+
+        self.client.start.side_effect = check
+
+        task = asyncio.async(self.cm.__aenter__())
+        run_coroutine(asyncio.sleep(0.01))
+
+        self.client.start.assert_called_with()
+
+        self.assertEqual(
+            presence_at_start,
+            structs.PresenceState(False),
+        )
 
         task.cancel()
 
