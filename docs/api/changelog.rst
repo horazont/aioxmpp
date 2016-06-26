@@ -99,6 +99,9 @@ Version 0.6
   the synopsis of the stanza as parsed. It also makes sure that stream
   management works correctly, even if some stanzas are not understood.
 
+  Additionally, a bug in the :class:`aioxmpp.xml.XMPPXMLProcessor` has been
+  fixed which prevented errors in text content from being caught.
+
 * No visible side-effects: Replaced deprecated
   :meth:`unittest.TestCase.assertRaisesRegexp` with
   :meth:`unittest.TestCase.assertRaisesRegex` (`thanks, Maxim

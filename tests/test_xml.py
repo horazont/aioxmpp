@@ -1244,6 +1244,97 @@ class TestXMPPXMLProcessor(unittest.TestCase):
         self.proc.endElementNS(self.STREAM_HEADER_TAG, None)
         self.proc.endDocument()
 
+    def test_exception_in_endElementNS_recovery_and_reporting(self):
+        catch_exception = unittest.mock.MagicMock()
+
+        elements = []
+
+        def recv(obj):
+            nonlocal elements
+            elements.append(obj)
+
+        class Child(xso.XSO):
+            TAG = ("uri:foo", "bar")
+
+            t = xso.Text(type_=xso.Float())
+
+        class Foo(xso.XSO):
+            TAG = ("uri:foo", "foo")
+
+            c = xso.Child([Child])
+
+        self.assertIsNone(self.proc.on_exception)
+        self.proc.on_exception = catch_exception
+        self.proc.stanza_parser = xso.XSOParser()
+        self.proc.stanza_parser.add_class(Foo, recv)
+        self.proc.startDocument()
+        self.proc.startElementNS(self.STREAM_HEADER_TAG,
+                                 None,
+                                 self.STREAM_HEADER_ATTRS)
+        self.proc.startElementNS(("uri:foo", "foo"), None, {})
+        self.proc.startElementNS(("uri:foo", "bar"), None, {})
+        self.proc.characters("foobar")
+        self.proc.endElementNS(("uri:foo", "bar"), None)
+        self.proc.endElementNS(("uri:foo", "foo"), None)
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call.__bool__(),
+                unittest.mock.call(unittest.mock.ANY)
+            ],
+            catch_exception.mock_calls)
+
+        self.proc.startElementNS(("uri:foo", "foo"), None, {})
+        self.proc.endElementNS(("uri:foo", "foo"), None)
+
+        self.assertTrue(elements)
+        self.assertIsInstance(elements[0], Foo)
+
+        self.proc.endElementNS(self.STREAM_HEADER_TAG, None)
+        self.proc.endDocument()
+
+    def test_exception_in_endElementNS_toplevel_recovery_and_reporting(self):
+        catch_exception = unittest.mock.MagicMock()
+
+        elements = []
+
+        def recv(obj):
+            nonlocal elements
+            elements.append(obj)
+
+        class Foo(xso.XSO):
+            TAG = ("uri:foo", "foo")
+
+            t = xso.Text(type_=xso.Float())
+
+        self.assertIsNone(self.proc.on_exception)
+        self.proc.on_exception = catch_exception
+        self.proc.stanza_parser = xso.XSOParser()
+        self.proc.stanza_parser.add_class(Foo, recv)
+        self.proc.startDocument()
+        self.proc.startElementNS(self.STREAM_HEADER_TAG,
+                                 None,
+                                 self.STREAM_HEADER_ATTRS)
+        self.proc.startElementNS(("uri:foo", "foo"), None, {})
+        self.proc.characters("foobar")
+        self.proc.endElementNS(("uri:foo", "foo"), None)
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call.__bool__(),
+                unittest.mock.call(unittest.mock.ANY)
+            ],
+            catch_exception.mock_calls)
+
+        self.proc.startElementNS(("uri:foo", "foo"), None, {})
+        self.proc.endElementNS(("uri:foo", "foo"), None)
+
+        self.assertTrue(elements)
+        self.assertIsInstance(elements[0], Foo)
+
+        self.proc.endElementNS(self.STREAM_HEADER_TAG, None)
+        self.proc.endDocument()
+
     def test_exception_reraise_without_handler(self):
         elements = []
 
