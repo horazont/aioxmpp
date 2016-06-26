@@ -21,6 +21,41 @@ class Service(aioxmpp.service.Service):
        arguments is listed as positional in the signal signature, it is always
        present and handed as positional argument.
 
+    Subscriber use cases:
+       .. autosummary::
+
+          get_default_config
+          get_items
+          get_items_by_id
+          get_subscription_config
+          get_subscriptions
+          set_subscription_config
+          subscribe
+          unsubscribe
+          on_affiliation_update
+          on_item_published
+          on_item_retracted
+          on_node_deleted
+          on_subscription_update
+
+    Publisher use cases:
+       .. autosummary::
+
+          notify
+          publish
+          retract
+
+    Owner use cases:
+       .. autosummary::
+
+          change_node_affiliations
+          change_node_subscriptions
+          create
+          delete
+          get_nodes
+          get_node_affiliations
+          get_node_subscriptions
+
     Meta-information about the service:
 
     .. automethod:: get_features
@@ -73,66 +108,15 @@ class Service(aioxmpp.service.Service):
 
     Receiving notifications:
 
-    .. signal:: on_item_published(jid, node, item, *, message=None)
+    .. autosignal:: on_item_published(jid, node, item, *, message=None)
 
-       Fires when a new item is published to a node to which we have a
-       subscription.
+    .. autosignal:: on_item_retracted(jid, node, id_, *, message=None)
 
-       The node at which the item has been published is identified by `jid` and
-       `node`. `item` is the :class:`xso.EventItem` payload.
+    .. autosignal:: on_node_deleted(jid, node, *, redirect_uri=None, message=None)
 
-       `message` is the :class:`.stanza.Message` which carried the
-       notification. If a notification message contains more than one published
-       item, the event is fired for each of the items, and `message` is passed
-       to all of them.
+    .. autosignal:: on_affiliation_update(jid, node, affiliation, *, message=None)
 
-    .. signal:: on_item_retracted(jid, node, id_, *, message=None)
-
-       Fires when a new item is retracted from a node to which we have a
-       subscription.
-
-       The node at which the item has been retracted is identified by `jid` and
-       `node`. `id_` is the ID of the item which has been retract.
-
-       `message` is the :class:`.stanza.Message` which carried the
-       notification. If a notification message contains more than one retracted
-       item, the event is fired for each of the items, and `message` is passed
-       to all of them.
-
-    .. signal:: on_node_deleted(jid, node, *, redirect_uri=None, message=None)
-
-       Fires when a node is deleted. `jid` and `node` identify the node.
-
-       If the notification included a redirection URI, it is passed as
-       `redirect_uri`. Otherwise, :data:`None` is passed for `redirect_uri`.
-
-       `message` is the :class:`.stanza.Message` which carried the
-       notification.
-
-    .. signal:: on_affiliation_update(jid, node, affiliation, *, message=None)
-
-       Fires when the affiliation with a node is updated.
-
-       `jid` and `node` identify the node for which the affiliation was
-       updated. `affiliation` is the new affiliaton.
-
-       `message` is the :class:`.stanza.Message` which carried the
-       notification.
-
-    .. signal:: on_subscription_update(jid, node, state, *, subid=None, message=None)
-
-       Fires when the subscription state is updated.
-
-       `jid` and `node` identify the node for which the subscription was
-       updated. `subid` is optional and if it is not :data:`None` it is the
-       affected subscription id. `state` is the new subscription state.
-
-       This event can happen in several cases, for example when a subscription
-       request is approved by the node owner or when a subscription is
-       cancelled.
-
-       `message` is the :class:`.stanza.Message` which carried the
-       notification.
+    .. autosignal:: on_subscription_update(jid, node, state, *, subid=None, message=None)
 
     """
 
@@ -140,11 +124,64 @@ class Service(aioxmpp.service.Service):
         aioxmpp.disco.Service
     ]
 
-    on_item_published = aioxmpp.callbacks.Signal()
-    on_item_retracted = aioxmpp.callbacks.Signal()
-    on_node_deleted = aioxmpp.callbacks.Signal()
-    on_affiliation_update = aioxmpp.callbacks.Signal()
-    on_subscription_update = aioxmpp.callbacks.Signal()
+    on_item_published = aioxmpp.callbacks.Signal(doc=
+    """
+    Fires when a new item is published to a node to which we have a
+    subscription.
+
+    The node at which the item has been published is identified by `jid` and
+    `node`. `item` is the :class:`xso.EventItem` payload.
+
+    `message` is the :class:`.stanza.Message` which carried the notification.
+    If a notification message contains more than one published item, the event
+    is fired for each of the items, and `message` is passed to all of them.
+    """)  # NOQA
+
+    on_item_retracted = aioxmpp.callbacks.Signal(doc=
+    """
+    Fires when an item is retracted from a node to which we have a subscription.
+
+    The node at which the item has been retracted is identified by `jid` and
+    `node`. `id_` is the ID of the item which has been retract.
+
+    `message` is the :class:`.stanza.Message` which carried the notification.
+    If a notification message contains more than one retracted item, the event
+    is fired for each of the items, and `message` is passed to all of them.
+    """)  # NOQA
+
+    on_node_deleted = aioxmpp.callbacks.Signal(doc=
+    """
+    Fires when a node is deleted. `jid` and `node` identify the node.
+
+    If the notification included a redirection URI, it is passed as
+    `redirect_uri`. Otherwise, :data:`None` is passed for `redirect_uri`.
+
+    `message` is the :class:`.stanza.Message` which carried the notification.
+    """)  # NOQA
+
+    on_affiliation_update = aioxmpp.callbacks.Signal(doc=
+    """
+    Fires when the affiliation with a node is updated.
+
+    `jid` and `node` identify the node for which the affiliation was updated.
+    `affiliation` is the new affiliaton.
+
+    `message` is the :class:`.stanza.Message` which carried the notification.
+    """)  # NOQA
+
+    on_subscription_update = aioxmpp.callbacks.Signal(doc=
+    """
+    Fires when the subscription state is updated.
+
+    `jid` and `node` identify the node for which the subscription was updated.
+    `subid` is optional and if it is not :data:`None` it is the affected
+    subscription id. `state` is the new subscription state.
+
+    This event can happen in several cases, for example when a subscription
+    request is approved by the node owner or when a subscription is cancelled.
+
+    `message` is the :class:`.stanza.Message` which carried the notification.s
+    """)  # NOQA
 
     def __init__(self, client, **kwargs):
         super().__init__(client, **kwargs)
