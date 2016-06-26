@@ -47,12 +47,12 @@ class Meta(abc.ABCMeta):
        not be mixed with :attr:`ORDER_BEFORE` or :attr:`ORDER_AFTER` on a class
        declaration, or the declaration will raise :class:`ValueError`.
 
-       Support for this attribute will be removed in 1.x; starting with 1.0,
-       using this attribute will raise a :class:`TypeError` on class
-       declaration and a :class:`AttributeError` when accessing it on a class
-       or instance.
-
        .. deprecated:: 0.3
+
+          Support for this attribute will be removed in 1.0; starting with 1.0,
+          using this attribute will raise a :class:`TypeError` on class
+          declaration and a :class:`AttributeError` when accessing it on a
+          class or instance.
 
     .. attribute:: ORDER_AFTER
 
@@ -73,9 +73,9 @@ class Meta(abc.ABCMeta):
        not be mixed with :attr:`ORDER_BEFORE` or :attr:`ORDER_AFTER` on a class
        declaration, or the declaration will raise :class:`ValueError`.
 
-       See :attr:`SERVICE_BEFORE` for details on the deprecation cycle.
-
        .. deprecated:: 0.3
+
+          See :attr:`SERVICE_BEFORE` for details on the deprecation cycle.
 
     The dependencies are inherited from bases unless the `inherit_dependencies`
     keyword argument is set to false.

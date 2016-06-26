@@ -772,6 +772,7 @@ class PresenceManagedClient(AbstractClient):
         connection is still being established.
 
         .. seealso::
+
            Setting the presence state using :attr:`presence` clears the
            `status` of the presence. To set the status and state at once,
            use :meth:`set_presence`.
