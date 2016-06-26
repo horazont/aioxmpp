@@ -1882,6 +1882,7 @@ class TestStanzaStream(StanzaStreamTestBase):
 
     def test_handle_PayloadParsingError_at_message_with_error_response(self):
         msg = make_test_message()
+        msg.autoset_id()
         self.stream.recv_erroneous_stanza(
             msg,
             stanza.PayloadParsingError(msg, ('end', 'foo'), None)
@@ -1934,7 +1935,8 @@ class TestStanzaStream(StanzaStreamTestBase):
             self.sent_stanzas.get_nowait()
 
     def test_handle_PayloadParsingError_at_presence_with_error_response(self):
-        pres = make_test_message()
+        pres = make_test_presence()
+        pres.autoset_id()
         self.stream.recv_erroneous_stanza(
             pres,
             stanza.PayloadParsingError(pres, ('end', 'foo'), None),
@@ -1947,7 +1949,7 @@ class TestStanzaStream(StanzaStreamTestBase):
         obj = run_coroutine(self.sent_stanzas.get())
         self.assertIsInstance(
             obj,
-            stanza.Message
+            stanza.Presence
         )
         self.assertEqual(
             obj.type_,
