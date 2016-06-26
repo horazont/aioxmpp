@@ -216,29 +216,58 @@ class Service(metaclass=Meta):
     service will be attached. The `client` cannot be changed later, for the
     sake of simplicity.
 
-    `logger` may be a :class:`logging.Logger` instance or :data:`None`. If it
-    is :data:`None`, a logger is automatically created, by taking the fully
+    `logger_base` may be a :class:`logging.Logger` instance or :data:`None`. If
+    it is :data:`None`, a logger is automatically created, by taking the fully
     qualified name of the :class:`Service` subclass which is being
-    instanciated.
+    instanciated. Otherwise, the logger is passed to :meth:`derive_logger` and
+    the result is used as value for the :attr:`logger` attribute.
+
+    To implement your own service, derive from :class:`Service`. If your
+    service depends on other services (such as :mod:`aioxmpp.pubsub` or
+    :mod:`aioxmpp.disco`), these dependencies *must* be declared as documented
+    in the service meta class :class:`Meta`.
+
+    To stay forward compatible, accept arbitrary keyword arguments and pass
+    them down to :class:`Service`. As it is not possible to directly pass
+    arguments to :class:`Service`\ s on construction (due to the way
+    :meth:`aioxmpp.node.AbstractClient.summon` works), there is no need for you
+    to introduce custom arguments, and thus there should be no conflicts.
 
     .. autoattribute:: client
 
-    .. automethod:: shutdown
+    .. automethod:: derive_logger
 
-    For rules with respect to inheriting from :class:`Service` see the
-    documentation of the used metaclass, :class:`Meta`.
+    .. automethod:: shutdown
     """
 
-    def __init__(self, client, *, logger=None):
+    def __init__(self, client, *, logger_base=None):
         super().__init__()
-        if logger is None:
+        self._client = client
+
+        if logger_base is None:
             self.logger = logging.getLogger(".".join([
                 type(self).__module__, type(self).__qualname__
             ]))
         else:
-            self.logger = logger
+            self.logger = self.derive_logger(logger_base)
 
-        self._client = client
+    def derive_logger(self, logger):
+        """
+        Return a child of `logger` specific for this instance. This is called
+        after :attr:`_client` has been set, from the constructor.
+
+        The child name is calculated by the default implementation in a way
+        specific for aioxmpp services; it is not meant to be used by
+        non-:mod:`aioxmpp` classes; do not rely on the way how the child name
+        is calculated.
+        """
+        parts = type(self).__module__.split(".")[1:]
+        if parts[-1] == "service" and len(parts) > 1:
+            del parts[-1]
+
+        return logger.getChild(".".join(
+            parts+[type(self).__qualname__]
+        ))
 
     @property
     def client(self):

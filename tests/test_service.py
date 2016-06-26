@@ -411,8 +411,9 @@ class TestService(unittest.TestCase):
 
     def test_custom_logger(self):
         l = logging.getLogger("foo")
-        s = service.Service(None, logger=l)
-        self.assertIs(s.logger, l)
+        s = service.Service(None, logger_base=l)
+
+        self.assertEqual(s.logger, l.getChild("service.Service"))
 
     def test_client(self):
         o = object()

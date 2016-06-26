@@ -2,6 +2,7 @@ import asyncio
 import contextlib
 import functools
 import ipaddress
+import logging
 import unittest
 import unittest.mock
 
@@ -820,13 +821,13 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
         )
 
         self.assertEqual(client.on_stopped.logger,
-                         client._logger.getChild("on_stopped"))
+                         client.logger.getChild("on_stopped"))
         self.assertEqual(client.on_failure.logger,
-                         client._logger.getChild("on_failure"))
+                         client.logger.getChild("on_failure"))
         self.assertEqual(client.on_stream_established.logger,
-                         client._logger.getChild("on_stream_established"))
+                         client.logger.getChild("on_stream_established"))
         self.assertEqual(client.on_stream_destroyed.logger,
-                         client._logger.getChild("on_stream_destroyed"))
+                         client.logger.getChild("on_stream_destroyed"))
 
         with self.assertRaises(AttributeError):
             client.local_jid = structs.JID.fromstr("bar@bar.example/baz")
@@ -1743,29 +1744,44 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
 
         self.assertSequenceEqual(
             [
-                unittest.mock.call.Svc3(self.client),
-                unittest.mock.call.Svc2(self.client),
+                unittest.mock.call.Svc3(
+                    self.client,
+                    logger_base=logging.getLogger(
+                        "aioxmpp.node.AbstractClient"
+                    )
+                ),
+                unittest.mock.call.Svc2(
+                    self.client,
+                    logger_base=logging.getLogger(
+                        "aioxmpp.node.AbstractClient"
+                    )
+                ),
             ],
             svc_init.mock_calls
         )
+
+        svc_init.mock_calls.clear()
 
         self.client.summon(Svc3)
 
         self.assertSequenceEqual(
             [
-                unittest.mock.call.Svc3(self.client),
-                unittest.mock.call.Svc2(self.client),
             ],
             svc_init.mock_calls
         )
+
+        svc_init.mock_calls.clear()
 
         self.client.summon(Svc1)
 
         self.assertSequenceEqual(
             [
-                unittest.mock.call.Svc3(self.client),
-                unittest.mock.call.Svc2(self.client),
-                unittest.mock.call.Svc1(self.client),
+                unittest.mock.call.Svc1(
+                    self.client,
+                    logger_base=logging.getLogger(
+                        "aioxmpp.node.AbstractClient"
+                    )
+                ),
             ],
             svc_init.mock_calls
         )

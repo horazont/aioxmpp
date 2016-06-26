@@ -356,6 +356,18 @@ class AbstractClient:
 
     .. automethod:: summon
 
+    Miscellaneous:
+
+    .. attribute:: logger
+
+       The :class:`logging.Logger` instance which is used by the
+       :class:`AbstractClient`. This is the `logger` passed to the constructor
+       or a logger derived from the fully qualified name of the class.
+
+       .. versionadded:: 0.6
+
+          The :attr:`logger` attribute was added.
+
     """
 
     on_failure = callbacks.Signal()
@@ -369,7 +381,8 @@ class AbstractClient:
                  local_jid,
                  security_layer,
                  negotiation_timeout=timedelta(seconds=60),
-                 loop=None):
+                 loop=None,
+                 logger=None):
         super().__init__()
         self._local_jid = local_jid
         self._loop = loop or asyncio.get_event_loop()
@@ -377,7 +390,11 @@ class AbstractClient:
         self._security_layer = security_layer
 
         self._failure_future = asyncio.Future()
-        self._logger = logging.getLogger("aioxmpp.AbstractClient")
+        self.logger = (logger or
+                       logging.getLogger(".".join([
+                           type(self).__module__,
+                           type(self).__qualname__,
+                       ])))
 
         self._backoff_time = None
 
@@ -392,12 +409,12 @@ class AbstractClient:
         self.backoff_factor = 1.2
         self.backoff_cap = timedelta(seconds=60)
 
-        self.on_stopped.logger = self._logger.getChild("on_stopped")
-        self.on_failure.logger = self._logger.getChild("on_failure")
+        self.on_stopped.logger = self.logger.getChild("on_stopped")
+        self.on_failure.logger = self.logger.getChild("on_failure")
         self.on_stream_established.logger = \
-            self._logger.getChild("on_stream_established")
+            self.logger.getChild("on_stream_established")
         self.on_stream_destroyed.logger = \
-            self._logger.getChild("on_stream_destroyed")
+            self.logger.getChild("on_stream_destroyed")
 
         self.stream = stream.StanzaStream(local_jid.bare())
 
@@ -416,7 +433,7 @@ class AbstractClient:
         except asyncio.CancelledError:
             pass
         except Exception as err:
-            self._logger.error("resource binding failed: %r", err)
+            self.logger.error("resource binding failed: %r", err)
             self._main_task.cancel()
             self.on_failure(err)
 
@@ -427,7 +444,7 @@ class AbstractClient:
             # task terminated normally
             self.on_stopped()
         except Exception as err:
-            self._logger.exception("main failed")
+            self.logger.exception("main failed")
             self.on_failure(err)
 
     @asyncio.coroutine
@@ -435,21 +452,21 @@ class AbstractClient:
         try:
             yield from self.stream.resume_sm(xmlstream)
         except errors.StreamNegotiationFailure as exc:
-            self._logger.warn("failed to resume stream (%s)",
-                              exc)
+            self.logger.warn("failed to resume stream (%s)",
+                             exc)
             return False
         return True
 
     @asyncio.coroutine
     def _negotiate_legacy_session(self):
-        self._logger.debug(
+        self.logger.debug(
             "remote server announces support for legacy sessions"
         )
         yield from self.stream.send_iq_and_wait_for_reply(
             stanza.IQ(type_="set",
                       payload=rfc3921.Session())
         )
-        self._logger.debug(
+        self.logger.debug(
             "legacy session negotiated (upgrade your server!)"
         )
 
@@ -460,12 +477,12 @@ class AbstractClient:
             features[nonza.StreamManagementFeature]
         except KeyError:
             if self.stream.sm_enabled:
-                self._logger.warn("server isn’t advertising SM anymore")
+                self.logger.warn("server isn’t advertising SM anymore")
                 self.stream.stop_sm()
             server_can_do_sm = False
 
-        self._logger.debug("negotiating stream (server_can_do_sm=%s)",
-                           server_can_do_sm)
+        self.logger.debug("negotiating stream (server_can_do_sm=%s)",
+                          server_can_do_sm)
 
         if self.stream.sm_enabled:
             resumed = yield from self._try_resume_stream_management(
@@ -479,16 +496,16 @@ class AbstractClient:
         self.stream.start(xmlstream)
 
         if not resumed:
-            self._logger.debug("binding to resource")
+            self.logger.debug("binding to resource")
             yield from self._bind()
 
         if server_can_do_sm:
-            self._logger.debug("attempting to start stream management")
+            self.logger.debug("attempting to start stream management")
             try:
                 yield from self.stream.start_sm()
             except errors.StreamNegotiationFailure:
-                self._logger.debug("stream management failed to start")
-            self._logger.debug("stream management started")
+                self.logger.debug("stream management failed to start")
+            self.logger.debug("stream management started")
 
         try:
             features[rfc3921.SessionFeature]
@@ -517,7 +534,7 @@ class AbstractClient:
             )
 
         self._local_jid = result.jid
-        self._logger.info("bound to jid: %s", self._local_jid)
+        self.logger.info("bound to jid: %s", self._local_jid)
 
     @asyncio.coroutine
     def _main_impl(self):
@@ -545,15 +562,15 @@ class AbstractClient:
             self._backoff_time = None
 
             exc = yield from failure_future
-            self._logger.error("stream failed: %s", exc)
+            self.logger.error("stream failed: %s", exc)
             raise exc
         except asyncio.CancelledError:
-            self._logger.info("client shutting down (on request)")
+            self.logger.info("client shutting down (on request)")
             # cancelled, this means a clean shutdown is requested
             yield from self.stream.close()
             raise
         finally:
-            self._logger.info("stopping stream")
+            self.logger.info("stopping stream")
             self.stream.stop()
 
     @asyncio.coroutine
@@ -572,7 +589,7 @@ class AbstractClient:
                     yield from self._main_impl()
                 except errors.StreamError as err:
                     if err.condition == (namespaces.streams, "conflict"):
-                        self._logger.debug("conflict!")
+                        self.logger.debug("conflict!")
                         raise
                 except (errors.StreamNegotiationFailure,
                         aiosasl.SASLError):
@@ -617,7 +634,7 @@ class AbstractClient:
         if not self.running:
             return
 
-        self._logger.debug("stopping main task of %r", self, stack_info=True)
+        self.logger.debug("stopping main task of %r", self, stack_info=True)
         self._main_task.cancel()
 
     # services
@@ -626,7 +643,7 @@ class AbstractClient:
         try:
             return self._services[class_]
         except KeyError:
-            instance = class_(self)
+            instance = class_(self, logger_base=self.logger)
             self._services[class_] = instance
             return instance
 

@@ -266,8 +266,8 @@ class Service(service.Service, Node):
 
     on_info_result = aioxmpp.callbacks.Signal()
 
-    def __init__(self, client, *, logger=None):
-        super().__init__(client, logger=logger)
+    def __init__(self, client, **kwargs):
+        super().__init__(client, **kwargs)
 
         self._info_pending = {}
         self._items_pending = {}

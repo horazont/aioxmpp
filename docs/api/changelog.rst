@@ -113,6 +113,14 @@ Version 0.6
 * Send SM acknowledgement when closing down stream. This prevents servers from
   sending error stanzas for the unacked stanzas ☺.
 
+* **Breaking change:** :class:`aioxmpp.service.Service` does not accept a
+  `logger` argument anymore; instead, it now accepts a `base_logger` argument.
+  Refer to the documentation of the class for details.
+
+  The `base_logger` is automatically passed by
+  :meth:`aioxmpp.node.AbstractClient.summon` on construction of the service and
+  is the :attr:`aioxmpp.node.AbstractClient.logger` of the client instance.
+
 Version 0.5
 ===========
 
