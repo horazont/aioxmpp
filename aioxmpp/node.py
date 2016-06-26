@@ -434,7 +434,9 @@ class AbstractClient:
     def _try_resume_stream_management(self, xmlstream, features):
         try:
             yield from self.stream.resume_sm(xmlstream)
-        except errors.StreamNegotiationFailure:
+        except errors.StreamNegotiationFailure as exc:
+            self._logger.warn("failed to resume stream (%s)",
+                              exc)
             return False
         return True
 
