@@ -303,7 +303,6 @@ class ExprFilter(Expr):
             sub_ec = copy.copy(ec)
             sub_ec.set_toplevel_object(value)
             filter_result = sub_ec.eval_bool(self.filter_expr)
-            print(filter_result)
             if filter_result:
                 yield value
 

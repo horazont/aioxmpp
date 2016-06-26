@@ -475,8 +475,6 @@ class Service(aioxmpp.service.Service):
 
 
 def writeback(base_path, hash_, node, captured_events):
-    import pprint
-    pprint.pprint(captured_events)
     quoted = urllib.parse.quote(node, safe="")
     dest_path = base_path / "{}_{}.xml".format(hash_, quoted)
     with tempfile.NamedTemporaryFile(dir=str(base_path), delete=False) as tmpf:
