@@ -3471,6 +3471,31 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
         run_coroutine_with_peer(
             self.stream.close(),
             self.xmlstream.run_test([
+                XMLStreamMock.Send(
+                    nonza.SMAcknowledgement()
+                ),
+                XMLStreamMock.Close()
+            ])
+        )
+
+        self.assertFalse(self.stream.sm_enabled)
+        self.destroyed_rec.assert_called_once_with()
+
+    def test_close_sends_sm_ack(self):
+        self.stream.start(self.xmlstream)
+        run_coroutine_with_peer(
+            self.stream.start_sm(),
+            self.xmlstream.run_test(self.successful_sm)
+        )
+
+        self.established_rec.assert_called_once_with()
+
+        run_coroutine_with_peer(
+            self.stream.close(),
+            self.xmlstream.run_test([
+                XMLStreamMock.Send(
+                    nonza.SMAcknowledgement(),
+                ),
                 XMLStreamMock.Close()
             ])
         )
@@ -3492,6 +3517,9 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
                 self.stream.close(),
                 self.xmlstream.run_test(
                     [
+                        XMLStreamMock.Send(
+                            nonza.SMAcknowledgement()
+                        ),
                         XMLStreamMock.Close()
                     ],
                     stimulus=XMLStreamMock.Fail(ConnectionError())
@@ -3515,6 +3543,9 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
             self.stream.close(),
             self.xmlstream.run_test(
                 [
+                    XMLStreamMock.Send(
+                        nonza.SMAcknowledgement()
+                    ),
                     XMLStreamMock.Close(
                         response=[
                             XMLStreamMock.Fail(ConnectionError())
@@ -3579,6 +3610,9 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
         run_coroutine_with_peer(
             self.stream.close(),
             self.xmlstream.run_test([
+                XMLStreamMock.Send(
+                    nonza.SMAcknowledgement()
+                ),
                 XMLStreamMock.Close(),
                 # this is a race-condition of the test suite
                 # in a real stream, the Send would not happen as the stream

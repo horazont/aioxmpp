@@ -1406,6 +1406,11 @@ class StanzaStream:
         """
         if not self.running:
             return
+        if self.sm_enabled:
+            self._xmlstream.send_xso(nonza.SMAcknowledgement(
+                counter=self._sm_inbound_ctr
+            ))
+
         yield from self._xmlstream.close_and_wait()  # does not raise
         yield from self.wait_stop()
 

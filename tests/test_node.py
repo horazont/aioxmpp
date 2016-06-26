@@ -1204,6 +1204,14 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
         self.established_rec.assert_called_once_with()
         self.assertFalse(self.destroyed_rec.mock_calls)
 
+        self.client.stop()
+        run_coroutine(self.xmlstream.run_test([
+            XMLStreamMock.Send(
+                nonza.SMAcknowledgement(counter=0)
+            ),
+            XMLStreamMock.Close()
+        ]))
+
     def test_negotiate_legacy_session(self):
         self.features[...] = rfc3921.SessionFeature()
 
@@ -1273,6 +1281,14 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
 
         self.assertTrue(self.client.established)
 
+        self.client.stop()
+        run_coroutine(self.xmlstream.run_test([
+            XMLStreamMock.Send(
+                nonza.SMAcknowledgement(counter=1)
+            ),
+            XMLStreamMock.Close()
+        ]))
+
     def test_resume_stream_management(self):
         self.features[...] = nonza.StreamManagementFeature()
 
@@ -1316,6 +1332,14 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
 
         self.established_rec.assert_called_once_with()
         self.assertFalse(self.destroyed_rec.mock_calls)
+
+        self.client.stop()
+        run_coroutine(self.xmlstream.run_test([
+            XMLStreamMock.Send(
+                nonza.SMAcknowledgement(counter=0)
+            ),
+            XMLStreamMock.Close()
+        ]))
 
     def test_stop_stream_management_if_remote_stops_providing_support(self):
         self.features[...] = nonza.StreamManagementFeature()
@@ -1411,6 +1435,14 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
         self.established_rec.assert_called_once_with()
         self.assertFalse(self.destroyed_rec.mock_calls)
 
+        self.client.stop()
+        run_coroutine(self.xmlstream.run_test([
+            XMLStreamMock.Send(
+                nonza.SMAcknowledgement(counter=0)
+            ),
+            XMLStreamMock.Close()
+        ]))
+
     def test_degrade_to_non_sm_if_sm_fails(self):
         self.features[...] = nonza.StreamManagementFeature()
 
@@ -1498,6 +1530,14 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
             ],
             self.destroyed_rec.mock_calls
         )
+
+        self.client.stop()
+        run_coroutine(self.xmlstream.run_test([
+            XMLStreamMock.Send(
+                nonza.SMAcknowledgement(counter=0)
+            ),
+            XMLStreamMock.Close()
+        ]))
 
     def test_fail_on_resource_binding_error(self):
         self.client.start()

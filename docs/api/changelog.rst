@@ -107,6 +107,9 @@ Version 0.6
 * Fix generation of IDs when sending stanzas. It has been broken for anything
   but IQ stanzas for some time.
 
+* Send SM acknowledgement when closing down stream. This prevents servers from
+  sending error stanzas for the unacked stanzas ☺.
+
 Version 0.5
 ===========
 
