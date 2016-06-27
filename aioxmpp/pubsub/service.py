@@ -193,9 +193,6 @@ class Service(aioxmpp.service.Service):
         )
 
     def filter_inbound_message(self, msg):
-        if msg.type_ != "normal":
-            return msg
-
         if (msg.xep0060_event is not None and
                 msg.xep0060_event.payload is not None):
             payload = msg.xep0060_event.payload

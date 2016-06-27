@@ -82,17 +82,11 @@ class TestService(unittest.TestCase):
             msg,
         )
 
-    def test_filter_inbound_message_eats_message_with_event(self):
-        ev = pubsub_xso.Event()
-        ev.payload = unittest.mock.Mock()
-
-        msg = aioxmpp.stanza.Message(
-            type_="normal",
-        )
-        msg.xep0060_event = ev
-
-        self.assertIsNone(
-            self.s.filter_inbound_message(msg)
+    def test_filter_inbound_message_passes_normal(self):
+        msg = aioxmpp.stanza.Message(type_="normal")
+        self.assertIs(
+            self.s.filter_inbound_message(msg),
+            msg,
         )
 
     def test_filter_inbound_message_publish_emits_events(self):
@@ -137,6 +131,48 @@ class TestService(unittest.TestCase):
             ]
         )
 
+    def test_filter_inbound_message_headline_publish_emits_events(self):
+        item1 = unittest.mock.sentinel.item1
+        item2 = unittest.mock.sentinel.item2
+
+        items = [
+            pubsub_xso.EventItem(item1, id_="foo"),
+            pubsub_xso.EventItem(item2, id_="bar"),
+        ]
+
+        ev = pubsub_xso.Event(
+            pubsub_xso.EventItems(
+                items=items,
+                node="some-node",
+            )
+        )
+
+        msg = aioxmpp.stanza.Message(
+            type_="headline",
+            from_=TEST_TO,
+        )
+        msg.xep0060_event = ev
+
+        m = unittest.mock.Mock()
+        m.return_value = None
+
+        self.s.on_item_published.connect(m)
+
+        self.assertIsNone(self.s.filter_inbound_message(msg))
+
+        self.assertSequenceEqual(
+            m.mock_calls,
+            [
+                unittest.mock.call(
+                    TEST_TO,
+                    "some-node",
+                    item,
+                    message=msg,
+                )
+                for item in items
+            ]
+        )
+
     def test_filter_inbound_message_retract_emits_events(self):
         ids = ["foo-id", "bar-id"]
 
@@ -154,6 +190,47 @@ class TestService(unittest.TestCase):
 
         msg = aioxmpp.stanza.Message(
             type_="normal",
+            from_=TEST_TO,
+        )
+        msg.xep0060_event = ev
+
+        m = unittest.mock.Mock()
+        m.return_value = None
+
+        self.s.on_item_retracted.connect(m)
+
+        self.assertIsNone(self.s.filter_inbound_message(msg))
+
+        self.assertSequenceEqual(
+            m.mock_calls,
+            [
+                unittest.mock.call(
+                    TEST_TO,
+                    "some-node",
+                    id_,
+                    message=msg,
+                )
+                for id_ in ids
+            ]
+        )
+
+    def test_filter_inbound_message_headline_retract_emits_events(self):
+        ids = ["foo-id", "bar-id"]
+
+        retracts = [
+            pubsub_xso.EventRetract(id_)
+            for id_ in ids
+        ]
+
+        ev = pubsub_xso.Event(
+            pubsub_xso.EventItems(
+                retracts=retracts,
+                node="some-node",
+            )
+        )
+
+        msg = aioxmpp.stanza.Message(
+            type_="headline",
             from_=TEST_TO,
         )
         msg.xep0060_event = ev
