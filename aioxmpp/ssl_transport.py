@@ -157,8 +157,8 @@ class STARTTLSTransport(asyncio.Transport):
         self._buffer = bytearray()
         self._ssl_context = ssl_context
         self._extra.update(
-            ssl_context=ssl_context,
-            conn=None,
+            sslcontext=ssl_context,
+            ssl_object=None,
             peername=self._rawsock.getpeername(),
             peer_hostname=peer_hostname,
             server_hostname=server_hostname
@@ -291,7 +291,7 @@ class STARTTLSTransport(asyncio.Transport):
             pass
         self._sock = self._tls_conn
         self._extra.update(
-            conn=self._tls_conn
+            ssl_object=self._tls_conn
         )
 
         self._tls_do_handshake()
@@ -573,10 +573,10 @@ class STARTTLSTransport(asyncio.Transport):
         The following extra information is available:
 
         * ``socket``: the underlying :mod:`socket` object
-        * ``ssl_context``: the :class:`OpenSSL.SSL.Context` object to use (this
+        * ``sslcontext``: the :class:`OpenSSL.SSL.Context` object to use (this
           may be :data:`None` until :meth:`starttls` has been called)
-        * ``conn``: :class:`OpenSSL.SSL.Connection` object (:data:`None` if TLS
-          is not enabled (yet))
+        * ``ssl_object``: :class:`OpenSSL.SSL.Connection` object (:data:`None`
+          if TLS is not enabled (yet))
         * ``peername``: return value of :meth:`socket.Socket.getpeername`
         * ``peer_hostname``: The `peer_hostname` value passed to the
           constructor.
@@ -603,7 +603,7 @@ class STARTTLSTransport(asyncio.Transport):
         if ssl_context is not None:
             self._ssl_context = ssl_context
             self._extra.update(
-                ssl_context=ssl_context
+                sslcontext=ssl_context
             )
         if post_handshake_callback is not None:
             self._tls_post_handshake_callback = post_handshake_callback
