@@ -273,7 +273,7 @@ class _PropBase(metaclass=PropBaseMeta):
         self.validator = validator
 
     def _set(self, instance, value):
-        instance._stanza_props[self] = value
+        instance._xso_contents[self] = value
 
     def __set__(self, instance, value):
         if     (self.validate.from_code and
@@ -300,7 +300,7 @@ class _PropBase(metaclass=PropBaseMeta):
                 xso_query.GetDescriptor,
             )
         try:
-            return instance._stanza_props[self]
+            return instance._xso_contents[self]
         except KeyError:
             if self.default is self.NO_DEFAULT:
                 raise AttributeError(
@@ -455,7 +455,7 @@ class Child(_ChildPropBase):
         if self.required:
             raise AttributeError("cannot delete required member")
         try:
-            del instance._stanza_props[self]
+            del instance._xso_contents[self]
         except KeyError:
             pass
 
@@ -518,7 +518,7 @@ class ChildList(_ChildPropBase):
                 xso_query.GetSequenceDescriptor,
             )
 
-        return instance._stanza_props.setdefault(self, XSOList())
+        return instance._xso_contents.setdefault(self, XSOList())
 
     def _set(self, instance, value):
         if not isinstance(value, list):
@@ -572,7 +572,7 @@ class Collector(_PropBase):
                 xso_query.GetSequenceDescriptor,
             )
 
-        return instance._stanza_props.setdefault(self, [])
+        return instance._xso_contents.setdefault(self, [])
 
     def _set(self, instance, value):
         if not isinstance(value, list):
@@ -702,7 +702,7 @@ class Attr(Text):
 
     def __delete__(self, instance):
         try:
-            del instance._stanza_props[self]
+            del instance._xso_contents[self]
         except KeyError:
             pass
 
@@ -921,7 +921,7 @@ class ChildMap(_ChildPropBase):
                 xso_query.GetMappingDescriptor,
             )
 
-        return instance._stanza_props.setdefault(
+        return instance._xso_contents.setdefault(
             self,
             collections.defaultdict(XSOList)
         )
@@ -1146,10 +1146,10 @@ class ChildValueList(_ChildPropBase):
             )
 
         try:
-            return instance._stanza_props[self]
+            return instance._xso_contents[self]
         except KeyError:
             result = self.container_type()
-            instance._stanza_props[self] = result
+            instance._xso_contents[self] = result
             return result
 
     def __set__(self, instance, value):
@@ -1205,10 +1205,10 @@ class ChildValueMap(_ChildPropBase):
             )
 
         try:
-            return instance._stanza_props[self]
+            return instance._xso_contents[self]
         except KeyError:
             result = self.mapping_type()
-            instance._stanza_props[self] = result
+            instance._xso_contents[self] = result
             return result
 
     def __set__(self, instance, value):
@@ -1257,10 +1257,10 @@ class ChildValueMultiMap(_ChildPropBase):
             )
 
         try:
-            return instance._stanza_props[self]
+            return instance._xso_contents[self]
         except KeyError:
             result = self.mapping_type()
-            instance._stanza_props[self] = result
+            instance._xso_contents[self] = result
             return result
 
     def __set__(self, instance, value):
@@ -1877,9 +1877,9 @@ class XSO(metaclass=XMLStreamClass):
 
     .. note::
 
-       Attributes whose name starts with ``xso_`` are reserved for use by the
-       XSO implementation. Do not use these in your code if you can possibly
-       avoid it.
+       Attributes whose name starts with ``xso_`` or ``_xso_`` are reserved for
+       use by the :mod:`aioxmpp.xso` implementation. Do not use these in your
+       code if you can possibly avoid it.
 
     :class:`XSO` subclasses automatically declare a
     :attr:`~.xso.model.XMLStreamClass.__slots__` attribute which does not
@@ -1960,13 +1960,13 @@ class XSO(metaclass=XMLStreamClass):
     UNKNOWN_CHILD_POLICY = UnknownChildPolicy.DROP
     UNKNOWN_ATTR_POLICY = UnknownAttrPolicy.DROP
 
-    __slots__ = ("_stanza_props", "__weakref__")
+    __slots__ = ("_xso_contents", "__weakref__")
 
     def __new__(cls, *args, **kwargs):
         # XXX: is it always correct to omit the arguments here?
         # the semantics of the __new__ arguments are odd to say the least
         result = super().__new__(cls)
-        result._stanza_props = dict()
+        result._xso_contents = dict()
         return result
 
     def __init__(self, *args, **kwargs):
@@ -1974,14 +1974,14 @@ class XSO(metaclass=XMLStreamClass):
 
     def __copy__(self):
         result = type(self).__new__(type(self))
-        result._stanza_props.update(self._stanza_props)
+        result._xso_contents.update(self._xso_contents)
         return result
 
     def __deepcopy__(self, memo):
         result = type(self).__new__(type(self))
-        result._stanza_props = {
+        result._xso_contents = {
             k: copy.deepcopy(v, memo)
-            for k, v in self._stanza_props.items()
+            for k, v in self._xso_contents.items()
         }
         return result
 

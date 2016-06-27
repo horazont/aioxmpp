@@ -128,6 +128,10 @@ Version 0.6
   The mechanics are documented in detail on
   :attr:`aioxmpp.xso.model.XMLStreamClass.__slots__`.
 
+* *Possibly breaking change:* Attributes starting with ``_xso_`` are now also
+  reserved on subclasses of :class:`aioxmpp.xso.XSO` (together with the
+  long-standing reservation of attributes starting with ``xso_``).
+
 Version 0.5
 ===========
 

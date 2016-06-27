@@ -41,7 +41,7 @@ def drive_from_events(method, instance, subtree, ctx):
 def make_instance_mock(mapping={}):
     instance = unittest.mock.MagicMock()
     instance.TAG = ("uri:mock", "mock-instance")
-    instance._stanza_props = dict(mapping)
+    instance._xso_contents = dict(mapping)
     return instance
 
 
@@ -80,9 +80,9 @@ class TestXMLStreamClass(unittest.TestCase):
 
     def test_init_takes_existing_slots(self):
         class Base(metaclass=xso_model.XMLStreamClass):
-            __slots__ = ("_stanza_props",)
+            __slots__ = ("_xso_contents",)
 
-        self.assertSequenceEqual(Base.__slots__, ("_stanza_props",))
+        self.assertSequenceEqual(Base.__slots__, ("_xso_contents",))
 
         class Child(Base):
             pass
@@ -1794,7 +1794,7 @@ class TestXSO(XMLTestCase):
         )
 
     def test_property_storage(self):
-        self.obj._stanza_props["key"] = "value"
+        self.obj._xso_contents["key"] = "value"
 
     def test_unparse_to_node_create_node(self):
         self._unparse_test(
@@ -2014,8 +2014,8 @@ class TestXSO(XMLTestCase):
 
         t2 = copy.copy(t)
         self.assertFalse(base.mock_calls)
-        self.assertIsNot(t._stanza_props, t2._stanza_props)
-        self.assertEqual(t._stanza_props, t2._stanza_props)
+        self.assertIsNot(t._xso_contents, t2._xso_contents)
+        self.assertEqual(t._xso_contents, t2._xso_contents)
 
     def test_deepcopy_does_not_call_init_and_deepcopies_props(self):
         base = unittest.mock.Mock()
@@ -2036,9 +2036,9 @@ class TestXSO(XMLTestCase):
 
         t2 = copy.deepcopy(t)
         self.assertFalse(base.mock_calls)
-        self.assertIsNot(t._stanza_props, t2._stanza_props)
-        self.assertIsNot(t._stanza_props[Test.a.xq_descriptor],
-                         t2._stanza_props[Test.a.xq_descriptor])
+        self.assertIsNot(t._xso_contents, t2._xso_contents)
+        self.assertIsNot(t._xso_contents[Test.a.xq_descriptor],
+                         t2._xso_contents[Test.a.xq_descriptor])
 
     def test_is_weakrefable(self):
         i = xso.XSO()
@@ -2267,7 +2267,7 @@ class Test_PropBase(unittest.TestCase):
             {
                 prop: "foo",
             },
-            instance._stanza_props
+            instance._xso_contents
         )
 
         prop._set_from_code(instance, "bar")
@@ -2275,7 +2275,7 @@ class Test_PropBase(unittest.TestCase):
             {
                 prop: "bar",
             },
-            instance._stanza_props
+            instance._xso_contents
         )
 
         validator.validate.return_value = False
@@ -2306,7 +2306,7 @@ class Test_PropBase(unittest.TestCase):
             {
                 prop: "foo",
             },
-            instance._stanza_props
+            instance._xso_contents
         )
 
         prop._set_from_code(instance, "bar")
@@ -2314,7 +2314,7 @@ class Test_PropBase(unittest.TestCase):
             {
                 prop: "bar",
             },
-            instance._stanza_props
+            instance._xso_contents
         )
 
         validator.validate.return_value = False
@@ -2345,7 +2345,7 @@ class Test_PropBase(unittest.TestCase):
             {
                 prop: "foo",
             },
-            instance._stanza_props
+            instance._xso_contents
         )
 
         prop._set_from_code(instance, "bar")
@@ -2353,7 +2353,7 @@ class Test_PropBase(unittest.TestCase):
             {
                 prop: "bar",
             },
-            instance._stanza_props
+            instance._xso_contents
         )
 
         validator.validate.return_value = False
@@ -2446,7 +2446,7 @@ class Test_TypedPropBase(unittest.TestCase):
             {
                 prop: type_.coerce(),
             },
-            instance._stanza_props
+            instance._xso_contents
         )
 
     def test_do_not_coerce_None(self):
@@ -2469,7 +2469,7 @@ class Test_TypedPropBase(unittest.TestCase):
             {
                 prop: None
             },
-            instance._stanza_props
+            instance._xso_contents
         )
 
 
@@ -2568,7 +2568,7 @@ class TestText(XMLTestCase):
             ],
             dest.mock_calls)
 
-        instance._stanza_props = {prop: None}
+        instance._xso_contents = {prop: None}
         dest = unittest.mock.MagicMock()
         prop.to_sax(instance, dest)
         self.assertSequenceEqual(
@@ -2685,7 +2685,7 @@ class TestChild(XMLTestCase):
             dest)
         self.assertDictEqual(
             {prop: "bar"},
-            instance._stanza_props)
+            instance._xso_contents)
 
     def test_to_sax(self):
         dest = unittest.mock.MagicMock()
@@ -2972,7 +2972,7 @@ class TestCollector(XMLTestCase):
             drive_from_events(prop.from_events, instance, subtree,
                               self.ctx)
 
-        for result, subtree in zip(instance._stanza_props[prop],
+        for result, subtree in zip(instance._xso_contents[prop],
                                    subtrees):
             self.assertSubtreeEqual(
                 subtree,
@@ -3062,7 +3062,7 @@ class TestAttr(XMLTestCase):
             {
                 prop: 123,
             },
-            instance._stanza_props
+            instance._xso_contents
         )
 
     def test_missing_passes_if_defaulted(self):
@@ -3256,7 +3256,7 @@ class TestChildText(XMLTestCase):
             {
                 prop: type_mock.parse("foo"),
             },
-            instance._stanza_props)
+            instance._xso_contents)
         self.assertSequenceEqual(
             [
                 unittest.mock.call.__bool__(),
@@ -3302,7 +3302,7 @@ class TestChildText(XMLTestCase):
         with self.assertRaises(ValueError):
             drive_from_events(prop.from_events, instance, subtree, self.ctx)
 
-        self.assertFalse(instance._stanza_props)
+        self.assertFalse(instance._xso_contents)
 
     def test_enforce_child_policy_drop(self):
         instance = make_instance_mock()
@@ -3317,7 +3317,7 @@ class TestChildText(XMLTestCase):
             {
                 prop: "foobar",
             },
-            instance._stanza_props)
+            instance._xso_contents)
 
     def test_attr_policy_default(self):
         prop = xso.ChildText("body")
@@ -3336,7 +3336,7 @@ class TestChildText(XMLTestCase):
         with self.assertRaises(ValueError):
             drive_from_events(prop.from_events, instance, subtree, self.ctx)
 
-        self.assertFalse(instance._stanza_props)
+        self.assertFalse(instance._xso_contents)
 
     def test_enforce_attr_policy_drop(self):
         instance = make_instance_mock()
@@ -3352,7 +3352,7 @@ class TestChildText(XMLTestCase):
             {
                 prop: "foo",
             },
-            instance._stanza_props)
+            instance._xso_contents)
 
     def test_to_sax(self):
         dest = unittest.mock.MagicMock()
@@ -3444,7 +3444,7 @@ class TestChildText(XMLTestCase):
             ],
             dest.mock_calls)
 
-        instance._stanza_props = {prop: None}
+        instance._xso_contents = {prop: None}
         dest = unittest.mock.MagicMock()
         prop.to_sax(instance, dest)
         self.assertSequenceEqual(
@@ -3455,7 +3455,7 @@ class TestChildText(XMLTestCase):
             ],
             dest.mock_calls)
 
-        instance._stanza_props = {prop: ""}
+        instance._xso_contents = {prop: ""}
         dest = unittest.mock.MagicMock()
         prop.to_sax(instance, dest)
         self.assertSequenceEqual(
@@ -3544,8 +3544,8 @@ class TestChildMap(XMLTestCase):
             self.ctx
         )
 
-        self.assertIn(prop, instance._stanza_props)
-        resultmap = instance._stanza_props[prop]
+        self.assertIn(prop, instance._xso_contents)
+        resultmap = instance._xso_contents[prop]
         self.assertEqual(2, len(resultmap))
         self.assertIn(Bar.TAG, resultmap)
         self.assertIn(Foo.TAG, resultmap)
@@ -3647,8 +3647,8 @@ class TestChildMap(XMLTestCase):
             self.ctx
         )
 
-        self.assertIn(prop, instance._stanza_props)
-        resultmap = instance._stanza_props[prop]
+        self.assertIn(prop, instance._xso_contents)
+        resultmap = instance._xso_contents[prop]
         self.assertEqual(2, len(resultmap))
         self.assertIn("bar", resultmap)
         self.assertIn("foo", resultmap)
@@ -3776,8 +3776,8 @@ class TestChildLangMap(unittest.TestCase):
             self.ctx
         )
 
-        self.assertIn(prop, instance._stanza_props)
-        resultmap = instance._stanza_props[prop]
+        self.assertIn(prop, instance._xso_contents)
+        resultmap = instance._xso_contents[prop]
         self.assertEqual(2, len(resultmap))
         self.assertIn(en_GB, resultmap)
         self.assertIn(de_DE, resultmap)
@@ -3853,7 +3853,7 @@ class TestChildTag(unittest.TestCase):
             {
                 prop: ("uri:foo", "foo"),
             },
-            instance._stanza_props
+            instance._xso_contents
         )
 
     def test_child_policy_fail(self):
@@ -3874,7 +3874,7 @@ class TestChildTag(unittest.TestCase):
                 self.ctx
             )
 
-        self.assertFalse(instance._stanza_props)
+        self.assertFalse(instance._xso_contents)
 
     def test_child_policy_drop(self):
         instance = make_instance_mock()
@@ -3897,7 +3897,7 @@ class TestChildTag(unittest.TestCase):
             {
                 prop: ("uri:foo", "foo"),
             },
-            instance._stanza_props
+            instance._xso_contents
         )
 
     def test_attr_policy_fail(self):
@@ -3918,7 +3918,7 @@ class TestChildTag(unittest.TestCase):
             self.ctx
             )
 
-        self.assertFalse(instance._stanza_props)
+        self.assertFalse(instance._xso_contents)
 
     def test_attr_policy_drop(self):
         instance = make_instance_mock()
@@ -3941,7 +3941,7 @@ class TestChildTag(unittest.TestCase):
             {
                 prop: ("uri:foo", "foo"),
             },
-            instance._stanza_props
+            instance._xso_contents
         )
 
     def test_text_policy_fail(self):
@@ -3962,7 +3962,7 @@ class TestChildTag(unittest.TestCase):
             self.ctx
             )
 
-        self.assertFalse(instance._stanza_props)
+        self.assertFalse(instance._xso_contents)
 
     def test_text_policy_drop(self):
         instance = make_instance_mock()
@@ -3985,7 +3985,7 @@ class TestChildTag(unittest.TestCase):
             {
                 prop: ("uri:foo", "foo"),
             },
-            instance._stanza_props
+            instance._xso_contents
         )
 
     def test_to_sax(self):
@@ -4440,7 +4440,7 @@ class ChildTag(XMLTestCase):
             {
                 self.prop: ("uri:bar", "foo"),
             },
-            instance._stanza_props)
+            instance._xso_contents)
 
     def test_from_events_text_policy_fail(self):
         instance = make_instance_mock()
@@ -4452,7 +4452,7 @@ class ChildTag(XMLTestCase):
                 etree.fromstring("<foo xmlns='uri:bar'>text</foo>"),
                 self.ctx
             )
-        self.assertFalse(instance._stanza_props)
+        self.assertFalse(instance._xso_contents)
 
     def test_from_events_text_policy_drop(self):
         instance = make_instance_mock()
@@ -4468,7 +4468,7 @@ class ChildTag(XMLTestCase):
             {
                 self.prop: ("uri:bar", "foo"),
             },
-            instance._stanza_props)
+            instance._xso_contents)
 
     def test_from_events_child_policy_fail(self):
         instance = make_instance_mock()
@@ -4480,7 +4480,7 @@ class ChildTag(XMLTestCase):
                 etree.fromstring("<foo xmlns='uri:bar'><bar/></foo>"),
                 self.ctx
             )
-        self.assertFalse(instance._stanza_props)
+        self.assertFalse(instance._xso_contents)
 
     def test_from_events_child_policy_drop(self):
         instance = make_instance_mock()
@@ -4496,7 +4496,7 @@ class ChildTag(XMLTestCase):
             {
                 self.prop: ("uri:bar", "foo"),
             },
-            instance._stanza_props)
+            instance._xso_contents)
 
     def test_from_events_attr_policy_fail(self):
         instance = make_instance_mock()
@@ -4508,7 +4508,7 @@ class ChildTag(XMLTestCase):
                 etree.fromstring("<foo xmlns='uri:bar' a='bar'/>"),
                 self.ctx
             )
-        self.assertFalse(instance._stanza_props)
+        self.assertFalse(instance._xso_contents)
 
     def test_from_events_attr_policy_drop(self):
         instance = make_instance_mock()
@@ -4524,7 +4524,7 @@ class ChildTag(XMLTestCase):
             {
                 self.prop: ("uri:bar", "foo"),
             },
-            instance._stanza_props)
+            instance._xso_contents)
 
     def test_to_sax(self):
         instance = make_instance_mock({
