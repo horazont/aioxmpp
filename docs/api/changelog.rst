@@ -132,6 +132,8 @@ Version 0.6
   reserved on subclasses of :class:`aioxmpp.xso.XSO` (together with the
   long-standing reservation of attributes starting with ``xso_``).
 
+* New callback mode :meth:`aioxmpp.callbacks.AdHocSignal.SPAWN_WITH_LOOP`.
+
 Version 0.5
 ===========
 

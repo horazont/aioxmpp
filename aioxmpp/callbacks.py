@@ -266,7 +266,9 @@ class AdHocSignal(AbstractAdHocSignal):
        This mode requires an :mod:`asyncio` event loop as argument. When the
        signal is emitted, the callable is not called directly. Instead, it is
        enqueued for calling with the event loop using
-       :meth:`asyncio.BaseEventLoop.call_soon`.
+       :meth:`asyncio.BaseEventLoop.call_soon`. If :data:`None` is passed as
+       `loop`, the loop is obtained from :func:`asyncio.get_event_loop` at
+       connect time.
 
        A strong reference is held to the callable.
 
@@ -289,6 +291,24 @@ class AdHocSignal(AbstractAdHocSignal):
 
        In any case, the future is removed after the next emission of the
        signal.
+
+    .. classmethod:: SPAWN_WITH_LOOP(loop)
+
+       This mode requires an :mod:`asyncio` event loop as argument and a
+       coroutine to be passed to :meth:`connect`. If :data:`None` is passed as
+       `loop`, the loop is obtained from :func:`asyncio.get_event_loop` at
+       connect time.
+
+       When the signal is emitted, the coroutine is spawned using
+       :func:`asyncio.async` in the given `loop`, with the arguments passed to
+       the signal.
+
+       A strong reference is held to the coroutine.
+
+       Connections using this mode are never removed automatically from the
+       signals connection list. You have to use :meth:`disconnect` explicitly.
+
+       .. versionadded:: 0.6
 
     .. automethod:: disconnect
 
@@ -344,10 +364,26 @@ class AdHocSignal(AbstractAdHocSignal):
                 f.set_result(arg)
         return future_wrapper
 
+    @classmethod
+    def SPAWN_WITH_LOOP(cls, loop):
+        loop = asyncio.get_event_loop() if loop is None else loop
+
+        def spawn(f):
+            if not asyncio.iscoroutinefunction(f):
+                raise TypeError("must be coroutine, got {!r}".format(f))
+
+            def wrapper(args, kwargs):
+                asyncio.async(f(*args, **kwargs), loop=loop)
+                return True
+
+            return wrapper
+
+        return spawn
+
     @staticmethod
     def _async_wrapper(f, loop, args, kwargs):
         if kwargs:
-            loop.call_soon(functools.partial(*args, **kwargs))
+            functools.partial(f, *args, **kwargs)
         loop.call_soon(f, *args)
         return True
 
@@ -445,10 +481,7 @@ class AdHocSignal(AbstractAdHocSignal):
         self.connect(fut, self.WEAK)
         return fut
 
-
     __call__ = fire
-
-AdHocSignal.ASYNC = AdHocSignal.ASYNC_WITH_LOOP(None)
 
 
 class SyncAdHocSignal(AbstractAdHocSignal):
