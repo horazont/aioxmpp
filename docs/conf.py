@@ -49,7 +49,7 @@ master_doc = 'index'
 
 # General information about the project.
 project = 'aioxmpp'
-copyright = '2014, Jonas Wielicki'
+copyright = '2014 – 2016, Jonas Wielicki'
 
 import aioxmpp
 
