@@ -622,7 +622,7 @@ class TestAdHocSignal(unittest.TestCase):
         mock = unittest.mock.MagicMock()
         fun = functools.partial(mock)
 
-        signal.connect(fun, AdHocSignal.ASYNC)
+        signal.connect(fun, AdHocSignal.ASYNC_WITH_LOOP(None))
         signal.fire()
 
         mock.assert_not_called()
@@ -630,6 +630,65 @@ class TestAdHocSignal(unittest.TestCase):
         run_coroutine(asyncio.sleep(0))
 
         mock.assert_called_once_with()
+
+    def test_connect_spawn(self):
+        signal = AdHocSignal()
+
+        mock = CoroutineMock()
+
+        @asyncio.coroutine
+        def coro(*args, **kwargs):
+            yield from mock(*args, **kwargs)
+
+        signal.connect(coro, AdHocSignal.SPAWN_WITH_LOOP(None))
+        signal.fire("a", 1, b="c")
+
+        self.assertSequenceEqual(mock.mock_calls, [])
+
+        run_coroutine(asyncio.sleep(0))
+
+        self.assertSequenceEqual(
+            mock.mock_calls,
+            [
+                unittest.mock.call("a", 1, b="c")
+            ]
+        )
+
+    def test_connect_spawn_emits_always(self):
+        signal = AdHocSignal()
+
+        mock = CoroutineMock()
+
+        @asyncio.coroutine
+        def coro(*args, **kwargs):
+            yield from mock(*args, **kwargs)
+
+        signal.connect(coro, AdHocSignal.SPAWN_WITH_LOOP(None))
+        signal.fire("a", 1, b="c")
+        signal.fire("x")
+
+        self.assertSequenceEqual(mock.mock_calls, [])
+
+        run_coroutine(asyncio.sleep(0))
+
+        run_coroutine(asyncio.sleep(0))
+
+        self.assertSequenceEqual(
+            mock.mock_calls,
+            [
+                unittest.mock.call("a", 1, b="c"),
+                unittest.mock.call("x"),
+            ]
+        )
+
+    def test_SPAWN_rejects_non_coroutine(self):
+        def fun():
+            pass
+
+        signal = AdHocSignal()
+
+        with self.assertRaisesRegex(TypeError, "must be coroutine"):
+            signal.SPAWN_WITH_LOOP(None)(fun)
 
     def test_fire_with_arguments(self):
         signal = AdHocSignal()
