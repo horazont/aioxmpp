@@ -1395,6 +1395,44 @@ class XMLStreamClass(xso_query.Class, abc.ABCMeta):
           The automatic generation of the :attr:`DECLARE_NS` attribute was
           added in 0.4.
 
+    .. attribute:: __slots__
+
+       The metaclass automatically sets this attribute to the empty tuple,
+       unless a different value is set in the class or `protect` is passed as
+       false to the metaclass.
+
+       Thus, to disable the automatic setting of :attr:`__slots__`, inherit for
+       example like this::
+
+         class MyXSO(xso.XSO, protect=False):
+             pass
+
+       The rationale for this is that attributes on XSO instances are magic.
+       Having a typo in an attribute may fail non-obviously, if it causes an
+       entirely different semantic to be invoked at the peer (for example the
+       :attr:`.stanza.Message.type_` attribute).
+
+       Setting :attr:`__slots__` to empty by default prevents assigning any
+       attribute not bound to an descriptor.`
+
+       .. seealso::
+
+          :ref:`slots`
+             The official Python documentation describes the semantics of the
+             :attr:`__slots__` attribute in more detail.
+
+       :class:`~.xso.XSO` automatically sets a sensible :attr:`__slots__`
+       (including ``__weakref__``, but not ``__dict__``).
+
+       .. versionadded:: 0.6
+
+       .. note::
+
+          If you need to stay compatible with versions before 0.6 *and* have
+          arbitrary attributes writable, the correct way of doing things is to
+          explicitly set :attr:`__slots__` to ``("__dict__",)`` in your class.
+          You cannot use `protect` because it is not known in pre-0.6 versions.
+
     .. note::
 
        :class:`~.xso.XSO` defines defaults for more attributes which also
@@ -1420,7 +1458,7 @@ class XMLStreamClass(xso_query.Class, abc.ABCMeta):
 
     """
 
-    def __new__(mcls, name, bases, namespace):
+    def __new__(mcls, name, bases, namespace, protect=True):
         text_property = None
         child_map = {}
         child_props = orderedset.OrderedSet()
@@ -1514,7 +1552,13 @@ class XMLStreamClass(xso_query.Class, abc.ABCMeta):
                     None: tag[0]
                 }
 
+        if protect:
+            namespace.setdefault("__slots__", ())
+
         return super().__new__(mcls, name, bases, namespace)
+
+    def __init__(cls, name, bases, namespace, protect=True):
+        super().__init__(name, bases, namespace)
 
     def __setattr__(cls, name, value):
         try:
@@ -1571,7 +1615,7 @@ class XMLStreamClass(xso_query.Class, abc.ABCMeta):
 
         super().__delattr__(name)
 
-    def __prepare__(name, bases):
+    def __prepare__(name, bases, **kwargs):
         return collections.OrderedDict()
 
     def parse_events(cls, ev_args, parent_ctx):
@@ -1826,16 +1870,31 @@ class XSO(metaclass=XMLStreamClass):
 
     .. seealso::
 
-       The documentation of :class:`.xso.model.XMLStreamClass` holds valuable
-       information with respect to subclassing and modifying :class:`XSO`
-       subclasses, as well as restrictions on the use of the said attribute
-       descriptors.
+       :class:`.xso.model.XMLStreamClass`
+          is the metaclass of :class:`XSO`. The documentation of the metaclass
+          holds valuable information with respect to modifying :class:`XSO`
+          *classes* and subclassing.
 
     .. note::
 
        Attributes whose name starts with ``xso_`` are reserved for use by the
        XSO implementation. Do not use these in your code if you can possibly
        avoid it.
+
+    :class:`XSO` subclasses automatically declare a
+    :attr:`~.xso.model.XMLStreamClass.__slots__` attribute which does not
+    include the ``__dict__`` value. This effectively prevents any attributes
+    not declared on the class as descriptors from being written. The rationale
+    is detailed on in the linked documentation. To prevent this from happening
+    in your subclass, inherit with `protect` set to false::
+
+      class MyXSO(xso.XSO, protect=False):
+          pass
+
+    .. versionadded:: 0.6
+
+       The handling of the :attr:`~.xso.model.XMLStreamClass.__slots__`
+       attribute was added.
 
     To further influence the parsing behaviour of a class, two attributes are
     provided which give policies for unexpected elements in the XML tree:
@@ -1900,6 +1959,8 @@ class XSO(metaclass=XMLStreamClass):
     """
     UNKNOWN_CHILD_POLICY = UnknownChildPolicy.DROP
     UNKNOWN_ATTR_POLICY = UnknownAttrPolicy.DROP
+
+    __slots__ = ("_stanza_props", "__weakref__")
 
     def __new__(cls, *args, **kwargs):
         # XXX: is it always correct to omit the arguments here?

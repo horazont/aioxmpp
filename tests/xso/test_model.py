@@ -67,6 +67,33 @@ class TestXMLStreamClass(unittest.TestCase):
         self.assertFalse(Cls.CHILD_MAP)
         self.assertFalse(Cls.CHILD_PROPS)
         self.assertFalse(Cls.ATTR_MAP)
+        self.assertSequenceEqual(Cls.__slots__, ())
+
+    def test_init_inherited(self):
+        class Base(metaclass=xso_model.XMLStreamClass):
+            pass
+
+        class Child(Base):
+            pass
+
+        self.assertSequenceEqual(Child.__slots__, ())
+
+    def test_init_takes_existing_slots(self):
+        class Base(metaclass=xso_model.XMLStreamClass):
+            __slots__ = ("_stanza_props",)
+
+        self.assertSequenceEqual(Base.__slots__, ("_stanza_props",))
+
+        class Child(Base):
+            pass
+
+        self.assertSequenceEqual(Child.__slots__, ())
+
+    def test_init_unprotected(self):
+        class Cls(metaclass=xso_model.XMLStreamClass, protect=False):
+            pass
+
+        self.assertFalse(hasattr(Cls, "__slots__"))
 
     def test_forbid_malformed_tag(self):
         with self.assertRaisesRegex(TypeError,
@@ -238,10 +265,13 @@ class TestXMLStreamClass(unittest.TestCase):
         class ClsLeafB:
             TAG = "bar"
 
-        class ClsA(metaclass=xso_model.XMLStreamClass):
+        class Base(metaclass=xso_model.XMLStreamClass):
+            pass
+
+        class ClsA(Base):
             c1 = xso.Child([ClsLeafA])
 
-        class ClsB(metaclass=xso_model.XMLStreamClass):
+        class ClsB(Base):
             c2 = xso.Child([ClsLeafB])
 
         class ClsC(ClsA, ClsB):
@@ -343,10 +373,13 @@ class TestXMLStreamClass(unittest.TestCase):
                 attr2 = xso.Attr("foo")
 
     def test_multi_inheritance_attr(self):
-        class ClsA(metaclass=xso_model.XMLStreamClass):
+        class Base(metaclass=xso_model.XMLStreamClass):
+            pass
+
+        class ClsA(Base):
             attr1 = xso.Attr("foo")
 
-        class ClsB(metaclass=xso_model.XMLStreamClass):
+        class ClsB(Base):
             attr2 = xso.Attr("bar")
 
         class ClsC(ClsB, ClsA):
@@ -2007,6 +2040,14 @@ class TestXSO(XMLTestCase):
         self.assertIsNot(t._stanza_props[Test.a.xq_descriptor],
                          t2._stanza_props[Test.a.xq_descriptor])
 
+    def test_is_weakrefable(self):
+        i = xso.XSO()
+
+        import weakref
+        r = weakref.ref(i)
+
+        self.assertIs(r(), i)
+
     def tearDown(self):
         del self.obj
         del self.Cls
@@ -2544,10 +2585,10 @@ class TestText(XMLTestCase):
 
 class TestChild(XMLTestCase):
     def setUp(self):
-        class ClsLeaf(xso.XSO):
+        class ClsLeaf(xso.XSO, protect=False):
             TAG = "bar"
 
-        class ClsA(xso.XSO):
+        class ClsA(xso.XSO, protect=False):
             TAG = "foo"
             test_child = xso.Child([ClsLeaf])
 

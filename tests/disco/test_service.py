@@ -552,12 +552,10 @@ class TestService(unittest.TestCase):
 
         self.cc.stream.send_iq_and_wait_for_reply.return_value = response
 
-        with unittest.mock.patch.object(response, "to_dict") as to_dict:
-            result = run_coroutine(
-                self.s.send_and_decode_info_query(to, node)
-            )
+        result = run_coroutine(
+            self.s.send_and_decode_info_query(to, node)
+        )
 
-        self.assertFalse(to_dict.mock_calls)
         self.assertEqual(result, response)
 
         self.assertEqual(

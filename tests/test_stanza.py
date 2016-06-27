@@ -21,6 +21,9 @@ class TestPayload(xso.XSO):
 
 
 class TestStanzaBase(unittest.TestCase):
+    class FakeStanza(stanza.StanzaBase, protect=False):
+        pass
+
     def test_declare_ns(self):
         self.assertDictEqual(
             stanza.StanzaBase.DECLARE_NS,
@@ -61,7 +64,7 @@ class TestStanzaBase(unittest.TestCase):
         self.assertIs(stanza.StanzaBase.error.default, None)
 
     def test_autoset_id_generates_random_str_on_unset(self):
-        s = stanza.StanzaBase()
+        s = self.FakeStanza()
         s.autoset_id()
         id1 = s.id_
         self.assertTrue(id1.startswith("x"))
@@ -77,7 +80,7 @@ class TestStanzaBase(unittest.TestCase):
         self.assertLess(sum(1 for c in id1 if c == "A"), 5)
 
     def test_autoset_id_generates_random_str_on_None(self):
-        s = stanza.StanzaBase()
+        s = self.FakeStanza()
         s.id_ = None
         s.autoset_id()
         id1 = s.id_
@@ -94,7 +97,7 @@ class TestStanzaBase(unittest.TestCase):
         self.assertLess(sum(1 for c in id1 if c == "A"), 5)
 
     def test_autoset_id_does_not_override(self):
-        s = stanza.StanzaBase()
+        s = self.FakeStanza()
         s.id_ = "foo"
         s.autoset_id()
         self.assertEqual("foo", s.id_)
@@ -102,7 +105,7 @@ class TestStanzaBase(unittest.TestCase):
     def test_init(self):
         id_ = "someid"
 
-        s = stanza.StanzaBase(
+        s = self.FakeStanza(
             from_=TEST_FROM,
             to=TEST_TO,
             id_=id_)

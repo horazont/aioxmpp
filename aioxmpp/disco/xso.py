@@ -142,6 +142,8 @@ class InfoQuery(xso.CapturingXSO):
     .. automethod:: to_dict
 
     """
+    __slots__ = ("captured_events",)
+
     TAG = (namespaces.xep0030_info, "query")
 
     node = xso.Attr(tag="node", default=None)
@@ -155,10 +157,9 @@ class InfoQuery(xso.CapturingXSO):
 
     exts = xso.ChildList([forms_xso.Data])
 
-    captured_events = None
-
     def __init__(self, *, identities=(), features=(), node=None):
         super().__init__()
+        self.captured_events = None
         self.identities.extend(identities)
         self.features.update(features)
         if node is not None:

@@ -121,6 +121,13 @@ Version 0.6
   :meth:`aioxmpp.node.AbstractClient.summon` on construction of the service and
   is the :attr:`aioxmpp.node.AbstractClient.logger` of the client instance.
 
+* **Breaking change:** :class:`aioxmpp.xso.XSO` subclasses (or more
+  specifically, instances of the :class:`aioxmpp.xso.model.XMLStreamClass`
+  metaclass) now automatically declare a :attr:`__slots__` attribute.
+
+  The mechanics are documented in detail on
+  :attr:`aioxmpp.xso.model.XMLStreamClass.__slots__`.
+
 Version 0.5
 ===========
 
