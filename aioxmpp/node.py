@@ -37,6 +37,7 @@ import dns.resolver
 import aiosasl
 
 from . import (
+    connector,
     network,
     ssl_transport,
     protocol,
@@ -58,6 +59,61 @@ def lookup_addresses(loop, jid):
         jid.domain)
 
     return network.group_and_order_srv_records(addresses)
+
+
+@asyncio.coroutine
+def discover_connectors(domain, loop=None):
+    """
+    Discover all connection options for a domain, in descending order of
+    preference.
+
+    This coroutine returns options discovered from SRV records, or if none are
+    found, the generic option using the domain name and the default XMPP client
+    port.
+
+    Each option is represented by a triple ``(host, port, connector)``.
+    `connector` is a :class:`aioxmpp.connector.BaseConnector` instance which is
+    suitable to connect to the given host and port.
+
+    The following sources are supported:
+
+    * :rfc:`6120` SRV records. One option is returned for each priority present
+      in the SRV records. If there are multiple SRV records with the same
+      priority, one is sampled randomly according to their weights.
+
+      This implies that the result of this function is not deterministic in
+      that situation, which is intended.
+
+      If one of the SRV records points to the root name (``.``),
+      :class:`ValueError` is raised (the domain specifically said that XMPP is
+      not supported here).
+
+    * :rfc:`6120` fallback process (only if no SRV records are found). One
+      option is returned for the host name with the default XMPP client port.
+
+    """
+
+    srv_records = yield from network.lookup_srv(
+        domain,
+        "xmpp-client",
+    )
+
+    if srv_records is None:
+        # no SRV records published, fall back
+        return [
+            (domain, 5222, connector.STARTTLSConnector()),
+        ]
+
+    srv_records = [
+        (host, port, connector.STARTTLSConnector())
+        for host, port in srv_records
+    ]
+
+    options = list(
+        network.group_and_order_srv_records(srv_records)
+    )
+
+    return options
 
 
 @asyncio.coroutine

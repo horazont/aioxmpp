@@ -2,6 +2,7 @@ import asyncio
 import contextlib
 import functools
 import ipaddress
+import itertools
 import logging
 import unittest
 import unittest.mock
@@ -28,7 +29,111 @@ from aioxmpp.testutils import (
     run_coroutine,
     XMLStreamMock,
     run_coroutine_with_peer,
+    CoroutineMock,
 )
+
+
+class Testdiscover_connectors(unittest.TestCase):
+    def test_request_SRV_records(self):
+        loop = asyncio.get_event_loop()
+
+        def connectors():
+            for i in itertools.count():
+                yield getattr(unittest.mock.sentinel,
+                              "starttls{}".format(i))
+
+        def grouped_results():
+            yield 1
+            yield 2
+
+        with contextlib.ExitStack() as stack:
+            STARTTLSConnector = stack.enter_context(
+                unittest.mock.patch("aioxmpp.connector.STARTTLSConnector")
+            )
+            STARTTLSConnector.side_effect = connectors()
+
+            lookup_srv = stack.enter_context(
+                unittest.mock.patch("aioxmpp.network.lookup_srv",
+                                    new=CoroutineMock()),
+            )
+            lookup_srv.return_value = [
+                ("a", 1),
+                ("b", 2),
+            ]
+
+            group_and_order = stack.enter_context(
+                unittest.mock.patch("aioxmpp.network.group_and_order_srv_records")
+            )
+            group_and_order.return_value = grouped_results()
+
+            result = run_coroutine(
+                node.discover_connectors(
+                    unittest.mock.sentinel.domain,
+                    loop=loop,
+                )
+            )
+
+        lookup_srv.assert_called_with(
+            unittest.mock.sentinel.domain,
+            "xmpp-client",
+        )
+
+        group_and_order.assert_called_with(
+            [
+                ("a", 1, unittest.mock.sentinel.starttls0),
+                ("b", 2, unittest.mock.sentinel.starttls1),
+            ]
+        )
+
+        self.assertSequenceEqual(
+            result,
+            [1, 2],
+        )
+
+    def test_fallback_to_domain_name(self):
+        loop = asyncio.get_event_loop()
+
+        def connectors():
+            for i in itertools.count():
+                yield getattr(unittest.mock.sentinel,
+                              "starttls{}".format(i))
+
+        with contextlib.ExitStack() as stack:
+            STARTTLSConnector = stack.enter_context(
+                unittest.mock.patch("aioxmpp.connector.STARTTLSConnector")
+            )
+            STARTTLSConnector.side_effect = connectors()
+
+            lookup_srv = stack.enter_context(
+                unittest.mock.patch("aioxmpp.network.lookup_srv",
+                                    new=CoroutineMock()),
+            )
+            lookup_srv.return_value = None
+
+            group_and_order = stack.enter_context(
+                unittest.mock.patch("aioxmpp.network.group_and_order_srv_records")
+            )
+
+            result = run_coroutine(
+                node.discover_connectors(
+                    unittest.mock.sentinel.domain,
+                    loop=loop,
+                )
+            )
+
+        lookup_srv.assert_called_with(
+            unittest.mock.sentinel.domain,
+            "xmpp-client",
+        )
+
+        self.assertFalse(group_and_order.mock_calls)
+
+        self.assertSequenceEqual(
+            result,
+            [(unittest.mock.sentinel.domain,
+              5222,
+              unittest.mock.sentinel.starttls0)],
+        )
 
 
 class Testconnect_to_xmpp_server(unittest.TestCase):
