@@ -16,9 +16,9 @@ Using XMPP
 Connecting streams low-level
 ============================
 
-.. autofunction:: connect_secured_xmlstream
+.. autofunction:: discover_connectors
 
-.. autofunction:: connect_to_xmpp_server
+.. autofunction:: connect_xmlstream
 
 Utilities
 =========
@@ -39,7 +39,6 @@ import aiosasl
 from . import (
     connector,
     network,
-    ssl_transport,
     protocol,
     errors,
     stream,
@@ -92,6 +91,7 @@ def discover_connectors(domain, loop=None):
     * :rfc:`6120` fallback process (only if no SRV records are found). One
       option is returned for the host name with the default XMPP client port.
 
+    .. versionadded:: 0.6
     """
 
     srv_records = yield from network.lookup_srv(
@@ -166,6 +166,8 @@ def connect_xmlstream(
     :class:`~.protocol.XMLStream` instance. `features` is the
     :class:`aioxmpp.nonza.StreamFeatures` instance describing the features of
     the stream.
+
+    .. versionadded:: 0.6
     """
     loop = asyncio.get_event_loop() if loop is None else loop
 
@@ -226,168 +228,6 @@ def connect_xmlstream(
         "failed to connect to XMPP domain {!r}".format(jid.domain),
         exceptions
     )
-
-
-@asyncio.coroutine
-def connect_to_xmpp_server(jid, *, override_peer=None, loop=None):
-    """
-    Connect to an XMPP server which serves the domain of the given `jid`.
-
-    `override_peer` may be a list of triples ``(host, port, connector)``, where
-    `connector` is a :class:`aioxmpp.connector.BaseConnector` instance.
-
-    `loop` must be either a valid :class:`asyncio.BaseEventLoop` or
-    :data:`None`, in which case the current event loop is used.
-
-    Return a triple consisting of the `transport`, the
-    :class:`~aioxmpp.protocol.XMLStream` instance and a :class:`asyncio.Future`
-    on the first :class:`~aioxmpp.nonza.StreamFeatures` node.
-
-    If the connection fails :class:`OSError` is raised. That OSError may in
-    fact be a :class:`~aioxmpp.errors.MultiOSError`, which gives more
-    information on the different errors which occured.
-
-    If the domain does not support XMPP at all (by indicating that fact in the
-    SRV records), :class:`ValueError` is raised.
-    """
-    loop = loop or asyncio.get_event_loop()
-
-    features_future = asyncio.Future()
-
-    xmlstream = protocol.XMLStream(
-        to=jid.domain,
-        features_future=features_future)
-
-    exceptions = []
-
-    if override_peer is not None:
-        host, port = override_peer
-        try:
-            transport, _ = yield from ssl_transport.create_starttls_connection(
-                loop,
-                lambda: xmlstream,
-                host=host,
-                port=port,
-                peer_hostname=host,
-                server_hostname=jid.domain,
-                use_starttls=True)
-        except OSError as exc:
-            exceptions.append(exc)
-        else:
-            return transport, xmlstream, features_future
-
-    for host, port in (yield from lookup_addresses(loop, jid)):
-        try:
-            transport, _ = yield from ssl_transport.create_starttls_connection(
-                loop,
-                lambda: xmlstream,
-                host=host,
-                port=port,
-                peer_hostname=host,
-                server_hostname=jid.domain,
-                use_starttls=True)
-        except OSError as exc:
-            exceptions.append(exc)
-        else:
-            break
-    else:
-        if not exceptions:
-            # domain does not support XMPP (no options at all to connect to it)
-            raise OSError(
-                "no options to connect to {}".format(jid.domain)
-            )
-
-        if len(exceptions) == 1:
-            raise exceptions[0]
-
-        raise errors.MultiOSError(
-            "failed to connect to server for {}".format(jid),
-            exceptions)
-
-    return transport, xmlstream, features_future
-
-
-@asyncio.coroutine
-def connect_secured_xmlstream(jid, security_layer,
-                              negotiation_timeout=1.0,
-                              override_peer=None,
-                              loop=None):
-    """
-    Connect to an XMPP server which serves the domain of the given `jid` and
-    apply the given `security_layer` (see
-    :func:`~aioxmpp.security_layer.security_layer`).
-
-    `loop` must be either a valid :class:`asyncio.BaseEventLoop` or
-    :data:`None`, in which case the current event loop is used.
-
-    The `negotiation_timeout` is passed to the security layer and used for
-    connect timeouts.
-
-    `override_peer` is passed to :func:`connect_to_xmpp_server`.
-
-    Return a triple consisting of the `transport`, the
-    :class:`~aioxmpp.protocol.XMLStream` and the current
-    :class:`~aioxmpp.nonza.StreamFeatures` node. The `transport` returned
-    in the triple is the one returned by the security layer and is :data:`None`
-    if no starttls has been negotiated. To gain access to the transport used if
-    the transport returned is :data:`None`, use the
-    :attr:`~aioxmpp.protocol.XMLStream.transport` of the XML stream.
-
-    If the connection fails :class:`OSError` is raised. That OSError may in
-    fact be a :class:`~aioxmpp.errors.MultiOSError`, which gives more
-    information on the different errors which occured.
-
-    If the domain does not support XMPP at all (by indicating that fact in the
-    SRV records), :class:`ValueError` is raised.
-
-    If SASL or TLS negotiation fails, the corresponding exception type from
-    :mod:`aioxmpp.errors` is raised. Most notably, authentication failures
-    caused by invalid credentials or a user abort are raised as
-    :class:`~aioxmpp.errors.AuthenticationFailure`.
-    """
-
-    try:
-        transport, xmlstream, features_future = yield from asyncio.wait_for(
-            connect_to_xmpp_server(jid,
-                                   override_peer=override_peer,
-                                   loop=loop),
-            timeout=negotiation_timeout,
-            loop=loop
-        )
-    except asyncio.TimeoutError:
-        raise TimeoutError("connection to {} timed out".format(jid))
-
-    features = yield from features_future
-
-    try:
-        new_transport, features = yield from security_layer(
-            negotiation_timeout,
-            jid,
-            features,
-            xmlstream)
-    except errors.SASLUnavailable as exc:
-        protocol.send_stream_error_and_close(
-            xmlstream,
-            condition=(namespaces.streams, "policy-violation"),
-            text=str(exc)
-        )
-        raise
-    except errors.TLSUnavailable as exc:
-        protocol.send_stream_error_and_close(
-            xmlstream,
-            condition=(namespaces.streams, "policy-violation"),
-            text=str(exc)
-        )
-        raise
-    except aiosasl.SASLError as exc:
-        protocol.send_stream_error_and_close(
-            xmlstream,
-            condition=(namespaces.streams, "undefined-condition"),
-            text=str(exc)
-        )
-        raise
-
-    return new_transport, xmlstream, features
 
 
 class AbstractClient:

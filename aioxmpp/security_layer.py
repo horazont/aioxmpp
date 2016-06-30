@@ -948,6 +948,8 @@ def negotiate_sasl(transport, xmlstream,
 
     Return the :class:`.nonza.StreamFeatures` obtained after resetting the
     stream after successful SASL authentication.
+
+    .. versionadded:: 0.6
     """
 
     if not transport.get_extra_info("sslcontext"):

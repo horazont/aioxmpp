@@ -134,6 +134,30 @@ Version 0.6
 
 * New callback mode :meth:`aioxmpp.callbacks.AdHocSignal.SPAWN_WITH_LOOP`.
 
+* :mod:`aioxmpp.connector` added. This module provides classes which connect and
+  return a :class:`aioxmpp.protocol.XMLStream`. They also handle TLS
+  negotiation, if any.
+
+* **Breaking change:** The following functions have been removed:
+
+  * :func:`aioxmpp.node.connect_to_xmpp_server`
+  * :func:`aioxmpp.node.connect_secured_xmlstream`
+  * :func:`aioxmpp.security_layer.negotiate_stream_security`
+
+  Use :func:`aioxmpp.node.connect_xmlstream` instead, but check the docs for the
+  slightly different semantics.
+
+  The following functions have been deprecated:
+
+  * :class:`aioxmpp.security_layer.STARTTLSProvider`
+  * :func:`aioxmpp.security_layer.security_layer`
+
+  Use :class:`aioxmpp.security_layer.SecurityLayer` instead.
+
+  The existing helper function
+  :func:`aioxmpp.security_layer.tls_with_password_based_authentication` is still
+  live and has been modified to use the new code.
+
 Version 0.5
 ===========
 
