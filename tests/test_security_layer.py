@@ -1470,259 +1470,6 @@ class TestPinningPKIXCertificateVerifier(unittest.TestCase):
         del self.query_pin
 
 
-class TestSTARTTLSProvider(xmltestutils.XMLTestCase):
-    def setUp(self):
-        self.client_jid = structs.JID.fromstr("foo@bar.example")
-
-        self.loop = asyncio.get_event_loop()
-
-        self.transport = object()
-
-        self.xmlstream = XMLStreamMock(self, loop=self.loop)
-        self.xmlstream.transport = self.transport
-
-        self.ssl_context_factory = unittest.mock.Mock()
-        self.certificate_verifier_factory = unittest.mock.Mock()
-
-        self.ssl_context = self.ssl_context_factory()
-        self.ssl_context_factory.return_value = self.ssl_context
-        self.ssl_context_factory.mock_calls.clear()
-
-        self.verifier = self.certificate_verifier_factory()
-        self.verifier.pre_handshake = CoroutineMock()
-        self.verifier.post_handshake = CoroutineMock()
-        self.certificate_verifier_factory.return_value = self.verifier
-        self.certificate_verifier_factory.mock_calls.clear()
-
-    def _test_provider(self, provider, features, actions=[], stimulus=None):
-        return run_coroutine_with_peer(
-            provider.execute(self.client_jid,
-                             features,
-                             self.xmlstream),
-            self.xmlstream.run_test(actions, stimulus=stimulus),
-            loop=self.loop)
-
-    def test_require_starttls(self):
-        provider = security_layer.STARTTLSProvider(
-            self.ssl_context_factory,
-            self.certificate_verifier_factory,
-            require_starttls=True)
-
-        features = nonza.StreamFeatures()
-
-        with self.assertRaisesRegex(errors.TLSUnavailable,
-                                    "not supported by peer"):
-            self._test_provider(provider, features)
-
-    def test_pass_without_required_starttls(self):
-        provider = security_layer.STARTTLSProvider(
-            self.ssl_context_factory,
-            self.certificate_verifier_factory,
-            require_starttls=False)
-
-        features = nonza.StreamFeatures()
-
-        self.assertIsNone(self._test_provider(provider, features))
-
-    def test_fail_if_peer_requires_starttls_but_we_cannot_do_starttls(self):
-        provider = security_layer.STARTTLSProvider(
-            self.ssl_context_factory,
-            self.certificate_verifier_factory,
-            require_starttls=False)
-
-        features = nonza.StreamFeatures()
-        instance = nonza.StartTLSFeature()
-        instance.required = nonza.StartTLSFeature.Required()
-        features[...] = instance
-
-        self.xmlstream.can_starttls_value = False
-
-        with self.assertRaisesRegex(errors.TLSUnavailable,
-                                    "not supported by us"):
-            self._test_provider(provider, features)
-
-    def test_fail_if_peer_reports_failure(self):
-        provider = security_layer.STARTTLSProvider(
-            self.ssl_context_factory,
-            self.certificate_verifier_factory,
-            require_starttls=True)
-
-        features = nonza.StreamFeatures()
-        features[...] = nonza.StartTLSFeature()
-
-        self.xmlstream.can_starttls_value = True
-
-        with self.assertRaisesRegex(errors.TLSUnavailable,
-                                    "failed on remote side"):
-            self._test_provider(
-                provider, features,
-                actions=[
-                    XMLStreamMock.Send(
-                        nonza.StartTLS(),
-                        response=XMLStreamMock.Receive(
-                            nonza.StartTLSFailure()
-                        )
-                    )
-                ]
-            )
-
-    def test_engage_starttls_on_proceed(self):
-        provider = security_layer.STARTTLSProvider(
-            self.ssl_context_factory,
-            self.certificate_verifier_factory,
-            require_starttls=True)
-
-        features = nonza.StreamFeatures()
-        features[...] = nonza.StartTLSFeature()
-
-        self.xmlstream.can_starttls_value = True
-
-        result = self._test_provider(
-            provider, features,
-            actions=[
-                XMLStreamMock.Send(
-                    nonza.StartTLS(),
-                    response=XMLStreamMock.Receive(
-                        nonza.StartTLSProceed()
-                    )
-                ),
-                XMLStreamMock.STARTTLS(
-                    ssl_context=self.ssl_context,
-                    post_handshake_callback=self.verifier.post_handshake
-                )
-            ]
-        )
-
-        self.assertIs(result, self.transport)
-
-        self.assertSequenceEqual(
-            [
-                unittest.mock.call(),
-            ],
-            self.ssl_context_factory.mock_calls
-        )
-
-        self.assertSequenceEqual(
-            [
-                unittest.mock.call(),
-                unittest.mock.call().pre_handshake(self.xmlstream.transport),
-                unittest.mock.call().setup_context(
-                    self.ssl_context, self.xmlstream.transport),
-                unittest.mock.call().post_handshake(
-                    self.xmlstream.transport)
-            ],
-            self.certificate_verifier_factory.mock_calls
-        )
-
-    def test_propagate_and_wrap_OSError(self):
-        provider = security_layer.STARTTLSProvider(
-            self.ssl_context_factory,
-            self.certificate_verifier_factory,
-            require_starttls=True)
-
-        features = nonza.StreamFeatures()
-        features[...] = nonza.StartTLSFeature()
-
-        self.xmlstream.can_starttls_value = True
-
-        exc = OSError("foobar")
-        self.certificate_verifier_factory().post_handshake.side_effect = exc
-
-        with self.assertRaisesRegex(errors.TLSFailure,
-                                    "TLS connection failed: foobar"):
-            self._test_provider(
-                provider, features,
-                actions=[
-                    XMLStreamMock.Send(
-                        nonza.StartTLS(),
-                        response=XMLStreamMock.Receive(
-                            nonza.StartTLSProceed()
-                        )
-                    ),
-                    XMLStreamMock.STARTTLS(
-                        ssl_context=self.ssl_context_factory(),
-                        post_handshake_callback=
-                        self.certificate_verifier_factory().post_handshake
-                    )
-                ]
-            )
-
-    def test_do_not_wrap_other_exceptions(self):
-        provider = security_layer.STARTTLSProvider(
-            self.ssl_context_factory,
-            self.certificate_verifier_factory,
-            require_starttls=True)
-
-        features = nonza.StreamFeatures()
-        features[...] = nonza.StartTLSFeature()
-
-        self.xmlstream.can_starttls_value = True
-
-        exc = ValueError("foobar")
-        self.certificate_verifier_factory().post_handshake.side_effect = exc
-
-        with self.assertRaises(ValueError) as ctx:
-            self._test_provider(
-                provider, features,
-                actions=[
-                    XMLStreamMock.Send(
-                        nonza.StartTLS(),
-                        response=XMLStreamMock.Receive(
-                            nonza.StartTLSProceed()
-                        )
-                    ),
-                    XMLStreamMock.STARTTLS(
-                        ssl_context=self.ssl_context_factory(),
-                        post_handshake_callback=
-                        self.certificate_verifier_factory().post_handshake
-                    )
-                ]
-            )
-
-        self.assertIs(ctx.exception, exc)
-
-    def test_propagate_tls_error(self):
-        provider = security_layer.STARTTLSProvider(
-            self.ssl_context_factory,
-            self.certificate_verifier_factory,
-            require_starttls=True)
-
-        features = nonza.StreamFeatures()
-        features[...] = nonza.StartTLSFeature()
-
-        self.xmlstream.can_starttls_value = True
-
-        exc = errors.TLSFailure("foobar")
-        self.certificate_verifier_factory().post_handshake.side_effect = exc
-
-        with self.assertRaises(errors.TLSFailure) as ctx:
-            self._test_provider(
-                provider, features,
-                actions=[
-                    XMLStreamMock.Send(
-                        nonza.StartTLS(),
-                        response=XMLStreamMock.Receive(
-                            nonza.StartTLSProceed()
-                        )
-                    ),
-                    XMLStreamMock.STARTTLS(
-                        ssl_context=self.ssl_context_factory(),
-                        post_handshake_callback=
-                        self.certificate_verifier_factory().post_handshake
-                    )
-                ]
-            )
-
-        self.assertIs(ctx.exception, exc)
-
-    def tearDown(self):
-        del self.ssl_context_factory
-        del self.certificate_verifier_factory
-        del self.xmlstream
-        del self.loop
-        del self.client_jid
-
-
 class TestPasswordSASLProvider(xmltestutils.XMLTestCase):
     def setUp(self):
         aiosasl._system_random = unittest.mock.MagicMock()
@@ -2010,7 +1757,7 @@ class Testnegotiate_sasl(xmltestutils.XMLTestCase):
         self.loop = asyncio.get_event_loop()
 
         self.transport = unittest.mock.Mock()
-        self.transport.get_extra.return_value = object()
+        self.transport.get_extra_info.return_value = object()
 
         self.xmlstream = XMLStreamMock(self, loop=self.loop)
         self.xmlstream.transport = self.transport
@@ -2196,130 +1943,27 @@ class Testnegotiate_sasl(xmltestutils.XMLTestCase):
             self.transport)
 
 
-class Testnegotiate_stream_security(xmltestutils.XMLTestCase):
-    def setUp(self):
-        self.client_jid = structs.JID.fromstr("foo@bar.example")
-
-        self.loop = asyncio.get_event_loop()
-
-        self.transport = object()
-
-        self.xmlstream = XMLStreamMock(self, loop=self.loop)
-        self.xmlstream.transport = self.transport
-
-        self.features = nonza.StreamFeatures()
-        self.mechanisms = security_layer.SASLMechanisms()
-        self.features[...] = self.mechanisms
-        self.features[...] = nonza.StartTLSFeature()
-
-        self.post_tls_features = nonza.StreamFeatures()
-        self.features[...] = self.mechanisms
-
-        self.post_sasl_features = nonza.StreamFeatures()
-
-        self.password_provider = unittest.mock.MagicMock()
-
-        self.negotiate_sasl = CoroutineMock()
-        self.negotiate_sasl.return_value = self.post_sasl_features
-
-        self.patches = [
-            unittest.mock.patch(
-                "aioxmpp.security_layer.negotiate_sasl",
-                new=self.negotiate_sasl
-            ),
-        ]
-
-        for patch in self.patches:
-            patch.start()
-
-    def tearDown(self):
-        for patch in self.patches:
-            patch.stop()
-
-    def _test_provider(self, main_coro,
-                       actions=[], stimulus=None):
-        return run_coroutine_with_peer(
-            main_coro,
-            self.xmlstream.run_test(actions, stimulus=stimulus),
-            loop=self.loop
-        )
-
-    def test_full_negotiation(self):
-        tls_provider = unittest.mock.Mock()
-        tls_provider.execute = CoroutineMock()
-        tls_provider.execute.return_value = self.transport
-
-        result = self._test_provider(
-            security_layer.negotiate_stream_security(
-                tls_provider,
-                unittest.mock.sentinel.sasl_providers,
-                negotiation_timeout=1.0,
-                jid=self.client_jid,
-                features=self.features,
-                xmlstream=self.xmlstream),
-            [
-                XMLStreamMock.Reset(
-                    response=XMLStreamMock.Receive(
-                        self.post_tls_features
-                    )),
-            ]
+class TestSTARTTLSProvider(unittest.TestCase):
+    def test_init(self):
+        obj = security_layer.STARTTLSProvider(
+            unittest.mock.sentinel.ssl_ctx_factory,
+            unittest.mock.sentinel.certificate_verifier_factory,
+            require_starttls=unittest.mock.sentinel.tls_required,
         )
 
         self.assertEqual(
-            (self.transport, self.post_sasl_features),
-            result
-        )
-
-        tls_provider.execute.assert_called_once_with(
-            self.client_jid,
-            self.features,
-            self.xmlstream)
-
-        self.negotiate_sasl.assert_called_with(
-            self.transport,
-            self.xmlstream,
-            unittest.mock.sentinel.sasl_providers,
-            negotiation_timeout=1.0,
-            jid=self.client_jid,
-            features=self.post_tls_features,
-        )
-
-    def test_sasl_only_negotiation(self):
-        self.xmlstream.transport = unittest.mock.sentinel.stream_transport
-
-        tls_provider = unittest.mock.Mock()
-        tls_provider.execute = CoroutineMock()
-        tls_provider.execute.return_value = None
-
-        result = self._test_provider(
-            security_layer.negotiate_stream_security(
-                tls_provider,
-                unittest.mock.sentinel.sasl_providers,
-                negotiation_timeout=1.0,
-                jid=self.client_jid,
-                features=self.features,
-                xmlstream=self.xmlstream),
-            [
-            ]
+            obj.ssl_context_factory,
+            unittest.mock.sentinel.ssl_ctx_factory,
         )
 
         self.assertEqual(
-            (None, self.post_sasl_features),
-            result
+            obj.certificate_verifier_factory,
+            unittest.mock.sentinel.certificate_verifier_factory,
         )
 
-        tls_provider.execute.assert_called_once_with(
-            self.client_jid,
-            self.features,
-            self.xmlstream)
-
-        self.negotiate_sasl.assert_called_with(
-            unittest.mock.sentinel.stream_transport,
-            self.xmlstream,
-            unittest.mock.sentinel.sasl_providers,
-            negotiation_timeout=1.0,
-            jid=self.client_jid,
-            features=self.features,
+        self.assertEqual(
+            obj.tls_required,
+            unittest.mock.sentinel.tls_required,
         )
 
 
@@ -2334,45 +1978,61 @@ class Testsecurity_layer(unittest.TestCase):
         with self.assertRaises(ValueError):
             security_layer.security_layer(unittest.mock.MagicMock(), [])
 
-    @unittest.mock.patch("functools.partial")
-    def test_uses_partial(self, partial):
+    @unittest.mock.patch("aioxmpp.security_layer.SecurityLayer")
+    def test_creates_SecurityLayer(self, SecurityLayer):
         tls_provider = unittest.mock.MagicMock()
         sasl_providers = [unittest.mock.MagicMock()]
-        security_layer.security_layer(tls_provider, sasl_providers)
-
-        partial.assert_called_once_with(
-            security_layer.negotiate_stream_security,
+        result = security_layer.security_layer(
             tls_provider,
-            sasl_providers)
+            sasl_providers
+        )
+
+        SecurityLayer.assert_called_with(
+            tls_provider.ssl_context_factory,
+            tls_provider.certificate_verifier_factory,
+            tls_provider.tls_required,
+            tuple(sasl_providers)
+        )
+
+        self.assertEqual(
+            result,
+            SecurityLayer()
+        )
 
 
 class Testtls_with_password_based_authentication(unittest.TestCase):
     @unittest.mock.patch("aioxmpp.security_layer.PasswordSASLProvider")
+    @unittest.mock.patch("aioxmpp.security_layer.SecurityLayer")
     @unittest.mock.patch("aioxmpp.security_layer.STARTTLSProvider")
-    @unittest.mock.patch("aioxmpp.security_layer.security_layer")
     def test_constructs_security_layer(self,
-                                       security_layer_fun,
                                        STARTTLSProvider,
+                                       SecurityLayer,
                                        PasswordSASLProvider):
         password_provider = object()
         ssl_context_factory = object()
         certificate_verifier_factory = object()
         max_auth_attempts = 4
 
-        security_layer.tls_with_password_based_authentication(
+        result = security_layer.tls_with_password_based_authentication(
             password_provider,
             ssl_context_factory,
             max_auth_attempts,
             certificate_verifier_factory)
 
-        security_layer_fun.assert_called_once_with(
-            tls_provider=STARTTLSProvider(
-                ssl_context_factory,
-                require_starttls=True,
-                certificate_verifier_factory=certificate_verifier_factory),
-            sasl_providers=[
+        self.assertFalse(STARTTLSProvider.mock_calls)
+
+        SecurityLayer.assert_called_once_with(
+            ssl_context_factory,
+            certificate_verifier_factory,
+            True,
+            (
                 PasswordSASLProvider(
                     password_provider,
-                    max_auth_attempts=max_auth_attempts)
-            ]
+                    max_auth_attempts=max_auth_attempts),
+            )
+        )
+
+        self.assertEqual(
+            result,
+            SecurityLayer(),
         )
