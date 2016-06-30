@@ -125,7 +125,7 @@ class STARTTLSConnector(BaseConnector):
         yield from verifier.pre_handshake(transport)
 
         ssl_context = metadata.ssl_context_factory()
-        verifier.setup_context(ssl_context)
+        verifier.setup_context(ssl_context, transport)
 
         yield from stream.starttls(
             ssl_context=ssl_context,

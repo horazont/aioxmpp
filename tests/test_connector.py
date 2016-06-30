@@ -152,7 +152,8 @@ class TestSTARTTLSConnector(unittest.TestCase):
                 ),
                 unittest.mock.call.metadata.ssl_context_factory(),
                 unittest.mock.call.certificate_verifier.setup_context(
-                    unittest.mock.sentinel.ssl_context
+                    unittest.mock.sentinel.ssl_context,
+                    unittest.mock.sentinel.transport,
                 ),
                 unittest.mock.call.protocol.starttls(
                     ssl_context=unittest.mock.sentinel.ssl_context,
