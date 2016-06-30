@@ -129,10 +129,10 @@ def connect_xmlstream(
     responsible for the given `jid` and authenticate against that server using
     the SASL mechansims described in `metadata`.
 
-    The part of the `metadata` (which must be a :class:`ConnectionMetadata`
-    object) specifying the use of TLS is applied. If the security layer does
-    not mandate TLS, the resulting XML stream may not be using TLS. TLS is used
-    whenever possible.
+    The part of the `metadata` (which must be a
+    :class:`.security_layer.SecurityLayer` object) specifying the use of TLS is
+    applied. If the security layer does not mandate TLS, the resulting XML
+    stream may not be using TLS. TLS is used whenever possible.
 
     `override_peer` may be a list of triples consisting of ``(host, port,
     connector)``, where `connector` is a

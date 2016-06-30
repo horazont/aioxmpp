@@ -1,6 +1,5 @@
 import abc
 import asyncio
-import collections
 
 import aioxmpp.errors as errors
 import aioxmpp.nonza as nonza
@@ -8,39 +7,6 @@ import aioxmpp.protocol as protocol
 import aioxmpp.ssl_transport as ssl_transport
 
 from aioxmpp.utils import namespaces
-
-
-class ConnectionMetadata(collections.namedtuple(
-        "ConnectionMetadata",
-        [
-            "ssl_context_factory",
-            "certificate_verifier_factory",
-            "tls_required",
-            "sasl_providers",
-        ])):
-    """
-    `ssl_context_factory` must be callable returning a
-    :class:`OpenSSL.SSL.Context` instance which is to be used for any SSL
-    operations for the connection. It is legit to return the same context for
-    all calls to `ssl_context_factory`.
-
-    `certificate_verifier_factory` must be a callable which returns a fresh
-    :class:`aioxmpp.security_layer.CertificateVerifier` on each call (it must
-    be a fresh instance since :class:`~.security_layer.CertificateVerifier`
-    objects are allowed to keep state and :class:`ConnectionMetadata` objects
-    are reusable between connection attempts).
-
-    `tls_required` must be a boolean; it indicates whether failure to negotiate
-    or establish TLS is critical. Note that setting this to false will not
-    cause invalid TLS sessions (e.g. with invalid certificates) to be used.
-    This only affects situations where the server is not offering TLS or where
-    STARTTLS fails.
-
-    `sasl_providers` must be a sequence of
-    :class:`.security_layer.SASLProvider` instances. As SASL providers are
-    stateless, it is not necessary to create new providers for each
-    connection.
-    """
 
 
 class BaseConnector(metaclass=abc.ABCMeta):
@@ -63,8 +29,9 @@ class BaseConnector(metaclass=abc.ABCMeta):
         Establish a :class:`.protocol.XMLStream` for `domain` with the given
         `host` at the given TCP `port`.
 
-        `metadata` must be a :class:`ConnectionMetadata` instance to use for
-        the connection. `loop` must be a :class:`asyncio.BaseEventLoop` to use.
+        `metadata` must be a :class:`.security_layer.SecurityLayer` instance to
+        use for the connection. `loop` must be a :class:`asyncio.BaseEventLoop`
+        to use.
 
         `negotiation_timeout` must be the maximum time in seconds to wait for
         the server to reply in each negotiation step.

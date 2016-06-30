@@ -90,6 +90,7 @@ used:
 import abc
 import asyncio
 import base64
+import collections
 import functools
 import logging
 import ssl
@@ -969,11 +970,54 @@ class PasswordSASLProvider(SASLProvider):
         return False
 
 
+class SecurityLayer(collections.namedtuple(
+        "SecurityLayer",
+        [
+            "ssl_context_factory",
+            "certificate_verifier_factory",
+            "tls_required",
+            "sasl_providers",
+        ])):
+    """
+    A security layer defines the security properties used for an XML stream.
+    This includes TLS settings and SASL providers.
+
+    `ssl_context_factory` must be callable returning a
+    :class:`OpenSSL.SSL.Context` instance which is to be used for any SSL
+    operations for the connection. It is legit to return the same context for
+    all calls to `ssl_context_factory`.
+
+    `certificate_verifier_factory` must be a callable which returns a fresh
+    :class:`aioxmpp.security_layer.CertificateVerifier` on each call (it must
+    be a fresh instance since :class:`~.security_layer.CertificateVerifier`
+    objects are allowed to keep state and :class:`SecurityLayer` objects
+    are reusable between connection attempts).
+
+    `tls_required` must be a boolean; it indicates whether failure to negotiate
+    or establish TLS is critical. Note that setting this to false will not
+    cause invalid TLS sessions (e.g. with invalid certificates) to be used.
+    This only affects situations where the server is not offering TLS or where
+    STARTTLS fails.
+
+    `sasl_providers` must be a sequence of
+    :class:`.security_layer.SASLProvider` instances. As SASL providers are
+    stateless, it is not necessary to create new providers for each
+    connection.
+    """
+
+
 def default_verify_callback(conn, x509, errno, errdepth, returncode):
     return errno == 0
 
 
 def default_ssl_context():
+    """
+    Return a sensibly configured :class:`OpenSSL.SSL.Context` context.
+
+    The context has SSLv2 and SSLv3 disabled, and supports TLS 1.0+ (depending
+    on the version of the SSL library).
+    """
+
     ctx = OpenSSL.SSL.Context(OpenSSL.SSL.SSLv23_METHOD)
     ctx.set_options(OpenSSL.SSL.OP_NO_SSLv2 | OpenSSL.SSL.OP_NO_SSLv3)
     ctx.set_verify(OpenSSL.SSL.VERIFY_PEER, default_verify_callback)
