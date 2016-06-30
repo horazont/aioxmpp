@@ -1323,8 +1323,8 @@ class Testconnect_secured_xmlstream(unittest.TestCase):
 
 class TestAbstractClient(xmltestutils.XMLTestCase):
     @asyncio.coroutine
-    def _connect_secured_xmlstream(self, *args, **kwargs):
-        self.connect_secured_xmlstream_rec(*args, **kwargs)
+    def _connect_xmlstream(self, *args, **kwargs):
+        self.connect_xmlstream_rec(*args, **kwargs)
         return None, self.xmlstream, self.features
 
     @staticmethod
@@ -1339,7 +1339,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
         return self._xmlstream
 
     def setUp(self):
-        self.connect_secured_xmlstream_rec = unittest.mock.MagicMock()
+        self.connect_xmlstream_rec = unittest.mock.MagicMock()
         self.failure_rec = unittest.mock.MagicMock()
         self.failure_rec.return_value = None
         self.established_rec = unittest.mock.MagicMock()
@@ -1350,13 +1350,13 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
 
         self.loop = asyncio.get_event_loop()
         self.patches = [
-            unittest.mock.patch("aioxmpp.node.connect_secured_xmlstream",
-                                self._connect_secured_xmlstream),
+            unittest.mock.patch("aioxmpp.node.connect_xmlstream",
+                                self._connect_xmlstream),
             unittest.mock.patch("aioxmpp.stanza.StanzaBase.autoset_id",
                                 self._autoset_id)
         ]
-        self.connect_secured_xmlstream, _ = (patch.start()
-                                             for patch in self.patches)
+        self.connect_xmlstream, _ = (patch.start()
+                                     for patch in self.patches)
         self._xmlstream = XMLStreamMock(self, loop=self.loop)
         self.test_jid = structs.JID.fromstr("foo@bar.example/baz")
         self.features = nonza.StreamFeatures()
@@ -1453,16 +1453,16 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
     def test_start(self):
         self.assertFalse(self.client.established)
         run_coroutine(asyncio.sleep(0))
-        self.connect_secured_xmlstream_rec.assert_not_called()
+        self.connect_xmlstream_rec.assert_not_called()
         self.assertFalse(self.client.running)
         self.client.start()
         self.assertTrue(self.client.running)
         run_coroutine(self.xmlstream.run_test(self.resource_binding))
-        self.connect_secured_xmlstream_rec.assert_called_once_with(
+        self.connect_xmlstream_rec.assert_called_once_with(
             self.test_jid,
             self.security_layer,
             negotiation_timeout=60.0,
-            override_peer=None,
+            override_peer=[],
             loop=self.loop
         )
 
@@ -1498,7 +1498,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
         cb.return_value = False
 
         run_coroutine(asyncio.sleep(0))
-        self.connect_secured_xmlstream_rec.assert_not_called()
+        self.connect_xmlstream_rec.assert_not_called()
         self.assertFalse(self.client.running)
         self.client.start()
         self.assertTrue(self.client.running)
@@ -1573,10 +1573,10 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
                     self.test_jid,
                     self.security_layer,
                     negotiation_timeout=0.01,
-                    override_peer=None,
+                    override_peer=[],
                     loop=self.loop)
             ]*2,
-            self.connect_secured_xmlstream_rec.mock_calls
+            self.connect_xmlstream_rec.mock_calls
         )
 
         # the client has not failed
@@ -1585,7 +1585,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
 
     def test_fail_on_authentication_failure(self):
         exc = aiosasl.AuthenticationFailure("not-authorized")
-        self.connect_secured_xmlstream_rec.side_effect = exc
+        self.connect_xmlstream_rec.side_effect = exc
         self.client.start()
         run_coroutine(asyncio.sleep(0))
         self.assertFalse(self.client.running)
@@ -1599,7 +1599,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
 
     def test_fail_on_stream_negotation_failure(self):
         exc = errors.StreamNegotiationFailure("undefined-condition")
-        self.connect_secured_xmlstream_rec.side_effect = exc
+        self.connect_xmlstream_rec.side_effect = exc
         self.client.start()
         run_coroutine(asyncio.sleep(0))
         self.assertFalse(self.client.running)
@@ -1616,11 +1616,11 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
             self.test_jid,
             self.security_layer,
             negotiation_timeout=60.0,
-            override_peer=None,
+            override_peer=[],
             loop=self.loop)
 
         exc = OSError()
-        self.connect_secured_xmlstream_rec.side_effect = exc
+        self.connect_xmlstream_rec.side_effect = exc
         self.client.backoff_start = timedelta(seconds=0.01)
         self.client.backoff_factor = 2
         self.client.backoff_cap = timedelta(seconds=0.1)
@@ -1631,49 +1631,49 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
 
         self.assertSequenceEqual(
             [call],
-            self.connect_secured_xmlstream_rec.mock_calls
+            self.connect_xmlstream_rec.mock_calls
         )
 
         run_coroutine(asyncio.sleep(0.01))
 
         self.assertSequenceEqual(
             [call]*2,
-            self.connect_secured_xmlstream_rec.mock_calls
+            self.connect_xmlstream_rec.mock_calls
         )
 
         run_coroutine(asyncio.sleep(0.02))
 
         self.assertSequenceEqual(
             [call]*3,
-            self.connect_secured_xmlstream_rec.mock_calls
+            self.connect_xmlstream_rec.mock_calls
         )
 
         run_coroutine(asyncio.sleep(0.04))
 
         self.assertSequenceEqual(
             [call]*4,
-            self.connect_secured_xmlstream_rec.mock_calls
+            self.connect_xmlstream_rec.mock_calls
         )
 
         run_coroutine(asyncio.sleep(0.08))
 
         self.assertSequenceEqual(
             [call]*5,
-            self.connect_secured_xmlstream_rec.mock_calls
+            self.connect_xmlstream_rec.mock_calls
         )
 
         run_coroutine(asyncio.sleep(0.1))
 
         self.assertSequenceEqual(
             [call]*6,
-            self.connect_secured_xmlstream_rec.mock_calls
+            self.connect_xmlstream_rec.mock_calls
         )
 
         run_coroutine(asyncio.sleep(0.1))
 
         self.assertSequenceEqual(
             [call]*7,
-            self.connect_secured_xmlstream_rec.mock_calls
+            self.connect_xmlstream_rec.mock_calls
         )
 
         self.assertSequenceEqual(
@@ -1690,11 +1690,11 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
             self.test_jid,
             self.security_layer,
             negotiation_timeout=60.0,
-            override_peer=None,
+            override_peer=[],
             loop=self.loop)
 
         exc = dns.resolver.NoNameservers()
-        self.connect_secured_xmlstream_rec.side_effect = exc
+        self.connect_xmlstream_rec.side_effect = exc
         self.client.backoff_start = timedelta(seconds=0.01)
         self.client.backoff_factor = 2
         self.client.backoff_cap = timedelta(seconds=0.1)
@@ -1705,49 +1705,49 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
 
         self.assertSequenceEqual(
             [call],
-            self.connect_secured_xmlstream_rec.mock_calls
+            self.connect_xmlstream_rec.mock_calls
         )
 
         run_coroutine(asyncio.sleep(0.01))
 
         self.assertSequenceEqual(
             [call]*2,
-            self.connect_secured_xmlstream_rec.mock_calls
+            self.connect_xmlstream_rec.mock_calls
         )
 
         run_coroutine(asyncio.sleep(0.02))
 
         self.assertSequenceEqual(
             [call]*3,
-            self.connect_secured_xmlstream_rec.mock_calls
+            self.connect_xmlstream_rec.mock_calls
         )
 
         run_coroutine(asyncio.sleep(0.04))
 
         self.assertSequenceEqual(
             [call]*4,
-            self.connect_secured_xmlstream_rec.mock_calls
+            self.connect_xmlstream_rec.mock_calls
         )
 
         run_coroutine(asyncio.sleep(0.08))
 
         self.assertSequenceEqual(
             [call]*5,
-            self.connect_secured_xmlstream_rec.mock_calls
+            self.connect_xmlstream_rec.mock_calls
         )
 
         run_coroutine(asyncio.sleep(0.1))
 
         self.assertSequenceEqual(
             [call]*6,
-            self.connect_secured_xmlstream_rec.mock_calls
+            self.connect_xmlstream_rec.mock_calls
         )
 
         run_coroutine(asyncio.sleep(0.1))
 
         self.assertSequenceEqual(
             [call]*7,
-            self.connect_secured_xmlstream_rec.mock_calls
+            self.connect_xmlstream_rec.mock_calls
         )
 
         self.assertSequenceEqual(
@@ -2003,52 +2003,56 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
         self.client.backoff_start = timedelta(seconds=0)
         self.client.start()
 
-        run_coroutine(self.xmlstream.run_test([
-        ]+self.resource_binding+[
-            XMLStreamMock.Send(
-                nonza.SMEnable(resume=True),
-                response=[
-                    XMLStreamMock.Receive(
-                        nonza.SMEnabled(
-                            resume=True,
-                            id_="foobar",
-                            location=(ipaddress.IPv6Address("fe80::"), 5222)),
+        with unittest.mock.patch("aioxmpp.connector.STARTTLSConnector") as C:
+            C.return_value = unittest.mock.sentinel.connector
+            run_coroutine(self.xmlstream.run_test([
+            ]+self.resource_binding+[
+                XMLStreamMock.Send(
+                    nonza.SMEnable(resume=True),
+                    response=[
+                        XMLStreamMock.Receive(
+                            nonza.SMEnabled(
+                                resume=True,
+                                id_="foobar",
+                                location=(ipaddress.IPv6Address("fe80::"), 5222)),
 
                     ),
-                    XMLStreamMock.Fail(
-                        exc=ConnectionError()
-                    ),
-                ]
-            ),
-        ]))
-        # new xmlstream after failure
-        run_coroutine(self.xmlstream.run_test([
-            XMLStreamMock.Send(
-                nonza.SMResume(counter=0, previd="foobar"),
-                response=[
-                    XMLStreamMock.Receive(
-                        nonza.SMResumed(counter=0, previd="foobar")
-                    )
-                ]
-            )
-        ]))
+                        XMLStreamMock.Fail(
+                            exc=ConnectionError()
+                        ),
+                    ]
+                ),
+            ]))
+            # new xmlstream after failure
+            run_coroutine(self.xmlstream.run_test([
+                XMLStreamMock.Send(
+                    nonza.SMResume(counter=0, previd="foobar"),
+                    response=[
+                        XMLStreamMock.Receive(
+                            nonza.SMResumed(counter=0, previd="foobar")
+                        )
+                    ]
+                )
+            ]))
 
         self.assertSequenceEqual(
             [
                 unittest.mock.call(
                     self.test_jid,
                     self.security_layer,
-                    override_peer=None,
+                    override_peer=[],
                     negotiation_timeout=60.0,
                     loop=self.loop),
                 unittest.mock.call(
                     self.test_jid,
                     self.security_layer,
-                    override_peer=("fe80::", 5222),
+                    override_peer=[
+                        ("fe80::", 5222, unittest.mock.sentinel.connector)
+                    ],
                     negotiation_timeout=60.0,
                     loop=self.loop),
             ],
-            self.connect_secured_xmlstream_rec.mock_calls
+            self.connect_xmlstream_rec.mock_calls
         )
 
         self.established_rec.assert_called_once_with()
@@ -2272,7 +2276,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
         run_coroutine(self.xmlstream.run_test([]))
 
         exc = aiosasl.AuthenticationFailure("not-authorized")
-        self.connect_secured_xmlstream_rec.side_effect = exc
+        self.connect_xmlstream_rec.side_effect = exc
 
         run_coroutine(self.xmlstream.run_test([
             XMLStreamMock.Send(
@@ -2324,7 +2328,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
         ))
 
         exc = aiosasl.AuthenticationFailure("not-authorized")
-        self.connect_secured_xmlstream_rec.side_effect = exc
+        self.connect_xmlstream_rec.side_effect = exc
 
         run_coroutine(self.xmlstream.run_test(
             [],
@@ -2443,8 +2447,8 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
 
 class TestPresenceManagedClient(xmltestutils.XMLTestCase):
     @asyncio.coroutine
-    def _connect_secured_xmlstream(self, *args, **kwargs):
-        self.connect_secured_xmlstream_rec(*args, **kwargs)
+    def _connect_xmlstream(self, *args, **kwargs):
+        self.connect_xmlstream_rec(*args, **kwargs)
         return None, self.xmlstream, self.features
 
     @staticmethod
@@ -2459,7 +2463,7 @@ class TestPresenceManagedClient(xmltestutils.XMLTestCase):
         return self._xmlstream
 
     def setUp(self):
-        self.connect_secured_xmlstream_rec = unittest.mock.MagicMock()
+        self.connect_xmlstream_rec = unittest.mock.MagicMock()
         self.failure_rec = unittest.mock.MagicMock()
         self.failure_rec.return_value = None
         self.established_rec = unittest.mock.MagicMock()
@@ -2472,13 +2476,13 @@ class TestPresenceManagedClient(xmltestutils.XMLTestCase):
 
         self.loop = asyncio.get_event_loop()
         self.patches = [
-            unittest.mock.patch("aioxmpp.node.connect_secured_xmlstream",
-                                self._connect_secured_xmlstream),
+            unittest.mock.patch("aioxmpp.node.connect_xmlstream",
+                                self._connect_xmlstream),
             unittest.mock.patch("aioxmpp.stanza.StanzaBase.autoset_id",
                                 self._autoset_id),
         ]
-        self.connect_secured_xmlstream, _ = (patch.start()
-                                             for patch in self.patches)
+        self.connect_xmlstream, _ = (patch.start()
+                                     for patch in self.patches)
         self._xmlstream = XMLStreamMock(self, loop=self.loop)
         self.test_jid = structs.JID.fromstr("foo@bar.example/baz")
         self.features = nonza.StreamFeatures()

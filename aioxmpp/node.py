@@ -444,7 +444,7 @@ class AbstractClient:
 
        The timeout applied to the connection process and the individual steps
        of negotiating the stream. See the `negotiation_timeout` argument to
-       :func:`connect_secured_xmlstream`.
+       :func:`connect_xmlstream`.
 
     Connection information:
 
@@ -713,14 +713,18 @@ class AbstractClient:
     def _main_impl(self):
         failure_future = self._failure_future
 
-        override_peer = None
+        override_peer = []
         if self.stream.sm_enabled:
-            override_peer = self.stream.sm_location
-            if override_peer:
-                override_peer = str(override_peer[0]), override_peer[1]
+            sm_location = self.stream.sm_location
+            if sm_location:
+                override_peer.append((
+                    str(sm_location[0]),
+                    sm_location[1],
+                    connector.STARTTLSConnector(),
+                ))
 
         tls_transport, xmlstream, features = \
-            yield from connect_secured_xmlstream(
+            yield from connect_xmlstream(
                 self._local_jid,
                 self._security_layer,
                 negotiation_timeout=self.negotiation_timeout.total_seconds(),
