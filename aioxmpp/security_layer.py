@@ -981,6 +981,57 @@ def default_ssl_context():
 
 
 @asyncio.coroutine
+def negotiate_sasl(transport, xmlstream,
+                   sasl_providers,
+                   negotiation_timeout,
+                   jid, features):
+    """
+    Perform SASL authentication on the given :class:`.protocol.XMLStream`
+    `stream`. `transport` must be the :class:`asyncio.Transport` over which the
+    `stream` runs. It is used to detect whether TLS is used and may be required
+    by some SASL mechanisms.
+
+    `sasl_providers` must be an iterable of :class:`SASLProvider` objects. They
+    will be tried in iteration order to authenticate against the server. If one
+    of the `sasl_providers` fails with a :class:`aiosasl.AuthenticationFailure`
+    exception, the other providers are still tried; only if all providers fail,
+    the last :class:`aiosasl.AuthenticationFailure` exception is re-raised.
+
+    If no mechanism was able to authenticate but not due to authentication
+    failures (other failures include no matching mechanism on the server side),
+    :class:`aiosasl.SASLUnavailable` is raised.
+
+    Return the :class:`.nonza.StreamFeatures` obtained after resetting the
+    stream after successful SASL authentication.
+    """
+
+    if not transport.get_extra("sslcontext"):
+        transport = None
+
+    last_auth_error = None
+    for sasl_provider in sasl_providers:
+        try:
+            result = yield from sasl_provider.execute(
+                jid, features, xmlstream, transport)
+        except aiosasl.AuthenticationFailure as err:
+            last_auth_error = err
+            continue
+
+        if result:
+            features = yield from protocol.reset_stream_and_get_features(
+                xmlstream,
+                timeout=negotiation_timeout)
+            break
+    else:
+        if last_auth_error:
+            raise last_auth_error
+        else:
+            raise errors.SASLUnavailable("No common mechanisms")
+
+    return features
+
+
+@asyncio.coroutine
 def negotiate_stream_security(tls_provider, sasl_providers,
                               negotiation_timeout, jid, features, xmlstream):
     """
@@ -1024,25 +1075,14 @@ def negotiate_stream_security(tls_provider, sasl_providers,
             xmlstream,
             timeout=negotiation_timeout)
 
-    last_auth_error = None
-    for sasl_provider in sasl_providers:
-        try:
-            result = yield from sasl_provider.execute(
-                jid, features, xmlstream, tls_transport)
-        except aiosasl.AuthenticationFailure as err:
-            last_auth_error = err
-            continue
-
-        if result:
-            features = yield from protocol.reset_stream_and_get_features(
-                xmlstream,
-                timeout=negotiation_timeout)
-            break
-    else:
-        if last_auth_error:
-            raise last_auth_error
-        else:
-            raise errors.SASLUnavailable("No common mechanisms")
+    features = yield from negotiate_sasl(
+        tls_transport or xmlstream.transport,
+        xmlstream,
+        sasl_providers,
+        negotiation_timeout=negotiation_timeout,
+        jid=jid,
+        features=features,
+    )
 
     return tls_transport, features
 

@@ -2003,6 +2003,199 @@ class TestPasswordSASLProvider(xmltestutils.XMLTestCase):
         aiosasl._system_random = random.SystemRandom()
 
 
+class Testnegotiate_sasl(xmltestutils.XMLTestCase):
+    def setUp(self):
+        self.client_jid = structs.JID.fromstr("foo@bar.example")
+
+        self.loop = asyncio.get_event_loop()
+
+        self.transport = unittest.mock.Mock()
+        self.transport.get_extra.return_value = object()
+
+        self.xmlstream = XMLStreamMock(self, loop=self.loop)
+        self.xmlstream.transport = self.transport
+
+        self.mechanisms = security_layer.SASLMechanisms()
+        self.features = nonza.StreamFeatures()
+        self.features[...] = self.mechanisms
+
+        self.post_sasl_features = nonza.StreamFeatures()
+
+        self.password_provider = unittest.mock.MagicMock()
+
+    def _test_provider(self, main_coro,
+                       actions=[], stimulus=None):
+        return run_coroutine_with_peer(
+            main_coro,
+            self.xmlstream.run_test(actions, stimulus=stimulus),
+            loop=self.loop
+        )
+
+    def _coro_return(self, value):
+        return value
+        yield None
+
+    def test_full_negotiation(self):
+        sasl_provider1 = unittest.mock.Mock()
+        sasl_provider1.execute = CoroutineMock()
+        sasl_provider1.execute.return_value = False
+
+        sasl_provider2 = unittest.mock.MagicMock()
+        sasl_provider2.execute = CoroutineMock()
+        sasl_provider2.execute.return_value = True
+
+        sasl_provider3 = unittest.mock.MagicMock()
+        sasl_provider3.execute = CoroutineMock()
+        sasl_provider3.execute.return_value = True
+
+        result = self._test_provider(
+            security_layer.negotiate_sasl(
+                self.transport,
+                self.xmlstream,
+                [sasl_provider1,
+                 sasl_provider2,
+                 sasl_provider3],
+                negotiation_timeout=1.0,
+                jid=self.client_jid,
+                features=self.features),
+            [
+                XMLStreamMock.Reset(
+                    response=XMLStreamMock.Receive(
+                        self.post_sasl_features
+                    ))
+            ]
+        )
+
+        self.assertEqual(
+            result,
+            self.post_sasl_features,
+        )
+
+        sasl_provider1.execute.assert_called_once_with(
+            self.client_jid,
+            self.features,
+            self.xmlstream,
+            self.transport)
+
+        sasl_provider2.execute.assert_called_once_with(
+            self.client_jid,
+            self.features,
+            self.xmlstream,
+            self.transport)
+
+        sasl_provider3.execute.assert_not_called()
+
+    def test_raise_if_sasl_fails(self):
+        sasl_provider1 = unittest.mock.Mock()
+        sasl_provider1.execute = CoroutineMock()
+        sasl_provider1.execute.return_value = False
+
+        with self.assertRaisesRegex(errors.SASLUnavailable,
+                                    "No common mechanisms"):
+            self._test_provider(
+                security_layer.negotiate_sasl(
+                    self.transport,
+                    self.xmlstream,
+                    [sasl_provider1],
+                    negotiation_timeout=1.0,
+                    jid=self.client_jid,
+                    features=self.features),
+                [
+
+                ]
+            )
+
+        sasl_provider1.execute.assert_called_once_with(
+            self.client_jid,
+            self.features,
+            self.xmlstream,
+            self.transport)
+
+    def test_delay_and_propagate_auth_error(self):
+        exc = aiosasl.AuthenticationFailure("credentials-expired")
+
+        sasl_provider1 = unittest.mock.Mock()
+        sasl_provider1.execute = CoroutineMock()
+        sasl_provider1.execute.side_effect = exc
+
+        sasl_provider2 = unittest.mock.Mock()
+        sasl_provider2.execute = CoroutineMock()
+        sasl_provider2.execute.return_value = False
+
+        with self.assertRaises(aiosasl.AuthenticationFailure) as ctx:
+            self._test_provider(
+                security_layer.negotiate_sasl(
+                    self.transport,
+                    self.xmlstream,
+                    [sasl_provider1,
+                     sasl_provider2],
+                    negotiation_timeout=1.0,
+                    jid=self.client_jid,
+                    features=self.features),
+                [
+                ]
+            )
+
+        self.assertIs(ctx.exception, exc)
+
+        sasl_provider1.execute.assert_called_once_with(
+            self.client_jid,
+            self.features,
+            self.xmlstream,
+            self.transport)
+
+        sasl_provider2.execute.assert_called_once_with(
+            self.client_jid,
+            self.features,
+            self.xmlstream,
+            self.transport)
+
+    def test_swallow_auth_error_if_auth_succeeds_with_different_mech(self):
+        exc = aiosasl.AuthenticationFailure("credentials-expired")
+
+        sasl_provider1 = unittest.mock.Mock()
+        sasl_provider1.execute = CoroutineMock()
+        sasl_provider1.execute.side_effect = exc
+
+        sasl_provider2 = unittest.mock.Mock()
+        sasl_provider2.execute = CoroutineMock()
+        sasl_provider2.execute.return_value = True
+
+        result = self._test_provider(
+            security_layer.negotiate_sasl(
+                self.transport,
+                self.xmlstream,
+                [sasl_provider1,
+                 sasl_provider2],
+                negotiation_timeout=1.0,
+                jid=self.client_jid,
+                features=self.features),
+            [
+                XMLStreamMock.Reset(
+                    response=XMLStreamMock.Receive(
+                        self.post_sasl_features
+                    ))
+            ]
+        )
+
+        self.assertEqual(
+            self.post_sasl_features,
+            result
+        )
+
+        sasl_provider1.execute.assert_called_once_with(
+            self.client_jid,
+            self.features,
+            self.xmlstream,
+            self.transport)
+
+        sasl_provider2.execute.assert_called_once_with(
+            self.client_jid,
+            self.features,
+            self.xmlstream,
+            self.transport)
+
+
 class Testnegotiate_stream_security(xmltestutils.XMLTestCase):
     def setUp(self):
         self.client_jid = structs.JID.fromstr("foo@bar.example")
@@ -2026,6 +2219,23 @@ class Testnegotiate_stream_security(xmltestutils.XMLTestCase):
 
         self.password_provider = unittest.mock.MagicMock()
 
+        self.negotiate_sasl = CoroutineMock()
+        self.negotiate_sasl.return_value = self.post_sasl_features
+
+        self.patches = [
+            unittest.mock.patch(
+                "aioxmpp.security_layer.negotiate_sasl",
+                new=self.negotiate_sasl
+            ),
+        ]
+
+        for patch in self.patches:
+            patch.start()
+
+    def tearDown(self):
+        for patch in self.patches:
+            patch.stop()
+
     def _test_provider(self, main_coro,
                        actions=[], stimulus=None):
         return run_coroutine_with_peer(
@@ -2034,29 +2244,15 @@ class Testnegotiate_stream_security(xmltestutils.XMLTestCase):
             loop=self.loop
         )
 
-    def _coro_return(self, value):
-        return value
-        yield None
-
     def test_full_negotiation(self):
-        tls_provider = unittest.mock.MagicMock()
-        tls_provider.execute.return_value = self._coro_return(self.transport)
-
-        sasl_provider1 = unittest.mock.MagicMock()
-        sasl_provider1.execute.return_value = self._coro_return(False)
-
-        sasl_provider2 = unittest.mock.MagicMock()
-        sasl_provider2.execute.return_value = self._coro_return(True)
-
-        sasl_provider3 = unittest.mock.MagicMock()
-        sasl_provider3.execute.return_value = self._coro_return(True)
+        tls_provider = unittest.mock.Mock()
+        tls_provider.execute = CoroutineMock()
+        tls_provider.execute.return_value = self.transport
 
         result = self._test_provider(
             security_layer.negotiate_stream_security(
                 tls_provider,
-                [sasl_provider1,
-                 sasl_provider2,
-                 sasl_provider3],
+                unittest.mock.sentinel.sasl_providers,
                 negotiation_timeout=1.0,
                 jid=self.client_jid,
                 features=self.features,
@@ -2066,10 +2262,6 @@ class Testnegotiate_stream_security(xmltestutils.XMLTestCase):
                     response=XMLStreamMock.Receive(
                         self.post_tls_features
                     )),
-                XMLStreamMock.Reset(
-                    response=XMLStreamMock.Receive(
-                        self.post_sasl_features
-                    ))
             ]
         )
 
@@ -2083,48 +2275,31 @@ class Testnegotiate_stream_security(xmltestutils.XMLTestCase):
             self.features,
             self.xmlstream)
 
-        sasl_provider1.execute.assert_called_once_with(
-            self.client_jid,
-            self.post_tls_features,
+        self.negotiate_sasl.assert_called_with(
+            self.transport,
             self.xmlstream,
-            self.transport)
-
-        sasl_provider2.execute.assert_called_once_with(
-            self.client_jid,
-            self.post_tls_features,
-            self.xmlstream,
-            self.transport)
-
-        sasl_provider3.execute.assert_not_called()
+            unittest.mock.sentinel.sasl_providers,
+            negotiation_timeout=1.0,
+            jid=self.client_jid,
+            features=self.post_tls_features,
+        )
 
     def test_sasl_only_negotiation(self):
-        tls_provider = unittest.mock.MagicMock()
-        tls_provider.execute.return_value = self._coro_return(None)
+        self.xmlstream.transport = unittest.mock.sentinel.stream_transport
 
-        sasl_provider1 = unittest.mock.MagicMock()
-        sasl_provider1.execute.return_value = self._coro_return(False)
-
-        sasl_provider2 = unittest.mock.MagicMock()
-        sasl_provider2.execute.return_value = self._coro_return(True)
-
-        sasl_provider3 = unittest.mock.MagicMock()
-        sasl_provider3.execute.return_value = self._coro_return(True)
+        tls_provider = unittest.mock.Mock()
+        tls_provider.execute = CoroutineMock()
+        tls_provider.execute.return_value = None
 
         result = self._test_provider(
             security_layer.negotiate_stream_security(
                 tls_provider,
-                [sasl_provider1,
-                 sasl_provider2,
-                 sasl_provider3],
+                unittest.mock.sentinel.sasl_providers,
                 negotiation_timeout=1.0,
                 jid=self.client_jid,
                 features=self.features,
                 xmlstream=self.xmlstream),
             [
-                XMLStreamMock.Reset(
-                    response=XMLStreamMock.Receive(
-                        self.post_sasl_features
-                    ))
             ]
         )
 
@@ -2138,159 +2313,14 @@ class Testnegotiate_stream_security(xmltestutils.XMLTestCase):
             self.features,
             self.xmlstream)
 
-        sasl_provider1.execute.assert_called_once_with(
-            self.client_jid,
-            self.features,
+        self.negotiate_sasl.assert_called_with(
+            unittest.mock.sentinel.stream_transport,
             self.xmlstream,
-            None)
-
-        sasl_provider2.execute.assert_called_once_with(
-            self.client_jid,
-            self.features,
-            self.xmlstream,
-            None)
-
-        sasl_provider3.execute.assert_not_called()
-
-    def test_raise_if_sasl_fails(self):
-        tls_provider = unittest.mock.MagicMock()
-        tls_provider.execute.return_value = self._coro_return(self.transport)
-
-        sasl_provider1 = unittest.mock.MagicMock()
-        sasl_provider1.execute.return_value = self._coro_return(False)
-
-        with self.assertRaisesRegex(errors.SASLUnavailable,
-                                    "No common mechanisms"):
-            self._test_provider(
-                security_layer.negotiate_stream_security(
-                    tls_provider,
-                    [sasl_provider1],
-                    negotiation_timeout=1.0,
-                    jid=self.client_jid,
-                    features=self.features,
-                    xmlstream=self.xmlstream),
-                [
-                    XMLStreamMock.Reset(
-                        response=XMLStreamMock.Receive(
-                            self.post_tls_features
-                        ))
-                ]
-            )
-
-        tls_provider.execute.assert_called_once_with(
-            self.client_jid,
-            self.features,
-            self.xmlstream)
-
-        sasl_provider1.execute.assert_called_once_with(
-            self.client_jid,
-            self.post_tls_features,
-            self.xmlstream,
-            self.transport)
-
-    def test_delay_and_propagate_auth_error(self):
-        tls_provider = unittest.mock.MagicMock()
-        tls_provider.execute.return_value = self._coro_return(self.transport)
-
-        exc = aiosasl.AuthenticationFailure("credentials-expired")
-
-        sasl_provider1 = unittest.mock.MagicMock()
-        sasl_provider1.execute.side_effect = exc
-
-        sasl_provider2 = unittest.mock.MagicMock()
-        sasl_provider2.execute.return_value = self._coro_return(False)
-
-        with self.assertRaises(aiosasl.AuthenticationFailure) as ctx:
-            self._test_provider(
-                security_layer.negotiate_stream_security(
-                    tls_provider,
-                    [sasl_provider1,
-                     sasl_provider2],
-                    negotiation_timeout=1.0,
-                    jid=self.client_jid,
-                    features=self.features,
-                    xmlstream=self.xmlstream),
-                [
-                    XMLStreamMock.Reset(
-                        response=XMLStreamMock.Receive(
-                            self.post_tls_features
-                        ))
-                ]
-            )
-
-        self.assertIs(ctx.exception, exc)
-
-        tls_provider.execute.assert_called_once_with(
-            self.client_jid,
-            self.features,
-            self.xmlstream)
-
-        sasl_provider1.execute.assert_called_once_with(
-            self.client_jid,
-            self.post_tls_features,
-            self.xmlstream,
-            self.transport)
-
-        sasl_provider2.execute.assert_called_once_with(
-            self.client_jid,
-            self.post_tls_features,
-            self.xmlstream,
-            self.transport)
-
-    def test_swallow_auth_error_if_auth_succeeds_with_different_mech(self):
-        tls_provider = unittest.mock.MagicMock()
-        tls_provider.execute.return_value = self._coro_return(self.transport)
-
-        exc = aiosasl.AuthenticationFailure("credentials-expired")
-
-        sasl_provider1 = unittest.mock.MagicMock()
-        sasl_provider1.execute.side_effect = exc
-
-        sasl_provider2 = unittest.mock.MagicMock()
-        sasl_provider2.execute.return_value = self._coro_return(True)
-
-        result = self._test_provider(
-                security_layer.negotiate_stream_security(
-                    tls_provider,
-                    [sasl_provider1,
-                     sasl_provider2],
-                    negotiation_timeout=1.0,
-                    jid=self.client_jid,
-                    features=self.features,
-                    xmlstream=self.xmlstream),
-                [
-                    XMLStreamMock.Reset(
-                        response=XMLStreamMock.Receive(
-                            self.post_tls_features
-                        )),
-                    XMLStreamMock.Reset(
-                        response=XMLStreamMock.Receive(
-                            self.post_sasl_features
-                        ))
-                ]
-            )
-
-        self.assertEqual(
-            (self.transport, self.post_sasl_features),
-            result
+            unittest.mock.sentinel.sasl_providers,
+            negotiation_timeout=1.0,
+            jid=self.client_jid,
+            features=self.features,
         )
-
-        tls_provider.execute.assert_called_once_with(
-            self.client_jid,
-            self.features,
-            self.xmlstream)
-
-        sasl_provider1.execute.assert_called_once_with(
-            self.client_jid,
-            self.post_tls_features,
-            self.xmlstream,
-            self.transport)
-
-        sasl_provider2.execute.assert_called_once_with(
-            self.client_jid,
-            self.post_tls_features,
-            self.xmlstream,
-            self.transport)
 
 
 class Testsecurity_layer(unittest.TestCase):
