@@ -5,7 +5,6 @@ import collections
 import aioxmpp.errors as errors
 import aioxmpp.nonza as nonza
 import aioxmpp.protocol as protocol
-import aioxmpp.security_layer as security_layer
 import aioxmpp.ssl_transport as ssl_transport
 
 from aioxmpp.utils import namespaces
@@ -17,6 +16,7 @@ class ConnectionMetadata(collections.namedtuple(
             "ssl_context_factory",
             "certificate_verifier_factory",
             "tls_required",
+            "sasl_providers",
         ])):
     """
     `ssl_context_factory` must be callable returning a
@@ -35,6 +35,11 @@ class ConnectionMetadata(collections.namedtuple(
     cause invalid TLS sessions (e.g. with invalid certificates) to be used.
     This only affects situations where the server is not offering TLS or where
     STARTTLS fails.
+
+    `sasl_providers` must be a sequence of
+    :class:`.security_layer.SASLProvider` instances. As SASL providers are
+    stateless, it is not necessary to create new providers for each
+    connection.
     """
 
 
@@ -53,7 +58,7 @@ class BaseConnector(metaclass=abc.ABCMeta):
 
     @abc.abstractmethod
     @asyncio.coroutine
-    def connect(self, loop, metadata, domain, host, port):
+    def connect(self, loop, metadata, domain, host, port, negotiation_timeout):
         """
         Establish a :class:`.protocol.XMLStream` for `domain` with the given
         `host` at the given TCP `port`.
@@ -61,8 +66,11 @@ class BaseConnector(metaclass=abc.ABCMeta):
         `metadata` must be a :class:`ConnectionMetadata` instance to use for
         the connection. `loop` must be a :class:`asyncio.BaseEventLoop` to use.
 
+        `negotiation_timeout` must be the maximum time in seconds to wait for
+        the server to reply in each negotiation step.
+
         Return a triple consisting of the :class:`asyncio.Transport`, the
-        :class:`.protocol.XMLStream` and a :class:`asyncio.Future` on the
+        :class:`.protocol.XMLStream` and the
         :class:`aioxmpp.nonza.StreamFeatures` of the stream.
 
         To detect the use of TLS on the stream, check whether
@@ -118,7 +126,7 @@ class STARTTLSConnector(BaseConnector):
 
                 raise errors.TLSUnavailable(message)
             else:
-                return transport, stream, features_future
+                return transport, stream, (yield from features_future)
 
         response = yield from protocol.send_and_wait_for(
             stream,
@@ -144,7 +152,7 @@ class STARTTLSConnector(BaseConnector):
                 )
 
                 raise errors.TLSUnavailable(message)
-            return transport, stream, features_future
+            return transport, stream, (yield from features_future)
 
         verifier = metadata.certificate_verifier_factory()
         yield from verifier.pre_handshake(transport)
@@ -157,12 +165,9 @@ class STARTTLSConnector(BaseConnector):
             post_handshake_callback=verifier.post_handshake,
         )
 
-        features_future = asyncio.async(
-            protocol.reset_stream_and_get_features(
-                stream,
-                timeout=negotiation_timeout,
-            ),
-            loop=loop,
+        features_future = yield from protocol.reset_stream_and_get_features(
+            stream,
+            timeout=negotiation_timeout,
         )
 
         return transport, stream, features_future

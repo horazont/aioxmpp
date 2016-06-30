@@ -61,6 +61,7 @@ class TestSTARTTLSConnector(unittest.TestCase):
             base.certificate_verifier
         base.metadata.ssl_context_factory.return_value = \
             unittest.mock.sentinel.ssl_context
+        base.reset_stream_and_get_features = CoroutineMock()
         base.reset_stream_and_get_features.return_value = \
             unittest.mock.sentinel.reset
         base.async_.return_value = unittest.mock.sentinel.features_future
@@ -104,13 +105,6 @@ class TestSTARTTLSConnector(unittest.TestCase):
                 unittest.mock.patch(
                     "aioxmpp.protocol.reset_stream_and_get_features",
                     new=base.reset_stream_and_get_features,
-                )
-            )
-
-            stack.enter_context(
-                unittest.mock.patch(
-                    "asyncio.async",
-                    new=base.async_,
                 )
             )
 
@@ -168,10 +162,6 @@ class TestSTARTTLSConnector(unittest.TestCase):
                     base.protocol,
                     timeout=unittest.mock.sentinel.timeout,
                 ),
-                unittest.mock.call.async_(
-                    unittest.mock.sentinel.reset,
-                    loop=unittest.mock.sentinel.loop,
-                )
             ]
         )
 
@@ -180,7 +170,7 @@ class TestSTARTTLSConnector(unittest.TestCase):
             (
                 unittest.mock.sentinel.transport,
                 base.protocol,
-                unittest.mock.sentinel.features_future,
+                unittest.mock.sentinel.reset,
             )
         )
 
@@ -373,7 +363,7 @@ class TestSTARTTLSConnector(unittest.TestCase):
             (
                 unittest.mock.sentinel.transport,
                 base.protocol,
-                captured_features_future,
+                features,
             )
         )
 
@@ -636,7 +626,7 @@ class TestSTARTTLSConnector(unittest.TestCase):
             (
                 unittest.mock.sentinel.transport,
                 base.protocol,
-                captured_features_future,
+                features,
             )
         )
 

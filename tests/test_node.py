@@ -57,8 +57,12 @@ class Testdiscover_connectors(unittest.TestCase):
                                     new=CoroutineMock()),
             )
             lookup_srv.return_value = [
-                ("a", 1),
-                ("b", 2),
+                (unittest.mock.sentinel.prio1,
+                 unittest.mock.sentinel.weight1,
+                 (unittest.mock.sentinel.host1, unittest.mock.sentinel.port1)),
+                (unittest.mock.sentinel.prio2,
+                 unittest.mock.sentinel.weight2,
+                 (unittest.mock.sentinel.host2, unittest.mock.sentinel.port2)),
             ]
 
             group_and_order = stack.enter_context(
@@ -80,8 +84,14 @@ class Testdiscover_connectors(unittest.TestCase):
 
         group_and_order.assert_called_with(
             [
-                ("a", 1, unittest.mock.sentinel.starttls0),
-                ("b", 2, unittest.mock.sentinel.starttls1),
+                (unittest.mock.sentinel.prio1,
+                 unittest.mock.sentinel.weight1,
+                 (unittest.mock.sentinel.host1, unittest.mock.sentinel.port1,
+                  unittest.mock.sentinel.starttls0)),
+                (unittest.mock.sentinel.prio2,
+                 unittest.mock.sentinel.weight2,
+                 (unittest.mock.sentinel.host2, unittest.mock.sentinel.port2,
+                  unittest.mock.sentinel.starttls1)),
             ]
         )
 
@@ -134,6 +144,509 @@ class Testdiscover_connectors(unittest.TestCase):
               5222,
               unittest.mock.sentinel.starttls0)],
         )
+
+
+class Testconnect_xmlstream(unittest.TestCase):
+    def setUp(self):
+        self.discover_connectors = CoroutineMock()
+        self.negotiate_sasl = CoroutineMock()
+        self.send_stream_error = unittest.mock.Mock()
+
+        self.patches = [
+            unittest.mock.patch("aioxmpp.node.discover_connectors",
+                                new=self.discover_connectors),
+            unittest.mock.patch("aioxmpp.security_layer.negotiate_sasl",
+                                new=self.negotiate_sasl),
+            unittest.mock.patch("aioxmpp.protocol.send_stream_error_and_close",
+                                new=self.send_stream_error),
+        ]
+
+        self.negotiate_sasl.return_value = \
+            unittest.mock.sentinel.post_sasl_features
+
+        for patch in self.patches:
+            patch.start()
+
+    def tearDown(self):
+        for patch in self.patches:
+            patch.stop()
+
+    def test_uses_discover_connectors_and_tries_them_in_order(self):
+        NCONNECTORS = 4
+
+        base = unittest.mock.Mock()
+        jid = unittest.mock.Mock()
+
+        for i in range(NCONNECTORS):
+            connect = CoroutineMock()
+            connect.side_effect = OSError()
+            getattr(base, "c{}".format(i)).connect = connect
+
+        base.c2.connect.side_effect = None
+        base.c2.connect.return_value = (
+            unittest.mock.sentinel.transport,
+            unittest.mock.sentinel.protocol,
+            unittest.mock.sentinel.features,
+        )
+
+        self.discover_connectors.return_value = [
+            (getattr(unittest.mock.sentinel, "h{}".format(i)),
+             getattr(unittest.mock.sentinel, "p{}".format(i)),
+             getattr(base, "c{}".format(i)))
+            for i in range(NCONNECTORS)
+        ]
+
+        result = run_coroutine(node.connect_xmlstream(
+            jid,
+            base.metadata,
+            loop=unittest.mock.sentinel.loop,
+        ))
+
+        jid.domain.encode.assert_called_with("idna")
+
+        self.discover_connectors.assert_called_with(
+            jid.domain.encode(),
+            loop=unittest.mock.sentinel.loop,
+        )
+
+        self.assertSequenceEqual(
+            base.mock_calls,
+            [
+                getattr(unittest.mock.call, "c{}".format(i)).connect(
+                    unittest.mock.sentinel.loop,
+                    base.metadata,
+                    jid.domain,
+                    getattr(unittest.mock.sentinel, "h{}".format(i)),
+                    getattr(unittest.mock.sentinel, "p{}".format(i)),
+                    60.
+                )
+                for i in range(3)
+            ]
+        )
+
+        self.assertEqual(
+            result,
+            (
+                unittest.mock.sentinel.transport,
+                unittest.mock.sentinel.protocol,
+                unittest.mock.sentinel.post_sasl_features,
+            )
+        )
+
+    def test_negotiate_sasl_after_success(self):
+        NCONNECTORS = 4
+
+        base = unittest.mock.Mock()
+        jid = unittest.mock.Mock()
+
+        for i in range(NCONNECTORS):
+            connect = CoroutineMock()
+            connect.side_effect = OSError()
+            getattr(base, "c{}".format(i)).connect = connect
+
+        base.c2.connect.side_effect = None
+        base.c2.connect.return_value = (
+            unittest.mock.sentinel.transport,
+            unittest.mock.sentinel.protocol,
+            unittest.mock.sentinel.features,
+        )
+
+        self.discover_connectors.return_value = [
+            (getattr(unittest.mock.sentinel, "h{}".format(i)),
+             getattr(unittest.mock.sentinel, "p{}".format(i)),
+             getattr(base, "c{}".format(i)))
+            for i in range(NCONNECTORS)
+        ]
+
+        result = run_coroutine(node.connect_xmlstream(
+            jid,
+            base.metadata,
+            negotiation_timeout=unittest.mock.sentinel.timeout,
+            loop=unittest.mock.sentinel.loop,
+        ))
+
+        self.discover_connectors.assert_called_with(
+            jid.domain.encode(),
+            loop=unittest.mock.sentinel.loop,
+        )
+
+        self.negotiate_sasl.assert_called_with(
+            unittest.mock.sentinel.transport,
+            unittest.mock.sentinel.protocol,
+            base.metadata.sasl_providers,
+            unittest.mock.sentinel.timeout,
+            jid,
+            unittest.mock.sentinel.features,
+        )
+
+        self.assertSequenceEqual(
+            base.mock_calls,
+            [
+                getattr(unittest.mock.call, "c{}".format(i)).connect(
+                    unittest.mock.sentinel.loop,
+                    base.metadata,
+                    jid.domain,
+                    getattr(unittest.mock.sentinel, "h{}".format(i)),
+                    getattr(unittest.mock.sentinel, "p{}".format(i)),
+                    unittest.mock.sentinel.timeout,
+                )
+                for i in range(3)
+            ]
+        )
+
+        self.assertEqual(
+            result,
+            (
+                unittest.mock.sentinel.transport,
+                unittest.mock.sentinel.protocol,
+                unittest.mock.sentinel.post_sasl_features,
+            )
+        )
+
+    def test_try_next_on_generic_SASL_problem(self):
+        NCONNECTORS = 4
+
+        base = unittest.mock.Mock()
+        jid = unittest.mock.Mock()
+
+        for i in range(NCONNECTORS):
+            connect = CoroutineMock()
+            connect.side_effect = OSError()
+            getattr(base, "c{}".format(i)).connect = connect
+
+        base.c2.connect.side_effect = None
+        base.c2.connect.return_value = (
+            unittest.mock.sentinel.t1,
+            unittest.mock.sentinel.p1,
+            unittest.mock.sentinel.f1,
+        )
+
+        base.c3.connect.side_effect = None
+        base.c3.connect.return_value = (
+            unittest.mock.sentinel.t2,
+            unittest.mock.sentinel.p2,
+            unittest.mock.sentinel.f2,
+        )
+
+        self.discover_connectors.return_value = [
+            (getattr(unittest.mock.sentinel, "h{}".format(i)),
+             getattr(unittest.mock.sentinel, "p{}".format(i)),
+             getattr(base, "c{}".format(i)))
+            for i in range(NCONNECTORS)
+        ]
+
+        exc = errors.SASLUnavailable("fubar")
+
+        def results():
+            yield exc
+            yield unittest.mock.sentinel.post_sasl_features
+
+        self.negotiate_sasl.side_effect = results()
+
+        result = run_coroutine(node.connect_xmlstream(
+            jid,
+            base.metadata,
+            loop=unittest.mock.sentinel.loop,
+        ))
+
+        self.discover_connectors.assert_called_with(
+            jid.domain.encode(),
+            loop=unittest.mock.sentinel.loop,
+        )
+
+        self.assertSequenceEqual(
+            self.negotiate_sasl.mock_calls,
+            [
+                unittest.mock.call(
+                    unittest.mock.sentinel.t1,
+                    unittest.mock.sentinel.p1,
+                    base.metadata.sasl_providers,
+                    60.,
+                    jid,
+                    unittest.mock.sentinel.f1,
+                ),
+                unittest.mock.call(
+                    unittest.mock.sentinel.t2,
+                    unittest.mock.sentinel.p2,
+                    base.metadata.sasl_providers,
+                    60.,
+                    jid,
+                    unittest.mock.sentinel.f2,
+                ),
+            ]
+        )
+
+        self.send_stream_error.assert_called_with(
+            unittest.mock.sentinel.p1,
+            condition=(namespaces.streams, "policy-violation"),
+            text=str(exc)
+        )
+
+        self.assertSequenceEqual(
+            base.mock_calls,
+            [
+                getattr(unittest.mock.call, "c{}".format(i)).connect(
+                    unittest.mock.sentinel.loop,
+                    base.metadata,
+                    jid.domain,
+                    getattr(unittest.mock.sentinel, "h{}".format(i)),
+                    getattr(unittest.mock.sentinel, "p{}".format(i)),
+                    60.,
+                )
+                for i in range(NCONNECTORS)
+            ]
+        )
+
+        self.assertEqual(
+            result,
+            (
+                unittest.mock.sentinel.t2,
+                unittest.mock.sentinel.p2,
+                unittest.mock.sentinel.post_sasl_features,
+            )
+        )
+
+    def test_abort_on_authentication_failed(self):
+        NCONNECTORS = 4
+
+        base = unittest.mock.Mock()
+        jid = unittest.mock.Mock()
+
+        for i in range(NCONNECTORS):
+            connect = CoroutineMock()
+            connect.side_effect = OSError()
+            getattr(base, "c{}".format(i)).connect = connect
+
+        base.c2.connect.side_effect = None
+        base.c2.connect.return_value = (
+            unittest.mock.sentinel.t1,
+            unittest.mock.sentinel.p1,
+            unittest.mock.sentinel.f1,
+        )
+
+        base.c3.connect.side_effect = None
+        base.c3.connect.return_value = (
+            unittest.mock.sentinel.t2,
+            unittest.mock.sentinel.p2,
+            unittest.mock.sentinel.f2,
+        )
+
+        self.discover_connectors.return_value = [
+            (getattr(unittest.mock.sentinel, "h{}".format(i)),
+             getattr(unittest.mock.sentinel, "p{}".format(i)),
+             getattr(base, "c{}".format(i)))
+            for i in range(NCONNECTORS)
+        ]
+
+        exc = aiosasl.AuthenticationFailure("fubar")
+
+        def results():
+            yield exc
+            yield unittest.mock.sentinel.post_sasl_features
+
+        self.negotiate_sasl.side_effect = results()
+
+        with self.assertRaises(aiosasl.AuthenticationFailure) as exc_ctx:
+            run_coroutine(node.connect_xmlstream(
+                jid,
+                base.metadata,
+                loop=unittest.mock.sentinel.loop,
+            ))
+
+        self.assertEqual(exc_ctx.exception, exc)
+
+        self.discover_connectors.assert_called_with(
+            jid.domain.encode(),
+            loop=unittest.mock.sentinel.loop,
+        )
+
+        self.send_stream_error.assert_called_with(
+            unittest.mock.sentinel.p1,
+            condition=(namespaces.streams, "undefined-condition"),
+            text=str(exc)
+        )
+
+        self.assertSequenceEqual(
+            self.negotiate_sasl.mock_calls,
+            [
+                unittest.mock.call(
+                    unittest.mock.sentinel.t1,
+                    unittest.mock.sentinel.p1,
+                    base.metadata.sasl_providers,
+                    60.,
+                    jid,
+                    unittest.mock.sentinel.f1,
+                ),
+            ]
+        )
+
+        self.assertSequenceEqual(
+            base.mock_calls,
+            [
+                getattr(unittest.mock.call, "c{}".format(i)).connect(
+                    unittest.mock.sentinel.loop,
+                    base.metadata,
+                    jid.domain,
+                    getattr(unittest.mock.sentinel, "h{}".format(i)),
+                    getattr(unittest.mock.sentinel, "p{}".format(i)),
+                    60.,
+                )
+                for i in range(3)
+            ]
+        )
+
+    def test_uses_override_peer_before_connectors(self):
+        NCONNECTORS = 4
+
+        base = unittest.mock.Mock()
+        jid = unittest.mock.Mock()
+
+        for i in range(NCONNECTORS):
+            connect = CoroutineMock()
+            connect.side_effect = OSError()
+            getattr(base, "c{}".format(i)).connect = connect
+
+        base.c2.connect.side_effect = None
+        base.c2.connect.return_value = (
+            unittest.mock.sentinel.transport,
+            unittest.mock.sentinel.protocol,
+            unittest.mock.sentinel.features,
+        )
+
+        override_peer = [
+            (getattr(unittest.mock.sentinel, "h{}".format(i)),
+             getattr(unittest.mock.sentinel, "p{}".format(i)),
+             getattr(base, "c{}".format(i)))
+            for i in range(2)
+        ]
+
+        self.discover_connectors.return_value = [
+            (getattr(unittest.mock.sentinel, "h{}".format(i)),
+             getattr(unittest.mock.sentinel, "p{}".format(i)),
+             getattr(base, "c{}".format(i)))
+            for i in range(2, NCONNECTORS)
+        ]
+
+        result = run_coroutine(node.connect_xmlstream(
+            jid,
+            base.metadata,
+            override_peer=override_peer,
+            loop=unittest.mock.sentinel.loop,
+        ))
+
+        self.discover_connectors.assert_called_with(
+            jid.domain.encode(),
+            loop=unittest.mock.sentinel.loop,
+        )
+
+        self.assertSequenceEqual(
+            base.mock_calls,
+            [
+                getattr(unittest.mock.call, "c{}".format(i)).connect(
+                    unittest.mock.sentinel.loop,
+                    base.metadata,
+                    jid.domain,
+                    getattr(unittest.mock.sentinel, "h{}".format(i)),
+                    getattr(unittest.mock.sentinel, "p{}".format(i)),
+                    60.,
+                )
+                for i in range(3)
+            ]
+        )
+
+        self.assertEqual(
+            result,
+            (
+                unittest.mock.sentinel.transport,
+                unittest.mock.sentinel.protocol,
+                unittest.mock.sentinel.post_sasl_features,
+            )
+        )
+
+    def test_aggregates_exceptions_and_raises_MultiOSError(self):
+        NCONNECTORS = 3
+
+        excs = [
+            OSError(),
+            errors.TLSUnavailable(
+                (namespaces.streams, "policy-violation"),
+            ),
+            errors.TLSFailure(
+                (namespaces.streams, "policy-violation"),
+            ),
+        ]
+
+        base = unittest.mock.Mock()
+        jid = unittest.mock.Mock()
+
+        for i in range(NCONNECTORS):
+            connect = CoroutineMock()
+            getattr(base, "c{}".format(i)).connect = connect
+
+        base.c0.connect.side_effect = excs[0]
+        base.c1.connect.side_effect = excs[1]
+        base.c2.connect.side_effect = excs[2]
+
+        self.discover_connectors.return_value = [
+            (getattr(unittest.mock.sentinel, "h{}".format(i)),
+             getattr(unittest.mock.sentinel, "p{}".format(i)),
+             getattr(base, "c{}".format(i)))
+            for i in range(NCONNECTORS)
+        ]
+
+        with self.assertRaises(errors.MultiOSError) as exc_ctx:
+            run_coroutine(node.connect_xmlstream(
+                jid,
+                base.metadata,
+                loop=unittest.mock.sentinel.loop,
+            ))
+
+        self.discover_connectors.assert_called_with(
+            jid.domain.encode(),
+            loop=unittest.mock.sentinel.loop,
+        )
+
+        self.assertSequenceEqual(
+            base.mock_calls,
+            [
+                getattr(unittest.mock.call, "c{}".format(i)).connect(
+                    unittest.mock.sentinel.loop,
+                    base.metadata,
+                    jid.domain,
+                    getattr(unittest.mock.sentinel, "h{}".format(i)),
+                    getattr(unittest.mock.sentinel, "p{}".format(i)),
+                    60.,
+                )
+                for i in range(3)
+            ]
+        )
+
+        self.assertSequenceEqual(
+            exc_ctx.exception.exceptions,
+            excs,
+        )
+
+    def test_handle_no_options(self):
+        base = unittest.mock.Mock()
+
+        jid = unittest.mock.Mock()
+
+        with contextlib.ExitStack() as stack:
+            discover_connectors = stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.node.discover_connectors",
+                    new=CoroutineMock(),
+                )
+            )
+            discover_connectors.return_value = []
+
+            with self.assertRaisesRegex(
+                    ValueError,
+                    "no options to connect to XMPP domain .+"):
+                run_coroutine(node.connect_xmlstream(
+                    jid,
+                    base.metadata,
+                ))
 
 
 class Testconnect_to_xmpp_server(unittest.TestCase):
