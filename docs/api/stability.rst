@@ -58,9 +58,10 @@ Branching
 ---------
 
 Two active development branches are used, one for the next minor and one for
-the next major release. The branches are called ``devel-X.Y``, where ``X`` and
-``Y`` are the major and minor version number of the upcoming release,
-respectively. The branch for the next major release has ``Y=0``.
+the next major release. The branch for the next minor release is called
+``devel-X.Y``, where ``X`` and ``Y`` are the major and minor version number of
+the upcoming release, respectively. The branch for the next major release is
+called ``devel``.
 
 When a minor release is due, two new branches are created (``devel-X.Yn``,
 where ``Yn = Y+1``) and ``release-X.Y.0``. In the ``devel-X.Yn`` branch, a new
