@@ -163,6 +163,69 @@ def discover_connectors(domain, loop=None, logger=logger):
 
 
 @asyncio.coroutine
+def _try_options(options, exceptions,
+                 jid, metadata, negotiation_timeout, loop, logger):
+    """
+    Helper function for :func:`connect_xmlstream`.
+    """
+    for host, port, conn in options:
+        logger.debug(
+            "domain %s: trying to connect to %r:%s using %r",
+            jid.domain, host, port, conn
+        )
+        try:
+            transport, xmlstream, features = yield from conn.connect(
+                loop,
+                metadata,
+                jid.domain,
+                host,
+                port,
+                negotiation_timeout,
+            )
+        except OSError as exc:
+            logger.warning(
+                "connection failed: %s", exc
+            )
+            exceptions.append(exc)
+            continue
+
+        logger.debug(
+            "domain %s: connection succeeded using %r",
+            jid.domain,
+            conn,
+        )
+
+        try:
+            features = yield from security_layer.negotiate_sasl(
+                transport,
+                xmlstream,
+                metadata.sasl_providers,
+                negotiation_timeout,
+                jid,
+                features,
+            )
+        except errors.SASLUnavailable as exc:
+            protocol.send_stream_error_and_close(
+                xmlstream,
+                condition=(namespaces.streams, "policy-violation"),
+                text=str(exc),
+            )
+            exceptions.append(exc)
+            continue
+        except Exception as exc:
+            protocol.send_stream_error_and_close(
+                xmlstream,
+                condition=(namespaces.streams, "undefined-condition"),
+                text=str(exc),
+            )
+            raise
+
+        return transport, xmlstream, features
+
+    return None
+
+
+@asyncio.coroutine
 def connect_xmlstream(
         jid,
         metadata,
@@ -220,72 +283,35 @@ def connect_xmlstream(
     domain = jid.domain.encode("idna")
 
     options = list(override_peer)
-    options.extend((yield from discover_connectors(
+
+    exceptions = []
+
+    result = yield from _try_options(
+        options,
+        exceptions,
+        jid, metadata, negotiation_timeout, loop, logger,
+    )
+    if result is not None:
+        return result
+
+    options = list((yield from discover_connectors(
         domain,
         loop=loop,
         logger=logger,
     )))
 
-    if not options:
+    result = yield from _try_options(
+        options,
+        exceptions,
+        jid, metadata, negotiation_timeout, loop, logger,
+    )
+    if result is not None:
+        return result
+
+    if not options and not override_peer:
         raise ValueError("no options to connect to XMPP domain {!r}".format(
             jid.domain
         ))
-
-    exceptions = []
-
-    for host, port, conn in options:
-        logger.debug(
-            "domain %s: trying to connect to %r:%s using %r",
-            jid.domain, host, port, conn
-        )
-        try:
-            transport, xmlstream, features = yield from conn.connect(
-                loop,
-                metadata,
-                jid.domain,
-                host,
-                port,
-                negotiation_timeout,
-            )
-        except OSError as exc:
-            logger.warning(
-                "connection failed: %s", exc
-            )
-            exceptions.append(exc)
-            continue
-
-        logger.debug(
-            "domain %s: connection succeeded using %r",
-            jid.domain,
-            conn,
-        )
-
-        try:
-            features = yield from security_layer.negotiate_sasl(
-                transport,
-                xmlstream,
-                metadata.sasl_providers,
-                negotiation_timeout,
-                jid,
-                features,
-            )
-        except errors.SASLUnavailable as exc:
-            protocol.send_stream_error_and_close(
-                xmlstream,
-                condition=(namespaces.streams, "policy-violation"),
-                text=str(exc),
-            )
-            exceptions.append(exc)
-            continue
-        except Exception as exc:
-            protocol.send_stream_error_and_close(
-                xmlstream,
-                condition=(namespaces.streams, "undefined-condition"),
-                text=str(exc),
-            )
-            raise
-
-        return transport, xmlstream, features
 
     raise errors.MultiOSError(
         "failed to connect to XMPP domain {!r}".format(jid.domain),

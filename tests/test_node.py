@@ -1047,6 +1047,71 @@ class Testconnect_xmlstream(unittest.TestCase):
             )
         )
 
+    def test_does_not_call_discover_connectors_if_overriden_peer_works(self):
+        NCONNECTORS = 4
+
+        base = unittest.mock.Mock()
+        jid = unittest.mock.Mock()
+
+        for i in range(NCONNECTORS):
+            connect = CoroutineMock()
+            connect.side_effect = OSError()
+            getattr(base, "c{}".format(i)).connect = connect
+
+        base.c1.connect.side_effect = None
+        base.c1.connect.return_value = (
+            unittest.mock.sentinel.transport,
+            unittest.mock.sentinel.protocol,
+            unittest.mock.sentinel.features,
+        )
+
+        override_peer = [
+            (getattr(unittest.mock.sentinel, "h{}".format(i)),
+             getattr(unittest.mock.sentinel, "p{}".format(i)),
+             getattr(base, "c{}".format(i)))
+            for i in range(2)
+        ]
+
+        self.discover_connectors.return_value = [
+            (getattr(unittest.mock.sentinel, "h{}".format(i)),
+             getattr(unittest.mock.sentinel, "p{}".format(i)),
+             getattr(base, "c{}".format(i)))
+            for i in range(2, NCONNECTORS)
+        ]
+
+        result = run_coroutine(node.connect_xmlstream(
+            jid,
+            base.metadata,
+            override_peer=override_peer,
+            loop=unittest.mock.sentinel.loop,
+        ))
+
+        self.assertFalse(self.discover_connectors.mock_calls)
+
+        self.assertSequenceEqual(
+            base.mock_calls,
+            [
+                getattr(unittest.mock.call, "c{}".format(i)).connect(
+                    unittest.mock.sentinel.loop,
+                    base.metadata,
+                    jid.domain,
+                    getattr(unittest.mock.sentinel, "h{}".format(i)),
+                    getattr(unittest.mock.sentinel, "p{}".format(i)),
+                    60.,
+                )
+                for i in range(2)
+            ]
+        )
+
+        self.assertEqual(
+            result,
+            (
+                unittest.mock.sentinel.transport,
+                unittest.mock.sentinel.protocol,
+                unittest.mock.sentinel.post_sasl_features,
+            )
+        )
+
     def test_aggregates_exceptions_and_raises_MultiOSError(self):
         NCONNECTORS = 3
 
