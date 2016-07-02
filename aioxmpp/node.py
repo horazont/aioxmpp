@@ -289,6 +289,8 @@ class AbstractClient:
     If `loop` is given, it must be a :class:`asyncio.BaseEventLoop`
     instance. If it is not given, the current event loop is used.
 
+    `override_peer` is used to initialise the :attr:`override_peer` attribute.
+
     As a glue between the stanza stream and the XML stream, it also knows about
     stream management and performs stream management negotiation. It is
     specialized on client operations, which implies that it will try to keep
@@ -324,6 +326,24 @@ class AbstractClient:
        The timeout applied to the connection process and the individual steps
        of negotiating the stream. See the `negotiation_timeout` argument to
        :func:`connect_xmlstream`.
+
+    .. attribute:: override_peer
+
+       A sequence of triples ``(host, port, connector)``, where `host` must be
+       a host name or IP as string, `port` must be a port number and
+       `connector` must be a :class:`aioxmpp.connector.BaseConnctor` instance.
+
+       These connection options are passed to :meth:`connect_xmlstream` and
+       thus take precedence over the options discovered using
+       :meth:`discover_connectors`.
+
+       .. note::
+
+          If Stream Management is used and the peer server provided a location
+          to connect to on resumption, that location is preferred even over the
+          options set here.
+
+       .. versionadded:: 0.6
 
     Connection information:
 
@@ -427,6 +447,7 @@ class AbstractClient:
                  local_jid,
                  security_layer,
                  negotiation_timeout=timedelta(seconds=60),
+                 override_peer=[],
                  loop=None,
                  logger=None):
         super().__init__()
@@ -454,6 +475,7 @@ class AbstractClient:
         self.backoff_start = timedelta(seconds=1)
         self.backoff_factor = 1.2
         self.backoff_cap = timedelta(seconds=60)
+        self.override_peer = list(override_peer)
 
         self.on_stopped.logger = self.logger.getChild("on_stopped")
         self.on_failure.logger = self.logger.getChild("on_failure")
@@ -601,6 +623,7 @@ class AbstractClient:
                     sm_location[1],
                     connector.STARTTLSConnector(),
                 ))
+        override_peer += self.override_peer
 
         tls_transport, xmlstream, features = \
             yield from connect_xmlstream(

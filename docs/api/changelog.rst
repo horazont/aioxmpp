@@ -164,6 +164,11 @@ Version 0.6
 
 * Support for :xep:`368`.
 
+* :class:`aioxmpp.node.AbstractClient` now accepts an `override_peer` argument,
+  which may be a sequence of connection options as returned by
+  :func:`aioxmpp.node.discover_connectors`. See the class documentation for
+  details.
+
 Version 0.5
 ===========
 

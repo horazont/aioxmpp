@@ -798,9 +798,14 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
         )
 
     def test_setup(self):
+        def peer_iterator():
+            yield unittest.mock.sentinel.p1
+            yield unittest.mock.sentinel.p2
+
         client = node.AbstractClient(
             self.test_jid,
             self.security_layer,
+            override_peer=peer_iterator(),
             negotiation_timeout=timedelta(seconds=30)
         )
         self.assertEqual(client.local_jid, self.test_jid)
@@ -819,6 +824,10 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
         self.assertEqual(
             client.backoff_factor,
             1.2
+        )
+        self.assertEqual(
+            client.override_peer,
+            [unittest.mock.sentinel.p1, unittest.mock.sentinel.p2],
         )
 
         self.assertEqual(client.on_stopped.logger,
@@ -846,6 +855,26 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
             self.security_layer,
             negotiation_timeout=60.0,
             override_peer=[],
+            loop=self.loop
+        )
+
+    def test_start_with_override_peer(self):
+        self.assertFalse(self.client.established)
+        self.client.override_peer = [
+            unittest.mock.sentinel.p1,
+            unittest.mock.sentinel.p2,
+        ]
+        run_coroutine(asyncio.sleep(0))
+        self.connect_xmlstream_rec.assert_not_called()
+        self.assertFalse(self.client.running)
+        self.client.start()
+        self.assertTrue(self.client.running)
+        run_coroutine(self.xmlstream.run_test(self.resource_binding))
+        self.connect_xmlstream_rec.assert_called_once_with(
+            self.test_jid,
+            self.security_layer,
+            negotiation_timeout=60.0,
+            override_peer=self.client.override_peer,
             loop=self.loop
         )
 
@@ -1431,6 +1460,81 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
                     self.security_layer,
                     override_peer=[
                         ("fe80::", 5222, unittest.mock.sentinel.connector)
+                    ],
+                    negotiation_timeout=60.0,
+                    loop=self.loop),
+            ],
+            self.connect_xmlstream_rec.mock_calls
+        )
+
+        self.established_rec.assert_called_once_with()
+        self.assertFalse(self.destroyed_rec.mock_calls)
+
+        self.client.stop()
+        run_coroutine(self.xmlstream.run_test([
+            XMLStreamMock.Send(
+                nonza.SMAcknowledgement(counter=0)
+            ),
+            XMLStreamMock.Close()
+        ]))
+
+    def test_sm_location_takes_precedence_over_override_peer(self):
+        self.features[...] = nonza.StreamManagementFeature()
+
+        self.client.backoff_start = timedelta(seconds=0)
+        self.client.start()
+        self.client.override_peer = [
+            unittest.mock.sentinel.p1
+        ]
+
+        with unittest.mock.patch("aioxmpp.connector.STARTTLSConnector") as C:
+            C.return_value = unittest.mock.sentinel.connector
+            run_coroutine(self.xmlstream.run_test([
+            ]+self.resource_binding+[
+                XMLStreamMock.Send(
+                    nonza.SMEnable(resume=True),
+                    response=[
+                        XMLStreamMock.Receive(
+                            nonza.SMEnabled(
+                                resume=True,
+                                id_="foobar",
+                                location=(ipaddress.IPv6Address("fe80::"), 5222)),
+
+                    ),
+                        XMLStreamMock.Fail(
+                            exc=ConnectionError()
+                        ),
+                    ]
+                ),
+            ]))
+            # new xmlstream after failure
+            run_coroutine(self.xmlstream.run_test([
+                XMLStreamMock.Send(
+                    nonza.SMResume(counter=0, previd="foobar"),
+                    response=[
+                        XMLStreamMock.Receive(
+                            nonza.SMResumed(counter=0, previd="foobar")
+                        )
+                    ]
+                )
+            ]))
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(
+                    self.test_jid,
+                    self.security_layer,
+                    override_peer=[
+                        unittest.mock.sentinel.p1,
+                    ],
+                    negotiation_timeout=60.0,
+                    loop=self.loop),
+                unittest.mock.call(
+                    self.test_jid,
+                    self.security_layer,
+                    override_peer=[
+                        ("fe80::", 5222, unittest.mock.sentinel.connector),
+                        unittest.mock.sentinel.p1,
                     ],
                     negotiation_timeout=60.0,
                     loop=self.loop),
