@@ -17,7 +17,7 @@ The following function can be used to create a connection using the
 
 The transport implementation is documented below:
 
-.. autoclass:: STARTTLSTransport(loop, rawsock, protocol, ssl_context, [waiter=None], [use_starttls=False], [post_handshake_callback=None], [peer_hostname=None], [server_hostname=None])
+.. autoclass:: STARTTLSTransport(loop, rawsock, protocol, ssl_context_factory, [waiter=None], [use_starttls=False], [post_handshake_callback=None], [peer_hostname=None], [server_hostname=None])
    :members:
 
 """
@@ -81,9 +81,12 @@ class STARTTLSTransport(asyncio.Transport):
     for the transport. `protocol` must be a :class:`asyncio.Protocol` which
     will be fed the data the transport receives.
 
-    `ssl_context` must be a :class:`OpenSSL.SSL.Context`. It will be used to
-    create the :class:`OpenSSL.SSL.Connection` when TLS is enabled on the
-    transport.
+    `ssl_context_factory` must be a callable accepting a single positional
+    argument which returns a :class:`OpenSSL.SSL.Context`. The transport will
+    be passed as the argument to the factory. The returned context will be used
+    to create the :class:`OpenSSL.SSL.Connection` when TLS is enabled on the
+    transport. If the callable is :data:`None`, a `ssl_context` must be
+    supplied to :meth:`starttls` and `use_starttls` must be true.
 
     `use_starttls` must be a boolean value. If it is true, TLS is not enabled
     immediately. Instead, the user must call :meth:`starttls` to enable TLS on
@@ -129,13 +132,13 @@ class STARTTLSTransport(asyncio.Transport):
 
     MAX_SIZE = 256 * 1024
 
-    def __init__(self, loop, rawsock, protocol, ssl_context,
+    def __init__(self, loop, rawsock, protocol, ssl_context_factory,
                  waiter=None,
                  use_starttls=False,
                  post_handshake_callback=None,
                  peer_hostname=None,
                  server_hostname=None):
-        if not use_starttls and not ssl_context:
+        if not use_starttls and not ssl_context_factory:
             raise ValueError("Cannot have STARTTLS disabled (i.e. immediate "
                              "TLS connection) and without SSL context.")
 
@@ -155,9 +158,9 @@ class STARTTLSTransport(asyncio.Transport):
         self._state = None
         self._conn_lost = 0
         self._buffer = bytearray()
-        self._ssl_context = ssl_context
+        self._ssl_context_factory = ssl_context_factory
         self._extra.update(
-            sslcontext=ssl_context,
+            sslcontext=None,
             ssl_object=None,
             peername=self._rawsock.getpeername(),
             peer_hostname=peer_hostname,
@@ -178,6 +181,10 @@ class STARTTLSTransport(asyncio.Transport):
 
         self._state = None
         if not use_starttls:
+            self._ssl_context = ssl_context_factory(self)
+            self._extra.update(
+                sslcontext=self._ssl_context,
+            )
             self._initiate_tls()
         else:
             self._initiate_raw()
@@ -605,6 +612,9 @@ class STARTTLSTransport(asyncio.Transport):
             self._extra.update(
                 sslcontext=ssl_context
             )
+        else:
+            self._ssl_context = self._ssl_context_factory(self)
+
         if post_handshake_callback is not None:
             self._tls_post_handshake_callback = post_handshake_callback
 
@@ -658,7 +668,7 @@ def create_starttls_connection(
         port=None,
         *,
         sock=None,
-        ssl_context=None,
+        ssl_context_factory=None,
         use_starttls=False,
         **kwargs):
     """
@@ -726,7 +736,7 @@ def create_starttls_connection(
     protocol = protocol_factory()
     waiter = asyncio.Future(loop=loop)
     transport = STARTTLSTransport(loop, sock, protocol,
-                                  ssl_context=ssl_context,
+                                  ssl_context_factory=ssl_context_factory,
                                   waiter=waiter,
                                   use_starttls=use_starttls,
                                   **kwargs)
