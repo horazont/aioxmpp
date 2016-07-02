@@ -106,7 +106,7 @@ of `'help wanted' issues on GitHub
 or ask in the MUC or on the mailing list. The issues tagged as 'help wanted' are
 usually of narrow scope, aimed at beginners.
 
-Be sure to read the :file:`docs/CONTRIBUTING.rst` for some hints on how to
+Be sure to read the ``docs/CONTRIBUTING.rst`` for some hints on how to
 author your contribution.
 
 Security issues
