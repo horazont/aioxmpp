@@ -1,3 +1,31 @@
+"""
+:mod:`~aioxmpp.connector` --- Ways to establish XML streams
+###########################################################
+
+This module provides classes to establish XML streams. Currently, there are two
+different ways to establish XML streams: normal TCP connection which is then
+upgraded using STARTTLS, and directly using TLS.
+
+.. versionadded:: 0.6
+
+   The whole module was added in version 0.6.
+
+Abstract base class
+===================
+
+The connectors share a common abstract base class, :class:`BaseConnector`:
+
+.. autoclass:: BaseConnector
+
+Specific connectors
+===================
+
+.. autoclass:: STARTTLSConnector
+
+.. autoclass:: XMPPOverTLSConnector
+
+"""
+
 import abc
 import asyncio
 
@@ -10,6 +38,23 @@ from aioxmpp.utils import namespaces
 
 
 class BaseConnector(metaclass=abc.ABCMeta):
+    """
+    This is the base class for connectors. It defines the public interface of
+    all connectors.
+
+    .. autoattribute:: tls_supported
+
+    .. automethod:: connect
+
+    Existing connectors:
+
+    .. autosummary::
+
+       STARTTLSConnector
+       XMPPOverTLSConnector
+
+    """
+
     @abc.abstractproperty
     def tls_supported(self):
         """
@@ -47,6 +92,12 @@ class BaseConnector(metaclass=abc.ABCMeta):
 
 
 class STARTTLSConnector(BaseConnector):
+    """
+    Establish an XML stream using STARTTLS.
+
+    .. automethod:: connect
+    """
+
     @property
     def tls_supported(self):
         return True
@@ -58,6 +109,29 @@ class STARTTLSConnector(BaseConnector):
     @asyncio.coroutine
     def connect(self, loop, metadata, domain, host, port,
                 negotiation_timeout):
+        """
+        .. seealso::
+
+           :meth:`BaseConnector.connect`
+              For general information on the :meth:`connect` method.
+
+        Connect to `host` at TCP port number `port`. The
+        :class:`aioxmpp.security_layer.SecurityLayer` object `metadata` is used
+        to determine the parameters of the TLS connection.
+
+        First, a normal TCP connection is opened and the stream header is sent.
+        The stream features are waited for, and then STARTTLS is negotiated if
+        possible.
+
+        :attr:`~.security_layer.SecurityLayer.tls_required` is honoured: if it
+        is true and the server does not offer TLS or TLS negotiation fails,
+        :class:`~.errors.TLSUnavailable` is raised.
+
+        :attr:`~.security_layer.SecurityLayer.ssl_context_factory` and
+        :attr:`~.security_layer.SecurityLayer.certificate_verifier_factory` are
+        used to configure the TLS connection.
+        """
+
         features_future = asyncio.Future(loop=loop)
 
         stream = protocol.XMLStream(
@@ -147,7 +221,9 @@ class STARTTLSConnector(BaseConnector):
 
 class XMPPOverTLSConnector(BaseConnector):
     """
-    The XMPP-over-TLS connector implements the connection part of :xep:`368`.
+    Establish an XML stream using XMPP-over-TLS, as per :xep:`368`.
+
+    .. automethod:: connect
     """
 
     @property
@@ -161,6 +237,26 @@ class XMPPOverTLSConnector(BaseConnector):
     @asyncio.coroutine
     def connect(self, loop, metadata, domain, host, port,
                 negotiation_timeout):
+        """
+        .. seealso::
+
+           :meth:`BaseConnector.connect`
+              For general information on the :meth:`connect` method.
+
+        Connect to `host` at TCP port number `port`. The
+        :class:`aioxmpp.security_layer.SecurityLayer` object `metadata` is used
+        to determine the parameters of the TLS connection.
+
+        The connector connects to the server by directly establishing TLS; no
+        XML stream is started before TLS negotiation, in accordance to
+        :xep:`368` and how legacy SSL was handled in the past.
+
+        :attr:`~.security_layer.SecurityLayer.ssl_context_factory` and
+        :attr:`~.security_layer.SecurityLayer.certificate_verifier_factory` are
+        used to configure the TLS connection.
+        """
+
+
         features_future = asyncio.Future(loop=loop)
 
         stream = protocol.XMLStream(

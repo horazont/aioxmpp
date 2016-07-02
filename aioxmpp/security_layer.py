@@ -10,7 +10,7 @@ These are coupled, as different SASL features might need different TLS features
 
 .. autofunction:: tls_with_password_based_authentication(password_provider, [ssl_context_factory], [max_auth_attempts=3])
 
-.. autoclass:: SecurityLayer
+.. autoclass:: SecurityLayer(ssl_context_factory, certificate_verifier_factory, tls_required, sasl_providers)
 
 .. autofunction:: negotiate_sasl
 
@@ -881,29 +881,47 @@ class SecurityLayer(collections.namedtuple(
         ])):
     """
     A security layer defines the security properties used for an XML stream.
-    This includes TLS settings and SASL providers.
+    This includes TLS settings and SASL providers. The arguments are used to
+    initialise the attributes of the same name.
 
-    `ssl_context_factory` must be callable returning a
-    :class:`OpenSSL.SSL.Context` instance which is to be used for any SSL
-    operations for the connection. It is legit to return the same context for
-    all calls to `ssl_context_factory`.
+    :class:`SecurityLayer` instances are required to construct a
+    :class:`aioxmpp.node.AbstractClient`.
 
-    `certificate_verifier_factory` must be a callable which returns a fresh
-    :class:`aioxmpp.security_layer.CertificateVerifier` on each call (it must
-    be a fresh instance since :class:`~.security_layer.CertificateVerifier`
-    objects are allowed to keep state and :class:`SecurityLayer` objects
-    are reusable between connection attempts).
+    .. versionadded:: 0.6
 
-    `tls_required` must be a boolean; it indicates whether failure to negotiate
-    or establish TLS is critical. Note that setting this to false will not
-    cause invalid TLS sessions (e.g. with invalid certificates) to be used.
-    This only affects situations where the server is not offering TLS or where
-    STARTTLS fails.
+    .. seealso::
 
-    `sasl_providers` must be a sequence of
-    :class:`.security_layer.SASLProvider` instances. As SASL providers are
-    stateless, it is not necessary to create new providers for each
-    connection.
+       :func:`tls_with_password_based_authentication`
+          A simple function which returns a :class:`SecurityLayer` instance.
+
+    .. attribute:: ssl_context_factory
+
+       This is a callable returning a :class:`OpenSSL.SSL.Context` instance
+       which is to be used for any SSL operations for the connection.
+
+       The :class:`OpenSSL.SSL.Context` instances should not be resued between
+       connection attempts, as the certificate verifiers may set options which
+       cannot be disabled anymore.
+
+    .. attribute:: certificate_verifier_factory
+
+       This is a callable which returns a fresh
+       :class:`CertificateVerifier` on each call (it must be a fresh instance
+       since :class:`CertificateVerifier` objects are allowed to keep state and
+       :class:`SecurityLayer` objects are reusable between connection
+       attempts).
+
+    .. attribute:: tls_required
+
+       A boolean which indicates whether TLS is required. If it is set to true,
+       connectors (see :mod:`aioxmpp.connector`) will abort the connection if
+       TLS (or something equivalent) is not available on the transport.
+
+    .. attribute:: sasl_providers
+
+       A sequence of :class:`SASLProvider` instances. As SASL providers are
+       stateless, it is not necessary to create new providers for each
+       connection.
     """
 
 

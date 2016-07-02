@@ -53,6 +53,7 @@ sorted into this section.
    errors
    i18n
    callbacks
+   connector
 
 
 APIs mainly relevant for extension developers
