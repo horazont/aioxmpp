@@ -637,5 +637,140 @@ class TestSTARTTLSConnector(unittest.TestCase):
             )
         )
 
+
+class TestXMPPOverTLSConnector(unittest.TestCase):
+    def setUp(self):
+        self.c = connector.XMPPOverTLSConnector()
+
     def tearDown(self):
         del self.c
+
+    def test_tls_supported(self):
+        self.assertTrue(
+            self.c.tls_supported
+        )
+
+    def test_connect_with_tls(self):
+        captured_features_future = None
+
+        def capture_future(*args, features_future=None, **kwargs):
+            nonlocal captured_features_future
+            captured_features_future = features_future
+            return base.protocol
+
+        features_future = asyncio.Future()
+        features_future.set_result(
+            unittest.mock.sentinel.features
+        )
+
+        base = unittest.mock.Mock()
+        base.protocol.starttls = CoroutineMock()
+        base.create_starttls_connection = CoroutineMock()
+        base.create_starttls_connection.return_value = (
+            unittest.mock.sentinel.transport,
+            base.protocol,
+        )
+        base.metadata.tls_required = True
+        base.XMLStream.return_value = base.protocol
+        base.XMLStream.side_effect = capture_future
+        base.Future.return_value = features_future
+        base.certificate_verifier.pre_handshake = CoroutineMock()
+        base.metadata.certificate_verifier_factory.return_value = \
+            base.certificate_verifier
+        base.metadata.ssl_context_factory.return_value = \
+            unittest.mock.sentinel.ssl_context
+
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(
+                unittest.mock.patch(
+                    "asyncio.Future",
+                    new=base.Future,
+                )
+            )
+
+            stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.ssl_transport.create_starttls_connection",
+                    new=base.create_starttls_connection,
+                )
+            )
+
+            stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.protocol.XMLStream",
+                    new=base.XMLStream,
+                )
+            )
+
+            result = run_coroutine(self.c.connect(
+                unittest.mock.sentinel.loop,
+                base.metadata,
+                unittest.mock.sentinel.domain,
+                unittest.mock.sentinel.host,
+                unittest.mock.sentinel.port,
+                unittest.mock.sentinel.timeout,
+            ))
+
+        self.assertSequenceEqual(
+            base.mock_calls,
+            [
+                unittest.mock.call.Future(
+                    loop=unittest.mock.sentinel.loop,
+                ),
+                unittest.mock.call.XMLStream(
+                    to=unittest.mock.sentinel.domain,
+                    features_future=features_future,
+                ),
+                unittest.mock.call.metadata.certificate_verifier_factory(),
+                unittest.mock.call.certificate_verifier.pre_handshake(
+                    unittest.mock.sentinel.domain,
+                    unittest.mock.sentinel.host,
+                    unittest.mock.sentinel.port,
+                    base.metadata,
+                ),
+                unittest.mock.call.create_starttls_connection(
+                    unittest.mock.sentinel.loop,
+                    unittest.mock.ANY,
+                    host=unittest.mock.sentinel.host,
+                    port=unittest.mock.sentinel.port,
+                    peer_hostname=unittest.mock.sentinel.host,
+                    server_hostname=unittest.mock.sentinel.domain,
+                    post_handshake_callback=
+                    base.certificate_verifier.post_handshake,
+                    ssl_context_factory=unittest.mock.ANY,
+                    use_starttls=False,
+                ),
+            ]
+        )
+
+        _, _, kwargs = base.mock_calls[-1]
+        factory = kwargs.pop("ssl_context_factory")
+
+        base.mock_calls.clear()
+
+        ssl_context = factory(unittest.mock.sentinel.passed_transport)
+
+        self.assertSequenceEqual(
+            base.mock_calls,
+            [
+                unittest.mock.call.metadata.ssl_context_factory(),
+                unittest.mock.call.certificate_verifier.setup_context(
+                    unittest.mock.sentinel.ssl_context,
+                    unittest.mock.sentinel.passed_transport,
+                )
+            ]
+        )
+
+        self.assertEqual(
+            ssl_context,
+            unittest.mock.sentinel.ssl_context
+        )
+
+        self.assertEqual(
+            result,
+            (
+                unittest.mock.sentinel.transport,
+                base.protocol,
+                unittest.mock.sentinel.features,
+            )
+        )

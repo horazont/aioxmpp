@@ -145,7 +145,52 @@ class STARTTLSConnector(BaseConnector):
         return transport, stream, features_future
 
 
-class XMPPOverTLSConnector:
+class XMPPOverTLSConnector(BaseConnector):
     """
     The XMPP-over-TLS connector implements the connection part of :xep:`368`.
     """
+
+    @property
+    def dane_supported(self):
+        return False
+
+    @property
+    def tls_supported(self):
+        return True
+
+    @asyncio.coroutine
+    def connect(self, loop, metadata, domain, host, port,
+                negotiation_timeout):
+        features_future = asyncio.Future(loop=loop)
+
+        stream = protocol.XMLStream(
+            to=domain,
+            features_future=features_future,
+        )
+
+        verifier = metadata.certificate_verifier_factory()
+        yield from verifier.pre_handshake(
+            domain,
+            host,
+            port,
+            metadata,
+        )
+
+        def context_factory(transport):
+            ssl_context = metadata.ssl_context_factory()
+            verifier.setup_context(ssl_context, transport)
+            return ssl_context
+
+        transport, _ = yield from ssl_transport.create_starttls_connection(
+            loop,
+            lambda: stream,
+            host=host,
+            port=port,
+            peer_hostname=host,
+            server_hostname=domain,
+            post_handshake_callback=verifier.post_handshake,
+            ssl_context_factory=context_factory,
+            use_starttls=False,
+        )
+
+        return transport, stream, (yield from features_future)
