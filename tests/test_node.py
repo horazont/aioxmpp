@@ -855,7 +855,8 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
             self.security_layer,
             negotiation_timeout=60.0,
             override_peer=[],
-            loop=self.loop
+            loop=self.loop,
+            logger=self.client.logger,
         )
 
     def test_start_with_override_peer(self):
@@ -875,7 +876,8 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
             self.security_layer,
             negotiation_timeout=60.0,
             override_peer=self.client.override_peer,
-            loop=self.loop
+            loop=self.loop,
+            logger=self.client.logger,
         )
 
     def test_reject_start_twice(self):
@@ -986,7 +988,8 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
                     self.security_layer,
                     negotiation_timeout=0.01,
                     override_peer=[],
-                    loop=self.loop)
+                    loop=self.loop,
+                    logger=self.client.logger)
             ]*2,
             self.connect_xmlstream_rec.mock_calls
         )
@@ -1029,7 +1032,8 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
             self.security_layer,
             negotiation_timeout=60.0,
             override_peer=[],
-            loop=self.loop)
+            loop=self.loop,
+            logger=self.client.logger)
 
         exc = OSError()
         self.connect_xmlstream_rec.side_effect = exc
@@ -1103,7 +1107,8 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
             self.security_layer,
             negotiation_timeout=60.0,
             override_peer=[],
-            loop=self.loop)
+            loop=self.loop,
+            logger=self.client.logger)
 
         exc = dns.resolver.NoNameservers()
         self.connect_xmlstream_rec.side_effect = exc
@@ -1454,7 +1459,8 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
                     self.security_layer,
                     override_peer=[],
                     negotiation_timeout=60.0,
-                    loop=self.loop),
+                    loop=self.loop,
+                    logger=self.client.logger),
                 unittest.mock.call(
                     self.test_jid,
                     self.security_layer,
@@ -1462,7 +1468,8 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
                         ("fe80::", 5222, unittest.mock.sentinel.connector)
                     ],
                     negotiation_timeout=60.0,
-                    loop=self.loop),
+                    loop=self.loop,
+                    logger=self.client.logger),
             ],
             self.connect_xmlstream_rec.mock_calls
         )
@@ -1528,7 +1535,8 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
                         unittest.mock.sentinel.p1,
                     ],
                     negotiation_timeout=60.0,
-                    loop=self.loop),
+                    loop=self.loop,
+                    logger=self.client.logger),
                 unittest.mock.call(
                     self.test_jid,
                     self.security_layer,
@@ -1537,7 +1545,8 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
                         unittest.mock.sentinel.p1,
                     ],
                     negotiation_timeout=60.0,
-                    loop=self.loop),
+                    loop=self.loop,
+                    logger=self.client.logger),
             ],
             self.connect_xmlstream_rec.mock_calls
         )

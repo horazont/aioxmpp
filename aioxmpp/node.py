@@ -236,6 +236,12 @@ def connect_xmlstream(
             exceptions.append(exc)
             continue
 
+        logger.debug(
+            "domain %s: connection succeeded using %r",
+            jid.domain,
+            conn,
+        )
+
         try:
             features = yield from security_layer.negotiate_sasl(
                 transport,
@@ -631,7 +637,8 @@ class AbstractClient:
                 self._security_layer,
                 negotiation_timeout=self.negotiation_timeout.total_seconds(),
                 override_peer=override_peer,
-                loop=self._loop)
+                loop=self._loop,
+                logger=self.logger)
 
         try:
             features, sm_resumed = yield from self._negotiate_stream(
