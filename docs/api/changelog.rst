@@ -162,6 +162,8 @@ Version 0.6
   :meth:`aioxmpp.CertificateVerifier.pre_handshake` are now completely
   different.
 
+* Support for :xep:`368`.
+
 Version 0.5
 ===========
 

@@ -82,29 +82,36 @@ def discover_connectors(domain, loop=None, logger=logger):
 
     The following sources are supported:
 
-    * :rfc:`6120` SRV records. One option is returned for each priority present
-      in the SRV records. If there are multiple SRV records with the same
-      priority, one is sampled randomly according to their weights.
-
-      This implies that the result of this function is not deterministic in
-      that situation, which is intended.
+    * :rfc:`6120` SRV records. One option is returned per SRV record.
 
       If one of the SRV records points to the root name (``.``),
       :class:`ValueError` is raised (the domain specifically said that XMPP is
       not supported here).
 
+    * :xep:`368` SRV records. One option is returned per SRV record.
+
     * :rfc:`6120` fallback process (only if no SRV records are found). One
       option is returned for the host name with the default XMPP client port.
+
+    The options discovered from SRV records are mixed together, ordered by
+    priority and then within priorities are shuffled according to their weight.
+    Thus, if there are multiple records of equal priority, the result of the
+    function is not deterministic.
 
     .. versionadded:: 0.6
     """
 
-    srv_records = yield from network.lookup_srv(
+    starttls_srv_records = yield from network.lookup_srv(
         domain,
         "xmpp-client",
     )
 
-    if srv_records is None:
+    tls_srv_records = yield from network.lookup_srv(
+        domain,
+        "xmpps-client",
+    )
+
+    if starttls_srv_records is None and tls_srv_records is None:
         # no SRV records published, fall back
         logger.debug(
             "no SRV records found for %s, falling back",
@@ -116,8 +123,13 @@ def discover_connectors(domain, loop=None, logger=logger):
 
     srv_records = [
         (prio, weight, (host, port, connector.STARTTLSConnector()))
-        for prio, weight, (host, port) in srv_records
+        for prio, weight, (host, port) in starttls_srv_records
     ]
+
+    srv_records.extend(
+        (prio, weight, (host, port, connector.XMPPOverTLSConnector()))
+        for prio, weight, (host, port) in tls_srv_records
+    )
 
     options = list(
         network.group_and_order_srv_records(srv_records)
