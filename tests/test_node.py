@@ -174,6 +174,7 @@ class Testconnect_xmlstream(unittest.TestCase):
     def test_uses_discover_connectors_and_tries_them_in_order(self):
         NCONNECTORS = 4
 
+        logger = unittest.mock.Mock()
         base = unittest.mock.Mock()
         jid = unittest.mock.Mock()
 
@@ -200,6 +201,7 @@ class Testconnect_xmlstream(unittest.TestCase):
             jid,
             base.metadata,
             loop=unittest.mock.sentinel.loop,
+            logger=logger,
         ))
 
         jid.domain.encode.assert_called_with("idna")
@@ -207,6 +209,7 @@ class Testconnect_xmlstream(unittest.TestCase):
         self.discover_connectors.assert_called_with(
             jid.domain.encode(),
             loop=unittest.mock.sentinel.loop,
+            logger=logger,
         )
 
         self.assertSequenceEqual(
@@ -268,6 +271,7 @@ class Testconnect_xmlstream(unittest.TestCase):
         self.discover_connectors.assert_called_with(
             jid.domain.encode(),
             loop=unittest.mock.sentinel.loop,
+            logger=node.logger,
         )
 
         self.negotiate_sasl.assert_called_with(
@@ -352,6 +356,7 @@ class Testconnect_xmlstream(unittest.TestCase):
         self.discover_connectors.assert_called_with(
             jid.domain.encode(),
             loop=unittest.mock.sentinel.loop,
+            logger=node.logger,
         )
 
         self.assertSequenceEqual(
@@ -458,6 +463,7 @@ class Testconnect_xmlstream(unittest.TestCase):
         self.discover_connectors.assert_called_with(
             jid.domain.encode(),
             loop=unittest.mock.sentinel.loop,
+            logger=node.logger,
         )
 
         self.send_stream_error.assert_called_with(
@@ -537,6 +543,7 @@ class Testconnect_xmlstream(unittest.TestCase):
         self.discover_connectors.assert_called_with(
             jid.domain.encode(),
             loop=unittest.mock.sentinel.loop,
+            logger=node.logger,
         )
 
         self.assertSequenceEqual(
@@ -604,6 +611,7 @@ class Testconnect_xmlstream(unittest.TestCase):
         self.discover_connectors.assert_called_with(
             jid.domain.encode(),
             loop=unittest.mock.sentinel.loop,
+            logger=node.logger,
         )
 
         self.assertSequenceEqual(

@@ -53,6 +53,9 @@ from . import (
 from .utils import namespaces
 
 
+logger = logging.getLogger(__name__)
+
+
 def lookup_addresses(loop, jid):
     addresses = yield from network.find_xmpp_host_addr(
         loop,
@@ -62,7 +65,7 @@ def lookup_addresses(loop, jid):
 
 
 @asyncio.coroutine
-def discover_connectors(domain, loop=None):
+def discover_connectors(domain, loop=None, logger=logger):
     """
     Discover all connection options for a domain, in descending order of
     preference.
@@ -74,6 +77,8 @@ def discover_connectors(domain, loop=None):
     Each option is represented by a triple ``(host, port, connector)``.
     `connector` is a :class:`aioxmpp.connector.BaseConnector` instance which is
     suitable to connect to the given host and port.
+
+    `logger` is the logger used by the function.
 
     The following sources are supported:
 
@@ -101,6 +106,10 @@ def discover_connectors(domain, loop=None):
 
     if srv_records is None:
         # no SRV records published, fall back
+        logger.debug(
+            "no SRV records found for %s, falling back",
+            domain,
+        )
         return [
             (domain, 5222, connector.STARTTLSConnector()),
         ]
@@ -114,6 +123,12 @@ def discover_connectors(domain, loop=None):
         network.group_and_order_srv_records(srv_records)
     )
 
+    logger.debug(
+        "options for %s: %r",
+        domain,
+        options,
+    )
+
     return options
 
 
@@ -123,7 +138,8 @@ def connect_xmlstream(
         metadata,
         negotiation_timeout=60.,
         override_peer=[],
-        loop=None):
+        loop=None,
+        logger=logger):
     """
     Prepare and connect a :class:`aioxmpp.protocol.XMLStream` to a server
     responsible for the given `jid` and authenticate against that server using
@@ -174,7 +190,11 @@ def connect_xmlstream(
     domain = jid.domain.encode("idna")
 
     options = list(override_peer)
-    options.extend((yield from discover_connectors(domain, loop=loop)))
+    options.extend((yield from discover_connectors(
+        domain,
+        loop=loop,
+        logger=logger,
+    )))
 
     if not options:
         raise ValueError("no options to connect to XMPP domain {!r}".format(
@@ -184,6 +204,10 @@ def connect_xmlstream(
     exceptions = []
 
     for host, port, conn in options:
+        logger.debug(
+            "domain %s: trying to connect to %r:%s using %r",
+            jid.domain, host, port, conn
+        )
         try:
             transport, xmlstream, features = yield from conn.connect(
                 loop,
@@ -194,6 +218,9 @@ def connect_xmlstream(
                 negotiation_timeout,
             )
         except OSError as exc:
+            logger.warning(
+                "connection failed: %s", exc
+            )
             exceptions.append(exc)
             continue
 
