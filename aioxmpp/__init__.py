@@ -23,7 +23,7 @@ package:
 #: .. seealso::
 #:
 #:    :ref:`api-stability`
-version_info = (0, 6, 0, "a0")
+version_info = (0, 6, 0, None)
 
 #: The imported :mod:`aioxmpp` version as a string.
 #:
