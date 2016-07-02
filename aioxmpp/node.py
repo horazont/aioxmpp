@@ -101,15 +101,30 @@ def discover_connectors(domain, loop=None, logger=logger):
     .. versionadded:: 0.6
     """
 
-    starttls_srv_records = yield from network.lookup_srv(
-        domain,
-        "xmpp-client",
-    )
+    try:
+        starttls_srv_records = yield from network.lookup_srv(
+            domain,
+            "xmpp-client",
+        )
+        starttls_srv_disabled = False
+    except ValueError:
+        starttls_srv_records = []
+        starttls_srv_disabled = True
 
-    tls_srv_records = yield from network.lookup_srv(
-        domain,
-        "xmpps-client",
-    )
+    try:
+        tls_srv_records = yield from network.lookup_srv(
+            domain,
+            "xmpps-client",
+        )
+        tls_srv_disabled = False
+    except ValueError:
+        tls_srv_records = []
+        tls_srv_disabled = True
+
+    if starttls_srv_disabled and (tls_srv_disabled or tls_srv_records is None):
+        raise ValueError(
+            "XMPP not enabled on domain {!r}".format(domain),
+        )
 
     if starttls_srv_records is None and tls_srv_records is None:
         # no SRV records published, fall back
@@ -120,6 +135,9 @@ def discover_connectors(domain, loop=None, logger=logger):
         return [
             (domain, 5222, connector.STARTTLSConnector()),
         ]
+
+    starttls_srv_records = starttls_srv_records or []
+    tls_srv_records = tls_srv_records or []
 
     srv_records = [
         (prio, weight, (host, port, connector.STARTTLSConnector()))
