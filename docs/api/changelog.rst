@@ -169,6 +169,12 @@ Version 0.6
   :func:`aioxmpp.node.discover_connectors`. See the class documentation for
   details.
 
+* :mod:`aioxmpp.ssl_transport` has been factored out in :mod:`aioopenssl`. This
+  yields a new dependency, :mod:`aioopenssl`.
+
+  For now, :mod:`aioxmpp` ships with a fallback, so if :mod:`aioopenssl` is not
+  installed, :mod:`aioxmpp` will still work.
+
 Version 0.5
 ===========
 

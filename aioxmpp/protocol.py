@@ -620,8 +620,7 @@ class XMLStream(asyncio.Protocol):
 
         The `ssl_context` and `post_handshake_callback` arguments are forwarded
         to the transports
-        :meth:`~aioxmpp.ssl_transport.STARTTLSTransport.starttls` coroutine
-        method.
+        :meth:`aioopenssl.STARTTLSTransport.starttls` coroutine method.
 
         If the transport does not support starttls, :class:`RuntimeError` is
         raised; support for starttls can be discovered by querying

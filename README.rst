@@ -76,6 +76,10 @@ Dependencies
 
   __ https://pypi.python.org/pypi/multidict
 
+* `aioopenssl`__ (optional, for now)
+
+  __ https://github.com/horazont/aioopenssl
+
 Contributing
 ============
 

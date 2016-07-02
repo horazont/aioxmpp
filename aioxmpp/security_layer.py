@@ -204,13 +204,13 @@ def check_x509_hostname(x509, hostname):
 class CertificateVerifier(metaclass=abc.ABCMeta):
     """
     A certificate verifier hooks into the two mechanisms provided by
-    :class:`.ssl_transport.STARTTLSTransport` for certificate verification.
+    :class:`aioopenssl.STARTTLSTransport` for certificate verification.
 
     On the one hand, the verify callback provided by
     :class:`OpenSSL.SSL.Context` is used and forwarded to
     :meth:`verify_callback`. On the other hand, the post handshake coroutine is
     set to :meth:`post_handshake`. See the documentation of
-    :class:`.ssl_transport.STARTTLSTransport` for the semantics of that
+    :class:`aioopenssl.STARTTLSTransport` for the semantics of that
     coroutine.
 
     In addition to these two hooks into the TLS handshake, a third coroutine

@@ -32,6 +32,7 @@ setup(
     ],
     keywords="asyncio xmpp library",
     install_requires=['aiosasl',
+                      'aioopenssl',
                       'dnspython3',
                       'lxml',
                       'orderedset',
