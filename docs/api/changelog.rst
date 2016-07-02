@@ -6,9 +6,35 @@ Changelog
 Version 0.6
 ===========
 
-* :class:`aioxmpp.xso.NumericRange`.
-* :meth:`aioxmpp.stanza.Error.as_application_condition`
-* :meth:`aioxmpp.stanza.make_application_error`
+* New dependencies:
+
+  * :mod:`multidict` from :mod:`aiohttp`.
+  * :mod:`aioopenssl`: This is the former :mod:`aioxmpp.ssl_transport` as a
+    separate package; :mod:`aioxmpp` still ships with a fallback in case that
+    package is not installed.
+
+* New XEP implementations:
+
+  * partial :mod:`aioxmpp.pubsub` (:xep:`60`): Everything which requires forms
+    is not implemented yet. Publish/Subscribe/Retract and creation/deletion of
+    nodes is verified to work (against `Prosody <https://prosody.im>`_ at
+    least).
+
+  * :mod:`aioxmpp.shim` (:xep:`131`), used for :mod:`aioxmpp.pubsub`.
+
+  * :xep:`368` support was added.
+
+* New features in the :mod:`aioxmpp.xso` subpackage:
+
+  * :class:`aioxmpp.xso.NumericRange` validator, which can be used to validate
+    the range of any orderable type.
+
+  * :mod:`aioxmpp.xso.query`, a module which allows for running queries against
+    XSOs. This is still highly experimental.
+
+  * :class:`aioxmpp.xso.ChildValueMultiMap` descriptor, which uses
+    :mod:`multidict` and is used in :mod:`aioxmpp.shim`.
+
 * :mod:`aioxmpp.network` was rewritten for 0.5.4
 
   The control over the used DNS resolver is now more sophisticated. Most
@@ -22,20 +48,77 @@ Version 0.6
   The resolver can be overridden (disabling the reconfiguration magic) using
   :func:`aioxmpp.network.set_resolver`.
 
-* :meth:`aioxmpp.muc.Room.on_message` now receives a proper `occupant` argument
-  if occupant data is available when the message is received.
+* **Breaking change:** :class:`aioxmpp.service.Service` does not accept a
+  `logger` argument anymore; instead, it now accepts a `base_logger` argument.
+  Refer to the documentation of the class for details.
 
-* MUCs now autorejoin correctly after a disconnect.
+  The `base_logger` is automatically passed by
+  :meth:`aioxmpp.node.AbstractClient.summon` on construction of the service and
+  is the :attr:`aioxmpp.node.AbstractClient.logger` of the client instance.
 
-* :mod:`asyncio` errors/warnings about pending tasks being destroyed after
-  disconnects should be gone now (:class:`aioxmpp.protocol.XMLStream` now
-  properly cleans up its running coroutines).
+* **Breaking change:** :class:`aioxmpp.xso.XSO` subclasses (or more
+  specifically, instances of the :class:`aioxmpp.xso.model.XMLStreamClass`
+  metaclass) now automatically declare a :attr:`__slots__` attribute.
 
-* The :class:`aioxmpp.protocol.XMLStream` is now closed or aborted by the
-  :class:`aioxmpp.stream.StanzaStream` if the stream fails. This prevents
-  lingering half-open TCP streams.
+  The mechanics are documented in detail on
+  :attr:`aioxmpp.xso.model.XMLStreamClass.__slots__`.
 
-  See :meth:`aioxmpp.stream.StanzaStream.on_failure` for details.
+* **Breaking change:** The following functions have been removed:
+
+  * :func:`aioxmpp.node.connect_to_xmpp_server`
+  * :func:`aioxmpp.node.connect_secured_xmlstream`
+  * :func:`aioxmpp.security_layer.negotiate_stream_security`
+
+  Use :func:`aioxmpp.node.connect_xmlstream` instead, but check the docs for the
+  slightly different semantics.
+
+  The following functions have been deprecated:
+
+  * :class:`aioxmpp.security_layer.STARTTLSProvider`
+  * :func:`aioxmpp.security_layer.security_layer`
+
+  Use :class:`aioxmpp.security_layer.SecurityLayer` instead.
+
+  The existing helper function
+  :func:`aioxmpp.security_layer.tls_with_password_based_authentication` is still
+  live and has been modified to use the new code.
+
+* *Possibly breaking change:* The arguments to
+  :meth:`aioxmpp.CertificateVerifier.pre_handshake` are now completely
+  different. But as this method is not documented, this should not be a problem.
+
+* *Possibly breaking change:* Attributes starting with ``_xso_`` are now also
+  reserved on subclasses of :class:`aioxmpp.xso.XSO` (together with the
+  long-standing reservation of attributes starting with ``xso_``).
+
+* :meth:`aioxmpp.stanza.Error.as_application_condition`
+* :meth:`aioxmpp.stanza.make_application_error`
+
+* Several bugfixes in :mod:`aioxmpp.muc`:
+
+  * :meth:`aioxmpp.muc.Room.on_message` now receives a proper `occupant` argument
+    if occupant data is available when the message is received.
+
+  * MUCs now autorejoin correctly after a disconnect.
+
+  * Fix crash when using :class:`aioxmpp.tracking.MessageTracker` (e.g.
+    indirectly through :meth:`aioxmpp.muc.Room.send_tracked_message`).
+
+    Thanks to `@gudvnir <https://github.com/gudvinr>`_ over at github for
+    pointing this out (see `issue#7
+    <https://github.com/horazont/aioxmpp/issues/7>`_).
+
+* Several bugfixes related to :class:`aioxmpp.protocol.XMLStream`:
+
+  * :mod:`asyncio` errors/warnings about pending tasks being destroyed after
+    disconnects should be gone now (:class:`aioxmpp.protocol.XMLStream` now
+    properly cleans up its running coroutines).
+
+  * The :class:`aioxmpp.protocol.XMLStream` is now closed or aborted by the
+    :class:`aioxmpp.stream.StanzaStream` if the stream fails. This prevents
+    lingering half-open TCP streams.
+
+    See :meth:`aioxmpp.stream.StanzaStream.on_failure` for details.
 
 * Some behaviour changes in :class:`aioxmpp.stream.StanzaStream`:
 
@@ -72,20 +155,6 @@ Version 0.6
   result of :meth:`aioxmpp.disco.xso.InfoQuery.to_dict`, while it would in fact
   return the :class:`aioxmpp.disco.xso.InfoQuery` instance.
 
-* :class:`aioxmpp.xso.ChildValueMultiMap`
-
-* New dependency: :mod:`multidict`.
-
-* :mod:`aioxmpp.shim`
-
-* :mod:`aioxmpp.xso.query` was added.
-
-* Fix crash when using :class:`aioxmpp.tracking.MessageTracker` (e.g. indirectly
-  through :meth:`aioxmpp.muc.Room.send_tracked_message`).
-
-  Thanks to `@gudvnir <https://github.com/gudvinr>`_ over at github for pointing
-  this out (see `issue#7 <https://github.com/horazont/aioxmpp/issues/7>`_).
-
 * Added `strict` arguments to :class:`aioxmpp.structs.JID`. See the class
   docmuentation for details.
 
@@ -113,67 +182,16 @@ Version 0.6
 * Send SM acknowledgement when closing down stream. This prevents servers from
   sending error stanzas for the unacked stanzas ☺.
 
-* **Breaking change:** :class:`aioxmpp.service.Service` does not accept a
-  `logger` argument anymore; instead, it now accepts a `base_logger` argument.
-  Refer to the documentation of the class for details.
-
-  The `base_logger` is automatically passed by
-  :meth:`aioxmpp.node.AbstractClient.summon` on construction of the service and
-  is the :attr:`aioxmpp.node.AbstractClient.logger` of the client instance.
-
-* **Breaking change:** :class:`aioxmpp.xso.XSO` subclasses (or more
-  specifically, instances of the :class:`aioxmpp.xso.model.XMLStreamClass`
-  metaclass) now automatically declare a :attr:`__slots__` attribute.
-
-  The mechanics are documented in detail on
-  :attr:`aioxmpp.xso.model.XMLStreamClass.__slots__`.
-
-* *Possibly breaking change:* Attributes starting with ``_xso_`` are now also
-  reserved on subclasses of :class:`aioxmpp.xso.XSO` (together with the
-  long-standing reservation of attributes starting with ``xso_``).
-
 * New callback mode :meth:`aioxmpp.callbacks.AdHocSignal.SPAWN_WITH_LOOP`.
 
 * :mod:`aioxmpp.connector` added. This module provides classes which connect and
   return a :class:`aioxmpp.protocol.XMLStream`. They also handle TLS
   negotiation, if any.
 
-* **Breaking change:** The following functions have been removed:
-
-  * :func:`aioxmpp.node.connect_to_xmpp_server`
-  * :func:`aioxmpp.node.connect_secured_xmlstream`
-  * :func:`aioxmpp.security_layer.negotiate_stream_security`
-
-  Use :func:`aioxmpp.node.connect_xmlstream` instead, but check the docs for the
-  slightly different semantics.
-
-  The following functions have been deprecated:
-
-  * :class:`aioxmpp.security_layer.STARTTLSProvider`
-  * :func:`aioxmpp.security_layer.security_layer`
-
-  Use :class:`aioxmpp.security_layer.SecurityLayer` instead.
-
-  The existing helper function
-  :func:`aioxmpp.security_layer.tls_with_password_based_authentication` is still
-  live and has been modified to use the new code.
-
-* **Breaking change:** The arguments to
-  :meth:`aioxmpp.CertificateVerifier.pre_handshake` are now completely
-  different.
-
-* Support for :xep:`368`.
-
 * :class:`aioxmpp.node.AbstractClient` now accepts an `override_peer` argument,
   which may be a sequence of connection options as returned by
   :func:`aioxmpp.node.discover_connectors`. See the class documentation for
   details.
-
-* :mod:`aioxmpp.ssl_transport` has been factored out in :mod:`aioopenssl`. This
-  yields a new dependency, :mod:`aioopenssl`.
-
-  For now, :mod:`aioxmpp` ships with a fallback, so if :mod:`aioopenssl` is not
-  installed, :mod:`aioxmpp` will still work.
 
 Version 0.5
 ===========
