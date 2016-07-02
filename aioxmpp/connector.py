@@ -122,7 +122,12 @@ class STARTTLSConnector(BaseConnector):
             return transport, stream, (yield from features_future)
 
         verifier = metadata.certificate_verifier_factory()
-        yield from verifier.pre_handshake(transport)
+        yield from verifier.pre_handshake(
+            domain,
+            host,
+            port,
+            metadata,
+        )
 
         ssl_context = metadata.ssl_context_factory()
         verifier.setup_context(ssl_context, transport)

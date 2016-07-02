@@ -158,6 +158,10 @@ Version 0.6
   :func:`aioxmpp.security_layer.tls_with_password_based_authentication` is still
   live and has been modified to use the new code.
 
+* **Breaking change:** The arguments to
+  :meth:`aioxmpp.CertificateVerifier.pre_handshake` are now completely
+  different.
+
 Version 0.5
 ===========
 

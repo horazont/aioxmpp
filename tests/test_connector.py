@@ -20,6 +20,9 @@ class TestSTARTTLSConnector(unittest.TestCase):
     def setUp(self):
         self.c = connector.STARTTLSConnector()
 
+    def tearDown(self):
+        del self.c
+
     def test_tls_supported(self):
         self.assertTrue(
             self.c.tls_supported
@@ -148,7 +151,10 @@ class TestSTARTTLSConnector(unittest.TestCase):
                 ),
                 unittest.mock.call.metadata.certificate_verifier_factory(),
                 unittest.mock.call.certificate_verifier.pre_handshake(
-                    unittest.mock.sentinel.transport,
+                    unittest.mock.sentinel.domain,
+                    unittest.mock.sentinel.host,
+                    unittest.mock.sentinel.port,
+                    base.metadata,
                 ),
                 unittest.mock.call.metadata.ssl_context_factory(),
                 unittest.mock.call.certificate_verifier.setup_context(

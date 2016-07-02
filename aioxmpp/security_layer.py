@@ -220,7 +220,7 @@ class CertificateVerifier(metaclass=abc.ABCMeta):
     """
 
     @asyncio.coroutine
-    def pre_handshake(self, transport):
+    def pre_handshake(self, metadata, domain, host, port):
         pass
 
     def setup_context(self, ctx, transport):
