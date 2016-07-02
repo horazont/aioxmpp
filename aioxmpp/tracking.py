@@ -129,7 +129,7 @@ class MessageTracker(aioxmpp.statemachine.OrderedStateMachine):
         super().__init__(MessageState.IN_TRANSIT)
         self.token = token
 
-    def on_stanza_state_change(self, stanza_state):
+    def on_stanza_state_change(self, token, stanza_state):
         new_state = self.state
         if stanza_state == stream.StanzaState.ABORTED:
             new_state = MessageState.ABORTED

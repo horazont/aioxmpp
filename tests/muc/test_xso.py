@@ -146,7 +146,7 @@ class TestHistory(unittest.TestCase):
         self.assertEqual(hist.maxchars, 456)
         self.assertEqual(hist.maxstanzas, 345)
 
-        with self.assertRaisesRegexp(TypeError, "positional argument"):
+        with self.assertRaisesRegex(TypeError, "positional argument"):
             hist = muc_xso.History(123)
 
 
@@ -981,7 +981,7 @@ class TestAdminQuery(unittest.TestCase):
         )
         self.assertIs(
             stanza.IQ.CHILD_MAP[muc_xso.AdminQuery.TAG],
-            stanza.IQ.payload
+            stanza.IQ.payload.xq_descriptor
         )
 
     def test_init(self):
@@ -1096,5 +1096,5 @@ class TestOwnerQuery(unittest.TestCase):
         )
         self.assertIs(
             stanza.IQ.CHILD_MAP[muc_xso.OwnerQuery.TAG],
-            stanza.IQ.payload
+            stanza.IQ.payload.xq_descriptor
         )

@@ -16,9 +16,14 @@ Using XMPP
 Connecting streams low-level
 ============================
 
-.. autofunction:: connect_secured_xmlstream
+.. autofunction:: discover_connectors
 
-.. autofunction:: connect_to_xmpp_server
+.. autofunction:: connect_xmlstream
+
+Utilities
+=========
+
+.. autoclass:: UseConnected
 
 """
 import asyncio
@@ -32,8 +37,8 @@ import dns.resolver
 import aiosasl
 
 from . import (
+    connector,
     network,
-    ssl_transport,
     protocol,
     errors,
     stream,
@@ -43,8 +48,12 @@ from . import (
     rfc6120,
     stanza,
     structs,
+    security_layer,
 )
 from .utils import namespaces
+
+
+logger = logging.getLogger(__name__)
 
 
 def lookup_addresses(loop, jid):
@@ -56,166 +65,258 @@ def lookup_addresses(loop, jid):
 
 
 @asyncio.coroutine
-def connect_to_xmpp_server(jid, *, override_peer=None, loop=None):
+def discover_connectors(domain, loop=None, logger=logger):
     """
-    Connect to an XMPP server which serves the domain of the given `jid`.
+    Discover all connection options for a domain, in descending order of
+    preference.
 
-    `override_peer` may be a tuple of host name (or IP address) and port. If
-    given, this will be the first peer the stream tries to connect to. Only if
-    that connection fails the usual XMPP server lookup routine takes place.
+    This coroutine returns options discovered from SRV records, or if none are
+    found, the generic option using the domain name and the default XMPP client
+    port.
 
-    `loop` must be either a valid :class:`asyncio.BaseEventLoop` or
-    :data:`None`, in which case the current event loop is used.
+    Each option is represented by a triple ``(host, port, connector)``.
+    `connector` is a :class:`aioxmpp.connector.BaseConnector` instance which is
+    suitable to connect to the given host and port.
 
-    Return a triple consisting of the `transport`, the
-    :class:`~aioxmpp.protocol.XMLStream` instance and a :class:`asyncio.Future`
-    on the first :class:`~aioxmpp.nonza.StreamFeatures` node.
+    `logger` is the logger used by the function.
 
-    If the connection fails :class:`OSError` is raised. That OSError may in
-    fact be a :class:`~aioxmpp.errors.MultiOSError`, which gives more
-    information on the different errors which occured.
+    The following sources are supported:
 
-    If the domain does not support XMPP at all (by indicating that fact in the
-    SRV records), :class:`ValueError` is raised.
+    * :rfc:`6120` SRV records. One option is returned per SRV record.
+
+      If one of the SRV records points to the root name (``.``),
+      :class:`ValueError` is raised (the domain specifically said that XMPP is
+      not supported here).
+
+    * :xep:`368` SRV records. One option is returned per SRV record.
+
+    * :rfc:`6120` fallback process (only if no SRV records are found). One
+      option is returned for the host name with the default XMPP client port.
+
+    The options discovered from SRV records are mixed together, ordered by
+    priority and then within priorities are shuffled according to their weight.
+    Thus, if there are multiple records of equal priority, the result of the
+    function is not deterministic.
+
+    .. versionadded:: 0.6
     """
-    loop = loop or asyncio.get_event_loop()
 
-    features_future = asyncio.Future()
+    try:
+        starttls_srv_records = yield from network.lookup_srv(
+            domain,
+            "xmpp-client",
+        )
+        starttls_srv_disabled = False
+    except ValueError:
+        starttls_srv_records = []
+        starttls_srv_disabled = True
 
-    xmlstream = protocol.XMLStream(
-        to=jid.domain,
-        features_future=features_future)
+    try:
+        tls_srv_records = yield from network.lookup_srv(
+            domain,
+            "xmpps-client",
+        )
+        tls_srv_disabled = False
+    except ValueError:
+        tls_srv_records = []
+        tls_srv_disabled = True
 
-    exceptions = []
+    if starttls_srv_disabled and (tls_srv_disabled or tls_srv_records is None):
+        raise ValueError(
+            "XMPP not enabled on domain {!r}".format(domain),
+        )
 
-    if override_peer is not None:
-        host, port = override_peer
-        try:
-            transport, _ = yield from ssl_transport.create_starttls_connection(
-                loop,
-                lambda: xmlstream,
-                host=host,
-                port=port,
-                peer_hostname=host,
-                server_hostname=jid.domain,
-                use_starttls=True)
-        except OSError as exc:
-            exceptions.append(exc)
-        else:
-            return transport, xmlstream, features_future
+    if starttls_srv_records is None and tls_srv_records is None:
+        # no SRV records published, fall back
+        logger.debug(
+            "no SRV records found for %s, falling back",
+            domain,
+        )
+        return [
+            (domain, 5222, connector.STARTTLSConnector()),
+        ]
 
-    for host, port in (yield from lookup_addresses(loop, jid)):
-        try:
-            transport, _ = yield from ssl_transport.create_starttls_connection(
-                loop,
-                lambda: xmlstream,
-                host=host,
-                port=port,
-                peer_hostname=host,
-                server_hostname=jid.domain,
-                use_starttls=True)
-        except OSError as exc:
-            exceptions.append(exc)
-        else:
-            break
-    else:
-        if not exceptions:
-            # domain does not support XMPP (no options at all to connect to it)
-            raise OSError(
-                "no options to connect to {}".format(jid.domain)
-            )
+    starttls_srv_records = starttls_srv_records or []
+    tls_srv_records = tls_srv_records or []
 
-        if len(exceptions) == 1:
-            raise exceptions[0]
+    srv_records = [
+        (prio, weight, (host, port, connector.STARTTLSConnector()))
+        for prio, weight, (host, port) in starttls_srv_records
+    ]
 
-        raise errors.MultiOSError(
-            "failed to connect to server for {}".format(jid),
-            exceptions)
+    srv_records.extend(
+        (prio, weight, (host, port, connector.XMPPOverTLSConnector()))
+        for prio, weight, (host, port) in tls_srv_records
+    )
 
-    return transport, xmlstream, features_future
+    options = list(
+        network.group_and_order_srv_records(srv_records)
+    )
+
+    logger.debug(
+        "options for %s: %r",
+        domain,
+        options,
+    )
+
+    return options
 
 
 @asyncio.coroutine
-def connect_secured_xmlstream(jid, security_layer,
-                              negotiation_timeout=1.0,
-                              override_peer=None,
-                              loop=None):
+def _try_options(options, exceptions,
+                 jid, metadata, negotiation_timeout, loop, logger):
     """
-    Connect to an XMPP server which serves the domain of the given `jid` and
-    apply the given `security_layer` (see
-    :func:`~aioxmpp.security_layer.security_layer`).
-
-    `loop` must be either a valid :class:`asyncio.BaseEventLoop` or
-    :data:`None`, in which case the current event loop is used.
-
-    The `negotiation_timeout` is passed to the security layer and used for
-    connect timeouts.
-
-    `override_peer` is passed to :func:`connect_to_xmpp_server`.
-
-    Return a triple consisting of the `transport`, the
-    :class:`~aioxmpp.protocol.XMLStream` and the current
-    :class:`~aioxmpp.nonza.StreamFeatures` node. The `transport` returned
-    in the triple is the one returned by the security layer and is :data:`None`
-    if no starttls has been negotiated. To gain access to the transport used if
-    the transport returned is :data:`None`, use the
-    :attr:`~aioxmpp.protocol.XMLStream.transport` of the XML stream.
-
-    If the connection fails :class:`OSError` is raised. That OSError may in
-    fact be a :class:`~aioxmpp.errors.MultiOSError`, which gives more
-    information on the different errors which occured.
-
-    If the domain does not support XMPP at all (by indicating that fact in the
-    SRV records), :class:`ValueError` is raised.
-
-    If SASL or TLS negotiation fails, the corresponding exception type from
-    :mod:`aioxmpp.errors` is raised. Most notably, authentication failures
-    caused by invalid credentials or a user abort are raised as
-    :class:`~aioxmpp.errors.AuthenticationFailure`.
+    Helper function for :func:`connect_xmlstream`.
     """
-
-    try:
-        transport, xmlstream, features_future = yield from asyncio.wait_for(
-            connect_to_xmpp_server(jid,
-                                   override_peer=override_peer,
-                                   loop=loop),
-            timeout=negotiation_timeout,
-            loop=loop
+    for host, port, conn in options:
+        logger.debug(
+            "domain %s: trying to connect to %r:%s using %r",
+            jid.domain, host, port, conn
         )
-    except asyncio.TimeoutError:
-        raise TimeoutError("connection to {} timed out".format(jid))
+        try:
+            transport, xmlstream, features = yield from conn.connect(
+                loop,
+                metadata,
+                jid.domain,
+                host,
+                port,
+                negotiation_timeout,
+            )
+        except OSError as exc:
+            logger.warning(
+                "connection failed: %s", exc
+            )
+            exceptions.append(exc)
+            continue
 
-    features = yield from features_future
+        logger.debug(
+            "domain %s: connection succeeded using %r",
+            jid.domain,
+            conn,
+        )
 
-    try:
-        new_transport, features = yield from security_layer(
-            negotiation_timeout,
-            jid,
-            features,
-            xmlstream)
-    except errors.SASLUnavailable as exc:
-        protocol.send_stream_error_and_close(
-            xmlstream,
-            condition=(namespaces.streams, "policy-violation"),
-            text=str(exc)
-        )
-        raise
-    except errors.TLSUnavailable as exc:
-        protocol.send_stream_error_and_close(
-            xmlstream,
-            condition=(namespaces.streams, "policy-violation"),
-            text=str(exc)
-        )
-        raise
-    except aiosasl.SASLError as exc:
-        protocol.send_stream_error_and_close(
-            xmlstream,
-            condition=(namespaces.streams, "undefined-condition"),
-            text=str(exc)
-        )
-        raise
+        try:
+            features = yield from security_layer.negotiate_sasl(
+                transport,
+                xmlstream,
+                metadata.sasl_providers,
+                negotiation_timeout,
+                jid,
+                features,
+            )
+        except errors.SASLUnavailable as exc:
+            protocol.send_stream_error_and_close(
+                xmlstream,
+                condition=(namespaces.streams, "policy-violation"),
+                text=str(exc),
+            )
+            exceptions.append(exc)
+            continue
+        except Exception as exc:
+            protocol.send_stream_error_and_close(
+                xmlstream,
+                condition=(namespaces.streams, "undefined-condition"),
+                text=str(exc),
+            )
+            raise
 
-    return new_transport, xmlstream, features
+        return transport, xmlstream, features
+
+    return None
+
+
+@asyncio.coroutine
+def connect_xmlstream(
+        jid,
+        metadata,
+        negotiation_timeout=60.,
+        override_peer=[],
+        loop=None,
+        logger=logger):
+    """
+    Prepare and connect a :class:`aioxmpp.protocol.XMLStream` to a server
+    responsible for the given `jid` and authenticate against that server using
+    the SASL mechansims described in `metadata`.
+
+    The part of the `metadata` (which must be a
+    :class:`.security_layer.SecurityLayer` object) specifying the use of TLS is
+    applied. If the security layer does not mandate TLS, the resulting XML
+    stream may not be using TLS. TLS is used whenever possible.
+
+    `override_peer` may be a list of triples consisting of ``(host, port,
+    connector)``, where `connector` is a
+    :class:`aioxmpp.connector.BaseConnector` instance. The options in the list
+    are tried first (in the order given), and only if all of them fail,
+    automatic discovery of connection options is performed.
+
+    `loop` may be a :class:`asyncio.BaseEventLoop` to use. Defaults to the
+    current event loop.
+
+    If `domain` announces that XMPP is not supported at all,
+    :class:`ValueError` is raised. If no options are returned from
+    :func:`discover_connectors` and `override_peer` is empty,
+    :class:`ValueError` is raised, too.
+
+    If all connection attempts fail, :class:`aioxmpp.errors.MultiOSError` is
+    raised. The error contains one exception for each of the options discovered
+    as well as the elements from `override_peer` in the order they were tried.
+
+    .. note::
+
+       Even though it is a :class:`aioxmpp.errors.MultiOSError`, it may also
+       contain instances of :class:`aioxmpp.errors.TLSUnavailable` or
+       :class:`aioxmpp.errors.TLSFailed`.
+
+    A TLS problem is treated like any other connection problem and the other
+    connection options are considered.
+
+    Return a triple ``(transport, xmlstream, features)``. `transport`
+    the underlying :class:`asyncio.Transport` which is used for the `xmlstream`
+    :class:`~.protocol.XMLStream` instance. `features` is the
+    :class:`aioxmpp.nonza.StreamFeatures` instance describing the features of
+    the stream.
+
+    .. versionadded:: 0.6
+    """
+    loop = asyncio.get_event_loop() if loop is None else loop
+
+    domain = jid.domain.encode("idna")
+
+    options = list(override_peer)
+
+    exceptions = []
+
+    result = yield from _try_options(
+        options,
+        exceptions,
+        jid, metadata, negotiation_timeout, loop, logger,
+    )
+    if result is not None:
+        return result
+
+    options = list((yield from discover_connectors(
+        domain,
+        loop=loop,
+        logger=logger,
+    )))
+
+    result = yield from _try_options(
+        options,
+        exceptions,
+        jid, metadata, negotiation_timeout, loop, logger,
+    )
+    if result is not None:
+        return result
+
+    if not options and not override_peer:
+        raise ValueError("no options to connect to XMPP domain {!r}".format(
+            jid.domain
+        ))
+
+    raise errors.MultiOSError(
+        "failed to connect to XMPP domain {!r}".format(jid.domain),
+        exceptions
+    )
 
 
 class AbstractClient:
@@ -237,6 +338,8 @@ class AbstractClient:
 
     If `loop` is given, it must be a :class:`asyncio.BaseEventLoop`
     instance. If it is not given, the current event loop is used.
+
+    `override_peer` is used to initialise the :attr:`override_peer` attribute.
 
     As a glue between the stanza stream and the XML stream, it also knows about
     stream management and performs stream management negotiation. It is
@@ -272,7 +375,25 @@ class AbstractClient:
 
        The timeout applied to the connection process and the individual steps
        of negotiating the stream. See the `negotiation_timeout` argument to
-       :func:`connect_secured_xmlstream`.
+       :func:`connect_xmlstream`.
+
+    .. attribute:: override_peer
+
+       A sequence of triples ``(host, port, connector)``, where `host` must be
+       a host name or IP as string, `port` must be a port number and
+       `connector` must be a :class:`aioxmpp.connector.BaseConnctor` instance.
+
+       These connection options are passed to :meth:`connect_xmlstream` and
+       thus take precedence over the options discovered using
+       :meth:`discover_connectors`.
+
+       .. note::
+
+          If Stream Management is used and the peer server provided a location
+          to connect to on resumption, that location is preferred even over the
+          options set here.
+
+       .. versionadded:: 0.6
 
     Connection information:
 
@@ -341,7 +462,8 @@ class AbstractClient:
     .. signal:: on_stream_destroyed()
 
        This is called whenever a stream is destroyed. The conditions for this
-       are the same as for :attr:`.StanzaStream.on_stream_destroyed`.
+       are the same as for
+       :attr:`aioxmpp.stream.StanzaStream.on_stream_destroyed`.
 
        This event can be used to know when to discard all state about the XMPP
        connection, such as roster information.
@@ -349,6 +471,18 @@ class AbstractClient:
     Services:
 
     .. automethod:: summon
+
+    Miscellaneous:
+
+    .. attribute:: logger
+
+       The :class:`logging.Logger` instance which is used by the
+       :class:`AbstractClient`. This is the `logger` passed to the constructor
+       or a logger derived from the fully qualified name of the class.
+
+       .. versionadded:: 0.6
+
+          The :attr:`logger` attribute was added.
 
     """
 
@@ -363,7 +497,9 @@ class AbstractClient:
                  local_jid,
                  security_layer,
                  negotiation_timeout=timedelta(seconds=60),
-                 loop=None):
+                 override_peer=[],
+                 loop=None,
+                 logger=None):
         super().__init__()
         self._local_jid = local_jid
         self._loop = loop or asyncio.get_event_loop()
@@ -371,7 +507,11 @@ class AbstractClient:
         self._security_layer = security_layer
 
         self._failure_future = asyncio.Future()
-        self._logger = logging.getLogger("aioxmpp.AbstractClient")
+        self.logger = (logger or
+                       logging.getLogger(".".join([
+                           type(self).__module__,
+                           type(self).__qualname__,
+                       ])))
 
         self._backoff_time = None
 
@@ -385,17 +525,24 @@ class AbstractClient:
         self.backoff_start = timedelta(seconds=1)
         self.backoff_factor = 1.2
         self.backoff_cap = timedelta(seconds=60)
+        self.override_peer = list(override_peer)
 
-        self.on_stopped.logger = self._logger.getChild("on_stopped")
-        self.on_failure.logger = self._logger.getChild("on_failure")
+        self.on_stopped.logger = self.logger.getChild("on_stopped")
+        self.on_failure.logger = self.logger.getChild("on_failure")
         self.on_stream_established.logger = \
-            self._logger.getChild("on_stream_established")
+            self.logger.getChild("on_stream_established")
         self.on_stream_destroyed.logger = \
-            self._logger.getChild("on_stream_destroyed")
+            self.logger.getChild("on_stream_destroyed")
 
         self.stream = stream.StanzaStream(local_jid.bare())
 
     def _stream_failure(self, exc):
+        if self._failure_future.done():
+            self.logger.warning(
+                "something is odd: failure future is already done ..."
+            )
+            return
+
         self._failure_future.set_result(exc)
         self._failure_future = asyncio.Future()
 
@@ -410,7 +557,7 @@ class AbstractClient:
         except asyncio.CancelledError:
             pass
         except Exception as err:
-            self._logger.error("resource binding failed: %r", err)
+            self.logger.error("resource binding failed: %r", err)
             self._main_task.cancel()
             self.on_failure(err)
 
@@ -421,27 +568,29 @@ class AbstractClient:
             # task terminated normally
             self.on_stopped()
         except Exception as err:
-            self._logger.exception("main failed")
+            self.logger.exception("main failed")
             self.on_failure(err)
 
     @asyncio.coroutine
     def _try_resume_stream_management(self, xmlstream, features):
         try:
             yield from self.stream.resume_sm(xmlstream)
-        except errors.StreamNegotiationFailure:
+        except errors.StreamNegotiationFailure as exc:
+            self.logger.warn("failed to resume stream (%s)",
+                             exc)
             return False
         return True
 
     @asyncio.coroutine
     def _negotiate_legacy_session(self):
-        self._logger.debug(
+        self.logger.debug(
             "remote server announces support for legacy sessions"
         )
         yield from self.stream.send_iq_and_wait_for_reply(
             stanza.IQ(type_="set",
                       payload=rfc3921.Session())
         )
-        self._logger.debug(
+        self.logger.debug(
             "legacy session negotiated (upgrade your server!)"
         )
 
@@ -452,12 +601,12 @@ class AbstractClient:
             features[nonza.StreamManagementFeature]
         except KeyError:
             if self.stream.sm_enabled:
-                self._logger.warn("server isn’t advertising SM anymore")
+                self.logger.warn("server isn’t advertising SM anymore")
                 self.stream.stop_sm()
             server_can_do_sm = False
 
-        self._logger.debug("negotiating stream (server_can_do_sm=%s)",
-                           server_can_do_sm)
+        self.logger.debug("negotiating stream (server_can_do_sm=%s)",
+                          server_can_do_sm)
 
         if self.stream.sm_enabled:
             resumed = yield from self._try_resume_stream_management(
@@ -471,16 +620,16 @@ class AbstractClient:
         self.stream.start(xmlstream)
 
         if not resumed:
-            self._logger.debug("binding to resource")
+            self.logger.debug("binding to resource")
             yield from self._bind()
 
         if server_can_do_sm:
-            self._logger.debug("attempting to start stream management")
+            self.logger.debug("attempting to start stream management")
             try:
                 yield from self.stream.start_sm()
             except errors.StreamNegotiationFailure:
-                self._logger.debug("stream management failed to start")
-            self._logger.debug("stream management started")
+                self.logger.debug("stream management failed to start")
+            self.logger.debug("stream management started")
 
         try:
             features[rfc3921.SessionFeature]
@@ -509,25 +658,31 @@ class AbstractClient:
             )
 
         self._local_jid = result.jid
-        self._logger.info("bound to jid: %s", self._local_jid)
+        self.logger.info("bound to jid: %s", self._local_jid)
 
     @asyncio.coroutine
     def _main_impl(self):
         failure_future = self._failure_future
 
-        override_peer = None
+        override_peer = []
         if self.stream.sm_enabled:
-            override_peer = self.stream.sm_location
-            if override_peer:
-                override_peer = str(override_peer[0]), override_peer[1]
+            sm_location = self.stream.sm_location
+            if sm_location:
+                override_peer.append((
+                    str(sm_location[0]),
+                    sm_location[1],
+                    connector.STARTTLSConnector(),
+                ))
+        override_peer += self.override_peer
 
         tls_transport, xmlstream, features = \
-            yield from connect_secured_xmlstream(
+            yield from connect_xmlstream(
                 self._local_jid,
                 self._security_layer,
                 negotiation_timeout=self.negotiation_timeout.total_seconds(),
                 override_peer=override_peer,
-                loop=self._loop)
+                loop=self._loop,
+                logger=self.logger)
 
         try:
             features, sm_resumed = yield from self._negotiate_stream(
@@ -537,15 +692,15 @@ class AbstractClient:
             self._backoff_time = None
 
             exc = yield from failure_future
-            self._logger.error("stream failed: %s", exc)
+            self.logger.error("stream failed: %s", exc)
             raise exc
         except asyncio.CancelledError:
-            self._logger.info("client shutting down")
+            self.logger.info("client shutting down (on request)")
             # cancelled, this means a clean shutdown is requested
             yield from self.stream.close()
             raise
         finally:
-            self._logger.info("stopping stream")
+            self.logger.info("stopping stream")
             self.stream.stop()
 
     @asyncio.coroutine
@@ -564,7 +719,7 @@ class AbstractClient:
                     yield from self._main_impl()
                 except errors.StreamError as err:
                     if err.condition == (namespaces.streams, "conflict"):
-                        self._logger.debug("conflict!")
+                        self.logger.debug("conflict!")
                         raise
                 except (errors.StreamNegotiationFailure,
                         aiosasl.SASLError):
@@ -609,6 +764,7 @@ class AbstractClient:
         if not self.running:
             return
 
+        self.logger.debug("stopping main task of %r", self, stack_info=True)
         self._main_task.cancel()
 
     # services
@@ -617,7 +773,7 @@ class AbstractClient:
         try:
             return self._services[class_]
         except KeyError:
-            instance = class_(self)
+            instance = class_(self, logger_base=self.logger)
             self._services[class_] = instance
             return instance
 
@@ -689,6 +845,8 @@ class PresenceManagedClient(AbstractClient):
 
     .. automethod:: set_presence
 
+    .. automethod:: connected
+
     Signals:
 
     .. attribute:: on_presence_sent
@@ -711,11 +869,11 @@ class PresenceManagedClient(AbstractClient):
         state, status = self._presence
         state.apply_to_stanza(pres)
         pres.status.update(status)
-        pres.autoset_id()
         self.stream.enqueue_stanza(pres)
 
     def _handle_stream_established(self):
-        self._resend_presence()
+        if self._presence[0].available:
+            self._resend_presence()
         self.on_presence_sent()
 
     def _update_presence(self):
@@ -738,6 +896,7 @@ class PresenceManagedClient(AbstractClient):
         connection is still being established.
 
         .. seealso::
+
            Setting the presence state using :attr:`presence` clears the
            `status` of the presence. To set the status and state at once,
            use :meth:`set_presence`.
@@ -778,3 +937,137 @@ class PresenceManagedClient(AbstractClient):
             status = dict(status)
         self._presence = state, status
         self._update_presence()
+
+    def connected(self, **kwargs):
+        """
+        Return an asynchronous context manager (:pep:`492`). When it is
+        entered, the presence is changed to available. The context manager
+        waits until the stream is established, and then the context is entered.
+
+        Upon leaving the context manager, the presence is changed to
+        unavailable. The context manager waits until the stream is closed
+        fully.
+
+        The keyword arguments are passed to the :class:`UseConnected` context
+        manager constructor.
+
+        .. seealso::
+
+           :class:`UseConnected` is the context manager returned here.
+
+        .. versionadded:: 0.6
+        """
+        return UseConnected(self, **kwargs)
+
+
+class UseConnected:
+    """
+    Control the given :class:`PresenceManagedClient` `client` as asynchronous
+    context manager (:pep:`492`). :class:`UseConnected` is an asynchronous
+    context manager. When the context manager is entered, the `client` is set
+    to an available presence (if the stream is not already established) and the
+    context manager waits for a connection to establish. If a fatal error
+    occurs while the stream is being established, it is re-raised.
+
+    When the context manager is left, the stream is shut down cleanly and the
+    context manager waits for the stream to shut down. Any exceptions occuring
+    in the context are not swallowed.
+
+    `timeout` is used to initialise the :attr:`timeout` attribute. `presence`
+    is used to initialise the :attr:`presence` attribute and defaults to a
+    simple available presence. `presence` must be an *available* presence.
+
+    .. versionadded:: 0.6
+
+    The following attributes control the behaviour of the context manager:
+
+    .. attribute:: timeout
+
+       Either :data:`None` or a :class:`datetime.timedelta` instance. If it is
+       the latter and it takes longer than that time to establish the stream,
+       the process is aborted and :class:`TimeoutError` is raised.
+
+    .. autoattribute:: presence
+
+    """
+
+    def __init__(self, client, *,
+                 timeout=None,
+                 presence=structs.PresenceState(True)):
+        super().__init__()
+        self._client = client
+        self.timeout = timeout
+        self.presence = presence
+
+    @property
+    def presence(self):
+        """
+        This is the presence which is sent when connecting. This may be an
+        unavailable presence.
+        """
+        return self._presence
+
+    @presence.setter
+    def presence(self, value):
+        self._presence = value
+
+    @asyncio.coroutine
+    def __aenter__(self):
+        if self._client.established:
+            return self._client.stream
+
+        connected_future = asyncio.Future()
+
+        self._client.presence = self.presence
+
+        if not self._client.running:
+            self._client.start()
+
+        self._client.on_presence_sent.connect(
+            connected_future,
+            self._client.on_presence_sent.AUTO_FUTURE
+        )
+        self._client.on_failure.connect(
+            connected_future,
+            self._client.on_failure.AUTO_FUTURE
+        )
+
+        if self.timeout is not None:
+            try:
+                yield from asyncio.wait_for(
+                    connected_future,
+                    timeout=self.timeout.total_seconds()
+                )
+            except asyncio.TimeoutError:
+                self._client.presence = structs.PresenceState(False)
+                self._client.stop()
+                raise TimeoutError()
+        else:
+            yield from connected_future
+
+        return self._client.stream
+
+    @asyncio.coroutine
+    def __aexit__(self, exc_type, exc_value, exc_traceback):
+        self._client.presence = structs.PresenceState(False)
+
+        if not self._client.established:
+            return
+
+        disconnected_future = asyncio.Future()
+
+        self._client.on_stopped.connect(
+            disconnected_future,
+            self._client.on_stopped.AUTO_FUTURE
+        )
+
+        self._client.on_failure.connect(
+            disconnected_future,
+            self._client.on_failure.AUTO_FUTURE
+        )
+
+        try:
+            yield from disconnected_future
+        except:
+            if exc_type is None:
+                raise

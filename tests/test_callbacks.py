@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import functools
 import unittest
 import unittest.mock
@@ -57,7 +58,7 @@ class TestTagDispatcher(unittest.TestCase):
 
         nh = TagDispatcher()
         nh.add_callback("tag", mock)
-        with self.assertRaisesRegexp(ValueError,
+        with self.assertRaisesRegex(ValueError,
                                      "only one listener is allowed"):
             nh.add_callback("tag", mock)
 
@@ -68,7 +69,7 @@ class TestTagDispatcher(unittest.TestCase):
 
         nh = TagDispatcher()
         nh.add_listener("tag", l)
-        with self.assertRaisesRegexp(ValueError,
+        with self.assertRaisesRegex(ValueError,
                                      "only one listener is allowed"):
             nh.add_listener("tag", l)
 
@@ -527,17 +528,17 @@ class TestFutureListener(unittest.TestCase):
 class TestAdHocSignal(unittest.TestCase):
     def test_STRONG_rejects_non_callable(self):
         signal = AdHocSignal()
-        with self.assertRaisesRegexp(TypeError, "must be callable"):
+        with self.assertRaisesRegex(TypeError, "must be callable"):
             signal.STRONG(object())
 
     def test_WEAK_rejects_non_callable(self):
         signal = AdHocSignal()
-        with self.assertRaisesRegexp(TypeError, "must be callable"):
+        with self.assertRaisesRegex(TypeError, "must be callable"):
             signal.WEAK(object())
 
     def test_ASYNC_WITH_LOOP_rejects_non_callable(self):
         signal = AdHocSignal()
-        with self.assertRaisesRegexp(TypeError, "must be callable"):
+        with self.assertRaisesRegex(TypeError, "must be callable"):
             signal.ASYNC_WITH_LOOP(asyncio.get_event_loop())(object())
 
     def test_connect_and_fire(self):
@@ -579,6 +580,20 @@ class TestAdHocSignal(unittest.TestCase):
             signal.connect(fun, AdHocSignal.WEAK)
             ref.assert_called_once_with(fun)
 
+    def test_connect_weak_uses_WeakMethod_for_methods(self):
+        signal = AdHocSignal()
+
+        class Foo:
+            def meth(self):
+                return None
+
+        f = Foo()
+
+        with unittest.mock.patch("weakref.WeakMethod") as ref:
+            signal.connect(f.meth, AdHocSignal.WEAK)
+
+        ref.assert_called_once_with(f.meth)
+
     def test_connect_does_not_use_weakref(self):
         signal = AdHocSignal()
 
@@ -607,7 +622,7 @@ class TestAdHocSignal(unittest.TestCase):
         mock = unittest.mock.MagicMock()
         fun = functools.partial(mock)
 
-        signal.connect(fun, AdHocSignal.ASYNC)
+        signal.connect(fun, AdHocSignal.ASYNC_WITH_LOOP(None))
         signal.fire()
 
         mock.assert_not_called()
@@ -615,6 +630,65 @@ class TestAdHocSignal(unittest.TestCase):
         run_coroutine(asyncio.sleep(0))
 
         mock.assert_called_once_with()
+
+    def test_connect_spawn(self):
+        signal = AdHocSignal()
+
+        mock = CoroutineMock()
+
+        @asyncio.coroutine
+        def coro(*args, **kwargs):
+            yield from mock(*args, **kwargs)
+
+        signal.connect(coro, AdHocSignal.SPAWN_WITH_LOOP(None))
+        signal.fire("a", 1, b="c")
+
+        self.assertSequenceEqual(mock.mock_calls, [])
+
+        run_coroutine(asyncio.sleep(0))
+
+        self.assertSequenceEqual(
+            mock.mock_calls,
+            [
+                unittest.mock.call("a", 1, b="c")
+            ]
+        )
+
+    def test_connect_spawn_emits_always(self):
+        signal = AdHocSignal()
+
+        mock = CoroutineMock()
+
+        @asyncio.coroutine
+        def coro(*args, **kwargs):
+            yield from mock(*args, **kwargs)
+
+        signal.connect(coro, AdHocSignal.SPAWN_WITH_LOOP(None))
+        signal.fire("a", 1, b="c")
+        signal.fire("x")
+
+        self.assertSequenceEqual(mock.mock_calls, [])
+
+        run_coroutine(asyncio.sleep(0))
+
+        run_coroutine(asyncio.sleep(0))
+
+        self.assertSequenceEqual(
+            mock.mock_calls,
+            [
+                unittest.mock.call("a", 1, b="c"),
+                unittest.mock.call("x"),
+            ]
+        )
+
+    def test_SPAWN_rejects_non_coroutine(self):
+        def fun():
+            pass
+
+        signal = AdHocSignal()
+
+        with self.assertRaisesRegex(TypeError, "must be coroutine"):
+            signal.SPAWN_WITH_LOOP(None)(fun)
 
     def test_fire_with_arguments(self):
         signal = AdHocSignal()
@@ -916,6 +990,42 @@ class TestAdHocSignal(unittest.TestCase):
             ]
         )
 
+    def test_future(self):
+        signal = AdHocSignal()
+
+        with contextlib.ExitStack() as stack:
+            Future = stack.enter_context(
+                unittest.mock.patch("asyncio.Future")
+            )
+
+            connect = stack.enter_context(
+                unittest.mock.patch.object(
+                    signal,
+                    "connect"
+                )
+            )
+
+            fut = signal.future()
+
+        self.assertSequenceEqual(
+            Future.mock_calls,
+            [
+                unittest.mock.call.Future()
+            ]
+        )
+
+        self.assertSequenceEqual(
+            connect.mock_calls,
+            [
+                unittest.mock.call(
+                    Future(),
+                    signal.WEAK,
+                ),
+            ]
+        )
+
+        self.assertEqual(fut, Future())
+
 
 class TestSyncAdHocSignal(unittest.TestCase):
     def test_connect_and_fire(self):
@@ -1038,6 +1148,18 @@ class TestSignal(unittest.TestCase):
         with self.assertRaises(AttributeError):
             del instance.s
 
+    def test_default_docstring(self):
+        class Foo:
+            s = Signal()
+
+        self.assertIsNone(Foo.s.__doc__)
+
+    def test_set_docstring(self):
+        class Foo:
+            s = Signal(doc=unittest.mock.sentinel.doc)
+
+        self.assertIs(Foo.s.__doc__, unittest.mock.sentinel.doc)
+
 
 class TestSyncSignal(unittest.TestCase):
     def test_get(self):
@@ -1071,3 +1193,15 @@ class TestSyncSignal(unittest.TestCase):
 
         with self.assertRaises(AttributeError):
             del instance.s
+
+    def test_default_docstring(self):
+        class Foo:
+            s = SyncSignal()
+
+        self.assertIsNone(Foo.s.__doc__)
+
+    def test_set_docstring(self):
+        class Foo:
+            s = SyncSignal(doc=unittest.mock.sentinel.doc)
+
+        self.assertIs(Foo.s.__doc__, unittest.mock.sentinel.doc)

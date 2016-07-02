@@ -44,7 +44,7 @@ class TestSession(unittest.TestCase):
         )
         self.assertIs(
             stanza.IQ.CHILD_MAP[rfc3921.Session.TAG],
-            stanza.IQ.payload
+            stanza.IQ.payload.xq_descriptor
         )
 
     def test_child_policy(self):

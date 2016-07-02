@@ -14,6 +14,5 @@ Internal tools
 
    network
    protocol
-   ssl_transport
    statemachine
    xml

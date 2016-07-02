@@ -1,3 +1,4 @@
+import contextlib
 import itertools
 import unittest
 import unittest.mock
@@ -20,6 +21,9 @@ class TestPayload(xso.XSO):
 
 
 class TestStanzaBase(unittest.TestCase):
+    class FakeStanza(stanza.StanzaBase, protect=False):
+        pass
+
     def test_declare_ns(self):
         self.assertDictEqual(
             stanza.StanzaBase.DECLARE_NS,
@@ -59,8 +63,25 @@ class TestStanzaBase(unittest.TestCase):
             xso.Child)
         self.assertIs(stanza.StanzaBase.error.default, None)
 
-    def test_autoset_id_generates_random_str_on_none(self):
-        s = stanza.StanzaBase()
+    def test_autoset_id_generates_random_str_on_unset(self):
+        s = self.FakeStanza()
+        s.autoset_id()
+        id1 = s.id_
+        self.assertTrue(id1.startswith("x"))
+        self.assertTrue(s.id_)
+        del s.id_
+        s.autoset_id()
+        self.assertTrue(s.id_)
+        self.assertNotEqual(id1, s.id_)
+        self.assertIsInstance(s.id_, str)
+        self.assertTrue(s.id_.startswith("x"))
+
+        # ensure that there are not too many A chars (i.e. zero bits)
+        self.assertLess(sum(1 for c in id1 if c == "A"), 5)
+
+    def test_autoset_id_generates_random_str_on_None(self):
+        s = self.FakeStanza()
+        s.id_ = None
         s.autoset_id()
         id1 = s.id_
         self.assertTrue(id1.startswith("x"))
@@ -76,7 +97,7 @@ class TestStanzaBase(unittest.TestCase):
         self.assertLess(sum(1 for c in id1 if c == "A"), 5)
 
     def test_autoset_id_does_not_override(self):
-        s = stanza.StanzaBase()
+        s = self.FakeStanza()
         s.id_ = "foo"
         s.autoset_id()
         self.assertEqual("foo", s.id_)
@@ -84,7 +105,7 @@ class TestStanzaBase(unittest.TestCase):
     def test_init(self):
         id_ = "someid"
 
-        s = stanza.StanzaBase(
+        s = self.FakeStanza(
             from_=TEST_FROM,
             to=TEST_TO,
             id_=id_)
@@ -97,6 +118,32 @@ class TestStanzaBase(unittest.TestCase):
         self.assertEqual(
             id_,
             s.id_)
+
+    def test_xso_error_handler_raises_StanzaError(self):
+        s = stanza.StanzaBase()
+        with self.assertRaisesRegex(
+                stanza.StanzaError,
+                "failed to parse stanza") as ctx:
+            s.xso_error_handler(
+                unittest.mock.sentinel.descriptor,
+                unittest.mock.sentinel.ev_args,
+                unittest.mock.sentinel.exc_info,
+            )
+
+        self.assertIs(
+            ctx.exception.ev_args,
+            unittest.mock.sentinel.ev_args,
+        )
+
+        self.assertIs(
+            ctx.exception.descriptor,
+            unittest.mock.sentinel.descriptor,
+        )
+
+        self.assertIs(
+            ctx.exception.partial_obj,
+            s
+        )
 
 
 class TestBody(unittest.TestCase):
@@ -228,7 +275,7 @@ class TestMessage(unittest.TestCase):
             s.type_)
 
     def test_reject_init_without_type(self):
-        with self.assertRaisesRegexp(TypeError, "type_"):
+        with self.assertRaisesRegex(TypeError, "type_"):
             stanza.Message()
 
     def test_make_reply(self):
@@ -282,6 +329,13 @@ class TestMessage(unittest.TestCase):
             "<message from='foo@example.test' to='bar@example.test'"
             " id='someid' type='groupchat'>",
             repr(s)
+        )
+
+    def test_repr_works_with_mostly_uninitialised_attributes(self):
+        s = stanza.Message.__new__(stanza.Message)
+        self.assertEqual(
+            repr(s),
+            "<message from=None to=None id=None type='normal'>"
         )
 
 
@@ -481,6 +535,13 @@ class TestPresence(unittest.TestCase):
             xso.Collector
         )
 
+    def test_repr_works_with_mostly_uninitialised_attributes(self):
+        s = stanza.Presence.__new__(stanza.Presence)
+        self.assertEqual(
+            repr(s),
+            "<presence from=None to=None id=None type=None>"
+        )
+
 
 class TestError(unittest.TestCase):
     def test_declare_ns(self):
@@ -675,6 +736,17 @@ class TestError(unittest.TestCase):
             repr(obj)
         )
 
+    def test_as_application_condition(self):
+        @stanza.Error.as_application_condition
+        class Foo(xso.XSO):
+            TAG = ("uri:foo", "test_as_payload_class")
+
+        self.assertIn(Foo.TAG, stanza.Error.CHILD_MAP)
+        self.assertIs(
+            stanza.Error.CHILD_MAP[Foo.TAG],
+            stanza.Error.application_condition.xq_descriptor
+        )
+
 
 class TestIQ(unittest.TestCase):
     def test_inheritance(self):
@@ -732,7 +804,7 @@ class TestIQ(unittest.TestCase):
         self.assertIsNone(stanza.IQ.payload.default)
 
     def test_reject_init_without_type(self):
-        with self.assertRaisesRegexp(TypeError, "type_"):
+        with self.assertRaisesRegex(TypeError, "type_"):
             stanza.IQ()
 
     def test_init(self):
@@ -862,9 +934,17 @@ class TestIQ(unittest.TestCase):
             repr(s)
         )
 
+    def test_repr_works_with_mostly_uninitialised_attributes(self):
+        s = stanza.IQ.__new__(stanza.IQ)
+        self.assertEqual(
+            repr(s),
+            "<iq from=None to=None id=<unset> type=<unset> "
+            "error=None data=None>"
+        )
+
     def test_validate_requires_id(self):
         iq = stanza.IQ("get")
-        with self.assertRaisesRegexp(
+        with self.assertRaisesRegex(
                 ValueError,
                 "IQ requires ID"):
             iq.validate()
@@ -875,4 +955,44 @@ class TestIQ(unittest.TestCase):
             TAG = ("uri:foo", "test_as_payload_class")
 
         self.assertIn(Foo.TAG, stanza.IQ.CHILD_MAP)
-        self.assertIs(stanza.IQ.CHILD_MAP[Foo.TAG], stanza.IQ.payload)
+        self.assertIs(
+            stanza.IQ.CHILD_MAP[Foo.TAG],
+            stanza.IQ.payload.xq_descriptor
+        )
+
+
+class Testmake_application_error(unittest.TestCase):
+    def setUp(self):
+        self._stack_ctx = contextlib.ExitStack()
+        self._stack = self._stack_ctx.__enter__()
+        self._as_application_condition = self._stack.enter_context(
+            unittest.mock.patch.object(stanza.Error,
+                                       "as_application_condition")
+        )
+
+    def test_creates_xso_class(self):
+        Cls = stanza.make_application_error(
+            "TestError",
+            ("uri:foo", "bar"),
+        )
+        self.assertTrue(issubclass(Cls, xso.XSO))
+        self.assertIsInstance(Cls, xso.model.XMLStreamClass)
+        self.assertEqual(Cls.TAG, ("uri:foo", "bar"))
+        self.assertEqual(Cls.__name__, "TestError")
+
+    def test_registers_class(self):
+        Cls = stanza.make_application_error(
+            "TestError",
+            ("uri:foo", "bar"),
+        )
+        self.assertSequenceEqual(
+            self._as_application_condition.mock_calls,
+            [
+                unittest.mock.call(Cls)
+            ]
+        )
+
+    def tearDown(self):
+        self._stack_ctx.__exit__(None, None, None)
+        del self._stack
+        del self._stack_ctx

@@ -38,6 +38,19 @@ class TestJID(unittest.TestCase):
             "IX",
             structs.JID(None, "example.test", "\u2168").resource)
 
+    def test_init_with_default_strict_errors_on_unassigned(self):
+        with self.assertRaises(ValueError):
+            structs.JID("\U0001f601", "example.com", "bar")
+        with self.assertRaises(ValueError):
+            structs.JID("foo", "\U0001f601example.com", "bar")
+        with self.assertRaises(ValueError):
+            structs.JID("foo", "example.com", "\U0001f601")
+
+    def test_init_without_strict_does_not_error_on_unassigned(self):
+        structs.JID("\U0001f601", "example.com", "bar", strict=False)
+        structs.JID("foo", "\U0001f601example.com", "bar", strict=False)
+        structs.JID("foo", "example.com", "\U0001f601", strict=False)
+
     def test_replace(self):
         j = structs.JID("foo", "example.com", "bar")
         j2 = j.replace(localpart="fnord",
@@ -146,6 +159,39 @@ class TestJID(unittest.TestCase):
         with self.assertRaises(TypeError):
             j.replace(foobar="baz")
 
+    def test_replace_ignores_problems_on_existing_parts(self):
+        j = structs.JID(
+            "\U0001f601foo", "\U0001f601example.test", "\U0001f601bar",
+            strict=False,
+        )
+
+        j2 = j.replace()
+        self.assertEqual(j, j2)
+
+    def test_replace_checks_replaced_strings(self):
+        j = structs.JID(
+            "\U0001f601foo", "\U0001f601example.test", "\U0001f601bar",
+            strict=False,
+        )
+
+        with self.assertRaises(ValueError):
+            j.replace(
+                domain=j.domain
+            )
+
+    def test_replace_nonstrict_allows_unassigned_codepoints(self):
+        j = structs.JID(
+            "\U0001f601foo", "\U0001f601example.test", "\U0001f601bar",
+            strict=False,
+        )
+
+        j2 = j.replace(
+            domain=j.domain,
+            strict=False,
+        )
+
+        self.assertEqual(j, j2)
+
     def test_immutable(self):
         j = structs.JID(None, "example.test", None)
         with self.assertRaises(AttributeError):
@@ -201,6 +247,14 @@ class TestJID(unittest.TestCase):
             structs.JID.fromstr("ix.test")
         )
 
+    def test_fromstr_domain_nonstrict(self):
+        self.assertEqual(
+            structs.JID("\U0001f601", "\U0001f601example.test", "\U0001f601",
+                        strict=False),
+            structs.JID.fromstr("\U0001f601@\U0001f601example.test/\U0001f601",
+                                strict=False)
+        )
+
     def test_reject_empty_localpart(self):
         with self.assertRaises(ValueError):
             structs.JID("", "bar.baz", None)
@@ -220,27 +274,27 @@ class TestJID(unittest.TestCase):
             structs.JID.fromstr("foo@bar.baz/")
 
     def test_reject_long_localpart(self):
-        with self.assertRaisesRegexp(ValueError, "too long"):
+        with self.assertRaisesRegex(ValueError, "too long"):
             structs.JID("x"*1024, "foo", None)
-        with self.assertRaisesRegexp(ValueError, "too long"):
+        with self.assertRaisesRegex(ValueError, "too long"):
             structs.JID("ü"*512, "foo", None)
-        with self.assertRaisesRegexp(ValueError, "too long"):
+        with self.assertRaisesRegex(ValueError, "too long"):
             structs.JID.fromstr("ü"*512 + "@foo")
 
     def test_reject_long_domainpart(self):
-        with self.assertRaisesRegexp(ValueError, "too long"):
+        with self.assertRaisesRegex(ValueError, "too long"):
             structs.JID(None, "x"*1024, None)
-        with self.assertRaisesRegexp(ValueError, "too long"):
+        with self.assertRaisesRegex(ValueError, "too long"):
             structs.JID(None, "ü"*512, None)
-        with self.assertRaisesRegexp(ValueError, "too long"):
+        with self.assertRaisesRegex(ValueError, "too long"):
             structs.JID.fromstr("ü"*512)
 
     def test_reject_long_resource(self):
-        with self.assertRaisesRegexp(ValueError, "too long"):
+        with self.assertRaisesRegex(ValueError, "too long"):
             structs.JID(None, "foo", "x"*1024)
-        with self.assertRaisesRegexp(ValueError, "too long"):
+        with self.assertRaisesRegex(ValueError, "too long"):
             structs.JID(None, "foo", "ü"*512)
-        with self.assertRaisesRegexp(ValueError, "too long"):
+        with self.assertRaisesRegex(ValueError, "too long"):
             structs.JID.fromstr("foo/" + "ü"*512)
 
 
@@ -403,12 +457,12 @@ class TestPresenceState(unittest.TestCase):
 
 class TestLanguageTag(unittest.TestCase):
     def test_init_requires_kwargs(self):
-        with self.assertRaisesRegexp(TypeError,
+        with self.assertRaisesRegex(TypeError,
                                      "takes 1 positional argument"):
             structs.LanguageTag("foo")
 
     def test_init_requires_language(self):
-        with self.assertRaisesRegexp(ValueError, "tag cannot be empty"):
+        with self.assertRaisesRegex(ValueError, "tag cannot be empty"):
             structs.LanguageTag()
 
     def test_fromstr_match_str(self):
@@ -513,12 +567,12 @@ class TestLanguageTag(unittest.TestCase):
 
 class TestLanguageRange(unittest.TestCase):
     def test_init_requires_kwargs(self):
-        with self.assertRaisesRegexp(TypeError,
+        with self.assertRaisesRegex(TypeError,
                                      "takes 1 positional argument"):
             structs.LanguageRange("foo")
 
     def test_init_requires_language(self):
-        with self.assertRaisesRegexp(ValueError, "range cannot be empty"):
+        with self.assertRaisesRegex(ValueError, "range cannot be empty"):
             structs.LanguageRange()
 
     def test_fromstr_match_str(self):

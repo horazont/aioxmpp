@@ -761,25 +761,35 @@ class XMPPXMLProcessor:
         self._state = ProcessorState.STREAM_HEADER_PROCESSED
         self._depth += 1
 
+    def _end_element_exception_handling(self):
+        self._state = ProcessorState.STREAM_HEADER_PROCESSED
+        exc = self._stored_exception
+        self._stored_exception = None
+        if self.on_exception:
+            self.on_exception(exc)
+        else:
+            raise exc
+
     def endElementNS(self, name, qname):
         if self._state == ProcessorState.STREAM_HEADER_PROCESSED:
             self._depth -= 1
             if self._depth > 0:
-                return self._driver.endElementNS(name, qname)
+                try:
+                    return self._driver.endElementNS(name, qname)
+                except Exception as exc:
+                    self._stored_exception = exc
+                    self._state = ProcessorState.EXCEPTION_BACKOFF
+                    if self._depth == 1:
+                        self._end_element_exception_handling()
             else:
                 if self.on_stream_footer:
                     self.on_stream_footer()
                 self._state = ProcessorState.STREAM_FOOTER_PROCESSED
+
         elif self._state == ProcessorState.EXCEPTION_BACKOFF:
             self._depth -= 1
             if self._depth == 1:
-                self._state = ProcessorState.STREAM_HEADER_PROCESSED
-                exc = self._stored_exception
-                self._stored_exception = None
-                if self.on_exception:
-                    self.on_exception(exc)
-                else:
-                    raise exc
+                self._end_element_exception_handling()
         else:
             raise RuntimeError("invalid state: {}".format(self._state))
 

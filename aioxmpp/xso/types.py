@@ -194,15 +194,12 @@ class DateTime(AbstractType):
     are not tagged.
 
     If `legacy` is true, the formatted dates use the legacy date/time format
-    (``CCYYMMDDThh:mm:ss``), as used for example in `XEP-0082`_ or `XEP-0009`_
+    (``CCYYMMDDThh:mm:ss``), as used for example in :xep:`0082` or :xep:`0009`
     (whereas in the latter it is not legacy, but defined by XML RPC). In any
     case, parsing of the legacy format is transparently supported. Timestamps
     in the legacy format are assumed to be in UTC, and datetime objects are
     converted to UTC before emitting the legacy format. The timezone designator
     is never emitted with the legacy format, and ignored if given.
-
-    .. _XEP-0009: https://xmpp.org/extensions/xep-0009.html
-    .. _XEP-0082: https://xmpp.org/extensions/xep-0082.html
 
     This class makes use of :mod:`pytz`.
 
@@ -269,8 +266,7 @@ class DateTime(AbstractType):
 
 class Date(AbstractType):
     """
-    Implement the Date type from `XEP-0082
-    <https://xmpp.org/extensions/xep-0082.html>`_.
+    Implement the Date type from :xep:`0082`.
 
     Values must have the :class:`date` type, :class:`datetime` is forbidden to
     avoid silent loss of information.
@@ -289,8 +285,7 @@ class Date(AbstractType):
 
 class Time(AbstractType):
     """
-    Implement the Time type from `XEP-0082
-    <https://xmpp.org/extensions/xep-0082.html>`_.
+    Implement the Time type from :xep:`0082`.
 
     Values must have the :class:`time` type, :class:`datetime` is forbidden to
     avoid silent loss of information. Assignment of :class:`time` values in
@@ -298,8 +293,6 @@ class Time(AbstractType):
     translation to UTC on formatting is not properly defined without an
     accompanying date (think daylight saving time transitions, redefinitions of
     time zones, …).
-
-    .. _XEP-0082: https://xmpp.org/extensions/xep-0082.html
 
     .. versionadded:: 0.5
     """
@@ -402,7 +395,16 @@ class JID(AbstractType):
     """
     Parse the value as Jabber ID using :meth:`~aioxmpp.structs.JID.fromstr` and
     return the :class:`aioxmpp.structs.JID` object.
+
+    `strict` is passed to :meth:`~aioxmpp.structs.JID.fromstr` and defaults to
+    false. See the :meth:`~aioxmpp.structs.JID.fromstr` method for a rationale
+    and consider that :meth:`parse` is only called for input coming from the
+    outside.
     """
+
+    def __init__(self, *, strict=False):
+        super().__init__()
+        self.strict = strict
 
     def coerce(self, v):
         if not isinstance(v, structs.JID):
@@ -412,7 +414,7 @@ class JID(AbstractType):
         return v
 
     def parse(self, v):
-        return structs.JID.fromstr(v)
+        return structs.JID.fromstr(v, strict=self.strict)
 
 
 class ConnectionLocation(AbstractType):
@@ -638,6 +640,61 @@ class IsInstance(AbstractValidator):
                     v,
                     ", ".join(type_.__name__
                               for type_ in self.classes)
+                )
+            ]
+        return []
+
+
+class NumericRange(AbstractValidator):
+    """
+    To be used with orderable types, such as :class:`.DateTime` or
+    :class:`.Integer`.
+
+    The value is enforced to be within *[min, max]* (this is the interval from
+    `min_` to `max_`, including both ends).
+
+    Setting `min_` or `max_` to :data:`None` disables enforcement of that end
+    of the interval. A common use is ``NumericRange(min_=1)`` in conjunction
+    with :class:`.Integer` to enforce the use of positive integers.
+
+    .. versionadded:: 0.6
+
+    """
+
+    def __init__(self, min_=None, max_=None):
+        super().__init__()
+        self.min_ = min_
+        self.max_ = max_
+
+    def validate_detailed(self, v):
+        from ..errors import UserValueError
+        if self.min_ is None:
+            if self.max_ is None:
+                return []
+            if not v <= self.max_:
+                return [
+                    UserValueError(
+                        i18n._("{} is too large (max is {})"),
+                        v,
+                        self.max_
+                    )
+                ]
+        elif self.max_ is None:
+            if not self.min_ <= v:
+                return [
+                    UserValueError(
+                        i18n._("{} is too small (min is {})"),
+                        v,
+                        self.max_
+                    )
+                ]
+        elif not self.min_ <= v <= self.max_:
+            return [
+                UserValueError(
+                    i18n._("{} is out of bounds ({}..{})"),
+                    v,
+                    self.min_,
+                    self.max_
                 )
             ]
         return []

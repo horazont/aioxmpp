@@ -126,7 +126,7 @@ class TestXMLStream(unittest.TestCase):
 
     def test_connection_made_check_state(self):
         t, p = self._make_stream(to=TEST_PEER)
-        with self.assertRaisesRegexp(RuntimeError, "invalid state"):
+        with self.assertRaisesRegex(RuntimeError, "invalid state"):
             run_coroutine(
                 t.run_test(
                     # implicit connection_made is at the start of each
@@ -454,7 +454,7 @@ class TestXMLStream(unittest.TestCase):
             stanza.UnknownIQPayload
         )
 
-    def test_errorneous_iq_payload_ignored_without_error_handler(self):
+    def test_erroneous_iq_payload_ignored_without_error_handler(self):
         def catch_iq(obj):
             pass
 
@@ -473,7 +473,7 @@ class TestXMLStream(unittest.TestCase):
                 ]),
         ]))
 
-    def test_dispatch_errorneous_iq_payload_to_error_handler(self):
+    def test_dispatch_erroneous_iq_payload_to_error_handler(self):
         base = unittest.mock.Mock()
 
         t, p = self._make_stream(to=TEST_PEER)
@@ -599,7 +599,7 @@ class TestXMLStream(unittest.TestCase):
                 partial=True
             )
         )
-        with self.assertRaisesRegexp(RuntimeError, "starttls not available"):
+        with self.assertRaisesRegex(RuntimeError, "starttls not available"):
             run_coroutine(p.starttls(object()))
 
     def test_starttls(self):
@@ -740,7 +740,7 @@ class TestXMLStream(unittest.TestCase):
 
     def test_send_xso_raises_while_closed(self):
         t, p = self._make_stream(to=TEST_PEER)
-        with self.assertRaisesRegexp(ConnectionError,
+        with self.assertRaisesRegex(ConnectionError,
                                      "not connected"):
             p.send_xso(object())
 
@@ -759,13 +759,13 @@ class TestXMLStream(unittest.TestCase):
             )
         )
         p.close()
-        with self.assertRaisesRegexp(ConnectionError,
+        with self.assertRaisesRegex(ConnectionError,
                                      "not connected"):
             p.send_xso(object())
 
     def test_starttls_raises_while_closed(self):
         t, p = self._make_stream(to=TEST_PEER)
-        with self.assertRaisesRegexp(ConnectionError,
+        with self.assertRaisesRegex(ConnectionError,
                                      "not connected"):
             run_coroutine(p.starttls(object()))
 
@@ -784,13 +784,13 @@ class TestXMLStream(unittest.TestCase):
             )
         )
         p.close()
-        with self.assertRaisesRegexp(ConnectionError,
+        with self.assertRaisesRegex(ConnectionError,
                                      "not connected"):
             run_coroutine(p.starttls(object()))
 
     def test_reset_raises_while_closed(self):
         t, p = self._make_stream(to=TEST_PEER)
-        with self.assertRaisesRegexp(ConnectionError,
+        with self.assertRaisesRegex(ConnectionError,
                                      "not connected"):
             p.reset()
 
@@ -809,7 +809,7 @@ class TestXMLStream(unittest.TestCase):
             )
         )
         p.close()
-        with self.assertRaisesRegexp(ConnectionError,
+        with self.assertRaisesRegex(ConnectionError,
                                      "not connected"):
             p.reset()
 
@@ -1491,6 +1491,36 @@ class TestXMLStream(unittest.TestCase):
             protocol.State.CLOSED
         )
 
+    def test_future_for_closing_state_is_disposed_of_in_connection_lost(
+            self):
+        with unittest.mock.patch("asyncio.async") as async_:
+            t, p = self._make_stream(to=TEST_PEER)
+
+        run_coroutine(t.run_test(
+            [
+                TransportMock.Write(
+                    STREAM_HEADER,
+                    response=[
+                        TransportMock.Receive(
+                            self._make_peer_header(version=(1, 0))
+                        ),
+                    ]),
+            ],
+            partial=True
+        ))
+
+        self.assertNotIn(
+            unittest.mock.call().cancel(),
+            async_.mock_calls,
+        )
+
+        p.connection_lost(None)
+
+        self.assertIn(
+            unittest.mock.call().cancel(),
+            async_.mock_calls,
+        )
+
     def tearDown(self):
         self.loop.set_exception_handler(
             type(self.loop).default_exception_handler
@@ -1553,7 +1583,7 @@ class Testsend_and_wait_for(xmltestutils.XMLTestCase):
 
         instance = R()
 
-        with self.assertRaisesRegexp(AssertionError,
+        with self.assertRaisesRegex(AssertionError,
                                      "no handler registered for"):
             self._run_test(
                 [
@@ -1598,7 +1628,7 @@ class Testsend_and_wait_for(xmltestutils.XMLTestCase):
                 timeout=0.1
             )
 
-        with self.assertRaisesRegexp(AssertionError,
+        with self.assertRaisesRegex(AssertionError,
                                      "no handler registered for"):
             run_coroutine(self.xmlstream.run_test(
                 [],
@@ -1709,7 +1739,7 @@ class Testreset_stream_and_get_features(xmltestutils.XMLTestCase):
     def test_receive_exactly_one(self):
         features = nonza.StreamFeatures()
 
-        with self.assertRaisesRegexp(AssertionError,
+        with self.assertRaisesRegex(AssertionError,
                                      "no handler registered for"):
             self._run_test(
                 [
@@ -1733,7 +1763,7 @@ class Testreset_stream_and_get_features(xmltestutils.XMLTestCase):
                 timeout=0.1
             )
 
-        with self.assertRaisesRegexp(AssertionError,
+        with self.assertRaisesRegex(AssertionError,
                                      "no handler registered for"):
             run_coroutine(self.xmlstream.run_test(
                 [],

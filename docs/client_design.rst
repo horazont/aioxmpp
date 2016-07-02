@@ -2,7 +2,7 @@ Client design
 #############
 
 The client is designed to be resilent against connection failures. The key part
-for this is to implement `XEP-198`_ (Stream Management), which supports resuming
+for this is to implement :xep:`198` (Stream Management), which supports resuming
 a previous session without losing messages.
 
 Queues
@@ -36,7 +36,7 @@ underlying stream:
 .. function:: connecting(nattempt)
 
    A connection attempt is currently being made. It is not known yet whether it
-   will succeed. It is the *nattempt*th attempt to establish the connection since
+   will succeed. It is the *nattempt*\ th attempt to establish the connection since
    the last successful connection.
 
 .. function:: connection_failed()
@@ -57,6 +57,3 @@ underlying stream:
 
    The maximum amount of reconnects has been surpassed, or the user has
    explicitly closed the client by calling :meth:`Client.close`.
-
-
-.. _XEP-198: http://xmpp.org/extensions/xep-0198.html

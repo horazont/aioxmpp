@@ -72,13 +72,13 @@ class TestAbstractTextChild(unittest.TestCase):
 
     def test_lang_attr(self):
         self.assertIsInstance(
-            xso.AbstractTextChild.lang,
+            xso.AbstractTextChild.lang.xq_descriptor,
             xso.LangAttr
         )
 
     def test_text_attr(self):
         self.assertIsInstance(
-            xso.AbstractTextChild.text,
+            xso.AbstractTextChild.text.xq_descriptor,
             xso.Text
         )
         self.assertIsNone(

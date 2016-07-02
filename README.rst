@@ -6,8 +6,44 @@
 .. _asyncio: https://docs.python.org/3/library/asyncio.html
 __ https://code.google.com/p/tulip/
 
+Features
+========
+
+* Native `Stream Management (XEP-0198)
+  <https://xmpp.org/extensions/xep-0198.html>`_ support for robustness against
+  transient network failures (such as switching between wireless and wired
+  networks).
+
+* Support for `RFC 6121 (Instant Messaging and Presence)
+  <https://tools.ietf.org/html/rfc6121>`_ roster and presence management, along
+  with `XEP-0045 (Multi-User Chats)
+  <https://xmpp.org/extensions/xep-0045.html>`_ for your human-to-human needs.
+
+* Support for `XEP-0060 (Publish-Subscribe)
+  <https://xmpp.org/extensions/xep-0060.html>`_ as well as powerful
+  declarative-style definition of your own protocols for your machine-to-machine
+  needs.
+
+* Several other XEPs, such as `XEP-0115
+  <https://xmpp.org/extensions/xep-0115.html>`_ (including native support for
+  the reading and writing the `capsdb <https://github.com/xnyhps/capsdb>`_) and
+  `XEP-0131 <https://xmpp.org/extensions/xep-0131.html>`_.
+
+* APIs suitable for both one-shot scripts and long-running multi-account
+  clients.
+
+* Secure by default: TLS is required by default, as well as certificate
+  validation. Certificate or public key pinning can be used, if needed.
+
+* Well-tested and modular codebase.
+
+And there’s yet more to come! Check out the list of `open GitHub issues tagged
+as enhancement
+<https://github.com/horazont/aioxmpp/issues?q=is%3Aissue+is%3Aopen+label%3Aenhancement>`_
+for things which are planned and read on below on how to contribute.
+
 Dependencies
-------------
+============
 
 * Python ≥ 3.4 (or Python = 3.3 with tulip and enum34)
 * DNSPython
@@ -36,19 +72,59 @@ Dependencies
 
   __ https://pypi.python.org/pypi/aiosasl
 
+* `multidict`__
 
-Design goals
-------------
+  __ https://pypi.python.org/pypi/multidict
 
-* Powerful API to implement all sorts of XEPs
-* Reliable message transmission even under dire network circumstances
-* Well-tested code base
-* A more compelling README than this
+* `aioopenssl`__ (optional, for now)
+
+  __ https://github.com/horazont/aioopenssl
+
+Contributing
+============
+
+If you consider contributing to aioxmpp, you can do so, even without a GitHub
+account. There are several ways to get in touch with the aioxmpp developer(s):
+
+* `The development mailing list
+  <https://lists.zombofant.net/cgi-bin/mailman/listinfo/aioxmpp-devel>`_. Feel
+  free to subscribe and post, but be polite and adhere to the `Netiquette
+  (RFC 1855) <https://tools.ietf.org/html/rfc1855>`_. Pull requests posted to
+  the mailing list are also welcome!
+
+* The development MUC at ``aioxmpp@conference.zombofant.net``. Pull requests
+  announced in the MUC are also welcome! Note that the MUC is set persistent,
+  but nevertheless there may not always be people around. If in doubt, use the
+  mailing list instead.
+
+* Open or comment on an issue or post a pull request on `GitHub
+  <https://github.com/horazont/aioxmpp/issues>`_.
+
+No idea what to do, but still want to get your hands dirty? Check out the list
+of `'help wanted' issues on GitHub
+<https://github.com/horazont/aioxmpp/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22>`_
+or ask in the MUC or on the mailing list. The issues tagged as 'help wanted' are
+usually of narrow scope, aimed at beginners.
+
+Be sure to read the ``docs/CONTRIBUTING.rst`` for some hints on how to
+author your contribution.
+
+Security issues
+---------------
+
+If you believe that a bug you found in aioxmpp has security implications,
+you are welcome to notify me privately. To do so, send a mail to `Jonas Wielicki
+<mailto:jonas@wielicki.name>`_, encrypted using the GPG public key
+0xE5EDE5AC679E300F (Fingerprint AA5A 78FF 508D 8CF4 F355  F682 E5ED E5AC 679E
+300F).
+
+If you prefer to disclose security issues immediately, you can do so at any of
+the places listed above.
 
 Change log
-----------
+==========
 
 The `change log`_ is included in the `official documentation`__.
 
 .. _change log: http://docs.zombofant.net/aioxmpp/devel/api/changelog.html
-__ http://docs.zombofant.net/aioxmpp/0.5/
+__ http://docs.zombofant.net/aioxmpp/devel/

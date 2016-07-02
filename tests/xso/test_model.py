@@ -9,9 +9,12 @@ import unittest.mock
 
 import lxml.sax
 
+import multidict
+
 import aioxmpp.structs as structs
 import aioxmpp.xso as xso
 import aioxmpp.xso.model as xso_model
+import aioxmpp.xso.query as xso_query
 
 from aioxmpp.utils import etree, namespaces
 
@@ -38,7 +41,7 @@ def drive_from_events(method, instance, subtree, ctx):
 def make_instance_mock(mapping={}):
     instance = unittest.mock.MagicMock()
     instance.TAG = ("uri:mock", "mock-instance")
-    instance._stanza_props = dict(mapping)
+    instance._xso_contents = dict(mapping)
     return instance
 
 
@@ -49,6 +52,12 @@ class TestXMLStreamClass(unittest.TestCase):
     def test_is_abc_meta(self):
         self.assertTrue(issubclass(xso_model.XMLStreamClass, abc.ABCMeta))
 
+    def test_is_xso_query_class(self):
+        self.assertTrue(issubclass(
+            xso_model.XMLStreamClass,
+            xso_query.Class,
+        ))
+
     def test_init(self):
         class Cls(metaclass=xso_model.XMLStreamClass):
             TAG = None, "foo"
@@ -58,15 +67,42 @@ class TestXMLStreamClass(unittest.TestCase):
         self.assertFalse(Cls.CHILD_MAP)
         self.assertFalse(Cls.CHILD_PROPS)
         self.assertFalse(Cls.ATTR_MAP)
+        self.assertSequenceEqual(Cls.__slots__, ())
+
+    def test_init_inherited(self):
+        class Base(metaclass=xso_model.XMLStreamClass):
+            pass
+
+        class Child(Base):
+            pass
+
+        self.assertSequenceEqual(Child.__slots__, ())
+
+    def test_init_takes_existing_slots(self):
+        class Base(metaclass=xso_model.XMLStreamClass):
+            __slots__ = ("_xso_contents",)
+
+        self.assertSequenceEqual(Base.__slots__, ("_xso_contents",))
+
+        class Child(Base):
+            pass
+
+        self.assertSequenceEqual(Child.__slots__, ())
+
+    def test_init_unprotected(self):
+        class Cls(metaclass=xso_model.XMLStreamClass, protect=False):
+            pass
+
+        self.assertFalse(hasattr(Cls, "__slots__"))
 
     def test_forbid_malformed_tag(self):
-        with self.assertRaisesRegexp(TypeError,
-                                     "TAG attribute has incorrect format"):
+        with self.assertRaisesRegex(TypeError,
+                                    "TAG attribute has incorrect format"):
             class ClsA(metaclass=xso_model.XMLStreamClass):
                 TAG = "foo", "bar", "baz"
 
-        with self.assertRaisesRegexp(TypeError,
-                                     "TAG attribute has incorrect format"):
+        with self.assertRaisesRegex(TypeError,
+                                    "TAG attribute has incorrect format"):
             class ClsB(metaclass=xso_model.XMLStreamClass):
                 TAG = "foo",
 
@@ -83,8 +119,9 @@ class TestXMLStreamClass(unittest.TestCase):
             prop = xso.Text()
 
         self.assertIs(
-            Cls.prop,
-            Cls.TEXT_PROPERTY)
+            Cls.prop.xq_descriptor,
+            Cls.TEXT_PROPERTY.xq_descriptor
+        )
 
     def test_inheritance_text_one_level(self):
         class ClsA(metaclass=xso_model.XMLStreamClass):
@@ -98,8 +135,9 @@ class TestXMLStreamClass(unittest.TestCase):
             pass
 
         self.assertIs(
-            ClsA.text,
-            ClsB.TEXT_PROPERTY)
+            ClsA.text.xq_descriptor,
+            ClsB.TEXT_PROPERTY.xq_descriptor
+        )
 
     def test_multi_inheritance_text(self):
         class ClsA(metaclass=xso_model.XMLStreamClass):
@@ -126,8 +164,9 @@ class TestXMLStreamClass(unittest.TestCase):
             pass
 
         self.assertIs(
-            ClsA.text,
-            ClsD.TEXT_PROPERTY)
+            ClsA.text.xq_descriptor,
+            ClsD.TEXT_PROPERTY.xq_descriptor
+        )
 
     def test_collect_child_text_property(self):
         class ClsA(metaclass=xso_model.XMLStreamClass):
@@ -135,12 +174,15 @@ class TestXMLStreamClass(unittest.TestCase):
 
         self.assertDictEqual(
             {
-                (None, "body"): ClsA.body,
+                (None, "body"): ClsA.body.xq_descriptor,
             },
-            ClsA.CHILD_MAP)
+            ClsA.CHILD_MAP
+        )
+
         self.assertSetEqual(
-            {ClsA.body},
-            ClsA.CHILD_PROPS)
+            {ClsA.body.xq_descriptor},
+            ClsA.CHILD_PROPS
+        )
 
     def test_collect_child_property(self):
         class ClsA(metaclass=xso_model.XMLStreamClass):
@@ -158,14 +200,16 @@ class TestXMLStreamClass(unittest.TestCase):
 
         self.assertDictEqual(
             {
-                ClsA.TAG: Cls.c1,
-                ClsB.TAG: Cls.c1,
-                ClsC.TAG: Cls.c2,
+                ClsA.TAG: Cls.c1.xq_descriptor,
+                ClsB.TAG: Cls.c1.xq_descriptor,
+                ClsC.TAG: Cls.c2.xq_descriptor,
             },
-            Cls.CHILD_MAP)
+            Cls.CHILD_MAP
+        )
         self.assertSetEqual(
-            {Cls.c1, Cls.c2},
-            Cls.CHILD_PROPS)
+            {Cls.c1.xq_descriptor, Cls.c2.xq_descriptor},
+            Cls.CHILD_PROPS
+        )
 
     def test_forbid_ambiguous_children(self):
         class ClsA(metaclass=xso_model.XMLStreamClass):
@@ -174,7 +218,7 @@ class TestXMLStreamClass(unittest.TestCase):
         class ClsB(metaclass=xso_model.XMLStreamClass):
             TAG = "foo"
 
-        with self.assertRaisesRegexp(TypeError, "ambiguous Child properties"):
+        with self.assertRaisesRegex(TypeError, "ambiguous Child properties"):
             class Cls(metaclass=xso_model.XMLStreamClass):
                 c1 = xso.Child([ClsA])
                 c2 = xso.Child([ClsB])
@@ -194,13 +238,14 @@ class TestXMLStreamClass(unittest.TestCase):
 
         self.assertDictEqual(
             {
-                "foo": ClsA.c1,
-                "bar": ClsB.c2,
+                "foo": ClsA.c1.xq_descriptor,
+                "bar": ClsB.c2.xq_descriptor,
             },
             ClsB.CHILD_MAP)
         self.assertSetEqual(
-            {ClsA.c1, ClsB.c2},
-            ClsB.CHILD_PROPS)
+            {ClsA.c1.xq_descriptor, ClsB.c2.xq_descriptor},
+            ClsB.CHILD_PROPS
+        )
 
     def test_inheritance_child_ambiguous(self):
         class ClsLeafA:
@@ -209,7 +254,7 @@ class TestXMLStreamClass(unittest.TestCase):
         class ClsA(metaclass=xso_model.XMLStreamClass):
             c1 = xso.Child([ClsLeafA])
 
-        with self.assertRaisesRegexp(TypeError, "ambiguous Child properties"):
+        with self.assertRaisesRegex(TypeError, "ambiguous Child properties"):
             class ClsB(ClsA):
                 c2 = xso.Child([ClsLeafA])
 
@@ -220,10 +265,13 @@ class TestXMLStreamClass(unittest.TestCase):
         class ClsLeafB:
             TAG = "bar"
 
-        class ClsA(metaclass=xso_model.XMLStreamClass):
+        class Base(metaclass=xso_model.XMLStreamClass):
+            pass
+
+        class ClsA(Base):
             c1 = xso.Child([ClsLeafA])
 
-        class ClsB(metaclass=xso_model.XMLStreamClass):
+        class ClsB(Base):
             c2 = xso.Child([ClsLeafB])
 
         class ClsC(ClsA, ClsB):
@@ -231,13 +279,15 @@ class TestXMLStreamClass(unittest.TestCase):
 
         self.assertDictEqual(
             {
-                "foo": ClsA.c1,
-                "bar": ClsB.c2,
+                "foo": ClsA.c1.xq_descriptor,
+                "bar": ClsB.c2.xq_descriptor,
             },
-            ClsC.CHILD_MAP)
+            ClsC.CHILD_MAP
+        )
         self.assertSetEqual(
-            {ClsA.c1, ClsB.c2},
-            ClsC.CHILD_PROPS)
+            {ClsA.c1.xq_descriptor, ClsB.c2.xq_descriptor},
+            ClsC.CHILD_PROPS
+        )
 
     def test_multi_inheritance_child_ambiguous(self):
         class ClsLeafA:
@@ -271,12 +321,13 @@ class TestXMLStreamClass(unittest.TestCase):
 
         self.assertDictEqual(
             {
-                "foo": ClsA.c1,
+                "foo": ClsA.c1.xq_descriptor,
             },
             ClsD.CHILD_MAP)
         self.assertSetEqual(
-            {ClsA.c1},
-            ClsD.CHILD_PROPS)
+            {ClsA.c1.xq_descriptor},
+            ClsD.CHILD_PROPS
+        )
 
     def test_collect_attr_property(self):
         class Cls(metaclass=xso_model.XMLStreamClass):
@@ -286,11 +337,12 @@ class TestXMLStreamClass(unittest.TestCase):
 
         self.assertDictEqual(
             {
-                (None, "foo"): Cls.attr1,
-                (None, "bar"): Cls.attr2,
-                (None, "baz"): Cls.attr3,
+                (None, "foo"): Cls.attr1.xq_descriptor,
+                (None, "bar"): Cls.attr2.xq_descriptor,
+                (None, "baz"): Cls.attr3.xq_descriptor,
             },
-            Cls.ATTR_MAP)
+            Cls.ATTR_MAP
+        )
 
     def test_forbid_ambiguous_attr(self):
         with self.assertRaises(TypeError):
@@ -307,8 +359,8 @@ class TestXMLStreamClass(unittest.TestCase):
 
         self.assertDictEqual(
             {
-                (None, "foo"): ClsA.attr1,
-                (None, "bar"): ClsB.attr2,
+                (None, "foo"): ClsA.attr1.xq_descriptor,
+                (None, "bar"): ClsB.attr2.xq_descriptor,
             },
             ClsB.ATTR_MAP)
 
@@ -321,10 +373,13 @@ class TestXMLStreamClass(unittest.TestCase):
                 attr2 = xso.Attr("foo")
 
     def test_multi_inheritance_attr(self):
-        class ClsA(metaclass=xso_model.XMLStreamClass):
+        class Base(metaclass=xso_model.XMLStreamClass):
+            pass
+
+        class ClsA(Base):
             attr1 = xso.Attr("foo")
 
-        class ClsB(metaclass=xso_model.XMLStreamClass):
+        class ClsB(Base):
             attr2 = xso.Attr("bar")
 
         class ClsC(ClsB, ClsA):
@@ -332,11 +387,12 @@ class TestXMLStreamClass(unittest.TestCase):
 
         self.assertDictEqual(
             {
-                (None, "foo"): ClsA.attr1,
-                (None, "bar"): ClsB.attr2,
-                (None, "baz"): ClsC.attr3,
+                (None, "foo"): ClsA.attr1.xq_descriptor,
+                (None, "bar"): ClsB.attr2.xq_descriptor,
+                (None, "baz"): ClsC.attr3.xq_descriptor,
             },
-            ClsC.ATTR_MAP)
+            ClsC.ATTR_MAP
+        )
 
     def test_multi_inheritance_attr_ambiguous(self):
         class ClsA(metaclass=xso_model.XMLStreamClass):
@@ -364,17 +420,19 @@ class TestXMLStreamClass(unittest.TestCase):
 
         self.assertDictEqual(
             {
-                (None, "foo"): ClsA.attr,
+                (None, "foo"): ClsA.attr.xq_descriptor,
             },
-            ClsD.ATTR_MAP)
+            ClsD.ATTR_MAP
+        )
 
     def test_collect_collector_property(self):
         class Cls(metaclass=xso_model.XMLStreamClass):
             prop = xso.Collector()
 
         self.assertIs(
-            Cls.prop,
-            Cls.COLLECTOR_PROPERTY)
+            Cls.prop.xq_descriptor,
+            Cls.COLLECTOR_PROPERTY.xq_descriptor
+        )
 
     def test_forbid_duplicate_collector_property(self):
         with self.assertRaises(TypeError):
@@ -393,7 +451,10 @@ class TestXMLStreamClass(unittest.TestCase):
         class ClsB(ClsA):
             pass
 
-        self.assertIs(ClsB.COLLECTOR_PROPERTY, ClsA.text)
+        self.assertIs(
+            ClsB.COLLECTOR_PROPERTY.xq_descriptor,
+            ClsA.text.xq_descriptor
+        )
 
     def test_multi_inheritance_collector(self):
         class ClsA(metaclass=xso_model.XMLStreamClass):
@@ -419,7 +480,8 @@ class TestXMLStreamClass(unittest.TestCase):
         class ClsD(ClsB, ClsC):
             pass
 
-        self.assertIs(ClsD.COLLECTOR_PROPERTY, ClsA.text)
+        self.assertIs(ClsD.COLLECTOR_PROPERTY.xq_descriptor,
+                      ClsA.text.xq_descriptor)
 
     def test_forbid_duplicate_text_property(self):
         with self.assertRaises(TypeError):
@@ -444,14 +506,16 @@ class TestXMLStreamClass(unittest.TestCase):
 
         self.assertDictEqual(
             {
-                ClsA.TAG: Cls.cl1,
-                ClsB.TAG: Cls.cl1,
-                ClsC.TAG: Cls.cl2,
+                ClsA.TAG: Cls.cl1.xq_descriptor,
+                ClsB.TAG: Cls.cl1.xq_descriptor,
+                ClsC.TAG: Cls.cl2.xq_descriptor,
             },
-            Cls.CHILD_MAP)
+            Cls.CHILD_MAP
+        )
         self.assertSetEqual(
-            {Cls.cl1, Cls.cl2},
-            Cls.CHILD_PROPS)
+            {Cls.cl1.xq_descriptor, Cls.cl2.xq_descriptor},
+            Cls.CHILD_PROPS
+        )
 
     def test_forbid_ambiguous_children_with_lists(self):
         class ClsA(metaclass=xso_model.XMLStreamClass):
@@ -460,7 +524,7 @@ class TestXMLStreamClass(unittest.TestCase):
         class ClsB(metaclass=xso_model.XMLStreamClass):
             TAG = "foo"
 
-        with self.assertRaisesRegexp(TypeError, "ambiguous Child properties"):
+        with self.assertRaisesRegex(TypeError, "ambiguous Child properties"):
             class Cls(metaclass=xso_model.XMLStreamClass):
                 c1 = xso.ChildList([ClsA])
                 c2 = xso.Child([ClsB])
@@ -476,13 +540,15 @@ class TestXMLStreamClass(unittest.TestCase):
 
         self.assertDictEqual(
             {
-                ("uri:foo", "foo"): Cls.ct,
-                ("uri:foo", "bar"): Cls.ct,
+                ("uri:foo", "foo"): Cls.ct.xq_descriptor,
+                ("uri:foo", "bar"): Cls.ct.xq_descriptor,
             },
-            Cls.CHILD_MAP)
+            Cls.CHILD_MAP
+        )
         self.assertSetEqual(
-            {Cls.ct},
-            Cls.CHILD_PROPS)
+            {Cls.ct.xq_descriptor},
+            Cls.CHILD_PROPS
+        )
 
     def test_ordered_child_props(self):
         class Cls(metaclass=xso_model.XMLStreamClass):
@@ -492,11 +558,12 @@ class TestXMLStreamClass(unittest.TestCase):
 
         self.assertSequenceEqual(
             [
-                Cls.c1,
-                Cls.c2,
-                Cls.c3,
+                Cls.c1.xq_descriptor,
+                Cls.c2.xq_descriptor,
+                Cls.c3.xq_descriptor,
             ],
-            Cls.CHILD_PROPS)
+            Cls.CHILD_PROPS
+        )
 
     def test_register_child(self):
         class Cls(metaclass=xso_model.XMLStreamClass):
@@ -516,17 +583,19 @@ class TestXMLStreamClass(unittest.TestCase):
         Cls.register_child(Cls.child, ClsA)
         self.assertDictEqual(
             {
-                (None, "bar"): Cls.child
+                (None, "bar"): Cls.child.xq_descriptor
             },
-            Cls.CHILD_MAP)
+            Cls.CHILD_MAP
+        )
 
         Cls.register_child(Cls.child, ClsB)
         self.assertDictEqual(
             {
-                (None, "bar"): Cls.child,
-                (None, "baz"): Cls.child,
+                (None, "bar"): Cls.child.xq_descriptor,
+                (None, "baz"): Cls.child.xq_descriptor,
             },
-            Cls.CHILD_MAP)
+            Cls.CHILD_MAP
+        )
 
         with self.assertRaises(ValueError):
             Cls.register_child(Cls.child, ClsC)
@@ -543,7 +612,7 @@ class TestXMLStreamClass(unittest.TestCase):
         class ClsB(metaclass=xso_model.XMLStreamClass):
             TAG = "baz"
 
-        with self.assertRaisesRegexp(
+        with self.assertRaisesRegex(
                 TypeError,
                 "register_child is forbidden on classes with subclasses"):
             Cls.register_child(Cls.child, ClsB)
@@ -574,7 +643,7 @@ class TestXMLStreamClass(unittest.TestCase):
         self.assertSequenceEqual(
             [
                 unittest.mock.call(
-                    Cls.child,
+                    Cls.child.xq_descriptor,
                     [None, "bar", {}],
                     unittest.mock.ANY)
             ],
@@ -611,7 +680,7 @@ class TestXMLStreamClass(unittest.TestCase):
         self.assertSequenceEqual(
             [
                 unittest.mock.call(
-                    Cls.child,
+                    Cls.child.xq_descriptor,
                     [None, "bar", {}],
                     unittest.mock.ANY)
             ],
@@ -726,7 +795,7 @@ class TestXMLStreamClass(unittest.TestCase):
         self.assertSequenceEqual(
             [
                 unittest.mock.call(
-                    Cls.text,
+                    Cls.text.xq_descriptor,
                     "foobar",
                     unittest.mock.ANY)
             ],
@@ -754,7 +823,7 @@ class TestXMLStreamClass(unittest.TestCase):
         self.assertSequenceEqual(
             [
                 unittest.mock.call(
-                    Cls.text,
+                    Cls.text.xq_descriptor,
                     "foobar",
                     unittest.mock.ANY)
             ],
@@ -847,7 +916,7 @@ class TestXMLStreamClass(unittest.TestCase):
         self.assertSequenceEqual(
             [
                 unittest.mock.call(
-                    Cls.attr,
+                    Cls.attr.xq_descriptor,
                     "foobar",
                     unittest.mock.ANY)
             ],
@@ -879,7 +948,7 @@ class TestXMLStreamClass(unittest.TestCase):
         self.assertSequenceEqual(
             [
                 unittest.mock.call(
-                    Cls.attr,
+                    Cls.attr.xq_descriptor,
                     "foobar",
                     unittest.mock.ANY)
             ],
@@ -910,7 +979,7 @@ class TestXMLStreamClass(unittest.TestCase):
         self.assertSequenceEqual(
             [
                 unittest.mock.call(
-                    Cls.attr,
+                    Cls.attr.xq_descriptor,
                     None,
                     unittest.mock.ANY)
             ],
@@ -940,7 +1009,7 @@ class TestXMLStreamClass(unittest.TestCase):
         self.assertSequenceEqual(
             [
                 unittest.mock.call(
-                    Cls.attr,
+                    Cls.attr.xq_descriptor,
                     None,
                     unittest.mock.ANY)
             ],
@@ -1173,8 +1242,8 @@ class TestXMLStreamClass(unittest.TestCase):
         class Foo(metaclass=xso_model.XMLStreamClass):
             attr = xso.Attr("bar")
 
-        with self.assertRaisesRegexp(AttributeError,
-                                     "cannot rebind XSO descriptors"):
+        with self.assertRaisesRegex(AttributeError,
+                                    "cannot rebind XSO descriptors"):
             Foo.attr = xso.Attr("baz")
 
     def test_setattr_allows_to_overwrite_everything_else(self):
@@ -1199,7 +1268,7 @@ class TestXMLStreamClass(unittest.TestCase):
         )
         self.assertIs(
             Foo.ATTR_MAP[None, "bar"],
-            Foo.attr
+            Foo.attr.xq_descriptor
         )
 
     def test_setattr_Attr_rejects_ambiguous_tags(self):
@@ -1208,7 +1277,7 @@ class TestXMLStreamClass(unittest.TestCase):
 
         Foo.attr = xso.Attr("bar")
 
-        with self.assertRaisesRegexp(TypeError,
+        with self.assertRaisesRegex(TypeError,
                                      "ambiguous Attr properties"):
             Foo.attr2 = xso.Attr("bar")
 
@@ -1222,7 +1291,7 @@ class TestXMLStreamClass(unittest.TestCase):
         Foo.child = xso.Child([Bar])
 
         self.assertIn(
-            Foo.child,
+            Foo.child.xq_descriptor,
             Foo.CHILD_PROPS
         )
         self.assertIn(
@@ -1230,7 +1299,7 @@ class TestXMLStreamClass(unittest.TestCase):
             Foo.CHILD_MAP
         )
         self.assertIs(
-            Foo.child,
+            Foo.child.xq_descriptor,
             Foo.CHILD_MAP[None, "foobar"]
         )
 
@@ -1246,8 +1315,8 @@ class TestXMLStreamClass(unittest.TestCase):
 
         Foo.child1 = xso.Child([Bar])
 
-        with self.assertRaisesRegexp(TypeError,
-                                     "ambiguous Child properties"):
+        with self.assertRaisesRegex(TypeError,
+                                    "ambiguous Child properties"):
             Foo.child2 = xso.Child([Baz])
 
     def test_setattr_Child_rejects_atomically(self):
@@ -1265,8 +1334,8 @@ class TestXMLStreamClass(unittest.TestCase):
 
         Foo.child1 = xso.Child([Bar])
 
-        with self.assertRaisesRegexp(TypeError,
-                                     "ambiguous Child properties"):
+        with self.assertRaisesRegex(TypeError,
+                                    "ambiguous Child properties"):
             Foo.child2 = xso.Child([Fnord, Baz])
 
         self.assertNotIn(
@@ -1285,11 +1354,11 @@ class TestXMLStreamClass(unittest.TestCase):
             Foo.CHILD_MAP
         )
         self.assertIs(
-            Foo.text,
+            Foo.text.xq_descriptor,
             Foo.CHILD_MAP[None, "foobar"]
         )
         self.assertIn(
-            Foo.text,
+            Foo.text.xq_descriptor,
             Foo.CHILD_PROPS
         )
 
@@ -1300,8 +1369,8 @@ class TestXMLStreamClass(unittest.TestCase):
         class Foo(metaclass=xso_model.XMLStreamClass):
             child = xso.Child([Bar])
 
-        with self.assertRaisesRegexp(TypeError,
-                                     "ambiguous Child properties"):
+        with self.assertRaisesRegex(TypeError,
+                                    "ambiguous Child properties"):
             Foo.text = xso.ChildText(tag=(None, "foobar"))
 
     def test_setattr_ChildTag(self):
@@ -1322,12 +1391,12 @@ class TestXMLStreamClass(unittest.TestCase):
                 Foo.CHILD_MAP
             )
             self.assertIs(
-                Foo.tag,
+                Foo.tag.xq_descriptor,
                 Foo.CHILD_MAP[None, tag]
             )
 
         self.assertIn(
-            Foo.tag,
+            Foo.tag.xq_descriptor,
             Foo.CHILD_PROPS
         )
 
@@ -1338,7 +1407,7 @@ class TestXMLStreamClass(unittest.TestCase):
         class Foo(metaclass=xso_model.XMLStreamClass):
             child = xso.Child([Bar])
 
-        with self.assertRaisesRegexp(TypeError,
+        with self.assertRaisesRegex(TypeError,
                                      "ambiguous Child properties"):
             Foo.tag = xso.ChildTag(
                 [
@@ -1355,7 +1424,7 @@ class TestXMLStreamClass(unittest.TestCase):
         class Foo(metaclass=xso_model.XMLStreamClass):
             child = xso.Child([Bar])
 
-        with self.assertRaisesRegexp(TypeError,
+        with self.assertRaisesRegex(TypeError,
                                      "ambiguous Child properties"):
             Foo.tag = xso.ChildTag(
                 [
@@ -1382,8 +1451,8 @@ class TestXMLStreamClass(unittest.TestCase):
         Foo.collector = xso.Collector()
 
         self.assertIs(
-            Foo.collector,
-            Foo.COLLECTOR_PROPERTY
+            Foo.collector.xq_descriptor,
+            Foo.COLLECTOR_PROPERTY.xq_descriptor
         )
 
     def test_setattr_Collector_rejects_duplicate(self):
@@ -1392,7 +1461,7 @@ class TestXMLStreamClass(unittest.TestCase):
 
         Foo.collector1 = xso.Collector()
 
-        with self.assertRaisesRegexp(TypeError,
+        with self.assertRaisesRegex(TypeError,
                                      "multiple Collector properties"):
             Foo.collector2 = xso.Collector()
 
@@ -1403,8 +1472,8 @@ class TestXMLStreamClass(unittest.TestCase):
         Foo.text = xso.Text()
 
         self.assertIs(
-            Foo.text,
-            Foo.TEXT_PROPERTY
+            Foo.text.xq_descriptor,
+            Foo.TEXT_PROPERTY.xq_descriptor
         )
 
     def test_setattr_Text_rejects_duplicate(self):
@@ -1413,7 +1482,7 @@ class TestXMLStreamClass(unittest.TestCase):
 
         Foo.text1 = xso.Text()
 
-        with self.assertRaisesRegexp(TypeError,
+        with self.assertRaisesRegex(TypeError,
                                      "multiple Text properties"):
             Foo.text2 = xso.Text()
 
@@ -1427,22 +1496,22 @@ class TestXMLStreamClass(unittest.TestCase):
         msg_regexp = ("adding descriptors is forbidden on classes with"
                       " subclasses")
 
-        with self.assertRaisesRegexp(TypeError, msg_regexp):
+        with self.assertRaisesRegex(TypeError, msg_regexp):
             Foo.attr = xso.Attr("abc")
 
-        with self.assertRaisesRegexp(TypeError, msg_regexp):
+        with self.assertRaisesRegex(TypeError, msg_regexp):
             Foo.attr = xso.Child([])
 
-        with self.assertRaisesRegexp(TypeError, msg_regexp):
+        with self.assertRaisesRegex(TypeError, msg_regexp):
             Foo.attr = xso.ChildText((None, "abc"))
 
-        with self.assertRaisesRegexp(TypeError, msg_regexp):
+        with self.assertRaisesRegex(TypeError, msg_regexp):
             Foo.attr = xso.ChildTag([(None, "abc")])
 
-        with self.assertRaisesRegexp(TypeError, msg_regexp):
+        with self.assertRaisesRegex(TypeError, msg_regexp):
             Foo.attr = xso.Text()
 
-        with self.assertRaisesRegexp(TypeError, msg_regexp):
+        with self.assertRaisesRegex(TypeError, msg_regexp):
             Foo.attr = xso.Collector()
 
     def test_setattr_permits_adding_non_descriptors_to_class_with_descendants(self):
@@ -1463,10 +1532,10 @@ class TestXMLStreamClass(unittest.TestCase):
 
         msg_regexp = "cannot unbind XSO descriptors"
 
-        with self.assertRaisesRegexp(AttributeError, msg_regexp):
+        with self.assertRaisesRegex(AttributeError, msg_regexp):
             del Foo.attr
 
-        with self.assertRaisesRegexp(AttributeError, msg_regexp):
+        with self.assertRaisesRegex(AttributeError, msg_regexp):
             del Foo.text
 
     def test_delattr_removes_everything_else(self):
@@ -1725,7 +1794,7 @@ class TestXSO(XMLTestCase):
         )
 
     def test_property_storage(self):
-        self.obj._stanza_props["key"] = "value"
+        self.obj._xso_contents["key"] = "value"
 
     def test_unparse_to_node_create_node(self):
         self._unparse_test(
@@ -1877,10 +1946,12 @@ class TestXSO(XMLTestCase):
 
         with contextlib.ExitStack() as stack:
             attr_validate = stack.enter_context(
-                unittest.mock.patch.object(Foo.attr, "validate_contents")
+                unittest.mock.patch.object(Foo.attr.xq_descriptor,
+                                           "validate_contents")
             )
             child_validate = stack.enter_context(
-                unittest.mock.patch.object(Foo.child, "validate_contents")
+                unittest.mock.patch.object(Foo.child.xq_descriptor,
+                                           "validate_contents")
             )
 
             obj.validate()
@@ -1899,11 +1970,11 @@ class TestXSO(XMLTestCase):
         )
 
     def test_init_takes_no_arguments(self):
-        with self.assertRaisesRegexp(
+        with self.assertRaisesRegex(
                 TypeError,
                 "takes no parameters"):
             xso.XSO("foo")
-        with self.assertRaisesRegexp(
+        with self.assertRaisesRegex(
                 TypeError,
                 "takes no parameters"):
             xso.XSO(bar="foo")
@@ -1943,8 +2014,8 @@ class TestXSO(XMLTestCase):
 
         t2 = copy.copy(t)
         self.assertFalse(base.mock_calls)
-        self.assertIsNot(t._stanza_props, t2._stanza_props)
-        self.assertEqual(t._stanza_props, t2._stanza_props)
+        self.assertIsNot(t._xso_contents, t2._xso_contents)
+        self.assertEqual(t._xso_contents, t2._xso_contents)
 
     def test_deepcopy_does_not_call_init_and_deepcopies_props(self):
         base = unittest.mock.Mock()
@@ -1965,9 +2036,17 @@ class TestXSO(XMLTestCase):
 
         t2 = copy.deepcopy(t)
         self.assertFalse(base.mock_calls)
-        self.assertIsNot(t._stanza_props, t2._stanza_props)
-        self.assertIsNot(t._stanza_props[Test.a],
-                         t2._stanza_props[Test.a])
+        self.assertIsNot(t._xso_contents, t2._xso_contents)
+        self.assertIsNot(t._xso_contents[Test.a.xq_descriptor],
+                         t2._xso_contents[Test.a.xq_descriptor])
+
+    def test_is_weakrefable(self):
+        i = xso.XSO()
+
+        import weakref
+        r = weakref.ref(i)
+
+        self.assertIs(r(), i)
 
     def tearDown(self):
         del self.obj
@@ -2133,9 +2212,12 @@ class Test_PropBase(unittest.TestCase):
     def setUp(self):
         self.default = object()
 
+        self.prop = xso_model._PropBase(
+            default=self.default
+        )
+
         class Cls(xso.XSO):
-            prop = xso_model._PropBase(
-                default=self.default)
+            prop = self.prop
 
         self.Cls = Cls
         self.obj = Cls()
@@ -2144,7 +2226,7 @@ class Test_PropBase(unittest.TestCase):
         class Cls(xso.XSO):
             prop = xso_model._PropBase()
 
-        with self.assertRaisesRegexp(
+        with self.assertRaisesRegex(
                 AttributeError,
                 "attribute is unset"):
             Cls().prop
@@ -2156,9 +2238,20 @@ class Test_PropBase(unittest.TestCase):
             self.obj.prop)
 
     def test_get_on_class(self):
-        self.assertIsInstance(
-            self.Cls.prop,
-            xso_model._PropBase)
+        with unittest.mock.patch(
+                "aioxmpp.xso.query.BoundDescriptor") as BoundDescriptor:
+            result = self.Cls.prop
+
+        BoundDescriptor.assert_called_with(
+            self.Cls,
+            self.prop,
+            xso_query.GetDescriptor,
+        )
+
+        self.assertEqual(
+            result,
+            BoundDescriptor(),
+        )
 
     def test_validator_recv(self):
         validator = unittest.mock.MagicMock()
@@ -2174,7 +2267,7 @@ class Test_PropBase(unittest.TestCase):
             {
                 prop: "foo",
             },
-            instance._stanza_props
+            instance._xso_contents
         )
 
         prop._set_from_code(instance, "bar")
@@ -2182,7 +2275,7 @@ class Test_PropBase(unittest.TestCase):
             {
                 prop: "bar",
             },
-            instance._stanza_props
+            instance._xso_contents
         )
 
         validator.validate.return_value = False
@@ -2213,7 +2306,7 @@ class Test_PropBase(unittest.TestCase):
             {
                 prop: "foo",
             },
-            instance._stanza_props
+            instance._xso_contents
         )
 
         prop._set_from_code(instance, "bar")
@@ -2221,7 +2314,7 @@ class Test_PropBase(unittest.TestCase):
             {
                 prop: "bar",
             },
-            instance._stanza_props
+            instance._xso_contents
         )
 
         validator.validate.return_value = False
@@ -2252,7 +2345,7 @@ class Test_PropBase(unittest.TestCase):
             {
                 prop: "foo",
             },
-            instance._stanza_props
+            instance._xso_contents
         )
 
         prop._set_from_code(instance, "bar")
@@ -2260,7 +2353,7 @@ class Test_PropBase(unittest.TestCase):
             {
                 prop: "bar",
             },
-            instance._stanza_props
+            instance._xso_contents
         )
 
         validator.validate.return_value = False
@@ -2322,8 +2415,7 @@ class Test_PropBase(unittest.TestCase):
         prop = xso_model._PropBase()
         instance = make_instance_mock()
 
-        with self.assertRaisesRegexp(ValueError,
-                                     "attribute is unset"):
+        with self.assertRaisesRegex(ValueError, "attribute is unset"):
             prop.validate_contents(instance)
 
     def tearDown(self):
@@ -2354,7 +2446,7 @@ class Test_TypedPropBase(unittest.TestCase):
             {
                 prop: type_.coerce(),
             },
-            instance._stanza_props
+            instance._xso_contents
         )
 
     def test_do_not_coerce_None(self):
@@ -2377,7 +2469,7 @@ class Test_TypedPropBase(unittest.TestCase):
             {
                 prop: None
             },
-            instance._stanza_props
+            instance._xso_contents
         )
 
 
@@ -2476,7 +2568,7 @@ class TestText(XMLTestCase):
             ],
             dest.mock_calls)
 
-        instance._stanza_props = {prop: None}
+        instance._xso_contents = {prop: None}
         dest = unittest.mock.MagicMock()
         prop.to_sax(instance, dest)
         self.assertSequenceEqual(
@@ -2493,10 +2585,10 @@ class TestText(XMLTestCase):
 
 class TestChild(XMLTestCase):
     def setUp(self):
-        class ClsLeaf(xso.XSO):
+        class ClsLeaf(xso.XSO, protect=False):
             TAG = "bar"
 
-        class ClsA(xso.XSO):
+        class ClsA(xso.XSO, protect=False):
             TAG = "foo"
             test_child = xso.Child([ClsLeaf])
 
@@ -2536,7 +2628,7 @@ class TestChild(XMLTestCase):
         class ClsLeaf2(xso.XSO):
             TAG = "bar"
 
-        with self.assertRaisesRegexp(ValueError, "ambiguous children"):
+        with self.assertRaisesRegex(ValueError, "ambiguous children"):
             xso.Child([self.ClsLeaf, ClsLeaf2])
 
     def test__register(self):
@@ -2555,7 +2647,7 @@ class TestChild(XMLTestCase):
         class ClsLeafConflict(xso.XSO):
             TAG = "baz"
 
-        with self.assertRaisesRegexp(ValueError, "ambiguous children"):
+        with self.assertRaisesRegex(ValueError, "ambiguous children"):
             self.ClsA.test_child._register(ClsLeafConflict)
 
     def test_from_events(self):
@@ -2593,7 +2685,7 @@ class TestChild(XMLTestCase):
             dest)
         self.assertDictEqual(
             {prop: "bar"},
-            instance._stanza_props)
+            instance._xso_contents)
 
     def test_to_sax(self):
         dest = unittest.mock.MagicMock()
@@ -2696,15 +2788,33 @@ class TestChildList(XMLTestCase):
         class ClsLeafB(xso.XSO):
             TAG = "baz"
 
+        self.prop = xso.ChildList([ClsLeafA, ClsLeafB])
+
         class Cls(xso.XSO):
             TAG = "foo"
-            children = xso.ChildList([ClsLeafA, ClsLeafB])
+            children = self.prop
 
         self.Cls = Cls
         self.ClsLeafA = ClsLeafA
         self.ClsLeafB = ClsLeafB
 
         self.ctx = xso_model.Context()
+
+    def test_get_on_class_returns_BoundDescriptor(self):
+        with unittest.mock.patch(
+                "aioxmpp.xso.query.BoundDescriptor") as BoundDescriptor:
+            result = self.Cls.children
+
+        BoundDescriptor.assert_called_with(
+            self.Cls,
+            self.prop,
+            xso_query.GetSequenceDescriptor,
+        )
+
+        self.assertEqual(
+            result,
+            BoundDescriptor(),
+        )
 
     def test_from_events(self):
         results = []
@@ -2822,6 +2932,27 @@ class TestCollector(XMLTestCase):
     def setUp(self):
         self.ctx = xso_model.Context()
 
+    def test_get_on_class_returns_BoundDescriptor(self):
+        prop = xso.Collector()
+
+        class Cls(xso.XSO):
+            children = prop
+
+        with unittest.mock.patch(
+                "aioxmpp.xso.query.BoundDescriptor") as BoundDescriptor:
+            result = Cls.children
+
+        BoundDescriptor.assert_called_with(
+            Cls,
+            prop,
+            xso_query.GetSequenceDescriptor,
+        )
+
+        self.assertEqual(
+            result,
+            BoundDescriptor(),
+        )
+
     def test_from_events(self):
         instance = make_instance_mock()
 
@@ -2841,7 +2972,7 @@ class TestCollector(XMLTestCase):
             drive_from_events(prop.from_events, instance, subtree,
                               self.ctx)
 
-        for result, subtree in zip(instance._stanza_props[prop],
+        for result, subtree in zip(instance._xso_contents[prop],
                                    subtrees):
             self.assertSubtreeEqual(
                 subtree,
@@ -2931,7 +3062,7 @@ class TestAttr(XMLTestCase):
             {
                 prop: 123,
             },
-            instance._stanza_props
+            instance._xso_contents
         )
 
     def test_missing_passes_if_defaulted(self):
@@ -2951,8 +3082,7 @@ class TestAttr(XMLTestCase):
         instance = make_instance_mock()
 
         prop = xso.Attr("foo")
-        with self.assertRaisesRegexp(ValueError,
-                                     r"missing attribute foo"):
+        with self.assertRaisesRegex(ValueError, "missing attribute foo"):
             prop.handle_missing(instance, ctx)
 
     def test_to_dict(self):
@@ -3051,7 +3181,7 @@ class TestAttr(XMLTestCase):
         instance = make_instance_mock()
         prop = xso.Attr("foo")
 
-        with self.assertRaisesRegexp(ValueError, "value required for"):
+        with self.assertRaisesRegex(ValueError, "value required for"):
             prop.validate_contents(instance)
 
     def test_delete_reverts_to_default_if_available(self):
@@ -3126,7 +3256,7 @@ class TestChildText(XMLTestCase):
             {
                 prop: type_mock.parse("foo"),
             },
-            instance._stanza_props)
+            instance._xso_contents)
         self.assertSequenceEqual(
             [
                 unittest.mock.call.__bool__(),
@@ -3172,7 +3302,7 @@ class TestChildText(XMLTestCase):
         with self.assertRaises(ValueError):
             drive_from_events(prop.from_events, instance, subtree, self.ctx)
 
-        self.assertFalse(instance._stanza_props)
+        self.assertFalse(instance._xso_contents)
 
     def test_enforce_child_policy_drop(self):
         instance = make_instance_mock()
@@ -3187,7 +3317,7 @@ class TestChildText(XMLTestCase):
             {
                 prop: "foobar",
             },
-            instance._stanza_props)
+            instance._xso_contents)
 
     def test_attr_policy_default(self):
         prop = xso.ChildText("body")
@@ -3206,7 +3336,7 @@ class TestChildText(XMLTestCase):
         with self.assertRaises(ValueError):
             drive_from_events(prop.from_events, instance, subtree, self.ctx)
 
-        self.assertFalse(instance._stanza_props)
+        self.assertFalse(instance._xso_contents)
 
     def test_enforce_attr_policy_drop(self):
         instance = make_instance_mock()
@@ -3222,7 +3352,7 @@ class TestChildText(XMLTestCase):
             {
                 prop: "foo",
             },
-            instance._stanza_props)
+            instance._xso_contents)
 
     def test_to_sax(self):
         dest = unittest.mock.MagicMock()
@@ -3314,7 +3444,7 @@ class TestChildText(XMLTestCase):
             ],
             dest.mock_calls)
 
-        instance._stanza_props = {prop: None}
+        instance._xso_contents = {prop: None}
         dest = unittest.mock.MagicMock()
         prop.to_sax(instance, dest)
         self.assertSequenceEqual(
@@ -3325,7 +3455,7 @@ class TestChildText(XMLTestCase):
             ],
             dest.mock_calls)
 
-        instance._stanza_props = {prop: ""}
+        instance._xso_contents = {prop: ""}
         dest = unittest.mock.MagicMock()
         prop.to_sax(instance, dest)
         self.assertSequenceEqual(
@@ -3363,15 +3493,26 @@ class TestChildMap(XMLTestCase):
     def setUp(self):
         self.ctx = xso_model.Context()
 
-    def test_class_access_returns_property(self):
+    def test_class_access_returns_BoundDescriptor(self):
         prop = xso.ChildMap([])
 
         class Foo(xso.XSO):
             cm = prop
 
-        self.assertIs(
+        with unittest.mock.patch(
+                "aioxmpp.xso.query.BoundDescriptor") as BoundDescriptor:
+            result = Foo.cm
+
+        BoundDescriptor.assert_called_with(
+            Foo,
             prop,
-            Foo.cm)
+            xso_query.GetMappingDescriptor,
+        )
+
+        self.assertEqual(
+            result,
+            BoundDescriptor()
+        )
 
     def test_from_events_from_init(self):
         class Bar(xso.XSO):
@@ -3403,8 +3544,8 @@ class TestChildMap(XMLTestCase):
             self.ctx
         )
 
-        self.assertIn(prop, instance._stanza_props)
-        resultmap = instance._stanza_props[prop]
+        self.assertIn(prop, instance._xso_contents)
+        resultmap = instance._xso_contents[prop]
         self.assertEqual(2, len(resultmap))
         self.assertIn(Bar.TAG, resultmap)
         self.assertIn(Foo.TAG, resultmap)
@@ -3506,8 +3647,8 @@ class TestChildMap(XMLTestCase):
             self.ctx
         )
 
-        self.assertIn(prop, instance._stanza_props)
-        resultmap = instance._stanza_props[prop]
+        self.assertIn(prop, instance._xso_contents)
+        resultmap = instance._xso_contents[prop]
         self.assertEqual(2, len(resultmap))
         self.assertIn("bar", resultmap)
         self.assertIn("foo", resultmap)
@@ -3635,8 +3776,8 @@ class TestChildLangMap(unittest.TestCase):
             self.ctx
         )
 
-        self.assertIn(prop, instance._stanza_props)
-        resultmap = instance._stanza_props[prop]
+        self.assertIn(prop, instance._xso_contents)
+        resultmap = instance._xso_contents[prop]
         self.assertEqual(2, len(resultmap))
         self.assertIn(en_GB, resultmap)
         self.assertIn(de_DE, resultmap)
@@ -3712,7 +3853,7 @@ class TestChildTag(unittest.TestCase):
             {
                 prop: ("uri:foo", "foo"),
             },
-            instance._stanza_props
+            instance._xso_contents
         )
 
     def test_child_policy_fail(self):
@@ -3733,7 +3874,7 @@ class TestChildTag(unittest.TestCase):
                 self.ctx
             )
 
-        self.assertFalse(instance._stanza_props)
+        self.assertFalse(instance._xso_contents)
 
     def test_child_policy_drop(self):
         instance = make_instance_mock()
@@ -3756,7 +3897,7 @@ class TestChildTag(unittest.TestCase):
             {
                 prop: ("uri:foo", "foo"),
             },
-            instance._stanza_props
+            instance._xso_contents
         )
 
     def test_attr_policy_fail(self):
@@ -3777,7 +3918,7 @@ class TestChildTag(unittest.TestCase):
             self.ctx
             )
 
-        self.assertFalse(instance._stanza_props)
+        self.assertFalse(instance._xso_contents)
 
     def test_attr_policy_drop(self):
         instance = make_instance_mock()
@@ -3800,7 +3941,7 @@ class TestChildTag(unittest.TestCase):
             {
                 prop: ("uri:foo", "foo"),
             },
-            instance._stanza_props
+            instance._xso_contents
         )
 
     def test_text_policy_fail(self):
@@ -3821,7 +3962,7 @@ class TestChildTag(unittest.TestCase):
             self.ctx
             )
 
-        self.assertFalse(instance._stanza_props)
+        self.assertFalse(instance._xso_contents)
 
     def test_text_policy_drop(self):
         instance = make_instance_mock()
@@ -3844,7 +3985,7 @@ class TestChildTag(unittest.TestCase):
             {
                 prop: ("uri:foo", "foo"),
             },
-            instance._stanza_props
+            instance._xso_contents
         )
 
     def test_to_sax(self):
@@ -4299,7 +4440,7 @@ class ChildTag(XMLTestCase):
             {
                 self.prop: ("uri:bar", "foo"),
             },
-            instance._stanza_props)
+            instance._xso_contents)
 
     def test_from_events_text_policy_fail(self):
         instance = make_instance_mock()
@@ -4311,7 +4452,7 @@ class ChildTag(XMLTestCase):
                 etree.fromstring("<foo xmlns='uri:bar'>text</foo>"),
                 self.ctx
             )
-        self.assertFalse(instance._stanza_props)
+        self.assertFalse(instance._xso_contents)
 
     def test_from_events_text_policy_drop(self):
         instance = make_instance_mock()
@@ -4327,7 +4468,7 @@ class ChildTag(XMLTestCase):
             {
                 self.prop: ("uri:bar", "foo"),
             },
-            instance._stanza_props)
+            instance._xso_contents)
 
     def test_from_events_child_policy_fail(self):
         instance = make_instance_mock()
@@ -4339,7 +4480,7 @@ class ChildTag(XMLTestCase):
                 etree.fromstring("<foo xmlns='uri:bar'><bar/></foo>"),
                 self.ctx
             )
-        self.assertFalse(instance._stanza_props)
+        self.assertFalse(instance._xso_contents)
 
     def test_from_events_child_policy_drop(self):
         instance = make_instance_mock()
@@ -4355,7 +4496,7 @@ class ChildTag(XMLTestCase):
             {
                 self.prop: ("uri:bar", "foo"),
             },
-            instance._stanza_props)
+            instance._xso_contents)
 
     def test_from_events_attr_policy_fail(self):
         instance = make_instance_mock()
@@ -4367,7 +4508,7 @@ class ChildTag(XMLTestCase):
                 etree.fromstring("<foo xmlns='uri:bar' a='bar'/>"),
                 self.ctx
             )
-        self.assertFalse(instance._stanza_props)
+        self.assertFalse(instance._xso_contents)
 
     def test_from_events_attr_policy_drop(self):
         instance = make_instance_mock()
@@ -4383,7 +4524,7 @@ class ChildTag(XMLTestCase):
             {
                 self.prop: ("uri:bar", "foo"),
             },
-            instance._stanza_props)
+            instance._xso_contents)
 
     def test_to_sax(self):
         instance = make_instance_mock({
@@ -4497,20 +4638,34 @@ class TestChildValueList(unittest.TestCase):
         )
         self.assertIs(
             self.Cls.CHILD_MAP[self.ChildXSO.TAG],
-            self.Cls.values
+            self.Cls.values.xq_descriptor
         )
         self.assertIn(
-            self.Cls.values,
+            self.Cls.values.xq_descriptor,
             self.Cls.CHILD_PROPS
         )
 
-    def test_get_on_class_returns_descriptor(self):
+    def test_get_on_class_returns_BoundDescriptor(self):
         desc = xso_model.ChildValueList(self.ChildValueType)
 
         class Cls(xso.XSO):
             values = desc
 
-        self.assertIs(desc, Cls.values)
+        with unittest.mock.patch(
+                "aioxmpp.xso.query.BoundDescriptor") as BoundDescriptor:
+            result = Cls.values
+
+        BoundDescriptor.assert_called_with(
+            Cls,
+            desc,
+            xso_query.GetSequenceDescriptor,
+            expr_kwargs={"sequence_factory": list}
+        )
+
+        self.assertEqual(
+            result,
+            BoundDescriptor()
+        )
 
     def test_initial_value_is_a_mutable_sequence(self):
         obj = self.Cls()
@@ -4610,7 +4765,7 @@ class TestChildValueList(unittest.TestCase):
             ))
 
             stack.enter_context(unittest.mock.patch.object(
-                self.Cls.values,
+                self.Cls.values.xq_descriptor,
                 "_process",
                 new=base.process
             ))
@@ -4677,7 +4832,7 @@ class TestChildValueList(unittest.TestCase):
             ))
 
             stack.enter_context(unittest.mock.patch.object(
-                Cls.values,
+                Cls.values.xq_descriptor,
                 "_process",
                 new=base.process
             ))
@@ -4777,20 +4932,39 @@ class TestChildValueMap(unittest.TestCase):
         )
         self.assertIs(
             self.Cls.CHILD_MAP[self.ChildXSO.TAG],
-            self.Cls.values
+            self.Cls.values.xq_descriptor
         )
         self.assertIn(
-            self.Cls.values,
+            self.Cls.values.xq_descriptor,
             self.Cls.CHILD_PROPS
         )
 
     def test_get_on_class_returns_descriptor(self):
-        desc = xso_model.ChildValueList(self.ChildValueType)
+        desc = xso_model.ChildValueMap(
+            self.ChildValueType,
+            mapping_type=unittest.mock.sentinel.mapping,
+        )
 
         class Cls(xso.XSO):
             values = desc
 
-        self.assertIs(desc, Cls.values)
+        with unittest.mock.patch(
+                "aioxmpp.xso.query.BoundDescriptor") as BoundDescriptor:
+            result = Cls.values
+
+        BoundDescriptor.assert_called_with(
+            Cls,
+            desc,
+            xso_query.GetMappingDescriptor,
+            expr_kwargs={
+                "mapping_factory": unittest.mock.sentinel.mapping
+            }
+        )
+
+        self.assertEqual(
+            result,
+            BoundDescriptor(),
+        )
 
     def test_initial_value_is_a_mutable_mapping(self):
         obj = self.Cls()
@@ -4890,7 +5064,7 @@ class TestChildValueMap(unittest.TestCase):
             ))
 
             stack.enter_context(unittest.mock.patch.object(
-                self.Cls.values,
+                self.Cls.values.xq_descriptor,
                 "_process",
                 new=base.process
             ))
@@ -4930,6 +5104,226 @@ class TestChildValueMap(unittest.TestCase):
                 1: "a",
                 2: "b"
             }
+        )
+
+    def tearDown(self):
+        del self.Cls
+
+
+class TestChildValueMultiMap(unittest.TestCase):
+    class ChildXSO(xso.XSO):
+        TAG = ("uri:foo", "foo")
+
+        key = xso.Attr("k", type_=xso.Integer())
+        value = xso.Attr("v", type_=xso.Integer())
+
+    class ChildValueType(xso.AbstractType):
+        @classmethod
+        def get_formatted_type(cls):
+            return TestChildValueMultiMap.ChildXSO
+
+        def format(self, item):
+            key, value = item
+            item = TestChildValueMultiMap.ChildXSO()
+            item.key = key
+            item.value = value
+            return item
+
+        def parse(self, item):
+            return item.key, item.value
+
+    def setUp(self):
+        class Cls(xso.XSO):
+            TAG = ("uri:foo", "p")
+
+            values = xso_model.ChildValueMultiMap(
+                self.ChildValueType
+            )
+
+        self.Cls = Cls
+
+    def test_is_child_prop_base(self):
+        self.assertTrue(issubclass(
+            xso_model.ChildValueMultiMap,
+            xso_model._ChildPropBase
+        ))
+
+    def test_get_tag_map_and_classes(self):
+        self.assertDictEqual(
+            self.Cls.values.get_tag_map(),
+            {
+                self.ChildXSO.TAG: self.ChildXSO,
+            }
+        )
+        self.assertSetEqual(
+            self.Cls.values._classes,
+            {self.ChildXSO}
+        )
+
+    def test_registered_at_class_child_map(self):
+        self.assertIn(
+            self.ChildXSO.TAG,
+            self.Cls.CHILD_MAP
+        )
+        self.assertIs(
+            self.Cls.CHILD_MAP[self.ChildXSO.TAG],
+            self.Cls.values.xq_descriptor
+        )
+        self.assertIn(
+            self.Cls.values.xq_descriptor,
+            self.Cls.CHILD_PROPS
+        )
+
+    def test_get_on_class_returns_descriptor(self):
+        desc = xso_model.ChildValueMultiMap(
+            self.ChildValueType,
+            mapping_type=unittest.mock.sentinel.mapping
+        )
+
+        class Cls(xso.XSO):
+            values = desc
+
+        with unittest.mock.patch(
+                "aioxmpp.xso.query.BoundDescriptor") as BoundDescriptor:
+            result = Cls.values
+
+        BoundDescriptor.assert_called_with(
+            Cls,
+            desc,
+            xso_query.GetMappingDescriptor,
+            expr_kwargs={"mapping_factory": unittest.mock.sentinel.mapping}
+        )
+
+        self.assertEqual(
+            result,
+            BoundDescriptor(),
+        )
+
+    def test_initial_value_is_a_mutable_mapping(self):
+        obj = self.Cls()
+        self.assertIsInstance(
+            obj.values,
+            multidict.MultiDict)
+        self.assertEqual(obj.values, {})
+
+    def test_mapping_type(self):
+        class Cls(xso.XSO):
+            TAG = ("uri:foo", "p")
+
+            values = xso_model.ChildValueMultiMap(
+                self.ChildValueType,
+                mapping_type=multidict.CIMultiDict
+            )
+
+        obj = Cls()
+        self.assertIsInstance(
+            obj.values,
+            multidict.CIMultiDict)
+        self.assertEqual(obj.values, {})
+
+    def test_not_settable(self):
+        obj = self.Cls()
+
+        with self.assertRaises(AttributeError):
+            obj.values = {}
+
+    def test_from_events_uses__process_and_parse(self):
+        obj = self.Cls()
+
+        def process(mock, *args, **kwargs):
+            return mock(*args, **kwargs)
+            yield None
+
+        base = unittest.mock.Mock()
+        process_mock = base.process
+        base.process = functools.partial(process, process_mock)
+
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(unittest.mock.patch.object(
+                self.ChildValueType,
+                "parse",
+                new=base.parse
+            ))
+
+            stack.enter_context(unittest.mock.patch.object(
+                self.Cls.values.xq_descriptor,
+                "_process",
+                new=base.process
+            ))
+
+            base.parse.return_value = ("x", "a")
+            with self.assertRaises(StopIteration):
+                gen = self.Cls.values.from_events(
+                    obj,
+                    base.ev_args,
+                    base.ctx,
+                )
+                next(gen)
+
+            base.parse.return_value = ("x", "b")
+            with self.assertRaises(StopIteration):
+                gen = self.Cls.values.from_events(
+                    obj,
+                    base.ev_args,
+                    base.ctx,
+                )
+                next(gen)
+
+            base.parse.return_value = ("z", "c")
+            with self.assertRaises(StopIteration):
+                gen = self.Cls.values.from_events(
+                    obj,
+                    base.ev_args,
+                    base.ctx,
+                )
+                next(gen)
+
+        calls = list(base.mock_calls)
+        self.assertSequenceEqual(
+            calls,
+            [
+                unittest.mock.call.process(obj, base.ev_args, base.ctx),
+                unittest.mock.call.parse(process_mock()),
+                unittest.mock.call.process(obj, base.ev_args, base.ctx),
+                unittest.mock.call.parse(process_mock()),
+                unittest.mock.call.process(obj, base.ev_args, base.ctx),
+                unittest.mock.call.parse(process_mock()),
+            ]
+        )
+
+        self.assertEqual(
+            obj.values,
+            multidict.MultiDict([
+                ("x", "a"),
+                ("x", "b"),
+                ("z", "c"),
+            ])
+        )
+
+    def test_to_sax_calls_format(self):
+        obj = self.Cls()
+        obj.values.add("x", "y")
+        obj.values.add("x", "z")
+
+        base = unittest.mock.Mock()
+
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(unittest.mock.patch.object(
+                self.ChildValueType,
+                "format",
+                new=base.format
+            ))
+
+            self.Cls.values.to_sax(obj, base.dest)
+
+        self.assertSequenceEqual(
+            base.mock_calls,
+            [
+                unittest.mock.call.format(("x", "y")),
+                unittest.mock.call.format().unparse_to_sax(base.dest),
+                unittest.mock.call.format(("x", "z")),
+                unittest.mock.call.format().unparse_to_sax(base.dest),
+            ]
         )
 
     def tearDown(self):

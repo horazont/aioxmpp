@@ -1,10 +1,8 @@
 """
-:mod:`~aioxmpp.muc` --- Multi-User-Chat support (XEP-0045)
-##########################################################
+:mod:`~aioxmpp.muc` --- Multi-User-Chat support (:xep:`45`)
+###########################################################
 
-This subpackage provides client-side support for `XEP-0045`_.
-
-.. _xep-0045: https://xmpp.org/extensions/xep-0045.html
+This subpackage provides client-side support for :xep:`0045`.
 
 .. versionadded:: 0.5
 

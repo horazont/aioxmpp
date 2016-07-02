@@ -27,9 +27,11 @@ extend its functionality or provide backwards compatibility.
    entitycaps
    muc
    presence
+   pubsub
    roster
    rfc6120
    rfc3921
+   shim
 
 
 Less common and helper classes
@@ -51,6 +53,7 @@ sorted into this section.
    errors
    i18n
    callbacks
+   connector
 
 
 APIs mainly relevant for extension developers

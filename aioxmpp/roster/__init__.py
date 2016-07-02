@@ -1,9 +1,9 @@
 """
-:mod:`~aioxmpp.roster` --- RFC 6121 roster implementation
-#########################################################
+:mod:`~aioxmpp.roster` --- :rfc:`6121` roster implementation
+############################################################
 
 This subpackage provides a :class:`aioxmpp.service.Service` to interact with
-`RFC 6121`_ rosters.
+:rfc:`6121` rosters.
 
 .. autoclass:: Service
 
@@ -29,8 +29,6 @@ The stream feature which is used by servers to announce support for roster
 versioning:
 
 .. autoclass:: RosterVersioningFeature()
-
-.. _RFC 6121: https://tools.ietf.org/html/rfc6121
 """
 
 from .service import Service, Item  # NOQA

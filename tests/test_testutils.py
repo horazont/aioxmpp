@@ -141,7 +141,7 @@ class TestTransportMock(unittest.TestCase):
             transport.write(b"fnord")
 
         self.protocol.connection_made = connection_made
-        with self.assertRaisesRegexp(
+        with self.assertRaisesRegex(
                 AssertionError,
                 "mismatch of expected and written data"):
             self._run_test(
@@ -155,7 +155,7 @@ class TestTransportMock(unittest.TestCase):
             transport.write(b"fnord")
 
         self.protocol.connection_made = connection_made
-        with self.assertRaisesRegexp(AssertionError, "unexpected write"):
+        with self.assertRaisesRegex(AssertionError, "unexpected write"):
             self._run_test(
                 self.t,
                 [
@@ -166,7 +166,7 @@ class TestTransportMock(unittest.TestCase):
             transport.close()
 
         self.protocol.connection_made = connection_made
-        with self.assertRaisesRegexp(AssertionError, "unexpected close"):
+        with self.assertRaisesRegex(AssertionError, "unexpected close"):
             self._run_test(
                 self.t,
                 [
@@ -178,7 +178,7 @@ class TestTransportMock(unittest.TestCase):
             transport.close()
 
         self.protocol.connection_made = connection_made
-        with self.assertRaisesRegexp(AssertionError, "unexpected close"):
+        with self.assertRaisesRegex(AssertionError, "unexpected close"):
             self._run_test(
                 self.t,
                 [
@@ -300,7 +300,7 @@ class TestTransportMock(unittest.TestCase):
 
         self.protocol.connection_made = connection_made
 
-        with self.assertRaisesRegexp(
+        with self.assertRaisesRegex(
                 AssertionError,
                 "unexpected write_eof"):
             self._run_test(
@@ -314,7 +314,7 @@ class TestTransportMock(unittest.TestCase):
 
         self.protocol.connection_made = connection_made
 
-        with self.assertRaisesRegexp(
+        with self.assertRaisesRegex(
                 AssertionError,
                 "unexpected write_eof"):
             self._run_test(
@@ -329,7 +329,7 @@ class TestTransportMock(unittest.TestCase):
 
         self.protocol.connection_made = connection_made
 
-        with self.assertRaisesRegexp(
+        with self.assertRaisesRegex(
                 AssertionError,
                 "unexpected abort"):
             self._run_test(
@@ -343,7 +343,7 @@ class TestTransportMock(unittest.TestCase):
 
         self.protocol.connection_made = connection_made
 
-        with self.assertRaisesRegexp(
+        with self.assertRaisesRegex(
                 AssertionError,
                 "unexpected abort"):
             self._run_test(
@@ -358,7 +358,7 @@ class TestTransportMock(unittest.TestCase):
 
         self.protocol.connection_made = connection_made
 
-        with self.assertRaisesRegexp(
+        with self.assertRaisesRegex(
                 RuntimeError,
                 "test specification incorrect"):
             self._run_test(
@@ -629,7 +629,7 @@ class TestXMLStreamMock(XMLTestCase):
     def test_catch_missing_stanza_handler(self):
         obj = self.Cls()
 
-        with self.assertRaisesRegexp(AssertionError, "no handler registered"):
+        with self.assertRaisesRegex(AssertionError, "no handler registered"):
             run_coroutine(self.xmlstream.run_test(
                 [
                 ],
@@ -651,7 +651,7 @@ class TestXMLStreamMock(XMLTestCase):
     def test_catch_surplus_send(self):
         self.xmlstream.send_xso(self.Cls())
 
-        with self.assertRaisesRegexp(
+        with self.assertRaisesRegex(
                 AssertionError,
                 r"unexpected send_xso\(<tests.test_testutils.TestXMLStreamMock"
                 r".setUp.<locals>.Cls object at 0x[a-f0-9]+>\)"):
@@ -677,8 +677,8 @@ class TestXMLStreamMock(XMLTestCase):
     def test_catch_surplus_reset(self):
         self.xmlstream.reset()
 
-        with self.assertRaisesRegexp(AssertionError,
-                                     "unexpected reset"):
+        with self.assertRaisesRegex(AssertionError,
+                                    "unexpected reset"):
             run_coroutine(self.xmlstream.run_test(
                 [
                 ],
@@ -719,8 +719,8 @@ class TestXMLStreamMock(XMLTestCase):
     def test_catch_surplus_close(self):
         self.xmlstream.close()
 
-        with self.assertRaisesRegexp(AssertionError,
-                                     "unexpected close"):
+        with self.assertRaisesRegex(AssertionError,
+                                    "unexpected close"):
             run_coroutine(self.xmlstream.run_test(
                 [
                 ],
@@ -770,8 +770,8 @@ class TestXMLStreamMock(XMLTestCase):
 
         self.xmlstream.transport = object()
 
-        with self.assertRaisesRegexp(AssertionError,
-                                     "mismatched starttls argument"):
+        with self.assertRaisesRegex(AssertionError,
+                                    "mismatched starttls argument"):
             run_coroutine(
                 asyncio.gather(
                     self.xmlstream.starttls(object(), post_handshake_callback),
@@ -785,8 +785,8 @@ class TestXMLStreamMock(XMLTestCase):
                 )
             )
 
-        with self.assertRaisesRegexp(AssertionError,
-                                     "mismatched starttls argument"):
+        with self.assertRaisesRegex(AssertionError,
+                                    "mismatched starttls argument"):
             run_coroutine(
                 asyncio.gather(
                     self.xmlstream.starttls(ssl_context, object()),
@@ -875,6 +875,38 @@ class TestXMLStreamMock(XMLTestCase):
 
         self.assertTrue(task.done())
 
+    def test_abort(self):
+        fut = self.xmlstream.error_future()
+
+        obj = self.Cls()
+
+        def handler(obj):
+            self.xmlstream.abort()
+
+        self.xmlstream.stanza_parser.add_class(self.Cls, handler)
+        run_coroutine(self.xmlstream.run_test(
+            [
+                XMLStreamMock.Abort(),
+            ],
+            stimulus=XMLStreamMock.Receive(obj)
+        ))
+
+        self.assertTrue(fut.done())
+        self.assertIsInstance(
+            fut.exception(),
+            ConnectionError
+        )
+
+    def test_catch_surplus_abort(self):
+        self.xmlstream.abort()
+
+        with self.assertRaisesRegex(AssertionError,
+                                    "unexpected abort"):
+            run_coroutine(self.xmlstream.run_test(
+                [
+                ],
+            ))
+
     def tearDown(self):
         del self.xmlstream
         del self.loop
@@ -945,7 +977,7 @@ class TestCoroutineMock(unittest.TestCase):
             run_coroutine(m())
         )
 
-    def test_side_effect(self):
+    def test_side_effect_exception(self):
         m = CoroutineMock()
         m.side_effect = ValueError()
         with self.assertRaises(ValueError):

@@ -7,6 +7,7 @@ See :mod:`aioxmpp.xso` for documentation.
 import abc
 import collections
 import copy
+import logging
 import sys
 import xml.sax.handler
 
@@ -14,13 +15,19 @@ import lxml.sax
 
 import orderedset  # get it from PyPI
 
+import multidict  # get it from PyPI
+
 from enum import Enum
 
 from aioxmpp.utils import etree, namespaces
 
+from . import query as xso_query
 from . import types as xso_types
 from . import tag_to_str, normalize_tag
 from .. import structs
+
+
+logger = logging.getLogger(__name__)
 
 
 class UnknownChildPolicy(Enum):
@@ -238,7 +245,15 @@ class XSOList(list):
         return list(self.filter(type_=type_, lang=lang, attrs=attrs))
 
 
-class _PropBase:
+class PropBaseMeta(type):
+    def __instancecheck__(self, instance):
+        if (isinstance(instance, xso_query.BoundDescriptor) and
+                super().__instancecheck__(instance.xq_descriptor)):
+            return True
+        return super().__instancecheck__(instance)
+
+
+class _PropBase(metaclass=PropBaseMeta):
     class NO_DEFAULT:
         def __repr__(self):
             return "no default"
@@ -258,7 +273,7 @@ class _PropBase:
         self.validator = validator
 
     def _set(self, instance, value):
-        instance._stanza_props[self] = value
+        instance._xso_contents[self] = value
 
     def __set__(self, instance, value):
         if     (self.validate.from_code and
@@ -277,16 +292,20 @@ class _PropBase:
             raise ValueError("invalid value")
         self._set(instance, value)
 
-    def __get__(self, instance, cls):
+    def __get__(self, instance, type_):
         if instance is None:
-            return self
+            return xso_query.BoundDescriptor(
+                type_,
+                self,
+                xso_query.GetDescriptor,
+            )
         try:
-            return instance._stanza_props[self]
+            return instance._xso_contents[self]
         except KeyError:
             if self.default is self.NO_DEFAULT:
                 raise AttributeError(
                     "attribute is unset ({} on instance of {})".format(
-                        self, cls)
+                        self, type_)
                 ) from None
             return self.default
 
@@ -436,7 +455,7 @@ class Child(_ChildPropBase):
         if self.required:
             raise AttributeError("cannot delete required member")
         try:
-            del instance._stanza_props[self]
+            del instance._xso_contents[self]
         except KeyError:
             pass
 
@@ -491,10 +510,15 @@ class ChildList(_ChildPropBase):
     def __init__(self, classes):
         super().__init__(classes)
 
-    def __get__(self, instance, cls):
+    def __get__(self, instance, type_):
         if instance is None:
-            return super().__get__(instance, cls)
-        return instance._stanza_props.setdefault(self, XSOList())
+            return xso_query.BoundDescriptor(
+                type_,
+                self,
+                xso_query.GetSequenceDescriptor,
+            )
+
+        return instance._xso_contents.setdefault(self, XSOList())
 
     def _set(self, instance, value):
         if not isinstance(value, list):
@@ -540,10 +564,15 @@ class Collector(_PropBase):
     def __init__(self):
         super().__init__(default=[])
 
-    def __get__(self, instance, cls):
+    def __get__(self, instance, type_):
         if instance is None:
-            return super().__get__(instance, cls)
-        return instance._stanza_props.setdefault(self, [])
+            return xso_query.BoundDescriptor(
+                type_,
+                self,
+                xso_query.GetSequenceDescriptor,
+            )
+
+        return instance._xso_contents.setdefault(self, [])
 
     def _set(self, instance, value):
         if not isinstance(value, list):
@@ -673,7 +702,7 @@ class Attr(Text):
 
     def __delete__(self, instance):
         try:
-            del instance._stanza_props[self]
+            del instance._xso_contents[self]
         except KeyError:
             pass
 
@@ -884,12 +913,18 @@ class ChildMap(_ChildPropBase):
         super().__init__(classes)
         self.key = key or (lambda obj: obj.TAG)
 
-    def __get__(self, instance, cls):
+    def __get__(self, instance, type_):
         if instance is None:
-            return super().__get__(instance, cls)
-        return instance._stanza_props.setdefault(
+            return xso_query.BoundDescriptor(
+                type_,
+                self,
+                xso_query.GetMappingDescriptor,
+            )
+
+        return instance._xso_contents.setdefault(
             self,
-            collections.defaultdict(XSOList))
+            collections.defaultdict(XSOList)
+        )
 
     def __set__(self, instance, value):
         raise AttributeError("ChildMap attribute cannot be assigned to")
@@ -1103,12 +1138,18 @@ class ChildValueList(_ChildPropBase):
 
     def __get__(self, instance, type_):
         if instance is None:
-            return self
+            return xso_query.BoundDescriptor(
+                type_,
+                self,
+                xso_query.GetSequenceDescriptor,
+                expr_kwargs={"sequence_factory": self.container_type},
+            )
+
         try:
-            return instance._stanza_props[self]
+            return instance._xso_contents[self]
         except KeyError:
             result = self.container_type()
-            instance._stanza_props[self] = result
+            instance._xso_contents[self] = result
             return result
 
     def __set__(self, instance, value):
@@ -1156,12 +1197,18 @@ class ChildValueMap(_ChildPropBase):
 
     def __get__(self, instance, type_):
         if instance is None:
-            return self
+            return xso_query.BoundDescriptor(
+                type_,
+                self,
+                xso_query.GetMappingDescriptor,
+                expr_kwargs={"mapping_factory": self.mapping_type}
+            )
+
         try:
-            return instance._stanza_props[self]
+            return instance._xso_contents[self]
         except KeyError:
             result = self.mapping_type()
-            instance._stanza_props[self] = result
+            instance._xso_contents[self] = result
             return result
 
     def __set__(self, instance, value):
@@ -1175,6 +1222,59 @@ class ChildValueMap(_ChildPropBase):
         obj = yield from self._process(instance, ev_args, ctx)
         key, value = self.type_.parse(obj)
         self.__get__(instance, type(instance))[key] = value
+
+
+class ChildValueMultiMap(_ChildPropBase):
+    """
+    A mapping of keys to lists of values, representing child tags.
+
+    This is very similar to :class:`ChildValueMultiMap`, but it uses a
+    :class:`multidict.MultiDict` as storage. Interface-compatible classes can
+    be substituted by passing them to `mapping_type`. Candidate for that are
+    :class:`multidict.CIMultiDict`.
+
+    The `type_` must return key-value pairs from
+    :meth:`.xso.AbstractType.parse` and must accept such key-value pairs in
+    :meth:`.xso.AbstractType.format`. Each key-value pair consists of the
+    respective dictionary key and a value from the list of values belonging to
+    that dictionary key.
+
+    .. versionadded:: 0.6
+    """
+
+    def __init__(self, type_, *, mapping_type=multidict.MultiDict):
+        super().__init__([type_.get_formatted_type()])
+        self.type_ = type_
+        self.mapping_type = mapping_type
+
+    def __get__(self, instance, type_):
+        if instance is None:
+            return xso_query.BoundDescriptor(
+                type_,
+                self,
+                xso_query.GetMappingDescriptor,
+                expr_kwargs={"mapping_factory": self.mapping_type},
+            )
+
+        try:
+            return instance._xso_contents[self]
+        except KeyError:
+            result = self.mapping_type()
+            instance._xso_contents[self] = result
+            return result
+
+    def __set__(self, instance, value):
+        raise AttributeError("child value multi map not writable")
+
+    def to_sax(self, instance, dest):
+        for key, values in self.__get__(instance, type(instance)).items():
+            for value in values:
+                self.type_.format((key, value)).unparse_to_sax(dest)
+
+    def from_events(self, instance, ev_args, ctx):
+        obj = yield from self._process(instance, ev_args, ctx)
+        key, value = self.type_.parse(obj)
+        self.__get__(instance, type(instance)).add(key, value)
 
 
 class ChildTextMap(ChildValueMap):
@@ -1194,10 +1294,16 @@ class ChildTextMap(ChildValueMap):
         )
 
 
-class XMLStreamClass(abc.ABCMeta):
+class XMLStreamClass(xso_query.Class, abc.ABCMeta):
     """
-    There should be no need to use this metaclass directly when implementing
-    your own XSO classes. Instead, derive from :class:`~.xso.XSO`.
+    This metaclass is used to implement the fancy features of :class:`.XSO`
+    classes and instances. Its documentation details on some of the
+    restrictions and features of XML Stream Classes.
+
+    .. note::
+
+       There should be no need to use this metaclass directly when implementing
+       your own XSO classes. Instead, derive from :class:`~.xso.XSO`.
 
     The following restrictions apply when a class uses the
     :class:`XMLStreamClass` metaclass:
@@ -1289,6 +1395,44 @@ class XMLStreamClass(abc.ABCMeta):
           The automatic generation of the :attr:`DECLARE_NS` attribute was
           added in 0.4.
 
+    .. attribute:: __slots__
+
+       The metaclass automatically sets this attribute to the empty tuple,
+       unless a different value is set in the class or `protect` is passed as
+       false to the metaclass.
+
+       Thus, to disable the automatic setting of :attr:`__slots__`, inherit for
+       example like this::
+
+         class MyXSO(xso.XSO, protect=False):
+             pass
+
+       The rationale for this is that attributes on XSO instances are magic.
+       Having a typo in an attribute may fail non-obviously, if it causes an
+       entirely different semantic to be invoked at the peer (for example the
+       :attr:`.stanza.Message.type_` attribute).
+
+       Setting :attr:`__slots__` to empty by default prevents assigning any
+       attribute not bound to an descriptor.`
+
+       .. seealso::
+
+          :ref:`slots`
+             The official Python documentation describes the semantics of the
+             :attr:`__slots__` attribute in more detail.
+
+       :class:`~.xso.XSO` automatically sets a sensible :attr:`__slots__`
+       (including ``__weakref__``, but not ``__dict__``).
+
+       .. versionadded:: 0.6
+
+       .. note::
+
+          If you need to stay compatible with versions before 0.6 *and* have
+          arbitrary attributes writable, the correct way of doing things is to
+          explicitly set :attr:`__slots__` to ``("__dict__",)`` in your class.
+          You cannot use `protect` because it is not known in pre-0.6 versions.
+
     .. note::
 
        :class:`~.xso.XSO` defines defaults for more attributes which also
@@ -1314,7 +1458,7 @@ class XMLStreamClass(abc.ABCMeta):
 
     """
 
-    def __new__(mcls, name, bases, namespace):
+    def __new__(mcls, name, bases, namespace, protect=True):
         text_property = None
         child_map = {}
         child_props = orderedset.OrderedSet()
@@ -1327,9 +1471,9 @@ class XMLStreamClass(abc.ABCMeta):
 
             if base.TEXT_PROPERTY is not None:
                 if     (text_property is not None and
-                        base.TEXT_PROPERTY is not text_property):
+                        base.TEXT_PROPERTY.xq_descriptor is not text_property):
                     raise TypeError("multiple text properties in inheritance")
-                text_property = base.TEXT_PROPERTY
+                text_property = base.TEXT_PROPERTY.xq_descriptor
 
             for key, prop in base.CHILD_MAP.items():
                 try:
@@ -1353,10 +1497,10 @@ class XMLStreamClass(abc.ABCMeta):
 
             if base.COLLECTOR_PROPERTY is not None:
                 if     (collector_property is not None and
-                        base.COLLECTOR_PROPERTY is not collector_property):
+                        base.COLLECTOR_PROPERTY.xq_descriptor is not collector_property):
                     raise TypeError("multiple collector properties in "
                                     "inheritance")
-                collector_property = base.COLLECTOR_PROPERTY
+                collector_property = base.COLLECTOR_PROPERTY.xq_descriptor
 
         for attrname, obj in namespace.items():
             if isinstance(obj, Attr):
@@ -1408,11 +1552,17 @@ class XMLStreamClass(abc.ABCMeta):
                     None: tag[0]
                 }
 
+        if protect:
+            namespace.setdefault("__slots__", ())
+
         return super().__new__(mcls, name, bases, namespace)
+
+    def __init__(cls, name, bases, namespace, protect=True):
+        super().__init__(name, bases, namespace)
 
     def __setattr__(cls, name, value):
         try:
-            existing = getattr(cls, name)
+            existing = getattr(cls, name).xq_descriptor
         except AttributeError:
             pass
         else:
@@ -1456,7 +1606,7 @@ class XMLStreamClass(abc.ABCMeta):
 
     def __delattr__(cls, name):
         try:
-            existing = getattr(cls, name)
+            existing = getattr(cls, name).xq_descriptor
         except AttributeError:
             pass
         else:
@@ -1465,7 +1615,7 @@ class XMLStreamClass(abc.ABCMeta):
 
         super().__delattr__(name)
 
-    def __prepare__(name, bases):
+    def __prepare__(name, bases, **kwargs):
         return collections.OrderedDict()
 
     def parse_events(cls, ev_args, parent_ctx):
@@ -1505,6 +1655,7 @@ class XMLStreamClass(abc.ABCMeta):
                 try:
                     prop.from_value(obj, value)
                 except:
+                    logger.debug("while parsing XSO", exc_info=True)
                     # true means suppress
                     if not obj.xso_error_handler(
                             prop,
@@ -1516,6 +1667,7 @@ class XMLStreamClass(abc.ABCMeta):
                 try:
                     prop.handle_missing(obj, ctx)
                 except:
+                    logger.debug("while parsing XSO", exc_info=True)
                     # true means suppress
                     if not obj.xso_error_handler(
                             prop,
@@ -1553,7 +1705,7 @@ class XMLStreamClass(abc.ABCMeta):
                         handler = cls.CHILD_MAP[ev_args[0], ev_args[1]]
                     except KeyError:
                         if cls.COLLECTOR_PROPERTY:
-                            handler = cls.COLLECTOR_PROPERTY
+                            handler = cls.COLLECTOR_PROPERTY.xq_descriptor
                         else:
                             yield from enforce_unknown_child_policy(
                                 cls.UNKNOWN_CHILD_POLICY,
@@ -1566,6 +1718,7 @@ class XMLStreamClass(abc.ABCMeta):
                             ev_args
                         )
                     except:
+                        logger.debug("while parsing XSO", exc_info=True)
                         # true means suppress
                         if not obj.xso_error_handler(
                                 handler,
@@ -1576,11 +1729,15 @@ class XMLStreamClass(abc.ABCMeta):
             if collected_text:
                 collected_text = "".join(collected_text)
                 try:
-                    cls.TEXT_PROPERTY.from_value(obj, collected_text)
+                    cls.TEXT_PROPERTY.xq_descriptor.from_value(
+                        obj,
+                        collected_text
+                    )
                 except:
+                    logger.debug("while parsing XSO", exc_info=True)
                     # true means suppress
                     if not obj.xso_error_handler(
-                            cls.TEXT_PROPERTY,
+                            cls.TEXT_PROPERTY.xq_descriptor,
                             collected_text,
                             sys.exc_info()):
                         raise
@@ -1634,8 +1791,8 @@ class XMLStreamClass(abc.ABCMeta):
         if child_cls.TAG in cls.CHILD_MAP:
             raise ValueError("ambiguous Child")
 
-        prop._register(child_cls)
-        cls.CHILD_MAP[child_cls.TAG] = prop
+        prop.xq_descriptor._register(child_cls)
+        cls.CHILD_MAP[child_cls.TAG] = prop.xq_descriptor
 
 
 # I know it makes only partially sense to have a separate metasubclass for
@@ -1713,16 +1870,31 @@ class XSO(metaclass=XMLStreamClass):
 
     .. seealso::
 
-       The documentation of :class:`.xso.model.XMLStreamClass` holds valuable
-       information with respect to subclassing and modifying :class:`XSO`
-       subclasses, as well as restrictions on the use of the said attribute
-       descriptors.
+       :class:`.xso.model.XMLStreamClass`
+          is the metaclass of :class:`XSO`. The documentation of the metaclass
+          holds valuable information with respect to modifying :class:`XSO`
+          *classes* and subclassing.
 
     .. note::
 
-       Attributes whose name starts with ``xso_`` are reserved for use by the
-       XSO implementation. Do not use these in your code if you can possibly
-       avoid it.
+       Attributes whose name starts with ``xso_`` or ``_xso_`` are reserved for
+       use by the :mod:`aioxmpp.xso` implementation. Do not use these in your
+       code if you can possibly avoid it.
+
+    :class:`XSO` subclasses automatically declare a
+    :attr:`~.xso.model.XMLStreamClass.__slots__` attribute which does not
+    include the ``__dict__`` value. This effectively prevents any attributes
+    not declared on the class as descriptors from being written. The rationale
+    is detailed on in the linked documentation. To prevent this from happening
+    in your subclass, inherit with `protect` set to false::
+
+      class MyXSO(xso.XSO, protect=False):
+          pass
+
+    .. versionadded:: 0.6
+
+       The handling of the :attr:`~.xso.model.XMLStreamClass.__slots__`
+       attribute was added.
 
     To further influence the parsing behaviour of a class, two attributes are
     provided which give policies for unexpected elements in the XML tree:
@@ -1788,11 +1960,13 @@ class XSO(metaclass=XMLStreamClass):
     UNKNOWN_CHILD_POLICY = UnknownChildPolicy.DROP
     UNKNOWN_ATTR_POLICY = UnknownAttrPolicy.DROP
 
+    __slots__ = ("_xso_contents", "__weakref__")
+
     def __new__(cls, *args, **kwargs):
         # XXX: is it always correct to omit the arguments here?
         # the semantics of the __new__ arguments are odd to say the least
         result = super().__new__(cls)
-        result._stanza_props = dict()
+        result._xso_contents = dict()
         return result
 
     def __init__(self, *args, **kwargs):
@@ -1800,14 +1974,14 @@ class XSO(metaclass=XMLStreamClass):
 
     def __copy__(self):
         result = type(self).__new__(type(self))
-        result._stanza_props.update(self._stanza_props)
+        result._xso_contents.update(self._xso_contents)
         return result
 
     def __deepcopy__(self, memo):
         result = type(self).__new__(type(self))
-        result._stanza_props = {
+        result._xso_contents = {
             k: copy.deepcopy(v, memo)
-            for k, v in self._stanza_props.items()
+            for k, v in self._xso_contents.items()
         }
         return result
 

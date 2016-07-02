@@ -84,8 +84,8 @@ class Testbuild_identities_string(unittest.TestCase):
                                name="aioxmpp library > 0.5"),
         ]
 
-        with self.assertRaisesRegexp(ValueError,
-                                     "duplicate identity"):
+        with self.assertRaisesRegex(ValueError,
+                                    "duplicate identity"):
             entitycaps_service.build_identities_string(identities)
 
 
@@ -122,8 +122,8 @@ class Testbuild_features_string(unittest.TestCase):
             "http://jabber.org/protocol/caps",
         ]
 
-        with self.assertRaisesRegexp(ValueError,
-                                     "duplicate feature"):
+        with self.assertRaisesRegex(ValueError,
+                                    "duplicate feature"):
             entitycaps_service.build_features_string(features)
 
 
@@ -1195,7 +1195,7 @@ class TestService(unittest.TestCase):
         # we have to hack deeply here, the validators are too smart for us
         # it is still possible to receive such a stanza, as the validator is
         # set to FROM_CODE
-        caps._stanza_props[entitycaps_xso.Caps.hash_] = None
+        caps._xso_contents[entitycaps_xso.Caps.hash_.xq_descriptor] = None
         self.assertIsNone(caps.hash_)
 
         presence = stanza.Presence()

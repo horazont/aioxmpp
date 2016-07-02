@@ -3,9 +3,7 @@
 ###############################################################
 
 This module contains XSO models for stream-level elements which are not
-stanzas. Since `XEP-0360`__, these are called "nonzas".
-
-__ https://xmpp.org/extensions/xep-0360.html
+stanzas. Since :xep:`0360`, these are called "nonzas".
 
 .. versionchanged:: 0.5
 
@@ -214,7 +212,8 @@ class StreamFeatures(xso.XSO):
 
     @classmethod
     def is_feature(cls, other_cls):
-        return cls.CHILD_MAP.get(other_cls.TAG, None) is cls.features
+        return (cls.CHILD_MAP.get(other_cls.TAG, None) is
+                cls.features.xq_descriptor)
 
     def __getitem__(self, feature_cls):
         tag = feature_cls.TAG
@@ -521,6 +520,14 @@ class SMAcknowledgement(SMXSO):
         super().__init__(**kwargs)
         self.counter = counter
 
+    def __repr__(self):
+        return "<{}.{} counter={} at 0x{:x}>".format(
+            type(self).__module__,
+            type(self).__qualname__,
+            self.counter,
+            id(self),
+        )
+
 
 class SMEnable(SMXSO):
     """
@@ -544,6 +551,14 @@ class SMEnable(SMXSO):
     def __init__(self, resume=False):
         super().__init__()
         self.resume = resume
+
+    def __repr__(self):
+        return "<{}.{} resume={} at 0x{:x}>".format(
+            type(self).__module__,
+            type(self).__qualname__,
+            self.resume,
+            id(self),
+        )
 
 
 class SMEnabled(SMXSO):
@@ -592,6 +607,17 @@ class SMEnabled(SMXSO):
         self.location = location
         self.max_ = max_
 
+    def __repr__(self):
+        return "<{}.{} resume={} id={!r} location={!r} max={} at 0x{:x}>".format(
+            type(self).__module__,
+            type(self).__qualname__,
+            self.resume,
+            self.id_,
+            self.location,
+            self.max_,
+            id(self),
+        )
+
 
 class SMResume(SMXSO):
     """
@@ -619,6 +645,15 @@ class SMResume(SMXSO):
         super().__init__()
         self.counter = counter
         self.previd = previd
+
+    def __repr__(self):
+        return "<{}.{} counter={} previd={!r} at 0x{:x}>".format(
+            type(self).__module__,
+            type(self).__qualname__,
+            self.counter,
+            self.previd,
+            id(self),
+        )
 
 
 class SMResumed(SMXSO):
@@ -648,6 +683,15 @@ class SMResumed(SMXSO):
         self.counter = counter
         self.previd = previd
 
+    def __repr__(self):
+        return "<{}.{} counter={} previd={!r} at 0x{:x}>".format(
+            type(self).__module__,
+            type(self).__qualname__,
+            self.counter,
+            self.previd,
+            id(self),
+        )
+
 
 class SMFailed(SMXSO):
     """
@@ -669,3 +713,11 @@ class SMFailed(SMXSO):
         super().__init__(**kwargs)
         if condition is not None:
             self.condition = condition
+
+    def __repr__(self):
+        return "<{}.{} condition={!r} at 0x{:x}>".format(
+            type(self).__module__,
+            type(self).__qualname__,
+            self.condition,
+            id(self),
+        )

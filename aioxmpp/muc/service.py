@@ -116,7 +116,7 @@ class Occupant:
 
 class Room:
     """
-    Interface to a XEP-0045 multi-user-chat room.
+    Interface to a :xep:`0045` multi-user-chat room.
 
     .. autoattribute:: mucjid
 
@@ -174,10 +174,12 @@ class Room:
     `occupant` = :data:`None`
        The :class:`Occupant` object tracking the subject of the operation.
 
-    Signal handlers attached to any of the signals below **must** accept
-    arbitrary keyword arguments for forward compatibility. If any of the above
-    arguments is listed as positional in the signal signature, it is always
-    present and handed as positional argument.
+    .. note::
+
+       Signal handlers attached to any of the signals below **must** accept
+       arbitrary keyword arguments for forward compatibility. If any of the
+       above arguments is listed as positional in the signal signature, it is
+       always present and handed as positional argument.
 
     .. signal:: on_message(message, **kwargs)
 
@@ -465,6 +467,10 @@ class Room:
         self.on_resume()
 
     def _inbound_message(self, stanza):
+        self._service.logger.debug("%s: inbound message %r",
+                                   self._mucjid,
+                                   stanza)
+
         if not stanza.body and stanza.subject:
             self._subject = aioxmpp.structs.LanguageMap(stanza.subject)
             self._subject_setter = stanza.from_.resource
@@ -475,7 +481,10 @@ class Room:
                 occupant=self._occupant_info.get(stanza.from_, None)
             )
         elif stanza.body:
-            self.on_message(stanza, occupant=None)
+            self.on_message(
+                stanza,
+                occupant=self._occupant_info.get(stanza.from_, None)
+            )
 
         try:
             tracker = self._tracking.pop(stanza.id_)
@@ -565,6 +574,16 @@ class Room:
         info = Occupant.from_presence(stanza)
 
         if not self._active:
+            if stanza.type_ == "unavailable":
+                self._service.logger.debug(
+                    "%s: not active, and received unavailable ... "
+                    "is this a reconnect?",
+                    self._mucjid,
+                )
+                return
+
+            self._service.logger.debug("%s: not active, configuring",
+                                       self._mucjid)
             self._this_occupant = info
             info.is_self = True
             self._joined = True
@@ -576,19 +595,32 @@ class Room:
         mode, data = self._diff_presence(stanza, info, existing)
         if mode == _OccupantDiffClass.NICK_CHANGED:
             new_nick, = data
+            self._service.logger.debug("%s: nick changed: %r -> %r",
+                                       self._mucjid,
+                                       existing.occupantjid.resource,
+                                       new_nick)
             existing.occupantjid = existing.occupantjid.replace(
                 resource=new_nick
             )
             self.on_nick_change(stanza, existing)
         elif mode == _OccupantDiffClass.LEFT:
             mode, actor, reason = data
+            self._service.logger.debug("%s: we left the MUC. reason=%r",
+                                       self._mucjid,
+                                       reason)
             existing.update(info)
             self.on_exit(stanza, existing, mode, actor=actor, reason=reason)
             self._joined = False
             self._active = False
 
     def _inbound_muc_user_presence(self, stanza):
+        self._service.logger.debug("%s: inbound muc user presence %r",
+                                   self._mucjid,
+                                   stanza)
+
         if 110 in stanza.xep0045_muc_user.status_codes:
+            self._service.logger.debug("%s: is self-presence",
+                                       self._mucjid)
             self._handle_self_presence(stanza)
             return
 
@@ -623,7 +655,7 @@ class Room:
         provided.
 
         Setting the different roles require different privilegues of the local
-        user. The details can be checked in `XEP-0045`_ and are enforced solely
+        user. The details can be checked in :xep:`0045` and are enforced solely
         by the server, not local code.
 
         The coroutine returns when the kick has been acknowledged by the
@@ -816,8 +848,8 @@ class Service(aioxmpp.service.Service):
     """
     on_muc_joined = aioxmpp.callbacks.Signal()
 
-    def __init__(self, client):
-        super().__init__(client)
+    def __init__(self, client, **kwargs):
+        super().__init__(client, **kwargs)
 
         self._filter_tokens = [
             _connect_to_filter(
@@ -850,22 +882,44 @@ class Service(aioxmpp.service.Service):
         self.client.stream.enqueue_stanza(presence)
 
     def _stream_established(self):
+        self.logger.debug("stream established, (re-)connecting to %d mucs",
+                          len(self._pending_mucs))
+
         for muc, fut, nick, history in self._pending_mucs.values():
             if muc.joined:
+                self.logger.debug("%s: resuming", muc.mucjid)
                 muc._resume()
+            self.logger.debug("%s: sending join presence", muc.mucjid)
             self._send_join_presence(muc.mucjid, history, nick, muc.password)
 
     def _stream_destroyed(self):
+        self.logger.debug(
+            "stream destroyed, preparing autorejoin and cleaning up the others"
+        )
+
         new_pending = {}
         for muc, fut, *more in self._pending_mucs.values():
             if not muc.autorejoin:
+                self.logger.debug(
+                    "%s: pending without autorejoin -> ConnectionError",
+                    muc.mucjid
+                )
                 fut.set_exception(ConnectionError())
             else:
+                self.logger.debug(
+                    "%s: pending with autorejoin -> keeping",
+                    muc.mucjid
+                )
                 new_pending[muc.mucjid] = (muc, fut) + tuple(more)
         self._pending_mucs = new_pending
 
         for muc in list(self._joined_mucs.values()):
             if muc.autorejoin:
+                self.logger.debug(
+                    "%s: connected with autorejoin, suspending and adding to "
+                    "pending",
+                    muc.mucjid
+                )
                 muc._suspend()
                 self._pending_mucs[muc.mucjid] = (
                     muc, None, muc.this_occupant.nick, muc_xso.History(
@@ -873,7 +927,15 @@ class Service(aioxmpp.service.Service):
                     )
                 )
             else:
+                self.logger.debug(
+                    "%s: connected with autorejoin, disconnecting",
+                    muc.mucjid
+                )
                 muc._disconnect()
+
+        self.logger.debug("state now: pending=%r, joined=%r",
+                          self._pending_mucs,
+                          self._joined_mucs)
 
     def _pending_join_done(self, mucjid, fut):
         if fut.cancelled():
@@ -885,25 +947,40 @@ class Service(aioxmpp.service.Service):
             unjoin.xep0045_muc = muc_xso.GenericExt()
             self.client.stream.enqueue_stanza(unjoin)
 
-    def _inbound_muc_user_presence(self, stanza):
-        mucjid = stanza.from_.bare()
+    def _pending_on_enter(self, presence, occupant, **kwargs):
+        mucjid = presence.from_.bare()
         try:
             pending, fut, *_ = self._pending_mucs.pop(mucjid)
         except KeyError:
-            pass
+            pass  # huh
         else:
+            self.logger.debug("%s: pending -> joined",
+                              mucjid)
             if fut is not None:
                 fut.set_result(None)
             self._joined_mucs[mucjid] = pending
-            pending._inbound_muc_user_presence(stanza)
-            return
+
+    def _inbound_muc_user_presence(self, stanza):
+        mucjid = stanza.from_.bare()
+        # try:
+        #     pending, fut, *_ = self._pending_mucs.pop(mucjid)
+        # except KeyError:
+        #     pass
+        # else:
+        #     if fut is not None:
+        #         fut.set_result(None)
+        #     self._joined_mucs[mucjid] = pending
+        #     pending._inbound_muc_user_presence(stanza)
+        #     return
 
         try:
             muc = self._joined_mucs[mucjid]
         except KeyError:
-            pass
-        else:
-            muc._inbound_muc_user_presence(stanza)
+            try:
+                muc, *_ = self._pending_mucs[mucjid]
+            except KeyError:
+                return
+        muc._inbound_muc_user_presence(stanza)
 
     def _inbound_muc_presence(self, stanza):
         mucjid = stanza.from_.bare()
@@ -1035,6 +1112,10 @@ class Service(aioxmpp.service.Service):
                 room
             )
         )
+        room.on_enter.connect(
+            self._pending_on_enter,
+        )
+
         fut = asyncio.Future()
         fut.add_done_callback(functools.partial(
             self._pending_join_done,
@@ -1059,7 +1140,7 @@ class Service(aioxmpp.service.Service):
         without being joined, given sufficient privilegues.
 
         Setting the different affiliations require different privilegues of the
-        local user. The details can be checked in `XEP-0045`_ and are enforced
+        local user. The details can be checked in :xep:`0045` and are enforced
         solely by the server, not local code.
 
         The coroutine returns when the change in affiliation has been

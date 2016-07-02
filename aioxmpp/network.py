@@ -4,8 +4,18 @@
 
 This module uses :mod:`dns` to handle DNS queries.
 
+.. versionchanged:: 0.5.4
+
+   The module was completely rewritten in 0.5.4. The documented API stayed
+   mostly the same though.
+
 Configure the resolver
 ======================
+
+.. versionadded:: 0.5.4
+
+   The whole thread-local resolver thing was added in 0.5.4. This includes the
+   magic to re-configure the used resolver when a query fails.
 
 The module uses a thread-local resolver instance. It can be accessed using
 :func:`get_resolver`. Re-read of the system-wide resolver configuration can be

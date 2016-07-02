@@ -69,6 +69,7 @@ import asyncio
 import collections
 import functools
 import logging
+import types
 import weakref
 
 
@@ -229,6 +230,8 @@ class AdHocSignal(AbstractAdHocSignal):
 
     .. automethod:: connect
 
+    .. automethod:: future
+
     .. attribute:: logger
 
        This may be a :class:`logging.Logger` instance to allow the signal to
@@ -252,7 +255,8 @@ class AdHocSignal(AbstractAdHocSignal):
        callable is executed directly, thus blocking the emission of the signal.
 
        If the weak reference is dead, it is automatically removed from the
-       signals connection list.
+       signals connection list. If the callable is a bound method,
+       :class:`weakref.WeakMethod` is used automatically.
 
     For both :attr:`STRONG` and :attr:`WEAK` holds: if the callable returns a
     true value, it is disconnected from the signal.
@@ -262,7 +266,9 @@ class AdHocSignal(AbstractAdHocSignal):
        This mode requires an :mod:`asyncio` event loop as argument. When the
        signal is emitted, the callable is not called directly. Instead, it is
        enqueued for calling with the event loop using
-       :meth:`asyncio.BaseEventLoop.call_soon`.
+       :meth:`asyncio.BaseEventLoop.call_soon`. If :data:`None` is passed as
+       `loop`, the loop is obtained from :func:`asyncio.get_event_loop` at
+       connect time.
 
        A strong reference is held to the callable.
 
@@ -285,6 +291,24 @@ class AdHocSignal(AbstractAdHocSignal):
 
        In any case, the future is removed after the next emission of the
        signal.
+
+    .. classmethod:: SPAWN_WITH_LOOP(loop)
+
+       This mode requires an :mod:`asyncio` event loop as argument and a
+       coroutine to be passed to :meth:`connect`. If :data:`None` is passed as
+       `loop`, the loop is obtained from :func:`asyncio.get_event_loop` at
+       connect time.
+
+       When the signal is emitted, the coroutine is spawned using
+       :func:`asyncio.async` in the given `loop`, with the arguments passed to
+       the signal.
+
+       A strong reference is held to the coroutine.
+
+       Connections using this mode are never removed automatically from the
+       signals connection list. You have to use :meth:`disconnect` explicitly.
+
+       .. versionadded:: 0.6
 
     .. automethod:: disconnect
 
@@ -314,7 +338,11 @@ class AdHocSignal(AbstractAdHocSignal):
     def WEAK(cls, f):
         if not hasattr(f, "__call__"):
             raise TypeError("must be callable, got {!r}".format(f))
-        return functools.partial(cls._weakref_wrapper, weakref.ref(f))
+        if isinstance(f, types.MethodType):
+            ref = weakref.WeakMethod(f)
+        else:
+            ref = weakref.ref(f)
+        return functools.partial(cls._weakref_wrapper, ref)
 
     @classmethod
     def AUTO_FUTURE(cls, f):
@@ -336,10 +364,26 @@ class AdHocSignal(AbstractAdHocSignal):
                 f.set_result(arg)
         return future_wrapper
 
+    @classmethod
+    def SPAWN_WITH_LOOP(cls, loop):
+        loop = asyncio.get_event_loop() if loop is None else loop
+
+        def spawn(f):
+            if not asyncio.iscoroutinefunction(f):
+                raise TypeError("must be coroutine, got {!r}".format(f))
+
+            def wrapper(args, kwargs):
+                asyncio.async(f(*args, **kwargs), loop=loop)
+                return True
+
+            return wrapper
+
+        return spawn
+
     @staticmethod
     def _async_wrapper(f, loop, args, kwargs):
         if kwargs:
-            loop.call_soon(functools.partial(*args, **kwargs))
+            functools.partial(f, *args, **kwargs)
         loop.call_soon(f, *args)
         return True
 
@@ -425,9 +469,19 @@ class AdHocSignal(AbstractAdHocSignal):
             if not keep:
                 del self._connections[token]
 
-    __call__ = fire
+    def future(self):
+        """
+        Return a :class:`asyncio.Future` which has been :meth:`connect`\ -ed
+        using :attr:`AUTO_FUTURE`.
 
-AdHocSignal.ASYNC = AdHocSignal.ASYNC_WITH_LOOP(None)
+        The token returned by :meth:`connect` is not returned; to remove the
+        future from the signal, just cancel it.
+        """
+        fut = asyncio.Future()
+        self.connect(fut, self.WEAK)
+        return fut
+
+    __call__ = fire
 
 
 class SyncAdHocSignal(AbstractAdHocSignal):
@@ -515,8 +569,9 @@ class SignalConnectionContext:
 
 
 class AbstractSignal(metaclass=abc.ABCMeta):
-    def __init__(self):
+    def __init__(self, *, doc=None):
         super().__init__()
+        self.__doc__ = doc
         self._instances = weakref.WeakKeyDictionary()
 
     @abc.abstractclassmethod

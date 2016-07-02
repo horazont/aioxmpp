@@ -3,18 +3,204 @@
 Changelog
 #########
 
+Version 0.6
+===========
+
+* New dependencies:
+
+  * :mod:`multidict` from :mod:`aiohttp`.
+  * :mod:`aioopenssl`: This is the former :mod:`aioxmpp.ssl_transport` as a
+    separate package; :mod:`aioxmpp` still ships with a fallback in case that
+    package is not installed.
+
+* New XEP implementations:
+
+  * partial :mod:`aioxmpp.pubsub` (:xep:`60`): Everything which requires forms
+    is not implemented yet. Publish/Subscribe/Retract and creation/deletion of
+    nodes is verified to work (against `Prosody <https://prosody.im>`_ at
+    least).
+
+  * :mod:`aioxmpp.shim` (:xep:`131`), used for :mod:`aioxmpp.pubsub`.
+
+  * :xep:`368` support was added.
+
+* New features in the :mod:`aioxmpp.xso` subpackage:
+
+  * :class:`aioxmpp.xso.NumericRange` validator, which can be used to validate
+    the range of any orderable type.
+
+  * :mod:`aioxmpp.xso.query`, a module which allows for running queries against
+    XSOs. This is still highly experimental.
+
+  * :class:`aioxmpp.xso.ChildValueMultiMap` descriptor, which uses
+    :mod:`multidict` and is used in :mod:`aioxmpp.shim`.
+
+* :mod:`aioxmpp.network` was rewritten for 0.5.4
+
+  The control over the used DNS resolver is now more sophisticated. Most
+  notably, :mod:`aioxmpp.network` uses a thread-local resolver which is used for
+  all queries by default.
+
+  Normally, :func:`aioxmpp.network.repeated_query` will now re-configure the
+  resolver from system-wide resolver configuration after the first timeout
+  occurs.
+
+  The resolver can be overridden (disabling the reconfiguration magic) using
+  :func:`aioxmpp.network.set_resolver`.
+
+* **Breaking change:** :class:`aioxmpp.service.Service` does not accept a
+  `logger` argument anymore; instead, it now accepts a `base_logger` argument.
+  Refer to the documentation of the class for details.
+
+  The `base_logger` is automatically passed by
+  :meth:`aioxmpp.node.AbstractClient.summon` on construction of the service and
+  is the :attr:`aioxmpp.node.AbstractClient.logger` of the client instance.
+
+* **Breaking change:** :class:`aioxmpp.xso.XSO` subclasses (or more
+  specifically, instances of the :class:`aioxmpp.xso.model.XMLStreamClass`
+  metaclass) now automatically declare a :attr:`__slots__` attribute.
+
+  The mechanics are documented in detail on
+  :attr:`aioxmpp.xso.model.XMLStreamClass.__slots__`.
+
+* **Breaking change:** The following functions have been removed:
+
+  * :func:`aioxmpp.node.connect_to_xmpp_server`
+  * :func:`aioxmpp.node.connect_secured_xmlstream`
+  * :func:`aioxmpp.security_layer.negotiate_stream_security`
+
+  Use :func:`aioxmpp.node.connect_xmlstream` instead, but check the docs for the
+  slightly different semantics.
+
+  The following functions have been deprecated:
+
+  * :class:`aioxmpp.security_layer.STARTTLSProvider`
+  * :func:`aioxmpp.security_layer.security_layer`
+
+  Use :class:`aioxmpp.security_layer.SecurityLayer` instead.
+
+  The existing helper function
+  :func:`aioxmpp.security_layer.tls_with_password_based_authentication` is still
+  live and has been modified to use the new code.
+
+* *Possibly breaking change:* The arguments to
+  :meth:`aioxmpp.CertificateVerifier.pre_handshake` are now completely
+  different. But as this method is not documented, this should not be a problem.
+
+* *Possibly breaking change:* Attributes starting with ``_xso_`` are now also
+  reserved on subclasses of :class:`aioxmpp.xso.XSO` (together with the
+  long-standing reservation of attributes starting with ``xso_``).
+
+* :meth:`aioxmpp.stanza.Error.as_application_condition`
+* :meth:`aioxmpp.stanza.make_application_error`
+
+* Several bugfixes in :mod:`aioxmpp.muc`:
+
+  * :meth:`aioxmpp.muc.Room.on_message` now receives a proper `occupant` argument
+    if occupant data is available when the message is received.
+
+  * MUCs now autorejoin correctly after a disconnect.
+
+  * Fix crash when using :class:`aioxmpp.tracking.MessageTracker` (e.g.
+    indirectly through :meth:`aioxmpp.muc.Room.send_tracked_message`).
+
+    Thanks to `@gudvnir <https://github.com/gudvinr>`_ over at github for
+    pointing this out (see `issue#7
+    <https://github.com/horazont/aioxmpp/issues/7>`_).
+
+* Several bugfixes related to :class:`aioxmpp.protocol.XMLStream`:
+
+  * :mod:`asyncio` errors/warnings about pending tasks being destroyed after
+    disconnects should be gone now (:class:`aioxmpp.protocol.XMLStream` now
+    properly cleans up its running coroutines).
+
+  * The :class:`aioxmpp.protocol.XMLStream` is now closed or aborted by the
+    :class:`aioxmpp.stream.StanzaStream` if the stream fails. This prevents
+    lingering half-open TCP streams.
+
+    See :meth:`aioxmpp.stream.StanzaStream.on_failure` for details.
+
+* Some behaviour changes in :class:`aioxmpp.stream.StanzaStream`:
+
+  When the stream is stopped without SM enabled, the following new behaviour has
+  been introduced:
+
+  * :attr:`~aioxmpp.stream.StanzaState.ACTIVE` stanza tokens are set to
+    :attr:`~aioxmpp.stream.StanzaState.DISCONNECTED` state.
+
+  * Coroutines which were spawned due to them being registered with
+    :meth:`~aioxmpp.stream.StanzaStream.register_iq_request_coro` are
+    :meth:`asyncio.Task.cancel`\ -ed.
+
+  The same as above holds if the stream is closed, even if SM is enabled (as
+  stream closure is clean and will broadcast unavailable presence server-side).
+
+  This provides more fail-safe behaviour while still providing enough feedback.
+
+* New method: :meth:`aioxmpp.stream.StanzaStream.send_and_wait_for_sent`.
+  :meth:`~aioxmpp.stream.StanzaStream.send_iq_and_wait_for_reply` now also uses
+  this.
+
+* New method :meth:`aioxmpp.node.PresenceManagedClient.connected` and new class
+  :class:`aioxmpp.node.UseConnected`.
+
+  The former uses the latter to provide an asynchronous context manager which
+  starts and stops a :class:`aioxmpp.node.PresenceManagedClient`. Intended for
+  use in situations where an XMPP client is needed in-line. It saves a lot of
+  boiler plate by taking care of properly waiting for the connection to be
+  established etc.
+
+* Fixed incorrect documentation of :meth:`aioxmpp.disco.Service.query_info`.
+  Previously, the docstring incorrectly claimed that the method would return the
+  result of :meth:`aioxmpp.disco.xso.InfoQuery.to_dict`, while it would in fact
+  return the :class:`aioxmpp.disco.xso.InfoQuery` instance.
+
+* Added `strict` arguments to :class:`aioxmpp.structs.JID`. See the class
+  docmuentation for details.
+
+* Added `strict` argument to :class:`aioxmpp.xso.JID` and made it non-strict by
+  default. See the documentation for rationale and details.
+
+* Improve robustness against erroneous and malicious stanzas.
+
+  All parsing errors on stanzas are now caught and handled by
+  :meth:`aioxmpp.stream._process_incoming_erroneous_stanza`, which at least logs
+  the synopsis of the stanza as parsed. It also makes sure that stream
+  management works correctly, even if some stanzas are not understood.
+
+  Additionally, a bug in the :class:`aioxmpp.xml.XMPPXMLProcessor` has been
+  fixed which prevented errors in text content from being caught.
+
+* No visible side-effects: Replaced deprecated
+  :meth:`unittest.TestCase.assertRaisesRegexp` with
+  :meth:`unittest.TestCase.assertRaisesRegex` (`thanks, Maxim
+  <https://github.com/horazont/aioxmpp/pull/5>`_).
+
+* Fix generation of IDs when sending stanzas. It has been broken for anything
+  but IQ stanzas for some time.
+
+* Send SM acknowledgement when closing down stream. This prevents servers from
+  sending error stanzas for the unacked stanzas ☺.
+
+* New callback mode :meth:`aioxmpp.callbacks.AdHocSignal.SPAWN_WITH_LOOP`.
+
+* :mod:`aioxmpp.connector` added. This module provides classes which connect and
+  return a :class:`aioxmpp.protocol.XMLStream`. They also handle TLS
+  negotiation, if any.
+
+* :class:`aioxmpp.node.AbstractClient` now accepts an `override_peer` argument,
+  which may be a sequence of connection options as returned by
+  :func:`aioxmpp.node.discover_connectors`. See the class documentation for
+  details.
+
 Version 0.5
 ===========
 
-* Support for `XEP-0045`__ multi-user chats is now available in the
+* Support for :xep:`0045` multi-user chats is now available in the
   :mod:`aioxmpp.muc` subpackage.
 
-  __ https://xmpp.org/extensions/xep-0045.html
-
-* Mostly transparent support for `XEP-0115`__ (Entity Capabilities) is now
+* Mostly transparent support for :xep:`0115` (Entity Capabilities) is now
   available using the :mod:`aioxmpp.entitycaps` subpackage.
-
-  __ https://xmpp.org/extensions/xep-0115.html
 
 * Support for transparent non-scalar attributes, which get mapped to XSOs. Use
   cases are dicts mapping language tags to strings (such as for message
@@ -79,12 +265,10 @@ Version 0.5
   specified now, a bug in the documentation has been fixed.
 
 * :mod:`aioxmpp.stream_xsos` is now called :mod:`aioxmpp.nonza`, in accordance
-  with `XEP-0360`__.
-
-  __ https://xmpp.org/extensions/xep-0360.html
+  with :xep:`0360`.
 
 * :class:`aioxmpp.xso.Date` and :class:`aioxmpp.xso.Time` are now available to
-  for `XEP-0082`__ use. In addition, support for the legacy date time format is
+  for :xep:`0082` use. In addition, support for the legacy date time format is
   now provided in :class:`aioxmpp.xso.DateTime`.
 
   .. autosummary::
@@ -93,15 +277,11 @@ Version 0.5
      ~aioxmpp.xso.Time
      ~aioxmpp.xso.DateTime
 
-  __ https://xmpp.org/extensions/xep-0082.html
-
 * The Python 3.5 compatibility of the test suite has been improved. In a
   corner-case, :class:`StopIteration` was emitted from ``data_received``, which
   caused a test to fail with a :class:`RuntimeError` due to implementation of
-  `PEP-0479`__ in Python 3.5. See the `issue at github
+  :pep:`0479` in Python 3.5. See the `issue at github
   <https://github.com/horazont/aioxmpp/issues/3>`_.
-
-  __ https://www.python.org/dev/peps/pep-0479/
 
 * Helper functions for reading and writing single XSOs (and their children) to
   binary file-like objects have been introduced.
@@ -145,8 +325,8 @@ Version 0.4
 
 * *Possibly breaking change*: :attr:`aioxmpp.xso.XSO.DECLARE_NS` is now
   automatically generated by the meta class
-  :class:`aioxmpp.xso.XMLStreamClass`. See the documentation for the detailed
-  rules.
+  :class:`aioxmpp.xso.model.XMLStreamClass`. See the documentation for the
+  detailed rules.
 
   To get the old behaviour for your class, you have to put ``DECLARE_NS = {}``
   in its declaration.
@@ -177,10 +357,10 @@ Version 0.4
   local certificate store. This is, with respect to trust, treated equivalent
   to a self-signed cert.
 
-* Fix stream management state going out-of-sync when an errorneous stanza
+* Fix stream management state going out-of-sync when an erroneous stanza
   (unknown payload, type or validator errors on the payload) was received. In
   addition, IQ replies which cannot be processed raise
-  :class:`aioxmpp.errors.ErrorneousStanza` from
+  :class:`aioxmpp.errors.ErroneousStanza` from
   :meth:`aioxmpp.stream.StanzaStream.send_iq_and_wait_for_reply` and when
   registering futures for the response using
   :meth:`aioxmpp.stream.StanzaStream.register_iq_response_future`. See the

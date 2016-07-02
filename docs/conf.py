@@ -49,7 +49,7 @@ master_doc = 'index'
 
 # General information about the project.
 project = 'aioxmpp'
-copyright = '2014, Jonas Wielicki'
+copyright = '2014 – 2016, Jonas Wielicki'
 
 import aioxmpp
 
@@ -268,6 +268,7 @@ texinfo_documents = [
 intersphinx_mapping = {
     'https://docs.python.org/3/': None,
     'https://pyopenssl.readthedocs.org/en/latest/': None,
-    'http://babel.pocoo.org/docs/': None,
+    'http://babel.pocoo.org/en/latest/': None,
     'http://docs.zombofant.net/aiosasl/devel/': None,
+    'http://docs.zombofant.net/aioopenssl/devel/': None,
 }

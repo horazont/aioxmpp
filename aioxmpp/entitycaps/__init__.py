@@ -1,12 +1,10 @@
 """
-:mod:`~aioxmpp.entitycaps` --- Entity Capabilities support (XEP-0115)
-#####################################################################
+:mod:`~aioxmpp.entitycaps` --- Entity Capabilities support (:xep:`0115`)
+########################################################################
 
-This module provides support for `XEP-0115 (Entity Capabilities)`__. To use it,
+This module provides support for :xep:`XEP-0115 (Entity Capabilities) <0115>`. To use it,
 summon the :class:`Service` on a :class:`~.AbstractClient`. See the service
 documentation for more information.
-
-__ https://xmpp.org/extensions/xep-0115.html
 
 .. versionadded:: 0.5
 

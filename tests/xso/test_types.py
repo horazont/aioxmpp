@@ -78,8 +78,7 @@ class TestStringType(unittest.TestCase):
         ]
 
         for value in values:
-            with self.assertRaisesRegexp(TypeError,
-                                         "must be a str"):
+            with self.assertRaisesRegex(TypeError, "must be a str"):
                 t.coerce(value)
 
     def test_coerce_stringprep(self):
@@ -171,7 +170,7 @@ class TestIntegerType(unittest.TestCase):
         ]
 
         for value in values:
-            with self.assertRaisesRegexp(
+            with self.assertRaisesRegex(
                     TypeError,
                     "must be integral number"):
                 t.coerce(value)
@@ -241,7 +240,7 @@ class TestFloatType(unittest.TestCase):
         ]
 
         for value in values:
-            with self.assertRaisesRegexp(
+            with self.assertRaisesRegex(
                     TypeError,
                     "must be real number"):
                 t.coerce(value)
@@ -422,7 +421,7 @@ class TestDateTimeType(unittest.TestCase):
         ]
 
         for value in values:
-            with self.assertRaisesRegexp(
+            with self.assertRaisesRegex(
                     TypeError,
                     "must be a datetime object"):
                 t.coerce(value)
@@ -634,8 +633,8 @@ class TestBase64Binary(unittest.TestCase):
 
     def test_coerce_rejects_int(self):
         t = xso.Base64Binary()
-        with self.assertRaisesRegexp(TypeError,
-                                     "must be convertible to bytes"):
+        with self.assertRaisesRegex(TypeError,
+                                    "must be convertible to bytes"):
             t.coerce(12)
 
     def test_coerce_accepts_bytes_bytearray_array(self):
@@ -696,8 +695,8 @@ class TestHexBinary(unittest.TestCase):
 
     def test_coerce_rejects_int(self):
         t = xso.HexBinary()
-        with self.assertRaisesRegexp(TypeError,
-                                     "must be convertible to bytes"):
+        with self.assertRaisesRegex(TypeError,
+                                    "must be convertible to bytes"):
             t.coerce(12)
 
     def test_coerce_accepts_bytes_bytearray_array(self):
@@ -749,6 +748,30 @@ class TestJID(unittest.TestCase):
             t.parse("foo@example.test/bar")
         )
 
+    def test_parse_uses_nonstrict_by_default(self):
+        with unittest.mock.patch("aioxmpp.structs.JID") as JID:
+            t = xso.JID()
+            result = t.parse(unittest.mock.sentinel.jidstr)
+
+        JID.fromstr.assert_called_with(
+            unittest.mock.sentinel.jidstr,
+            strict=False
+        )
+
+        self.assertEqual(result, JID.fromstr())
+
+    def test_parse_can_be_set_to_strict(self):
+        with unittest.mock.patch("aioxmpp.structs.JID") as JID:
+            t = xso.JID(strict=True)
+            result = t.parse(unittest.mock.sentinel.jidstr)
+
+        JID.fromstr.assert_called_with(
+            unittest.mock.sentinel.jidstr,
+            strict=True
+        )
+
+        self.assertEqual(result, JID.fromstr())
+
     def test_format(self):
         t = xso.JID()
         self.assertEqual(
@@ -760,13 +783,13 @@ class TestJID(unittest.TestCase):
         t = xso.JID()
         types = [str, int, float, object]
         for type_ in types:
-            with self.assertRaisesRegexp(TypeError,
-                                         "not a JID"):
+            with self.assertRaisesRegex(TypeError,
+                                        "not a JID"):
                 t.coerce(type_())
 
     def test_coerce_rejects_str_jids(self):
         t = xso.JID()
-        with self.assertRaisesRegexp(
+        with self.assertRaisesRegex(
                 TypeError,
                 "<class 'str'> object 'foo@bar' is not a JID"):
             t.coerce("foo@bar")
@@ -860,8 +883,8 @@ class TestConnectionLocation(unittest.TestCase):
         ]
 
         for value in values:
-            with self.assertRaisesRegexp(TypeError,
-                                         "2-tuple required"):
+            with self.assertRaisesRegex(TypeError,
+                                        "2-tuple required"):
                 t.coerce(value)
 
     def test_coerce_parses_ip_addresses(self):
@@ -888,7 +911,7 @@ class TestConnectionLocation(unittest.TestCase):
         ]
 
         for err_value in err_values:
-            with self.assertRaisesRegexp(ValueError, "out of range"):
+            with self.assertRaisesRegex(ValueError, "out of range"):
                 t.coerce(err_value)
 
         ok_values = [
@@ -913,7 +936,7 @@ class TestConnectionLocation(unittest.TestCase):
         ]
 
         for value in values:
-            with self.assertRaisesRegexp(
+            with self.assertRaisesRegex(
                     TypeError,
                     "port number must be integral number"):
                 t.coerce(value)
@@ -961,7 +984,7 @@ class TestLanguageTag(unittest.TestCase):
         ]
 
         for value in values:
-            with self.assertRaisesRegexp(
+            with self.assertRaisesRegex(
                     TypeError,
                     "is not a LanguageTag"):
                 t.coerce(value)
@@ -1475,3 +1498,39 @@ class TestIsInstance(unittest.TestCase):
         self.assertTrue(
             v.validate("str")
         )
+
+
+class TestNumericRange(unittest.TestCase):
+    def test_is_abstract_validator(self):
+        self.assertTrue(issubclass(
+            xso.NumericRange,
+            xso.AbstractValidator
+        ))
+
+    def test_validate_ok(self):
+        v = xso.NumericRange(min_=10, max_=20)
+        for i in range(10, 21):
+            self.assertTrue(
+                v.validate(i),
+            )
+
+    def test_validate_detailed_out_of_bounds(self):
+        v = xso.NumericRange(min_=10, max_=20)
+        for i in range(0, 10):
+            self.assertFalse(
+                v.validate(i),
+            )
+
+    def test_validate_detailed_too_small(self):
+        v = xso.NumericRange(min_=10)
+        for i in range(0, 10):
+            self.assertFalse(
+                v.validate(i),
+            )
+
+    def test_validate_detailed_too_large(self):
+        v = xso.NumericRange(max_=-1)
+        for i in range(0, 10):
+            self.assertFalse(
+                v.validate(i),
+            )

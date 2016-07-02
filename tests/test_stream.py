@@ -1,4 +1,6 @@
 import asyncio
+import contextlib
+import functools
 import ipaddress
 import time
 import unittest
@@ -165,7 +167,7 @@ class TestFilter(unittest.TestCase):
         self.assertFalse(func.mock_calls)
 
     def test_unregister_raises_ValueError_if_token_not_found(self):
-        with self.assertRaisesRegexp(ValueError, "unregistered token"):
+        with self.assertRaisesRegex(ValueError, "unregistered token"):
             self.f.unregister(object())
 
     def test_register_with_order(self):
@@ -410,17 +412,11 @@ class TestStanzaStream(StanzaStreamTestBase):
         self.stream.stop()
 
     def test_enqueue_stanza_validates_stanza(self):
-        iq = make_test_iq(type_="get")
+        iq = unittest.mock.Mock()
 
-        with unittest.mock.patch.object(iq, "validate") as validate:
-            self.stream.enqueue_stanza(iq)
+        self.stream.enqueue_stanza(iq)
 
-        self.assertSequenceEqual(
-            [
-                unittest.mock.call(),
-            ],
-            validate.mock_calls
-        )
+        iq.validate.assert_called_with()
 
     def test_start_stop(self):
         self.stream.start(self.xmlstream)
@@ -445,7 +441,7 @@ class TestStanzaStream(StanzaStreamTestBase):
         )
         self.assertEqual(
             self.xmlstream.error_handler,
-            self.stream.recv_errorneous_stanza
+            self.stream.recv_erroneous_stanza
         )
         self.xmlstream.stanza_parser.mock_calls.clear()
 
@@ -814,22 +810,6 @@ class TestStanzaStream(StanzaStreamTestBase):
             run_coroutine(self.stream._incoming_queue.get())
         )
 
-    def test_rescue_unprocessed_outgoing_stanza_on_stop(self):
-        pres = make_test_presence()
-        pres.autoset_id()
-
-        self.stream.start(self.xmlstream)
-
-        run_coroutine(asyncio.sleep(0))
-
-        self.stream.enqueue_stanza(pres)
-        self.stream.stop()
-
-        self.assertIs(
-            pres,
-            run_coroutine(self.stream._active_queue.get()).stanza
-        )
-
     def test_unprocessed_incoming_stanza_does_not_get_lost_after_stop(self):
         pres = make_test_presence()
 
@@ -844,23 +824,6 @@ class TestStanzaStream(StanzaStreamTestBase):
         self.assertEqual(
             (pres, None),
             run_coroutine(self.stream._incoming_queue.get())
-        )
-
-    def test_unprocessed_outgoing_stanza_does_not_get_lost_after_stop(self):
-        pres = make_test_presence()
-        pres.autoset_id()
-
-        self.stream.start(self.xmlstream)
-
-        run_coroutine(asyncio.sleep(0))
-
-        self.stream.stop()
-
-        self.stream.enqueue_stanza(pres)
-
-        self.assertIs(
-            pres,
-            run_coroutine(self.stream._active_queue.get()).stanza
         )
 
     def test_fail_on_unknown_stanza_class(self):
@@ -1008,7 +971,83 @@ class TestStanzaStream(StanzaStreamTestBase):
         self.assertFalse(self.stream.running)
 
         self.assertIs(exc, caught_exc)
-        self.assertFalse(self.xmlstream.close.mock_calls)
+        # self.assertFalse(self.xmlstream.close.mock_calls)
+
+    def test_close_closes_iq_response_futures(self):
+        fut = asyncio.Future()
+        self.stream.register_iq_response_future(
+            TEST_FROM,
+            "123",
+            fut,
+        )
+
+        self.stream.start(self.xmlstream)
+        run_coroutine(asyncio.sleep(0))
+        self.assertTrue(self.stream.running)
+
+        self.assertFalse(fut.done())
+
+        run_coroutine(self.stream.close())
+        self.assertFalse(self.stream.running)
+
+        self.assertTrue(fut.done())
+        self.assertIsInstance(fut.exception(), ConnectionError)
+
+    def test_close_cancels_running_iq_request_coroutines(self):
+        exc = None
+        running = False
+
+        @asyncio.coroutine
+        def coro(stanza):
+            nonlocal exc, running
+            running = True
+            try:
+                yield from asyncio.sleep(10)
+            except Exception as inner_exc:
+                exc = inner_exc
+                raise
+
+        self.stream.register_iq_request_coro(
+            "get",
+            FancyTestIQ,
+            coro,
+        )
+
+        self.stream.start(self.xmlstream)
+        run_coroutine(asyncio.sleep(0))
+        self.assertTrue(self.stream.running)
+
+        self.stream.recv_stanza(make_test_iq())
+        run_coroutine(asyncio.sleep(0))
+        self.assertTrue(running)
+        self.assertIsNone(exc)
+
+        run_coroutine(self.stream.close())
+        self.assertFalse(self.stream.running)
+
+        self.assertIsInstance(exc, asyncio.CancelledError)
+
+    def test_close_sets_active_stanza_tokens_to_aborted(self):
+        get_mock = CoroutineMock()
+        get_mock.delay = 1000
+        # let’s mess with the processor a bit ...
+        # otherwise, the stanza is sent before the close can happen
+        with unittest.mock.patch.object(
+                self.stream._active_queue,
+                "get",
+                new=get_mock):
+
+            self.stream.start(self.xmlstream)
+            run_coroutine(asyncio.sleep(0))
+            self.assertTrue(self.stream.running)
+
+            token = self.stream.enqueue_stanza(make_test_message())
+
+            run_coroutine(self.stream.close())
+
+        self.assertFalse(self.stream.running)
+
+        self.assertEqual(token.state, stream.StanzaState.DISCONNECTED)
 
     def test_send_bulk(self):
         state_change_handler = unittest.mock.MagicMock()
@@ -1146,17 +1185,17 @@ class TestStanzaStream(StanzaStreamTestBase):
             nonlocal exc
             exc = _exc
 
-        self.stream.ping_interval = timedelta(seconds=0.01)
-        self.stream.ping_opportunistic_interval = timedelta(seconds=0.01)
+        self.stream.ping_interval = timedelta(seconds=0.1)
+        self.stream.ping_opportunistic_interval = timedelta(seconds=0.1)
         self.stream.on_failure.connect(failure_handler)
 
         self.stream.start(self.xmlstream)
-        run_coroutine(asyncio.sleep(0.02))
+        run_coroutine(asyncio.sleep(0.2))
 
         request = self.sent_stanzas.get_nowait()
         response = request.make_reply(type_="result")
         self.stream.recv_stanza(response)
-        run_coroutine(asyncio.sleep(0.011))
+        run_coroutine(asyncio.sleep(0.11))
 
         self.assertIsNone(exc)
 
@@ -1770,9 +1809,9 @@ class TestStanzaStream(StanzaStreamTestBase):
 
     def test_handle_PayloadParsingError_at_iq_with_error_response(self):
         iq = make_test_iq()
-        self.stream.recv_errorneous_stanza(
+        self.stream.recv_erroneous_stanza(
             iq,
-            stanza.PayloadParsingError(iq, ('end', 'foo'))
+            stanza.PayloadParsingError(iq, ('end', 'foo'), None)
         )
 
         self.stream.start(self.xmlstream)
@@ -1809,9 +1848,9 @@ class TestStanzaStream(StanzaStreamTestBase):
 
     def test_do_not_respond_to_PayloadParsingError_at_error_iq(self):
         iq = make_test_iq(type_="error")
-        self.stream.recv_errorneous_stanza(
+        self.stream.recv_erroneous_stanza(
             iq,
-            stanza.PayloadParsingError(iq, ('end', 'foo'))
+            stanza.PayloadParsingError(iq, ('end', 'foo'), None)
         )
 
         self.stream.start(self.xmlstream)
@@ -1823,9 +1862,9 @@ class TestStanzaStream(StanzaStreamTestBase):
 
     def test_do_not_respond_to_PayloadParsingError_at_result_iq(self):
         iq = make_test_iq(type_="result")
-        self.stream.recv_errorneous_stanza(
+        self.stream.recv_erroneous_stanza(
             iq,
-            stanza.PayloadParsingError(iq, ('end', 'foo'))
+            stanza.PayloadParsingError(iq, ('end', 'foo'), None)
         )
 
         self.stream.start(self.xmlstream)
@@ -1837,9 +1876,10 @@ class TestStanzaStream(StanzaStreamTestBase):
 
     def test_handle_PayloadParsingError_at_message_with_error_response(self):
         msg = make_test_message()
-        self.stream.recv_errorneous_stanza(
+        msg.autoset_id()
+        self.stream.recv_erroneous_stanza(
             msg,
-            stanza.PayloadParsingError(msg, ('end', 'foo'))
+            stanza.PayloadParsingError(msg, ('end', 'foo'), None)
         )
 
         self.stream.start(self.xmlstream)
@@ -1876,9 +1916,9 @@ class TestStanzaStream(StanzaStreamTestBase):
 
     def test_do_not_respond_to_PayloadParsingError_at_error_message(self):
         msg = make_test_message(type_="error")
-        self.stream.recv_errorneous_stanza(
+        self.stream.recv_erroneous_stanza(
             msg,
-            stanza.PayloadParsingError(msg, ('end', 'foo'))
+            stanza.PayloadParsingError(msg, ('end', 'foo'), None)
         )
 
         self.stream.start(self.xmlstream)
@@ -1889,10 +1929,11 @@ class TestStanzaStream(StanzaStreamTestBase):
             self.sent_stanzas.get_nowait()
 
     def test_handle_PayloadParsingError_at_presence_with_error_response(self):
-        pres = make_test_message()
-        self.stream.recv_errorneous_stanza(
+        pres = make_test_presence()
+        pres.autoset_id()
+        self.stream.recv_erroneous_stanza(
             pres,
-            stanza.PayloadParsingError(pres, ('end', 'foo'))
+            stanza.PayloadParsingError(pres, ('end', 'foo'), None),
         )
 
         run_coroutine(asyncio.sleep(0.01))
@@ -1902,7 +1943,7 @@ class TestStanzaStream(StanzaStreamTestBase):
         obj = run_coroutine(self.sent_stanzas.get())
         self.assertIsInstance(
             obj,
-            stanza.Message
+            stanza.Presence
         )
         self.assertEqual(
             obj.type_,
@@ -1931,9 +1972,9 @@ class TestStanzaStream(StanzaStreamTestBase):
 
     def test_do_not_respond_to_PayloadParsingError_at_error_presence(self):
         pres = make_test_presence(type_="error")
-        self.stream.recv_errorneous_stanza(
+        self.stream.recv_erroneous_stanza(
             pres,
-            stanza.PayloadParsingError(pres, ('end', 'foo'))
+            stanza.PayloadParsingError(pres, ('end', 'foo'), None)
         )
 
         self.stream.start(self.xmlstream)
@@ -1945,9 +1986,9 @@ class TestStanzaStream(StanzaStreamTestBase):
 
     def test_handle_UnknownIQPayload_at_iq_with_error_response(self):
         iq = make_test_iq()
-        self.stream.recv_errorneous_stanza(
+        self.stream.recv_erroneous_stanza(
             iq,
-            stanza.UnknownIQPayload(iq, ('end', 'foo'))
+            stanza.UnknownIQPayload(iq, ('end', 'foo'), None)
         )
 
         run_coroutine(asyncio.sleep(0.01))
@@ -1986,9 +2027,9 @@ class TestStanzaStream(StanzaStreamTestBase):
 
     def test_ignore_UnknownIQPayload_at_error_iq(self):
         iq = make_test_iq(type_="error")
-        self.stream.recv_errorneous_stanza(
+        self.stream.recv_erroneous_stanza(
             iq,
-            stanza.UnknownIQPayload(iq, ('end', 'foo'))
+            stanza.UnknownIQPayload(iq, ('end', 'foo'), None)
         )
 
         self.stream.start(self.xmlstream)
@@ -2000,9 +2041,9 @@ class TestStanzaStream(StanzaStreamTestBase):
 
     def test_do_not_respond_to_UnknownIQPayload_at_result_iq(self):
         iq = make_test_iq(type_="result")
-        self.stream.recv_errorneous_stanza(
+        self.stream.recv_erroneous_stanza(
             iq,
-            stanza.UnknownIQPayload(iq, ('end', 'foo'))
+            stanza.UnknownIQPayload(iq, ('end', 'foo'), None)
         )
 
         self.stream.start(self.xmlstream)
@@ -2031,13 +2072,13 @@ class TestStanzaStream(StanzaStreamTestBase):
 
         self.assertIs(iq, fut.result())
 
-    def test_unicast_error_on_errorneous_iq_result(self):
+    def test_unicast_error_on_erroneous_iq_result(self):
         req = make_test_iq(type_="get", to=TEST_TO)
         resp = req.make_reply(type_="result")
 
-        self.stream.recv_errorneous_stanza(
+        self.stream.recv_erroneous_stanza(
             resp,
-            stanza.UnknownIQPayload(resp, ('end', 'foo'))
+            stanza.UnknownIQPayload(resp, ('end', 'foo'), None)
         )
 
         fut = asyncio.Future()
@@ -2047,18 +2088,18 @@ class TestStanzaStream(StanzaStreamTestBase):
             fut)
 
         self.stream.start(self.xmlstream)
-        with self.assertRaises(errors.ErrorneousStanza) as ctx:
+        with self.assertRaises(errors.ErroneousStanza) as ctx:
             run_coroutine(fut)
 
         self.assertIs(ctx.exception.partial_obj, resp)
 
-    def test_unicast_error_on_errorneous_iq_error(self):
+    def test_unicast_error_on_erroneous_iq_error(self):
         req = make_test_iq(type_="get", to=TEST_TO)
         resp = req.make_reply(type_="error")
 
-        self.stream.recv_errorneous_stanza(
+        self.stream.recv_erroneous_stanza(
             resp,
-            stanza.UnknownIQPayload(resp, ('end', 'foo'))
+            stanza.UnknownIQPayload(resp, ('end', 'foo'), None)
         )
 
         fut = asyncio.Future()
@@ -2068,18 +2109,18 @@ class TestStanzaStream(StanzaStreamTestBase):
             fut)
 
         self.stream.start(self.xmlstream)
-        with self.assertRaises(errors.ErrorneousStanza) as ctx:
+        with self.assertRaises(errors.ErroneousStanza) as ctx:
             run_coroutine(fut)
 
         self.assertIs(ctx.exception.partial_obj, resp)
 
-    def test_unicast_error_on_errorneous_iq_error_unless_from_is_None(self):
+    def test_unicast_error_on_erroneous_iq_error_unless_from_is_None(self):
         req = make_test_iq(type_="get", to=None)
         resp = req.make_reply(type_="error")
 
-        self.stream.recv_errorneous_stanza(
+        self.stream.recv_erroneous_stanza(
             resp,
-            stanza.UnknownIQPayload(resp, ('end', 'foo'))
+            stanza.UnknownIQPayload(resp, ('end', 'foo'), None)
         )
 
         fut = asyncio.Future()
@@ -2092,13 +2133,13 @@ class TestStanzaStream(StanzaStreamTestBase):
         with self.assertRaises(asyncio.TimeoutError):
             run_coroutine(fut, timeout=0.1)
 
-    def test_do_not_crash_on_unsolicited_errorneous_iq_response(self):
+    def test_do_not_crash_on_unsolicited_erroneous_iq_response(self):
         req = make_test_iq(type_="get", to=TEST_TO)
         resp = req.make_reply(type_="result")
 
-        self.stream.recv_errorneous_stanza(
+        self.stream.recv_erroneous_stanza(
             resp,
-            stanza.UnknownIQPayload(resp, ('end', 'foo'))
+            stanza.UnknownIQPayload(resp, ('end', 'foo'), None)
         )
 
         self.stream.start(self.xmlstream)
@@ -2183,6 +2224,376 @@ class TestStanzaStream(StanzaStreamTestBase):
             ]
         )
 
+    def test_task_crash_leads_to_closing_of_xmlstream(self):
+        self.stream.ping_interval = timedelta(seconds=0.01)
+        self.stream.ping_opportunistic_interval = timedelta(seconds=0.01)
+
+        self.stream.start(self.xmlstream)
+        run_coroutine(asyncio.sleep(0.02))
+
+        self.sent_stanzas.get_nowait()
+        run_coroutine(asyncio.sleep(0.011))
+
+        self.assertFalse(self.stream.running)
+        self.xmlstream.close.assert_called_with()
+
+    def test_done_handler_can_deal_with_exception_from_abort(self):
+        class FooException(Exception):
+            pass
+
+        exc = None
+
+        def failure_handler(_exc):
+            nonlocal exc
+            exc = _exc
+
+        self.stream.ping_interval = timedelta(seconds=0.01)
+        self.stream.ping_opportunistic_interval = timedelta(seconds=0.01)
+        self.stream.on_failure.connect(failure_handler)
+
+        self.stream.start(self.xmlstream)
+        self.xmlstream.close.side_effect = FooException()
+        run_coroutine(asyncio.sleep(0.02))
+
+        self.sent_stanzas.get_nowait()
+        run_coroutine(asyncio.sleep(0.011))
+
+        self.assertIsInstance(
+            exc,
+            ConnectionError
+        )
+
+        self.assertFalse(self.stream.running)
+        self.xmlstream.close.assert_called_with()
+
+    def test_send_and_wait_for_sent_returns_on_SENT_WITHOUT_SM(self):
+        iq = make_test_iq()
+
+        base = unittest.mock.Mock()
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(unittest.mock.patch.object(
+                self.stream,
+                "enqueue_stanza",
+                new=base.enqueue_stanza
+            ))
+
+            base.enqueue_stanza.return_value = \
+                unittest.mock.sentinel.token
+
+            task = asyncio.async(self.stream.send_and_wait_for_sent(
+                iq
+            ))
+            run_coroutine(asyncio.sleep(0))
+            self.assertFalse(task.done())
+
+            _, (_, ), kwargs = base.mock_calls[0]
+            callback = kwargs.pop("on_state_change")
+
+            callback(unittest.mock.sentinel.token,
+                     stream.StanzaState.SENT_WITHOUT_SM)
+
+            run_coroutine(task)
+
+    def test_send_and_wait_for_sent_returns_on_ACKED(self):
+        iq = make_test_iq()
+
+        base = unittest.mock.Mock()
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(unittest.mock.patch.object(
+                self.stream,
+                "enqueue_stanza",
+                new=base.enqueue_stanza
+            ))
+
+            base.enqueue_stanza.return_value = \
+                unittest.mock.sentinel.token
+
+            task = asyncio.async(self.stream.send_and_wait_for_sent(
+                iq
+            ))
+            run_coroutine(asyncio.sleep(0))
+            self.assertFalse(task.done())
+
+            _, (_, ), kwargs = base.mock_calls[0]
+            callback = kwargs.pop("on_state_change")
+
+            callback(unittest.mock.sentinel.token,
+                     stream.StanzaState.ACKED)
+
+            run_coroutine(task)
+
+    def test_send_and_wait_for_sent_waits_while_SENT(self):
+        iq = make_test_iq()
+
+        base = unittest.mock.Mock()
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(unittest.mock.patch.object(
+                self.stream,
+                "enqueue_stanza",
+                new=base.enqueue_stanza
+            ))
+
+            base.enqueue_stanza.return_value = \
+                unittest.mock.sentinel.token
+
+            task = asyncio.async(self.stream.send_and_wait_for_sent(
+                iq
+            ))
+            run_coroutine(asyncio.sleep(0))
+            self.assertFalse(task.done())
+
+            _, (_, ), kwargs = base.mock_calls[0]
+            callback = kwargs.pop("on_state_change")
+
+            callback(unittest.mock.sentinel.token,
+                     stream.StanzaState.SENT)
+
+            run_coroutine(asyncio.sleep(0))
+            self.assertFalse(task.done())
+
+            callback(unittest.mock.sentinel.token,
+                     stream.StanzaState.ACKED)
+
+            run_coroutine(task)
+
+    def test_send_and_wait_for_sent_raises_ConnectionError_on_DISCONNECTED(
+            self):
+        iq = make_test_iq()
+
+        base = unittest.mock.Mock()
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(unittest.mock.patch.object(
+                self.stream,
+                "enqueue_stanza",
+                new=base.enqueue_stanza
+            ))
+
+            base.enqueue_stanza.return_value = \
+                unittest.mock.sentinel.token
+
+            task = asyncio.async(self.stream.send_and_wait_for_sent(
+                iq
+            ))
+            run_coroutine(asyncio.sleep(0))
+            self.assertFalse(task.done())
+
+            _, (_, ), kwargs = base.mock_calls[0]
+            callback = kwargs.pop("on_state_change")
+
+            callback(unittest.mock.sentinel.token,
+                     stream.StanzaState.DISCONNECTED)
+
+            with self.assertRaises(ConnectionError):
+                run_coroutine(task)
+
+    def test_send_and_wait_for_sent_raises_RuntimeError_on_DROPPED(
+            self):
+        iq = make_test_iq()
+
+        base = unittest.mock.Mock()
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(unittest.mock.patch.object(
+                self.stream,
+                "enqueue_stanza",
+                new=base.enqueue_stanza
+            ))
+
+            base.enqueue_stanza.return_value = \
+                unittest.mock.sentinel.token
+
+            task = asyncio.async(self.stream.send_and_wait_for_sent(
+                iq
+            ))
+            run_coroutine(asyncio.sleep(0))
+            self.assertFalse(task.done())
+
+            _, (_, ), kwargs = base.mock_calls[0]
+            callback = kwargs.pop("on_state_change")
+
+            callback(unittest.mock.sentinel.token,
+                     stream.StanzaState.DROPPED)
+
+            with self.assertRaisesRegex(
+                    RuntimeError,
+                    "stanza dropped by filter"):
+                run_coroutine(task)
+
+    def test_send_and_wait_for_sent_raises_RuntimeError_on_ABORTED(
+            self):
+        iq = make_test_iq()
+
+        base = unittest.mock.Mock()
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(unittest.mock.patch.object(
+                self.stream,
+                "enqueue_stanza",
+                new=base.enqueue_stanza
+            ))
+
+            base.enqueue_stanza.return_value = \
+                base.token
+
+            task = asyncio.async(self.stream.send_and_wait_for_sent(
+                iq
+            ))
+            run_coroutine(asyncio.sleep(0))
+            self.assertFalse(task.done())
+
+            _, (_, ), kwargs = base.mock_calls[0]
+            callback = kwargs.pop("on_state_change")
+
+            callback(unittest.mock.sentinel.token,
+                     stream.StanzaState.ABORTED)
+
+            with self.assertRaisesRegex(
+                    RuntimeError,
+                    "stanza aborted"):
+                run_coroutine(task)
+
+    def test_send_and_wait_for_sent_aborts_if_cancelled(
+            self):
+        iq = make_test_iq()
+
+        base = unittest.mock.Mock()
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(unittest.mock.patch.object(
+                self.stream,
+                "enqueue_stanza",
+                new=base.enqueue_stanza
+            ))
+
+            base.enqueue_stanza.return_value = \
+                base.token
+
+            base.token.state = stream.StanzaState.ACTIVE
+
+            task = asyncio.async(self.stream.send_and_wait_for_sent(
+                iq
+            ))
+
+            run_coroutine(asyncio.sleep(0))
+
+            task.cancel()
+
+            run_coroutine(asyncio.sleep(0))
+
+            self.assertTrue(task.done())
+            with self.assertRaises(asyncio.CancelledError):
+                task.exception()
+
+            base.token.abort.assert_called_with()
+
+    def test_send_and_wait_for_sent_does_not_abort_if_inflight(
+            self):
+        iq = make_test_iq()
+
+        base = unittest.mock.Mock()
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(unittest.mock.patch.object(
+                self.stream,
+                "enqueue_stanza",
+                new=base.enqueue_stanza
+            ))
+
+            base.enqueue_stanza.return_value = \
+                base.token
+
+            task = asyncio.async(self.stream.send_and_wait_for_sent(
+                iq
+            ))
+
+            run_coroutine(asyncio.sleep(0))
+
+            base.token.state = stream.StanzaState.SENT
+
+            _, (_, ), kwargs = base.mock_calls[0]
+            callback = kwargs.pop("on_state_change")
+
+            callback(base.token, stream.StanzaState.SENT)
+
+            task.cancel()
+
+            run_coroutine(asyncio.sleep(0))
+
+            self.assertTrue(task.done())
+            self.assertTrue(task.cancelled())
+
+            self.assertSequenceEqual(base.token.abort.mock_calls, [])
+
+    def test_send_iq_and_wait_for_reply_uses_send_and_wait_for_sent(
+            self):
+        mock = unittest.mock.Mock()
+
+        @asyncio.coroutine
+        def mock_send_and_wait_for_sent(orig, *args, **kwargs):
+            mock(*args, **kwargs)
+            yield from orig(*args, **kwargs)
+
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(unittest.mock.patch.object(
+                self.stream,
+                "send_and_wait_for_sent",
+                new=functools.partial(mock_send_and_wait_for_sent,
+                                      self.stream.send_and_wait_for_sent)
+            ))
+
+            iq = make_test_iq()
+            response = iq.make_reply(type_="result")
+            response.payload = FancyTestIQ()
+
+            task = asyncio.async(
+                self.stream.send_iq_and_wait_for_reply(iq),
+                loop=self.loop)
+
+            self.stream.start(self.xmlstream)
+            run_coroutine(asyncio.sleep(0))
+
+            mock.assert_called_with(iq)
+
+            self.stream.recv_stanza(response)
+            result = run_coroutine(task)
+            self.assertIs(
+                response.payload,
+                result
+            )
+
+    def test_send_iq_and_wait_for_reply_cancels_future_if_send_fails(
+            self):
+        class FooException(Exception):
+            pass
+
+        base = unittest.mock.Mock()
+        base.send_and_wait_for_sent = CoroutineMock()
+        base.send_and_wait_for_sent.side_effect = FooException()
+
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(unittest.mock.patch(
+                "asyncio.Future",
+                new=base.Future
+            ))
+
+            stack.enter_context(unittest.mock.patch.object(
+                self.stream,
+                "send_and_wait_for_sent",
+                new=base.send_and_wait_for_sent
+            ))
+
+            iq = make_test_iq()
+            response = iq.make_reply(type_="result")
+            response.payload = FancyTestIQ()
+
+            task = asyncio.async(
+                self.stream.send_iq_and_wait_for_reply(iq),
+                loop=self.loop)
+
+            self.stream.start(self.xmlstream)
+            run_coroutine(asyncio.sleep(0))
+
+            with self.assertRaises(FooException):
+                run_coroutine(task)
+
+            base.Future().cancel.assert_called_with()
+
 
 class TestStanzaStreamSM(StanzaStreamTestBase):
     def setUp(self):
@@ -2210,7 +2621,7 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
         del self.sent_stanzas
 
     def test_sm_initialization_only_in_stopped_state(self):
-        with self.assertRaisesRegexp(RuntimeError, "is not running"):
+        with self.assertRaisesRegex(RuntimeError, "is not running"):
             run_coroutine(self.stream.start_sm())
 
     def test_start_sm(self):
@@ -2420,7 +2831,7 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
         )
 
     def test_sm_ack_requires_enabled_sm(self):
-        with self.assertRaisesRegexp(RuntimeError, "is not enabled"):
+        with self.assertRaisesRegex(RuntimeError, "is not enabled"):
             self.stream.sm_ack(0)
 
     def test_sm_outbound(self):
@@ -2733,19 +3144,17 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
             self.xmlstream.run_test(self.successful_sm)
         )
         self.assertTrue(self.stream.running)
-        with self.assertRaisesRegexp(RuntimeError, "is running"):
+        with self.assertRaisesRegex(RuntimeError, "is running"):
             run_coroutine(self.stream.resume_sm(self.xmlstream))
 
     def test_sm_stop_requires_stopped_stream(self):
         self.stream.start_sm()
         self.stream.start(self.xmlstream)
-        with self.assertRaisesRegexp(RuntimeError,
-                                     "is running"):
+        with self.assertRaisesRegex(RuntimeError, "is running"):
             self.stream.stop_sm()
 
     def test_sm_stop_requires_enabled_sm(self):
-        with self.assertRaisesRegexp(RuntimeError,
-                                     "not enabled"):
+        with self.assertRaisesRegex(RuntimeError, "not enabled"):
             self.stream.stop_sm()
 
     def test_sm_start_requires_disabled_sm(self):
@@ -2754,13 +3163,12 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
             self.stream.start_sm(),
             self.xmlstream.run_test(self.successful_sm)
         )
-        with self.assertRaisesRegexp(RuntimeError,
-                                     "Stream Management already enabled"):
+        with self.assertRaisesRegex(RuntimeError,
+                                    "Stream Management already enabled"):
             run_coroutine(self.stream.start_sm())
 
     def test_sm_resume_requires_enabled_sm(self):
-        with self.assertRaisesRegexp(RuntimeError,
-                                     "not enabled"):
+        with self.assertRaisesRegex(RuntimeError, "not enabled"):
             run_coroutine(self.stream.resume_sm(self.xmlstream))
 
     def test_stop_sm(self):
@@ -2868,6 +3276,7 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
             XMLStreamMock.Send(nonza.SMRequest()),
             XMLStreamMock.Send(iqs[1]),
             XMLStreamMock.Send(nonza.SMRequest()),
+            XMLStreamMock.Abort(),
         ]))
 
         # at this point, the first ping must have timed out, and failure should
@@ -2986,8 +3395,8 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
         run_coroutine(asyncio.sleep(0))
         self.assertFalse(self.stream.running)
 
-        with self.assertRaisesRegexp(ValueError,
-                                     "only one listener is allowed"):
+        with self.assertRaisesRegex(ValueError,
+                                    "only one listener is allowed"):
             self.stream.register_iq_response_callback(
                 structs.JID("foo", "bar", None), "baz",
                 fun)
@@ -3058,6 +3467,31 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
         run_coroutine_with_peer(
             self.stream.close(),
             self.xmlstream.run_test([
+                XMLStreamMock.Send(
+                    nonza.SMAcknowledgement()
+                ),
+                XMLStreamMock.Close()
+            ])
+        )
+
+        self.assertFalse(self.stream.sm_enabled)
+        self.destroyed_rec.assert_called_once_with()
+
+    def test_close_sends_sm_ack(self):
+        self.stream.start(self.xmlstream)
+        run_coroutine_with_peer(
+            self.stream.start_sm(),
+            self.xmlstream.run_test(self.successful_sm)
+        )
+
+        self.established_rec.assert_called_once_with()
+
+        run_coroutine_with_peer(
+            self.stream.close(),
+            self.xmlstream.run_test([
+                XMLStreamMock.Send(
+                    nonza.SMAcknowledgement(),
+                ),
                 XMLStreamMock.Close()
             ])
         )
@@ -3079,6 +3513,9 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
                 self.stream.close(),
                 self.xmlstream.run_test(
                     [
+                        XMLStreamMock.Send(
+                            nonza.SMAcknowledgement()
+                        ),
                         XMLStreamMock.Close()
                     ],
                     stimulus=XMLStreamMock.Fail(ConnectionError())
@@ -3102,6 +3539,9 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
             self.stream.close(),
             self.xmlstream.run_test(
                 [
+                    XMLStreamMock.Send(
+                        nonza.SMAcknowledgement()
+                    ),
                     XMLStreamMock.Close(
                         response=[
                             XMLStreamMock.Fail(ConnectionError())
@@ -3113,6 +3553,74 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
 
         self.assertFalse(self.stream.sm_enabled)
         self.destroyed_rec.assert_called_once_with()
+
+    def test_unprocessed_outgoing_stanza_does_not_get_lost_after_stop(self):
+        pres = make_test_presence()
+        pres.autoset_id()
+
+        self.stream.start(self.xmlstream)
+        run_coroutine_with_peer(
+            self.stream.start_sm(),
+            self.xmlstream.run_test(self.successful_sm)
+        )
+
+        self.stream.stop()
+
+        self.stream.enqueue_stanza(pres)
+
+        self.assertIs(
+            pres,
+            run_coroutine(self.stream._active_queue.get()).stanza
+        )
+
+    def test_rescue_unprocessed_outgoing_stanza_on_stop(self):
+        pres = make_test_presence()
+        pres.autoset_id()
+
+        self.stream.start(self.xmlstream)
+        run_coroutine_with_peer(
+            self.stream.start_sm(),
+            self.xmlstream.run_test(self.successful_sm)
+        )
+
+        self.stream.enqueue_stanza(pres)
+        self.stream.stop()
+
+        self.assertIs(
+            pres,
+            run_coroutine(self.stream._active_queue.get()).stanza
+        )
+
+    def test_close_sets_sent_stanza_tokens_to_sent_without_sm(self):
+        pres = make_test_presence()
+        pres.autoset_id()
+
+        self.stream.start(self.xmlstream)
+        run_coroutine_with_peer(
+            self.stream.start_sm(),
+            self.xmlstream.run_test(self.successful_sm)
+        )
+
+        token = self.stream.enqueue_stanza(pres)
+
+        run_coroutine_with_peer(
+            self.stream.close(),
+            self.xmlstream.run_test([
+                XMLStreamMock.Send(
+                    nonza.SMAcknowledgement()
+                ),
+                XMLStreamMock.Close(),
+                # this is a race-condition of the test suite
+                # in a real stream, the Send would not happen as the stream
+                # changes state immediately and raises an exception from
+                # send_xso
+                XMLStreamMock.Send(pres),
+                XMLStreamMock.Send(nonza.SMRequest()),
+            ]),
+        )
+
+        self.assertEqual(token.state,
+                         stream.StanzaState.SENT_WITHOUT_SM)
 
     def test_stop_removes_stanza_handlers(self):
         caught_exc = None
@@ -3303,7 +3811,7 @@ class TestStanzaToken(unittest.TestCase):
         for state in set(stream.StanzaState) - {stream.StanzaState.ACTIVE,
                                                 stream.StanzaState.ABORTED}:
             token._set_state(stream.StanzaState.SENT)
-            with self.assertRaisesRegexp(RuntimeError, "already sent"):
+            with self.assertRaisesRegex(RuntimeError, "already sent"):
                 token.abort()
 
     def test_abort_while_aborted(self):

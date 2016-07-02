@@ -1,0 +1,215 @@
+<root>
+<var>
+  <name>http://jabber.org/protocol/pubsub#access-authorize</name>
+  <desc>The default node access model is authorize.</desc>
+  <doc>XEP-0060</doc>
+</var>
+<var>
+  <name>http://jabber.org/protocol/pubsub#access-open</name>
+  <desc>The default node access model is open.</desc>
+  <doc>XEP-0060</doc>
+</var>
+<var>
+  <name>http://jabber.org/protocol/pubsub#access-presence</name>
+  <desc>The default node access model is presence.</desc>
+  <doc>XEP-0060</doc>
+</var>
+<var>
+  <name>http://jabber.org/protocol/pubsub#access-roster</name>
+  <desc>The default node access model is roster.</desc>
+  <doc>XEP-0060</doc>
+</var>
+<var>
+  <name>http://jabber.org/protocol/pubsub#access-whitelist</name>
+  <desc>The default node access model is whitelist.</desc>
+  <doc>XEP-0060</doc>
+</var>
+<var>
+  <name>http://jabber.org/protocol/pubsub#auto-create</name>
+  <desc>The service supports automatic creation of nodes on first publish.</desc>
+  <doc>XEP-0060</doc>
+</var>
+<var>
+  <name>http://jabber.org/protocol/pubsub#auto-subscribe</name>
+  <desc>The service supports automatic subscription to a nodes based on presence subscription.</desc>
+  <doc>XEP-0060</doc>
+</var>
+<var>
+  <name>http://jabber.org/protocol/pubsub#collections</name>
+  <desc>Collection nodes are supported.</desc>
+  <doc>XEP-0248</doc>
+</var>
+<var>
+  <name>http://jabber.org/protocol/pubsub#config-node</name>
+  <desc>Configuration of node options is supported.</desc>
+  <doc>XEP-0060</doc>
+</var>
+<var>
+  <name>http://jabber.org/protocol/pubsub#create-and-configure</name>
+  <desc>Simultaneous creation and configuration of nodes is supported.</desc>
+  <doc>XEP-0060</doc>
+</var>
+<var>
+  <name>http://jabber.org/protocol/pubsub#create-nodes</name>
+  <desc>Creation of nodes is supported.</desc>
+  <doc>XEP-0060</doc>
+</var>
+<var>
+  <name>http://jabber.org/protocol/pubsub#delete-items</name>
+  <desc>Deletion of items is supported.</desc>
+  <doc>XEP-0060</doc>
+</var>
+<var>
+  <name>http://jabber.org/protocol/pubsub#delete-nodes</name>
+  <desc>Deletion of nodes is supported.</desc>
+  <doc>XEP-0060</doc>
+</var>
+<var>
+  <name>http://jabber.org/protocol/pubsub#filtered-notifications</name>
+  <desc>The service supports filtering of notifications based on Entity Capabilities.</desc>
+  <doc>XEP-0060</doc>
+</var>
+<var>
+  <name>http://jabber.org/protocol/pubsub#get-pending</name>
+  <desc>Retrieval of pending subscription approvals is supported.</desc>
+  <doc>XEP-0060</doc>
+</var>
+<var>
+  <name>http://jabber.org/protocol/pubsub#instant-nodes</name>
+  <desc>Creation of instant nodes is supported.</desc>
+  <doc>XEP-0060</doc>
+</var>
+<var>
+  <name>http://jabber.org/protocol/pubsub#item-ids</name>
+  <desc>Publishers may specify item identifiers.</desc>
+  <doc>XEP-0060</doc>
+</var>
+<var>
+  <name>http://jabber.org/protocol/pubsub#last-published</name>
+  <desc>
+    The service supports sending of the last published item to new 
+    subscribers and to newly available resources.
+  </desc>
+  <doc>XEP-0060</doc>
+</var>
+<var>
+  <name>http://jabber.org/protocol/pubsub#leased-subscription</name>
+  <desc>Time-based subscriptions are supported.</desc>
+  <doc>XEP-0060</doc>
+</var>
+<var>
+  <name>http://jabber.org/protocol/pubsub#manage-subscriptions</name>
+  <desc>Node owners may manage subscriptions.</desc>
+  <doc>XEP-0060</doc>
+</var>
+<var>
+  <name>http://jabber.org/protocol/pubsub#member-affiliation</name>
+  <desc>The member affiliation is supported.</desc>
+  <doc>XEP-0060</doc>
+</var>
+<var>
+  <name>http://jabber.org/protocol/pubsub#meta-data</name>
+  <desc>Node meta-data is supported.</desc>
+  <doc>XEP-0060</doc>
+</var>
+<var>
+  <name>http://jabber.org/protocol/pubsub#modify-affiliations</name>
+  <desc>Node owners may modify affiliations.</desc>
+  <doc>XEP-0060</doc>
+</var>
+<var>
+  <name>http://jabber.org/protocol/pubsub#multi-collection</name>
+  <desc>A single leaf node can be associated with multiple collections.</desc>
+  <doc>XEP-0060</doc>
+</var>
+<var>
+  <name>http://jabber.org/protocol/pubsub#multi-subscribe</name>
+  <desc>A single entity may subscribe to a node multiple times.</desc>
+  <doc>XEP-0060</doc>
+</var>
+<var>
+  <name>http://jabber.org/protocol/pubsub#outcast-affiliation</name>
+  <desc>The outcast affiliation is supported.</desc>
+  <doc>XEP-0060</doc>
+</var>
+<var>
+  <name>http://jabber.org/protocol/pubsub#persistent-items</name>
+  <desc>Persistent items are supported.</desc>
+  <doc>XEP-0060</doc>
+</var>
+<var>
+  <name>http://jabber.org/protocol/pubsub#presence-notifications</name>
+  <desc>Presence-based delivery of event notifications is supported.</desc>
+  <doc>XEP-0060</doc>
+</var>
+<var>
+  <name>http://jabber.org/protocol/pubsub#presence-subscribe</name>
+  <desc>Implicit presence-based subscriptions are supported.</desc>
+  <doc>XEP-0060</doc>
+</var>
+<var>
+  <name>http://jabber.org/protocol/pubsub#publish</name>
+  <desc>Publishing items is supported.</desc>
+  <doc>XEP-0060</doc>
+</var>
+<var>
+  <name>http://jabber.org/protocol/pubsub#publish-options</name>
+  <desc>Publication with publish options is supported.</desc>
+  <doc>XEP-0060</doc>
+</var>
+<var>
+  <name>http://jabber.org/protocol/pubsub#publish-only-affiliation</name>
+  <desc>The publish-only affiliation is supported.</desc>
+  <doc>XEP-0060</doc>
+</var>
+<var>
+  <name>http://jabber.org/protocol/pubsub#publisher-affiliation</name>
+  <desc>The publisher affiliation is supported.</desc>
+  <doc>XEP-0060</doc>
+</var>
+<var>
+  <name>http://jabber.org/protocol/pubsub#purge-nodes</name>
+  <desc>Purging of nodes is supported.</desc>
+  <doc>XEP-0060</doc>
+</var>
+<var>
+  <name>http://jabber.org/protocol/pubsub#retract-items</name>
+  <desc>Item retraction is supported.</desc>
+  <doc>XEP-0060</doc>
+</var>
+<var>
+  <name>http://jabber.org/protocol/pubsub#retrieve-affiliations</name>
+  <desc>Retrieval of current affiliations is supported.</desc>
+  <doc>XEP-0060</doc>
+</var>
+<var>
+  <name>http://jabber.org/protocol/pubsub#retrieve-default</name>
+  <desc>Retrieval of default node configuration is supported.</desc>
+  <doc>XEP-0060</doc>
+</var>
+<var>
+  <name>http://jabber.org/protocol/pubsub#retrieve-items</name>
+  <desc>Item retrieval is supported.</desc>
+  <doc>XEP-0060</doc>
+</var>
+<var>
+  <name>http://jabber.org/protocol/pubsub#retrieve-subscriptions</name>
+  <desc>Retrieval of current subscriptions is supported.</desc>
+  <doc>XEP-0060</doc>
+</var>
+<var>
+  <name>http://jabber.org/protocol/pubsub#subscribe</name>
+  <desc>Subscribing and unsubscribing are supported.</desc>
+  <doc>XEP-0060</doc>
+</var>
+<var>
+  <name>http://jabber.org/protocol/pubsub#subscription-options</name>
+  <desc>Configuration of subscription options is supported.</desc>
+  <doc>XEP-0060</doc>
+</var>
+<var>
+  <name>http://jabber.org/protocol/pubsub#subscription-notifications</name>
+  <desc>Notification of subscription state changes is supported.</desc>
+  <doc>XEP-0060</doc>
+</var>
+</root>

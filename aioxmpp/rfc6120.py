@@ -1,8 +1,8 @@
 """
-:mod:`~aioxmpp.rfc6120` -- Stanza payloads for RFC 6120 implementation
-######################################################################
+:mod:`~aioxmpp.rfc6120` -- Stanza payloads for :rfc:`6120` implementation
+#########################################################################
 
-This module contains XSO-related classes for implementation of RFC 6120.
+This module contains XSO-related classes for implementation of :rfc:`6120`.
 
 .. autoclass:: BindFeature
 

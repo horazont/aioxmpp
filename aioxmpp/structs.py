@@ -44,6 +44,15 @@ class JID(collections.namedtuple("JID", ["localpart", "domain", "resource"])):
     A Jabber ID (JID). To construct a JID, either use the actual constructor,
     or use the :meth:`fromstr` class method.
 
+    If `strict` is false, unassigned codepoints are allowed in any of the parts
+    of the JID. In the future, other deviations from the respective stringprep
+    profiles may be allowed, too.
+
+    The idea is to use non-`strict` when output is received from outside and
+    when it is reflected, following the old principle "be conservative in what
+    you send and liberal in what you receive". Otherwise, strict checking
+    should be enabled. This brings maximum interoperability.
+
     .. automethod:: fromstr
 
     Information about a JID:
@@ -74,13 +83,22 @@ class JID(collections.namedtuple("JID", ["localpart", "domain", "resource"])):
 
     __slots__ = []
 
-    def __new__(cls, localpart, domain, resource):
+    def __new__(cls, localpart, domain, resource, *, strict=True):
         if localpart:
-            localpart = nodeprep(localpart)
+            localpart = nodeprep(
+                localpart,
+                allow_unassigned=not strict
+            )
         if domain is not None:
-            domain = nameprep(domain)
+            domain = nameprep(
+                domain,
+                allow_unassigned=not strict
+            )
         if resource:
-            resource = resourceprep(resource)
+            resource = resourceprep(
+                resource,
+                allow_unassigned=not strict
+            )
 
         if not domain:
             raise ValueError("domain must not be empty or None")
@@ -108,13 +126,18 @@ class JID(collections.namedtuple("JID", ["localpart", "domain", "resource"])):
 
         new_kwargs = {}
 
+        strict = kwargs.pop("strict", True)
+
         try:
             localpart = kwargs.pop("localpart")
         except KeyError:
             pass
         else:
             if localpart:
-                localpart = nodeprep(localpart)
+                localpart = nodeprep(
+                    localpart,
+                    allow_unassigned=not strict
+                )
             new_kwargs["localpart"] = localpart
 
         try:
@@ -124,7 +147,10 @@ class JID(collections.namedtuple("JID", ["localpart", "domain", "resource"])):
         else:
             if not domain:
                 raise ValueError("domain must not be empty or None")
-            new_kwargs["domain"] = nameprep(domain)
+            new_kwargs["domain"] = nameprep(
+                domain,
+                allow_unassigned=not strict
+            )
 
         try:
             resource = kwargs.pop("resource")
@@ -132,7 +158,10 @@ class JID(collections.namedtuple("JID", ["localpart", "domain", "resource"])):
             pass
         else:
             if resource:
-                resource = resourceprep(resource)
+                resource = resourceprep(
+                    resource,
+                    allow_unassigned=not strict
+                )
             new_kwargs["resource"] = resource
 
         if kwargs:
@@ -173,7 +202,7 @@ class JID(collections.namedtuple("JID", ["localpart", "domain", "resource"])):
         return not self.resource and not self.localpart
 
     @classmethod
-    def fromstr(cls, s):
+    def fromstr(cls, s, *, strict=True):
         """
         Obtain a :class:`JID` object by parsing a JID from the given string
         `s`.
@@ -186,7 +215,7 @@ class JID(collections.namedtuple("JID", ["localpart", "domain", "resource"])):
         domain, sep, resource = domain.partition("/")
         if not sep:
             resource = None
-        return cls(localpart, domain, resource)
+        return cls(localpart, domain, resource, strict=strict)
 
 
 @functools.total_ordering
