@@ -1267,9 +1267,8 @@ class ChildValueMultiMap(_ChildPropBase):
         raise AttributeError("child value multi map not writable")
 
     def to_sax(self, instance, dest):
-        for key, values in self.__get__(instance, type(instance)).items():
-            for value in values:
-                self.type_.format((key, value)).unparse_to_sax(dest)
+        for key, value in self.__get__(instance, type(instance)).items():
+            self.type_.format((key, value)).unparse_to_sax(dest)
 
     def from_events(self, instance, ev_args, ctx):
         obj = yield from self._process(instance, ev_args, ctx)

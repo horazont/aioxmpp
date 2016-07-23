@@ -8,6 +8,9 @@ Version 0.7
 
 * :func:`aioxmpp.security_layer.make`
 
+* Fix bug in :meth:`aioxmpp.xso.ChildValueMultiMap.to_sax` which rendered XSOs
+  with that descriptor useless.
+
 Version 0.6
 ===========
 

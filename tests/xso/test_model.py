@@ -5302,8 +5302,9 @@ class TestChildValueMultiMap(unittest.TestCase):
 
     def test_to_sax_calls_format(self):
         obj = self.Cls()
-        obj.values.add("x", "y")
-        obj.values.add("x", "z")
+        obj.values.add("x", "foo")
+        obj.values.add("x", "bar")
+        obj.values.add("z", "baz")
 
         base = unittest.mock.Mock()
 
@@ -5319,9 +5320,11 @@ class TestChildValueMultiMap(unittest.TestCase):
         self.assertSequenceEqual(
             base.mock_calls,
             [
-                unittest.mock.call.format(("x", "y")),
+                unittest.mock.call.format(("x", "foo")),
                 unittest.mock.call.format().unparse_to_sax(base.dest),
-                unittest.mock.call.format(("x", "z")),
+                unittest.mock.call.format(("x", "bar")),
+                unittest.mock.call.format().unparse_to_sax(base.dest),
+                unittest.mock.call.format(("z", "baz")),
                 unittest.mock.call.format().unparse_to_sax(base.dest),
             ]
         )
