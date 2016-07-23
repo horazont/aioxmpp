@@ -6,7 +6,14 @@ This module provides different implementations of the security layer
 (TLS+SASL).
 
 These are coupled, as different SASL features might need different TLS features
-(such as channel binding or client cert authentication).
+(such as channel binding or client cert authentication). The preferred method
+to construct a :class:`SecurityLayer` is using the :func:`make` function.
+:class:`SecurityLayer` objects are needed to establish an XMPP connection,
+for example using :class:`aioxmpp.node.AbstractClient`.
+
+.. autofunction:: make
+
+.. autoclass:: PinType
 
 .. autofunction:: tls_with_password_based_authentication(password_provider, [ssl_context_factory], [max_auth_attempts=3])
 
@@ -1075,5 +1082,90 @@ def tls_with_password_based_authentication(
             PasswordSASLProvider(
                 password_provider,
                 max_auth_attempts=max_auth_attempts),
+        )
+    )
+
+
+class PinType:
+    """
+    Enumeration to control which pinning is used by :meth:`make`.
+
+    .. attribute:: PUBLIC_KEY
+
+       Public keys are stored in the pin store. :class:`PublicKeyPinStore` is
+       used.
+
+    .. attribute:: CERTIFICATE
+
+       Whole certificates are stored in the pin store.
+       :class:`CertificatePinStore` is used.
+    """
+
+    PUBLIC_KEY = 0
+    CERTIFICATE = 1
+
+
+def make(
+        password_provider,
+        *,
+        pin_store=None,
+        pin_type=PinType.PUBLIC_KEY,
+        post_handshake_deferred_failure=None):
+    """
+    Construct a :class:`SecurityLayer`. Depending on the arguments passed,
+    different features are enabled or disabled.
+
+    *password_provider* must be a coroutine as passed to
+    :class:`PasswordSASLProvider`. It is called with the JID we are trying to
+    authenticate against as the first and the number of the attempt as second
+    argument. The number of attempt starts at 0.
+
+    *pin_store* may be a dictionary compatible to
+    :meth:`AbstractPinStore.import_from_json` or a :class:`AbstractPinStore`
+    instance. If *pin_store* is a dictionary, an instance of a
+    :class:`AbstractPinStore` is created depending on the value of the
+    *pin_type* argument, which must be a :class:`PinType` value.
+
+    If *pin_store* is not :data:`None`, *post_handshake_deferred_callback* must
+    be a coroutine suitable to be passed to the constructor of
+    :class:`PinningPKIXCertificateVerifier`. It is called if the verification
+    of the certificate fails and can be used to ask the user for which action
+    to take; the details are documented at
+    :class:`PinningPKIXCertificateVerifier`.
+
+    The versaility and simplicity of use of this function make (pun intended)
+    it the preferred way to construct :class:`SecurityLayer` instances.
+    """
+
+    if pin_store is not None:
+        if post_handshake_deferred_failure is None:
+            raise ValueError(
+                "post_handshake_deferred_failure required when using pin_store"
+            )
+
+        if not isinstance(pin_store, AbstractPinStore):
+            pin_data = pin_store
+            if pin_type == PinType.PUBLIC_KEY:
+                pin_store = PublicKeyPinStore()
+            else:
+                pin_store = CertificatePinStore()
+            pin_store.import_from_json(pin_data)
+
+        def certificate_verifier_factory():
+            return PinningPKIXCertificateVerifier(
+                pin_store.query,
+                post_handshake_deferred_failure,
+            )
+    else:
+        certificate_verifier_factory = PKIXCertificateVerifier
+
+    return SecurityLayer(
+        default_ssl_context,
+        certificate_verifier_factory,
+        True,
+        (
+            PasswordSASLProvider(
+                password_provider,
+            ),
         )
     )

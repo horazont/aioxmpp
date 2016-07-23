@@ -2036,3 +2036,309 @@ class Testtls_with_password_based_authentication(unittest.TestCase):
             result,
             SecurityLayer(),
         )
+
+
+class Testmake(unittest.TestCase):
+    def test_simple(self):
+        with contextlib.ExitStack() as stack:
+            SecurityLayer = stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.security_layer.SecurityLayer"
+                )
+            )
+
+            PasswordSASLProvider = stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.security_layer.PasswordSASLProvider"
+                )
+            )
+
+            PKIXCertificateVerifier = stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.security_layer.PKIXCertificateVerifier"
+                )
+            )
+
+            default_ssl_context = stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.security_layer.default_ssl_context"
+                )
+            )
+
+            result = security_layer.make(
+                unittest.mock.sentinel.password_provider,
+            )
+
+        PasswordSASLProvider.assert_called_with(
+            unittest.mock.sentinel.password_provider,
+        )
+
+        SecurityLayer.assert_called_with(
+            default_ssl_context,
+            PKIXCertificateVerifier,
+            True,
+            (PasswordSASLProvider(),)
+        )
+
+        self.assertEqual(
+            result,
+            SecurityLayer(),
+        )
+
+    def test_with_pin_store_rejects_without_phdf(self):
+        with self.assertRaisesRegex(
+                ValueError,
+                "post_handshake_deferred_failure required when using "
+                "pin_store"):
+            security_layer.make(
+                unittest.mock.sentinel.password_provider,
+                pin_store=unittest.mock.sentinel.pin_data,
+            )
+
+    def test_with_public_key_pin_store_with_static_data(self):
+        pin_data = {"foo": unittest.mock.sentinel.bar}
+
+        with contextlib.ExitStack() as stack:
+            SecurityLayer = stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.security_layer.SecurityLayer"
+                )
+            )
+
+            PasswordSASLProvider = stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.security_layer.PasswordSASLProvider"
+                )
+            )
+
+            PinningPKIXCertificateVerifier = stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.security_layer.PinningPKIXCertificateVerifier"
+                )
+            )
+
+            PublicKeyPinStore = stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.security_layer.PublicKeyPinStore"
+                )
+            )
+
+            default_ssl_context = stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.security_layer.default_ssl_context"
+                )
+            )
+
+            result = security_layer.make(
+                unittest.mock.sentinel.password_provider,
+                pin_store=pin_data,
+                post_handshake_deferred_failure=unittest.mock.sentinel.phdf
+            )
+
+        PasswordSASLProvider.assert_called_with(
+            unittest.mock.sentinel.password_provider,
+        )
+
+        self.assertSequenceEqual(
+            PublicKeyPinStore.mock_calls,
+            [
+                unittest.mock.call(),
+                unittest.mock.call().import_from_json(
+                    pin_data,
+                )
+            ]
+        )
+
+        SecurityLayer.assert_called_with(
+            default_ssl_context,
+            unittest.mock.ANY,
+            True,
+            (PasswordSASLProvider(),)
+        )
+
+        _, (_, callable, _, _), _ = SecurityLayer.mock_calls[0]
+
+        self.assertEqual(
+            result,
+            SecurityLayer(),
+        )
+
+        with contextlib.ExitStack() as stack:
+            PinningPKIXCertificateVerifier = stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.security_layer.PinningPKIXCertificateVerifier"
+                )
+            )
+
+            callback_result = callable()
+
+        PinningPKIXCertificateVerifier.assert_called_with(
+            PublicKeyPinStore().query,
+            unittest.mock.sentinel.phdf
+        )
+
+        self.assertEqual(
+            callback_result,
+            PinningPKIXCertificateVerifier()
+        )
+
+    def test_with_certificate_pin_store_with_static_data(self):
+        pin_data = {"foo": unittest.mock.sentinel.bar}
+
+        with contextlib.ExitStack() as stack:
+            SecurityLayer = stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.security_layer.SecurityLayer"
+                )
+            )
+
+            PasswordSASLProvider = stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.security_layer.PasswordSASLProvider"
+                )
+            )
+
+            PinningPKIXCertificateVerifier = stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.security_layer.PinningPKIXCertificateVerifier"
+                )
+            )
+
+            CertificatePinStore = stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.security_layer.CertificatePinStore"
+                )
+            )
+
+            default_ssl_context = stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.security_layer.default_ssl_context"
+                )
+            )
+
+            result = security_layer.make(
+                unittest.mock.sentinel.password_provider,
+                pin_store=pin_data,
+                pin_type=security_layer.PinType.CERTIFICATE,
+                post_handshake_deferred_failure=unittest.mock.sentinel.phdf
+            )
+
+        PasswordSASLProvider.assert_called_with(
+            unittest.mock.sentinel.password_provider,
+        )
+
+        self.assertSequenceEqual(
+            CertificatePinStore.mock_calls,
+            [
+                unittest.mock.call(),
+                unittest.mock.call().import_from_json(
+                    pin_data,
+                )
+            ]
+        )
+
+        SecurityLayer.assert_called_with(
+            default_ssl_context,
+            unittest.mock.ANY,
+            True,
+            (PasswordSASLProvider(),)
+        )
+
+        _, (_, callable, _, _), _ = SecurityLayer.mock_calls[0]
+
+        self.assertEqual(
+            result,
+            SecurityLayer(),
+        )
+
+        with contextlib.ExitStack() as stack:
+            PinningPKIXCertificateVerifier = stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.security_layer.PinningPKIXCertificateVerifier"
+                )
+            )
+
+            callback_result = callable()
+
+        PinningPKIXCertificateVerifier.assert_called_with(
+            CertificatePinStore().query,
+            unittest.mock.sentinel.phdf
+        )
+
+        self.assertEqual(
+            callback_result,
+            PinningPKIXCertificateVerifier()
+        )
+
+    def test_with_pin_store_object(self):
+        with contextlib.ExitStack() as stack:
+            SecurityLayer = stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.security_layer.SecurityLayer"
+                )
+            )
+
+            PasswordSASLProvider = stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.security_layer.PasswordSASLProvider"
+                )
+            )
+
+            PinningPKIXCertificateVerifier = stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.security_layer.PinningPKIXCertificateVerifier"
+                )
+            )
+
+            default_ssl_context = stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.security_layer.default_ssl_context"
+                )
+            )
+
+            pin_store = unittest.mock.Mock(
+                spec=security_layer.AbstractPinStore
+            )
+
+            result = security_layer.make(
+                unittest.mock.sentinel.password_provider,
+                pin_store=pin_store,
+                post_handshake_deferred_failure=unittest.mock.sentinel.phdf
+            )
+
+        PasswordSASLProvider.assert_called_with(
+            unittest.mock.sentinel.password_provider,
+        )
+
+        SecurityLayer.assert_called_with(
+            default_ssl_context,
+            unittest.mock.ANY,
+            True,
+            (PasswordSASLProvider(),)
+        )
+
+        _, (_, callable, _, _), _ = SecurityLayer.mock_calls[0]
+
+        self.assertEqual(
+            result,
+            SecurityLayer(),
+        )
+
+        with contextlib.ExitStack() as stack:
+            PinningPKIXCertificateVerifier = stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.security_layer.PinningPKIXCertificateVerifier"
+                )
+            )
+
+            callback_result = callable()
+
+        PinningPKIXCertificateVerifier.assert_called_with(
+            pin_store.query,
+            unittest.mock.sentinel.phdf
+        )
+
+        self.assertEqual(
+            callback_result,
+            PinningPKIXCertificateVerifier()
+        )

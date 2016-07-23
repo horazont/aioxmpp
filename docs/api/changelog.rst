@@ -3,6 +3,11 @@
 Changelog
 #########
 
+Version 0.7
+===========
+
+* :func:`aioxmpp.security_layer.make`
+
 Version 0.6
 ===========
 
