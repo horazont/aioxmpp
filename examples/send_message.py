@@ -44,10 +44,6 @@ async def main(jid, password, recipient):
         return password
 
     print("configuring client")
-    # a future which tells us when connection has succeeded
-    connected_future = asyncio.Future()
-    # a future which tells us when the connection is terminated
-    disconnected_future = asyncio.Future()
 
     client = aioxmpp.node.PresenceManagedClient(
         jid,
