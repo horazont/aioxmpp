@@ -1,7 +1,6 @@
 import asyncio
 import getpass
 import itertools
-import logging
 
 import aioxmpp.security_layer
 import aioxmpp.node
@@ -9,13 +8,12 @@ import aioxmpp.structs
 import aioxmpp.disco
 
 try:
-    import readline
+    import readline  # NOQA
 except ImportError:
     pass
 
 
-@asyncio.coroutine
-def main(jid, password):
+async def main(jid, password):
     @asyncio.coroutine
     def get_password(client_jid, nattempt):
         if nattempt > 1:
@@ -23,42 +21,24 @@ def main(jid, password):
             return None
         return password
 
-    connected_future = asyncio.Future()
-    disconnected_future = asyncio.Future()
-
-    def connected():
-        connected_future.set_result(None)
-
-    def disconnected():
-        disconnected_future.set_result(None)
-
-    tls_provider = aioxmpp.security_layer.STARTTLSProvider(
-        aioxmpp.security_layer.default_ssl_context,
-    )
-
-    sasl_provider = aioxmpp.security_layer.PasswordSASLProvider(
-        get_password
-    )
-
     client = aioxmpp.node.PresenceManagedClient(
         jid,
-        aioxmpp.security_layer.security_layer(
-            tls_provider,
-            [sasl_provider]
+        aioxmpp.security_layer.SecurityLayer(
+            aioxmpp.security_layer.default_ssl_context,
+            aioxmpp.security_layer._NullVerifier,
+            aioxmpp.security_layer.STARTTLSProvider(
+                aioxmpp.security_layer.default_ssl_context,
+                aioxmpp.security_layer._NullVerifier
+            ),
+            [aioxmpp.security_layer.PasswordSASLProvider(get_password)],
         )
     )
-    client.on_stream_established.connect(connected)
-    client.on_stopped.connect(disconnected)
 
     disco = client.summon(aioxmpp.disco.Service)
 
-    client.presence = aioxmpp.structs.PresenceState(True)
-
-    yield from connected_future
-
-    try:
+    async with client.connected():
         try:
-            info = yield from disco.query_info(
+            info = await disco.query_info(
                 jid.replace(resource=None, localpart=None),
                 timeout=10)
         except Exception as exc:
@@ -72,7 +52,10 @@ def main(jid, password):
 
         print("identities:")
         identities = list(info.identities)
-        identity_key = lambda ident: (ident.category, ident.type_)
+
+        def identity_key(ident):
+            return (ident.category, ident.type_)
+
         identities.sort(key=identity_key)
         for (category, type_), identities in (
                 itertools.groupby(info.identities, identity_key)):
@@ -81,10 +64,6 @@ def main(jid, password):
             subidentities.sort(key=lambda ident: ident.lang)
             for identity in subidentities:
                 print("    [{}] {!r}".format(identity.lang, identity.name))
-
-    finally:
-        client.presence = aioxmpp.structs.PresenceState(False)
-        yield from disconnected_future
 
 
 if __name__ == "__main__":
