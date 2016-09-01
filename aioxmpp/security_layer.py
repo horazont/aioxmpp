@@ -1115,10 +1115,13 @@ def make(
     Construct a :class:`SecurityLayer`. Depending on the arguments passed,
     different features are enabled or disabled.
 
-    *password_provider* must be a coroutine as passed to
-    :class:`PasswordSASLProvider`. It is called with the JID we are trying to
-    authenticate against as the first and the number of the attempt as second
-    argument. The number of attempt starts at 0.
+    *password_provider* must either be a coroutine or a :class:`str`. If it is
+    a :class:`str`, it will be wrapped in coroutine matching the requirements
+    of :class:`PasswordSASLProvider` (only one authentication attempt is made;
+    if that fails, the authentication is aborted). The coroutine is called with
+    the JID we are trying to authenticate against as the first and the sequence
+    number of the authentication attempt as second argument. The number starts
+    at 0.
 
     *pin_store* may be a dictionary compatible to
     :meth:`AbstractPinStore.import_from_json` or a :class:`AbstractPinStore`
@@ -1136,6 +1139,15 @@ def make(
     The versaility and simplicity of use of this function make (pun intended)
     it the preferred way to construct :class:`SecurityLayer` instances.
     """
+
+    if isinstance(password_provider, str):
+        static_password = password_provider
+
+        @asyncio.coroutine
+        def password_provider(jid, nattempt):
+            if nattempt == 0:
+                return static_password
+            return None
 
     if pin_store is not None:
         if post_handshake_deferred_failure is None:

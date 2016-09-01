@@ -2085,6 +2085,63 @@ class Testmake(unittest.TestCase):
             SecurityLayer(),
         )
 
+    def test_with_static_password(self):
+        with contextlib.ExitStack() as stack:
+            SecurityLayer = stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.security_layer.SecurityLayer"
+                )
+            )
+
+            PasswordSASLProvider = stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.security_layer.PasswordSASLProvider"
+                )
+            )
+
+            PKIXCertificateVerifier = stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.security_layer.PKIXCertificateVerifier"
+                )
+            )
+
+            default_ssl_context = stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.security_layer.default_ssl_context"
+                )
+            )
+
+            result = security_layer.make(
+                "foo",
+            )
+
+        PasswordSASLProvider.assert_called_with(
+            unittest.mock.ANY,
+        )
+
+        _, (password_provider, ), _ = PasswordSASLProvider.mock_calls[0]
+
+        SecurityLayer.assert_called_with(
+            default_ssl_context,
+            PKIXCertificateVerifier,
+            True,
+            (PasswordSASLProvider(),)
+        )
+
+        self.assertEqual(
+            result,
+            SecurityLayer(),
+        )
+
+        self.assertEqual(
+            run_coroutine(password_provider(unittest.mock.sentinel.jid, 0)),
+            "foo",
+        )
+
+        self.assertIsNone(
+            run_coroutine(password_provider(unittest.mock.sentinel.jid, 1)),
+        )
+
     def test_with_pin_store_rejects_without_phdf(self):
         with self.assertRaisesRegex(
                 ValueError,
