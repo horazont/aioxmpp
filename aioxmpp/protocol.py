@@ -248,6 +248,7 @@ class XMLStream(asyncio.Protocol):
         self._error_futures = []
         self._smachine = statemachine.OrderedStateMachine(State.READY)
         self._transport_closing = False
+        self._footer_timeout_future = None
 
         self._closing_future = asyncio.async(
             self._smachine.wait_for(
@@ -309,10 +310,20 @@ class XMLStream(asyncio.Protocol):
             return
         task.result()
 
-        asyncio.async(
+        self._footer_timeout_future = asyncio.async(
             self._stream_footer_timeout(),
             loop=self._loop
-        ).add_done_callback(lambda x: x.result())
+        )
+
+        def fetch_result_and_ignore_cancel(fut):
+            try:
+                fut.result()
+            except asyncio.CancelledError:
+                pass
+
+        self._footer_timeout_future.add_done_callback(
+            fetch_result_and_ignore_cancel,
+        )
 
     @asyncio.coroutine
     def _stream_footer_timeout(self):
@@ -437,6 +448,8 @@ class XMLStream(asyncio.Protocol):
         self._writer = None
         self._transport = None
         self._closing_future.cancel()
+        if self._footer_timeout_future is not None:
+            self._footer_timeout_future.cancel()
 
     def data_received(self, blob):
         self._logger.debug("RECV %r", blob)
