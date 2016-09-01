@@ -76,6 +76,19 @@ import weakref
 logger = logging.getLogger(__name__)
 
 
+def log_spawned(logger, fut):
+    try:
+        result = fut.result()
+    except asyncio.CancelledError:
+        logger.debug("spawned task was cancelled")
+    except:
+        logger.warning("spawned task raised exception", exc_info=True)
+    else:
+        if result is not None:
+            logger.info("value returned by spawned task was ignored: %r",
+                        result)
+
+
 class TagListener:
     def __init__(self, ondata, onerror=None):
         self._ondata = ondata
@@ -308,6 +321,13 @@ class AdHocSignal(AbstractAdHocSignal):
        Connections using this mode are never removed automatically from the
        signals connection list. You have to use :meth:`disconnect` explicitly.
 
+       If the spawned coroutine returns with an exception or a non-:data:`None`
+       return value, a message is logged, with the following log levels:
+
+       * Return with non-:data:`None` value: :data:`logging.INFO`
+       * Raises :class:`asyncio.CancelledError`: :data:`logging.DEBUG`
+       * Raises any other exception: :data:`logging.WARNING`
+
        .. versionadded:: 0.6
 
     .. automethod:: disconnect
@@ -373,7 +393,13 @@ class AdHocSignal(AbstractAdHocSignal):
                 raise TypeError("must be coroutine, got {!r}".format(f))
 
             def wrapper(args, kwargs):
-                asyncio.async(f(*args, **kwargs), loop=loop)
+                task = asyncio.async(f(*args, **kwargs), loop=loop)
+                task.add_done_callback(
+                    functools.partial(
+                        log_spawned,
+                        logger,
+                    )
+                )
                 return True
 
             return wrapper

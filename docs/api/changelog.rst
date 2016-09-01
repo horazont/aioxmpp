@@ -11,6 +11,11 @@ Version 0.7
 * Fix bug in :meth:`aioxmpp.xso.ChildValueMultiMap.to_sax` which rendered XSOs
   with that descriptor useless.
 
+* :class:`aioxmpp.callbacks.AdHocSignal` now logs when coroutines registered
+  with :meth:`aioxmpp.callbacks.AdHocSignal.SPAWN_WITH_LOOP` raise exceptions or
+  return non-:data:`None` values. See the documentation of
+  :meth:`~aioxmpp.callbacks.AdHocSignal.SPAWN_WITH_LOOP` for details.
+
 Version 0.6
 ===========
 
