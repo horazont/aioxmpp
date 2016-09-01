@@ -868,6 +868,27 @@ class OwnerRequest(xso.XSO):
         self.payload = payload
 
 
+def as_payload_class(cls):
+    """
+    Register the given class `cls` as Publish-Subscribe payload on both
+    :class:`Item` and :class:`EventItem`.
+
+    Return the class, to allow this to be used as decorator.
+    """
+
+    Item.register_child(
+        Item.registered_payload,
+        cls,
+    )
+
+    EventItem.register_child(
+        EventItem.registered_payload,
+        cls,
+    )
+
+    return cls
+
+
 ClosedNode = aioxmpp.stanza.make_application_error(
     "ClosedNode",
     (namespaces.xep0060_errors, "closed-node"),

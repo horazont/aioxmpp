@@ -16,6 +16,8 @@ Version 0.7
   return non-:data:`None` values. See the documentation of
   :meth:`~aioxmpp.callbacks.AdHocSignal.SPAWN_WITH_LOOP` for details.
 
+* :func:`aioxmpp.pubsub.xso.as_payload_class`
+
 Version 0.6
 ===========
 

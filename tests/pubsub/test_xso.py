@@ -1,3 +1,4 @@
+import contextlib
 import unittest
 import unittest.mock
 
@@ -2368,6 +2369,40 @@ class TestOwnerRequest(unittest.TestCase):
         self.assertEqual(
             r.payload,
             unittest.mock.sentinel.payload
+        )
+
+
+class Testas_payload_class(unittest.TestCase):
+    def test_registers_at_EventItem_and_Item(self):
+        with contextlib.ExitStack() as stack:
+            at_Item = stack.enter_context(
+                unittest.mock.patch.object(
+                    pubsub_xso.Item,
+                    "register_child"
+                )
+            )
+
+            at_EventItem = stack.enter_context(
+                unittest.mock.patch.object(
+                    pubsub_xso.EventItem,
+                    "register_child"
+                )
+            )
+
+            result = pubsub_xso.as_payload_class(
+                unittest.mock.sentinel.cls
+            )
+
+        self.assertIs(result, unittest.mock.sentinel.cls)
+
+        at_Item.assert_called_with(
+            pubsub_xso.Item.registered_payload,
+            unittest.mock.sentinel.cls,
+        )
+
+        at_EventItem.assert_called_with(
+            pubsub_xso.EventItem.registered_payload,
+            unittest.mock.sentinel.cls,
         )
 
 

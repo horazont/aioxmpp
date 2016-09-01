@@ -20,6 +20,14 @@ To start using PubSub services in your application, you have to load the
 XSOs
 ====
 
+Registering payloads
+--------------------
+
+PubSub payloads are must be registered at several places, so there is a
+short-hand function to handle that:
+
+.. autofunction:: as_payload_class
+
 Features
 --------
 
