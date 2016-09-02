@@ -21,12 +21,6 @@ Contents:
    user-guide/index.rst
    api/index.rst
 
-Quick start
-===========
-
-TBD
-
-
 Indices and tables
 ##################
 
