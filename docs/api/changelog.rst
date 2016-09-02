@@ -18,6 +18,8 @@ Version 0.7
 
 * :func:`aioxmpp.pubsub.xso.as_payload_class`
 
+* Fix documentation on :meth:`aioxmpp.node.PresenceManagedClient.set_presence`.
+
 Version 0.6
 ===========
 

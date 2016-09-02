@@ -924,9 +924,11 @@ class PresenceManagedClient(AbstractClient):
         effects as writing `state` to :attr:`presence`, but the status of the
         presence is also set at the same time.
 
-        `status` must be either a string or an iterable containing
-        :class:`.stanza.Status` objects. The :class:`.stanza.Status` instances
-        are saved and added to the presence stanza when it is time to send it.
+        `status` must be either a string or something which can be passed to
+        :class:`dict`. If it is a string, the string is wrapped in a ``{None:
+        status}`` dictionary. Otherwise, the dictionary is set as the
+        :attr:`~.stanza.Presence.status` attribute of the presence stanza. It
+        must map :class:`aioxmpp.structs.LanguageTag` instances to strings.
 
         The `status` is the text shown alongside the `state` (indicating
         availability such as *away*, *do not disturb* and *free to chat*).
