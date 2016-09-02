@@ -9,9 +9,60 @@ package:
 
 .. data:: version
 
-   Is an alias to :data:`__version__`.
+   Alias of :data:`__version__`.
 
 .. autodata:: version_info
+
+Shorthands
+##########
+
+.. class:: IQ
+
+   Alias of :class:`aioxmpp.stanza.IQ`.
+
+.. class:: JID
+
+   Alias of :class:`aioxmpp.structs.JID`.
+
+.. function:: make_security_lader
+
+   Alias of :func:`aioxmpp.security_layer.make`.
+
+.. class:: Message
+
+   Alias of :class:`aioxmpp.stanza.Message`.
+
+.. class:: Presence
+
+   Alias of :class:`aioxmpp.stanza.Presence`.
+
+.. class:: PresenceManagedClient
+
+   Alias of :class:`aioxmpp.node.PresenceManagedClient`.
+
+.. class:: PresenceState
+
+   Alias of :class:`aioxmpp.structs.PresenceState`.
+
+.. class:: XMPPAuthError
+
+   Alias of :class:`aioxmpp.errors.XMPPAuthError`.
+
+.. class:: XMPPCancelError
+
+   Alias of :class:`aioxmpp.errors.XMPPCancelError`.
+
+.. class:: XMPPContinueError
+
+   Alias of :class:`aioxmpp.errors.XMPPContinueError`.
+
+.. class:: XMPPModifyError
+
+   Alias of :class:`aioxmpp.errors.XMPPModifyError`.
+
+.. class:: XMPPWaitError
+
+   Alias of :class:`aioxmpp.errors.XMPPWaitError`.
 
 """
 
@@ -37,3 +88,16 @@ __version__ = ".".join(map(str, version_info[:3])) + ("-"+version_info[3] if
                                                       version_info[3] else "")
 
 version = __version__
+
+
+from .errors import ( # NOQA
+    XMPPAuthError,
+    XMPPCancelError,
+    XMPPContinueError,
+    XMPPModifyError,
+    XMPPWaitError,
+)
+from .node import PresenceManagedClient  # NOQA
+from .stanza import Presence, IQ, Message  # NOQA
+from .structs import JID, PresenceState  # NOQA
+from .security_layer import make as make_security_layer  # NOQA
