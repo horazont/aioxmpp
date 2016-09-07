@@ -1412,7 +1412,7 @@ class XMLStreamClass(xso_query.Class, abc.ABCMeta):
        :attr:`.stanza.Message.type_` attribute).
 
        Setting :attr:`__slots__` to empty by default prevents assigning any
-       attribute not bound to an descriptor.`
+       attribute not bound to an descriptor.
 
        .. seealso::
 
