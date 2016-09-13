@@ -55,7 +55,6 @@ async def main(local, password, peer,
         local,
         aioxmpp.make_security_layer(
             password,
-            no_verify=True,
         )
     )
 
