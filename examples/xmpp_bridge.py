@@ -40,13 +40,6 @@ async def stdout_writer():
     return swrite
 
 
-async def ignore_cancel(fut):
-    try:
-        return (await fut)
-    except asyncio.CancelledError:
-        return
-
-
 async def main(local, password, peer,
                strip_newlines, add_newlines):
     loop = asyncio.get_event_loop()
