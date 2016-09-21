@@ -2463,3 +2463,50 @@ class Testmake(unittest.TestCase):
             callback_result,
             PinningPKIXCertificateVerifier()
         )
+
+    def test_no_verify(self):
+        with contextlib.ExitStack() as stack:
+            SecurityLayer = stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.security_layer.SecurityLayer"
+                )
+            )
+
+            PasswordSASLProvider = stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.security_layer.PasswordSASLProvider"
+                )
+            )
+
+            _NullVerifier = stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.security_layer._NullVerifier"
+                )
+            )
+
+            default_ssl_context = stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.security_layer.default_ssl_context"
+                )
+            )
+
+            result = security_layer.make(
+                unittest.mock.sentinel.password_provider,
+                no_verify=True,
+            )
+
+        PasswordSASLProvider.assert_called_with(
+            unittest.mock.sentinel.password_provider,
+        )
+
+        SecurityLayer.assert_called_with(
+            default_ssl_context,
+            _NullVerifier,
+            True,
+            (PasswordSASLProvider(),)
+        )
+
+        self.assertEqual(
+            result,
+            SecurityLayer(),
+        )

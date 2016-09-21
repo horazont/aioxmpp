@@ -1110,7 +1110,8 @@ def make(
         *,
         pin_store=None,
         pin_type=PinType.PUBLIC_KEY,
-        post_handshake_deferred_failure=None):
+        post_handshake_deferred_failure=None,
+        no_verify=False):
     """
     Construct a :class:`SecurityLayer`. Depending on the arguments passed,
     different features are enabled or disabled.
@@ -1132,6 +1133,10 @@ def make(
                                             the pin store and fails PKI
                                             verification.
     :type post_handshake_deferred_failure: coroutine
+    :param no_verify: *Disable* all certificate verification. Usage is **strongly
+                      discouraged** outside controlled test environments. See
+                      below for alternatives.
+    :type no_verify: :class:`bool`
     :return: A new :class:`SecurityLayer` instance configured as per the
              arguments.
 
@@ -1159,6 +1164,20 @@ def make(
     details on the semantics. If `post_handshake_deferred_callback` is
     :data:`None` while `pin_store` is not, a coroutine which returns
     :data:`False` is substituted.
+
+    If `no_verify` is true, none of the above regarding certificate verifiers
+    matters. The internal null verifier is used, which disables certificate
+    verification completely.
+
+    .. warning::
+
+       Disabling certificate verification makes your application vulnerable to
+       trivial Man-in-the-Middle attacks. Do **not** use this outside
+       controlled test environments.
+
+       If you need to handle certificates which cannot be verified using the
+       public key infrastructure, consider making use of the `pin_store`
+       argument instead.
 
     The versaility and simplicity of use of this function make (pun intended)
     it the preferred way to construct :class:`SecurityLayer` instances.
@@ -1192,6 +1211,8 @@ def make(
                 pin_store.query,
                 post_handshake_deferred_failure,
             )
+    elif no_verify:
+        certificate_verifier_factory = _NullVerifier
     else:
         certificate_verifier_factory = PKIXCertificateVerifier
 
