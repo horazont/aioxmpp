@@ -1115,26 +1115,50 @@ def make(
     Construct a :class:`SecurityLayer`. Depending on the arguments passed,
     different features are enabled or disabled.
 
-    *password_provider* must either be a coroutine or a :class:`str`. If it is
-    a :class:`str`, it will be wrapped in coroutine matching the requirements
-    of :class:`PasswordSASLProvider` (only one authentication attempt is made;
-    if that fails, the authentication is aborted). The coroutine is called with
-    the JID we are trying to authenticate against as the first and the sequence
-    number of the authentication attempt as second argument. The number starts
-    at 0.
+    :param password_provider: Source for the password to authenticate with.
+    :type password_provider: :class:`str` or coroutine
+    :param pin_store: Enable use of certificate pin store: if it is a
+                      :class:`dict`, a new pin store is created (see `pin_type`
+                      argument) and filled with the data from the dict.
+                      Otherwise, the given pin store is used.
+    :type pin_store: :class:`dict` (compatible to
+                     :meth:`~AbstractPinStore.import_from_json`) or
+                     :class:`AbstractPinStore`
+    :param pin_type: Type of pin store to use with a dict passed to `pin_store`
+                     (ignored if no dict is passed to `pin_store`).
+    :type pin_type: :class:`PinType`
+    :param post_handshake_deferred_failure: Coroutine to call when using pin
+                                            store and the certificate is not in
+                                            the pin store and fails PKI
+                                            verification.
+    :type post_handshake_deferred_failure: coroutine
+    :return: A new :class:`SecurityLayer` instance configured as per the
+             arguments.
 
-    *pin_store* may be a dictionary compatible to
-    :meth:`AbstractPinStore.import_from_json` or a :class:`AbstractPinStore`
-    instance. If *pin_store* is a dictionary, an instance of a
-    :class:`AbstractPinStore` is created depending on the value of the
-    *pin_type* argument, which must be a :class:`PinType` value.
+    `password_provider` must either be a coroutine or a :class:`str`. As a
+    coroutine, it is called during authentication with the JID we are trying to
+    authenticate against as the first, and the sequence number of the
+    authentication attempt as second argument. The sequence number starts at 0.
+    The coroutine is expected to return :data:`None` or a password. See
+    :class:`PasswordSASLProvider` for details. If it is a :class:`str`, a
+    coroutine which returns the string on the first and :data:`None` on
+    subsequent attempts is created and used.
 
-    If *pin_store* is not :data:`None`, *post_handshake_deferred_callback* must
-    be a coroutine suitable to be passed to the constructor of
-    :class:`PinningPKIXCertificateVerifier`. It is called if the verification
-    of the certificate fails and can be used to ask the user for which action
-    to take; the details are documented at
-    :class:`PinningPKIXCertificateVerifier`.
+    If `pin_store` is not :data:`None`, :class:`PinningPKIXCertificateVerifier`
+    is used instead of the default :class:`PKIXCertificateVerifier`. The
+    `pin_store` argument determines the pinned certificates: if it is a
+    dictionary, a :class:`AbstractPinStore` according to the :class:`PinType`
+    passed as `pin_type` argument is created and initialised with the data from
+    the dictionary using its :meth:`~AbstractPinStore.import_from_json` method.
+    Otherwise, `pin_store` must be a :class:`AbstractPinStore` instance which
+    is passed to the verifier.
+
+    `post_handshake_deferred_callback` is used only if `pin_store` is not
+    :data:`None`. It is passed to the equally-named argument of
+    :class:`PinningPKIXCertificateVerifier`, see the documentation there for
+    details on the semantics. If `post_handshake_deferred_callback` is
+    :data:`None` while `pin_store` is not, a coroutine which returns
+    :data:`False` is substituted.
 
     The versaility and simplicity of use of this function make (pun intended)
     it the preferred way to construct :class:`SecurityLayer` instances.
@@ -1151,9 +1175,9 @@ def make(
 
     if pin_store is not None:
         if post_handshake_deferred_failure is None:
-            raise ValueError(
-                "post_handshake_deferred_failure required when using pin_store"
-            )
+            @asyncio.coroutine
+            def post_handshake_deferred_failure(verifier):
+                return False
 
         if not isinstance(pin_store, AbstractPinStore):
             pin_data = pin_store
