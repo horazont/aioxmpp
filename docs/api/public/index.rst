@@ -13,6 +13,9 @@ used to communicate with an XMPP server.
    security_layer
 
 
+.. _api-xep-modules:
+
+
 Protocol part and XEP implementations
 #####################################
 

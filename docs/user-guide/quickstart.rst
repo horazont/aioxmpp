@@ -92,35 +92,11 @@ Relevant documentation:
 * :meth:`aioxmpp.stream.StanzaStream.send_and_wait_for_sent`
 
 
-Send an IQ
-==========
-
 .. note::
 
-   Keep in mind that this is an example to show you the API. You normally would
-   not send a :xep:`30` IQ manually, because there is a service for that (read
-   on to find out what that means).
-
-To send an :xep:`30` entity info request, you could do the following::
-
-   iq = aioxmpp.IQ(
-       to=recipient_jid,
-       type_="get",
-       payload=aioxmpp.disco.xso.InfoQuery(),
-   )
-
-   response = await stream.send_iq_and_wait_for_reply(iq)
-
-``response`` is the value of the :attr:`aioxmpp.stanza.IQ.payload` attribute of
-the ``"result"``. If the response from the peer is an ``"error"`` response, an
-appropriate exception (subclass of :class:`aioxmpp.errors.XMPPError`) is raised
-instead.
-
-Relevant documentation:
-
-* :class:`aioxmpp.stanza.IQ`
-* :meth:`aioxmpp.stream.StanzaStream.send_iq_and_wait_for_reply`
-* :class:`aioxmpp.errors.XMPPError`
+   Want to send an IQ instead? IQs are a bit more complex, due to their rather
+   formal nature. We suggest that you read through this quickstart step-by-step,
+   but you may as well jump ahead to :ref:`ug-quickstart-send-iq`.
 
 
 Change presence
@@ -306,8 +282,145 @@ Relevant documentation:
 * :class:`aioxmpp.presence.Service`
 * :class:`aioxmpp.callbacks.AdHocSignal`
 
+
+Send a custom IQ payload
+========================
+
+As mentioned earlier, IQs are a bit more complex. IQ payloads are more or less
+strictly defined, which gives :mod:`aioxmpp` the opportunity to take the load of
+data validation off your back. This also means that you need to tell
+:mod:`aioxmpp` what format you expect.
+
+We will take :xep:`92` (Software Version) as an example. First we need to define
+the IQ payload. You would generally do that in a module you import in your
+application::
+
+  import aioxmpp
+  import aioxmpp.xso as xso
+
+  namespace = "jabber:iq:version"
+
+  @aioxmpp.IQ.as_payload_class
+  class Query(xso.XSO):
+      TAG = (namespace, "query")
+
+      name = xso.ChildText(
+          (namespace, "name"),
+          default=None,
+      )
+
+      version = xso.ChildText(
+          (namespace, "version"),
+          default=None,
+      )
+
+      os = xso.ChildText(
+          (namespace, "os"),
+          default=None,
+      )
+
+:class:`~aioxmpp.xso.XSO` is a base class for any element occurring in an XMPP
+XML stream. Using declarative-style descriptors, we describe the children we
+expect on the :xep:`92` query. There are of course other descriptors, for
+example for attributes, lists of children declared as classes, even
+dictionaries. See the relevant documentation below for details.
+
+With that declaration, we can construct and send a :xep:`92` IQ like this (we
+are now back inside the ``async with`` block)::
+
+  iq = aioxmpp.IQ(
+      type_="get",
+      payload=Query(),
+      to=peer_jid,
+  )
+
+  print("sending query to {}".format(peer_jid))
+  reply = await stream.send_iq_and_wait_for_reply(iq)
+  print("got response!")
+
+If the peer complies with the protocol, `reply` is an instance of our freshly
+baked :class:`Query`! The attributes will contain the response from the peer, we
+could print them like this::
+
+  print("name: {!r}".format(reply.name))
+  print("version: {!r}".format(reply.version))
+  print("os: {!r}".format(reply.os))
+
+(Note that we passed ``default=None`` to the :class:`aioxmpp.xso.ChildText`
+descriptor objects above; otherwise, accessing a descriptor representing
+something which was not sent by the peer would result in a
+:class:`AttributeError`, just like any other not-set attribute).
+
+Relevant documentation:
+
+* :mod:`aioxmpp.xso`, especially :class:`aioxmpp.xso.XSO` and
+  :class:`aioxmpp.xso.ChildText`
+* :meth:`aioxmpp.stanza.IQ.as_payload_class`
+* :meth:`aioxmpp.stream.StanzaStream.send_iq_and_wait_for_reply`
+* also make sure to read the source of, for example, :mod:`aioxmpp.disco.xso`
+  for more examples of :class:`~aioxmpp.XSO` subclasses.
+
+.. note::
+
+   In general, before considering sending an IQ manually, you should check out
+   the :ref:`api-xep-modules` section of the API to see whether there is a
+   module handling the XEP or RFC for you.
+
+.. note::
+
+   The example in this section can also be found in the `aioxmpp repository,
+   at examples/query_server_version.py
+   <https://github.com/horazont/aioxmpp/blob/devel/examples/query_server_version.py>`_.
+
+
+React to an IQ request
+======================
+
+We build on the previous section. This time, we want to stay online for 30
+seconds and serve software version requests.
+
+To do this, we register a coroutine to handle IQ requests (before the ``async
+with``)::
+
+  async def handler(iq):
+      print("software version request from {!r}".format(iq.from_))
+      result = Query()
+      result.name = "aioxmpp Quick Start Pro"
+      result.version = "23.42"
+      result.os = "MFHBμKOS (My Fancy HomeBrew Micro Kernel Operating System)"
+      return result
+
+  client.stream.register_iq_request_coro(
+      "get",
+      Query,
+      handler,
+  )
+
+  async with client.connected():
+      await asyncio.sleep(30)
+
+While the client is online, it will respond to IQ requests of type ``"get"``
+which carry a :class:`Query` payload; the payload is identified by its qualified
+XML name (that is, the namespace and element name tuple). :mod:`aioxmpp` was
+made aware of the :class:`Query` using the
+:meth:`aioxmpp.stanza.IQ.as_payload_class` descriptor.
+
+It then calls the `handler` coroutine we declared with the
+:class:`aioxmpp.stanza.IQ` object as its only argument. The coroutine is
+expected to return a valid payload (hint: :data:`None` is also a valid payload)
+for the ``"result"`` IQ or raise an exception (which would be converted to an
+``"error"`` IQ).
+
+Relevant documentation:
+
+* :meth:`aioxmpp.stream.StanzaStream.register_iq_request_coro`
+* :meth:`aioxmpp.stanza.IQ.as_payload_class`
+
+
 Next steps
 ==========
 
 This quickstart should have given you an impression on how to use
-:mod:`aioxmpp`.
+:mod:`aioxmpp` for rather simple tasks. If you develop a complex application,
+you might want to look into the more advanced topics in the following chapters
+of the user guide.

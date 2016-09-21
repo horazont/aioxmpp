@@ -6,6 +6,8 @@
 .. _asyncio: https://docs.python.org/3/library/asyncio.html
 __ https://code.google.com/p/tulip/
 
+.. remember to update the feature list in the docs
+
 Features
 ========
 
