@@ -898,8 +898,9 @@ class SecurityLayer(collections.namedtuple(
 
     .. seealso::
 
-       :func:`tls_with_password_based_authentication`
-          A simple function which returns a :class:`SecurityLayer` instance.
+       :func:`make`
+          A powerful function which can be used to create a configured
+          :class:`SecurityLayer` instance.
 
     .. attribute:: ssl_context_factory
 
@@ -1067,6 +1068,10 @@ def tls_with_password_based_authentication(
     password to us, or :data:`None` to abort.
 
     Return a :class:`SecurityLayer` instance.
+
+    .. deprecated:: 0.7
+
+       Use :func:`make` instead.
     """
 
     tls_kwargs = {}
