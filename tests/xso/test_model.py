@@ -211,6 +211,21 @@ class TestXMLStreamClass(unittest.TestCase):
             Cls.CHILD_PROPS
         )
 
+    def test_collect_child_flag_property(self):
+        class Cls(metaclass=xso_model.XMLStreamClass):
+            c1 = xso.ChildFlag(("uri:foo", "bar"))
+
+        self.assertDictEqual(
+            {
+                ("uri:foo", "bar"): Cls.c1.xq_descriptor
+            },
+            Cls.CHILD_MAP
+        )
+        self.assertSetEqual(
+            {Cls.c1.xq_descriptor},
+            Cls.CHILD_PROPS
+        )
+
     def test_forbid_ambiguous_children(self):
         class ClsA(metaclass=xso_model.XMLStreamClass):
             TAG = "foo"
@@ -3915,7 +3930,7 @@ class TestChildTag(unittest.TestCase):
                 prop.from_events,
                 instance,
                 etree.fromstring("<foo a='b' xmlns='uri:foo'/>"),
-            self.ctx
+                self.ctx
             )
 
         self.assertFalse(instance._xso_contents)
@@ -3959,7 +3974,7 @@ class TestChildTag(unittest.TestCase):
                 prop.from_events,
                 instance,
                 etree.fromstring("<foo xmlns='uri:foo'>bar</foo>"),
-            self.ctx
+                self.ctx
             )
 
         self.assertFalse(instance._xso_contents)
@@ -4088,6 +4103,244 @@ class TestChildTag(unittest.TestCase):
         with self.assertRaises(ValueError):
             prop.validate_contents(instance)
 
+
+class TestChildFlag(unittest.TestCase):
+    def setUp(self):
+        self.ctx = xso_model.Context()
+
+    def test_get_tag_map(self):
+        self.assertSetEqual(
+            xso.ChildFlag("foo").get_tag_map(),
+            {(None, "foo")}
+        )
+        self.assertSetEqual(
+            xso.ChildFlag(("uri:foo", "foo")).get_tag_map(),
+            {("uri:foo", "foo")}
+        )
+
+    def test_from_events(self):
+        instance = make_instance_mock()
+
+        prop = xso.ChildFlag(
+            tag=("uri:foo", "foo")
+        )
+
+        drive_from_events(
+            prop.from_events,
+            instance,
+            etree.fromstring("<foo xmlns='uri:foo'/>"),
+            self.ctx
+        )
+
+        self.assertDictEqual(
+            {
+                prop: True,
+            },
+            instance._xso_contents
+        )
+
+    def test_defaults_to_false(self):
+        instance = make_instance_mock()
+
+        prop = xso.ChildFlag(
+            tag=("uri:foo", "foo")
+        )
+
+        self.assertFalse(prop.__get__(instance, type(instance)))
+
+    def test_child_policy_fail(self):
+        instance = make_instance_mock()
+        prop = xso.ChildFlag(
+            tag=("uri:foo", "foo"),
+            child_policy=xso.UnknownChildPolicy.FAIL
+        )
+
+        with self.assertRaises(ValueError):
+            drive_from_events(
+                prop.from_events,
+                instance,
+                etree.fromstring("<foo xmlns='uri:foo'><bar/></foo>"),
+                self.ctx
+            )
+
+        self.assertFalse(instance._xso_contents)
+
+    def test_child_policy_drop(self):
+        instance = make_instance_mock()
+        prop = xso.ChildFlag(
+            tag=("uri:foo", "foo"),
+            child_policy=xso.UnknownChildPolicy.DROP
+        )
+
+        drive_from_events(
+            prop.from_events,
+            instance,
+            etree.fromstring("<foo xmlns='uri:foo'><bar/></foo>"),
+            self.ctx
+        )
+
+        self.assertDictEqual(
+            {
+                prop: True,
+            },
+            instance._xso_contents
+        )
+
+    def test_attr_policy_fail(self):
+        instance = make_instance_mock()
+        prop = xso.ChildFlag(
+            tag=("uri:foo", "foo"),
+            attr_policy=xso.UnknownAttrPolicy.FAIL
+        )
+
+        with self.assertRaises(ValueError):
+            drive_from_events(
+                prop.from_events,
+                instance,
+                etree.fromstring("<foo a='b' xmlns='uri:foo'/>"),
+                self.ctx
+            )
+
+        self.assertFalse(instance._xso_contents)
+
+    def test_attr_policy_drop(self):
+        instance = make_instance_mock()
+        prop = xso.ChildFlag(
+            tag=("uri:foo", "foo"),
+            attr_policy=xso.UnknownAttrPolicy.DROP
+        )
+
+        drive_from_events(
+            prop.from_events,
+            instance,
+            etree.fromstring("<foo a='b' xmlns='uri:foo'/>"),
+            self.ctx
+        )
+
+        self.assertDictEqual(
+            {
+                prop: True,
+            },
+            instance._xso_contents
+        )
+
+    def test_text_policy_fail(self):
+        instance = make_instance_mock()
+        prop = xso.ChildFlag(
+            tag=("uri:foo", "foo"),
+            text_policy=xso.UnknownTextPolicy.FAIL
+        )
+
+        with self.assertRaises(ValueError):
+            drive_from_events(
+                prop.from_events,
+                instance,
+                etree.fromstring("<foo xmlns='uri:foo'>bar</foo>"),
+                self.ctx
+            )
+
+        self.assertFalse(instance._xso_contents)
+
+    def test_text_policy_drop(self):
+        instance = make_instance_mock()
+        prop = xso.ChildFlag(
+            tag=("uri:foo", "foo"),
+            text_policy=xso.UnknownTextPolicy.DROP
+        )
+
+        drive_from_events(
+            prop.from_events,
+            instance,
+            etree.fromstring("<foo xmlns='uri:foo'>bar</foo>"),
+            self.ctx
+        )
+
+        self.assertDictEqual(
+            {
+                prop: True,
+            },
+            instance._xso_contents
+        )
+
+    def test_to_sax(self):
+        prop = xso.ChildFlag(
+            tag=("uri:foo", "foo"),
+        )
+
+        instance = make_instance_mock({
+            prop: True,
+        })
+
+        dest = unittest.mock.MagicMock()
+        prop.to_sax(instance, dest)
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call.startElementNS(
+                    ("uri:foo", "foo"),
+                    None,
+                    {}),
+                unittest.mock.call.endElementNS(
+                    ("uri:foo", "foo"),
+                    None)
+            ],
+            dest.mock_calls)
+
+    def test_to_sax_declare_prefix(self):
+        prop = xso.ChildFlag(
+            tag=("uri:foo", "foo"),
+            declare_prefix=unittest.mock.sentinel.prefix)
+
+        instance = make_instance_mock({
+            prop: True,
+        })
+
+        dest = unittest.mock.MagicMock()
+        prop.to_sax(instance, dest)
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call.startPrefixMapping(
+                    unittest.mock.sentinel.prefix,
+                    "uri:foo"
+                ),
+                unittest.mock.call.startElementNS(
+                    ("uri:foo", "foo"),
+                    None,
+                    {}),
+                unittest.mock.call.endElementNS(
+                    ("uri:foo", "foo"),
+                    None),
+                unittest.mock.call.endPrefixMapping(
+                    unittest.mock.sentinel.prefix
+                ),
+            ],
+            dest.mock_calls)
+
+    def test_to_sax_declare_prefix_skips_if_namespaceless(self):
+        prop = xso.ChildFlag(
+            tag="foo",
+            declare_prefix=unittest.mock.sentinel.prefix
+        )
+
+        instance = make_instance_mock({
+            prop: (None, "bar")
+        })
+
+        dest = unittest.mock.MagicMock()
+        prop.to_sax(instance, dest)
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call.startElementNS(
+                    (None, "foo"),
+                    None,
+                    {}),
+                unittest.mock.call.endElementNS(
+                    (None, "foo"),
+                    None),
+            ],
+            dest.mock_calls)
 
 
 class Testdrop_handler(unittest.TestCase):
@@ -5577,6 +5830,20 @@ class TestXSOParser(XMLTestCase):
         self.assertEqual(
             "fnord",
             result.child.attr)
+
+    def test_parse_child_flag(self):
+        class Foo(xso.XSO):
+            TAG = "foo"
+
+            required = xso.ChildFlag(
+                tag=("uri:foo", "required"),
+            )
+
+        tree = etree.fromstring(
+            "<foo a='baz'><required xmlns='uri:foo'/></foo>"
+        )
+        result = self.run_parser_one([Foo], tree)
+        self.assertTrue(result.required)
 
     def test_parse_child_list(self):
         class ClsLeafA(xso.XSO):

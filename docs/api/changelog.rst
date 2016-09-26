@@ -20,6 +20,8 @@ Version 0.7
 
 * Fix documentation on :meth:`aioxmpp.node.PresenceManagedClient.set_presence`.
 
+* :class:`aioxmpp.xso.ChildFlag`
+
 Version 0.6
 ===========
 

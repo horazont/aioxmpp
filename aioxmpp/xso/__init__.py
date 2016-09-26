@@ -98,6 +98,8 @@ repeated that detailed on the other classes. Refer to the documentation of the
 
 .. autoclass:: ChildTag(tags, *[, text_policy=UnknownTextPolicy.FAIL][, child_policy=UnknownChildPolicy.FAIL][, attr_policy=UnknownAttrPolicy.FAIL][, default_ns=None][, allow_none=False])
 
+.. autoclass:: ChildFlag(tag, *[, text_policy=UnknownTextPolicy.FAIL][, child_policy=UnknownChildPolicy.FAIL][, attr_policy=UnknownAttrPolicy.FAIL])
+
 .. autoclass:: ChildText(tag, *[, child_policy=UnknownChildPolicy.FAIL][, attr_policy=UnknownAttrPolicy.FAIL][, type_=xso.String()][, validator=None][, validate=ValidateMode.FROM_RECV][, default])
 
 .. autoclass:: Text(*[, type_=xso.String()][, validator=None][, validate=ValidateMode.FROM_RECV][, default])
@@ -486,6 +488,7 @@ from .model import (  # NOQA
     Attr,
     LangAttr,
     Child,
+    ChildFlag,
     ChildList,
     ChildLangMap,
     ChildMap,
