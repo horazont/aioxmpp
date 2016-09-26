@@ -54,7 +54,7 @@ class AbstractType(metaclass=abc.ABCMeta):
     def coerce(self, v):
         """
         Force the given value `v` to be of the type represented by this
-        :class:`AbstractType`. :meth:`check` is called when user code assigns
+        :class:`AbstractType`. :meth:`coerce` is called when user code assigns
         values to descriptors which use the type; it is notably not called when
         values are extracted from SAX events, as these go through :meth:`parse`
         and that is expected to return correctly typed values.
@@ -520,6 +520,92 @@ class TextChildMap(AbstractType):
         lang, text = item
         xso = self.xso_type(text=text, lang=lang)
         return xso
+
+
+class EnumType(AbstractType):
+    """
+    Use an :class:`enum.Enum` as type for an XSO descriptor.
+
+    :param enum_class: The :class:`~enum.Enum` to use as type.
+    :param nested_type: A :class:`AbstractType` which can handle the values of
+                        the enumeration.
+    :type nested_type: :class:`AbstractType`
+    :param allow_coerce: Allow coercion of different types to enumeration
+                         values.
+    :type allow_coerce: :class:`bool`
+
+    A descriptor using this type will accept elements from the given
+    `enum_class` as values. Upon serialisiation, the :attr:`value` of the
+    enumeration element is taken and formatted through the given `nested_type`.
+
+    Normally, :meth:`coerce` will raise :class:`TypeError` for any value which
+    is not an instance of `enum_class`. However, if `allow_coerce` is true, the
+    value is passed to the `enum_class` constructor and the result is returned;
+    the :class:`ValueError` raised from the `enum_class` constructor if an
+    invalid value is passed propagates unmodified.
+
+    .. note::
+
+       When using `allow_coerce`, keep in mind that this may have surprising
+       effects for users. Coercion means that the value assigned to an
+       attribute and the value subsequently read from that attribute may not
+       be the same; this may be very surprising to users::
+
+         class E(enum.Enum):
+             X = "foo"
+
+         class SomeXSO(xso.XSO):
+             attr = xso.Attr("foo", xso.EnumType(E, allow_coerce=True))
+
+         x = SomeXSO()
+         x.attr = "foo"
+         assert x.attr == "foo"  # assertion fails!
+
+    Example::
+
+      class SomeEnum(enum.Enum):
+          X = 1
+          Y = 2
+          Z = 3
+
+      class SomeXSO(xso.XSO):
+          attr = xso.Attr(
+              "foo",
+              type_=xso.EnumType(
+                  SomeEnum,
+                  # have to use integer, because the value of e.g. SomeEnum.X
+                  # is integer!
+                  xso.Integer()
+              ),
+          )
+    """
+
+    def __init__(self, enum_class, nested_type=String(), *,
+                 allow_coerce=False):
+        super().__init__()
+        self.nested_type = nested_type
+        self.enum_class = enum_class
+        self.allow_coerce = allow_coerce
+
+    def get_formatted_type(self):
+        return self.nested_type.get_formatted_type()
+
+    def coerce(self, value):
+        if self.allow_coerce:
+            return self.enum_class(value)
+        if isinstance(value, self.enum_class):
+            return value
+        raise TypeError("not a valid {} value: {!r}".format(
+            self.enum_class,
+            value,
+        ))
+
+    def parse(self, s):
+        parsed = self.nested_type.parse(s)
+        return self.enum_class(parsed)
+
+    def format(self, v):
+        return self.nested_type.format(v.value)
 
 
 class AbstractValidator(metaclass=abc.ABCMeta):

@@ -257,6 +257,8 @@ Attribute and text types
 
 .. autoclass:: LanguageTag
 
+.. autoclass:: EnumType
+
 Child list and map types
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -470,6 +472,7 @@ from .types import (  # NOQA
     ConnectionLocation,
     LanguageTag,
     TextChildMap,
+    EnumType,
     AbstractValidator,
     RestrictToSet,
     Nmtoken,

@@ -6,6 +6,8 @@ import ipaddress
 import unittest
 import unittest.mock
 
+from enum import Enum
+
 import pytz
 
 from datetime import datetime, date, time
@@ -1022,6 +1024,160 @@ class TestTextChildMap(unittest.TestCase):
     def tearDown(self):
         del self.type_
 
+
+class TestEnumType(unittest.TestCase):
+    class SomeEnum(Enum):
+        X = 1
+        Y = 2
+        Z = 3
+
+    def test_is_type(self):
+        self.assertTrue(issubclass(
+            xso.EnumType,
+            xso.AbstractType,
+        ))
+
+    def test_init_default(self):
+        with self.assertRaises(TypeError):
+            xso.EnumType()
+
+    def test_init_with_enum(self):
+        e = xso.EnumType(self.SomeEnum)
+        self.assertIs(
+            e.enum_class,
+            self.SomeEnum
+        )
+        self.assertIsInstance(
+            e.nested_type,
+            xso.String,
+        )
+
+    def test_init_with_custom_nested_type(self):
+        e = xso.EnumType(
+            self.SomeEnum,
+            nested_type=unittest.mock.sentinel.nested_type
+        )
+        self.assertIs(
+            e.enum_class,
+            self.SomeEnum
+        )
+        self.assertIs(
+            e.nested_type,
+            unittest.mock.sentinel.nested_type,
+        )
+
+    def test_parse_uses_enum_and_nested_type(self):
+        enum_class = unittest.mock.Mock()
+        nested_type = unittest.mock.Mock()
+        e = xso.EnumType(enum_class, nested_type)
+
+        result = e.parse(unittest.mock.sentinel.value)
+
+        nested_type.parse.assert_called_with(
+            unittest.mock.sentinel.value,
+        )
+
+        enum_class.assert_called_with(
+            nested_type.parse(),
+        )
+
+        self.assertEqual(
+            result,
+            enum_class(),
+        )
+
+    def test_parse_works_with_actual_enum(self):
+        e = xso.EnumType(self.SomeEnum, xso.Integer())
+        for enum_value in self.SomeEnum:
+            self.assertEqual(
+                e.parse(str(enum_value.value)),
+                enum_value,
+            )
+
+    def test_format_uses_enum_value_and_nested_type(self):
+        enum_class = unittest.mock.Mock()
+        enum_value = unittest.mock.Mock()
+        nested_type = unittest.mock.Mock()
+        e = xso.EnumType(enum_class, nested_type)
+
+        result = e.format(enum_value)
+
+        nested_type.format.assert_called_with(
+            enum_value.value,
+        )
+
+        self.assertEqual(
+            result,
+            nested_type.format(),
+        )
+
+    def test_format_works_with_actual_enums(self):
+        e = xso.EnumType(self.SomeEnum, xso.Integer())
+        for enum_value in self.SomeEnum:
+            self.assertEqual(
+                e.format(enum_value),
+                str(enum_value.value),
+            )
+
+    def test_get_formatted_type_delegates_to_nested_type(self):
+        nested_type = unittest.mock.Mock()
+        e = xso.EnumType(
+            unittest.mock.sentinel.enum_class,
+            nested_type,
+        )
+
+        result = e.get_formatted_type()
+        nested_type.get_formatted_type.assert_called_with()
+        self.assertEqual(
+            result,
+            nested_type.get_formatted_type(),
+        )
+
+    def test_pass_Enum_values_through_coerce(self):
+        e = xso.EnumType(self.SomeEnum)
+        for enum_value in self.SomeEnum:
+            self.assertIs(enum_value, e.coerce(enum_value))
+
+    def test_reject_non_Enum_values_on_coerce(self):
+        wrong = [
+            1,
+            "10",
+            10.2,
+            object()
+        ]
+
+        e = xso.EnumType(self.SomeEnum)
+
+        for thing in wrong:
+            with self.assertRaises(TypeError):
+                e.coerce(thing)
+
+    def test_try_to_coerce_if_allow_coerce_is_set(self):
+        enum_class = unittest.mock.Mock()
+        e = xso.EnumType(enum_class, allow_coerce=True)
+
+        result = e.coerce(unittest.mock.sentinel.value)
+
+        enum_class.assert_called_with(
+            unittest.mock.sentinel.value,
+        )
+
+        self.assertEqual(
+            result,
+            enum_class(),
+        )
+
+    def test_value_error_propagates(self):
+        exc = ValueError()
+
+        enum_class = unittest.mock.Mock()
+        enum_class.side_effect = exc
+        e = xso.EnumType(enum_class, allow_coerce=True)
+
+        with self.assertRaises(ValueError) as ctx:
+            e.coerce(unittest.mock.sentinel.value)
+
+        self.assertIs(ctx.exception, exc)
 
 
 class TestAbstractValidator(unittest.TestCase):

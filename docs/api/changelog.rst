@@ -22,6 +22,8 @@ Version 0.7
 
 * :class:`aioxmpp.xso.ChildFlag`
 
+* :class:`aioxmpp.xso.EnumType`
+
 Version 0.6
 ===========
 
