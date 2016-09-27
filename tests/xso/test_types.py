@@ -1,10 +1,12 @@
 import abc
+import contextlib
 import decimal
 import fractions
 import inspect
 import ipaddress
 import unittest
 import unittest.mock
+import warnings
 
 from enum import Enum
 
@@ -1154,9 +1156,13 @@ class TestEnumType(unittest.TestCase):
 
     def test_try_to_coerce_if_allow_coerce_is_set(self):
         enum_class = unittest.mock.Mock()
-        e = xso.EnumType(enum_class, allow_coerce=True)
+        e = xso.EnumType(
+            enum_class,
+            allow_coerce=True,
+        )
 
-        result = e.coerce(unittest.mock.sentinel.value)
+        with warnings.catch_warnings() as w:
+            result = e.coerce(unittest.mock.sentinel.value)
 
         enum_class.assert_called_with(
             unittest.mock.sentinel.value,
@@ -1166,6 +1172,8 @@ class TestEnumType(unittest.TestCase):
             result,
             enum_class(),
         )
+
+        self.assertFalse(w)
 
     def test_value_error_propagates(self):
         exc = ValueError()
@@ -1178,6 +1186,61 @@ class TestEnumType(unittest.TestCase):
             e.coerce(unittest.mock.sentinel.value)
 
         self.assertIs(ctx.exception, exc)
+
+    def test_deprecate_coerce(self):
+        enum_class = self.SomeEnum
+        e = xso.EnumType(
+            enum_class,
+            allow_coerce=True,
+            deprecate_coerce=True,
+        )
+
+        with contextlib.ExitStack() as stack:
+            warn = stack.enter_context(
+                unittest.mock.patch(
+                    "warnings.warn",
+                )
+            )
+
+            result = e.coerce(1)
+
+        warn.assert_called_with(
+            "assignment of non-enum values to this descriptor is deprecated",
+            DeprecationWarning,
+            stacklevel=2
+        )
+
+        self.assertEqual(
+            result,
+            enum_class(1),
+        )
+
+    def test_deprecate_coerce_does_not_emit_warning_for_enum_value(self):
+        enum_class = self.SomeEnum
+        e = xso.EnumType(
+            enum_class,
+            allow_coerce=True,
+            deprecate_coerce=True,
+        )
+
+        value = enum_class.X
+
+        with contextlib.ExitStack() as stack:
+            warn = stack.enter_context(
+                unittest.mock.patch(
+                    "warnings.warn",
+                )
+            )
+
+            result = e.coerce(value)
+
+        self.assertFalse(warn.mock_calls)
+
+        self.assertIs(
+            value,
+            result,
+        )
+
 
 
 class TestAbstractValidator(unittest.TestCase):

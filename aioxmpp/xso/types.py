@@ -13,8 +13,9 @@ import binascii
 import decimal
 import ipaddress
 import numbers
-import unicodedata
 import re
+import unicodedata
+import warnings
 
 import pytz
 
@@ -533,6 +534,10 @@ class EnumType(AbstractType):
     :param allow_coerce: Allow coercion of different types to enumeration
                          values.
     :type allow_coerce: :class:`bool`
+    :param deprecate_coerce: Emit :class:`DeprecationWarning` when coercion
+                             occurs. Requires (but does not imply)
+                             `allow_coerce`.
+    :type deprecate_coerce: :class:`bool`
 
     A descriptor using this type will accept elements from the given
     `enum_class` as values. Upon serialisiation, the :attr:`value` of the
@@ -561,6 +566,11 @@ class EnumType(AbstractType):
          x.attr = "foo"
          assert x.attr == "foo"  # assertion fails!
 
+    To allow coercion transitionally while moving from e.g. string-based values
+    to a proper enum, `deprecate_coerce` can be used. In that case, a
+    :class:`DeprecationWarning` (see :mod:`warnings`) is emitted when coercion
+    takes place, to warn users about future removal of the coercion capability.
+
     Example::
 
       class SomeEnum(enum.Enum):
@@ -581,17 +591,28 @@ class EnumType(AbstractType):
     """
 
     def __init__(self, enum_class, nested_type=String(), *,
-                 allow_coerce=False):
+                 allow_coerce=False,
+                 deprecate_coerce=False):
         super().__init__()
         self.nested_type = nested_type
         self.enum_class = enum_class
         self.allow_coerce = allow_coerce
+        self.deprecate_coerce = deprecate_coerce
 
     def get_formatted_type(self):
         return self.nested_type.get_formatted_type()
 
     def coerce(self, value):
         if self.allow_coerce:
+            if self.deprecate_coerce:
+                if isinstance(value, self.enum_class):
+                    return value
+                warnings.warn(
+                    "assignment of non-enum values to this descriptor is"
+                    " deprecated",
+                    DeprecationWarning,
+                    stacklevel=2,
+                )
             return self.enum_class(value)
         if isinstance(value, self.enum_class):
             return value
