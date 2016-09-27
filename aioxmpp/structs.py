@@ -36,11 +36,36 @@ Functions for working with language tags
 import collections
 import enum
 import functools
+import warnings
 
 from .stringprep import nodeprep, resourceprep, nameprep
 
 
-class ErrorType(enum.Enum):
+_USE_COMPAT_ENUM = True
+
+
+class CompatibilityMixin:
+    def __hash__(self):
+        return hash(self.value)
+
+    def __eq__(self, other):
+        if not _USE_COMPAT_ENUM:
+            return super().__eq__(other)
+
+        if super().__eq__(other) is True:
+            return True
+        if self.value == other:
+            warnings.warn(
+                "as of aioxmpp 1.0, enums will not compare equal to their "
+                "values",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            return True
+        return False
+
+
+class ErrorType(CompatibilityMixin, enum.Enum):
     AUTH = "auth"
     CANCEL = "cancel"
     CONTINUE = "continue"
@@ -48,7 +73,7 @@ class ErrorType(enum.Enum):
     WAIT = "wait"
 
 
-class MessageType(enum.Enum):
+class MessageType(CompatibilityMixin, enum.Enum):
     NORMAL = "normal"
     CHAT = "chat"
     GROUPCHAT = "groupchat"
@@ -68,7 +93,7 @@ class MessageType(enum.Enum):
         return False
 
 
-class PresenceType(enum.Enum):
+class PresenceType(CompatibilityMixin, enum.Enum):
     ERROR = "error"
     PROBE = "probe"
     SUBSCRIBE = "subscribe"
@@ -96,7 +121,7 @@ class PresenceType(enum.Enum):
                 self == PresenceType.UNAVAILABLE)
 
 
-class IQType(enum.Enum):
+class IQType(CompatibilityMixin, enum.Enum):
     GET = "get"
     SET = "set"
     ERROR = "error"

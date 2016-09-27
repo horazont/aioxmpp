@@ -1,11 +1,125 @@
 import collections.abc
+import enum
 import unittest
+import warnings
 
+import aioxmpp
 import aioxmpp.structs as structs
 import aioxmpp.stanza as stanza
 
 
+class DisableCompat:
+    def __enter__(self):
+        if aioxmpp.version_info < (1, 0, 0):
+            structs._USE_COMPAT_ENUM = False
+
+    def __exit__(self, exc_type, exc_value, exc_traceback):
+        if aioxmpp.version_info < (1, 0, 0):
+            structs._USE_COMPAT_ENUM = True
+
+
+class TestCompatibilityMixin(unittest.TestCase):
+    class SomeEnum(structs.CompatibilityMixin, enum.Enum):
+        X = "foo"
+        Y = "bar"
+        Z = None
+
+    def test_compares_normally_without_warnings(self):
+        E = self.SomeEnum
+
+        with warnings.catch_warnings(record=True) as w:
+            self.assertEqual(E.X, E.X)
+            self.assertNotEqual(E.X, E.Y)
+            self.assertNotEqual(E.X, E.Z)
+
+            self.assertNotEqual(E.Y, E.X)
+            self.assertEqual(E.Y, E.Y)
+            self.assertNotEqual(E.Y, E.Z)
+
+            self.assertNotEqual(E.Z, E.X)
+            self.assertNotEqual(E.Z, E.Y)
+            self.assertEqual(E.Z, E.Z)
+
+        self.assertFalse(w)
+
+    def test_hashes_to_values(self):
+        for member in self.SomeEnum:
+            self.assertEqual(
+                hash(member),
+                hash(member.value)
+            )
+
+    def _test_eq_with_warning(self, v1, v2):
+        with self.assertWarnsRegex(
+                DeprecationWarning,
+                "as of aioxmpp 1.0, enums will not compare equal to their "
+                "values") as ctx:
+            self.assertTrue(v1 == v2)
+
+        self.assertIn(
+            "test_structs.py",
+            ctx.filename,
+        )
+
+        with self.assertWarnsRegex(
+                DeprecationWarning,
+                "as of aioxmpp 1.0, enums will not compare equal to their "
+                "values") as ctx:
+            self.assertFalse(v1 != v2)
+
+        self.assertIn(
+            "test_structs.py",
+            ctx.filename,
+        )
+
+    @unittest.skipIf(aioxmpp.version_info >= (1, 0, 0),
+                     "does not apply to this version of aioxmpp")
+    def test_compares_equal_to_values_with_DeprecationWarning(self):
+        for member in self.SomeEnum:
+            self._test_eq_with_warning(member, member.value)
+            self._test_eq_with_warning(member.value, member)
+
+    @unittest.skipUnless(aioxmpp.version_info >= (1, 0, 0),
+                         "does not apply to this version of aioxmpp")
+    def test_compares_not_equal_to_values_by_default(self):
+        for member in self.SomeEnum:
+            self.assertTrue(member != member.value)
+            self.assertTrue(member.value != member)
+            self.assertFalse(member == member.value)
+            self.assertFalse(member.value == member)
+
+    def test_compares_not_equal_to_values_with_compat_disabled(self):
+        with DisableCompat():
+            for member in self.SomeEnum:
+                self.assertTrue(member != member.value)
+                self.assertTrue(member.value != member)
+                self.assertFalse(member == member.value)
+                self.assertFalse(member.value == member)
+
+
+class TestErrorType(unittest.TestCase):
+    @unittest.skipIf(aioxmpp.version_info >= (1, 0, 0),
+                     "does not apply to this version of aioxmpp")
+    def test_uses_compat_mixin(self):
+        self.assertTrue(
+            issubclass(
+                structs.ErrorType,
+                structs.CompatibilityMixin,
+            )
+        )
+
+
 class TestMessageType(unittest.TestCase):
+    @unittest.skipIf(aioxmpp.version_info >= (1, 0, 0),
+                     "does not apply to this version of aioxmpp")
+    def test_uses_compat_mixin(self):
+        self.assertTrue(
+            issubclass(
+                structs.MessageType,
+                structs.CompatibilityMixin,
+            )
+        )
+
     def test_values(self):
         self.assertSetEqual(
             {v.value for v in structs.MessageType},
@@ -38,6 +152,16 @@ class TestMessageType(unittest.TestCase):
 
 
 class TestPresenceType(unittest.TestCase):
+    @unittest.skipIf(aioxmpp.version_info >= (1, 0, 0),
+                     "does not apply to this version of aioxmpp")
+    def test_uses_compat_mixin(self):
+        self.assertTrue(
+            issubclass(
+                structs.PresenceType,
+                structs.CompatibilityMixin,
+            )
+        )
+
     def test_values(self):
         self.assertSetEqual(
             {v.value for v in structs.PresenceType},
@@ -85,6 +209,16 @@ class TestPresenceType(unittest.TestCase):
 
 
 class TestIQType(unittest.TestCase):
+    @unittest.skipIf(aioxmpp.version_info >= (1, 0, 0),
+                     "does not apply to this version of aioxmpp")
+    def test_uses_compat_mixin(self):
+        self.assertTrue(
+            issubclass(
+                structs.IQType,
+                structs.CompatibilityMixin,
+            )
+        )
+
     def test_values(self):
         self.assertSetEqual(
             {member.value for member in structs.IQType},

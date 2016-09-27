@@ -105,9 +105,11 @@ from .security_layer import make as make_security_layer  # NOQA
 
 def set_strict_mode():
     from .stanza import Error
-    from . import stream
+    from .stream import StanzaStream
+    from . import structs
     Message.type_.type_.allow_coerce = False
     IQ.type_.type_.allow_coerce = False
     Error.type_.type_.allow_coerce = False
     Presence.type_.type_.allow_coerce = False
-    stream.StanzaStream._ALLOW_ENUM_COERCION = False
+    StanzaStream._ALLOW_ENUM_COERCION = False
+    structs._USE_COMPAT_ENUM = False
