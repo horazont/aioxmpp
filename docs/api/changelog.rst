@@ -51,6 +51,28 @@ Version 0.7
 
   You can also pass other arguments to ag through the script.
 
+  Until aioxmpp 1.0, the following fallbacks are in place to reduce the impact
+  of the change:
+
+  1. The :attr:`type_` attributes still accept their string (or :data:`None` in
+     the case of :attr:`.Presence.type_`) values when being written. When being
+     read, the attributes always return the actual enumeration value.
+
+  2. The relevant enumeration members compare equal (and hash equally) to their
+     values. Thus, ``MessageType.CHAT == "chat"`` is still true (and
+     ``MessageType.CHAT != "chat"`` is false).
+
+  3. :meth:`~.StanzaStream.register_message_callback`,
+     :meth:`~.StanzaStream.register_presence_callback`, and
+     :meth:`~.StanzaStream.register_iq_request_coro`, as well as their
+     corresponding un-registration methods, all accept the string variants for
+     their arguments, internally mapping them to the actual enumeration values.
+
+  If any of these fallback paths is hit, :class:`DeprecationWarning` is emitted.
+  Note that these warnings **are not printed by default**: run your code with
+  ``python3 -Wd`` or add ``warnings.simplefilter("always")`` on the top of it
+  (see :mod:`warnings` for other ways) to enable the printing of these warnings.
+
 * :meth:`~.StanzaStream.register_message_callback` and
   :meth:`~.StanzaStream.register_presence_callback` now explicitly raise
   :class:`ValueError` when an attempt to overwrite an existing listener is made,
