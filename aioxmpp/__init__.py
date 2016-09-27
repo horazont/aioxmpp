@@ -105,7 +105,9 @@ from .security_layer import make as make_security_layer  # NOQA
 
 def set_strict_mode():
     from .stanza import Error
+    from . import stream
     Message.type_.type_.allow_coerce = False
     IQ.type_.type_.allow_coerce = False
     Error.type_.type_.allow_coerce = False
     Presence.type_.type_.allow_coerce = False
+    stream.StanzaStream._ALLOW_ENUM_COERCION = False

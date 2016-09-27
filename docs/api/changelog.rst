@@ -51,6 +51,11 @@ Version 0.7
 
   You can also pass other arguments to ag through the script.
 
+* :meth:`~.StanzaStream.register_message_callback` and
+  :meth:`~.StanzaStream.register_presence_callback` now explicitly raise
+  :class:`ValueError` when an attempt to overwrite an existing listener is made,
+  instead of silently replacing the callback.
+
 Version 0.6
 ===========
 

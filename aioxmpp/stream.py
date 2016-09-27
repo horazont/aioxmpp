@@ -571,6 +571,8 @@ class StanzaStream:
 
     """
 
+    _ALLOW_ENUM_COERCION = True
+
     on_failure = callbacks.Signal()
     on_stream_destroyed = callbacks.Signal()
     on_stream_established = callbacks.Signal()
@@ -632,6 +634,22 @@ class StanzaStream:
         The `local_jid` argument to the constructor. This cannot be changed.
         """
         return self._local_jid
+
+    def _coerce_enum(self, value, enum_class):
+        if not isinstance(value, enum_class):
+            if self._ALLOW_ENUM_COERCION:
+                warnings.warn(
+                    "passing a non-enum value as type_ is deprecated and will "
+                    "be invalid as of aioxmpp 1.0",
+                    DeprecationWarning,
+                    stacklevel=3)
+                return enum_class(value)
+            else:
+                raise TypeError("type_ must be {}, got {!r}".format(
+                    enum_class.__name__,
+                    value
+                ))
+        return value
 
     def _done_handler(self, task):
         """
@@ -1197,6 +1215,7 @@ class StanzaStream:
            To protect against that, fork from your coroutine using
            :func:`asyncio.ensure_future`.
         """
+        type_ = self._coerce_enum(type_, structs.IQType)
         key = type_, payload_cls
 
         if key in self._iq_request_map:
@@ -1217,6 +1236,7 @@ class StanzaStream:
         This raises :class:`KeyError` if no coroutine has previously been
         registered for the `type_` and `payload_cls`.
         """
+        type_ = self._coerce_enum(type_, structs.IQType)
         del self._iq_request_map[type_, payload_cls]
         self._logger.debug(
             "iq request coroutine unregistered: type=%r, payload=%r",
@@ -1245,7 +1265,15 @@ class StanzaStream:
         * ``type``, ``None``
         * ``None``, ``None``
         """
-        self._message_map[type_, from_] = cb
+        if type_ is not None:
+            type_ = self._coerce_enum(type_, structs.MessageType)
+        key = type_, from_
+        if key in self._message_map:
+            raise ValueError(
+                "only one listener is allowed per (type_, from_) pair"
+            )
+
+        self._message_map[key] = cb
         self._logger.debug(
             "message callback registered: type=%r, from=%r",
             type_, from_)
@@ -1259,6 +1287,8 @@ class StanzaStream:
         Attempting to unregister a `type_`, `from_` tuple for which no handler
         has been registered results in a :class:`KeyError`.
         """
+        if type_ is not None:
+            type_ = self._coerce_enum(type_, structs.MessageType)
         del self._message_map[type_, from_]
         self._logger.debug(
             "message callback unregistered: type=%r, from=%r",
@@ -1281,7 +1311,13 @@ class StanzaStream:
            here.
 
         """
-        self._presence_map[type_, from_] = cb
+        type_ = self._coerce_enum(type_, structs.PresenceType)
+        key = type_, from_
+        if key in self._presence_map:
+            raise ValueError(
+                "only one listener is allowed per (type_, from_) pair"
+            )
+        self._presence_map[key] = cb
         self._logger.debug(
             "presence callback registered: type=%r, from=%r",
             type_, from_)
@@ -1295,6 +1331,7 @@ class StanzaStream:
         Attempting to unregister a `type_`, `from_` tuple for which no handler
         has been registered results in a :class:`KeyError`.
         """
+        type_ = self._coerce_enum(type_, structs.PresenceType)
         del self._presence_map[type_, from_]
         self._logger.debug(
             "presence callback unregistered: type=%r, from=%r",

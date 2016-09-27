@@ -4,7 +4,9 @@ import functools
 import ipaddress
 import time
 import unittest
+import warnings
 
+import aioxmpp
 import aioxmpp.structs as structs
 import aioxmpp.xso as xso
 import aioxmpp.stanza as stanza
@@ -261,7 +263,7 @@ class TestStanzaStream(StanzaStreamTestBase):
             self.stream.ping_opportunistic_interval
         )
 
-    def test_init(self):
+    def test_init_local_jid(self):
         self.assertEqual(
             self.stream.local_jid,
             TEST_FROM.bare()
@@ -488,6 +490,60 @@ class TestStanzaStream(StanzaStreamTestBase):
         self.assertFalse(fut.done())
         self.assertFalse(cb.mock_calls)
 
+    @unittest.skipIf(aioxmpp.version_info >= (1, 0, 0),
+                     "not applying to this version of aioxmpp")
+    def test_register_iq_request_coro_casts_enum_and_warn(self):
+        self.stream._ALLOW_ENUM_COERCION = True
+        with self.assertWarnsRegex(
+                DeprecationWarning,
+                r"passing a non-enum value as type_ is deprecated and will "
+                "be invalid as of aioxmpp 1.0") as ctx:
+            self.stream.register_iq_request_coro(
+                "get",
+                FancyTestIQ,
+                unittest.mock.sentinel.coro,
+            )
+
+        self.assertIn(
+            "test_stream.py",
+            ctx.filename,
+        )
+
+        with self.assertRaisesRegex(
+                ValueError,
+                r"only one listener is allowed per tag"):
+            self.stream.register_iq_request_coro(
+                structs.IQType.GET,
+                FancyTestIQ,
+                unittest.mock.sentinel.coro,
+            )
+
+    def test_register_iq_request_coro_raises_on_string_type(self):
+        if aioxmpp.version_info < (1, 0, 0):
+            self.stream._ALLOW_ENUM_COERCION = False
+
+        with self.assertRaisesRegex(
+                TypeError,
+                r"type_ must be IQType, got .*"):
+            self.stream.register_iq_request_coro(
+                "get",
+                FancyTestIQ,
+                unittest.mock.sentinel.coro,
+            )
+
+    def test_register_iq_request_coro_does_not_warn_on_enum(self):
+        self.stream._ALLOW_ENUM_COERCION = True
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            self.stream.register_iq_request_coro(
+                structs.IQType.GET,
+                FancyTestIQ,
+                unittest.mock.sentinel.coro,
+            )
+
+        self.assertFalse(w)
+
     def test_register_iq_request_coro_rejects_duplicate_registration(self):
         @asyncio.coroutine
         def handle_request(stanza):
@@ -507,6 +563,72 @@ class TestStanzaStream(StanzaStreamTestBase):
                 structs.IQType.GET,
                 FancyTestIQ,
                 handle_request)
+
+    @unittest.skipIf(aioxmpp.version_info >= (1, 0, 0),
+                     "not applying to this version of aioxmpp")
+    def test_unregister_iq_request_coro_casts_enum_and_warn(self):
+        self.stream.register_iq_request_coro(
+            structs.IQType.GET,
+            FancyTestIQ,
+            unittest.mock.sentinel.coro,
+        )
+
+        self.stream._ALLOW_ENUM_COERCION = True
+        with self.assertWarnsRegex(
+                DeprecationWarning,
+                r"passing a non-enum value as type_ is deprecated and will "
+                "be invalid as of aioxmpp 1.0") as ctx:
+            self.stream.unregister_iq_request_coro(
+                "get",
+                FancyTestIQ,
+            )
+
+        self.assertIn(
+            "test_stream.py",
+            ctx.filename,
+        )
+
+        with self.assertRaises(KeyError):
+            self.stream.unregister_iq_request_coro(
+                structs.IQType.GET,
+                FancyTestIQ,
+            )
+
+    def test_unregister_iq_request_coro_raises_on_string_type(self):
+        self.stream.register_iq_request_coro(
+            structs.IQType.GET,
+            FancyTestIQ,
+            unittest.mock.sentinel.coro,
+        )
+
+        if aioxmpp.version_info < (1, 0, 0):
+            self.stream._ALLOW_ENUM_COERCION = False
+
+        with self.assertRaisesRegex(
+                TypeError,
+                r"type_ must be IQType, got .*"):
+            self.stream.unregister_iq_request_coro(
+                "get",
+                FancyTestIQ,
+            )
+
+    def test_unregister_iq_request_coro_does_not_warn_on_enum(self):
+        self.stream.register_iq_request_coro(
+            structs.IQType.GET,
+            FancyTestIQ,
+            unittest.mock.sentinel.coro,
+        )
+
+        self.stream._ALLOW_ENUM_COERCION = True
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            self.stream.unregister_iq_request_coro(
+                structs.IQType.GET,
+                FancyTestIQ,
+            )
+
+        self.assertFalse(w)
 
     def test_run_iq_request_coro_with_result(self):
         iq = make_test_iq()
@@ -673,29 +795,141 @@ class TestStanzaStream(StanzaStreamTestBase):
 
         self.assertIs(msg, fut.result())
 
-    # def test_register_message_callback_warns_on_coerce_to_MessageType(self):
-    #     with self.assertWarnsRegex(
-    #             DeprecationWarning,
-    #             r"support for strings in type_ argument will be dropped in "
-    #             "aioxmpp 1.0") as ctx:
-    #         self.stream.register_message_callback(
-    #             "chat",
-    #             unittest.mock.sentinel.from_,
-    #             unittest.mock.sentinel.cb)
+    @unittest.skipIf(aioxmpp.version_info >= (1, 0, 0),
+                     "not applying to this version of aioxmpp")
+    def test_register_message_callback_casts_enum_and_warn(self):
+        self.stream._ALLOW_ENUM_COERCION = True
+        with self.assertWarnsRegex(
+                DeprecationWarning,
+                r"passing a non-enum value as type_ is deprecated and will "
+                "be invalid as of aioxmpp 1.0") as ctx:
+            self.stream.register_message_callback(
+                "chat",
+                None,
+                unittest.mock.sentinel.cb,
+            )
 
-    #     self.assertIn(
-    #         "test_stream.py",
-    #         ctx.filename,
-    #     )
+        self.assertIn(
+            "test_stream.py",
+            ctx.filename,
+        )
 
-    # def test_register_message_callback_does_not_warn_on_enum(self):
-    #     with unittest.mock.patch("warnings.warn") as warn:
-    #         self.stream.register_message_callback(
-    #             stanza.MessageType.CHAT,
-    #             unittest.mock.sentinel.from_,
-    #             unittest.mock.sentinel.cb)
+        with self.assertRaisesRegex(
+                ValueError,
+                r"only one listener is allowed per \(type_, from_\) pair"):
+            self.stream.register_message_callback(
+                aioxmpp.structs.MessageType.CHAT,
+                None,
+                unittest.mock.sentinel.cb,
+            )
 
-    #     self.assertFalse(warn.mock_calls)
+    def test_register_message_callback_raises_on_string_type(self):
+        if aioxmpp.version_info < (1, 0, 0):
+            self.stream._ALLOW_ENUM_COERCION = False
+
+        with self.assertRaisesRegex(
+                TypeError,
+                r"type_ must be MessageType, got .*"):
+            self.stream.register_message_callback(
+                "get",
+                None,
+                unittest.mock.sentinel.coro,
+            )
+
+    def test_register_message_callback_does_not_warn_on_enum(self):
+        self.stream._ALLOW_ENUM_COERCION = True
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            self.stream.register_message_callback(
+                structs.MessageType.CHAT,
+                None,
+                unittest.mock.sentinel.cb,
+            )
+
+        self.assertFalse(w)
+
+    def test_register_message_callback_rejects_duplicate_registration(self):
+        self.stream.register_message_callback(
+            structs.MessageType.CHAT,
+            None,
+            unittest.mock.sentinel.cb
+        )
+
+        with self.assertRaisesRegex(
+                ValueError,
+                r"only one listener is allowed per \(type_, from_\) pair"):
+            self.stream.register_message_callback(
+                structs.MessageType.CHAT,
+                None,
+                unittest.mock.sentinel.cb,
+            )
+
+    @unittest.skipIf(aioxmpp.version_info >= (1, 0, 0),
+                     "not applying to this version of aioxmpp")
+    def test_unregister_message_callback_coro_casts_enum_and_warn(self):
+        self.stream.register_message_callback(
+            structs.MessageType.CHAT,
+            None,
+            unittest.mock.sentinel.cb,
+        )
+
+        self.stream._ALLOW_ENUM_COERCION = True
+        with self.assertWarnsRegex(
+                DeprecationWarning,
+                r"passing a non-enum value as type_ is deprecated and will "
+                "be invalid as of aioxmpp 1.0") as ctx:
+            self.stream.unregister_message_callback(
+                "chat",
+                None,
+            )
+
+        self.assertIn(
+            "test_stream.py",
+            ctx.filename,
+        )
+
+        with self.assertRaises(KeyError):
+            self.stream.unregister_message_callback(
+                structs.MessageType.CHAT,
+                None,
+            )
+
+    def test_unregister_message_callback_raises_on_string_type(self):
+        self.stream.register_message_callback(
+            structs.MessageType.CHAT,
+            None,
+            unittest.mock.sentinel.cb,
+        )
+
+        if aioxmpp.version_info < (1, 0, 0):
+            self.stream._ALLOW_ENUM_COERCION = False
+
+        with self.assertRaisesRegex(
+                TypeError,
+                r"type_ must be MessageType, got .*"):
+            self.stream.unregister_message_callback(
+                "chat",
+                None,
+            )
+
+    def test_unregister_message_callback_does_not_warn_on_enum(self):
+        self.stream.register_message_callback(
+            structs.MessageType.CHAT,
+            None,
+            unittest.mock.sentinel.cb,
+        )
+
+        self.stream._ALLOW_ENUM_COERCION = True
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            self.stream.unregister_message_callback(
+                structs.MessageType.CHAT,
+                None,
+            )
+
+        self.assertFalse(w)
 
     def test_run_message_callback_from_wildcard(self):
         msg = make_test_message()
@@ -799,6 +1033,142 @@ class TestStanzaStream(StanzaStreamTestBase):
         self.stream.stop()
 
         self.assertIs(pres, fut.result())
+
+    @unittest.skipIf(aioxmpp.version_info >= (1, 0, 0),
+                     "not applying to this version of aioxmpp")
+    def test_register_presence_callback_casts_enum_and_warn(self):
+        self.stream._ALLOW_ENUM_COERCION = True
+        with self.assertWarnsRegex(
+                DeprecationWarning,
+                r"passing a non-enum value as type_ is deprecated and will "
+                "be invalid as of aioxmpp 1.0") as ctx:
+            self.stream.register_presence_callback(
+                "probe",
+                None,
+                unittest.mock.sentinel.cb,
+            )
+
+        self.assertIn(
+            "test_stream.py",
+            ctx.filename,
+        )
+
+        with self.assertRaisesRegex(
+                ValueError,
+                r"only one listener is allowed per \(type_, from_\) pair"):
+            self.stream.register_presence_callback(
+                aioxmpp.structs.PresenceType.PROBE,
+                None,
+                unittest.mock.sentinel.cb,
+            )
+
+    def test_register_presence_callback_raises_on_string_type(self):
+        if aioxmpp.version_info < (1, 0, 0):
+            self.stream._ALLOW_ENUM_COERCION = False
+
+        with self.assertRaisesRegex(
+                TypeError,
+                r"type_ must be PresenceType, got .*"):
+            self.stream.register_presence_callback(
+                "get",
+                None,
+                unittest.mock.sentinel.coro,
+            )
+
+    def test_register_presence_callback_does_not_warn_on_enum(self):
+        self.stream._ALLOW_ENUM_COERCION = True
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            self.stream.register_presence_callback(
+                structs.PresenceType.PROBE,
+                None,
+                unittest.mock.sentinel.cb,
+            )
+
+        self.assertFalse(w)
+
+    def test_register_presence_callback_rejects_duplicate_registration(self):
+        self.stream.register_presence_callback(
+            structs.PresenceType.PROBE,
+            None,
+            unittest.mock.sentinel.cb
+        )
+
+        with self.assertRaisesRegex(
+                ValueError,
+                r"only one listener is allowed per \(type_, from_\) pair"):
+            self.stream.register_presence_callback(
+                structs.PresenceType.PROBE,
+                None,
+                unittest.mock.sentinel.cb,
+            )
+
+    @unittest.skipIf(aioxmpp.version_info >= (1, 0, 0),
+                     "not applying to this version of aioxmpp")
+    def test_unregister_presence_callback_coro_casts_enum_and_warn(self):
+        self.stream.register_presence_callback(
+            structs.PresenceType.PROBE,
+            None,
+            unittest.mock.sentinel.cb,
+        )
+
+        self.stream._ALLOW_ENUM_COERCION = True
+        with self.assertWarnsRegex(
+                DeprecationWarning,
+                r"passing a non-enum value as type_ is deprecated and will "
+                "be invalid as of aioxmpp 1.0") as ctx:
+            self.stream.unregister_presence_callback(
+                "probe",
+                None,
+            )
+
+        self.assertIn(
+            "test_stream.py",
+            ctx.filename,
+        )
+
+        with self.assertRaises(KeyError):
+            self.stream.unregister_presence_callback(
+                structs.PresenceType.PROBE,
+                None,
+            )
+
+    def test_unregister_presence_callback_raises_on_string_type(self):
+        self.stream.register_presence_callback(
+            structs.PresenceType.PROBE,
+            None,
+            unittest.mock.sentinel.cb,
+        )
+
+        if aioxmpp.version_info < (1, 0, 0):
+            self.stream._ALLOW_ENUM_COERCION = False
+
+        with self.assertRaisesRegex(
+                TypeError,
+                r"type_ must be PresenceType, got .*"):
+            self.stream.unregister_presence_callback(
+                "probe",
+                None,
+            )
+
+    def test_unregister_presence_callback_does_not_warn_on_enum(self):
+        self.stream.register_presence_callback(
+            structs.PresenceType.PROBE,
+            None,
+            unittest.mock.sentinel.cb,
+        )
+
+        self.stream._ALLOW_ENUM_COERCION = True
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            self.stream.unregister_presence_callback(
+                structs.PresenceType.PROBE,
+                None,
+            )
+
+        self.assertFalse(w)
 
     def test_unregister_presence_callback(self):
         cb = unittest.mock.Mock()
