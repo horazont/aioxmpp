@@ -101,3 +101,11 @@ from .node import PresenceManagedClient  # NOQA
 from .stanza import Presence, IQ, Message  # NOQA
 from .structs import JID, PresenceState  # NOQA
 from .security_layer import make as make_security_layer  # NOQA
+
+
+def set_strict_mode():
+    from .stanza import Error
+    Message.type_.type_.allow_coerce = False
+    IQ.type_.type_.allow_coerce = False
+    Error.type_.type_.allow_coerce = False
+    Presence.type_.type_.allow_coerce = False

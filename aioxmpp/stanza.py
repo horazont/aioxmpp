@@ -217,6 +217,8 @@ class Error(xso.XSO):
         tag="type",
         type_=xso.EnumType(
             structs.ErrorType,
+            allow_coerce=True,
+            deprecate_coerce=True,
         ),
     )
 
@@ -552,6 +554,8 @@ class Message(StanzaBase):
         tag="type",
         type_=xso.EnumType(
             structs.MessageType,
+            allow_coerce=True,
+            deprecate_coerce=True,
         ),
         default=structs.MessageType.NORMAL,
     )
@@ -659,6 +663,8 @@ class Presence(StanzaBase):
         tag="type",
         type_=xso.EnumType(
             structs.PresenceType,
+            allow_coerce=True,
+            deprecate_coerce=True,
         ),
         default=structs.PresenceType.AVAILABLE,
     )
@@ -741,6 +747,8 @@ class IQ(StanzaBase):
         tag="type",
         type_=xso.EnumType(
             structs.IQType,
+            allow_coerce=True,
+            deprecate_coerce=True,
         )
     )
     payload = xso.Child([])
