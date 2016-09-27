@@ -24,6 +24,33 @@ Version 0.7
 
 * :class:`aioxmpp.xso.EnumType`
 
+* **Horribly Breaking Change**: :attr:`aioxmpp.IQ.type_`,
+  :attr:`aioxmpp.Message.type_`, :attr:`aioxmpp.Presence.type_` and
+  :attr:`aioxmpp.Error.type_` now use :class:`aioxmpp.xso.EnumType`, with
+  corresponding enumerations (see docs of the respective attributes).
+
+  This breaks *a lot* of code, and it is not trivial to fix automatically. The
+  :class:`~.xso.EnumType` is used with ``allow_coerce=True`` and
+  ``deprecate_coerce=True``, which mitigates the impact somewhat (it is still
+  possible to set the attributes to their string values, but when reading from
+  the attributes, the enumerations will always be returned).
+
+  In the repository under `utils/find-v0.7-type-transitions.sh
+  <https://github.com/horazont/aioxmpp/blob/devel/utils/find-v0.7-type-transitions.sh>`_,
+  you find a shell script which uses `The Silver Searcher (ag)
+  <http://geoff.greer.fm/ag/>`_ (find it in your distributions package
+  repositories, I know it is there on Fedora, Arch and Debian!) and regular
+  expressions to find common patterns. Example usage::
+
+    # find everything in the current subdirectory
+    $ $AIOXMPPPATH/utils/find-v0.7-type-transitions.sh
+    # only search in the foobar/ subdirectory
+    $ $AIOXMPPPATH/utils/find-v0.7-type-transitions.sh foobar/
+    # only look at the foobar/baz.py file
+    $ $AIOXMPPPATH/utils/find-v0.7-type-transitions.sh foobar/baz.py
+
+  You can also pass other arguments to ag through the script.
+
 Version 0.6
 ===========
 

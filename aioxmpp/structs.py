@@ -34,9 +34,85 @@ Functions for working with language tags
 """
 
 import collections
+import enum
 import functools
 
 from .stringprep import nodeprep, resourceprep, nameprep
+
+
+class ErrorType(enum.Enum):
+    AUTH = "auth"
+    CANCEL = "cancel"
+    CONTINUE = "continue"
+    MODIFY = "modify"
+    WAIT = "wait"
+
+
+class MessageType(enum.Enum):
+    NORMAL = "normal"
+    CHAT = "chat"
+    GROUPCHAT = "groupchat"
+    HEADLINE = "headline"
+    ERROR = "error"
+
+    @property
+    def is_error(self):
+        return self == MessageType.ERROR
+
+    @property
+    def is_response(self):
+        return self == MessageType.ERROR
+
+    @property
+    def is_request(self):
+        return False
+
+
+class PresenceType(enum.Enum):
+    ERROR = "error"
+    PROBE = "probe"
+    SUBSCRIBE = "subscribe"
+    SUBSCRIBED = "subscribed"
+    UNAVAILABLE = "unavailable"
+    UNSUBSCRIBE = "unsubscribe"
+    UNSUBSCRIBED = "unsubscribed"
+    AVAILABLE = None
+
+    @property
+    def is_error(self):
+        return self == PresenceType.ERROR
+
+    @property
+    def is_response(self):
+        return self == PresenceType.ERROR
+
+    @property
+    def is_request(self):
+        return False
+
+    @property
+    def is_presence_state(self):
+        return (self == PresenceType.AVAILABLE or
+                self == PresenceType.UNAVAILABLE)
+
+
+class IQType(enum.Enum):
+    GET = "get"
+    SET = "set"
+    ERROR = "error"
+    RESULT = "result"
+
+    @property
+    def is_error(self):
+        return self == IQType.ERROR
+
+    @property
+    def is_request(self):
+        return self == IQType.GET or self == IQType.SET
+
+    @property
+    def is_response(self):
+        return self == IQType.RESULT or self == IQType.ERROR
 
 
 class JID(collections.namedtuple("JID", ["localpart", "domain", "resource"])):
@@ -307,11 +383,10 @@ class PresenceState:
         :attr:`~aioxmpp.stanza.Presence.show` attributes of the object will be
         modified to fit the values in this object.
         """
-
         if self.available:
-            stanza_obj.type_ = None
+            stanza_obj.type_ = PresenceType.AVAILABLE
         else:
-            stanza_obj.type_ = "unavailable"
+            stanza_obj.type_ = PresenceType.UNAVAILABLE
         stanza_obj.show = self.show
 
     @classmethod
@@ -328,9 +403,9 @@ class PresenceState:
         The default is not to check this.
         """
 
-        if stanza_obj.type_ != "unavailable" and stanza_obj.type_ is not None:
+        if not stanza_obj.type_.is_presence_state:
             raise ValueError("presence state stanza required")
-        available = not stanza_obj.type_
+        available = stanza_obj.type_ == PresenceType.AVAILABLE
         if not strict:
             show = stanza_obj.show if available else None
         else:

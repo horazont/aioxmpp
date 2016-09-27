@@ -40,6 +40,7 @@ classes:
 import asyncio
 import functools
 import logging
+import warnings
 
 from datetime import datetime, timedelta
 from enum import Enum
@@ -51,6 +52,7 @@ from . import (
     nonza,
     callbacks,
     protocol,
+    structs,
 )
 
 from .plugins import xep0199
@@ -219,7 +221,7 @@ class StanzaErrorAwareListener:
         self._forward_to = forward_to
 
     def data(self, stanza_obj):
-        if stanza_obj.type_ == "error":
+        if stanza_obj.type_.is_error:
             return self._forward_to.error(
                 stanza_obj.error.to_exception()
             )
@@ -684,17 +686,17 @@ class StanzaStream:
         try:
             payload = task.result()
         except errors.XMPPError as err:
-            response = request.make_reply(type_="error")
+            response = request.make_reply(type_=structs.IQType.ERROR)
             response.error = stanza.Error.from_exception(err)
         except Exception:
-            response = request.make_reply(type_="error")
+            response = request.make_reply(type_=structs.IQType.ERROR)
             response.error = stanza.Error(
                 condition=(namespaces.stanzas, "undefined-condition"),
-                type_="cancel",
+                type_=structs.ErrorType.CANCEL,
             )
             self._logger.exception("IQ request coroutine failed")
         else:
-            response = request.make_reply(type_="result")
+            response = request.make_reply(type_=structs.IQType.RESULT)
             response.payload = payload
         self.enqueue_stanza(response)
 
@@ -705,7 +707,7 @@ class StanzaStream:
         warning if no handler can be found.
         """
         self._logger.debug("incoming iq: %r", stanza_obj)
-        if stanza_obj.type_ == "result" or stanza_obj.type_ == "error":
+        if stanza_obj.type_.is_response:
             # iq response
             self._logger.debug("iq is response")
             key = (stanza_obj.from_, stanza_obj.id_)
@@ -732,7 +734,7 @@ class StanzaStream:
                     stanza_obj.type_,
                     stanza_obj.payload
                 )
-                response = stanza_obj.make_reply(type_="error")
+                response = stanza_obj.make_reply(type_=structs.IQType.ERROR)
                 response.error = stanza.Error(
                     condition=(namespaces.stanzas,
                                "feature-not-implemented"),
@@ -832,7 +834,7 @@ class StanzaStream:
             stanza_obj
         )
 
-        if stanza_obj.type_ == "error" or stanza_obj.type_ == "result":
+        if stanza_obj.type_.is_response:
             if     (isinstance(stanza_obj, stanza.IQ) and
                     stanza_obj.from_ is not None):
                 self._logger.debug(
@@ -1031,7 +1033,7 @@ class StanzaStream:
             self._logger.debug("sending SM req")
             xmlstream.send_xso(nonza.SMRequest())
         else:
-            request = stanza.IQ(type_="get")
+            request = stanza.IQ(type_=structs.IQType.GET)
             request.payload = xep0199.Ping()
             request.autoset_id()
             self.register_iq_response_callback(

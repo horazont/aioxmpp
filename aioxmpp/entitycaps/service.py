@@ -420,7 +420,8 @@ class Service(aioxmpp.service.Service):
         return info
 
     def handle_outbound_presence(self, presence):
-        if self.ver is not None and presence.type_ is None:
+        if (self.ver is not None and
+                presence.type_ == aioxmpp.structs.PresenceType.AVAILABLE):
             presence.xep0115_caps = my_xso.Caps(
                 self.NODE,
                 self.ver,

@@ -5,6 +5,129 @@ import aioxmpp.structs as structs
 import aioxmpp.stanza as stanza
 
 
+class TestMessageType(unittest.TestCase):
+    def test_values(self):
+        self.assertSetEqual(
+            {v.value for v in structs.MessageType},
+            {
+                "chat",
+                "normal",
+                "headline",
+                "groupchat",
+                "error",
+            }
+        )
+
+    def test_is_response(self):
+        for member in structs.MessageType:
+            self.assertEqual(
+                member == structs.MessageType.ERROR,
+                member.is_response,
+            )
+
+    def test_is_error(self):
+        for member in structs.MessageType:
+            self.assertEqual(
+                member == structs.MessageType.ERROR,
+                member.is_error,
+            )
+
+    def test_is_request(self):
+        for member in structs.MessageType:
+            self.assertFalse(member.is_request)
+
+
+class TestPresenceType(unittest.TestCase):
+    def test_values(self):
+        self.assertSetEqual(
+            {v.value for v in structs.PresenceType},
+            {
+                "error",
+                "probe",
+                "subscribe",
+                "subscribed",
+                "unsubscribe",
+                "unsubscribed",
+                "unavailable",
+                None,
+            }
+        )
+
+    def test_is_response(self):
+        for member in structs.PresenceType:
+            self.assertEqual(
+                member == structs.PresenceType.ERROR,
+                member.is_response,
+            )
+
+    def test_is_error(self):
+        for member in structs.PresenceType:
+            self.assertEqual(
+                member == structs.PresenceType.ERROR,
+                member.is_error,
+            )
+
+    def test_is_request(self):
+        for member in structs.PresenceType:
+            self.assertFalse(member.is_request)
+
+    def test_is_presence_state(self):
+        positive = [
+            structs.PresenceType.AVAILABLE,
+            structs.PresenceType.UNAVAILABLE,
+        ]
+
+        for member in structs.PresenceType:
+            self.assertEqual(
+                member in positive,
+                member.is_presence_state,
+            )
+
+
+class TestIQType(unittest.TestCase):
+    def test_values(self):
+        self.assertSetEqual(
+            {member.value for member in structs.IQType},
+            {
+                "get",
+                "set",
+                "result",
+                "error",
+            }
+        )
+
+    def test_is_error(self):
+        for member in structs.IQType:
+            self.assertEqual(
+                member == structs.IQType.ERROR,
+                member.is_error
+            )
+
+    def test_is_request(self):
+        positive = [
+            structs.IQType.GET,
+            structs.IQType.SET,
+        ]
+
+        for member in structs.IQType:
+            self.assertEqual(
+                member in positive,
+                member.is_request,
+            )
+
+    def test_is_response(self):
+        positive = [
+            structs.IQType.ERROR,
+            structs.IQType.RESULT,
+        ]
+
+        for member in structs.IQType:
+            self.assertEqual(
+                member in positive,
+                member.is_response,
+            )
+
+
 class TestJID(unittest.TestCase):
     def test_init_full(self):
         j = structs.JID("foo", "example.com", "bar")
@@ -393,17 +516,13 @@ class TestPresenceState(unittest.TestCase):
         )
 
     def test_apply_to_stanza(self):
-        stanza_obj = stanza.Presence(type_="probe")
-        self.assertEqual(
-            "probe",
-            stanza_obj.type_
-        )
+        stanza_obj = stanza.Presence(type_=structs.PresenceType.PROBE)
         self.assertIsNone(stanza_obj.show)
 
         ps = structs.PresenceState(available=True, show="dnd")
         ps.apply_to_stanza(stanza_obj)
         self.assertEqual(
-            None,
+            structs.PresenceType.AVAILABLE,
             stanza_obj.type_
         )
         self.assertEqual(
@@ -414,7 +533,7 @@ class TestPresenceState(unittest.TestCase):
         ps = structs.PresenceState()
         ps.apply_to_stanza(stanza_obj)
         self.assertEqual(
-            "unavailable",
+            structs.PresenceType.UNAVAILABLE,
             stanza_obj.type_
         )
         self.assertIsNone(
@@ -422,26 +541,34 @@ class TestPresenceState(unittest.TestCase):
         )
 
     def test_from_stanza(self):
-        stanza_obj = stanza.Presence(type_=None)
+        stanza_obj = stanza.Presence(
+            type_=structs.PresenceType.AVAILABLE
+        )
         stanza_obj.show = "xa"
         self.assertEqual(
             structs.PresenceState(available=True, show="xa"),
             structs.PresenceState.from_stanza(stanza_obj)
         )
 
-        stanza_obj = stanza.Presence(type_="unavailable")
+        stanza_obj = stanza.Presence(
+            type_=structs.PresenceType.UNAVAILABLE,
+        )
         self.assertEqual(
             structs.PresenceState(available=False),
             structs.PresenceState.from_stanza(stanza_obj)
         )
 
     def test_from_stanza_reject_incorrect_types(self):
-        stanza_obj = stanza.Presence(type_="probe")
+        stanza_obj = stanza.Presence(
+            type_=structs.PresenceType.PROBE
+        )
         with self.assertRaises(ValueError):
             structs.PresenceState.from_stanza(stanza_obj)
 
     def test_from_stanza_nonstrict_by_default(self):
-        stanza_obj = stanza.Presence(type_="unavailable")
+        stanza_obj = stanza.Presence(
+            type_=structs.PresenceType.UNAVAILABLE
+        )
         stanza_obj.show = "dnd"
         self.assertEqual(
             structs.PresenceState(available=False),
@@ -449,7 +576,9 @@ class TestPresenceState(unittest.TestCase):
         )
 
     def test_from_stanza_strict_by_default(self):
-        stanza_obj = stanza.Presence(type_="unavailable")
+        stanza_obj = stanza.Presence(
+            type_=structs.PresenceType.UNAVAILABLE,
+        )
         stanza_obj.show = "dnd"
         with self.assertRaises(ValueError):
             structs.PresenceState.from_stanza(stanza_obj, strict=True)

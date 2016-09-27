@@ -223,27 +223,27 @@ class TestService(unittest.TestCase):
         self.assertSequenceEqual(
             [
                 unittest.mock.call.stream.register_iq_request_coro(
-                    "set",
+                    structs.IQType.SET,
                     roster_xso.Query,
                     self.s.handle_roster_push
                 ),
                 unittest.mock.call.stream.register_presence_callback(
-                    "subscribe",
+                    structs.PresenceType.SUBSCRIBE,
                     None,
                     self.s.handle_subscribe
                 ),
                 unittest.mock.call.stream.register_presence_callback(
-                    "subscribed",
+                    structs.PresenceType.SUBSCRIBED,
                     None,
                     self.s.handle_subscribed
                 ),
                 unittest.mock.call.stream.register_presence_callback(
-                    "unsubscribed",
+                    structs.PresenceType.UNSUBSCRIBED,
                     None,
                     self.s.handle_unsubscribed
                 ),
                 unittest.mock.call.stream.register_presence_callback(
-                    "unsubscribe",
+                    structs.PresenceType.UNSUBSCRIBE,
                     None,
                     self.s.handle_unsubscribe
                 ),
@@ -261,23 +261,23 @@ class TestService(unittest.TestCase):
         self.assertSequenceEqual(
             [
                 unittest.mock.call.stream.unregister_presence_callback(
-                    "unsubscribe",
+                    structs.PresenceType.UNSUBSCRIBE,
                     None
                 ),
                 unittest.mock.call.stream.unregister_presence_callback(
-                    "unsubscribed",
+                    structs.PresenceType.UNSUBSCRIBED,
                     None
                 ),
                 unittest.mock.call.stream.unregister_presence_callback(
-                    "subscribed",
+                    structs.PresenceType.SUBSCRIBED,
                     None
                 ),
                 unittest.mock.call.stream.unregister_presence_callback(
-                    "subscribe",
+                    structs.PresenceType.SUBSCRIBE,
                     None
                 ),
                 unittest.mock.call.stream.unregister_iq_request_coro(
-                    "set",
+                    structs.IQType.SET,
                     roster_xso.Query
                 ),
             ],
@@ -293,7 +293,7 @@ class TestService(unittest.TestCase):
         self.assertEqual("some bar user", self.s.items[self.user2].name)
 
     def test_handle_roster_push_rejects_push_with_nonempty_from(self):
-        iq = stanza.IQ("set")
+        iq = stanza.IQ(type_=structs.IQType.SET)
         iq.from_ = structs.JID.fromstr("foo@bar.example")
 
         with self.assertRaises(errors.XMPPAuthError) as ctx:
@@ -321,7 +321,7 @@ class TestService(unittest.TestCase):
             ver="foobar"
         )
 
-        iq = stanza.IQ("set")
+        iq = stanza.IQ(type_=structs.IQType.SET)
         iq.payload = request
 
         self.assertIsNone(
@@ -345,7 +345,7 @@ class TestService(unittest.TestCase):
             ver="foobarbaz"
         )
 
-        iq = stanza.IQ("set")
+        iq = stanza.IQ(type_=structs.IQType.SET)
         iq.payload = request
 
         self.assertIsNone(
@@ -369,7 +369,7 @@ class TestService(unittest.TestCase):
             ver="foobar"
         )
 
-        iq = stanza.IQ("set")
+        iq = stanza.IQ(type_=structs.IQType.SET)
         iq.payload = request
 
         self.assertIsNone(
@@ -517,7 +517,7 @@ class TestService(unittest.TestCase):
             ver="foobar"
         )
 
-        iq = stanza.IQ("set")
+        iq = stanza.IQ(type_=structs.IQType.SET)
         iq.payload = request
 
         cb = unittest.mock.Mock()
@@ -545,7 +545,7 @@ class TestService(unittest.TestCase):
             ver="foobar"
         )
 
-        iq = stanza.IQ("set")
+        iq = stanza.IQ(type_=structs.IQType.SET)
         iq.payload = request
 
         cb = unittest.mock.Mock()
@@ -571,7 +571,7 @@ class TestService(unittest.TestCase):
             ver="foobar"
         )
 
-        iq = stanza.IQ("set")
+        iq = stanza.IQ(type_=structs.IQType.SET)
         iq.payload = request
 
         old_item = self.s.items[self.user1]
@@ -601,7 +601,7 @@ class TestService(unittest.TestCase):
             ver="foobar"
         )
 
-        iq = stanza.IQ("set")
+        iq = stanza.IQ(type_=structs.IQType.SET)
         iq.payload = request
 
         cb = unittest.mock.Mock()
@@ -812,8 +812,12 @@ class TestService(unittest.TestCase):
             )
         ])
 
-        run_coroutine(self.s.handle_roster_push(stanza.IQ(
-            "set", payload=request)))
+        run_coroutine(self.s.handle_roster_push(
+            stanza.IQ(
+                structs.IQType.SET,
+                payload=request
+            )
+        ))
 
         self.assertNotIn("group3", self.s.groups)
         self.assertSetEqual(
@@ -851,8 +855,12 @@ class TestService(unittest.TestCase):
             stack.enter_context(
                 self.s.on_entry_removed_from_group.context_connect(removed_cb)
             )
-            run_coroutine(self.s.handle_roster_push(stanza.IQ(
-                "set", payload=request)))
+            run_coroutine(self.s.handle_roster_push(
+                stanza.IQ(
+                    structs.IQType.SET,
+                    payload=request
+                )
+            ))
 
         self.assertSequenceEqual(
             [
@@ -923,8 +931,12 @@ class TestService(unittest.TestCase):
             stack.enter_context(
                 self.s.on_entry_removed_from_group.context_connect(removed_cb)
             )
-            run_coroutine(self.s.handle_roster_push(stanza.IQ(
-                "set", payload=request)))
+            run_coroutine(self.s.handle_roster_push(
+                stanza.IQ(
+                    structs.IQType.SET,
+                    payload=request
+                )
+            ))
 
         self.assertSequenceEqual([], added_cb.mock_calls)
         self.assertSequenceEqual([], removed_cb.mock_calls)
@@ -1096,7 +1108,10 @@ class TestService(unittest.TestCase):
         self.assertIsNone(item.name)
 
     def test_handle_subscribe_emits_event(self):
-        st = stanza.Presence(type_="subscribe", from_=TEST_JID)
+        st = stanza.Presence(
+            type_=structs.PresenceType.SUBSCRIBE,
+            from_=TEST_JID
+        )
 
         mock = unittest.mock.Mock()
         self.s.on_subscribe.connect(mock)
@@ -1109,7 +1124,10 @@ class TestService(unittest.TestCase):
         )
 
     def test_handle_subscribed_emits_event(self):
-        st = stanza.Presence(type_="subscribed", from_=TEST_JID)
+        st = stanza.Presence(
+            type_=structs.PresenceType.SUBSCRIBED,
+            from_=TEST_JID
+        )
 
         mock = unittest.mock.Mock()
         self.s.on_subscribed.connect(mock)
@@ -1122,7 +1140,10 @@ class TestService(unittest.TestCase):
         )
 
     def test_handle_unsubscribed_emits_event(self):
-        st = stanza.Presence(type_="unsubscribed", from_=TEST_JID)
+        st = stanza.Presence(
+            type_=structs.PresenceType.UNSUBSCRIBED,
+            from_=TEST_JID
+        )
 
         mock = unittest.mock.Mock()
         self.s.on_unsubscribed.connect(mock)
@@ -1135,7 +1156,10 @@ class TestService(unittest.TestCase):
         )
 
     def test_handle_unsubscribe_emits_event(self):
-        st = stanza.Presence(type_="unsubscribe", from_=TEST_JID)
+        st = stanza.Presence(
+            type_=structs.PresenceType.UNSUBSCRIBE,
+            from_=TEST_JID
+        )
 
         mock = unittest.mock.Mock()
         self.s.on_unsubscribe.connect(mock)
@@ -1163,7 +1187,7 @@ class TestService(unittest.TestCase):
         st, = call_args
         self.assertIsInstance(st, stanza.Presence)
         self.assertEqual(st.to, TEST_JID)
-        self.assertEqual(st.type_, "subscribed")
+        self.assertEqual(st.type_, structs.PresenceType.SUBSCRIBED)
 
     def test_subscribe_sends_subscribe_presence(self):
         self.s.subscribe(TEST_JID)
@@ -1181,7 +1205,7 @@ class TestService(unittest.TestCase):
         st, = call_args
         self.assertIsInstance(st, stanza.Presence)
         self.assertEqual(st.to, TEST_JID)
-        self.assertEqual(st.type_, "subscribe")
+        self.assertEqual(st.type_, structs.PresenceType.SUBSCRIBE)
 
     def test_unsubscribe_sends_unsubscribe_presence(self):
         self.s.unsubscribe(TEST_JID)
@@ -1199,4 +1223,4 @@ class TestService(unittest.TestCase):
         st, = call_args
         self.assertIsInstance(st, stanza.Presence)
         self.assertEqual(st.to, TEST_JID)
-        self.assertEqual(st.type_, "unsubscribe")
+        self.assertEqual(st.type_, structs.PresenceType.UNSUBSCRIBE)

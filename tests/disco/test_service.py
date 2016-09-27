@@ -347,14 +347,14 @@ class TestService(unittest.TestCase):
         self.cc.reset_mock()
 
         self.request_iq = stanza.IQ(
-            "get",
+            structs.IQType.GET,
             from_=structs.JID.fromstr("user@foo.example/res1"),
             to=structs.JID.fromstr("user@bar.example/res2"))
         self.request_iq.autoset_id()
         self.request_iq.payload = disco_xso.InfoQuery()
 
         self.request_items_iq = stanza.IQ(
-            "get",
+            structs.IQType.GET,
             from_=structs.JID.fromstr("user@foo.example/res1"),
             to=structs.JID.fromstr("user@bar.example/res2"))
         self.request_items_iq.autoset_id()
@@ -372,12 +372,12 @@ class TestService(unittest.TestCase):
         self.assertSequenceEqual(
             [
                 unittest.mock.call.stream.register_iq_request_coro(
-                    "get",
+                    structs.IQType.GET,
                     disco_xso.InfoQuery,
                     s.handle_info_request
                 ),
                 unittest.mock.call.stream.register_iq_request_coro(
-                    "get",
+                    structs.IQType.GET,
                     disco_xso.ItemsQuery,
                     s.handle_items_request
                 )
@@ -390,9 +390,13 @@ class TestService(unittest.TestCase):
         self.assertSequenceEqual(
             [
                 unittest.mock.call.stream.unregister_iq_request_coro(
-                    "get",
+                    structs.IQType.GET,
                     disco_xso.InfoQuery
-                )
+                ),
+                unittest.mock.call.stream.unregister_iq_request_coro(
+                    structs.IQType.GET,
+                    disco_xso.ItemsQuery
+                ),
             ],
             self.cc.mock_calls
         )
@@ -572,7 +576,7 @@ class TestService(unittest.TestCase):
             request_iq.to
         )
         self.assertEqual(
-            "get",
+            structs.IQType.GET,
             request_iq.type_
         )
         self.assertIsInstance(request_iq.payload, disco_xso.InfoQuery)
@@ -988,7 +992,7 @@ class TestService(unittest.TestCase):
             request_iq.to
         )
         self.assertEqual(
-            "get",
+            structs.IQType.GET,
             request_iq.type_
         )
         self.assertIsInstance(request_iq.payload, disco_xso.ItemsQuery)
@@ -1023,7 +1027,7 @@ class TestService(unittest.TestCase):
             request_iq.to
         )
         self.assertEqual(
-            "get",
+            structs.IQType.GET,
             request_iq.type_
         )
         self.assertIsInstance(request_iq.payload, disco_xso.ItemsQuery)

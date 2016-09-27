@@ -587,7 +587,7 @@ class AbstractClient:
             "remote server announces support for legacy sessions"
         )
         yield from self.stream.send_iq_and_wait_for_reply(
-            stanza.IQ(type_="set",
+            stanza.IQ(type_=structs.IQType.SET,
                       payload=rfc3921.Session())
         )
         self.logger.debug(
@@ -648,7 +648,7 @@ class AbstractClient:
 
     @asyncio.coroutine
     def _bind(self):
-        iq = stanza.IQ(type_="set")
+        iq = stanza.IQ(type_=structs.IQType.SET)
         iq.payload = rfc6120.Bind(resource=self._local_jid.resource)
         try:
             result = yield from self.stream.send_iq_and_wait_for_reply(iq)

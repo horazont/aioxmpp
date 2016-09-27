@@ -55,9 +55,10 @@ Exceptions
 
 """
 import base64
+import enum
 import random
 
-from . import xso, errors
+from . import xso, errors, structs
 
 from .utils import namespaces
 
@@ -201,11 +202,11 @@ class Error(xso.XSO):
     DECLARE_NS = {}
 
     EXCEPTION_CLS_MAP = {
-        "modify": errors.XMPPModifyError,
-        "cancel": errors.XMPPCancelError,
-        "auth": errors.XMPPAuthError,
-        "wait": errors.XMPPWaitError,
-        "continue": errors.XMPPContinueError,
+        structs.ErrorType.MODIFY: errors.XMPPModifyError,
+        structs.ErrorType.CANCEL: errors.XMPPCancelError,
+        structs.ErrorType.AUTH: errors.XMPPAuthError,
+        structs.ErrorType.WAIT: errors.XMPPWaitError,
+        structs.ErrorType.CONTINUE: errors.XMPPContinueError,
     }
 
     UNKNOWN_CHILD_POLICY = xso.UnknownChildPolicy.DROP
@@ -214,20 +215,17 @@ class Error(xso.XSO):
 
     type_ = xso.Attr(
         tag="type",
-        validator=xso.RestrictToSet({
-            "auth",
-            "cancel",
-            "continue",
-            "modify",
-            "wait",
-        })
+        type_=xso.EnumType(
+            structs.ErrorType,
+        ),
     )
 
     text = xso.ChildText(
         tag=(namespaces.stanzas, "text"),
         attr_policy=xso.UnknownAttrPolicy.DROP,
         default=None,
-        declare_prefix=None)
+        declare_prefix=None
+    )
 
     condition = xso.ChildTag(
         tags=STANZA_ERROR_TAGS,
@@ -240,7 +238,7 @@ class Error(xso.XSO):
 
     def __init__(self,
                  condition=(namespaces.stanzas, "undefined-condition"),
-                 type_="cancel",
+                 type_=structs.ErrorType.CANCEL,
                  text=None):
         super().__init__()
         self.condition = condition
@@ -249,9 +247,11 @@ class Error(xso.XSO):
 
     @classmethod
     def from_exception(cls, exc):
-        return cls(condition=exc.condition,
-                   type_=exc.TYPE,
-                   text=exc.text)
+        return cls(
+            condition=exc.condition,
+            type_=exc.TYPE,
+            text=exc.text
+        )
 
     def to_exception(self):
         if hasattr(self.application_condition, "to_exception"):
@@ -405,9 +405,12 @@ class StanzaBase(xso.XSO):
         transferred from the original (with from and to being swapped). Also,
         the :attr:`type_` is set to ``"error"``.
         """
-        obj = type(self)(from_=self.to,
-                         to=self.from_,
-                         type_="error")
+        obj = type(self)(
+            from_=self.to,
+            to=self.from_,
+            # because flat is better than nested (sarcasm)
+            type_=type(self).type_.type_.enum_class.ERROR,
+        )
         obj.id_ = self.id_
         obj.error = error
         return obj
@@ -547,13 +550,10 @@ class Message(StanzaBase):
     id_ = xso.Attr(tag="id", default=None)
     type_ = xso.Attr(
         tag="type",
-        validator=xso.RestrictToSet({
-            "chat",
-            "groupchat",
-            "error",
-            "headline",
-            "normal"}),
-        default="normal",
+        type_=xso.EnumType(
+            structs.MessageType,
+        ),
+        default=structs.MessageType.NORMAL,
     )
 
     body = xso.ChildTextMap(Body)
@@ -657,15 +657,10 @@ class Presence(StanzaBase):
     id_ = xso.Attr(tag="id", default=None)
     type_ = xso.Attr(
         tag="type",
-        validator=xso.RestrictToSet({
-            "error",
-            "probe",
-            "subscribe",
-            "subscribed",
-            "unavailable",
-            "unsubscribe",
-            "unsubscribed"}),
-        default=None,
+        type_=xso.EnumType(
+            structs.PresenceType,
+        ),
+        default=structs.PresenceType.AVAILABLE,
     )
 
     show = xso.ChildText(
@@ -692,7 +687,7 @@ class Presence(StanzaBase):
     ext = xso.ChildMap([])
     unhandled_children = xso.Collector()
 
-    def __init__(self, *, type_=None, show=None, **kwargs):
+    def __init__(self, *, type_=structs.PresenceType.AVAILABLE, show=None, **kwargs):
         super().__init__(**kwargs)
         self.type_ = type_
         self.show = show
@@ -744,11 +739,9 @@ class IQ(StanzaBase):
     id_ = xso.Attr(tag="id")
     type_ = xso.Attr(
         tag="type",
-        validator=xso.RestrictToSet({
-            "get",
-            "set",
-            "result",
-            "error"})
+        type_=xso.EnumType(
+            structs.IQType,
+        )
     )
     payload = xso.Child([])
 
@@ -766,7 +759,7 @@ class IQ(StanzaBase):
         super().validate()
 
     def make_reply(self, type_):
-        if self.type_ != "get" and self.type_ != "set":
+        if not self.type_.is_request:
             raise ValueError("make_reply requires request IQ")
         obj = super()._make_reply(type_)
         return obj
@@ -784,7 +777,7 @@ class IQ(StanzaBase):
 
         try:
             type_str = repr(self.type_)
-            if self.type_ == "error":
+            if self.type_.is_error:
                 payload = " error={!r}".format(self.error)
             elif self.payload:
                 payload = " data={!r}".format(self.payload)

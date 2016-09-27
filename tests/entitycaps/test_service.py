@@ -1710,12 +1710,12 @@ class TestService(unittest.TestCase):
         self.s.ver = "foo"
 
         types = [
-            "unavailable",
-            "subscribe",
-            "unsubscribe",
-            "subscribed",
-            "unsubscribed",
-            "error",
+            structs.PresenceType.UNAVAILABLE,
+            structs.PresenceType.SUBSCRIBE,
+            structs.PresenceType.SUBSCRIBED,
+            structs.PresenceType.UNSUBSCRIBE,
+            structs.PresenceType.UNSUBSCRIBED,
+            structs.PresenceType.ERROR,
         ]
 
         for type_ in types:

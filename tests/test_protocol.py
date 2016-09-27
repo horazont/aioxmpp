@@ -3,6 +3,7 @@ import unittest
 import unittest.mock
 
 import aioxmpp.stanza as stanza
+import aioxmpp.structs as structs
 import aioxmpp.xso as xso
 import aioxmpp.nonza as nonza
 import aioxmpp.errors as errors
@@ -534,7 +535,7 @@ class TestXMLStream(unittest.TestCase):
         )
 
     def test_send_xso(self):
-        st = FakeIQ("get")
+        st = FakeIQ(structs.IQType.GET)
         st.id_ = "id"
         st.from_ = JID.fromstr("u1@foo.example/test")
         st.to = JID.fromstr("u2@foo.example/test")
@@ -829,7 +830,7 @@ class TestXMLStream(unittest.TestCase):
             )
         )
         with self.assertRaises(ValueError) as ctx:
-            p.send_xso(stanza.IQ("get"))
+            p.send_xso(stanza.IQ(structs.IQType.GET))
         self.assertIs(exc, ctx.exception)
 
     def test_starttls_reraises_connection_lost_error(self):

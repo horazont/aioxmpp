@@ -90,19 +90,19 @@ class Service(aioxmpp.service.Service):
         self._presences = {}
 
         client.stream.register_presence_callback(
-            None,
-            None,
-            self.handle_presence
-        )
-
-        client.stream.register_presence_callback(
-            "error",
+            aioxmpp.structs.PresenceType.AVAILABLE,
             None,
             self.handle_presence
         )
 
         client.stream.register_presence_callback(
-            "unavailable",
+            aioxmpp.structs.PresenceType.ERROR,
+            None,
+            self.handle_presence
+        )
+
+        client.stream.register_presence_callback(
+            aioxmpp.structs.PresenceType.UNAVAILABLE,
             None,
             self.handle_presence
         )
@@ -110,17 +110,17 @@ class Service(aioxmpp.service.Service):
     @asyncio.coroutine
     def _shutdown(self):
         self.client.stream.unregister_presence_callback(
-            "unavailable",
+            aioxmpp.structs.PresenceType.UNAVAILABLE,
             None
         )
 
         self.client.stream.unregister_presence_callback(
-            "error",
+            aioxmpp.structs.PresenceType.ERROR,
             None
         )
 
         self.client.stream.unregister_presence_callback(
-            None,
+            aioxmpp.structs.PresenceType.AVAILABLE,
             None
         )
 
@@ -177,7 +177,7 @@ class Service(aioxmpp.service.Service):
         bare = st.from_.bare()
         resource = st.from_.resource
 
-        if st.type_ == "unavailable":
+        if st.type_ == aioxmpp.structs.PresenceType.UNAVAILABLE:
             try:
                 dest_dict = self._presences[bare]
             except KeyError:
@@ -188,7 +188,7 @@ class Service(aioxmpp.service.Service):
                 if len(dest_dict) == 1:
                     self.on_bare_unavailable(st)
                 del dest_dict[resource]
-        elif st.type_ == "error":
+        elif st.type_ == aioxmpp.structs.PresenceType.ERROR:
             try:
                 dest_dict = self._presences[bare]
             except KeyError:

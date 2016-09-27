@@ -339,23 +339,23 @@ class Service(aioxmpp.service.Service):
         )
 
         client.stream.register_iq_request_coro(
-            "set",
+            structs.IQType.SET,
             roster_xso.Query,
             self.handle_roster_push)
         client.stream.register_presence_callback(
-            "subscribe",
+            structs.PresenceType.SUBSCRIBE,
             None,
             self.handle_subscribe)
         client.stream.register_presence_callback(
-            "subscribed",
+            structs.PresenceType.SUBSCRIBED,
             None,
             self.handle_subscribed)
         client.stream.register_presence_callback(
-            "unsubscribed",
+            structs.PresenceType.UNSUBSCRIBED,
             None,
             self.handle_unsubscribed)
         client.stream.register_presence_callback(
-            "unsubscribe",
+            structs.PresenceType.UNSUBSCRIBE,
             None,
             self.handle_unsubscribe)
 
@@ -366,19 +366,19 @@ class Service(aioxmpp.service.Service):
     @asyncio.coroutine
     def _shutdown(self):
         self.client.stream.unregister_presence_callback(
-            "unsubscribe",
+            structs.PresenceType.UNSUBSCRIBE,
             None)
         self.client.stream.unregister_presence_callback(
-            "unsubscribed",
+            structs.PresenceType.UNSUBSCRIBED,
             None)
         self.client.stream.unregister_presence_callback(
-            "subscribed",
+            structs.PresenceType.SUBSCRIBED,
             None)
         self.client.stream.unregister_presence_callback(
-            "subscribe",
+            structs.PresenceType.SUBSCRIBE,
             None)
         self.client.stream.unregister_iq_request_coro(
-            "set",
+            structs.IQType.SET,
             roster_xso.Query)
 
     def _update_entry(self, xso_item):
@@ -464,7 +464,7 @@ class Service(aioxmpp.service.Service):
 
     @asyncio.coroutine
     def _request_initial_roster(self):
-        iq = stanza.IQ(type_="get")
+        iq = stanza.IQ(type_=structs.IQType.GET)
         iq.payload = roster_xso.Query()
 
         logger.debug("requesting initial roster")
@@ -591,9 +591,12 @@ class Service(aioxmpp.service.Service):
             ])
 
         yield from self.client.stream.send_iq_and_wait_for_reply(
-            stanza.IQ("set", payload=roster_xso.Query(items=[
-                item
-            ])),
+            stanza.IQ(
+                structs.IQType.SET,
+                payload=roster_xso.Query(items=[
+                    item
+                ])
+            ),
             timeout=timeout
         )
 
@@ -612,12 +615,15 @@ class Service(aioxmpp.service.Service):
         the connection gets fatally terminated while waiting for a response.
         """
         yield from self.client.stream.send_iq_and_wait_for_reply(
-            stanza.IQ("set", payload=roster_xso.Query(items=[
-                roster_xso.Item(
-                    jid=jid,
-                    subscription="remove"
-                )
-            ])),
+            stanza.IQ(
+                structs.IQType.SET,
+                payload=roster_xso.Query(items=[
+                    roster_xso.Item(
+                        jid=jid,
+                        subscription="remove"
+                    )
+                ])
+            ),
             timeout=timeout
         )
 
@@ -634,7 +640,7 @@ class Service(aioxmpp.service.Service):
         will then be confirmed by the server automatically.
         """
         self.client.stream.enqueue_stanza(
-            stanza.Presence(type_="subscribed",
+            stanza.Presence(type_=structs.PresenceType.SUBSCRIBED,
                             to=peer_jid)
         )
 
@@ -648,7 +654,7 @@ class Service(aioxmpp.service.Service):
         accepted a subscription request.
         """
         self.client.stream.enqueue_stanza(
-            stanza.Presence(type_="subscribe",
+            stanza.Presence(type_=structs.PresenceType.SUBSCRIBE,
                             to=peer_jid)
         )
 
@@ -657,6 +663,6 @@ class Service(aioxmpp.service.Service):
         Unsubscribe from the presence of the given `peer_jid`.
         """
         self.client.stream.enqueue_stanza(
-            stanza.Presence(type_="unsubscribe",
+            stanza.Presence(type_=structs.PresenceType.UNSUBSCRIBE,
                             to=peer_jid)
         )

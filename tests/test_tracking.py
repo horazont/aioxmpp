@@ -4,6 +4,7 @@ import unittest.mock
 from enum import Enum
 
 import aioxmpp.stanza
+import aioxmpp.structs as structs
 import aioxmpp.statemachine
 import aioxmpp.stream as stream
 import aioxmpp.tracking as tracking
@@ -158,7 +159,9 @@ class TestMessageTracker(unittest.TestCase):
         ))
 
     def setUp(self):
-        self.stanza = aioxmpp.stanza.Message(type_="chat")
+        self.stanza = aioxmpp.stanza.Message(
+            type_=structs.MessageType.CHAT
+        )
         self.token = stream.StanzaToken(self.stanza)
         self.tr = tracking.MessageTracker(self.token)
 

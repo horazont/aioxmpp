@@ -209,25 +209,23 @@ class TestMessage(unittest.TestCase):
     def test_type_attr(self):
         self.assertIsInstance(
             stanza.Message.type_,
-            xso.Attr)
+            xso.Attr
+        )
         self.assertEqual(
             (None, "type"),
-            stanza.Message.type_.tag)
+            stanza.Message.type_.tag
+        )
         self.assertIsInstance(
-            stanza.Message.type_.validator,
-            xso.RestrictToSet)
-        self.assertSetEqual(
-            {
-                "chat",
-                "error",
-                "groupchat",
-                "headline",
-                "normal",
-            },
-            stanza.Message.type_.validator.values)
+            stanza.Message.type_.type_,
+            xso.EnumType,
+        )
+        self.assertIs(
+            stanza.Message.type_.type_.enum_class,
+            structs.MessageType,
+        )
         self.assertEqual(
             stanza.Message.type_.default,
-            "normal"
+            structs.MessageType.NORMAL,
         )
 
     def test_ext_attr(self):
@@ -263,26 +261,32 @@ class TestMessage(unittest.TestCase):
         )
 
     def test_init(self):
-        s = stanza.Message(from_=TEST_FROM,
-                           to=TEST_TO,
-                           id_="someid",
-                           type_="groupchat")
+        s = stanza.Message(
+            from_=TEST_FROM,
+            to=TEST_TO,
+            id_="someid",
+            type_=structs.MessageType.GROUPCHAT,
+        )
         self.assertEqual(
             TEST_FROM,
-            s.from_)
+            s.from_
+        )
         self.assertEqual(
-            "groupchat",
-            s.type_)
+            structs.MessageType.GROUPCHAT,
+            s.type_
+        )
 
     def test_reject_init_without_type(self):
         with self.assertRaisesRegex(TypeError, "type_"):
             stanza.Message()
 
     def test_make_reply(self):
-        s = stanza.Message(from_=TEST_FROM,
-                           to=TEST_TO,
-                           id_="someid",
-                           type_="groupchat")
+        s = stanza.Message(
+            from_=TEST_FROM,
+            to=TEST_TO,
+            id_="someid",
+            type_=structs.MessageType.GROUPCHAT,
+        )
         r = s.make_reply()
         self.assertEqual(
             r.type_,
@@ -299,17 +303,19 @@ class TestMessage(unittest.TestCase):
         e = stanza.Error(
             condition=(namespaces.stanzas, "feature-not-implemented")
         )
-        s = stanza.Message(from_=TEST_FROM,
-                           to=TEST_TO,
-                           id_="someid",
-                           type_="groupchat")
+        s = stanza.Message(
+            from_=TEST_FROM,
+            to=TEST_TO,
+            id_="someid",
+            type_=structs.MessageType.GROUPCHAT
+        )
         r = s.make_error(e)
 
         self.assertIsInstance(r, stanza.Message)
 
         self.assertEqual(
             r.type_,
-            "error")
+            structs.MessageType.ERROR)
         self.assertEqual(
             TEST_FROM,
             r.to)
@@ -324,10 +330,10 @@ class TestMessage(unittest.TestCase):
         s = stanza.Message(from_=TEST_FROM,
                            to=TEST_TO,
                            id_="someid",
-                           type_="groupchat")
+                           type_=structs.MessageType.GROUPCHAT)
         self.assertEqual(
             "<message from='foo@example.test' to='bar@example.test'"
-            " id='someid' type='groupchat'>",
+            " id='someid' type=<MessageType.GROUPCHAT: 'groupchat'>>",
             repr(s)
         )
 
@@ -335,7 +341,7 @@ class TestMessage(unittest.TestCase):
         s = stanza.Message.__new__(stanza.Message)
         self.assertEqual(
             repr(s),
-            "<message from=None to=None id=None type='normal'>"
+            "<message from=None to=None id=None type=<MessageType.NORMAL: 'normal'>>"
         )
 
 
@@ -379,25 +385,24 @@ class TestPresence(unittest.TestCase):
     def test_type_attr(self):
         self.assertIsInstance(
             stanza.Presence.type_,
-            xso.Attr)
+            xso.Attr,
+        )
         self.assertEqual(
             (None, "type"),
-            stanza.Presence.type_.tag)
+            stanza.Presence.type_.tag,
+        )
         self.assertIsInstance(
-            stanza.Presence.type_.validator,
-            xso.RestrictToSet)
-        self.assertSetEqual(
-            {
-                "error",
-                "probe",
-                "subscribe",
-                "subscribed",
-                "unavailable",
-                "unsubscribe",
-                "unsubscribed",
-            },
-            stanza.Presence.type_.validator.values)
-        self.assertIs(stanza.Presence.type_.default, None)
+            stanza.Presence.type_.type_,
+            xso.EnumType,
+        )
+        self.assertIs(
+            stanza.Presence.type_.type_.enum_class,
+            structs.PresenceType,
+        )
+        self.assertIs(
+            stanza.Presence.type_.default,
+            structs.PresenceType.AVAILABLE,
+        )
 
     def test_show_attr(self):
         self.assertIsInstance(
@@ -465,67 +470,82 @@ class TestPresence(unittest.TestCase):
     def test_init(self):
         s = stanza.Presence(
             from_=TEST_FROM,
-            type_="probe",
-            show="away")
+            type_=structs.PresenceType.PROBE,
+            show="away"
+        )
         self.assertEqual(
             TEST_FROM,
-            s.from_)
+            s.from_
+        )
         self.assertEqual(
-            "probe",
-            s.type_)
+            structs.PresenceType.PROBE,
+            s.type_
+        )
         self.assertEqual(
             "away",
-            s.show)
+            s.show,
+        )
 
     def test_default(self):
         s = stanza.Presence()
-        self.assertIsNone(s.type_)
+        self.assertEqual(
+            s.type_,
+            structs.PresenceType.AVAILABLE,
+        )
         self.assertIsNone(s.show)
 
     def test_make_error(self):
         e = stanza.Error(
             condition=(namespaces.stanzas, "gone")
         )
-        s = stanza.Presence(from_=TEST_FROM,
-                            to=TEST_TO,
-                            id_="someid",
-                            type_="unavailable")
+        s = stanza.Presence(
+            from_=TEST_FROM,
+            to=TEST_TO,
+            id_="someid",
+            type_=structs.PresenceType.UNAVAILABLE,
+        )
         r = s.make_error(e)
 
         self.assertIsInstance(r, stanza.Presence)
 
         self.assertEqual(
             r.type_,
-            "error")
+            structs.PresenceType.ERROR
+        )
         self.assertEqual(
             TEST_FROM,
-            r.to)
+            r.to
+        )
         self.assertEqual(
             TEST_TO,
-            r.from_)
+            r.from_
+        )
         self.assertEqual(
             s.id_,
-            r.id_)
+            r.id_
+        )
 
     def test_repr(self):
         s = stanza.Presence(
             from_=TEST_FROM,
             to=TEST_TO,
             id_="someid",
-            type_="probe")
+            type_=structs.PresenceType.PROBE,
+        )
         self.assertEqual(
             "<presence from='foo@example.test' to='bar@example.test'"
-            " id='someid' type='probe'>",
+            " id='someid' type=<PresenceType.PROBE: 'probe'>>",
             repr(s)
         )
         s = stanza.Presence(
             from_=TEST_FROM,
             to=TEST_TO,
             id_="someid",
-            type_=None)
+            type_=structs.PresenceType.AVAILABLE
+        )
         self.assertEqual(
             "<presence from='foo@example.test' to='bar@example.test'"
-            " id='someid' type=None>",
+            " id='someid' type=<PresenceType.AVAILABLE: None>>",
             repr(s)
         )
 
@@ -539,7 +559,7 @@ class TestPresence(unittest.TestCase):
         s = stanza.Presence.__new__(stanza.Presence)
         self.assertEqual(
             repr(s),
-            "<presence from=None to=None id=None type=None>"
+            "<presence from=None to=None id=None type=<PresenceType.AVAILABLE: None>>"
         )
 
 
@@ -570,22 +590,20 @@ class TestError(unittest.TestCase):
     def test_type_attr(self):
         self.assertIsInstance(
             stanza.Error.type_,
-            xso.Attr)
+            xso.Attr,
+        )
         self.assertEqual(
             (None, "type"),
-            stanza.Error.type_.tag)
+            stanza.Error.type_.tag,
+        )
         self.assertIsInstance(
-            stanza.Error.type_.validator,
-            xso.RestrictToSet)
-        self.assertSetEqual(
-            {
-                "auth",
-                "cancel",
-                "continue",
-                "modify",
-                "wait",
-            },
-            stanza.Error.type_.validator.values)
+            stanza.Error.type_.type_,
+            xso.EnumType,
+        )
+        self.assertIs(
+            stanza.Error.type_.type_.enum_class,
+            structs.ErrorType,
+        )
 
     def test_application_condition_attr(self):
         self.assertIsInstance(
@@ -600,7 +618,7 @@ class TestError(unittest.TestCase):
         )
         obj = stanza.Error.from_exception(exc)
         self.assertEqual(
-            "wait",
+            structs.ErrorType.WAIT,
             obj.type_
         )
         self.assertEqual(
@@ -614,11 +632,11 @@ class TestError(unittest.TestCase):
 
     def test_to_exception(self):
         types = {
-            "modify": errors.XMPPModifyError,
-            "cancel": errors.XMPPCancelError,
-            "auth": errors.XMPPAuthError,
-            "wait": errors.XMPPWaitError,
-            "continue": errors.XMPPContinueError,
+            structs.ErrorType.MODIFY: errors.XMPPModifyError,
+            structs.ErrorType.CANCEL: errors.XMPPCancelError,
+            structs.ErrorType.AUTH: errors.XMPPAuthError,
+            structs.ErrorType.WAIT: errors.XMPPWaitError,
+            structs.ErrorType.CONTINUE: errors.XMPPContinueError,
         }
         conditions = [
             (namespaces.stanzas, "bad-request"),
@@ -637,7 +655,8 @@ class TestError(unittest.TestCase):
             obj = stanza.Error(
                 type_=type_name,
                 condition=condition,
-                text=text)
+                text=text
+            )
             exc = obj.to_exception()
             self.assertIsInstance(
                 exc,
@@ -656,7 +675,7 @@ class TestError(unittest.TestCase):
         cond = unittest.mock.Mock(["to_exception"])
 
         obj = stanza.Error(
-            type_="continue",
+            type_=structs.ErrorType.CONTINUE,
             condition=(namespaces.stanzas, "undefined-condition")
         )
         obj.application_condition = cond
@@ -677,7 +696,7 @@ class TestError(unittest.TestCase):
         cond = unittest.mock.Mock([])
 
         obj = stanza.Error(
-            type_="continue",
+            type_=structs.ErrorType.CONTINUE,
             condition=(namespaces.stanzas, "undefined-condition")
         )
         obj.application_condition = cond
@@ -699,7 +718,7 @@ class TestError(unittest.TestCase):
         cond = unittest.mock.Mock(["to_exception"])
 
         obj = stanza.Error(
-            type_="continue",
+            type_=structs.ErrorType.CONTINUE,
             condition=(namespaces.stanzas, "undefined-condition")
         )
         obj.application_condition = cond
@@ -722,17 +741,17 @@ class TestError(unittest.TestCase):
     def test_repr(self):
         obj = stanza.Error()
         self.assertEqual(
-            "<undefined-condition type='cancel'>",
+            "<undefined-condition type=<ErrorType.CANCEL: 'cancel'>>",
             repr(obj)
         )
         obj = stanza.Error(
-            type_="modify",
+            type_=structs.ErrorType.MODIFY,
             condition=(namespaces.stanzas,
                        "bad-request"),
             text="foobar"
         )
         self.assertEqual(
-            "<bad-request type='modify' text='foobar'>",
+            "<bad-request type=<ErrorType.MODIFY: 'modify'> text='foobar'>",
             repr(obj)
         )
 
@@ -776,21 +795,20 @@ class TestIQ(unittest.TestCase):
     def test_type_attr(self):
         self.assertIsInstance(
             stanza.IQ.type_,
-            xso.Attr)
+            xso.Attr
+        )
         self.assertEqual(
             (None, "type"),
-            stanza.IQ.type_.tag)
+            stanza.IQ.type_.tag
+        )
         self.assertIsInstance(
-            stanza.IQ.type_.validator,
-            xso.RestrictToSet)
-        self.assertSetEqual(
-            {
-                "get",
-                "set",
-                "error",
-                "result",
-            },
-            stanza.IQ.type_.validator.values)
+            stanza.IQ.type_.type_,
+            xso.EnumType
+        )
+        self.assertIs(
+            stanza.IQ.type_.type_.enum_class,
+            structs.IQType,
+        )
 
     def test_error(self):
         self.assertIsInstance(
@@ -812,13 +830,13 @@ class TestIQ(unittest.TestCase):
 
         s = stanza.IQ(
             from_=TEST_FROM,
-            type_="result",
+            type_=structs.IQType.RESULT,
             payload=payload)
         self.assertEqual(
             TEST_FROM,
             s.from_)
         self.assertEqual(
-            "result",
+            structs.IQType.RESULT,
             s.type_)
         self.assertIs(
             payload,
@@ -829,10 +847,10 @@ class TestIQ(unittest.TestCase):
 
         s = stanza.IQ(
             from_=TEST_FROM,
-            type_="error",
+            type_=structs.IQType.ERROR,
             error=error)
         self.assertEqual(
-            "error",
+            structs.IQType.ERROR,
             s.type_)
         self.assertIs(
             error,
@@ -843,9 +861,9 @@ class TestIQ(unittest.TestCase):
             from_=TEST_FROM,
             to=TEST_TO,
             id_="someid",
-            type_="get")
+            type_=structs.IQType.GET)
 
-        r1 = s.make_reply("error")
+        r1 = s.make_reply(structs.IQType.ERROR)
         self.assertEqual(
             s.from_,
             r1.to)
@@ -856,7 +874,7 @@ class TestIQ(unittest.TestCase):
             s.id_,
             r1.id_)
         self.assertEqual(
-            "error",
+            structs.IQType.ERROR,
             r1.type_)
 
     def test_make_reply_enforces_request(self):
@@ -864,12 +882,16 @@ class TestIQ(unittest.TestCase):
             from_=TEST_FROM,
             to=TEST_TO,
             id_="someid",
-            type_="error")
-        with self.assertRaises(ValueError):
-            s.make_reply("error")
-        s.type_ = "result"
-        with self.assertRaises(ValueError):
-            s.make_reply("error")
+            type_=structs.IQType.ERROR)
+        with self.assertRaisesRegex(
+                ValueError,
+                r"make_reply requires request IQ"):
+            s.make_reply(unittest.mock.sentinel.type_)
+        s.type_ = structs.IQType.RESULT
+        with self.assertRaisesRegex(
+                ValueError,
+                r"make_reply requires request IQ"):
+            s.make_reply(unittest.mock.sentinel.type_)
 
     def test_make_error(self):
         e = stanza.Error(
@@ -878,14 +900,14 @@ class TestIQ(unittest.TestCase):
         s = stanza.IQ(from_=TEST_FROM,
                       to=TEST_TO,
                       id_="someid",
-                      type_="get")
+                      type_=structs.IQType.GET)
         r = s.make_error(e)
 
         self.assertIsInstance(r, stanza.IQ)
 
         self.assertEqual(
             r.type_,
-            "error")
+            structs.IQType.ERROR)
         self.assertEqual(
             TEST_FROM,
             r.to)
@@ -901,12 +923,12 @@ class TestIQ(unittest.TestCase):
             from_=TEST_FROM,
             to=TEST_TO,
             id_="someid",
-            type_="error")
+            type_=structs.IQType.ERROR)
         s.error = stanza.Error()
         self.assertEqual(
             "<iq from='foo@example.test' to='bar@example.test'"
-            " id='someid' type='error'"
-            " error=<undefined-condition type='cancel'>>",
+            " id='someid' type=<IQType.ERROR: 'error'>"
+            " error=<undefined-condition type=<ErrorType.CANCEL: 'cancel'>>>",
             repr(s)
         )
 
@@ -914,11 +936,11 @@ class TestIQ(unittest.TestCase):
             from_=TEST_FROM,
             to=TEST_TO,
             id_="someid",
-            type_="result")
+            type_=structs.IQType.RESULT)
         s.payload = TestPayload()
         self.assertEqual(
             "<iq from='foo@example.test' to='bar@example.test'"
-            " id='someid' type='result'"
+            " id='someid' type=<IQType.RESULT: 'result'>"
             " data=foobar>",
             repr(s)
         )
@@ -927,10 +949,10 @@ class TestIQ(unittest.TestCase):
             from_=TEST_FROM,
             to=TEST_TO,
             id_="someid",
-            type_="result")
+            type_=structs.IQType.RESULT)
         self.assertEqual(
             "<iq from='foo@example.test' to='bar@example.test'"
-            " id='someid' type='result'>",
+            " id='someid' type=<IQType.RESULT: 'result'>>",
             repr(s)
         )
 
@@ -943,7 +965,7 @@ class TestIQ(unittest.TestCase):
         )
 
     def test_validate_requires_id(self):
-        iq = stanza.IQ("get")
+        iq = stanza.IQ(structs.IQType.GET)
         with self.assertRaisesRegex(
                 ValueError,
                 "IQ requires ID"):

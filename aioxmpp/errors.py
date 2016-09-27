@@ -54,9 +54,7 @@ Other exceptions
 """
 import gettext
 
-import aiosasl
-
-from . import xso, i18n
+from . import xso, i18n, structs
 
 
 def format_error_text(
@@ -84,7 +82,7 @@ class StanzaError(Exception):
 
 
 class XMPPError(StanzaError):
-    TYPE = "cancel"
+    TYPE = structs.ErrorType.CANCEL
 
     def __init__(self,
                  condition,
@@ -100,27 +98,27 @@ class XMPPError(StanzaError):
 
 
 class XMPPWarning(XMPPError, UserWarning):
-    TYPE = "continue"
+    TYPE = structs.ErrorType.CONTINUE
 
 
 class XMPPAuthError(XMPPError, PermissionError):
-    TYPE = "auth"
+    TYPE = structs.ErrorType.AUTH
 
 
 class XMPPModifyError(XMPPError, ValueError):
-    TYPE = "modify"
+    TYPE = structs.ErrorType.MODIFY
 
 
 class XMPPCancelError(XMPPError):
-    TYPE = "cancel"
+    TYPE = structs.ErrorType.CANCEL
 
 
 class XMPPWaitError(XMPPError):
-    TYPE = "wait"
+    TYPE = structs.ErrorType.WAIT
 
 
 class XMPPContinueError(XMPPWarning):
-    TYPE = "continue"
+    TYPE = structs.ErrorType.CONTINUE
 
 
 class ErroneousStanza(StanzaError):

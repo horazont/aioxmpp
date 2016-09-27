@@ -4,6 +4,7 @@ import aioxmpp.callbacks
 import aioxmpp.disco
 import aioxmpp.service
 import aioxmpp.stanza
+import aioxmpp.structs
 
 from . import xso as pubsub_xso
 
@@ -290,7 +291,7 @@ class Service(aioxmpp.service.Service):
 
         subscription_jid = subscription_jid or self.client.local_jid.bare()
 
-        iq = aioxmpp.stanza.IQ(to=jid, type_="set")
+        iq = aioxmpp.stanza.IQ(to=jid, type_=aioxmpp.structs.IQType.SET)
         iq.payload = pubsub_xso.Request(
             pubsub_xso.Subscribe(subscription_jid, node=node)
         )
@@ -326,7 +327,7 @@ class Service(aioxmpp.service.Service):
 
         subscription_jid = subscription_jid or self.client.local_jid.bare()
 
-        iq = aioxmpp.stanza.IQ(to=jid, type_="set")
+        iq = aioxmpp.stanza.IQ(to=jid, type_=aioxmpp.structs.IQType.SET)
         iq.payload = pubsub_xso.Request(
             pubsub_xso.Unsubscribe(subscription_jid, node=node, subid=subid)
         )
@@ -356,7 +357,7 @@ class Service(aioxmpp.service.Service):
 
         subscription_jid = subscription_jid or self.client.local_jid.bare()
 
-        iq = aioxmpp.stanza.IQ(to=jid, type_="get")
+        iq = aioxmpp.stanza.IQ(to=jid, type_=aioxmpp.structs.IQType.GET)
         iq.payload = pubsub_xso.Request()
         iq.payload.options = pubsub_xso.Options(
             subscription_jid,
@@ -391,7 +392,7 @@ class Service(aioxmpp.service.Service):
 
         subscription_jid = subscription_jid or self.client.local_jid.bare()
 
-        iq = aioxmpp.stanza.IQ(to=jid, type_="set")
+        iq = aioxmpp.stanza.IQ(to=jid, type_=aioxmpp.structs.IQType.SET)
         iq.payload = pubsub_xso.Request()
         iq.payload.options = pubsub_xso.Options(
             subscription_jid,
@@ -416,7 +417,7 @@ class Service(aioxmpp.service.Service):
         raised.
         """
 
-        iq = aioxmpp.stanza.IQ(to=jid, type_="get")
+        iq = aioxmpp.stanza.IQ(to=jid, type_=aioxmpp.structs.IQType.GET)
         iq.payload = pubsub_xso.Request(
             pubsub_xso.Default(node=node)
         )
@@ -437,7 +438,7 @@ class Service(aioxmpp.service.Service):
         :class:`~.xso.Items` :attr:`~.xso.Request.payload`.
         """
 
-        iq = aioxmpp.stanza.IQ(to=jid, type_="get")
+        iq = aioxmpp.stanza.IQ(to=jid, type_=aioxmpp.structs.IQType.GET)
         iq.payload = pubsub_xso.Request(
             pubsub_xso.Items(node, max_items=max_items)
         )
@@ -459,7 +460,7 @@ class Service(aioxmpp.service.Service):
         :class:`~.xso.Items` :attr:`~.xso.Request.payload`.
         """
 
-        iq = aioxmpp.stanza.IQ(to=jid, type_="get")
+        iq = aioxmpp.stanza.IQ(to=jid, type_=aioxmpp.structs.IQType.GET)
         iq.payload = pubsub_xso.Request(
             pubsub_xso.Items(node)
         )
@@ -484,7 +485,7 @@ class Service(aioxmpp.service.Service):
         `jid` are listed.
         """
 
-        iq = aioxmpp.stanza.IQ(type_="get", to=jid)
+        iq = aioxmpp.stanza.IQ(to=jid, type_=aioxmpp.structs.IQType.GET)
         iq.payload = pubsub_xso.Request(
             pubsub_xso.Subscriptions(node=node)
         )
@@ -515,7 +516,7 @@ class Service(aioxmpp.service.Service):
             item.registered_payload = payload
             publish.item = item
 
-        iq = aioxmpp.stanza.IQ(type_="set", to=jid)
+        iq = aioxmpp.stanza.IQ(to=jid, type_=aioxmpp.structs.IQType.SET)
         iq.payload = pubsub_xso.Request(
             publish
         )
@@ -550,7 +551,7 @@ class Service(aioxmpp.service.Service):
         retract.item = item
         retract.notify = notify
 
-        iq = aioxmpp.stanza.IQ(type_="set", to=jid)
+        iq = aioxmpp.stanza.IQ(to=jid, type_=aioxmpp.structs.IQType.SET)
         iq.payload = pubsub_xso.Request(
             retract
         )
@@ -572,7 +573,7 @@ class Service(aioxmpp.service.Service):
         create.node = node
 
         iq = aioxmpp.stanza.IQ(
-            type_="set",
+            type_=aioxmpp.structs.IQType.SET,
             to=jid,
             payload=pubsub_xso.Request(create)
         )
@@ -595,7 +596,7 @@ class Service(aioxmpp.service.Service):
         """
 
         iq = aioxmpp.stanza.IQ(
-            type_="set",
+            type_=aioxmpp.structs.IQType.SET,
             to=jid,
             payload=pubsub_xso.OwnerRequest(
                 pubsub_xso.OwnerDelete(
@@ -648,7 +649,7 @@ class Service(aioxmpp.service.Service):
         :class:`.xso.OwnerAffiliations` instance.
         """
         iq = aioxmpp.stanza.IQ(
-            type_="get",
+            type_=aioxmpp.structs.IQType.GET,
             to=jid,
             payload=pubsub_xso.OwnerRequest(
                 pubsub_xso.OwnerAffiliations(node),
@@ -667,7 +668,7 @@ class Service(aioxmpp.service.Service):
         :class:`.xso.OwnerSubscriptions` instance.
         """
         iq = aioxmpp.stanza.IQ(
-            type_="get",
+            type_=aioxmpp.structs.IQType.GET,
             to=jid,
             payload=pubsub_xso.OwnerRequest(
                 pubsub_xso.OwnerSubscriptions(node),
@@ -686,7 +687,7 @@ class Service(aioxmpp.service.Service):
         `affiliation` is to be set.
         """
         iq = aioxmpp.stanza.IQ(
-            type_="set",
+            type_=aioxmpp.structs.IQType.SET,
             to=jid,
             payload=pubsub_xso.OwnerRequest(
                 pubsub_xso.OwnerAffiliations(
@@ -714,7 +715,7 @@ class Service(aioxmpp.service.Service):
         `subscription` is to be set.
         """
         iq = aioxmpp.stanza.IQ(
-            type_="set",
+            type_=aioxmpp.structs.IQType.SET,
             to=jid,
             payload=pubsub_xso.OwnerRequest(
                 pubsub_xso.OwnerSubscriptions(

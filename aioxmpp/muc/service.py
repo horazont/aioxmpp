@@ -574,7 +574,7 @@ class Room:
         info = Occupant.from_presence(stanza)
 
         if not self._active:
-            if stanza.type_ == "unavailable":
+            if stanza.type_ == aioxmpp.structs.PresenceType.UNAVAILABLE:
                 self._service.logger.debug(
                     "%s: not active, and received unavailable ... "
                     "is this a reconnect?",
@@ -670,7 +670,7 @@ class Room:
             raise ValueError("role must not be None")
 
         iq = aioxmpp.stanza.IQ(
-            type_="set",
+            type_=aioxmpp.structs.IQType.SET,
             to=self.mucjid
         )
 
@@ -708,7 +708,7 @@ class Room:
         """
 
         msg = aioxmpp.stanza.Message(
-            type_="groupchat",
+            type_=aioxmpp.structs.MessageType.GROUPCHAT,
             to=self.mucjid
         )
         msg.subject.update(subject)
@@ -730,7 +730,7 @@ class Room:
 
         """
         presence = aioxmpp.stanza.Presence(
-            type_="unavailable",
+            type_=aioxmpp.structs.PresenceType.UNAVAILABLE,
             to=self._mucjid
         )
         self.service.client.stream.enqueue_stanza(presence)
@@ -798,11 +798,11 @@ class Room:
         """
         if isinstance(body_or_stanza, aioxmpp.stanza.Message):
             message = body_or_stanza
-            message.type_ = "groupchat"
+            message.type_ = aioxmpp.structs.MessageType.GROUPCHAT
             message.to = self.mucjid
         else:
             message = aioxmpp.stanza.Message(
-                type_="groupchat",
+                type_=aioxmpp.structs.MessageType.GROUPCHAT,
                 to=self.mucjid
             )
             message.body.update(body_or_stanza)
@@ -943,7 +943,10 @@ class Service(aioxmpp.service.Service):
                 del self._pending_mucs[mucjid]
             except KeyError:
                 pass
-            unjoin = aioxmpp.stanza.Presence(to=mucjid, type_="unavailable")
+            unjoin = aioxmpp.stanza.Presence(
+                to=mucjid,
+                type_=aioxmpp.structs.PresenceType.UNAVAILABLE,
+            )
             unjoin.xep0045_muc = muc_xso.GenericExt()
             self.client.stream.enqueue_stanza(unjoin)
 
@@ -1094,7 +1097,7 @@ class Service(aioxmpp.service.Service):
 
         try:
             self.client.stream.register_message_callback(
-                "groupchat",
+                aioxmpp.structs.MessageType.GROUPCHAT,
                 mucjid,
                 self._inbound_message
             )
@@ -1158,7 +1161,7 @@ class Service(aioxmpp.service.Service):
             raise ValueError("affiliation must not be None")
 
         iq = aioxmpp.stanza.IQ(
-            type_="set",
+            type_=aioxmpp.structs.IQType.SET,
             to=mucjid
         )
 
