@@ -51,11 +51,11 @@ class Headers(xso.XSO):
 
     .. seealso::
 
-       :attr:`.stanza.Message.xep0131_headers`
-          SHIM headers for :class:`~.stanza.Message` stanzas
+       :attr:`.Message.xep0131_headers`
+          SHIM headers for :class:`~.Message` stanzas
 
-       :attr:`.stanza.Presence.xep0131_headers`
-          SHIM headers for :class:`~.stanza.Presence` stanzas
+       :attr:`.Presence.xep0131_headers`
+          SHIM headers for :class:`~.Presence` stanzas
     """
 
     TAG = (namespaces.xep0131_shim, "header")

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-import codecs
 import os.path
+import runpy
 
 from setuptools import setup, find_packages
 
@@ -9,11 +9,11 @@ here = os.path.abspath(os.path.dirname(__file__))
 with open(os.path.join(here, "README.rst"), encoding="utf-8") as f:
     long_description = f.read()
 
-import aioxmpp
+version_mod = runpy.run_path("aioxmpp/version.py")
 
 setup(
     name="aioxmpp",
-    version=aioxmpp.__version__,
+    version=version_mod["__version__"],
     description="Pure-python XMPP library for asyncio",
     long_description=long_description,
     url="https://github.com/horazont/aioxmpp",

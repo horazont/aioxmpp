@@ -790,7 +790,7 @@ class PasswordSASLProvider(SASLProvider):
     """
     Perform password-based SASL authentication.
 
-    `jid` must be a :class:`~.structs.JID` object for the
+    `jid` must be a :class:`~aioxmpp.JID object for the
     client. `password_provider` must be a coroutine which is called with the
     jid as first and the number of attempt as second argument. It must return
     the password to use, or :data:`None` to abort. In that case, an

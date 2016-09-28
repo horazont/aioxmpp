@@ -8,6 +8,8 @@ encountered in the XMPP realm.
 Stanza types
 ============
 
+.. currentmodule:: aioxmpp
+
 .. autoclass:: IQType
 
 .. autoclass:: MessageType
@@ -25,6 +27,8 @@ Presence
 ========
 
 .. autoclass:: PresenceState
+
+.. currentmodule:: aioxmpp.structs
 
 Languages
 =========
@@ -93,7 +97,7 @@ class ErrorType(CompatibilityMixin, enum.Enum):
 
           retry after providing credentials
 
-       When converted to an exception, it uses :exc:`~.errors.XMPPAuthError`.
+       When converted to an exception, it uses :exc:`~.XMPPAuthError`.
 
     .. attribute:: CANCEL
 
@@ -101,7 +105,7 @@ class ErrorType(CompatibilityMixin, enum.Enum):
 
           do not retry (the error cannot be remedied)
 
-       When converted to an exception, it uses :exc:`~.errors.XMPPCancelError`.
+       When converted to an exception, it uses :exc:`~.XMPPCancelError`.
 
     .. attribute:: CONTINUE
 
@@ -110,7 +114,7 @@ class ErrorType(CompatibilityMixin, enum.Enum):
           proceed (the condition was only a warning)
 
        When converted to an exception, it uses
-       :exc:`~.errors.XMPPContinueError`.
+       :exc:`~.XMPPContinueError`.
 
     .. attribute:: MODIFY
 
@@ -119,7 +123,7 @@ class ErrorType(CompatibilityMixin, enum.Enum):
           retry after changing the data sent
 
        When converted to an exception, it uses
-       :exc:`~.errors.XMPPModifyError`.
+       :exc:`~.XMPPModifyError`.
 
     .. attribute:: WAIT
 
@@ -128,7 +132,7 @@ class ErrorType(CompatibilityMixin, enum.Enum):
           retry after waiting (the error is temporary)
 
        When converted to an exception, it uses (guess what)
-       :exc:`~.errors.XMPPWaitError`.
+       :exc:`~.XMPPWaitError`.
 
     :class:`ErrorType` members compare and hash equal to their values. For
     example::
@@ -160,7 +164,7 @@ class MessageType(CompatibilityMixin, enum.Enum):
 
     .. seealso::
 
-       :attr:`~.stanza.Message.type_`
+       :attr:`~.Message.type_`
           Type attribute of Message stanzas.
 
 
@@ -228,7 +232,7 @@ class MessageType(CompatibilityMixin, enum.Enum):
           recipient with the ability to reply).
 
        Do not confuse this message type with the
-       :attr:`~.stanza.Message.subject` member of Messages!
+       :attr:`~.Message.subject` member of Messages!
 
     .. attribute:: ERROR
 
@@ -299,7 +303,7 @@ class PresenceType(CompatibilityMixin, enum.Enum):
 
     .. seealso::
 
-       :attr:`~.stanza.Presence.type_`
+       :attr:`~.Presence.type_`
           Type attribute of Presence stanzas.
 
     Each member has the following meta-information:
@@ -454,7 +458,7 @@ class IQType(CompatibilityMixin, enum.Enum):
 
     .. seealso::
 
-       :attr:`~.stanza.IQ.type_`
+       :attr:`~.IQ.type_`
           Type attribute of IQ stanzas.
 
     Each member has the following meta-information:
@@ -483,7 +487,7 @@ class IQType(CompatibilityMixin, enum.Enum):
            data is needed in order to complete further operations, etc.
 
        A :attr:`GET` IQ must contain a payload, via the
-       :attr:`~.stanza.IQ.payload` attribute.
+       :attr:`~.IQ.payload` attribute.
 
     .. attribute:: SET
 
@@ -493,7 +497,7 @@ class IQType(CompatibilityMixin, enum.Enum):
            completed, sets new values, replaces existing values, etc.
 
        A :attr:`SET` IQ must contain a payload, via the
-       :attr:`~.stanza.IQ.payload` attribute.
+       :attr:`~.IQ.payload` attribute.
 
     .. attribute:: ERROR
 
@@ -502,11 +506,11 @@ class IQType(CompatibilityMixin, enum.Enum):
            The stanza reports an error that has occurred regarding processing
            or delivery of a get or set request[…].
 
-       :class:`~.stanza.IQ` objects carrying the :attr:`ERROR` type usually
-       have the :attr:`~.stanza.IQ.error` set to a :class:`~.stanza.Error`
+       :class:`~.IQ` objects carrying the :attr:`ERROR` type usually
+       have the :attr:`~.IQ.error` set to a :class:`~.stanza.Error`
        instance describing the details of the error.
 
-       The :attr:`~.stanza.IQ.payload` attribute may also be set if the sender
+       The :attr:`~.IQ.payload` attribute may also be set if the sender
        of the :attr:`ERROR` was kind enough to include the data which caused
        the problem.
 
@@ -825,9 +829,9 @@ class PresenceState:
     def apply_to_stanza(self, stanza_obj):
         """
         Apply the properties of this :class:`PresenceState` to a
-        :class:`~aioxmpp.stanza.Presence` `stanza_obj`. The
-        :attr:`~aioxmpp.stanza.Presence.type_` and
-        :attr:`~aioxmpp.stanza.Presence.show` attributes of the object will be
+        :class:`~aioxmpp.Presence` `stanza_obj`. The
+        :attr:`~aioxmpp.Presence.type_` and
+        :attr:`~aioxmpp.Presence.show` attributes of the object will be
         modified to fit the values in this object.
         """
         if self.available:
@@ -841,7 +845,7 @@ class PresenceState:
         """
         Create and return a new :class:`PresenceState` object which inherits
         the presence state as advertised in the given
-        :class:`~aioxmpp.stanza.Presence` stanza.
+        :class:`~aioxmpp.Presence` stanza.
 
         If `strict` is :data:`True`, the value of `show` is strictly checked,
         that is, it is required to be :data:`None` if the stanza indicates an

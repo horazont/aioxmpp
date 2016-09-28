@@ -9,7 +9,7 @@ namespaces.xep0115_caps = "http://jabber.org/protocol/caps"
 
 class Caps(xso.XSO):
     """
-    An entity capabilities extension for :class:`~.stanza.Presence`.
+    An entity capabilities extension for :class:`~.Presence`.
 
     .. attribute:: node
 

@@ -16,55 +16,13 @@ package:
 Shorthands
 ##########
 
-.. class:: IQ
-
-   Alias of :class:`aioxmpp.stanza.IQ`.
-
-.. class:: JID
-
-   Alias of :class:`aioxmpp.structs.JID`.
-
-.. function:: make_security_lader
+.. function:: make_security_layer
 
    Alias of :func:`aioxmpp.security_layer.make`.
 
-.. class:: Message
-
-   Alias of :class:`aioxmpp.stanza.Message`.
-
-.. class:: Presence
-
-   Alias of :class:`aioxmpp.stanza.Presence`.
-
-.. class:: PresenceManagedClient
-
-   Alias of :class:`aioxmpp.node.PresenceManagedClient`.
-
-.. class:: PresenceState
-
-   Alias of :class:`aioxmpp.structs.PresenceState`.
-
-.. class:: XMPPAuthError
-
-   Alias of :class:`aioxmpp.errors.XMPPAuthError`.
-
-.. class:: XMPPCancelError
-
-   Alias of :class:`aioxmpp.errors.XMPPCancelError`.
-
-.. class:: XMPPContinueError
-
-   Alias of :class:`aioxmpp.errors.XMPPContinueError`.
-
-.. class:: XMPPModifyError
-
-   Alias of :class:`aioxmpp.errors.XMPPModifyError`.
-
-.. class:: XMPPWaitError
-
-   Alias of :class:`aioxmpp.errors.XMPPWaitError`.
-
 """
+
+from .version import version_info, __version__, version
 
 #: The imported :mod:`aioxmpp` version as a tuple.
 #:
@@ -74,7 +32,7 @@ Shorthands
 #: .. seealso::
 #:
 #:    :ref:`api-stability`
-version_info = (0, 7, 0, "a0")
+version_info = version_info
 
 #: The imported :mod:`aioxmpp` version as a string.
 #:
@@ -84,11 +42,12 @@ version_info = (0, 7, 0, "a0")
 #: .. seealso::
 #:
 #:    :ref:`api-stability`
-__version__ = ".".join(map(str, version_info[:3])) + ("-"+version_info[3] if
-                                                      version_info[3] else "")
+__version__ = __version__
 
-version = __version__
-
+# XXX: ^ this is a hack to make Sphinx find the docs. We could also be using
+# .. data instead of .. autodata, but that has the downside that the actual
+# version number isn’t printed in the docs (without additional maintenance
+# cost).
 
 from .errors import ( # NOQA
     XMPPAuthError,
@@ -99,7 +58,14 @@ from .errors import ( # NOQA
 )
 from .node import PresenceManagedClient  # NOQA
 from .stanza import Presence, IQ, Message  # NOQA
-from .structs import JID, PresenceState  # NOQA
+from .structs import (  # NOQA
+    JID,
+    PresenceState,
+    MessageType,
+    PresenceType,
+    IQType,
+    ErrorType,
+)
 from .security_layer import make as make_security_layer  # NOQA
 
 

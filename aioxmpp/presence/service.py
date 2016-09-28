@@ -129,7 +129,7 @@ class Service(aioxmpp.service.Service):
         Return the stanza of the resource with the most available presence.
 
         The resources are sorted using the ordering defined on
-        :class:`~aioxmpp.structs.PresenceState`.
+        :class:`~aioxmpp.PresenceState`.
         """
         presences = sorted(
             self.get_peer_resources(peer_jid).items(),

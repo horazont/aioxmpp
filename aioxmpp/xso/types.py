@@ -433,11 +433,11 @@ class HexBinary(_BinaryType):
 
 class JID(AbstractType):
     """
-    Parse the value as Jabber ID using :meth:`~aioxmpp.structs.JID.fromstr` and
-    return the :class:`aioxmpp.structs.JID` object.
+    Parse the value as Jabber ID using :meth:`~aioxmpp.JID.fromstr` and
+    return the :class:`aioxmpp.JID` object.
 
-    `strict` is passed to :meth:`~aioxmpp.structs.JID.fromstr` and defaults to
-    false. See the :meth:`~aioxmpp.structs.JID.fromstr` method for a rationale
+    `strict` is passed to :meth:`~aioxmpp.JID.fromstr` and defaults to
+    false. See the :meth:`~aioxmpp.JID.fromstr` method for a rationale
     and consider that :meth:`parse` is only called for input coming from the
     outside.
     """
@@ -541,7 +541,7 @@ class TextChildMap(AbstractType):
     :attr:`~.xso.AbstractTextChild.text`, respectively and support the
     same-named keyword arguments for those attributes at the consturctor.
 
-    For an example see the source of :class:`aioxmpp.stanza.Message`.
+    For an example see the source of :class:`aioxmpp.Message`.
 
     .. versionadded:: 0.5
     """

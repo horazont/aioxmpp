@@ -1093,7 +1093,7 @@ class StanzaStream:
         """
         Register a callback function `cb` to be called when a IQ stanza with
         type ``result`` or ``error`` is recieved from the
-        :class:`~aioxmpp.structs.JID` `from_` with the id `id_`.
+        :class:`~aioxmpp.JID` `from_` with the id `id_`.
 
         The callback is called at most once.
 
@@ -1119,7 +1119,7 @@ class StanzaStream:
     def register_iq_response_future(self, from_, id_, fut):
         """
         Register a future `fut` for an IQ stanza with type ``result`` or
-        ``error`` from the :class:`~aioxmpp.structs.JID` `from_` with the id
+        ``error`` from the :class:`~aioxmpp.JID` `from_` with the id
         `id_`.
 
         If the type of the IQ stanza is ``result``, the stanza is set as result
@@ -1187,7 +1187,7 @@ class StanzaStream:
         Register a coroutine to run when an IQ request is received.
 
         :param type_: IQ type to react to (must be a request type).
-        :type type_: :class:`~aioxmpp.structs.IQType`
+        :type type_: :class:`~aioxmpp.IQType`
         :param payload_cls: Payload class to react to (subclass of :class:`~xso.XSO`)
         :type payload_cls: :class:`~.XMLStreamClass`
         :param coro: Coroutine to run
@@ -1195,13 +1195,13 @@ class StanzaStream:
                             targe
         :raises ValueError: if `type_` is not a request IQ type
         :raises ValueError: if `type_` is not a valid
-                            :class:`~.structs.IQType` (and cannot be cast to a
-                            :class:`~.structs.IQType`)
+                            :class:`~.IQType` (and cannot be cast to a
+                            :class:`~.IQType`)
 
         The coroutine `coro` will be spawned whenever an IQ stanza with the
         given `type_` and payload being an instance of the `payload_cls` is
         received. The coroutine must return a valid value for the
-        :attr:`.stanza.IQ.payload` attribute. The value will be set as the
+        :attr:`.IQ.payload` attribute. The value will be set as the
         payload attribute value of an IQ response (with type
         :attr:`~.IQType.RESULT`) which is generated and sent by the stream.
 
@@ -1212,11 +1212,11 @@ class StanzaStream:
 
         If the exception is a subclass of :class:`aioxmpp.errors.XMPPError`, it
         is converted to an :class:`~.stanza.Error` instance directly.
-        Otherwise, it is wrapped in a :class:`aioxmpp.errors.XMPPCancelError`
+        Otherwise, it is wrapped in a :class:`aioxmpp.XMPPCancelError`
         with ``undefined-condition``.
 
         For this to work, `payload_cls` *must* be registered using
-        :meth:`~.stanza.IQ.as_payload_class`. Otherwise, the payload will
+        :meth:`~.IQ.as_payload_class`. Otherwise, the payload will
         not be recognised by the stream parser and the IQ is automatically
         responded to with a ``feature-not-implemented`` error.
 
@@ -1231,7 +1231,7 @@ class StanzaStream:
 
         .. versionchanged:: 0.7
 
-           The `type_` argument is now supposed to be a :class:`~.structs.IQType`
+           The `type_` argument is now supposed to be a :class:`~.IQType`
            member.
 
         .. deprecated:: 0.7
@@ -1269,15 +1269,15 @@ class StanzaStream:
         :raises KeyError: if no coroutine has been registered for the given
                           ``(type_, payload_cls)`` pair
         :raises ValueError: if `type_` is not a valid
-                            :class:`~.structs.IQType` (and cannot be cast to a
-                            :class:`~.structs.IQType`)
+                            :class:`~.IQType` (and cannot be cast to a
+                            :class:`~.IQType`)
 
         The match is solely made using the `type_` and `payload_cls` arguments,
         which have the same meaning as in :meth:`register_iq_request_coro`.
 
         .. versionchanged:: 0.7
 
-           The `type_` argument is now supposed to be a :class:`~.structs.IQType`
+           The `type_` argument is now supposed to be a :class:`~.IQType`
            member.
 
         .. deprecated:: 0.7
@@ -1299,16 +1299,16 @@ class StanzaStream:
 
         :param type_: Message type to listen for, or :data:`None` for a
                       wildcard match.
-        :type type_: :class:`~.structs.MessageType` or :data:`None`
+        :type type_: :class:`~.MessageType` or :data:`None`
         :param from_: Sender JID to listen for, or :data:`None` for a wildcard
                       match.
-        :type from_: :class:`~.structs.JID` or :data:`None`
+        :type from_: :class:`~aioxmpp.JID or :data:`None`
         :param cb: Callback function to call
         :raises ValueError: if another function is already registered for the
                             same ``(type_, from_)`` pair.
         :raises ValueError: if `type_` is not a valid
-                            :class:`~.structs.MessageType` (and cannot be cast
-                            to a :class:`~.structs.MessageType`)
+                            :class:`~.MessageType` (and cannot be cast
+                            to a :class:`~.MessageType`)
 
         `cb` will be called whenever a message stanza matching the `type_` and
         `from_` is received, according to the wildcarding rules below. More
@@ -1328,7 +1328,7 @@ class StanzaStream:
         .. versionchanged:: 0.7
 
            The `type_` argument is now supposed to be a
-           :class:`~.structs.MessageType` member.
+           :class:`~.MessageType` member.
 
         .. deprecated:: 0.7
 
@@ -1356,14 +1356,14 @@ class StanzaStream:
         :meth:`register_message_callback`.
 
         :param type_: Message type to listen for.
-        :type type_: :class:`~.structs.MessageType` or :data:`None`
+        :type type_: :class:`~.MessageType` or :data:`None`
         :param from_: Sender JID to listen for.
-        :type from_: :class:`~.structs.JID` or :data:`None`
+        :type from_: :class:`~aioxmpp.JID or :data:`None`
         :raises KeyError: if no function is currently registered for the given
                           ``(type_, from_)`` pair.
         :raises ValueError: if `type_` is not a valid
-                            :class:`~.structs.MessageType` (and cannot be cast
-                            to a :class:`~.structs.MessageType`)
+                            :class:`~.MessageType` (and cannot be cast
+                            to a :class:`~.MessageType`)
 
         The match is made on the exact pair; it is not possible to unregister
         arbitrary listeners by passing :data:`None` to both arguments (i.e. the
@@ -1374,7 +1374,7 @@ class StanzaStream:
         .. versionchanged:: 0.7
 
            The `type_` argument is now supposed to be a
-           :class:`~.structs.MessageType` member.
+           :class:`~.MessageType` member.
 
         .. deprecated:: 0.7
 
@@ -1395,16 +1395,16 @@ class StanzaStream:
         Register a callback to be called when a presence stanza is received.
 
         :param type_: Presence type to listen for.
-        :type type_: :class:`~.structs.PresenceType`
+        :type type_: :class:`~.PresenceType`
         :param from_: Sender JID to listen for, or :data:`None` for a wildcard
                       match.
-        :type from_: :class:`~.structs.JID` or :data:`None`.
+        :type from_: :class:`~aioxmpp.JID or :data:`None`.
         :param cb: Callback function
         :raises ValueError: if another listener with the same ``(type_,
                             from_)`` pair is already registered
         :raises ValueError: if `type_` is not a valid
-                            :class:`~.structs.PresenceType` (and cannot be cast
-                            to a :class:`~.structs.PresenceType`)
+                            :class:`~.PresenceType` (and cannot be cast
+                            to a :class:`~.PresenceType`)
 
         `cb` will be called whenever a presence stanza matching the `type_` is
         received from the specified sender. `from_` may be :data:`None` to
@@ -1416,7 +1416,7 @@ class StanzaStream:
         .. versionchanged:: 0.7
 
            The `type_` argument is now supposed to be a
-           :class:`~.structs.PresenceType` member.
+           :class:`~.PresenceType` member.
 
         .. deprecated:: 0.7
 
@@ -1443,15 +1443,15 @@ class StanzaStream:
         :meth:`register_presence_callback`.
 
         :param type_: Presence type to listen for.
-        :type type_: :class:`~.structs.PresenceType`
+        :type type_: :class:`~.PresenceType`
         :param from_: Sender JID to listen for, or :data:`None` for a wildcard
                       match.
-        :type from_: :class:`~.structs.JID` or :data:`None`.
+        :type from_: :class:`~aioxmpp.JID or :data:`None`.
         :raises KeyError: if no callback is currently registered for the given
                           ``(type_, from_)`` pair
         :raises ValueError: if `type_` is not a valid
-                            :class:`~.structs.PresenceType` (and cannot be cast
-                            to a :class:`~.structs.PresenceType`)
+                            :class:`~.PresenceType` (and cannot be cast
+                            to a :class:`~.PresenceType`)
 
         The match is made on the exact pair; it is not possible to unregister
         arbitrary listeners by passing :data:`None` to the `from_` arguments
@@ -1462,7 +1462,7 @@ class StanzaStream:
         .. versionchanged:: 0.7
 
            The `type_` argument is now supposed to be a
-           :class:`~.structs.PresenceType` member.
+           :class:`~.PresenceType` member.
 
         .. deprecated:: 0.7
 
@@ -2068,8 +2068,8 @@ class StanzaStream:
         response.
 
         If the response is a ``"result"`` IQ, the value of the
-        :attr:`~aioxmpp.stanza.IQ.payload` attribute is returned. Otherwise,
-        the exception generated from the :attr:`~aioxmpp.stanza.IQ.error`
+        :attr:`~aioxmpp.IQ.payload` attribute is returned. Otherwise,
+        the exception generated from the :attr:`~aioxmpp.IQ.error`
         attribute is raised.
 
         .. seealso::

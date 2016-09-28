@@ -144,7 +144,7 @@ class XMLStream(asyncio.Protocol):
     XML stream implementation. This is an streaming :class:`asyncio.Protocol`
     which translates the received bytes into XSOs.
 
-    `to` must be a domain :class:`~aioxmpp.structs.JID` which identifies the
+    `to` must be a domain :class:`~aioxmpp.JID` which identifies the
     domain to which the stream shall connect.
 
     `features_future` must be a :class:`asyncio.Future` instance; the XML

@@ -217,7 +217,7 @@ class Item(xso.XSO):
 
     .. attribute:: jid
 
-       :class:`~aioxmpp.structs.JID` of the entity represented by the item.
+       :class:`~aioxmpp.JID` of the entity represented by the item.
 
     .. attribute:: node
 

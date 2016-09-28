@@ -183,7 +183,7 @@ class Room:
 
     .. signal:: on_message(message, **kwargs)
 
-       Emits when a group chat :class:`~.stanza.Message` `message` is
+       Emits when a group chat :class:`~.Message` `message` is
        received for the room. This is also emitted on messages sent by the
        local user; this allows tracking when a message has been spread to all
        users in the room.
@@ -217,7 +217,7 @@ class Room:
 
     .. signal:: on_enter(presence, occupant, **kwargs)
 
-       Emits when the initial room :class:`~.stanza.Presence` stanza for the
+       Emits when the initial room :class:`~.Presence` stanza for the
        local JID is received. This means that the join to the room is complete;
        the message history and subject are not transferred yet though.
 
@@ -246,7 +246,7 @@ class Room:
 
     .. signal:: on_exit(presence, occupant, mode, **kwargs)
 
-       Emits when the unavailable :class:`~.stanza.Presence` stanza for the
+       Emits when the unavailable :class:`~.Presence` stanza for the
        local JID is received.
 
        `mode` indicates how the occupant got removed from the room, see the
@@ -274,7 +274,7 @@ class Room:
        indentical for all events related to that occupant, but its contents
        will change accordingly.
 
-       The original :class:`~.stanza.Presence` stanza which announced the join
+       The original :class:`~.Presence` stanza which announced the join
        of the occupant is given as `presence`.
 
     .. signal:: on_leave(presence, occupant, mode, **kwargs)
@@ -426,7 +426,7 @@ class Room:
     @property
     def mucjid(self):
         """
-        The (bare) :class:`.structs.JID` of the MUC which this :class:`Room`
+        The (bare) :class:`aioxmpp.JID of the MUC which this :class:`Room`
         tracks.
         """
         return self._mucjid
@@ -769,8 +769,8 @@ class Room:
                              timeout=timedelta(seconds=120)):
         """
         Send a tracked message. The first argument can either be a
-        :class:`~.stanza.Message` or a mapping compatible with
-        :attr:`~.stanza.Message.body`.
+        :class:`~.Message` or a mapping compatible with
+        :attr:`~.Message.body`.
 
         Return a :class:`~.tracking.MessageTracker` which tracks the
         message. See the documentation of :class:`~.MessageTracker` and

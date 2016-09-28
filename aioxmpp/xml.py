@@ -506,7 +506,7 @@ def write_xmlstream(f,
     given in `nsmap` plus the xmlstream namespace, then the output is flushed
     and the generator yields.
 
-    `to` must be a :class:`~.structs.JID` which refers to the peer. `from_` may
+    `to` must be a :class:`~aioxmpp.JID which refers to the peer. `from_` may
     be the JID identifying the local side, but see `RFC 6120 for considerations
     <https://tools.ietf.org/html/rfc6120#section-4.7.1>`_. `version` is the
     tuple of integers representing the locally supported XMPP version.

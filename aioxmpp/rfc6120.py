@@ -54,7 +54,8 @@ class Bind(xso.XSO):
 
     .. attribute:: jid
 
-       The server-supplied :class:`.JID`. This must not be set by client code.
+       The server-supplied :class:`aioxmpp.JID`. This must not be set by 
+       client code.
 
     .. attribute:: resource
 

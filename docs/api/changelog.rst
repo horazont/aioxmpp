@@ -20,14 +20,14 @@ Version 0.7
 
 * :func:`aioxmpp.pubsub.xso.as_payload_class`
 
-* Fix documentation on :meth:`aioxmpp.node.PresenceManagedClient.set_presence`.
+* Fix documentation on :meth:`aioxmpp.PresenceManagedClient.set_presence`.
 
 * :class:`aioxmpp.xso.ChildFlag`
 
 * :class:`aioxmpp.xso.EnumType`
 
-* **Horribly Breaking Change** in the future: :attr:`aioxmpp.stanza.IQ.type_`,
-  :attr:`aioxmpp.stanza.Message.type_`, :attr:`aioxmpp.stanza.Presence.type_`
+* **Horribly Breaking Change** in the future: :attr:`aioxmpp.IQ.type_`,
+  :attr:`aioxmpp.Message.type_`, :attr:`aioxmpp.Presence.type_`
   and :attr:`aioxmpp.stanza.Error.type_` now use :class:`aioxmpp.xso.EnumType`,
   with corresponding enumerations (see docs of the respective attributes).
 
@@ -232,11 +232,11 @@ Version 0.6
   :meth:`~aioxmpp.stream.StanzaStream.send_iq_and_wait_for_reply` now also uses
   this.
 
-* New method :meth:`aioxmpp.node.PresenceManagedClient.connected` and new class
+* New method :meth:`aioxmpp.PresenceManagedClient.connected` and new class
   :class:`aioxmpp.node.UseConnected`.
 
   The former uses the latter to provide an asynchronous context manager which
-  starts and stops a :class:`aioxmpp.node.PresenceManagedClient`. Intended for
+  starts and stops a :class:`aioxmpp.PresenceManagedClient`. Intended for
   use in situations where an XMPP client is needed in-line. It saves a lot of
   boiler plate by taking care of properly waiting for the connection to be
   established etc.
@@ -246,7 +246,7 @@ Version 0.6
   result of :meth:`aioxmpp.disco.xso.InfoQuery.to_dict`, while it would in fact
   return the :class:`aioxmpp.disco.xso.InfoQuery` instance.
 
-* Added `strict` arguments to :class:`aioxmpp.structs.JID`. See the class
+* Added `strict` arguments to :class:`aioxmpp.JID`. See the class
   docmuentation for details.
 
 * Added `strict` argument to :class:`aioxmpp.xso.JID` and made it non-strict by
@@ -312,9 +312,9 @@ Version 0.5
   **Breaking change**: The above descriptors are now used at several places,
   breaking the way these attributes need to be accessed:
 
-  * :attr:`aioxmpp.stanza.Message.subject`,
-  * :attr:`aioxmpp.stanza.Message.body`,
-  * :attr:`aioxmpp.stanza.Presence.status`,
+  * :attr:`aioxmpp.Message.subject`,
+  * :attr:`aioxmpp.Message.body`,
+  * :attr:`aioxmpp.Presence.status`,
   * :attr:`aioxmpp.disco.xso.InfoQuery.features`,
   * and possibly others.
 
@@ -410,8 +410,8 @@ Version 0.4
 
 * :mod:`aioxmpp.protocol` has been moved into the internal API part.
 
-* :class:`aioxmpp.stanza.Message` specification fixed to have
-  ``"normal"`` as default for :attr:`~aioxmpp.stanza.Message.type_` and relax
+* :class:`aioxmpp.Message` specification fixed to have
+  ``"normal"`` as default for :attr:`~aioxmpp.Message.type_` and relax
   the unknown child policy.
 
 * *Possibly breaking change*: :attr:`aioxmpp.xso.XSO.DECLARE_NS` is now

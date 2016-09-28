@@ -27,7 +27,7 @@ by the implementation.
 In general, you will not need to use these classes directly, nor encounter
 them, as the service filters them off the presence stanzas. If the filter is
 not loaded, the :class:`Caps` instance is available at
-:attr:`.stanza.Presence.xep0115_caps`.
+:attr:`.Presence.xep0115_caps`.
 
 .. autoclass:: Caps
 

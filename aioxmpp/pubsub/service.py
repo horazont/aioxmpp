@@ -133,7 +133,7 @@ class Service(aioxmpp.service.Service):
     The node at which the item has been published is identified by `jid` and
     `node`. `item` is the :class:`xso.EventItem` payload.
 
-    `message` is the :class:`.stanza.Message` which carried the notification.
+    `message` is the :class:`.Message` which carried the notification.
     If a notification message contains more than one published item, the event
     is fired for each of the items, and `message` is passed to all of them.
     """)  # NOQA
@@ -145,7 +145,7 @@ class Service(aioxmpp.service.Service):
     The node at which the item has been retracted is identified by `jid` and
     `node`. `id_` is the ID of the item which has been retract.
 
-    `message` is the :class:`.stanza.Message` which carried the notification.
+    `message` is the :class:`.Message` which carried the notification.
     If a notification message contains more than one retracted item, the event
     is fired for each of the items, and `message` is passed to all of them.
     """)  # NOQA
@@ -157,7 +157,7 @@ class Service(aioxmpp.service.Service):
     If the notification included a redirection URI, it is passed as
     `redirect_uri`. Otherwise, :data:`None` is passed for `redirect_uri`.
 
-    `message` is the :class:`.stanza.Message` which carried the notification.
+    `message` is the :class:`.Message` which carried the notification.
     """)  # NOQA
 
     on_affiliation_update = aioxmpp.callbacks.Signal(doc=
@@ -167,7 +167,7 @@ class Service(aioxmpp.service.Service):
     `jid` and `node` identify the node for which the affiliation was updated.
     `affiliation` is the new affiliaton.
 
-    `message` is the :class:`.stanza.Message` which carried the notification.
+    `message` is the :class:`.Message` which carried the notification.
     """)  # NOQA
 
     on_subscription_update = aioxmpp.callbacks.Signal(doc=
@@ -181,7 +181,7 @@ class Service(aioxmpp.service.Service):
     This event can happen in several cases, for example when a subscription
     request is approved by the node owner or when a subscription is cancelled.
 
-    `message` is the :class:`.stanza.Message` which carried the notification.s
+    `message` is the :class:`.Message` which carried the notification.s
     """)  # NOQA
 
     def __init__(self, client, **kwargs):

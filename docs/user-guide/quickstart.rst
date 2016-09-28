@@ -68,7 +68,7 @@ manager later on.
 Relevant documentation:
 
 * :func:`aioxmpp.security_layer.make`, :mod:`aioxmpp.security_layer`
-* :meth:`aioxmpp.node.PresenceManagedClient.connected`
+* :meth:`aioxmpp.PresenceManagedClient.connected`
 
 
 Send a message
@@ -88,7 +88,7 @@ inside the ``async with`` block::
 
 Relevant documentation:
 
-* :class:`aioxmpp.stanza.Message`
+* :class:`aioxmpp.Message`
 * :meth:`aioxmpp.stream.StanzaStream.send_and_wait_for_sent`
 
 
@@ -102,7 +102,7 @@ Relevant documentation:
 Change presence
 ===============
 
-:meth:`aioxmpp.node.PresenceManagedClient.connected` automatically sets an
+:meth:`aioxmpp.PresenceManagedClient.connected` automatically sets an
 available presence. To change presence during runtime, there are two ways::
 
   # the simple way: simply set to Do-Not-Disturb
@@ -116,9 +116,9 @@ available presence. To change presence during runtime, there are two ways::
 
 Relevant documentation:
 
-* :class:`aioxmpp.structs.PresenceState`
-* :meth:`aioxmpp.node.PresenceManagedClient.set_presence` (It also accepts
-  dictionaries instead of strings. Want to know why? Read the documentation! ☺), :attr:`aioxmpp.node.PresenceManagedClient.presence`
+* :class:`aioxmpp.PresenceState`
+* :meth:`aioxmpp.PresenceManagedClient.set_presence` (It also accepts
+  dictionaries instead of strings. Want to know why? Read the documentation! ☺), :attr:`aioxmpp.PresenceManagedClient.presence`
 
 
 React to messages
@@ -140,11 +140,11 @@ before the ``async with``. To get all chat messages, you could use::
 
 The `message_received` callback will be called for all ``"chat"`` messages from
 any sender. By itself, it is not very useful, because the `msg` argument is the
-:class:`aioxmpp.stanza.Message` object.
+:class:`aioxmpp.Message` object.
 
 * :meth:`~aioxmpp.stream.StanzaStream.register_message_callback`. Definitely
   check this out for the semantics of the first two arguments!
-* :class:`aioxmpp.stanza.Message`
+* :class:`aioxmpp.Message`
 
 
 React to presences
@@ -160,7 +160,7 @@ Similar to handling messages, presences can also be handled.
    handling of presence obsolete. Read on on how to use services.
 
 Again, the code should be run before
-:meth:`~aioxmpp.node.PresenceManagedClient.connected`::
+:meth:`~aioxmpp.PresenceManagedClient.connected`::
 
   def available_presence_received(pres):
       print(pres)
@@ -171,7 +171,7 @@ Again, the code should be run before
       available_presence_received,
   )
 
-Again, the whole :class:`aioxmpp.stanza.Presence` stanza is passed to the
+Again, the whole :class:`aioxmpp.Presence` stanza is passed to the
 callback.
 
 Relevant documentation:
@@ -179,7 +179,7 @@ Relevant documentation:
 * :meth:`~aioxmpp.stream.StanzaStream.register_presence_callback`. Definitely
   check this out for the semantics of the first two arguments (they are slightly
   different from the semantics for the relevant message function).
-* :class:`aioxmpp.stanza.Presence`
+* :class:`aioxmpp.Presence`
 
 
 React to IQ requests
@@ -199,14 +199,14 @@ IQ request handlers, instead of normal functions::
   )
 
 The coroutine is spawned for each request. The coroutine must return a valid
-value for the :attr:`aioxmpp.stanza.IQ.payload` attribute, or raise an
+value for the :attr:`aioxmpp.IQ.payload` attribute, or raise an
 exception, ideally one derived from :class:`aioxmpp.errors.XMPPError`. The
 exception will be converted to a proper ``"error"`` IQ response.
 
 Relevant documentation:
 
 * :meth:`~aioxmpp.stream.StanzaStream.register_iq_request_coro`
-* :class:`aioxmpp.stanza.IQ`
+* :class:`aioxmpp.IQ`
 * :class:`aioxmpp.errors.XMPPError`
 
 
@@ -355,7 +355,7 @@ Relevant documentation:
 
 * :mod:`aioxmpp.xso`, especially :class:`aioxmpp.xso.XSO` and
   :class:`aioxmpp.xso.ChildText`
-* :meth:`aioxmpp.stanza.IQ.as_payload_class`
+* :meth:`aioxmpp.IQ.as_payload_class`
 * :meth:`aioxmpp.stream.StanzaStream.send_iq_and_wait_for_reply`
 * also make sure to read the source of, for example, :mod:`aioxmpp.disco.xso`
   for more examples of :class:`~aioxmpp.XSO` subclasses.
@@ -403,10 +403,10 @@ While the client is online, it will respond to IQ requests of type ``"get"``
 which carry a :class:`Query` payload; the payload is identified by its qualified
 XML name (that is, the namespace and element name tuple). :mod:`aioxmpp` was
 made aware of the :class:`Query` using the
-:meth:`aioxmpp.stanza.IQ.as_payload_class` descriptor.
+:meth:`aioxmpp.IQ.as_payload_class` descriptor.
 
 It then calls the `handler` coroutine we declared with the
-:class:`aioxmpp.stanza.IQ` object as its only argument. The coroutine is
+:class:`aioxmpp.IQ` object as its only argument. The coroutine is
 expected to return a valid payload (hint: :data:`None` is also a valid payload)
 for the ``"result"`` IQ or raise an exception (which would be converted to an
 ``"error"`` IQ).
@@ -414,7 +414,7 @@ for the ``"result"`` IQ or raise an exception (which would be converted to an
 Relevant documentation:
 
 * :meth:`aioxmpp.stream.StanzaStream.register_iq_request_coro`
-* :meth:`aioxmpp.stanza.IQ.as_payload_class`
+* :meth:`aioxmpp.IQ.as_payload_class`
 
 
 Next steps

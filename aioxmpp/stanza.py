@@ -13,11 +13,15 @@ Top-level classes
 
 .. autoclass:: StanzaBase(*[, from_][, to][, id_])
 
+.. currentmodule:: aioxmpp
+
 .. autoclass:: Message(*[, from_][, to][, id_][, type_])
 
 .. autoclass:: IQ(*[, from_][, to][, id_][, type_])
 
 .. autoclass:: Presence(*[, from_][, to][, id_][, type_])
+
+.. currentmodule:: aioxmpp.stanza
 
 Payload classes
 ===============
@@ -169,11 +173,11 @@ class Error(xso.XSO):
     .. attribute:: type_
 
        The type attribute of the stanza. The allowed values are enumerated in
-       :class:`~.structs.ErrorType`.
+       :class:`~.ErrorType`.
 
        .. versionchanged:: 0.7
 
-          Starting with 0.7, the enumeration :class:`~.structs.ErrorType` is
+          Starting with 0.7, the enumeration :class:`~.ErrorType` is
           used. Before, strings equal to the XML attribute value character data
           were used (``"cancel"``, ``"auth"``, and so on).
 
@@ -327,11 +331,11 @@ class StanzaBase(xso.XSO):
 
     .. attribute:: from_
 
-       The :class:`~aioxmpp.structs.JID` of the sending entity.
+       The :class:`~aioxmpp.JID` of the sending entity.
 
     .. attribute:: to
 
-       The :class:`~aioxmpp.structs.JID` of the receiving entity.
+       The :class:`~aioxmpp.JID` of the receiving entity.
 
     .. attribute:: lang
 
@@ -525,11 +529,11 @@ class Message(StanzaBase):
     .. attribute:: type_
 
        The type attribute of the stanza. The allowed values are enumerated in
-       :class:`~.structs.MessageType`.
+       :class:`~.MessageType`.
 
        .. versionchanged:: 0.7
 
-          Starting with 0.7, the enumeration :class:`~.structs.MessageType` is
+          Starting with 0.7, the enumeration :class:`~.MessageType` is
           used. Before, strings equal to the XML attribute value character data
           were used (``"chat"``, ``"headline"``, and so on).
 
@@ -573,8 +577,8 @@ class Message(StanzaBase):
     Note that some attributes are inherited from :class:`StanzaBase`:
 
     ========================= =======================================
-    :attr:`~StanzaBase.from_` sender :class:`~aioxmpp.structs.JID`
-    :attr:`~StanzaBase.to`    recipient :class:`~aioxmpp.structs.JID`
+    :attr:`~StanzaBase.from_` sender :class:`~aioxmpp.JID`
+    :attr:`~StanzaBase.to`    recipient :class:`~aioxmpp.JID`
     :attr:`~StanzaBase.lang`  ``xml:lang`` value
     :attr:`~StanzaBase.error` :class:`Error` instance
     ========================= =======================================
@@ -665,11 +669,11 @@ class Presence(StanzaBase):
     .. attribute:: type_
 
        The type attribute of the stanza. The allowed values are enumerated in
-       :class:`~.structs.PresenceType`.
+       :class:`~.PresenceType`.
 
        .. versionchanged:: 0.7
 
-          Starting with 0.7, the enumeration :class:`~.structs.PresenceType` is
+          Starting with 0.7, the enumeration :class:`~.PresenceType` is
           used. Before, strings equal to the XML attribute value character data
           were used (``"probe"``, ``"unavailable"``, and so on, as well as
           :data:`None` to indicate the absence of the attribute and thus
@@ -710,8 +714,8 @@ class Presence(StanzaBase):
     Note that some attributes are inherited from :class:`StanzaBase`:
 
     ========================= =======================================
-    :attr:`~StanzaBase.from_` sender :class:`~aioxmpp.structs.JID`
-    :attr:`~StanzaBase.to`    recipient :class:`~aioxmpp.structs.JID`
+    :attr:`~StanzaBase.from_` sender :class:`~aioxmpp.JID`
+    :attr:`~StanzaBase.to`    recipient :class:`~aioxmpp.JID`
     :attr:`~StanzaBase.lang`  ``xml:lang`` value
     :attr:`~StanzaBase.error` :class:`Error` instance
     ========================= =======================================
@@ -785,11 +789,11 @@ class IQ(StanzaBase):
     .. attribute:: type_
 
        The type attribute of the stanza. The allowed values are enumerated in
-       :class:`~.structs.IQType`.
+       :class:`~.IQType`.
 
        .. versionchanged:: 0.7
 
-          Starting with 0.7, the enumeration :class:`~.structs.IQType` is used.
+          Starting with 0.7, the enumeration :class:`~.IQType` is used.
           Before, strings equal to the XML attribute value character data were
           used (``"get"``, ``"set"``, and so on).
 
@@ -813,8 +817,8 @@ class IQ(StanzaBase):
     Note that some attributes are inherited from :class:`StanzaBase`:
 
     ========================= =======================================
-    :attr:`~StanzaBase.from_` sender :class:`~aioxmpp.structs.JID`
-    :attr:`~StanzaBase.to`    recipient :class:`~aioxmpp.structs.JID`
+    :attr:`~StanzaBase.from_` sender :class:`~aioxmpp.JID`
+    :attr:`~StanzaBase.to`    recipient :class:`~aioxmpp.JID`
     :attr:`~StanzaBase.lang`  ``xml:lang`` value
     :attr:`~StanzaBase.error` :class:`Error` instance
     ========================= =======================================

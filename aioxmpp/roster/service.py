@@ -27,7 +27,7 @@ class Item:
 
     .. attribute:: jid
 
-       The :class:`~aioxmpp.structs.JID` of the entry. This is always a bare
+       The :class:`~aioxmpp.JID` of the entry. This is always a bare
        JID.
 
     .. attribute:: name
@@ -165,7 +165,7 @@ class Service(aioxmpp.service.Service):
 
     .. attribute:: items
 
-       A dictionary mapping :class:`~.structs.JID` instances to corresponding
+       A dictionary mapping :class:`~aioxmpp.JID instances to corresponding
        :class:`Item` instances.
 
     .. attribute:: groups

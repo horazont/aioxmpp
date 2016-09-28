@@ -1349,7 +1349,7 @@ class ChildTextMap(ChildValueMap):
     convert the :class:`AbstractTextChild` subclass `xso_type` to and from
     a language-text mapping.
 
-    For an example, see :class:`.stanza.Message`.
+    For an example, see :class:`.Message`.
     """
 
     def __init__(self, xso_type):
@@ -1475,7 +1475,7 @@ class XMLStreamClass(xso_query.Class, abc.ABCMeta):
        The rationale for this is that attributes on XSO instances are magic.
        Having a typo in an attribute may fail non-obviously, if it causes an
        entirely different semantic to be invoked at the peer (for example the
-       :attr:`.stanza.Message.type_` attribute).
+       :attr:`.Message.type_` attribute).
 
        Setting :attr:`__slots__` to empty by default prevents assigning any
        attribute not bound to an descriptor.

@@ -14,6 +14,8 @@ Exception classes mapping to XMPP stanza errors
 
 .. autoclass:: XMPPError
 
+.. currentmodule:: aioxmpp
+
 .. autoclass:: XMPPAuthError
 
 .. autoclass:: XMPPModifyError
@@ -23,6 +25,8 @@ Exception classes mapping to XMPP stanza errors
 .. autoclass:: XMPPWaitError
 
 .. autoclass:: XMPPContinueError
+
+.. currentmodule:: aioxmpp.errors
 
 .. autoclass:: ErroneousStanza
 
@@ -82,6 +86,19 @@ class StanzaError(Exception):
 
 
 class XMPPError(StanzaError):
+    """
+    Relevant subclasses:
+
+    .. autosummary::
+
+       aioxmpp.XMPPAuthError
+       aioxmpp.XMPPModifyError
+       aioxmpp.XMPPCancelError
+       aioxmpp.XMPPContinueError
+       aioxmpp.XMPPWaitError
+
+    """
+
     TYPE = structs.ErrorType.CANCEL
 
     def __init__(self,
