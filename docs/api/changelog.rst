@@ -24,35 +24,14 @@ Version 0.7
 
 * :class:`aioxmpp.xso.EnumType`
 
-* **Horribly Breaking Change**: :attr:`aioxmpp.IQ.type_`,
+* **Horribly Breaking Change** in the future: :attr:`aioxmpp.IQ.type_`,
   :attr:`aioxmpp.Message.type_`, :attr:`aioxmpp.Presence.type_` and
   :attr:`aioxmpp.Error.type_` now use :class:`aioxmpp.xso.EnumType`, with
   corresponding enumerations (see docs of the respective attributes).
 
-  This breaks *a lot* of code, and it is not trivial to fix automatically. The
-  :class:`~.xso.EnumType` is used with ``allow_coerce=True`` and
-  ``deprecate_coerce=True``, which mitigates the impact somewhat (it is still
-  possible to set the attributes to their string values, but when reading from
-  the attributes, the enumerations will always be returned).
-
-  In the repository under `utils/find-v0.7-type-transitions.sh
-  <https://github.com/horazont/aioxmpp/blob/devel/utils/find-v0.7-type-transitions.sh>`_,
-  you find a shell script which uses `The Silver Searcher (ag)
-  <http://geoff.greer.fm/ag/>`_ (find it in your distributions package
-  repositories, I know it is there on Fedora, Arch and Debian!) and regular
-  expressions to find common patterns. Example usage::
-
-    # find everything in the current subdirectory
-    $ $AIOXMPPPATH/utils/find-v0.7-type-transitions.sh
-    # only search in the foobar/ subdirectory
-    $ $AIOXMPPPATH/utils/find-v0.7-type-transitions.sh foobar/
-    # only look at the foobar/baz.py file
-    $ $AIOXMPPPATH/utils/find-v0.7-type-transitions.sh foobar/baz.py
-
-  You can also pass other arguments to ag through the script.
-
-  Until aioxmpp 1.0, the following fallbacks are in place to reduce the impact
-  of the change:
+  This will break about every piece of code ever written for aioxmpp, and it is
+  not trivial to fix automatically. This is why the following fallbacks have
+  been implemented:
 
   1. The :attr:`type_` attributes still accept their string (or :data:`None` in
      the case of :attr:`.Presence.type_`) values when being written. When being
@@ -68,10 +47,45 @@ Version 0.7
      corresponding un-registration methods, all accept the string variants for
      their arguments, internally mapping them to the actual enumeration values.
 
-  If any of these fallback paths is hit, :class:`DeprecationWarning` is emitted.
-  Note that these warnings **are not printed by default**: run your code with
-  ``python3 -Wd`` or add ``warnings.simplefilter("always")`` on the top of it
-  (see :mod:`warnings` for other ways) to enable the printing of these warnings.
+  .. note::
+
+     As a matter of fact (good news!), with only the fallbacks and no code
+     fixes, the :mod:`aioxmpp` test suite passes. So it is likely that you will
+     not notice any breakage in the 0.7 release, giving you quite some time to
+     react.
+
+  These fallbacks will be *removed* with aioxmpp 1.0, making the legacy use
+  raise :exc:`TypeError` or fail silently. Each of these fallbacks currently
+  produces a :exc:`DeprecationWarning`.
+
+  .. note::
+
+     :exc:`DeprecationWarning` warnings are not shown by default in Python 3. To
+     enable them, either run the interpreter with the ``-Wd`` option, un-filter
+     them explicitly using ``warnings.simplefilter("always")`` at the top of
+     your program, or explore other options as documented in :mod:`warnings`.
+
+  So, now I said I will be breaking all your code, how do you fix it? There are
+  two ways to find affected pieces of code: (1) run it with warnings (see
+  above), which will find all affected pieces of code and (2) use the shell
+  script provided at `utils/find-v0.7-type-transitions.sh
+  <https://github.com/horazont/aioxmpp/blob/devel/utils/find-v0.7-type-transitions.sh>`_
+  to find a subset of potentially affected pieces of code automatically. The
+  shell script uses `The Silver Searcher (ag) <http://geoff.greer.fm/ag/>`_
+  (find it in your distributions package repositories, I know it is there on
+  Fedora, Arch and Debian!) and regular expressions to find common patterns.
+  Example usage::
+
+    # find everything in the current subdirectory
+    $ $AIOXMPPPATH/utils/find-v0.7-type-transitions.sh
+    # only search in the foobar/ subdirectory
+    $ $AIOXMPPPATH/utils/find-v0.7-type-transitions.sh foobar/
+    # only look at the foobar/baz.py file
+    $ $AIOXMPPPATH/utils/find-v0.7-type-transitions.sh foobar/baz.py
+
+  The script was built while fixing :mod:`aioxmpp` itself after the bug. It has
+  not found *all* affected pieces of code, but the vast majority. The others can
+  be found by inspecting :exc:`DeprecationWarning` warnings being emitted.
 
 * :meth:`~.StanzaStream.register_message_callback` and
   :meth:`~.StanzaStream.register_presence_callback` now explicitly raise
