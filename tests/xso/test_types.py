@@ -1207,7 +1207,35 @@ class TestEnumType(unittest.TestCase):
         warn.assert_called_with(
             "assignment of non-enum values to this descriptor is deprecated",
             DeprecationWarning,
-            stacklevel=2
+            stacklevel=4
+        )
+
+        self.assertEqual(
+            result,
+            enum_class(1),
+        )
+
+    def test_deprecate_coerce_custom_stacklevel(self):
+        enum_class = self.SomeEnum
+        e = xso.EnumType(
+            enum_class,
+            allow_coerce=True,
+            deprecate_coerce=unittest.mock.sentinel.stacklevel,
+        )
+
+        with contextlib.ExitStack() as stack:
+            warn = stack.enter_context(
+                unittest.mock.patch(
+                    "warnings.warn",
+                )
+            )
+
+            result = e.coerce(1)
+
+        warn.assert_called_with(
+            "assignment of non-enum values to this descriptor is deprecated",
+            DeprecationWarning,
+            stacklevel=unittest.mock.sentinel.stacklevel
         )
 
         self.assertEqual(

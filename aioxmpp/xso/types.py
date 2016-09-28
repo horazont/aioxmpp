@@ -537,7 +537,7 @@ class EnumType(AbstractType):
     :param deprecate_coerce: Emit :class:`DeprecationWarning` when coercion
                              occurs. Requires (but does not imply)
                              `allow_coerce`.
-    :type deprecate_coerce: :class:`bool`
+    :type deprecate_coerce: :class:`int` or :class:`bool`
 
     A descriptor using this type will accept elements from the given
     `enum_class` as values. Upon serialisiation, the :attr:`value` of the
@@ -570,6 +570,10 @@ class EnumType(AbstractType):
     to a proper enum, `deprecate_coerce` can be used. In that case, a
     :class:`DeprecationWarning` (see :mod:`warnings`) is emitted when coercion
     takes place, to warn users about future removal of the coercion capability.
+    If `deprecate_coerce` is an integer, it is used as the stacklevel argument
+    for the :func:`warnings.warn` call. If it is :data:`True`, the stacklevel
+    is 4, which leads to the warning pointing to a descriptor assignment when
+    used with XSO descriptors.
 
     Example::
 
@@ -607,11 +611,13 @@ class EnumType(AbstractType):
             if self.deprecate_coerce:
                 if isinstance(value, self.enum_class):
                     return value
+                stacklevel = (4 if self.deprecate_coerce is True
+                              else self.deprecate_coerce)
                 warnings.warn(
                     "assignment of non-enum values to this descriptor is"
                     " deprecated",
                     DeprecationWarning,
-                    stacklevel=2,
+                    stacklevel=stacklevel,
                 )
             return self.enum_class(value)
         if isinstance(value, self.enum_class):
