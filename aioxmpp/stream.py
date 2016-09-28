@@ -1184,27 +1184,41 @@ class StanzaStream:
 
     def register_iq_request_coro(self, type_, payload_cls, coro):
         """
-        Register a coroutine `coro` to IQ requests of type `type_` which have a
-        payload of the given `payload_cls` class.
+        Register a coroutine to run when an IQ request is received.
 
-        Whenever a matching IQ stanza is received, the coroutine is started
-        with the stanza as its only argument. The coroutine must return a valid
-        value for the :attr:`.stanza.IQ.payload` attribute. The value will be
-        set as the payload attribute value of an IQ response (with type
-        ``"result"``) which is generated and sent by the stream.
+        :param type_: IQ type to react to (must be a request type).
+        :type type_: :class:`~aioxmpp.structs.IQType`
+        :param payload_cls: Payload class to react to (subclass of :class:`~xso.XSO`)
+        :type payload_cls: :class:`~.XMLStreamClass`
+        :param coro: Coroutine to run
+        :raises ValueError: if there is already a coroutine registered for this
+                            targe
+        :raises ValueError: if `type_` is not a request IQ type
+        :raises ValueError: if `type_` is not a valid
+                            :class:`~.structs.IQType` (and cannot be cast to a
+                            :class:`~.structs.IQType`)
+
+        The coroutine `coro` will be spawned whenever an IQ stanza with the
+        given `type_` and payload being an instance of the `payload_cls` is
+        received. The coroutine must return a valid value for the
+        :attr:`.stanza.IQ.payload` attribute. The value will be set as the
+        payload attribute value of an IQ response (with type
+        :attr:`~.IQType.RESULT`) which is generated and sent by the stream.
 
         If the coroutine raises an exception, it will be converted to a
         :class:`~.stanza.Error` object. That error object is then used as
-        payload for an IQ response (with type ``"error"``) which is generated
-        and sent by the stream.
+        payload for an IQ response (with type :attr:`~.IQType.ERROR`) which is
+        generated and sent by the stream.
 
         If the exception is a subclass of :class:`aioxmpp.errors.XMPPError`, it
-        is converted to an :class:`~.stanza.Error` instance
-        directly. Otherwise, it is wrapped in a
-        :class:`aioxmpp.errors.XMPPCancelError` with ``undefined-condition``.
+        is converted to an :class:`~.stanza.Error` instance directly.
+        Otherwise, it is wrapped in a :class:`aioxmpp.errors.XMPPCancelError`
+        with ``undefined-condition``.
 
-        If there is already a coroutine registered for the given (`type_`,
-        `payload_cls`) pair, :class:`ValueError` is raised.
+        For this to work, `payload_cls` *must* be registered using
+        :meth:`~.stanza.IQ.as_payload_class`. Otherwise, the payload will
+        not be recognised by the stream parser and the IQ is automatically
+        responded to with a ``feature-not-implemented`` error.
 
         .. versionadded:: 0.6
 
@@ -1214,8 +1228,25 @@ class StanzaStream:
 
            To protect against that, fork from your coroutine using
            :func:`asyncio.ensure_future`.
+
+        .. versionchanged:: 0.7
+
+           The `type_` argument is now supposed to be a :class:`~.structs.IQType`
+           member.
+
+        .. deprecated:: 0.7
+
+           Passing a :class:`str` as `type_` argument is deprecated and will
+           raise a :class:`TypeError` as of the 1.0 release. See the Changelog
+           for :ref:`api-changelog-0.7` for further details on how to upgrade
+           your code efficiently.
         """
         type_ = self._coerce_enum(type_, structs.IQType)
+        if not type_.is_request:
+            raise ValueError(
+                "{!r} is not a request IQType".format(type_)
+            )
+
         key = type_, payload_cls
 
         if key in self._iq_request_map:
@@ -1229,12 +1260,32 @@ class StanzaStream:
     def unregister_iq_request_coro(self, type_, payload_cls):
         """
         Unregister a coroutine previously registered with
-        :meth:`register_iq_request_coro`. The match is solely made using the
-        `type_` and `payload_cls` arguments, which have the same meaning as in
         :meth:`register_iq_request_coro`.
 
-        This raises :class:`KeyError` if no coroutine has previously been
-        registered for the `type_` and `payload_cls`.
+        :param type_: IQ type to react to (must be a request type).
+        :type type_: :class:`~structs.IQType`
+        :param payload_cls: Payload class to react to (subclass of :class:`~xso.XSO`)
+        :type payload_cls: :class:`~.XMLStreamClass`
+        :raises KeyError: if no coroutine has been registered for the given
+                          ``(type_, payload_cls)`` pair
+        :raises ValueError: if `type_` is not a valid
+                            :class:`~.structs.IQType` (and cannot be cast to a
+                            :class:`~.structs.IQType`)
+
+        The match is solely made using the `type_` and `payload_cls` arguments,
+        which have the same meaning as in :meth:`register_iq_request_coro`.
+
+        .. versionchanged:: 0.7
+
+           The `type_` argument is now supposed to be a :class:`~.structs.IQType`
+           member.
+
+        .. deprecated:: 0.7
+
+           Passing a :class:`str` as `type_` argument is deprecated and will
+           raise a :class:`TypeError` as of the 1.0 release. See the Changelog
+           for :ref:`api-changelog-0.7` for further details on how to upgrade
+           your code efficiently.
         """
         type_ = self._coerce_enum(type_, structs.IQType)
         del self._iq_request_map[type_, payload_cls]
@@ -1244,26 +1295,47 @@ class StanzaStream:
 
     def register_message_callback(self, type_, from_, cb):
         """
-        Register a callback function `cb` to be called whenever a message
-        stanza of the given `type_` from the given
-        :class:`~aioxmpp.structs.JID` `from_` arrives.
+        Register a callback to be called when a message is received.
 
-        Both `type_` and `from_` can be :data:`None`, each, to indicate a
-        wildcard match.
+        :param type_: Message type to listen for, or :data:`None` for a
+                      wildcard match.
+        :type type_: :class:`~.structs.MessageType` or :data:`None`
+        :param from_: Sender JID to listen for, or :data:`None` for a wildcard
+                      match.
+        :type from_: :class:`~.structs.JID` or :data:`None`
+        :param cb: Callback function to call
+        :raises ValueError: if another function is already registered for the
+                            same ``(type_, from_)`` pair.
+        :raises ValueError: if `type_` is not a valid
+                            :class:`~.structs.MessageType` (and cannot be cast
+                            to a :class:`~.structs.MessageType`)
 
-        More specific callbacks win over less specific callbacks, and the
-        match on the `from_` address takes precedence over the match on the
-        `type_`.
+        `cb` will be called whenever a message stanza matching the `type_` and
+        `from_` is received, according to the wildcarding rules below. More
+        specific callbacks win over less specific callbacks, and the match on
+        the `from_` address takes precedence over the match on the `type_`.
 
         To be explicit, the order in which callbacks are searched for a given
-        ``type`` and ``from_`` of a stanza is:
+        ``type_`` and ``from_`` of a stanza is:
 
-        * ``type``, ``from_``
-        * ``type``, ``from_.bare()``
+        * ``type_``, ``from_``
+        * ``type_``, ``from_.bare()``
         * ``None``, ``from_``
         * ``None``, ``from_.bare()``
-        * ``type``, ``None``
+        * ``type_``, ``None``
         * ``None``, ``None``
+
+        .. versionchanged:: 0.7
+
+           The `type_` argument is now supposed to be a
+           :class:`~.structs.MessageType` member.
+
+        .. deprecated:: 0.7
+
+           Passing a :class:`str` as `type_` argument is deprecated and will
+           raise a :class:`TypeError` as of the 1.0 release. See the Changelog
+           for :ref:`api-changelog-0.7` for further details on how to upgrade
+           your code efficiently.
         """
         if type_ is not None:
             type_ = self._coerce_enum(type_, structs.MessageType)
@@ -1281,11 +1353,35 @@ class StanzaStream:
     def unregister_message_callback(self, type_, from_):
         """
         Unregister a callback previously registered with
-        :meth:`register_message_callback`. `type_` and `from_` have the same
-        semantics as in :meth:`register_message_callback`.
+        :meth:`register_message_callback`.
 
-        Attempting to unregister a `type_`, `from_` tuple for which no handler
-        has been registered results in a :class:`KeyError`.
+        :param type_: Message type to listen for.
+        :type type_: :class:`~.structs.MessageType` or :data:`None`
+        :param from_: Sender JID to listen for.
+        :type from_: :class:`~.structs.JID` or :data:`None`
+        :raises KeyError: if no function is currently registered for the given
+                          ``(type_, from_)`` pair.
+        :raises ValueError: if `type_` is not a valid
+                            :class:`~.structs.MessageType` (and cannot be cast
+                            to a :class:`~.structs.MessageType`)
+
+        The match is made on the exact pair; it is not possible to unregister
+        arbitrary listeners by passing :data:`None` to both arguments (i.e. the
+        wildcarding only applies for receiving stanzas, not for unregistering
+        callbacks; unregistering the super-wildcard with both arguments set to
+        :data:`None` is of course possible).
+
+        .. versionchanged:: 0.7
+
+           The `type_` argument is now supposed to be a
+           :class:`~.structs.MessageType` member.
+
+        .. deprecated:: 0.7
+
+           Passing a :class:`str` as `type_` argument is deprecated and will
+           raise a :class:`TypeError` as of the 1.0 release. See the Changelog
+           for :ref:`api-changelog-0.7` for further details on how to upgrade
+           your code efficiently.
         """
         if type_ is not None:
             type_ = self._coerce_enum(type_, structs.MessageType)
@@ -1296,19 +1392,38 @@ class StanzaStream:
 
     def register_presence_callback(self, type_, from_, cb):
         """
-        Register a callback function `cb` to be called whenever a presence
-        stanza of the given `type_` arrives from the given
-        :class:`~aioxmpp.structs.JID`.
+        Register a callback to be called when a presence stanza is received.
 
-        `from_` may be :data:`None` to indicate a wildcard. Like with
-        :meth:`register_message_callback`, more specific callbacks win over
-        less specific callbacks.
+        :param type_: Presence type to listen for.
+        :type type_: :class:`~.structs.PresenceType`
+        :param from_: Sender JID to listen for, or :data:`None` for a wildcard
+                      match.
+        :type from_: :class:`~.structs.JID` or :data:`None`.
+        :param cb: Callback function
+        :raises ValueError: if another listener with the same ``(type_,
+                            from_)`` pair is already registered
+        :raises ValueError: if `type_` is not a valid
+                            :class:`~.structs.PresenceType` (and cannot be cast
+                            to a :class:`~.structs.PresenceType`)
 
-        .. note::
+        `cb` will be called whenever a presence stanza matching the `type_` is
+        received from the specified sender. `from_` may be :data:`None` to
+        indicate a wildcard. Like with :meth:`register_message_callback`, more
+        specific callbacks win over less specific callbacks. The fallback order
+        is identical, except that the ``type_=None`` entries described there do
+        not apply for presence stanzas and are thus omitted.
 
-           A `type_` of :data:`None` is a valid value for
-           :class:`aioxmpp.stanza.Presence` stanzas and is **not** a wildcard
-           here.
+        .. versionchanged:: 0.7
+
+           The `type_` argument is now supposed to be a
+           :class:`~.structs.PresenceType` member.
+
+        .. deprecated:: 0.7
+
+           Passing a :class:`str` as `type_` argument is deprecated and will
+           raise a :class:`TypeError` as of the 1.0 release. See the Changelog
+           for :ref:`api-changelog-0.7` for further details on how to upgrade
+           your code efficiently.
 
         """
         type_ = self._coerce_enum(type_, structs.PresenceType)
@@ -1325,11 +1440,37 @@ class StanzaStream:
     def unregister_presence_callback(self, type_, from_):
         """
         Unregister a callback previously registered with
-        :meth:`register_presence_callback`. `type_` and `from_` have the same
-        semantics as in :meth:`register_presence_callback`.
+        :meth:`register_presence_callback`.
 
-        Attempting to unregister a `type_`, `from_` tuple for which no handler
-        has been registered results in a :class:`KeyError`.
+        :param type_: Presence type to listen for.
+        :type type_: :class:`~.structs.PresenceType`
+        :param from_: Sender JID to listen for, or :data:`None` for a wildcard
+                      match.
+        :type from_: :class:`~.structs.JID` or :data:`None`.
+        :raises KeyError: if no callback is currently registered for the given
+                          ``(type_, from_)`` pair
+        :raises ValueError: if `type_` is not a valid
+                            :class:`~.structs.PresenceType` (and cannot be cast
+                            to a :class:`~.structs.PresenceType`)
+
+        The match is made on the exact pair; it is not possible to unregister
+        arbitrary listeners by passing :data:`None` to the `from_` arguments
+        (i.e. the wildcarding only applies for receiving stanzas, not for
+        unregistering callbacks; unregistering a wildcard match with `from_`
+        set to :data:`None` is of course possible).
+
+        .. versionchanged:: 0.7
+
+           The `type_` argument is now supposed to be a
+           :class:`~.structs.PresenceType` member.
+
+        .. deprecated:: 0.7
+
+           Passing a :class:`str` as `type_` argument is deprecated and will
+           raise a :class:`TypeError` as of the 1.0 release. See the Changelog
+           for :ref:`api-changelog-0.7` for further details on how to upgrade
+           your code efficiently.
+
         """
         type_ = self._coerce_enum(type_, structs.PresenceType)
         del self._presence_map[type_, from_]

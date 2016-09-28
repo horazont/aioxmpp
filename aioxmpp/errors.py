@@ -173,15 +173,6 @@ class TLSUnavailable(TLSFailure):
     pass
 
 
-error_type_map = {
-    "auth": XMPPAuthError,
-    "modify": XMPPModifyError,
-    "cancel": XMPPCancelError,
-    "wait": XMPPWaitError,
-    "continue": XMPPContinueError,
-}
-
-
 class UserError(Exception):
     """
     An exception subclass, which should be used as a mix-in.

@@ -3,6 +3,8 @@
 Changelog
 #########
 
+.. _api-changelog-0.7:
+
 Version 0.7
 ===========
 
@@ -24,10 +26,10 @@ Version 0.7
 
 * :class:`aioxmpp.xso.EnumType`
 
-* **Horribly Breaking Change** in the future: :attr:`aioxmpp.IQ.type_`,
-  :attr:`aioxmpp.Message.type_`, :attr:`aioxmpp.Presence.type_` and
-  :attr:`aioxmpp.Error.type_` now use :class:`aioxmpp.xso.EnumType`, with
-  corresponding enumerations (see docs of the respective attributes).
+* **Horribly Breaking Change** in the future: :attr:`aioxmpp.stanza.IQ.type_`,
+  :attr:`aioxmpp.stanza.Message.type_`, :attr:`aioxmpp.stanza.Presence.type_`
+  and :attr:`aioxmpp.stanza.Error.type_` now use :class:`aioxmpp.xso.EnumType`,
+  with corresponding enumerations (see docs of the respective attributes).
 
   This will break about every piece of code ever written for aioxmpp, and it is
   not trivial to fix automatically. This is why the following fallbacks have

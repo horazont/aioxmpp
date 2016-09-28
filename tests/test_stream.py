@@ -630,6 +630,24 @@ class TestStanzaStream(StanzaStreamTestBase):
 
         self.assertFalse(w)
 
+    def test_register_iq_request_coro_raises_on_response_IQType(self):
+        for member in structs.IQType:
+            if member.is_request:
+                self.stream.register_iq_request_coro(
+                    member,
+                    FancyTestIQ,
+                    unittest.mock.sentinel.coro,
+                )
+            else:
+                with self.assertRaisesRegex(
+                        ValueError,
+                        r".* is not a request IQType"):
+                    self.stream.register_iq_request_coro(
+                        member,
+                        FancyTestIQ,
+                        unittest.mock.sentinel.coro,
+                    )
+
     def test_run_iq_request_coro_with_result(self):
         iq = make_test_iq()
         iq.autoset_id()

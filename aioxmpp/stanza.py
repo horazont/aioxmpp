@@ -168,8 +168,27 @@ class Error(xso.XSO):
 
     .. attribute:: type_
 
-       The type of the error. Valid values are ``"auth"``, ``"cancel"``,
-       ``"continue"``, ``"modify"`` and ``"wait"``.
+       The type attribute of the stanza. The allowed values are enumerated in
+       :class:`~.structs.ErrorType`.
+
+       .. versionchanged:: 0.7
+
+          Starting with 0.7, the enumeration :class:`~.structs.ErrorType` is
+          used. Before, strings equal to the XML attribute value character data
+          were used (``"cancel"``, ``"auth"``, and so on).
+
+          As of 0.7, setting the string equivalents is still supported.
+          However, reading from the attribute always returns the corresponding
+          enumeration members (which still compare equal to their string
+          equivalents).
+
+       .. deprecated:: 0.7
+
+          The use of the aforementioned string values is deprecated and will
+          lead to :exc:`TypeError` and/or :exc:`ValueError` being raised when
+          they are written to this attribute. See the Changelog for
+          :ref:`api-changelog-0.7` for further details on how to upgrade your
+          code efficiently.
 
     .. attribute:: condition
 
@@ -505,8 +524,27 @@ class Message(StanzaBase):
 
     .. attribute:: type_
 
-       The type attribute of the stanza. The allowed values are ``"chat"``,
-       ``"groupchat"``, ``"error"``, ``"headline"`` and ``"normal"``.
+       The type attribute of the stanza. The allowed values are enumerated in
+       :class:`~.structs.MessageType`.
+
+       .. versionchanged:: 0.7
+
+          Starting with 0.7, the enumeration :class:`~.structs.MessageType` is
+          used. Before, strings equal to the XML attribute value character data
+          were used (``"chat"``, ``"headline"``, and so on).
+
+          As of 0.7, setting the string equivalents is still supported.
+          However, reading from the attribute always returns the corresponding
+          enumeration members (which still compare equal to their string
+          equivalents).
+
+       .. deprecated:: 0.7
+
+          The use of the aforementioned string values is deprecated and will
+          lead to :exc:`TypeError` and/or :exc:`ValueError` being raised when
+          they are written to this attribute. See the Changelog for
+          :ref:`api-changelog-0.7` for further details on how to upgrade your
+          code efficiently.
 
     .. attribute:: body
 
@@ -621,10 +659,29 @@ class Presence(StanzaBase):
 
     .. attribute:: type_
 
-       The type attribute of the stanza. The allowed values are ``"error"``,
-       ``"probe"``, ``"subscribe"``, ``"subscribed"``, ``"unavailable"``,
-       ``"unsubscribe"``, ``"unsubscribed"`` and :data:`None`, where
-       :data:`None` signifies the absence of the ``type`` attribute.
+       The type attribute of the stanza. The allowed values are enumerated in
+       :class:`~.structs.PresenceType`.
+
+       .. versionchanged:: 0.7
+
+          Starting with 0.7, the enumeration :class:`~.structs.PresenceType` is
+          used. Before, strings equal to the XML attribute value character data
+          were used (``"probe"``, ``"unavailable"``, and so on, as well as
+          :data:`None` to indicate the absence of the attribute and thus
+          "available" presence).
+
+          As of 0.7, setting the string equivalents and :data:`None` is still
+          supported. However, reading from the attribute always returns the
+          corresponding enumeration members (which still compare equal to their
+          string equivalents).
+
+       .. deprecated:: 0.7
+
+          The use of the aforementioned string values (and :data:`None`) is
+          deprecated and will lead to :exc:`TypeError` and/or :exc:`ValueError`
+          being raised when they are written to this attribute. See the
+          Changelog for :ref:`api-changelog-0.7` for further details on how to
+          upgrade your code efficiently.
 
     .. attribute:: show
 
@@ -717,8 +774,27 @@ class IQ(StanzaBase):
 
     .. attribute:: type_
 
-       The type attribute of the stanza. The allowed values are ``"error"``,
-       ``"result"``, ``"set"`` and ``"get"``.
+       The type attribute of the stanza. The allowed values are enumerated in
+       :class:`~.structs.IQType`.
+
+       .. versionchanged:: 0.7
+
+          Starting with 0.7, the enumeration :class:`~.structs.IQType` is used.
+          Before, strings equal to the XML attribute value character data were
+          used (``"get"``, ``"set"``, and so on).
+
+          As of 0.7, setting the string equivalents is still supported.
+          However, reading from the attribute always returns the corresponding
+          enumeration members (which still compare equal to their string
+          equivalents).
+
+       .. deprecated:: 0.7
+
+          The use of the aforementioned string values is deprecated and will
+          lead to :exc:`TypeError` and/or :exc:`ValueError` being raised when
+          they are written to this attribute. See the Changelog for
+          :ref:`api-changelog-0.7` for further details on how to upgrade your
+          code efficiently.
 
     .. attribute:: payload
 
