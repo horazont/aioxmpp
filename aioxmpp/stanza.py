@@ -594,6 +594,11 @@ class Message(StanzaBase):
             structs.MessageType,
             allow_coerce=True,
             deprecate_coerce=True,
+            # changing the following breaks stanza handling; StanzaStream
+            # relies on the meta-properties of the enumerations (is_request and
+            # such).
+            allow_unknown=False,
+            accept_unknown=False,
         ),
         default=structs.MessageType.NORMAL,
     )
@@ -722,6 +727,11 @@ class Presence(StanzaBase):
             structs.PresenceType,
             allow_coerce=True,
             deprecate_coerce=True,
+            # changing the following breaks stanza handling; StanzaStream
+            # relies on the meta-properties of the enumerations (is_request and
+            # such).
+            allow_unknown=False,
+            accept_unknown=False,
         ),
         default=structs.PresenceType.AVAILABLE,
     )
@@ -825,6 +835,11 @@ class IQ(StanzaBase):
             structs.IQType,
             allow_coerce=True,
             deprecate_coerce=True,
+            # changing the following breaks stanza handling; StanzaStream
+            # relies on the meta-properties of the enumerations (is_request and
+            # such).
+            allow_unknown=False,
+            accept_unknown=False,
         )
     )
     payload = xso.Child([])

@@ -259,6 +259,8 @@ Attribute and text types
 
 .. autoclass:: EnumType
 
+.. autoclass:: Unknown
+
 Child list and map types
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -458,6 +460,7 @@ def normalize_tag(tag):
 
 
 from .types import (  # NOQA
+    Unknown,
     AbstractType,
     String,
     Integer,

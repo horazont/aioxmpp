@@ -4,6 +4,7 @@ import decimal
 import fractions
 import inspect
 import ipaddress
+import itertools
 import unittest
 import unittest.mock
 import warnings
@@ -16,6 +17,73 @@ from datetime import datetime, date, time
 
 import aioxmpp.xso as xso
 import aioxmpp.structs as structs
+
+
+class Unknown(unittest.TestCase):
+    def test_init(self):
+        u = xso.Unknown(unittest.mock.sentinel.value)
+        self.assertEqual(
+            u.value,
+            unittest.mock.sentinel.value,
+        )
+
+    def test_init_default(self):
+        with self.assertRaises(TypeError):
+            xso.Unknown()
+
+    def test_value_not_settable(self):
+        u = xso.Unknown(unittest.mock.sentinel.value)
+        with self.assertRaises(AttributeError):
+            u.value = "foobar"
+
+    def test_hash_equal_to_value_hash(self):
+        values = [
+            None,
+            "foobar",
+            object(),
+            10,
+            10.2,
+        ]
+
+        for value in values:
+            u = xso.Unknown(value)
+            self.assertEqual(hash(u), hash(value))
+
+    def test_equality(self):
+        values = [
+            None,
+            "foobar",
+            object(),
+            10,
+            10.2,
+        ]
+
+        for v1, v2 in itertools.product(values, values):
+            if v1 == v2:
+                self.assertTrue(xso.Unknown(v1) == xso.Unknown(v2))
+                self.assertFalse(xso.Unknown(v1) != xso.Unknown(v2))
+            else:
+                self.assertFalse(xso.Unknown(v1) == xso.Unknown(v2))
+                self.assertTrue(xso.Unknown(v1) != xso.Unknown(v2))
+                self.assertFalse(v1 == xso.Unknown(v2))
+                self.assertFalse(xso.Unknown(v2) == v1)
+                self.assertTrue(v1 != xso.Unknown(v2))
+                self.assertTrue(xso.Unknown(v2) != v1)
+
+    def test_repr(self):
+        values = [
+            None,
+            "foobar",
+            object(),
+            10,
+            10.2,
+        ]
+
+        for v in values:
+            self.assertEqual(
+                repr(xso.Unknown(v)),
+                "<Unknown: {!r}>".format(v),
+            )
 
 
 class TestAbstractType(unittest.TestCase):
@@ -1269,6 +1337,65 @@ class TestEnumType(unittest.TestCase):
             result,
         )
 
+    def test_accept_unknown_by_default(self):
+        enum_class = self.SomeEnum
+        e = xso.EnumType(
+            enum_class,
+            xso.Integer(),
+        )
+
+        value = e.coerce(xso.Unknown(10))
+        self.assertIsInstance(value, xso.Unknown)
+        self.assertEqual(xso.Unknown(10), value)
+
+    def test_accept_unknown_can_be_turned_off(self):
+        enum_class = self.SomeEnum
+        e = xso.EnumType(
+            enum_class,
+            xso.Integer(),
+            accept_unknown=False,
+        )
+
+        with self.assertRaisesRegex(
+                TypeError,
+                r"not a valid .* value: <Unknown: 10>"):
+            e.coerce(xso.Unknown(10))
+
+    def test_allow_unknown_by_default(self):
+        enum_class = self.SomeEnum
+        e = xso.EnumType(
+            enum_class,
+            xso.Integer(),
+        )
+
+        value = e.parse("10")
+        self.assertIsInstance(value, xso.Unknown)
+        self.assertEqual(xso.Unknown(10), value)
+
+    def test_allow_unknown_can_be_turned_off(self):
+        enum_class = self.SomeEnum
+        e = xso.EnumType(
+            enum_class,
+            xso.Integer(),
+            allow_unknown=False,
+        )
+
+        with self.assertRaisesRegex(
+                ValueError,
+                r"10 is not a valid SomeEnum"):
+            e.parse(10)
+
+    def test_format_works_with_unknown(self):
+        enum_class = self.SomeEnum
+        e = xso.EnumType(
+            enum_class,
+            xso.Integer(),
+        )
+
+        self.assertEqual(
+            e.format(xso.Unknown(10)),
+            "10",
+        )
 
 
 class TestAbstractValidator(unittest.TestCase):

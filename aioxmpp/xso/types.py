@@ -24,6 +24,45 @@ from datetime import datetime, timedelta, date, time
 from .. import structs, i18n
 
 
+class Unknown:
+    """
+    A wrapper for an unknown enumeration value.
+
+    :param value: The raw value of the "enumeration" "member".
+    :type value: arbitrary
+
+    Instances of this class may be emitted from and accepted by
+    :class:`EnumType`, see the documentation there for details.
+
+    :class:`Unknown` instances compare equal when they hold an equal value.
+    :class:`Unknown` objects are hashable if their values are hashable. The
+    value they refer to cannot be changed during the lifetime of an
+    :class:`Unknown` object.
+    """
+
+    def __init__(self, value):
+        super().__init__()
+        self.__value = value
+
+    @property
+    def value(self):
+        return self.__value
+
+    def __hash__(self):
+        return hash(self.__value)
+
+    def __eq__(self, other):
+        try:
+            return self.__value == other.__value
+        except AttributeError:
+            return NotImplemented
+
+    def __repr__(self):
+        return "<Unknown: {!r}>".format(
+            self.__value
+        )
+
+
 class AbstractType(metaclass=abc.ABCMeta):
     """
     This is the interface all types must implement.
@@ -538,6 +577,14 @@ class EnumType(AbstractType):
                              occurs. Requires (but does not imply)
                              `allow_coerce`.
     :type deprecate_coerce: :class:`int` or :class:`bool`
+    :param allow_unknown: If true, unknown values are converted to
+                          :class:`Unknown` instances when parsing values from
+                          the XML stream.
+    :type allow_unknown: :class:`bool`
+    :param accept_unknown: If true, :class:`Unknown` instances are passed
+                           through :meth:`coerce` and can thus be assigned to
+                           descriptors using this type.
+    :type allow_unknown: :class:`bool`
 
     A descriptor using this type will accept elements from the given
     `enum_class` as values. Upon serialisiation, the :attr:`value` of the
@@ -575,6 +622,13 @@ class EnumType(AbstractType):
     is 4, which leads to the warning pointing to a descriptor assignment when
     used with XSO descriptors.
 
+    Handling of :class:`Unknown` values: Using `allow_unknown` and
+    `accept_unknown` is advisable to stay compatible with future protocols,
+    which is why both are enabled by default. Considering that constructing an
+    :class:`Unknown` value needs to be done explicitly in code, it is unlikely
+    that a user will *accidentally* assign an unspecified value to a descriptor
+    using this type with `accept_unknown`.
+
     Example::
 
       class SomeEnum(enum.Enum):
@@ -596,17 +650,23 @@ class EnumType(AbstractType):
 
     def __init__(self, enum_class, nested_type=String(), *,
                  allow_coerce=False,
-                 deprecate_coerce=False):
+                 deprecate_coerce=False,
+                 allow_unknown=True,
+                 accept_unknown=True):
         super().__init__()
         self.nested_type = nested_type
         self.enum_class = enum_class
         self.allow_coerce = allow_coerce
         self.deprecate_coerce = deprecate_coerce
+        self.accept_unknown = accept_unknown
+        self.allow_unknown = allow_unknown
 
     def get_formatted_type(self):
         return self.nested_type.get_formatted_type()
 
     def coerce(self, value):
+        if self.accept_unknown and isinstance(value, Unknown):
+            return value
         if self.allow_coerce:
             if self.deprecate_coerce:
                 if isinstance(value, self.enum_class):
@@ -629,7 +689,12 @@ class EnumType(AbstractType):
 
     def parse(self, s):
         parsed = self.nested_type.parse(s)
-        return self.enum_class(parsed)
+        try:
+            return self.enum_class(parsed)
+        except ValueError:
+            if self.allow_unknown:
+                return Unknown(parsed)
+            raise
 
     def format(self, v):
         return self.nested_type.format(v.value)
