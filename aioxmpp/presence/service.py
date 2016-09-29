@@ -84,8 +84,8 @@ class Service(aioxmpp.service.Service):
     on_changed = aioxmpp.callbacks.Signal()
     on_unavailable = aioxmpp.callbacks.Signal()
 
-    def __init__(self, client):
-        super().__init__(client)
+    def __init__(self, client, **kwargs):
+        super().__init__(client, **kwargs)
 
         self._presences = {}
 
