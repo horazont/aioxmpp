@@ -1,189 +1,164 @@
 import asyncio
-import getpass
-import functools
+import configparser
 import locale
-import logging
-import signal
-
-try:
-    import readline
-except ImportError:
-    pass
 
 from datetime import datetime
 
-import aioxmpp.security_layer
-import aioxmpp.node
+import aioxmpp.muc
 import aioxmpp.structs
-import aioxmpp.muc.service
+
+from framework import Example, exec_example
 
 
-language_name = locale.getlocale()[0]
-if language_name == "C":
-    language_name = "en-gb"
-language = aioxmpp.structs.LanguageRange.fromstr(
-    language_name.replace("_", "-")
-)
-any_language = aioxmpp.structs.LanguageRange.fromstr("*")
-del language_name
+class MucLogger(Example):
+    def prepare_argparse(self):
+        super().prepare_argparse()
 
+        language_name = locale.getlocale()[0]
+        if language_name == "C":
+            language_name = "en-gb"
 
-def on_message(message, **kwargs):
-    print("{} {}: {}".format(
-        datetime.utcnow().isoformat(),
-        message.from_.resource,
-        message.body.lookup([language, any_language])
-    ))
+        def language_range(s):
+            return aioxmpp.structs.LanguageRange.fromstr(
+                s.replace("_", "-")
+            )
 
+        default_language = language_range(language_name)
 
-def on_subject_change(message, subject, **kwargs):
-    print("{} *** topic set by {}: {}".format(
-        datetime.utcnow().isoformat(),
-        message.from_.resource,
-        subject.lookup([language, any_language])
-    ))
-
-
-def on_enter(client, presence, occupant=None, **kwargs):
-    print("{} *** entered room {}".format(
-        datetime.utcnow().isoformat(),
-        presence.from_.bare()
-    ))
-
-
-def on_exit(presence, occupant=None, **kwargs):
-    print("{} *** left room {}".format(
-        datetime.utcnow().isoformat(),
-        presence.from_.bare()
-    ))
-
-
-def on_join(presence, occupant=None, **kwargs):
-    print("{} *** {} [{}] entered room".format(
-        datetime.utcnow().isoformat(),
-        occupant.nick,
-        occupant.jid,
-    ))
-
-
-def on_leave(presence, occupant, mode, **kwargs):
-    print("{} *** {} [{}] left room ({})".format(
-        datetime.utcnow().isoformat(),
-        occupant.nick,
-        occupant.jid,
-        mode
-    ))
-
-
-@asyncio.coroutine
-def main(jid, password, mucjid, nick):
-    @asyncio.coroutine
-    def get_password(client_jid, nattempt):
-        if nattempt > 1:
-            # abort, as we cannot properly re-ask the user
-            return None
-        return password
-
-    client = aioxmpp.node.PresenceManagedClient(
-        jid,
-        aioxmpp.security_layer.tls_with_password_based_authentication(
-            get_password,
+        self.argparse.add_argument(
+            "--language",
+            default=language_range(language_name),
+            type=language_range,
+            help="Preferred language: if messages are sent with "
+            "multiple languages, this is the language shown "
+            "(default: {})".format(default_language),
         )
-    )
-    failure_future = asyncio.Future()
-    connected_future = asyncio.Future()
-    client.on_failure.connect(
-        failure_future,
-        client.on_failure.AUTO_FUTURE
-    )
-    client.on_stream_established.connect(
-        connected_future,
-        client.on_stream_established.AUTO_FUTURE
-    )
 
-    muc = client.summon(aioxmpp.muc.service.Service)
-    room, room_future = muc.join(mucjid, nick)
+        # this gives a nicer name in argparse errors
+        def jid(s):
+            return aioxmpp.JID.fromstr(s)
 
-    room.on_message.connect(on_message)
-    room.on_subject_change.connect(on_subject_change)
-    room.on_enter.connect(functools.partial(on_enter, client))
-    room.on_exit.connect(on_exit)
-    room.on_leave.connect(on_leave)
-    room.on_join.connect(on_join)
-
-    client.presence = aioxmpp.structs.PresenceState(True)
-
-    print("connecting...")
-    done, waiting = yield from asyncio.wait(
-        [
-            connected_future,
-            failure_future
-        ],
-        return_when=asyncio.FIRST_COMPLETED
-    )
-
-    if failure_future in done:
-        print("failed to connect!")
-        yield from failure_future  # this will raise
-        return
-
-    print("connected, joining room")
-
-    done, waiting = yield from asyncio.wait(
-        [
-            room_future,
-            failure_future
-        ],
-        return_when=asyncio.FIRST_COMPLETED
-    )
-
-    if failure_future in done:
-        print("stream failed")
-        yield from failure_future  # this will raise
-        return
-
-    yield from room_future
-    print("joined room successfully")
-
-    cancel_future = asyncio.Future()
-    asyncio.get_event_loop().add_signal_handler(
-        signal.SIGINT,
-        cancel_future.set_result,
-        None
-    )
-
-    done, waiting = yield from asyncio.wait(
-        [
-            cancel_future,
-            failure_future
-        ],
-        return_when=asyncio.FIRST_COMPLETED
-    )
-
-    if failure_future not in done:
-        print("disconnecting...")
-        disconnected_future = asyncio.Future()
-        client.on_stopped.connect(
-            disconnected_future,
-            client.on_stopped.AUTO_FUTURE
+        self.argparse.add_argument(
+            "--muc",
+            type=jid,
+            default=None,
+            help="JID of the muc to join"
         )
-        print("on_stopped future connected")
-        client.stop()
-        yield from asyncio.wait(
-            [disconnected_future, failure_future],
+
+        self.argparse.add_argument(
+            "--nick",
+            default=None,
+            help="Nick name to use"
+        )
+
+    def configure(self):
+        super().configure()
+
+        self.language_selectors = [
+            self.args.language,
+            aioxmpp.structs.LanguageRange.fromstr("*")
+        ]
+
+        self.muc_jid = self.args.muc
+        if self.muc_jid is None:
+            try:
+                self.muc_jid = aioxmpp.JID.fromstr(
+                    self.config.get("muc_logger", "muc_jid")
+                )
+            except (configparser.NoSectionError,
+                    configparser.NoOptionError):
+                self.muc_jid = aioxmpp.JID.fromstr(
+                    input("MUC JID> ")
+                )
+
+        self.muc_nick = self.args.nick
+        if self.muc_nick is None:
+            try:
+                self.muc_nick = self.config.get("muc_logger", "nick")
+            except (configparser.NoSectionError,
+                    configparser.NoOptionError):
+                self.muc_nick = input("Nickname> ")
+
+    def make_simple_client(self):
+        client = super().make_simple_client()
+        muc = client.summon(aioxmpp.muc.Service)
+        room, self.room_future = muc.join(
+            self.muc_jid,
+            self.muc_nick
+        )
+
+        room.on_message.connect(self._on_message)
+        room.on_subject_change.connect(self._on_subject_change)
+        room.on_enter.connect(self._on_enter)
+        room.on_exit.connect(self._on_exit)
+        room.on_leave.connect(self._on_leave)
+        room.on_join.connect(self._on_join)
+
+        return client
+
+    def _on_message(self, message, **kwargs):
+        print("{} {}: {}".format(
+            datetime.utcnow().isoformat(),
+            message.from_.resource,
+            message.body.lookup(self.language_selectors),
+        ))
+
+    def _on_subject_change(self, message, subject, **kwargs):
+        print("{} *** topic set by {}: {}".format(
+            datetime.utcnow().isoformat(),
+            message.from_.resource,
+            subject.lookup(self.language_selectors),
+        ))
+
+    def _on_enter(self, presence, occupant=None, **kwargs):
+        print("{} *** entered room {}".format(
+            datetime.utcnow().isoformat(),
+            presence.from_.bare()
+        ))
+
+    def _on_exit(self, presence, occupant=None, **kwargs):
+        print("{} *** left room {}".format(
+            datetime.utcnow().isoformat(),
+            presence.from_.bare()
+        ))
+
+    def _on_join(self, presence, occupant=None, **kwargs):
+        print("{} *** {} [{}] entered room".format(
+            datetime.utcnow().isoformat(),
+            occupant.nick,
+            occupant.jid,
+        ))
+
+    def _on_leave(self, presence, occupant, mode, **kwargs):
+        print("{} *** {} [{}] left room ({})".format(
+            datetime.utcnow().isoformat(),
+            occupant.nick,
+            occupant.jid,
+            mode
+        ))
+
+    async def run_example(self):
+        self.stop_event = self.make_sigint_event()
+        await super().run_example()
+
+    async def run_simple_example(self):
+        print("waiting to join room...")
+        done, pending = await asyncio.wait(
+            [
+                self.room_future,
+                self.stop_event.wait(),
+            ],
             return_when=asyncio.FIRST_COMPLETED
         )
+        if self.room_future not in done:
+            self.room_future.cancel()
+            return
 
-    print("disconnected")
+        for fut in pending:
+            fut.cancel()
+
+        await self.stop_event.wait()
+
 
 if __name__ == "__main__":
-    jid = aioxmpp.structs.JID.fromstr(input("Account JID: "))
-    pwd = getpass.getpass()
-    mucjid = aioxmpp.structs.JID.fromstr(input("MUC JID: "))
-    nick = input("Nick: ")
-
-    logging.basicConfig(
-        level=logging.INFO
-    )
-
-    asyncio.get_event_loop().run_until_complete(main(jid, pwd, mucjid, nick))
+    exec_example(MucLogger())

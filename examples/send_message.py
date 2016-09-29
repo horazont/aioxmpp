@@ -1,83 +1,44 @@
-import asyncio
-import getpass
+import aioxmpp
 
-from datetime import timedelta
-
-try:
-    import readline  # NOQA
-except ImportError:
-    pass
-
-import aioxmpp.node
-import aioxmpp.security_layer
-import aioxmpp.stanza
-import aioxmpp.structs
+from framework import Example, exec_example
 
 
-"""
-This example connects to the XMPP server, sends a message and goes offline
-cleanly.
+class SendMessage(Example):
+    def prepare_argparse(self):
+        super().prepare_argparse()
 
-It’s still a bit of code, but much less than before.
+        def jid(s):
+            return aioxmpp.JID.fromstr(s)
 
-Tip: If your test server does not have a certificate, take try to pass this as
-second argument to the PresenceManagedClient::
-
-    aioxmpp.security_layer.security_layer(
-        aioxmpp.security_layer.STARTTLSProvider(
-            aioxmpp.security_layer.default_ssl_context,
-            aioxmpp.security_layer._NullVerifier
-        ),
-        [aioxmpp.security_layer.PasswordSASLProvider(get_password)],
-    )
-
-This **disables** **all** certificate checks. You would normally not want
-this, but for quick test against a local server it’s fine I guess.
-"""
-
-
-async def main(jid, password, recipient):
-    @asyncio.coroutine
-    def get_password(client_jid, nattempt):
-        if nattempt > 1:
-            return None
-        return password
-
-    print("configuring client")
-
-    client = aioxmpp.node.PresenceManagedClient(
-        jid,
-        aioxmpp.security_layer.tls_with_password_based_authentication(
-            get_password,
+        self.argparse.add_argument(
+            "recipient",
+            type=jid,
+            help="Recipient JID"
         )
-    )
 
-    print("going online...")
-    async with aioxmpp.node.UseConnected(
-            client,
-            timeout=timedelta(seconds=30)) as stream:
-        print("online! local jid is: {}".format(client.local_jid))
+        self.argparse.add_argument(
+            "message",
+            nargs="?",
+            default="Hello World!",
+            help="Message to send (default: Hello World!)",
+        )
 
+    async def run_simple_example(self):
         # compose a message
         msg = aioxmpp.stanza.Message(
-            to=recipient,
-            type_="chat",
+            to=self.args.recipient,
+            type_=aioxmpp.MessageType.CHAT,
         )
+
         # [None] is for "no XML language tag"
-        msg.body[None] = "Hello World!"
+        msg.body[None] = self.args.message
 
         print("sending message ...")
-        await stream.send_and_wait_for_sent(msg)
+        await self.client.stream.send_and_wait_for_sent(
+            msg
+        )
         print("message sent!")
-
-        print("going offline")
-
-    print("offline!")
 
 
 if __name__ == "__main__":
-    jid = aioxmpp.structs.JID.fromstr(input("Login with: "))
-    pwd = getpass.getpass()
-    recipient = aioxmpp.structs.JID.fromstr(input("Message recipient: "))
-
-    asyncio.get_event_loop().run_until_complete(main(jid, pwd, recipient))
+    exec_example(SendMessage())

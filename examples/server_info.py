@@ -1,46 +1,18 @@
-import asyncio
-import getpass
 import itertools
 
-import aioxmpp.security_layer
-import aioxmpp.node
-import aioxmpp.structs
 import aioxmpp.disco
 
-try:
-    import readline  # NOQA
-except ImportError:
-    pass
+from framework import Example, exec_example
 
 
-async def main(jid, password):
-    @asyncio.coroutine
-    def get_password(client_jid, nattempt):
-        if nattempt > 1:
-            # abort, as we cannot properly re-ask the user
-            return None
-        return password
-
-    client = aioxmpp.node.PresenceManagedClient(
-        jid,
-        aioxmpp.security_layer.SecurityLayer(
-            aioxmpp.security_layer.default_ssl_context,
-            aioxmpp.security_layer._NullVerifier,
-            aioxmpp.security_layer.STARTTLSProvider(
-                aioxmpp.security_layer.default_ssl_context,
-                aioxmpp.security_layer._NullVerifier
-            ),
-            [aioxmpp.security_layer.PasswordSASLProvider(get_password)],
-        )
-    )
-
-    disco = client.summon(aioxmpp.disco.Service)
-
-    async with client.connected():
+class ServerInfo(Example):
+    async def run_simple_example(self):
+        disco = self.client.summon(aioxmpp.disco.Service)
         try:
             info = await disco.query_info(
-                jid.replace(resource=None, localpart=None),
-                timeout=10)
+                self.g_jid.replace(resource=None, localpart=None),
+                timeout=10
+            )
         except Exception as exc:
             print("could not get info: ")
             print("{}: {}".format(type(exc).__name__, exc))
@@ -67,7 +39,4 @@ async def main(jid, password):
 
 
 if __name__ == "__main__":
-    jid = aioxmpp.structs.JID.fromstr(input("JID: "))
-    pwd = getpass.getpass()
-
-    asyncio.get_event_loop().run_until_complete(main(jid, pwd))
+    exec_example(ServerInfo())

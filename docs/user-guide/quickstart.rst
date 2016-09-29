@@ -369,8 +369,8 @@ Relevant documentation:
 .. note::
 
    The example in this section can also be found in the `aioxmpp repository,
-   at examples/query_server_version.py
-   <https://github.com/horazont/aioxmpp/blob/devel/examples/query_server_version.py>`_.
+   at examples/quickstart_query_server_version.py
+   <https://github.com/horazont/aioxmpp/blob/devel/examples/quickstart_query_server_version.py>`_.
 
 
 React to an IQ request

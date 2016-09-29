@@ -95,6 +95,7 @@ import abc
 import asyncio
 import base64
 import collections
+import enum
 import functools
 import logging
 import ssl
@@ -1091,7 +1092,7 @@ def tls_with_password_based_authentication(
     )
 
 
-class PinType:
+class PinType(enum.Enum):
     """
     Enumeration to control which pinning is used by :meth:`make`.
 
