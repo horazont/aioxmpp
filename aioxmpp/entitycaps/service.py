@@ -311,8 +311,8 @@ class Service(aioxmpp.service.Service):
 
     on_ver_changed = aioxmpp.callbacks.Signal()
 
-    def __init__(self, node):
-        super().__init__(node)
+    def __init__(self, node, **kwargs):
+        super().__init__(node, **kwargs)
 
         self.ver = None
         self._cache = Cache()

@@ -331,8 +331,8 @@ class Service(aioxmpp.service.Service):
     on_unsubscribed = callbacks.Signal()
     on_unsubscribe = callbacks.Signal()
 
-    def __init__(self, client):
-        super().__init__(client)
+    def __init__(self, client, **kwargs):
+        super().__init__(client, **kwargs)
 
         self._bse_token = client.before_stream_established.connect(
             self._request_initial_roster
