@@ -193,6 +193,13 @@ Version 0.6
   :func:`aioxmpp.node.discover_connectors`. See the class documentation for
   details.
 
+Version 0.6.1
+-------------
+
+* Fix :exc:`TypeError` crashes when using :mod:`aioxmpp.entitycaps`,
+  :mod:`aioxmpp.presence` or :mod:`aioxmpp.roster`, arising from the argument
+  change to service classes.
+
 Version 0.5
 ===========
 
