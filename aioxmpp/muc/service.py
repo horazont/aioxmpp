@@ -845,6 +845,8 @@ class Service(aioxmpp.service.Service):
 
     .. automethod:: set_affiliation
 
+    .. automethod:: get_room_config
+
     """
     on_muc_joined = aioxmpp.callbacks.Signal()
 
@@ -1176,3 +1178,18 @@ class Service(aioxmpp.service.Service):
         yield from self.client.stream.send_iq_and_wait_for_reply(
             iq
         )
+
+    @asyncio.coroutine
+    def get_room_config(self, mucjid):
+        if mucjid is None or not mucjid.is_bare:
+            raise ValueError("mucjid must be bare JID")
+
+        iq = aioxmpp.stanza.IQ(
+            type_=aioxmpp.structs.IQType.GET,
+            to=mucjid,
+            payload=muc_xso.OwnerQuery(),
+        )
+
+        return (yield from self.client.stream.send_iq_and_wait_for_reply(
+            iq
+        )).form

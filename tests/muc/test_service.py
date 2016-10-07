@@ -3038,6 +3038,66 @@ class TestService(unittest.TestCase):
                     reason="foobar",
                 ))
 
+    def test_get_room_config(self):
+        reply = muc_xso.OwnerQuery()
+        reply.form = unittest.mock.sentinel.form
+
+        with unittest.mock.patch.object(
+                self.cc.stream,
+                "send_iq_and_wait_for_reply",
+                new=CoroutineMock()) as send_iq:
+            send_iq.return_value = reply
+
+            result = run_coroutine(self.s.get_room_config(
+                TEST_MUC_JID,
+            ))
+
+        self.assertEqual(
+            result,
+            reply.form,
+        )
+
+        _, (iq,), _ = send_iq.mock_calls[-1]
+
+        self.assertIsInstance(
+            iq,
+            aioxmpp.stanza.IQ
+        )
+        self.assertEqual(
+            iq.type_,
+            aioxmpp.structs.IQType.GET
+        )
+        self.assertEqual(
+            iq.to,
+            TEST_MUC_JID,
+        )
+
+        self.assertIsInstance(
+            iq.payload,
+            muc_xso.OwnerQuery
+        )
+
+        self.assertIsNone(
+            iq.payload.form,
+        )
+
+        self.assertIsNone(
+            iq.payload.destroy,
+        )
+
+    def test_get_room_config_rejects_full_mucjid(self):
+        with unittest.mock.patch.object(
+                self.cc.stream,
+                "send_iq_and_wait_for_reply",
+                new=CoroutineMock()) as send_iq:
+            with self.assertRaisesRegex(ValueError,
+                                        "mucjid must be bare JID"):
+                run_coroutine(self.s.get_room_config(
+                    TEST_MUC_JID.replace(resource="thirdwitch"),
+                ))
+
+        self.assertFalse(send_iq.mock_calls)
+
     def tearDow(self):
         del self.s
         del self.cc

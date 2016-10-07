@@ -1,4 +1,5 @@
 import collections
+import itertools
 import unittest
 
 import aioxmpp.forms.xso as forms_xso
@@ -182,6 +183,19 @@ class TestFieldType(unittest.TestCase):
             self.assertEqual(
                 enum_value in positive,
                 enum_value.is_multivalued,
+            )
+
+    def test_allow_upcast(self):
+        allowed = {
+            (forms_xso.FieldType.TEXT_SINGLE,
+             forms_xso.FieldType.TEXT_PRIVATE)
+        }
+
+        for t1, t2 in itertools.product(forms_xso.FieldType,
+                                        forms_xso.FieldType):
+            self.assertEqual(
+                t1 == t2 or (t1, t2) in allowed,
+                t1.allow_upcast(t2)
             )
 
 

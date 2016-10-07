@@ -1721,6 +1721,44 @@ class TestJIDSingle(unittest.TestCase):
         self.assertEqual(f.desc, "foobar")
 
 
+class TestBoolean(unittest.TestCase):
+    def test_is_text_single(self):
+        self.assertTrue(issubclass(
+            form.Boolean,
+            form.TextSingle
+        ))
+
+    def test_field_type(self):
+        self.assertEqual(
+            form.Boolean.FIELD_TYPE,
+            forms_xso.FieldType.BOOLEAN,
+        )
+
+    def test_type_is_Bool(self):
+        f = form.Boolean("foo")
+        self.assertIsInstance(f.type_, xso.Bool)
+
+    def test_init_still_accepts_type__argument(self):
+        t = object()
+        f = form.Boolean("foo", type_=t)
+        self.assertIs(f.type_, t)
+
+    def test_init_passes_to_abstract_field(self):
+        f = form.Boolean(
+            var="muc#foobar",
+            required=True,
+            desc="foobar"
+        )
+        self.assertTrue(f.required)
+        self.assertEqual(f.desc, "foobar")
+
+    def test_default_default(self):
+        self.assertEqual(
+            form.Boolean("foo").default(),
+            False,
+        )
+
+
 class TestTextPrivate(unittest.TestCase):
     def test_is_text_single(self):
         self.assertTrue(issubclass(
@@ -1804,6 +1842,15 @@ class TestTextMulti(unittest.TestCase):
         self.assertEqual(
             f.default(),
             unittest.mock.sentinel.default
+        )
+
+    def test_init_default_default(self):
+        f = form.TextMulti(
+            var="muc#foobar",
+        )
+        self.assertEqual(
+            f.default(),
+            ()
         )
 
     def test_create_bound_creates_multi_value_field(self):
@@ -1956,6 +2003,12 @@ class TestListSingle(unittest.TestCase):
             form.AbstractChoiceField
         ))
 
+    def test_field_type(self):
+        self.assertEqual(
+            form.ListSingle.FIELD_TYPE,
+            forms_xso.FieldType.LIST_SINGLE
+        )
+
     def test_init_default_default(self):
         self.assertIsNone(self.f.default())
 
@@ -2018,6 +2071,12 @@ class TestListMulti(unittest.TestCase):
             form.ListMulti,
             form.AbstractChoiceField
         ))
+
+    def test_field_type(self):
+        self.assertEqual(
+            form.ListMulti.FIELD_TYPE,
+            forms_xso.FieldType.LIST_MULTI
+        )
 
     def test_init_default_default(self):
         self.assertSetEqual(
@@ -2240,6 +2299,41 @@ class TestForm(unittest.TestCase):
                 ValueError,
                 r"mismatching type (.+ != .+) on field .+"):
             F.from_xso(data)
+
+    def test_from_xso_allows_upcast(self):
+        data = forms_xso.Data(type_=forms_xso.DataType.FORM)
+
+        data.fields.append(
+            forms_xso.Field(
+                var="FORM_TYPE",
+                type_=forms_xso.FieldType.HIDDEN,
+                values=["some-uri"],
+            )
+        )
+
+        data.fields.append(
+            forms_xso.Field(
+                type_=forms_xso.FieldType.FIXED,
+                values=["This is some heading."],
+            )
+        )
+
+        data.fields.append(
+            forms_xso.Field(
+                var="jid",
+                type_=forms_xso.FieldType.TEXT_SINGLE,
+                values=[],
+                desc="some description",
+                label="some label",
+            )
+        )
+
+        class F(form.Form):
+            jid = form.TextPrivate(
+                var="jid",
+            )
+
+        F.from_xso(data)
 
     def test_render_reply(self):
         data = forms_xso.Data(type_=forms_xso.DataType.FORM)

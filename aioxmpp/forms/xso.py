@@ -213,6 +213,15 @@ class FieldType(enum.Enum):
     def is_multivalued(self):
         return self.value.endswith("-multi")
 
+    def allow_upcast(self, to):
+        if self == to:
+            return True
+        print(self, to)
+        if self == FieldType.TEXT_SINGLE and to == FieldType.TEXT_PRIVATE:
+            print("ok")
+            return True
+        return False
+
 
 class Field(xso.XSO):
     """

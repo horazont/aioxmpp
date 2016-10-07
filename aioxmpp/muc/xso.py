@@ -346,3 +346,112 @@ class OwnerQuery(xso.XSO):
     destroy = xso.Child([DestroyRequest])
 
     form = xso.Child([aioxmpp.forms.Data])
+
+
+class ConfigurationForm(aioxmpp.forms.Form):
+    FORM_TYPE = 'http://jabber.org/protocol/muc#roomconfig'
+
+    maxhistoryfetch = aioxmpp.forms.TextSingle(
+        var='muc#maxhistoryfetch',
+        label='Maximum Number of History Messages Returned by Room'
+    )
+
+    allowpm = aioxmpp.forms.ListSingle(
+        var='muc#roomconfig_allowpm',
+        label='Roles that May Send Private Messages'
+    )
+
+    allowinvites = aioxmpp.forms.Boolean(
+        var='muc#roomconfig_allowinvites',
+        label='Whether to Allow Occupants to Invite Others'
+    )
+
+    changesubject = aioxmpp.forms.Boolean(
+        var='muc#roomconfig_changesubject',
+        label='Whether to Allow Occupants to Change Subject'
+    )
+
+    enablelogging = aioxmpp.forms.Boolean(
+        var='muc#roomconfig_enablelogging',
+        label='Whether to Enable Public Logging of Room Conversations'
+    )
+
+    getmemberlist = aioxmpp.forms.ListMulti(
+        var='muc#roomconfig_getmemberlist',
+        label='Roles and Affiliations that May Retrieve Member List'
+    )
+
+    lang = aioxmpp.forms.TextSingle(
+        var='muc#roomconfig_lang',
+        label='Natural Language for Room Discussions'
+    )
+
+    pubsub = aioxmpp.forms.TextSingle(
+        var='muc#roomconfig_pubsub',
+        label='XMPP URI of Associated Publish-Subscribe Node'
+    )
+
+    maxusers = aioxmpp.forms.ListSingle(
+        var='muc#roomconfig_maxusers',
+        label='Maximum Number of Room Occupants'
+    )
+
+    membersonly = aioxmpp.forms.Boolean(
+        var='muc#roomconfig_membersonly',
+        label='Whether to Make Room Members-Only'
+    )
+
+    moderatedroom = aioxmpp.forms.Boolean(
+        var='muc#roomconfig_moderatedroom',
+        label='Whether to Make Room Moderated'
+    )
+
+    passwordprotectedroom = aioxmpp.forms.Boolean(
+        var='muc#roomconfig_passwordprotectedroom',
+        label='Whether a Password is Required to Enter'
+    )
+
+    persistentroom = aioxmpp.forms.Boolean(
+        var='muc#roomconfig_persistentroom',
+        label='Whether to Make Room Persistent'
+    )
+
+    presencebroadcast = aioxmpp.forms.ListMulti(
+        var='muc#roomconfig_presencebroadcast',
+        label='Roles for which Presence is Broadcasted'
+    )
+
+    publicroom = aioxmpp.forms.Boolean(
+        var='muc#roomconfig_publicroom',
+        label='Whether to Allow Public Searching for Room'
+    )
+
+    roomadmins = aioxmpp.forms.JIDMulti(
+        var='muc#roomconfig_roomadmins',
+        label='Full List of Room Admins'
+    )
+
+    roomdesc = aioxmpp.forms.TextSingle(
+        var='muc#roomconfig_roomdesc',
+        label='Short Description of Room'
+    )
+
+    roomname = aioxmpp.forms.TextSingle(
+        var='muc#roomconfig_roomname',
+        label='Natural-Language Room Name'
+    )
+
+    roomowners = aioxmpp.forms.JIDMulti(
+        var='muc#roomconfig_roomowners',
+        label='Full List of Room Owners'
+    )
+
+    roomsecret = aioxmpp.forms.TextPrivate(
+        var='muc#roomconfig_roomsecret',
+        label='The Room Password'
+    )
+
+    whois = aioxmpp.forms.ListSingle(
+        var='muc#roomconfig_whois',
+        label='Affiliations that May Discover Real JIDs of Occupants'
+    )

@@ -71,6 +71,12 @@ from .xso import (  # NOQA
 
 from .form import (  # NOQA
     Form,
-    TextSingle,
+    Boolean,
+    ListSingle,
+    ListMulti,
     JIDSingle,
+    JIDMulti,
+    TextSingle,
+    TextMulti,
+    TextPrivate,
 )

@@ -684,11 +684,18 @@ class TextPrivate(TextSingle):
     FIELD_TYPE = forms_xso.FieldType.TEXT_PRIVATE
 
 
+class Boolean(TextSingle):
+    FIELD_TYPE = forms_xso.FieldType.BOOLEAN
+
+    def __init__(self, var, type_=xso.Bool(), *, default=False, **kwargs):
+        super().__init__(var, type_=type_, default=default, **kwargs)
+
+
 class TextMulti(AbstractField):
     FIELD_TYPE = forms_xso.FieldType.TEXT_MULTI
 
     def __init__(self, var, type_=xso.String(), *,
-                 default=None, **kwargs):
+                 default=(), **kwargs):
         super().__init__(var, **kwargs)
         self._type = type_
         self._default = default
@@ -732,6 +739,8 @@ class AbstractChoiceField(AbstractField):
 
 
 class ListSingle(AbstractChoiceField):
+    FIELD_TYPE = forms_xso.FieldType.LIST_SINGLE
+
     def __init__(self, var, *, default=None, **kwargs):
         super().__init__(var, **kwargs)
         if default is not None and default not in self.options:
@@ -746,6 +755,8 @@ class ListSingle(AbstractChoiceField):
 
 
 class ListMulti(AbstractChoiceField):
+    FIELD_TYPE = forms_xso.FieldType.LIST_MULTI
+
     def __init__(self, var, *, default=frozenset(), **kwargs):
         super().__init__(var, **kwargs)
         if any(value not in self.options for value in default):
@@ -780,7 +791,7 @@ class FormClass(DescriptorClass):
             except KeyError:
                 continue
 
-            if descriptor.FIELD_TYPE != field.type_:
+            if not field.type_.allow_upcast(descriptor.FIELD_TYPE):
                 raise ValueError(
                     "mismatching type ({!r} != {!r}) on field var={!r}".format(
                         field.type_,
