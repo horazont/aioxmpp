@@ -351,20 +351,22 @@ class TestInfoQuery(unittest.TestCase):
             ]
         )
 
-        f = forms_xso.Data()
+        f = forms_xso.Data(type_=forms_xso.DataType.FORM)
         f.fields.extend([
-            forms_xso.Field(type_="hidden",
-                            var="FORM_TYPE",
-                            values=[
-                                "fnord",
-                            ]),
-            forms_xso.Field(type_="text-single",
-                            var="uiae",
-                            values=[
-                                "nrtd",
-                                "asdf",
-                            ]),
-            forms_xso.Field(type_="fixed"),
+            forms_xso.Field(
+                type_=forms_xso.FieldType.HIDDEN,
+                var="FORM_TYPE",
+                values=[
+                    "fnord",
+                ]),
+            forms_xso.Field(
+                type_=forms_xso.FieldType.TEXT_SINGLE,
+                var="uiae",
+                values=[
+                    "nrtd",
+                    "asdf",
+                ]),
+            forms_xso.Field(type_=forms_xso.FieldType.FIXED),
         ])
         q.exts.append(f)
 
@@ -427,26 +429,26 @@ class TestInfoQuery(unittest.TestCase):
             ]
         )
 
-        f = forms_xso.Data()
+        f = forms_xso.Data(type_=forms_xso.DataType.FORM)
         f.fields.extend([
-            forms_xso.Field(type_="hidden",
+            forms_xso.Field(type_=forms_xso.FieldType.HIDDEN,
                             var="FORM_TYPE",
                             values=[
                                 "fnord",
                             ]),
-            forms_xso.Field(type_="text-single",
+            forms_xso.Field(type_=forms_xso.FieldType.TEXT_SINGLE,
                             var="uiae",
                             values=[
                                 "nrtd",
                                 "asdf",
                             ]),
-            forms_xso.Field(type_="fixed"),
+            forms_xso.Field(type_=forms_xso.FieldType.FIXED),
         ])
         q.exts.append(f)
 
-        f = forms_xso.Data()
+        f = forms_xso.Data(type_=forms_xso.DataType.FORM)
         f.fields.extend([
-            forms_xso.Field(type_="hidden",
+            forms_xso.Field(type_=forms_xso.FieldType.HIDDEN,
                             var="FORM_TYPE",
                             values=[
                                 "fnord",

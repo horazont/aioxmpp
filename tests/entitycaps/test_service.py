@@ -1,6 +1,5 @@
 import asyncio
 import contextlib
-import copy
 import io
 import unittest
 import unittest.mock
@@ -10,7 +9,6 @@ import aioxmpp.disco as disco
 import aioxmpp.service as service
 import aioxmpp.stanza as stanza
 import aioxmpp.structs as structs
-import aioxmpp.forms as forms
 import aioxmpp.forms.xso as forms_xso
 import aioxmpp.xml
 
@@ -129,7 +127,7 @@ class Testbuild_features_string(unittest.TestCase):
 
 class Testbuild_forms_string(unittest.TestCase):
     def test_xep_form(self):
-        forms = [forms_xso.Data()]
+        forms = [forms_xso.Data(type_=forms_xso.DataType.FORM)]
         forms[0].fields.extend([
             forms_xso.Field(
                 var="FORM_TYPE",
@@ -186,7 +184,7 @@ class Testbuild_forms_string(unittest.TestCase):
         )
 
     def test_value_and_var_escaping(self):
-        forms = [forms_xso.Data()]
+        forms = [forms_xso.Data(type_=forms_xso.DataType.FORM)]
         forms[0].fields.extend([
             forms_xso.Field(
                 var="FORM_TYPE",
@@ -218,7 +216,7 @@ class Testbuild_forms_string(unittest.TestCase):
         )
 
     def test_reject_multiple_identical_form_types(self):
-        forms = [forms_xso.Data(), forms_xso.Data()]
+        forms = [forms_xso.Data(type_=forms_xso.DataType.FORM), forms_xso.Data(type_=forms_xso.DataType.FORM)]
 
         forms[0].fields.extend([
             forms_xso.Field(
@@ -272,7 +270,7 @@ class Testbuild_forms_string(unittest.TestCase):
             entitycaps_service.build_forms_string(forms)
 
     def test_reject_form_with_multiple_different_types(self):
-        forms = [forms_xso.Data()]
+        forms = [forms_xso.Data(type_=forms_xso.DataType.FORM)]
 
         forms[0].fields.extend([
             forms_xso.Field(
@@ -304,7 +302,8 @@ class Testbuild_forms_string(unittest.TestCase):
             entitycaps_service.build_forms_string(forms)
 
     def test_ignore_form_without_type(self):
-        forms = [forms_xso.Data(), forms_xso.Data()]
+        forms = [forms_xso.Data(type_=forms_xso.DataType.FORM),
+                 forms_xso.Data(type_=forms_xso.DataType.FORM)]
 
         forms[0].fields.extend([
             forms_xso.Field(
@@ -352,7 +351,7 @@ class Testbuild_forms_string(unittest.TestCase):
         )
 
     def test_accept_form_with_multiple_identical_types(self):
-        forms = [forms_xso.Data()]
+        forms = [forms_xso.Data(type_=forms_xso.DataType.FORM)]
 
         forms[0].fields.extend([
             forms_xso.Field(
@@ -374,7 +373,7 @@ class Testbuild_forms_string(unittest.TestCase):
         entitycaps_service.build_forms_string(forms)
 
     def test_multiple(self):
-        forms = [forms_xso.Data(), forms_xso.Data()]
+        forms = [forms_xso.Data(type_=forms_xso.DataType.FORM), forms_xso.Data(type_=forms_xso.DataType.FORM)]
 
         forms[0].fields.extend([
             forms_xso.Field(
@@ -512,7 +511,7 @@ class Testhash_query(unittest.TestCase):
             "http://jabber.org/protocol/muc",
         })
 
-        ext_form = forms_xso.Data()
+        ext_form = forms_xso.Data(type_=forms_xso.DataType.FORM)
 
         ext_form.fields.extend([
             forms_xso.Field(

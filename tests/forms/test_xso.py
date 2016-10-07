@@ -1,3 +1,4 @@
+import collections
 import unittest
 
 import aioxmpp.forms.xso as forms_xso
@@ -140,6 +141,50 @@ class TestOptionElement(unittest.TestCase):
         self.assertEqual(o.label, "bar")
 
 
+class TestFieldType(unittest.TestCase):
+    def test_covers_all_types(self):
+        self.assertSetEqual(
+            {v.value for v in forms_xso.FieldType},
+            {
+                "boolean",
+                "fixed",
+                "hidden",
+                "jid-multi",
+                "jid-single",
+                "list-multi",
+                "list-single",
+                "text-multi",
+                "text-private",
+                "text-single",
+            }
+        )
+
+    def test_has_options(self):
+        positive = [
+            forms_xso.FieldType.LIST_MULTI,
+            forms_xso.FieldType.LIST_SINGLE,
+        ]
+
+        for enum_value in forms_xso.FieldType:
+            self.assertEqual(
+                enum_value in positive,
+                enum_value.has_options
+            )
+
+    def test_is_multi_valued(self):
+        positive = [
+            forms_xso.FieldType.LIST_MULTI,
+            forms_xso.FieldType.TEXT_MULTI,
+            forms_xso.FieldType.JID_MULTI,
+        ]
+
+        for enum_value in forms_xso.FieldType:
+            self.assertEqual(
+                enum_value in positive,
+                enum_value.is_multivalued,
+            )
+
+
 class TestField(unittest.TestCase):
     def test_is_xso(self):
         self.assertTrue(issubclass(
@@ -156,14 +201,11 @@ class TestField(unittest.TestCase):
     def test_required_attr(self):
         self.assertIsInstance(
             forms_xso.Field.required,
-            xso.ChildTag
+            xso.ChildFlag
         )
-        self.assertSetEqual(
-            {
-                (namespaces.xep0004_data, "required"),
-                None,
-            },
-            forms_xso.Field.required.validator.values
+        self.assertEqual(
+            (namespaces.xep0004_data, "required"),
+            forms_xso.Field.required.tag
         )
 
     def test_desc_attr(self):
@@ -207,6 +249,10 @@ class TestField(unittest.TestCase):
             },
             set(forms_xso.Field.options._classes)
         )
+        self.assertEqual(
+            forms_xso.Field.options.mapping_type,
+            collections.OrderedDict,
+        )
 
     def test_var_attr(self):
         self.assertIsInstance(
@@ -228,27 +274,17 @@ class TestField(unittest.TestCase):
             forms_xso.Field.type_.tag
         )
         self.assertIsInstance(
-            forms_xso.Field.type_.validator,
-            xso.RestrictToSet
+            forms_xso.Field.type_.type_,
+            xso.EnumType
         )
-        self.assertSetEqual(
-            {
-                "boolean",
-                "fixed",
-                "hidden",
-                "jid-multi",
-                "jid-single",
-                "list-multi",
-                "list-single",
-                "text-multi",
-                "text-private",
-                "text-single",
-            },
-            forms_xso.Field.type_.validator.values
+        self.assertIs(
+            forms_xso.Field.type_.type_.enum_class,
+            forms_xso.FieldType,
         )
+        self.assertIsNone(forms_xso.Field.type_.validator)
         self.assertEqual(
             forms_xso.Field.type_.default,
-            "text-single"
+            forms_xso.FieldType.TEXT_SINGLE,
         )
 
     def test_label_attr(self):
@@ -262,8 +298,8 @@ class TestField(unittest.TestCase):
         )
 
     def test_reject_missing_var_for_non_fixed_fields(self):
-        types = set(forms_xso.Field.type_.validator.values)
-        types.discard("fixed")
+        types = set(forms_xso.FieldType)
+        types.discard(forms_xso.FieldType.FIXED)
 
         for type_ in types:
             f = forms_xso.Field()
@@ -274,16 +310,16 @@ class TestField(unittest.TestCase):
 
     def test_accept_missing_var_for_fixed_fields(self):
         f = forms_xso.Field()
-        f.type_ = "fixed"
+        f.type_ = forms_xso.FieldType.FIXED
         f.validate()
 
         f.var = "foobar"
         f.validate()
 
     def test_reject_options_for_non_list_fields(self):
-        types = set(forms_xso.Field.type_.validator.values)
-        types.discard("list-single")
-        types.discard("list-multi")
+        types = set(forms_xso.FieldType)
+        types.discard(forms_xso.FieldType.LIST_MULTI)
+        types.discard(forms_xso.FieldType.LIST_SINGLE)
 
         for type_ in types:
             f = forms_xso.Field()
@@ -296,7 +332,10 @@ class TestField(unittest.TestCase):
                 f.validate()
 
     def test_accept_options_for_list_fields(self):
-        types = {"list-single", "list-multi"}
+        types = {
+            forms_xso.FieldType.LIST_SINGLE,
+            forms_xso.FieldType.LIST_MULTI,
+        }
 
         option = forms_xso.Option()
         option.value = "foobar"
@@ -310,10 +349,10 @@ class TestField(unittest.TestCase):
             f.validate()
 
     def test_reject_multiple_values_for_non_multi_fields(self):
-        types = set(forms_xso.Field.type_.validator.values)
-        types.discard("text-multi")
-        types.discard("list-multi")
-        types.discard("jid-multi")
+        types = set(forms_xso.FieldType)
+        types.discard(forms_xso.FieldType.LIST_MULTI)
+        types.discard(forms_xso.FieldType.TEXT_MULTI)
+        types.discard(forms_xso.FieldType.JID_MULTI)
 
         value = forms_xso.Value()
 
@@ -329,7 +368,11 @@ class TestField(unittest.TestCase):
                 f.validate()
 
     def test_accept_multiple_values_on_multi_fields(self):
-        types = {"list-multi", "text-multi", "jid-multi"}
+        types = {
+            forms_xso.FieldType.LIST_MULTI,
+            forms_xso.FieldType.TEXT_MULTI,
+            forms_xso.FieldType.JID_MULTI,
+        }
 
         value = forms_xso.Value()
 
@@ -344,21 +387,22 @@ class TestField(unittest.TestCase):
 
     def test_reject_duplicate_option_values(self):
         f = forms_xso.Field()
-        f.type_ = "list-multi"
+        f.type_ = forms_xso.FieldType.LIST_MULTI
         f.var = "foobar"
         f.options["foo"] = "bar"
         f.options["baz"] = "bar"
 
-        with self.assertRaisesRegex(ValueError,
-                                    "duplicate option value"):
+        with self.assertRaisesRegex(
+                ValueError,
+                "duplicate option value"):
             f.validate()
 
     def test_init(self):
         f = forms_xso.Field()
-        self.assertEqual(f.type_, "text-single")
+        self.assertEqual(f.type_, forms_xso.FieldType.TEXT_SINGLE)
         self.assertSequenceEqual(f.values, [])
         self.assertDictEqual(f.options, {})
-        self.assertIsNone(f.required)
+        self.assertFalse(f.required)
         self.assertIsNone(f.desc)
         self.assertIsNone(f.var)
         self.assertIsNone(f.label)
@@ -373,7 +417,7 @@ class TestField(unittest.TestCase):
         values = ["1", "2"]
 
         f = forms_xso.Field(
-            type_="list-multi",
+            type_=forms_xso.FieldType.LIST_MULTI,
             options=options,
             values=values,
             desc="description",
@@ -381,7 +425,7 @@ class TestField(unittest.TestCase):
             label="fnord"
         )
 
-        self.assertEqual(f.type_, "list-multi")
+        self.assertEqual(f.type_, forms_xso.FieldType.LIST_MULTI)
 
         self.assertDictEqual(f.options, options)
         self.assertIsNot(f.options, options)
@@ -391,33 +435,19 @@ class TestField(unittest.TestCase):
 
         self.assertEqual(f.desc, "description")
 
-        self.assertEqual(
+        self.assertIs(
             f.required,
-            (namespaces.xep0004_data, "required")
+            True,
         )
 
         self.assertEqual(f.label, "fnord")
 
 
-class TestTitle(unittest.TestCase):
-    def test_is_AbstractTextChild(self):
-        self.assertTrue(issubclass(
-            forms_xso.Title,
-            xso.AbstractTextChild
-        ))
-
-    def test_tag(self):
-        self.assertEqual(
-            (namespaces.xep0004_data, "title"),
-            forms_xso.Title.TAG
-        )
-
-
 class TestInstructions(unittest.TestCase):
-    def test_is_AbstractTextChild(self):
+    def test_is_xso(self):
         self.assertTrue(issubclass(
             forms_xso.Instructions,
-            xso.AbstractTextChild
+            xso.XSO
         ))
 
     def test_tag(self):
@@ -425,6 +455,49 @@ class TestInstructions(unittest.TestCase):
             (namespaces.xep0004_data, "instructions"),
             forms_xso.Instructions.TAG
         )
+
+    def test_value(self):
+        self.assertIsInstance(
+            forms_xso.Instructions.value,
+            xso.Text,
+        )
+        self.assertEqual(
+            forms_xso.Instructions.value.default,
+            ""
+        )
+
+
+class TestInstructionsElement(unittest.TestCase):
+    def test_is_type(self):
+        self.assertTrue(issubclass(
+            forms_xso.InstructionsElement,
+            xso.AbstractType
+        ))
+
+    def test_get_formatted_type(self):
+        t = forms_xso.InstructionsElement()
+        self.assertIs(
+            t.get_formatted_type(),
+            forms_xso.Instructions
+        )
+
+    def test_parse(self):
+        t = forms_xso.InstructionsElement()
+        v = forms_xso.Instructions()
+        v.value = "foobar"
+        self.assertEqual(
+            v.value,
+            t.parse(v)
+        )
+
+    def test_format(self):
+        t = forms_xso.InstructionsElement()
+        v = t.format("foo")
+        self.assertIsInstance(
+            v,
+            forms_xso.Instructions
+        )
+        self.assertEqual(v.value, "foo")
 
 
 class TestAbstractItem(unittest.TestCase):
@@ -478,12 +551,33 @@ class TestReported(unittest.TestCase):
         )
 
 
+class TestDataType(unittest.TestCase):
+    def test_covers_all_types(self):
+        self.assertSetEqual(
+            {v.value for v in forms_xso.DataType},
+            {
+                "form",
+                "submit",
+                "cancel",
+                "result",
+            }
+        )
+
+
 class TestData(unittest.TestCase):
     def test_is_abstract_item(self):
         self.assertTrue(issubclass(
             forms_xso.Data,
             forms_xso.AbstractItem
         ))
+
+    def test_init_requires_type(self):
+        with self.assertRaises(TypeError):
+            forms_xso.Data()
+
+    def test_init(self):
+        f = forms_xso.Data(type_=forms_xso.DataType.FORM)
+        self.assertEqual(f.type_, forms_xso.DataType.FORM)
 
     def test_tag(self):
         self.assertEqual(
@@ -501,33 +595,25 @@ class TestData(unittest.TestCase):
             forms_xso.Data.type_.tag
         )
         self.assertIsInstance(
-            forms_xso.Data.type_.validator,
-            xso.RestrictToSet
-        )
-        self.assertSetEqual(
-            {
-                "form",
-                "submit",
-                "cancel",
-                "result",
-            },
-            forms_xso.Data.type_.validator.values
+            forms_xso.Data.type_.type_,
+            xso.EnumType
         )
         self.assertEqual(
-            xso.ValidateMode.ALWAYS,
-            forms_xso.Data.type_.validate
+            forms_xso.Data.type_.type_.enum_class,
+            forms_xso.DataType,
         )
 
     def test_title_attr(self):
         self.assertIsInstance(
             forms_xso.Data.title,
-            xso.ChildList
+            xso.ChildText
         )
-        self.assertSetEqual(
-            {
-                forms_xso.Title,
-            },
-            set(forms_xso.Data.title._classes)
+        self.assertEqual(
+            forms_xso.Data.title.tag,
+            (namespaces.xep0004_data, "title"),
+        )
+        self.assertIsNone(
+            forms_xso.Data.title.default,
         )
 
     def test_fields_attr(self):
@@ -545,13 +631,17 @@ class TestData(unittest.TestCase):
     def test_instructions_attr(self):
         self.assertIsInstance(
             forms_xso.Data.instructions,
-            xso.ChildList
+            xso.ChildValueList
         )
         self.assertSetEqual(
             {
-                forms_xso.Instructions,
+                forms_xso.Instructions
             },
             set(forms_xso.Data.instructions._classes)
+        )
+        self.assertIsInstance(
+            forms_xso.Data.instructions.type_,
+            forms_xso.InstructionsElement,
         )
 
     def test_items_attr(self):
@@ -579,14 +669,17 @@ class TestData(unittest.TestCase):
         )
 
     def test_validate_rejects_reported_or_items_if_type_is_not_result(self):
-        types = ["form", "submit", "cancel"]
+        types = [
+            forms_xso.DataType.FORM,
+            forms_xso.DataType.SUBMIT,
+            forms_xso.DataType.CANCEL,
+        ]
 
         rep = forms_xso.Reported()
         item = forms_xso.Item()
 
         for type_ in types:
-            obj = forms_xso.Data()
-            obj.type_ = type_
+            obj = forms_xso.Data(type_=type_)
             obj.reported = rep
             with self.assertRaisesRegex(ValueError, "report in non-result"):
                 obj.validate()
@@ -598,9 +691,8 @@ class TestData(unittest.TestCase):
 
     def test_validate_rejects_fields_for_results_if_report(self):
         field = forms_xso.Field()
-        field.type_ = "fixed"
-        obj = forms_xso.Data()
-        obj.type_ = "result"
+        field.type_ = forms_xso.FieldType.FIXED
+        obj = forms_xso.Data(type_=forms_xso.DataType.RESULT)
         obj.fields.append(field)
         obj.reported = forms_xso.Reported()
 
@@ -615,16 +707,14 @@ class TestData(unittest.TestCase):
 
     def test_validate_accepts_fields_for_results_without_report(self):
         field = forms_xso.Field()
-        field.type_ = "fixed"
-        obj = forms_xso.Data()
-        obj.type_ = "result"
+        field.type_ = forms_xso.FieldType.FIXED
+        obj = forms_xso.Data(type_=forms_xso.DataType.RESULT)
         obj.fields.append(field)
 
         obj.validate()
 
     def test_validate_reject_empty_reported(self):
-        obj = forms_xso.Data()
-        obj.type_ = "result"
+        obj = forms_xso.Data(forms_xso.DataType.RESULT)
         obj.reported = forms_xso.Reported()
 
         with self.assertRaisesRegex(ValueError, "empty report header"):
@@ -634,23 +724,22 @@ class TestData(unittest.TestCase):
         f = forms_xso.Field()
         f.var = "foobar"
 
-        obj = forms_xso.Data()
-        obj.type_ = "result"
+        obj = forms_xso.Data(forms_xso.DataType.RESULT)
         obj.reported = forms_xso.Reported()
         obj.reported.fields.append(f)
 
         obj.items.append(forms_xso.Item())
 
-        with self.assertRaisesRegex(ValueError,
-                                     "field mismatch between row and header"):
+        with self.assertRaisesRegex(
+                ValueError,
+                "field mismatch between row and header"):
             obj.validate()
 
     def test_validate_reject_mismatching_items(self):
         f = forms_xso.Field()
         f.var = "foobar"
 
-        obj = forms_xso.Data()
-        obj.type_ = "result"
+        obj = forms_xso.Data(forms_xso.DataType.RESULT)
         obj.reported = forms_xso.Reported()
         obj.reported.fields.append(f)
 
