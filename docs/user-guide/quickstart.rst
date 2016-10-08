@@ -121,8 +121,8 @@ Relevant documentation:
   dictionaries instead of strings. Want to know why? Read the documentation! ☺), :attr:`aioxmpp.PresenceManagedClient.presence`
 
 
-React to messages
-=================
+React to messages (Echo Bot)
+============================
 
 Of course, you can react to messages. For this, you need to register with the
 :class:`aioxmpp.stream.StanaStream` of the `client`. You better do this before
@@ -142,9 +142,18 @@ The `message_received` callback will be called for all ``"chat"`` messages from
 any sender. By itself, it is not very useful, because the `msg` argument is the
 :class:`aioxmpp.Message` object.
 
+This example can be modified to be an echo bot by implementing the
+``message_received`` callback differently::
+
+  def message_received(msg):
+      reply = msg.make_reply()
+      reply.body = msg.body
+      client.stream.enqueue_stanza(reply)
+
 * :meth:`~aioxmpp.stream.StanzaStream.register_message_callback`. Definitely
   check this out for the semantics of the first two arguments!
 * :class:`aioxmpp.Message`
+* :meth:`~aioxmpp.stream.StanzaStream.enqueue_stanza`
 
 
 React to presences
