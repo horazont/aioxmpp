@@ -1209,6 +1209,8 @@ class TestAbstractDescriptor(unittest.TestCase):
 
 class TestAbstractField(unittest.TestCase):
     class FakeField(fields.AbstractField):
+        FIELD_TYPE = forms_xso.FieldType.HIDDEN
+
         def __init__(self, var, type_=xso.String(), *args, **kwargs):
             super().__init__(var, type_, *args, **kwargs)
 
@@ -1732,6 +1734,8 @@ class TestJIDMulti(unittest.TestCase):
 
 class TestAbstractChoiceField(unittest.TestCase):
     class FakeChoiceField(fields.AbstractChoiceField):
+        FIELD_TYPE = forms_xso.FieldType.HIDDEN
+
         def create_bound(self, for_instance):
             pass
 

@@ -10,6 +10,14 @@ from . import xso as forms_xso
 descriptor_ns = "{jabber:x:data}field"
 
 
+FIELD_DOCSTRING_TEMPLATE = \
+"""
+``{field_type.value}`` field ``{var}``
+
+{label}
+"""
+
+
 class BoundField(metaclass=abc.ABCMeta):
     """
     Abstract base class for objects returned by the field descriptors.
@@ -720,6 +728,12 @@ class AbstractField(AbstractDescriptor):
         self.desc = desc
         self.label = label
         self._type = type_
+        self.__doc__ = FIELD_DOCSTRING_TEMPLATE.format(
+            field_type=self.FIELD_TYPE,
+            var=self.var,
+            desc=self.desc,
+            label=self.label,
+        )
 
     def descriptor_keys(self):
         yield descriptor_ns, self._var
