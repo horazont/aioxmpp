@@ -1,4 +1,5 @@
 import unittest
+import unittest.mock
 
 from datetime import datetime
 
@@ -1097,4 +1098,23 @@ class TestOwnerQuery(unittest.TestCase):
         self.assertIs(
             stanza.IQ.CHILD_MAP[muc_xso.OwnerQuery.TAG],
             stanza.IQ.payload.xq_descriptor
+        )
+
+    def test_init(self):
+        oq = muc_xso.OwnerQuery()
+        self.assertIsNone(oq.destroy)
+        self.assertIsNone(oq.form)
+
+    def test_init_form(self):
+        oq = muc_xso.OwnerQuery(form=unittest.mock.sentinel.form)
+        self.assertEqual(
+            oq.form,
+            unittest.mock.sentinel.form,
+        )
+
+    def test_init_destroy(self):
+        oq = muc_xso.OwnerQuery(destroy=unittest.mock.sentinel.destroy)
+        self.assertEqual(
+            oq.destroy,
+            unittest.mock.sentinel.destroy,
         )

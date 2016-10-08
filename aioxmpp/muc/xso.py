@@ -347,6 +347,11 @@ class OwnerQuery(xso.XSO):
 
     form = xso.Child([aioxmpp.forms.Data])
 
+    def __init__(self, *, form=None, destroy=None):
+        super().__init__()
+        self.form = form
+        self.destroy = destroy
+
 
 class ConfigurationForm(aioxmpp.forms.Form):
     FORM_TYPE = 'http://jabber.org/protocol/muc#roomconfig'
