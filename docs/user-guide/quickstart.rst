@@ -79,7 +79,7 @@ inside the ``async with`` block::
 
   msg = aioxmpp.Message(
       to=recipient_jid,  # recipient_jid must be an aioxmpp.JID
-      type_="chat",
+      type_=aioxmpp.MessageType.CHAT,
   )
   # None is for "default language"
   msg.body[None] = "Hello World!"
@@ -133,7 +133,7 @@ before the ``async with``. To get all chat messages, you could use::
       print(msg)
 
   client.stream.register_message_callback(
-      "chat",
+      aioxmpp.MessageType.CHAT,
       None,
       message_received,
   )
@@ -166,7 +166,7 @@ Again, the code should be run before
       print(pres)
 
   client.stream.register_presence_callback(
-      None,
+      aioxmpp.PresenceType.AVAILABLE,
       None,
       available_presence_received,
   )
@@ -193,7 +193,7 @@ IQ request handlers, instead of normal functions::
       print(request)
 
   client.stream.register_iq_request_coro(
-      "get",
+      aioxmpp.IQType.GET,
       aioxmpp.disco.xso.InfoQuery,
       request_handler,
   )
@@ -329,7 +329,7 @@ With that declaration, we can construct and send a :xep:`92` IQ like this (we
 are now back inside the ``async with`` block)::
 
   iq = aioxmpp.IQ(
-      type_="get",
+      type_=aioxmpp.IQType.GET,
       payload=Query(),
       to=peer_jid,
   )
@@ -391,7 +391,7 @@ with``)::
       return result
 
   client.stream.register_iq_request_coro(
-      "get",
+      aioxmpp.IQType.GET,
       Query,
       handler,
   )
