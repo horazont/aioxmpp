@@ -136,7 +136,7 @@ class DebugWrapper:
     def flush(self):
         self.logger.debug("SENT %r", b"".join(self._pieces))
         self._pieces = []
-        self._flush
+        self._flush()
 
 
 class XMLStream(asyncio.Protocol):
