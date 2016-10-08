@@ -124,6 +124,8 @@ XSOs
 
 .. autoclass:: Data
 
+.. autoclass:: DataType
+
 .. autoclass:: Field
 
 .. autoclass:: FieldType
@@ -142,6 +144,7 @@ from . import xso
 
 from .xso import (  # NOQA
     Data,
+    DataType,
     Field,
     FieldType,
     Reported,

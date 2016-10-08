@@ -463,6 +463,41 @@ class InstructionsElement(xso.AbstractType):
 
 
 class DataType(enum.Enum):
+    """
+    Enumeration containing the :class:`Data` types defined in :xep:`4`.
+
+    Quotations in the following attribute descriptions are from :xep:`4`.
+
+    .. attribute:: FORM
+
+       The ``"form"`` type:
+
+         The form-processing entity is asking the form-submitting entity to
+         complete a form.
+
+    .. attribute:: SUBMIT
+
+       The ``"submit"`` type:
+
+         The form-submitting entity is submitting data to the form-processing
+         entity. The submission MAY include fields that were not provided in
+         the empty form, but the form-processing entity MUST ignore any fields
+         that it does not understand.
+
+    .. attribute:: CANCEL
+
+       The ``"cancel"`` type:
+
+         The form-submitting entity has cancelled submission of data to the
+         form-processing entity.
+
+    .. attribute:: RESULT
+
+       The ``"result"`` type:
+
+         The form-processing entity is returning data (e.g., search results) to
+         the form-submitting entity, or the data is a generic data set.
+    """
     FORM = "form"
     SUBMIT = "submit"
     RESULT = "result"
@@ -494,15 +529,21 @@ class Data(AbstractItem):
        If the :class:`Data` is a form, this is a sequence of :class:`Field`
        elements which represent the fields to be filled in.
 
+       This does not make sense on :attr:`.DataType.RESULT` typed objects.
+
     .. attribute:: items
 
        If the :class:`Data` is a table, this is a sequence of :class:`Item`
        instances which represent the table rows.
 
+       This only makes sense on :attr:`.DataType.RESULT` typed objects.
+
     .. attribute:: reported
 
        If the :class:`Data` is a table, this is a :class:`Reported` object
        representing the table header.
+
+       This only makes sense on :attr:`.DataType.RESULT` typed objects.
     """
 
     TAG = (namespaces.xep0004_data, "x")
