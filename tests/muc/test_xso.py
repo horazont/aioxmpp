@@ -1,4 +1,26 @@
+########################################################################
+# File name: test_xso.py
+# This file is part of: aioxmpp
+#
+# LICENSE
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Lesser General Public License as
+# published by the Free Software Foundation, either version 3 of the
+# License, or (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public
+# License along with this program.  If not, see
+# <http://www.gnu.org/licenses/>.
+#
+########################################################################
 import unittest
+import unittest.mock
 
 from datetime import datetime
 
@@ -1097,4 +1119,23 @@ class TestOwnerQuery(unittest.TestCase):
         self.assertIs(
             stanza.IQ.CHILD_MAP[muc_xso.OwnerQuery.TAG],
             stanza.IQ.payload.xq_descriptor
+        )
+
+    def test_init(self):
+        oq = muc_xso.OwnerQuery()
+        self.assertIsNone(oq.destroy)
+        self.assertIsNone(oq.form)
+
+    def test_init_form(self):
+        oq = muc_xso.OwnerQuery(form=unittest.mock.sentinel.form)
+        self.assertEqual(
+            oq.form,
+            unittest.mock.sentinel.form,
+        )
+
+    def test_init_destroy(self):
+        oq = muc_xso.OwnerQuery(destroy=unittest.mock.sentinel.destroy)
+        self.assertEqual(
+            oq.destroy,
+            unittest.mock.sentinel.destroy,
         )

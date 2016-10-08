@@ -1,3 +1,24 @@
+########################################################################
+# File name: test_node.py
+# This file is part of: aioxmpp
+#
+# LICENSE
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Lesser General Public License as
+# published by the Free Software Foundation, either version 3 of the
+# License, or (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public
+# License along with this program.  If not, see
+# <http://www.gnu.org/licenses/>.
+#
+########################################################################
 import asyncio
 import contextlib
 import functools
@@ -1254,7 +1275,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
                 nonza.SMEnable(resume=True),
                 response=XMLStreamMock.Receive(
                     nonza.SMEnabled(resume=True,
-                                          id_="foobar")
+                                    id_="foobar")
                 )
             )
         ]
@@ -1263,14 +1284,14 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
                 stanza.IQ(
                     payload=rfc6120.Bind(
                         resource=self.test_jid.resource),
-                    type_="set",
+                    type_=structs.IQType.SET,
                     id_="autoset"),
                 response=XMLStreamMock.Receive(
                     stanza.IQ(
                         payload=rfc6120.Bind(
                             jid=self.test_jid,
                         ),
-                        type_="result",
+                        type_=structs.IQType.RESULT,
                         id_="autoset"
                     )
                 )
@@ -1446,7 +1467,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
         self.client.negotiation_timeout = timedelta(seconds=0.01)
         self.client.start()
 
-        iq = stanza.IQ("get")
+        iq = stanza.IQ(structs.IQType.GET)
         iq.autoset_id()
         @asyncio.coroutine
         def stimulus():
@@ -1746,11 +1767,11 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
     def test_negotiate_legacy_session(self):
         self.features[...] = rfc3921.SessionFeature()
 
-        iqreq = stanza.IQ(type_="set")
+        iqreq = stanza.IQ(type_=structs.IQType.SET)
         iqreq.payload = rfc3921.Session()
         iqreq.id_ = "autoset"
 
-        iqresp = stanza.IQ(type_="result")
+        iqresp = stanza.IQ(type_=structs.IQType.RESULT)
         iqresp.id_ = "autoset"
 
         self.client.start()
@@ -1779,11 +1800,11 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
         self.features[...] = rfc3921.SessionFeature()
         self.features[...] = nonza.StreamManagementFeature()
 
-        iqreq = stanza.IQ(type_="set")
+        iqreq = stanza.IQ(type_=structs.IQType.SET)
         iqreq.payload = rfc3921.Session()
         iqreq.id_ = "autoset"
 
-        iqresp = stanza.IQ(type_="result")
+        iqresp = stanza.IQ(type_=structs.IQType.RESULT)
         iqresp.id_ = "autoset"
 
         self.client.start()
@@ -2161,7 +2182,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
                 stanza.IQ(
                     payload=rfc6120.Bind(
                         resource=self.test_jid.resource),
-                    type_="set",
+                    type_=structs.IQType.SET,
                     id_="autoset"),
                 response=XMLStreamMock.Receive(
                     stanza.IQ(
@@ -2169,9 +2190,9 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
                             condition=(namespaces.stanzas,
                                        "resource-constraint"),
                             text="too many resources",
-                            type_="cancel"
+                            type_=structs.ErrorType.CANCEL,
                         ),
-                        type_="error",
+                        type_=structs.IQType.ERROR,
                         id_="autoset"
                     )
                 )
@@ -2205,7 +2226,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
                 stanza.IQ(
                     payload=rfc6120.Bind(
                         resource=self.test_jid.resource),
-                    type_="set",
+                    type_=structs.IQType.SET,
                     id_="autoset"),
                 response=XMLStreamMock.Receive(
                     stanza.IQ(
@@ -2213,7 +2234,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
                             jid=self.test_jid.replace(
                                 resource="foobarbaz"),
                         ),
-                        type_="result",
+                        type_=structs.IQType.RESULT,
                         id_="autoset",
                     )
                 )
@@ -2239,7 +2260,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
                 stanza.IQ(
                     payload=rfc6120.Bind(
                         resource=self.test_jid.resource),
-                    type_="set",
+                    type_=structs.IQType.SET,
                     id_="autoset"),
                 response=XMLStreamMock.Receive(
                     stanza.IQ(
@@ -2247,7 +2268,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
                             jid=self.test_jid.replace(
                                 resource="foobarbaz"),
                         ),
-                        type_="result",
+                        type_=structs.IQType.RESULT,
                         id_="autoset",
                     )
                 )
@@ -2274,7 +2295,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
                 stanza.IQ(
                     payload=rfc6120.Bind(
                         resource=self.test_jid.resource),
-                    type_="set",
+                    type_=structs.IQType.SET,
                     id_="autoset"),
                 response=[
                     XMLStreamMock.Receive(
@@ -2282,7 +2303,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
                             payload=rfc6120.Bind(
                                 jid=self.test_jid,
                             ),
-                            type_="result",
+                            type_=structs.IQType.RESULT,
                             id_="autoset"
                         )
                     ),
@@ -2403,7 +2424,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
         @asyncio.coroutine
         def coro():
             iq = stanza.IQ(
-                type_="set",
+                type_=structs.IQType.SET,
             )
             yield from self.client.stream.send_iq_and_wait_for_reply(
                 iq)
@@ -2415,10 +2436,10 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
         run_coroutine(self.xmlstream.run_test([
         ]+self.resource_binding+[
             XMLStreamMock.Send(
-                stanza.IQ(type_="set",
+                stanza.IQ(type_=structs.IQType.SET,
                           id_="autoset"),
                 response=XMLStreamMock.Receive(
-                    stanza.IQ(type_="result",
+                    stanza.IQ(type_=structs.IQType.RESULT,
                               id_="autoset")
                 )
             ),
@@ -2493,14 +2514,14 @@ class TestPresenceManagedClient(xmltestutils.XMLTestCase):
                 stanza.IQ(
                     payload=rfc6120.Bind(
                         resource=self.test_jid.resource),
-                    type_="set",
+                    type_=structs.IQType.SET,
                     id_="autoset"),
                 response=XMLStreamMock.Receive(
                     stanza.IQ(
                         payload=rfc6120.Bind(
                             jid=self.test_jid,
                         ),
-                        type_="result",
+                        type_=structs.IQType.RESULT,
                         id_="autoset"
                     )
                 )
@@ -2521,11 +2542,11 @@ class TestPresenceManagedClient(xmltestutils.XMLTestCase):
         run_coroutine(self.xmlstream.run_test([
         ]+self.resource_binding+[
             XMLStreamMock.Send(
-                stanza.Presence(type_=None,
+                stanza.Presence(type_=structs.PresenceType.AVAILABLE,
                                 show="chat",
                                 id_="autoset"),
                 response=XMLStreamMock.Receive(
-                    stanza.Presence(type_=None,
+                    stanza.Presence(type_=structs.PresenceType.AVAILABLE,
                                     show="chat",
                                     id_="autoset")
                 )
@@ -2542,11 +2563,11 @@ class TestPresenceManagedClient(xmltestutils.XMLTestCase):
         run_coroutine(self.xmlstream.run_test([
         ]+self.resource_binding+[
             XMLStreamMock.Send(
-                stanza.Presence(type_=None,
+                stanza.Presence(type_=structs.PresenceType.AVAILABLE,
                                 show="chat",
                                 id_="autoset"),
                 response=XMLStreamMock.Receive(
-                    stanza.Presence(type_=None,
+                    stanza.Presence(type_=structs.PresenceType.AVAILABLE,
                                     show="chat",
                                     id_="autoset")
                 )
@@ -2561,11 +2582,11 @@ class TestPresenceManagedClient(xmltestutils.XMLTestCase):
 
         run_coroutine(self.xmlstream.run_test([
             XMLStreamMock.Send(
-                stanza.Presence(type_=None,
+                stanza.Presence(type_=structs.PresenceType.AVAILABLE,
                                 show="away",
                                 id_="autoset"),
                 response=XMLStreamMock.Receive(
-                    stanza.Presence(type_=None,
+                    stanza.Presence(type_=structs.PresenceType.AVAILABLE,
                                     show="away",
                                     id_="autoset")
                 )
@@ -2582,11 +2603,11 @@ class TestPresenceManagedClient(xmltestutils.XMLTestCase):
         run_coroutine(self.xmlstream.run_test([
         ]+self.resource_binding+[
             XMLStreamMock.Send(
-                stanza.Presence(type_=None,
+                stanza.Presence(type_=structs.PresenceType.AVAILABLE,
                                 show="chat",
                                 id_="autoset"),
                 response=XMLStreamMock.Receive(
-                    stanza.Presence(type_=None,
+                    stanza.Presence(type_=structs.PresenceType.AVAILABLE,
                                     show="chat",
                                     id_="autoset")
                 )
@@ -2618,11 +2639,11 @@ class TestPresenceManagedClient(xmltestutils.XMLTestCase):
         run_coroutine(self.xmlstream.run_test([
         ]+self.resource_binding+[
             XMLStreamMock.Send(
-                stanza.Presence(type_=None,
+                stanza.Presence(type_=structs.PresenceType.AVAILABLE,
                                 show="dnd",
                                 id_="autoset"),
                 response=XMLStreamMock.Receive(
-                    stanza.Presence(type_=None,
+                    stanza.Presence(type_=structs.PresenceType.AVAILABLE,
                                     show="dnd",
                                     id_="autoset")
                 )
@@ -2657,11 +2678,11 @@ class TestPresenceManagedClient(xmltestutils.XMLTestCase):
         run_coroutine(self.xmlstream.run_test([
         ]+self.resource_binding+[
             XMLStreamMock.Send(
-                stanza.Presence(type_=None,
+                stanza.Presence(type_=structs.PresenceType.AVAILABLE,
                                 show="chat",
                                 id_="autoset"),
                 response=XMLStreamMock.Receive(
-                    stanza.Presence(type_=None,
+                    stanza.Presence(type_=structs.PresenceType.AVAILABLE,
                                     show="chat",
                                     id_="autoset")
                 )
@@ -2686,11 +2707,11 @@ class TestPresenceManagedClient(xmltestutils.XMLTestCase):
         run_coroutine(self.xmlstream.run_test([
         ]+self.resource_binding+[
             XMLStreamMock.Send(
-                stanza.Presence(type_=None,
+                stanza.Presence(type_=structs.PresenceType.AVAILABLE,
                                 show="chat",
                                 id_="autoset"),
                 response=XMLStreamMock.Receive(
-                    stanza.Presence(type_=None,
+                    stanza.Presence(type_=structs.PresenceType.AVAILABLE,
                                     show="chat",
                                     id_="autoset")
                 )
@@ -2711,7 +2732,7 @@ class TestPresenceManagedClient(xmltestutils.XMLTestCase):
             structs.LanguageTag.fromstr("de"): "de"
         }
 
-        expected = stanza.Presence(type_=None,
+        expected = stanza.Presence(type_=structs.PresenceType.AVAILABLE,
                                    show="chat",
                                    id_="autoset")
         expected.status.update(status_texts)
@@ -2759,7 +2780,7 @@ class TestPresenceManagedClient(xmltestutils.XMLTestCase):
         self.presence_sent_rec.assert_called_once_with()
 
     def test_set_presence_with_single_string(self):
-        expected = stanza.Presence(type_=None,
+        expected = stanza.Presence(type_=structs.PresenceType.AVAILABLE,
                                    show="chat",
                                    id_="autoset")
         expected.status[None] = "foobar"
@@ -2812,7 +2833,7 @@ class TestPresenceManagedClient(xmltestutils.XMLTestCase):
             structs.LanguageTag.fromstr("de"): "de",
         }
 
-        expected = stanza.Presence(type_=None,
+        expected = stanza.Presence(type_=structs.PresenceType.AVAILABLE,
                                    show="chat",
                                    id_="autoset")
         expected.status.update(status_texts)

@@ -1,92 +1,77 @@
+########################################################################
+# File name: roster.py
+# This file is part of: aioxmpp
+#
+# LICENSE
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Lesser General Public License as
+# published by the Free Software Foundation, either version 3 of the
+# License, or (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public
+# License along with this program.  If not, see
+# <http://www.gnu.org/licenses/>.
+#
+########################################################################
 import asyncio
-import getpass
-import logging
 
-import aioxmpp.security_layer
-import aioxmpp.node
-import aioxmpp.structs
 import aioxmpp.roster
 
-
-try:
-    import readline  # NOQA
-except ImportError:
-    pass
+from framework import Example, exec_example
 
 
-@asyncio.coroutine
-def main(jid, password):
-    @asyncio.coroutine
-    def get_password(client_jid, nattempt):
-        if nattempt > 1:
-            # abort, as we cannot properly re-ask the user
-            return None
-        return password
-
-    connected_future = asyncio.Future()
-    disconnected_future = asyncio.Future()
-
-    def connected():
-        connected_future.set_result(None)
-
-    def disconnected():
-        disconnected_future.set_result(None)
-
-    tls_provider = aioxmpp.security_layer.STARTTLSProvider(
-        aioxmpp.security_layer.default_ssl_context,
-    )
-
-    sasl_provider = aioxmpp.security_layer.PasswordSASLProvider(
-        get_password
-    )
-
-    client = aioxmpp.node.PresenceManagedClient(
-        jid,
-        aioxmpp.security_layer.security_layer(
-            tls_provider,
-            [sasl_provider]
-        )
-    )
-    client.on_stream_established.connect(connected)
-    client.on_stopped.connect(disconnected)
-
-    fut = asyncio.Future()
-
-    def print_item(item):
+class Roster(Example):
+    def _print_item(self, item):
         print("  entry {}:".format(item.jid))
         print("    name={!r}".format(item.name))
         print("    subscription={!r}".format(item.subscription))
         print("    ask={!r}".format(item.ask))
         print("    approved={!r}".format(item.approved))
 
-    def on_initial_roster():
-        nonlocal roster, fut
-        for group, items in roster.groups.items():
+    def _on_initial_roster(self):
+        for group, items in self.roster.groups.items():
             print("group {}:".format(group))
             for item in items:
-                print_item(item)
+                self._print_item(item)
+
         print("ungrouped items:")
-        for item in roster.items.values():
+        for item in self.roster.items.values():
             if not item.groups:
-                print_item(item)
-        fut.set_result(None)
+                self._print_item(item)
 
-    roster = client.summon(aioxmpp.roster.Service)
-    roster.on_initial_roster_received.connect(on_initial_roster)
+        self.done_event.set()
 
-    client.presence = aioxmpp.structs.PresenceState(True)
+    def make_simple_client(self):
+        client = super().make_simple_client()
+        self.roster = client.summon(aioxmpp.roster.Service)
+        self.roster.on_initial_roster_received.connect(
+            self._on_initial_roster,
+        )
+        self.done_event = asyncio.Event()
 
-    yield from connected_future
+        return client
 
-    try:
-        yield from asyncio.wait_for(fut, timeout=10)
-    finally:
-        client.presence = aioxmpp.structs.PresenceState(False)
-        yield from disconnected_future
+    async def run_simple_example(self):
+        done, pending = await asyncio.wait(
+            [
+                self.sigint_event.wait(),
+                self.done_event.wait()
+            ],
+            return_when=asyncio.FIRST_COMPLETED,
+        )
+        for fut in pending:
+            fut.cancel()
+
+    async def run_example(self):
+        self.sigint_event = self.make_sigint_event()
+        await super().run_example()
 
 
 if __name__ == "__main__":
-    jid = aioxmpp.structs.JID.fromstr(input("JID: "))
-    pwd = getpass.getpass()
-
-    asyncio.get_event_loop().run_until_complete(main(jid, pwd))
+    exec_example(Roster())

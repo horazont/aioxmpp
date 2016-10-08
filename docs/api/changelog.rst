@@ -3,6 +3,133 @@
 Changelog
 #########
 
+.. _api-changelog-0.7:
+
+Version 0.7
+===========
+
+* **License change**: As of version 0.7, :mod:`aioxmpp` is distributed under the
+  terms of the GNU Lesser General Public License version 3 or later (LGPLv3+).
+  The exact terms are, as usual, found by taking a look at ``COPYING.LESSER`` in
+  the source code repository.
+
+* New XEP implementations:
+
+  * :mod:`aioxmpp.forms` (:xep:`4`): An implementation of the Data Forms XEP.
+    Take a look and see where it gets you.
+
+* New features in the :mod:`aioxmpp.xso` submodule:
+
+  * The new :class:`aioxmpp.xso.ChildFlag` descriptor is a simplification of the
+    :class:`aioxmpp.xso.ChildTag`. It can be used where the presence or absence of
+    a child element *only* signals a boolean flag.
+
+  * The new :class:`aioxmpp.xso.EnumType` type allows using a :mod:`enum`
+    enumeration as XSO descriptor type.
+
+* Often-used names have now been moved to the :mod:`aioxmpp` namespace:
+
+  * The stanza classes :class:`aioxmpp.IQ`, :class:`aioxmpp.Message`,
+    :class:`aioxmpp.Presence`
+  * The type enumerations (see below) :class:`aioxmpp.IQType`,
+    :class:`aioxmpp.MessageType`, :class:`aioxmpp.PresenceType`
+  * Commonly used structures: :class:`aioxmpp.JID`,
+    :class:`aioxmpp.PresenceState`
+  * Exceptions: :class:`aioxmpp.XMPPCancelError` and its buddies
+
+* **Horribly Breaking Change** in the future: :attr:`aioxmpp.IQ.type_`,
+  :attr:`aioxmpp.Message.type_`, :attr:`aioxmpp.Presence.type_`
+  and :attr:`aioxmpp.stanza.Error.type_` now use :class:`aioxmpp.xso.EnumType`,
+  with corresponding enumerations (see docs of the respective attributes).
+
+  This will break about every piece of code ever written for aioxmpp, and it is
+  not trivial to fix automatically. This is why the following fallbacks have
+  been implemented:
+
+  1. The :attr:`type_` attributes still accept their string (or :data:`None` in
+     the case of :attr:`.Presence.type_`) values when being written. When being
+     read, the attributes always return the actual enumeration value.
+
+  2. The relevant enumeration members compare equal (and hash equally) to their
+     values. Thus, ``MessageType.CHAT == "chat"`` is still true (and
+     ``MessageType.CHAT != "chat"`` is false).
+
+  3. :meth:`~.StanzaStream.register_message_callback`,
+     :meth:`~.StanzaStream.register_presence_callback`, and
+     :meth:`~.StanzaStream.register_iq_request_coro`, as well as their
+     corresponding un-registration methods, all accept the string variants for
+     their arguments, internally mapping them to the actual enumeration values.
+
+  .. note::
+
+     As a matter of fact (good news!), with only the fallbacks and no code
+     fixes, the :mod:`aioxmpp` test suite passes. So it is likely that you will
+     not notice any breakage in the 0.7 release, giving you quite some time to
+     react.
+
+  These fallbacks will be *removed* with aioxmpp 1.0, making the legacy use
+  raise :exc:`TypeError` or fail silently. Each of these fallbacks currently
+  produces a :exc:`DeprecationWarning`.
+
+  .. note::
+
+     :exc:`DeprecationWarning` warnings are not shown by default in Python 3. To
+     enable them, either run the interpreter with the ``-Wd`` option, un-filter
+     them explicitly using ``warnings.simplefilter("always")`` at the top of
+     your program, or explore other options as documented in :mod:`warnings`.
+
+  So, now I said I will be breaking all your code, how do you fix it? There are
+  two ways to find affected pieces of code: (1) run it with warnings (see
+  above), which will find all affected pieces of code and (2) use the shell
+  script provided at `utils/find-v0.7-type-transitions.sh
+  <https://github.com/horazont/aioxmpp/blob/devel/utils/find-v0.7-type-transitions.sh>`_
+  to find a subset of potentially affected pieces of code automatically. The
+  shell script uses `The Silver Searcher (ag) <http://geoff.greer.fm/ag/>`_
+  (find it in your distributions package repositories, I know it is there on
+  Fedora, Arch and Debian!) and regular expressions to find common patterns.
+  Example usage::
+
+    # find everything in the current subdirectory
+    $ $AIOXMPPPATH/utils/find-v0.7-type-transitions.sh
+    # only search in the foobar/ subdirectory
+    $ $AIOXMPPPATH/utils/find-v0.7-type-transitions.sh foobar/
+    # only look at the foobar/baz.py file
+    $ $AIOXMPPPATH/utils/find-v0.7-type-transitions.sh foobar/baz.py
+
+  The script was built while fixing :mod:`aioxmpp` itself after the bug. It has
+  not found *all* affected pieces of code, but the vast majority. The others can
+  be found by inspecting :exc:`DeprecationWarning` warnings being emitted.
+
+* The :func:`aioxmpp.security_layer.make` makes creating a security layer much
+  less cumbersome than before. It provides a simple interface supporting
+  password authentication, certificate pinning and others.
+
+  The interface of this function will be extended in the future when more
+  authentication or certificate verification mechanisms come around.
+
+* The two methods :meth:`aioxmpp.muc.Service.get_room_config`,
+  :meth:`aioxmpp.muc.Service.set_room_config` have been implemented, allowing to
+  manage MUC room configurations.
+
+* Fix bug in :meth:`aioxmpp.xso.ChildValueMultiMap.to_sax` which rendered XSOs
+  with that descriptor useless.
+
+* Fix documentation on :meth:`aioxmpp.PresenceManagedClient.set_presence`.
+
+* :class:`aioxmpp.callbacks.AdHocSignal` now logs when coroutines registered
+  with :meth:`aioxmpp.callbacks.AdHocSignal.SPAWN_WITH_LOOP` raise exceptions or
+  return non-:data:`None` values. See the documentation of
+  :meth:`~aioxmpp.callbacks.AdHocSignal.SPAWN_WITH_LOOP` for details.
+
+* :func:`aioxmpp.pubsub.xso.as_payload_class` is a decorator (akin to
+  :meth:`aioxmpp.IQ.as_payload_class`) to declare that your
+  :class:`~aioxmpp.xso.XSO` shall be allowed as pubsub payload.
+
+* :meth:`~.StanzaStream.register_message_callback` and
+  :meth:`~.StanzaStream.register_presence_callback` now explicitly raise
+  :class:`ValueError` when an attempt to overwrite an existing listener is made,
+  instead of silently replacing the callback.
+
 Version 0.6
 ===========
 
@@ -141,11 +268,11 @@ Version 0.6
   :meth:`~aioxmpp.stream.StanzaStream.send_iq_and_wait_for_reply` now also uses
   this.
 
-* New method :meth:`aioxmpp.node.PresenceManagedClient.connected` and new class
+* New method :meth:`aioxmpp.PresenceManagedClient.connected` and new class
   :class:`aioxmpp.node.UseConnected`.
 
   The former uses the latter to provide an asynchronous context manager which
-  starts and stops a :class:`aioxmpp.node.PresenceManagedClient`. Intended for
+  starts and stops a :class:`aioxmpp.PresenceManagedClient`. Intended for
   use in situations where an XMPP client is needed in-line. It saves a lot of
   boiler plate by taking care of properly waiting for the connection to be
   established etc.
@@ -155,7 +282,7 @@ Version 0.6
   result of :meth:`aioxmpp.disco.xso.InfoQuery.to_dict`, while it would in fact
   return the :class:`aioxmpp.disco.xso.InfoQuery` instance.
 
-* Added `strict` arguments to :class:`aioxmpp.structs.JID`. See the class
+* Added `strict` arguments to :class:`aioxmpp.JID`. See the class
   docmuentation for details.
 
 * Added `strict` argument to :class:`aioxmpp.xso.JID` and made it non-strict by
@@ -228,9 +355,9 @@ Version 0.5
   **Breaking change**: The above descriptors are now used at several places,
   breaking the way these attributes need to be accessed:
 
-  * :attr:`aioxmpp.stanza.Message.subject`,
-  * :attr:`aioxmpp.stanza.Message.body`,
-  * :attr:`aioxmpp.stanza.Presence.status`,
+  * :attr:`aioxmpp.Message.subject`,
+  * :attr:`aioxmpp.Message.body`,
+  * :attr:`aioxmpp.Presence.status`,
   * :attr:`aioxmpp.disco.xso.InfoQuery.features`,
   * and possibly others.
 
@@ -326,8 +453,8 @@ Version 0.4
 
 * :mod:`aioxmpp.protocol` has been moved into the internal API part.
 
-* :class:`aioxmpp.stanza.Message` specification fixed to have
-  ``"normal"`` as default for :attr:`~aioxmpp.stanza.Message.type_` and relax
+* :class:`aioxmpp.Message` specification fixed to have
+  ``"normal"`` as default for :attr:`~aioxmpp.Message.type_` and relax
   the unknown child policy.
 
 * *Possibly breaking change*: :attr:`aioxmpp.xso.XSO.DECLARE_NS` is now

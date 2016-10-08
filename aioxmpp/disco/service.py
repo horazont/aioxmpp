@@ -1,3 +1,24 @@
+########################################################################
+# File name: service.py
+# This file is part of: aioxmpp
+#
+# LICENSE
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Lesser General Public License as
+# published by the Free Software Foundation, either version 3 of the
+# License, or (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public
+# License along with this program.  If not, see
+# <http://www.gnu.org/licenses/>.
+#
+########################################################################
 import asyncio
 import functools
 import itertools
@@ -284,12 +305,12 @@ class Service(service.Service, Node):
         )
 
         self.client.stream.register_iq_request_coro(
-            "get",
+            structs.IQType.GET,
             disco_xso.InfoQuery,
             self.handle_info_request)
 
         self.client.stream.register_iq_request_coro(
-            "get",
+            structs.IQType.GET,
             disco_xso.ItemsQuery,
             self.handle_items_request)
 
@@ -300,8 +321,11 @@ class Service(service.Service, Node):
     @asyncio.coroutine
     def _shutdown(self):
         self.client.stream.unregister_iq_request_coro(
-            "get",
+            structs.IQType.GET,
             disco_xso.InfoQuery)
+        self.client.stream.unregister_iq_request_coro(
+            structs.IQType.GET,
+            disco_xso.ItemsQuery)
         yield from super()._shutdown()
 
     def _clear_cache(self):
@@ -370,7 +394,7 @@ class Service(service.Service, Node):
 
     @asyncio.coroutine
     def send_and_decode_info_query(self, jid, node):
-        request_iq = stanza.IQ(to=jid, type_="get")
+        request_iq = stanza.IQ(to=jid, type_=structs.IQType.GET)
         request_iq.payload = disco_xso.InfoQuery(node=node)
 
         response = yield from self.client.stream.send_iq_and_wait_for_reply(
@@ -485,7 +509,7 @@ class Service(service.Service, Node):
                 except asyncio.CancelledError:
                     pass
 
-        request_iq = stanza.IQ(to=jid, type_="get")
+        request_iq = stanza.IQ(to=jid, type_=structs.IQType.GET)
         request_iq.payload = disco_xso.ItemsQuery(node=node)
 
         request = asyncio.async(

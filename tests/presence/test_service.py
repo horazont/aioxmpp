@@ -1,3 +1,24 @@
+########################################################################
+# File name: test_service.py
+# This file is part of: aioxmpp
+#
+# LICENSE
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Lesser General Public License as
+# published by the Free Software Foundation, either version 3 of the
+# License, or (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public
+# License along with this program.  If not, see
+# <http://www.gnu.org/licenses/>.
+#
+########################################################################
 import unittest
 
 import aioxmpp.presence.service as presence_service
@@ -33,17 +54,17 @@ class TestService(unittest.TestCase):
             self.cc.mock_calls,
             [
                 unittest.mock.call.stream.register_presence_callback(
-                    None,
-                    None,
-                    self.s.handle_presence
-                ),
-                unittest.mock.call.stream.register_presence_callback(
-                    "error",
+                    structs.PresenceType.AVAILABLE,
                     None,
                     self.s.handle_presence
                 ),
                 unittest.mock.call.stream.register_presence_callback(
-                    "unavailable",
+                    structs.PresenceType.ERROR,
+                    None,
+                    self.s.handle_presence
+                ),
+                unittest.mock.call.stream.register_presence_callback(
+                    structs.PresenceType.UNAVAILABLE,
                     None,
                     self.s.handle_presence
                 ),
@@ -58,15 +79,15 @@ class TestService(unittest.TestCase):
             self.cc.mock_calls,
             [
                 unittest.mock.call.stream.unregister_presence_callback(
-                    "unavailable",
+                    structs.PresenceType.UNAVAILABLE,
                     None,
                 ),
                 unittest.mock.call.stream.unregister_presence_callback(
-                    "error",
+                    structs.PresenceType.ERROR,
                     None,
                 ),
                 unittest.mock.call.stream.unregister_presence_callback(
-                    None,
+                    structs.PresenceType.AVAILABLE,
                     None,
                 ),
             ]
@@ -79,7 +100,7 @@ class TestService(unittest.TestCase):
         )
 
     def test_track_available_resources(self):
-        st1 = stanza.Presence(type_=None,
+        st1 = stanza.Presence(type_=structs.PresenceType.AVAILABLE,
                               from_=TEST_PEER_JID1.replace(resource="foo"))
         self.s.handle_presence(st1)
 
@@ -90,7 +111,7 @@ class TestService(unittest.TestCase):
             self.s.get_peer_resources(TEST_PEER_JID1)
         )
 
-        st2 = stanza.Presence(type_=None,
+        st2 = stanza.Presence(type_=structs.PresenceType.AVAILABLE,
                               from_=TEST_PEER_JID1.replace(resource="bar"))
         self.s.handle_presence(st2)
 
@@ -102,7 +123,7 @@ class TestService(unittest.TestCase):
             self.s.get_peer_resources(TEST_PEER_JID1)
         )
 
-        st = stanza.Presence(type_="unavailable",
+        st = stanza.Presence(type_=structs.PresenceType.UNAVAILABLE,
                              from_=TEST_PEER_JID1.replace(resource="foo"))
         self.s.handle_presence(st)
 
@@ -119,20 +140,20 @@ class TestService(unittest.TestCase):
         ))
 
     def test_get_stanza_returns_original_stanza_as_received(self):
-        st = stanza.Presence(type_=None,
+        st = stanza.Presence(type_=structs.PresenceType.AVAILABLE,
                              from_=TEST_PEER_JID1.replace(resource="foo"))
         self.s.handle_presence(st)
 
         self.assertIs(self.s.get_stanza(st.from_), st)
 
-        st = stanza.Presence(type_=None,
+        st = stanza.Presence(type_=structs.PresenceType.AVAILABLE,
                              from_=TEST_PEER_JID1.replace(resource="bar"))
         self.s.handle_presence(st)
 
         self.assertIs(self.s.get_stanza(st.from_), st)
 
     def test_get_stanza_returns_error_stanza_for_bare_jid_as_received(self):
-        st = stanza.Presence(type_="error",
+        st = stanza.Presence(type_=structs.PresenceType.ERROR,
                              from_=TEST_PEER_JID1)
         self.s.handle_presence(st)
 
@@ -145,47 +166,47 @@ class TestService(unittest.TestCase):
 
     def test_get_stanza_returns_error_stanza_for_full_jid_as_received_for_bare_jid(
             self):
-        st = stanza.Presence(type_="error",
+        st = stanza.Presence(type_=structs.PresenceType.ERROR,
                              from_=TEST_PEER_JID1)
         self.s.handle_presence(st)
 
         self.assertIs(self.s.get_stanza(st.from_.replace(resource="foo")), st)
 
     def test_error_stanza_overrides_all_other_stanzas(self):
-        st = stanza.Presence(type_=None,
+        st = stanza.Presence(type_=structs.PresenceType.AVAILABLE,
                              from_=TEST_PEER_JID1.replace(resource="foo"))
         self.s.handle_presence(st)
 
         self.assertIs(self.s.get_stanza(st.from_), st)
 
-        st = stanza.Presence(type_="error",
+        st = stanza.Presence(type_=structs.PresenceType.ERROR,
                              from_=TEST_PEER_JID1)
         self.s.handle_presence(st)
 
         self.assertIs(self.s.get_stanza(st.from_.replace(resource="foo")), st)
 
     def test_get_any_non_error_stanza_erases_error_stanza(self):
-        st = stanza.Presence(type_="error",
+        st = stanza.Presence(type_=structs.PresenceType.ERROR,
                              from_=TEST_PEER_JID1)
         self.s.handle_presence(st)
 
         self.assertIs(self.s.get_stanza(st.from_), st)
 
-        st = stanza.Presence(type_="unavailable",
+        st = stanza.Presence(type_=structs.PresenceType.UNAVAILABLE,
                              from_=TEST_PEER_JID1.replace(resource="foo"))
         self.s.handle_presence(st)
 
         self.assertIsNone(self.s.get_stanza(st.from_.bare()))
         self.assertIsNone(self.s.get_stanza(st.from_))
 
-        st = stanza.Presence(type_=None,
+        st = stanza.Presence(type_=structs.PresenceType.AVAILABLE,
                              from_=TEST_PEER_JID1.replace(resource="foo"))
         self.s.handle_presence(st)
 
         self.assertIs(self.s.get_stanza(st.from_), st)
 
     def test_get_most_available_stanza(self):
-        st = stanza.Presence(type_=None,
+        st = stanza.Presence(type_=structs.PresenceType.AVAILABLE,
                              from_=TEST_PEER_JID1.replace(resource="foo"))
         self.s.handle_presence(st)
 
@@ -196,7 +217,7 @@ class TestService(unittest.TestCase):
 
 
         self.s.handle_presence(
-            stanza.Presence(type_=None,
+            stanza.Presence(type_=structs.PresenceType.AVAILABLE,
                             show="dnd",
                             from_=TEST_PEER_JID1.replace(resource="bar"))
         )
@@ -206,7 +227,7 @@ class TestService(unittest.TestCase):
             st
         )
 
-        st = stanza.Presence(type_=None,
+        st = stanza.Presence(type_=structs.PresenceType.AVAILABLE,
                              show="chat",
                              from_=TEST_PEER_JID1.replace(resource="baz"))
         self.s.handle_presence(st)
@@ -232,11 +253,11 @@ class TestService(unittest.TestCase):
         self.s.on_bare_available.connect(base.bare)
         self.s.on_available.connect(base.full)
 
-        st1 = stanza.Presence(type_=None,
+        st1 = stanza.Presence(type_=structs.PresenceType.AVAILABLE,
                               from_=TEST_PEER_JID1.replace(resource="foo"))
         self.s.handle_presence(st1)
 
-        st2 = stanza.Presence(type_=None,
+        st2 = stanza.Presence(type_=structs.PresenceType.AVAILABLE,
                               from_=TEST_PEER_JID1.replace(resource="bar"))
         self.s.handle_presence(st2)
 
@@ -257,15 +278,15 @@ class TestService(unittest.TestCase):
         self.s.on_bare_available.connect(base.bare)
         self.s.on_available.connect(base.full)
 
-        st1 = stanza.Presence(type_=None,
+        st1 = stanza.Presence(type_=structs.PresenceType.AVAILABLE,
                               from_=TEST_PEER_JID1.replace(resource="foo"))
         self.s.handle_presence(st1)
 
-        st2 = stanza.Presence(type_=None,
+        st2 = stanza.Presence(type_=structs.PresenceType.AVAILABLE,
                               from_=TEST_PEER_JID1.replace(resource="bar"))
         self.s.handle_presence(st2)
 
-        st3 = stanza.Presence(type_=None,
+        st3 = stanza.Presence(type_=structs.PresenceType.AVAILABLE,
                               from_=TEST_PEER_JID1.replace(resource="bar"))
         self.s.handle_presence(st3)
 
@@ -286,11 +307,11 @@ class TestService(unittest.TestCase):
         self.s.on_bare_unavailable.connect(base.bare)
         self.s.on_unavailable.connect(base.full)
 
-        st2 = stanza.Presence(type_="unavailable",
+        st2 = stanza.Presence(type_=structs.PresenceType.UNAVAILABLE,
                               from_=TEST_PEER_JID1.replace(resource="bar"))
         self.s.handle_presence(st2)
 
-        st1 = stanza.Presence(type_="unavailable",
+        st1 = stanza.Presence(type_=structs.PresenceType.UNAVAILABLE,
                               from_=TEST_PEER_JID1.replace(resource="foo"))
         self.s.handle_presence(st1)
 
@@ -310,20 +331,20 @@ class TestService(unittest.TestCase):
         self.s.on_unavailable.connect(base.full)
 
         self.s.handle_presence(
-            stanza.Presence(type_=None,
+            stanza.Presence(type_=structs.PresenceType.AVAILABLE,
                             from_=TEST_PEER_JID1.replace(resource="foo"))
         )
 
         self.s.handle_presence(
-            stanza.Presence(type_=None,
+            stanza.Presence(type_=structs.PresenceType.AVAILABLE,
                             from_=TEST_PEER_JID1.replace(resource="bar"))
         )
 
-        st2 = stanza.Presence(type_="unavailable",
+        st2 = stanza.Presence(type_=structs.PresenceType.UNAVAILABLE,
                               from_=TEST_PEER_JID1.replace(resource="bar"))
         self.s.handle_presence(st2)
 
-        st1 = stanza.Presence(type_="unavailable",
+        st1 = stanza.Presence(type_=structs.PresenceType.UNAVAILABLE,
                               from_=TEST_PEER_JID1.replace(resource="foo"))
         self.s.handle_presence(st1)
 
@@ -344,26 +365,26 @@ class TestService(unittest.TestCase):
         self.s.on_changed.connect(base.full)
 
         self.s.handle_presence(
-            stanza.Presence(type_=None,
+            stanza.Presence(type_=structs.PresenceType.AVAILABLE,
                             from_=TEST_PEER_JID1.replace(resource="foo"))
         )
 
         self.s.handle_presence(
-            stanza.Presence(type_=None,
+            stanza.Presence(type_=structs.PresenceType.AVAILABLE,
                             from_=TEST_PEER_JID1.replace(resource="bar"))
         )
 
-        st1 = stanza.Presence(type_=None,
+        st1 = stanza.Presence(type_=structs.PresenceType.AVAILABLE,
                               show="dnd",
                               from_=TEST_PEER_JID1.replace(resource="foo"))
         self.s.handle_presence(st1)
 
-        st2 = stanza.Presence(type_=None,
+        st2 = stanza.Presence(type_=structs.PresenceType.AVAILABLE,
                               show="dnd",
                               from_=TEST_PEER_JID1.replace(resource="bar"))
         self.s.handle_presence(st2)
 
-        st3 = stanza.Presence(type_=None,
+        st3 = stanza.Presence(type_=structs.PresenceType.AVAILABLE,
                               show="chat",
                               from_=TEST_PEER_JID1.replace(resource="bar"))
         self.s.handle_presence(st3)
@@ -386,16 +407,16 @@ class TestService(unittest.TestCase):
         self.s.on_bare_unavailable.connect(base.bare)
 
         self.s.handle_presence(
-            stanza.Presence(type_=None,
+            stanza.Presence(type_=structs.PresenceType.AVAILABLE,
                             from_=TEST_PEER_JID1.replace(resource="foo"))
         )
 
         self.s.handle_presence(
-            stanza.Presence(type_=None,
+            stanza.Presence(type_=structs.PresenceType.AVAILABLE,
                             from_=TEST_PEER_JID1.replace(resource="bar"))
         )
 
-        st = stanza.Presence(type_="error",
+        st = stanza.Presence(type_=structs.PresenceType.ERROR,
                              from_=TEST_PEER_JID1)
         self.s.handle_presence(st)
 

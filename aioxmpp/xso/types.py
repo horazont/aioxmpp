@@ -1,3 +1,24 @@
+########################################################################
+# File name: types.py
+# This file is part of: aioxmpp
+#
+# LICENSE
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Lesser General Public License as
+# published by the Free Software Foundation, either version 3 of the
+# License, or (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public
+# License along with this program.  If not, see
+# <http://www.gnu.org/licenses/>.
+#
+########################################################################
 """
 :mod:`aioxmpp.xso.types` --- Types specifications for use with :mod:`aioxmpp.xso.model`
 #######################################################################################
@@ -13,14 +34,54 @@ import binascii
 import decimal
 import ipaddress
 import numbers
-import unicodedata
 import re
+import unicodedata
+import warnings
 
 import pytz
 
 from datetime import datetime, timedelta, date, time
 
 from .. import structs, i18n
+
+
+class Unknown:
+    """
+    A wrapper for an unknown enumeration value.
+
+    :param value: The raw value of the "enumeration" "member".
+    :type value: arbitrary
+
+    Instances of this class may be emitted from and accepted by
+    :class:`EnumType`, see the documentation there for details.
+
+    :class:`Unknown` instances compare equal when they hold an equal value.
+    :class:`Unknown` objects are hashable if their values are hashable. The
+    value they refer to cannot be changed during the lifetime of an
+    :class:`Unknown` object.
+    """
+
+    def __init__(self, value):
+        super().__init__()
+        self.__value = value
+
+    @property
+    def value(self):
+        return self.__value
+
+    def __hash__(self):
+        return hash(self.__value)
+
+    def __eq__(self, other):
+        try:
+            return self.__value == other.__value
+        except AttributeError:
+            return NotImplemented
+
+    def __repr__(self):
+        return "<Unknown: {!r}>".format(
+            self.__value
+        )
 
 
 class AbstractType(metaclass=abc.ABCMeta):
@@ -54,7 +115,7 @@ class AbstractType(metaclass=abc.ABCMeta):
     def coerce(self, v):
         """
         Force the given value `v` to be of the type represented by this
-        :class:`AbstractType`. :meth:`check` is called when user code assigns
+        :class:`AbstractType`. :meth:`coerce` is called when user code assigns
         values to descriptors which use the type; it is notably not called when
         values are extracted from SAX events, as these go through :meth:`parse`
         and that is expected to return correctly typed values.
@@ -393,11 +454,11 @@ class HexBinary(_BinaryType):
 
 class JID(AbstractType):
     """
-    Parse the value as Jabber ID using :meth:`~aioxmpp.structs.JID.fromstr` and
-    return the :class:`aioxmpp.structs.JID` object.
+    Parse the value as Jabber ID using :meth:`~aioxmpp.JID.fromstr` and
+    return the :class:`aioxmpp.JID` object.
 
-    `strict` is passed to :meth:`~aioxmpp.structs.JID.fromstr` and defaults to
-    false. See the :meth:`~aioxmpp.structs.JID.fromstr` method for a rationale
+    `strict` is passed to :meth:`~aioxmpp.JID.fromstr` and defaults to
+    false. See the :meth:`~aioxmpp.JID.fromstr` method for a rationale
     and consider that :meth:`parse` is only called for input coming from the
     outside.
     """
@@ -501,7 +562,7 @@ class TextChildMap(AbstractType):
     :attr:`~.xso.AbstractTextChild.text`, respectively and support the
     same-named keyword arguments for those attributes at the consturctor.
 
-    For an example see the source of :class:`aioxmpp.stanza.Message`.
+    For an example see the source of :class:`aioxmpp.Message`.
 
     .. versionadded:: 0.5
     """
@@ -520,6 +581,144 @@ class TextChildMap(AbstractType):
         lang, text = item
         xso = self.xso_type(text=text, lang=lang)
         return xso
+
+
+class EnumType(AbstractType):
+    """
+    Use an :class:`enum.Enum` as type for an XSO descriptor.
+
+    :param enum_class: The :class:`~enum.Enum` to use as type.
+    :param nested_type: A :class:`AbstractType` which can handle the values of
+                        the enumeration.
+    :type nested_type: :class:`AbstractType`
+    :param allow_coerce: Allow coercion of different types to enumeration
+                         values.
+    :type allow_coerce: :class:`bool`
+    :param deprecate_coerce: Emit :class:`DeprecationWarning` when coercion
+                             occurs. Requires (but does not imply)
+                             `allow_coerce`.
+    :type deprecate_coerce: :class:`int` or :class:`bool`
+    :param allow_unknown: If true, unknown values are converted to
+                          :class:`Unknown` instances when parsing values from
+                          the XML stream.
+    :type allow_unknown: :class:`bool`
+    :param accept_unknown: If true, :class:`Unknown` instances are passed
+                           through :meth:`coerce` and can thus be assigned to
+                           descriptors using this type.
+    :type allow_unknown: :class:`bool`
+
+    A descriptor using this type will accept elements from the given
+    `enum_class` as values. Upon serialisiation, the :attr:`value` of the
+    enumeration element is taken and formatted through the given `nested_type`.
+
+    Normally, :meth:`coerce` will raise :class:`TypeError` for any value which
+    is not an instance of `enum_class`. However, if `allow_coerce` is true, the
+    value is passed to the `enum_class` constructor and the result is returned;
+    the :class:`ValueError` raised from the `enum_class` constructor if an
+    invalid value is passed propagates unmodified.
+
+    .. note::
+
+       When using `allow_coerce`, keep in mind that this may have surprising
+       effects for users. Coercion means that the value assigned to an
+       attribute and the value subsequently read from that attribute may not
+       be the same; this may be very surprising to users::
+
+         class E(enum.Enum):
+             X = "foo"
+
+         class SomeXSO(xso.XSO):
+             attr = xso.Attr("foo", xso.EnumType(E, allow_coerce=True))
+
+         x = SomeXSO()
+         x.attr = "foo"
+         assert x.attr == "foo"  # assertion fails!
+
+    To allow coercion transitionally while moving from e.g. string-based values
+    to a proper enum, `deprecate_coerce` can be used. In that case, a
+    :class:`DeprecationWarning` (see :mod:`warnings`) is emitted when coercion
+    takes place, to warn users about future removal of the coercion capability.
+    If `deprecate_coerce` is an integer, it is used as the stacklevel argument
+    for the :func:`warnings.warn` call. If it is :data:`True`, the stacklevel
+    is 4, which leads to the warning pointing to a descriptor assignment when
+    used with XSO descriptors.
+
+    Handling of :class:`Unknown` values: Using `allow_unknown` and
+    `accept_unknown` is advisable to stay compatible with future protocols,
+    which is why both are enabled by default. Considering that constructing an
+    :class:`Unknown` value needs to be done explicitly in code, it is unlikely
+    that a user will *accidentally* assign an unspecified value to a descriptor
+    using this type with `accept_unknown`.
+
+    Example::
+
+      class SomeEnum(enum.Enum):
+          X = 1
+          Y = 2
+          Z = 3
+
+      class SomeXSO(xso.XSO):
+          attr = xso.Attr(
+              "foo",
+              type_=xso.EnumType(
+                  SomeEnum,
+                  # have to use integer, because the value of e.g. SomeEnum.X
+                  # is integer!
+                  xso.Integer()
+              ),
+          )
+    """
+
+    def __init__(self, enum_class, nested_type=String(), *,
+                 allow_coerce=False,
+                 deprecate_coerce=False,
+                 allow_unknown=True,
+                 accept_unknown=True):
+        super().__init__()
+        self.nested_type = nested_type
+        self.enum_class = enum_class
+        self.allow_coerce = allow_coerce
+        self.deprecate_coerce = deprecate_coerce
+        self.accept_unknown = accept_unknown
+        self.allow_unknown = allow_unknown
+
+    def get_formatted_type(self):
+        return self.nested_type.get_formatted_type()
+
+    def coerce(self, value):
+        if self.accept_unknown and isinstance(value, Unknown):
+            return value
+        if self.allow_coerce:
+            if self.deprecate_coerce:
+                if isinstance(value, self.enum_class):
+                    return value
+                stacklevel = (4 if self.deprecate_coerce is True
+                              else self.deprecate_coerce)
+                warnings.warn(
+                    "assignment of non-enum values to this descriptor is"
+                    " deprecated",
+                    DeprecationWarning,
+                    stacklevel=stacklevel,
+                )
+            return self.enum_class(value)
+        if isinstance(value, self.enum_class):
+            return value
+        raise TypeError("not a valid {} value: {!r}".format(
+            self.enum_class,
+            value,
+        ))
+
+    def parse(self, s):
+        parsed = self.nested_type.parse(s)
+        try:
+            return self.enum_class(parsed)
+        except ValueError:
+            if self.allow_unknown:
+                return Unknown(parsed)
+            raise
+
+    def format(self, v):
+        return self.nested_type.format(v.value)
 
 
 class AbstractValidator(metaclass=abc.ABCMeta):

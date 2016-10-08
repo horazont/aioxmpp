@@ -1,3 +1,24 @@
+########################################################################
+# File name: service.py
+# This file is part of: aioxmpp
+#
+# LICENSE
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Lesser General Public License as
+# published by the Free Software Foundation, either version 3 of the
+# License, or (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public
+# License along with this program.  If not, see
+# <http://www.gnu.org/licenses/>.
+#
+########################################################################
 import asyncio
 
 import aioxmpp.callbacks
@@ -90,19 +111,19 @@ class Service(aioxmpp.service.Service):
         self._presences = {}
 
         client.stream.register_presence_callback(
-            None,
-            None,
-            self.handle_presence
-        )
-
-        client.stream.register_presence_callback(
-            "error",
+            aioxmpp.structs.PresenceType.AVAILABLE,
             None,
             self.handle_presence
         )
 
         client.stream.register_presence_callback(
-            "unavailable",
+            aioxmpp.structs.PresenceType.ERROR,
+            None,
+            self.handle_presence
+        )
+
+        client.stream.register_presence_callback(
+            aioxmpp.structs.PresenceType.UNAVAILABLE,
             None,
             self.handle_presence
         )
@@ -110,17 +131,17 @@ class Service(aioxmpp.service.Service):
     @asyncio.coroutine
     def _shutdown(self):
         self.client.stream.unregister_presence_callback(
-            "unavailable",
+            aioxmpp.structs.PresenceType.UNAVAILABLE,
             None
         )
 
         self.client.stream.unregister_presence_callback(
-            "error",
+            aioxmpp.structs.PresenceType.ERROR,
             None
         )
 
         self.client.stream.unregister_presence_callback(
-            None,
+            aioxmpp.structs.PresenceType.AVAILABLE,
             None
         )
 
@@ -129,7 +150,7 @@ class Service(aioxmpp.service.Service):
         Return the stanza of the resource with the most available presence.
 
         The resources are sorted using the ordering defined on
-        :class:`~aioxmpp.structs.PresenceState`.
+        :class:`~aioxmpp.PresenceState`.
         """
         presences = sorted(
             self.get_peer_resources(peer_jid).items(),
@@ -177,7 +198,7 @@ class Service(aioxmpp.service.Service):
         bare = st.from_.bare()
         resource = st.from_.resource
 
-        if st.type_ == "unavailable":
+        if st.type_ == aioxmpp.structs.PresenceType.UNAVAILABLE:
             try:
                 dest_dict = self._presences[bare]
             except KeyError:
@@ -188,7 +209,7 @@ class Service(aioxmpp.service.Service):
                 if len(dest_dict) == 1:
                     self.on_bare_unavailable(st)
                 del dest_dict[resource]
-        elif st.type_ == "error":
+        elif st.type_ == aioxmpp.structs.PresenceType.ERROR:
             try:
                 dest_dict = self._presences[bare]
             except KeyError:

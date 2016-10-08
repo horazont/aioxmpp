@@ -1,3 +1,24 @@
+########################################################################
+# File name: __init__.py
+# This file is part of: aioxmpp
+#
+# LICENSE
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Lesser General Public License as
+# published by the Free Software Foundation, either version 3 of the
+# License, or (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public
+# License along with this program.  If not, see
+# <http://www.gnu.org/licenses/>.
+#
+########################################################################
 """
 :mod:`~aioxmpp.xso` --- Working with XML stream contents
 ########################################################
@@ -97,6 +118,8 @@ repeated that detailed on the other classes. Refer to the documentation of the
 .. autoclass:: Child(classes, *[, required=False])
 
 .. autoclass:: ChildTag(tags, *[, text_policy=UnknownTextPolicy.FAIL][, child_policy=UnknownChildPolicy.FAIL][, attr_policy=UnknownAttrPolicy.FAIL][, default_ns=None][, allow_none=False])
+
+.. autoclass:: ChildFlag(tag, *[, text_policy=UnknownTextPolicy.FAIL][, child_policy=UnknownChildPolicy.FAIL][, attr_policy=UnknownAttrPolicy.FAIL])
 
 .. autoclass:: ChildText(tag, *[, child_policy=UnknownChildPolicy.FAIL][, attr_policy=UnknownAttrPolicy.FAIL][, type_=xso.String()][, validator=None][, validate=ValidateMode.FROM_RECV][, default])
 
@@ -254,6 +277,10 @@ Attribute and text types
 .. autoclass:: ConnectionLocation
 
 .. autoclass:: LanguageTag
+
+.. autoclass:: EnumType
+
+.. autoclass:: Unknown
 
 Child list and map types
 ^^^^^^^^^^^^^^^^^^^^^^^^
@@ -454,6 +481,7 @@ def normalize_tag(tag):
 
 
 from .types import (  # NOQA
+    Unknown,
     AbstractType,
     String,
     Integer,
@@ -468,6 +496,7 @@ from .types import (  # NOQA
     ConnectionLocation,
     LanguageTag,
     TextChildMap,
+    EnumType,
     AbstractValidator,
     RestrictToSet,
     Nmtoken,
@@ -486,6 +515,7 @@ from .model import (  # NOQA
     Attr,
     LangAttr,
     Child,
+    ChildFlag,
     ChildList,
     ChildLangMap,
     ChildMap,

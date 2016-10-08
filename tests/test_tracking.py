@@ -1,9 +1,31 @@
+########################################################################
+# File name: test_tracking.py
+# This file is part of: aioxmpp
+#
+# LICENSE
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Lesser General Public License as
+# published by the Free Software Foundation, either version 3 of the
+# License, or (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public
+# License along with this program.  If not, see
+# <http://www.gnu.org/licenses/>.
+#
+########################################################################
 import unittest
 import unittest.mock
 
 from enum import Enum
 
 import aioxmpp.stanza
+import aioxmpp.structs as structs
 import aioxmpp.statemachine
 import aioxmpp.stream as stream
 import aioxmpp.tracking as tracking
@@ -158,7 +180,9 @@ class TestMessageTracker(unittest.TestCase):
         ))
 
     def setUp(self):
-        self.stanza = aioxmpp.stanza.Message(type_="chat")
+        self.stanza = aioxmpp.stanza.Message(
+            type_=structs.MessageType.CHAT
+        )
         self.token = stream.StanzaToken(self.stanza)
         self.tr = tracking.MessageTracker(self.token)
 

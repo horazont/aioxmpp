@@ -13,6 +13,9 @@ used to communicate with an XMPP server.
    security_layer
 
 
+.. _api-xep-modules:
+
+
 Protocol part and XEP implementations
 #####################################
 
@@ -25,6 +28,7 @@ extend its functionality or provide backwards compatibility.
 
    disco
    entitycaps
+   forms
    muc
    presence
    pubsub

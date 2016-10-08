@@ -1,3 +1,24 @@
+########################################################################
+# File name: security_layer.py
+# This file is part of: aioxmpp
+#
+# LICENSE
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Lesser General Public License as
+# published by the Free Software Foundation, either version 3 of the
+# License, or (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public
+# License along with this program.  If not, see
+# <http://www.gnu.org/licenses/>.
+#
+########################################################################
 """
 :mod:`~aioxmpp.security_layer` --- Implementations to negotiate stream security
 ####################################################################################
@@ -6,7 +27,14 @@ This module provides different implementations of the security layer
 (TLS+SASL).
 
 These are coupled, as different SASL features might need different TLS features
-(such as channel binding or client cert authentication).
+(such as channel binding or client cert authentication). The preferred method
+to construct a :class:`SecurityLayer` is using the :func:`make` function.
+:class:`SecurityLayer` objects are needed to establish an XMPP connection,
+for example using :class:`aioxmpp.node.AbstractClient`.
+
+.. autofunction:: make
+
+.. autoclass:: PinType
 
 .. autofunction:: tls_with_password_based_authentication(password_provider, [ssl_context_factory], [max_auth_attempts=3])
 
@@ -88,6 +116,7 @@ import abc
 import asyncio
 import base64
 import collections
+import enum
 import functools
 import logging
 import ssl
@@ -783,7 +812,7 @@ class PasswordSASLProvider(SASLProvider):
     """
     Perform password-based SASL authentication.
 
-    `jid` must be a :class:`~.structs.JID` object for the
+    `jid` must be a :class:`~aioxmpp.JID object for the
     client. `password_provider` must be a coroutine which is called with the
     jid as first and the number of attempt as second argument. It must return
     the password to use, or :data:`None` to abort. In that case, an
@@ -891,8 +920,9 @@ class SecurityLayer(collections.namedtuple(
 
     .. seealso::
 
-       :func:`tls_with_password_based_authentication`
-          A simple function which returns a :class:`SecurityLayer` instance.
+       :func:`make`
+          A powerful function which can be used to create a configured
+          :class:`SecurityLayer` instance.
 
     .. attribute:: ssl_context_factory
 
@@ -1060,6 +1090,10 @@ def tls_with_password_based_authentication(
     password to us, or :data:`None` to abort.
 
     Return a :class:`SecurityLayer` instance.
+
+    .. deprecated:: 0.7
+
+       Use :func:`make` instead.
     """
 
     tls_kwargs = {}
@@ -1075,5 +1109,147 @@ def tls_with_password_based_authentication(
             PasswordSASLProvider(
                 password_provider,
                 max_auth_attempts=max_auth_attempts),
+        )
+    )
+
+
+class PinType(enum.Enum):
+    """
+    Enumeration to control which pinning is used by :meth:`make`.
+
+    .. attribute:: PUBLIC_KEY
+
+       Public keys are stored in the pin store. :class:`PublicKeyPinStore` is
+       used.
+
+    .. attribute:: CERTIFICATE
+
+       Whole certificates are stored in the pin store.
+       :class:`CertificatePinStore` is used.
+    """
+
+    PUBLIC_KEY = 0
+    CERTIFICATE = 1
+
+
+def make(
+        password_provider,
+        *,
+        pin_store=None,
+        pin_type=PinType.PUBLIC_KEY,
+        post_handshake_deferred_failure=None,
+        no_verify=False):
+    """
+    Construct a :class:`SecurityLayer`. Depending on the arguments passed,
+    different features are enabled or disabled.
+
+    :param password_provider: Source for the password to authenticate with.
+    :type password_provider: :class:`str` or coroutine
+    :param pin_store: Enable use of certificate pin store: if it is a
+                      :class:`dict`, a new pin store is created (see `pin_type`
+                      argument) and filled with the data from the dict.
+                      Otherwise, the given pin store is used.
+    :type pin_store: :class:`dict` (compatible to
+                     :meth:`~AbstractPinStore.import_from_json`) or
+                     :class:`AbstractPinStore`
+    :param pin_type: Type of pin store to use with a dict passed to `pin_store`
+                     (ignored if no dict is passed to `pin_store`).
+    :type pin_type: :class:`PinType`
+    :param post_handshake_deferred_failure: Coroutine to call when using pin
+                                            store and the certificate is not in
+                                            the pin store and fails PKI
+                                            verification.
+    :type post_handshake_deferred_failure: coroutine
+    :param no_verify: *Disable* all certificate verification. Usage is **strongly
+                      discouraged** outside controlled test environments. See
+                      below for alternatives.
+    :type no_verify: :class:`bool`
+    :return: A new :class:`SecurityLayer` instance configured as per the
+             arguments.
+
+    `password_provider` must either be a coroutine or a :class:`str`. As a
+    coroutine, it is called during authentication with the JID we are trying to
+    authenticate against as the first, and the sequence number of the
+    authentication attempt as second argument. The sequence number starts at 0.
+    The coroutine is expected to return :data:`None` or a password. See
+    :class:`PasswordSASLProvider` for details. If it is a :class:`str`, a
+    coroutine which returns the string on the first and :data:`None` on
+    subsequent attempts is created and used.
+
+    If `pin_store` is not :data:`None`, :class:`PinningPKIXCertificateVerifier`
+    is used instead of the default :class:`PKIXCertificateVerifier`. The
+    `pin_store` argument determines the pinned certificates: if it is a
+    dictionary, a :class:`AbstractPinStore` according to the :class:`PinType`
+    passed as `pin_type` argument is created and initialised with the data from
+    the dictionary using its :meth:`~AbstractPinStore.import_from_json` method.
+    Otherwise, `pin_store` must be a :class:`AbstractPinStore` instance which
+    is passed to the verifier.
+
+    `post_handshake_deferred_callback` is used only if `pin_store` is not
+    :data:`None`. It is passed to the equally-named argument of
+    :class:`PinningPKIXCertificateVerifier`, see the documentation there for
+    details on the semantics. If `post_handshake_deferred_callback` is
+    :data:`None` while `pin_store` is not, a coroutine which returns
+    :data:`False` is substituted.
+
+    If `no_verify` is true, none of the above regarding certificate verifiers
+    matters. The internal null verifier is used, which disables certificate
+    verification completely.
+
+    .. warning::
+
+       Disabling certificate verification makes your application vulnerable to
+       trivial Man-in-the-Middle attacks. Do **not** use this outside
+       controlled test environments.
+
+       If you need to handle certificates which cannot be verified using the
+       public key infrastructure, consider making use of the `pin_store`
+       argument instead.
+
+    The versaility and simplicity of use of this function make (pun intended)
+    it the preferred way to construct :class:`SecurityLayer` instances.
+    """
+
+    if isinstance(password_provider, str):
+        static_password = password_provider
+
+        @asyncio.coroutine
+        def password_provider(jid, nattempt):
+            if nattempt == 0:
+                return static_password
+            return None
+
+    if pin_store is not None:
+        if post_handshake_deferred_failure is None:
+            @asyncio.coroutine
+            def post_handshake_deferred_failure(verifier):
+                return False
+
+        if not isinstance(pin_store, AbstractPinStore):
+            pin_data = pin_store
+            if pin_type == PinType.PUBLIC_KEY:
+                pin_store = PublicKeyPinStore()
+            else:
+                pin_store = CertificatePinStore()
+            pin_store.import_from_json(pin_data)
+
+        def certificate_verifier_factory():
+            return PinningPKIXCertificateVerifier(
+                pin_store.query,
+                post_handshake_deferred_failure,
+            )
+    elif no_verify:
+        certificate_verifier_factory = _NullVerifier
+    else:
+        certificate_verifier_factory = PKIXCertificateVerifier
+
+    return SecurityLayer(
+        default_ssl_context,
+        certificate_verifier_factory,
+        True,
+        (
+            PasswordSASLProvider(
+                password_provider,
+            ),
         )
     )

@@ -1,3 +1,24 @@
+########################################################################
+# File name: stream.py
+# This file is part of: aioxmpp
+#
+# LICENSE
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Lesser General Public License as
+# published by the Free Software Foundation, either version 3 of the
+# License, or (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public
+# License along with this program.  If not, see
+# <http://www.gnu.org/licenses/>.
+#
+########################################################################
 """
 :mod:`~aioxmpp.stream` --- Stanza stream
 ########################################
@@ -40,6 +61,7 @@ classes:
 import asyncio
 import functools
 import logging
+import warnings
 
 from datetime import datetime, timedelta
 from enum import Enum
@@ -51,6 +73,7 @@ from . import (
     nonza,
     callbacks,
     protocol,
+    structs,
 )
 
 from .plugins import xep0199
@@ -219,7 +242,7 @@ class StanzaErrorAwareListener:
         self._forward_to = forward_to
 
     def data(self, stanza_obj):
-        if stanza_obj.type_ == "error":
+        if stanza_obj.type_.is_error:
             return self._forward_to.error(
                 stanza_obj.error.to_exception()
             )
@@ -569,6 +592,8 @@ class StanzaStream:
 
     """
 
+    _ALLOW_ENUM_COERCION = True
+
     on_failure = callbacks.Signal()
     on_stream_destroyed = callbacks.Signal()
     on_stream_established = callbacks.Signal()
@@ -631,6 +656,22 @@ class StanzaStream:
         """
         return self._local_jid
 
+    def _coerce_enum(self, value, enum_class):
+        if not isinstance(value, enum_class):
+            if self._ALLOW_ENUM_COERCION:
+                warnings.warn(
+                    "passing a non-enum value as type_ is deprecated and will "
+                    "be invalid as of aioxmpp 1.0",
+                    DeprecationWarning,
+                    stacklevel=3)
+                return enum_class(value)
+            else:
+                raise TypeError("type_ must be {}, got {!r}".format(
+                    enum_class.__name__,
+                    value
+                ))
+        return value
+
     def _done_handler(self, task):
         """
         Called when the main task (:meth:`_run`, :attr:`_task`) returns.
@@ -684,17 +725,17 @@ class StanzaStream:
         try:
             payload = task.result()
         except errors.XMPPError as err:
-            response = request.make_reply(type_="error")
+            response = request.make_reply(type_=structs.IQType.ERROR)
             response.error = stanza.Error.from_exception(err)
         except Exception:
-            response = request.make_reply(type_="error")
+            response = request.make_reply(type_=structs.IQType.ERROR)
             response.error = stanza.Error(
                 condition=(namespaces.stanzas, "undefined-condition"),
-                type_="cancel",
+                type_=structs.ErrorType.CANCEL,
             )
             self._logger.exception("IQ request coroutine failed")
         else:
-            response = request.make_reply(type_="result")
+            response = request.make_reply(type_=structs.IQType.RESULT)
             response.payload = payload
         self.enqueue_stanza(response)
 
@@ -705,7 +746,7 @@ class StanzaStream:
         warning if no handler can be found.
         """
         self._logger.debug("incoming iq: %r", stanza_obj)
-        if stanza_obj.type_ == "result" or stanza_obj.type_ == "error":
+        if stanza_obj.type_.is_response:
             # iq response
             self._logger.debug("iq is response")
             key = (stanza_obj.from_, stanza_obj.id_)
@@ -732,7 +773,7 @@ class StanzaStream:
                     stanza_obj.type_,
                     stanza_obj.payload
                 )
-                response = stanza_obj.make_reply(type_="error")
+                response = stanza_obj.make_reply(type_=structs.IQType.ERROR)
                 response.error = stanza.Error(
                     condition=(namespaces.stanzas,
                                "feature-not-implemented"),
@@ -832,7 +873,7 @@ class StanzaStream:
             stanza_obj
         )
 
-        if stanza_obj.type_ == "error" or stanza_obj.type_ == "result":
+        if stanza_obj.type_.is_response:
             if     (isinstance(stanza_obj, stanza.IQ) and
                     stanza_obj.from_ is not None):
                 self._logger.debug(
@@ -1031,7 +1072,7 @@ class StanzaStream:
             self._logger.debug("sending SM req")
             xmlstream.send_xso(nonza.SMRequest())
         else:
-            request = stanza.IQ(type_="get")
+            request = stanza.IQ(type_=structs.IQType.GET)
             request.payload = xep0199.Ping()
             request.autoset_id()
             self.register_iq_response_callback(
@@ -1073,7 +1114,7 @@ class StanzaStream:
         """
         Register a callback function `cb` to be called when a IQ stanza with
         type ``result`` or ``error`` is recieved from the
-        :class:`~aioxmpp.structs.JID` `from_` with the id `id_`.
+        :class:`~aioxmpp.JID` `from_` with the id `id_`.
 
         The callback is called at most once.
 
@@ -1099,7 +1140,7 @@ class StanzaStream:
     def register_iq_response_future(self, from_, id_, fut):
         """
         Register a future `fut` for an IQ stanza with type ``result`` or
-        ``error`` from the :class:`~aioxmpp.structs.JID` `from_` with the id
+        ``error`` from the :class:`~aioxmpp.JID` `from_` with the id
         `id_`.
 
         If the type of the IQ stanza is ``result``, the stanza is set as result
@@ -1164,27 +1205,41 @@ class StanzaStream:
 
     def register_iq_request_coro(self, type_, payload_cls, coro):
         """
-        Register a coroutine `coro` to IQ requests of type `type_` which have a
-        payload of the given `payload_cls` class.
+        Register a coroutine to run when an IQ request is received.
 
-        Whenever a matching IQ stanza is received, the coroutine is started
-        with the stanza as its only argument. The coroutine must return a valid
-        value for the :attr:`.stanza.IQ.payload` attribute. The value will be
-        set as the payload attribute value of an IQ response (with type
-        ``"result"``) which is generated and sent by the stream.
+        :param type_: IQ type to react to (must be a request type).
+        :type type_: :class:`~aioxmpp.IQType`
+        :param payload_cls: Payload class to react to (subclass of :class:`~xso.XSO`)
+        :type payload_cls: :class:`~.XMLStreamClass`
+        :param coro: Coroutine to run
+        :raises ValueError: if there is already a coroutine registered for this
+                            targe
+        :raises ValueError: if `type_` is not a request IQ type
+        :raises ValueError: if `type_` is not a valid
+                            :class:`~.IQType` (and cannot be cast to a
+                            :class:`~.IQType`)
+
+        The coroutine `coro` will be spawned whenever an IQ stanza with the
+        given `type_` and payload being an instance of the `payload_cls` is
+        received. The coroutine must return a valid value for the
+        :attr:`.IQ.payload` attribute. The value will be set as the
+        payload attribute value of an IQ response (with type
+        :attr:`~.IQType.RESULT`) which is generated and sent by the stream.
 
         If the coroutine raises an exception, it will be converted to a
         :class:`~.stanza.Error` object. That error object is then used as
-        payload for an IQ response (with type ``"error"``) which is generated
-        and sent by the stream.
+        payload for an IQ response (with type :attr:`~.IQType.ERROR`) which is
+        generated and sent by the stream.
 
         If the exception is a subclass of :class:`aioxmpp.errors.XMPPError`, it
-        is converted to an :class:`~.stanza.Error` instance
-        directly. Otherwise, it is wrapped in a
-        :class:`aioxmpp.errors.XMPPCancelError` with ``undefined-condition``.
+        is converted to an :class:`~.stanza.Error` instance directly.
+        Otherwise, it is wrapped in a :class:`aioxmpp.XMPPCancelError`
+        with ``undefined-condition``.
 
-        If there is already a coroutine registered for the given (`type_`,
-        `payload_cls`) pair, :class:`ValueError` is raised.
+        For this to work, `payload_cls` *must* be registered using
+        :meth:`~.IQ.as_payload_class`. Otherwise, the payload will
+        not be recognised by the stream parser and the IQ is automatically
+        responded to with a ``feature-not-implemented`` error.
 
         .. versionadded:: 0.6
 
@@ -1194,7 +1249,25 @@ class StanzaStream:
 
            To protect against that, fork from your coroutine using
            :func:`asyncio.ensure_future`.
+
+        .. versionchanged:: 0.7
+
+           The `type_` argument is now supposed to be a :class:`~.IQType`
+           member.
+
+        .. deprecated:: 0.7
+
+           Passing a :class:`str` as `type_` argument is deprecated and will
+           raise a :class:`TypeError` as of the 1.0 release. See the Changelog
+           for :ref:`api-changelog-0.7` for further details on how to upgrade
+           your code efficiently.
         """
+        type_ = self._coerce_enum(type_, structs.IQType)
+        if not type_.is_request:
+            raise ValueError(
+                "{!r} is not a request IQType".format(type_)
+            )
+
         key = type_, payload_cls
 
         if key in self._iq_request_map:
@@ -1208,13 +1281,34 @@ class StanzaStream:
     def unregister_iq_request_coro(self, type_, payload_cls):
         """
         Unregister a coroutine previously registered with
-        :meth:`register_iq_request_coro`. The match is solely made using the
-        `type_` and `payload_cls` arguments, which have the same meaning as in
         :meth:`register_iq_request_coro`.
 
-        This raises :class:`KeyError` if no coroutine has previously been
-        registered for the `type_` and `payload_cls`.
+        :param type_: IQ type to react to (must be a request type).
+        :type type_: :class:`~structs.IQType`
+        :param payload_cls: Payload class to react to (subclass of :class:`~xso.XSO`)
+        :type payload_cls: :class:`~.XMLStreamClass`
+        :raises KeyError: if no coroutine has been registered for the given
+                          ``(type_, payload_cls)`` pair
+        :raises ValueError: if `type_` is not a valid
+                            :class:`~.IQType` (and cannot be cast to a
+                            :class:`~.IQType`)
+
+        The match is solely made using the `type_` and `payload_cls` arguments,
+        which have the same meaning as in :meth:`register_iq_request_coro`.
+
+        .. versionchanged:: 0.7
+
+           The `type_` argument is now supposed to be a :class:`~.IQType`
+           member.
+
+        .. deprecated:: 0.7
+
+           Passing a :class:`str` as `type_` argument is deprecated and will
+           raise a :class:`TypeError` as of the 1.0 release. See the Changelog
+           for :ref:`api-changelog-0.7` for further details on how to upgrade
+           your code efficiently.
         """
+        type_ = self._coerce_enum(type_, structs.IQType)
         del self._iq_request_map[type_, payload_cls]
         self._logger.debug(
             "iq request coroutine unregistered: type=%r, payload=%r",
@@ -1222,28 +1316,57 @@ class StanzaStream:
 
     def register_message_callback(self, type_, from_, cb):
         """
-        Register a callback function `cb` to be called whenever a message
-        stanza of the given `type_` from the given
-        :class:`~aioxmpp.structs.JID` `from_` arrives.
+        Register a callback to be called when a message is received.
 
-        Both `type_` and `from_` can be :data:`None`, each, to indicate a
-        wildcard match.
+        :param type_: Message type to listen for, or :data:`None` for a
+                      wildcard match.
+        :type type_: :class:`~.MessageType` or :data:`None`
+        :param from_: Sender JID to listen for, or :data:`None` for a wildcard
+                      match.
+        :type from_: :class:`~aioxmpp.JID or :data:`None`
+        :param cb: Callback function to call
+        :raises ValueError: if another function is already registered for the
+                            same ``(type_, from_)`` pair.
+        :raises ValueError: if `type_` is not a valid
+                            :class:`~.MessageType` (and cannot be cast
+                            to a :class:`~.MessageType`)
 
-        More specific callbacks win over less specific callbacks, and the
-        match on the `from_` address takes precedence over the match on the
-        `type_`.
+        `cb` will be called whenever a message stanza matching the `type_` and
+        `from_` is received, according to the wildcarding rules below. More
+        specific callbacks win over less specific callbacks, and the match on
+        the `from_` address takes precedence over the match on the `type_`.
 
         To be explicit, the order in which callbacks are searched for a given
-        ``type`` and ``from_`` of a stanza is:
+        ``type_`` and ``from_`` of a stanza is:
 
-        * ``type``, ``from_``
-        * ``type``, ``from_.bare()``
+        * ``type_``, ``from_``
+        * ``type_``, ``from_.bare()``
         * ``None``, ``from_``
         * ``None``, ``from_.bare()``
-        * ``type``, ``None``
+        * ``type_``, ``None``
         * ``None``, ``None``
+
+        .. versionchanged:: 0.7
+
+           The `type_` argument is now supposed to be a
+           :class:`~.MessageType` member.
+
+        .. deprecated:: 0.7
+
+           Passing a :class:`str` as `type_` argument is deprecated and will
+           raise a :class:`TypeError` as of the 1.0 release. See the Changelog
+           for :ref:`api-changelog-0.7` for further details on how to upgrade
+           your code efficiently.
         """
-        self._message_map[type_, from_] = cb
+        if type_ is not None:
+            type_ = self._coerce_enum(type_, structs.MessageType)
+        key = type_, from_
+        if key in self._message_map:
+            raise ValueError(
+                "only one listener is allowed per (type_, from_) pair"
+            )
+
+        self._message_map[key] = cb
         self._logger.debug(
             "message callback registered: type=%r, from=%r",
             type_, from_)
@@ -1251,12 +1374,38 @@ class StanzaStream:
     def unregister_message_callback(self, type_, from_):
         """
         Unregister a callback previously registered with
-        :meth:`register_message_callback`. `type_` and `from_` have the same
-        semantics as in :meth:`register_message_callback`.
+        :meth:`register_message_callback`.
 
-        Attempting to unregister a `type_`, `from_` tuple for which no handler
-        has been registered results in a :class:`KeyError`.
+        :param type_: Message type to listen for.
+        :type type_: :class:`~.MessageType` or :data:`None`
+        :param from_: Sender JID to listen for.
+        :type from_: :class:`~aioxmpp.JID or :data:`None`
+        :raises KeyError: if no function is currently registered for the given
+                          ``(type_, from_)`` pair.
+        :raises ValueError: if `type_` is not a valid
+                            :class:`~.MessageType` (and cannot be cast
+                            to a :class:`~.MessageType`)
+
+        The match is made on the exact pair; it is not possible to unregister
+        arbitrary listeners by passing :data:`None` to both arguments (i.e. the
+        wildcarding only applies for receiving stanzas, not for unregistering
+        callbacks; unregistering the super-wildcard with both arguments set to
+        :data:`None` is of course possible).
+
+        .. versionchanged:: 0.7
+
+           The `type_` argument is now supposed to be a
+           :class:`~.MessageType` member.
+
+        .. deprecated:: 0.7
+
+           Passing a :class:`str` as `type_` argument is deprecated and will
+           raise a :class:`TypeError` as of the 1.0 release. See the Changelog
+           for :ref:`api-changelog-0.7` for further details on how to upgrade
+           your code efficiently.
         """
+        if type_ is not None:
+            type_ = self._coerce_enum(type_, structs.MessageType)
         del self._message_map[type_, from_]
         self._logger.debug(
             "message callback unregistered: type=%r, from=%r",
@@ -1264,22 +1413,47 @@ class StanzaStream:
 
     def register_presence_callback(self, type_, from_, cb):
         """
-        Register a callback function `cb` to be called whenever a presence
-        stanza of the given `type_` arrives from the given
-        :class:`~aioxmpp.structs.JID`.
+        Register a callback to be called when a presence stanza is received.
 
-        `from_` may be :data:`None` to indicate a wildcard. Like with
-        :meth:`register_message_callback`, more specific callbacks win over
-        less specific callbacks.
+        :param type_: Presence type to listen for.
+        :type type_: :class:`~.PresenceType`
+        :param from_: Sender JID to listen for, or :data:`None` for a wildcard
+                      match.
+        :type from_: :class:`~aioxmpp.JID or :data:`None`.
+        :param cb: Callback function
+        :raises ValueError: if another listener with the same ``(type_,
+                            from_)`` pair is already registered
+        :raises ValueError: if `type_` is not a valid
+                            :class:`~.PresenceType` (and cannot be cast
+                            to a :class:`~.PresenceType`)
 
-        .. note::
+        `cb` will be called whenever a presence stanza matching the `type_` is
+        received from the specified sender. `from_` may be :data:`None` to
+        indicate a wildcard. Like with :meth:`register_message_callback`, more
+        specific callbacks win over less specific callbacks. The fallback order
+        is identical, except that the ``type_=None`` entries described there do
+        not apply for presence stanzas and are thus omitted.
 
-           A `type_` of :data:`None` is a valid value for
-           :class:`aioxmpp.stanza.Presence` stanzas and is **not** a wildcard
-           here.
+        .. versionchanged:: 0.7
+
+           The `type_` argument is now supposed to be a
+           :class:`~.PresenceType` member.
+
+        .. deprecated:: 0.7
+
+           Passing a :class:`str` as `type_` argument is deprecated and will
+           raise a :class:`TypeError` as of the 1.0 release. See the Changelog
+           for :ref:`api-changelog-0.7` for further details on how to upgrade
+           your code efficiently.
 
         """
-        self._presence_map[type_, from_] = cb
+        type_ = self._coerce_enum(type_, structs.PresenceType)
+        key = type_, from_
+        if key in self._presence_map:
+            raise ValueError(
+                "only one listener is allowed per (type_, from_) pair"
+            )
+        self._presence_map[key] = cb
         self._logger.debug(
             "presence callback registered: type=%r, from=%r",
             type_, from_)
@@ -1287,12 +1461,39 @@ class StanzaStream:
     def unregister_presence_callback(self, type_, from_):
         """
         Unregister a callback previously registered with
-        :meth:`register_presence_callback`. `type_` and `from_` have the same
-        semantics as in :meth:`register_presence_callback`.
+        :meth:`register_presence_callback`.
 
-        Attempting to unregister a `type_`, `from_` tuple for which no handler
-        has been registered results in a :class:`KeyError`.
+        :param type_: Presence type to listen for.
+        :type type_: :class:`~.PresenceType`
+        :param from_: Sender JID to listen for, or :data:`None` for a wildcard
+                      match.
+        :type from_: :class:`~aioxmpp.JID or :data:`None`.
+        :raises KeyError: if no callback is currently registered for the given
+                          ``(type_, from_)`` pair
+        :raises ValueError: if `type_` is not a valid
+                            :class:`~.PresenceType` (and cannot be cast
+                            to a :class:`~.PresenceType`)
+
+        The match is made on the exact pair; it is not possible to unregister
+        arbitrary listeners by passing :data:`None` to the `from_` arguments
+        (i.e. the wildcarding only applies for receiving stanzas, not for
+        unregistering callbacks; unregistering a wildcard match with `from_`
+        set to :data:`None` is of course possible).
+
+        .. versionchanged:: 0.7
+
+           The `type_` argument is now supposed to be a
+           :class:`~.PresenceType` member.
+
+        .. deprecated:: 0.7
+
+           Passing a :class:`str` as `type_` argument is deprecated and will
+           raise a :class:`TypeError` as of the 1.0 release. See the Changelog
+           for :ref:`api-changelog-0.7` for further details on how to upgrade
+           your code efficiently.
+
         """
+        type_ = self._coerce_enum(type_, structs.PresenceType)
         del self._presence_map[type_, from_]
         self._logger.debug(
             "presence callback unregistered: type=%r, from=%r",
@@ -1888,8 +2089,8 @@ class StanzaStream:
         response.
 
         If the response is a ``"result"`` IQ, the value of the
-        :attr:`~aioxmpp.stanza.IQ.payload` attribute is returned. Otherwise,
-        the exception generated from the :attr:`~aioxmpp.stanza.IQ.error`
+        :attr:`~aioxmpp.IQ.payload` attribute is returned. Otherwise,
+        the exception generated from the :attr:`~aioxmpp.IQ.error`
         attribute is raised.
 
         .. seealso::

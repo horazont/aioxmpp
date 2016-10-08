@@ -1,3 +1,24 @@
+########################################################################
+# File name: stanza.py
+# This file is part of: aioxmpp
+#
+# LICENSE
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Lesser General Public License as
+# published by the Free Software Foundation, either version 3 of the
+# License, or (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public
+# License along with this program.  If not, see
+# <http://www.gnu.org/licenses/>.
+#
+########################################################################
 """
 :mod:`~aioxmpp.stanza` --- XSOs for dealing with stanzas
 ########################################################
@@ -13,11 +34,15 @@ Top-level classes
 
 .. autoclass:: StanzaBase(*[, from_][, to][, id_])
 
+.. currentmodule:: aioxmpp
+
 .. autoclass:: Message(*[, from_][, to][, id_][, type_])
 
 .. autoclass:: IQ(*[, from_][, to][, id_][, type_])
 
 .. autoclass:: Presence(*[, from_][, to][, id_][, type_])
+
+.. currentmodule:: aioxmpp.stanza
 
 Payload classes
 ===============
@@ -55,9 +80,10 @@ Exceptions
 
 """
 import base64
+import enum
 import random
 
-from . import xso, errors
+from . import xso, errors, structs
 
 from .utils import namespaces
 
@@ -167,8 +193,27 @@ class Error(xso.XSO):
 
     .. attribute:: type_
 
-       The type of the error. Valid values are ``"auth"``, ``"cancel"``,
-       ``"continue"``, ``"modify"`` and ``"wait"``.
+       The type attribute of the stanza. The allowed values are enumerated in
+       :class:`~.ErrorType`.
+
+       .. versionchanged:: 0.7
+
+          Starting with 0.7, the enumeration :class:`~.ErrorType` is
+          used. Before, strings equal to the XML attribute value character data
+          were used (``"cancel"``, ``"auth"``, and so on).
+
+          As of 0.7, setting the string equivalents is still supported.
+          However, reading from the attribute always returns the corresponding
+          enumeration members (which still compare equal to their string
+          equivalents).
+
+       .. deprecated:: 0.7
+
+          The use of the aforementioned string values is deprecated and will
+          lead to :exc:`TypeError` and/or :exc:`ValueError` being raised when
+          they are written to this attribute. See the Changelog for
+          :ref:`api-changelog-0.7` for further details on how to upgrade your
+          code efficiently.
 
     .. attribute:: condition
 
@@ -201,11 +246,11 @@ class Error(xso.XSO):
     DECLARE_NS = {}
 
     EXCEPTION_CLS_MAP = {
-        "modify": errors.XMPPModifyError,
-        "cancel": errors.XMPPCancelError,
-        "auth": errors.XMPPAuthError,
-        "wait": errors.XMPPWaitError,
-        "continue": errors.XMPPContinueError,
+        structs.ErrorType.MODIFY: errors.XMPPModifyError,
+        structs.ErrorType.CANCEL: errors.XMPPCancelError,
+        structs.ErrorType.AUTH: errors.XMPPAuthError,
+        structs.ErrorType.WAIT: errors.XMPPWaitError,
+        structs.ErrorType.CONTINUE: errors.XMPPContinueError,
     }
 
     UNKNOWN_CHILD_POLICY = xso.UnknownChildPolicy.DROP
@@ -214,20 +259,19 @@ class Error(xso.XSO):
 
     type_ = xso.Attr(
         tag="type",
-        validator=xso.RestrictToSet({
-            "auth",
-            "cancel",
-            "continue",
-            "modify",
-            "wait",
-        })
+        type_=xso.EnumType(
+            structs.ErrorType,
+            allow_coerce=True,
+            deprecate_coerce=True,
+        ),
     )
 
     text = xso.ChildText(
         tag=(namespaces.stanzas, "text"),
         attr_policy=xso.UnknownAttrPolicy.DROP,
         default=None,
-        declare_prefix=None)
+        declare_prefix=None
+    )
 
     condition = xso.ChildTag(
         tags=STANZA_ERROR_TAGS,
@@ -240,7 +284,7 @@ class Error(xso.XSO):
 
     def __init__(self,
                  condition=(namespaces.stanzas, "undefined-condition"),
-                 type_="cancel",
+                 type_=structs.ErrorType.CANCEL,
                  text=None):
         super().__init__()
         self.condition = condition
@@ -249,9 +293,11 @@ class Error(xso.XSO):
 
     @classmethod
     def from_exception(cls, exc):
-        return cls(condition=exc.condition,
-                   type_=exc.TYPE,
-                   text=exc.text)
+        return cls(
+            condition=exc.condition,
+            type_=exc.TYPE,
+            text=exc.text
+        )
 
     def to_exception(self):
         if hasattr(self.application_condition, "to_exception"):
@@ -306,11 +352,11 @@ class StanzaBase(xso.XSO):
 
     .. attribute:: from_
 
-       The :class:`~aioxmpp.structs.JID` of the sending entity.
+       The :class:`~aioxmpp.JID` of the sending entity.
 
     .. attribute:: to
 
-       The :class:`~aioxmpp.structs.JID` of the receiving entity.
+       The :class:`~aioxmpp.JID` of the receiving entity.
 
     .. attribute:: lang
 
@@ -405,9 +451,12 @@ class StanzaBase(xso.XSO):
         transferred from the original (with from and to being swapped). Also,
         the :attr:`type_` is set to ``"error"``.
         """
-        obj = type(self)(from_=self.to,
-                         to=self.from_,
-                         type_="error")
+        obj = type(self)(
+            from_=self.to,
+            to=self.from_,
+            # because flat is better than nested (sarcasm)
+            type_=type(self).type_.type_.enum_class.ERROR,
+        )
         obj.id_ = self.id_
         obj.error = error
         return obj
@@ -500,8 +549,27 @@ class Message(StanzaBase):
 
     .. attribute:: type_
 
-       The type attribute of the stanza. The allowed values are ``"chat"``,
-       ``"groupchat"``, ``"error"``, ``"headline"`` and ``"normal"``.
+       The type attribute of the stanza. The allowed values are enumerated in
+       :class:`~.MessageType`.
+
+       .. versionchanged:: 0.7
+
+          Starting with 0.7, the enumeration :class:`~.MessageType` is
+          used. Before, strings equal to the XML attribute value character data
+          were used (``"chat"``, ``"headline"``, and so on).
+
+          As of 0.7, setting the string equivalents is still supported.
+          However, reading from the attribute always returns the corresponding
+          enumeration members (which still compare equal to their string
+          equivalents).
+
+       .. deprecated:: 0.7
+
+          The use of the aforementioned string values is deprecated and will
+          lead to :exc:`TypeError` and/or :exc:`ValueError` being raised when
+          they are written to this attribute. See the Changelog for
+          :ref:`api-changelog-0.7` for further details on how to upgrade your
+          code efficiently.
 
     .. attribute:: body
 
@@ -530,8 +598,8 @@ class Message(StanzaBase):
     Note that some attributes are inherited from :class:`StanzaBase`:
 
     ========================= =======================================
-    :attr:`~StanzaBase.from_` sender :class:`~aioxmpp.structs.JID`
-    :attr:`~StanzaBase.to`    recipient :class:`~aioxmpp.structs.JID`
+    :attr:`~StanzaBase.from_` sender :class:`~aioxmpp.JID`
+    :attr:`~StanzaBase.to`    recipient :class:`~aioxmpp.JID`
     :attr:`~StanzaBase.lang`  ``xml:lang`` value
     :attr:`~StanzaBase.error` :class:`Error` instance
     ========================= =======================================
@@ -547,13 +615,17 @@ class Message(StanzaBase):
     id_ = xso.Attr(tag="id", default=None)
     type_ = xso.Attr(
         tag="type",
-        validator=xso.RestrictToSet({
-            "chat",
-            "groupchat",
-            "error",
-            "headline",
-            "normal"}),
-        default="normal",
+        type_=xso.EnumType(
+            structs.MessageType,
+            allow_coerce=True,
+            deprecate_coerce=True,
+            # changing the following breaks stanza handling; StanzaStream
+            # relies on the meta-properties of the enumerations (is_request and
+            # such).
+            allow_unknown=False,
+            accept_unknown=False,
+        ),
+        default=structs.MessageType.NORMAL,
     )
 
     body = xso.ChildTextMap(Body)
@@ -617,10 +689,29 @@ class Presence(StanzaBase):
 
     .. attribute:: type_
 
-       The type attribute of the stanza. The allowed values are ``"error"``,
-       ``"probe"``, ``"subscribe"``, ``"subscribed"``, ``"unavailable"``,
-       ``"unsubscribe"``, ``"unsubscribed"`` and :data:`None`, where
-       :data:`None` signifies the absence of the ``type`` attribute.
+       The type attribute of the stanza. The allowed values are enumerated in
+       :class:`~.PresenceType`.
+
+       .. versionchanged:: 0.7
+
+          Starting with 0.7, the enumeration :class:`~.PresenceType` is
+          used. Before, strings equal to the XML attribute value character data
+          were used (``"probe"``, ``"unavailable"``, and so on, as well as
+          :data:`None` to indicate the absence of the attribute and thus
+          "available" presence).
+
+          As of 0.7, setting the string equivalents and :data:`None` is still
+          supported. However, reading from the attribute always returns the
+          corresponding enumeration members (which still compare equal to their
+          string equivalents).
+
+       .. deprecated:: 0.7
+
+          The use of the aforementioned string values (and :data:`None`) is
+          deprecated and will lead to :exc:`TypeError` and/or :exc:`ValueError`
+          being raised when they are written to this attribute. See the
+          Changelog for :ref:`api-changelog-0.7` for further details on how to
+          upgrade your code efficiently.
 
     .. attribute:: show
 
@@ -644,8 +735,8 @@ class Presence(StanzaBase):
     Note that some attributes are inherited from :class:`StanzaBase`:
 
     ========================= =======================================
-    :attr:`~StanzaBase.from_` sender :class:`~aioxmpp.structs.JID`
-    :attr:`~StanzaBase.to`    recipient :class:`~aioxmpp.structs.JID`
+    :attr:`~StanzaBase.from_` sender :class:`~aioxmpp.JID`
+    :attr:`~StanzaBase.to`    recipient :class:`~aioxmpp.JID`
     :attr:`~StanzaBase.lang`  ``xml:lang`` value
     :attr:`~StanzaBase.error` :class:`Error` instance
     ========================= =======================================
@@ -657,15 +748,17 @@ class Presence(StanzaBase):
     id_ = xso.Attr(tag="id", default=None)
     type_ = xso.Attr(
         tag="type",
-        validator=xso.RestrictToSet({
-            "error",
-            "probe",
-            "subscribe",
-            "subscribed",
-            "unavailable",
-            "unsubscribe",
-            "unsubscribed"}),
-        default=None,
+        type_=xso.EnumType(
+            structs.PresenceType,
+            allow_coerce=True,
+            deprecate_coerce=True,
+            # changing the following breaks stanza handling; StanzaStream
+            # relies on the meta-properties of the enumerations (is_request and
+            # such).
+            allow_unknown=False,
+            accept_unknown=False,
+        ),
+        default=structs.PresenceType.AVAILABLE,
     )
 
     show = xso.ChildText(
@@ -692,7 +785,7 @@ class Presence(StanzaBase):
     ext = xso.ChildMap([])
     unhandled_children = xso.Collector()
 
-    def __init__(self, *, type_=None, show=None, **kwargs):
+    def __init__(self, *, type_=structs.PresenceType.AVAILABLE, show=None, **kwargs):
         super().__init__(**kwargs)
         self.type_ = type_
         self.show = show
@@ -716,8 +809,27 @@ class IQ(StanzaBase):
 
     .. attribute:: type_
 
-       The type attribute of the stanza. The allowed values are ``"error"``,
-       ``"result"``, ``"set"`` and ``"get"``.
+       The type attribute of the stanza. The allowed values are enumerated in
+       :class:`~.IQType`.
+
+       .. versionchanged:: 0.7
+
+          Starting with 0.7, the enumeration :class:`~.IQType` is used.
+          Before, strings equal to the XML attribute value character data were
+          used (``"get"``, ``"set"``, and so on).
+
+          As of 0.7, setting the string equivalents is still supported.
+          However, reading from the attribute always returns the corresponding
+          enumeration members (which still compare equal to their string
+          equivalents).
+
+       .. deprecated:: 0.7
+
+          The use of the aforementioned string values is deprecated and will
+          lead to :exc:`TypeError` and/or :exc:`ValueError` being raised when
+          they are written to this attribute. See the Changelog for
+          :ref:`api-changelog-0.7` for further details on how to upgrade your
+          code efficiently.
 
     .. attribute:: payload
 
@@ -726,8 +838,8 @@ class IQ(StanzaBase):
     Note that some attributes are inherited from :class:`StanzaBase`:
 
     ========================= =======================================
-    :attr:`~StanzaBase.from_` sender :class:`~aioxmpp.structs.JID`
-    :attr:`~StanzaBase.to`    recipient :class:`~aioxmpp.structs.JID`
+    :attr:`~StanzaBase.from_` sender :class:`~aioxmpp.JID`
+    :attr:`~StanzaBase.to`    recipient :class:`~aioxmpp.JID`
     :attr:`~StanzaBase.lang`  ``xml:lang`` value
     :attr:`~StanzaBase.error` :class:`Error` instance
     ========================= =======================================
@@ -744,11 +856,16 @@ class IQ(StanzaBase):
     id_ = xso.Attr(tag="id")
     type_ = xso.Attr(
         tag="type",
-        validator=xso.RestrictToSet({
-            "get",
-            "set",
-            "result",
-            "error"})
+        type_=xso.EnumType(
+            structs.IQType,
+            allow_coerce=True,
+            deprecate_coerce=True,
+            # changing the following breaks stanza handling; StanzaStream
+            # relies on the meta-properties of the enumerations (is_request and
+            # such).
+            allow_unknown=False,
+            accept_unknown=False,
+        )
     )
     payload = xso.Child([])
 
@@ -766,7 +883,7 @@ class IQ(StanzaBase):
         super().validate()
 
     def make_reply(self, type_):
-        if self.type_ != "get" and self.type_ != "set":
+        if not self.type_.is_request:
             raise ValueError("make_reply requires request IQ")
         obj = super()._make_reply(type_)
         return obj
@@ -784,7 +901,7 @@ class IQ(StanzaBase):
 
         try:
             type_str = repr(self.type_)
-            if self.type_ == "error":
+            if self.type_.is_error:
                 payload = " error={!r}".format(self.error)
             elif self.payload:
                 payload = " data={!r}".format(self.payload)

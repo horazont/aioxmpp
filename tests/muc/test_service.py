@@ -1,3 +1,24 @@
+########################################################################
+# File name: test_service.py
+# This file is part of: aioxmpp
+#
+# LICENSE
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Lesser General Public License as
+# published by the Free Software Foundation, either version 3 of the
+# License, or (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public
+# License along with this program.  If not, see
+# <http://www.gnu.org/licenses/>.
+#
+########################################################################
 import asyncio
 import contextlib
 import functools
@@ -106,7 +127,7 @@ class TestOccupant(unittest.TestCase):
     def test_from_presence_can_deal_with_sparse_presence(self):
         presence = aioxmpp.stanza.Presence(
             from_=TEST_MUC_JID.replace(resource="secondwitch"),
-            type_=None,
+            type_=aioxmpp.structs.PresenceType.AVAILABLE,
             show="dnd"
         )
 
@@ -138,7 +159,7 @@ class TestOccupant(unittest.TestCase):
     def test_from_presence_extracts_what_it_can_get(self):
         presence = aioxmpp.stanza.Presence(
             from_=TEST_MUC_JID.replace(resource="secondwitch"),
-            type_=None,
+            type_=aioxmpp.structs.PresenceType.AVAILABLE,
             show="dnd"
         )
 
@@ -187,7 +208,7 @@ class TestOccupant(unittest.TestCase):
 
         presence = aioxmpp.stanza.Presence(
             from_=TEST_MUC_JID.replace(resource="secondwitch"),
-            type_=None,
+            type_=aioxmpp.structs.PresenceType.AVAILABLE,
             show="dnd"
         )
 
@@ -352,7 +373,7 @@ class TestRoom(unittest.TestCase):
 
     def test__suspend_with_autorejoin(self):
         presence = aioxmpp.stanza.Presence(
-            type_=None,
+            type_=aioxmpp.structs.PresenceType.AVAILABLE,
             from_=TEST_MUC_JID.replace(resource="firstwitch")
         )
         presence.xep0045_muc_user = muc_xso.UserExt(
@@ -388,7 +409,7 @@ class TestRoom(unittest.TestCase):
         # by the Service class
 
         presence = aioxmpp.stanza.Presence(
-            type_=None,
+            type_=aioxmpp.structs.PresenceType.AVAILABLE,
             from_=TEST_MUC_JID.replace(resource="firstwitch")
         )
         presence.xep0045_muc_user = muc_xso.UserExt(
@@ -421,7 +442,7 @@ class TestRoom(unittest.TestCase):
 
     def test__disconnect(self):
         presence = aioxmpp.stanza.Presence(
-            type_=None,
+            type_=aioxmpp.structs.PresenceType.AVAILABLE,
             from_=TEST_MUC_JID.replace(resource="firstwitch")
         )
         presence.xep0045_muc_user = muc_xso.UserExt(
@@ -457,7 +478,7 @@ class TestRoom(unittest.TestCase):
 
     def test__disconnect_during_suspend(self):
         presence = aioxmpp.stanza.Presence(
-            type_=None,
+            type_=aioxmpp.structs.PresenceType.AVAILABLE,
             from_=TEST_MUC_JID.replace(resource="firstwitch")
         )
         presence.xep0045_muc_user = muc_xso.UserExt(
@@ -514,7 +535,7 @@ class TestRoom(unittest.TestCase):
 
     def test__suspend__resume_cycle(self):
         presence = aioxmpp.stanza.Presence(
-            type_=None,
+            type_=aioxmpp.structs.PresenceType.AVAILABLE,
             from_=TEST_MUC_JID.replace(resource="firstwitch")
         )
         presence.xep0045_muc_user = muc_xso.UserExt(
@@ -544,7 +565,7 @@ class TestRoom(unittest.TestCase):
         self.assertFalse(self.jmuc.active)
 
         presence = aioxmpp.stanza.Presence(
-            type_=None,
+            type_=aioxmpp.structs.PresenceType.AVAILABLE,
             from_=TEST_MUC_JID.replace(resource="firstwitch")
         )
         presence.xep0045_muc_user = muc_xso.UserExt(
@@ -570,7 +591,7 @@ class TestRoom(unittest.TestCase):
 
     def test__inbound_muc_user_presence_emits_on_join_for_new_users(self):
         presence = aioxmpp.stanza.Presence(
-            type_=None,
+            type_=aioxmpp.structs.PresenceType.AVAILABLE,
             from_=TEST_MUC_JID.replace(resource="firstwitch")
         )
         presence.xep0045_muc_user = muc_xso.UserExt(
@@ -606,7 +627,7 @@ class TestRoom(unittest.TestCase):
 
     def test__inbound_muc_user_presence_emits_on_leave_for_unavailable(self):
         presence = aioxmpp.stanza.Presence(
-            type_=None,
+            type_=aioxmpp.structs.PresenceType.AVAILABLE,
             from_=TEST_MUC_JID.replace(resource="firstwitch")
         )
         presence.xep0045_muc_user = muc_xso.UserExt(
@@ -634,7 +655,7 @@ class TestRoom(unittest.TestCase):
             self.base.mock_calls.clear()
 
             # update presence stanza
-            presence.type_ = "unavailable"
+            presence.type_ = aioxmpp.structs.PresenceType.UNAVAILABLE
 
             second = original_Occupant.from_presence(presence)
             Occupant.from_presence.return_value = second
@@ -654,7 +675,7 @@ class TestRoom(unittest.TestCase):
 
     def test__inbound_muc_user_presence_emits_on_leave_for_kick(self):
         presence = aioxmpp.stanza.Presence(
-            type_=None,
+            type_=aioxmpp.structs.PresenceType.AVAILABLE,
             from_=TEST_MUC_JID.replace(resource="firstwitch")
         )
         presence.xep0045_muc_user = muc_xso.UserExt(
@@ -684,7 +705,7 @@ class TestRoom(unittest.TestCase):
             self.base.mock_calls.clear()
 
             # update presence stanza
-            presence.type_ = "unavailable"
+            presence.type_ = aioxmpp.structs.PresenceType.UNAVAILABLE
             presence.xep0045_muc_user.status_codes.update({307})
             presence.xep0045_muc_user.items[0].reason = "Avaunt, you cullion!"
             presence.xep0045_muc_user.items[0].role = "none"
@@ -722,7 +743,7 @@ class TestRoom(unittest.TestCase):
 
     def test__inbound_muc_user_presence_emits_on_leave_for_ban(self):
         presence = aioxmpp.stanza.Presence(
-            type_=None,
+            type_=aioxmpp.structs.PresenceType.AVAILABLE,
             from_=TEST_MUC_JID.replace(resource="firstwitch")
         )
         presence.xep0045_muc_user = muc_xso.UserExt(
@@ -751,7 +772,7 @@ class TestRoom(unittest.TestCase):
             self.base.mock_calls.clear()
 
             # update presence stanza
-            presence.type_ = "unavailable"
+            presence.type_ = aioxmpp.structs.PresenceType.UNAVAILABLE
             presence.xep0045_muc_user.status_codes.update({301})
             presence.xep0045_muc_user.items[0].reason = "Treason"
             presence.xep0045_muc_user.items[0].affiliation = "outcast"
@@ -793,7 +814,7 @@ class TestRoom(unittest.TestCase):
     def test__inbound_muc_user_presence_emits_on_leave_for_affiliation_change(
             self):
         presence = aioxmpp.stanza.Presence(
-            type_=None,
+            type_=aioxmpp.structs.PresenceType.AVAILABLE,
             from_=TEST_MUC_JID.replace(resource="firstwitch")
         )
         presence.xep0045_muc_user = muc_xso.UserExt(
@@ -822,7 +843,7 @@ class TestRoom(unittest.TestCase):
             self.base.mock_calls.clear()
 
             # update presence stanza
-            presence.type_ = "unavailable"
+            presence.type_ = aioxmpp.structs.PresenceType.UNAVAILABLE
             presence.xep0045_muc_user.status_codes.update({321})
             presence.xep0045_muc_user.items[0].reason = "foo"
             presence.xep0045_muc_user.items[0].actor = actor
@@ -868,7 +889,7 @@ class TestRoom(unittest.TestCase):
     def test__inbound_muc_user_presence_emits_on_leave_for_moderation_change(
             self):
         presence = aioxmpp.stanza.Presence(
-            type_=None,
+            type_=aioxmpp.structs.PresenceType.AVAILABLE,
             from_=TEST_MUC_JID.replace(resource="firstwitch")
         )
         presence.xep0045_muc_user = muc_xso.UserExt(
@@ -897,7 +918,7 @@ class TestRoom(unittest.TestCase):
             self.base.mock_calls.clear()
 
             # update presence stanza
-            presence.type_ = "unavailable"
+            presence.type_ = aioxmpp.structs.PresenceType.UNAVAILABLE
             presence.xep0045_muc_user.status_codes.update({322})
             presence.xep0045_muc_user.items[0].reason = "foo"
             presence.xep0045_muc_user.items[0].actor = actor
@@ -933,7 +954,7 @@ class TestRoom(unittest.TestCase):
     def test__inbound_muc_user_presence_emits_on_leave_for_system_shutdown(
             self):
         presence = aioxmpp.stanza.Presence(
-            type_=None,
+            type_=aioxmpp.structs.PresenceType.AVAILABLE,
             from_=TEST_MUC_JID.replace(resource="firstwitch")
         )
         presence.xep0045_muc_user = muc_xso.UserExt(
@@ -962,7 +983,7 @@ class TestRoom(unittest.TestCase):
             self.base.mock_calls.clear()
 
             # update presence stanza
-            presence.type_ = "unavailable"
+            presence.type_ = aioxmpp.structs.PresenceType.UNAVAILABLE
             presence.xep0045_muc_user.status_codes.update({332})
             presence.xep0045_muc_user.items[0].reason = "foo"
 
@@ -988,7 +1009,7 @@ class TestRoom(unittest.TestCase):
 
     def test__inbound_muc_user_presence_emits_on_status_change(self):
         presence = aioxmpp.stanza.Presence(
-            type_=None,
+            type_=aioxmpp.structs.PresenceType.AVAILABLE,
             from_=TEST_MUC_JID.replace(resource="firstwitch")
         )
         presence.xep0045_muc_user = muc_xso.UserExt(
@@ -1042,7 +1063,7 @@ class TestRoom(unittest.TestCase):
 
     def test__inbound_muc_user_presence_emits_on_nick_change(self):
         presence = aioxmpp.stanza.Presence(
-            type_=None,
+            type_=aioxmpp.structs.PresenceType.AVAILABLE,
             from_=TEST_MUC_JID.replace(resource="thirdwitch")
         )
         presence.xep0045_muc_user = muc_xso.UserExt(
@@ -1070,7 +1091,7 @@ class TestRoom(unittest.TestCase):
             self.base.mock_calls.clear()
 
             # update presence stanza
-            presence.type_ = "unavailable"
+            presence.type_ = aioxmpp.structs.PresenceType.UNAVAILABLE
             presence.xep0045_muc_user.status_codes.add(303)
             presence.xep0045_muc_user.items[0].nick = "oldhag"
 
@@ -1092,7 +1113,7 @@ class TestRoom(unittest.TestCase):
             )
 
             presence = aioxmpp.stanza.Presence(
-                type_=None,
+                type_=aioxmpp.structs.PresenceType.AVAILABLE,
                 from_=TEST_MUC_JID.replace(resource="oldhag")
             )
             presence.xep0045_muc_user = muc_xso.UserExt(
@@ -1115,7 +1136,7 @@ class TestRoom(unittest.TestCase):
 
     def test__inbound_muc_user_presence_emits_on_various_changes(self):
         presence = aioxmpp.stanza.Presence(
-            type_=None,
+            type_=aioxmpp.structs.PresenceType.AVAILABLE,
             from_=TEST_MUC_JID.replace(resource="firstwitch")
         )
         presence.xep0045_muc_user = muc_xso.UserExt(
@@ -1197,7 +1218,7 @@ class TestRoom(unittest.TestCase):
 
         msg = aioxmpp.stanza.Message(
             from_=TEST_MUC_JID.replace(resource="secondwitch"),
-            type_="groupchat"
+            type_=aioxmpp.structs.MessageType.GROUPCHAT,
         )
         msg.subject.update({
             None: "foo"
@@ -1229,7 +1250,7 @@ class TestRoom(unittest.TestCase):
     def test__inbound_message_handles_subject_of_non_occupant(self):
         msg = aioxmpp.stanza.Message(
             from_=TEST_MUC_JID.replace(resource="secondwitch"),
-            type_="groupchat"
+            type_=aioxmpp.structs.MessageType.GROUPCHAT,
         )
         msg.subject.update({
             None: "foo"
@@ -1261,7 +1282,7 @@ class TestRoom(unittest.TestCase):
     def test__inbound_message_ignores_subject_if_body_is_present(self):
         msg = aioxmpp.stanza.Message(
             from_=TEST_MUC_JID.replace(resource="secondwitch"),
-            type_="groupchat"
+            type_=aioxmpp.structs.MessageType.GROUPCHAT,
         )
         msg.subject.update({
             None: "foo"
@@ -1285,7 +1306,7 @@ class TestRoom(unittest.TestCase):
 
         msg = aioxmpp.stanza.Message(
             from_=TEST_MUC_JID.replace(resource="secondwitch"),
-            type_="groupchat"
+            type_=aioxmpp.structs.MessageType.GROUPCHAT,
         )
 
         self.jmuc._inbound_message(msg)
@@ -1307,7 +1328,7 @@ class TestRoom(unittest.TestCase):
     def test__inbound_groupchat_message_with_body_emits_on_message(self):
         msg = aioxmpp.stanza.Message(
             from_=TEST_MUC_JID.replace(resource="secondwitch"),
-            type_="groupchat"
+            type_=aioxmpp.structs.MessageType.GROUPCHAT,
         )
         msg.body[None] = "foo"
 
@@ -1336,7 +1357,7 @@ class TestRoom(unittest.TestCase):
 
         msg = aioxmpp.stanza.Message(
             from_=TEST_MUC_JID.replace(resource="secondwitch"),
-            type_="groupchat"
+            type_=aioxmpp.structs.MessageType.GROUPCHAT,
         )
         msg.body[None] = "foo"
 
@@ -1354,7 +1375,7 @@ class TestRoom(unittest.TestCase):
 
     def test__inbound_muc_user_presence_emits_on_enter_and_on_exit(self):
         presence = aioxmpp.stanza.Presence(
-            type_=None,
+            type_=aioxmpp.structs.PresenceType.AVAILABLE,
             from_=TEST_MUC_JID.replace(resource="thirdwitch")
         )
         presence.xep0045_muc_user = muc_xso.UserExt(
@@ -1391,7 +1412,7 @@ class TestRoom(unittest.TestCase):
         )
 
         presence = aioxmpp.stanza.Presence(
-            type_="unavailable",
+            type_=aioxmpp.structs.PresenceType.UNAVAILABLE,
             from_=TEST_MUC_JID.replace(resource="thirdwitch")
         )
         presence.xep0045_muc_user = muc_xso.UserExt(
@@ -1432,7 +1453,7 @@ class TestRoom(unittest.TestCase):
 
     def test__inbound_muc_user_presence_ignores_self_leave_if_inactive(self):
         presence = aioxmpp.stanza.Presence(
-            type_="unavailable",
+            type_=aioxmpp.structs.PresenceType.UNAVAILABLE,
             from_=TEST_MUC_JID.replace(resource="thirdwitch"),
         )
         presence.xep0045_muc_user = muc_xso.UserExt(
@@ -1479,7 +1500,7 @@ class TestRoom(unittest.TestCase):
         )
         self.assertEqual(
             iq.type_,
-            "set"
+            aioxmpp.structs.IQType.SET,
         )
         self.assertEqual(
             iq.to,
@@ -1599,7 +1620,7 @@ class TestRoom(unittest.TestCase):
         )
         self.assertEqual(
             stanza.type_,
-            "groupchat"
+            aioxmpp.structs.MessageType.GROUPCHAT,
         )
         self.assertEqual(
             stanza.to,
@@ -1629,7 +1650,7 @@ class TestRoom(unittest.TestCase):
         )
         self.assertEqual(
             stanza.type_,
-            "unavailable"
+            aioxmpp.structs.PresenceType.UNAVAILABLE
         )
         self.assertEqual(
             stanza.to,
@@ -1657,7 +1678,7 @@ class TestRoom(unittest.TestCase):
 
     def test_occupants(self):
         presence = aioxmpp.stanza.Presence(
-            type_=None,
+            type_=aioxmpp.structs.PresenceType.AVAILABLE,
             from_=TEST_MUC_JID.replace(resource="firstwitch")
         )
         presence.xep0045_muc_user = muc_xso.UserExt(
@@ -1670,7 +1691,7 @@ class TestRoom(unittest.TestCase):
         self.jmuc._inbound_muc_user_presence(presence)
 
         presence = aioxmpp.stanza.Presence(
-            type_=None,
+            type_=aioxmpp.structs.PresenceType.AVAILABLE,
             from_=TEST_MUC_JID.replace(resource="secondwitch")
         )
         presence.xep0045_muc_user = muc_xso.UserExt(
@@ -1693,7 +1714,7 @@ class TestRoom(unittest.TestCase):
         )
 
         presence = aioxmpp.stanza.Presence(
-            type_=None,
+            type_=aioxmpp.structs.PresenceType.AVAILABLE,
             from_=TEST_MUC_JID.replace(resource="thirdwitch")
         )
         presence.xep0045_muc_user = muc_xso.UserExt(
@@ -1747,7 +1768,7 @@ class TestRoom(unittest.TestCase):
         )
         self.assertEqual(
             stanza.type_,
-            "groupchat"
+            aioxmpp.structs.MessageType.GROUPCHAT,
         )
         self.assertEqual(
             stanza.to,
@@ -1778,7 +1799,7 @@ class TestRoom(unittest.TestCase):
         )
 
         reflected = aioxmpp.stanza.Message(
-            type_="groupchat",
+            type_=aioxmpp.structs.MessageType.GROUPCHAT,
             id_=stanza.id_
         )
 
@@ -1819,7 +1840,7 @@ class TestRoom(unittest.TestCase):
         )
         self.assertEqual(
             stanza.type_,
-            "groupchat"
+            aioxmpp.structs.MessageType.GROUPCHAT,
         )
         self.assertEqual(
             stanza.to,
@@ -1852,7 +1873,7 @@ class TestRoom(unittest.TestCase):
         tracker.state = tracking.MessageState.SEEN_BY_RECIPIENT
 
         reflected = aioxmpp.stanza.Message(
-            type_="groupchat",
+            type_=aioxmpp.structs.MessageType.GROUPCHAT,
             id_=stanza.id_
         )
 
@@ -1898,7 +1919,7 @@ class TestRoom(unittest.TestCase):
 
     def test_send_tracked_message_with_stanza(self):
         stanza = aioxmpp.stanza.Message(
-            type_="chat",
+            type_=aioxmpp.structs.MessageType.CHAT,
             to=TEST_ENTITY_JID
         )
 
@@ -1925,12 +1946,15 @@ class TestRoom(unittest.TestCase):
         self.assertIs(set_stanza, stanza)
 
         # assure that critical attributes are overriden
-        self.assertEqual(stanza.type_, "groupchat")
+        self.assertEqual(
+            stanza.type_,
+            aioxmpp.structs.MessageType.GROUPCHAT
+        )
         self.assertEqual(stanza.to, self.mucjid)
 
     def test_tracked_messages_are_set_to_unknown_on_exit(self):
         stanza = aioxmpp.stanza.Message(
-            type_="chat",
+            type_=aioxmpp.structs.MessageType.CHAT,
             to=TEST_ENTITY_JID
         )
 
@@ -1965,7 +1989,7 @@ class TestRoom(unittest.TestCase):
 
     def test_tracked_messages_are_set_to_unknown_on_resume(self):
         stanza = aioxmpp.stanza.Message(
-            type_="chat",
+            type_=aioxmpp.structs.MessageType.CHAT,
             to=TEST_ENTITY_JID
         )
 
@@ -2118,7 +2142,7 @@ class TestService(unittest.TestCase):
         )
 
         self.cc.stream.register_message_callback.assert_called_with(
-            "groupchat",
+            aioxmpp.structs.MessageType.GROUPCHAT,
             TEST_MUC_JID,
             self.s._inbound_message
         )
@@ -2295,7 +2319,7 @@ class TestService(unittest.TestCase):
 
         response = aioxmpp.stanza.Presence(
             from_=TEST_MUC_JID,
-            type_="error")
+            type_=aioxmpp.structs.PresenceType.ERROR)
         response.xep0045_muc = muc_xso.GenericExt()
         response.error = aioxmpp.stanza.Error()
         self.s._inbound_presence_filter(response)
@@ -2329,7 +2353,7 @@ class TestService(unittest.TestCase):
         )
         self.assertEqual(
             stanza.type_,
-            "unavailable"
+            aioxmpp.structs.PresenceType.UNAVAILABLE,
         )
         self.assertIsInstance(
             stanza.xep0045_muc,
@@ -2441,7 +2465,7 @@ class TestService(unittest.TestCase):
 
         msg = aioxmpp.stanza.Message(
             from_=TEST_MUC_JID.replace(resource="firstwitch"),
-            type_="groupchat",
+            type_=aioxmpp.structs.MessageType.GROUPCHAT,
         )
 
         base = unittest.mock.Mock()
@@ -2469,7 +2493,7 @@ class TestService(unittest.TestCase):
         room, future = self.s.join(TEST_MUC_JID, "thirdwitch")
 
         presence = aioxmpp.stanza.Presence(
-            type_=None,
+            type_=aioxmpp.structs.PresenceType.AVAILABLE,
             from_=TEST_MUC_JID.replace(resource="thirdwitch")
         )
         presence.xep0045_muc_user = muc_xso.UserExt()
@@ -2481,7 +2505,7 @@ class TestService(unittest.TestCase):
         self.assertTrue(future.done())
 
         presence = aioxmpp.stanza.Presence(
-            type_="unavailable",
+            type_=aioxmpp.structs.PresenceType.UNAVAILABLE,
             from_=TEST_MUC_JID.replace(resource="thirdwitch")
         )
         presence.xep0045_muc_user = muc_xso.UserExt()
@@ -2576,7 +2600,7 @@ class TestService(unittest.TestCase):
         # test one which is joined and one which is not joined
 
         presence = aioxmpp.stanza.Presence(
-            type_=None,
+            type_=aioxmpp.structs.PresenceType.AVAILABLE,
             from_=TEST_MUC_JID.replace(resource="thirdwitch")
         )
         presence.xep0045_muc_user = muc_xso.UserExt(
@@ -2665,7 +2689,7 @@ class TestService(unittest.TestCase):
 
         # now let both be joined
         presence = aioxmpp.stanza.Presence(
-            type_=None,
+            type_=aioxmpp.structs.PresenceType.AVAILABLE,
             from_=TEST_MUC_JID.replace(resource="thirdwitch")
         )
         presence.xep0045_muc_user = muc_xso.UserExt(
@@ -2674,7 +2698,7 @@ class TestService(unittest.TestCase):
         self.s._inbound_presence_filter(presence)
 
         presence = aioxmpp.stanza.Presence(
-            type_=None,
+            type_=aioxmpp.structs.PresenceType.AVAILABLE,
             from_=TEST_MUC_JID.replace(localpart="foo",
                                        resource="thirdwitch")
         )
@@ -2734,7 +2758,7 @@ class TestService(unittest.TestCase):
         # test one which is joined and one which is not joined
 
         presence = aioxmpp.stanza.Presence(
-            type_=None,
+            type_=aioxmpp.structs.PresenceType.AVAILABLE,
             from_=TEST_MUC_JID.replace(resource="thirdwitch")
         )
         presence.xep0045_muc_user = muc_xso.UserExt(
@@ -2802,7 +2826,7 @@ class TestService(unittest.TestCase):
 
     def test_disconnect_all_mucs_on_shutdown(self):
         presence = aioxmpp.stanza.Presence(
-            type_=None,
+            type_=aioxmpp.structs.PresenceType.AVAILABLE,
             from_=TEST_MUC_JID.replace(resource="thirdwitch")
         )
         presence.xep0045_muc_user = muc_xso.UserExt(
@@ -2910,7 +2934,7 @@ class TestService(unittest.TestCase):
         )
         self.assertEqual(
             iq.type_,
-            "set"
+            aioxmpp.structs.IQType.SET
         )
         self.assertEqual(
             iq.to,
@@ -3034,6 +3058,109 @@ class TestService(unittest.TestCase):
                     "owner",
                     reason="foobar",
                 ))
+
+    def test_get_room_config(self):
+        reply = muc_xso.OwnerQuery()
+        reply.form = unittest.mock.sentinel.form
+
+        with unittest.mock.patch.object(
+                self.cc.stream,
+                "send_iq_and_wait_for_reply",
+                new=CoroutineMock()) as send_iq:
+            send_iq.return_value = reply
+
+            result = run_coroutine(self.s.get_room_config(
+                TEST_MUC_JID,
+            ))
+
+        self.assertEqual(
+            result,
+            reply.form,
+        )
+
+        _, (iq,), _ = send_iq.mock_calls[-1]
+
+        self.assertIsInstance(
+            iq,
+            aioxmpp.stanza.IQ
+        )
+        self.assertEqual(
+            iq.type_,
+            aioxmpp.structs.IQType.GET
+        )
+        self.assertEqual(
+            iq.to,
+            TEST_MUC_JID,
+        )
+
+        self.assertIsInstance(
+            iq.payload,
+            muc_xso.OwnerQuery
+        )
+
+        self.assertIsNone(
+            iq.payload.form,
+        )
+
+        self.assertIsNone(
+            iq.payload.destroy,
+        )
+
+    def test_get_room_config_rejects_full_mucjid(self):
+        with unittest.mock.patch.object(
+                self.cc.stream,
+                "send_iq_and_wait_for_reply",
+                new=CoroutineMock()) as send_iq:
+            with self.assertRaisesRegex(ValueError,
+                                        "mucjid must be bare JID"):
+                run_coroutine(self.s.get_room_config(
+                    TEST_MUC_JID.replace(resource="thirdwitch"),
+                ))
+
+        self.assertFalse(send_iq.mock_calls)
+
+    def test_set_room_config(self):
+        data = unittest.mock.sentinel.data
+
+        with unittest.mock.patch.object(
+                self.cc.stream,
+                "send_iq_and_wait_for_reply",
+                new=CoroutineMock()) as send_iq:
+            send_iq.return_value = None
+
+            result = run_coroutine(self.s.set_room_config(
+                TEST_MUC_JID,
+                data,
+            ))
+
+        _, (iq,), _ = send_iq.mock_calls[-1]
+
+        self.assertIsInstance(
+            iq,
+            aioxmpp.stanza.IQ
+        )
+        self.assertEqual(
+            iq.type_,
+            aioxmpp.structs.IQType.SET
+        )
+        self.assertEqual(
+            iq.to,
+            TEST_MUC_JID,
+        )
+
+        self.assertIsInstance(
+            iq.payload,
+            muc_xso.OwnerQuery
+        )
+
+        self.assertEqual(
+            iq.payload.form,
+            data,
+        )
+
+        self.assertIsNone(
+            iq.payload.destroy,
+        )
 
     def tearDow(self):
         del self.s

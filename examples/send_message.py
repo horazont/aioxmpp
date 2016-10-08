@@ -1,87 +1,65 @@
-import asyncio
-import getpass
+########################################################################
+# File name: send_message.py
+# This file is part of: aioxmpp
+#
+# LICENSE
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Lesser General Public License as
+# published by the Free Software Foundation, either version 3 of the
+# License, or (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public
+# License along with this program.  If not, see
+# <http://www.gnu.org/licenses/>.
+#
+########################################################################
+import aioxmpp
 
-from datetime import timedelta
-
-try:
-    import readline  # NOQA
-except ImportError:
-    pass
-
-import aioxmpp.node
-import aioxmpp.security_layer
-import aioxmpp.stanza
-import aioxmpp.structs
-
-
-"""
-This example connects to the XMPP server, sends a message and goes offline
-cleanly.
-
-It’s still a bit of code, but much less than before.
-
-Tip: If your test server does not have a certificate, take try to pass this as
-second argument to the PresenceManagedClient::
-
-    aioxmpp.security_layer.security_layer(
-        aioxmpp.security_layer.STARTTLSProvider(
-            aioxmpp.security_layer.default_ssl_context,
-            aioxmpp.security_layer._NullVerifier
-        ),
-        [aioxmpp.security_layer.PasswordSASLProvider(get_password)],
-    )
-
-This **disables** **all** certificate checks. You would normally not want
-this, but for quick test against a local server it’s fine I guess.
-"""
+from framework import Example, exec_example
 
 
-async def main(jid, password, recipient):
-    @asyncio.coroutine
-    def get_password(client_jid, nattempt):
-        if nattempt > 1:
-            return None
-        return password
+class SendMessage(Example):
+    def prepare_argparse(self):
+        super().prepare_argparse()
 
-    print("configuring client")
-    # a future which tells us when connection has succeeded
-    connected_future = asyncio.Future()
-    # a future which tells us when the connection is terminated
-    disconnected_future = asyncio.Future()
+        def jid(s):
+            return aioxmpp.JID.fromstr(s)
 
-    client = aioxmpp.node.PresenceManagedClient(
-        jid,
-        aioxmpp.security_layer.tls_with_password_based_authentication(
-            get_password,
+        self.argparse.add_argument(
+            "recipient",
+            type=jid,
+            help="Recipient JID"
         )
-    )
 
-    print("going online...")
-    async with aioxmpp.node.UseConnected(
-            client,
-            timeout=timedelta(seconds=30)) as stream:
-        print("online! local jid is: {}".format(client.local_jid))
+        self.argparse.add_argument(
+            "message",
+            nargs="?",
+            default="Hello World!",
+            help="Message to send (default: Hello World!)",
+        )
 
+    async def run_simple_example(self):
         # compose a message
         msg = aioxmpp.stanza.Message(
-            to=recipient,
-            type_="chat",
+            to=self.args.recipient,
+            type_=aioxmpp.MessageType.CHAT,
         )
+
         # [None] is for "no XML language tag"
-        msg.body[None] = "Hello World!"
+        msg.body[None] = self.args.message
 
         print("sending message ...")
-        await stream.send_and_wait_for_sent(msg)
+        await self.client.stream.send_and_wait_for_sent(
+            msg
+        )
         print("message sent!")
-
-        print("going offline")
-
-    print("offline!")
 
 
 if __name__ == "__main__":
-    jid = aioxmpp.structs.JID.fromstr(input("Login with: "))
-    pwd = getpass.getpass()
-    recipient = aioxmpp.structs.JID.fromstr(input("Message recipient: "))
-
-    asyncio.get_event_loop().run_until_complete(main(jid, pwd, recipient))
+    exec_example(SendMessage())

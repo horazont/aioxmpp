@@ -1,3 +1,24 @@
+########################################################################
+# File name: xml.py
+# This file is part of: aioxmpp
+#
+# LICENSE
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Lesser General Public License as
+# published by the Free Software Foundation, either version 3 of the
+# License, or (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public
+# License along with this program.  If not, see
+# <http://www.gnu.org/licenses/>.
+#
+########################################################################
 """
 :mod:`~aioxmpp.xml` --- XML utilities and interfaces for handling XMPP XML streams
 #######################################################################################
@@ -506,7 +527,7 @@ def write_xmlstream(f,
     given in `nsmap` plus the xmlstream namespace, then the output is flushed
     and the generator yields.
 
-    `to` must be a :class:`~.structs.JID` which refers to the peer. `from_` may
+    `to` must be a :class:`~aioxmpp.JID which refers to the peer. `from_` may
     be the JID identifying the local side, but see `RFC 6120 for considerations
     <https://tools.ietf.org/html/rfc6120#section-4.7.1>`_. `version` is the
     tuple of integers representing the locally supported XMPP version.

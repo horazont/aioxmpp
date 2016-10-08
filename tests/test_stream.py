@@ -1,10 +1,33 @@
+########################################################################
+# File name: test_stream.py
+# This file is part of: aioxmpp
+#
+# LICENSE
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Lesser General Public License as
+# published by the Free Software Foundation, either version 3 of the
+# License, or (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public
+# License along with this program.  If not, see
+# <http://www.gnu.org/licenses/>.
+#
+########################################################################
 import asyncio
 import contextlib
 import functools
 import ipaddress
 import time
 import unittest
+import warnings
 
+import aioxmpp
 import aioxmpp.structs as structs
 import aioxmpp.xso as xso
 import aioxmpp.stanza as stanza
@@ -39,7 +62,9 @@ class FancyTestIQ(xso.XSO):
 stanza.IQ.register_child(stanza.IQ.payload, FancyTestIQ)
 
 
-def make_test_iq(from_=TEST_FROM, to=TEST_TO, type_="get", autoset_id=True):
+def make_test_iq(from_=TEST_FROM, to=TEST_TO,
+                 type_=structs.IQType.GET,
+                 autoset_id=True):
     iq = stanza.IQ(type_=type_, from_=from_, to=to)
     iq.payload = FancyTestIQ()
     if autoset_id:
@@ -47,12 +72,14 @@ def make_test_iq(from_=TEST_FROM, to=TEST_TO, type_="get", autoset_id=True):
     return iq
 
 
-def make_test_message(from_=TEST_FROM, to=TEST_TO, type_="chat"):
+def make_test_message(from_=TEST_FROM, to=TEST_TO,
+                      type_=structs.MessageType.CHAT):
     msg = stanza.Message(type_=type_, from_=from_, to=to)
     return msg
 
 
-def make_test_presence(from_=TEST_FROM, to=TEST_TO, type_=None):
+def make_test_presence(from_=TEST_FROM, to=TEST_TO,
+                       type_=structs.PresenceType.AVAILABLE):
     pres = stanza.Presence(type_=type_, from_=from_, to=to)
     return pres
 
@@ -105,7 +132,7 @@ class TestFilter(unittest.TestCase):
 
         self.f.register(func, 0)
 
-        iq = stanza.IQ("get")
+        iq = stanza.IQ(structs.IQType.GET)
 
         self.assertIsNone(self.f.filter(iq))
         self.assertSequenceEqual(
@@ -257,7 +284,7 @@ class TestStanzaStream(StanzaStreamTestBase):
             self.stream.ping_opportunistic_interval
         )
 
-    def test_init(self):
+    def test_init_local_jid(self):
         self.assertEqual(
             self.stream.local_jid,
             TEST_FROM.bare()
@@ -272,7 +299,7 @@ class TestStanzaStream(StanzaStreamTestBase):
             self.stream.local_jid = TEST_TO.bare()
 
     def test_broker_iq_response(self):
-        iq = make_test_iq(type_="result")
+        iq = make_test_iq(type_=structs.IQType.RESULT)
         iq.autoset_id()
 
         fut = asyncio.Future()
@@ -291,7 +318,7 @@ class TestStanzaStream(StanzaStreamTestBase):
         self.assertIs(iq, fut.result())
 
     def test_broker_iq_response_to_future(self):
-        iq = make_test_iq(type_="result")
+        iq = make_test_iq(type_=structs.IQType.RESULT)
         iq.autoset_id()
 
         fut = asyncio.Future()
@@ -310,11 +337,11 @@ class TestStanzaStream(StanzaStreamTestBase):
         self.assertIs(iq, fut.result())
 
     def test_broker_iq_response_to_future_with_error(self):
-        iq = make_test_iq(type_="error")
+        iq = make_test_iq(type_=structs.IQType.ERROR)
         iq.autoset_id()
         iq.payload = None
         iq.error = stanza.Error(
-            type_="modify",
+            type_=structs.ErrorType.MODIFY,
             condition=(namespaces.stanzas, "bad-request"),
         )
 
@@ -343,7 +370,7 @@ class TestStanzaStream(StanzaStreamTestBase):
             nonlocal caught_exc
             caught_exc = exc
 
-        iq = make_test_iq(type_="result")
+        iq = make_test_iq(type_=structs.IQType.RESULT)
         iq.autoset_id()
         self.stream.start(self.xmlstream)
         self.stream.recv_stanza(iq)
@@ -359,7 +386,7 @@ class TestStanzaStream(StanzaStreamTestBase):
             nonlocal caught_exc
             caught_exc = exc
 
-        iq = make_test_iq(type_="error")
+        iq = make_test_iq(type_=structs.IQType.ERROR)
         iq.autoset_id()
         self.stream.start(self.xmlstream)
         self.stream.recv_stanza(iq)
@@ -401,7 +428,7 @@ class TestStanzaStream(StanzaStreamTestBase):
         self.assertIsNone(caught_exc)
 
     def test_queue_stanza(self):
-        iq = make_test_iq(type_="get")
+        iq = make_test_iq(type_=structs.IQType.GET)
 
         self.stream.start(self.xmlstream)
         self.stream.enqueue_stanza(iq)
@@ -476,7 +503,7 @@ class TestStanzaStream(StanzaStreamTestBase):
             cb)
         self.stream.unregister_iq_response(TEST_FROM, "foobar")
 
-        iq = make_test_iq(type_="result")
+        iq = make_test_iq(type_=structs.IQType.RESULT)
         self.stream.start(self.xmlstream)
         self.stream.recv_stanza(iq)
         run_coroutine(asyncio.sleep(0))
@@ -484,13 +511,67 @@ class TestStanzaStream(StanzaStreamTestBase):
         self.assertFalse(fut.done())
         self.assertFalse(cb.mock_calls)
 
+    @unittest.skipIf(aioxmpp.version_info >= (1, 0, 0),
+                     "not applying to this version of aioxmpp")
+    def test_register_iq_request_coro_casts_enum_and_warn(self):
+        self.stream._ALLOW_ENUM_COERCION = True
+        with self.assertWarnsRegex(
+                DeprecationWarning,
+                r"passing a non-enum value as type_ is deprecated and will "
+                "be invalid as of aioxmpp 1.0") as ctx:
+            self.stream.register_iq_request_coro(
+                "get",
+                FancyTestIQ,
+                unittest.mock.sentinel.coro,
+            )
+
+        self.assertIn(
+            "test_stream.py",
+            ctx.filename,
+        )
+
+        with self.assertRaisesRegex(
+                ValueError,
+                r"only one listener is allowed per tag"):
+            self.stream.register_iq_request_coro(
+                structs.IQType.GET,
+                FancyTestIQ,
+                unittest.mock.sentinel.coro,
+            )
+
+    def test_register_iq_request_coro_raises_on_string_type(self):
+        if aioxmpp.version_info < (1, 0, 0):
+            self.stream._ALLOW_ENUM_COERCION = False
+
+        with self.assertRaisesRegex(
+                TypeError,
+                r"type_ must be IQType, got .*"):
+            self.stream.register_iq_request_coro(
+                "get",
+                FancyTestIQ,
+                unittest.mock.sentinel.coro,
+            )
+
+    def test_register_iq_request_coro_does_not_warn_on_enum(self):
+        self.stream._ALLOW_ENUM_COERCION = True
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            self.stream.register_iq_request_coro(
+                structs.IQType.GET,
+                FancyTestIQ,
+                unittest.mock.sentinel.coro,
+            )
+
+        self.assertFalse(w)
+
     def test_register_iq_request_coro_rejects_duplicate_registration(self):
         @asyncio.coroutine
         def handle_request(stanza):
             pass
 
         self.stream.register_iq_request_coro(
-            "get",
+            structs.IQType.GET,
             FancyTestIQ,
             handle_request)
 
@@ -500,12 +581,96 @@ class TestStanzaStream(StanzaStreamTestBase):
 
         with self.assertRaises(ValueError):
             self.stream.register_iq_request_coro(
-                "get",
+                structs.IQType.GET,
                 FancyTestIQ,
                 handle_request)
 
+    @unittest.skipIf(aioxmpp.version_info >= (1, 0, 0),
+                     "not applying to this version of aioxmpp")
+    def test_unregister_iq_request_coro_casts_enum_and_warn(self):
+        self.stream.register_iq_request_coro(
+            structs.IQType.GET,
+            FancyTestIQ,
+            unittest.mock.sentinel.coro,
+        )
+
+        self.stream._ALLOW_ENUM_COERCION = True
+        with self.assertWarnsRegex(
+                DeprecationWarning,
+                r"passing a non-enum value as type_ is deprecated and will "
+                "be invalid as of aioxmpp 1.0") as ctx:
+            self.stream.unregister_iq_request_coro(
+                "get",
+                FancyTestIQ,
+            )
+
+        self.assertIn(
+            "test_stream.py",
+            ctx.filename,
+        )
+
+        with self.assertRaises(KeyError):
+            self.stream.unregister_iq_request_coro(
+                structs.IQType.GET,
+                FancyTestIQ,
+            )
+
+    def test_unregister_iq_request_coro_raises_on_string_type(self):
+        self.stream.register_iq_request_coro(
+            structs.IQType.GET,
+            FancyTestIQ,
+            unittest.mock.sentinel.coro,
+        )
+
+        if aioxmpp.version_info < (1, 0, 0):
+            self.stream._ALLOW_ENUM_COERCION = False
+
+        with self.assertRaisesRegex(
+                TypeError,
+                r"type_ must be IQType, got .*"):
+            self.stream.unregister_iq_request_coro(
+                "get",
+                FancyTestIQ,
+            )
+
+    def test_unregister_iq_request_coro_does_not_warn_on_enum(self):
+        self.stream.register_iq_request_coro(
+            structs.IQType.GET,
+            FancyTestIQ,
+            unittest.mock.sentinel.coro,
+        )
+
+        self.stream._ALLOW_ENUM_COERCION = True
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            self.stream.unregister_iq_request_coro(
+                structs.IQType.GET,
+                FancyTestIQ,
+            )
+
+        self.assertFalse(w)
+
+    def test_register_iq_request_coro_raises_on_response_IQType(self):
+        for member in structs.IQType:
+            if member.is_request:
+                self.stream.register_iq_request_coro(
+                    member,
+                    FancyTestIQ,
+                    unittest.mock.sentinel.coro,
+                )
+            else:
+                with self.assertRaisesRegex(
+                        ValueError,
+                        r".* is not a request IQType"):
+                    self.stream.register_iq_request_coro(
+                        member,
+                        FancyTestIQ,
+                        unittest.mock.sentinel.coro,
+                    )
+
     def test_run_iq_request_coro_with_result(self):
-        iq = make_test_iq(type_="get")
+        iq = make_test_iq()
         iq.autoset_id()
 
         response_payload, response_iq = None, None
@@ -517,7 +682,7 @@ class TestStanzaStream(StanzaStreamTestBase):
             return response_payload
 
         self.stream.register_iq_request_coro(
-            "get",
+            structs.IQType.GET,
             FancyTestIQ,
             handle_request)
         self.stream.start(self.xmlstream)
@@ -527,13 +692,13 @@ class TestStanzaStream(StanzaStreamTestBase):
         self.assertEqual(iq.to, response_iq.from_)
         self.assertEqual(iq.from_, response_iq.to)
         self.assertEqual(iq.id_, response_iq.id_)
-        self.assertEqual("result", response_iq.type_)
+        self.assertEqual(structs.IQType.RESULT, response_iq.type_)
         self.assertIs(response_payload, response_iq.payload)
 
         self.stream.stop()
 
     def test_run_iq_request_without_handler(self):
-        iq = make_test_iq(type_="get")
+        iq = make_test_iq()
         iq.autoset_id()
 
         self.stream.start(self.xmlstream)
@@ -541,7 +706,7 @@ class TestStanzaStream(StanzaStreamTestBase):
 
         response_got = run_coroutine(self.sent_stanzas.get())
         self.assertEqual(
-            "error",
+            structs.IQType.ERROR,
             response_got.type_
         )
         self.assertEqual(
@@ -552,7 +717,7 @@ class TestStanzaStream(StanzaStreamTestBase):
         self.stream.stop()
 
     def test_run_iq_request_coro_with_generic_exception(self):
-        iq = make_test_iq(type_="get")
+        iq = make_test_iq()
         iq.autoset_id()
 
         response_got = None
@@ -562,7 +727,7 @@ class TestStanzaStream(StanzaStreamTestBase):
             raise Exception("foo")
 
         self.stream.register_iq_request_coro(
-            "get",
+            structs.IQType.GET,
             FancyTestIQ,
             handle_request)
         self.stream.start(self.xmlstream)
@@ -570,7 +735,7 @@ class TestStanzaStream(StanzaStreamTestBase):
 
         response_got = run_coroutine(self.sent_stanzas.get())
         self.assertEqual(
-            "error",
+            structs.IQType.ERROR,
             response_got.type_
         )
         self.assertEqual(
@@ -581,7 +746,7 @@ class TestStanzaStream(StanzaStreamTestBase):
         self.stream.stop()
 
     def test_run_iq_request_coro_with_xmpp_exception(self):
-        iq = make_test_iq(type_="get")
+        iq = make_test_iq()
         iq.autoset_id()
 
         response_got = None
@@ -594,7 +759,7 @@ class TestStanzaStream(StanzaStreamTestBase):
             )
 
         self.stream.register_iq_request_coro(
-            "get",
+            structs.IQType.GET,
             FancyTestIQ,
             handle_request)
         self.stream.start(self.xmlstream)
@@ -602,7 +767,7 @@ class TestStanzaStream(StanzaStreamTestBase):
 
         response_got = run_coroutine(self.sent_stanzas.get())
         self.assertEqual(
-            "error",
+            structs.IQType.ERROR,
             response_got.type_
         )
         self.assertEqual(
@@ -619,11 +784,11 @@ class TestStanzaStream(StanzaStreamTestBase):
     def test_unregister_iq_request_coro_raises_if_none_was_registered(self):
         with self.assertRaises(KeyError):
             self.stream.unregister_iq_request_coro(
-                "get",
+                structs.IQType.GET,
                 FancyTestIQ)
 
     def test_unregister_iq_request_coro(self):
-        iq = make_test_iq(type_="get")
+        iq = make_test_iq()
         iq.autoset_id()
 
         recvd = None
@@ -634,11 +799,11 @@ class TestStanzaStream(StanzaStreamTestBase):
             recvd = stanza
 
         self.stream.register_iq_request_coro(
-            "get",
+            structs.IQType.GET,
             FancyTestIQ,
             handle_request)
         self.stream.unregister_iq_request_coro(
-            "get",
+            structs.IQType.GET,
             FancyTestIQ)
 
         self.stream.start(self.xmlstream)
@@ -657,7 +822,7 @@ class TestStanzaStream(StanzaStreamTestBase):
         fut = asyncio.Future()
 
         self.stream.register_message_callback(
-            "chat",
+            structs.MessageType.CHAT,
             TEST_FROM,
             fut.set_result)
         self.stream.start(self.xmlstream)
@@ -669,13 +834,149 @@ class TestStanzaStream(StanzaStreamTestBase):
 
         self.assertIs(msg, fut.result())
 
+    @unittest.skipIf(aioxmpp.version_info >= (1, 0, 0),
+                     "not applying to this version of aioxmpp")
+    def test_register_message_callback_casts_enum_and_warn(self):
+        self.stream._ALLOW_ENUM_COERCION = True
+        with self.assertWarnsRegex(
+                DeprecationWarning,
+                r"passing a non-enum value as type_ is deprecated and will "
+                "be invalid as of aioxmpp 1.0") as ctx:
+            self.stream.register_message_callback(
+                "chat",
+                None,
+                unittest.mock.sentinel.cb,
+            )
+
+        self.assertIn(
+            "test_stream.py",
+            ctx.filename,
+        )
+
+        with self.assertRaisesRegex(
+                ValueError,
+                r"only one listener is allowed per \(type_, from_\) pair"):
+            self.stream.register_message_callback(
+                aioxmpp.structs.MessageType.CHAT,
+                None,
+                unittest.mock.sentinel.cb,
+            )
+
+    def test_register_message_callback_raises_on_string_type(self):
+        if aioxmpp.version_info < (1, 0, 0):
+            self.stream._ALLOW_ENUM_COERCION = False
+
+        with self.assertRaisesRegex(
+                TypeError,
+                r"type_ must be MessageType, got .*"):
+            self.stream.register_message_callback(
+                "get",
+                None,
+                unittest.mock.sentinel.coro,
+            )
+
+    def test_register_message_callback_does_not_warn_on_enum(self):
+        self.stream._ALLOW_ENUM_COERCION = True
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            self.stream.register_message_callback(
+                structs.MessageType.CHAT,
+                None,
+                unittest.mock.sentinel.cb,
+            )
+
+        self.assertFalse(w)
+
+    def test_register_message_callback_rejects_duplicate_registration(self):
+        self.stream.register_message_callback(
+            structs.MessageType.CHAT,
+            None,
+            unittest.mock.sentinel.cb
+        )
+
+        with self.assertRaisesRegex(
+                ValueError,
+                r"only one listener is allowed per \(type_, from_\) pair"):
+            self.stream.register_message_callback(
+                structs.MessageType.CHAT,
+                None,
+                unittest.mock.sentinel.cb,
+            )
+
+    @unittest.skipIf(aioxmpp.version_info >= (1, 0, 0),
+                     "not applying to this version of aioxmpp")
+    def test_unregister_message_callback_coro_casts_enum_and_warn(self):
+        self.stream.register_message_callback(
+            structs.MessageType.CHAT,
+            None,
+            unittest.mock.sentinel.cb,
+        )
+
+        self.stream._ALLOW_ENUM_COERCION = True
+        with self.assertWarnsRegex(
+                DeprecationWarning,
+                r"passing a non-enum value as type_ is deprecated and will "
+                "be invalid as of aioxmpp 1.0") as ctx:
+            self.stream.unregister_message_callback(
+                "chat",
+                None,
+            )
+
+        self.assertIn(
+            "test_stream.py",
+            ctx.filename,
+        )
+
+        with self.assertRaises(KeyError):
+            self.stream.unregister_message_callback(
+                structs.MessageType.CHAT,
+                None,
+            )
+
+    def test_unregister_message_callback_raises_on_string_type(self):
+        self.stream.register_message_callback(
+            structs.MessageType.CHAT,
+            None,
+            unittest.mock.sentinel.cb,
+        )
+
+        if aioxmpp.version_info < (1, 0, 0):
+            self.stream._ALLOW_ENUM_COERCION = False
+
+        with self.assertRaisesRegex(
+                TypeError,
+                r"type_ must be MessageType, got .*"):
+            self.stream.unregister_message_callback(
+                "chat",
+                None,
+            )
+
+    def test_unregister_message_callback_does_not_warn_on_enum(self):
+        self.stream.register_message_callback(
+            structs.MessageType.CHAT,
+            None,
+            unittest.mock.sentinel.cb,
+        )
+
+        self.stream._ALLOW_ENUM_COERCION = True
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            self.stream.unregister_message_callback(
+                structs.MessageType.CHAT,
+                None,
+            )
+
+        self.assertFalse(w)
+
     def test_run_message_callback_from_wildcard(self):
         msg = make_test_message()
 
         fut = asyncio.Future()
 
         self.stream.register_message_callback(
-            "chat",
+            structs.MessageType.CHAT,
             None,
             fut.set_result)
         self.stream.start(self.xmlstream)
@@ -736,14 +1037,18 @@ class TestStanzaStream(StanzaStreamTestBase):
         self.stream.unregister_message_callback(None, None)
 
         self.stream.register_message_callback(
-            "chat", TEST_FROM,
+            structs.MessageType.CHAT, TEST_FROM,
             cb)
 
-        self.stream.unregister_message_callback("chat", TEST_FROM)
+        self.stream.unregister_message_callback(
+            structs.MessageType.CHAT,
+            TEST_FROM
+        )
 
         self.stream.start(self.xmlstream)
 
-        msg = make_test_message(type_="chat", from_=TEST_FROM)
+        msg = make_test_message(type_=structs.MessageType.CHAT,
+                                from_=TEST_FROM)
         self.stream.recv_stanza(msg)
 
         run_coroutine(asyncio.sleep(0))
@@ -756,7 +1061,7 @@ class TestStanzaStream(StanzaStreamTestBase):
         fut = asyncio.Future()
 
         self.stream.register_presence_callback(
-            None,  # note that None is a valid type value for presence
+            structs.PresenceType.AVAILABLE,
             None,
             fut.set_result)
         self.stream.start(self.xmlstream)
@@ -768,27 +1073,175 @@ class TestStanzaStream(StanzaStreamTestBase):
 
         self.assertIs(pres, fut.result())
 
+    @unittest.skipIf(aioxmpp.version_info >= (1, 0, 0),
+                     "not applying to this version of aioxmpp")
+    def test_register_presence_callback_casts_enum_and_warn(self):
+        self.stream._ALLOW_ENUM_COERCION = True
+        with self.assertWarnsRegex(
+                DeprecationWarning,
+                r"passing a non-enum value as type_ is deprecated and will "
+                "be invalid as of aioxmpp 1.0") as ctx:
+            self.stream.register_presence_callback(
+                "probe",
+                None,
+                unittest.mock.sentinel.cb,
+            )
+
+        self.assertIn(
+            "test_stream.py",
+            ctx.filename,
+        )
+
+        with self.assertRaisesRegex(
+                ValueError,
+                r"only one listener is allowed per \(type_, from_\) pair"):
+            self.stream.register_presence_callback(
+                aioxmpp.structs.PresenceType.PROBE,
+                None,
+                unittest.mock.sentinel.cb,
+            )
+
+    def test_register_presence_callback_raises_on_string_type(self):
+        if aioxmpp.version_info < (1, 0, 0):
+            self.stream._ALLOW_ENUM_COERCION = False
+
+        with self.assertRaisesRegex(
+                TypeError,
+                r"type_ must be PresenceType, got .*"):
+            self.stream.register_presence_callback(
+                "get",
+                None,
+                unittest.mock.sentinel.coro,
+            )
+
+    def test_register_presence_callback_does_not_warn_on_enum(self):
+        self.stream._ALLOW_ENUM_COERCION = True
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            self.stream.register_presence_callback(
+                structs.PresenceType.PROBE,
+                None,
+                unittest.mock.sentinel.cb,
+            )
+
+        self.assertFalse(w)
+
+    def test_register_presence_callback_rejects_duplicate_registration(self):
+        self.stream.register_presence_callback(
+            structs.PresenceType.PROBE,
+            None,
+            unittest.mock.sentinel.cb
+        )
+
+        with self.assertRaisesRegex(
+                ValueError,
+                r"only one listener is allowed per \(type_, from_\) pair"):
+            self.stream.register_presence_callback(
+                structs.PresenceType.PROBE,
+                None,
+                unittest.mock.sentinel.cb,
+            )
+
+    @unittest.skipIf(aioxmpp.version_info >= (1, 0, 0),
+                     "not applying to this version of aioxmpp")
+    def test_unregister_presence_callback_coro_casts_enum_and_warn(self):
+        self.stream.register_presence_callback(
+            structs.PresenceType.PROBE,
+            None,
+            unittest.mock.sentinel.cb,
+        )
+
+        self.stream._ALLOW_ENUM_COERCION = True
+        with self.assertWarnsRegex(
+                DeprecationWarning,
+                r"passing a non-enum value as type_ is deprecated and will "
+                "be invalid as of aioxmpp 1.0") as ctx:
+            self.stream.unregister_presence_callback(
+                "probe",
+                None,
+            )
+
+        self.assertIn(
+            "test_stream.py",
+            ctx.filename,
+        )
+
+        with self.assertRaises(KeyError):
+            self.stream.unregister_presence_callback(
+                structs.PresenceType.PROBE,
+                None,
+            )
+
+    def test_unregister_presence_callback_raises_on_string_type(self):
+        self.stream.register_presence_callback(
+            structs.PresenceType.PROBE,
+            None,
+            unittest.mock.sentinel.cb,
+        )
+
+        if aioxmpp.version_info < (1, 0, 0):
+            self.stream._ALLOW_ENUM_COERCION = False
+
+        with self.assertRaisesRegex(
+                TypeError,
+                r"type_ must be PresenceType, got .*"):
+            self.stream.unregister_presence_callback(
+                "probe",
+                None,
+            )
+
+    def test_unregister_presence_callback_does_not_warn_on_enum(self):
+        self.stream.register_presence_callback(
+            structs.PresenceType.PROBE,
+            None,
+            unittest.mock.sentinel.cb,
+        )
+
+        self.stream._ALLOW_ENUM_COERCION = True
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            self.stream.unregister_presence_callback(
+                structs.PresenceType.PROBE,
+                None,
+            )
+
+        self.assertFalse(w)
+
     def test_unregister_presence_callback(self):
         cb = unittest.mock.Mock()
 
         with self.assertRaises(KeyError):
-            self.stream.unregister_presence_callback(None, None)
+            self.stream.unregister_presence_callback(
+                structs.PresenceType.AVAILABLE,
+                None
+            )
 
         self.stream.register_presence_callback(
-            None, None,
-            cb)
+            structs.PresenceType.AVAILABLE,
+            None, cb
+        )
 
-        self.stream.unregister_presence_callback(None, None)
+        self.stream.unregister_presence_callback(
+            structs.PresenceType.AVAILABLE,
+            None
+        )
 
         self.stream.register_presence_callback(
-            "subscribe", TEST_FROM,
-            cb)
+            structs.PresenceType.SUBSCRIBE,
+            TEST_FROM, cb
+        )
 
-        self.stream.unregister_presence_callback("subscribe", TEST_FROM)
+        self.stream.unregister_presence_callback(
+            structs.PresenceType.SUBSCRIBE,
+            TEST_FROM
+        )
 
         self.stream.start(self.xmlstream)
 
-        msg = make_test_presence(type_="subscribe", from_=TEST_FROM)
+        msg = make_test_presence(type_=structs.PresenceType.SUBSCRIBE,
+                                 from_=TEST_FROM)
         self.stream.recv_stanza(msg)
 
         run_coroutine(asyncio.sleep(0))
@@ -1008,7 +1461,7 @@ class TestStanzaStream(StanzaStreamTestBase):
                 raise
 
         self.stream.register_iq_request_coro(
-            "get",
+            structs.IQType.GET,
             FancyTestIQ,
             coro,
         )
@@ -1148,13 +1601,16 @@ class TestStanzaStream(StanzaStreamTestBase):
         request = self.sent_stanzas.get_nowait()
         self.assertIsInstance(
             request,
-            stanza.IQ)
+            stanza.IQ
+        )
         self.assertIsInstance(
             request.payload,
-            xep0199.Ping)
+            xep0199.Ping
+        )
         self.assertEqual(
-            "get",
-            request.type_)
+            structs.IQType.GET,
+            request.type_
+        )
 
     def test_nonsm_ping_timeout(self):
         exc = None
@@ -1193,7 +1649,7 @@ class TestStanzaStream(StanzaStreamTestBase):
         run_coroutine(asyncio.sleep(0.2))
 
         request = self.sent_stanzas.get_nowait()
-        response = request.make_reply(type_="result")
+        response = request.make_reply(type_=structs.IQType.RESULT)
         self.stream.recv_stanza(response)
         run_coroutine(asyncio.sleep(0.11))
 
@@ -1210,13 +1666,16 @@ class TestStanzaStream(StanzaStreamTestBase):
         request = self.sent_stanzas.get_nowait()
         self.assertIsInstance(
             request,
-            stanza.IQ)
+            stanza.IQ
+        )
         self.assertIsInstance(
             request.payload,
-            xep0199.Ping)
+            xep0199.Ping
+        )
         self.assertEqual(
-            "get",
-            request.type_)
+            structs.IQType.GET,
+            request.type_
+        )
 
     def test_enqueue_stanza_returns_token(self):
         token = self.stream.enqueue_stanza(make_test_iq())
@@ -1250,7 +1709,7 @@ class TestStanzaStream(StanzaStreamTestBase):
 
     def test_send_iq_and_wait_for_reply(self):
         iq = make_test_iq()
-        response = iq.make_reply(type_="result")
+        response = iq.make_reply(type_=structs.IQType.RESULT)
         response.payload = FancyTestIQ()
 
         task = asyncio.async(
@@ -1268,7 +1727,7 @@ class TestStanzaStream(StanzaStreamTestBase):
 
     def test_send_iq_and_wait_for_reply_with_error(self):
         iq = make_test_iq()
-        response = iq.make_reply(type_="error")
+        response = iq.make_reply(type_=structs.IQType.ERROR)
         response.error = stanza.Error.from_exception(
             errors.XMPPCancelError(
                 condition=(namespaces.stanzas, "item-not-found")
@@ -1300,7 +1759,7 @@ class TestStanzaStream(StanzaStreamTestBase):
         run_coroutine(asyncio.sleep(0))
         # this is a hack, which only works because send_iq_and_wait_for_reply
         # mutates the object
-        response = iq.make_reply(type_="result")
+        response = iq.make_reply(type_=structs.IQType.RESULT)
         response.payload = FancyTestIQ()
         self.stream.recv_stanza(response)
         result = run_coroutine(task)
@@ -1329,7 +1788,7 @@ class TestStanzaStream(StanzaStreamTestBase):
         run_coroutine(test_task())
 
     def test_flush_incoming(self):
-        iqs = [make_test_iq(type_="result") for i in range(2)]
+        iqs = [make_test_iq(type_=structs.IQType.RESULT) for i in range(2)]
         futs = []
 
         for iq in iqs:
@@ -1398,8 +1857,8 @@ class TestStanzaStream(StanzaStreamTestBase):
             ))
 
     def _test_inbound_presence_filter(self, filter_attr, **register_kwargs):
-        pres = stanza.Presence(type_="unavailable")
-        out = stanza.Presence(type_=None)
+        pres = stanza.Presence(type_=structs.PresenceType.UNAVAILABLE)
+        out = stanza.Presence(type_=structs.PresenceType.AVAILABLE)
 
         cb = unittest.mock.Mock([])
         cb.return_value = None
@@ -1409,7 +1868,10 @@ class TestStanzaStream(StanzaStreamTestBase):
 
         filter_attr.register(filter_func, **register_kwargs)
 
-        self.stream.register_presence_callback(None, None, cb)
+        self.stream.register_presence_callback(
+            structs.PresenceType.AVAILABLE,
+            None, cb
+        )
 
         self.stream.recv_stanza(pres)
         self.stream.start(self.xmlstream)
@@ -1491,8 +1953,14 @@ class TestStanzaStream(StanzaStreamTestBase):
         )
 
     def _test_inbound_message_filter(self, filter_attr, **register_kwargs):
-        msg = stanza.Message(type_="chat", from_=TEST_FROM)
-        out = stanza.Message(type_="groupchat", from_=TEST_FROM)
+        msg = stanza.Message(
+            type_=structs.MessageType.CHAT,
+            from_=TEST_FROM
+        )
+        out = stanza.Message(
+            type_=structs.MessageType.GROUPCHAT,
+            from_=TEST_FROM
+        )
 
         cb = unittest.mock.Mock([])
         cb.return_value = None
@@ -1502,7 +1970,10 @@ class TestStanzaStream(StanzaStreamTestBase):
 
         filter_attr.register(filter_func, **register_kwargs)
 
-        self.stream.register_message_callback("groupchat", None, cb)
+        self.stream.register_message_callback(
+            structs.MessageType.GROUPCHAT,
+            None, cb
+        )
 
         self.stream.recv_stanza(msg)
         self.stream.start(self.xmlstream)
@@ -1559,7 +2030,7 @@ class TestStanzaStream(StanzaStreamTestBase):
         class Service(service.Service):
             pass
 
-        msg = stanza.Message("chat")
+        msg = stanza.Message(structs.MessageType.CHAT)
 
         mock = unittest.mock.Mock()
         mock.service.return_value = msg
@@ -1584,9 +2055,9 @@ class TestStanzaStream(StanzaStreamTestBase):
         )
 
     def _test_outbound_presence_filter(self, filter_attr, **register_kwargs):
-        pres = stanza.Presence(type_="unavailable")
+        pres = stanza.Presence(type_=structs.PresenceType.UNAVAILABLE)
         pres.autoset_id()
-        out = stanza.Presence(type_=None)
+        out = stanza.Presence(type_=structs.PresenceType.AVAILABLE)
 
         filter_func = unittest.mock.Mock()
         filter_func.return_value = out
@@ -1683,9 +2154,9 @@ class TestStanzaStream(StanzaStreamTestBase):
         )
 
     def _test_outbound_message_filter(self, filter_attr, **register_kwargs):
-        msg = stanza.Message(type_="chat")
+        msg = stanza.Message(type_=structs.MessageType.CHAT)
         msg.autoset_id()
-        out = stanza.Message(type_="groupchat")
+        out = stanza.Message(type_=structs.MessageType.GROUPCHAT)
 
         filter_func = unittest.mock.Mock()
         filter_func.return_value = out
@@ -1754,7 +2225,7 @@ class TestStanzaStream(StanzaStreamTestBase):
         class Service(service.Service):
             pass
 
-        msg = stanza.Message("chat")
+        msg = stanza.Message(structs.MessageType.CHAT)
         msg.autoset_id()
 
         mock = unittest.mock.Mock()
@@ -1823,7 +2294,7 @@ class TestStanzaStream(StanzaStreamTestBase):
         )
         self.assertEqual(
             obj.type_,
-            "error"
+            structs.IQType.ERROR
         )
         self.assertEqual(
             obj.id_,
@@ -1847,7 +2318,7 @@ class TestStanzaStream(StanzaStreamTestBase):
         )
 
     def test_do_not_respond_to_PayloadParsingError_at_error_iq(self):
-        iq = make_test_iq(type_="error")
+        iq = make_test_iq(type_=structs.IQType.ERROR)
         self.stream.recv_erroneous_stanza(
             iq,
             stanza.PayloadParsingError(iq, ('end', 'foo'), None)
@@ -1861,7 +2332,7 @@ class TestStanzaStream(StanzaStreamTestBase):
             self.sent_stanzas.get_nowait()
 
     def test_do_not_respond_to_PayloadParsingError_at_result_iq(self):
-        iq = make_test_iq(type_="result")
+        iq = make_test_iq(type_=structs.IQType.RESULT)
         self.stream.recv_erroneous_stanza(
             iq,
             stanza.PayloadParsingError(iq, ('end', 'foo'), None)
@@ -1891,7 +2362,7 @@ class TestStanzaStream(StanzaStreamTestBase):
         )
         self.assertEqual(
             obj.type_,
-            "error"
+            structs.MessageType.ERROR
         )
         self.assertEqual(
             obj.id_,
@@ -1915,7 +2386,7 @@ class TestStanzaStream(StanzaStreamTestBase):
         )
 
     def test_do_not_respond_to_PayloadParsingError_at_error_message(self):
-        msg = make_test_message(type_="error")
+        msg = make_test_message(type_=structs.MessageType.ERROR)
         self.stream.recv_erroneous_stanza(
             msg,
             stanza.PayloadParsingError(msg, ('end', 'foo'), None)
@@ -1947,7 +2418,7 @@ class TestStanzaStream(StanzaStreamTestBase):
         )
         self.assertEqual(
             obj.type_,
-            "error"
+            structs.PresenceType.ERROR
         )
         self.assertEqual(
             obj.id_,
@@ -1971,7 +2442,7 @@ class TestStanzaStream(StanzaStreamTestBase):
         )
 
     def test_do_not_respond_to_PayloadParsingError_at_error_presence(self):
-        pres = make_test_presence(type_="error")
+        pres = make_test_presence(type_=structs.PresenceType.ERROR)
         self.stream.recv_erroneous_stanza(
             pres,
             stanza.PayloadParsingError(pres, ('end', 'foo'), None)
@@ -2002,7 +2473,7 @@ class TestStanzaStream(StanzaStreamTestBase):
         )
         self.assertEqual(
             obj.type_,
-            "error"
+            structs.IQType.ERROR,
         )
         self.assertEqual(
             obj.id_,
@@ -2026,7 +2497,7 @@ class TestStanzaStream(StanzaStreamTestBase):
         )
 
     def test_ignore_UnknownIQPayload_at_error_iq(self):
-        iq = make_test_iq(type_="error")
+        iq = make_test_iq(type_=structs.IQType.ERROR)
         self.stream.recv_erroneous_stanza(
             iq,
             stanza.UnknownIQPayload(iq, ('end', 'foo'), None)
@@ -2040,7 +2511,7 @@ class TestStanzaStream(StanzaStreamTestBase):
             self.sent_stanzas.get_nowait()
 
     def test_do_not_respond_to_UnknownIQPayload_at_result_iq(self):
-        iq = make_test_iq(type_="result")
+        iq = make_test_iq(type_=structs.IQType.RESULT)
         self.stream.recv_erroneous_stanza(
             iq,
             stanza.UnknownIQPayload(iq, ('end', 'foo'), None)
@@ -2054,7 +2525,7 @@ class TestStanzaStream(StanzaStreamTestBase):
             self.sent_stanzas.get_nowait()
 
     def test_map_iq_from_bare_local_jid_to_None(self):
-        iq = make_test_iq(from_=TEST_FROM.bare(), type_="result")
+        iq = make_test_iq(from_=TEST_FROM.bare(), type_=structs.IQType.RESULT)
         iq.autoset_id()
 
         fut = asyncio.Future()
@@ -2073,8 +2544,8 @@ class TestStanzaStream(StanzaStreamTestBase):
         self.assertIs(iq, fut.result())
 
     def test_unicast_error_on_erroneous_iq_result(self):
-        req = make_test_iq(type_="get", to=TEST_TO)
-        resp = req.make_reply(type_="result")
+        req = make_test_iq(to=TEST_TO)
+        resp = req.make_reply(type_=structs.IQType.RESULT)
 
         self.stream.recv_erroneous_stanza(
             resp,
@@ -2094,8 +2565,8 @@ class TestStanzaStream(StanzaStreamTestBase):
         self.assertIs(ctx.exception.partial_obj, resp)
 
     def test_unicast_error_on_erroneous_iq_error(self):
-        req = make_test_iq(type_="get", to=TEST_TO)
-        resp = req.make_reply(type_="error")
+        req = make_test_iq(to=TEST_TO)
+        resp = req.make_reply(type_=structs.IQType.ERROR)
 
         self.stream.recv_erroneous_stanza(
             resp,
@@ -2115,8 +2586,8 @@ class TestStanzaStream(StanzaStreamTestBase):
         self.assertIs(ctx.exception.partial_obj, resp)
 
     def test_unicast_error_on_erroneous_iq_error_unless_from_is_None(self):
-        req = make_test_iq(type_="get", to=None)
-        resp = req.make_reply(type_="error")
+        req = make_test_iq(type_=structs.IQType.GET, to=None)
+        resp = req.make_reply(type_=structs.IQType.RESULT)
 
         self.stream.recv_erroneous_stanza(
             resp,
@@ -2134,8 +2605,8 @@ class TestStanzaStream(StanzaStreamTestBase):
             run_coroutine(fut, timeout=0.1)
 
     def test_do_not_crash_on_unsolicited_erroneous_iq_response(self):
-        req = make_test_iq(type_="get", to=TEST_TO)
-        resp = req.make_reply(type_="result")
+        req = make_test_iq(to=TEST_TO)
+        resp = req.make_reply(type_=structs.IQType.RESULT)
 
         self.stream.recv_erroneous_stanza(
             resp,
@@ -2151,14 +2622,14 @@ class TestStanzaStream(StanzaStreamTestBase):
         base = unittest.mock.Mock()
 
         self.stream.register_message_callback(
-            "chat", TEST_FROM,
+            structs.MessageType.CHAT, TEST_FROM,
             base.chat_full
         )
         base.chat_full.return_value = None
         base.chat_full._is_coroutine = False
 
         self.stream.register_message_callback(
-            "chat", TEST_FROM.bare(),
+            structs.MessageType.CHAT, TEST_FROM.bare(),
             base.chat_bare
         )
         base.chat_bare.return_value = None
@@ -2179,7 +2650,7 @@ class TestStanzaStream(StanzaStreamTestBase):
         base.wildcard_bare._is_coroutine = False
 
         self.stream.register_message_callback(
-            "chat", None,
+            structs.MessageType.CHAT, None,
             base.chat_wildcard
         )
         base.chat_wildcard.return_value = None
@@ -2193,14 +2664,14 @@ class TestStanzaStream(StanzaStreamTestBase):
         base.fallback._is_coroutine = False
 
         test_set = [
-            ("chat", TEST_FROM, "chat_full"),
-            ("chat", TEST_FROM.replace(resource="r2"), "chat_bare"),
-            ("chat", TEST_FROM.bare(), "chat_bare"),
-            ("chat", TEST_FROM.replace(domain="bar.example"), "chat_wildcard"),
-            ("headline", TEST_FROM, "wildcard_full"),
-            ("headline", TEST_FROM.replace(resource="r2"), "wildcard_bare"),
-            ("headline", TEST_FROM.bare(), "wildcard_bare"),
-            ("headline", TEST_FROM.replace(domain="bar.example"), "fallback"),
+            (structs.MessageType.CHAT, TEST_FROM, "chat_full"),
+            (structs.MessageType.CHAT, TEST_FROM.replace(resource="r2"), "chat_bare"),
+            (structs.MessageType.CHAT, TEST_FROM.bare(), "chat_bare"),
+            (structs.MessageType.CHAT, TEST_FROM.replace(domain="bar.example"), "chat_wildcard"),
+            (structs.MessageType.HEADLINE, TEST_FROM, "wildcard_full"),
+            (structs.MessageType.HEADLINE, TEST_FROM.replace(resource="r2"), "wildcard_bare"),
+            (structs.MessageType.HEADLINE, TEST_FROM.bare(), "wildcard_bare"),
+            (structs.MessageType.HEADLINE, TEST_FROM.replace(domain="bar.example"), "fallback"),
         ]
 
         stanza_set = []
@@ -2538,7 +3009,7 @@ class TestStanzaStream(StanzaStreamTestBase):
             ))
 
             iq = make_test_iq()
-            response = iq.make_reply(type_="result")
+            response = iq.make_reply(type_=structs.IQType.RESULT)
             response.payload = FancyTestIQ()
 
             task = asyncio.async(
@@ -2579,7 +3050,7 @@ class TestStanzaStream(StanzaStreamTestBase):
             ))
 
             iq = make_test_iq()
-            response = iq.make_reply(type_="result")
+            response = iq.make_reply(type_=structs.IQType.RESULT)
             response.payload = FancyTestIQ()
 
             task = asyncio.async(
@@ -2779,7 +3250,7 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
 
     def test_sm_start_stanza_race_processing(self):
         iq = make_test_iq()
-        error_iq = iq.make_reply(type_="error")
+        error_iq = iq.make_reply(type_=structs.IQType.ERROR)
         error_iq.error = stanza.Error(
             condition=(namespaces.stanzas, "feature-not-implemented")
         )
@@ -2936,7 +3407,7 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
         iqs = [make_test_iq() for i in range(3)]
 
         error_iqs = [
-            iq.make_reply(type_="error")
+            iq.make_reply(type_=structs.IQType.ERROR)
             for iq in iqs
         ]
         for err_iq in error_iqs:

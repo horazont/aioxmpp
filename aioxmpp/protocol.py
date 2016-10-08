@@ -1,3 +1,24 @@
+########################################################################
+# File name: protocol.py
+# This file is part of: aioxmpp
+#
+# LICENSE
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Lesser General Public License as
+# published by the Free Software Foundation, either version 3 of the
+# License, or (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public
+# License along with this program.  If not, see
+# <http://www.gnu.org/licenses/>.
+#
+########################################################################
 """
 :mod:`~aioxmpp.protocol` --- XML Stream implementation
 ######################################################
@@ -136,7 +157,7 @@ class DebugWrapper:
     def flush(self):
         self.logger.debug("SENT %r", b"".join(self._pieces))
         self._pieces = []
-        self._flush
+        self._flush()
 
 
 class XMLStream(asyncio.Protocol):
@@ -144,7 +165,7 @@ class XMLStream(asyncio.Protocol):
     XML stream implementation. This is an streaming :class:`asyncio.Protocol`
     which translates the received bytes into XSOs.
 
-    `to` must be a domain :class:`~aioxmpp.structs.JID` which identifies the
+    `to` must be a domain :class:`~aioxmpp.JID` which identifies the
     domain to which the stream shall connect.
 
     `features_future` must be a :class:`asyncio.Future` instance; the XML
@@ -248,6 +269,7 @@ class XMLStream(asyncio.Protocol):
         self._error_futures = []
         self._smachine = statemachine.OrderedStateMachine(State.READY)
         self._transport_closing = False
+        self._footer_timeout_future = None
 
         self._closing_future = asyncio.async(
             self._smachine.wait_for(
@@ -309,10 +331,20 @@ class XMLStream(asyncio.Protocol):
             return
         task.result()
 
-        asyncio.async(
+        self._footer_timeout_future = asyncio.async(
             self._stream_footer_timeout(),
             loop=self._loop
-        ).add_done_callback(lambda x: x.result())
+        )
+
+        def fetch_result_and_ignore_cancel(fut):
+            try:
+                fut.result()
+            except asyncio.CancelledError:
+                pass
+
+        self._footer_timeout_future.add_done_callback(
+            fetch_result_and_ignore_cancel,
+        )
 
     @asyncio.coroutine
     def _stream_footer_timeout(self):
@@ -437,6 +469,8 @@ class XMLStream(asyncio.Protocol):
         self._writer = None
         self._transport = None
         self._closing_future.cancel()
+        if self._footer_timeout_future is not None:
+            self._footer_timeout_future.cancel()
 
     def data_received(self, blob):
         self._logger.debug("RECV %r", blob)

@@ -1,3 +1,24 @@
+########################################################################
+# File name: service.py
+# This file is part of: aioxmpp
+#
+# LICENSE
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Lesser General Public License as
+# published by the Free Software Foundation, either version 3 of the
+# License, or (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public
+# License along with this program.  If not, see
+# <http://www.gnu.org/licenses/>.
+#
+########################################################################
 import asyncio
 import functools
 
@@ -183,7 +204,7 @@ class Room:
 
     .. signal:: on_message(message, **kwargs)
 
-       Emits when a group chat :class:`~.stanza.Message` `message` is
+       Emits when a group chat :class:`~.Message` `message` is
        received for the room. This is also emitted on messages sent by the
        local user; this allows tracking when a message has been spread to all
        users in the room.
@@ -217,7 +238,7 @@ class Room:
 
     .. signal:: on_enter(presence, occupant, **kwargs)
 
-       Emits when the initial room :class:`~.stanza.Presence` stanza for the
+       Emits when the initial room :class:`~.Presence` stanza for the
        local JID is received. This means that the join to the room is complete;
        the message history and subject are not transferred yet though.
 
@@ -246,7 +267,7 @@ class Room:
 
     .. signal:: on_exit(presence, occupant, mode, **kwargs)
 
-       Emits when the unavailable :class:`~.stanza.Presence` stanza for the
+       Emits when the unavailable :class:`~.Presence` stanza for the
        local JID is received.
 
        `mode` indicates how the occupant got removed from the room, see the
@@ -274,7 +295,7 @@ class Room:
        indentical for all events related to that occupant, but its contents
        will change accordingly.
 
-       The original :class:`~.stanza.Presence` stanza which announced the join
+       The original :class:`~.Presence` stanza which announced the join
        of the occupant is given as `presence`.
 
     .. signal:: on_leave(presence, occupant, mode, **kwargs)
@@ -426,7 +447,7 @@ class Room:
     @property
     def mucjid(self):
         """
-        The (bare) :class:`.structs.JID` of the MUC which this :class:`Room`
+        The (bare) :class:`aioxmpp.JID of the MUC which this :class:`Room`
         tracks.
         """
         return self._mucjid
@@ -574,7 +595,7 @@ class Room:
         info = Occupant.from_presence(stanza)
 
         if not self._active:
-            if stanza.type_ == "unavailable":
+            if stanza.type_ == aioxmpp.structs.PresenceType.UNAVAILABLE:
                 self._service.logger.debug(
                     "%s: not active, and received unavailable ... "
                     "is this a reconnect?",
@@ -670,7 +691,7 @@ class Room:
             raise ValueError("role must not be None")
 
         iq = aioxmpp.stanza.IQ(
-            type_="set",
+            type_=aioxmpp.structs.IQType.SET,
             to=self.mucjid
         )
 
@@ -708,7 +729,7 @@ class Room:
         """
 
         msg = aioxmpp.stanza.Message(
-            type_="groupchat",
+            type_=aioxmpp.structs.MessageType.GROUPCHAT,
             to=self.mucjid
         )
         msg.subject.update(subject)
@@ -730,7 +751,7 @@ class Room:
 
         """
         presence = aioxmpp.stanza.Presence(
-            type_="unavailable",
+            type_=aioxmpp.structs.PresenceType.UNAVAILABLE,
             to=self._mucjid
         )
         self.service.client.stream.enqueue_stanza(presence)
@@ -769,8 +790,8 @@ class Room:
                              timeout=timedelta(seconds=120)):
         """
         Send a tracked message. The first argument can either be a
-        :class:`~.stanza.Message` or a mapping compatible with
-        :attr:`~.stanza.Message.body`.
+        :class:`~.Message` or a mapping compatible with
+        :attr:`~.Message.body`.
 
         Return a :class:`~.tracking.MessageTracker` which tracks the
         message. See the documentation of :class:`~.MessageTracker` and
@@ -798,11 +819,11 @@ class Room:
         """
         if isinstance(body_or_stanza, aioxmpp.stanza.Message):
             message = body_or_stanza
-            message.type_ = "groupchat"
+            message.type_ = aioxmpp.structs.MessageType.GROUPCHAT
             message.to = self.mucjid
         else:
             message = aioxmpp.stanza.Message(
-                type_="groupchat",
+                type_=aioxmpp.structs.MessageType.GROUPCHAT,
                 to=self.mucjid
             )
             message.body.update(body_or_stanza)
@@ -843,7 +864,13 @@ class Service(aioxmpp.service.Service):
 
     .. automethod:: join
 
+    Manage rooms:
+
+    .. automethod:: get_room_config
+
     .. automethod:: set_affiliation
+
+    .. automethod:: set_room_config
 
     """
     on_muc_joined = aioxmpp.callbacks.Signal()
@@ -943,7 +970,10 @@ class Service(aioxmpp.service.Service):
                 del self._pending_mucs[mucjid]
             except KeyError:
                 pass
-            unjoin = aioxmpp.stanza.Presence(to=mucjid, type_="unavailable")
+            unjoin = aioxmpp.stanza.Presence(
+                to=mucjid,
+                type_=aioxmpp.structs.PresenceType.UNAVAILABLE,
+            )
             unjoin.xep0045_muc = muc_xso.GenericExt()
             self.client.stream.enqueue_stanza(unjoin)
 
@@ -1094,7 +1124,7 @@ class Service(aioxmpp.service.Service):
 
         try:
             self.client.stream.register_message_callback(
-                "groupchat",
+                aioxmpp.structs.MessageType.GROUPCHAT,
                 mucjid,
                 self._inbound_message
             )
@@ -1158,7 +1188,7 @@ class Service(aioxmpp.service.Service):
             raise ValueError("affiliation must not be None")
 
         iq = aioxmpp.stanza.IQ(
-            type_="set",
+            type_=aioxmpp.structs.IQType.SET,
             to=mucjid
         )
 
@@ -1172,4 +1202,69 @@ class Service(aioxmpp.service.Service):
 
         yield from self.client.stream.send_iq_and_wait_for_reply(
             iq
+        )
+
+    @asyncio.coroutine
+    def get_room_config(self, mucjid):
+        """
+        Query and return the room configuration form for the given MUC.
+
+        :param mucjid: JID of the room to query
+        :type mucjid: bare :class:`~.JID`
+        :return: data form template for the room configuration
+        :rtype: :class:`aioxmpp.forms.Data`
+
+        .. seealso::
+
+           :class:`~.ConfigurationForm`
+              for a form template to work with the returned form
+        """
+
+        if mucjid is None or not mucjid.is_bare:
+            raise ValueError("mucjid must be bare JID")
+
+        iq = aioxmpp.stanza.IQ(
+            type_=aioxmpp.structs.IQType.GET,
+            to=mucjid,
+            payload=muc_xso.OwnerQuery(),
+        )
+
+        return (yield from self.client.stream.send_iq_and_wait_for_reply(
+            iq
+        )).form
+
+    @asyncio.coroutine
+    def set_room_config(self, mucjid, data):
+        """
+        Set the room configuration using a :xep:`4` data form.
+
+        :param mucjid: JID of the room to query
+        :type mucjid: bare :class:`~.JID`
+        :param data: Filled-out configuration form
+        :type data: :class:`aioxmpp.forms.Data`
+
+        .. seealso::
+
+           :class:`~.ConfigurationForm`
+              for a form template to generate the required form
+
+        A sensible workflow to, for example, set a room to be moderated, could
+        be this::
+
+          form = aioxmpp.muc.ConfigurationForm.from_xso(
+              (await muc_service.get_room_config(mucjid))
+          )
+          form.moderatedroom = True
+          await muc_service.set_rooom_config(mucjid, form.render_reply())
+
+        """
+
+        iq = aioxmpp.stanza.IQ(
+            type_=aioxmpp.structs.IQType.SET,
+            to=mucjid,
+            payload=muc_xso.OwnerQuery(form=data),
+        )
+
+        yield from self.client.stream.send_iq_and_wait_for_reply(
+            iq,
         )

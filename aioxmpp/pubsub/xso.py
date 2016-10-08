@@ -1,3 +1,24 @@
+########################################################################
+# File name: xso.py
+# This file is part of: aioxmpp
+#
+# LICENSE
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Lesser General Public License as
+# published by the Free Software Foundation, either version 3 of the
+# License, or (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public
+# License along with this program.  If not, see
+# <http://www.gnu.org/licenses/>.
+#
+########################################################################
 import aioxmpp.forms
 import aioxmpp.stanza
 import aioxmpp.xso as xso
@@ -866,6 +887,27 @@ class OwnerRequest(xso.XSO):
     def __init__(self, payload):
         super().__init__()
         self.payload = payload
+
+
+def as_payload_class(cls):
+    """
+    Register the given class `cls` as Publish-Subscribe payload on both
+    :class:`Item` and :class:`EventItem`.
+
+    Return the class, to allow this to be used as decorator.
+    """
+
+    Item.register_child(
+        Item.registered_payload,
+        cls,
+    )
+
+    EventItem.register_child(
+        EventItem.registered_payload,
+        cls,
+    )
+
+    return cls
 
 
 ClosedNode = aioxmpp.stanza.make_application_error(

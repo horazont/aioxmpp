@@ -1,66 +1,39 @@
-import asyncio
-import getpass
+########################################################################
+# File name: server_info.py
+# This file is part of: aioxmpp
+#
+# LICENSE
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Lesser General Public License as
+# published by the Free Software Foundation, either version 3 of the
+# License, or (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public
+# License along with this program.  If not, see
+# <http://www.gnu.org/licenses/>.
+#
+########################################################################
 import itertools
-import logging
 
-import aioxmpp.security_layer
-import aioxmpp.node
-import aioxmpp.structs
 import aioxmpp.disco
 
-try:
-    import readline
-except ImportError:
-    pass
+from framework import Example, exec_example
 
 
-@asyncio.coroutine
-def main(jid, password):
-    @asyncio.coroutine
-    def get_password(client_jid, nattempt):
-        if nattempt > 1:
-            # abort, as we cannot properly re-ask the user
-            return None
-        return password
-
-    connected_future = asyncio.Future()
-    disconnected_future = asyncio.Future()
-
-    def connected():
-        connected_future.set_result(None)
-
-    def disconnected():
-        disconnected_future.set_result(None)
-
-    tls_provider = aioxmpp.security_layer.STARTTLSProvider(
-        aioxmpp.security_layer.default_ssl_context,
-    )
-
-    sasl_provider = aioxmpp.security_layer.PasswordSASLProvider(
-        get_password
-    )
-
-    client = aioxmpp.node.PresenceManagedClient(
-        jid,
-        aioxmpp.security_layer.security_layer(
-            tls_provider,
-            [sasl_provider]
-        )
-    )
-    client.on_stream_established.connect(connected)
-    client.on_stopped.connect(disconnected)
-
-    disco = client.summon(aioxmpp.disco.Service)
-
-    client.presence = aioxmpp.structs.PresenceState(True)
-
-    yield from connected_future
-
-    try:
+class ServerInfo(Example):
+    async def run_simple_example(self):
+        disco = self.client.summon(aioxmpp.disco.Service)
         try:
-            info = yield from disco.query_info(
-                jid.replace(resource=None, localpart=None),
-                timeout=10)
+            info = await disco.query_info(
+                self.g_jid.replace(resource=None, localpart=None),
+                timeout=10
+            )
         except Exception as exc:
             print("could not get info: ")
             print("{}: {}".format(type(exc).__name__, exc))
@@ -72,7 +45,10 @@ def main(jid, password):
 
         print("identities:")
         identities = list(info.identities)
-        identity_key = lambda ident: (ident.category, ident.type_)
+
+        def identity_key(ident):
+            return (ident.category, ident.type_)
+
         identities.sort(key=identity_key)
         for (category, type_), identities in (
                 itertools.groupby(info.identities, identity_key)):
@@ -82,13 +58,6 @@ def main(jid, password):
             for identity in subidentities:
                 print("    [{}] {!r}".format(identity.lang, identity.name))
 
-    finally:
-        client.presence = aioxmpp.structs.PresenceState(False)
-        yield from disconnected_future
-
 
 if __name__ == "__main__":
-    jid = aioxmpp.structs.JID.fromstr(input("JID: "))
-    pwd = getpass.getpass()
-
-    asyncio.get_event_loop().run_until_complete(main(jid, pwd))
+    exec_example(ServerInfo())

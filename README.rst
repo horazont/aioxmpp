@@ -6,6 +6,8 @@
 .. _asyncio: https://docs.python.org/3/library/asyncio.html
 __ https://code.google.com/p/tulip/
 
+.. remember to update the feature list in the docs
+
 Features
 ========
 
@@ -126,5 +128,5 @@ Change log
 
 The `change log`_ is included in the `official documentation`__.
 
-.. _change log: http://docs.zombofant.net/aioxmpp/devel/api/changelog.html
-__ http://docs.zombofant.net/aioxmpp/0.6/
+.. _change log: https://docs.zombofant.net/aioxmpp/0.7/api/changelog.html
+__ https://docs.zombofant.net/aioxmpp/0.7/

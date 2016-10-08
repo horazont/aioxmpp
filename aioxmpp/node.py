@@ -1,3 +1,24 @@
+########################################################################
+# File name: node.py
+# This file is part of: aioxmpp
+#
+# LICENSE
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Lesser General Public License as
+# published by the Free Software Foundation, either version 3 of the
+# License, or (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public
+# License along with this program.  If not, see
+# <http://www.gnu.org/licenses/>.
+#
+########################################################################
 """
 :mod:`~aioxmpp.node` --- XMPP network nodes (clients, mostly)
 #############################################################
@@ -9,9 +30,13 @@ stream based on a presence setting is provided.
 Using XMPP
 ==========
 
-.. autoclass:: AbstractClient
+.. currentmodule:: aioxmpp
 
 .. autoclass:: PresenceManagedClient
+
+.. currentmodule:: aioxmpp.node
+
+.. autoclass:: AbstractClient
 
 Connecting streams low-level
 ============================
@@ -328,7 +353,7 @@ class AbstractClient:
     provides functionality for connecting the xmlstream as well as signals
     which indicate changes in the stream state.
 
-    The `jid` must be a :class:`~aioxmpp.structs.JID` for which to connect. The
+    The `jid` must be a :class:`~aioxmpp.JID` for which to connect. The
     `security_layer` is best created using the
     :func:`~aioxmpp.security_layer.security_layer` function and must provide
     authentication for the given `jid`.
@@ -350,7 +375,7 @@ class AbstractClient:
     problems) which stop a :class:`AbstractClient` from working. It makes use
     of stream management as far as possible and abstracts away the gritty low
     level details. In general, it is sufficient to observe the
-    :attr:`on_stream_established` and :attr:`on_stream_destroyed` events, which
+    :meth:`on_stream_established` and :attr:`on_stream_destroyed` events, which
     notify a user about when a stream becomes available and when it becomes
     unavailable.
 
@@ -587,7 +612,7 @@ class AbstractClient:
             "remote server announces support for legacy sessions"
         )
         yield from self.stream.send_iq_and_wait_for_reply(
-            stanza.IQ(type_="set",
+            stanza.IQ(type_=structs.IQType.SET,
                       payload=rfc3921.Session())
         )
         self.logger.debug(
@@ -648,7 +673,7 @@ class AbstractClient:
 
     @asyncio.coroutine
     def _bind(self):
-        iq = stanza.IQ(type_="set")
+        iq = stanza.IQ(type_=structs.IQType.SET)
         iq.payload = rfc6120.Bind(resource=self._local_jid.resource)
         try:
             result = yield from self.stream.send_iq_and_wait_for_reply(iq)
@@ -798,7 +823,7 @@ class AbstractClient:
     @property
     def local_jid(self):
         """
-        The :class:`~aioxmpp.structs.JID` the client currently has. While the
+        The :class:`~aioxmpp.JID` the client currently has. While the
         client is disconnected, only the bare JID part is authentic, as the
         resource is ultimately determined by the server.
 
@@ -832,9 +857,9 @@ class AbstractClient:
 class PresenceManagedClient(AbstractClient):
     """
     A presence managed XMPP client. The arguments are passed to the
-    :class:`AbstractClient` constructor.
+    :class:`~.AbstractClient` constructor.
 
-    While the start/stop interfaces of :class:`AbstractClient` are still
+    While the start/stop interfaces of :class:`~.AbstractClient` are still
     available, it is recommended to control the presence managed client solely
     using the :attr:`presence` property.
 
@@ -851,7 +876,7 @@ class PresenceManagedClient(AbstractClient):
 
     .. attribute:: on_presence_sent
 
-       The event is fired after :attr:`~AbstractClient.on_stream_established`
+       The event is fired after :meth:`.AbstractClient.on_stream_established`
        and after the current presence has been sent to the server as *initial
        presence*.
 
@@ -890,7 +915,7 @@ class PresenceManagedClient(AbstractClient):
     def presence(self):
         """
         Control or query the current presence state (see
-        :class:`~.structs.PresenceState`) of the client. Note that when
+        :class:`~.PresenceState`) of the client. Note that when
         reading, the property only returns the "set" value, not the actual
         value known to the server (and others). This may differ if the
         connection is still being established.
@@ -924,9 +949,11 @@ class PresenceManagedClient(AbstractClient):
         effects as writing `state` to :attr:`presence`, but the status of the
         presence is also set at the same time.
 
-        `status` must be either a string or an iterable containing
-        :class:`.stanza.Status` objects. The :class:`.stanza.Status` instances
-        are saved and added to the presence stanza when it is time to send it.
+        `status` must be either a string or something which can be passed to
+        :class:`dict`. If it is a string, the string is wrapped in a ``{None:
+        status}`` dictionary. Otherwise, the dictionary is set as the
+        :attr:`~.Presence.status` attribute of the presence stanza. It
+        must map :class:`aioxmpp.structs.LanguageTag` instances to strings.
 
         The `status` is the text shown alongside the `state` (indicating
         availability such as *away*, *do not disturb* and *free to chat*).

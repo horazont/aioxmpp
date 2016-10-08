@@ -1,6 +1,26 @@
+########################################################################
+# File name: test_service.py
+# This file is part of: aioxmpp
+#
+# LICENSE
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Lesser General Public License as
+# published by the Free Software Foundation, either version 3 of the
+# License, or (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public
+# License along with this program.  If not, see
+# <http://www.gnu.org/licenses/>.
+#
+########################################################################
 import asyncio
 import contextlib
-import copy
 import io
 import unittest
 import unittest.mock
@@ -10,7 +30,6 @@ import aioxmpp.disco as disco
 import aioxmpp.service as service
 import aioxmpp.stanza as stanza
 import aioxmpp.structs as structs
-import aioxmpp.forms as forms
 import aioxmpp.forms.xso as forms_xso
 import aioxmpp.xml
 
@@ -129,7 +148,7 @@ class Testbuild_features_string(unittest.TestCase):
 
 class Testbuild_forms_string(unittest.TestCase):
     def test_xep_form(self):
-        forms = [forms_xso.Data()]
+        forms = [forms_xso.Data(type_=forms_xso.DataType.FORM)]
         forms[0].fields.extend([
             forms_xso.Field(
                 var="FORM_TYPE",
@@ -186,7 +205,7 @@ class Testbuild_forms_string(unittest.TestCase):
         )
 
     def test_value_and_var_escaping(self):
-        forms = [forms_xso.Data()]
+        forms = [forms_xso.Data(type_=forms_xso.DataType.FORM)]
         forms[0].fields.extend([
             forms_xso.Field(
                 var="FORM_TYPE",
@@ -218,7 +237,7 @@ class Testbuild_forms_string(unittest.TestCase):
         )
 
     def test_reject_multiple_identical_form_types(self):
-        forms = [forms_xso.Data(), forms_xso.Data()]
+        forms = [forms_xso.Data(type_=forms_xso.DataType.FORM), forms_xso.Data(type_=forms_xso.DataType.FORM)]
 
         forms[0].fields.extend([
             forms_xso.Field(
@@ -272,7 +291,7 @@ class Testbuild_forms_string(unittest.TestCase):
             entitycaps_service.build_forms_string(forms)
 
     def test_reject_form_with_multiple_different_types(self):
-        forms = [forms_xso.Data()]
+        forms = [forms_xso.Data(type_=forms_xso.DataType.FORM)]
 
         forms[0].fields.extend([
             forms_xso.Field(
@@ -304,7 +323,8 @@ class Testbuild_forms_string(unittest.TestCase):
             entitycaps_service.build_forms_string(forms)
 
     def test_ignore_form_without_type(self):
-        forms = [forms_xso.Data(), forms_xso.Data()]
+        forms = [forms_xso.Data(type_=forms_xso.DataType.FORM),
+                 forms_xso.Data(type_=forms_xso.DataType.FORM)]
 
         forms[0].fields.extend([
             forms_xso.Field(
@@ -352,7 +372,7 @@ class Testbuild_forms_string(unittest.TestCase):
         )
 
     def test_accept_form_with_multiple_identical_types(self):
-        forms = [forms_xso.Data()]
+        forms = [forms_xso.Data(type_=forms_xso.DataType.FORM)]
 
         forms[0].fields.extend([
             forms_xso.Field(
@@ -374,7 +394,7 @@ class Testbuild_forms_string(unittest.TestCase):
         entitycaps_service.build_forms_string(forms)
 
     def test_multiple(self):
-        forms = [forms_xso.Data(), forms_xso.Data()]
+        forms = [forms_xso.Data(type_=forms_xso.DataType.FORM), forms_xso.Data(type_=forms_xso.DataType.FORM)]
 
         forms[0].fields.extend([
             forms_xso.Field(
@@ -512,7 +532,7 @@ class Testhash_query(unittest.TestCase):
             "http://jabber.org/protocol/muc",
         })
 
-        ext_form = forms_xso.Data()
+        ext_form = forms_xso.Data(type_=forms_xso.DataType.FORM)
 
         ext_form.fields.extend([
             forms_xso.Field(
@@ -1710,12 +1730,12 @@ class TestService(unittest.TestCase):
         self.s.ver = "foo"
 
         types = [
-            "unavailable",
-            "subscribe",
-            "unsubscribe",
-            "subscribed",
-            "unsubscribed",
-            "error",
+            structs.PresenceType.UNAVAILABLE,
+            structs.PresenceType.SUBSCRIBE,
+            structs.PresenceType.SUBSCRIBED,
+            structs.PresenceType.UNSUBSCRIBE,
+            structs.PresenceType.UNSUBSCRIBED,
+            structs.PresenceType.ERROR,
         ]
 
         for type_ in types:

@@ -1,3 +1,24 @@
+########################################################################
+# File name: test_xso.py
+# This file is part of: aioxmpp
+#
+# LICENSE
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Lesser General Public License as
+# published by the Free Software Foundation, either version 3 of the
+# License, or (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public
+# License along with this program.  If not, see
+# <http://www.gnu.org/licenses/>.
+#
+########################################################################
 import unittest
 
 import aioxmpp.disco.xso as disco_xso
@@ -351,20 +372,22 @@ class TestInfoQuery(unittest.TestCase):
             ]
         )
 
-        f = forms_xso.Data()
+        f = forms_xso.Data(type_=forms_xso.DataType.FORM)
         f.fields.extend([
-            forms_xso.Field(type_="hidden",
-                            var="FORM_TYPE",
-                            values=[
-                                "fnord",
-                            ]),
-            forms_xso.Field(type_="text-single",
-                            var="uiae",
-                            values=[
-                                "nrtd",
-                                "asdf",
-                            ]),
-            forms_xso.Field(type_="fixed"),
+            forms_xso.Field(
+                type_=forms_xso.FieldType.HIDDEN,
+                var="FORM_TYPE",
+                values=[
+                    "fnord",
+                ]),
+            forms_xso.Field(
+                type_=forms_xso.FieldType.TEXT_SINGLE,
+                var="uiae",
+                values=[
+                    "nrtd",
+                    "asdf",
+                ]),
+            forms_xso.Field(type_=forms_xso.FieldType.FIXED),
         ])
         q.exts.append(f)
 
@@ -427,26 +450,26 @@ class TestInfoQuery(unittest.TestCase):
             ]
         )
 
-        f = forms_xso.Data()
+        f = forms_xso.Data(type_=forms_xso.DataType.FORM)
         f.fields.extend([
-            forms_xso.Field(type_="hidden",
+            forms_xso.Field(type_=forms_xso.FieldType.HIDDEN,
                             var="FORM_TYPE",
                             values=[
                                 "fnord",
                             ]),
-            forms_xso.Field(type_="text-single",
+            forms_xso.Field(type_=forms_xso.FieldType.TEXT_SINGLE,
                             var="uiae",
                             values=[
                                 "nrtd",
                                 "asdf",
                             ]),
-            forms_xso.Field(type_="fixed"),
+            forms_xso.Field(type_=forms_xso.FieldType.FIXED),
         ])
         q.exts.append(f)
 
-        f = forms_xso.Data()
+        f = forms_xso.Data(type_=forms_xso.DataType.FORM)
         f.fields.extend([
-            forms_xso.Field(type_="hidden",
+            forms_xso.Field(type_=forms_xso.FieldType.HIDDEN,
                             var="FORM_TYPE",
                             values=[
                                 "fnord",

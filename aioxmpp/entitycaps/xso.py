@@ -1,3 +1,24 @@
+########################################################################
+# File name: xso.py
+# This file is part of: aioxmpp
+#
+# LICENSE
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Lesser General Public License as
+# published by the Free Software Foundation, either version 3 of the
+# License, or (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public
+# License along with this program.  If not, see
+# <http://www.gnu.org/licenses/>.
+#
+########################################################################
 import aioxmpp.stanza as stanza
 import aioxmpp.xso as xso
 
@@ -9,7 +30,7 @@ namespaces.xep0115_caps = "http://jabber.org/protocol/caps"
 
 class Caps(xso.XSO):
     """
-    An entity capabilities extension for :class:`~.stanza.Presence`.
+    An entity capabilities extension for :class:`~.Presence`.
 
     .. attribute:: node
 

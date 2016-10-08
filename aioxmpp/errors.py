@@ -1,3 +1,24 @@
+########################################################################
+# File name: errors.py
+# This file is part of: aioxmpp
+#
+# LICENSE
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Lesser General Public License as
+# published by the Free Software Foundation, either version 3 of the
+# License, or (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public
+# License along with this program.  If not, see
+# <http://www.gnu.org/licenses/>.
+#
+########################################################################
 """
 :mod:`~aioxmpp.errors` --- Exception classes
 ############################################
@@ -14,6 +35,8 @@ Exception classes mapping to XMPP stanza errors
 
 .. autoclass:: XMPPError
 
+.. currentmodule:: aioxmpp
+
 .. autoclass:: XMPPAuthError
 
 .. autoclass:: XMPPModifyError
@@ -23,6 +46,8 @@ Exception classes mapping to XMPP stanza errors
 .. autoclass:: XMPPWaitError
 
 .. autoclass:: XMPPContinueError
+
+.. currentmodule:: aioxmpp.errors
 
 .. autoclass:: ErroneousStanza
 
@@ -54,9 +79,7 @@ Other exceptions
 """
 import gettext
 
-import aiosasl
-
-from . import xso, i18n
+from . import xso, i18n, structs
 
 
 def format_error_text(
@@ -84,7 +107,20 @@ class StanzaError(Exception):
 
 
 class XMPPError(StanzaError):
-    TYPE = "cancel"
+    """
+    Relevant subclasses:
+
+    .. autosummary::
+
+       aioxmpp.XMPPAuthError
+       aioxmpp.XMPPModifyError
+       aioxmpp.XMPPCancelError
+       aioxmpp.XMPPContinueError
+       aioxmpp.XMPPWaitError
+
+    """
+
+    TYPE = structs.ErrorType.CANCEL
 
     def __init__(self,
                  condition,
@@ -100,27 +136,27 @@ class XMPPError(StanzaError):
 
 
 class XMPPWarning(XMPPError, UserWarning):
-    TYPE = "continue"
+    TYPE = structs.ErrorType.CONTINUE
 
 
 class XMPPAuthError(XMPPError, PermissionError):
-    TYPE = "auth"
+    TYPE = structs.ErrorType.AUTH
 
 
 class XMPPModifyError(XMPPError, ValueError):
-    TYPE = "modify"
+    TYPE = structs.ErrorType.MODIFY
 
 
 class XMPPCancelError(XMPPError):
-    TYPE = "cancel"
+    TYPE = structs.ErrorType.CANCEL
 
 
 class XMPPWaitError(XMPPError):
-    TYPE = "wait"
+    TYPE = structs.ErrorType.WAIT
 
 
 class XMPPContinueError(XMPPWarning):
-    TYPE = "continue"
+    TYPE = structs.ErrorType.CONTINUE
 
 
 class ErroneousStanza(StanzaError):
@@ -173,15 +209,6 @@ class TLSFailure(SecurityNegotiationFailure):
 
 class TLSUnavailable(TLSFailure):
     pass
-
-
-error_type_map = {
-    "auth": XMPPAuthError,
-    "modify": XMPPModifyError,
-    "cancel": XMPPCancelError,
-    "wait": XMPPWaitError,
-    "continue": XMPPContinueError,
-}
 
 
 class UserError(Exception):

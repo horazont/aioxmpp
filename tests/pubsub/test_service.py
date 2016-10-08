@@ -1,3 +1,24 @@
+########################################################################
+# File name: test_service.py
+# This file is part of: aioxmpp
+#
+# LICENSE
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Lesser General Public License as
+# published by the Free Software Foundation, either version 3 of the
+# License, or (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public
+# License along with this program.  If not, see
+# <http://www.gnu.org/licenses/>.
+#
+########################################################################
 import contextlib
 import unittest
 
@@ -55,35 +76,45 @@ class TestService(unittest.TestCase):
         del self.disco
 
     def test_filter_inbound_message_passes_chat(self):
-        msg = aioxmpp.stanza.Message(type_="chat")
+        msg = aioxmpp.stanza.Message(
+            type_=aioxmpp.structs.MessageType.CHAT
+        )
         self.assertIs(
             self.s.filter_inbound_message(msg),
             msg,
         )
 
     def test_filter_inbound_message_passes_headline(self):
-        msg = aioxmpp.stanza.Message(type_="headline")
+        msg = aioxmpp.stanza.Message(
+            type_=aioxmpp.structs.MessageType.HEADLINE
+        )
         self.assertIs(
             self.s.filter_inbound_message(msg),
             msg,
         )
 
     def test_filter_inbound_message_passes_error(self):
-        msg = aioxmpp.stanza.Message(type_="error")
+        msg = aioxmpp.stanza.Message(
+            type_=aioxmpp.structs.MessageType.ERROR,
+        )
         self.assertIs(
             self.s.filter_inbound_message(msg),
             msg,
         )
 
     def test_filter_inbound_message_passes_groupchat(self):
-        msg = aioxmpp.stanza.Message(type_="groupchat")
+        msg = aioxmpp.stanza.Message(
+            type_=aioxmpp.structs.MessageType.GROUPCHAT,
+        )
         self.assertIs(
             self.s.filter_inbound_message(msg),
             msg,
         )
 
     def test_filter_inbound_message_passes_normal(self):
-        msg = aioxmpp.stanza.Message(type_="normal")
+        msg = aioxmpp.stanza.Message(
+            type_=aioxmpp.structs.MessageType.NORMAL,
+        )
         self.assertIs(
             self.s.filter_inbound_message(msg),
             msg,
@@ -106,7 +137,7 @@ class TestService(unittest.TestCase):
         )
 
         msg = aioxmpp.stanza.Message(
-            type_="normal",
+            type_=aioxmpp.structs.MessageType.NORMAL,
             from_=TEST_TO,
         )
         msg.xep0060_event = ev
@@ -148,7 +179,7 @@ class TestService(unittest.TestCase):
         )
 
         msg = aioxmpp.stanza.Message(
-            type_="headline",
+            type_=aioxmpp.structs.MessageType.HEADLINE,
             from_=TEST_TO,
         )
         msg.xep0060_event = ev
@@ -189,7 +220,7 @@ class TestService(unittest.TestCase):
         )
 
         msg = aioxmpp.stanza.Message(
-            type_="normal",
+            type_=aioxmpp.structs.MessageType.NORMAL,
             from_=TEST_TO,
         )
         msg.xep0060_event = ev
@@ -230,7 +261,7 @@ class TestService(unittest.TestCase):
         )
 
         msg = aioxmpp.stanza.Message(
-            type_="headline",
+            type_=aioxmpp.structs.MessageType.HEADLINE,
             from_=TEST_TO,
         )
         msg.xep0060_event = ev
@@ -268,7 +299,7 @@ class TestService(unittest.TestCase):
         )
 
         msg = aioxmpp.stanza.Message(
-            type_="normal",
+            type_=aioxmpp.structs.MessageType.NORMAL,
             from_=TEST_TO,
         )
         msg.xep0060_request = req
@@ -313,7 +344,7 @@ class TestService(unittest.TestCase):
         )
 
         msg = aioxmpp.stanza.Message(
-            type_="normal",
+            type_=aioxmpp.structs.MessageType.NORMAL,
             from_=TEST_TO,
         )
         msg.xep0060_request = req
@@ -354,7 +385,7 @@ class TestService(unittest.TestCase):
         )
 
         msg = aioxmpp.stanza.Message(
-            type_="normal",
+            type_=aioxmpp.structs.MessageType.NORMAL,
             from_=TEST_TO,
         )
         msg.xep0060_event = ev
@@ -417,7 +448,7 @@ class TestService(unittest.TestCase):
 
         self.assertIsInstance(request_iq, aioxmpp.stanza.IQ)
         self.assertEqual(request_iq.to, TEST_TO)
-        self.assertEqual(request_iq.type_, "set")
+        self.assertEqual(request_iq.type_, aioxmpp.structs.IQType.SET)
         self.assertIsInstance(request_iq.payload, pubsub_xso.Request)
 
         request = request_iq.payload
@@ -453,7 +484,7 @@ class TestService(unittest.TestCase):
 
         self.assertIsInstance(request_iq, aioxmpp.stanza.IQ)
         self.assertEqual(request_iq.to, TEST_TO)
-        self.assertEqual(request_iq.type_, "set")
+        self.assertEqual(request_iq.type_, aioxmpp.structs.IQType.SET)
         self.assertIsInstance(request_iq.payload, pubsub_xso.Request)
 
         request = request_iq.payload
@@ -493,7 +524,7 @@ class TestService(unittest.TestCase):
 
         self.assertIsInstance(request_iq, aioxmpp.stanza.IQ)
         self.assertEqual(request_iq.to, TEST_TO)
-        self.assertEqual(request_iq.type_, "set")
+        self.assertEqual(request_iq.type_, aioxmpp.structs.IQType.SET)
         self.assertIsInstance(request_iq.payload, pubsub_xso.Request)
 
         request = request_iq.payload
@@ -545,7 +576,7 @@ class TestService(unittest.TestCase):
 
         self.assertIsInstance(request_iq, aioxmpp.stanza.IQ)
         self.assertEqual(request_iq.to, TEST_TO)
-        self.assertEqual(request_iq.type_, "set")
+        self.assertEqual(request_iq.type_, aioxmpp.structs.IQType.SET)
         self.assertIsInstance(request_iq.payload, pubsub_xso.Request)
 
         request = request_iq.payload
@@ -576,7 +607,7 @@ class TestService(unittest.TestCase):
 
         self.assertIsInstance(request_iq, aioxmpp.stanza.IQ)
         self.assertEqual(request_iq.to, TEST_TO)
-        self.assertEqual(request_iq.type_, "set")
+        self.assertEqual(request_iq.type_, aioxmpp.structs.IQType.SET)
         self.assertIsInstance(request_iq.payload, pubsub_xso.Request)
 
         request = request_iq.payload
@@ -607,7 +638,7 @@ class TestService(unittest.TestCase):
 
         self.assertIsInstance(request_iq, aioxmpp.stanza.IQ)
         self.assertEqual(request_iq.to, TEST_TO)
-        self.assertEqual(request_iq.type_, "set")
+        self.assertEqual(request_iq.type_, aioxmpp.structs.IQType.SET)
         self.assertIsInstance(request_iq.payload, pubsub_xso.Request)
 
         request = request_iq.payload
@@ -636,7 +667,7 @@ class TestService(unittest.TestCase):
 
         self.assertIsInstance(request_iq, aioxmpp.stanza.IQ)
         self.assertEqual(request_iq.to, TEST_TO)
-        self.assertEqual(request_iq.type_, "get")
+        self.assertEqual(request_iq.type_, aioxmpp.structs.IQType.GET)
         self.assertIsInstance(request_iq.payload, pubsub_xso.Request)
 
         request = request_iq.payload
@@ -669,7 +700,7 @@ class TestService(unittest.TestCase):
 
         self.assertIsInstance(request_iq, aioxmpp.stanza.IQ)
         self.assertEqual(request_iq.to, TEST_TO)
-        self.assertEqual(request_iq.type_, "get")
+        self.assertEqual(request_iq.type_, aioxmpp.structs.IQType.GET)
         self.assertIsInstance(request_iq.payload, pubsub_xso.Request)
 
         request = request_iq.payload
@@ -703,7 +734,7 @@ class TestService(unittest.TestCase):
 
         self.assertIsInstance(request_iq, aioxmpp.stanza.IQ)
         self.assertEqual(request_iq.to, TEST_TO)
-        self.assertEqual(request_iq.type_, "get")
+        self.assertEqual(request_iq.type_, aioxmpp.structs.IQType.GET)
         self.assertIsInstance(request_iq.payload, pubsub_xso.Request)
 
         request = request_iq.payload
@@ -739,7 +770,7 @@ class TestService(unittest.TestCase):
 
         self.assertIsInstance(request_iq, aioxmpp.stanza.IQ)
         self.assertEqual(request_iq.to, TEST_TO)
-        self.assertEqual(request_iq.type_, "set")
+        self.assertEqual(request_iq.type_, aioxmpp.structs.IQType.SET)
         self.assertIsInstance(request_iq.payload, pubsub_xso.Request)
 
         request = request_iq.payload
@@ -774,7 +805,7 @@ class TestService(unittest.TestCase):
 
         self.assertIsInstance(request_iq, aioxmpp.stanza.IQ)
         self.assertEqual(request_iq.to, TEST_TO)
-        self.assertEqual(request_iq.type_, "set")
+        self.assertEqual(request_iq.type_, aioxmpp.structs.IQType.SET)
         self.assertIsInstance(request_iq.payload, pubsub_xso.Request)
 
         request = request_iq.payload
@@ -810,7 +841,7 @@ class TestService(unittest.TestCase):
 
         self.assertIsInstance(request_iq, aioxmpp.stanza.IQ)
         self.assertEqual(request_iq.to, TEST_TO)
-        self.assertEqual(request_iq.type_, "set")
+        self.assertEqual(request_iq.type_, aioxmpp.structs.IQType.SET)
         self.assertIsInstance(request_iq.payload, pubsub_xso.Request)
 
         request = request_iq.payload
@@ -842,7 +873,7 @@ class TestService(unittest.TestCase):
 
         self.assertIsInstance(request_iq, aioxmpp.stanza.IQ)
         self.assertEqual(request_iq.to, TEST_TO)
-        self.assertEqual(request_iq.type_, "get")
+        self.assertEqual(request_iq.type_, aioxmpp.structs.IQType.GET)
         self.assertIsInstance(request_iq.payload, pubsub_xso.Request)
 
         request = request_iq.payload
@@ -871,7 +902,7 @@ class TestService(unittest.TestCase):
 
         self.assertIsInstance(request_iq, aioxmpp.stanza.IQ)
         self.assertEqual(request_iq.to, TEST_TO)
-        self.assertEqual(request_iq.type_, "get")
+        self.assertEqual(request_iq.type_, aioxmpp.structs.IQType.GET)
         self.assertIsInstance(request_iq.payload, pubsub_xso.Request)
 
         request = request_iq.payload
@@ -902,7 +933,7 @@ class TestService(unittest.TestCase):
 
         self.assertIsInstance(request_iq, aioxmpp.stanza.IQ)
         self.assertEqual(request_iq.to, TEST_TO)
-        self.assertEqual(request_iq.type_, "get")
+        self.assertEqual(request_iq.type_, aioxmpp.structs.IQType.GET)
         self.assertIsInstance(request_iq.payload, pubsub_xso.Request)
 
         request = request_iq.payload
@@ -939,7 +970,7 @@ class TestService(unittest.TestCase):
 
         self.assertIsInstance(request_iq, aioxmpp.stanza.IQ)
         self.assertEqual(request_iq.to, TEST_TO)
-        self.assertEqual(request_iq.type_, "get")
+        self.assertEqual(request_iq.type_, aioxmpp.structs.IQType.GET)
         self.assertIsInstance(request_iq.payload, pubsub_xso.Request)
 
         request = request_iq.payload
@@ -997,7 +1028,7 @@ class TestService(unittest.TestCase):
             self.cc.stream.send_iq_and_wait_for_reply.mock_calls[0]
 
         self.assertIsInstance(request_iq, aioxmpp.stanza.IQ)
-        self.assertEqual(request_iq.type_, "get")
+        self.assertEqual(request_iq.type_, aioxmpp.structs.IQType.GET)
         self.assertEqual(request_iq.to, TEST_TO)
         self.assertIsInstance(request_iq.payload, pubsub_xso.Request)
 
@@ -1026,7 +1057,7 @@ class TestService(unittest.TestCase):
             self.cc.stream.send_iq_and_wait_for_reply.mock_calls[0]
 
         self.assertIsInstance(request_iq, aioxmpp.stanza.IQ)
-        self.assertEqual(request_iq.type_, "get")
+        self.assertEqual(request_iq.type_, aioxmpp.structs.IQType.GET)
         self.assertEqual(request_iq.to, TEST_TO)
         self.assertIsInstance(request_iq.payload, pubsub_xso.Request)
 
@@ -1058,7 +1089,7 @@ class TestService(unittest.TestCase):
             self.cc.stream.send_iq_and_wait_for_reply.mock_calls[0]
 
         self.assertIsInstance(request_iq, aioxmpp.stanza.IQ)
-        self.assertEqual(request_iq.type_, "set")
+        self.assertEqual(request_iq.type_, aioxmpp.structs.IQType.SET)
         self.assertEqual(request_iq.to, TEST_TO)
         self.assertIsInstance(request_iq.payload, pubsub_xso.Request)
 
@@ -1099,7 +1130,7 @@ class TestService(unittest.TestCase):
             self.cc.stream.send_iq_and_wait_for_reply.mock_calls[0]
 
         self.assertIsInstance(request_iq, aioxmpp.stanza.IQ)
-        self.assertEqual(request_iq.type_, "set")
+        self.assertEqual(request_iq.type_, aioxmpp.structs.IQType.SET)
         self.assertEqual(request_iq.to, TEST_TO)
         self.assertIsInstance(request_iq.payload, pubsub_xso.Request)
 
@@ -1139,7 +1170,7 @@ class TestService(unittest.TestCase):
             self.cc.stream.send_iq_and_wait_for_reply.mock_calls[0]
 
         self.assertIsInstance(request_iq, aioxmpp.stanza.IQ)
-        self.assertEqual(request_iq.type_, "set")
+        self.assertEqual(request_iq.type_, aioxmpp.structs.IQType.SET)
         self.assertEqual(request_iq.to, TEST_TO)
         self.assertIsInstance(request_iq.payload, pubsub_xso.Request)
 
@@ -1175,7 +1206,7 @@ class TestService(unittest.TestCase):
             self.cc.stream.send_iq_and_wait_for_reply.mock_calls[0]
 
         self.assertIsInstance(request_iq, aioxmpp.stanza.IQ)
-        self.assertEqual(request_iq.type_, "set")
+        self.assertEqual(request_iq.type_, aioxmpp.structs.IQType.SET)
         self.assertEqual(request_iq.to, TEST_TO)
         self.assertIsInstance(request_iq.payload, pubsub_xso.Request)
 
@@ -1229,7 +1260,7 @@ class TestService(unittest.TestCase):
             self.cc.stream.send_iq_and_wait_for_reply.mock_calls[0]
 
         self.assertIsInstance(request_iq, aioxmpp.stanza.IQ)
-        self.assertEqual(request_iq.type_, "set")
+        self.assertEqual(request_iq.type_, aioxmpp.structs.IQType.SET)
         self.assertEqual(request_iq.to, TEST_TO)
         self.assertIsInstance(request_iq.payload, pubsub_xso.Request)
 
@@ -1261,7 +1292,7 @@ class TestService(unittest.TestCase):
             self.cc.stream.send_iq_and_wait_for_reply.mock_calls[0]
 
         self.assertIsInstance(request_iq, aioxmpp.stanza.IQ)
-        self.assertEqual(request_iq.type_, "set")
+        self.assertEqual(request_iq.type_, aioxmpp.structs.IQType.SET)
         self.assertEqual(request_iq.to, TEST_TO)
         self.assertIsInstance(request_iq.payload, pubsub_xso.Request)
 
@@ -1317,7 +1348,7 @@ class TestService(unittest.TestCase):
             self.cc.stream.send_iq_and_wait_for_reply.mock_calls[0]
 
         self.assertIsInstance(request_iq, aioxmpp.stanza.IQ)
-        self.assertEqual(request_iq.type_, "set")
+        self.assertEqual(request_iq.type_, aioxmpp.structs.IQType.SET)
         self.assertEqual(request_iq.to, TEST_TO)
         self.assertIsInstance(request_iq.payload, pubsub_xso.Request)
 
@@ -1346,7 +1377,7 @@ class TestService(unittest.TestCase):
             self.cc.stream.send_iq_and_wait_for_reply.mock_calls[0]
 
         self.assertIsInstance(request_iq, aioxmpp.stanza.IQ)
-        self.assertEqual(request_iq.type_, "set")
+        self.assertEqual(request_iq.type_, aioxmpp.structs.IQType.SET)
         self.assertEqual(request_iq.to, TEST_TO)
         self.assertIsInstance(request_iq.payload, pubsub_xso.Request)
 
@@ -1376,7 +1407,7 @@ class TestService(unittest.TestCase):
             self.cc.stream.send_iq_and_wait_for_reply.mock_calls[0]
 
         self.assertIsInstance(request_iq, aioxmpp.stanza.IQ)
-        self.assertEqual(request_iq.type_, "set")
+        self.assertEqual(request_iq.type_, aioxmpp.structs.IQType.SET)
         self.assertEqual(request_iq.to, TEST_TO)
         self.assertIsInstance(request_iq.payload, pubsub_xso.Request)
 
@@ -1436,7 +1467,7 @@ class TestService(unittest.TestCase):
             self.cc.stream.send_iq_and_wait_for_reply.mock_calls[0]
 
         self.assertIsInstance(request_iq, aioxmpp.stanza.IQ)
-        self.assertEqual(request_iq.type_, "set")
+        self.assertEqual(request_iq.type_, aioxmpp.structs.IQType.SET)
         self.assertEqual(request_iq.to, TEST_TO)
         self.assertIsInstance(request_iq.payload, pubsub_xso.OwnerRequest)
 
@@ -1461,7 +1492,7 @@ class TestService(unittest.TestCase):
             self.cc.stream.send_iq_and_wait_for_reply.mock_calls[0]
 
         self.assertIsInstance(request_iq, aioxmpp.stanza.IQ)
-        self.assertEqual(request_iq.type_, "set")
+        self.assertEqual(request_iq.type_, aioxmpp.structs.IQType.SET)
         self.assertEqual(request_iq.to, TEST_TO)
         self.assertIsInstance(request_iq.payload, pubsub_xso.OwnerRequest)
 
@@ -1490,7 +1521,7 @@ class TestService(unittest.TestCase):
             self.cc.stream.send_iq_and_wait_for_reply.mock_calls[0]
 
         self.assertIsInstance(request_iq, aioxmpp.stanza.IQ)
-        self.assertEqual(request_iq.type_, "get")
+        self.assertEqual(request_iq.type_, aioxmpp.structs.IQType.GET)
         self.assertEqual(request_iq.to, TEST_TO)
         self.assertIsInstance(request_iq.payload, pubsub_xso.OwnerRequest)
 
@@ -1521,7 +1552,7 @@ class TestService(unittest.TestCase):
             self.cc.stream.send_iq_and_wait_for_reply.mock_calls[0]
 
         self.assertIsInstance(request_iq, aioxmpp.stanza.IQ)
-        self.assertEqual(request_iq.type_, "get")
+        self.assertEqual(request_iq.type_, aioxmpp.structs.IQType.GET)
         self.assertEqual(request_iq.to, TEST_TO)
         self.assertIsInstance(request_iq.payload, pubsub_xso.OwnerRequest)
 
@@ -1558,7 +1589,7 @@ class TestService(unittest.TestCase):
             self.cc.stream.send_iq_and_wait_for_reply.mock_calls[0]
 
         self.assertIsInstance(request_iq, aioxmpp.stanza.IQ)
-        self.assertEqual(request_iq.type_, "set")
+        self.assertEqual(request_iq.type_, aioxmpp.structs.IQType.SET)
         self.assertEqual(request_iq.to, TEST_TO)
         self.assertIsInstance(request_iq.payload, pubsub_xso.OwnerRequest)
 
@@ -1600,7 +1631,7 @@ class TestService(unittest.TestCase):
             self.cc.stream.send_iq_and_wait_for_reply.mock_calls[0]
 
         self.assertIsInstance(request_iq, aioxmpp.stanza.IQ)
-        self.assertEqual(request_iq.type_, "set")
+        self.assertEqual(request_iq.type_, aioxmpp.structs.IQType.SET)
         self.assertEqual(request_iq.to, TEST_TO)
         self.assertIsInstance(request_iq.payload, pubsub_xso.OwnerRequest)
 

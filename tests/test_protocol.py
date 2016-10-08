@@ -1,8 +1,30 @@
+########################################################################
+# File name: test_protocol.py
+# This file is part of: aioxmpp
+#
+# LICENSE
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Lesser General Public License as
+# published by the Free Software Foundation, either version 3 of the
+# License, or (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public
+# License along with this program.  If not, see
+# <http://www.gnu.org/licenses/>.
+#
+########################################################################
 import asyncio
 import unittest
 import unittest.mock
 
 import aioxmpp.stanza as stanza
+import aioxmpp.structs as structs
 import aioxmpp.xso as xso
 import aioxmpp.nonza as nonza
 import aioxmpp.errors as errors
@@ -534,7 +556,7 @@ class TestXMLStream(unittest.TestCase):
         )
 
     def test_send_xso(self):
-        st = FakeIQ("get")
+        st = FakeIQ(structs.IQType.GET)
         st.id_ = "id"
         st.from_ = JID.fromstr("u1@foo.example/test")
         st.to = JID.fromstr("u2@foo.example/test")
@@ -829,7 +851,7 @@ class TestXMLStream(unittest.TestCase):
             )
         )
         with self.assertRaises(ValueError) as ctx:
-            p.send_xso(stanza.IQ("get"))
+            p.send_xso(stanza.IQ(structs.IQType.GET))
         self.assertIs(exc, ctx.exception)
 
     def test_starttls_reraises_connection_lost_error(self):

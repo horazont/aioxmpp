@@ -1,135 +1,107 @@
+########################################################################
+# File name: presence_info.py
+# This file is part of: aioxmpp
+#
+# LICENSE
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Lesser General Public License as
+# published by the Free Software Foundation, either version 3 of the
+# License, or (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public
+# License along with this program.  If not, see
+# <http://www.gnu.org/licenses/>.
+#
+########################################################################
 import asyncio
-import functools
-import getpass
 import itertools
-import logging
 import pathlib
 
-try:
-    import readline  # NOQA
-except ImportError:
-    pass
-
-import aioxmpp.security_layer
-import aioxmpp.node
-import aioxmpp.structs
-import aioxmpp.entitycaps
 import aioxmpp.disco
+import aioxmpp.entitycaps
 import aioxmpp.presence
 
-
-@asyncio.coroutine
-def show_info(from_, disco):
-    info = yield from disco.query_info(from_)
-    print("{}:".format(from_))
-    print("  features:")
-    for feature in info.features:
-        print("    {!r}".format(feature))
-
-    print("  identities:")
-    identities = list(info.identities)
-    identity_key = lambda ident: (ident.category, ident.type_)
-    identities.sort(key=identity_key)
-    for (category, type_), identities in (
-            itertools.groupby(info.identities, identity_key)):
-        print("    category={!r} type={!r}".format(category, type_))
-        subidentities = list(identities)
-        subidentities.sort(key=lambda ident: ident.lang)
-        for identity in subidentities:
-            print("      [{}] {!r}".format(identity.lang, identity.name))
+from framework import Example, exec_example
 
 
-def on_available(disco, full_jid, stanza):
-    asyncio.async(
-        show_info(full_jid, disco)
-    )
-
-
-@asyncio.coroutine
-def main(jid, password):
-    @asyncio.coroutine
-    def get_password(client_jid, nattempt):
-        if nattempt > 1:
-            # abort, as we cannot properly re-ask the user
-            return None
-        return password
-
-    client = aioxmpp.node.PresenceManagedClient(
-        jid,
-        aioxmpp.security_layer.tls_with_password_based_authentication(
-            get_password,
-            certificate_verifier_factory=aioxmpp.security_layer._NullVerifier
+class PresenceInfo(Example):
+    def prepare_argparse(self):
+        super().prepare_argparse()
+        self.argparse.add_argument(
+            "--system-capsdb",
+            type=pathlib.Path,
+            default=None,
+            metavar="DIR",
+            help="Path to the capsdb",
         )
-    )
-    failure_future = asyncio.Future()
-    connected_future = asyncio.Future()
-    client.on_failure.connect(
-        failure_future,
-        client.on_failure.AUTO_FUTURE
-    )
-    client.on_stream_established.connect(
-        connected_future,
-        client.on_stream_established.AUTO_FUTURE
-    )
+        self.argparse.add_argument(
+            "--user-capsdb",
+            metavar="DIR",
+            type=pathlib.Path,
+            default=pathlib.Path().cwd() / "user_hashes",
+            help="Path to the user capsdb (defaults to user_hashes/)",
+        )
 
-    # summon the entitycaps service
-    caps = client.summon(aioxmpp.entitycaps.Service)
+        self.argparse.epilog = """
+        Point --system-capsdb to a directory containing the capsdb
+        (<https://github.com/xnyhps/capsdb>) to speed up fetching of
+        capabilities of peers.
+        """
 
-    # set a possible path for the capsdb cache
-    caps.cache.set_system_db_path(pathlib.Path("./hashes/").absolute())
-    caps.cache.set_user_db_path(pathlib.Path("./user_hashes/").absolute())
+    async def _show_info(self, full_jid):
+        info = await self.disco.query_info(full_jid)
+        print("{}:".format(full_jid))
+        print("  features:")
+        for feature in info.features:
+            print("    {!r}".format(feature))
 
-    # use the presence service to find targets for querying the info
-    presence_tracker = client.summon(aioxmpp.presence.Service)
-    presence_tracker.on_available.connect(
-        functools.partial(on_available, client.summon(aioxmpp.disco.Service))
-    )
+        print("  identities:")
+        identities = list(info.identities)
 
-    client.presence = aioxmpp.structs.PresenceState(True)
+        def identity_key(identity):
+            return identity.category, identity.type_
 
-    print("connecting...")
-    done, waiting = yield from asyncio.wait(
-        [
-            connected_future,
-            failure_future
-        ],
-        return_when=asyncio.FIRST_COMPLETED
-    )
+        identities.sort(key=identity_key)
 
-    if failure_future in done:
-        print("failed to connect!")
-        yield from failure_future  # this will raise
-        return
+        for (category, type_), identities in (
+                itertools.groupby(info.identities, identity_key)):
+            print("    category={!r} type={!r}".format(category, type_))
+            subidentities = list(identities)
+            subidentities.sort(key=lambda ident: ident.lang)
+            for identity in subidentities:
+                print("      [{}] {!r}".format(identity.lang, identity.name))
 
-    print("waiting for the presence rain to start...")
-    yield from asyncio.sleep(10)
+    def _on_available(self, full_jid, stanza):
+        asyncio.ensure_future(self._show_info(full_jid))
+
+    def make_simple_client(self):
+        client = super().make_simple_client()
+        self.disco = client.summon(aioxmpp.disco.Service)
+        self.caps = client.summon(aioxmpp.entitycaps.Service)
+
+        if self.args.system_capsdb:
+            self.caps.cache.set_system_db_path(self.args.system_capsdb)
+        self.caps.cache.set_user_db_path(self.args.user_capsdb)
+
+        self.presence = client.summon(aioxmpp.presence.Service)
+        self.presence.on_available.connect(
+            self._on_available
+        )
+
+        return client
+
+    async def run_simple_example(self):
+        for i in range(5, 0, -1):
+            print("going to wait {} more seconds for further "
+                  "presence".format(i))
+            await asyncio.sleep(1)
+
 
 if __name__ == "__main__":
-    import os
-
-    print("""\
-Tip: symlink the [capsdb][1] hashes directory to
-
-    {}/hashes
-
-This will allow the implementation to load hashes from the capsdb, improving
-performance by not having to query the peers for their capabilities. In
-addition, creating a ``user_hashes`` directory in the same directory as the
-hashes symlink will allow the implementation to store hashes which were not in
-the capsdb for future use.
-
-   [1]: https://github.com/xnyhps/capsdb""".format(
-        os.getcwd()
-    ))
-    print()
-
-    jid = aioxmpp.structs.JID.fromstr(input("Account JID: "))
-    pwd = getpass.getpass()
-
-    logging.basicConfig(
-        level=logging.INFO
-    )
-
-    logging.getLogger("aioxmpp.entitycaps").setLevel(logging.DEBUG)
-
-    asyncio.get_event_loop().run_until_complete(main(jid, pwd))
+    exec_example(PresenceInfo())
