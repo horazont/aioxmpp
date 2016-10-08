@@ -8,6 +8,11 @@ Changelog
 Version 0.7
 ===========
 
+* **License change**: As of version 0.7, :mod:`aioxmpp` is distributed under the
+  terms of the GNU Lesser General Public License version 3 or later (LGPLv3+).
+  The exact terms are, as usual, found by taking a look at ``COPYING.LESSER`` in
+  the source code repository.
+
 * :func:`aioxmpp.security_layer.make`
 
 * Fix bug in :meth:`aioxmpp.xso.ChildValueMultiMap.to_sax` which rendered XSOs
