@@ -70,6 +70,14 @@ class FieldType(enum.Enum):
           for important information regarding typing, restrictions, validation
           and constraints of values in that attribute.
 
+    Each type has the following attributes and methods:
+
+    .. automethod:: allow_upcast
+
+    .. autoattribute:: has_options
+
+    .. autoattribute:: is_multivalued
+
     Quotations in the following attribute descriptions are from said XEP.
 
     .. attribute:: BOOLEAN
@@ -207,13 +215,32 @@ class FieldType(enum.Enum):
 
     @property
     def has_options(self):
+        """
+        true for the ``list-`` field types, false otherwise.
+        """
         return self.value.startswith("list-")
 
     @property
     def is_multivalued(self):
+        """
+        true for the ``-multi`` field types, false otherwise.
+        """
         return self.value.endswith("-multi")
 
     def allow_upcast(self, to):
+        """
+        Return true if the field type may be upcast to the other field type
+        `to`.
+
+        This relation specifies when it is safe to transfer data from this
+        field type to the given other field type `to`.
+
+        This is the case if any of the following holds true:
+
+        * `to` is equal to this type
+        * this type is :attr:`TEXT_SINGLE` and `to` is :attr:`TEXT_PRIVATE`
+        """
+
         if self == to:
             return True
         print(self, to)

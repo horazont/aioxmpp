@@ -28,6 +28,7 @@ extend its functionality or provide backwards compatibility.
 
    disco
    entitycaps
+   forms
    muc
    presence
    pubsub

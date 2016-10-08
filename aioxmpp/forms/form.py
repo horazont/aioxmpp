@@ -1,33 +1,12 @@
 import abc
-import collections
 import copy
 
-import aioxmpp.xso as xso
-
 from . import xso as forms_xso
-
-
-descriptor_ns = "{jabber:x:data}field"
+from . import fields as fields
 
 
 def descriptor_attr_name(descriptor):
     return "_descriptor_{:x}".format(id(descriptor))
-
-
-class AbstractDescriptor(metaclass=abc.ABCMeta):
-    attribute_name = None
-    root_class = None
-
-    @abc.abstractmethod
-    def descriptor_keys(self):
-        """
-        Return an iterator with the descriptor keys for this descriptor. The
-        keys will be added to the :attr:`DescriptorClass.DESCRIPTOR_KEYS`
-        mapping, pointing to the descriptor.
-
-        Duplicate keys will lead to a :class:`TypeError` being raised during
-        declaration of the class.
-        """
 
 
 class DescriptorClass(abc.ABCMeta):
@@ -86,7 +65,7 @@ class DescriptorClass(abc.ABCMeta):
         descriptors = [
             (attribute_name, descriptor)
             for attribute_name, descriptor in namespace.items()
-            if isinstance(descriptor, AbstractDescriptor)
+            if isinstance(descriptor, fields.AbstractDescriptor)
         ]
 
         if any(descriptor.root_class is not None
@@ -129,7 +108,7 @@ class DescriptorClass(abc.ABCMeta):
         except AttributeError:
             pass
         else:
-            if isinstance(existing, AbstractDescriptor):
+            if isinstance(existing, fields.AbstractDescriptor):
                 return True
         return False
 
@@ -137,7 +116,7 @@ class DescriptorClass(abc.ABCMeta):
         if self._is_descriptor_attribute(name):
             raise AttributeError("descriptor attributes cannot be set")
 
-        if not isinstance(value, AbstractDescriptor):
+        if not isinstance(value, fields.AbstractDescriptor):
             return super().__setattr__(name, value)
 
         if self.__subclasses__():
@@ -196,7 +175,7 @@ class DescriptorClass(abc.ABCMeta):
 
            The intended audience for this method are developers of
            :class:`AbstractDescriptor` subclasses, which are generally only
-           expected to live in the :mod:`aioxmpp` package.
+        expected to live in the :mod:`aioxmpp` package.
 
            Thus, you should not expect this API to be stable. If you have a
            use-case for using this function outside of :mod:`aioxmpp`, please
@@ -227,565 +206,59 @@ class DescriptorClass(abc.ABCMeta):
             self.DESCRIPTOR_MAP[key] = descriptor
 
 
-class AbstractField(AbstractDescriptor):
-    def __init__(self, var, *, required=False, desc=None, label=None):
-        super().__init__()
-        self._var = var
-        self.required = required
-        self.desc = desc
-        self.label = label
-
-    def descriptor_keys(self):
-        yield descriptor_ns, self._var
-
-    @property
-    def desc(self):
-        return self._desc
-
-    @desc.setter
-    def desc(self, value):
-        if value is not None and any(ch == "\r" or ch == "\n" for ch in value):
-            raise ValueError("desc must not contain newlines")
-        self._desc = value
-
-    @desc.deleter
-    def desc(self):
-        self._desc = None
-
-    @property
-    def var(self):
-        return self._var
-
-    @abc.abstractmethod
-    def default(self):
-        pass
-
-    @abc.abstractmethod
-    def create_bound(self, for_instance):
-        pass
-
-    def make_bound(self, for_instance):
-        try:
-            return for_instance._descriptor_data[self]
-        except KeyError:
-            bound = self.create_bound(for_instance)
-            for_instance._descriptor_data[self] = bound
-            return bound
-
-    def __get__(self, instance, type_):
-        if instance is None:
-            return self
-        return self.make_bound(instance)
-
-
-class BoundField(metaclass=abc.ABCMeta):
-    def __init__(self, field, instance):
-        super().__init__()
-        self._field = field
-        self.instance = instance
-
-    @property
-    def field(self):
-        return self._field
-
-    def __repr__(self):
-        return "<bound {!r} for {!r} at 0x{:x}>".format(
-            self._field,
-            self.instance,
-            id(self),
-        )
-
-    def __deepcopy__(self, memo):
-        result = copy.copy(self)
-        for k, v in self.__dict__.items():
-            if k == "_field" or k == "instance":
-                continue
-            setattr(result, k, copy.deepcopy(v, memo))
-        return result
-
-    @property
-    def desc(self):
-        try:
-            return self._desc
-        except AttributeError:
-            return self._field.desc
-
-    @desc.setter
-    def desc(self, value):
-        self._desc = value
-
-    @property
-    def label(self):
-        try:
-            return self._label
-        except AttributeError:
-            return self._field.label
-
-    @label.setter
-    def label(self, value):
-        self._label = value
-
-    @property
-    def required(self):
-        try:
-            return self._required
-        except AttributeError:
-            return self._field.required
-
-    @required.setter
-    def required(self, value):
-        self._required = value
-
-    def clone_for(self, other_instance, memo=None):
-        if memo is None:
-            result = copy.deepcopy(self)
-        else:
-            result = copy.deepcopy(self, memo)
-        result.instance = other_instance
-        return result
-
-    @abc.abstractmethod
-    def load(self, field_xso):
-        """
-        Load the field information from a data field.
-
-        :param field_xso: XSO describing the field.
-        :type field_xso: :class:`~.Field`
-
-        This loads the current value, description, label and possibly options
-        from the `field_xso`, shadowing the information from the declaration of
-        the field on the class.
-
-        This method is must be overriden and is thus marked abstract. However,
-        when called from a subclass, it loads the :attr:`desc`, :attr:`label`
-        and :attr:`required` from the given `field_xso`. Subclasses are
-        supposed to implement a mechansim to load options and/or values from
-        the `field_xso` and then call this implementation through
-        :func:`super`.
-        """
-        if field_xso.desc:
-            self._desc = field_xso.desc
-
-        if field_xso.label:
-            self._label = field_xso.label
-
-        self._required = field_xso.required
-
-    @abc.abstractmethod
-    def render(self, *, use_local_metadata=True):
-        """
-        Return a :class:`~.Field` containing the values and metadata set in the
-        field.
-
-        :param use_local_metadata: if true, the description, label and required
-                                   metadata can be sourced from the field
-                                   descriptor associated with this bound field.
-        :type use_local_metadata: :class:`bool`
-        :return: A new :class:`~.Field` instance.
-
-        The returned object uses the values accessible through this object;
-        that means, any values set for e.g. :attr:`desc` take precedence over
-        the values declared at the class level. If `use_local_metadata` is
-        false, values declared at the class level are not used if no local
-        values are declared. This is useful when generating a reply to a form
-        received by a peer, as it avoids sending a modified form.
-
-        This method is must be overriden and is thus marked abstract. However,
-        when called from a subclass, it creates the :class:`~.Field` instance
-        and initialies its :attr:`~.Field.var`, :attr:`~.Field.type_`,
-        :attr:`~.Field.desc`, :attr:`~.Field.required` and
-        :attr:`~.Field.label` attributes and returns the result. Subclasses are
-        supposed to override this method, call the base implementation through
-        :func:`super` to obtain the :class:`~.Field` instance and then fill in
-        the values and/or options.
-        """
-
-        result = forms_xso.Field(
-            var=self.field.var,
-            type_=self.field.FIELD_TYPE,
-        )
-
-        if use_local_metadata:
-            result.desc = self.desc
-            result.label = self.label
-            result.required = self.required
-        else:
-            try:
-                result.desc = self._desc
-            except AttributeError:
-                pass
-
-            try:
-                result.label = self._label
-            except AttributeError:
-                pass
-
-            try:
-                result.required = self._required
-            except AttributeError:
-                pass
-
-        return result
-
-
-class BoundSingleValueField(BoundField):
-    @property
-    def value(self):
-        try:
-            return self._value
-        except AttributeError:
-            # call through to field
-            self._value = self._field.default()
-            return self._value
-
-    @value.setter
-    def value(self, value):
-        self._value = self._field.type_.coerce(value)
-
-    def load(self, field_xso):
-        try:
-            value = field_xso.values[0]
-        except IndexError:
-            value = self._field.default()
-        else:
-            value = self._field.type_.parse(value)
-
-        self._value = value
-
-        super().load(field_xso)
-
-    def render(self, **kwargs):
-        result = super().render(**kwargs)
-        result.values[:] = [
-            self.field.type_.format(self._value)
-        ]
-
-        return result
-
-
-class BoundMultiValueField(BoundField):
-    @property
-    def value(self):
-        try:
-            return self._value
-        except AttributeError:
-            self.value = self._field.default()
-            return self._value
-
-    @value.setter
-    def value(self, values):
-        coerce = self._field.type_.coerce
-        self._value = tuple(
-            coerce(v)
-            for v in values
-        )
-
-    def load(self, field_xso):
-        self._value = tuple(
-            self._field.type_.parse(v)
-            for v in field_xso.values
-        )
-
-        super().load(field_xso)
-
-    def render(self, **kwargs):
-        result = super().render(**kwargs)
-        result.values[:] = (
-            self.field.type_.format(v)
-            for v in self._value
-        )
-        return result
-
-
-class BoundOptionsField(BoundField):
-    @property
-    def options(self):
-        try:
-            return self._options
-        except AttributeError:
-            return self.field.options
-
-    @options.setter
-    def options(self, value):
-        iterator = (value.items()
-                    if isinstance(value, collections.abc.Mapping)
-                    else value)
-        self._options = collections.OrderedDict(
-            (self.field.type_.coerce(k), v)
-            for k, v in iterator
-        )
-
-    def load(self, field_xso):
-        self._options = collections.OrderedDict(
-            field_xso.options
-        )
-        super().load(field_xso)
-
-    def render(self, **kwargs):
-        format_ = self._field.type_.format
-        field_xso = super().render(**kwargs)
-        field_xso.options.update(
-            (format_(k), v)
-            for k, v in self.options.items()
-        )
-        return field_xso
-
-
-class BoundSelectField(BoundOptionsField):
-    @property
-    def value(self):
-        try:
-            return self._value
-        except AttributeError:
-            self._value = self.field.default()
-            return self._value
-
-    @value.setter
-    def value(self, value):
-        options = self.options
-        if value not in options:
-            raise ValueError("{!r} not in field options: {!r}".format(
-                value,
-                tuple(options.keys()),
-            ))
-
-        self._value = value
-
-    def load(self, field_xso):
-        try:
-            value = field_xso.values[0]
-        except IndexError:
-            try:
-                del self._value
-            except AttributeError:
-                pass
-        else:
-            self._value = self.field.type_.parse(value)
-
-        super().load(field_xso)
-
-    def render(self, **kwargs):
-        format_ = self._field.type_.format
-        field_xso = super().render(**kwargs)
-        value = self.value
-        if value is not None:
-            field_xso.values[:] = [format_(value)]
-        return field_xso
-
-
-class BoundMultiSelectField(BoundOptionsField):
-    @property
-    def value(self):
-        try:
-            return self._value
-        except AttributeError:
-            self._value = self.field.default()
-            return self._value
-
-    @value.setter
-    def value(self, values):
-        new_values = frozenset(values)
-        options = set(self.options.keys())
-        invalid = new_values - options
-        try:
-            raise ValueError(
-                "{!r} not in field options: {!r}".format(
-                    next(iter(invalid)),
-                    tuple(self.options.keys())
-                )
-            )
-        except StopIteration:  # invalid is empty -> all valid
-            pass
-
-        self._value = new_values
-
-    def load(self, field_xso):
-        self._value = frozenset(
-            self.field.type_.parse(value)
-            for value in field_xso.values
-        )
-        super().load(field_xso)
-
-    def render(self, **kwargs):
-        format_ = self.field.type_.format
-
-        result = super().render(**kwargs)
-        result.values[:] = [
-            format_(value)
-            for value in self.value
-        ]
-        return result
-
-
-class TextSingle(AbstractField):
-    """
-    Represent a ``"text-single"`` input with the given `var`.
-
-    :param var: The var attribute of the Data Form field.
-    :type var: :class:`str`
-    :param type_: The type of the data, defaults to :class:`~.xso.String`.
-    :type type_: :class:`~.xso.AbstractType`
-    :param default: A default value to initialise the field.
-    :param required: Flag to indicate that the field is required.
-    :type required: :class:`bool`
-    :param desc: Description text for the field, e.g. for tool-tips.
-    :type desc: :class:`str`, without newlines
-    :param label: Short, human-readable label for the field
-    :type label: :class:`str`
-
-    The arguments `required`, `desc` and `label` are only used when generating
-    locally; they are ignored when parsing forms from :class:`Data` objects.
-
-    `var` is used to match the field with the corresponding :class:`Field`
-    object in the :class:`Data`. A `var` must be unique within a :class:`Form`.
-
-    `type_` is used to :meth:`~.xso.AbstractType.parse` the value from received
-    :class:`Field` objects and :meth:`~.xso.AbstractType.format` the value when
-    generating :class:`Field` objects to send a form.
-    """
-    FIELD_TYPE = forms_xso.FieldType.TEXT_SINGLE
-
-    def __init__(self, var, type_=xso.String(), *,
-                 default=None,
-                 **kwargs):
-        super().__init__(var, **kwargs)
-        self._type = type_
-        self._default = default
-
-    def default(self):
-        return self._default
-
-    @property
-    def type_(self):
-        return self._type
-
-    def create_bound(self, for_instance):
-        return BoundSingleValueField(
-            self,
-            for_instance,
-        )
-
-
-class JIDSingle(TextSingle):
-    """
-    Represent a ``"jid-single"`` input with the given `var`.
-
-    The arguments have identical semantics to those to :class:`InputLine`, see
-    the documentation there for details. The only exception is `type_`, which
-    defaults to :class:`~.xso.JID` instead of :class:`~.xso.String`.
-    """
-    FIELD_TYPE = forms_xso.FieldType.JID_SINGLE
-
-    def __init__(self, var, type_=xso.JID(), **kwargs):
-        super().__init__(var, type_=type_, **kwargs)
-
-
-class TextPrivate(TextSingle):
-    FIELD_TYPE = forms_xso.FieldType.TEXT_PRIVATE
-
-
-class Boolean(TextSingle):
-    FIELD_TYPE = forms_xso.FieldType.BOOLEAN
-
-    def __init__(self, var, type_=xso.Bool(), *, default=False, **kwargs):
-        super().__init__(var, type_=type_, default=default, **kwargs)
-
-
-class TextMulti(AbstractField):
-    FIELD_TYPE = forms_xso.FieldType.TEXT_MULTI
-
-    def __init__(self, var, type_=xso.String(), *,
-                 default=(), **kwargs):
-        super().__init__(var, **kwargs)
-        self._type = type_
-        self._default = default
-
-    @property
-    def type_(self):
-        return self._type
-
-    def create_bound(self, for_instance):
-        return BoundMultiValueField(self, for_instance)
-
-    def default(self):
-        return self._default
-
-
-class JIDMulti(TextMulti):
-    FIELD_TYPE = forms_xso.FieldType.JID_MULTI
-
-    def __init__(self, var, type_=xso.JID(), **kwargs):
-        super().__init__(var, type_=type_, **kwargs)
-
-
-class AbstractChoiceField(AbstractField):
-    def __init__(self, var, *,
-                 type_=xso.String(),
-                 options=[],
-                 **kwargs):
-        super().__init__(var, **kwargs)
-        iterator = (options.items()
-                    if isinstance(options, collections.abc.Mapping)
-                    else options)
-        self.options = collections.OrderedDict(
-            (type_.coerce(k), v)
-            for k, v in iterator
-        )
-        self._type = type_
-
-    @property
-    def type_(self):
-        return self._type
-
-
-class ListSingle(AbstractChoiceField):
-    FIELD_TYPE = forms_xso.FieldType.LIST_SINGLE
-
-    def __init__(self, var, *, default=None, **kwargs):
-        super().__init__(var, **kwargs)
-        if default is not None and default not in self.options:
-            raise ValueError("invalid default: not in options")
-        self._default = default
-
-    def create_bound(self, for_instance):
-        return BoundSelectField(self, for_instance)
-
-    def default(self):
-        return self._default
-
-
-class ListMulti(AbstractChoiceField):
-    FIELD_TYPE = forms_xso.FieldType.LIST_MULTI
-
-    def __init__(self, var, *, default=frozenset(), **kwargs):
-        super().__init__(var, **kwargs)
-        if any(value not in self.options for value in default):
-            raise ValueError(
-                "invalid default: not in options"
-            )
-        self._default = frozenset(default)
-
-    def create_bound(self, for_instance):
-        return BoundMultiSelectField(self, for_instance)
-
-    def default(self):
-        return self._default
-
-
 class FormClass(DescriptorClass):
     def from_xso(self, xso):
         """
         Construct and return an instance from the given `xso`.
+
+        .. note::
+
+           This is a static method (classmethod), even though sphinx does not
+           document it as such.
+
+        :param xso: A :xep:`4` data form
+        :type xso: :class:`~.Data`
+        :raises ValueError: if the ``FORM_TYPE`` mismatches
+        :raises ValueError: if field types mismatch
+        :return: newly created instance of this class
+
+        The fields from the given `xso` are matched against the fields on the
+        form. Any matching field loads its data from the `xso` field. Fields
+        which occur on the form template but not in the `xso` are skipped.
+        Fields which occur in the `xso` but not on the form template are also
+        skipped (but are re-emitted when the form is rendered as reply, see
+        :meth:`~.Form.render_reply`).
+
+        If the form template has a ``FORM_TYPE`` attribute and the incoming
+        `xso` also has a ``FORM_TYPE`` field, a mismatch between the two values
+        leads to a :class:`ValueError`.
+
+        The field types of matching fields are checked. If the field type on
+        the incoming XSO may not be upcast to the field type declared on the
+        form (see :meth:`~.FieldType.allow_upcast`), a :class:`ValueError` is
+        raised.
         """
+
+        my_form_type = getattr(self, "FORM_TYPE", None)
 
         f = self()
         for field in xso.fields:
             if field.var == "FORM_TYPE":
+                if    (my_form_type is not None and
+                       field.type_ == forms_xso.FieldType.HIDDEN and
+                       field.values):
+                    if my_form_type != field.values[0]:
+                        raise ValueError(
+                            "mismatching FORM_TYPE ({!r} != {!r})".format(
+                                field.values[0],
+                                my_form_type,
+                            )
+                        )
                 continue
             if field.var is None:
                 continue
 
-            key = descriptor_ns, field.var
+            key = fields.descriptor_ns, field.var
             try:
                 descriptor = self.DESCRIPTOR_MAP[key]
             except KeyError:
@@ -817,8 +290,14 @@ class Form(metaclass=FormClass):
 
     .. autosummary::
 
-       InputLine
-       InputJID
+       TextSingle
+       TextMulti
+       TextPrivate
+       JIDSingle
+       JIDMulti
+       ListSingle
+       ListMulti
+       Boolean
 
     A form template can be instantiated by two different means:
 
@@ -902,7 +381,7 @@ class Form(metaclass=FormClass):
                 continue
             if field_xso.var == "FORM_TYPE":
                 continue
-            key = descriptor_ns, field_xso.var
+            key = fields.descriptor_ns, field_xso.var
             try:
                 descriptor = self.DESCRIPTOR_MAP[key]
             except KeyError:
