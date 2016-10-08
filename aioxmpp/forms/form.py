@@ -220,6 +220,8 @@ class FormClass(DescriptorClass):
         :type xso: :class:`~.Data`
         :raises ValueError: if the ``FORM_TYPE`` mismatches
         :raises ValueError: if field types mismatch
+        :raises ValueError: if the :attr:`~.Data.type_` does not indicate a
+                            form
         :return: newly created instance of this class
 
         The fields from the given `xso` are matched against the fields on the
@@ -237,9 +239,19 @@ class FormClass(DescriptorClass):
         the incoming XSO may not be upcast to the field type declared on the
         form (see :meth:`~.FieldType.allow_upcast`), a :class:`ValueError` is
         raised.
+
+        If the :attr:`~.Data.type_` does not indicate an actual form (but
+        rather a cancellation request or tabular result), :class:`ValueError`
+        is raised.
         """
 
         my_form_type = getattr(self, "FORM_TYPE", None)
+
+        if     (xso.type_ != forms_xso.DataType.FORM and
+                xso.type_ != forms_xso.DataType.SUBMIT):
+            raise ValueError("unexpected form type: {!r}".format(
+                xso.type_
+            ))
 
         f = self()
         for field in xso.fields:
@@ -362,18 +374,22 @@ class Form(metaclass=FormClass):
 
     def render_reply(self):
         """
-        Create a :class:`Data` object equal to the object from which the from
+        Create a :class:`~.Data` object equal to the object from which the from
         was created through :meth:`from_xso`, except that the values of the
         fields are exchanged with the values set on the form.
 
         Fields which have no corresponding form descriptor are left untouched.
         Fields which are accessible through form descriptors, but are not in
-        the original :class:`Data` are not included in the output.
+        the original :class:`~.Data` are not included in the output.
 
         This method only works on forms created through :meth:`from_xso`.
+
+        The resulting :class:`~.Data` instance has the :attr:`~.Data.type_` set
+        to :attr:`~.DataType.SUBMIT`.
         """
 
         data = copy.copy(self._recv_xso)
+        data.type_ = forms_xso.DataType.SUBMIT
         data.fields = list(self._recv_xso.fields)
 
         for i, field_xso in enumerate(data.fields):

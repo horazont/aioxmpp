@@ -416,28 +416,24 @@ class TestForm(unittest.TestCase):
 
     def test_from_xso_checks_data_type(self):
         reject = [
-            forms_xso.DataType.SUBMIT,
+            forms_xso.DataType.RESULT,
             forms_xso.DataType.CANCEL,
         ]
 
         class F(form.Form):
-            FORM_TYPE = "foo"
+            pass
 
-        tree = forms_xso.Data(
-            type_=forms_xso.DataType.FORM
-        )
-        tree.fields.append(
-            forms_xso.Field(
-                type_=forms_xso.FieldType.HIDDEN,
-                values=["bar"],
-                var="FORM_TYPE"
-            )
-        )
+        for t in forms_xso.DataType:
+            tree = forms_xso.Data(type_=t)
 
-        with self.assertRaisesRegex(
-                ValueError,
-                "mismatching FORM_TYPE"):
-            F.from_xso(tree)
+            if t in reject:
+                with self.assertRaisesRegex(
+                        ValueError,
+                        r"unexpected form type",
+                        msg="for {}".format(t)):
+                    F.from_xso(tree)
+            else:
+                F.from_xso(tree)
 
     def test_from_xso_single_field(self):
         class F(form.Form):
@@ -649,6 +645,10 @@ class TestForm(unittest.TestCase):
 
         result = f.render_reply()
         self.assertIsInstance(result, forms_xso.Data)
+        self.assertEqual(
+            result.type_,
+            forms_xso.DataType.SUBMIT,
+        )
         self.assertEqual(
             len(result.fields),
             3
