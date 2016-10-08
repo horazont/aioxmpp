@@ -60,3 +60,29 @@ listed below.
 
 * ``nick`` serves as fallback for the ``--nick`` option of that example. If
   neither is given, the nickname to use is prompted for on the terminal.
+
+``get_muc_config``
+==================
+
+::
+
+   [muc_config]
+   muc_jid=
+
+* ``muc_jid`` serves as fallback for the ``--muc`` option of that example. If
+  neither is given, the JID is prompted for on the terminal.
+
+  Note that this option is shared with ``get_muc_config``.
+
+``set_muc_config``
+==================
+
+::
+
+   [muc_config]
+   muc_jid=
+
+* ``muc_jid`` serves as fallback for the ``--muc`` option of that example. If
+  neither is given, the JID is prompted for on the terminal.
+
+  Note that this option is shared with ``get_muc_config``.

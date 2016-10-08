@@ -90,7 +90,7 @@ class ServerInfo(Example):
         if self.muc_jid is None:
             try:
                 self.muc_jid = aioxmpp.JID.fromstr(
-                    self.config.get("get_muc_config", "muc_jid")
+                    self.config.get("muc_config", "muc_jid")
                 )
             except (configparser.NoSectionError,
                     configparser.NoOptionError):
