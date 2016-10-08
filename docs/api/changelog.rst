@@ -97,6 +97,8 @@ Version 0.7
 * :meth:`aioxmpp.muc.Service.get_room_config`,
   :meth:`aioxmpp.muc.Service.set_room_config`
 
+* :mod:`aioxmpp.forms`
+
 Version 0.6
 ===========
 
