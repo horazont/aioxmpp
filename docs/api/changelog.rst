@@ -94,6 +94,9 @@ Version 0.7
   :class:`ValueError` when an attempt to overwrite an existing listener is made,
   instead of silently replacing the callback.
 
+* :meth:`aioxmpp.muc.Service.get_room_config`,
+  :meth:`aioxmpp.muc.Service.set_room_config`
+
 Version 0.6
 ===========
 

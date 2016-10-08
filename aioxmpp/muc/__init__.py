@@ -22,6 +22,12 @@ Inside rooms, there are occupants:
 
 .. autoclass:: Occupant
 
+Forms
+=====
+
+.. autoclass:: ConfigurationForm
+   :members:
+
 .. currentmodule:: aioxmpp.muc.xso
 
 XSOs
@@ -72,3 +78,6 @@ Owner namespace
 """
 from .service import Service, Occupant, Room  # NOQA
 from . import xso  # NOQA
+from .xso import (  # NOQA
+    ConfigurationForm
+)

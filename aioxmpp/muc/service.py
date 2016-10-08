@@ -843,9 +843,13 @@ class Service(aioxmpp.service.Service):
 
     .. automethod:: join
 
-    .. automethod:: set_affiliation
+    Manage rooms:
 
     .. automethod:: get_room_config
+
+    .. automethod:: set_affiliation
+
+    .. automethod:: set_room_config
 
     """
     on_muc_joined = aioxmpp.callbacks.Signal()
@@ -1181,6 +1185,20 @@ class Service(aioxmpp.service.Service):
 
     @asyncio.coroutine
     def get_room_config(self, mucjid):
+        """
+        Query and return the room configuration form for the given MUC.
+
+        :param mucjid: JID of the room to query
+        :type mucjid: bare :class:`~.JID`
+        :return: data form template for the room configuration
+        :rtype: :class:`aioxmpp.forms.Data`
+
+        .. seealso::
+
+           :class:`~.ConfigurationForm`
+              for a form template to work with the returned form
+        """
+
         if mucjid is None or not mucjid.is_bare:
             raise ValueError("mucjid must be bare JID")
 
@@ -1193,3 +1211,39 @@ class Service(aioxmpp.service.Service):
         return (yield from self.client.stream.send_iq_and_wait_for_reply(
             iq
         )).form
+
+    @asyncio.coroutine
+    def set_room_config(self, mucjid, data):
+        """
+        Set the room configuration using a :xep:`4` data form.
+
+        :param mucjid: JID of the room to query
+        :type mucjid: bare :class:`~.JID`
+        :param data: Filled-out configuration form
+        :type data: :class:`aioxmpp.forms.Data`
+
+        .. seealso::
+
+           :class:`~.ConfigurationForm`
+              for a form template to generate the required form
+
+        A sensible workflow to, for example, set a room to be moderated, could
+        be this::
+
+          form = aioxmpp.muc.ConfigurationForm.from_xso(
+              (await muc_service.get_room_config(mucjid))
+          )
+          form.moderatedroom = True
+          await muc_service.set_rooom_config(mucjid, form.render_reply())
+
+        """
+
+        iq = aioxmpp.stanza.IQ(
+            type_=aioxmpp.structs.IQType.SET,
+            to=mucjid,
+            payload=muc_xso.OwnerQuery(form=data),
+        )
+
+        yield from self.client.stream.send_iq_and_wait_for_reply(
+            iq,
+        )

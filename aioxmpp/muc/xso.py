@@ -354,6 +354,14 @@ class OwnerQuery(xso.XSO):
 
 
 class ConfigurationForm(aioxmpp.forms.Form):
+    """
+    This is a :xep:`4` form template (see :mod:`aioxmpp.forms`) for MUC
+    configuration forms.
+
+    The attribute documentation is auto-generated from :xep:`45`; see there for
+    details on the semantics of each field.
+    """
+
     FORM_TYPE = 'http://jabber.org/protocol/muc#roomconfig'
 
     maxhistoryfetch = aioxmpp.forms.TextSingle(

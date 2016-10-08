@@ -51,25 +51,14 @@ class ServerInfo(Example):
         )
         form = aioxmpp.muc.xso.ConfigurationForm.from_xso(config)
 
-        print("show real jids to: {}".format(
-            form.whois.value
-        ))
-
-        print("secret:", form.roomsecret.value)
+        print("name:", form.roomname.value)
+        print("description:", form.roomdesc.value)
 
         print("moderated?", form.moderatedroom.value)
 
         print("members only?", form.membersonly.value)
 
         print("persistent?", form.persistentroom.value)
-
-        print("admins:")
-        for jid in form.roomadmins.value:
-            print("  {}".format(jid))
-
-        print("owners:")
-        for jid in form.roomowners.value:
-            print("  {}".format(jid))
 
 
 if __name__ == "__main__":

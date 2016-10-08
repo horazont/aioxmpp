@@ -3098,6 +3098,49 @@ class TestService(unittest.TestCase):
 
         self.assertFalse(send_iq.mock_calls)
 
+    def test_set_room_config(self):
+        data = unittest.mock.sentinel.data
+
+        with unittest.mock.patch.object(
+                self.cc.stream,
+                "send_iq_and_wait_for_reply",
+                new=CoroutineMock()) as send_iq:
+            send_iq.return_value = None
+
+            result = run_coroutine(self.s.set_room_config(
+                TEST_MUC_JID,
+                data,
+            ))
+
+        _, (iq,), _ = send_iq.mock_calls[-1]
+
+        self.assertIsInstance(
+            iq,
+            aioxmpp.stanza.IQ
+        )
+        self.assertEqual(
+            iq.type_,
+            aioxmpp.structs.IQType.SET
+        )
+        self.assertEqual(
+            iq.to,
+            TEST_MUC_JID,
+        )
+
+        self.assertIsInstance(
+            iq.payload,
+            muc_xso.OwnerQuery
+        )
+
+        self.assertEqual(
+            iq.payload.form,
+            data,
+        )
+
+        self.assertIsNone(
+            iq.payload.destroy,
+        )
+
     def tearDow(self):
         del self.s
         del self.cc
