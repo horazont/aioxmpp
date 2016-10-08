@@ -13,23 +13,29 @@ Version 0.7
   The exact terms are, as usual, found by taking a look at ``COPYING.LESSER`` in
   the source code repository.
 
-* :func:`aioxmpp.security_layer.make`
+* New XEP implementations:
 
-* Fix bug in :meth:`aioxmpp.xso.ChildValueMultiMap.to_sax` which rendered XSOs
-  with that descriptor useless.
+  * :mod:`aioxmpp.forms` (:xep:`4`): An implementation of the Data Forms XEP.
+    Take a look and see where it gets you.
 
-* :class:`aioxmpp.callbacks.AdHocSignal` now logs when coroutines registered
-  with :meth:`aioxmpp.callbacks.AdHocSignal.SPAWN_WITH_LOOP` raise exceptions or
-  return non-:data:`None` values. See the documentation of
-  :meth:`~aioxmpp.callbacks.AdHocSignal.SPAWN_WITH_LOOP` for details.
+* New features in the :mod:`aioxmpp.xso` submodule:
 
-* :func:`aioxmpp.pubsub.xso.as_payload_class`
+  * The new :class:`aioxmpp.xso.ChildFlag` descriptor is a simplification of the
+    :class:`aioxmpp.xso.ChildTag`. It can be used where the presence or absence of
+    a child element *only* signals a boolean flag.
 
-* Fix documentation on :meth:`aioxmpp.PresenceManagedClient.set_presence`.
+  * The new :class:`aioxmpp.xso.EnumType` type allows using a :mod:`enum`
+    enumeration as XSO descriptor type.
 
-* :class:`aioxmpp.xso.ChildFlag`
+* Often-used names have now been moved to the :mod:`aioxmpp` namespace:
 
-* :class:`aioxmpp.xso.EnumType`
+  * The stanza classes :class:`aioxmpp.IQ`, :class:`aioxmpp.Message`,
+    :class:`aioxmpp.Presence`
+  * The type enumerations (see below) :class:`aioxmpp.IQType`,
+    :class:`aioxmpp.MessageType`, :class:`aioxmpp.PresenceType`
+  * Commonly used structures: :class:`aioxmpp.JID`,
+    :class:`aioxmpp.PresenceState`
+  * Exceptions: :class:`aioxmpp.XMPPCancelError` and its buddies
 
 * **Horribly Breaking Change** in the future: :attr:`aioxmpp.IQ.type_`,
   :attr:`aioxmpp.Message.type_`, :attr:`aioxmpp.Presence.type_`
@@ -94,15 +100,35 @@ Version 0.7
   not found *all* affected pieces of code, but the vast majority. The others can
   be found by inspecting :exc:`DeprecationWarning` warnings being emitted.
 
+* The :func:`aioxmpp.security_layer.make` makes creating a security layer much
+  less cumbersome than before. It provides a simple interface supporting
+  password authentication, certificate pinning and others.
+
+  The interface of this function will be extended in the future when more
+  authentication or certificate verification mechanisms come around.
+
+* The two methods :meth:`aioxmpp.muc.Service.get_room_config`,
+  :meth:`aioxmpp.muc.Service.set_room_config` have been implemented, allowing to
+  manage MUC room configurations.
+
+* Fix bug in :meth:`aioxmpp.xso.ChildValueMultiMap.to_sax` which rendered XSOs
+  with that descriptor useless.
+
+* Fix documentation on :meth:`aioxmpp.PresenceManagedClient.set_presence`.
+
+* :class:`aioxmpp.callbacks.AdHocSignal` now logs when coroutines registered
+  with :meth:`aioxmpp.callbacks.AdHocSignal.SPAWN_WITH_LOOP` raise exceptions or
+  return non-:data:`None` values. See the documentation of
+  :meth:`~aioxmpp.callbacks.AdHocSignal.SPAWN_WITH_LOOP` for details.
+
+* :func:`aioxmpp.pubsub.xso.as_payload_class` is a decorator (akin to
+  :meth:`aioxmpp.IQ.as_payload_class`) to declare that your
+  :class:`~aioxmpp.xso.XSO` shall be allowed as pubsub payload.
+
 * :meth:`~.StanzaStream.register_message_callback` and
   :meth:`~.StanzaStream.register_presence_callback` now explicitly raise
   :class:`ValueError` when an attempt to overwrite an existing listener is made,
   instead of silently replacing the callback.
-
-* :meth:`aioxmpp.muc.Service.get_room_config`,
-  :meth:`aioxmpp.muc.Service.set_room_config`
-
-* :mod:`aioxmpp.forms`
 
 Version 0.6
 ===========
