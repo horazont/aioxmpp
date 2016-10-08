@@ -158,6 +158,11 @@ This example can be modified to be an echo bot by implementing the
 
       client.stream.enqueue_stanza(reply)
 
+.. note::
+
+   A slightly more verbose version can also be found in the examples directory,
+   as ``quickstart_echo_bot.py``.
+
 * :meth:`~aioxmpp.stream.StanzaStream.register_message_callback`. Definitely
   check this out for the semantics of the first two arguments!
 * :class:`aioxmpp.Message`
