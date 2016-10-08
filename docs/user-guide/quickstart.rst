@@ -146,8 +146,16 @@ This example can be modified to be an echo bot by implementing the
 ``message_received`` callback differently::
 
   def message_received(msg):
+      if msg.type_ != aioxmpp.MessageType.CHAT:
+          return
+
+      if not msg.body:
+          # do not reflect anything without a body
+          return
+
       reply = msg.make_reply()
-      reply.body = msg.body
+      reply.body.update(msg.body)
+
       client.stream.enqueue_stanza(reply)
 
 * :meth:`~aioxmpp.stream.StanzaStream.register_message_callback`. Definitely
