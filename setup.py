@@ -40,7 +40,7 @@ setup(
     url="https://github.com/horazont/aioxmpp",
     author="Jonas Wielicki",
     author_email="jonas@wielicki.name",
-    license="GPLv3",
+    license="LGPLv3+",
     classifiers=[
         "Development Status :: 3 - Alpha",
         "Intended Audience :: Developers",
