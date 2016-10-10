@@ -27,9 +27,65 @@ Protocol extensions or in general support for parts of the XMPP protocol are
 implemented using :class:`Service` classes, or rather, classes which use the
 :class:`Meta` metaclass.
 
-Both of these are provided in this module.
+Both of these are provided in this module. To reduce the boilerplate required
+to develop services, :ref:`decorators <api-aioxmpp.service-decorators>` are
+provided which can be used to easily register coroutines and functions as
+stanza handlers, filters and others.
 
 .. autoclass:: Service
+
+.. _api-aioxmpp.service-decorators:
+
+Decorators
+==========
+
+These decorators provide special functionality when used on methods of
+:class:`Service` subclasses.
+
+.. note::
+
+   Inheritance from classes which have any of these decorators on any of its
+   methods is forbidden currently, because of the ambiguities which arise.
+
+.. note::
+
+   These decorators work only on methods declared on :class:`Service`
+   subclasses, as their functionality are implemented in cooperation with the
+   :class:`Meta` metaclass and :class:`Service` itself.
+
+.. autodecorator:: iq_handler
+
+.. autodecorator:: message_handler
+
+.. autodecorator:: presence_handler
+
+.. autodecorator:: inbound_message_filter()
+
+.. autodecorator:: inbound_presence_filter()
+
+.. autodecorator:: outbound_message_filter()
+
+.. autodecorator:: outbound_presence_filter()
+
+Test functions
+--------------
+
+.. autofunction:: is_iq_handler
+
+.. autofunction:: is_message_handler
+
+.. autofunction:: is_presence_handler
+
+.. autofunction:: is_inbound_message_filter
+
+.. autofunction:: is_inbound_presence_filter
+
+.. autofunction:: is_outbound_message_filter
+
+.. autofunction:: is_outbound_presence_filter
+
+Metaclass
+=========
 
 .. autoclass:: Meta([inherit_dependencies=True])
 
@@ -38,8 +94,28 @@ Both of these are provided in this module.
 
 import abc
 import asyncio
+import contextlib
 import logging
 import warnings
+
+import aioxmpp.stream
+
+
+def _automake_magic_attr(obj):
+    obj._aioxmpp_service_handlers = getattr(
+        obj, "_aioxmpp_service_handlers", set()
+    )
+    return obj._aioxmpp_service_handlers
+
+
+def _get_magic_attr(obj):
+    return obj._aioxmpp_service_handlers
+
+
+def _has_magic_attr(obj):
+    return hasattr(
+        obj, "_aioxmpp_service_handlers"
+    )
 
 
 class Meta(abc.ABCMeta):
@@ -201,8 +277,56 @@ class Meta(abc.ABCMeta):
                 next(iter(before_classes & after_classes)).__qualname__
             ))
 
+        for base in bases:
+            if hasattr(base, "SERVICE_HANDLERS") and base.SERVICE_HANDLERS:
+                raise TypeError(
+                    "inheritance from service class with handlers is forbidden"
+                )
+
         namespace["ORDER_BEFORE"] = set(before_classes)
         namespace["ORDER_AFTER"] = set(after_classes)
+
+        SERVICE_HANDLERS = []
+        existing_handlers = set()
+
+        for attr_name, attr_value in namespace.items():
+            if not _has_magic_attr(attr_value):
+                continue
+
+            new_handlers = _get_magic_attr(attr_value)
+
+            unique_handlers = {
+                handler
+                for is_unique, handler in new_handlers
+                if is_unique
+            }
+
+            conflicting = unique_handlers & existing_handlers
+            if conflicting:
+                key = next(iter(conflicting))
+                obj = next(iter(
+                    obj
+                    for obj_key, obj in SERVICE_HANDLERS
+                    if obj_key == key
+                ))
+
+                raise TypeError(
+                    "handler conflict between {!r} and {!r}: "
+                    "both want to use {!r}".format(
+                        obj,
+                        attr_value,
+                        key,
+                    )
+                )
+
+            existing_handlers |= unique_handlers
+
+            SERVICE_HANDLERS.extend(
+                (handler, attr_value)
+                for is_unique, handler in new_handlers
+            )
+
+        namespace["SERVICE_HANDLERS"] = tuple(SERVICE_HANDLERS)
 
         return super().__new__(mcls, name, bases, namespace)
 
@@ -263,6 +387,7 @@ class Service(metaclass=Meta):
 
     def __init__(self, client, *, logger_base=None):
         super().__init__()
+        self._context = contextlib.ExitStack()
         self._client = client
 
         if logger_base is None:
@@ -271,6 +396,14 @@ class Service(metaclass=Meta):
             ]))
         else:
             self.logger = self.derive_logger(logger_base)
+
+        for (handler_cm, additional_args), obj in self.SERVICE_HANDLERS:
+            self._context.enter_context(
+                handler_cm(self,
+                           self._client.stream,
+                           obj.__get__(self, type(self)),
+                           *additional_args)
+            )
 
     def derive_logger(self, logger):
         """
@@ -328,4 +461,348 @@ class Service(metaclass=Meta):
 
         """
         yield from self._shutdown()
+        self._context.close()
         self._client = None
+
+
+def _apply_iq_handler(instance, stream, func, type_, payload_cls):
+    return aioxmpp.stream.iq_handler(stream, type_, payload_cls, func)
+
+
+def _apply_message_handler(instance, stream, func, type_, from_):
+    return aioxmpp.stream.message_handler(stream, type_, from_, func)
+
+
+def _apply_presence_handler(instance, stream, func, type_, from_):
+    return aioxmpp.stream.presence_handler(stream, type_, from_, func)
+
+
+def _apply_inbound_message_filter(instance, stream, func):
+    return aioxmpp.stream.stanza_filter(
+        stream.service_inbound_message_filter,
+        func,
+        type(instance),
+    )
+
+
+def _apply_inbound_presence_filter(instance, stream, func):
+    return aioxmpp.stream.stanza_filter(
+        stream.service_inbound_presence_filter,
+        func,
+        type(instance),
+    )
+
+
+def _apply_outbound_message_filter(instance, stream, func):
+    return aioxmpp.stream.stanza_filter(
+        stream.service_outbound_message_filter,
+        func,
+        type(instance),
+    )
+
+
+def _apply_outbound_presence_filter(instance, stream, func):
+    return aioxmpp.stream.stanza_filter(
+        stream.service_outbound_presence_filter,
+        func,
+        type(instance),
+    )
+
+
+def iq_handler(type_, payload_cls):
+    """
+    Register the decorated coroutine function as IQ request handler.
+
+    :param type_: IQ type to listen for
+    :type type_: :class:`~.IQType`
+    :param payload_cls: Payload XSO class to listen for
+    :type payload_cls: :class:`~.XSO` subclass
+    :raise TypeError: if the decorated object is not a coroutine function
+
+    .. seealso::
+
+       :meth:`~.StanzaStream.register_iq_request_coro`
+          for more details on the `type_` and `payload_cls` arguments
+
+    """
+
+    def decorator(f):
+        if not asyncio.iscoroutinefunction(f):
+            raise TypeError("a coroutine function is required")
+
+        _automake_magic_attr(f).add(
+            (
+                True,
+                (_apply_iq_handler, (type_, payload_cls))
+            )
+        )
+        return f
+    return decorator
+
+
+def message_handler(type_, from_):
+    """
+    Register the decorated function as message handler.
+
+    :param type_: Message type to listen for
+    :type type_: :class:`~.MessageType`
+    :param from_: Sender JIDs to listen for
+    :type from_: :class:`aioxmpp.JID` or :data:`None`
+    :raise TypeError: if the decorated object is a coroutine function
+
+    .. seealso::
+
+       :meth:`~.StanzaStream.register_message_callback`
+          for more details on the `type_` and `from_` arguments
+    """
+
+    def decorator(f):
+        if asyncio.iscoroutinefunction(f):
+            raise TypeError("message_handler must not be a coroutine function")
+
+        _automake_magic_attr(f).add(
+            (
+                True,
+                (_apply_message_handler, (type_, from_))
+            )
+        )
+        return f
+    return decorator
+
+
+def presence_handler(type_, from_):
+    """
+    Register the decorated function as presence stanza handler.
+
+    :param type_: Presence type to listen for
+    :type type_: :class:`~.PresenceType`
+    :param from_: Sender JIDs to listen for
+    :type from_: :class:`aioxmpp.JID` or :data:`None`
+    :raise TypeError: if the decorated object is a coroutine function
+
+    .. seealso::
+
+       :meth:`~.StanzaStream.register_presence_callback`
+          for more details on the `type_` and `from_` arguments
+    """
+
+    def decorator(f):
+        if asyncio.iscoroutinefunction(f):
+            raise TypeError(
+                "presence_handler must not be a coroutine function"
+            )
+
+        _automake_magic_attr(f).add(
+            (
+                True,
+                (_apply_presence_handler, (type_, from_)),
+            )
+        )
+        return f
+    return decorator
+
+
+def inbound_message_filter(f):
+    """
+    Register the decorated function as a service-level inbound message filter.
+
+    :raise TypeError: if the decorated object is a coroutine function
+
+    .. seealso::
+
+       :class:`StanzaStream`
+          for important remarks regarding the use of stanza filters.
+
+    """
+
+    if asyncio.iscoroutinefunction(f):
+        raise TypeError(
+            "inbound_message_filter must not be a coroutine function"
+        )
+
+    _automake_magic_attr(f).add(
+        (
+            True,
+            (_apply_inbound_message_filter, ())
+        ),
+    )
+    return f
+
+
+def inbound_presence_filter(f):
+    """
+    Register the decorated function as a service-level inbound presence filter.
+
+    :raise TypeError: if the decorated object is a coroutine function
+
+    .. seealso::
+
+       :class:`StanzaStream`
+          for important remarks regarding the use of stanza filters.
+
+    """
+
+    if asyncio.iscoroutinefunction(f):
+        raise TypeError(
+            "inbound_presence_filter must not be a coroutine function"
+        )
+
+    _automake_magic_attr(f).add(
+        (
+            True,
+            (_apply_inbound_presence_filter, ())
+        ),
+    )
+    return f
+
+
+def outbound_message_filter(f):
+    """
+    Register the decorated function as a service-level outbound message filter.
+
+    :raise TypeError: if the decorated object is a coroutine function
+
+    .. seealso::
+
+       :class:`StanzaStream`
+          for important remarks regarding the use of stanza filters.
+
+    """
+
+    if asyncio.iscoroutinefunction(f):
+        raise TypeError(
+            "outbound_message_filter must not be a coroutine function"
+        )
+
+    _automake_magic_attr(f).add(
+        (
+            True,
+            (_apply_outbound_message_filter, ())
+        ),
+    )
+    return f
+
+
+def outbound_presence_filter(f):
+    """
+    Register the decorated function as a service-level outbound presence
+    filter.
+
+    :raise TypeError: if the decorated object is a coroutine function
+
+    .. seealso::
+
+       :class:`StanzaStream`
+          for important remarks regarding the use of stanza filters.
+
+    """
+
+    if asyncio.iscoroutinefunction(f):
+        raise TypeError(
+            "outbound_presence_filter must not be a coroutine function"
+        )
+
+    _automake_magic_attr(f).add(
+        (
+            True,
+            (_apply_outbound_presence_filter, ())
+        ),
+    )
+    return f
+
+
+def is_iq_handler(type_, payload_cls_, coro):
+    """
+    Return true if `coro` has been decorated with :func:`iq_handler` for the
+    given `type_` and `payload_cls`.
+    """
+
+    try:
+        handlers = _get_magic_attr(coro)
+    except AttributeError:
+        return False
+
+    return (True, (_apply_iq_handler, (type_, payload_cls_))) in handlers
+
+
+def is_message_handler(type_, from_, cb):
+    """
+    Return true if `cb` has been decorated with :func:`message_handler` for the
+    given `type_` and `from_`.
+    """
+
+    try:
+        handlers = _get_magic_attr(cb)
+    except AttributeError:
+        return False
+
+    return (True, (_apply_message_handler, (type_, from_))) in handlers
+
+
+def is_presence_handler(type_, from_, cb):
+    """
+    Return true if `cb` has been decorated with :func:`presence_handler` for
+    the given `type_` and `from_`.
+    """
+
+    try:
+        handlers = _get_magic_attr(cb)
+    except AttributeError:
+        return False
+
+    return (True, (_apply_presence_handler, (type_, from_))) in handlers
+
+
+def is_inbound_message_filter(cb):
+    """
+    Return true if `cb` has been decorated with :func:`inbound_message_filter`.
+    """
+
+    try:
+        handlers = _get_magic_attr(cb)
+    except AttributeError:
+        return False
+
+    return (True, (_apply_inbound_message_filter, ())) in handlers
+
+
+def is_inbound_presence_filter(cb):
+    """
+    Return true if `cb` has been decorated with
+    :func:`inbound_presence_filter`.
+    """
+
+    try:
+        handlers = _get_magic_attr(cb)
+    except AttributeError:
+        return False
+
+    return (True, (_apply_inbound_presence_filter, ())) in handlers
+
+
+def is_outbound_message_filter(cb):
+    """
+    Return true if `cb` has been decorated with
+    :func:`outbound_message_filter`.
+    """
+
+    try:
+        handlers = _get_magic_attr(cb)
+    except AttributeError:
+        return False
+
+    return (True, (_apply_outbound_message_filter, ())) in handlers
+
+
+def is_outbound_presence_filter(cb):
+    """
+    Return true if `cb` has been decorated with
+    :func:`outbound_presence_filter`.
+    """
+
+    try:
+        handlers = _get_magic_attr(cb)
+    except AttributeError:
+        return False
+
+    return (True, (_apply_outbound_presence_filter, ())) in handlers
