@@ -241,7 +241,7 @@ class TestService(unittest.TestCase):
         self.assertDictEqual({}, s.groups)
 
     def test_setup(self):
-        self.assertSequenceEqual(
+        self.assertCountEqual(
             [
                 unittest.mock.call.stream.register_iq_request_coro(
                     structs.IQType.SET,
@@ -279,7 +279,7 @@ class TestService(unittest.TestCase):
     def test_shutdown(self):
         self.cc.mock_calls.clear()
         run_coroutine(self.s.shutdown())
-        self.assertSequenceEqual(
+        self.assertCountEqual(
             [
                 unittest.mock.call.stream.unregister_presence_callback(
                     structs.PresenceType.UNSUBSCRIBE,
@@ -303,6 +303,51 @@ class TestService(unittest.TestCase):
                 ),
             ],
             self.cc.mock_calls
+        )
+
+    def test_handle_roster_push_is_decorated(self):
+        self.assertTrue(
+            service.is_iq_handler(
+                structs.IQType.SET,
+                roster_xso.Query,
+                roster_service.Service.handle_roster_push,
+            )
+        )
+
+    def test_handle_subscribe_is_decorated(self):
+        self.assertTrue(
+            service.is_presence_handler(
+                structs.PresenceType.SUBSCRIBE,
+                None,
+                roster_service.Service.handle_subscribe,
+            )
+        )
+
+    def test_handle_subscribed_is_decorated(self):
+        self.assertTrue(
+            service.is_presence_handler(
+                structs.PresenceType.SUBSCRIBED,
+                None,
+                roster_service.Service.handle_subscribed,
+            )
+        )
+
+    def test_handle_unsubscribe_is_decorated(self):
+        self.assertTrue(
+            service.is_presence_handler(
+                structs.PresenceType.UNSUBSCRIBE,
+                None,
+                roster_service.Service.handle_unsubscribe,
+            )
+        )
+
+    def test_handle_unsubscribed_is_decorated(self):
+        self.assertTrue(
+            service.is_presence_handler(
+                structs.PresenceType.UNSUBSCRIBED,
+                None,
+                roster_service.Service.handle_unsubscribed,
+            )
         )
 
     def test_request_initial_roster_before_stream_established(self):

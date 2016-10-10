@@ -110,41 +110,6 @@ class Service(aioxmpp.service.Service):
 
         self._presences = {}
 
-        client.stream.register_presence_callback(
-            aioxmpp.structs.PresenceType.AVAILABLE,
-            None,
-            self.handle_presence
-        )
-
-        client.stream.register_presence_callback(
-            aioxmpp.structs.PresenceType.ERROR,
-            None,
-            self.handle_presence
-        )
-
-        client.stream.register_presence_callback(
-            aioxmpp.structs.PresenceType.UNAVAILABLE,
-            None,
-            self.handle_presence
-        )
-
-    @asyncio.coroutine
-    def _shutdown(self):
-        self.client.stream.unregister_presence_callback(
-            aioxmpp.structs.PresenceType.UNAVAILABLE,
-            None
-        )
-
-        self.client.stream.unregister_presence_callback(
-            aioxmpp.structs.PresenceType.ERROR,
-            None
-        )
-
-        self.client.stream.unregister_presence_callback(
-            aioxmpp.structs.PresenceType.AVAILABLE,
-            None
-        )
-
     def get_most_available_stanza(self, peer_jid):
         """
         Return the stanza of the resource with the most available presence.
@@ -194,6 +159,15 @@ class Service(aioxmpp.service.Service):
         except KeyError:
             pass
 
+    @aioxmpp.service.presence_handler(
+        aioxmpp.structs.PresenceType.AVAILABLE,
+        None)
+    @aioxmpp.service.presence_handler(
+        aioxmpp.structs.PresenceType.UNAVAILABLE,
+        None)
+    @aioxmpp.service.presence_handler(
+        aioxmpp.structs.PresenceType.ERROR,
+        None)
     def handle_presence(self, st):
         bare = st.from_.bare()
         resource = st.from_.resource

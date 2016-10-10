@@ -25,8 +25,6 @@ import aioxmpp.presence.service as presence_service
 import aioxmpp.service as service
 import aioxmpp.stanza as stanza
 import aioxmpp.structs as structs
-import aioxmpp.xso as xso
-import aioxmpp.xso.model
 
 from aioxmpp.testutils import (
     make_connected_client,
@@ -50,7 +48,7 @@ class TestService(unittest.TestCase):
         self.s = presence_service.Service(self.cc)
 
     def test_setup(self):
-        self.assertSequenceEqual(
+        self.assertCountEqual(
             self.cc.mock_calls,
             [
                 unittest.mock.call.stream.register_presence_callback(
@@ -75,7 +73,7 @@ class TestService(unittest.TestCase):
         self.cc.mock_calls.clear()
         run_coroutine(self.s.shutdown())
 
-        self.assertSequenceEqual(
+        self.assertCountEqual(
             self.cc.mock_calls,
             [
                 unittest.mock.call.stream.unregister_presence_callback(
@@ -91,6 +89,31 @@ class TestService(unittest.TestCase):
                     None,
                 ),
             ]
+        )
+
+    def test_handle_presence_decorated(self):
+        self.assertTrue(
+            service.is_presence_handler(
+                structs.PresenceType.AVAILABLE,
+                None,
+                presence_service.Service.handle_presence,
+            ),
+        )
+
+        self.assertTrue(
+            service.is_presence_handler(
+                structs.PresenceType.UNAVAILABLE,
+                None,
+                presence_service.Service.handle_presence,
+            ),
+        )
+
+        self.assertTrue(
+            service.is_presence_handler(
+                structs.PresenceType.ERROR,
+                None,
+                presence_service.Service.handle_presence,
+            ),
         )
 
     def test_return_empty_resource_set_for_arbitrary_jid(self):

@@ -346,18 +346,6 @@ class Service(aioxmpp.service.Service):
             "http://jabber.org/protocol/caps"
         )
 
-        self._inbound_filter_token = \
-            node.stream.service_inbound_presence_filter.register(
-                self.handle_inbound_presence,
-                type(self)
-            )
-
-        self._outbound_filter_token = \
-            node.stream.service_outbound_presence_filter.register(
-                self.handle_outbound_presence,
-                type(self)
-            )
-
     @property
     def cache(self):
         """
@@ -384,12 +372,6 @@ class Service(aioxmpp.service.Service):
 
     @asyncio.coroutine
     def _shutdown(self):
-        self.client.stream.service_outbound_presence_filter.unregister(
-            self._outbound_filter_token
-        )
-        self.client.stream.service_inbound_presence_filter.unregister(
-            self._inbound_filter_token
-        )
         self.disco.on_info_changed.disconnect(
             self._info_changed_token
         )
@@ -440,6 +422,7 @@ class Service(aioxmpp.service.Service):
 
         return info
 
+    @aioxmpp.service.outbound_presence_filter
     def handle_outbound_presence(self, presence):
         if (self.ver is not None and
                 presence.type_ == aioxmpp.structs.PresenceType.AVAILABLE):
@@ -450,6 +433,7 @@ class Service(aioxmpp.service.Service):
             )
         return presence
 
+    @aioxmpp.service.inbound_presence_filter
     def handle_inbound_presence(self, presence):
         caps = presence.xep0115_caps
         presence.xep0115_caps = None

@@ -390,7 +390,7 @@ class TestService(unittest.TestCase):
         cc = make_connected_client()
         s = disco_service.Service(cc)
 
-        self.assertSequenceEqual(
+        self.assertCountEqual(
             [
                 unittest.mock.call.stream.register_iq_request_coro(
                     structs.IQType.GET,
@@ -408,7 +408,7 @@ class TestService(unittest.TestCase):
 
     def test_shutdown(self):
         run_coroutine(self.s.shutdown())
-        self.assertSequenceEqual(
+        self.assertCountEqual(
             [
                 unittest.mock.call.stream.unregister_iq_request_coro(
                     structs.IQType.GET,
@@ -420,6 +420,24 @@ class TestService(unittest.TestCase):
                 ),
             ],
             self.cc.mock_calls
+        )
+
+    def test_handle_info_request_is_decorated(self):
+        self.assertTrue(
+            service.is_iq_handler(
+                structs.IQType.GET,
+                disco_xso.InfoQuery,
+                disco_service.Service.handle_info_request,
+            )
+        )
+
+    def test_handle_items_request_is_decorated(self):
+        self.assertTrue(
+            service.is_iq_handler(
+                structs.IQType.GET,
+                disco_xso.ItemsQuery,
+                disco_service.Service.handle_items_request,
+            )
         )
 
     def test_default_response(self):

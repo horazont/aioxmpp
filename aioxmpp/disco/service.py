@@ -304,29 +304,9 @@ class Service(service.Service, Node):
             }
         )
 
-        self.client.stream.register_iq_request_coro(
-            structs.IQType.GET,
-            disco_xso.InfoQuery,
-            self.handle_info_request)
-
-        self.client.stream.register_iq_request_coro(
-            structs.IQType.GET,
-            disco_xso.ItemsQuery,
-            self.handle_items_request)
-
         self.client.on_stream_destroyed.connect(
             self._clear_cache
         )
-
-    @asyncio.coroutine
-    def _shutdown(self):
-        self.client.stream.unregister_iq_request_coro(
-            structs.IQType.GET,
-            disco_xso.InfoQuery)
-        self.client.stream.unregister_iq_request_coro(
-            structs.IQType.GET,
-            disco_xso.ItemsQuery)
-        yield from super()._shutdown()
 
     def _clear_cache(self):
         for fut in self._info_pending.values():
@@ -346,6 +326,9 @@ class Service(service.Service, Node):
             return
         self.on_info_result(jid, node, result)
 
+    @aioxmpp.service.iq_handler(
+        aioxmpp.structs.IQType.GET,
+        disco_xso.InfoQuery)
     @asyncio.coroutine
     def handle_info_request(self, iq):
         request = iq.payload
@@ -376,6 +359,9 @@ class Service(service.Service, Node):
 
         return response
 
+    @aioxmpp.service.iq_handler(
+        aioxmpp.structs.IQType.GET,
+        disco_xso.ItemsQuery)
     @asyncio.coroutine
     def handle_items_request(self, iq):
         request = iq.payload

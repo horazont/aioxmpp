@@ -1054,7 +1054,7 @@ class TestService(unittest.TestCase):
         s = entitycaps_service.Service(cc)
 
         calls = list(cc.mock_calls)
-        self.assertSequenceEqual(
+        self.assertCountEqual(
             calls,
             [
                 unittest.mock.call.
@@ -1090,7 +1090,7 @@ class TestService(unittest.TestCase):
         run_coroutine(s.shutdown())
 
         calls = list(cc.mock_calls)
-        self.assertSequenceEqual(
+        self.assertCountEqual(
             calls,
             [
                 unittest.mock.call.
@@ -1115,6 +1115,20 @@ class TestService(unittest.TestCase):
                     "http://jabber.org/protocol/caps"
                 ),
             ]
+        )
+
+    def test_handle_outbound_presence_is_decorated(self):
+        self.assertTrue(
+            service.is_outbound_presence_filter(
+                entitycaps_service.Service.handle_outbound_presence,
+            )
+        )
+
+    def test_handle_inbound_presence_is_decorated(self):
+        self.assertTrue(
+            service.is_inbound_presence_filter(
+                entitycaps_service.Service.handle_inbound_presence,
+            )
         )
 
     def test_cache_defaults(self):

@@ -426,6 +426,13 @@ class TestService(unittest.TestCase):
                 pubsub_service.Service
             )
 
+    def test_filter_inbound_message_is_decorated(self):
+        self.assertTrue(
+            aioxmpp.service.is_inbound_message_filter(
+                pubsub_service.Service.filter_inbound_message,
+            )
+        )
+
     def test_subscribe(self):
         response = pubsub_xso.Request()
         response.payload = pubsub_xso.Subscription(

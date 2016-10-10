@@ -209,11 +209,7 @@ class Service(aioxmpp.service.Service):
         super().__init__(client, **kwargs)
         self._disco = self._client.summon(aioxmpp.disco.Service)
 
-        client.stream.service_inbound_message_filter.register(
-            self.filter_inbound_message,
-            type(self)
-        )
-
+    @aioxmpp.service.inbound_message_filter
     def filter_inbound_message(self, msg):
         if (msg.xep0060_event is not None and
                 msg.xep0060_event.payload is not None):

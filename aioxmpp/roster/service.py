@@ -359,48 +359,9 @@ class Service(aioxmpp.service.Service):
             self._request_initial_roster
         )
 
-        client.stream.register_iq_request_coro(
-            structs.IQType.SET,
-            roster_xso.Query,
-            self.handle_roster_push)
-        client.stream.register_presence_callback(
-            structs.PresenceType.SUBSCRIBE,
-            None,
-            self.handle_subscribe)
-        client.stream.register_presence_callback(
-            structs.PresenceType.SUBSCRIBED,
-            None,
-            self.handle_subscribed)
-        client.stream.register_presence_callback(
-            structs.PresenceType.UNSUBSCRIBED,
-            None,
-            self.handle_unsubscribed)
-        client.stream.register_presence_callback(
-            structs.PresenceType.UNSUBSCRIBE,
-            None,
-            self.handle_unsubscribe)
-
         self.items = {}
         self.groups = {}
         self.version = None
-
-    @asyncio.coroutine
-    def _shutdown(self):
-        self.client.stream.unregister_presence_callback(
-            structs.PresenceType.UNSUBSCRIBE,
-            None)
-        self.client.stream.unregister_presence_callback(
-            structs.PresenceType.UNSUBSCRIBED,
-            None)
-        self.client.stream.unregister_presence_callback(
-            structs.PresenceType.SUBSCRIBED,
-            None)
-        self.client.stream.unregister_presence_callback(
-            structs.PresenceType.SUBSCRIBE,
-            None)
-        self.client.stream.unregister_iq_request_coro(
-            structs.IQType.SET,
-            roster_xso.Query)
 
     def _update_entry(self, xso_item):
         try:
@@ -446,6 +407,9 @@ class Service(aioxmpp.service.Service):
                 del self.groups[group]
             self.on_entry_removed_from_group(stored_item, group)
 
+    @aioxmpp.service.iq_handler(
+        aioxmpp.structs.IQType.SET,
+        roster_xso.Query)
     @asyncio.coroutine
     def handle_roster_push(self, iq):
         if iq.from_:
@@ -471,15 +435,27 @@ class Service(aioxmpp.service.Service):
 
         self.version = request.ver
 
+    @aioxmpp.service.presence_handler(
+        aioxmpp.structs.PresenceType.SUBSCRIBE,
+        None)
     def handle_subscribe(self, stanza):
         self.on_subscribe(stanza)
 
+    @aioxmpp.service.presence_handler(
+        aioxmpp.structs.PresenceType.SUBSCRIBED,
+        None)
     def handle_subscribed(self, stanza):
         self.on_subscribed(stanza)
 
+    @aioxmpp.service.presence_handler(
+        aioxmpp.structs.PresenceType.UNSUBSCRIBED,
+        None)
     def handle_unsubscribed(self, stanza):
         self.on_unsubscribed(stanza)
 
+    @aioxmpp.service.presence_handler(
+        aioxmpp.structs.PresenceType.UNSUBSCRIBE,
+        None)
     def handle_unsubscribe(self, stanza):
         self.on_unsubscribe(stanza)
 
