@@ -19,6 +19,8 @@
 # <http://www.gnu.org/licenses/>.
 #
 ########################################################################
+import asyncio
+import contextlib
 import types
 
 import lxml.etree as etree
@@ -39,3 +41,29 @@ namespaces.stream_management = "urn:xmpp:sm:3"
 namespaces.bind = "urn:ietf:params:xml:ns:xmpp-bind"
 namespaces.aioxmpp_internal = "https://zombofant.net/xmlns/aioxmpp#internal"
 namespaces.xml = "http://www.w3.org/XML/1998/namespace"
+
+
+@contextlib.contextmanager
+def background_task(coro, logger):
+    def log_result(task):
+        try:
+            result = task.result()
+        except asyncio.CancelledError:
+            logger.debug("background task terminated by CM exit: %r",
+                         task)
+        except:
+            logger.error("background task failed: %r",
+                         task,
+                         exc_info=True)
+        else:
+            if result is not None:
+                logger.info("background task (%r) returned a value: %r",
+                            task,
+                            result)
+
+    task = asyncio.async(coro)
+    task.add_done_callback(log_result)
+    try:
+        yield
+    finally:
+        task.cancel()
