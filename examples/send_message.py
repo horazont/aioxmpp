@@ -19,6 +19,8 @@
 # <http://www.gnu.org/licenses/>.
 #
 ########################################################################
+import asyncio
+
 import aioxmpp
 
 from framework import Example, exec_example
@@ -44,7 +46,8 @@ class SendMessage(Example):
             help="Message to send (default: Hello World!)",
         )
 
-    async def run_simple_example(self):
+    @asyncio.coroutine
+    def run_simple_example(self):
         # compose a message
         msg = aioxmpp.stanza.Message(
             to=self.args.recipient,
@@ -55,7 +58,7 @@ class SendMessage(Example):
         msg.body[None] = self.args.message
 
         print("sending message ...")
-        await self.client.stream.send_and_wait_for_sent(
+        yield from self.client.stream.send_and_wait_for_sent(
             msg
         )
         print("message sent!")

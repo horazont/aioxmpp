@@ -19,6 +19,7 @@
 # <http://www.gnu.org/licenses/>.
 #
 ########################################################################
+import asyncio
 import itertools
 
 import aioxmpp.disco
@@ -27,10 +28,11 @@ from framework import Example, exec_example
 
 
 class ServerInfo(Example):
-    async def run_simple_example(self):
+    @asyncio.coroutine
+    def run_simple_example(self):
         disco = self.client.summon(aioxmpp.disco.Service)
         try:
-            info = await disco.query_info(
+            info = yield from disco.query_info(
                 self.g_jid.replace(resource=None, localpart=None),
                 timeout=10
             )
