@@ -447,7 +447,7 @@ class Room:
     @property
     def mucjid(self):
         """
-        The (bare) :class:`aioxmpp.JID of the MUC which this :class:`Room`
+        The (bare) :class:`aioxmpp.JID` of the MUC which this :class:`Room`
         tracks.
         """
         return self._mucjid

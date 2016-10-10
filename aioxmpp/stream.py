@@ -1338,7 +1338,7 @@ class StanzaStream:
         :type type_: :class:`~.MessageType` or :data:`None`
         :param from_: Sender JID to listen for, or :data:`None` for a wildcard
                       match.
-        :type from_: :class:`~aioxmpp.JID or :data:`None`
+        :type from_: :class:`~aioxmpp.JID` or :data:`None`
         :param cb: Callback function to call
         :raises ValueError: if another function is already registered for the
                             same ``(type_, from_)`` pair.
@@ -1394,7 +1394,7 @@ class StanzaStream:
         :param type_: Message type to listen for.
         :type type_: :class:`~.MessageType` or :data:`None`
         :param from_: Sender JID to listen for.
-        :type from_: :class:`~aioxmpp.JID or :data:`None`
+        :type from_: :class:`~aioxmpp.JID` or :data:`None`
         :raises KeyError: if no function is currently registered for the given
                           ``(type_, from_)`` pair.
         :raises ValueError: if `type_` is not a valid
@@ -1434,7 +1434,7 @@ class StanzaStream:
         :type type_: :class:`~.PresenceType`
         :param from_: Sender JID to listen for, or :data:`None` for a wildcard
                       match.
-        :type from_: :class:`~aioxmpp.JID or :data:`None`.
+        :type from_: :class:`~aioxmpp.JID` or :data:`None`.
         :param cb: Callback function
         :raises ValueError: if another listener with the same ``(type_,
                             from_)`` pair is already registered
@@ -1482,7 +1482,7 @@ class StanzaStream:
         :type type_: :class:`~.PresenceType`
         :param from_: Sender JID to listen for, or :data:`None` for a wildcard
                       match.
-        :type from_: :class:`~aioxmpp.JID or :data:`None`.
+        :type from_: :class:`~aioxmpp.JID` or :data:`None`.
         :raises KeyError: if no callback is currently registered for the given
                           ``(type_, from_)`` pair
         :raises ValueError: if `type_` is not a valid
