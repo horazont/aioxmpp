@@ -46,7 +46,8 @@ class EchoBot(Example):
 
         self.client.stream.enqueue_stanza(reply)
 
-    async def run_simple_example(self):
+    @asyncio.coroutine
+    def run_simple_example(self):
         stop_event = self.make_sigint_event()
 
         self.client.stream.register_message_callback(
@@ -55,7 +56,7 @@ class EchoBot(Example):
             self.message_received,
         )
         print("echoing... (press Ctrl-C or send SIGTERM to stop)")
-        await stop_event.wait()
+        yield from stop_event.wait()
 
 if __name__ == "__main__":
     exec_example(EchoBot())

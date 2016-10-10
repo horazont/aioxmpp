@@ -19,6 +19,7 @@
 # <http://www.gnu.org/licenses/>.
 #
 ########################################################################
+import asyncio
 import configparser
 
 import aioxmpp.muc
@@ -62,12 +63,11 @@ class ServerInfo(Example):
         client.summon(aioxmpp.muc.Service)
         return client
 
-    async def run_example(self):
-        self.stop_event = self.make_sigint_event()
-        await super().run_example()
-
-    async def run_simple_example(self):
-        config = await self.client.summon(aioxmpp.muc.Service).get_room_config(
+    @asyncio.coroutine
+    def run_simple_example(self):
+        config = yield from self.client.summon(
+            aioxmpp.muc.Service
+        ).get_room_config(
             self.muc_jid
         )
         form = aioxmpp.muc.xso.ConfigurationForm.from_xso(config)

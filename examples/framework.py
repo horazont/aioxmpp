@@ -27,6 +27,7 @@ import getpass
 import json
 import logging
 import signal
+import sys
 
 try:
     import readline  # NOQA
@@ -138,15 +139,25 @@ class Example(metaclass=abc.ABCMeta):
         )
         return event
 
-    async def run_simple_example(self):
+    @asyncio.coroutine
+    def run_simple_example(self):
         raise NotImplementedError(
             "run_simple_example must be overriden if run_example isn’t"
         )
 
-    async def run_example(self):
+    @asyncio.coroutine
+    def run_example(self):
         self.client = self.make_simple_client()
-        async with self.client.connected():
-            await self.run_simple_example()
+        cm = self.client.connected()
+        aexit = cm.__aexit__
+        yield from cm.__aenter__()
+        try:
+            yield from self.run_simple_example()
+        except:
+            if not (yield from aexit(*sys.exc_info())):
+                raise
+        else:
+            yield from aexit(None, None, None)
 
 
 def exec_example(example):

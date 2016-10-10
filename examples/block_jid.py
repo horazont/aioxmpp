@@ -19,6 +19,7 @@
 # <http://www.gnu.org/licenses/>.
 #
 ########################################################################
+import asyncio
 import sys
 
 import aioxmpp.disco
@@ -121,14 +122,17 @@ class BlockJID(Example):
             print("specify --add and/or --list", file=sys.stderr)
             sys.exit(1)
 
-    async def run_simple_example(self):
+    @asyncio.coroutine
+    def run_simple_example(self):
         # we are polite and ask the server whether it actually supports the
         # XEP-0191 block list protocol
         disco = self.client.summon(aioxmpp.disco.Service)
-        server_info = await disco.query_info(self.client.local_jid.replace(
-            resource=None,
-            localpart=None,
-        ))
+        server_info = yield from  disco.query_info(
+            self.client.local_jid.replace(
+                resource=None,
+                localpart=None,
+            )
+        )
 
         if "urn:xmpp:blocking" not in server_info.features:
             print("server does not support block lists!", file=sys.stderr)
@@ -154,7 +158,7 @@ class BlockJID(Example):
             )
 
             # send it and wait for a response
-            await self.client.stream.send_iq_and_wait_for_reply(
+            yield from self.client.stream.send_iq_and_wait_for_reply(
                 iq
             )
         else:
@@ -167,7 +171,7 @@ class BlockJID(Example):
                 payload=BlockList(),
             )
 
-            result = await self.client.stream.send_iq_and_wait_for_reply(
+            result = yield from self.client.stream.send_iq_and_wait_for_reply(
                 iq,
             )
 
