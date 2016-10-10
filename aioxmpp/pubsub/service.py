@@ -207,7 +207,7 @@ class Service(aioxmpp.service.Service):
 
     def __init__(self, client, **kwargs):
         super().__init__(client, **kwargs)
-        self._disco = self._client.summon(aioxmpp.disco.Service)
+        self._disco = self.client.summon(aioxmpp.disco.Service)
 
     @aioxmpp.service.inbound_message_filter
     def filter_inbound_message(self, msg):

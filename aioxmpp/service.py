@@ -387,8 +387,8 @@ class Service(metaclass=Meta):
 
     def __init__(self, client, *, logger_base=None):
         super().__init__()
-        self._context = contextlib.ExitStack()
-        self._client = client
+        self.__context = contextlib.ExitStack()
+        self.__client = client
 
         if logger_base is None:
             self.logger = logging.getLogger(".".join([
@@ -398,9 +398,9 @@ class Service(metaclass=Meta):
             self.logger = self.derive_logger(logger_base)
 
         for (handler_cm, additional_args), obj in self.SERVICE_HANDLERS:
-            self._context.enter_context(
+            self.__context.enter_context(
                 handler_cm(self,
-                           self._client.stream,
+                           self.__client.stream,
                            obj.__get__(self, type(self)),
                            *additional_args)
             )
@@ -408,7 +408,7 @@ class Service(metaclass=Meta):
     def derive_logger(self, logger):
         """
         Return a child of `logger` specific for this instance. This is called
-        after :attr:`_client` has been set, from the constructor.
+        after :attr:`client` has been set, from the constructor.
 
         The child name is calculated by the default implementation in a way
         specific for aioxmpp services; it is not meant to be used by
@@ -432,7 +432,7 @@ class Service(metaclass=Meta):
         If the service has been shut down using :meth:`shutdown`, this reads as
         :data:`None`.
         """
-        return self._client
+        return self.__client
 
     @asyncio.coroutine
     def _shutdown(self):
@@ -461,8 +461,8 @@ class Service(metaclass=Meta):
 
         """
         yield from self._shutdown()
-        self._context.close()
-        self._client = None
+        self.__context.close()
+        self.__client = None
 
 
 def _apply_iq_handler(instance, stream, func, type_, payload_cls):
