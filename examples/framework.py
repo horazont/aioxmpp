@@ -27,6 +27,8 @@ import getpass
 import json
 import logging
 import logging.config
+import os
+import os.path
 import signal
 import sys
 
@@ -44,9 +46,16 @@ class Example(metaclass=abc.ABCMeta):
         self.argparse = argparse.ArgumentParser()
 
     def prepare_argparse(self):
+
+        config_default_path = os.path.join(
+            os.environ.get("XDG_CONFIG_HOME", os.path.expanduser("~/.config")),
+            "aioxmpp_examples.ini")
+        if not os.path.exists(config_default_path):
+            config_default_path = None
+
         self.argparse.add_argument(
             "-c", "--config",
-            default=None,
+            default=config_default_path,
             type=argparse.FileType("r"),
             help="Configuration file to read",
         )

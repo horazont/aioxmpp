@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 ########################################################################
 # File name: block_jid.py
 # This file is part of: aioxmpp
