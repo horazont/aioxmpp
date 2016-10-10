@@ -32,6 +32,20 @@ possible.
 
 .. autoclass:: StanzaStream
 
+Context managers
+================
+
+The following context managers can be used together with :class:`StanzaStream`
+instances and the filters available on them.
+
+.. autofunction:: iq_handler
+
+.. autofunction:: message_handler
+
+.. autofunction:: presence_handler
+
+.. autofunction:: stanza_filter
+
 Low-level stanza tracking
 =========================
 
@@ -59,6 +73,7 @@ classes:
 """
 
 import asyncio
+import contextlib
 import functools
 import logging
 import warnings
@@ -2166,3 +2181,141 @@ class StanzaStream:
             if token.state == StanzaState.ACTIVE:
                 token.abort()
             raise
+
+
+@contextlib.contextmanager
+def iq_handler(stream, type_, payload_cls, coro):
+    """
+    Context manager to temporarily register a coroutine to handle IQ requests
+    on a :class:`StanzaStream`.
+
+    :param stream: Stanza stream to register the coroutine at
+    :type stream: :class:`StanzaStream`
+    :param type_: IQ type to react to (must be a request type).
+    :type type_: :class:`~aioxmpp.IQType`
+    :param payload_cls: Payload class to react to (subclass of
+                        :class:`~xso.XSO`)
+    :type payload_cls: :class:`~.XMLStreamClass`
+    :param coro: Coroutine to register
+
+    The coroutine is registered when the context is entered and unregistered
+    when the context is exited. Running coroutines are not affected by exiting
+    the context manager.
+
+    .. versionadded:: 0.8
+    """
+
+    stream.register_iq_request_coro(
+        type_,
+        payload_cls,
+        coro,
+    )
+    try:
+        yield
+    finally:
+        stream.unregister_iq_request_coro(type_, payload_cls)
+
+
+@contextlib.contextmanager
+def message_handler(stream, type_, from_, cb):
+    """
+    Context manager to temporarily register a callback to handle messages on a
+    :class:`StanzaStream`.
+
+    :param stream: Stanza stream to register the coroutine at
+    :type stream: :class:`StanzaStream`
+    :param type_: Message type to listen for, or :data:`None` for a wildcard
+                  match.
+    :type type_: :class:`~.MessageType` or :data:`None`
+    :param from_: Sender JID to listen for, or :data:`None` for a wildcard
+                  match.
+    :type from_: :class:`~aioxmpp.JID` or :data:`None`
+    :param cb: Callback to register
+
+    The callback is registered when the context is entered and unregistered
+    when the context is exited.
+
+    .. versionadded:: 0.8
+    """
+
+    stream.register_message_callback(
+        type_,
+        from_,
+        cb,
+    )
+    try:
+        yield
+    finally:
+        stream.unregister_message_callback(
+            type_,
+            from_,
+        )
+
+
+@contextlib.contextmanager
+def presence_handler(stream, type_, from_, cb):
+    """
+    Context manager to temporarily register a callback to handle presence
+    stanzas on a :class:`StanzaStream`.
+
+    :param stream: Stanza stream to register the coroutine at
+    :type stream: :class:`StanzaStream`
+    :param type_: Presence type to listen for.
+    :type type_: :class:`~.PresenceType`
+    :param from_: Sender JID to listen for, or :data:`None` for a wildcard
+                  match.
+    :type from_: :class:`~aioxmpp.JID` or :data:`None`.
+    :param cb: Callback to register
+
+    The callback is registered when the context is entered and unregistered
+    when the context is exited.
+
+    .. versionadded:: 0.8
+    """
+
+    stream.register_presence_callback(
+        type_,
+        from_,
+        cb,
+    )
+    try:
+        yield
+    finally:
+        stream.unregister_presence_callback(
+            type_,
+            from_,
+        )
+
+
+_Undefined = object()
+
+
+@contextlib.contextmanager
+def stanza_filter(filter_, func, order=_Undefined):
+    """
+    Context manager to temporarily register a filter function on a
+    :class:`Filter`.
+
+    :param filter_: Filter to register the function at
+    :type filter_: :class:`Filter`
+    :param func: Filter function to register
+    :param order: Order parameter to pass to :meth:`.Filter.register`
+
+    The type of `order` is specific to the :class:`Filter` instance used, see
+    the documentation of :meth:`Filter.register` and :meth:`AppFilter.register`
+    respectively.
+
+    The filter function is registered when the context is entered and
+    unregistered when the context is exited.
+
+    .. versionadded:: 0.8
+    """
+
+    if order is _Undefined:
+        token = filter_.register(func)
+    else:
+        token = filter_.register(func, order)
+    try:
+        yield
+    finally:
+        filter_.unregister(token)

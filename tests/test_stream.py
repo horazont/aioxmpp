@@ -26,6 +26,7 @@ import ipaddress
 import time
 import unittest
 import warnings
+import sys
 
 import aioxmpp
 import aioxmpp.structs as structs
@@ -4297,3 +4298,264 @@ class TestStanzaToken(unittest.TestCase):
             "<StanzaToken id=0x{:016x}>".format(id(token)),
             repr(token)
         )
+
+
+class Testiq_handler(unittest.TestCase):
+    def setUp(self):
+        self.stream = unittest.mock.Mock()
+        self.cm = stream.iq_handler(
+            self.stream,
+            unittest.mock.sentinel.iqtype,
+            unittest.mock.sentinel.payload,
+            unittest.mock.sentinel.coro,
+        )
+
+    def tearDown(self):
+        del self.cm
+        del self.stream
+
+    def test_is_context_manager(self):
+        self.assertTrue(
+            hasattr(self.cm, "__enter__")
+        )
+        self.assertTrue(
+            hasattr(self.cm, "__exit__")
+        )
+
+    def test_enter_registers_coroutine(self):
+        self.cm.__enter__()
+
+        self.stream.register_iq_request_coro.assert_called_with(
+            unittest.mock.sentinel.iqtype,
+            unittest.mock.sentinel.payload,
+            unittest.mock.sentinel.coro,
+        )
+
+    def test_exit_unregisters_coroutine(self):
+        self.cm.__enter__()
+        self.stream.reset_mock()
+
+        self.cm.__exit__(None, None, None)
+
+        self.stream.unregister_iq_request_coro.assert_called_with(
+            unittest.mock.sentinel.iqtype,
+            unittest.mock.sentinel.payload,
+        )
+
+    def test_exit_does_not_swallow_exception_and_unregisters(self):
+        self.cm.__enter__()
+        self.stream.reset_mock()
+
+        # we need to generate a trackback object
+        try:
+            raise ValueError()
+        except:
+            info = sys.exc_info()
+
+        result = self.cm.__exit__(*info)
+
+        self.stream.unregister_iq_request_coro.assert_called_with(
+            unittest.mock.sentinel.iqtype,
+            unittest.mock.sentinel.payload,
+        )
+
+        self.assertFalse(result)
+
+
+class Testmessage_handler(unittest.TestCase):
+    def setUp(self):
+        self.stream = unittest.mock.Mock()
+        self.cm = stream.message_handler(
+            self.stream,
+            unittest.mock.sentinel.msgtype,
+            unittest.mock.sentinel.from_,
+            unittest.mock.sentinel.cb,
+        )
+
+    def tearDown(self):
+        del self.cm
+        del self.stream
+
+    def test_is_context_manager(self):
+        self.assertTrue(
+            hasattr(self.cm, "__enter__")
+        )
+        self.assertTrue(
+            hasattr(self.cm, "__exit__")
+        )
+
+    def test_enter_registers_callback(self):
+        self.cm.__enter__()
+
+        self.stream.register_message_callback.assert_called_with(
+            unittest.mock.sentinel.msgtype,
+            unittest.mock.sentinel.from_,
+            unittest.mock.sentinel.cb,
+        )
+
+    def test_exit_unregisters_callbcak(self):
+        self.cm.__enter__()
+        self.stream.reset_mock()
+
+        self.cm.__exit__(None, None, None)
+
+        self.stream.unregister_message_callback.assert_called_with(
+            unittest.mock.sentinel.msgtype,
+            unittest.mock.sentinel.from_,
+        )
+
+    def test_exit_does_not_swallow_exception_and_unregisters(self):
+        self.cm.__enter__()
+        self.stream.reset_mock()
+
+        # we need to generate a trackback object
+        try:
+            raise ValueError()
+        except:
+            info = sys.exc_info()
+
+        result = self.cm.__exit__(*info)
+
+        self.stream.unregister_message_callback.assert_called_with(
+            unittest.mock.sentinel.msgtype,
+            unittest.mock.sentinel.from_,
+        )
+
+        self.assertFalse(result)
+
+
+class Testpresence_handler(unittest.TestCase):
+    def setUp(self):
+        self.stream = unittest.mock.Mock()
+        self.cm = stream.presence_handler(
+            self.stream,
+            unittest.mock.sentinel.prestype,
+            unittest.mock.sentinel.from_,
+            unittest.mock.sentinel.cb,
+        )
+
+    def tearDown(self):
+        del self.cm
+        del self.stream
+
+    def test_is_context_manager(self):
+        self.assertTrue(
+            hasattr(self.cm, "__enter__")
+        )
+        self.assertTrue(
+            hasattr(self.cm, "__exit__")
+        )
+
+    def test_enter_registers_callback(self):
+        self.cm.__enter__()
+
+        self.stream.register_presence_callback.assert_called_with(
+            unittest.mock.sentinel.prestype,
+            unittest.mock.sentinel.from_,
+            unittest.mock.sentinel.cb,
+        )
+
+    def test_exit_unregisters_callback(self):
+        self.cm.__enter__()
+        self.stream.reset_mock()
+
+        self.cm.__exit__(None, None, None)
+
+        self.stream.unregister_presence_callback.assert_called_with(
+            unittest.mock.sentinel.prestype,
+            unittest.mock.sentinel.from_,
+        )
+
+    def test_exit_does_not_swallow_exception_and_unregisters(self):
+        self.cm.__enter__()
+        self.stream.reset_mock()
+
+        # we need to generate a trackback object
+        try:
+            raise ValueError()
+        except:
+            info = sys.exc_info()
+
+        result = self.cm.__exit__(*info)
+
+        self.stream.unregister_presence_callback.assert_called_with(
+            unittest.mock.sentinel.prestype,
+            unittest.mock.sentinel.from_,
+        )
+
+        self.assertFalse(result)
+
+
+class Teststanza_filter(unittest.TestCase):
+    def setUp(self):
+        self.filter_ = unittest.mock.Mock()
+        self.cm = stream.stanza_filter(
+            self.filter_,
+            unittest.mock.sentinel.func,
+            unittest.mock.sentinel.order,
+        )
+
+    def tearDown(self):
+        del self.filter_
+
+    def test_is_context_manager(self):
+        self.assertTrue(
+            hasattr(self.cm, "__enter__")
+        )
+        self.assertTrue(
+            hasattr(self.cm, "__exit__")
+        )
+
+    def test_enter_registers_filter(self):
+        self.cm.__enter__()
+
+        self.filter_.register.assert_called_with(
+            unittest.mock.sentinel.func,
+            unittest.mock.sentinel.order,
+        )
+
+    def test_enter_registers_filter_without_order_if_order_not_passed(self):
+        self.cm = stream.stanza_filter(
+            self.filter_,
+            unittest.mock.sentinel.func,
+        )
+
+        self.cm.__enter__()
+
+        self.filter_.register.assert_called_with(
+            unittest.mock.sentinel.func,
+        )
+
+    def test_exit_unregisters_filter(self):
+        self.filter_.register.return_value = \
+            unittest.mock.sentinel.token
+
+        self.cm.__enter__()
+        self.filter_.reset_mock()
+
+        self.cm.__exit__(None, None, None)
+
+        self.filter_.unregister.assert_called_with(
+            unittest.mock.sentinel.token
+        )
+
+    def test_exit_does_not_swallow_exception_and_unregisters(self):
+        self.filter_.register.return_value = \
+            unittest.mock.sentinel.token
+
+        self.cm.__enter__()
+        self.filter_.reset_mock()
+
+        # we need to generate a trackback object
+        try:
+            raise ValueError()
+        except:
+            info = sys.exc_info()
+
+        result = self.cm.__exit__(*info)
+
+        self.filter_.unregister.assert_called_with(
+            unittest.mock.sentinel.token
+        )
+
+        self.assertFalse(result)

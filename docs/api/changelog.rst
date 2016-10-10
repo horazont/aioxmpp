@@ -3,6 +3,14 @@
 Changelog
 #########
 
+Version 0.8
+===========
+
+* Context managers :func:`aioxmpp.stream.iq_handler`,
+  :func:`aioxmpp.stream.message_handler`,
+  :func:`aioxmpp.stream.presence_handler`, and
+  :func:`aioxmpp.stream.stanza_filter`.
+
 .. _api-changelog-0.7:
 
 Version 0.7
