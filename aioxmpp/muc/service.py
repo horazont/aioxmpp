@@ -1241,6 +1241,8 @@ class Service(aioxmpp.service.Service):
 
            :class:`~.ConfigurationForm`
               for a form template to work with the returned form
+
+        .. versionadded:: 0.7
         """
 
         if mucjid is None or not mucjid.is_bare:
@@ -1280,6 +1282,7 @@ class Service(aioxmpp.service.Service):
           form.moderatedroom = True
           await muc_service.set_rooom_config(mucjid, form.render_reply())
 
+        .. versionadded:: 0.7
         """
 
         iq = aioxmpp.stanza.IQ(
