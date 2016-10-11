@@ -22,6 +22,7 @@
 import collections
 import itertools
 import unittest
+import unittest.mock
 
 import aioxmpp.stanza as stanza
 import aioxmpp.forms.xso as forms_xso
@@ -801,4 +802,98 @@ class TestData(unittest.TestCase):
             {
                 forms_xso.Data,
             }
+        )
+
+    def test_get_form_type(self):
+        d = forms_xso.Data(type_=forms_xso.DataType.FORM)
+        d.fields.append(
+            forms_xso.Field(),
+        )
+        d.fields.append(
+            forms_xso.Field(
+                type_=forms_xso.FieldType.HIDDEN,
+                var="FORM_TYPE",
+                values=[unittest.mock.sentinel.form_type]
+            ),
+        )
+        d.fields.append(
+            forms_xso.Field(),
+        )
+
+        self.assertEqual(
+            d.get_form_type(),
+            unittest.mock.sentinel.form_type,
+        )
+
+    def test_get_form_type_returns_none_without_FORM_TYPE(self):
+        d = forms_xso.Data(type_=forms_xso.DataType.FORM)
+        d.fields.append(
+            forms_xso.Field(),
+        )
+        d.fields.append(
+            forms_xso.Field(),
+        )
+
+        self.assertIsNone(
+            d.get_form_type(),
+        )
+
+    def test_get_form_type_detects_incorrect_FORM_TYPE(self):
+        d = forms_xso.Data(type_=forms_xso.DataType.FORM)
+        d.fields.append(
+            forms_xso.Field(),
+        )
+        d.fields.append(
+            forms_xso.Field(
+                type_=forms_xso.FieldType.TEXT_SINGLE,
+                var="FORM_TYPE",
+                values=[unittest.mock.sentinel.form_type]
+            ),
+        )
+        d.fields.append(
+            forms_xso.Field(),
+        )
+
+        self.assertIsNone(
+            d.get_form_type(),
+        )
+
+    def test_get_form_type_copes_with_malformed_FORM_TYPE(self):
+        d = forms_xso.Data(type_=forms_xso.DataType.FORM)
+        d.fields.append(
+            forms_xso.Field(),
+        )
+        d.fields.append(
+            forms_xso.Field(
+                type_=forms_xso.FieldType.HIDDEN,
+                var="FORM_TYPE",
+                values=[]
+            ),
+        )
+        d.fields.append(
+            forms_xso.Field(),
+        )
+
+        self.assertIsNone(
+            d.get_form_type(),
+        )
+
+    def test_get_form_type_copes_with_too_many_values(self):
+        d = forms_xso.Data(type_=forms_xso.DataType.FORM)
+        d.fields.append(
+            forms_xso.Field(),
+        )
+        d.fields.append(
+            forms_xso.Field(
+                type_=forms_xso.FieldType.HIDDEN,
+                var="FORM_TYPE",
+                values=["foo", "bar"]
+            ),
+        )
+        d.fields.append(
+            forms_xso.Field(),
+        )
+
+        self.assertIsNone(
+            d.get_form_type(),
         )

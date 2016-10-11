@@ -566,6 +566,8 @@ class Data(AbstractItem):
        representing the table header.
 
        This only makes sense on :attr:`.DataType.RESULT` typed objects.
+
+    .. automethod:: get_form_type
     """
 
     TAG = (namespaces.xep0004_data, "x")
@@ -616,6 +618,25 @@ class Data(AbstractItem):
         if     (self.type_ == DataType.RESULT and
                 (self.reported is not None or self.items)):
             self._validate_result()
+
+    def get_form_type(self):
+        """
+        Extract the ``FORM_TYPE`` from the fields.
+
+        :return: ``FORM_TYPE`` value or :data:`None`
+        :rtype: :class:`str` or :data:`None`
+
+        Return :data:`None` if no well-formed ``FORM_TYPE`` field is found in
+        the list of fields.
+
+        .. versionadded:: 0.8
+        """
+
+        for field in self.fields:
+            if field.var == "FORM_TYPE" and field.type_ == FieldType.HIDDEN:
+                if len(field.values) != 1:
+                    return None
+                return field.values[0]
 
 
 aioxmpp.Message.xep0004_data = xso.ChildList([Data])
