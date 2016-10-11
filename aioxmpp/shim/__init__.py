@@ -26,12 +26,12 @@
 This module provides support for :xep:`131` stanza headers. The following
 attributes are added by this module to the existing stanza classes:
 
-.. attribute:: aioxmpp.stanza.Message.xep0131_headers
+.. attribute:: aioxmpp.Message.xep0131_headers
 
    A :class:`xso.Headers` instance or :data:`None`. Represents the SHIM headers of
    the stanza.
 
-.. attribute:: aioxmpp.stanza.Presence.xep0131_headers
+.. attribute:: aioxmpp.Presence.xep0131_headers
 
    A :class:`xso.Headers` instance or :data:`None`. Represents the SHIM headers of
    the stanza.

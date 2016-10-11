@@ -22,6 +22,7 @@
 import collections
 import enum
 
+import aioxmpp
 import aioxmpp.xso as xso
 
 from aioxmpp.utils import namespaces
@@ -615,3 +616,6 @@ class Data(AbstractItem):
         if     (self.type_ == DataType.RESULT and
                 (self.reported is not None or self.items)):
             self._validate_result()
+
+
+aioxmpp.Message.xep0004_data = xso.ChildList([Data])

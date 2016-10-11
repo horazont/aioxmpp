@@ -59,6 +59,19 @@ Cheat Sheet:
 
    These locations are marked accordingly.
 
+Attributes added to stanzas
+===========================
+
+:mod:`aioxmpp.forms` adds the following attributes to stanzas:
+
+.. attribute:: aioxmpp.Message.xep0004_data
+
+   A sequence of :class:`Data` instances. This is used for example by the
+   :mod:`~.muc` implementation (:xep:`45`).
+
+   .. versionadded:: 0.8
+
+
 .. _api-aioxmpp.forms-declarative-style:
 
 Declarative-style Forms

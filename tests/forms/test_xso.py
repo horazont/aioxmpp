@@ -23,6 +23,7 @@ import collections
 import itertools
 import unittest
 
+import aioxmpp.stanza as stanza
 import aioxmpp.forms.xso as forms_xso
 import aioxmpp.xso as xso
 
@@ -785,6 +786,19 @@ class TestData(unittest.TestCase):
         item.fields.append(f2)
         obj.items.append(item)
 
-        with self.assertRaisesRegex(ValueError,
-                                     "field mismatch between row and header"):
+        with self.assertRaisesRegex(
+                ValueError,
+                "field mismatch between row and header"):
             obj.validate()
+
+    def test_data_attribute_on_Message(self):
+        self.assertIsInstance(
+            stanza.Message.xep0004_data,
+            xso.ChildList,
+        )
+        self.assertSetEqual(
+            stanza.Message.xep0004_data._classes,
+            {
+                forms_xso.Data,
+            }
+        )
