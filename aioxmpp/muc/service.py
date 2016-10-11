@@ -848,10 +848,6 @@ class Room:
         return tracker
 
 
-def _connect_to_filter(filter, func, service):
-    return filter, filter.register(func, service)
-
-
 def _connect_to_signal(signal, func):
     return signal, signal.connect(func)
 
@@ -877,14 +873,6 @@ class Service(aioxmpp.service.Service):
 
     def __init__(self, client, **kwargs):
         super().__init__(client, **kwargs)
-
-        self._filter_tokens = [
-            _connect_to_filter(
-                client.stream.service_inbound_presence_filter,
-                self._inbound_presence_filter,
-                Service
-            )
-        ]
 
         self._signal_tokens = [
             _connect_to_signal(
@@ -992,16 +980,6 @@ class Service(aioxmpp.service.Service):
 
     def _inbound_muc_user_presence(self, stanza):
         mucjid = stanza.from_.bare()
-        # try:
-        #     pending, fut, *_ = self._pending_mucs.pop(mucjid)
-        # except KeyError:
-        #     pass
-        # else:
-        #     if fut is not None:
-        #         fut.set_result(None)
-        #     self._joined_mucs[mucjid] = pending
-        #     pending._inbound_muc_user_presence(stanza)
-        #     return
 
         try:
             muc = self._joined_mucs[mucjid]
@@ -1021,6 +999,7 @@ class Service(aioxmpp.service.Service):
         else:
             fut.set_exception(stanza.error.to_exception())
 
+    @aioxmpp.service.inbound_presence_filter
     def _inbound_presence_filter(self, stanza):
         if stanza.xep0045_muc_user is not None:
             self._inbound_muc_user_presence(stanza)
@@ -1063,10 +1042,6 @@ class Service(aioxmpp.service.Service):
         for muc in list(self._joined_mucs.values()):
             muc._disconnect()
         self._joined_mucs.clear()
-
-        for filter_, token in self._filter_tokens:
-            filter_.unregister(token)
-        self._filter_tokens.clear()
 
     def join(self, mucjid, nick, *,
              password=None, history=None, autorejoin=True):
