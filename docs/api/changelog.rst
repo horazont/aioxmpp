@@ -11,6 +11,15 @@ Version 0.8
   :func:`aioxmpp.stream.presence_handler`, and
   :func:`aioxmpp.stream.stanza_filter`.
 
+* :ref:`api-aioxmpp.service-decorators` for :class:`aioxmpp.service.Service`
+  methods.
+
+* :attr:`aioxmpp.service.Service.dependencies`
+
+* Ported existing service subclasses to decorators.
+
+* :meth:`aioxmpp.muc.Room.request_voice`
+
 .. _api-changelog-0.7:
 
 Version 0.7
