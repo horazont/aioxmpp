@@ -87,6 +87,16 @@ class BlockList(aioxmpp.xso.XSO):
     )
 
 
+# the only difference is the TAG
+@aioxmpp.stanza.IQ.as_payload_class
+class BlockCommand(aioxmpp.xso.XSO):
+    TAG = ("urn:xmpp:blocking", "block")
+
+    items = aioxmpp.xso.ChildValueList(
+        BlockItemType()
+    )
+
+
 class BlockJID(Example):
     def prepare_argparse(self):
         super().prepare_argparse()
@@ -140,7 +150,7 @@ class BlockJID(Example):
         if self.args.jids_to_block:
             # construct the block list request and add the JIDs by simply
             # placing them in the items attribute
-            blocklist = BlockList()
+            blocklist = BlockCommand()
 
             # note that self.args.jids_to_block is a list of JID objects, not a
             # list of strings (that would not work, because BlockItem requires
