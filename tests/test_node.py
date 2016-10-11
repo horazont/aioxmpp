@@ -2374,24 +2374,31 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
                 super().__init__(*args, **kwargs)
                 getattr(svc_init, type(self).__name__)(*args, **kwargs)
 
-        self.client.summon(Svc2)
+        svc2 = self.client.summon(Svc2)
 
         self.assertSequenceEqual(
+            svc_init.mock_calls,
             [
                 unittest.mock.call.Svc3(
                     self.client,
                     logger_base=logging.getLogger(
                         "aioxmpp.node.AbstractClient"
-                    )
+                    ),
+                    dependencies={},
                 ),
                 unittest.mock.call.Svc2(
                     self.client,
                     logger_base=logging.getLogger(
                         "aioxmpp.node.AbstractClient"
-                    )
+                    ),
+                    dependencies={Svc3: unittest.mock.ANY}
                 ),
             ],
-            svc_init.mock_calls
+        )
+
+        self.assertIsInstance(
+            svc2.dependencies[Svc3],
+            Svc3,
         )
 
         svc_init.mock_calls.clear()
@@ -2406,7 +2413,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
 
         svc_init.mock_calls.clear()
 
-        self.client.summon(Svc1)
+        svc1 = self.client.summon(Svc1)
 
         self.assertSequenceEqual(
             [
@@ -2414,10 +2421,24 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
                     self.client,
                     logger_base=logging.getLogger(
                         "aioxmpp.node.AbstractClient"
-                    )
+                    ),
+                    dependencies={
+                        Svc2: unittest.mock.ANY,
+                        Svc3: unittest.mock.ANY,
+                    }
                 ),
             ],
             svc_init.mock_calls
+        )
+
+        self.assertIs(
+            svc1.dependencies[Svc3],
+            svc2.dependencies[Svc3],
+        )
+
+        self.assertIs(
+            svc1.dependencies[Svc2],
+            svc2,
         )
 
     def test_call_before_stream_established(self):

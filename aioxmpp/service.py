@@ -67,6 +67,8 @@ These decorators provide special functionality when used on methods of
 
 .. autodecorator:: outbound_presence_filter()
 
+.. autodecorator:: depsignal
+
 Test functions
 --------------
 
@@ -84,6 +86,8 @@ Test functions
 
 .. autofunction:: is_outbound_presence_filter
 
+.. autofunction:: is_depsignal_handler
+
 Metaclass
 =========
 
@@ -94,10 +98,12 @@ Metaclass
 
 import abc
 import asyncio
+import collections
 import contextlib
 import logging
 import warnings
 
+import aioxmpp.callbacks
 import aioxmpp.stream
 
 
@@ -259,6 +265,8 @@ class Meta(abc.ABCMeta):
             except KeyError:
                 pass
 
+        orig_after = set(namespace.get("ORDER_AFTER", set()))
+
         before_classes = mcls.collect_and_inherit(
             bases,
             namespace,
@@ -296,9 +304,9 @@ class Meta(abc.ABCMeta):
             new_handlers = _get_magic_attr(attr_value)
 
             unique_handlers = {
-                handler
-                for is_unique, handler in new_handlers
-                if is_unique
+                spec.key
+                for spec in new_handlers
+                if spec.is_unique
             }
 
             conflicting = unique_handlers & existing_handlers
@@ -321,10 +329,19 @@ class Meta(abc.ABCMeta):
 
             existing_handlers |= unique_handlers
 
-            SERVICE_HANDLERS.extend(
-                (handler, attr_value)
-                for is_unique, handler in new_handlers
-            )
+            for spec in new_handlers:
+                missing = spec.require_deps - orig_after
+                if missing:
+                    raise TypeError(
+                        "decorator requires dependency {!r} "
+                        "but it is not declared".format(
+                            next(iter(missing))
+                        )
+                    )
+
+                SERVICE_HANDLERS.append(
+                    (spec.key, attr_value)
+                )
 
         namespace["SERVICE_HANDLERS"] = tuple(SERVICE_HANDLERS)
 
@@ -380,15 +397,18 @@ class Service(metaclass=Meta):
 
     .. autoattribute:: client
 
+    .. autoattribute:: dependencies
+
     .. automethod:: derive_logger
 
     .. automethod:: shutdown
     """
 
-    def __init__(self, client, *, logger_base=None):
+    def __init__(self, client, *, logger_base=None, dependencies={}):
         super().__init__()
         self.__context = contextlib.ExitStack()
         self.__client = client
+        self.__dependencies = dependencies
 
         if logger_base is None:
             self.logger = logging.getLogger(".".join([
@@ -434,6 +454,19 @@ class Service(metaclass=Meta):
         """
         return self.__client
 
+    @property
+    def dependencies(self):
+        """
+        When the service is instantiated through
+        :meth:`~.AbstractClient.summon`, this attribute holds a mapping which
+        maps the service classes contained in the :attr:`~.Meta.ORDER_BEFORE`
+        attribute to the respective instances related to the :attr:`client`.
+
+        This is the preferred way to obtain dependencies specified via
+        :attr:`~.Meta.ORDER_BEFORE`.
+        """
+        return self.__dependencies
+
     @asyncio.coroutine
     def _shutdown(self):
         """
@@ -463,6 +496,17 @@ class Service(metaclass=Meta):
         yield from self._shutdown()
         self.__context.close()
         self.__client = None
+
+
+class HandlerSpec(collections.namedtuple(
+        "HandlerSpec",
+        [
+            "is_unique",
+            "key",
+            "require_deps",
+        ])):
+    def __new__(cls, key, is_unique=True, require_deps=()):
+        return super().__new__(cls, is_unique, key, frozenset(require_deps))
 
 
 def _apply_iq_handler(instance, stream, func, type_, payload_cls):
@@ -509,6 +553,15 @@ def _apply_outbound_presence_filter(instance, stream, func):
     )
 
 
+def _apply_connect_depsignal(instance, stream, func, dependency, signal_name,
+                             mode):
+    signal = getattr(instance.dependencies[dependency], signal_name)
+    if mode is None:
+        return signal.context_connect(func)
+    else:
+        return signal.context_connect(func, mode)
+
+
 def iq_handler(type_, payload_cls):
     """
     Register the decorated coroutine function as IQ request handler.
@@ -531,9 +584,8 @@ def iq_handler(type_, payload_cls):
             raise TypeError("a coroutine function is required")
 
         _automake_magic_attr(f).add(
-            (
-                True,
-                (_apply_iq_handler, (type_, payload_cls))
+            HandlerSpec(
+                (_apply_iq_handler, (type_, payload_cls)),
             )
         )
         return f
@@ -561,8 +613,7 @@ def message_handler(type_, from_):
             raise TypeError("message_handler must not be a coroutine function")
 
         _automake_magic_attr(f).add(
-            (
-                True,
+            HandlerSpec(
                 (_apply_message_handler, (type_, from_))
             )
         )
@@ -593,8 +644,7 @@ def presence_handler(type_, from_):
             )
 
         _automake_magic_attr(f).add(
-            (
-                True,
+            HandlerSpec(
                 (_apply_presence_handler, (type_, from_)),
             )
         )
@@ -621,8 +671,7 @@ def inbound_message_filter(f):
         )
 
     _automake_magic_attr(f).add(
-        (
-            True,
+        HandlerSpec(
             (_apply_inbound_message_filter, ())
         ),
     )
@@ -648,8 +697,7 @@ def inbound_presence_filter(f):
         )
 
     _automake_magic_attr(f).add(
-        (
-            True,
+        HandlerSpec(
             (_apply_inbound_presence_filter, ())
         ),
     )
@@ -675,8 +723,7 @@ def outbound_message_filter(f):
         )
 
     _automake_magic_attr(f).add(
-        (
-            True,
+        HandlerSpec(
             (_apply_outbound_message_filter, ())
         ),
     )
@@ -703,15 +750,93 @@ def outbound_presence_filter(f):
         )
 
     _automake_magic_attr(f).add(
-        (
-            True,
+        HandlerSpec(
             (_apply_outbound_presence_filter, ())
         ),
     )
     return f
 
 
-def is_iq_handler(type_, payload_cls_, coro):
+def _depsignal_spec(class_, signal_name, f, defer):
+    signal = getattr(class_, signal_name)
+
+    if isinstance(signal, aioxmpp.callbacks.SyncSignal):
+        if not asyncio.iscoroutinefunction(f):
+            raise TypeError(
+                "a coroutine function is required for this signal"
+            )
+        if defer:
+            raise ValueError(
+                "cannot use defer with this signal"
+            )
+        mode = None
+    else:
+        if asyncio.iscoroutinefunction(f):
+            if defer:
+                mode = aioxmpp.callbacks.AdHocSignal.SPAWN_WITH_LOOP(None)
+            else:
+                raise TypeError(
+                    "cannot use coroutine function with this signal"
+                    " without defer"
+                )
+        elif defer:
+            mode = aioxmpp.callbacks.AdHocSignal.ASYNC_WITH_LOOP(None)
+        else:
+            mode = aioxmpp.callbacks.AdHocSignal.STRONG
+
+    return HandlerSpec(
+        (
+            _apply_connect_depsignal,
+            (
+                class_,
+                signal_name,
+                mode,
+            )
+        ),
+        require_deps=(class_,)
+    )
+
+
+def depsignal(class_, signal_name, *, defer=False):
+    """
+    Connect the decorated method or coroutine method to the addressed signal on
+    a class on which the service depends.
+
+    :param class_: A service class which is listed in the
+                   :attr:`~.Meta.ORDERED_AFTER` relationship.
+    :type class_: :class:`Service` class
+    :param signal_name: Attribute name of the signal to connect to
+    :type signal_name: :class:`str`
+    :param defer: Flag indicating whether deferred execution of the decorated
+                  method is desired; see below for details.
+    :type defer: :class:`bool`
+
+    The signal is discovered by accessing the attribute with the name
+    `signal_name` on the given `class_`.
+
+    If the signal is a :class:`.callbacks.Signal` and `defer` is false, the
+    decorated object is connected using the default
+    :attr:`~.callbacks.AdHocSignal.STRONG` mode.
+
+    If the signal is a :class:`.callbacks.Signal` and `defer` is true and the
+    decorated object is a coroutine function, the
+    :attr:`~.callbacks.AdHocSignal.SPAWN_WITH_LOOP` mode with the default
+    asyncio event loop is used. If the decorated object is not a coroutine
+    function, :attr:`~.callbacks.AdHocSignal.ASYNC_WITH_LOOP` is used instead.
+
+    If the signal is a :class:`.callbacks.SyncSignal`, `defer` must be false
+    and the decorated object must be a coroutine function.
+    """
+
+    def decorator(f):
+        _automake_magic_attr(f).add(
+            _depsignal_spec(class_, signal_name, f, defer)
+        )
+        return f
+    return decorator
+
+
+def is_iq_handler(type_, payload_cls, coro):
     """
     Return true if `coro` has been decorated with :func:`iq_handler` for the
     given `type_` and `payload_cls`.
@@ -722,7 +847,9 @@ def is_iq_handler(type_, payload_cls_, coro):
     except AttributeError:
         return False
 
-    return (True, (_apply_iq_handler, (type_, payload_cls_))) in handlers
+    return HandlerSpec(
+        (_apply_iq_handler, (type_, payload_cls)),
+    ) in handlers
 
 
 def is_message_handler(type_, from_, cb):
@@ -736,7 +863,9 @@ def is_message_handler(type_, from_, cb):
     except AttributeError:
         return False
 
-    return (True, (_apply_message_handler, (type_, from_))) in handlers
+    return HandlerSpec(
+        (_apply_message_handler, (type_, from_))
+    ) in handlers
 
 
 def is_presence_handler(type_, from_, cb):
@@ -750,7 +879,9 @@ def is_presence_handler(type_, from_, cb):
     except AttributeError:
         return False
 
-    return (True, (_apply_presence_handler, (type_, from_))) in handlers
+    return HandlerSpec(
+        (_apply_presence_handler, (type_, from_))
+    ) in handlers
 
 
 def is_inbound_message_filter(cb):
@@ -763,7 +894,9 @@ def is_inbound_message_filter(cb):
     except AttributeError:
         return False
 
-    return (True, (_apply_inbound_message_filter, ())) in handlers
+    return HandlerSpec(
+        (_apply_inbound_message_filter, ())
+    ) in handlers
 
 
 def is_inbound_presence_filter(cb):
@@ -777,7 +910,9 @@ def is_inbound_presence_filter(cb):
     except AttributeError:
         return False
 
-    return (True, (_apply_inbound_presence_filter, ())) in handlers
+    return HandlerSpec(
+        (_apply_inbound_presence_filter, ())
+    ) in handlers
 
 
 def is_outbound_message_filter(cb):
@@ -791,7 +926,9 @@ def is_outbound_message_filter(cb):
     except AttributeError:
         return False
 
-    return (True, (_apply_outbound_message_filter, ())) in handlers
+    return HandlerSpec(
+        (_apply_outbound_message_filter, ())
+    ) in handlers
 
 
 def is_outbound_presence_filter(cb):
@@ -805,4 +942,19 @@ def is_outbound_presence_filter(cb):
     except AttributeError:
         return False
 
-    return (True, (_apply_outbound_presence_filter, ())) in handlers
+    return HandlerSpec(
+        (_apply_outbound_presence_filter, ())
+    ) in handlers
+
+
+def is_depsignal_handler(class_, signal_name, cb, *, defer=False):
+    """
+    Return true if `cb` has been decorated with :func:`depsignal` for the given
+    signal, class and connection mode.
+    """
+    try:
+        handlers = _get_magic_attr(cb)
+    except AttributeError:
+        return False
+
+    return _depsignal_spec(class_, signal_name, cb, defer) in handlers

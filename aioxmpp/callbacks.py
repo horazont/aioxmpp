@@ -264,6 +264,8 @@ class AdHocSignal(AbstractAdHocSignal):
 
     .. automethod:: connect
 
+    .. automethod:: context_connect
+
     .. automethod:: future
 
     .. attribute:: logger

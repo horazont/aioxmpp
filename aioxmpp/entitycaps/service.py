@@ -338,10 +338,7 @@ class Service(aioxmpp.service.Service):
         self.ver = None
         self._cache = Cache()
 
-        self.disco = node.summon(disco.Service)
-        self._info_changed_token = self.disco.on_info_changed.connect(
-            self._info_changed
-        )
+        self.disco = self.dependencies[disco.Service]
         self.disco.register_feature(
             "http://jabber.org/protocol/caps"
         )
@@ -365,6 +362,9 @@ class Service(aioxmpp.service.Service):
     def cache(self):
         self._cache = Cache()
 
+    @aioxmpp.service.depsignal(
+        disco.Service,
+        "on_info_changed")
     def _info_changed(self):
         asyncio.get_event_loop().call_soon(
             self.update_hash
@@ -372,9 +372,6 @@ class Service(aioxmpp.service.Service):
 
     @asyncio.coroutine
     def _shutdown(self):
-        self.disco.on_info_changed.disconnect(
-            self._info_changed_token
-        )
         self.disco.unregister_feature(
             "http://jabber.org/protocol/caps"
         )

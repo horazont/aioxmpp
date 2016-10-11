@@ -798,7 +798,14 @@ class AbstractClient:
         try:
             return self._services[class_]
         except KeyError:
-            instance = class_(self, logger_base=self.logger)
+            instance = class_(
+                self,
+                logger_base=self.logger,
+                dependencies={
+                    depclass: self._services[depclass]
+                    for depclass in class_.ORDER_AFTER
+                }
+            )
             self._services[class_] = instance
             return instance
 

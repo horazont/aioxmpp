@@ -26,6 +26,7 @@ import unittest
 import unittest.mock
 import urllib.parse
 
+import aioxmpp.callbacks as callbacks
 import aioxmpp.disco as disco
 import aioxmpp.service as service
 import aioxmpp.stanza as stanza
@@ -1017,8 +1018,13 @@ class TestService(unittest.TestCase):
         self.disco = unittest.mock.Mock()
         self.disco.query_info = CoroutineMock()
         self.disco.query_info.side_effect = AssertionError()
-        self.cc.mock_services[disco.Service] = self.disco
-        self.s = entitycaps_service.Service(self.cc)
+        self.disco.on_info_changed.context_connect = unittest.mock.MagicMock()
+        self.s = entitycaps_service.Service(
+            self.cc,
+            dependencies={
+                disco.Service: self.disco,
+            }
+        )
 
         self.disco.mock_calls.clear()
         self.cc.mock_calls.clear()
@@ -1048,10 +1054,13 @@ class TestService(unittest.TestCase):
     def test_setup_and_shutdown(self):
         cc = make_connected_client()
         disco_service = unittest.mock.Mock()
-        cc.mock_services[disco.Service] = disco_service
+        disco_service.on_info_changed.context_connect = \
+            unittest.mock.MagicMock()
 
         cc.mock_calls.clear()
-        s = entitycaps_service.Service(cc)
+        s = entitycaps_service.Service(cc, dependencies={
+            disco.Service: disco_service
+        })
 
         calls = list(cc.mock_calls)
         self.assertCountEqual(
@@ -1071,15 +1080,20 @@ class TestService(unittest.TestCase):
         )
         cc.mock_calls.clear()
 
+        self.maxDiff = None
         self.assertSequenceEqual(
             disco_service.mock_calls,
             [
                 # make sure that the callback is connected first, this will
                 # make us receive the on_info_changed which causes the hash to
                 # update
-                unittest.mock.call.on_info_changed.connect(
-                    s._info_changed
+                unittest.mock.call.on_info_changed.context_connect(
+                    s._info_changed,
+                    callbacks.AdHocSignal.STRONG,
                 ),
+                unittest.mock.call.on_info_changed.context_connect(
+                    s._info_changed
+                ).__enter__(unittest.mock.ANY),
                 unittest.mock.call.register_feature(
                     "http://jabber.org/protocol/caps"
                 ),
@@ -1108,12 +1122,15 @@ class TestService(unittest.TestCase):
         self.assertSequenceEqual(
             calls,
             [
-                unittest.mock.call.on_info_changed.disconnect(
-                    disco_service.on_info_changed.connect()
-                ),
                 unittest.mock.call.unregister_feature(
                     "http://jabber.org/protocol/caps"
                 ),
+                unittest.mock.call.on_info_changed.context_connect().__exit__(
+                    unittest.mock.ANY,
+                    None,
+                    None,
+                    None,
+                )
             ]
         )
 
