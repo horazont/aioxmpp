@@ -26,6 +26,7 @@ from datetime import datetime, timedelta
 from enum import Enum
 
 import aioxmpp.callbacks
+import aioxmpp.forms
 import aioxmpp.service
 import aioxmpp.stanza
 import aioxmpp.structs
@@ -179,6 +180,8 @@ class Room:
     .. automethod:: leave_and_wait
 
     .. automethod:: send_tracked_message
+
+    .. automethod:: request_voice
 
     The interface provides signals for most of the rooms events. The following
     keyword arguments are used at several signal handlers (which is also noted
@@ -846,6 +849,51 @@ class Room:
             )
 
         return tracker
+
+    @asyncio.coroutine
+    def request_voice(self):
+        """
+        Request voice (participant role) in the room and wait for the request
+        to be sent.
+
+        The participant role allows occupants to send messages while the room
+        is in moderated mode.
+
+        There is no guarantee that the request will be granted. To detect that
+        voice has been granted, observe the :meth:`on_role_change` signal.
+
+        .. versionadded:: 0.8
+        """
+
+        msg = aioxmpp.Message(
+            to=self.mucjid,
+            type_=aioxmpp.MessageType.NORMAL
+        )
+
+        data = aioxmpp.forms.Data(
+            aioxmpp.forms.DataType.SUBMIT,
+        )
+
+        data.fields.append(
+            aioxmpp.forms.Field(
+                type_=aioxmpp.forms.FieldType.HIDDEN,
+                var="FORM_TYPE",
+                values=["http://jabber.org/protocol/muc#request"],
+            ),
+        )
+        data.fields.append(
+            aioxmpp.forms.Field(
+                type_=aioxmpp.forms.FieldType.LIST_SINGLE,
+                var="muc#role",
+                values=["participant"],
+            )
+        )
+
+        msg.xep0004_data.append(data)
+
+        yield from self.service.client.stream.send_and_wait_for_sent(
+            msg,
+        )
 
 
 def _connect_to_signal(signal, func):

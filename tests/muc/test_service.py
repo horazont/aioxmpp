@@ -28,6 +28,7 @@ from datetime import datetime, timedelta
 
 import aioxmpp.callbacks
 import aioxmpp.errors
+import aioxmpp.forms
 import aioxmpp.muc.service as muc_service
 import aioxmpp.muc.xso as muc_xso
 import aioxmpp.service as service
@@ -243,6 +244,8 @@ class TestRoom(unittest.TestCase):
 
         self.base = unittest.mock.Mock()
         self.base.service.logger = unittest.mock.Mock(name="logger")
+        self.base.service.client.stream.send_and_wait_for_sent = \
+            CoroutineMock()
 
         self.jmuc = muc_service.Room(self.base.service, self.mucjid)
 
@@ -282,6 +285,9 @@ class TestRoom(unittest.TestCase):
         self.jmuc.on_affiliation_change.connect(
             self.base.on_affiliation_change)
         self.jmuc.on_leave.connect(self.base.on_leave)
+
+    def tearDown(self):
+        del self.jmuc
 
     def test_event_attributes(self):
         self.assertIsInstance(
@@ -2022,8 +2028,95 @@ class TestRoom(unittest.TestCase):
             tracking.MessageState.UNKNOWN
         )
 
-    def tearDown(self):
-        del self.jmuc
+    def test_request_voice(self):
+        run_coroutine(self.jmuc.request_voice())
+
+        self.assertEqual(
+            len(self.base.service.client.stream.send_and_wait_for_sent.mock_calls),
+            1,
+        )
+
+        _, (msg, ), _ = \
+            self.base.service.client.stream.send_and_wait_for_sent.mock_calls[0]
+
+        self.assertIsInstance(
+            msg,
+            aioxmpp.Message,
+        )
+
+        self.assertEqual(
+            msg.type_,
+            aioxmpp.MessageType.NORMAL,
+        )
+
+        self.assertEqual(
+            msg.to,
+            TEST_MUC_JID,
+        )
+
+        self.assertEqual(
+            len(msg.xep0004_data),
+            1
+        )
+
+        data, = msg.xep0004_data
+
+        self.assertIsInstance(
+            data,
+            aioxmpp.forms.Data,
+        )
+
+        self.assertEqual(
+            data.type_,
+            aioxmpp.forms.DataType.SUBMIT,
+        )
+
+        self.assertEqual(
+            len(data.fields),
+            2
+        )
+
+        field = data.fields[0]
+        self.assertIsInstance(
+            field,
+            aioxmpp.forms.Field,
+        )
+
+        self.assertEqual(
+            field.type_,
+            aioxmpp.forms.FieldType.HIDDEN,
+        )
+
+        self.assertEqual(
+            field.var,
+            "FORM_TYPE",
+        )
+
+        self.assertSequenceEqual(
+            field.values,
+            ["http://jabber.org/protocol/muc#request"]
+        )
+
+        field = data.fields[1]
+        self.assertIsInstance(
+            field,
+            aioxmpp.forms.Field,
+        )
+
+        self.assertEqual(
+            field.type_,
+            aioxmpp.forms.FieldType.LIST_SINGLE,
+        )
+
+        self.assertEqual(
+            field.var,
+            "muc#role",
+        )
+
+        self.assertSequenceEqual(
+            field.values,
+            ["participant"]
+        )
 
 
 class TestService(unittest.TestCase):
