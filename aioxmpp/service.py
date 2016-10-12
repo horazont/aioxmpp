@@ -139,7 +139,8 @@ class Meta(abc.ABCMeta):
        currently being declared needs to be instanciated.
 
        Thus, any service which occurs in :attr:`ORDER_BEFORE` will be
-       instanciated *after* this class (if at all).
+       instanciated *after* this class (if at all). Think of it as "*this*
+       class is ordered *before* the classes in this attribute".
 
        .. versionadded:: 0.3
 
@@ -159,13 +160,12 @@ class Meta(abc.ABCMeta):
 
     .. attribute:: ORDER_AFTER
 
-       An iterable of :class:`Service` classes which would be instanciated
-       after the class which is currently being declared, if at all.
+       An iterable of :class:`Service` classes which will be instanciated
+       *before* the class which is being declraed.
 
-       Classes which are declared in this attribute are not forced to be
-       instanciated (unlike with :attr:`ORDER_BEFORE`). However, if any of
-       these classes is requested, it is made sure that *this* class is
-       instanciated before.
+       Classes which are declared in this attribute are always instanciated
+       before this class is instantiated. Think of it as "*this* class is
+       ordered *after* the classes in this attribute".
 
        .. versionadded:: 0.3
 
