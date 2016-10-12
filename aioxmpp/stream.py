@@ -574,9 +574,14 @@ class StanzaStream:
 
     .. signal:: on_failure(exc)
 
-       A signal which will fire when the stream has failed. A failure
-       occurs whenever the main task of the :class:`StanzaStream` (the one
-       started by :meth:`start`) terminates with an exception.
+       Emits when the stream has failed, i.e. entered stopped state without
+       request by the user.
+
+       :param exc: The exception which caused the stream to fail.
+       :type exc: :class:`Exception`
+
+       A failure occurs whenever the main task of the :class:`StanzaStream`
+       (the one started by :meth:`start`) terminates with an exception.
 
        Examples are :class:`ConnectionError` as raised upon a ping timeout and
        any exceptions which may be raised by the
@@ -590,14 +595,15 @@ class StanzaStream:
 
           The closing behaviour was added.
 
-       The exception which occured is given as `exc`.
-
     .. signal:: on_stream_destroyed()
 
        When a stream is destroyed so that all state shall be discarded (for
        example, pending futures), this signal is fired.
 
        This happens if a non-SM stream is stopped or if SM is being disabled.
+
+       There is no guarantee (it is not even likely) that it is possible to
+       send stanzas over the stream at the time this signal is emitted.
 
     .. signal:: on_stream_established()
 
