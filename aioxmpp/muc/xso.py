@@ -21,8 +21,8 @@
 ########################################################################
 import aioxmpp.forms
 import aioxmpp.stanza
-import aioxmpp.stringprep
 import aioxmpp.xso as xso
+import precis_i18n as precis
 
 from aioxmpp.utils import namespaces
 
@@ -180,7 +180,7 @@ class ActorBase(xso.XSO):
 
     nick = xso.Attr(
         "nick",
-        type_=xso.String(aioxmpp.stringprep.resourceprep),
+        type_=xso.String(precis.Nickname.enforce),
         default=None
     )
 
@@ -208,7 +208,7 @@ class ItemBase(xso.XSO):
 
     nick = xso.Attr(
         "nick",
-        type_=xso.String(aioxmpp.stringprep.resourceprep),
+        type_=xso.String(precis.Nickname.enforce),
         default=None
     )
 

@@ -145,9 +145,9 @@ class FieldType(enum.Enum):
 
           The field enables an entity to gather or provide multiple Jabber IDs.
           Each provided JID SHOULD be unique (as determined by comparison that
-          includes application of the Nodeprep, Nameprep, and Resourceprep
-          profiles of Stringprep as specified in XMPP Core), and duplicate JIDs
-          MUST be ignored.
+          includes application of the Username Case Mapped, and Nickname
+          profiles of PRECIS or IDNA2008 as specified in RFC 7622), and duplicate
+          JIDs MUST be ignored.
 
        As such, the :attr:`Field.values` sequence should contain zero or more
        strings representing Jabber IDs. :attr:`Field.options` should be empty.
