@@ -644,6 +644,7 @@ class StanzaStream:
         self._xmlstream_exception = None
 
         self._established = False
+        self._closed = False
 
         self.ping_interval = timedelta(seconds=15)
         self.ping_opportunistic_interval = timedelta(seconds=15)
@@ -719,6 +720,8 @@ class StanzaStream:
         self._logger.debug("destroying stream state")
         self._iq_response_map.close_all(exc)
         for task in self._iq_request_tasks:
+            # we don’t need to remove, that’s handled by their
+            # add_done_callback
             task.cancel()
         while not self._active_queue.empty():
             token = self._active_queue.get_nowait()
@@ -1574,6 +1577,7 @@ class StanzaStream:
             raise RuntimeError("already started")
 
         self._start_prepare(xmlstream, self.recv_stanza)
+        self._closed = False
         self._start_commit(xmlstream)
 
     def stop(self):
@@ -1614,33 +1618,49 @@ class StanzaStream:
         """
         Close the stream and the underlying XML stream (if any is connected).
 
-        This calls :meth:`wait_stop` and cleans up any Stream Management state,
-        if no error occurs. If an error occurs while the stream stops, that
-        error is re-raised and the stream management state is not cleared,
-        unless resumption is disabled.
+        This is essentially a way of saying "I do not want to use this stream
+        anymore" (until the next call to :meth:`start`). If the stream is
+        currently running, the XML stream is closed gracefully (potentially
+        sending an SM ack), the worker is stopped and any Stream Management
+        state is cleaned up.
+
+        If an error occurs while the stream stops, the error is ignored.
+
+        After the call to :meth:`close` has started, :meth:`on_failure` will
+        not be emitted, even if the XML stream fails before closure has
+        completed.
+
+        After a call to :meth:`close`, the stream is stopped, all SM state is
+        discarded and calls to :meth:`enqueue_stanza` raise a
+        :class:`ConnectionError` ``"close() called"``. Such a
+        :class:`StanzaStream` can be re-started by calling :meth:`start`.
+
+        .. versionchanged:: 0.8
+
+           Before 0.8, an error during a call to :meth:`close` would stop the
+           stream from closing completely, and the exception was re-raised. If
+           SM was enabled, the state would have been kept, allowing for
+           resumption and ensuring that stanzas still enqueued or
+           unacknowledged would get a chance to be sent.
+
+           If you want to have guarantees that all stanzas sent up to a certain
+           point are sent, you should be using :meth:`send_and_wait_for_sent`
+           with stream management.
         """
-        if not self.running:
-            return
+        if self.running:
+            if self.sm_enabled:
+                self._xmlstream.send_xso(nonza.SMAcknowledgement(
+                    counter=self._sm_inbound_ctr
+                ))
+
+            yield from self._xmlstream.close_and_wait()  # does not raise
+            yield from self.wait_stop()  # may raise!
+
+        self._xmlstream_exception = ConnectionError("close() called")
+        self._closed = True
+        self._destroy_stream_state(self._xmlstream_exception)
         if self.sm_enabled:
-            self._xmlstream.send_xso(nonza.SMAcknowledgement(
-                counter=self._sm_inbound_ctr
-            ))
-
-        yield from self._xmlstream.close_and_wait()  # does not raise
-        yield from self.wait_stop()
-
-        if self._xmlstream_exception is not None:
-            exc = self._xmlstream_exception
-            if self.sm_enabled:
-                if self.sm_resumable:
-                    raise exc
-                self._destroy_stream_state(exc)
-                self.stop_sm()
-                return
-        else:
-            self._destroy_stream_state(ConnectionError("close() called"))
-            if self.sm_enabled:
-                self.stop_sm()
+            self.stop_sm()
 
     @asyncio.coroutine
     def _run(self, xmlstream):
@@ -1730,6 +1750,8 @@ class StanzaStream:
         This method calls :meth:`~.stanza.StanzaBase.autoset_id` on the stanza
         automatically.
         """
+        if self._closed:
+            raise self._xmlstream_exception
 
         stanza.validate()
         token = StanzaToken(stanza, **kwargs)
