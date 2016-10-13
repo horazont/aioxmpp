@@ -60,12 +60,20 @@ class Example(metaclass=abc.ABCMeta):
             help="JID to authenticate with (only required if not in config)"
         )
 
-        self.argparse.add_argument(
+        mutex = self.argparse.add_mutually_exclusive_group()
+        mutex.add_argument(
             "-p",
             dest="ask_password",
             action="store_true",
             default=False,
             help="Ask for password on stdio"
+        )
+        mutex.add_argument(
+            "-A",
+            nargs="?",
+            dest="anonymous",
+            default=False,
+            help="Perform ANONYMOUS authentication"
         )
 
         self.argparse.add_argument(
@@ -113,15 +121,41 @@ class Example(metaclass=abc.ABCMeta):
             pin_store = None
             pin_type = None
 
-        if self.args.ask_password:
-            password = getpass.getpass()
+        anonymous = self.args.anonymous
+        if anonymous is False:
+            if self.args.ask_password:
+                password = getpass.getpass()
+            else:
+                password = self.config.get("global", "password")
         else:
-            password = self.config.get("global", "password")
+            password = None
+            anonymous = anonymous or ""
+
+        no_verify = self.config.getboolean(
+            str(self.g_jid), "no_verify",
+            fallback=self.config.getboolean("global", "no_verify",
+                                            fallback=False)
+        )
+        logging.info(
+            "constructing security layer with "
+            "pin_store=%r, "
+            "pin_type=%r, "
+            "anonymous=%r, "
+            "no_verify=%r, "
+            "not-None password %s",
+            pin_store,
+            pin_type,
+            anonymous,
+            no_verify,
+            password is not None,
+        )
 
         self.g_security_layer = aioxmpp.make_security_layer(
             password,
             pin_store=pin_store,
             pin_type=pin_type,
+            anonymous=anonymous,
+            no_verify=no_verify,
         )
 
     def make_simple_client(self):
