@@ -1138,12 +1138,8 @@ class Testconnect_xmlstream(unittest.TestCase):
 
         excs = [
             OSError(),
-            errors.TLSUnavailable(
-                (namespaces.streams, "policy-violation"),
-            ),
-            errors.TLSFailure(
-                (namespaces.streams, "policy-violation"),
-            ),
+            OSError(),
+            OSError(),
         ]
 
         base = unittest.mock.Mock()
@@ -1195,6 +1191,67 @@ class Testconnect_xmlstream(unittest.TestCase):
         self.assertSequenceEqual(
             exc_ctx.exception.exceptions,
             excs,
+        )
+
+    def test_raises_most_specific_if_any_error_is_TLS_related(self):
+        NCONNECTORS = 3
+
+        excs = [
+            OSError(),
+            errors.TLSUnavailable(
+                (namespaces.streams, "policy-violation"),
+            ),
+            errors.TLSFailure(
+                (namespaces.streams, "policy-violation"),
+            ),
+        ]
+
+        base = unittest.mock.Mock()
+        jid = unittest.mock.Mock()
+
+        for i in range(NCONNECTORS):
+            connect = CoroutineMock()
+            getattr(base, "c{}".format(i)).connect = connect
+
+        base.c0.connect.side_effect = excs[0]
+        base.c1.connect.side_effect = excs[1]
+        base.c2.connect.side_effect = excs[2]
+
+        self.discover_connectors.return_value = [
+            (getattr(unittest.mock.sentinel, "h{}".format(i)),
+             getattr(unittest.mock.sentinel, "p{}".format(i)),
+             getattr(base, "c{}".format(i)))
+            for i in range(NCONNECTORS)
+        ]
+
+        with self.assertRaisesRegex(
+                errors.TLSFailure,
+                r"TLS failure") as exc_ctx:
+            run_coroutine(node.connect_xmlstream(
+                jid,
+                base.metadata,
+                loop=unittest.mock.sentinel.loop,
+            ))
+
+        self.discover_connectors.assert_called_with(
+            jid.domain.encode(),
+            loop=unittest.mock.sentinel.loop,
+            logger=node.logger,
+        )
+
+        self.assertSequenceEqual(
+            base.mock_calls,
+            [
+                getattr(unittest.mock.call, "c{}".format(i)).connect(
+                    unittest.mock.sentinel.loop,
+                    base.metadata,
+                    jid.domain,
+                    getattr(unittest.mock.sentinel, "h{}".format(i)),
+                    getattr(unittest.mock.sentinel, "p{}".format(i)),
+                    60.,
+                )
+                for i in range(3)
+            ]
         )
 
     def test_handle_no_options(self):
