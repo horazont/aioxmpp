@@ -26,6 +26,7 @@ functionality or provide backwards compatibility.
 .. toctree::
    :maxdepth: 2
 
+   adhoc
    disco
    entitycaps
    forms
