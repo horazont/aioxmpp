@@ -81,13 +81,15 @@ can be subclassed and extended:
 
 .. _sasl providers:
 
-SASL provdiers
+SASL providers
 ==============
 
 As elements of the `sasl_providers` argument to :class:`SecurityLayer`,
 instances of the following classes can be used:
 
 .. autoclass:: PasswordSASLProvider
+
+.. autoclass:: AnonymousSASLProvider
 
 .. note::
 
@@ -882,18 +884,30 @@ class PasswordSASLProvider(SASLProvider):
     """
     Perform password-based SASL authentication.
 
-    `jid` must be a :class:`~aioxmpp.JID` object for the
-    client. `password_provider` must be a coroutine which is called with the
-    jid as first and the number of attempt as second argument. It must return
-    the password to use, or :data:`None` to abort. In that case, an
-    :class:`errors.AuthenticationFailure` error will be raised.
+    :param password_provider: A coroutine function returning the password to
+                              authenticate with.
+    :type password_provider: coroutine function
+    :param max_auth_attempts: Maximum number of authentication attempts with a
+                              single mechansim.
+    :type max_auth_attempts: positive :class:`int`
 
-    At most `max_auth_attempts` will be carried out. If all fail, the
-    authentication error of the last attempt is raised.
+    `password_provider` must be a coroutine taking two arguments, a JID and an
+    integer number. The first argument is the JID which is trying to
+    authenticate and the second argument is the number of the authentication
+    attempt, starting at 0. On each attempt, the number is increased, up to
+    `max_auth_attempts`\ -1. If the coroutine returns :data:`None`, the
+    authentication process is aborted. If the number of attempts are exceeded,
+    the authentication process is also aborted. In both cases, an
+    :class:`aiosasl.AuthenticationFailure` error will be raised.
 
     The SASL mechanisms used depend on whether TLS has been negotiated
     successfully before. In any case, :class:`aiosasl.SCRAM` is used. If TLS has
     been negotiated, :class:`aiosasl.PLAIN` is also supported.
+
+    .. seealso::
+
+       :class:`SASLProvider`
+          for the public interface of this class.
     """
 
     def __init__(self, password_provider, *,
@@ -968,6 +982,64 @@ class PasswordSASLProvider(SASLProvider):
             classes.remove(mechanism_class)
 
         return False
+
+
+class AnonymousSASLProvider(SASLProvider):
+    """
+    Perform the ``ANONYMOUS`` SASL mechanism (:rfc:`4505`).
+
+    :param token: The trace token for the ``ANONYMOUS`` mechanism
+    :type token: :class:`str`
+
+    `token` SHOULD be the empty string in the XMPP context (see :xep:`175`).
+
+    .. seealso::
+
+       :class:`SASLProvider`
+          for the public interface of this class.
+
+    .. warning::
+
+       Take the security and privacy considerations from :rfc:`4505` (which
+       specifies the ANONYMOUS SASL mechanism) and :xep:`175` (which discusses
+       the ANONYMOUS SASL mechanism in the XMPP context) into account before
+       using this provider.
+
+    .. note::
+
+       This class requires :class:`aiosasl.ANONYMOUS`, which is available with
+       :mod:`aiosasl` 0.3 or newer. If :class:`aiosasl.ANONYMOUS` is not
+       provided, this class is replaced with :data:`None`.
+
+    .. versionadded:: 0.8
+    """
+
+    def __init__(self, token):
+        super().__init__()
+        self._token = token
+
+    @asyncio.coroutine
+    def execute(self, client_jid, features, xmlstream, tls_transport):
+        mechanism_class, token = self._find_supported(
+            features,
+            [aiosasl.ANONYMOUS]
+        )
+
+        if mechanism_class is None:
+            return False
+
+        intf = sasl.SASLXMPPInterface(xmlstream)
+        mechanism = aiosasl.ANONYMOUS(self._token)
+
+        return (yield from self._execute(
+            intf,
+            mechanism,
+            token,
+        ))
+
+
+if not hasattr(aiosasl, "ANONYMOUS"):
+    AnonymousSASLProvider = None  # NOQA
 
 
 class SecurityLayer(collections.namedtuple(
@@ -1208,6 +1280,7 @@ def make(
         pin_store=None,
         pin_type=PinType.PUBLIC_KEY,
         post_handshake_deferred_failure=None,
+        anonymous=False,
         no_verify=False):
     """
     Construct a :class:`SecurityLayer`. Depending on the arguments passed,
@@ -1230,10 +1303,16 @@ def make(
                                             the pin store and fails PKI
                                             verification.
     :type post_handshake_deferred_failure: coroutine
+    :param anonymous: trace token for SASL ANONYMOUS (:rfc:`4505`), enables
+                      ANONYMOUS authentication
+    :type anonymous: :class:`str` or :data:`False`
     :param no_verify: *Disable* all certificate verification. Usage is **strongly
                       discouraged** outside controlled test environments. See
                       below for alternatives.
     :type no_verify: :class:`bool`
+    :raise RuntimeError: if `anonymous` is a :class:`str` and the version of
+                         :mod:`aiosasl` in use does not provide
+                         :class:`aiosasl.ANONYMOUS`
     :return: A new :class:`SecurityLayer` instance configured as per the
              arguments.
 
@@ -1276,8 +1355,31 @@ def make(
        public key infrastructure, consider making use of the `pin_store`
        argument instead.
 
+    `anonymous` may be a string or :data:`False`. If it is not :data:`False`,
+    :class:`AnonymousSASLProvider` is used before password based authentication
+    is attempted. In addition, it is allowed to set `password_provider` to
+    :data:`None`. `anonymous` is the trace token to use, and SHOULD be the
+    empty string (as specified by :xep:`175`). This requires :mod:`aiosasl` 0.3
+    or newer.
+
+    .. note::
+
+       :data:`False` and ``""`` are treated differently for the `anonymous`
+       argument, despite both being false-y values!
+
+    .. warning::
+
+       Take the security and privacy considerations from :rfc:`4505` (which
+       specifies the ANONYMOUS SASL mechanism) and :xep:`175` (which discusses
+       the ANONYMOUS SASL mechanism in the XMPP context) into account before
+       using `anonymous`.
+
     The versaility and simplicity of use of this function make (pun intended)
     it the preferred way to construct :class:`SecurityLayer` instances.
+
+    .. versionadded:: 0.8
+
+       Support for SASL ANONYMOUS was added.
     """
 
     if isinstance(password_provider, str):
@@ -1313,13 +1415,26 @@ def make(
     else:
         certificate_verifier_factory = PKIXCertificateVerifier
 
-    return SecurityLayer(
-        default_ssl_context,
-        certificate_verifier_factory,
-        True,
-        (
+    sasl_providers = []
+    if anonymous is not False:
+        if AnonymousSASLProvider is None:
+            raise RuntimeError(
+                "aiosasl does not support ANONYMOUS, please upgrade"
+            )
+        sasl_providers.append(
+            AnonymousSASLProvider(anonymous)
+        )
+
+    if password_provider is not None or anonymous is False:
+        sasl_providers.append(
             PasswordSASLProvider(
                 password_provider,
             ),
         )
+
+    return SecurityLayer(
+        default_ssl_context,
+        certificate_verifier_factory,
+        True,
+        tuple(sasl_providers),
     )

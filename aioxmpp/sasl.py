@@ -40,7 +40,7 @@ import logging
 
 import aiosasl
 
-from . import errors, protocol, nonza
+from . import protocol, nonza
 
 logger = logging.getLogger(__name__)
 
