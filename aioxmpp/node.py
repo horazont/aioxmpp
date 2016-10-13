@@ -756,7 +756,8 @@ class AbstractClient:
                     if self.stream.sm_enabled:
                         self.stream.stop_sm()
                     raise
-                except (OSError, dns.resolver.NoNameservers):
+                except (OSError, dns.resolver.NoNameservers) as exc:
+                    self.logger.info("%s", exc)
                     if self._backoff_time is None:
                         self._backoff_time = self.backoff_start.total_seconds()
                     yield from asyncio.sleep(self._backoff_time)
