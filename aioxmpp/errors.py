@@ -88,7 +88,9 @@ def format_error_text(
         application_defined_condition=None):
     error_tag = xso.tag_to_str(condition)
     if application_defined_condition is not None:
-        error_tag += "/{}".format(application_defined_condition.tag)
+        error_tag += "/{}".format(
+            xso.tag_to_str(application_defined_condition.TAG)
+        )
     if text:
         error_tag += " ({!r})".format(text)
     return error_tag

@@ -714,7 +714,8 @@ class TestError(unittest.TestCase):
         self.assertEqual(result, cond.to_exception())
 
     def test_to_exception_with_application_condition_only_if_cond_supports(self):
-        cond = unittest.mock.Mock([])
+        cond = unittest.mock.Mock(["TAG"])
+        cond.TAG = ("foo", "bar")
 
         obj = stanza.Error(
             type_=structs.ErrorType.CONTINUE,
@@ -729,6 +730,11 @@ class TestError(unittest.TestCase):
             errors.XMPPContinueError
         )
 
+        self.assertEqual(
+            result.application_defined_condition,
+            obj.application_condition,
+        )
+
         self.assertSequenceEqual(
             cond.mock_calls,
             [
@@ -736,7 +742,8 @@ class TestError(unittest.TestCase):
         )
 
     def test_override_with_default_exception_if_result_of_app_cond_is_no_exception(self):
-        cond = unittest.mock.Mock(["to_exception"])
+        cond = unittest.mock.Mock(["to_exception", "TAG"])
+        cond.TAG = ("foo", "bar")
 
         obj = stanza.Error(
             type_=structs.ErrorType.CONTINUE,

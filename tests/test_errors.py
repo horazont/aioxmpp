@@ -48,22 +48,26 @@ class Testformat_error_text(unittest.TestCase):
         )
 
     def test_with_application_defined(self):
-        appcond = etree.Element("{uri:bar}value-error")
+        class Appcond:
+            TAG = ("uri:bar", "value-error")
+
         self.assertEqual(
             "{uri:foo}error/{uri:bar}value-error",
             errors.format_error_text(
                 condition=("uri:foo", "error"),
-                application_defined_condition=appcond,
+                application_defined_condition=Appcond(),
             )
         )
 
     def test_with_application_defined_and_text(self):
-        appcond = etree.Element("{uri:bar}value-error")
+        class Appcond:
+            TAG = ("uri:bar", "value-error")
+
         self.assertEqual(
             "{uri:foo}error/{uri:bar}value-error ('that’s not an integer')",
             errors.format_error_text(
                 condition=("uri:foo", "error"),
-                application_defined_condition=appcond,
+                application_defined_condition=Appcond(),
                 text="that’s not an integer"
             )
         )

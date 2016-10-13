@@ -306,7 +306,8 @@ class Error(xso.XSO):
                 return result
         return self.EXCEPTION_CLS_MAP[self.type_](
             condition=self.condition,
-            text=self.text
+            text=self.text,
+            application_defined_condition=self.application_condition,
         )
 
     @classmethod
