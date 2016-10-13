@@ -52,7 +52,7 @@ setup(
         "Topic :: Communications :: Chat",
     ],
     keywords="asyncio xmpp library",
-    install_requires=['aiosasl>=0.2',  # need 0.2+ for LGPLv3
+    install_requires=['aiosasl>=0.3',  # need 0.2+ for LGPLv3
                       'aioopenssl>=0.1',
                       'babel~=2.3',
                       'dnspython3~=1.14',

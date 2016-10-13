@@ -85,7 +85,7 @@ Dependencies
   .. _pyasn1: https://pypi.python.org/pypi/pyasn1
   __ https://pypi.python.org/pypi/pyasn1-modules
 
-* `aiosasl`__
+* `aiosasl`__ (≥ 0.3 for ``ANONYMOUS`` support)
 
   __ https://pypi.python.org/pypi/aiosasl
 
