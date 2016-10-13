@@ -130,6 +130,14 @@ Version 0.7
   :class:`ValueError` when an attempt to overwrite an existing listener is made,
   instead of silently replacing the callback.
 
+Version 0.7.2
+-------------
+
+* Fix resource leak which would emit::
+
+    task: <Task pending coro=<OrderedStateMachine.wait_for() running at /home/horazont/Projects/python/aioxmpp/aioxmpp/statemachine.py:170> wait_for=<Future pending cb=[Task._wakeup()]> cb=[XMLStream._stream_starts_closing()]>
+
+
 Version 0.6
 ===========
 
