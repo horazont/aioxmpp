@@ -581,6 +581,7 @@ class TestHookablePKIXCertificateVerifier(unittest.TestCase):
             (19, None),
             (18, 0),
             (27, 0),
+            (21, 0),
         ]
 
     def test_is_certificate_verifier(self):
@@ -595,7 +596,8 @@ class TestHookablePKIXCertificateVerifier(unittest.TestCase):
             self.verifier.verify_recorded(
                 self.x509,
                 s
-            )
+            ),
+            s
         )
 
         self.assertSequenceEqual([], self.quick_check.mock_calls)
@@ -713,6 +715,69 @@ class TestHookablePKIXCertificateVerifier(unittest.TestCase):
                 self.x509,
                 0, 0,
                 True)
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call.get_extra_info("server_hostname"),
+            ],
+            self.transport.mock_calls
+        )
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(self.x509, self.transport.get_extra_info()),
+            ],
+            check_x509_hostname.mock_calls
+        )
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(self.x509, errors)
+            ],
+            verify_recorded.mock_calls
+        )
+
+        self.assertEqual(
+            verify_recorded(),
+            result
+        )
+
+        self.assertEqual(
+            check_x509_hostname(),
+            self.verifier.hostname_matches
+        )
+
+        self.assertIs(
+            self.x509,
+            self.verifier.leaf_x509
+        )
+
+    def test_verify_callback_treats_errno_21_on_leaf_as_last(self):
+        errors = set()
+        self.verifier.recorded_errors = errors
+
+        self.assertFalse(self.verifier.hostname_matches)
+        self.assertIsNone(self.verifier.leaf_x509)
+
+        with contextlib.ExitStack() as stack:
+            verify_recorded = stack.enter_context(
+                unittest.mock.patch.object(self.verifier, "verify_recorded")
+            )
+
+            check_x509_hostname = stack.enter_context(unittest.mock.patch(
+                "aioxmpp.security_layer.check_x509_hostname"
+            ))
+
+            result = self.verifier.verify_callback(
+                None,
+                self.x509,
+                21, 0,
+                True)
+
+        self.assertIn(
+            (self.x509, 21, 0),
+            self.verifier.recorded_errors,
+        )
 
         self.assertSequenceEqual(
             [

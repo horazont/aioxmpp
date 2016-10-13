@@ -394,6 +394,7 @@ class HookablePKIXCertificateVerifier(CertificateVerifier):
         (19, None),  # self-signed cert in chain
         (18, 0),     # depth-zero self-signed cert
         (27, 0),     # cert untrusted
+        (21, 0),     # leaf certificate not signed ...
     }
 
     def __init__(self,
@@ -410,11 +411,16 @@ class HookablePKIXCertificateVerifier(CertificateVerifier):
         self.leaf_x509 = None
 
     def verify_callback(self, ctx, x509, errno, depth, preverify):
-        if errno != 0:
+        if errno != 0 and errno != 21:
             self.recorded_errors.add((x509, errno, depth))
             return True
 
         if depth == 0:
+            if errno != 0:
+                logger.debug(
+                    "unsigned certificate; this is odd to say the least"
+                )
+                self.recorded_errors.add((x509, errno, depth))
             hostname = self.transport.get_extra_info("server_hostname")
             self.hostname_matches = check_x509_hostname(x509, hostname)
             self.leaf_x509 = x509
