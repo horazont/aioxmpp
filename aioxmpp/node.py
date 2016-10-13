@@ -338,6 +338,10 @@ def connect_xmlstream(
             jid.domain
         ))
 
+    for exc in exceptions:
+        if isinstance(exc, errors.TLSFailure):
+            raise exc
+
     raise errors.MultiOSError(
         "failed to connect to XMPP domain {!r}".format(jid.domain),
         exceptions
