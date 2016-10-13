@@ -1393,23 +1393,19 @@ class TestStanzaStream(StanzaStreamTestBase):
         self.assertIsNone(caught_exc)
 
     def test_close_when_stopped(self):
-        caught_exc = None
-
-        def failure_handler(exc):
-            nonlocal caught_exc
-            caught_exc = exc
-
+        failure_handler = unittest.mock.Mock()
+        failure_handler.return_value = None
         self.stream.on_failure.connect(failure_handler)
 
         self.assertFalse(self.stream.running)
         run_coroutine(self.stream.close())
         self.assertFalse(self.stream.running)
 
-        self.assertIsNone(caught_exc)
+        self.assertFalse(failure_handler.mock_calls)
 
     def test_close_after_error(self):
         caught_exc = None
-        exc = ConnectionError()
+        exc = Exception()
 
         def failure_handler(exc):
             nonlocal caught_exc
@@ -1425,7 +1421,6 @@ class TestStanzaStream(StanzaStreamTestBase):
         self.assertFalse(self.stream.running)
 
         self.assertIs(exc, caught_exc)
-        # self.assertFalse(self.xmlstream.close.mock_calls)
 
     def test_close_closes_iq_response_futures(self):
         fut = asyncio.Future()
@@ -1438,6 +1433,22 @@ class TestStanzaStream(StanzaStreamTestBase):
         self.stream.start(self.xmlstream)
         run_coroutine(asyncio.sleep(0))
         self.assertTrue(self.stream.running)
+
+        self.assertFalse(fut.done())
+
+        run_coroutine(self.stream.close())
+        self.assertFalse(self.stream.running)
+
+        self.assertTrue(fut.done())
+        self.assertIsInstance(fut.exception(), ConnectionError)
+
+    def test_close_closes_iq_response_futures_on_stopped_stream(self):
+        fut = asyncio.Future()
+        self.stream.register_iq_response_future(
+            TEST_FROM,
+            "123",
+            fut,
+        )
 
         self.assertFalse(fut.done())
 
@@ -1481,6 +1492,42 @@ class TestStanzaStream(StanzaStreamTestBase):
 
         self.assertIsInstance(exc, asyncio.CancelledError)
 
+    def test_close_cancels_running_iq_request_coroutines_on_stopped_stream(self):
+        exc = None
+        running = False
+
+        @asyncio.coroutine
+        def coro(stanza):
+            nonlocal exc, running
+            running = True
+            try:
+                yield from asyncio.sleep(10)
+            except Exception as inner_exc:
+                exc = inner_exc
+                raise
+
+        self.stream.register_iq_request_coro(
+            structs.IQType.GET,
+            FancyTestIQ,
+            coro,
+        )
+
+        self.stream.start(self.xmlstream)
+        run_coroutine(asyncio.sleep(0))
+        self.assertTrue(self.stream.running)
+
+        self.stream.recv_stanza(make_test_iq())
+        run_coroutine(asyncio.sleep(0))
+        self.assertTrue(running)
+        self.assertIsNone(exc)
+
+        run_coroutine(self.stream.wait_stop())
+
+        run_coroutine(self.stream.close())
+        self.assertFalse(self.stream.running)
+
+        self.assertIsInstance(exc, asyncio.CancelledError)
+
     def test_close_sets_active_stanza_tokens_to_aborted(self):
         get_mock = CoroutineMock()
         get_mock.delay = 1000
@@ -1502,6 +1549,43 @@ class TestStanzaStream(StanzaStreamTestBase):
         self.assertFalse(self.stream.running)
 
         self.assertEqual(token.state, stream.StanzaState.DISCONNECTED)
+
+    def test_close_sets_active_stanza_tokens_to_aborted_on_stopped_stream(self):
+        get_mock = CoroutineMock()
+        get_mock.delay = 1000
+        # let’s mess with the processor a bit ...
+        # otherwise, the stanza is sent before the close can happen
+        with unittest.mock.patch.object(
+                self.stream._active_queue,
+                "get",
+                new=get_mock):
+
+            token = self.stream.enqueue_stanza(make_test_message())
+
+            run_coroutine(self.stream.close())
+
+        self.assertFalse(self.stream.running)
+
+        self.assertEqual(token.state, stream.StanzaState.DISCONNECTED)
+
+    def test_enqueue_stanza_raises_after_close(self):
+        run_coroutine(self.stream.close())
+
+        with self.assertRaisesRegex(ConnectionError, r"close\(\) called"):
+            self.stream.enqueue_stanza(unittest.mock.sentinel.stanza)
+
+    def test_enqueue_stanza_works_after_close_and_start(self):
+        run_coroutine(self.stream.close())
+
+        iq = make_test_iq(type_=structs.IQType.GET)
+
+        self.stream.start(self.xmlstream)
+        self.stream.enqueue_stanza(iq)
+
+        obj = run_coroutine(self.sent_stanzas.get())
+        self.assertIs(obj, iq)
+
+        self.stream.stop()
 
     def test_send_bulk(self):
         state_change_handler = unittest.mock.MagicMock()
@@ -3949,6 +4033,22 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
         self.assertFalse(self.stream.sm_enabled)
         self.destroyed_rec.assert_called_once_with()
 
+    def test_close_deletes_sm_state_even_while_stopped(self):
+        self.stream.start(self.xmlstream)
+        run_coroutine_with_peer(
+            self.stream.start_sm(),
+            self.xmlstream.run_test(self.successful_sm)
+        )
+
+        self.established_rec.assert_called_once_with()
+
+        run_coroutine(self.stream.wait_stop())
+        self.assertTrue(self.stream.sm_enabled)
+
+        run_coroutine(self.stream.close())
+        self.assertFalse(self.stream.sm_enabled)
+        self.destroyed_rec.assert_called_once_with()
+
     def test_close_sends_sm_ack(self):
         self.stream.start(self.xmlstream)
         run_coroutine_with_peer(
@@ -3971,7 +4071,7 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
         self.assertFalse(self.stream.sm_enabled)
         self.destroyed_rec.assert_called_once_with()
 
-    def test_close_keeps_sm_state_on_exception_during_close_if_resumable(self):
+    def test_close_discards_sm_state_on_exception_during_close_if_resumable(self):
         self.stream.start(self.xmlstream)
         run_coroutine_with_peer(
             self.stream.start_sm(),
@@ -3980,22 +4080,21 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
 
         self.established_rec.assert_called_once_with()
 
-        with self.assertRaises(ConnectionError):
-            run_coroutine_with_peer(
-                self.stream.close(),
-                self.xmlstream.run_test(
-                    [
-                        XMLStreamMock.Send(
-                            nonza.SMAcknowledgement()
-                        ),
-                        XMLStreamMock.Close()
-                    ],
-                    stimulus=XMLStreamMock.Fail(ConnectionError())
-                )
+        run_coroutine_with_peer(
+            self.stream.close(),
+            self.xmlstream.run_test(
+                [
+                    XMLStreamMock.Send(
+                        nonza.SMAcknowledgement()
+                    ),
+                    XMLStreamMock.Close()
+                ],
+                stimulus=XMLStreamMock.Fail(ConnectionError())
             )
+        )
 
-        self.assertTrue(self.stream.sm_enabled)
-        self.assertFalse(self.destroyed_rec.mock_calls)
+        self.assertFalse(self.stream.sm_enabled)
+        self.destroyed_rec.assert_called_once_with()
 
     def test_close_clears_sm_state_on_exception_during_close_if_not_resumable(self):
         self.stream.start(self.xmlstream)
