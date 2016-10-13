@@ -24,6 +24,9 @@ Version 0.8
 
     task: <Task pending coro=<OrderedStateMachine.wait_for() running at /home/horazont/Projects/python/aioxmpp/aioxmpp/statemachine.py:170> wait_for=<Future pending cb=[Task._wakeup()]> cb=[XMLStream._stream_starts_closing()]>
 
+* Support for ANONYMOUS SASL mechanism. See :meth:`aioxmpp.security_layer.make`
+  for details.
+
 
 .. _api-changelog-0.7:
 
