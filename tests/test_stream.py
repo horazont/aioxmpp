@@ -295,10 +295,6 @@ class TestStanzaStream(StanzaStreamTestBase):
         s = stream.StanzaStream()
         self.assertIsNone(s.local_jid)
 
-    def test_local_jid_is_not_writable(self):
-        with self.assertRaises(AttributeError):
-            self.stream.local_jid = TEST_TO.bare()
-
     def test_broker_iq_response(self):
         iq = make_test_iq(type_=structs.IQType.RESULT)
         iq.autoset_id()

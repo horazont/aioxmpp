@@ -2305,6 +2305,52 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
             self.client.local_jid
         )
 
+        self.assertEqual(
+            self.test_jid.bare(),
+            self.client.stream.local_jid
+        )
+
+        self.established_rec.assert_called_once_with()
+
+    def test_resource_binding_with_different_jid(self):
+        self.client.start()
+
+        bound_jid = self.test_jid.replace(
+            resource="foobarbaz",
+            localpart="transfnordistan",
+        )
+
+        run_coroutine(self.xmlstream.run_test([
+            XMLStreamMock.Send(
+                stanza.IQ(
+                    payload=rfc6120.Bind(
+                        resource=self.test_jid.resource),
+                    type_=structs.IQType.SET,
+                    id_="autoset"),
+                response=XMLStreamMock.Receive(
+                    stanza.IQ(
+                        payload=rfc6120.Bind(
+                            jid=bound_jid,
+                        ),
+                        type_=structs.IQType.RESULT,
+                        id_="autoset",
+                    )
+                )
+            )
+        ]))
+
+        run_coroutine(asyncio.sleep(0))
+
+        self.assertEqual(
+            bound_jid,
+            self.client.local_jid
+        )
+
+        self.assertEqual(
+            bound_jid.bare(),
+            self.client.stream.local_jid
+        )
+
         self.established_rec.assert_called_once_with()
 
     def test_stream_features_attribute(self):

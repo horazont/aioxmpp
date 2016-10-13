@@ -687,6 +687,7 @@ class AbstractClient:
             )
 
         self._local_jid = result.jid
+        self.stream.local_jid = result.jid.bare()
         self.logger.info("bound to jid: %s", self._local_jid)
 
     @asyncio.coroutine

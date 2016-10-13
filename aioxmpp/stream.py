@@ -674,9 +674,19 @@ class StanzaStream:
     @property
     def local_jid(self):
         """
-        The `local_jid` argument to the constructor. This cannot be changed.
+        The `local_jid` argument to the constructor.
+
+        .. warning::
+
+           Changing this arbitrarily while the stream is running may have
+           unintended side effects.
+
         """
         return self._local_jid
+
+    @local_jid.setter
+    def local_jid(self, value):
+        self._local_jid = value
 
     def _coerce_enum(self, value, enum_class):
         if not isinstance(value, enum_class):
