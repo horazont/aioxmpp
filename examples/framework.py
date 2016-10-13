@@ -26,6 +26,7 @@ import configparser
 import getpass
 import json
 import logging
+import logging.config
 import signal
 import sys
 
@@ -78,7 +79,8 @@ class Example(metaclass=abc.ABCMeta):
 
         self.argparse.add_argument(
             "-v",
-            help="Increase verbosity",
+            help="Increase verbosity (this has no effect if a logging config"
+            " file is specified in the config file)",
             default=0,
             dest="verbosity",
             action="count",
@@ -86,18 +88,23 @@ class Example(metaclass=abc.ABCMeta):
 
     def configure(self):
         self.args = self.argparse.parse_args()
-        logging.basicConfig(
-            level={
-                0: logging.ERROR,
-                1: logging.WARNING,
-                2: logging.INFO,
-            }.get(self.args.verbosity, logging.DEBUG)
-        )
-
         self.config = configparser.ConfigParser()
         if self.args.config is not None:
             with self.args.config:
                 self.config.read_file(self.args.config)
+
+        if self.config.has_option("global", "logging"):
+            logging.config.fileConfig(
+                self.config.get("global", "logging")
+            )
+        else:
+            logging.basicConfig(
+                level={
+                    0: logging.ERROR,
+                    1: logging.WARNING,
+                    2: logging.INFO,
+                }.get(self.args.verbosity, logging.DEBUG)
+            )
 
         self.g_jid = self.args.local_jid
         if self.g_jid is None:
