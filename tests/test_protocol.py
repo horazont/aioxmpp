@@ -20,6 +20,7 @@
 #
 ########################################################################
 import asyncio
+import contextlib
 import unittest
 import unittest.mock
 
@@ -1463,6 +1464,16 @@ class TestXMLStream(unittest.TestCase):
         )
 
         p.abort()
+
+    def test_abort_kills_closing_future_if_READY(self):
+        t, p = self._make_stream(to=TEST_PEER)
+
+        p.abort()
+
+        self.assertEqual(
+            p.state,
+            protocol.State.CLOSED,
+        )
 
     def test_abort_aborts_while_waiting_for_stream_footer(self):
         t, p = self._make_stream(to=TEST_PEER)

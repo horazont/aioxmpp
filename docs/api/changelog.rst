@@ -20,6 +20,11 @@ Version 0.8
 
 * :meth:`aioxmpp.muc.Room.request_voice`
 
+* Fix resource leak which would emit::
+
+    task: <Task pending coro=<OrderedStateMachine.wait_for() running at /home/horazont/Projects/python/aioxmpp/aioxmpp/statemachine.py:170> wait_for=<Future pending cb=[Task._wakeup()]> cb=[XMLStream._stream_starts_closing()]>
+
+
 .. _api-changelog-0.7:
 
 Version 0.7

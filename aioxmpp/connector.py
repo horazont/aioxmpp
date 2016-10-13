@@ -160,15 +160,19 @@ class STARTTLSConnector(BaseConnector):
             features_future=features_future,
         )
 
-        transport, _ = yield from ssl_transport.create_starttls_connection(
-            loop,
-            lambda: stream,
-            host=host,
-            port=port,
-            peer_hostname=host,
-            server_hostname=domain,
-            use_starttls=True,
-        )
+        try:
+            transport, _ = yield from ssl_transport.create_starttls_connection(
+                loop,
+                lambda: stream,
+                host=host,
+                port=port,
+                peer_hostname=host,
+                server_hostname=domain,
+                use_starttls=True,
+            )
+        except:
+            stream.abort()
+            raise
 
         features = yield from features_future
 
@@ -298,16 +302,20 @@ class XMPPOverTLSConnector(BaseConnector):
             verifier.setup_context(ssl_context, transport)
             return ssl_context
 
-        transport, _ = yield from ssl_transport.create_starttls_connection(
-            loop,
-            lambda: stream,
-            host=host,
-            port=port,
-            peer_hostname=host,
-            server_hostname=domain,
-            post_handshake_callback=verifier.post_handshake,
-            ssl_context_factory=context_factory,
-            use_starttls=False,
-        )
+        try:
+            transport, _ = yield from ssl_transport.create_starttls_connection(
+                loop,
+                lambda: stream,
+                host=host,
+                port=port,
+                peer_hostname=host,
+                server_hostname=domain,
+                post_handshake_callback=verifier.post_handshake,
+                ssl_context_factory=context_factory,
+                use_starttls=False,
+            )
+        except:
+            stream.abort()
+            raise
 
         return transport, stream, (yield from features_future)

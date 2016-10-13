@@ -202,6 +202,100 @@ class TestSTARTTLSConnector(unittest.TestCase):
             )
         )
 
+    def test_abort_xmlstream_if_connect_fails(self):
+        captured_features_future = None
+
+        def capture_future(*args, features_future=None, **kwargs):
+            nonlocal captured_features_future
+            captured_features_future = features_future
+            return base.protocol
+
+        features = nonza.StreamFeatures()
+        features[...] = nonza.StartTLSFeature()
+
+        features_future = asyncio.Future()
+        features_future.set_result(
+            features
+        )
+
+        base = unittest.mock.Mock()
+        base.create_starttls_connection = CoroutineMock()
+        base.create_starttls_connection.side_effect = Exception()
+        base.XMLStream.return_value = base.protocol
+        base.XMLStream.side_effect = capture_future
+        base.Future.return_value = features_future
+
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(
+                unittest.mock.patch(
+                    "asyncio.Future",
+                    new=base.Future,
+                )
+            )
+
+            stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.ssl_transport.create_starttls_connection",
+                    new=base.create_starttls_connection,
+                )
+            )
+
+            stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.protocol.XMLStream",
+                    new=base.XMLStream,
+                )
+            )
+
+            stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.protocol.send_and_wait_for",
+                    new=base.send_and_wait_for,
+                )
+            )
+
+            stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.protocol.reset_stream_and_get_features",
+                    new=base.reset_stream_and_get_features,
+                )
+            )
+
+            with self.assertRaises(Exception):
+                run_coroutine(self.c.connect(
+                    unittest.mock.sentinel.loop,
+                    base.metadata,
+                    unittest.mock.sentinel.domain,
+                    unittest.mock.sentinel.host,
+                    unittest.mock.sentinel.port,
+                    unittest.mock.sentinel.timeout,
+                ))
+
+        self.maxDiff = None
+
+        self.assertSequenceEqual(
+            base.mock_calls,
+            [
+                unittest.mock.call.Future(
+                    loop=unittest.mock.sentinel.loop,
+                ),
+                unittest.mock.call.XMLStream(
+                    to=unittest.mock.sentinel.domain,
+                    features_future=features_future,
+                ),
+                unittest.mock.call.create_starttls_connection(
+                    unittest.mock.sentinel.loop,
+                    unittest.mock.ANY,
+                    host=unittest.mock.sentinel.host,
+                    port=unittest.mock.sentinel.port,
+                    peer_hostname=unittest.mock.sentinel.host,
+                    server_hostname=unittest.mock.sentinel.domain,
+                    use_starttls=True,
+                ),
+                unittest.mock.call.protocol.abort(),
+            ]
+        )
+
     def test_connect_without_starttls_support_and_with_required(self):
         captured_features_future = None
 
@@ -794,4 +888,96 @@ class TestXMPPOverTLSConnector(unittest.TestCase):
                 base.protocol,
                 unittest.mock.sentinel.features,
             )
+        )
+
+    def test_abort_XMLStream_whin_connect_raises(self):
+        captured_features_future = None
+
+        def capture_future(*args, features_future=None, **kwargs):
+            nonlocal captured_features_future
+            captured_features_future = features_future
+            return base.protocol
+
+        features_future = asyncio.Future()
+        features_future.set_result(
+            unittest.mock.sentinel.features
+        )
+
+        base = unittest.mock.Mock()
+        base.protocol.starttls = CoroutineMock()
+        base.create_starttls_connection = CoroutineMock()
+        base.create_starttls_connection.side_effect = Exception()
+        base.metadata.tls_required = True
+        base.XMLStream.return_value = base.protocol
+        base.XMLStream.side_effect = capture_future
+        base.Future.return_value = features_future
+        base.certificate_verifier.pre_handshake = CoroutineMock()
+        base.metadata.certificate_verifier_factory.return_value = \
+            base.certificate_verifier
+        base.metadata.ssl_context_factory.return_value = \
+            unittest.mock.sentinel.ssl_context
+
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(
+                unittest.mock.patch(
+                    "asyncio.Future",
+                    new=base.Future,
+                )
+            )
+
+            stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.ssl_transport.create_starttls_connection",
+                    new=base.create_starttls_connection,
+                )
+            )
+
+            stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.protocol.XMLStream",
+                    new=base.XMLStream,
+                )
+            )
+
+            with self.assertRaises(Exception):
+                run_coroutine(self.c.connect(
+                    unittest.mock.sentinel.loop,
+                    base.metadata,
+                    unittest.mock.sentinel.domain,
+                    unittest.mock.sentinel.host,
+                    unittest.mock.sentinel.port,
+                    unittest.mock.sentinel.timeout,
+                ))
+
+        self.assertSequenceEqual(
+            base.mock_calls,
+            [
+                unittest.mock.call.Future(
+                    loop=unittest.mock.sentinel.loop,
+                ),
+                unittest.mock.call.XMLStream(
+                    to=unittest.mock.sentinel.domain,
+                    features_future=features_future,
+                ),
+                unittest.mock.call.metadata.certificate_verifier_factory(),
+                unittest.mock.call.certificate_verifier.pre_handshake(
+                    unittest.mock.sentinel.domain,
+                    unittest.mock.sentinel.host,
+                    unittest.mock.sentinel.port,
+                    base.metadata,
+                ),
+                unittest.mock.call.create_starttls_connection(
+                    unittest.mock.sentinel.loop,
+                    unittest.mock.ANY,
+                    host=unittest.mock.sentinel.host,
+                    port=unittest.mock.sentinel.port,
+                    peer_hostname=unittest.mock.sentinel.host,
+                    server_hostname=unittest.mock.sentinel.domain,
+                    post_handshake_callback=
+                    base.certificate_verifier.post_handshake,
+                    ssl_context_factory=unittest.mock.ANY,
+                    use_starttls=False,
+                ),
+                unittest.mock.call.protocol.abort()
+            ]
         )
