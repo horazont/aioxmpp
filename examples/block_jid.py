@@ -184,8 +184,7 @@ class BlockJID(Example):
 
             # print all the items; again, .items is a list of JIDs
             print("current block list:")
-            for item in result.items:
-                print(" ", item)
+            print('\n'.join(sorted(['\t' + str(x) for x in result.items])))
 
 
 if __name__ == "__main__":
