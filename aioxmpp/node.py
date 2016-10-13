@@ -760,6 +760,8 @@ class AbstractClient:
                     self.logger.info("%s", exc)
                     if self._backoff_time is None:
                         self._backoff_time = self.backoff_start.total_seconds()
+                    self.logger.debug("re-trying after %.1f seconds",
+                                      self._backoff_time)
                     yield from asyncio.sleep(self._backoff_time)
                     self._backoff_time *= self.backoff_factor
                     if self._backoff_time > self.backoff_cap.total_seconds():
