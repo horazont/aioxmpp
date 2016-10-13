@@ -441,8 +441,10 @@ class HookablePKIXCertificateVerifier(CertificateVerifier):
 
         if self._quick_check is not None:
             result = self._quick_check(leaf_x509)
+            logger.debug("certificate quick-check returned %r", result)
         else:
             result = None
+            logger.debug("no certificate quick-check")
 
         if result is None:
             self.deferred = True
@@ -679,7 +681,13 @@ class PinningPKIXCertificateVerifier(HookablePKIXCertificateVerifier):
 
     def _quick_check_query_pin(self, leaf_x509):
         hostname = self.transport.get_extra_info("server_hostname")
-        return self._query_pin(hostname, leaf_x509)
+        is_pinned = self._query_pin(hostname, leaf_x509)
+        if not is_pinned:
+            logger.debug(
+                "certificate for %r does not appear in pin store",
+                hostname,
+            )
+        return is_pinned
 
 
 class ErrorRecordingVerifier(CertificateVerifier):
@@ -1400,8 +1408,10 @@ def make(
         if not isinstance(pin_store, AbstractPinStore):
             pin_data = pin_store
             if pin_type == PinType.PUBLIC_KEY:
+                logger.debug("using PublicKeyPinStore")
                 pin_store = PublicKeyPinStore()
             else:
+                logger.debug("using CertificatePinStore")
                 pin_store = CertificatePinStore()
             pin_store.import_from_json(pin_data)
 
