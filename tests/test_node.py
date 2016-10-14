@@ -1300,6 +1300,8 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
         self.failure_rec.return_value = None
         self.established_rec = unittest.mock.MagicMock()
         self.established_rec.return_value = None
+        self.suspended_rec = unittest.mock.MagicMock()
+        self.suspended_rec.return_value = None
         self.destroyed_rec = unittest.mock.MagicMock()
         self.destroyed_rec.return_value = None
         self.security_layer = object()
@@ -1321,10 +1323,12 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
         self.client = node.AbstractClient(
             self.test_jid,
             self.security_layer,
+            max_initial_attempts=None,
             loop=self.loop)
         self.client.on_failure.connect(self.failure_rec)
         self.client.on_stream_destroyed.connect(self.destroyed_rec)
         self.client.on_stream_established.connect(self.established_rec)
+        self.client.on_stream_suspended.connect(self.suspended_rec)
 
         # some XMLStreamMock test case parts
         self.sm_negotiation_exchange = [
@@ -1519,6 +1523,9 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
             cb.mock_calls
         )
 
+        self.suspended_rec.assert_not_called()
+        self.destroyed_rec.assert_called_once_with()
+
     def test_reconnect_on_failure(self):
         self.client.backoff_start = timedelta(seconds=0.008)
         self.client.negotiation_timeout = timedelta(seconds=0.01)
@@ -1526,6 +1533,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
 
         iq = stanza.IQ(structs.IQType.GET)
         iq.autoset_id()
+
         @asyncio.coroutine
         def stimulus():
             self.client.stream.enqueue_stanza(iq)
@@ -1545,6 +1553,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
                 ]
             )
         )
+
         run_coroutine(
             self.xmlstream.run_test(
                 self.resource_binding
@@ -1570,6 +1579,255 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
         # the client has not failed
         self.assertFalse(self.failure_rec.mock_calls)
         self.assertTrue(self.client.established)
+
+    def test_reconnect_on_failure_unbounded(self):
+        self.client = node.AbstractClient(
+            self.test_jid,
+            self.security_layer,
+            max_initial_attempts=2,
+            loop=self.loop)
+        self.client.on_failure.connect(self.failure_rec)
+        self.client.on_stream_destroyed.connect(self.destroyed_rec)
+        self.client.on_stream_established.connect(self.established_rec)
+        self.client.on_stream_suspended.connect(self.suspended_rec)
+
+        call = unittest.mock.call(
+            self.test_jid,
+            self.security_layer,
+            negotiation_timeout=60.0,
+            override_peer=[],
+            loop=self.loop,
+            logger=self.client.logger)
+
+        self.client.backoff_start = timedelta(seconds=0.005)
+        self.client.backoff_factor = 2
+        self.client.backoff_cap = timedelta(seconds=0.1)
+        self.client.start()
+
+        run_coroutine(asyncio.sleep(0))
+        self.assertTrue(self.client.running)
+
+        iq = stanza.IQ(structs.IQType.GET)
+        iq.autoset_id()
+
+        @asyncio.coroutine
+        def stimulus():
+            self.client.stream.enqueue_stanza(iq)
+
+        run_coroutine_with_peer(
+            stimulus(),
+            self.xmlstream.run_test(
+                self.resource_binding+[
+                    XMLStreamMock.Send(
+                        iq,
+                        response=[
+                            XMLStreamMock.Fail(
+                                exc=ConnectionError()
+                            ),
+                        ]
+                    ),
+                ]
+            )
+        )
+
+        exc = OSError()
+        self.connect_xmlstream_rec.side_effect = exc
+        self.connect_xmlstream_rec.mock_calls.clear()
+
+        run_coroutine(asyncio.sleep(0.01))
+
+        self.assertSequenceEqual(
+            [call],
+            self.connect_xmlstream_rec.mock_calls
+        )
+
+        run_coroutine(asyncio.sleep(0.02))
+
+        self.assertSequenceEqual(
+            [call]*2,
+            self.connect_xmlstream_rec.mock_calls
+        )
+
+        run_coroutine(asyncio.sleep(0.04))
+
+        self.assertSequenceEqual(
+            [call]*3,
+            self.connect_xmlstream_rec.mock_calls
+        )
+
+        run_coroutine(asyncio.sleep(0.08))
+
+        self.assertSequenceEqual(
+            [call]*4,
+            self.connect_xmlstream_rec.mock_calls
+        )
+
+        run_coroutine(asyncio.sleep(0.1))
+
+        self.assertSequenceEqual(
+            [call]*5,
+            self.connect_xmlstream_rec.mock_calls
+        )
+
+        self.assertSequenceEqual(
+            [
+            ],
+            self.failure_rec.mock_calls
+        )
+
+        self.client.stop()
+        run_coroutine(asyncio.sleep(0))
+
+    def test_emit_destroyed_on_reconnect_without_sm(self):
+        stream_events = unittest.mock.Mock()
+        stream_events.suspend.return_value = None
+        stream_events.destroy.return_value = None
+        self.client.on_stream_suspended.connect(stream_events.suspend)
+        self.client.on_stream_destroyed.connect(stream_events.destroy)
+
+        self.client.backoff_start = timedelta(seconds=0.008)
+        self.client.negotiation_timeout = timedelta(seconds=0.01)
+        self.client.start()
+
+        reason = ConnectionError()
+
+        iq = stanza.IQ(structs.IQType.GET)
+        iq.autoset_id()
+
+        @asyncio.coroutine
+        def stimulus():
+            self.client.stream.enqueue_stanza(iq)
+
+        run_coroutine_with_peer(
+            stimulus(),
+            self.xmlstream.run_test(
+                self.resource_binding+[
+                    XMLStreamMock.Send(
+                        iq,
+                        response=[
+                            XMLStreamMock.Fail(
+                                exc=reason
+                            ),
+                        ]
+                    ),
+                ]
+            )
+        )
+
+        self.assertSequenceEqual(
+            stream_events.mock_calls,
+            [
+                unittest.mock.call.suspend(reason),
+                unittest.mock.call.destroy(),
+            ]
+        )
+
+        run_coroutine(
+            self.xmlstream.run_test(
+                self.resource_binding
+            )
+        )
+
+        run_coroutine(asyncio.sleep(0.015))
+
+        self.assertTrue(self.client.running)
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(
+                    self.test_jid,
+                    self.security_layer,
+                    negotiation_timeout=0.01,
+                    override_peer=[],
+                    loop=self.loop,
+                    logger=self.client.logger)
+            ]*2,
+            self.connect_xmlstream_rec.mock_calls
+        )
+
+        # the client has not failed
+        self.assertFalse(self.failure_rec.mock_calls)
+        self.assertTrue(self.client.established)
+
+    def test_emit_suspend_on_double_reconnect_without_sm(self):
+        stream_events = unittest.mock.Mock()
+        stream_events.suspend.return_value = None
+        stream_events.destroy.return_value = None
+        self.client.on_stream_suspended.connect(stream_events.suspend)
+        self.client.on_stream_destroyed.connect(stream_events.destroy)
+
+        self.client.backoff_start = timedelta(seconds=0.008)
+        self.client.negotiation_timeout = timedelta(seconds=0.01)
+        self.client.start()
+
+        reason = ConnectionError()
+
+        iq = stanza.IQ(structs.IQType.GET)
+        iq.autoset_id()
+
+        @asyncio.coroutine
+        def stimulus():
+            self.client.stream.enqueue_stanza(iq)
+
+        run_coroutine_with_peer(
+            stimulus(),
+            self.xmlstream.run_test(
+                self.resource_binding+[
+                    XMLStreamMock.Send(
+                        iq,
+                        response=[
+                            XMLStreamMock.Fail(
+                                exc=reason
+                            ),
+                        ]
+                    ),
+                ]
+            )
+        )
+
+        self.assertSequenceEqual(
+            stream_events.mock_calls,
+            [
+                unittest.mock.call.suspend(reason),
+                unittest.mock.call.destroy(),
+            ]
+        )
+
+        run_coroutine(
+            self.xmlstream.run_test(
+                self.resource_binding
+            )
+        )
+
+        run_coroutine(asyncio.sleep(0.015))
+
+        run_coroutine_with_peer(
+            stimulus(),
+            self.xmlstream.run_test(
+                self.resource_binding+[
+                    XMLStreamMock.Send(
+                        iq,
+                        response=[
+                            XMLStreamMock.Fail(
+                                exc=reason
+                            ),
+                        ]
+                    ),
+                ]
+            )
+        )
+
+        self.assertSequenceEqual(
+            stream_events.mock_calls,
+            [
+                unittest.mock.call.suspend(reason),
+                unittest.mock.call.destroy(),
+                unittest.mock.call.suspend(reason),
+                unittest.mock.call.destroy(),
+            ]
+        )
+
+        self.client.stop()
+        run_coroutine(asyncio.sleep(0))
 
     def test_fail_on_authentication_failure(self):
         exc = aiosasl.AuthenticationFailure("not-authorized")
@@ -1673,6 +1931,52 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
 
         self.client.stop()
         run_coroutine(asyncio.sleep(0))
+
+    def test_abort_after_max_initial_attempts(self):
+        self.client = node.AbstractClient(
+            self.test_jid,
+            self.security_layer,
+            max_initial_attempts=2,
+            loop=self.loop)
+        self.client.on_failure.connect(self.failure_rec)
+        self.client.on_stream_destroyed.connect(self.destroyed_rec)
+        self.client.on_stream_established.connect(self.established_rec)
+        self.client.on_stream_suspended.connect(self.suspended_rec)
+
+        call = unittest.mock.call(
+            self.test_jid,
+            self.security_layer,
+            negotiation_timeout=60.0,
+            override_peer=[],
+            loop=self.loop,
+            logger=self.client.logger)
+
+        exc = OSError()
+        self.connect_xmlstream_rec.side_effect = exc
+        self.client.backoff_start = timedelta(seconds=0.01)
+        self.client.backoff_factor = 2
+        self.client.backoff_cap = timedelta(seconds=0.1)
+        self.client.start()
+        run_coroutine(asyncio.sleep(0))
+        self.assertTrue(self.client.running)
+        self.assertFalse(self.client.stream.running)
+
+        self.assertSequenceEqual(
+            [call],
+            self.connect_xmlstream_rec.mock_calls
+        )
+
+        run_coroutine(asyncio.sleep(0.01))
+
+        self.assertSequenceEqual(
+            [call]*2,
+            self.connect_xmlstream_rec.mock_calls
+        )
+
+        run_coroutine(asyncio.sleep(0.02))
+
+        self.failure_rec.assert_called_once_with(exc)
+        self.assertFalse(self.client.running)
 
     def test_exponential_backoff_on_no_nameservers(self):
         call = unittest.mock.call(

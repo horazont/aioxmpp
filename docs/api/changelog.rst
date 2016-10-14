@@ -27,6 +27,31 @@ Version 0.8
 * Support for ANONYMOUS SASL mechanism. See :meth:`aioxmpp.security_layer.make`
   for details.
 
+* **Breaking change:** If any of the connection errors encountered in
+  :meth:`aioxmpp.node.connect_xmlstream` is a :class:`aioxmpp.errors.TLSFailure`
+  *and all* other connection options also failed, the
+  :class:`~.errors.TLSFailure` is re-raised instead of a
+  :class:`aioxmpp.errors.MultiOSError` instance. This helps to prevent masking
+  of configuration problems.
+
+* **Breaking change:** The handling of connection errors in
+  :class:`~.node.AbstractClient` has been modified:
+
+  * The change of :meth:`aioxmpp.node.connect_xmlstream` described above also
+    affects the behaviour of the node, as :class:`~.errors.TLSFailure` errors
+    are treated as critical (in contrast to :class:`OSError` subclasses).
+
+  * The number of connection attempts made before the first connection is
+    successful is now bounded, configurable through the new parameter
+    `max_initial_attempts`. The default is at 4, which gives (together with the
+    default exponential backoff parameters) a minimum time of attempted
+    connections of about 5 seconds.
+
+  * :meth:`~.AbstractClient.on_stream_suspended` was added (this is not a
+    breaking change)
+
+  * :meth:`~.AbstractClient.on_stream_destroyed` got a new argument `reason`
+    which gives the exception which caused the stream to be destroyed.
 
 .. _api-changelog-0.7:
 

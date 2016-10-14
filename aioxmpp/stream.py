@@ -70,6 +70,11 @@ classes:
 
 .. autoclass:: AppFilter
 
+Exceptions
+==========
+
+.. autoclass:: DestructionRequested
+
 """
 
 import asyncio
@@ -191,6 +196,13 @@ class PingEventType(Enum):
     SEND_OPPORTUNISTIC = 0
     SEND_NOW = 1
     TIMEOUT = 2
+
+
+class DestructionRequested(ConnectionError):
+    """
+    Subclass of :class:`ConnectionError` indicating that the destruction of the
+    stream was requested by the user, directly or indirectly.
+    """
 
 
 class StanzaState(Enum):
@@ -595,15 +607,27 @@ class StanzaStream:
 
           The closing behaviour was added.
 
-    .. signal:: on_stream_destroyed()
+    .. signal:: on_stream_destroyed(reason)
 
-       When a stream is destroyed so that all state shall be discarded (for
-       example, pending futures), this signal is fired.
+       The stream has been stopped in a manner which means that all state must
+       be discarded.
 
-       This happens if a non-SM stream is stopped or if SM is being disabled.
+       :param reason: The exception which caused the stream to be destroyeds
+       :type reason: :class:`Exception`
+
+       When this signal is emitted, others have or will most likely see
+       unavailable presence from the XMPP resource associated with the stream,
+       and stanzas sent in the mean time are not guaranteed to be received.
+
+       `reason` may be a :class:`DestructionRequested` instance to indicate
+       that the destruction was requested by the user, in some way.
 
        There is no guarantee (it is not even likely) that it is possible to
        send stanzas over the stream at the time this signal is emitted.
+
+       .. versionchanged:: 0.8
+
+          The `reason` argument was added.
 
     .. signal:: on_stream_established()
 
@@ -733,7 +757,7 @@ class StanzaStream:
         Destroy all state which does not make sense to keep after a disconnect
         (without stream management).
         """
-        self._logger.debug("destroying stream state")
+        self._logger.debug("destroying stream state (exc=%r)", exc)
         self._iq_response_map.close_all(exc)
         for task in self._iq_request_tasks:
             # we don’t need to remove, that’s handled by their
@@ -744,7 +768,7 @@ class StanzaStream:
             token._set_state(StanzaState.DISCONNECTED)
 
         if self._established:
-            self.on_stream_destroyed()
+            self.on_stream_destroyed(exc)
             self._established = False
 
     def _iq_request_coro_done(self, request, task):
@@ -1648,7 +1672,7 @@ class StanzaStream:
 
         After a call to :meth:`close`, the stream is stopped, all SM state is
         discarded and calls to :meth:`enqueue_stanza` raise a
-        :class:`ConnectionError` ``"close() called"``. Such a
+        :class:`DestructionRequested` ``"close() called"``. Such a
         :class:`StanzaStream` can be re-started by calling :meth:`start`.
 
         .. versionchanged:: 0.8
@@ -1663,6 +1687,8 @@ class StanzaStream:
            point are sent, you should be using :meth:`send_and_wait_for_sent`
            with stream management.
         """
+        exc = DestructionRequested("close() called")
+
         if self.running:
             if self.sm_enabled:
                 self._xmlstream.send_xso(nonza.SMAcknowledgement(
@@ -1670,10 +1696,10 @@ class StanzaStream:
                 ))
 
             yield from self._xmlstream.close_and_wait()  # does not raise
-            yield from self.wait_stop()  # may raise!
+            yield from self.wait_stop()  # may raise
 
-        self._xmlstream_exception = ConnectionError("close() called")
         self._closed = True
+        self._xmlstream_exception = exc
         self._destroy_stream_state(self._xmlstream_exception)
         if self.sm_enabled:
             self.stop_sm()
@@ -1737,11 +1763,15 @@ class StanzaStream:
             # variables
             with (yield from self._broker_lock):
                 if not self.sm_enabled or not self.sm_resumable:
-                    if self.sm_enabled:
-                        self._stop_sm()
+                    print("not resumable, destroying stream state")
                     self._destroy_stream_state(
                         self._xmlstream_exception or
-                        ConnectionError("stream terminating"))
+                        DestructionRequested(
+                            "close() or stop() called and stream is not resumable"
+                        )
+                    )
+                    if self.sm_enabled:
+                        self._stop_sm()
 
                 self._start_rollback(xmlstream)
 

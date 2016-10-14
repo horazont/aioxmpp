@@ -473,7 +473,16 @@ class TestStanzaStream(StanzaStreamTestBase):
 
         run_coroutine(asyncio.sleep(0))
 
-        self.destroyed_rec.assert_called_once_with()
+        self.destroyed_rec.assert_called_once_with(unittest.mock.ANY)
+        _, (exc,), _ = self.destroyed_rec.mock_calls[0]
+        self.assertIsInstance(
+            exc,
+            stream.DestructionRequested,
+        )
+        self.assertRegex(
+            str(exc),
+            r"stop\(\) called and stream is not resumable"
+        )
 
         self.assertSequenceEqual(
             [
@@ -3591,7 +3600,17 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
         self.stream.stop()
         run_coroutine(asyncio.sleep(0))
         self.stream.stop_sm()
-        self.destroyed_rec.assert_called_once_with()
+
+        self.destroyed_rec.assert_called_once_with(unittest.mock.ANY)
+        _, (exc,), _ = self.destroyed_rec.mock_calls[0]
+        self.assertIsInstance(
+            exc,
+            ConnectionError,
+        )
+        self.assertRegex(
+            str(exc),
+            r"stream management disabled"
+        )
 
     def test_sm_race(self):
         iqs = [make_test_iq() for i in range(4)]
@@ -3662,7 +3681,6 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
         self.stream.stop()
         run_coroutine(asyncio.sleep(0))
         self.stream.stop_sm()
-        self.destroyed_rec.assert_called_once_with()
 
     def test_sm_resumption_failure(self):
         self.stream.start(self.xmlstream)
@@ -3733,7 +3751,17 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
         run_coroutine(asyncio.sleep(0))
         self.stream.stop_sm()
 
-        self.destroyed_rec.assert_called_once_with()
+        self.destroyed_rec.assert_called_once_with(unittest.mock.ANY)
+        _, (exc,), _ = self.destroyed_rec.mock_calls[0]
+        self.assertIsInstance(
+            exc,
+            ConnectionError,
+        )
+        self.assertRegex(
+            str(exc),
+            r"stream management disabled"
+        )
+
         self.established_rec.assert_called_once_with()
 
         self.assertFalse(self.stream.sm_enabled)
@@ -4005,7 +4033,17 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
         )
 
         self.assertFalse(self.stream.running)
-        self.destroyed_rec.assert_called_once_with()
+
+        self.destroyed_rec.assert_called_once_with(unittest.mock.ANY)
+        _, (exc,), _ = self.destroyed_rec.mock_calls[0]
+        self.assertIsInstance(
+            exc,
+            stream.DestructionRequested,
+        )
+        self.assertRegex(
+            str(exc),
+            r"close\(\) .*called"
+        )
 
     def test_close_deletes_sm_state(self):
         self.stream.start(self.xmlstream)
@@ -4027,7 +4065,17 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
         )
 
         self.assertFalse(self.stream.sm_enabled)
-        self.destroyed_rec.assert_called_once_with()
+
+        self.destroyed_rec.assert_called_once_with(unittest.mock.ANY)
+        _, (exc,), _ = self.destroyed_rec.mock_calls[0]
+        self.assertIsInstance(
+            exc,
+            stream.DestructionRequested,
+        )
+        self.assertRegex(
+            str(exc),
+            r"close\(\) called"
+        )
 
     def test_close_deletes_sm_state_even_while_stopped(self):
         self.stream.start(self.xmlstream)
@@ -4043,7 +4091,17 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
 
         run_coroutine(self.stream.close())
         self.assertFalse(self.stream.sm_enabled)
-        self.destroyed_rec.assert_called_once_with()
+
+        self.destroyed_rec.assert_called_once_with(unittest.mock.ANY)
+        _, (exc,), _ = self.destroyed_rec.mock_calls[0]
+        self.assertIsInstance(
+            exc,
+            stream.DestructionRequested,
+        )
+        self.assertRegex(
+            str(exc),
+            r"close\(\) called"
+        )
 
     def test_close_sends_sm_ack(self):
         self.stream.start(self.xmlstream)
@@ -4065,7 +4123,17 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
         )
 
         self.assertFalse(self.stream.sm_enabled)
-        self.destroyed_rec.assert_called_once_with()
+
+        self.destroyed_rec.assert_called_once_with(unittest.mock.ANY)
+        _, (exc,), _ = self.destroyed_rec.mock_calls[0]
+        self.assertIsInstance(
+            exc,
+            stream.DestructionRequested,
+        )
+        self.assertRegex(
+            str(exc),
+            r"close\(\) called"
+        )
 
     def test_close_discards_sm_state_on_exception_during_close_if_resumable(self):
         self.stream.start(self.xmlstream)
@@ -4090,7 +4158,17 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
         )
 
         self.assertFalse(self.stream.sm_enabled)
-        self.destroyed_rec.assert_called_once_with()
+
+        self.destroyed_rec.assert_called_once_with(unittest.mock.ANY)
+        _, (exc,), _ = self.destroyed_rec.mock_calls[0]
+        self.assertIsInstance(
+            exc,
+            stream.DestructionRequested,
+        )
+        self.assertRegex(
+            str(exc),
+            r"close\(\) called"
+        )
 
     def test_close_clears_sm_state_on_exception_during_close_if_not_resumable(self):
         self.stream.start(self.xmlstream)
@@ -4119,7 +4197,17 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
         )
 
         self.assertFalse(self.stream.sm_enabled)
-        self.destroyed_rec.assert_called_once_with()
+
+        self.destroyed_rec.assert_called_once_with(unittest.mock.ANY)
+        _, (exc,), _ = self.destroyed_rec.mock_calls[0]
+        self.assertIsInstance(
+            exc,
+            stream.DestructionRequested,
+        )
+        self.assertRegex(
+            str(exc),
+            r"close\(\) .*called"
+        )
 
     def test_unprocessed_outgoing_stanza_does_not_get_lost_after_stop(self):
         pres = make_test_presence()

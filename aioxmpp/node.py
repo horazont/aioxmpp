@@ -286,14 +286,10 @@ def connect_xmlstream(
     raised. The error contains one exception for each of the options discovered
     as well as the elements from `override_peer` in the order they were tried.
 
-    .. note::
-
-       Even though it is a :class:`aioxmpp.errors.MultiOSError`, it may also
-       contain instances of :class:`aioxmpp.errors.TLSUnavailable` or
-       :class:`aioxmpp.errors.TLSFailed`.
-
     A TLS problem is treated like any other connection problem and the other
-    connection options are considered.
+    connection options are considered. However, if *all* connection options
+    fail and the set of encountered errors includes a TLS error, the TLS error
+    is re-raised.
 
     Return a triple ``(transport, xmlstream, features)``. `transport`
     the underlying :class:`asyncio.Transport` which is used for the `xmlstream`
@@ -302,6 +298,12 @@ def connect_xmlstream(
     the stream.
 
     .. versionadded:: 0.6
+
+    .. versionchanged:: 0.8
+
+       The explicit raising of TLS errors has been introduced. Before, TLS
+       errors were treated like any other connection error, possibly masking
+       configuration problems.
     """
     loop = asyncio.get_event_loop() if loop is None else loop
 
@@ -350,47 +352,97 @@ def connect_xmlstream(
 
 class AbstractClient:
     """
-    The :class:`AbstractClient` is a base class for implementing XMPP client
-    classes. These classes deal with managing the
-    :class:`~aioxmpp.stream.StanzaStream` and the underlying
-    :class:`~aioxmpp.protocol.XMLStream` instances. The abstract client
-    provides functionality for connecting the xmlstream as well as signals
-    which indicate changes in the stream state.
+    Base class to implement an XMPP client.
 
-    The `jid` must be a :class:`~aioxmpp.JID` for which to connect. The
-    `security_layer` is best created using the
-    :func:`~aioxmpp.security_layer.security_layer` function and must provide
-    authentication for the given `jid`.
+    :param local_jid: Jabber ID to connect as
+    :type local_jid: :class:`~aioxmpp.JID`
+    :param security_layer: Configuration for authentication and TLS
+    :type security_layer: :class:`~aioxmpp.SecurityLayer`
+    :param negotiation_timeout: Timeout for the individual stream negotiation
+                                steps (bounds initial connection time)
+    :type negotiation_timeout: :class:`datetime.timedelta`
+    :param override_peer: Connection options which take precedence over the
+                          standardised connection options
+    :type override_peer: sequence of connection option triples
+    :param max_inital_attempts: Maximum number of initial connection attempts
+    :type max_initial_attempts: :class:`int`
+    :param loop: Override the :mod:`asyncio` event loop to use
+    :type loop: :class:`asyncio.BaseEventLoop` or :data:`None`
+    :param logger: Logger to use instead of the default logger
+    :type logger: :class:`logging.Logger` or :data:`None`
 
-    The `negotiation_timeout` argument controls the :attr:`negotiation_timeout`
-    attribute.
+    These classes deal with managing the :class:`~aioxmpp.stream.StanzaStream`
+    and the underlying :class:`~aioxmpp.protocol.XMLStream` instances. The
+    abstract client provides functionality for connecting the xmlstream as well
+    as signals which indicate changes in the stream state.
+
+    The `security_layer` is best created using the
+    :func:`aioxmpp.security_layer.make` function and must provide
+    authentication for the given `local_jid`.
 
     If `loop` is given, it must be a :class:`asyncio.BaseEventLoop`
     instance. If it is not given, the current event loop is used.
-
-    `override_peer` is used to initialise the :attr:`override_peer` attribute.
 
     As a glue between the stanza stream and the XML stream, it also knows about
     stream management and performs stream management negotiation. It is
     specialized on client operations, which implies that it will try to keep
     the stream alive as long as wished by the client.
 
-    In general, there are no fatal errors (aside from stream negotiation
-    problems) which stop a :class:`AbstractClient` from working. It makes use
-    of stream management as far as possible and abstracts away the gritty low
-    level details. In general, it is sufficient to observe the
-    :meth:`on_stream_established` and :attr:`on_stream_destroyed` events, which
-    notify a user about when a stream becomes available and when it becomes
-    unavailable.
+    The client will attempt to connect to the server(s) associated with the
+    `local_jid`, using the prioritised `override_peer` setting or the
+    standardised options for connecting (see :meth:`discover_connectors`). The
+    initial connection attempt must succeed within `max_initial_attempts`.
 
-    If authentication fails (or another stream negotiation error occurs), the
-    client fails and :attr:`on_failure` is fired. :attr:`running` becomes false
-    and the client needs to be re-started manually by calling :meth:`start`.
+    If the connection breaks after the first connection attempt, the client
+    will try to resume the connection transparently. If the server supports
+    stream management (:xep:`198`) with resumption, this is entirely
+    transparent to all operations over the stream. If the stream is not
+    resumable or the resumption fails and `allow_implicit_reconnect` is true,
+    the application and services using the stream are notified about that. If,
+    in that situation, `allow_implicit_reconnect` is false instead, the client
+    stops with an error.
+
+    The number of reconnection attempts is generally unbounded. The application
+    is notified that the stream got interrupted with the
+    :meth:`on_stream_suspended` is emitted. After reconnection,
+    :meth:`on_stream_established` is emitted (possibly preceded by a
+    :meth:`on_stream_destroyed` emission if the stream failed to resume). If
+    the application wishes to bound the time the stream tries to transparently
+    reconnect, it should connect to the :meth:`on_stream_suspended` signal and
+    stop the stream as needed.
+
+    The reconnection attempts are throttled using expenential backoff
+    controlled by the :attr:`backoff_start`, :attr:`backoff_factor` and
+    :attr:`backoff_cap` attributes.
+
+    .. note::
+
+       If `max_initial_attempts` is :data:`None`, the stream will try
+       indefinitly to connect to the server even if the connection has
+       never succeeded yet. This is may mask problems with the configuration of
+       the client itself, because the client cannot successfully distinguish
+       permanent problems arising from the configuration (of the client or the
+       server) from problems arising from transient problems such as network
+       faliures.
+
+       This may severely degrade usabilty, because the client is then stuck in
+       a connect loop without any usable feedback. Setting a bound for the
+       initial connection attempt is usually better, for interactive
+       applications an upper bound of 1 might make most sense (possibly the
+       interactive application may retry on its own if the user did not
+       indicate that they wish to do so after a timeout). We’ll leave the UX
+       considerations up to you.
 
     .. versionchanged:: 0.4
 
        Since 0.4, support for legacy XMPP sessions has been implemented. Mainly
        for compatiblity with ejabberd.
+
+    .. versionchanged:: 0.8
+
+       The amount of initial connection attempts is now bounded by
+       `max_initial_attempts`. The :meth:`on_stream_suspended` signal and the
+       associated logic has been introduced.
 
     Controlling the client:
 
@@ -445,9 +497,10 @@ class AbstractClient:
        when :attr:`before_stream_established` fires, the information is
        up-to-date.
 
-    Exponential backoff on interruptions:
+    Configuration of exponential backoff for reconnects:
 
     .. attribute:: backoff_start
+       :annotation: = timedelta(1)
 
        When an underlying XML stream fails due to connectivity issues (generic
        :class:`OSError` raised), exponential backoff takes place before
@@ -457,11 +510,13 @@ class AbstractClient:
        :attr:`backoff_start`.
 
     .. attribute:: backoff_factor
+       :annotation: = 1.2
 
        Each subsequent time a connection fails, the previous backoff time is
        multiplied with :attr:`backoff_factor`.
 
     .. attribute:: backoff_cap
+       :annotation: = timedelta(60)
 
        The backoff time is capped to :attr:`backoff_cap`, to avoid having
        unrealistically high values.
@@ -488,14 +543,53 @@ class AbstractClient:
        event is fired. It means that the stream can now be used for XMPP
        interactions.
 
-    .. signal:: on_stream_destroyed()
+    .. signal:: on_stream_suspended(reason)
+
+       The stream has been suspened due to a connection failure.
+
+       :param reason: The exception which terminated the stream.
+       :type reason: :class:`Exception`
+
+       This signal may be immediately followed by a
+       :meth:`on_stream_destroyed`, if the stream did not support stream
+       resumption. Otherwise, a new connection is attempted transparently.
+
+       In general, this signal exists solely for informational purposes. It
+       can be used to drive a user interface which indicates that messages may
+       be delivered with delay, because the underlying network is transiently
+       interrupted.
+
+       :meth:`on_stream_suspended` is not emitted if the stream was stopped on
+       user request.
+
+       Only :meth:`on_stream_destroyed` indicates that state was actually lost
+       and that others most likely see or saw an unavailable presence broadcast
+       for the resource.
+
+       .. versionadded:: 0.8
+
+    .. signal:: on_stream_destroyed(reason=None)
 
        This is called whenever a stream is destroyed. The conditions for this
        are the same as for
        :attr:`aioxmpp.stream.StanzaStream.on_stream_destroyed`.
 
+       :param reason: An optional exception which indicates the reason for the
+                      destruction of the stream.
+       :type reason: :class:`Exception`
+
        This event can be used to know when to discard all state about the XMPP
-       connection, such as roster information.
+       connection, such as roster information. Services implemented in
+       :mod:`aioxmpp` generally subscribe to this signal to discard cached
+       state.
+
+       `reason` is optional. It is given if there is has been a specific
+       exception which describes the cause for the stream destruction, such as
+       a :class:`ConnectionError`.
+
+       .. versionchanged:: 0.8
+
+          The `reason` argument was added.
 
     Services:
 
@@ -518,6 +612,7 @@ class AbstractClient:
     on_failure = callbacks.Signal()
     on_stopped = callbacks.Signal()
     on_stream_destroyed = callbacks.Signal()
+    on_stream_suspended = callbacks.Signal()
     on_stream_established = callbacks.Signal()
 
     before_stream_established = callbacks.SyncSignal()
@@ -525,7 +620,9 @@ class AbstractClient:
     def __init__(self,
                  local_jid,
                  security_layer,
+                 *,
                  negotiation_timeout=timedelta(seconds=60),
+                 max_initial_attempts=4,
                  override_peer=[],
                  loop=None,
                  logger=None):
@@ -545,6 +642,12 @@ class AbstractClient:
         self._backoff_time = None
 
         self._established = False
+        self._is_suspended = False
+
+        # track whether the connection succeeded *at least once*
+        # used to enforce max_initial_attempts
+        self._had_connection = False
+        self._nattempt = 0
 
         self._services = {}
 
@@ -555,6 +658,7 @@ class AbstractClient:
         self.backoff_factor = 1.2
         self.backoff_cap = timedelta(seconds=60)
         self.override_peer = list(override_peer)
+        self._max_initial_attempts = max_initial_attempts
 
         self.on_stopped.logger = self.logger.getChild("on_stopped")
         self.on_failure.logger = self.logger.getChild("on_failure")
@@ -562,6 +666,8 @@ class AbstractClient:
             self.logger.getChild("on_stream_established")
         self.on_stream_destroyed.logger = \
             self.logger.getChild("on_stream_destroyed")
+        self.on_stream_suspended.logger = \
+            self.logger.getChild("on_stream_suspended")
 
         self.stream = stream.StanzaStream(local_jid.bare())
 
@@ -572,23 +678,22 @@ class AbstractClient:
             )
             return
 
+        if not self._is_suspended:
+            self.on_stream_suspended(exc)
+            self._is_suspended = True
+
         self._failure_future.set_result(exc)
         self._failure_future = asyncio.Future()
 
-    def _stream_destroyed(self):
+    def _stream_destroyed(self, reason):
+        if not self._is_suspended:
+            if not isinstance(reason, stream.DestructionRequested):
+                self.on_stream_suspended(reason)
+            self._is_suspended = True
+
         if self._established:
             self._established = False
             self.on_stream_destroyed()
-
-    def _on_bind_done(self, task):
-        try:
-            task.result()
-        except asyncio.CancelledError:
-            pass
-        except Exception as err:
-            self.logger.error("resource binding failed: %r", err)
-            self._main_task.cancel()
-            self.on_failure(err)
 
     def _on_main_done(self, task):
         try:
@@ -714,11 +819,14 @@ class AbstractClient:
                 loop=self._loop,
                 logger=self.logger)
 
+        self._had_connection = True
+
         try:
             features, sm_resumed = yield from self._negotiate_stream(
                 xmlstream,
                 features)
 
+            self._is_suspended = False
             self._backoff_time = None
 
             exc = yield from failure_future
@@ -744,6 +852,7 @@ class AbstractClient:
                     self._stream_destroyed)
             )
             while True:
+                self._nattempt += 1
                 self._failure_future = asyncio.Future()
                 try:
                     yield from self._main_impl()
@@ -757,7 +866,15 @@ class AbstractClient:
                         self.stream.stop_sm()
                     raise
                 except (OSError, dns.resolver.NoNameservers) as exc:
-                    self.logger.info("%s", exc)
+                    self.logger.info("connection error: (%s) %s",
+                                     type(exc).__qualname__,
+                                     exc)
+                    if     (not self._had_connection and
+                            self._max_initial_attempts is not None and
+                            self._nattempt >= self._max_initial_attempts):
+                        self.logger.warning("out of connection attempts")
+                        raise
+
                     if self._backoff_time is None:
                         self._backoff_time = self.backoff_start.total_seconds()
                     self.logger.debug("re-trying after %.1f seconds",
@@ -839,8 +956,17 @@ class AbstractClient:
     def local_jid(self):
         """
         The :class:`~aioxmpp.JID` the client currently has. While the
-        client is disconnected, only the bare JID part is authentic, as the
-        resource is ultimately determined by the server.
+        client is disconnected, which parts of the :attr:`local_jid` can be
+        relied upon depends on the authentication mechanism used. For example,
+        using anonymous authentication, the server dictates even the local part
+        of the JID and it will change after a reconnect. For more common
+        authentication schemes (such as normal password-based authentication),
+        the localpart is usually chosen by the client.
+
+        For interoperability with different authentication schemes, code must
+        invalidate all copies of this attribute when a
+        :meth:`on_stream_established` or :meth:`on_stream_destroyed` event is
+        emitted.
 
         Writing this attribute is not allowed, as changing the JID introduces a
         lot of issues with respect to reusability of the stream. Instanciate a
