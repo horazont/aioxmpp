@@ -74,7 +74,8 @@ import enum
 import functools
 import warnings
 
-from .stringprep import nodeprep, resourceprep, nameprep
+import idna.codec
+import precis_i18n.codec
 
 
 _USE_COMPAT_ENUM = True
@@ -593,7 +594,7 @@ class JID(collections.namedtuple("JID", ["localpart", "domain", "resource"])):
     or use the :meth:`fromstr` class method.
 
     If `strict` is false, unassigned codepoints are allowed in any of the parts
-    of the JID. In the future, other deviations from the respective stringprep
+    of the JID. In the future, other deviations from the respective PRECIS
     profiles may be allowed, too.
 
     The idea is to use non-`strict` when output is received from outside and
@@ -607,15 +608,15 @@ class JID(collections.namedtuple("JID", ["localpart", "domain", "resource"])):
 
     .. attribute:: localpart
 
-       The localpart, stringprep’d from the argument to the constructor.
+       The localpart, enforced with the Username Case Mapped PRECIS profile.
 
     .. attribute:: domain
 
-       The domain, stringprep’d from the argument to the constructor.
+       The domain, enforced with IDNA2008.
 
     .. attribute:: resource
 
-       The resource, stringprep’d from the argument to the constructor.
+       The resource, enforced with the Nickname PRECIS profile.
 
     .. autoattribute:: is_bare
 
@@ -633,20 +634,11 @@ class JID(collections.namedtuple("JID", ["localpart", "domain", "resource"])):
 
     def __new__(cls, localpart, domain, resource, *, strict=True):
         if localpart:
-            localpart = nodeprep(
-                localpart,
-                allow_unassigned=not strict
-            )
+            localpart = localpart.encode('UsernameCaseMapped')
         if domain is not None:
-            domain = nameprep(
-                domain,
-                allow_unassigned=not strict
-            )
+            domain = domain.encode('idna')
         if resource:
-            resource = resourceprep(
-                resource,
-                allow_unassigned=not strict
-            )
+            resource = resource.encode('Nickname')
 
         if not domain:
             raise ValueError("domain must not be empty or None")
@@ -682,10 +674,7 @@ class JID(collections.namedtuple("JID", ["localpart", "domain", "resource"])):
             pass
         else:
             if localpart:
-                localpart = nodeprep(
-                    localpart,
-                    allow_unassigned=not strict
-                )
+                localpart = localpart.encode('UsernameCaseMapped')
             new_kwargs["localpart"] = localpart
 
         try:
@@ -695,10 +684,7 @@ class JID(collections.namedtuple("JID", ["localpart", "domain", "resource"])):
         else:
             if not domain:
                 raise ValueError("domain must not be empty or None")
-            new_kwargs["domain"] = nameprep(
-                domain,
-                allow_unassigned=not strict
-            )
+            new_kwargs["domain"] = domain.encode('idna')
 
         try:
             resource = kwargs.pop("resource")
@@ -706,10 +692,7 @@ class JID(collections.namedtuple("JID", ["localpart", "domain", "resource"])):
             pass
         else:
             if resource:
-                resource = resourceprep(
-                    resource,
-                    allow_unassigned=not strict
-                )
+                resource = resource.encode('Nickname')
             new_kwargs["resource"] = resource
 
         if kwargs:

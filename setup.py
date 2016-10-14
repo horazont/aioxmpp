@@ -56,6 +56,7 @@ setup(
                       'aioopenssl>=0.1',
                       'babel~=2.3',
                       'dnspython3~=1.14',
+                      'idna~=2.1',
                       'lxml~=3.6',
                       'multidict~=2.0',
                       'orderedset>=1.2',

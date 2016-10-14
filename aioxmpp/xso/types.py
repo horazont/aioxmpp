@@ -162,8 +162,8 @@ class String(AbstractType):
     """
     Interpret the input value as string.
 
-    Optionally, a stringprep function `prepfunc` can be applied on the
-    string. A stringprep function must take the string and prepare it
+    Optionally, a PRECIS function `prepfunc` can be applied on the
+    string. A PRECIS function must take the string and enforce it
     accordingly; if it is invalid input, it must raise
     :class:`ValueError`. Otherwise, it shall return the prepared string.
 
