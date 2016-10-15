@@ -40,6 +40,9 @@ from aioxmpp.testutils import (
 
 
 class Testthreadlocal_resolver_instance(unittest.TestCase):
+    def tearDown(self):
+        network.reconfigure_resolver()
+
     def test_get_resolver_returns_Resolver_instance(self):
         self.assertIsInstance(
             network.get_resolver(),
