@@ -22,8 +22,6 @@
 import asyncio
 import collections
 import concurrent.futures
-import contextlib
-import functools
 import random
 import unittest
 import unittest.mock

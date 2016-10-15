@@ -265,9 +265,7 @@ class FieldType(enum.Enum):
 
         if self == to:
             return True
-        print(self, to)
         if self == FieldType.TEXT_SINGLE and to == FieldType.TEXT_PRIVATE:
-            print("ok")
             return True
         return False
 

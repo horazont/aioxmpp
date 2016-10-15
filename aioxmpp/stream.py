@@ -1763,11 +1763,11 @@ class StanzaStream:
             # variables
             with (yield from self._broker_lock):
                 if not self.sm_enabled or not self.sm_resumable:
-                    print("not resumable, destroying stream state")
                     self._destroy_stream_state(
                         self._xmlstream_exception or
                         DestructionRequested(
-                            "close() or stop() called and stream is not resumable"
+                            "close() or stop() called and stream is not "
+                            "resumable"
                         )
                     )
                     if self.sm_enabled:
