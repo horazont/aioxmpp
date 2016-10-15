@@ -106,9 +106,7 @@ class AioxmppPlugin(Plugin):
 
 
 class TestCase(unittest.TestCase):
-    def setUp(self):
+    @property
+    def provisioner(self):
         global provisioner
-        self.provisioner = provisioner
-
-    def tearDown(self):
-        pass
+        return provisioner
