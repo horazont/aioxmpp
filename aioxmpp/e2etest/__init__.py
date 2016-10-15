@@ -39,7 +39,6 @@ def setup_package():
     global provisioner, config
     provisioner_name = config.get("global", "provisioner")
     module_path, class_name = provisioner_name.rsplit(".", 1)
-    print(module_path, class_name)
     mod = importlib.import_module(module_path)
     cls_ = getattr(mod, class_name)
 
@@ -63,11 +62,12 @@ class AioxmppPlugin(Plugin):
     def options(self, options, env=os.environ):
         # super().options(options, env=env)
         options.add_option(
-            "--aioxmpptest-config",
+            "--e2etest-config",
             dest="aioxmpptest_config",
-            default="integration-tests.ini",
-            help="Configuration file for aioxmpptest "
-            "(default: integration-tests.ini)"
+            metavar="FILE",
+            default="e2etest.ini",
+            help="Configuration file for end-to-end tests "
+            "(default: e2etest.ini)"
         )
 
     def configure(self, options, conf):

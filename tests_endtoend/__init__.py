@@ -23,7 +23,7 @@ import asyncio
 
 import aioxmpp.stream
 
-from aioxmpptest import (  # NOQA
+from aioxmpp.e2etest import (  # NOQA
     setup_package,
     teardown_package,
     blocking,

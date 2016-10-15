@@ -26,9 +26,8 @@ import json
 import logging
 
 import aioxmpp
+import aioxmpp.disco
 import aioxmpp.security_layer
-
-from .utils import blocking
 
 
 _logger = logging.getLogger(__name__)
@@ -67,6 +66,7 @@ class Provisioner(metaclass=abc.ABCMeta):
         :return: Connected presence managed client
         :rtype: :class:`aioxmpp.PresenceManagedClient`
         """
+        self._logger.debug("obtaining client from %r", self)
         client = yield from self._make_client()
         cm = client.connected(presence=presence)
         yield from cm.__aenter__()
@@ -173,3 +173,25 @@ class AnonymousProvisioner(Provisioner):
             self._host,
             self._security_layer,
         )
+
+    @asyncio.coroutine
+    def initialise(self):
+        self._logger.debug("initialising anonymous provisioner")
+
+        client = yield from self.get_connected_client()
+        disco = client.summon(aioxmpp.disco.Service)
+        server_info = yield from disco.query_info(self._host)
+
+        self._logger.debug(
+            "discovered server features: %r",
+            server_info.features,
+        )
+
+        self._feature_map = {
+            feature: FeatureInfo(self._host)
+            for feature in server_info.features
+        }
+
+        # clean up state
+        del client
+        yield from self.teardown()
