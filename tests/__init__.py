@@ -19,3 +19,7 @@
 # <http://www.gnu.org/licenses/>.
 #
 ########################################################################
+from aioxmpp.e2etest import (  # NOQA
+    setup_package,
+    teardown_package,
+)

@@ -1,5 +1,5 @@
 ########################################################################
-# File name: __init__.py
+# File name: test_e2e.py
 # This file is part of: aioxmpp
 #
 # LICENSE
@@ -23,9 +23,7 @@ import asyncio
 
 import aioxmpp.stream
 
-from aioxmpp.e2etest import (  # NOQA
-    setup_package,
-    teardown_package,
+from aioxmpp.e2etest import (
     blocking,
     TestCase,
 )
