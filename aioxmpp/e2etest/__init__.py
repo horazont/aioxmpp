@@ -31,12 +31,22 @@ from .utils import blocking
 
 
 provisioner = None
+config = None
 
 
 @blocking
 @asyncio.coroutine
 def setup_package():
     global provisioner, config
+    if config is None:
+        # AioxmppPlugin is not used -> skip all e2e tests
+        for subclass in TestCase.__subclasses__():
+            # XXX: this depends on unittest implementation details :)
+            subclass.__unittest_skip__ = True
+            subclass.__unittest_skip_why__ = \
+                "this is not the aioxmpp test runner"
+        return
+
     provisioner_name = config.get("global", "provisioner")
     module_path, class_name = provisioner_name.rsplit(".", 1)
     mod = importlib.import_module(module_path)
@@ -50,7 +60,10 @@ def setup_package():
 
 @asyncio.coroutine
 def teardown_package():
-    global provisioner
+    global provisioner, config
+    if config is None:
+        return
+
     loop = asyncio.get_event_loop()
     loop.run_until_complete(provisioner.finalise())
     loop.close()
