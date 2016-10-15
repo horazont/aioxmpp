@@ -78,9 +78,9 @@ class AioxmppPlugin(Plugin):
             "--e2etest-config",
             dest="aioxmpptest_config",
             metavar="FILE",
-            default="e2etest.ini",
+            default=".local/e2etest.ini",
             help="Configuration file for end-to-end tests "
-            "(default: e2etest.ini)"
+            "(default: .local/e2etest.ini)"
         )
 
     def configure(self, options, conf):
