@@ -90,7 +90,12 @@ class Provisioner(metaclass=abc.ABCMeta):
         """
 
     def _configure_security_layer(self, section):
-        if "pin_store" in section:
+        no_verify = section.getboolean(
+            "no_verify",
+            fallback=False
+        )
+
+        if not no_verify and "pin_store" in section:
             with open(section.get("pin_store")) as f:
                 pin_store = json.load(f)
             pin_type = aioxmpp.security_layer.PinType(
@@ -99,11 +104,6 @@ class Provisioner(metaclass=abc.ABCMeta):
         else:
             pin_store = None
             pin_type = None
-
-        no_verify = section.getboolean(
-            "no_verify",
-            fallback=False
-        )
 
         self._logger.debug(
             "configured security layer with "
