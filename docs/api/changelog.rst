@@ -56,6 +56,8 @@ Version 0.8
 * Improve compatibility of :mod:`aioxmpp.muc` with Prosody 0.9 and below, which
   misses sending the ``110`` status code on some presences.
 
+* Fix :meth:`aioxmpp.muc.Room.leave_and_wait` never returning.
+
 .. _api-changelog-0.7:
 
 Version 0.7

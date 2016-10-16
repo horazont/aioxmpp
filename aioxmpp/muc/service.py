@@ -806,7 +806,7 @@ class Room:
 
         self.leave()
 
-        def on_exit(*args):
+        def on_exit(*args, **kwargs):
             fut.set_result(None)
             return True
 
