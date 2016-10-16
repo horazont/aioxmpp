@@ -24,6 +24,17 @@ import functools
 
 
 def blocking(f):
+    """
+    The decorated coroutine function is run using the
+    :meth:`~asyncio.AbstractEventLoop.run_until_complete` method of the current
+    (at the time of call) event loop.
+
+    The decorated function behaves like a normal function and is not a
+    coroutine function.
+
+    This decorator must be applied to a coroutine function (or method).
+    """
+
     @functools.wraps(f)
     def wrapped(*args, **kwargs):
         loop = asyncio.get_event_loop()

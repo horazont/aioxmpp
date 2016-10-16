@@ -61,6 +61,8 @@ Version 0.8
 * Do not emit :meth:`aioxmpp.muc.Room.on_join` when an unavailable presence from
   an unknown occupant JID is received.
 
+* :mod:`aioxmpp.e2etest`: Framework for End-to-End/Integration tests.
+
 .. _api-changelog-0.7:
 
 Version 0.7

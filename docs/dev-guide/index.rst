@@ -20,9 +20,16 @@ invoked directly (from within the aioxmpp source repository) on the test suite:
 
    $ nosetests3 tests
 
+.. _dg-end-to-end-tests:
 
 End-to-end tests (or integration tests)
 ---------------------------------------
+
+.. note::
+
+   The module :mod:`aioxmpp.e2etest` also contains quite a bit of information on
+   the framework and configuration. This probably needs a bit of clean up to
+   consolidate and deduplicate information.
 
 The normal unittest suite is quite nice, but it consists mostly of unit tests,
 which have an important flaw: the *interaction* between units is not well

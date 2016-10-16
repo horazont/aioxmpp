@@ -19,6 +19,105 @@
 # <http://www.gnu.org/licenses/>.
 #
 ########################################################################
+"""
+:mod:`~aioxmpp.e2etest` --- Framework for writing integration tests for :mod:`aioxmpp`
+######################################################################################
+
+This subpackage provides utilities for writing end-to-end or intgeration tests
+for :mod:`aioxmpp` components.
+
+.. warning::
+
+   For now, the API of this subpackage is classified as internal. Please do not
+   test your external components using this API, as it is experimental and
+   subject to change.
+
+Overview
+========
+
+The basic concept is that tests are written like normal unittests. However,
+tests are written by inheriting classes from :class:`aioxmpp.e2etest.TestCase`
+instead of :mod:`unittest.TestCase`. :class:`.e2etest.TestCase` has the
+:attr:`~.e2etest.TestCase.provisioner` attribute which provides access to a
+:class:`.provision.Provisioner` instance.
+
+Provisioners are objects which provide a way to obtain a connected XMPP client.
+The JID to which the client is bound is unspecified; however, each client gets
+a unique bare JID and the clients are able to communicate with each other. In
+addition, provisioners provide information about the environment in which the
+clients act. This includes providing JIDs of entities implementing specific
+protocols or features. The details are explained in the documentation of the
+:class:`~.provision.Provisioner` base class.
+
+By default, tests which are written with :class:`.e2etest.TestCase` are skipped
+when using the normal test runners. This is because the provisioners need to be
+configured; this is handled using a custom nosetests plugin which is not loaded
+by default (for good reasons). To run the tests, use (instead of the normal
+``nosetests3`` binary):
+
+.. code-block:: console
+
+   $ python3 -m aioxmpp.e2etest
+
+The command line interface is identical to the one of ``nosetests3``, except
+that additional options are provided to configure the plugin. In fact,
+:mod:`aioxmpp.e2etest` is simply a nose test runner with an additional plugin.
+
+By default, the configuration is read from ``./.local/e2etest.ini``. For
+details on configuring the provisioners, see :ref:`the developer guide
+<dg-end-to-end-tests>`.
+
+Main API
+========
+
+Decorators for test methods
+---------------------------
+
+The following decorators can be used on test methods (including ``setUp`` and
+``tearDown``):
+
+.. autodecorator:: require_feature
+
+.. autodecorator:: skip_with_quirk
+
+General decorators
+------------------
+
+.. autodecorator:: blocking()
+
+.. autodecorator:: blocking_timed()
+
+.. autodecorator:: blocking_with_timeout
+
+Class for test cases
+--------------------
+
+.. autoclass:: TestCase
+
+.. currentmodule:: aioxmpp.e2etest.provision
+
+Provisioners
+============
+
+.. autoclass:: Provisioner
+
+.. autoclass:: AnonymousProvisioner
+
+.. currentmodule:: aioxmpp.e2etest
+
+.. autoclass:: Quirk
+
+.. currentmodule:: aioxmpp.e2etest.provision
+
+Helper functions
+----------------
+
+.. autofunction:: discover_server_features
+
+.. autofunction:: configure_tls_config
+
+.. autofunction:: configure_quirks
+"""
 import asyncio
 import configparser
 import functools
@@ -40,7 +139,9 @@ timeout = 1
 def require_feature(feature_var, argname=None):
     """
     :param feature_var: :xep:`30` feature ``var`` of the required feature
+    :type feature_var: :class:`str`
     :param argname: Optional argument name to pass the :class:`FeatureInfo` to
+    :type argname: :class:`str` or :data:`None`
 
     Before running the function, it is tested that the feature specified by
     `feature_var` is provided in the environment of the current provisioner. If
@@ -50,6 +151,10 @@ def require_feature(feature_var, argname=None):
     the decorated function. If `argname` is :data:`None`, the feature info is
     passed as additional positional argument. otherwise, it is passed as
     keyword argument using the `argname`.
+
+    This decorator can be used on test methods, but not on test classes. If you
+    want to skip all tests in a class, apply the decorator to the ``setUp``
+    method.
     """
 
     def decorator(f):
@@ -81,6 +186,10 @@ def skip_with_quirk(quirk):
 
     If the provisioner indicates that the environment has the given `quirk`,
     the test is skipped.
+
+    This decorator can be used on test methods, but not on test classes. If you
+    want to skip all tests in a class, apply the decorator to the ``setUp``
+    method.
     """
 
     def decorator(f):
@@ -98,6 +207,20 @@ def skip_with_quirk(quirk):
 
 
 def blocking_with_timeout(timeout):
+    """
+    The decorated coroutine function is run using the
+    :meth:`~asyncio.AbstractEventLoop.run_until_complete` method of the current
+    (at the time of call) event loop.
+
+    If the execution takes longer than `timeout` seconds,
+    :class:`asyncio.TimeoutError` is raised.
+
+    The decorated function behaves like a normal function and is not a
+    coroutine function.
+
+    This decorator must be applied to a coroutine function (or method).
+    """
+
     def decorator(f):
         @blocking
         @functools.wraps(f)
@@ -109,6 +232,23 @@ def blocking_with_timeout(timeout):
 
 
 def blocking_timed(f):
+    """
+    Like :func:`blocking_with_timeout`, the decorated coroutine function is
+    executed using :meth:`asyncio.AbstractEventLoop.run_until_complete` with a
+    timeout, but the timeout is configured in the end-to-end test configuration
+    (see :ref:`dg-end-to-end-tests`).
+
+    This is the recommended decorator for any test function or method, to
+    prevent the tests from hanging when anythin goes wrong. The timeout is
+    under control of the provisioner configuration, which means that it can be
+    adapted to different setups (for example, running against an XMPP server in
+    the internet will be slower than if it runs on localhost).
+
+    The decorated function behaves like a normal function and is not a
+    coroutine function.
+
+    This decorator must be applied to a coroutine function (or method).
+    """
     @blocking
     @functools.wraps(f)
     @asyncio.coroutine
@@ -159,7 +299,6 @@ class AioxmppPlugin(Plugin):
     name = "aioxmpp"
 
     def options(self, options, env=os.environ):
-        # super().options(options, env=env)
         options.add_option(
             "--e2etest-config",
             dest="aioxmpptest_config",
@@ -192,7 +331,27 @@ class AioxmppPlugin(Plugin):
 
 
 class TestCase(unittest.TestCase):
+    """
+    A subclass of :class:`unittest.TestCase` for end-to-end test cases.
+
+    This subclass provides a single additional attribute:
+
+    .. autoattribute:: provisioner
+    """
+
     @property
     def provisioner(self):
+        """
+        This is the configured :class:`.provision.Provisioner` instance.
+
+        If no provisioner is configured (for example because the e2etest nose
+        plugin is not loaded), this reads as :data:`None`.
+
+        .. note::
+
+           Under nosetests and the vanilla unittest runner, tests inheriting
+           from :class:`TestCase` are automatically skipped if
+           :attr:`provisioner` is :data:`None`.
+        """
         global provisioner
         return provisioner
