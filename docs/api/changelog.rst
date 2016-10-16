@@ -137,6 +137,9 @@ Version 0.7.2
 
     task: <Task pending coro=<OrderedStateMachine.wait_for() running at /home/horazont/Projects/python/aioxmpp/aioxmpp/statemachine.py:170> wait_for=<Future pending cb=[Task._wakeup()]> cb=[XMLStream._stream_starts_closing()]>
 
+* Improve compatibility of :mod:`aioxmpp.muc` with Prosody 0.9 and below, which
+  misses sending the ``110`` status code on some presences.
+
 
 Version 0.6
 ===========
