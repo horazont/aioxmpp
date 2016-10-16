@@ -677,7 +677,9 @@ class Room:
                                    self._mucjid,
                                    stanza)
 
-        if 110 in stanza.xep0045_muc_user.status_codes:
+        if (110 in stanza.xep0045_muc_user.status_codes or
+                (self._this_occupant is not None and
+                 self._this_occupant.occupantjid == stanza.from_)):
             self._service.logger.debug("%s: is self-presence",
                                        self._mucjid)
             self._handle_self_presence(stanza)

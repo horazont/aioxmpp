@@ -53,6 +53,9 @@ Version 0.8
   * :meth:`~.AbstractClient.on_stream_destroyed` got a new argument `reason`
     which gives the exception which caused the stream to be destroyed.
 
+* Improve compatibility of :mod:`aioxmpp.muc` with Prosody 0.9 and below, which
+  misses sending the ``110`` status code on some presences.
+
 .. _api-changelog-0.7:
 
 Version 0.7
