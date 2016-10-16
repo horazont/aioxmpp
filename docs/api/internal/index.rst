@@ -12,6 +12,7 @@ Internal tools
 .. toctree::
    :maxdepth: 2
 
+   e2etest
    network
    protocol
    statemachine

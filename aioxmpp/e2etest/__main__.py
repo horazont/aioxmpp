@@ -1,5 +1,5 @@
 ########################################################################
-# File name: __init__.py
+# File name: __main__.py
 # This file is part of: aioxmpp
 #
 # LICENSE
@@ -19,7 +19,7 @@
 # <http://www.gnu.org/licenses/>.
 #
 ########################################################################
-from aioxmpp.e2etest import (  # NOQA
-    setup_package,
-    teardown_package,
-)
+import nose
+from aioxmpp.e2etest import AioxmppPlugin
+
+nose.main(addplugins=[AioxmppPlugin()])

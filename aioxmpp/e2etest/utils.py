@@ -1,5 +1,5 @@
 ########################################################################
-# File name: __init__.py
+# File name: utils.py
 # This file is part of: aioxmpp
 #
 # LICENSE
@@ -19,7 +19,24 @@
 # <http://www.gnu.org/licenses/>.
 #
 ########################################################################
-from aioxmpp.e2etest import (  # NOQA
-    setup_package,
-    teardown_package,
-)
+import asyncio
+import functools
+
+
+def blocking(f):
+    """
+    The decorated coroutine function is run using the
+    :meth:`~asyncio.AbstractEventLoop.run_until_complete` method of the current
+    (at the time of call) event loop.
+
+    The decorated function behaves like a normal function and is not a
+    coroutine function.
+
+    This decorator must be applied to a coroutine function (or method).
+    """
+
+    @functools.wraps(f)
+    def wrapped(*args, **kwargs):
+        loop = asyncio.get_event_loop()
+        return loop.run_until_complete(f(*args, **kwargs))
+    return wrapped
