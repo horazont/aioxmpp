@@ -2,3 +2,5 @@ __pycache__
 xmltest.py
 dist
 aioxmpp.egg-info
+.local
+.vagrant
