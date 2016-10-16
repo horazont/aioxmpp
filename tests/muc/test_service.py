@@ -1521,6 +1521,49 @@ class TestRoom(unittest.TestCase):
         )
         self.assertFalse(self.jmuc.active)
 
+    def test_do_not_treat_unavailable_stanzas_as_join(self):
+        presence = aioxmpp.stanza.Presence(
+            type_=aioxmpp.structs.PresenceType.AVAILABLE,
+            from_=TEST_MUC_JID.replace(resource="thirdwitch")
+        )
+        presence.xep0045_muc_user = muc_xso.UserExt(
+            status_codes={110},
+            items=[
+                muc_xso.UserItem(affiliation="member",
+                                 role="none"),
+            ]
+        )
+
+        self.jmuc._inbound_muc_user_presence(presence)
+
+        self.assertSequenceEqual(
+            self.base.mock_calls,
+            [
+                unittest.mock.call.on_enter(presence,
+                                            self.jmuc.this_occupant),
+            ]
+        )
+        self.base.mock_calls.clear()
+
+        presence = aioxmpp.stanza.Presence(
+            type_=aioxmpp.structs.PresenceType.UNAVAILABLE,
+            from_=TEST_MUC_JID.replace(resource="foo")
+        )
+        presence.xep0045_muc_user = muc_xso.UserExt(
+            items=[
+                muc_xso.UserItem(affiliation="member",
+                                 role="none"),
+            ]
+        )
+
+        self.jmuc._inbound_muc_user_presence(presence)
+
+        self.assertSequenceEqual(
+            self.base.mock_calls,
+            [
+            ]
+        )
+
     def test__inbound_muc_user_presence_ignores_self_leave_if_inactive(self):
         presence = aioxmpp.stanza.Presence(
             type_=aioxmpp.structs.PresenceType.UNAVAILABLE,

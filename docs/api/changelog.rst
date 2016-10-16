@@ -58,6 +58,9 @@ Version 0.8
 
 * Fix :meth:`aioxmpp.muc.Room.leave_and_wait` never returning.
 
+* Do not emit :meth:`aioxmpp.muc.Room.on_join` when an unavailable presence from
+  an unknown occupant JID is received.
+
 .. _api-changelog-0.7:
 
 Version 0.7

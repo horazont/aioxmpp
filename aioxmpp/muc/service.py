@@ -689,6 +689,13 @@ class Room:
         try:
             existing = self._occupant_info[info.occupantjid]
         except KeyError:
+            if stanza.type_ == aioxmpp.structs.PresenceType.UNAVAILABLE:
+                self._service.logger.debug(
+                    "received unavailable presence from unknown occupant %r."
+                    " ignoring.",
+                    stanza.from_,
+                )
+                return
             self._occupant_info[info.occupantjid] = info
             self.on_join(stanza, info)
             return
