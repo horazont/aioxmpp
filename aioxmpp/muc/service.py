@@ -36,6 +36,41 @@ from . import xso as muc_xso
 
 
 class LeaveMode(Enum):
+    """
+    The different reasons for a user to leave or be removed from MUC.
+
+    .. attribute:: DISCONNECTED
+
+       The local client disconnected. This only occurs in events referring to
+       the local entity.
+
+    .. attribute:: SYSTEM_SHUTDOWN
+
+       The remote server shut down.
+
+    .. attribute:: NORMAL
+
+       The leave was initiated by the occupant themselves and was not a kick or
+       ban.
+
+    .. attribute:: KICKED
+
+       The user was kicked from the room.
+
+    .. attribute:: AFFILIATION_CHANGE
+
+       Changes in the affiliation of the user caused them to be removed.
+
+    .. attribute:: MODERATION_CHANGE
+
+       Changes in the moderation settings of the room caused the user to be
+       removed.
+
+    .. attribute:: BANNED
+
+       The user was banned from the room.
+    """
+
     DISCONNECTED = -2
     SYSTEM_SHUTDOWN = -1
     NORMAL = 0

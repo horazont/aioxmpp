@@ -39,6 +39,8 @@ The service returns :class:`Room` objects which are used to track joined MUCs:
 
 .. autoclass:: Room
 
+.. autoclass:: LeaveMode
+
 Inside rooms, there are occupants:
 
 .. autoclass:: Occupant
@@ -97,7 +99,7 @@ Owner namespace
 .. autoclass:: DestroyRequest
 
 """
-from .service import Service, Occupant, Room  # NOQA
+from .service import Service, Occupant, Room, LeaveMode  # NOQA
 from . import xso  # NOQA
 from .xso import (  # NOQA
     ConfigurationForm
