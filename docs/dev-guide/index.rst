@@ -50,18 +50,24 @@ command line option.
    few helper functions to provide the advanced testing functionality. This is
    also why the vanilla nosetests runner doesn’t break on the test cases.
 
-There is only one fixed configuration option, which must be set:
+The following global configuration options exist:
 
 .. code-block:: ini
 
   [global]
+  timeout=1
   provisioner=
 
 ``provisioner`` must be set to point to a Python class which inherits from
 :class:`aioxmpp.e2etest.provision.Provisioner`. The above value is an example.
 Each provisioner has different configuration options. The different provisioners
-are explained in detail below. To test that you got your configuration correct,
-use:
+are explained in detail below.
+
+``timeout`` specifies the default timeout for each individual test in seconds.
+The default is 1 second. If you have a slow connection to the server, it may be
+reasonable to increase this to a higher value.
+
+To test that you got your configuration correct, use:
 
 .. code-block:: console
 

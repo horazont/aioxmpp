@@ -20,8 +20,11 @@
 #
 ########################################################################
 import abc
+import ast
 import asyncio
 import collections
+import enum
+import itertools
 import json
 import logging
 
@@ -41,22 +44,37 @@ FeatureInfo = collections.namedtuple(
 )
 
 
+class Quirk(enum.Enum):
+    MUC_REWRITES_MESSAGE_ID = \
+        "https://zombofant.net/xmlns/aioxmpp/e2etest/quirks#muc-id-rewrite"
+
+
+def fix_quirk_str(s):
+    if s.startswith("#"):
+        return "https://zombofant.net/xmlns/aioxmpp/e2etest/quirks" + s
+    return s
+
+
 class Provisioner(metaclass=abc.ABCMeta):
     def __init__(self, logger=_logger):
         super().__init__()
         self._accounts_to_dispose = []
         self._featuremap = {}
         self._logger = logger
+        self.__counter = 0
 
     @abc.abstractmethod
     @asyncio.coroutine
-    def _make_client(self):
+    def _make_client(self, logger):
         """
+        :param logger: The logger to pass to the client.
         :return: Presence managed client
         """
 
     @asyncio.coroutine
-    def get_connected_client(self, presence=aioxmpp.PresenceState(True)):
+    def get_connected_client(self, presence=aioxmpp.PresenceState(True),
+                             *,
+                             services=[]):
         """
         :param presence: initial presence to emit
         :type presence: :class:`aioxmpp.PresenceState`
@@ -66,8 +84,13 @@ class Provisioner(metaclass=abc.ABCMeta):
         :return: Connected presence managed client
         :rtype: :class:`aioxmpp.PresenceManagedClient`
         """
-        self._logger.debug("obtaining client from %r", self)
-        client = yield from self._make_client()
+        id_ = self.__counter
+        self.__counter += 1
+        self._logger.debug("obtaining client%d from %r", id_, self)
+        logger = self._logger.getChild("client{}".format(id_))
+        client = yield from self._make_client(logger)
+        for service in services:
+            client.summon(service)
         cm = client.connected(presence=presence)
         yield from cm.__aenter__()
         self._accounts_to_dispose.append(cm)
@@ -82,6 +105,9 @@ class Provisioner(metaclass=abc.ABCMeta):
         If the feature is not supported, :data:`None` is returned.
         """
         return self._featuremap.get(feature_ns, None)
+
+    def has_quirk(self, quirk):
+        return quirk in self._quirks
 
     @abc.abstractmethod
     def configure(self, section):
@@ -123,6 +149,45 @@ class Provisioner(metaclass=abc.ABCMeta):
             no_verify=no_verify,
         )
 
+    def _configure_quirks(self, section):
+        quirks = ast.literal_eval(section.get("quirks", fallback="[]"))
+        if isinstance(quirks, (str, dict)):
+            raise ValueError("incorrect type for quirks setting")
+        self._quirks = set(map(Quirk, map(fix_quirk_str, quirks)))
+
+    @asyncio.coroutine
+    def _discover_server_features(self, disco, peer, recurse_into_items=True):
+        server_info = yield from disco.query_info(peer)
+
+        all_features = {}
+        all_features.update({
+            feature: FeatureInfo(peer)
+            for feature in server_info.features
+        })
+
+        if recurse_into_items:
+            server_items = yield from disco.query_items(peer)
+            features_list = yield from asyncio.gather(
+                *(
+                    self._discover_server_features(
+                        disco,
+                        item.jid,
+                        recurse_into_items=False,
+                    )
+                    for item in server_items.items
+                    if item.jid is not None and item.node is None
+                )
+            )
+
+            for features in features_list:
+                all_features.update([
+                    (feature, info)
+                    for feature, info in features.items()
+                    if feature not in all_features
+                ])
+
+        return all_features
+
     @asyncio.coroutine
     def initialise(self):
         """
@@ -162,16 +227,18 @@ class Provisioner(metaclass=abc.ABCMeta):
 
 class AnonymousProvisioner(Provisioner):
     def configure(self, section):
-        self._host = aioxmpp.JID.fromstr(section["host"])
-        self._security_layer = self._configure_security_layer(
+        self.__host = aioxmpp.JID.fromstr(section["host"])
+        self.__security_layer = self._configure_security_layer(
             section
         )
+        self._configure_quirks(section)
 
     @asyncio.coroutine
-    def _make_client(self):
+    def _make_client(self, logger):
         return aioxmpp.PresenceManagedClient(
-            self._host,
-            self._security_layer,
+            self.__host,
+            self.__security_layer,
+            logger=logger,
         )
 
     @asyncio.coroutine
@@ -180,17 +247,26 @@ class AnonymousProvisioner(Provisioner):
 
         client = yield from self.get_connected_client()
         disco = client.summon(aioxmpp.disco.Service)
-        server_info = yield from disco.query_info(self._host)
 
-        self._logger.debug(
-            "discovered server features: %r",
-            server_info.features,
+        self._featuremap.update(
+            (yield from self._discover_server_features(
+                disco,
+                self.__host
+            ))
         )
 
-        self._feature_map = {
-            feature: FeatureInfo(self._host)
-            for feature in server_info.features
-        }
+        self._logger.debug("found %d features", len(self._featuremap))
+        if self._logger.isEnabledFor(logging.DEBUG):
+            for jid, items in itertools.groupby(
+                    sorted(
+                        self._featuremap.items(),
+                        key=lambda x: (x[1].supported_at_entity, x[0])),
+                    lambda x: x[1].supported_at_entity):
+                self._logger.debug(
+                    "%s provides %s",
+                    jid,
+                    ", ".join(item[0] for item in items)
+                )
 
         # clean up state
         del client

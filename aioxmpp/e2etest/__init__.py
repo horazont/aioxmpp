@@ -21,6 +21,7 @@
 ########################################################################
 import asyncio
 import configparser
+import functools
 import importlib
 import os
 import unittest
@@ -28,16 +29,99 @@ import unittest
 from nose.plugins import Plugin
 
 from .utils import blocking
+from .provision import Quirk  # NOQA
 
 
 provisioner = None
 config = None
+timeout = 1
+
+
+def require_feature(feature_var, argname=None):
+    """
+    :param feature_var: :xep:`30` feature ``var`` of the required feature
+    :param argname: Optional argument name to pass the :class:`FeatureInfo` to
+
+    Before running the function, it is tested that the feature specified by
+    `feature_var` is provided in the environment of the current provisioner. If
+    it is not, :class:`unittest.SkipTest` is raised to skip the test.
+
+    If the feature is available, the :class:`FeatureInfo` instance is passed to
+    the decorated function. If `argname` is :data:`None`, the feature info is
+    passed as additional positional argument. otherwise, it is passed as
+    keyword argument using the `argname`.
+    """
+
+    def decorator(f):
+        @functools.wraps(f)
+        def wrapper(*args, **kwargs):
+            global provisioner
+            info = provisioner.get_feature_info(feature_var)
+            if info is None:
+                raise unittest.SkipTest(
+                    "provisioner does not provide a peer with "
+                    "{!r}".format(feature_var)
+                )
+
+            if argname is None:
+                args = args+(info,)
+            else:
+                kwargs[argname] = info
+
+            return f(*args, **kwargs)
+        return wrapper
+
+    return decorator
+
+
+def skip_with_quirk(quirk):
+    """
+    :param quirk: The quirk to skip on
+    :type quirk: :class:`Quirks`
+
+    If the provisioner indicates that the environment has the given `quirk`,
+    the test is skipped.
+    """
+
+    def decorator(f):
+        @functools.wraps(f)
+        def wrapper(*args, **kwargs):
+            global provisioner
+            if provisioner.has_quirk(quirk):
+                raise unittest.SkipTest(
+                    "provisioner has quirk {!r}".format(quirk)
+                )
+            return f(*args, **kwargs)
+        return wrapper
+
+    return decorator
+
+
+def blocking_with_timeout(timeout):
+    def decorator(f):
+        @blocking
+        @functools.wraps(f)
+        @asyncio.coroutine
+        def wrapper(*args, **kwargs):
+            yield from asyncio.wait_for(f(*args, **kwargs), timeout)
+        return wrapper
+    return decorator
+
+
+def blocking_timed(f):
+    @blocking
+    @functools.wraps(f)
+    @asyncio.coroutine
+    def wrapper(*args, **kwargs):
+        global timeout
+        yield from asyncio.wait_for(f(*args, **kwargs), timeout)
+    return wrapper
 
 
 @blocking
 @asyncio.coroutine
 def setup_package():
-    global provisioner, config
+    global provisioner, config, timeout
     if config is None:
         # AioxmppPlugin is not used -> skip all e2e tests
         for subclass in TestCase.__subclasses__():
@@ -46,6 +130,8 @@ def setup_package():
             subclass.__unittest_skip_why__ = \
                 "this is not the aioxmpp test runner"
         return
+
+    timeout = config.get("global", "timeout", fallback=timeout)
 
     provisioner_name = config.get("global", "provisioner")
     module_path, class_name = provisioner_name.rsplit(".", 1)
