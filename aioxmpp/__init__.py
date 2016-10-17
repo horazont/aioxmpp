@@ -91,6 +91,7 @@ from .security_layer import make as make_security_layer  # NOQA
 
 # services
 from .presence import PresenceClient  # NOQA
+from .roster import RosterClient  # NOQA
 
 
 def set_strict_mode():

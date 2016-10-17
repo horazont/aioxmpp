@@ -195,7 +195,7 @@ class TestItem(unittest.TestCase):
 class TestService(unittest.TestCase):
     def setUp(self):
         self.cc = make_connected_client()
-        self.s = roster_service.Service(self.cc)
+        self.s = roster_service.RosterClient(self.cc)
 
         self.user1 = structs.JID.fromstr("user@foo.example")
         self.user2 = structs.JID.fromstr("user@bar.example")
@@ -235,7 +235,7 @@ class TestService(unittest.TestCase):
         )
 
     def test_init(self):
-        s = roster_service.Service(self.cc)
+        s = roster_service.RosterClient(self.cc)
         self.assertDictEqual({}, s.items)
         self.assertEqual(None, s.version)
         self.assertDictEqual({}, s.groups)
@@ -310,7 +310,7 @@ class TestService(unittest.TestCase):
             service.is_iq_handler(
                 structs.IQType.SET,
                 roster_xso.Query,
-                roster_service.Service.handle_roster_push,
+                roster_service.RosterClient.handle_roster_push,
             )
         )
 
@@ -319,7 +319,7 @@ class TestService(unittest.TestCase):
             service.is_presence_handler(
                 structs.PresenceType.SUBSCRIBE,
                 None,
-                roster_service.Service.handle_subscribe,
+                roster_service.RosterClient.handle_subscribe,
             )
         )
 
@@ -328,7 +328,7 @@ class TestService(unittest.TestCase):
             service.is_presence_handler(
                 structs.PresenceType.SUBSCRIBED,
                 None,
-                roster_service.Service.handle_subscribed,
+                roster_service.RosterClient.handle_subscribed,
             )
         )
 
@@ -337,7 +337,7 @@ class TestService(unittest.TestCase):
             service.is_presence_handler(
                 structs.PresenceType.UNSUBSCRIBE,
                 None,
-                roster_service.Service.handle_unsubscribe,
+                roster_service.RosterClient.handle_unsubscribe,
             )
         )
 
@@ -346,7 +346,7 @@ class TestService(unittest.TestCase):
             service.is_presence_handler(
                 structs.PresenceType.UNSUBSCRIBED,
                 None,
-                roster_service.Service.handle_unsubscribed,
+                roster_service.RosterClient.handle_unsubscribed,
             )
         )
 
