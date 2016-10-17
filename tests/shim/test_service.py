@@ -46,7 +46,7 @@ class TestService(unittest.TestCase):
 
         with unittest.mock.patch("aioxmpp.disco.StaticNode") as Node:
             Node.return_value = self.node
-            self.s = shim_service.Service(self.cc, dependencies={
+            self.s = shim_service.SHIMService(self.cc, dependencies={
                 aioxmpp.DiscoServer: self.disco
             })
 
@@ -61,7 +61,7 @@ class TestService(unittest.TestCase):
     def test_orders_before_disco_service(self):
         self.assertLess(
             aioxmpp.DiscoServer,
-            shim_service.Service,
+            shim_service.SHIMService,
         )
 
     def test_init(self):
@@ -74,7 +74,7 @@ class TestService(unittest.TestCase):
         self.cc.local_jid = TEST_FROM
 
         with unittest.mock.patch("aioxmpp.disco.StaticNode") as Node:
-            self.s = shim_service.Service(self.cc, dependencies={
+            self.s = shim_service.SHIMService(self.cc, dependencies={
                 aioxmpp.DiscoServer: self.disco,
             })
 

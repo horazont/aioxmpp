@@ -38,7 +38,19 @@ attributes are added by this module to the existing stanza classes:
 
 The attributes are available as soon as :mod:`aioxmpp.shim` is loaded.
 
-.. autoclass:: Service
+.. currentmodule:: aioxmpp
+
+.. autoclass:: SHIMService
+
+.. currentmodule:: aioxmpp.shim
+
+.. class:: Service
+
+   Alias of :class:`.SHIMService`.
+
+   .. deprecated:: 0.8
+
+      The alias will be removed in 1.0.
 
 .. currentmodule:: aioxmpp.shim.xso
 
@@ -48,5 +60,5 @@ The attributes are available as soon as :mod:`aioxmpp.shim` is loaded.
 from . import xso  # NOQA
 
 from .service import (  # NOQA
-    Service,
+    SHIMService,
 )

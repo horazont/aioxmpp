@@ -26,7 +26,7 @@ import aioxmpp.service
 from aioxmpp.utils import namespaces
 
 
-class Service(aioxmpp.service.Service):
+class SHIMService(aioxmpp.service.Service):
     """
     This service implements :xep:`131` feature advertisment.
 
@@ -40,6 +40,12 @@ class Service(aioxmpp.service.Service):
     .. automethod:: register_header
 
     .. automethod:: unregister_header
+
+    .. versionchanged:: 0.8
+
+       This class was formerly known as :class:`aioxmpp.shim.Service`. It
+       is still available under that name, but the alias will be removed in
+       1.0.
     """
 
     ORDER_AFTER = [aioxmpp.DiscoServer]

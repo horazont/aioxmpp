@@ -96,6 +96,7 @@ from .disco import DiscoServer, DiscoClient  # NOQA
 from .entitycaps import EntityCapsService  # NOQA
 from .muc import MUCClient  # NOQA
 from .pubsub import PubSubClient  # NOQA
+from .shim import SHIMService  # NOQA
 
 
 def set_strict_mode():
