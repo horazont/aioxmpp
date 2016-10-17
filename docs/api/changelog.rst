@@ -100,6 +100,12 @@ Version 0.8
 
   The more correct :exc:`TypeError` is now raised.
 
+* *Deprecation*: The `presence` argument to the constructor of and the
+  :attr:`~.UseConnected.presence` and :attr:`~.UseConnected.timeout` attributes
+  on :class:`aioxmpp.node.UseConnected` objects are deprecated.
+
+  See the respective documentation for details on the deprecation procedure.
+
 .. _api-changelog-0.7:
 
 Version 0.7
