@@ -90,7 +90,7 @@ class PresenceInfo(Example):
             self.caps.cache.set_system_db_path(self.args.system_capsdb)
         self.caps.cache.set_user_db_path(self.args.user_capsdb)
 
-        self.presence = client.summon(aioxmpp.PresenceService)
+        self.presence = client.summon(aioxmpp.PresenceClient)
         self.presence.on_available.connect(
             self._on_available
         )
