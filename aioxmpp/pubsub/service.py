@@ -30,7 +30,7 @@ import aioxmpp.structs
 from . import xso as pubsub_xso
 
 
-class Service(aioxmpp.service.Service):
+class PubSubClient(aioxmpp.service.Service):
     """
     Client service implementing a Publish-Subscribe client. By loading it into
     a client, it is possible to subscribe to, publish to and otherwise interact
@@ -140,6 +140,11 @@ class Service(aioxmpp.service.Service):
 
     .. autosignal:: on_subscription_update(jid, node, state, *, subid=None, message=None)
 
+    .. versionchanged:: 0.8
+
+       This class was formerly known as :class:`aioxmpp.pubsub.Service`. It
+       is still available under that name, but the alias will be removed in
+       1.0.
     """
 
     ORDER_AFTER = [

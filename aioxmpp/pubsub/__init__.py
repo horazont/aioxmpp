@@ -32,9 +32,22 @@ Using Publish-Subscribe
 =======================
 
 To start using PubSub services in your application, you have to load the
-:class:`Service` into the client, using :meth:`~.node.AbstractClient.summon`.
+:class:`.PubSubClient` into the client, using
+:meth:`~.node.AbstractClient.summon`.
 
-.. autoclass:: Service
+.. currentmodule:: aioxmpp
+
+.. autoclass:: PubSubClient
+
+.. currentmodule:: aioxmpp.pubsub
+
+.. class:: Service
+
+   Alias of :class:`.PubSubClient`.
+
+   .. deprecated:: 0.8
+
+      The alias will be removed in 1.0.
 
 .. currentmodule:: aioxmpp.pubsub.xso
 
@@ -173,4 +186,4 @@ below:
 
 """
 
-from .service import Service
+from .service import PubSubClient  # NOQA
