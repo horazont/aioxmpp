@@ -32,6 +32,8 @@ of peers, no matter whether they are in the roster or not.
 
 .. autoclass:: PresenceClient
 
+.. autoclass:: PresenceServer
+
 .. currentmodule:: aioxmpp.presence
 
 .. class:: Service
@@ -44,5 +46,5 @@ of peers, no matter whether they are in the roster or not.
 
 """
 
-from .service import PresenceClient  # NOQA
+from .service import PresenceClient, PresenceServer  # NOQA
 Service = PresenceClient  # NOQA

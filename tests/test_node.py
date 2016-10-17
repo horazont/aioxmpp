@@ -3165,6 +3165,7 @@ class TestPresenceManagedClient(xmltestutils.XMLTestCase):
         expected.status.update(status_texts)
 
         base = unittest.mock.Mock()
+        base.stream.send = CoroutineMock()
         with contextlib.ExitStack() as stack:
             stack.enter_context(unittest.mock.patch.object(
                 self.client,
@@ -3213,6 +3214,7 @@ class TestPresenceManagedClient(xmltestutils.XMLTestCase):
         expected.status[None] = "foobar"
 
         base = unittest.mock.Mock()
+        base.stream.send = CoroutineMock()
         with contextlib.ExitStack() as stack:
             stack.enter_context(unittest.mock.patch.object(
                 self.client,

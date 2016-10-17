@@ -90,7 +90,7 @@ from .structs import (  # NOQA
 from .security_layer import make as make_security_layer  # NOQA
 
 # services
-from .presence import PresenceClient  # NOQA
+from .presence import PresenceClient, PresenceServer  # NOQA
 from .roster import RosterClient  # NOQA
 from .disco import DiscoServer, DiscoClient  # NOQA
 from .entitycaps import EntityCapsService  # NOQA

@@ -19,8 +19,10 @@
 # <http://www.gnu.org/licenses/>.
 #
 ########################################################################
+import types
 import unittest
 
+import aioxmpp
 import aioxmpp.presence.service as presence_service
 import aioxmpp.service as service
 import aioxmpp.stanza as stanza
@@ -29,6 +31,7 @@ import aioxmpp.structs as structs
 from aioxmpp.testutils import (
     make_connected_client,
     run_coroutine,
+    CoroutineMock,
 )
 
 
@@ -36,7 +39,7 @@ TEST_PEER_JID1 = structs.JID.fromstr("bar@b.example")
 TEST_PEER_JID2 = structs.JID.fromstr("baz@c.example")
 
 
-class TestService(unittest.TestCase):
+class TestPresenceClient(unittest.TestCase):
     def test_is_service(self):
         self.assertTrue(issubclass(
             presence_service.PresenceClient,
@@ -461,3 +464,170 @@ class TestService(unittest.TestCase):
     def tearDown(self):
         del self.s
         del self.cc
+
+
+class TestPresenceServer(unittest.TestCase):
+    def setUp(self):
+        self.cc = make_connected_client()
+        self.cc.stream.send = CoroutineMock()
+        self.cc.stream.send.return_value = None
+        self.s = presence_service.PresenceServer(self.cc)
+
+    def tearDown(self):
+        del self.s
+        del self.cc
+
+    def test_no_presence_to_emit_by_default(self):
+        self.assertEqual(self.s.state, aioxmpp.PresenceState(False))
+        self.assertDictEqual(self.s.status, {})
+        self.assertEqual(self.s.priority, 0)
+
+        run_coroutine(self.cc.before_stream_established())
+
+        self.cc.stream.send.assert_not_called()
+
+    def test_before_stream_established_handler_returns_true_for_unav(self):
+        self.assertTrue(
+            run_coroutine(self.s._before_stream_established())
+        )
+
+    def test_before_stream_established_handler_returns_true_for_avail(self):
+        self.s.set_presence(aioxmpp.PresenceState(True))
+
+        self.assertTrue(
+            run_coroutine(self.s._before_stream_established())
+        )
+
+    def test_set_presence_rejects_non_PresenceState_state(self):
+        with self.assertRaisesRegex(
+                TypeError,
+                r"invalid state: got <enum '.*PresenceType'>, "
+                r"expected aioxmpp.PresenceState"):
+            self.s.set_presence(aioxmpp.PresenceType.AVAILABLE)
+
+    def test_set_presence_with_status_string(self):
+        # not established
+        self.cc.established = False
+
+        self.s.set_presence(
+            aioxmpp.PresenceState(True),
+            status="foo"
+        )
+
+        self.assertEqual(
+            self.s.state,
+            aioxmpp.PresenceState(True)
+        )
+
+        self.assertDictEqual(
+            self.s.status,
+            {
+                None: "foo",
+            }
+        )
+
+    def test_set_presence_with_status_mapping(self):
+        # not established
+        self.cc.established = False
+
+        m = {
+            None: "foo",
+            aioxmpp.structs.LanguageTag.fromstr("en-gb"): "bar",
+        }
+
+        self.s.set_presence(
+            aioxmpp.PresenceState(True),
+            status=m,
+        )
+
+        self.assertEqual(
+            self.s.state,
+            aioxmpp.PresenceState(True)
+        )
+
+        self.assertDictEqual(
+            self.s.status,
+            m,
+        )
+
+        self.assertIsNot(self.s.status, m)
+
+        del m[None]
+
+        self.assertIn(None, self.s.status)
+
+    def test_set_presence_priority(self):
+        self.cc.established = False
+
+        self.s.set_presence(aioxmpp.PresenceState(False), priority=10)
+
+        self.assertEqual(
+            self.s.priority,
+            10,
+        )
+
+    def test_set_presence_rejects_non_integer_priority(self):
+        self.cc.established = False
+
+        with self.assertRaisesRegex(
+                TypeError,
+                r"invalid priority: got <class 'str'>, expected integer"):
+            self.s.set_presence(
+                aioxmpp.PresenceState(True),
+                status="foo",
+                priority="10",
+            )
+
+        self.assertEqual(self.s.state, aioxmpp.PresenceState(False))
+        self.assertDictEqual(self.s.status, {})
+
+    def test_emit_configured_presence_when_stream_establishes(self):
+        self.s.set_presence(aioxmpp.PresenceState(True))
+
+        with unittest.mock.patch.object(self.s, "make_stanza") as make_stanza:
+            make_stanza.return_value = unittest.mock.sentinel.presence
+            run_coroutine(self.cc.before_stream_established())
+
+        self.cc.stream.send.assert_called_with(
+            unittest.mock.sentinel.presence,
+        )
+
+    def test_set_presence_broadcasts_if_established(self):
+        self.cc.established = True
+
+        def check_state():
+            self.assertEqual(self.cc.state, aioxmpp.PresenceState(True))
+            self.assertEqual(self.cc.status, {None: "foo"})
+
+        with unittest.mock.patch.object(self.s, "make_stanza") as make_stanza:
+            make_stanza.return_value = unittest.mock.sentinel.presence
+
+            self.s.set_presence(
+                aioxmpp.PresenceState(True),
+                status="foo",
+            )
+
+        self.cc.stream.enqueue.assert_called_with(
+            unittest.mock.sentinel.presence
+        )
+
+    def test_make_stanza_converts_state_to_stanza(self):
+        m = unittest.mock.Mock(spec=aioxmpp.PresenceState)
+        self.s.set_presence(m)
+
+        stanza = self.s.make_stanza()
+        self.assertIsInstance(
+            stanza,
+            aioxmpp.Presence,
+        )
+
+        m.apply_to_stanza.assert_called_with(stanza)
+
+    def test_make_stanza_converts_incorporates_status(self):
+        self.s.set_presence(aioxmpp.PresenceState(True), status="foo")
+
+        stanza = self.s.make_stanza()
+        self.assertDictEqual(
+            stanza.status,
+            {None: "foo"}
+        )

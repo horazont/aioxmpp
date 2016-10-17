@@ -92,6 +92,8 @@ Version 0.8
 * *Deprecation*: :meth:`aioxmpp.stream.StanzaStream.enqueue_stanza` is now
   called :meth:`~aioxmpp.stream.StanzaStream.enqueue`.
 
+* :class:`aioxmpp.PresenceServer`
+
 .. _api-changelog-0.7:
 
 Version 0.7
