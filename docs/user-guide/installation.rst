@@ -49,6 +49,23 @@ of lxml which in turn is a dependency of aioxmpp, you should have it already.
    There is also an AUR package for aioxmpp for ArchLinux. You might want to use
    that instead of installing using pip.
 
+.. note::
+
+   On Debian Jessie (Debian 8), the pip from the packages is too old to install
+   aioxmpp: it does not know the ``~=`` version comparison operator. This is
+   unfortunate, but ``~=`` provides safety against accidental incompatible
+   changes in dependencies.
+
+   To install on Debian Jessie, you will need to upgrade pip using:
+
+   .. code-block:: bash
+
+      pip3 install --upgrade setuptools
+      pip3 install --upgrade pip
+
+   (You may add the ``--user`` flag or use a virtualenv if you don’t want to
+   upgrade pip system-wide.)
+
 .. _ug-installation-source:
 
 Installing in editable mode from source
