@@ -89,6 +89,9 @@ from .structs import (  # NOQA
 )
 from .security_layer import make as make_security_layer  # NOQA
 
+# services
+from .presence import PresenceClient  # NOQA
+
 
 def set_strict_mode():
     from .stanza import Error
