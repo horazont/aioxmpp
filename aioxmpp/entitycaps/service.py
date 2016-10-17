@@ -291,7 +291,7 @@ class Cache:
                 entry.captured_events))
 
 
-class Service(aioxmpp.service.Service):
+class EntityCapsService(aioxmpp.service.Service):
     """
     This service implements :xep:`0115`, transparently. Besides loading the
     service, no interaction is required to get some of the benefits of
@@ -323,6 +323,12 @@ class Service(aioxmpp.service.Service):
        :class:`.DiscoServer` changes.
 
     .. autoattribute:: cache
+
+    .. versionchanged:: 0.8
+
+       This class was formerly known as :class:`aioxmpp.entitycaps.Service`. It
+       is still available under that name, but the alias will be removed in
+       1.0.
 
     """
 

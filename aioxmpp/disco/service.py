@@ -367,7 +367,7 @@ class DiscoClient(service.Service):
        :class:`.DiscoServer`
           for a service which answers Service Discovery queries sent to the
           client by other entities.
-       :class:`.EntitycapsService`
+       :class:`.EntityCapsService`
           for a service which uses :xep:`115` to fill the cache of the
           :class:`DiscoClient` with offline information.
 

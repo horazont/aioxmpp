@@ -1021,7 +1021,7 @@ class TestService(unittest.TestCase):
         self.disco_server = unittest.mock.Mock()
         self.disco_server.on_info_changed.context_connect = \
             unittest.mock.MagicMock()
-        self.s = entitycaps_service.Service(
+        self.s = entitycaps_service.EntityCapsService(
             self.cc,
             dependencies={
                 disco.DiscoClient: self.disco_client,
@@ -1045,18 +1045,18 @@ class TestService(unittest.TestCase):
 
     def test_is_Service_subclass(self):
         self.assertTrue(issubclass(
-            entitycaps_service.Service,
+            entitycaps_service.EntityCapsService,
             service.Service
         ))
 
     def test_after_disco(self):
         self.assertLess(
             disco.DiscoServer,
-            entitycaps_service.Service
+            entitycaps_service.EntityCapsService
         )
         self.assertLess(
             disco.DiscoClient,
-            entitycaps_service.Service
+            entitycaps_service.EntityCapsService
         )
 
     def test_setup_and_shutdown(self):
@@ -1066,7 +1066,7 @@ class TestService(unittest.TestCase):
             unittest.mock.MagicMock()
 
         cc.mock_calls.clear()
-        s = entitycaps_service.Service(cc, dependencies={
+        s = entitycaps_service.EntityCapsService(cc, dependencies={
             disco.DiscoServer: disco_service,
             disco.DiscoClient: None,  # unused, but queried during init
         })
@@ -1078,12 +1078,12 @@ class TestService(unittest.TestCase):
                 unittest.mock.call.
                 stream.service_inbound_presence_filter.register(
                     s.handle_inbound_presence,
-                    entitycaps_service.Service
+                    entitycaps_service.EntityCapsService
                 ),
                 unittest.mock.call.
                 stream.service_outbound_presence_filter.register(
                     s.handle_outbound_presence,
-                    entitycaps_service.Service
+                    entitycaps_service.EntityCapsService
                 ),
             ]
         )
@@ -1146,14 +1146,14 @@ class TestService(unittest.TestCase):
     def test_handle_outbound_presence_is_decorated(self):
         self.assertTrue(
             service.is_outbound_presence_filter(
-                entitycaps_service.Service.handle_outbound_presence,
+                entitycaps_service.EntityCapsService.handle_outbound_presence,
             )
         )
 
     def test_handle_inbound_presence_is_decorated(self):
         self.assertTrue(
             service.is_inbound_presence_filter(
-                entitycaps_service.Service.handle_inbound_presence,
+                entitycaps_service.EntityCapsService.handle_inbound_presence,
             )
         )
 
