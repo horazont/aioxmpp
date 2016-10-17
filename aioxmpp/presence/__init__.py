@@ -30,7 +30,7 @@ of peers, no matter whether they are in the roster or not.
 
 .. currentmodule:: aioxmpp
 
-.. autoclass:: PresenceService
+.. autoclass:: PresenceClient
 
 .. currentmodule:: aioxmpp.presence
 
