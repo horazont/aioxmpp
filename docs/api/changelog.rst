@@ -63,6 +63,9 @@ Version 0.8
 
 * :mod:`aioxmpp.e2etest`: Framework for End-to-End/Integration tests.
 
+* Get rid of dependency on libxml2 development files. libxml2 itself is still
+  required, both directly and indirectly (through the lxml dependency).
+
 .. _api-changelog-0.7:
 
 Version 0.7

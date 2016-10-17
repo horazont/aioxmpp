@@ -49,7 +49,6 @@ Dependencies
 
 * Python ≥ 3.4 (or Python = 3.3 with tulip and enum34)
 * DNSPython
-* libxml2-devel (for some XML helpers)
 * lxml
 * `orderedset`__
 
