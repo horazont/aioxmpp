@@ -143,7 +143,7 @@ class Service(aioxmpp.service.Service):
     """
 
     ORDER_AFTER = [
-        aioxmpp.disco.Service
+        aioxmpp.DiscoClient,
     ]
 
     on_item_published = aioxmpp.callbacks.Signal(doc=
@@ -207,7 +207,7 @@ class Service(aioxmpp.service.Service):
 
     def __init__(self, client, **kwargs):
         super().__init__(client, **kwargs)
-        self._disco = self.client.summon(aioxmpp.disco.Service)
+        self._disco = self.dependencies[aioxmpp.DiscoClient]
 
     @aioxmpp.service.inbound_message_filter
     def filter_inbound_message(self, msg):
@@ -267,7 +267,7 @@ class Service(aioxmpp.service.Service):
         """
         Return the features as set of values from :class:`.xso.Feature`. To
         get the full feature information, resort to using
-        :meth:`.disco.Service.query_info` directly on `jid`.
+        :meth:`.DiscoClient.query_info` directly on `jid`.
 
         Features returned by the peer which are not valid pubsub features are
         not returned.
@@ -634,7 +634,7 @@ class Service(aioxmpp.service.Service):
 
         Return a list of tuples consisting of the node names and their
         description (if available, otherwise :data:`None`). If more information
-        is needed, use :meth:`.disco.Service.get_items` directly.
+        is needed, use :meth:`.DiscoClient.get_items` directly.
 
         Only nodes whose :attr:`~.disco.xso.Item.jid` match the `jid` are
         returned.

@@ -1015,26 +1015,30 @@ class TestCache(unittest.TestCase):
 class TestService(unittest.TestCase):
     def setUp(self):
         self.cc = make_connected_client()
-        self.disco = unittest.mock.Mock()
-        self.disco.query_info = CoroutineMock()
-        self.disco.query_info.side_effect = AssertionError()
-        self.disco.on_info_changed.context_connect = unittest.mock.MagicMock()
+        self.disco_client = unittest.mock.Mock()
+        self.disco_client.query_info = CoroutineMock()
+        self.disco_client.query_info.side_effect = AssertionError()
+        self.disco_server = unittest.mock.Mock()
+        self.disco_server.on_info_changed.context_connect = \
+            unittest.mock.MagicMock()
         self.s = entitycaps_service.Service(
             self.cc,
             dependencies={
-                disco.Service: self.disco,
+                disco.DiscoClient: self.disco_client,
+                disco.DiscoServer: self.disco_server,
             }
         )
 
-        self.disco.mock_calls.clear()
+        self.disco_client.mock_calls.clear()
+        self.disco_server.mock_calls.clear()
         self.cc.mock_calls.clear()
 
-        self.disco.iter_features.return_value = [
+        self.disco_server.iter_features.return_value = [
             "http://jabber.org/protocol/disco#items",
             "http://jabber.org/protocol/disco#info",
         ]
 
-        self.disco.iter_identities.return_value = [
+        self.disco_server.iter_identities.return_value = [
             ("client", "pc", None, None),
             ("client", "pc", structs.LanguageTag.fromstr("en"), "foo"),
         ]
@@ -1047,7 +1051,11 @@ class TestService(unittest.TestCase):
 
     def test_after_disco(self):
         self.assertLess(
-            disco.Service,
+            disco.DiscoServer,
+            entitycaps_service.Service
+        )
+        self.assertLess(
+            disco.DiscoClient,
             entitycaps_service.Service
         )
 
@@ -1059,7 +1067,8 @@ class TestService(unittest.TestCase):
 
         cc.mock_calls.clear()
         s = entitycaps_service.Service(cc, dependencies={
-            disco.Service: disco_service
+            disco.DiscoServer: disco_service,
+            disco.DiscoClient: None,  # unused, but queried during init
         })
 
         calls = list(cc.mock_calls)
@@ -1197,7 +1206,7 @@ class TestService(unittest.TestCase):
             lookup_info()
         )
 
-        self.disco.set_info_future.assert_called_with(
+        self.disco_client.set_info_future.assert_called_with(
             TEST_FROM,
             None,
             async(),
@@ -1228,7 +1237,7 @@ class TestService(unittest.TestCase):
 
         self.assertFalse(lookup_info.mock_calls)
         self.assertFalse(async.mock_calls)
-        self.assertFalse(self.disco.mock_calls)
+        self.assertFalse(self.disco_client.mock_calls)
         self.assertIs(
             result,
             presence
@@ -1271,7 +1280,7 @@ class TestService(unittest.TestCase):
         response = TEST_DB_ENTRY
 
         base = unittest.mock.Mock()
-        base.disco = self.disco
+        base.disco = self.disco_client
         base.disco.query_info.side_effect = None
         with contextlib.ExitStack() as stack:
             stack.enter_context(unittest.mock.patch(
@@ -1329,7 +1338,7 @@ class TestService(unittest.TestCase):
         response = TEST_DB_ENTRY
 
         base = unittest.mock.Mock()
-        base.disco = self.disco
+        base.disco = self.disco_client
         base.disco.query_info.side_effect = None
         with contextlib.ExitStack() as stack:
             stack.enter_context(unittest.mock.patch(
@@ -1383,7 +1392,7 @@ class TestService(unittest.TestCase):
         response = TEST_DB_ENTRY
 
         base = unittest.mock.Mock()
-        base.disco = self.disco
+        base.disco = self.disco_client
         base.disco.query_info.side_effect = None
         with contextlib.ExitStack() as stack:
             stack.enter_context(unittest.mock.patch(
@@ -1430,7 +1439,7 @@ class TestService(unittest.TestCase):
 
     def test_lookup_info_asks_cache_first_and_returns_value(self):
         base = unittest.mock.Mock()
-        base.disco = self.disco
+        base.disco = self.disco_client
         base.disco.query_info.side_effect = None
         base.query_and_cache = CoroutineMock()
         base.lookup = CoroutineMock()
@@ -1469,7 +1478,7 @@ class TestService(unittest.TestCase):
 
     def test_lookup_info_delegates_to_query_and_cache_on_miss(self):
         base = unittest.mock.Mock()
-        base.disco = self.disco
+        base.disco = self.disco_client
         base.disco.query_info.side_effect = None
         base.query_and_cache = CoroutineMock()
 
@@ -1528,9 +1537,9 @@ class TestService(unittest.TestCase):
             "http://jabber.org/protocol/disco#info",
         ])
 
-        self.disco.iter_features.return_value = iter_features_result
+        self.disco_server.iter_features.return_value = iter_features_result
 
-        self.disco.iter_identities.return_value = iter([
+        self.disco_server.iter_identities.return_value = iter([
             ("client", "pc", None, None),
             ("client", "pc", structs.LanguageTag.fromstr("en"), "foo"),
         ])
@@ -1571,7 +1580,7 @@ class TestService(unittest.TestCase):
             "sha1",
         )
 
-        calls = list(self.disco.mock_calls)
+        calls = list(self.disco_server.mock_calls)
         self.assertSequenceEqual(
             calls,
             [
@@ -1582,7 +1591,7 @@ class TestService(unittest.TestCase):
                 ),
                 unittest.mock.call.mount_node(
                     "http://aioxmpp.zombofant.net/#"+base.hash_query(),
-                    self.disco
+                    self.disco_server,
                 ),
             ]
         )
@@ -1593,13 +1602,13 @@ class TestService(unittest.TestCase):
         )
 
     def test_update_hash_emits_on_ver_changed(self):
-        self.disco.iter_features.return_value = iter([
+        self.disco_server.iter_features.return_value = iter([
             "http://jabber.org/protocol/caps",
             "http://jabber.org/protocol/disco#items",
             "http://jabber.org/protocol/disco#info",
         ])
 
-        self.disco.iter_identities.return_value = iter([
+        self.disco_server.iter_identities.return_value = iter([
             ("client", "pc", None, None),
             ("client", "pc", structs.LanguageTag.fromstr("en"), "foo"),
         ])
@@ -1632,7 +1641,7 @@ class TestService(unittest.TestCase):
             self.s.update_hash()
 
         self.assertFalse(cb.mock_calls)
-        calls = list(self.disco.mock_calls)
+        calls = list(self.disco_server.mock_calls)
         self.assertSequenceEqual(
             calls,
             [
@@ -1654,7 +1663,7 @@ class TestService(unittest.TestCase):
 
             self.s.update_hash()
 
-        calls = list(self.disco.mock_calls)
+        calls = list(self.disco_server.mock_calls)
         self.assertSequenceEqual(
             calls,
             [
@@ -1662,7 +1671,7 @@ class TestService(unittest.TestCase):
                 unittest.mock.call.iter_features(),
                 unittest.mock.call.mount_node(
                     "http://aioxmpp.zombofant.net/#"+base.hash_query(),
-                    self.disco
+                    self.disco_server
                 ),
             ]
         )
@@ -1680,7 +1689,7 @@ class TestService(unittest.TestCase):
 
             self.s.update_hash()
 
-        calls = list(self.disco.mock_calls)
+        calls = list(self.disco_server.mock_calls)
         self.assertSequenceEqual(
             calls,
             [
@@ -1688,16 +1697,16 @@ class TestService(unittest.TestCase):
                 unittest.mock.call.iter_features(),
                 unittest.mock.call.mount_node(
                     "http://aioxmpp.zombofant.net/#"+base.hash_query(),
-                    self.disco
+                    self.disco_server
                 ),
             ]
         )
 
-        self.disco.mock_calls.clear()
+        self.disco_server.mock_calls.clear()
 
         run_coroutine(self.s.shutdown())
 
-        calls = list(self.disco.mock_calls)
+        calls = list(self.disco_server.mock_calls)
         self.assertIn(
             unittest.mock.call.unmount_node(
                 "http://aioxmpp.zombofant.net/#"+base.hash_query(),

@@ -162,8 +162,8 @@ def discover_server_features(disco, peer, recurse_into_items=True):
     Use :xep:`30` service discovery to discover features supported by the
     server.
 
-    :param disco: Service discovery service which can query the `peer` server.
-    :type disco: :class:`aioxmpp.disco.Service`
+    :param disco: Service discovery client which can query the `peer` server.
+    :type disco: :class:`aioxmpp.DiscoClient`
     :param peer: The JID of the server to query
     :type peer: :class:`~aioxmpp.JID`
     :param recurse_into_items: If set to true, the :xep:`30` items exposed by
@@ -451,7 +451,7 @@ class AnonymousProvisioner(Provisioner):
         self._logger.debug("initialising anonymous provisioner")
 
         client = yield from self.get_connected_client()
-        disco = client.summon(aioxmpp.disco.Service)
+        disco = client.summon(aioxmpp.DiscoClient)
 
         self._featuremap.update(
             (yield from discover_server_features(

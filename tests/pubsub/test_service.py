@@ -53,7 +53,7 @@ class TestService(unittest.TestCase):
     def test_orders_behind_disco(self):
         self.assertGreater(
             pubsub_service.Service,
-            aioxmpp.disco.Service
+            aioxmpp.DiscoClient,
         )
 
     def setUp(self):
@@ -64,8 +64,9 @@ class TestService(unittest.TestCase):
         self.cc.query_info.side_effect = AssertionError
         self.cc.query_items = CoroutineMock()
         self.cc.query_items.side_effect = AssertionError
-        self.cc.mock_services[aioxmpp.disco.Service] = self.disco
-        self.s = pubsub_service.Service(self.cc)
+        self.s = pubsub_service.Service(self.cc, dependencies={
+            aioxmpp.DiscoClient: self.disco,
+        })
 
         self.disco.mock_calls.clear()
         self.cc.mock_calls.clear()
@@ -417,8 +418,9 @@ class TestService(unittest.TestCase):
         self.cc.query_info.side_effect = AssertionError
         self.cc.query_items = CoroutineMock()
         self.cc.query_items.side_effect = AssertionError
-        self.cc.mock_services[aioxmpp.disco.Service] = self.disco
-        self.s = pubsub_service.Service(self.cc)
+        self.s = pubsub_service.Service(self.cc, dependencies={
+            aioxmpp.DiscoClient: self.disco
+        })
 
         self.cc.stream.service_inbound_message_filter.register.\
             assert_called_with(

@@ -74,10 +74,10 @@ class Node(object):
     As mentioned, bare :class:`Node` objects have no items; there are
     subclasses of :class:`Node` which support items:
 
-    ===================  ==================================================
-    :class:`StaticNode`  Support for a list of :class:`.xso.Item` instances
-    :class:`Service`     Support for "mountpoints" for node subtrees
-    ===================  ==================================================
+    ======================  ==================================================
+    :class:`StaticNode`     Support for a list of :class:`.xso.Item` instances
+    :class:`.DiscoServer`   Support for "mountpoints" for node subtrees
+    ======================  ==================================================
 
     """
     STATIC_FEATURES = frozenset({namespaces.xep0030_info})
@@ -217,71 +217,53 @@ class StaticNode(Node):
         return iter(self.items)
 
 
-class Service(service.Service, Node):
+class DiscoServer(service.Service, Node):
     """
-    A service implementing :xep:`30`. The service provides methods for managing
-    the own features and identities as well as querying others features and
-    identities.
+    Answer Service Discovery (:xep:`30`) requests sent to this client.
 
-    Querying other entities’ service discovery information:
+    This service implements handlers for ``…disco#info`` and ``…disco#items``
+    IQ requests. It provides methods to configure the contents of these
+    responses.
 
-    .. automethod:: query_info
+    .. seealso::
 
-    .. automethod:: query_items
+       :class:`DiscoClient`
+          for a service which provides methods to query Service Discovery
+          information from other entities.
 
-    To prime the cache with information, the following method can be used:
-
-    .. automethod:: set_info_cache
-
-    .. automethod:: set_info_future
-
-    Services inherit from :class:`Node` to manage the identities and features
-    of the JID itself. The identities and features declared in the service
-    using the :class:`Node` interface on the :class:`Service` instance are
-    returned when a query is received for the JID with an empty or unset
-    ``node`` attribute. For completeness, the relevant methods are listed
-    here. Refer to the :class:`Node` documentation for details.
+    The :class:`DiscoServer` inherits from :class:`~.disco.Node` to manage the
+    identities and features of the client. The identities and features declared
+    in the service using the :class:`~.disco.Node` interface on the
+    :class:`DiscoServer` instance are returned when a query is received for the
+    JID with an empty or unset ``node`` attribute. For completeness, the
+    relevant methods are listed here. Refer to the :class:`~.disco.Node`
+    documentation for details.
 
     .. autosummary::
 
-       Node.register_feature
-       Node.unregister_feature
-       Node.register_identity
-       Node.unregister_identity
+       .disco.Node.register_feature
+       .disco.Node.unregister_feature
+       .disco.Node.register_identity
+       .disco.Node.unregister_identity
 
     .. note::
 
-       Upon construction, the :class:`Service` adds a default identity with
-       category ``"client"`` and type ``"bot"`` to the root :class:`Node`. This
-       is to comply with :xep:`30` of always having an identity and not being
-       forced to reply with ``<feature-not-implemented/>`` or a similar error.
+       Upon construction, the :class:`DiscoServer` adds a default identity with
+       category ``"client"`` and type ``"bot"`` to the root
+       :class:`.disco.Node`. This is to comply with :xep:`30`, which specifies
+       that at least one identity must always be returned. Otherwise, the
+       service would be forced to send a malformed response or reply with
+       ``<feature-not-implemented/>``.
 
        After having added another identity, that default identity can be
        removed.
 
-    Other :class:`Node` instances can be registered with the service using the
-    following methods:
+    Other :class:`~.disco.Node` instances can be registered with the service
+    using the following methods:
 
     .. automethod:: mount_node
 
     .. automethod:: unmount_node
-
-    Usage example, assuming that you have a :class:`.node.AbstractClient`
-    `node`::
-
-      import aioxmpp.disco as disco
-      # load service into node
-      sd = node.summon(disco.Service)
-
-      # retrieve server information
-      server_info = yield from sd.query_info(
-          node.local_jid.replace(localpart=None, resource=None)
-      )
-
-      # retrieve resources
-      resources = yield from sd.query_items(
-          node.local_jid.bare()
-      )
 
     """
 
@@ -289,9 +271,6 @@ class Service(service.Service, Node):
 
     def __init__(self, client, **kwargs):
         super().__init__(client, **kwargs)
-
-        self._info_pending = {}
-        self._items_pending = {}
 
         self._node_mounts = {
             None: self
@@ -303,28 +282,6 @@ class Service(service.Service, Node):
                 structs.LanguageTag.fromstr("en"): "aioxmpp default identity"
             }
         )
-
-        self.client.on_stream_destroyed.connect(
-            self._clear_cache
-        )
-
-    def _clear_cache(self):
-        for fut in self._info_pending.values():
-            if not fut.done():
-                fut.cancel()
-        self._info_pending.clear()
-
-        for fut in self._items_pending.values():
-            if not fut.done():
-                fut.cancel()
-        self._items_pending.clear()
-
-    def _handle_info_received(self, jid, node, task):
-        try:
-            result = task.result()
-        except Exception:
-            return
-        self.on_info_result(jid, node, result)
 
     @aioxmpp.service.iq_handler(
         aioxmpp.structs.IQType.GET,
@@ -377,6 +334,103 @@ class Service(service.Service, Node):
         response.items.extend(node.iter_items())
 
         return response
+
+    def mount_node(self, mountpoint, node):
+        """
+        Mount the :class:`Node` `node` to be returned when a peer requests
+        :xep:`30` information for the node `mountpoint`.
+        """
+        self._node_mounts[mountpoint] = node
+
+    def unmount_node(self, mountpoint):
+        """
+        Unmount the node mounted at `mountpoint`.
+
+        .. seealso::
+
+           :meth:`mount_node`
+              for a way for mounting :class:`Node` instances.
+
+        """
+        del self._node_mounts[mountpoint]
+
+
+class DiscoClient(service.Service):
+    """
+    Provide cache-backed Service Discovery (:xep:`30`) queries.
+
+    This service provides methods to query Service Discovery information from
+    other entities in the XMPP network. The results are cached transparently.
+
+    .. seealso::
+
+       :class:`.DiscoServer`
+          for a service which answers Service Discovery queries sent to the
+          client by other entities.
+       :class:`.EntitycapsService`
+          for a service which uses :xep:`115` to fill the cache of the
+          :class:`DiscoClient` with offline information.
+
+    Querying other entities’ service discovery information:
+
+    .. automethod:: query_info
+
+    .. automethod:: query_items
+
+    To prime the cache with information, the following method can be used:
+
+    .. automethod:: set_info_cache
+
+    .. automethod:: set_info_future
+
+    Usage example, assuming that you have a :class:`.node.AbstractClient`
+    `client`::
+
+      import aioxmpp.disco as disco
+      # load service into node
+      sd = client.summon(aioxmpp.DiscoClient)
+
+      # retrieve server information
+      server_info = yield from sd.query_info(
+          node.local_jid.replace(localpart=None, resource=None)
+      )
+
+      # retrieve resources
+      resources = yield from sd.query_items(
+          node.local_jid.bare()
+      )
+
+    """
+
+    on_info_result = aioxmpp.callbacks.Signal()
+
+    def __init__(self, client, **kwargs):
+        super().__init__(client, **kwargs)
+
+        self._info_pending = {}
+        self._items_pending = {}
+
+        self.client.on_stream_destroyed.connect(
+            self._clear_cache
+        )
+
+    def _clear_cache(self):
+        for fut in self._info_pending.values():
+            if not fut.done():
+                fut.cancel()
+        self._info_pending.clear()
+
+        for fut in self._items_pending.values():
+            if not fut.done():
+                fut.cancel()
+        self._items_pending.clear()
+
+    def _handle_info_received(self, jid, node, task):
+        try:
+            result = task.result()
+        except Exception:
+            return
+        self.on_info_result(jid, node, result)
 
     @asyncio.coroutine
     def send_and_decode_info_query(self, jid, node):
@@ -565,22 +619,3 @@ class Service(service.Service, Node):
         .. versionadded:: 0.5
         """
         self._info_pending[jid, node] = fut
-
-    def mount_node(self, mountpoint, node):
-        """
-        Mount the :class:`Node` `node` to be returned when a peer requests
-        :xep:`30` information for the node `mountpoint`.
-        """
-        self._node_mounts[mountpoint] = node
-
-    def unmount_node(self, mountpoint):
-        """
-        Unmount the node mounted at `mountpoint`.
-
-        .. seealso::
-
-           :meth:`mount_node`
-              for a way for mounting :class:`Node` instances.
-
-        """
-        del self._node_mounts[mountpoint]

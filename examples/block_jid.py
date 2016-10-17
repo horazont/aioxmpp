@@ -136,7 +136,7 @@ class BlockJID(Example):
     def run_simple_example(self):
         # we are polite and ask the server whether it actually supports the
         # XEP-0191 block list protocol
-        disco = self.client.summon(aioxmpp.disco.Service)
+        disco = self.client.summon(aioxmpp.DiscoClient)
         server_info = yield from  disco.query_info(
             self.client.local_jid.replace(
                 resource=None,

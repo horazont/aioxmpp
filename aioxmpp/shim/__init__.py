@@ -45,8 +45,8 @@ The attributes are available as soon as :mod:`aioxmpp.shim` is loaded.
 .. autoclass:: Headers
 
 """
-from . import xso
+from . import xso  # NOQA
 
-from .service import (
+from .service import (  # NOQA
     Service,
 )

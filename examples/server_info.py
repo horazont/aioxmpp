@@ -30,7 +30,7 @@ from framework import Example, exec_example
 class ServerInfo(Example):
     @asyncio.coroutine
     def run_simple_example(self):
-        disco = self.client.summon(aioxmpp.disco.Service)
+        disco = self.client.summon(aioxmpp.DiscoClient)
         try:
             info = yield from disco.query_info(
                 self.g_jid.replace(resource=None, localpart=None),

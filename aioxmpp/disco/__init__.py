@@ -27,10 +27,45 @@ This module provides support for :xep:`Service Discovery <30>`. For this, it
 provides a :class:`~aioxmpp.service.Service` subclass which can be loaded into
 a client using :meth:`.AbstractClient.summon`.
 
-Service
-=======
+Services
+========
 
-.. autoclass:: Service
+The following services are provided by this subpackage and available directly
+from :mod:`aioxmpp`:
+
+.. currentmodule:: aioxmpp
+
+.. autosummary::
+   :nosignatures:
+
+   DiscoServer
+   DiscoClient
+
+.. versionchanged:: 0.8
+
+   Prior to version 0.8, both services were provided by a single class
+   (:class:`aioxmpp.disco.Service`). This is not the case anymore, and there is
+   no replacement.
+
+   If you need to write backwards compatible code, you could be doing something
+   like this::
+
+     try:
+         aioxmpp.DiscoServer
+     except AttributeError:
+         aioxmpp.DiscoServer = aioxmpp.disco.Service
+         aioxmpp.DiscoClient = aioxmpp.disco.Service
+
+   This should work, because the old :class:`Service` class provided the
+   features of both of the individual classes.
+
+The detailed documentation of the classes follows:
+
+.. autoclass:: DiscoServer
+
+.. autoclass:: DiscoClient
+
+.. currentmodule:: aioxmpp.disco
 
 Entity information
 ------------------
@@ -74,4 +109,4 @@ Item queries
 """
 
 from . import xso  # NOQA
-from .service import Service, Node, StaticNode  # NOQA
+from .service import DiscoClient, DiscoServer, Node, StaticNode  # NOQA

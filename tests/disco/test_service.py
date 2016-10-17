@@ -361,10 +361,10 @@ class TestStaticNode(unittest.TestCase):
         )
 
 
-class TestService(unittest.TestCase):
+class TestDiscoServer(unittest.TestCase):
     def setUp(self):
         self.cc = make_connected_client()
-        self.s = disco_service.Service(self.cc)
+        self.s = disco_service.DiscoServer(self.cc)
         self.cc.reset_mock()
 
         self.request_iq = stanza.IQ(
@@ -383,12 +383,12 @@ class TestService(unittest.TestCase):
 
     def test_is_Service_subclass(self):
         self.assertTrue(issubclass(
-            disco_service.Service,
+            disco_service.DiscoServer,
             service.Service))
 
     def test_setup(self):
         cc = make_connected_client()
-        s = disco_service.Service(cc)
+        s = disco_service.DiscoServer(cc)
 
         self.assertCountEqual(
             [
@@ -427,7 +427,7 @@ class TestService(unittest.TestCase):
             service.is_iq_handler(
                 structs.IQType.GET,
                 disco_xso.InfoQuery,
-                disco_service.Service.handle_info_request,
+                disco_service.DiscoServer.handle_info_request,
             )
         )
 
@@ -436,7 +436,7 @@ class TestService(unittest.TestCase):
             service.is_iq_handler(
                 structs.IQType.GET,
                 disco_xso.ItemsQuery,
-                disco_service.Service.handle_items_request,
+                disco_service.DiscoServer.handle_items_request,
             )
         )
 
@@ -587,6 +587,108 @@ class TestService(unittest.TestCase):
             self.s.register_feature("uri:foo")
         with self.assertRaisesRegex(ValueError, "feature already claimed"):
             self.s.register_feature(namespaces.xep0030_info)
+
+    def test_mount_node_produces_response(self):
+        node = disco_service.StaticNode()
+        node.register_identity("hierarchy", "leaf")
+
+        self.s.mount_node("foo", node)
+
+        self.request_iq.payload.node = "foo"
+        response = run_coroutine(self.s.handle_info_request(self.request_iq))
+
+        self.assertSetEqual(
+            {
+                ("hierarchy", "leaf", None, None),
+            },
+            set((item.category, item.type_,
+                 item.name, item.lang) for item in response.identities)
+        )
+
+    def test_mount_node_without_identity_produces_item_not_found(self):
+        node = disco_service.StaticNode()
+
+        self.s.mount_node("foo", node)
+
+        self.request_iq.payload.node = "foo"
+        with self.assertRaises(errors.XMPPModifyError):
+            run_coroutine(self.s.handle_info_request(self.request_iq))
+
+    def test_unmount_node(self):
+        node = disco_service.StaticNode()
+        node.register_identity("hierarchy", "leaf")
+
+        self.s.mount_node("foo", node)
+
+        self.s.unmount_node("foo")
+
+        self.request_iq.payload.node = "foo"
+        with self.assertRaises(errors.XMPPModifyError):
+            run_coroutine(self.s.handle_info_request(self.request_iq))
+
+    def test_default_items_response(self):
+        response = run_coroutine(
+            self.s.handle_items_request(self.request_items_iq)
+        )
+        self.assertIsInstance(response, disco_xso.ItemsQuery)
+        self.assertSequenceEqual(
+            [],
+            response.items
+        )
+
+    def test_items_query_returns_item_not_found_for_unknown_node(self):
+        self.request_items_iq.payload.node = "foobar"
+        with self.assertRaises(errors.XMPPModifyError):
+            run_coroutine(
+                self.s.handle_items_request(self.request_items_iq)
+            )
+
+    def test_items_query_returns_items_of_mounted_node(self):
+        item1 = disco_xso.Item(TEST_JID.replace(localpart="foo"))
+        item2 = disco_xso.Item(TEST_JID.replace(localpart="bar"))
+
+        node = disco_service.StaticNode()
+        node.register_identity("hierarchy", "leaf")
+        node.items.append(item1)
+        node.items.append(item2)
+
+        self.s.mount_node("foo", node)
+
+        self.request_items_iq.payload.node = "foo"
+        response = run_coroutine(
+            self.s.handle_items_request(self.request_items_iq)
+        )
+
+        self.assertSequenceEqual(
+            [item1, item2],
+            response.items
+        )
+
+
+class TestDiscoClient(unittest.TestCase):
+    def setUp(self):
+        self.cc = make_connected_client()
+        self.s = disco_service.DiscoClient(self.cc)
+        self.cc.reset_mock()
+
+        self.request_iq = stanza.IQ(
+            structs.IQType.GET,
+            from_=structs.JID.fromstr("user@foo.example/res1"),
+            to=structs.JID.fromstr("user@bar.example/res2"))
+        self.request_iq.autoset_id()
+        self.request_iq.payload = disco_xso.InfoQuery()
+
+        self.request_items_iq = stanza.IQ(
+            structs.IQType.GET,
+            from_=structs.JID.fromstr("user@foo.example/res1"),
+            to=structs.JID.fromstr("user@bar.example/res2"))
+        self.request_items_iq.autoset_id()
+        self.request_items_iq.payload = disco_xso.ItemsQuery()
+
+    def test_is_Service_subclass(self):
+        self.assertTrue(issubclass(
+            disco_service.DiscoClient,
+            service.Service))
 
     def test_send_and_decode_info_query(self):
         to = structs.JID.fromstr("user@foo.example/res1")
@@ -928,82 +1030,6 @@ class TestService(unittest.TestCase):
                 unittest.mock.call(to, None),
             ],
             send_and_decode.mock_calls
-        )
-
-    def test_mount_node_produces_response(self):
-        node = disco_service.StaticNode()
-        node.register_identity("hierarchy", "leaf")
-
-        self.s.mount_node("foo", node)
-
-        self.request_iq.payload.node = "foo"
-        response = run_coroutine(self.s.handle_info_request(self.request_iq))
-
-        self.assertSetEqual(
-            {
-                ("hierarchy", "leaf", None, None),
-            },
-            set((item.category, item.type_,
-                 item.name, item.lang) for item in response.identities)
-        )
-
-    def test_mount_node_without_identity_produces_item_not_found(self):
-        node = disco_service.StaticNode()
-
-        self.s.mount_node("foo", node)
-
-        self.request_iq.payload.node = "foo"
-        with self.assertRaises(errors.XMPPModifyError):
-            run_coroutine(self.s.handle_info_request(self.request_iq))
-
-    def test_unmount_node(self):
-        node = disco_service.StaticNode()
-        node.register_identity("hierarchy", "leaf")
-
-        self.s.mount_node("foo", node)
-
-        self.s.unmount_node("foo")
-
-        self.request_iq.payload.node = "foo"
-        with self.assertRaises(errors.XMPPModifyError):
-            run_coroutine(self.s.handle_info_request(self.request_iq))
-
-    def test_default_items_response(self):
-        response = run_coroutine(
-            self.s.handle_items_request(self.request_items_iq)
-        )
-        self.assertIsInstance(response, disco_xso.ItemsQuery)
-        self.assertSequenceEqual(
-            [],
-            response.items
-        )
-
-    def test_items_query_returns_item_not_found_for_unknown_node(self):
-        self.request_items_iq.payload.node = "foobar"
-        with self.assertRaises(errors.XMPPModifyError):
-            run_coroutine(
-                self.s.handle_items_request(self.request_items_iq)
-            )
-
-    def test_items_query_returns_items_of_mounted_node(self):
-        item1 = disco_xso.Item(TEST_JID.replace(localpart="foo"))
-        item2 = disco_xso.Item(TEST_JID.replace(localpart="bar"))
-
-        node = disco_service.StaticNode()
-        node.register_identity("hierarchy", "leaf")
-        node.items.append(item1)
-        node.items.append(item2)
-
-        self.s.mount_node("foo", node)
-
-        self.request_items_iq.payload.node = "foo"
-        response = run_coroutine(
-            self.s.handle_items_request(self.request_items_iq)
-        )
-
-        self.assertSequenceEqual(
-            [item1, item2],
-            response.items
         )
 
     def test_query_items(self):
