@@ -19,15 +19,13 @@
 # <http://www.gnu.org/licenses/>.
 #
 ########################################################################
-import asyncio
-
 import aioxmpp.callbacks
 import aioxmpp.service
 import aioxmpp.structs
 import aioxmpp.xso.model
 
 
-class Service(aioxmpp.service.Service):
+class PresenceClient(aioxmpp.service.Service):
     """
     The presence service tracks all incoming presence information (this does
     not include subscription management stanzas, as these are handled by
@@ -96,6 +94,12 @@ class Service(aioxmpp.service.Service):
     :meth:`on_unavailable` never fire for the same stanza.
 
     .. versionadded:: 0.4
+
+    .. versionchanged:: 0.8
+
+       This class was formerly known as :class:`aioxmpp.presence.Service`. It
+       is still available under that name, but the alias will be removed in
+       1.0.
     """
 
     on_bare_available = aioxmpp.callbacks.Signal()

@@ -60,13 +60,13 @@ class ServerInfo(Example):
 
     def make_simple_client(self):
         client = super().make_simple_client()
-        client.summon(aioxmpp.muc.Service)
+        client.summon(aioxmpp.MUCClient)
         return client
 
     @asyncio.coroutine
     def run_simple_example(self):
         config = yield from self.client.summon(
-            aioxmpp.muc.Service
+            aioxmpp.MUCClient
         ).get_room_config(
             self.muc_jid
         )

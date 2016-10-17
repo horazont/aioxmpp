@@ -28,7 +28,11 @@ import aioxmpp.entitycaps.xso
 
 class TestExports(unittest.TestCase):
     def test_exports(self):
-        self.assertIs(aioxmpp.entitycaps.Service,
-                      aioxmpp.entitycaps.service.Service)
+        self.assertIs(aioxmpp.entitycaps.EntityCapsService,
+                      aioxmpp.entitycaps.service.EntityCapsService)
         self.assertIs(aioxmpp.entitycaps.Cache,
                       aioxmpp.entitycaps.service.Cache)
+        self.assertIs(aioxmpp.entitycaps.Service,
+                      aioxmpp.entitycaps.service.EntityCapsService)
+        self.assertIs(aioxmpp.EntityCapsService,
+                      aioxmpp.entitycaps.service.EntityCapsService)

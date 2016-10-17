@@ -46,14 +46,14 @@ TEST_TO = aioxmpp.structs.JID.fromstr("pubsub.example")
 class TestService(unittest.TestCase):
     def test_is_service(self):
         self.assertTrue(issubclass(
-            pubsub_service.Service,
+            pubsub_service.PubSubClient,
             aioxmpp.service.Service
         ))
 
     def test_orders_behind_disco(self):
         self.assertGreater(
-            pubsub_service.Service,
-            aioxmpp.disco.Service
+            pubsub_service.PubSubClient,
+            aioxmpp.DiscoClient,
         )
 
     def setUp(self):
@@ -64,8 +64,9 @@ class TestService(unittest.TestCase):
         self.cc.query_info.side_effect = AssertionError
         self.cc.query_items = CoroutineMock()
         self.cc.query_items.side_effect = AssertionError
-        self.cc.mock_services[aioxmpp.disco.Service] = self.disco
-        self.s = pubsub_service.Service(self.cc)
+        self.s = pubsub_service.PubSubClient(self.cc, dependencies={
+            aioxmpp.DiscoClient: self.disco,
+        })
 
         self.disco.mock_calls.clear()
         self.cc.mock_calls.clear()
@@ -417,19 +418,20 @@ class TestService(unittest.TestCase):
         self.cc.query_info.side_effect = AssertionError
         self.cc.query_items = CoroutineMock()
         self.cc.query_items.side_effect = AssertionError
-        self.cc.mock_services[aioxmpp.disco.Service] = self.disco
-        self.s = pubsub_service.Service(self.cc)
+        self.s = pubsub_service.PubSubClient(self.cc, dependencies={
+            aioxmpp.DiscoClient: self.disco
+        })
 
         self.cc.stream.service_inbound_message_filter.register.\
             assert_called_with(
                 self.s.filter_inbound_message,
-                pubsub_service.Service
+                pubsub_service.PubSubClient
             )
 
     def test_filter_inbound_message_is_decorated(self):
         self.assertTrue(
             aioxmpp.service.is_inbound_message_filter(
-                pubsub_service.Service.filter_inbound_message,
+                pubsub_service.PubSubClient.filter_inbound_message,
             )
         )
 

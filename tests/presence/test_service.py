@@ -39,13 +39,13 @@ TEST_PEER_JID2 = structs.JID.fromstr("baz@c.example")
 class TestService(unittest.TestCase):
     def test_is_service(self):
         self.assertTrue(issubclass(
-            presence_service.Service,
+            presence_service.PresenceClient,
             service.Service
         ))
 
     def setUp(self):
         self.cc = make_connected_client()
-        self.s = presence_service.Service(self.cc)
+        self.s = presence_service.PresenceClient(self.cc)
 
     def test_setup(self):
         self.assertCountEqual(
@@ -96,7 +96,7 @@ class TestService(unittest.TestCase):
             service.is_presence_handler(
                 structs.PresenceType.AVAILABLE,
                 None,
-                presence_service.Service.handle_presence,
+                presence_service.PresenceClient.handle_presence,
             ),
         )
 
@@ -104,7 +104,7 @@ class TestService(unittest.TestCase):
             service.is_presence_handler(
                 structs.PresenceType.UNAVAILABLE,
                 None,
-                presence_service.Service.handle_presence,
+                presence_service.PresenceClient.handle_presence,
             ),
         )
 
@@ -112,7 +112,7 @@ class TestService(unittest.TestCase):
             service.is_presence_handler(
                 structs.PresenceType.ERROR,
                 None,
-                presence_service.Service.handle_presence,
+                presence_service.PresenceClient.handle_presence,
             ),
         )
 

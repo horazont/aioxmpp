@@ -23,16 +23,28 @@
 :mod:`~aioxmpp.entitycaps` --- Entity Capabilities support (:xep:`0115`)
 ########################################################################
 
-This module provides support for :xep:`XEP-0115 (Entity Capabilities) <0115>`. To use it,
-summon the :class:`Service` on a :class:`~.AbstractClient`. See the service
-documentation for more information.
+This module provides support for :xep:`XEP-0115 (Entity Capabilities) <0115>`.
+To use it, :meth:`.AbstractClient.summon` the :class:`EntityCapsService` on a
+:class:`~.AbstractClient`. See the service documentation for more information.
 
 .. versionadded:: 0.5
 
 Service
 =======
 
-.. autoclass:: Service
+.. currentmodule:: aioxmpp
+
+.. autoclass:: EntityCapsService
+
+.. currentmodule:: aioxmpp.entitycaps
+
+.. class:: Service
+
+   Alias of :class:`.EntityCapsService`.
+
+   .. deprecated:: 0.8
+
+      The alias will be removed in 1.0.
 
 .. autoclass:: Cache
 
@@ -55,5 +67,6 @@ not loaded, the :class:`Caps` instance is available at
 
 """
 
-from .service import Service, Cache  # NOQA
+from .service import EntityCapsService, Cache  # NOQA
 from . import xso  # NOQA
+Service = EntityCapsService

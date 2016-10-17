@@ -49,7 +49,7 @@ class Roster(Example):
 
     def make_simple_client(self):
         client = super().make_simple_client()
-        self.roster = client.summon(aioxmpp.roster.Service)
+        self.roster = client.summon(aioxmpp.RosterClient)
         self.roster.on_initial_roster_received.connect(
             self._on_initial_roster,
         )

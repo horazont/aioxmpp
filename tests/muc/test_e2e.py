@@ -42,7 +42,7 @@ class TestMuc(TestCase):
     @blocking
     @asyncio.coroutine
     def setUp(self, muc_info):
-        services = [aioxmpp.muc.Service]
+        services = [aioxmpp.MUCClient]
 
         self.peer = muc_info.supported_at_entity
         self.mucjid = self.peer.replace(localpart="coven")
@@ -66,7 +66,7 @@ class TestMuc(TestCase):
 
         # make firstwitch and secondwitch join
         self.firstroom, fut = self.firstwitch.summon(
-            aioxmpp.muc.Service
+            aioxmpp.MUCClient
         ).join(
             self.mucjid,
             "firstwitch",
@@ -77,7 +77,7 @@ class TestMuc(TestCase):
         yield from fut
 
         self.secondroom, fut = self.secondwitch.summon(
-            aioxmpp.muc.Service,
+            aioxmpp.MUCClient
         ).join(
             self.mucjid,
             "secondwitch",
@@ -88,7 +88,7 @@ class TestMuc(TestCase):
     @blocking_timed
     @asyncio.coroutine
     def test_join(self):
-        service = self.thirdwitch.summon(aioxmpp.muc.Service)
+        service = self.thirdwitch.summon(aioxmpp.MUCClient)
 
         recvd_future = asyncio.Future()
 

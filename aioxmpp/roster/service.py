@@ -170,7 +170,7 @@ class Item:
         self.groups = set(data.get("groups", []))
 
 
-class Service(aioxmpp.service.Service):
+class RosterClient(aioxmpp.service.Service):
     """
     A roster client :class:`aioxmpp.service.Service`.
 
@@ -337,6 +337,12 @@ class Service(aioxmpp.service.Service):
     needs to happen after a new :class:`Service` has been created, as roster
     services won’t delete roster contents between two connections on the same
     :class:`.node.AbstractClient` instance.
+
+    .. versionchanged:: 0.8
+
+       This class was formerly known as :class:`aioxmpp.roster.Service`. It
+       is still available under that name, but the alias will be removed in
+       1.0.
     """
 
     on_initial_roster_received = callbacks.Signal()

@@ -83,14 +83,14 @@ class PresenceInfo(Example):
 
     def make_simple_client(self):
         client = super().make_simple_client()
-        self.disco = client.summon(aioxmpp.disco.Service)
-        self.caps = client.summon(aioxmpp.entitycaps.Service)
+        self.disco = client.summon(aioxmpp.DiscoClient)
+        self.caps = client.summon(aioxmpp.EntityCapsService)
 
         if self.args.system_capsdb:
             self.caps.cache.set_system_db_path(self.args.system_capsdb)
         self.caps.cache.set_user_db_path(self.args.user_capsdb)
 
-        self.presence = client.summon(aioxmpp.presence.Service)
+        self.presence = client.summon(aioxmpp.PresenceService)
         self.presence.on_available.connect(
             self._on_available
         )

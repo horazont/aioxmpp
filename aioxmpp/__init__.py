@@ -89,6 +89,15 @@ from .structs import (  # NOQA
 )
 from .security_layer import make as make_security_layer  # NOQA
 
+# services
+from .presence import PresenceClient  # NOQA
+from .roster import RosterClient  # NOQA
+from .disco import DiscoServer, DiscoClient  # NOQA
+from .entitycaps import EntityCapsService  # NOQA
+from .muc import MUCClient  # NOQA
+from .pubsub import PubSubClient  # NOQA
+from .shim import SHIMService  # NOQA
+
 
 def set_strict_mode():
     from .stanza import Error

@@ -66,6 +66,19 @@ Version 0.8
 * Get rid of dependency on libxml2 development files. libxml2 itself is still
   required, both directly and indirectly (through the lxml dependency).
 
+* *Deprecation*: Rename several services:
+
+  * :class:`aioxmpp.shim.Service` -> :class:`aioxmpp.SHIMService`
+  * :class:`aioxmpp.muc.Service` -> :class:`aioxmpp.MUCClient`
+  * :class:`aioxmpp.presence.Service` -> :class:`aioxmpp.PresenceClient`
+  * :class:`aioxmpp.roster.Service` -> :class:`aioxmpp.RosterClient`
+  * :class:`aioxmpp.entitycaps.Service` -> :class:`aioxmpp.EntityCapsService`
+
+  The old names are still available until 1.0.
+
+* *Possibly breaking change*: :class:`aioxmpp.disco.Service` was split into
+  :class:`aioxmpp.DiscoClient` and :class:`aioxmpp.DiscoServer`.
+
 .. _api-changelog-0.7:
 
 Version 0.7

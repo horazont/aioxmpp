@@ -318,7 +318,7 @@ class Room:
        and/or `reason` keyword arguments are provided.
 
        If :attr:`autorejoin` is false and the stream gets destroyed, or if the
-       :class:`Service` is unloaded from a node, this event emits with
+       :class:`.MUCClient` is unloaded from a node, this event emits with
        `presence` set to :data:`None`.
 
     The following signals inform users about state changes related to **other**
@@ -455,7 +455,7 @@ class Room:
         stays true until :meth:`on_exit` is emitted.
 
         When it becomes false, the :class:`Room` is removed from the
-        bookkeeping of the :class:`Service` to which it belongs and is thus
+        bookkeeping of the :class:`.MUCClient` to which it belongs and is thus
         dead.
         """
         return self._joined
@@ -782,8 +782,8 @@ class Room:
     @asyncio.coroutine
     def set_affiliation(self, jid, affiliation, *, reason=None):
         """
-        Convenience wrapper around :meth:`Service.set_affiliation`. See there
-        for details, and consider its `mucjid` argument to be set to
+        Convenience wrapper around :meth:`.MUCClient.set_affiliation`. See
+        there for details, and consider its `mucjid` argument to be set to
         :attr:`mucjid`.
         """
         return (yield from self.service.set_affiliation(
@@ -969,7 +969,7 @@ def _connect_to_signal(signal, func):
     return signal, signal.connect(func)
 
 
-class Service(aioxmpp.service.Service):
+class MUCClient(aioxmpp.service.Service):
     """
     Client service implementing the a Multi-User Chat client. By loading it
     into a client, it is possible to join multi-user chats and implement
@@ -984,6 +984,12 @@ class Service(aioxmpp.service.Service):
     .. automethod:: set_affiliation
 
     .. automethod:: set_room_config
+
+    .. versionchanged:: 0.8
+
+       This class was formerly known as :class:`aioxmpp.muc.Service`. It
+       is still available under that name, but the alias will be removed in
+       1.0.
 
     """
     on_muc_joined = aioxmpp.callbacks.Signal()

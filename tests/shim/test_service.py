@@ -36,18 +36,19 @@ TEST_FROM = aioxmpp.structs.JID.fromstr("foo@bar.example/baz")
 class TestService(unittest.TestCase):
     def setUp(self):
         self.disco = unittest.mock.Mock()
+        self.disco.query_info = CoroutineMock()
+        self.disco.query_info.side_effect = AssertionError
+        self.disco.query_items = CoroutineMock()
+        self.disco.query_items.side_effect = AssertionError
         self.node = unittest.mock.Mock()
         self.cc = make_connected_client()
         self.cc.local_jid = TEST_FROM
-        self.cc.query_info = CoroutineMock()
-        self.cc.query_info.side_effect = AssertionError
-        self.cc.query_items = CoroutineMock()
-        self.cc.query_items.side_effect = AssertionError
-        self.cc.mock_services[aioxmpp.disco.Service] = self.disco
 
         with unittest.mock.patch("aioxmpp.disco.StaticNode") as Node:
             Node.return_value = self.node
-            self.s = shim_service.Service(self.cc)
+            self.s = shim_service.SHIMService(self.cc, dependencies={
+                aioxmpp.DiscoServer: self.disco
+            })
 
         self.disco.mock_calls.clear()
         self.cc.mock_calls.clear()
@@ -59,22 +60,23 @@ class TestService(unittest.TestCase):
 
     def test_orders_before_disco_service(self):
         self.assertLess(
-            aioxmpp.disco.Service,
-            shim_service.Service,
+            aioxmpp.DiscoServer,
+            shim_service.SHIMService,
         )
 
     def test_init(self):
         self.disco = unittest.mock.Mock()
+        self.disco.query_info = CoroutineMock()
+        self.disco.query_info.side_effect = AssertionError
+        self.disco.query_items = CoroutineMock()
+        self.disco.query_items.side_effect = AssertionError
         self.cc = make_connected_client()
         self.cc.local_jid = TEST_FROM
-        self.cc.query_info = CoroutineMock()
-        self.cc.query_info.side_effect = AssertionError
-        self.cc.query_items = CoroutineMock()
-        self.cc.query_items.side_effect = AssertionError
-        self.cc.mock_services[aioxmpp.disco.Service] = self.disco
 
         with unittest.mock.patch("aioxmpp.disco.StaticNode") as Node:
-            self.s = shim_service.Service(self.cc)
+            self.s = shim_service.SHIMService(self.cc, dependencies={
+                aioxmpp.DiscoServer: self.disco,
+            })
 
         self.disco.register_feature.assert_called_with(
             "http://jabber.org/protocol/shim"
