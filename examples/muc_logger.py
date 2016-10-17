@@ -102,7 +102,7 @@ class MucLogger(Example):
 
     def make_simple_client(self):
         client = super().make_simple_client()
-        muc = client.summon(aioxmpp.muc.Service)
+        muc = client.summon(aioxmpp.MUCClient)
         room, self.room_future = muc.join(
             self.muc_jid,
             self.muc_nick

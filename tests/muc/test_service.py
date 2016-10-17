@@ -2255,13 +2255,13 @@ class TestRoom(unittest.TestCase):
 class TestService(unittest.TestCase):
     def test_is_service(self):
         self.assertTrue(issubclass(
-            muc_service.Service,
+            muc_service.MUCClient,
             service.Service
         ))
 
     def setUp(self):
         self.cc = make_connected_client()
-        self.s = muc_service.Service(self.cc)
+        self.s = muc_service.MUCClient(self.cc)
 
     def test_event_attributes(self):
         self.assertIsInstance(
@@ -2271,7 +2271,7 @@ class TestService(unittest.TestCase):
 
     def test_init_and_shutdown(self):
         cc = make_connected_client()
-        s = muc_service.Service(cc)
+        s = muc_service.MUCClient(cc)
 
         calls = list(cc.mock_calls)
 
@@ -2281,7 +2281,7 @@ class TestService(unittest.TestCase):
                 unittest.mock.call.
                 stream.service_inbound_presence_filter.register(
                     s._inbound_presence_filter,
-                    muc_service.Service
+                    muc_service.MUCClient
                 ),
             ]
         )

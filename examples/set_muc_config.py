@@ -122,12 +122,12 @@ class ServerInfo(Example):
 
     def make_simple_client(self):
         client = super().make_simple_client()
-        client.summon(aioxmpp.muc.Service)
+        client.summon(aioxmpp.MUCClient)
         return client
 
     @asyncio.coroutine
     def run_simple_example(self):
-        muc = self.client.summon(aioxmpp.muc.Service)
+        muc = self.client.summon(aioxmpp.MUCClient)
 
         config = yield from muc.get_room_config(
             self.muc_jid
