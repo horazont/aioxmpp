@@ -94,6 +94,12 @@ Version 0.8
 
 * :class:`aioxmpp.PresenceServer`
 
+* Fix :exc:`AttributeError` being raised from ``state > None`` (and other
+  comparison operators), with ``state`` being a :class:`aioxmpp.PresenceState`
+  instance.
+
+  The more correct :exc:`TypeError` is now raised.
+
 .. _api-changelog-0.7:
 
 Version 0.7

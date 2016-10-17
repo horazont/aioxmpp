@@ -950,10 +950,16 @@ class LanguageTag:
             return False
 
     def __lt__(self, other):
-        return self.match_str < other.match_str
+        try:
+            return self.match_str < other.match_str
+        except AttributeError:
+            return NotImplemented
 
     def __le__(self, other):
-        return self.match_str <= other.match_str
+        try:
+            return self.match_str <= other.match_str
+        except AttributeError:
+            return NotImplemented
 
     def __hash__(self):
         return hash(self.match_str)
