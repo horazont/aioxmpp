@@ -1698,6 +1698,32 @@ class TestRoom(unittest.TestCase):
                     reason="foobar",
                 ))
 
+    def test_change_nick(self):
+        with unittest.mock.patch.object(
+                self.base.service.client.stream,
+                "send_and_wait_for_sent",
+                new=CoroutineMock()) as send_stanza:
+            send_stanza.return_value = None
+
+            run_coroutine(self.jmuc.change_nick(
+                "oldhag",
+            ))
+
+        _, (pres,), _ = send_stanza.mock_calls[-1]
+
+        self.assertIsInstance(
+            pres,
+            aioxmpp.stanza.Presence
+        )
+        self.assertEqual(
+            pres.type_,
+            aioxmpp.structs.PresenceType.AVAILABLE,
+        )
+        self.assertEqual(
+            pres.to,
+            self.mucjid.replace(resource="oldhag"),
+        )
+
     def test_set_affiliation_delegates_to_service(self):
         with unittest.mock.patch.object(
                 self.base.service,

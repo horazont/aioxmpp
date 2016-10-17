@@ -204,19 +204,21 @@ class Room:
 
     .. autoattribute:: occupants
 
-    .. automethod:: set_role
-
-    .. automethod:: set_affiliation
-
-    .. automethod:: set_subject
+    .. automethod:: change_nick
 
     .. automethod:: leave
 
     .. automethod:: leave_and_wait
 
+    .. automethod:: request_voice
+
     .. automethod:: send_tracked_message
 
-    .. automethod:: request_voice
+    .. automethod:: set_role
+
+    .. automethod:: set_affiliation
+
+    .. automethod:: set_subject
 
     The interface provides signals for most of the rooms events. The following
     keyword arguments are used at several signal handlers (which is also noted
@@ -714,6 +716,29 @@ class Room:
             existing.update(info)
             self.on_leave(stanza, existing, mode, actor=actor, reason=reason)
             del self._occupant_info[existing.occupantjid]
+
+    @asyncio.coroutine
+    def change_nick(self, new_nick):
+        """
+        Change the nick name of the occupant.
+
+        :param new_nick: New nickname to use
+        :type new_nick: :class:`str`
+
+        This sends the request to change the nickname and waits for the request
+        to be sent over the stream.
+
+        The nick change may or may not happen; observe the
+        :meth:`on_nick_change` event.
+        """
+
+        stanza = aioxmpp.Presence(
+            type_=aioxmpp.PresenceType.AVAILABLE,
+            to=self._mucjid.replace(resource=new_nick),
+        )
+        yield from self._service.client.stream.send_and_wait_for_sent(
+            stanza
+        )
 
     @asyncio.coroutine
     def set_role(self, nick, role, *, reason=None):

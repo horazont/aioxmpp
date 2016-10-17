@@ -1,4 +1,5 @@
 import asyncio
+import functools
 import logging
 
 import aioxmpp.muc
@@ -278,3 +279,30 @@ class TestMuc(TestCase):
                 None: "foo"
             }
         )
+
+    @blocking_timed
+    @asyncio.coroutine
+    def test_change_nick(self):
+        self_future = asyncio.Future()
+        foreign_future = asyncio.Future()
+
+        def onnickchange(fut, presence, occupant, **kwargs):
+            fut.set_result((presence, occupant,))
+            return True
+
+        self.secondroom.on_nick_change.connect(
+            functools.partial(onnickchange, foreign_future),
+        )
+
+        self.firstroom.on_nick_change.connect(
+            functools.partial(onnickchange, self_future),
+        )
+
+        yield from self.firstroom.change_nick("oldhag")
+
+        presence, occupant = yield from self_future
+        self.assertEqual(occupant, self.firstroom.this_occupant)
+        self.assertEqual(occupant.occupantjid.resource, "oldhag")
+
+        presence, occupant = yield from foreign_future
+        self.assertEqual(occupant.occupantjid.resource, "oldhag")
