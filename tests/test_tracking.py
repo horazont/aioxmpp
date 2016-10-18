@@ -93,58 +93,55 @@ class TestMessageState(unittest.TestCase):
         )
 
         self.assertLess(
-            tracking.MessageState.UNKNOWN,
+            tracking.MessageState.CLOSED,
             tracking.MessageState.DELIVERED_TO_SERVER,
         )
         self.assertLess(
-            tracking.MessageState.UNKNOWN,
+            tracking.MessageState.CLOSED,
             tracking.MessageState.DELIVERED_TO_RECIPIENT,
         )
         self.assertLess(
-            tracking.MessageState.UNKNOWN,
+            tracking.MessageState.CLOSED,
             tracking.MessageState.SEEN_BY_RECIPIENT,
         )
 
         self.assertLess(
             tracking.MessageState.DELIVERED_TO_SERVER,
-            tracking.MessageState.UNKNOWN,
+            tracking.MessageState.CLOSED,
         )
         self.assertLess(
             tracking.MessageState.DELIVERED_TO_RECIPIENT,
-            tracking.MessageState.UNKNOWN,
+            tracking.MessageState.CLOSED,
         )
         self.assertLess(
             tracking.MessageState.SEEN_BY_RECIPIENT,
-            tracking.MessageState.UNKNOWN,
+            tracking.MessageState.CLOSED,
         )
 
         self.assertLess(
             tracking.MessageState.TIMED_OUT,
             tracking.MessageState.ABORTED,
         )
+        self.assertLess(
+            tracking.MessageState.TIMED_OUT,
+            tracking.MessageState.CLOSED,
+        )
 
         self.assertLess(
             tracking.MessageState.ABORTED,
             tracking.MessageState.TIMED_OUT,
         )
-
-        self.assertLess(
-            tracking.MessageState.UNKNOWN,
-            tracking.MessageState.ABORTED,
-        )
-
         self.assertLess(
             tracking.MessageState.ABORTED,
-            tracking.MessageState.UNKNOWN,
+            tracking.MessageState.CLOSED,
         )
 
         self.assertLess(
-            tracking.MessageState.TIMED_OUT,
-            tracking.MessageState.UNKNOWN,
+            tracking.MessageState.CLOSED,
+            tracking.MessageState.ABORTED,
         )
-
         self.assertLess(
-            tracking.MessageState.UNKNOWN,
+            tracking.MessageState.CLOSED,
             tracking.MessageState.TIMED_OUT,
         )
 

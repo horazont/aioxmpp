@@ -106,6 +106,9 @@ Version 0.8
 
   See the respective documentation for details on the deprecation procedure.
 
+* **Breaking change**: :attr:`aioxmpp.tracking.MessageState.UNKNOWN` renamed to
+  :attr:`~.MessageState.CLOSED`.
+
 .. _api-changelog-0.7:
 
 Version 0.7

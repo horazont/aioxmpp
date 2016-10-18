@@ -426,7 +426,7 @@ class Room:
 
     def _cleanup_tracking(self, *args, **kwargs):
         for tracker in self._tracking.values():
-            tracker.state = aioxmpp.tracking.MessageState.UNKNOWN
+            tracker.state = aioxmpp.tracking.MessageState.CLOSED
         self._tracking.clear()
 
     @property
@@ -885,7 +885,7 @@ class Room:
            seconds; this avoids that sending a message becomes a memory leak.
 
         If the chat is exited in the meantime, the messages are set to
-        :attr:`~.MessageState.UNKNOWN` state. This also happens on suspension
+        :attr:`~.MessageState.CLOSED` state. This also happens on suspension
         and resumption.
         """
         if isinstance(body_or_stanza, aioxmpp.stanza.Message):

@@ -2123,7 +2123,7 @@ class TestRoom(unittest.TestCase):
 
         self.assertEqual(
             tracker.state,
-            tracking.MessageState.UNKNOWN
+            tracking.MessageState.CLOSED
         )
 
     def test_tracked_messages_are_set_to_unknown_on_resume(self):
@@ -2158,7 +2158,7 @@ class TestRoom(unittest.TestCase):
 
         self.assertEqual(
             tracker.state,
-            tracking.MessageState.UNKNOWN
+            tracking.MessageState.CLOSED
         )
 
     def test_request_voice(self):

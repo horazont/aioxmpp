@@ -70,7 +70,7 @@ class MessageState(Enum):
 
        This is a final state.
 
-    .. attribute:: UNKNOWN
+    .. attribute:: CLOSED
 
        The tracking itself got aborted and cannot make a statement about the
        delivery of the stanza.
@@ -103,7 +103,7 @@ class MessageState(Enum):
 
     def __lt__(self, other):
         if     ((other == MessageState.ABORTED or
-                 other == MessageState.UNKNOWN)
+                 other == MessageState.CLOSED)
                 and self != MessageState.IN_TRANSIT):
             return True
         if     (other == MessageState.TIMED_OUT and
@@ -114,7 +114,7 @@ class MessageState(Enum):
 
     IN_TRANSIT = 0
     ABORTED = 1
-    UNKNOWN = 2
+    CLOSED = 2
     DELIVERED_TO_SERVER = 3
     TIMED_OUT = 4
     DELIVERED_TO_RECIPIENT = 5
