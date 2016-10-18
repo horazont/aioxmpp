@@ -155,12 +155,10 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="""
         Send lines from stdin to the given peer and print messages received
-        from the peer to stdout.
-        """,
+        from the peer to stdout.""",
         epilog="""
         The password must be set in the XMPP_BRIDGE_PASSWORD environment
-        variable.
-        """
+        variable."""
     )
 
     parser.add_argument(
