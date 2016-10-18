@@ -2957,6 +2957,10 @@ class TestPresenceManagedClient(xmltestutils.XMLTestCase):
             )
         ]
 
+    def _set_stream_established(self):
+        run_coroutine(self.client.before_stream_established())
+        self.client.on_stream_established()
+
     def test_setup(self):
         self.assertEqual(
             structs.PresenceState(),
@@ -3047,6 +3051,14 @@ class TestPresenceManagedClient(xmltestutils.XMLTestCase):
 
         run_coroutine(self.xmlstream.run_test([
             XMLStreamMock.Close(),
+            # this is a race-condition of the test suite
+            # in a real stream, the Send would not happen as the stream
+            # changes state immediately and raises an exception from
+            # send_xso
+            XMLStreamMock.Send(
+                stanza.Presence(type_=structs.PresenceType.UNAVAILABLE,
+                                id_="autoset"),
+            ),
         ]))
 
         self.assertFalse(self.client.running)
@@ -3131,6 +3143,8 @@ class TestPresenceManagedClient(xmltestutils.XMLTestCase):
             XMLStreamMock.Close()
         ]))
 
+        self.assertFalse(self.client.running)
+
         self.client.presence = self.client.presence
 
         run_coroutine(self.xmlstream.run_test([
@@ -3188,13 +3202,13 @@ class TestPresenceManagedClient(xmltestutils.XMLTestCase):
                 status=status_texts
             )
 
-            self.client.on_stream_established()
+            self._set_stream_established()
 
         self.assertSequenceEqual(
             base.mock_calls,
             [
                 unittest.mock.call.start(),
-                unittest.mock.call.stream.enqueue(unittest.mock.ANY)
+                unittest.mock.call.stream.send(unittest.mock.ANY)
             ]
         )
 
@@ -3237,68 +3251,13 @@ class TestPresenceManagedClient(xmltestutils.XMLTestCase):
                 status="foobar"
             )
 
-            self.client.on_stream_established()
+            self._set_stream_established()
 
         self.assertSequenceEqual(
             base.mock_calls,
             [
                 unittest.mock.call.start(),
-                unittest.mock.call.stream.enqueue(unittest.mock.ANY)
-            ]
-        )
-
-        _, (sent,), _ = base.mock_calls[-1]
-
-        self.assertDictEqual(
-            sent.status,
-            expected.status
-        )
-        self.assertEqual(sent.type_, expected.type_)
-        self.assertEqual(sent.show, expected.show)
-
-        self.presence_sent_rec.assert_called_once_with()
-
-    def test_set_presence_is_robust_against_modification_of_the_argument(self):
-        status_texts = {
-            None: "generic",
-            structs.LanguageTag.fromstr("de"): "de",
-        }
-
-        expected = stanza.Presence(type_=structs.PresenceType.AVAILABLE,
-                                   show="chat",
-                                   id_="autoset")
-        expected.status.update(status_texts)
-
-        base = unittest.mock.Mock()
-        with contextlib.ExitStack() as stack:
-            stack.enter_context(unittest.mock.patch.object(
-                self.client,
-                "stream",
-                new=base.stream
-            ))
-
-            stack.enter_context(unittest.mock.patch.object(
-                self.client,
-                "start",
-                new=base.start
-            ))
-
-            self.client.set_presence(
-                structs.PresenceState(
-                    available=True,
-                    show="chat"),
-                status=status_texts
-            )
-
-            del status_texts[None]
-
-            self.client.on_stream_established()
-
-        self.assertSequenceEqual(
-            base.mock_calls,
-            [
-                unittest.mock.call.start(),
-                unittest.mock.call.stream.enqueue(unittest.mock.ANY)
+                unittest.mock.call.stream.send(unittest.mock.ANY)
             ]
         )
 

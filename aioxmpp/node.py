@@ -1036,27 +1036,16 @@ class PresenceManagedClient(Client):
 
     def __init__(self, jid, security_layer, **kwargs):
         super().__init__(jid, security_layer, **kwargs)
-        self._presence = structs.PresenceState(), []
+        self._presence_server = self.summon(mod_presence.PresenceServer)
         self.on_stream_established.connect(self._handle_stream_established)
 
-    def _resend_presence(self):
-        pres = stanza.Presence()
-        state, status = self._presence
-        state.apply_to_stanza(pres)
-        pres.status.update(status)
-        self.stream.enqueue(pres)
-
     def _handle_stream_established(self):
-        if self._presence[0].available:
-            self._resend_presence()
         self.on_presence_sent()
 
     def _update_presence(self):
-        if self._presence[0].available:
+        if self._presence_server.state.available:
             if not self.running:
                 self.start()
-            elif self.established:
-                self._resend_presence()
         else:
             if self.running:
                 self.stop()
@@ -1086,11 +1075,11 @@ class PresenceManagedClient(Client):
         be called. The :attr:`presence` attribute is *not* affected by calls to
         :meth:`start` or :meth:`stop`.
         """
-        return self._presence[0]
+        return self._presence_server.state
 
     @presence.setter
     def presence(self, value):
-        self._presence = value, []
+        self._presence_server.set_presence(value)
         self._update_presence()
 
     def set_presence(self, state, status):
@@ -1108,29 +1097,16 @@ class PresenceManagedClient(Client):
         The `status` is the text shown alongside the `state` (indicating
         availability such as *away*, *do not disturb* and *free to chat*).
         """
-        if isinstance(status, str):
-            status = {None: status}
-        else:
-            status = dict(status)
-        self._presence = state, status
+        self._presence_server.set_presence(state, status=status)
         self._update_presence()
 
     def connected(self, **kwargs):
         """
-        Return an asynchronous context manager (:pep:`492`). When it is
-        entered, the presence is changed to available. The context manager
-        waits until the stream is established, and then the context is entered.
+        Return a :class:`.node.UseConnected` context manager which sets the
+        presence to available.
 
-        Upon leaving the context manager, the presence is changed to
-        unavailable. The context manager waits until the stream is closed
-        fully.
-
-        The keyword arguments are passed to the :class:`UseConnected` context
-        manager constructor.
-
-        .. seealso::
-
-           :class:`UseConnected` is the context manager returned here.
+        The keyword arguments are passed to the :class:`.node.UseConnected`
+        context manager constructor.
 
         .. versionadded:: 0.6
         """
