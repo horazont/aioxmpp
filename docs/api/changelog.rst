@@ -89,6 +89,9 @@ Version 0.8
 * *Deprecation*: :meth:`aioxmpp.stream.StanzaStream.send_iq_and_wait_for_reply`
   deprecated in favour of :meth:`~.StanzaStream.send`.
 
+* *Deprecation*: :meth:`aioxmpp.stream.StanzaStream.enqueue_stanza` is now
+  called :meth:`~aioxmpp.stream.StanzaStream.enqueue`.
+
 .. _api-changelog-0.7:
 
 Version 0.7

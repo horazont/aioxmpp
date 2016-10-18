@@ -1241,13 +1241,13 @@ class TestService(unittest.TestCase):
         self.s.approve(TEST_JID)
 
         self.assertSequenceEqual(
-            self.cc.stream.enqueue_stanza.mock_calls,
+            self.cc.stream.enqueue.mock_calls,
             [
                 unittest.mock.call(unittest.mock.ANY),
             ]
         )
 
-        call, = self.cc.stream.enqueue_stanza.mock_calls
+        call, = self.cc.stream.enqueue.mock_calls
         _, call_args, _ = call
 
         st, = call_args
@@ -1259,13 +1259,13 @@ class TestService(unittest.TestCase):
         self.s.subscribe(TEST_JID)
 
         self.assertSequenceEqual(
-            self.cc.stream.enqueue_stanza.mock_calls,
+            self.cc.stream.enqueue.mock_calls,
             [
                 unittest.mock.call(unittest.mock.ANY),
             ]
         )
 
-        call, = self.cc.stream.enqueue_stanza.mock_calls
+        call, = self.cc.stream.enqueue.mock_calls
         _, call_args, _ = call
 
         st, = call_args
@@ -1277,13 +1277,13 @@ class TestService(unittest.TestCase):
         self.s.unsubscribe(TEST_JID)
 
         self.assertSequenceEqual(
-            self.cc.stream.enqueue_stanza.mock_calls,
+            self.cc.stream.enqueue.mock_calls,
             [
                 unittest.mock.call(unittest.mock.ANY),
             ]
         )
 
-        call, = self.cc.stream.enqueue_stanza.mock_calls
+        call, = self.cc.stream.enqueue.mock_calls
         _, call_args, _ = call
 
         st, = call_args

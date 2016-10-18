@@ -129,6 +129,7 @@ class ConnectedClientMock(unittest.mock.Mock):
         self.stream_features = nonza.StreamFeatures()
         self.stream.send_iq_and_wait_for_reply = CoroutineMock()
         self.stream.send = CoroutineMock()
+        self.stream.enqueue_stanza = self.stream.enqueue
         self.mock_services = {}
 
     def _get_child_mock(self, **kw):

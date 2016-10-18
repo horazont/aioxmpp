@@ -472,7 +472,15 @@ class StanzaStream:
 
     .. automethod:: send
 
-    .. automethod:: enqueue_stanza
+    .. automethod:: enqueue
+
+    .. method:: enqueue_stanza
+
+       Alias of :meth:`enqueue`.
+
+       .. deprecated:: 0.8
+
+          This alias is deprecated and will be removed in 1.0.
 
     .. automethod:: send_and_wait_for_sent
 
@@ -861,7 +869,7 @@ class StanzaStream:
         else:
             response = request.make_reply(type_=structs.IQType.RESULT)
             response.payload = payload
-        self.enqueue_stanza(response)
+        self.enqueue(response)
 
     def _process_incoming_iq(self, stanza_obj):
         """
@@ -902,7 +910,7 @@ class StanzaStream:
                     condition=(namespaces.stanzas,
                                "feature-not-implemented"),
                 )
-                self.enqueue_stanza(response)
+                self.enqueue(response)
                 return
 
             task = asyncio.async(coro(stanza_obj))
@@ -1019,13 +1027,13 @@ class StanzaStream:
                 namespaces.stanzas,
                 "feature-not-implemented")
             ))
-            self.enqueue_stanza(reply)
+            self.enqueue(reply)
         elif isinstance(exc, stanza.PayloadParsingError):
             reply = stanza_obj.make_error(error=stanza.Error(condition=(
                 namespaces.stanzas,
                 "bad-request")
             ))
-            self.enqueue_stanza(reply)
+            self.enqueue(reply)
 
     def _process_incoming(self, xmlstream, queue_entry):
         """
@@ -1853,7 +1861,7 @@ class StanzaStream:
     def recv_erroneous_stanza(self, partial_obj, exc):
         self._incoming_queue.put_nowait((partial_obj, exc))
 
-    def enqueue_stanza(self, stanza, **kwargs):
+    def enqueue(self, stanza, **kwargs):
         """
         Put a `stanza` in the internal transmission queue and return a token to
         track it.
@@ -1890,6 +1898,8 @@ class StanzaStream:
         self._logger.debug("enqueued stanza %r with token %r",
                            stanza, token)
         return token
+
+    enqueue_stanza = enqueue
 
     @property
     def running(self):
@@ -2297,7 +2307,7 @@ class StanzaStream:
             DeprecationWarning,
             stacklevel=1,
         )
-        yield from self.enqueue_stanza(stanza)
+        yield from self.enqueue(stanza)
 
     @asyncio.coroutine
     def send(self, stanza, *, timeout=None):
@@ -2348,7 +2358,7 @@ class StanzaStream:
                            stanza)
 
         if not isinstance(stanza, stanza_.IQ) or stanza.type_.is_response:
-            yield from self.enqueue_stanza(stanza)
+            yield from self.enqueue(stanza)
             return
 
         fut = asyncio.Future()
@@ -2359,7 +2369,7 @@ class StanzaStream:
         )
 
         try:
-            yield from self.enqueue_stanza(stanza)
+            yield from self.enqueue(stanza)
         except:
             fut.cancel()
             raise

@@ -1751,7 +1751,7 @@ class TestRoom(unittest.TestCase):
         result = self.jmuc.set_subject(d)
 
         _, (stanza,), _ = self.base.service.client.stream.\
-            enqueue_stanza.mock_calls[-1]
+            enqueue.mock_calls[-1]
 
         self.assertIsInstance(
             stanza,
@@ -1774,14 +1774,14 @@ class TestRoom(unittest.TestCase):
 
         self.assertEqual(
             result,
-            self.base.service.client.stream.enqueue_stanza()
+            self.base.service.client.stream.enqueue()
         )
 
     def test_leave(self):
         self.jmuc.leave()
 
         _, (stanza,), _ = self.base.service.client.stream.\
-            enqueue_stanza.mock_calls[-1]
+            enqueue.mock_calls[-1]
 
         self.assertIsInstance(
             stanza,
@@ -1896,7 +1896,7 @@ class TestRoom(unittest.TestCase):
 
         with unittest.mock.patch.object(
                 self.base.service.client.stream,
-                "enqueue_stanza",
+                "enqueue",
                 new=setup_stanza):
             tracker = self.jmuc.send_tracked_message(body)
 
@@ -1968,7 +1968,7 @@ class TestRoom(unittest.TestCase):
 
         with unittest.mock.patch.object(
                 self.base.service.client.stream,
-                "enqueue_stanza",
+                "enqueue",
                 new=setup_stanza):
             tracker = self.jmuc.send_tracked_message(body)
 
@@ -2037,7 +2037,7 @@ class TestRoom(unittest.TestCase):
 
         with unittest.mock.patch.object(
                 self.base.service.client.stream,
-                "enqueue_stanza",
+                "enqueue",
                 new=setup_stanza):
             tracker = self.jmuc.send_tracked_message(
                 body,
@@ -2076,7 +2076,7 @@ class TestRoom(unittest.TestCase):
 
         with unittest.mock.patch.object(
                 self.base.service.client.stream,
-                "enqueue_stanza",
+                "enqueue",
                 new=setup_stanza):
             tracker = self.jmuc.send_tracked_message(
                 stanza,
@@ -2111,7 +2111,7 @@ class TestRoom(unittest.TestCase):
 
         with unittest.mock.patch.object(
                 self.base.service.client.stream,
-                "enqueue_stanza",
+                "enqueue",
                 new=setup_stanza):
             tracker = self.jmuc.send_tracked_message(
                 stanza,
@@ -2146,7 +2146,7 @@ class TestRoom(unittest.TestCase):
 
         with unittest.mock.patch.object(
                 self.base.service.client.stream,
-                "enqueue_stanza",
+                "enqueue",
                 new=setup_stanza):
             tracker = self.jmuc.send_tracked_message(
                 stanza,
@@ -2347,7 +2347,7 @@ class TestService(unittest.TestCase):
         self.assertTrue(room.autorejoin)
         self.assertIsNone(room.password)
 
-        _, (stanza,), _ = self.cc.stream.enqueue_stanza.mock_calls[-1]
+        _, (stanza,), _ = self.cc.stream.enqueue.mock_calls[-1]
         self.assertIsInstance(
             stanza,
             aioxmpp.stanza.Presence
@@ -2396,7 +2396,7 @@ class TestService(unittest.TestCase):
             room
         )
 
-        _, (stanza,), _ = self.cc.stream.enqueue_stanza.mock_calls[-1]
+        _, (stanza,), _ = self.cc.stream.enqueue.mock_calls[-1]
         self.assertIsInstance(
             stanza,
             aioxmpp.stanza.Presence
@@ -2436,7 +2436,7 @@ class TestService(unittest.TestCase):
         self.assertFalse(room.autorejoin)
         self.assertEqual(room.password, "foobar")
 
-        _, (stanza,), _ = self.cc.stream.enqueue_stanza.mock_calls[-1]
+        _, (stanza,), _ = self.cc.stream.enqueue.mock_calls[-1]
         self.assertIsInstance(
             stanza,
             aioxmpp.stanza.Presence
@@ -2476,7 +2476,7 @@ class TestService(unittest.TestCase):
             room
         )
 
-        _, (stanza,), _ = self.cc.stream.enqueue_stanza.mock_calls[-1]
+        _, (stanza,), _ = self.cc.stream.enqueue.mock_calls[-1]
         self.assertIsInstance(
             stanza,
             aioxmpp.stanza.Presence
@@ -2563,7 +2563,7 @@ class TestService(unittest.TestCase):
             self):
         room, future = self.s.join(TEST_MUC_JID, "thirdwitch")
 
-        self.cc.stream.enqueue_stanza.mock_calls.clear()
+        self.cc.stream.enqueue.mock_calls.clear()
 
         future.cancel()
 
@@ -2572,7 +2572,7 @@ class TestService(unittest.TestCase):
         with self.assertRaises(KeyError):
             self.s.get_muc(TEST_MUC_JID)
 
-        _, (stanza,), _ = self.cc.stream.enqueue_stanza.mock_calls[-1]
+        _, (stanza,), _ = self.cc.stream.enqueue.mock_calls[-1]
         self.assertIsInstance(
             stanza,
             aioxmpp.stanza.Presence
@@ -2762,7 +2762,7 @@ class TestService(unittest.TestCase):
         )
 
         self.assertSequenceEqual(
-            self.cc.stream.enqueue_stanza.mock_calls,
+            self.cc.stream.enqueue.mock_calls,
             []
         )
 
@@ -2770,7 +2770,7 @@ class TestService(unittest.TestCase):
 
         run_coroutine(asyncio.sleep(0))
 
-        _, (stanza,), _ = self.cc.stream.enqueue_stanza.mock_calls[-1]
+        _, (stanza,), _ = self.cc.stream.enqueue.mock_calls[-1]
         self.assertIsInstance(
             stanza,
             aioxmpp.stanza.Presence
@@ -2860,7 +2860,7 @@ class TestService(unittest.TestCase):
             ]
         )
         base.mock_calls.clear()
-        self.cc.stream.enqueue_stanza.mock_calls.clear()
+        self.cc.stream.enqueue.mock_calls.clear()
 
         self.cc.on_stream_established()
         run_coroutine(asyncio.sleep(0))
@@ -2876,13 +2876,13 @@ class TestService(unittest.TestCase):
             return result
 
         self.assertEqual(
-            len(self.cc.stream.enqueue_stanza.mock_calls),
+            len(self.cc.stream.enqueue.mock_calls),
             2,
         )
 
         self.assertSetEqual(
             extract(
-                self.cc.stream.enqueue_stanza.mock_calls,
+                self.cc.stream.enqueue.mock_calls,
                 lambda stanza: (stanza.to.bare(),)
             ),
             {
@@ -2893,7 +2893,7 @@ class TestService(unittest.TestCase):
 
         self.assertSetEqual(
             extract(
-                self.cc.stream.enqueue_stanza.mock_calls,
+                self.cc.stream.enqueue.mock_calls,
                 lambda stanza: (stanza.to.bare(),
                                 stanza.xep0045_muc.history.since)
             ),
@@ -3021,13 +3021,13 @@ class TestService(unittest.TestCase):
             ]
         )
         base.mock_calls.clear()
-        self.cc.stream.enqueue_stanza.mock_calls.clear()
+        self.cc.stream.enqueue.mock_calls.clear()
 
         self.cc.on_stream_established()
         run_coroutine(asyncio.sleep(0))
 
         self.assertEqual(
-            len(self.cc.stream.enqueue_stanza.mock_calls),
+            len(self.cc.stream.enqueue.mock_calls),
             0,
         )
 

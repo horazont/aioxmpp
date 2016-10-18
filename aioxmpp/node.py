@@ -1035,7 +1035,7 @@ class PresenceManagedClient(AbstractClient):
         state, status = self._presence
         state.apply_to_stanza(pres)
         pres.status.update(status)
-        self.stream.enqueue_stanza(pres)
+        self.stream.enqueue(pres)
 
     def _handle_stream_established(self):
         if self._presence[0].available:

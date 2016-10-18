@@ -428,17 +428,17 @@ class TestStanzaStream(StanzaStreamTestBase):
         iq = make_test_iq(type_=structs.IQType.GET)
 
         self.stream.start(self.xmlstream)
-        self.stream.enqueue_stanza(iq)
+        self.stream.enqueue(iq)
 
         obj = run_coroutine(self.sent_stanzas.get())
         self.assertIs(obj, iq)
 
         self.stream.stop()
 
-    def test_enqueue_stanza_validates_stanza(self):
+    def test_enqueue_validates_stanza(self):
         iq = unittest.mock.Mock()
 
-        self.stream.enqueue_stanza(iq)
+        self.stream.enqueue(iq)
 
         iq.validate.assert_called_with()
 
@@ -1316,14 +1316,14 @@ class TestStanzaStream(StanzaStreamTestBase):
         self.stream.on_failure.connect(failure_handler)
 
         self.stream.start(self.xmlstream)
-        self.stream.enqueue_stanza(iq)
+        self.stream.enqueue(iq)
 
         iq_sent = run_coroutine(self.sent_stanzas.get())
         self.assertIs(iq, iq_sent)
 
         self.xmlstream.send_xso = unittest.mock.MagicMock(
             side_effect=RuntimeError())
-        self.stream.enqueue_stanza(iq)
+        self.stream.enqueue(iq)
         self.stream.recv_stanza(iq)
         self.stream.stop()
 
@@ -1340,14 +1340,14 @@ class TestStanzaStream(StanzaStreamTestBase):
         self.stream.on_failure.connect(failure_handler)
 
         self.stream.start(self.xmlstream)
-        self.stream.enqueue_stanza(iq)
+        self.stream.enqueue(iq)
 
         iq_sent = run_coroutine(self.sent_stanzas.get())
         self.assertIs(iq, iq_sent)
 
         self.xmlstream.send_xso = unittest.mock.MagicMock(
             side_effect=RuntimeError())
-        self.stream.enqueue_stanza(iq)
+        self.stream.enqueue(iq)
         self.stream.recv_stanza(iq)
         self.stream.stop()
 
@@ -1547,7 +1547,7 @@ class TestStanzaStream(StanzaStreamTestBase):
             run_coroutine(asyncio.sleep(0))
             self.assertTrue(self.stream.running)
 
-            token = self.stream.enqueue_stanza(make_test_message())
+            token = self.stream.enqueue(make_test_message())
 
             run_coroutine(self.stream.close())
 
@@ -1565,7 +1565,7 @@ class TestStanzaStream(StanzaStreamTestBase):
                 "get",
                 new=get_mock):
 
-            token = self.stream.enqueue_stanza(make_test_message())
+            token = self.stream.enqueue(make_test_message())
 
             run_coroutine(self.stream.close())
 
@@ -1573,19 +1573,19 @@ class TestStanzaStream(StanzaStreamTestBase):
 
         self.assertEqual(token.state, stream.StanzaState.DISCONNECTED)
 
-    def test_enqueue_stanza_raises_after_close(self):
+    def test_enqueue_raises_after_close(self):
         run_coroutine(self.stream.close())
 
         with self.assertRaisesRegex(ConnectionError, r"close\(\) called"):
-            self.stream.enqueue_stanza(unittest.mock.sentinel.stanza)
+            self.stream.enqueue(unittest.mock.sentinel.stanza)
 
-    def test_enqueue_stanza_works_after_close_and_start(self):
+    def test_enqueue_works_after_close_and_start(self):
         run_coroutine(self.stream.close())
 
         iq = make_test_iq(type_=structs.IQType.GET)
 
         self.stream.start(self.xmlstream)
-        self.stream.enqueue_stanza(iq)
+        self.stream.enqueue(iq)
 
         obj = run_coroutine(self.sent_stanzas.get())
         self.assertIs(obj, iq)
@@ -1607,7 +1607,7 @@ class TestStanzaStream(StanzaStreamTestBase):
         self.xmlstream.send_xso = send_handler
 
         tokens = [
-            self.stream.enqueue_stanza(
+            self.stream.enqueue(
                 iq,
                 on_state_change=state_change_handler)
             for iq in iqs
@@ -1767,8 +1767,8 @@ class TestStanzaStream(StanzaStreamTestBase):
             request.type_
         )
 
-    def test_enqueue_stanza_returns_token(self):
-        token = self.stream.enqueue_stanza(make_test_iq())
+    def test_enqueue_returns_token(self):
+        token = self.stream.enqueue(make_test_iq())
         self.assertIsInstance(
             token,
             stream.StanzaToken)
@@ -1776,7 +1776,7 @@ class TestStanzaStream(StanzaStreamTestBase):
     def test_abort_stanza(self):
         iqs = [make_test_iq() for i in range(3)]
         self.stream.start(self.xmlstream)
-        tokens = [self.stream.enqueue_stanza(iq) for iq in iqs]
+        tokens = [self.stream.enqueue(iq) for iq in iqs]
         tokens[1].abort()
         run_coroutine(asyncio.sleep(0))
 
@@ -2145,7 +2145,7 @@ class TestStanzaStream(StanzaStreamTestBase):
         filter_attr.register(filter_func, **register_kwargs)
 
         self.stream.start(self.xmlstream)
-        token = self.stream.enqueue_stanza(pres)
+        token = self.stream.enqueue(pres)
 
         run_coroutine(asyncio.sleep(0))
 
@@ -2169,7 +2169,7 @@ class TestStanzaStream(StanzaStreamTestBase):
         filter_func.reset_mock()
         filter_func.return_value = None
 
-        token = self.stream.enqueue_stanza(pres)
+        token = self.stream.enqueue(pres)
 
         run_coroutine(asyncio.sleep(0))
 
@@ -2221,7 +2221,7 @@ class TestStanzaStream(StanzaStreamTestBase):
         )
 
         self.stream.start(self.xmlstream)
-        self.stream.enqueue_stanza(pres)
+        self.stream.enqueue(pres)
 
         run_coroutine(asyncio.sleep(0))
 
@@ -2244,7 +2244,7 @@ class TestStanzaStream(StanzaStreamTestBase):
         filter_attr.register(filter_func, **register_kwargs)
 
         self.stream.start(self.xmlstream)
-        token = self.stream.enqueue_stanza(msg)
+        token = self.stream.enqueue(msg)
 
         run_coroutine(asyncio.sleep(0))
 
@@ -2268,7 +2268,7 @@ class TestStanzaStream(StanzaStreamTestBase):
         filter_func.reset_mock()
         filter_func.return_value = None
 
-        token = self.stream.enqueue_stanza(msg)
+        token = self.stream.enqueue(msg)
 
         run_coroutine(asyncio.sleep(0))
 
@@ -2320,7 +2320,7 @@ class TestStanzaStream(StanzaStreamTestBase):
         )
 
         self.stream.start(self.xmlstream)
-        self.stream.enqueue_stanza(msg)
+        self.stream.enqueue(msg)
 
         run_coroutine(asyncio.sleep(0))
 
@@ -2346,7 +2346,7 @@ class TestStanzaStream(StanzaStreamTestBase):
         msg = make_test_message()
         msg.autoset_id()
 
-        self.stream.enqueue_stanza(msg)
+        self.stream.enqueue(msg)
 
         self.xmlstream.on_closing(None)
 
@@ -2821,21 +2821,21 @@ class TestStanzaStream(StanzaStreamTestBase):
         iq = make_test_iq()
 
         base = unittest.mock.Mock()
-        base.enqueue_stanza = CoroutineMock()
-        base.enqueue_stanza.return_value = \
+        base.enqueue = CoroutineMock()
+        base.enqueue.return_value = \
             unittest.mock.sentinel.token_await_result
         with contextlib.ExitStack() as stack:
             stack.enter_context(unittest.mock.patch.object(
                 self.stream,
-                "enqueue_stanza",
-                new=base.enqueue_stanza
+                "enqueue",
+                new=base.enqueue
             ))
 
             run_coroutine(self.stream.send_and_wait_for_sent(
                 iq
             ))
 
-        base.enqueue_stanza.assert_called_with(unittest.mock.ANY)
+        base.enqueue.assert_called_with(unittest.mock.ANY)
 
     def test_send_and_wait_for_sent_emits_deprecation_warning(self):
         iq = make_test_iq()
@@ -2851,14 +2851,14 @@ class TestStanzaStream(StanzaStreamTestBase):
         pres = make_test_presence()
 
         base = unittest.mock.Mock()
-        base.enqueue_stanza = CoroutineMock()
-        base.enqueue_stanza.return_value = \
+        base.enqueue = CoroutineMock()
+        base.enqueue.return_value = \
             unittest.mock.sentinel.token_await_result
         with contextlib.ExitStack() as stack:
             stack.enter_context(unittest.mock.patch.object(
                 self.stream,
-                "enqueue_stanza",
-                new=base.enqueue_stanza
+                "enqueue",
+                new=base.enqueue
             ))
 
             stack.enter_context(unittest.mock.patch.object(
@@ -2870,20 +2870,20 @@ class TestStanzaStream(StanzaStreamTestBase):
             run_coroutine(self.stream.send(pres))
 
         base.register_iq_response_future.assert_not_called()
-        base.enqueue_stanza.assert_called_with(unittest.mock.ANY)
+        base.enqueue.assert_called_with(unittest.mock.ANY)
 
     def test_send_awaits_stanza_token_for_message(self):
         message = make_test_presence()
 
         base = unittest.mock.Mock()
-        base.enqueue_stanza = CoroutineMock()
-        base.enqueue_stanza.return_value = \
+        base.enqueue = CoroutineMock()
+        base.enqueue.return_value = \
             unittest.mock.sentinel.token_await_result
         with contextlib.ExitStack() as stack:
             stack.enter_context(unittest.mock.patch.object(
                 self.stream,
-                "enqueue_stanza",
-                new=base.enqueue_stanza
+                "enqueue",
+                new=base.enqueue
             ))
 
             stack.enter_context(unittest.mock.patch.object(
@@ -2895,20 +2895,20 @@ class TestStanzaStream(StanzaStreamTestBase):
             run_coroutine(self.stream.send(message))
 
         base.register_iq_response_future.assert_not_called()
-        base.enqueue_stanza.assert_called_with(unittest.mock.ANY)
+        base.enqueue.assert_called_with(unittest.mock.ANY)
 
     def test_send_awaits_stanza_token_for_iq_response(self):
         iq = make_test_iq(type_=aioxmpp.IQType.RESULT)
 
         base = unittest.mock.Mock()
-        base.enqueue_stanza = CoroutineMock()
-        base.enqueue_stanza.return_value = \
+        base.enqueue = CoroutineMock()
+        base.enqueue.return_value = \
             unittest.mock.sentinel.token_await_result
         with contextlib.ExitStack() as stack:
             stack.enter_context(unittest.mock.patch.object(
                 self.stream,
-                "enqueue_stanza",
-                new=base.enqueue_stanza
+                "enqueue",
+                new=base.enqueue
             ))
 
             stack.enter_context(unittest.mock.patch.object(
@@ -2920,7 +2920,7 @@ class TestStanzaStream(StanzaStreamTestBase):
             run_coroutine(self.stream.send(iq))
 
         base.register_iq_response_future.assert_not_called()
-        base.enqueue_stanza.assert_called_with(unittest.mock.ANY)
+        base.enqueue.assert_called_with(unittest.mock.ANY)
 
     def test_send_awaits_stanza_token_for_iq_and_registers_for_reply(self):
         iq = make_test_iq()
@@ -2930,12 +2930,12 @@ class TestStanzaStream(StanzaStreamTestBase):
         stanza_fut = asyncio.Future()
 
         base = unittest.mock.Mock()
-        base.enqueue_stanza.return_value = stanza_fut
+        base.enqueue.return_value = stanza_fut
         with contextlib.ExitStack() as stack:
             stack.enter_context(unittest.mock.patch.object(
                 self.stream,
-                "enqueue_stanza",
-                new=base.enqueue_stanza
+                "enqueue",
+                new=base.enqueue
             ))
 
             stack.enter_context(unittest.mock.patch.object(
@@ -2948,7 +2948,7 @@ class TestStanzaStream(StanzaStreamTestBase):
             run_coroutine(asyncio.sleep(0.01))
 
             self.assertFalse(task.done())
-            base.enqueue_stanza.assert_called_with(unittest.mock.ANY)
+            base.enqueue.assert_called_with(unittest.mock.ANY)
             base.register_iq_response_future.assert_called_once_with(
                 iq.to,
                 iq.id_,
@@ -2978,12 +2978,12 @@ class TestStanzaStream(StanzaStreamTestBase):
         stanza_fut = asyncio.Future()
 
         base = unittest.mock.Mock()
-        base.enqueue_stanza.return_value = stanza_fut
+        base.enqueue.return_value = stanza_fut
         with contextlib.ExitStack() as stack:
             stack.enter_context(unittest.mock.patch.object(
                 self.stream,
-                "enqueue_stanza",
-                new=base.enqueue_stanza
+                "enqueue",
+                new=base.enqueue
             ))
 
             stack.enter_context(unittest.mock.patch.object(
@@ -2996,7 +2996,7 @@ class TestStanzaStream(StanzaStreamTestBase):
             run_coroutine(asyncio.sleep(0.01))
 
             self.assertFalse(task.done())
-            base.enqueue_stanza.assert_called_with(unittest.mock.ANY)
+            base.enqueue.assert_called_with(unittest.mock.ANY)
             base.register_iq_response_future.assert_called_once_with(
                 iq.to,
                 iq.id_,
@@ -3024,12 +3024,12 @@ class TestStanzaStream(StanzaStreamTestBase):
         stanza_fut = asyncio.Future()
 
         base = unittest.mock.Mock()
-        base.enqueue_stanza.return_value = stanza_fut
+        base.enqueue.return_value = stanza_fut
         with contextlib.ExitStack() as stack:
             stack.enter_context(unittest.mock.patch.object(
                 self.stream,
-                "enqueue_stanza",
-                new=base.enqueue_stanza
+                "enqueue",
+                new=base.enqueue
             ))
 
             stack.enter_context(unittest.mock.patch.object(
@@ -3042,7 +3042,7 @@ class TestStanzaStream(StanzaStreamTestBase):
             run_coroutine(asyncio.sleep(0.01))
 
             self.assertFalse(task.done())
-            base.enqueue_stanza.assert_called_with(unittest.mock.ANY)
+            base.enqueue.assert_called_with(unittest.mock.ANY)
             base.register_iq_response_future.assert_called_once_with(
                 iq.to,
                 iq.id_,
@@ -3064,12 +3064,12 @@ class TestStanzaStream(StanzaStreamTestBase):
         stanza_fut = asyncio.Future()
 
         base = unittest.mock.Mock()
-        base.enqueue_stanza.return_value = stanza_fut
+        base.enqueue.return_value = stanza_fut
         with contextlib.ExitStack() as stack:
             stack.enter_context(unittest.mock.patch.object(
                 self.stream,
-                "enqueue_stanza",
-                new=base.enqueue_stanza
+                "enqueue",
+                new=base.enqueue
             ))
 
             stack.enter_context(unittest.mock.patch.object(
@@ -3082,7 +3082,7 @@ class TestStanzaStream(StanzaStreamTestBase):
             run_coroutine(asyncio.sleep(0.01))
 
             self.assertFalse(task.done())
-            base.enqueue_stanza.assert_called_with(unittest.mock.ANY)
+            base.enqueue.assert_called_with(unittest.mock.ANY)
             base.register_iq_response_future.assert_called_once_with(
                 iq.to,
                 iq.id_,
@@ -3296,7 +3296,7 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
         @asyncio.coroutine
         def starter():
             sm_start_future = asyncio.async(self.stream.start_sm())
-            self.stream.enqueue_stanza(iq_sent)
+            self.stream.enqueue(iq_sent)
 
         self.stream.start(self.xmlstream)
         run_coroutine_with_peer(
@@ -3352,7 +3352,7 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
         )
 
         tokens = [
-            self.stream.enqueue_stanza(
+            self.stream.enqueue(
                 iq, on_state_change=state_change_handler)
             for iq in iqs]
 
@@ -3495,7 +3495,7 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
         )
 
         for iq in iqs:
-            self.stream.enqueue_stanza(iq)
+            self.stream.enqueue(iq)
 
         run_coroutine(asyncio.sleep(0))
 
@@ -3522,7 +3522,7 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
 
         # enqueue a stanza before resumption and check that the sequence is
         # correct (resumption-generated stanzas before new stanzas)
-        self.stream.enqueue_stanza(additional_iq)
+        self.stream.enqueue(additional_iq)
 
         run_coroutine_with_peer(
             self.stream.resume_sm(self.xmlstream),
@@ -3570,7 +3570,7 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
         )
 
         for iq in iqs:
-            self.stream.enqueue_stanza(iq)
+            self.stream.enqueue(iq)
 
         run_coroutine(asyncio.sleep(0))
 
@@ -3597,7 +3597,7 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
 
         # enqueue a stanza before resumption and check that the sequence is
         # correct (resumption-generated stanzas before new stanzas)
-        self.stream.enqueue_stanza(additional_iq)
+        self.stream.enqueue(additional_iq)
 
         run_coroutine_with_peer(
             self.stream.resume_sm(self.xmlstream),
@@ -3755,7 +3755,7 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
         )
 
         iq = make_test_iq()
-        self.stream.enqueue_stanza(iq)
+        self.stream.enqueue(iq)
 
         run_coroutine(self.xmlstream.run_test([
             XMLStreamMock.Send(iq),
@@ -3792,9 +3792,9 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
         )
 
         run_coroutine(asyncio.sleep(0))
-        self.stream.enqueue_stanza(iqs[0])
+        self.stream.enqueue(iqs[0])
         run_coroutine(asyncio.sleep(0.005))
-        self.stream.enqueue_stanza(iqs[1])
+        self.stream.enqueue(iqs[1])
         run_coroutine(asyncio.sleep(0.006))
 
         run_coroutine(self.xmlstream.run_test([
@@ -3830,12 +3830,12 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
             self.xmlstream.run_test(self.successful_sm)
         )
 
-        self.stream.enqueue_stanza(iqs[0])
+        self.stream.enqueue(iqs[0])
         run_coroutine(self.xmlstream.run_test([
             XMLStreamMock.Send(iqs[0]),
             XMLStreamMock.Send(nonza.SMRequest()),
         ]))
-        self.stream.enqueue_stanza(iqs[1])
+        self.stream.enqueue(iqs[1])
         run_coroutine(self.xmlstream.run_test([
             XMLStreamMock.Send(iqs[1]),
             XMLStreamMock.Send(
@@ -3936,7 +3936,7 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
             self.xmlstream.run_test(self.successful_sm)
         )
 
-        tokens = [self.stream.enqueue_stanza(iq) for iq in iqs]
+        tokens = [self.stream.enqueue(iq) for iq in iqs]
 
         run_coroutine(self.xmlstream.run_test([
             XMLStreamMock.Send(iqs[0]),
@@ -4167,7 +4167,7 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
 
         self.stream.stop()
 
-        self.stream.enqueue_stanza(pres)
+        self.stream.enqueue(pres)
 
         self.assertIs(
             pres,
@@ -4184,7 +4184,7 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
             self.xmlstream.run_test(self.successful_sm)
         )
 
-        self.stream.enqueue_stanza(pres)
+        self.stream.enqueue(pres)
         self.stream.stop()
 
         self.assertIs(
@@ -4202,7 +4202,7 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
             self.xmlstream.run_test(self.successful_sm)
         )
 
-        token = self.stream.enqueue_stanza(pres)
+        token = self.stream.enqueue(pres)
 
         run_coroutine_with_peer(
             self.stream.close(),

@@ -35,8 +35,7 @@ class PresenceClient(aioxmpp.service.Service):
 
     No method to send directed presence is provided; it would basically just
     take a stanza and enqueue it in the clients stream, thus being a mere
-    wrapper around :meth:`~.stream.StanzaStream.enqueue_stanza`, without any
-    benefit.
+    wrapper around :meth:`~.stream.StanzaStream.send`, without any benefit.
 
     The service provides access to presence information summarized by bare JID
     or for each full JID individually. An index over the resources of a bare

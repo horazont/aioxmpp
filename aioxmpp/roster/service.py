@@ -642,7 +642,7 @@ class RosterClient(aioxmpp.service.Service):
         pre-approved by the server. A future subscription request by the peer
         will then be confirmed by the server automatically.
         """
-        self.client.stream.enqueue_stanza(
+        self.client.stream.enqueue(
             stanza.Presence(type_=structs.PresenceType.SUBSCRIBED,
                             to=peer_jid)
         )
@@ -656,7 +656,7 @@ class RosterClient(aioxmpp.service.Service):
         confirm at all. Use :meth:`on_subscribed` to get notified when a peer
         accepted a subscription request.
         """
-        self.client.stream.enqueue_stanza(
+        self.client.stream.enqueue(
             stanza.Presence(type_=structs.PresenceType.SUBSCRIBE,
                             to=peer_jid)
         )
@@ -665,7 +665,7 @@ class RosterClient(aioxmpp.service.Service):
         """
         Unsubscribe from the presence of the given `peer_jid`.
         """
-        self.client.stream.enqueue_stanza(
+        self.client.stream.enqueue(
             stanza.Presence(type_=structs.PresenceType.UNSUBSCRIBE,
                             to=peer_jid)
         )

@@ -1536,7 +1536,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
 
         @asyncio.coroutine
         def stimulus():
-            self.client.stream.enqueue_stanza(iq)
+            self.client.stream.enqueue(iq)
 
         run_coroutine_with_peer(
             stimulus(),
@@ -1612,7 +1612,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
 
         @asyncio.coroutine
         def stimulus():
-            self.client.stream.enqueue_stanza(iq)
+            self.client.stream.enqueue(iq)
 
         run_coroutine_with_peer(
             stimulus(),
@@ -1696,7 +1696,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
 
         @asyncio.coroutine
         def stimulus():
-            self.client.stream.enqueue_stanza(iq)
+            self.client.stream.enqueue(iq)
 
         run_coroutine_with_peer(
             stimulus(),
@@ -1766,7 +1766,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
 
         @asyncio.coroutine
         def stimulus():
-            self.client.stream.enqueue_stanza(iq)
+            self.client.stream.enqueue(iq)
 
         run_coroutine_with_peer(
             stimulus(),
@@ -3191,7 +3191,7 @@ class TestPresenceManagedClient(xmltestutils.XMLTestCase):
             base.mock_calls,
             [
                 unittest.mock.call.start(),
-                unittest.mock.call.stream.enqueue_stanza(unittest.mock.ANY)
+                unittest.mock.call.stream.enqueue(unittest.mock.ANY)
             ]
         )
 
@@ -3239,7 +3239,7 @@ class TestPresenceManagedClient(xmltestutils.XMLTestCase):
             base.mock_calls,
             [
                 unittest.mock.call.start(),
-                unittest.mock.call.stream.enqueue_stanza(unittest.mock.ANY)
+                unittest.mock.call.stream.enqueue(unittest.mock.ANY)
             ]
         )
 
@@ -3294,7 +3294,7 @@ class TestPresenceManagedClient(xmltestutils.XMLTestCase):
             base.mock_calls,
             [
                 unittest.mock.call.start(),
-                unittest.mock.call.stream.enqueue_stanza(unittest.mock.ANY)
+                unittest.mock.call.stream.enqueue(unittest.mock.ANY)
             ]
         )
 

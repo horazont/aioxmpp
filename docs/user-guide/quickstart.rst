@@ -156,7 +156,7 @@ This example can be modified to be an echo bot by implementing the
       reply = msg.make_reply()
       reply.body.update(msg.body)
 
-      client.stream.enqueue_stanza(reply)
+      client.stream.enqueue(reply)
 
 .. note::
 
@@ -166,7 +166,7 @@ This example can be modified to be an echo bot by implementing the
 * :meth:`~aioxmpp.stream.StanzaStream.register_message_callback`. Definitely
   check this out for the semantics of the first two arguments!
 * :class:`aioxmpp.Message`
-* :meth:`~aioxmpp.stream.StanzaStream.enqueue_stanza`
+* :meth:`~aioxmpp.stream.StanzaStream.enqueue`
 
 
 React to presences

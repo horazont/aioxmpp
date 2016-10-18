@@ -967,6 +967,8 @@ class Testmake_connected_client(unittest.TestCase):
 
         self.assertIsInstance(cc.stream_features, nonza.StreamFeatures)
 
+        self.assertIs(cc.stream.enqueue, cc.stream.enqueue_stanza)
+
     def test_summon_uses_services_dict(self):
         cc = make_connected_client()
 
