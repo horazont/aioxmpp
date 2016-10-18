@@ -720,7 +720,7 @@ class AbstractClient:
         self.logger.debug(
             "remote server announces support for legacy sessions"
         )
-        yield from self.stream.send_iq_and_wait_for_reply(
+        yield from self.stream.send(
             stanza.IQ(type_=structs.IQType.SET,
                       payload=rfc3921.Session())
         )
@@ -785,7 +785,7 @@ class AbstractClient:
         iq = stanza.IQ(type_=structs.IQType.SET)
         iq.payload = rfc6120.Bind(resource=self._local_jid.resource)
         try:
-            result = yield from self.stream.send_iq_and_wait_for_reply(iq)
+            result = yield from self.stream.send(iq)
         except errors.XMPPError as exc:
             raise errors.StreamNegotiationFailure(
                 "Resource binding failed: {}".format(exc)

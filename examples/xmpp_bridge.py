@@ -128,7 +128,7 @@ async def main(local, password, peer,
                     )
                     msg.body[None] = line
 
-                    await stream.send_and_wait_for_sent(msg)
+                    await stream.send(msg)
 
                     read_future = asyncio.ensure_future(
                         sread.readline()

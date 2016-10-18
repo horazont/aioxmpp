@@ -61,7 +61,7 @@ class TestMessaging(TestCase):
             )
             msg_sent.body[None] = "Hello World!"
 
-            yield from a.stream.send_and_wait_for_sent(msg_sent)
+            yield from a.stream.send(msg_sent)
 
             msg_rcvd = yield from fut
 

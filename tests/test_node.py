@@ -2854,8 +2854,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
             iq = stanza.IQ(
                 type_=structs.IQType.SET,
             )
-            yield from self.client.stream.send_iq_and_wait_for_reply(
-                iq)
+            yield from self.client.stream.send(iq)
 
         self.client.before_stream_established.connect(coro)
 

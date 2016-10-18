@@ -477,7 +477,7 @@ class RosterClient(aioxmpp.service.Service):
                          self.version)
             iq.payload.ver = self.version
 
-        response = yield from self.client.stream.send_iq_and_wait_for_reply(
+        response = yield from self.client.stream.send(
             iq,
             timeout=self.client.negotiation_timeout.total_seconds()
         )
@@ -593,7 +593,7 @@ class RosterClient(aioxmpp.service.Service):
                 for group_name in post_groups
             ])
 
-        yield from self.client.stream.send_iq_and_wait_for_reply(
+        yield from self.client.stream.send(
             stanza.IQ(
                 structs.IQType.SET,
                 payload=roster_xso.Query(items=[
@@ -617,7 +617,7 @@ class RosterClient(aioxmpp.service.Service):
         server replies with an error and also any kind of connection error if
         the connection gets fatally terminated while waiting for a response.
         """
-        yield from self.client.stream.send_iq_and_wait_for_reply(
+        yield from self.client.stream.send(
             stanza.IQ(
                 structs.IQType.SET,
                 payload=roster_xso.Query(items=[

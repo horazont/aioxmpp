@@ -963,6 +963,7 @@ class Testmake_connected_client(unittest.TestCase):
         self.assertTrue(hasattr(cc.stream, "register_presence_callback"))
         self.assertIsInstance(cc.stream.send_iq_and_wait_for_reply,
                               CoroutineMock)
+        self.assertIsInstance(cc.stream.send, CoroutineMock)
 
         self.assertIsInstance(cc.stream_features, nonza.StreamFeatures)
 

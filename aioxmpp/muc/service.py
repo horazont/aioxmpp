@@ -736,7 +736,7 @@ class Room:
             type_=aioxmpp.PresenceType.AVAILABLE,
             to=self._mucjid.replace(resource=new_nick),
         )
-        yield from self._service.client.stream.send_and_wait_for_sent(
+        yield from self._service.client.stream.send(
             stanza
         )
 
@@ -775,7 +775,7 @@ class Room:
             ]
         )
 
-        yield from self.service.client.stream.send_iq_and_wait_for_reply(
+        yield from self.service.client.stream.send(
             iq
         )
 
@@ -960,9 +960,7 @@ class Room:
 
         msg.xep0004_data.append(data)
 
-        yield from self.service.client.stream.send_and_wait_for_sent(
-            msg,
-        )
+        yield from self.service.client.stream.send(msg)
 
 
 def _connect_to_signal(signal, func):
@@ -1298,7 +1296,7 @@ class MUCClient(aioxmpp.service.Service):
             ]
         )
 
-        yield from self.client.stream.send_iq_and_wait_for_reply(
+        yield from self.client.stream.send(
             iq
         )
 
@@ -1329,7 +1327,7 @@ class MUCClient(aioxmpp.service.Service):
             payload=muc_xso.OwnerQuery(),
         )
 
-        return (yield from self.client.stream.send_iq_and_wait_for_reply(
+        return (yield from self.client.stream.send(
             iq
         )).form
 
@@ -1366,6 +1364,6 @@ class MUCClient(aioxmpp.service.Service):
             payload=muc_xso.OwnerQuery(form=data),
         )
 
-        yield from self.client.stream.send_iq_and_wait_for_reply(
+        yield from self.client.stream.send(
             iq,
         )
