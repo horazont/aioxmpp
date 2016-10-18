@@ -334,6 +334,14 @@ class PresenceServer(aioxmpp.service.Service):
 
         If the client is currently connected, the new presence is broadcast
         immediately.
+
+        `status` must be either a string or something which can be passed to
+        the :class:`dict` constructor. If it is a string, it is wrapped into a
+        dict using ``{None: status}``. The mapping must map
+        :class:`~.LanguageTag` objects (or :data:`None`) to strings. The
+        information will be used to generate internationalised presence status
+        information. If you do not need internationalisation, simply use the
+        string version of the argument.
         """
 
         if not isinstance(priority, numbers.Integral):
