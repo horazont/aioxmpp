@@ -72,7 +72,7 @@ async def main(local, password, peer,
         sys.stdin,
     )
 
-    client = aioxmpp.PresenceManagedClient(
+    client = aioxmpp.Client(
         local,
         aioxmpp.make_security_layer(
             password,
@@ -102,6 +102,12 @@ async def main(local, password, peer,
 
     try:
         async with client.connected() as stream:
+            # we send directed presence to the peer
+            pres = aioxmpp.Presence(
+                type_=aioxmpp.PresenceType.AVAILABLE,
+                to=peer,
+            )
+            await stream.send(pres)
             while True:
                 done, pending = await asyncio.wait(
                     [
