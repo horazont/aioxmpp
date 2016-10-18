@@ -32,11 +32,19 @@ Using XMPP
 
 .. currentmodule:: aioxmpp
 
+.. autoclass:: Client
+
 .. autoclass:: PresenceManagedClient
 
 .. currentmodule:: aioxmpp.node
 
-.. autoclass:: AbstractClient
+.. class:: AbstractClient
+
+   Alias of :class:`Client`.
+
+   .. deprecated:: 0.8
+
+      The alias will be removed in 1.0.
 
 Connecting streams low-level
 ============================
@@ -352,7 +360,7 @@ def connect_xmlstream(
     )
 
 
-class AbstractClient:
+class Client:
     """
     Base class to implement an XMPP client.
 
@@ -602,8 +610,8 @@ class AbstractClient:
     .. attribute:: logger
 
        The :class:`logging.Logger` instance which is used by the
-       :class:`AbstractClient`. This is the `logger` passed to the constructor
-       or a logger derived from the fully qualified name of the class.
+       :class:`Client`. This is the `logger` passed to the constructor or a
+       logger derived from the fully qualified name of the class.
 
        .. versionadded:: 0.6
 
@@ -972,8 +980,7 @@ class AbstractClient:
 
         Writing this attribute is not allowed, as changing the JID introduces a
         lot of issues with respect to reusability of the stream. Instanciate a
-        new :class:`AbstractClient` if you need to change the bare part of the
-        JID.
+        new :class:`Client` if you need to change the bare part of the JID.
 
         .. note::
 
@@ -997,14 +1004,15 @@ class AbstractClient:
         return self._established
 
 
-class PresenceManagedClient(AbstractClient):
+
+class PresenceManagedClient(Client):
     """
     A presence managed XMPP client. The arguments are passed to the
-    :class:`~.AbstractClient` constructor.
+    :class:`~.Client` constructor.
 
-    While the start/stop interfaces of :class:`~.AbstractClient` are still
-    available, it is recommended to control the presence managed client solely
-    using the :attr:`presence` property.
+    While the start/stop interfaces of :class:`~.Client` are still available,
+    it is recommended to control the presence managed client solely using the
+    :attr:`presence` property.
 
     The initial presence is set to `unavailable`, thus, the client will not
     connect immediately.
@@ -1019,9 +1027,8 @@ class PresenceManagedClient(AbstractClient):
 
     .. attribute:: on_presence_sent
 
-       The event is fired after :meth:`.AbstractClient.on_stream_established`
-       and after the current presence has been sent to the server as *initial
-       presence*.
+       The event is fired after :meth:`.Client.on_stream_established` and after
+       the current presence has been sent to the server as *initial presence*.
 
     """
 
@@ -1133,10 +1140,10 @@ class PresenceManagedClient(AbstractClient):
 class UseConnected:
     """
     Asynchronous context manager which connects and disconnects a
-    :class:`.AbstractClient`.
+    :class:`.Client`.
 
     :param client: The client to manage
-    :type client: :class:`.AbstractClient`
+    :type client: :class:`.Client`
     :param timeout: Limit on the time it may take to start the client
     :type timeout: :class:`datetime.timedelta` or :data:`None`
     :param presence: Presence state to set on the client (deprecated)
@@ -1146,7 +1153,7 @@ class UseConnected:
     connected. This blocks until the client has finished connecting and the
     stream is established. If the client takes longer than `timeout` to
     connect, :class:`TimeoutError` is raised and the client is stopped. The
-    context manager returns the :attr:`~.AbstractClient.stream` of the client.
+    context manager returns the :attr:`~.Client.stream` of the client.
 
     When the context is exited, the client is disconnected and the context
     manager waits for the client to cleanly shut down the stream.
@@ -1156,9 +1163,9 @@ class UseConnected:
     leaving the context still disconnects the client.
 
     If the `presence` refers to an available presence, the
-    :class:`.PresenceServer` is :meth:`~.AbstractClient.summon`\ -ed on the
-    `client`. The presence is set using :meth:`~.PresenceServer.set_presence`
-    (clearing the :attr:`~.PresenceServer.status` and resetting
+    :class:`.PresenceServer` is :meth:`~.Client.summon`\ -ed on the `client`.
+    The presence is set using :meth:`~.PresenceServer.set_presence` (clearing
+    the :attr:`~.PresenceServer.status` and resetting
     :attr:`~.PresenceServer.priority` to 0) before the client is connected. If
     the client is already connected, the presence is set when the context is
     entered.

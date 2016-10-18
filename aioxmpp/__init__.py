@@ -77,7 +77,7 @@ from .errors import ( # NOQA
     XMPPModifyError,
     XMPPWaitError,
 )
-from .node import PresenceManagedClient  # NOQA
+from .node import Client, PresenceManagedClient  # NOQA
 from .stanza import Presence, IQ, Message  # NOQA
 from .structs import (  # NOQA
     JID,

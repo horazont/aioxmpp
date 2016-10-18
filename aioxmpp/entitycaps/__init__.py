@@ -24,8 +24,8 @@
 ########################################################################
 
 This module provides support for :xep:`XEP-0115 (Entity Capabilities) <0115>`.
-To use it, :meth:`.AbstractClient.summon` the :class:`EntityCapsService` on a
-:class:`~.AbstractClient`. See the service documentation for more information.
+To use it, :meth:`.Client.summon` the :class:`EntityCapsService` on a
+:class:`~.Client`. See the service documentation for more information.
 
 .. versionadded:: 0.5
 

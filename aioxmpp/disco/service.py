@@ -383,8 +383,7 @@ class DiscoClient(service.Service):
 
     .. automethod:: set_info_future
 
-    Usage example, assuming that you have a :class:`.node.AbstractClient`
-    `client`::
+    Usage example, assuming that you have a :class:`.node.Client` `client`::
 
       import aioxmpp.disco as disco
       # load service into node

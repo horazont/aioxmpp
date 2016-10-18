@@ -268,7 +268,7 @@ implemented as services.
 
 Relevant docmuentation:
 
-* :meth:`aioxmpp.node.AbstractClient.summon`
+* :meth:`aioxmpp.Client.summon`
 * :class:`aioxmpp.disco.Service`, :meth:`~aioxmpp.disco.Service.query_info`
 
 

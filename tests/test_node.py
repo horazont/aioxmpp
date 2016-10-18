@@ -1279,7 +1279,7 @@ class Testconnect_xmlstream(unittest.TestCase):
                 ))
 
 
-class TestAbstractClient(xmltestutils.XMLTestCase):
+class TestClient(xmltestutils.XMLTestCase):
     @asyncio.coroutine
     def _connect_xmlstream(self, *args, **kwargs):
         self.connect_xmlstream_rec(*args, **kwargs)
@@ -1322,7 +1322,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
         self.features = nonza.StreamFeatures()
         self.features[...] = rfc6120.BindFeature()
 
-        self.client = node.AbstractClient(
+        self.client = node.Client(
             self.test_jid,
             self.security_layer,
             max_initial_attempts=None,
@@ -1381,7 +1381,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
             yield unittest.mock.sentinel.p1
             yield unittest.mock.sentinel.p2
 
-        client = node.AbstractClient(
+        client = node.Client(
             self.test_jid,
             self.security_layer,
             override_peer=peer_iterator(),
@@ -1583,7 +1583,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
         self.assertTrue(self.client.established)
 
     def test_reconnect_on_failure_unbounded(self):
-        self.client = node.AbstractClient(
+        self.client = node.Client(
             self.test_jid,
             self.security_layer,
             max_initial_attempts=2,
@@ -1935,7 +1935,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
         run_coroutine(asyncio.sleep(0))
 
     def test_abort_after_max_initial_attempts(self):
-        self.client = node.AbstractClient(
+        self.client = node.Client(
             self.test_jid,
             self.security_layer,
             max_initial_attempts=2,
@@ -2791,14 +2791,14 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
                 unittest.mock.call.Svc3(
                     self.client,
                     logger_base=logging.getLogger(
-                        "aioxmpp.node.AbstractClient"
+                        "aioxmpp.node.Client"
                     ),
                     dependencies={},
                 ),
                 unittest.mock.call.Svc2(
                     self.client,
                     logger_base=logging.getLogger(
-                        "aioxmpp.node.AbstractClient"
+                        "aioxmpp.node.Client"
                     ),
                     dependencies={Svc3: unittest.mock.ANY}
                 ),
@@ -2829,7 +2829,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
                 unittest.mock.call.Svc1(
                     self.client,
                     logger_base=logging.getLogger(
-                        "aioxmpp.node.AbstractClient"
+                        "aioxmpp.node.Client"
                     ),
                     dependencies={
                         Svc2: unittest.mock.ANY,
