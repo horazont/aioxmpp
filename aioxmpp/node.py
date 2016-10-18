@@ -1018,12 +1018,21 @@ class Client:
 
 class PresenceManagedClient(Client):
     """
-    A presence managed XMPP client. The arguments are passed to the
-    :class:`~.Client` constructor.
+    Client whose connection is controlled by its configured presence.
+
+    .. seealso::
+
+       :class:`Client`
+          for a description of the arguments.
+
+    The presence is set using :attr:`presence` or the :class:`PresenceServer`
+    service. If the set presence is an *available* presence, the client is
+    started (if it is not already running). If the set presence is an
+    *unavailable* presence, the unavailable presence is broadcast and the
+    client is stopped.
 
     While the start/stop interfaces of :class:`~.Client` are still available,
-    it is recommended to control the presence managed client solely using the
-    :attr:`presence` property.
+    using them may interfere with the behaviour of the presence automagic.
 
     The initial presence is set to `unavailable`, thus, the client will not
     connect immediately.
@@ -1041,6 +1050,12 @@ class PresenceManagedClient(Client):
        The event is fired after :meth:`.Client.on_stream_established` and after
        the current presence has been sent to the server as *initial presence*.
 
+    .. versionchanged:: 0.8
+
+       Since 0.8, the :class:`PresenceManagedClient` is implemented on top of
+       :class:`PresenceServer`. Changing the presence via the
+       :class:`PresenceServer` has the same effect as writing :attr:`presence`
+       or calling :meth:`set_presence`.
     """
 
     on_presence_sent = callbacks.Signal()
@@ -1048,6 +1063,9 @@ class PresenceManagedClient(Client):
     def __init__(self, jid, security_layer, **kwargs):
         super().__init__(jid, security_layer, **kwargs)
         self._presence_server = self.summon(mod_presence.PresenceServer)
+        self._presence_server.on_presence_state_changed.connect(
+            self._update_presence
+        )
         self.on_stream_established.connect(self._handle_stream_established)
 
     def _handle_stream_established(self):
@@ -1090,8 +1108,10 @@ class PresenceManagedClient(Client):
 
     @presence.setter
     def presence(self, value):
+        call_update = value == self.presence
         self._presence_server.set_presence(value)
-        self._update_presence()
+        if call_update:
+            self._update_presence()
 
     def set_presence(self, state, status):
         """
@@ -1109,7 +1129,6 @@ class PresenceManagedClient(Client):
         availability such as *away*, *do not disturb* and *free to chat*).
         """
         self._presence_server.set_presence(state, status=status)
-        self._update_presence()
 
     def connected(self, **kwargs):
         """
@@ -1118,6 +1137,11 @@ class PresenceManagedClient(Client):
 
         The keyword arguments are passed to the :class:`.node.UseConnected`
         context manager constructor.
+
+        .. note::
+
+           In contrast to the same method on :class:`Client`, this method
+           implies setting an available presence.
 
         .. versionadded:: 0.6
         """

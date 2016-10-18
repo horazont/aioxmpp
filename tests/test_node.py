@@ -3300,6 +3300,59 @@ class TestPresenceManagedClient(xmltestutils.XMLTestCase):
 
         self.presence_sent_rec.assert_called_once_with()
 
+    def test_set_presence_through_server(self):
+        expected = stanza.Presence(type_=structs.PresenceType.AVAILABLE,
+                                   show="chat",
+                                   id_="autoset")
+        expected.status[None] = "foobar"
+
+        base = unittest.mock.Mock()
+        base.stream.send = CoroutineMock()
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(unittest.mock.patch.object(
+                self.client,
+                "stream",
+                new=base.stream
+            ))
+
+            stack.enter_context(unittest.mock.patch.object(
+                self.client,
+                "start",
+                new=base.start
+            ))
+
+            server = self.client.summon(aioxmpp.PresenceServer)
+
+            server.set_presence(
+                structs.PresenceState(
+                    available=True,
+                    show="chat"),
+                status="foobar"
+            )
+
+            self._set_stream_established()
+
+        self.assertSequenceEqual(
+            base.mock_calls,
+            [
+                unittest.mock.call.start(),
+                unittest.mock.call.stream.send(
+                    unittest.mock.ANY
+                )
+            ]
+        )
+
+        _, (sent,), _ = base.mock_calls[-1]
+
+        self.assertDictEqual(
+            sent.status,
+            expected.status
+        )
+        self.assertEqual(sent.type_, expected.type_)
+        self.assertEqual(sent.show, expected.show)
+
+        self.presence_sent_rec.assert_called_once_with()
+
     def test_connected(self):
         with unittest.mock.patch("aioxmpp.node.UseConnected") as UseConnected:
             result = self.client.connected()
