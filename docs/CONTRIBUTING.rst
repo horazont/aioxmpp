@@ -27,4 +27,4 @@ Contribution guidelines
   <http://mail.jabber.org/pipermail/standards/2016-May/031126.html>`_.
 
 * By contributing, you agree that your code is going to be licensed under the
-  GPLv3 (see ``COPYING.gpl3``), like the rest of aioxmpp.
+  LGPLv3+ (see ``COPYING.LESSER``), like the rest of aioxmpp.
