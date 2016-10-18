@@ -31,7 +31,7 @@ Using Multi-User-Chats
 ======================
 
 To start using MUCs in your application, you have to load the :class:`Service`
-into the client, using :meth:`~.node.AbstractClient.summon`.
+into the client, using :meth:`~.node.Client.summon`.
 
 .. currentmodule:: aioxmpp
 

@@ -829,6 +829,17 @@ class TestLanguageTag(unittest.TestCase):
         tag1 = structs.LanguageTag.fromstr("de-DE")
         self.assertNotEqual(tag1, None)
 
+    def test_dont_compare_with_None(self):
+        tag1 = structs.LanguageTag.fromstr("de-DE")
+        with self.assertRaises(TypeError):
+            tag1 > None
+        with self.assertRaises(TypeError):
+            tag1 < None
+        with self.assertRaises(TypeError):
+            tag1 >= None
+        with self.assertRaises(TypeError):
+            tag1 <= None
+
     def test__repr__(self):
         tag1 = structs.LanguageTag.fromstr("de-DE")
         tag2 = structs.LanguageTag.fromstr("fr")

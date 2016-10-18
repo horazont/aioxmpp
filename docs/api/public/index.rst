@@ -20,8 +20,8 @@ Protocol part and XEP implementations
 #####################################
 
 This section contains services (cf. :mod:`aioxmpp.service`) which can be
-summoned (cf. :meth:`aioxmpp.node.AbstractClient.summon`) into a client, to
-extend its functionality or provide backwards compatibility.
+summoned (cf. :meth:`aioxmpp.Client.summon`) into a client, to extend its
+functionality or provide backwards compatibility.
 
 .. toctree::
    :maxdepth: 2

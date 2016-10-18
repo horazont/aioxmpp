@@ -20,8 +20,8 @@
 #
 ########################################################################
 """
-:mod:`~aioxmpp.service` --- Utilities for implementing :class:`~aioxmpp.node.AbstractClient` services
-#####################################################################################################
+:mod:`~aioxmpp.service` --- Utilities for implementing :class:`~.Client` services
+#################################################################################
 
 Protocol extensions or in general support for parts of the XMPP protocol are
 implemented using :class:`Service` classes, or rather, classes which use the
@@ -374,9 +374,8 @@ class Service(metaclass=Meta):
     of the features for which :mod:`aioxmpp` has support are also implemented
     using :class:`Service` subclasses.
 
-    `client` must be a :class:`~aioxmpp.node.AbstractClient` to which the
-    service will be attached. The `client` cannot be changed later, for the
-    sake of simplicity.
+    `client` must be a :class:`~.Client` to which the service will be attached.
+    The `client` cannot be changed later, for the sake of simplicity.
 
     `logger_base` may be a :class:`logging.Logger` instance or :data:`None`. If
     it is :data:`None`, a logger is automatically created, by taking the fully
@@ -392,7 +391,7 @@ class Service(metaclass=Meta):
     To stay forward compatible, accept arbitrary keyword arguments and pass
     them down to :class:`Service`. As it is not possible to directly pass
     arguments to :class:`Service`\ s on construction (due to the way
-    :meth:`aioxmpp.node.AbstractClient.summon` works), there is no need for you
+    :meth:`aioxmpp.Client.summon` works), there is no need for you
     to introduce custom arguments, and thus there should be no conflicts.
 
     .. autoattribute:: client
@@ -458,9 +457,9 @@ class Service(metaclass=Meta):
     def dependencies(self):
         """
         When the service is instantiated through
-        :meth:`~.AbstractClient.summon`, this attribute holds a mapping which
-        maps the service classes contained in the :attr:`~.Meta.ORDER_BEFORE`
-        attribute to the respective instances related to the :attr:`client`.
+        :meth:`~.Client.summon`, this attribute holds a mapping which maps the
+        service classes contained in the :attr:`~.Meta.ORDER_BEFORE` attribute
+        to the respective instances related to the :attr:`client`.
 
         This is the preferred way to obtain dependencies specified via
         :attr:`~.Meta.ORDER_BEFORE`.

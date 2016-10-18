@@ -25,7 +25,7 @@
 
 This module provides support for :xep:`Service Discovery <30>`. For this, it
 provides a :class:`~aioxmpp.service.Service` subclass which can be loaded into
-a client using :meth:`.AbstractClient.summon`.
+a client using :meth:`.Client.summon`.
 
 Services
 ========

@@ -32,11 +32,19 @@ Using XMPP
 
 .. currentmodule:: aioxmpp
 
+.. autoclass:: Client
+
 .. autoclass:: PresenceManagedClient
 
 .. currentmodule:: aioxmpp.node
 
-.. autoclass:: AbstractClient
+.. class:: AbstractClient
+
+   Alias of :class:`Client`.
+
+   .. deprecated:: 0.8
+
+      The alias will be removed in 1.0.
 
 Connecting streams low-level
 ============================
@@ -54,6 +62,7 @@ Utilities
 import asyncio
 import contextlib
 import logging
+import warnings
 
 from datetime import timedelta
 
@@ -74,6 +83,7 @@ from . import (
     stanza,
     structs,
     security_layer,
+    presence as mod_presence,
 )
 from .utils import namespaces
 
@@ -350,7 +360,7 @@ def connect_xmlstream(
     )
 
 
-class AbstractClient:
+class Client:
     """
     Base class to implement an XMPP client.
 
@@ -600,8 +610,8 @@ class AbstractClient:
     .. attribute:: logger
 
        The :class:`logging.Logger` instance which is used by the
-       :class:`AbstractClient`. This is the `logger` passed to the constructor
-       or a logger derived from the fully qualified name of the class.
+       :class:`Client`. This is the `logger` passed to the constructor or a
+       logger derived from the fully qualified name of the class.
 
        .. versionadded:: 0.6
 
@@ -970,8 +980,7 @@ class AbstractClient:
 
         Writing this attribute is not allowed, as changing the JID introduces a
         lot of issues with respect to reusability of the stream. Instanciate a
-        new :class:`AbstractClient` if you need to change the bare part of the
-        JID.
+        new :class:`Client` if you need to change the bare part of the JID.
 
         .. note::
 
@@ -994,15 +1003,36 @@ class AbstractClient:
         """
         return self._established
 
+    def connected(self, *, presence=structs.PresenceState(False), **kwargs):
+        """
+        Return a :class:`.node.UseConnected` context manager which does not
+        modify the presence settings.
 
-class PresenceManagedClient(AbstractClient):
+        The keyword arguments are passed to the :class:`.node.UseConnected`
+        context manager constructor.
+
+        .. versionadded:: 0.8
+        """
+        return UseConnected(self, presence=presence, **kwargs)
+
+
+class PresenceManagedClient(Client):
     """
-    A presence managed XMPP client. The arguments are passed to the
-    :class:`~.AbstractClient` constructor.
+    Client whose connection is controlled by its configured presence.
 
-    While the start/stop interfaces of :class:`~.AbstractClient` are still
-    available, it is recommended to control the presence managed client solely
-    using the :attr:`presence` property.
+    .. seealso::
+
+       :class:`Client`
+          for a description of the arguments.
+
+    The presence is set using :attr:`presence` or the :class:`PresenceServer`
+    service. If the set presence is an *available* presence, the client is
+    started (if it is not already running). If the set presence is an
+    *unavailable* presence, the unavailable presence is broadcast and the
+    client is stopped.
+
+    While the start/stop interfaces of :class:`~.Client` are still available,
+    using them may interfere with the behaviour of the presence automagic.
 
     The initial presence is set to `unavailable`, thus, the client will not
     connect immediately.
@@ -1017,37 +1047,34 @@ class PresenceManagedClient(AbstractClient):
 
     .. attribute:: on_presence_sent
 
-       The event is fired after :meth:`.AbstractClient.on_stream_established`
-       and after the current presence has been sent to the server as *initial
-       presence*.
+       The event is fired after :meth:`.Client.on_stream_established` and after
+       the current presence has been sent to the server as *initial presence*.
 
+    .. versionchanged:: 0.8
+
+       Since 0.8, the :class:`PresenceManagedClient` is implemented on top of
+       :class:`PresenceServer`. Changing the presence via the
+       :class:`PresenceServer` has the same effect as writing :attr:`presence`
+       or calling :meth:`set_presence`.
     """
 
     on_presence_sent = callbacks.Signal()
 
     def __init__(self, jid, security_layer, **kwargs):
         super().__init__(jid, security_layer, **kwargs)
-        self._presence = structs.PresenceState(), []
+        self._presence_server = self.summon(mod_presence.PresenceServer)
+        self._presence_server.on_presence_state_changed.connect(
+            self._update_presence
+        )
         self.on_stream_established.connect(self._handle_stream_established)
 
-    def _resend_presence(self):
-        pres = stanza.Presence()
-        state, status = self._presence
-        state.apply_to_stanza(pres)
-        pres.status.update(status)
-        self.stream.enqueue(pres)
-
     def _handle_stream_established(self):
-        if self._presence[0].available:
-            self._resend_presence()
         self.on_presence_sent()
 
     def _update_presence(self):
-        if self._presence[0].available:
+        if self._presence_server.state.available:
             if not self.running:
                 self.start()
-            elif self.established:
-                self._resend_presence()
         else:
             if self.running:
                 self.stop()
@@ -1077,12 +1104,14 @@ class PresenceManagedClient(AbstractClient):
         be called. The :attr:`presence` attribute is *not* affected by calls to
         :meth:`start` or :meth:`stop`.
         """
-        return self._presence[0]
+        return self._presence_server.state
 
     @presence.setter
     def presence(self, value):
-        self._presence = value, []
-        self._update_presence()
+        call_update = value == self.presence
+        self._presence_server.set_presence(value)
+        if call_update:
+            self._update_presence()
 
     def set_presence(self, state, status):
         """
@@ -1099,29 +1128,20 @@ class PresenceManagedClient(AbstractClient):
         The `status` is the text shown alongside the `state` (indicating
         availability such as *away*, *do not disturb* and *free to chat*).
         """
-        if isinstance(status, str):
-            status = {None: status}
-        else:
-            status = dict(status)
-        self._presence = state, status
-        self._update_presence()
+        self._presence_server.set_presence(state, status=status)
 
     def connected(self, **kwargs):
         """
-        Return an asynchronous context manager (:pep:`492`). When it is
-        entered, the presence is changed to available. The context manager
-        waits until the stream is established, and then the context is entered.
+        Return a :class:`.node.UseConnected` context manager which sets the
+        presence to available.
 
-        Upon leaving the context manager, the presence is changed to
-        unavailable. The context manager waits until the stream is closed
-        fully.
+        The keyword arguments are passed to the :class:`.node.UseConnected`
+        context manager constructor.
 
-        The keyword arguments are passed to the :class:`UseConnected` context
-        manager constructor.
+        .. note::
 
-        .. seealso::
-
-           :class:`UseConnected` is the context manager returned here.
+           In contrast to the same method on :class:`Client`, this method
+           implies setting an available presence.
 
         .. versionadded:: 0.6
         """
@@ -1130,33 +1150,75 @@ class PresenceManagedClient(AbstractClient):
 
 class UseConnected:
     """
-    Control the given :class:`PresenceManagedClient` `client` as asynchronous
-    context manager (:pep:`492`). :class:`UseConnected` is an asynchronous
-    context manager. When the context manager is entered, the `client` is set
-    to an available presence (if the stream is not already established) and the
-    context manager waits for a connection to establish. If a fatal error
-    occurs while the stream is being established, it is re-raised.
+    Asynchronous context manager which connects and disconnects a
+    :class:`.Client`.
 
-    When the context manager is left, the stream is shut down cleanly and the
-    context manager waits for the stream to shut down. Any exceptions occuring
-    in the context are not swallowed.
+    :param client: The client to manage
+    :type client: :class:`.Client`
+    :param timeout: Limit on the time it may take to start the client
+    :type timeout: :class:`datetime.timedelta` or :data:`None`
+    :param presence: Presence state to set on the client (deprecated)
+    :type presence: :class:`.PresenceState`
 
-    `timeout` is used to initialise the :attr:`timeout` attribute. `presence`
-    is used to initialise the :attr:`presence` attribute and defaults to a
-    simple available presence. `presence` must be an *available* presence.
+    When the asynchronous context is entered (see :pep:`492`), the client is
+    connected. This blocks until the client has finished connecting and the
+    stream is established. If the client takes longer than `timeout` to
+    connect, :class:`TimeoutError` is raised and the client is stopped. The
+    context manager returns the :attr:`~.Client.stream` of the client.
 
-    .. versionadded:: 0.6
+    When the context is exited, the client is disconnected and the context
+    manager waits for the client to cleanly shut down the stream.
 
-    The following attributes control the behaviour of the context manager:
+    If the client is already connected when the context is entered, the
+    connection is re-used and not shut down when the context is entered, but
+    leaving the context still disconnects the client.
 
-    .. attribute:: timeout
+    If the `presence` refers to an available presence, the
+    :class:`.PresenceServer` is :meth:`~.Client.summon`\ -ed on the `client`.
+    The presence is set using :meth:`~.PresenceServer.set_presence` (clearing
+    the :attr:`~.PresenceServer.status` and resetting
+    :attr:`~.PresenceServer.priority` to 0) before the client is connected. If
+    the client is already connected, the presence is set when the context is
+    entered.
 
-       Either :data:`None` or a :class:`datetime.timedelta` instance. If it is
-       the latter and it takes longer than that time to establish the stream,
-       the process is aborted and :class:`TimeoutError` is raised.
+    .. deprecated:: 0.8
+
+       The use of the `presence` argument is deprecated. The deprecation will
+       happen in two phases:
+
+       1. Until (but not including the release of) 1.0, passing a presence
+          state which refers to an available presence will emit
+          :class:`DeprecationWarning`. This *includes* the default of the
+          argument, so unless an unavailable presence state is passed
+          explicitly, all uses of :class:`UseConnected` emit that warning.
+
+       2. Starting with 1.0, passing an available presence will raise
+          :class:`ValueError`.
+
+       3. Starting with a to-be-determined release after 1.0, passing the
+          `presence` argument at all will raise :class:`TypeError`.
+
+       Users which previously used the `presence` argument should use the
+       :class:`.PresenceServer` service on the client and set the presence
+       before using the context manager instead.
 
     .. autoattribute:: presence
 
+       See the description of the `presence` argument.
+
+       .. deprecated:: 0.8
+
+          Using this attribute (for reading or writing) is deprecated and emits
+          a deprecation warning.
+
+    .. autoattribute:: timeout
+
+       See the description of the `timeout` argument.
+
+       .. deprecated:: 0.8
+
+          Using this attribute (for reading or writing) is deprecated and emits
+          a deprecation warning.
     """
 
     def __init__(self, client, *,
@@ -1164,78 +1226,114 @@ class UseConnected:
                  presence=structs.PresenceState(True)):
         super().__init__()
         self._client = client
-        self.timeout = timeout
-        self.presence = presence
+        self._timeout = timeout
+        self._presence = presence
+        if presence.available:
+            warnings.warn(
+                "using an available presence state for UseConnected is"
+                " deprecated and will raise ValueError as of 1.0",
+                DeprecationWarning,
+                stacklevel=1,
+            )
+
+    @property
+    def timeout(self):
+        warnings.warn(
+            "the timeout attribute is deprecated and will be removed in 1.0",
+            DeprecationWarning,
+            stacklevel=1,
+        )
+        return self._timeout
+
+    @timeout.setter
+    def timeout(self, value):
+        warnings.warn(
+            "the timeout attribute is deprecated and will be removed in 1.0",
+            DeprecationWarning,
+            stacklevel=1,
+        )
+        self._timeout = value
 
     @property
     def presence(self):
-        """
-        This is the presence which is sent when connecting. This may be an
-        unavailable presence.
-        """
+        warnings.warn(
+            "the presence attribute is deprecated and will be removed in 1.0",
+            DeprecationWarning,
+            stacklevel=1,
+        )
         return self._presence
 
     @presence.setter
     def presence(self, value):
+        warnings.warn(
+            "the presence attribute is deprecated and will be removed in 1.0",
+            DeprecationWarning,
+            stacklevel=1,
+        )
         self._presence = value
 
     @asyncio.coroutine
     def __aenter__(self):
+        if self._presence.available:
+            svc = self._client.summon(
+                mod_presence.PresenceServer
+            )
+            svc.set_presence(self._presence)
+
         if self._client.established:
             return self._client.stream
 
-        connected_future = asyncio.Future()
+        conn_future = asyncio.Future()
 
-        self._client.presence = self.presence
+        self._client.on_stream_established.connect(
+            conn_future,
+            self._client.on_stream_established.AUTO_FUTURE,
+        )
+
+        self._client.on_failure.connect(
+            conn_future,
+            self._client.on_failure.AUTO_FUTURE,
+        )
 
         if not self._client.running:
             self._client.start()
 
-        self._client.on_presence_sent.connect(
-            connected_future,
-            self._client.on_presence_sent.AUTO_FUTURE
-        )
-        self._client.on_failure.connect(
-            connected_future,
-            self._client.on_failure.AUTO_FUTURE
-        )
-
-        if self.timeout is not None:
+        if self._timeout is not None:
             try:
                 yield from asyncio.wait_for(
-                    connected_future,
-                    timeout=self.timeout.total_seconds()
+                    conn_future,
+                    self._timeout.total_seconds(),
                 )
             except asyncio.TimeoutError:
-                self._client.presence = structs.PresenceState(False)
                 self._client.stop()
                 raise TimeoutError()
         else:
-            yield from connected_future
+            yield from conn_future
 
         return self._client.stream
 
     @asyncio.coroutine
     def __aexit__(self, exc_type, exc_value, exc_traceback):
-        self._client.presence = structs.PresenceState(False)
-
-        if not self._client.established:
+        if not self._client.running:
             return
 
-        disconnected_future = asyncio.Future()
+        disconn_future = asyncio.Future()
 
         self._client.on_stopped.connect(
-            disconnected_future,
-            self._client.on_stopped.AUTO_FUTURE
+            disconn_future,
+            self._client.on_stopped.AUTO_FUTURE,
         )
 
         self._client.on_failure.connect(
-            disconnected_future,
-            self._client.on_failure.AUTO_FUTURE
+            disconn_future,
+            self._client.on_failure.AUTO_FUTURE,
         )
 
+        self._client.stop()
+
         try:
-            yield from disconnected_future
-        except:
-            if exc_type is None:
-                raise
+            yield from disconn_future
+        except Exception:
+            # we don’t want to re-raise that; the stream is dead, goal
+            # achieved.
+            pass

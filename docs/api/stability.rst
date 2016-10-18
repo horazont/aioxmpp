@@ -14,7 +14,7 @@ Using a Python interpreter which implements :pep:`492` will not be required at
 least until 0.7. Independent of that, version 1.0.0 *will* require :pep:`492`.
 There may be features which are not or only inconveniently usable without
 :pep:`492` before :pep:`492` support becomes mandatory for :mod:`aioxmpp` (one
-example is :meth:`PresenceManagedClient.connected`).
+example is :meth:`.Client.connected`).
 
 Semantic versioning and version numbers
 =======================================

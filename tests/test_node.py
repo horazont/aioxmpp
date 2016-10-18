@@ -34,6 +34,7 @@ import dns.resolver
 
 import aiosasl
 
+import aioxmpp
 import aioxmpp.node as node
 import aioxmpp.structs as structs
 import aioxmpp.nonza as nonza
@@ -50,6 +51,7 @@ from aioxmpp.testutils import (
     run_coroutine,
     XMLStreamMock,
     run_coroutine_with_peer,
+    make_connected_client,
     CoroutineMock,
 )
 
@@ -1277,7 +1279,7 @@ class Testconnect_xmlstream(unittest.TestCase):
                 ))
 
 
-class TestAbstractClient(xmltestutils.XMLTestCase):
+class TestClient(xmltestutils.XMLTestCase):
     @asyncio.coroutine
     def _connect_xmlstream(self, *args, **kwargs):
         self.connect_xmlstream_rec(*args, **kwargs)
@@ -1320,7 +1322,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
         self.features = nonza.StreamFeatures()
         self.features[...] = rfc6120.BindFeature()
 
-        self.client = node.AbstractClient(
+        self.client = node.Client(
             self.test_jid,
             self.security_layer,
             max_initial_attempts=None,
@@ -1379,7 +1381,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
             yield unittest.mock.sentinel.p1
             yield unittest.mock.sentinel.p2
 
-        client = node.AbstractClient(
+        client = node.Client(
             self.test_jid,
             self.security_layer,
             override_peer=peer_iterator(),
@@ -1581,7 +1583,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
         self.assertTrue(self.client.established)
 
     def test_reconnect_on_failure_unbounded(self):
-        self.client = node.AbstractClient(
+        self.client = node.Client(
             self.test_jid,
             self.security_layer,
             max_initial_attempts=2,
@@ -1933,7 +1935,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
         run_coroutine(asyncio.sleep(0))
 
     def test_abort_after_max_initial_attempts(self):
-        self.client = node.AbstractClient(
+        self.client = node.Client(
             self.test_jid,
             self.security_layer,
             max_initial_attempts=2,
@@ -2789,14 +2791,14 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
                 unittest.mock.call.Svc3(
                     self.client,
                     logger_base=logging.getLogger(
-                        "aioxmpp.node.AbstractClient"
+                        "aioxmpp.node.Client"
                     ),
                     dependencies={},
                 ),
                 unittest.mock.call.Svc2(
                     self.client,
                     logger_base=logging.getLogger(
-                        "aioxmpp.node.AbstractClient"
+                        "aioxmpp.node.Client"
                     ),
                     dependencies={Svc3: unittest.mock.ANY}
                 ),
@@ -2827,7 +2829,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
                 unittest.mock.call.Svc1(
                     self.client,
                     logger_base=logging.getLogger(
-                        "aioxmpp.node.AbstractClient"
+                        "aioxmpp.node.Client"
                     ),
                     dependencies={
                         Svc2: unittest.mock.ANY,
@@ -2871,6 +2873,34 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
                 )
             ),
         ]))
+
+    def test_connected(self):
+        with unittest.mock.patch("aioxmpp.node.UseConnected") as UseConnected:
+            result = self.client.connected()
+
+        UseConnected.assert_called_with(
+            self.client,
+            presence=aioxmpp.PresenceState(False),
+        )
+
+        self.assertEqual(result, UseConnected())
+
+    def test_connected_kwargs(self):
+        with unittest.mock.patch("aioxmpp.node.UseConnected") as UseConnected:
+            result = self.client.connected(
+                foo="bar",
+                fnord=10,
+                presence=aioxmpp.PresenceState(True),
+            )
+
+        UseConnected.assert_called_with(
+            self.client,
+            foo="bar",
+            fnord=10,
+            presence=aioxmpp.PresenceState(True),
+        )
+
+        self.assertEqual(result, UseConnected())
 
     def tearDown(self):
         for patch in self.patches:
@@ -2954,6 +2984,10 @@ class TestPresenceManagedClient(xmltestutils.XMLTestCase):
                 )
             )
         ]
+
+    def _set_stream_established(self):
+        run_coroutine(self.client.before_stream_established())
+        self.client.on_stream_established()
 
     def test_setup(self):
         self.assertEqual(
@@ -3045,6 +3079,14 @@ class TestPresenceManagedClient(xmltestutils.XMLTestCase):
 
         run_coroutine(self.xmlstream.run_test([
             XMLStreamMock.Close(),
+            # this is a race-condition of the test suite
+            # in a real stream, the Send would not happen as the stream
+            # changes state immediately and raises an exception from
+            # send_xso
+            XMLStreamMock.Send(
+                stanza.Presence(type_=structs.PresenceType.UNAVAILABLE,
+                                id_="autoset"),
+            ),
         ]))
 
         self.assertFalse(self.client.running)
@@ -3129,6 +3171,8 @@ class TestPresenceManagedClient(xmltestutils.XMLTestCase):
             XMLStreamMock.Close()
         ]))
 
+        self.assertFalse(self.client.running)
+
         self.client.presence = self.client.presence
 
         run_coroutine(self.xmlstream.run_test([
@@ -3165,6 +3209,7 @@ class TestPresenceManagedClient(xmltestutils.XMLTestCase):
         expected.status.update(status_texts)
 
         base = unittest.mock.Mock()
+        base.stream.send = CoroutineMock()
         with contextlib.ExitStack() as stack:
             stack.enter_context(unittest.mock.patch.object(
                 self.client,
@@ -3185,13 +3230,13 @@ class TestPresenceManagedClient(xmltestutils.XMLTestCase):
                 status=status_texts
             )
 
-            self.client.on_stream_established()
+            self._set_stream_established()
 
         self.assertSequenceEqual(
             base.mock_calls,
             [
                 unittest.mock.call.start(),
-                unittest.mock.call.stream.enqueue(unittest.mock.ANY)
+                unittest.mock.call.stream.send(unittest.mock.ANY)
             ]
         )
 
@@ -3213,6 +3258,7 @@ class TestPresenceManagedClient(xmltestutils.XMLTestCase):
         expected.status[None] = "foobar"
 
         base = unittest.mock.Mock()
+        base.stream.send = CoroutineMock()
         with contextlib.ExitStack() as stack:
             stack.enter_context(unittest.mock.patch.object(
                 self.client,
@@ -3233,13 +3279,13 @@ class TestPresenceManagedClient(xmltestutils.XMLTestCase):
                 status="foobar"
             )
 
-            self.client.on_stream_established()
+            self._set_stream_established()
 
         self.assertSequenceEqual(
             base.mock_calls,
             [
                 unittest.mock.call.start(),
-                unittest.mock.call.stream.enqueue(unittest.mock.ANY)
+                unittest.mock.call.stream.send(unittest.mock.ANY)
             ]
         )
 
@@ -3254,18 +3300,14 @@ class TestPresenceManagedClient(xmltestutils.XMLTestCase):
 
         self.presence_sent_rec.assert_called_once_with()
 
-    def test_set_presence_is_robust_against_modification_of_the_argument(self):
-        status_texts = {
-            None: "generic",
-            structs.LanguageTag.fromstr("de"): "de",
-        }
-
+    def test_set_presence_through_server(self):
         expected = stanza.Presence(type_=structs.PresenceType.AVAILABLE,
                                    show="chat",
                                    id_="autoset")
-        expected.status.update(status_texts)
+        expected.status[None] = "foobar"
 
         base = unittest.mock.Mock()
+        base.stream.send = CoroutineMock()
         with contextlib.ExitStack() as stack:
             stack.enter_context(unittest.mock.patch.object(
                 self.client,
@@ -3279,22 +3321,24 @@ class TestPresenceManagedClient(xmltestutils.XMLTestCase):
                 new=base.start
             ))
 
-            self.client.set_presence(
+            server = self.client.summon(aioxmpp.PresenceServer)
+
+            server.set_presence(
                 structs.PresenceState(
                     available=True,
                     show="chat"),
-                status=status_texts
+                status="foobar"
             )
 
-            del status_texts[None]
-
-            self.client.on_stream_established()
+            self._set_stream_established()
 
         self.assertSequenceEqual(
             base.mock_calls,
             [
                 unittest.mock.call.start(),
-                unittest.mock.call.stream.enqueue(unittest.mock.ANY)
+                unittest.mock.call.stream.send(
+                    unittest.mock.ANY
+                )
             ]
         )
 
@@ -3343,268 +3387,219 @@ class TestPresenceManagedClient(xmltestutils.XMLTestCase):
 
 class TestUseConnected(unittest.TestCase):
     def setUp(self):
-        self.client = unittest.mock.Mock()
-        self.client.presence = structs.PresenceState(False)
+        self.presence_server = unittest.mock.Mock()
+        self.presence_server.state = aioxmpp.PresenceState(False)
+        self.presence_server.status = {}
+        self.presence_server.priority = 0
+        self.client = make_connected_client()
         self.client.established = False
-        self.cm = node.UseConnected(self.client)
+        self.client.mock_services[aioxmpp.PresenceServer] = \
+            self.presence_server
+        self.client.established = False
+        self.client.running = False
+
+        self.cm = node.UseConnected(
+            self.client,
+            presence=aioxmpp.PresenceState(False),
+        )
 
     def tearDown(self):
-        del self.client
+        del self.cm
 
-    def test_init(self):
-        self.assertIsNone(self.cm.timeout)
-
-        cm = node.UseConnected(
-            self.client,
-            timeout=timedelta(seconds=0.1),
-            presence=structs.PresenceState(True, "away")
-        )
-
-        self.assertEqual(cm.timeout, timedelta(seconds=0.1))
-        self.assertEqual(cm.presence, structs.PresenceState(True, "away"))
-
-    def test_aenter_sets_presence(self):
-        self.assertEqual(self.client.presence, structs.PresenceState(False))
-
+    def test_aenter_listens_to_on_stream_established_to_detect_success(self):
         task = asyncio.async(self.cm.__aenter__())
-        run_coroutine(asyncio.sleep(0.01))
+        run_coroutine(asyncio.sleep(0.1))
 
-        self.assertEqual(self.client.presence, structs.PresenceState(True))
+        self.assertFalse(task.done(), task)
 
-        task.cancel()
+        self.client.on_stream_established()
 
-    def test_aenter_starts_client_directly_if_presence_is_unavailable(self):
-        self.client.running = False
+        self.assertEqual(run_coroutine(task), self.client.stream)
 
-        self.cm.presence = structs.PresenceState(False)
-
+    def test_aenter_listens_to_on_failure_to_detect_failure(self):
         task = asyncio.async(self.cm.__aenter__())
-        run_coroutine(asyncio.sleep(0.01))
+        run_coroutine(asyncio.sleep(0.1))
 
-        self.client.start.assert_called_with()
+        self.assertFalse(task.done(), task)
 
-        task.cancel()
+        exc = Exception()
 
-    def test_aenter_starts_client_after_setting_presence(self):
-        self.client.presence = unittest.mock.sentinel.foo
+        self.client.on_failure(exc)
 
-        self.client.running = False
-
-        presence_at_start = None
-
-        def check(*args, **kwargs):
-            nonlocal presence_at_start
-            presence_at_start = self.client.presence
-
-        self.cm.presence = structs.PresenceState(False)
-
-        self.client.start.side_effect = check
-
-        task = asyncio.async(self.cm.__aenter__())
-        run_coroutine(asyncio.sleep(0.01))
-
-        self.client.start.assert_called_with()
-
-        self.assertEqual(
-            presence_at_start,
-            structs.PresenceState(False),
-        )
-
-        task.cancel()
-
-    def test_aenter_sets_custom_presence(self):
-        pres = structs.PresenceState(True, "away")
-        self.cm.presence = pres
-
-        self.assertEqual(self.client.presence, structs.PresenceState(False))
-
-        task = asyncio.async(self.cm.__aenter__())
-        run_coroutine(asyncio.sleep(0.01))
-
-        self.assertIs(self.client.presence, pres)
-
-        task.cancel()
-
-    def test_aenter_succeeds_and_returns_StanzaStream_on_presence_sent(self):
-        task = asyncio.async(self.cm.__aenter__())
-        run_coroutine(asyncio.sleep(0.01))
-
-        self.assertFalse(task.done())
-
-        self.client.on_presence_sent.connect.assert_called_with(
-            unittest.mock.ANY,
-            self.client.on_presence_sent.AUTO_FUTURE,
-        )
-
-        _, (fut, _), _ = self.client.on_presence_sent.connect.mock_calls[0]
-
-        fut.set_result(None)
-
-        self.assertEqual(
-            run_coroutine(task),
-            self.client.stream
-        )
-
-    def test_aenter_re_raises_exception_from_on_failure(self):
-        task = asyncio.async(self.cm.__aenter__())
-        run_coroutine(asyncio.sleep(0.01))
-
-        self.assertFalse(task.done())
-
-        self.client.on_failure.connect.assert_called_with(
-            unittest.mock.ANY,
-            self.client.on_failure.AUTO_FUTURE,
-        )
-
-        _, (fut, _), _ = self.client.on_failure.connect.mock_calls[0]
-
-        class FooException(Exception):
-            pass
-
-        fut.set_exception(FooException())
-
-        with self.assertRaises(FooException):
+        with self.assertRaises(Exception) as ctx:
             run_coroutine(task)
 
-    def test_aenter_does_not_wait_if_established(self):
-        self.client.established = True
+        self.assertIs(ctx.exception, exc)
+
+    def test_aenter_calls_start_if_client_not_running(self):
+        task = asyncio.async(self.cm.__aenter__())
+        run_coroutine(asyncio.sleep(0.1))
+
+        self.client.start.assert_called_once_with()
+        self.client.stop.assert_not_called()
+
+        task.cancel()
+
+    def test_aenter_does_not_call_start_but_waits_if_not_established(self):
+        self.client.running = True
 
         task = asyncio.async(self.cm.__aenter__())
-        run_coroutine(asyncio.sleep(0.01))
+        run_coroutine(asyncio.sleep(0.1))
 
-        self.assertTrue(task.done())
+        self.client.start.assert_not_called()
+
+        self.assertFalse(task.done())
+
+        self.client.on_stream_established()
+
+        self.assertEqual(run_coroutine(task), self.client.stream)
+
+    def test_aenter_does_not_block_if_established(self):
+        self.client.running = True
+        self.client.established = True
 
         self.assertEqual(
-            run_coroutine(task),
-            self.client.stream
+            run_coroutine(self.cm.__aenter__()),
+            self.client.stream,
         )
 
-    def test_aenter_times_out(self):
-        self.cm.timeout = timedelta(seconds=0)
+    def test_aenter_raises_TimeoutError_on_timeout(self):
+        self.cm = node.UseConnected(
+            self.client,
+            presence=aioxmpp.PresenceState(False),
+            timeout=timedelta(seconds=0.01),
+        )
 
         with self.assertRaises(TimeoutError):
             run_coroutine(self.cm.__aenter__())
 
-    def test_aenter_cancels_futures_stops_stream_and_resets_presence_on_timeout(self):
-        self.cm.timeout = timedelta(seconds=0.1)
+        self.client.start.assert_called_once_with()
+        self.client.stop.assert_called_once_with()
 
+    def test_aenter_does_not_set_presence_by_default(self):
         task = asyncio.async(self.cm.__aenter__())
-        run_coroutine(asyncio.sleep(0.01))
+        run_coroutine(asyncio.sleep(0.1))
 
-        _, (fut1, _), _ = self.client.on_presence_sent.connect.mock_calls[0]
-        _, (fut2, _), _ = self.client.on_failure.connect.mock_calls[0]
-
-        self.assertEqual(fut1, fut2)
-
-        with self.assertRaises(TimeoutError):
-            run_coroutine(task)
-
-        self.assertTrue(fut1.cancelled())
-        self.assertTrue(fut2.cancelled())
-
-        self.client.stop.assert_called_with()
-        self.assertEqual(self.client.presence, structs.PresenceState(False))
-
-    def test_aexit_sets_presence_to_unavailable(self):
-        self.client.established = True
-        self.client.presence = structs.PresenceState(True)
-
-        task = asyncio.async(self.cm.__aexit__(None, None, None))
-        run_coroutine(asyncio.sleep(0.01))
-
-        self.assertEqual(self.client.presence, structs.PresenceState(False))
+        self.presence_server.set_presence.assert_not_called()
 
         task.cancel()
 
-    def test_aexit_waits_for_stopped_or_failed(self):
+    def test_aenter_sets_presence_if_not_unavailable(self):
+        p = unittest.mock.Mock(spec=aioxmpp.PresenceState)
+        p.available = True
+
+        self.cm = node.UseConnected(
+            self.client,
+            presence=p,
+        )
+
+        task = asyncio.async(self.cm.__aenter__())
+        run_coroutine(asyncio.sleep(0.1))
+
+        self.presence_server.set_presence.assert_called_once_with(p)
+
+        task.cancel()
+
+    def test_aenter_sets_presence_on_established_stream(self):
+        p = unittest.mock.Mock(spec=aioxmpp.PresenceState)
+        p.available = True
+
         self.client.established = True
-        self.client.presence = structs.PresenceState(True)
+        self.client.running = True
+
+        self.cm = node.UseConnected(
+            self.client,
+            presence=p,
+        )
+
+        task = asyncio.async(self.cm.__aenter__())
+        run_coroutine(asyncio.sleep(0.1))
+
+        self.presence_server.set_presence.assert_called_once_with(p)
+
+        task.cancel()
+
+    def test_aexit_stops_client_waits_for_on_stopped(self):
+        self.client.established = True
+        self.client.running = True
 
         task = asyncio.async(self.cm.__aexit__(None, None, None))
         run_coroutine(asyncio.sleep(0.01))
 
-        self.client.on_stopped.connect.assert_called_with(
-            unittest.mock.ANY,
-            self.client.on_stopped.AUTO_FUTURE,
-        )
+        self.assertFalse(task.done(), task)
+        self.client.stop.assert_called_once_with()
 
-        self.client.on_failure.connect.assert_called_with(
-            unittest.mock.ANY,
-            self.client.on_failure.AUTO_FUTURE,
-        )
-
-        _, (fut1, _), _ = self.client.on_stopped.connect.mock_calls[0]
-        _, (fut2, _), _ = self.client.on_failure.connect.mock_calls[0]
-
-        self.assertEqual(fut1, fut2)
-
-        fut1.set_result(None)
+        self.client.on_stopped()
 
         self.assertFalse(run_coroutine(task))
 
-    def test_aexit_re_raises_failure(self):
+    def test_aexit_stops_client_waits_for_on_failure_and_swallows_exception(self):
         self.client.established = True
-        self.client.presence = structs.PresenceState(True)
+        self.client.running = True
 
         task = asyncio.async(self.cm.__aexit__(None, None, None))
         run_coroutine(asyncio.sleep(0.01))
 
-        self.client.on_stopped.connect.assert_called_with(
-            unittest.mock.ANY,
-            self.client.on_stopped.AUTO_FUTURE,
-        )
+        self.assertFalse(task.done(), task)
+        self.client.stop.assert_called_once_with()
 
-        self.client.on_failure.connect.assert_called_with(
-            unittest.mock.ANY,
-            self.client.on_failure.AUTO_FUTURE,
-        )
-
-        _, (fut1, _), _ = self.client.on_stopped.connect.mock_calls[0]
-        _, (fut2, _), _ = self.client.on_failure.connect.mock_calls[0]
-
-        class FooException(Exception):
-            pass
-
-        fut1.set_exception(FooException())
-
-        with self.assertRaises(FooException):
-            run_coroutine(task)
-
-    def test_aexit_swallows_failure_in_exception_context(self):
-        self.client.established = True
-        self.client.presence = structs.PresenceState(True)
-
-        task = asyncio.async(self.cm.__aexit__(
-            unittest.mock.sentinel.exc_type,
-            unittest.mock.sentinel.exc_value,
-            unittest.mock.sentinel.exc_traceback,
-        ))
-        run_coroutine(asyncio.sleep(0.01))
-
-        self.client.on_stopped.connect.assert_called_with(
-            unittest.mock.ANY,
-            self.client.on_stopped.AUTO_FUTURE,
-        )
-
-        self.client.on_failure.connect.assert_called_with(
-            unittest.mock.ANY,
-            self.client.on_failure.AUTO_FUTURE,
-        )
-
-        _, (fut1, _), _ = self.client.on_stopped.connect.mock_calls[0]
-        _, (fut2, _), _ = self.client.on_failure.connect.mock_calls[0]
-
-        class FooException(Exception):
-            pass
-
-        fut1.set_exception(FooException())
+        self.client.on_failure(Exception())
 
         self.assertFalse(run_coroutine(task))
 
-    def test_aexit_does_not_wait_if_not_established(self):
-        self.client.established = False
-        self.client.presence = structs.PresenceState(True)
+    def test_aexit_does_not_wait_if_client_is_not_running(self):
+        run_coroutine(self.cm.__aexit__(None, None, None))
 
-        self.assertFalse(run_coroutine(self.cm.__aexit__(None, None, None)))
+    def test_construction_with_available_presence_warns(self):
+        with self.assertWarnsRegex(
+                DeprecationWarning,
+                r"using an available presence state for UseConnected is "
+                r"deprecated and will raise ValueError as of 1.0"):
+            node.UseConnected(self.client)
 
-        self.assertEqual(self.client.presence, structs.PresenceState(False))
+    def test_construction_with_unavailable_presence_does_not_warn(self):
+        with unittest.mock.patch("warnings.warn") as warn:
+            node.UseConnected(
+                self.client,
+                presence=aioxmpp.PresenceState(False)
+            )
+
+        warn.assert_not_called()
+
+    def test_access_on_timeout_attribute_warns(self):
+        with self.assertWarnsRegex(
+                DeprecationWarning,
+                r"the timeout attribute is deprecated and will be removed "
+                r"in 1.0"):
+            self.assertIsNone(self.cm.timeout)
+
+        with self.assertWarnsRegex(
+                DeprecationWarning,
+                r"the timeout attribute is deprecated and will be removed "
+                r"in 1.0"):
+            self.cm.timeout = timedelta(seconds=0.01)
+
+        with self.assertWarns(DeprecationWarning):
+            self.assertEqual(self.cm.timeout, timedelta(seconds=0.01))
+
+    def test_access_on_presence_attribute_warns(self):
+        with self.assertWarnsRegex(
+                DeprecationWarning,
+                r"the presence attribute is deprecated and will be removed "
+                r"in 1.0"):
+            self.assertEqual(
+                self.cm.presence,
+                aioxmpp.PresenceState(False),
+            )
+
+        with self.assertWarnsRegex(
+                DeprecationWarning,
+                r"the presence attribute is deprecated and will be removed "
+                r"in 1.0"):
+            self.cm.presence = aioxmpp.PresenceState(True)
+
+        with self.assertWarns(DeprecationWarning):
+            self.assertEqual(
+                self.cm.presence,
+                aioxmpp.PresenceState(True)
+            )

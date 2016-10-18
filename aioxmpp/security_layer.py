@@ -30,7 +30,7 @@ These are coupled, as different SASL features might need different TLS features
 (such as channel binding or client cert authentication). The preferred method
 to construct a :class:`SecurityLayer` is using the :func:`make` function.
 :class:`SecurityLayer` objects are needed to establish an XMPP connection,
-for example using :class:`aioxmpp.node.AbstractClient`.
+for example using :class:`aioxmpp.Client`.
 
 .. autofunction:: make
 
@@ -1070,7 +1070,7 @@ class SecurityLayer(collections.namedtuple(
     initialise the attributes of the same name.
 
     :class:`SecurityLayer` instances are required to construct a
-    :class:`aioxmpp.node.AbstractClient`.
+    :class:`aioxmpp.Client`.
 
     .. versionadded:: 0.6
 

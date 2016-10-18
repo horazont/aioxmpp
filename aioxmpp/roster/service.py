@@ -174,10 +174,6 @@ class RosterClient(aioxmpp.service.Service):
     """
     A roster client :class:`aioxmpp.service.Service`.
 
-    `client` must be a :class:`~aioxmpp.node.AbstractClient` or
-    subclass. Ideally, you create :class:`Service` instances using
-    :meth:`.AbstractClient.summon`.
-
     The interaction with a roster service happens mainly by accessing the
     attributes holding the state and using the events to be notified of state
     changes:
@@ -336,7 +332,7 @@ class RosterClient(aioxmpp.service.Service):
     stored data needs to be loaded using :meth:`import_from_json`. This only
     needs to happen after a new :class:`Service` has been created, as roster
     services won’t delete roster contents between two connections on the same
-    :class:`.node.AbstractClient` instance.
+    :class:`.Client` instance.
 
     .. versionchanged:: 0.8
 

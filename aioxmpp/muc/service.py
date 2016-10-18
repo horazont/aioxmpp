@@ -288,9 +288,8 @@ class Room:
     .. signal:: on_suspend()
 
        Emits when the stream used by this MUC gets destroyed (see
-       :meth:`~.node.AbstractClient.on_stream_destroyed`) and the MUC is
-       configured to automatically rejoin the user when the stream is
-       re-established.
+       :meth:`~.node.Client.on_stream_destroyed`) and the MUC is configured to
+       automatically rejoin the user when the stream is re-established.
 
     .. signal:: on_resume()
 
