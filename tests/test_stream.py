@@ -4403,30 +4403,35 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
 
 
 class TestStanzaToken(unittest.TestCase):
+    def setUp(self):
+        self.stanza = make_test_iq()
+        self.token = stream.StanzaToken(self.stanza)
+
+    def tearDown(self):
+        del self.token
+        del self.stanza
+
     def test_init(self):
-        stanza = make_test_iq()
-        token = stream.StanzaToken(stanza)
         self.assertIs(
-            stanza,
-            token.stanza
+            self.stanza,
+            self.token.stanza
         )
         self.assertEqual(
             stream.StanzaState.ACTIVE,
-            token.state
+            self.token.state
         )
 
     def test_state_not_writable(self):
-        stanza = make_test_iq()
-        token = stream.StanzaToken(stanza)
         with self.assertRaises(AttributeError):
-            token.state = stream.StanzaState.ACKED
+            self.token.state = stream.StanzaState.ACKED
 
     def test_state_change_callback(self):
         state_change_handler = unittest.mock.MagicMock()
 
-        stanza = make_test_iq()
-        token = stream.StanzaToken(stanza,
-                                   on_state_change=state_change_handler)
+        token = stream.StanzaToken(
+            self.stanza,
+            on_state_change=state_change_handler
+        )
 
         states = [
             stream.StanzaState.SENT,
@@ -4452,34 +4457,27 @@ class TestStanzaToken(unittest.TestCase):
         )
 
     def test_abort_while_active(self):
-        stanza = make_test_iq()
-        token = stream.StanzaToken(stanza)
-        token.abort()
+        self.token.abort()
         self.assertEqual(
             stream.StanzaState.ABORTED,
-            token.state
+            self.token.state
         )
 
     def test_abort_while_sent(self):
-        stanza = make_test_iq()
-        token = stream.StanzaToken(stanza)
         for state in set(stream.StanzaState) - {stream.StanzaState.ACTIVE,
                                                 stream.StanzaState.ABORTED}:
-            token._set_state(stream.StanzaState.SENT)
+            self.token._set_state(stream.StanzaState.SENT)
             with self.assertRaisesRegex(RuntimeError, "already sent"):
-                token.abort()
+                self.token.abort()
 
     def test_abort_while_aborted(self):
-        stanza = make_test_iq()
-        token = stream.StanzaToken(stanza)
-        token.abort()
-        token.abort()
+        self.token.abort()
+        self.token.abort()
 
     def test_repr(self):
-        token = stream.StanzaToken(make_test_iq())
         self.assertEqual(
-            "<StanzaToken id=0x{:016x}>".format(id(token)),
-            repr(token)
+            "<StanzaToken id=0x{:016x}>".format(id(self.token)),
+            repr(self.token)
         )
 
 
