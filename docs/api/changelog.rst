@@ -81,9 +81,13 @@ Version 0.8
 
 * :class:`aioxmpp.stream.StanzaToken` objects are now :term:`awaitable`.
 
+* :meth:`aioxmpp.stream.StanzaStream.send`
+
 * *Deprecation*: :meth:`aioxmpp.stream.StanzaStream.send_and_wait_for_sent`
-  deprecated in favour of simply awaiting the stanza token returned by
-  :meth:`~.StanzaStream.enqueue_stanza`.
+  deprecated in favour of :meth:`~.StanzaStream.send`.
+
+* *Deprecation*: :meth:`aioxmpp.stream.StanzaStream.send_iq_and_wait_for_reply`
+  deprecated in favour of :meth:`~.StanzaStream.send`.
 
 .. _api-changelog-0.7:
 

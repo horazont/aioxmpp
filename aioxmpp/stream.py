@@ -88,6 +88,7 @@ from enum import Enum
 
 from . import (
     stanza,
+    stanza as stanza_,
     errors,
     custom_queue,
     nonza,
@@ -468,6 +469,8 @@ class StanzaStream:
     .. automethod:: flush_incoming
 
     Sending stanzas:
+
+    .. automethod:: send
 
     .. automethod:: enqueue_stanza
 
@@ -1852,12 +1855,30 @@ class StanzaStream:
 
     def enqueue_stanza(self, stanza, **kwargs):
         """
-        Enqueue a `stanza` to be sent. Return a :class:`StanzaToken` to track
-        the stanza. The `kwargs` are passed to the :class:`StanzaToken`
-        constructor.
+        Put a `stanza` in the internal transmission queue and return a token to
+        track it.
+
+        :param stanza: Stanza to send
+        :type stanza: :class:`IQ`, :class:`Message` or :class:`Presence`
+        :param kwargs: see :class:`StanzaToken`
+        :return: token which tracks the stanza
+        :rtype: :class:`StanzaToken`
+
+        The `stanza` is enqueued in the active queue for transmission and will
+        be sent on the next opportunity. The relative ordering of stanzas
+        enqueued is always preserved.
+
+        Return a fresh :class:`StanzaToken` instance which traks the progress
+        of the transmission of the `stanza`. The `kwargs` are forwarded to the
+        :class:`StanzaToken` constructor.
 
         This method calls :meth:`~.stanza.StanzaBase.autoset_id` on the stanza
         automatically.
+
+        .. seealso::
+
+           :meth:`send`
+              for a more high-level way to send stanzas.
         """
         if self._closed:
             raise self._xmlstream_exception
@@ -2244,25 +2265,23 @@ class StanzaStream:
            :meth:`register_iq_response_future` and
            :meth:`send_and_wait_for_sent` for other cases raising exceptions.
 
+        .. deprecated:: 0.8
+
+           This method will be removed in 1.0. Use :meth:`send` instead.
+
+        .. versionchanged:: 0.8
+
+           On a timeout, :class:`TimeoutError` is now raised instead of
+           :class:`asyncio.TimeoutError`.
+
         """
-        iq.autoset_id()
-        fut = asyncio.Future(loop=self._loop)
-        self.register_iq_response_future(
-            iq.to,
-            iq.id_,
-            fut)
-        try:
-            yield from self.send_and_wait_for_sent(iq)
-        except:
-            fut.cancel()
-            raise
-        if not timeout:
-            reply = yield from fut
-        else:
-            reply = yield from asyncio.wait_for(
-                fut, timeout=timeout,
-                loop=self._loop)
-        return reply.payload
+        warnings.warn(
+            r"send_iq_and_wait_for_reply is deprecated and will be removed in"
+            r" 1.0",
+            DeprecationWarning,
+            stacklevel=1,
+        )
+        return (yield from self.send(iq, timeout=timeout))
 
     @asyncio.coroutine
     def send_and_wait_for_sent(self, stanza):
@@ -2271,13 +2290,92 @@ class StanzaStream:
 
         .. deprecated:: 0.8
 
-           This functionally equivalent to ``yield from
-           self.enqueue_stanza(stanza)``. Use that instead.
+           This method will be removed in 1.0. Use :meth:`send` instead.
         """
+        warnings.warn(
+            r"send_and_wait_for_sent is deprecated and will be removed in 1.0",
+            DeprecationWarning,
+            stacklevel=1,
+        )
+        yield from self.enqueue_stanza(stanza)
+
+    @asyncio.coroutine
+    def send(self, stanza, *, timeout=None):
+        """
+        Send a stanza.
+
+        :param stanza: Stanza to send
+        :type stanza: :class:`~.IQ`, :class:`~.Presence` or :class:`~.Message`
+        :param timeout: Maximum time in seconds to wait for an IQ response, or
+                        :data:`None` to disable the timeout.
+        :type timeout: :class:`~numbers.Real` or :data:`None`
+        :raise OSError: if the underlying XML stream fails and stream
+                        management is not disabled.
+        :raise aioxmpp.stream.DestructionRequested:
+           if the stream is closed while sending the stanza or waiting for a
+           response.
+        :raise aioxmpp.errors.XMPPError: if an error IQ response is received
+        :raise aioxmpp.errors.ErroneousStanza: if the IQ response could not be
+                                               parsed
+        :return: IQ response :attr:`~.IQ.payload` or :data:`None`
+
+        Send the stanza and wait for it to be sent. If the stanza is an IQ
+        request, the response is awaited and the :attr:`~.IQ.payload` of the
+        response is returned.
+
+        The `timeout` as well as any of the exception cases referring to a
+        "response" do not apply for IQ response stanzas, message stanzas or
+        presence stanzas sent with this method, as this method only waits for
+        a reply if an IQ *request* stanza is being sent.
+
+        If `stanza` is an IQ request and the response is not received within
+        `timeout` seconds, :class:`TimeoutError` (not
+        :class:`asyncio.TimeoutError`!) is raised.
+
+        .. warning::
+
+           Setting a timeout is recommended for IQ requests. If the IQ is sent
+           directly to the clients server for processing (i.e. if the
+           :attr:`~.IQ.to` attribute is :data:`None`), malformed responses
+           are discarded instead of raising :class:`.errors.ErroneusStanza`.
+           This is due to limitations in the :mod:`aioxmpp.xso` code, which are
+           to be fixed at some point.
+
+        .. versionadded:: 0.8
+        """
+        stanza.autoset_id()
         self._logger.debug("sending %r and waiting for it to be sent",
                            stanza)
 
-        yield from self.enqueue_stanza(stanza)
+        if not isinstance(stanza, stanza_.IQ) or stanza.type_.is_response:
+            yield from self.enqueue_stanza(stanza)
+            return
+
+        fut = asyncio.Future()
+        self.register_iq_response_future(
+            stanza.to,
+            stanza.id_,
+            fut,
+        )
+
+        try:
+            yield from self.enqueue_stanza(stanza)
+        except:
+            fut.cancel()
+            raise
+
+        if not timeout:
+            reply = yield from fut
+        else:
+            try:
+                reply = yield from asyncio.wait_for(
+                    fut,
+                    timeout=timeout
+                )
+            except asyncio.TimeoutError:
+                raise TimeoutError
+
+        return reply.payload
 
 
 @contextlib.contextmanager
