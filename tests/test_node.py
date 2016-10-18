@@ -2874,6 +2874,34 @@ class TestClient(xmltestutils.XMLTestCase):
             ),
         ]))
 
+    def test_connected(self):
+        with unittest.mock.patch("aioxmpp.node.UseConnected") as UseConnected:
+            result = self.client.connected()
+
+        UseConnected.assert_called_with(
+            self.client,
+            presence=aioxmpp.PresenceState(False),
+        )
+
+        self.assertEqual(result, UseConnected())
+
+    def test_connected_kwargs(self):
+        with unittest.mock.patch("aioxmpp.node.UseConnected") as UseConnected:
+            result = self.client.connected(
+                foo="bar",
+                fnord=10,
+                presence=aioxmpp.PresenceState(True),
+            )
+
+        UseConnected.assert_called_with(
+            self.client,
+            foo="bar",
+            fnord=10,
+            presence=aioxmpp.PresenceState(True),
+        )
+
+        self.assertEqual(result, UseConnected())
+
     def tearDown(self):
         for patch in self.patches:
             patch.stop()

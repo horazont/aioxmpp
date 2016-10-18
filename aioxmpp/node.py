@@ -1003,6 +1003,17 @@ class Client:
         """
         return self._established
 
+    def connected(self, *, presence=structs.PresenceState(False), **kwargs):
+        """
+        Return a :class:`.node.UseConnected` context manager which does not
+        modify the presence settings.
+
+        The keyword arguments are passed to the :class:`.node.UseConnected`
+        context manager constructor.
+
+        .. versionadded:: 0.8
+        """
+        return UseConnected(self, presence=presence, **kwargs)
 
 
 class PresenceManagedClient(Client):
