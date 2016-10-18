@@ -241,12 +241,31 @@ class PresenceServer(aioxmpp.service.Service):
 
     .. automethod:: make_stanza
 
-    Changing the presence:
+    Changing/sending/watching presence:
 
     .. automethod:: set_presence
 
+    .. automethod:: resend_presence
+
+    .. signal:: on_presence_changed()
+
+       Emits after the presence has been changed in the
+       :class:`PresenceServer`.
+
+    .. signal:: on_presence_state_changed(new_state)
+
+       Emits after the presence *state* has been changed in the
+       :class:`PresenceServer`.
+
+       This signal does not emit if other parts of the presence (such as
+       priority or status texts) change, while the presence state itself stays
+       the same.
+
     .. versionadded:: 0.8
     """
+
+    on_presence_changed = aioxmpp.callbacks.Signal()
+    on_presence_state_changed = aioxmpp.callbacks.Signal()
 
     def __init__(self, client, **kwargs):
         super().__init__(client, **kwargs)
@@ -331,6 +350,9 @@ class PresenceServer(aioxmpp.service.Service):
         :type status: :class:`dict` or :class:`str`
         :param priority: New priority for the resource
         :type priority: :class:`int`
+        :return: Stanza token of the presence stanza or :data:`None` if the
+                 presence is unchanged or the stream is not connected.
+        :rtype: :class:`~.stream.StanzaToken`
 
         If the client is currently connected, the new presence is broadcast
         immediately.
@@ -358,14 +380,44 @@ class PresenceServer(aioxmpp.service.Service):
                 )
             )
 
-        self._state = state
         if isinstance(status, str):
-            self._status = {None: status}
+            new_status = {None: status}
         else:
-            self._status = dict(status)
-        self._priority = int(priority)
+            new_status = dict(status)
+        new_priority = int(priority)
+
+        emit_state_event = self._state != state
+        emit_overall_event = (
+            emit_state_event or
+            self._priority != new_priority or
+            self._status != new_status
+        )
+
+        self._state = state
+        self._status = new_status
+        self._priority = new_priority
+
+        if emit_state_event:
+            self.on_presence_state_changed()
+        if emit_overall_event:
+            self.on_presence_changed()
+            return self.resend_presence()
+
+    def resend_presence(self):
+        """
+        Re-send the currently configured presence.
+
+        :return: Stanza token of the presence stanza or :data:`None` if the
+                 stream is not established.
+        :rtype: :class:`~.stream.StanzaToken`
+
+        .. note::
+
+           :meth:`set_presence` automatically broadcasts the new presence if
+           any of the parameters changed.
+        """
 
         if self.client.established:
-            self.client.stream.enqueue(
+            return self.client.stream.enqueue(
                 self.make_stanza()
             )

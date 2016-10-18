@@ -602,13 +602,18 @@ class TestPresenceServer(unittest.TestCase):
         with unittest.mock.patch.object(self.s, "make_stanza") as make_stanza:
             make_stanza.return_value = unittest.mock.sentinel.presence
 
-            self.s.set_presence(
+            result = self.s.set_presence(
                 aioxmpp.PresenceState(True),
                 status="foo",
             )
 
         self.cc.stream.enqueue.assert_called_with(
             unittest.mock.sentinel.presence
+        )
+
+        self.assertEqual(
+            result,
+            self.cc.stream.enqueue()
         )
 
     def test_make_stanza_converts_state_to_stanza(self):
@@ -630,4 +635,142 @@ class TestPresenceServer(unittest.TestCase):
         self.assertDictEqual(
             stanza.status,
             {None: "foo"}
+        )
+
+    def test_set_presence_state_emits_events(self):
+        new_state = aioxmpp.PresenceState(True)
+        new_status = {None: "foo"}
+        new_priority = -2
+
+        def check_values():
+            self.assertEqual(
+                self.s.state,
+                new_state,
+            )
+            self.assertDictEqual(
+                self.s.status,
+                new_status,
+            )
+            self.assertEqual(
+                self.s.priority,
+                new_priority,
+            )
+
+        overall_cb = unittest.mock.Mock()
+        overall_cb.side_effect = check_values
+        state_cb = unittest.mock.Mock()
+        state_cb.side_effect = check_values
+
+        self.s.on_presence_changed.connect(overall_cb)
+        self.s.on_presence_state_changed.connect(state_cb)
+
+        self.s.set_presence(
+            new_state,
+            status=new_status,
+            priority=new_priority,
+        )
+
+        overall_cb.assert_called_once_with()
+        state_cb.assert_called_once_with()
+
+    def test_set_presence_state_does_not_emit_state_event_if_state_unchanged(self):
+        new_state = aioxmpp.PresenceState(False)
+        new_status = {None: "foo"}
+        new_priority = -2
+
+        def check_values():
+            self.assertEqual(
+                self.s.state,
+                new_state,
+            )
+            self.assertDictEqual(
+                self.s.status,
+                new_status,
+            )
+            self.assertEqual(
+                self.s.priority,
+                new_priority,
+            )
+
+        overall_cb = unittest.mock.Mock()
+        overall_cb.side_effect = check_values
+        state_cb = unittest.mock.Mock()
+        state_cb.side_effect = check_values
+
+        self.s.on_presence_changed.connect(overall_cb)
+        self.s.on_presence_state_changed.connect(state_cb)
+
+        self.s.set_presence(
+            new_state,
+            status=new_status,
+            priority=new_priority,
+        )
+
+        overall_cb.assert_called_once_with()
+        state_cb.assert_not_called()
+
+    def test_set_presence_state_does_not_emit_events_if_unchanged(self):
+        new_state = aioxmpp.PresenceState(False)
+        new_status = {}
+        new_priority = 0
+
+        def check_values():
+            self.assertEqual(
+                self.s.state,
+                new_state,
+            )
+            self.assertDictEqual(
+                self.s.status,
+                new_status,
+            )
+            self.assertEqual(
+                self.s.priority,
+                new_priority,
+            )
+
+        overall_cb = unittest.mock.Mock()
+        overall_cb.side_effect = check_values
+        state_cb = unittest.mock.Mock()
+        state_cb.side_effect = check_values
+
+        self.s.on_presence_changed.connect(overall_cb)
+        self.s.on_presence_state_changed.connect(state_cb)
+
+        self.s.set_presence(
+            new_state,
+            status=new_status,
+            priority=new_priority,
+        )
+
+        overall_cb.assert_not_called()
+        state_cb.assert_not_called()
+
+    def test_set_presence_state_does_not_emit_stanza_if_unchanged(self):
+        new_state = aioxmpp.PresenceState(False)
+        new_status = {}
+        new_priority = 0
+
+        self.s.set_presence(
+            new_state,
+            status=new_status,
+            priority=new_priority,
+        )
+
+        self.cc.stream.enqueue.assert_not_called()
+
+    def test_resend_presence_broadcasts_if_established(self):
+        self.cc.established = True
+
+        with unittest.mock.patch.object(self.s, "make_stanza") as make_stanza:
+            make_stanza.return_value = unittest.mock.sentinel.presence
+
+            result = self.s.resend_presence()
+
+        self.cc.stream.enqueue.assert_called_with(
+            unittest.mock.sentinel.presence
+        )
+
+        self.assertEqual(
+            result,
+            self.cc.stream.enqueue(),
         )
