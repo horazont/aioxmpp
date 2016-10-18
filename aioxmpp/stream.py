@@ -88,6 +88,7 @@ from enum import Enum
 
 from . import (
     stanza,
+    stanza as stanza_,
     errors,
     custom_queue,
     nonza,
@@ -289,14 +290,44 @@ class StanzaToken:
     `on_state_change` may be a function which will be called with the token and
     the new :class:`StanzaState` whenever the state of the token changes.
 
+    .. versionadded:: 0.8
+
+       Stanza tokens are :term:`awaitable`.
+
+    .. describe:: await token
+    .. describe:: yield from token
+
+       Wait until the stanza is either sent or failed to sent.
+
+       :raises ConnectionError: if the stanza enters
+                                :attr:`~.StanzaState.DISCONNECTED` state.
+       :raises RuntimeError: if the stanza enters :attr:`~.StanzaState.ABORTED`
+                             or :attr:`~.StanzaState.DROPPED` state.
+       :return: :data:`None`
+
+       If a coroutine awaiting a token is cancelled, the token is aborted. Use
+       :func:`asyncio.shield` to prevent this.
+
+       .. warning::
+
+          This is no guarantee that the recipient received the stanza. Without
+          stream management, it can not even guarenteed that the server has
+          seen the stanza.
+
+          This is primarily useful as a synchronisation primitive between the
+          sending of a stanza and another stream operation, such as closing the
+          stream.
+
     .. autoattribute:: state
 
     .. automethod:: abort
     """
+    __slots__ = ("stanza", "_state", "on_state_change", "_sent_future")
 
     def __init__(self, stanza, *, on_state_change=None):
         self.stanza = stanza
         self._state = StanzaState.ACTIVE
+        self._sent_future = None
         self.on_state_change = on_state_change
 
     @property
@@ -308,10 +339,29 @@ class StanzaToken:
 
         return self._state
 
+    def _update_future(self):
+        if self._sent_future.done():
+            return
+
+        if self._state == StanzaState.DISCONNECTED:
+            self._sent_future.set_exception(ConnectionError("disconnected"))
+        elif self._state == StanzaState.DROPPED:
+            self._sent_future.set_exception(
+                RuntimeError("stanza dropped by filter")
+            )
+        elif self._state == StanzaState.ABORTED:
+            self._sent_future.set_exception(RuntimeError("stanza aborted"))
+        elif     (self._state == StanzaState.SENT_WITHOUT_SM or
+                  self._state == StanzaState.ACKED):
+            self._sent_future.set_result(None)
+
     def _set_state(self, new_state):
         self._state = new_state
         if self.on_state_change is not None:
             self.on_state_change(self, new_state)
+
+        if self._sent_future is not None:
+            self._update_future()
 
     def abort(self):
         """
@@ -325,10 +375,24 @@ class StanzaToken:
         if     (self._state != StanzaState.ACTIVE and
                 self._state != StanzaState.ABORTED):
             raise RuntimeError("cannot abort stanza (already sent)")
-        self._state = StanzaState.ABORTED
+        self._set_state(StanzaState.ABORTED)
 
     def __repr__(self):
         return "<StanzaToken id=0x{:016x}>".format(id(self))
+
+    @asyncio.coroutine
+    def __await__(self):
+        if self._sent_future is None:
+            self._sent_future = asyncio.Future()
+            self._update_future()
+        try:
+            yield from asyncio.shield(self._sent_future)
+        except asyncio.CancelledError:
+            if self._state == StanzaState.ACTIVE:
+                self.abort()
+            raise
+
+    __iter__ = __await__
 
 
 class StanzaStream:
@@ -406,7 +470,17 @@ class StanzaStream:
 
     Sending stanzas:
 
-    .. automethod:: enqueue_stanza
+    .. automethod:: send
+
+    .. automethod:: enqueue
+
+    .. method:: enqueue_stanza
+
+       Alias of :meth:`enqueue`.
+
+       .. deprecated:: 0.8
+
+          This alias is deprecated and will be removed in 1.0.
 
     .. automethod:: send_and_wait_for_sent
 
@@ -795,7 +869,7 @@ class StanzaStream:
         else:
             response = request.make_reply(type_=structs.IQType.RESULT)
             response.payload = payload
-        self.enqueue_stanza(response)
+        self.enqueue(response)
 
     def _process_incoming_iq(self, stanza_obj):
         """
@@ -836,7 +910,7 @@ class StanzaStream:
                     condition=(namespaces.stanzas,
                                "feature-not-implemented"),
                 )
-                self.enqueue_stanza(response)
+                self.enqueue(response)
                 return
 
             task = asyncio.async(coro(stanza_obj))
@@ -953,13 +1027,13 @@ class StanzaStream:
                 namespaces.stanzas,
                 "feature-not-implemented")
             ))
-            self.enqueue_stanza(reply)
+            self.enqueue(reply)
         elif isinstance(exc, stanza.PayloadParsingError):
             reply = stanza_obj.make_error(error=stanza.Error(condition=(
                 namespaces.stanzas,
                 "bad-request")
             ))
-            self.enqueue_stanza(reply)
+            self.enqueue(reply)
 
     def _process_incoming(self, xmlstream, queue_entry):
         """
@@ -1787,14 +1861,32 @@ class StanzaStream:
     def recv_erroneous_stanza(self, partial_obj, exc):
         self._incoming_queue.put_nowait((partial_obj, exc))
 
-    def enqueue_stanza(self, stanza, **kwargs):
+    def enqueue(self, stanza, **kwargs):
         """
-        Enqueue a `stanza` to be sent. Return a :class:`StanzaToken` to track
-        the stanza. The `kwargs` are passed to the :class:`StanzaToken`
-        constructor.
+        Put a `stanza` in the internal transmission queue and return a token to
+        track it.
+
+        :param stanza: Stanza to send
+        :type stanza: :class:`IQ`, :class:`Message` or :class:`Presence`
+        :param kwargs: see :class:`StanzaToken`
+        :return: token which tracks the stanza
+        :rtype: :class:`StanzaToken`
+
+        The `stanza` is enqueued in the active queue for transmission and will
+        be sent on the next opportunity. The relative ordering of stanzas
+        enqueued is always preserved.
+
+        Return a fresh :class:`StanzaToken` instance which traks the progress
+        of the transmission of the `stanza`. The `kwargs` are forwarded to the
+        :class:`StanzaToken` constructor.
 
         This method calls :meth:`~.stanza.StanzaBase.autoset_id` on the stanza
         automatically.
+
+        .. seealso::
+
+           :meth:`send`
+              for a more high-level way to send stanzas.
         """
         if self._closed:
             raise self._xmlstream_exception
@@ -1806,6 +1898,8 @@ class StanzaStream:
         self._logger.debug("enqueued stanza %r with token %r",
                            stanza, token)
         return token
+
+    enqueue_stanza = enqueue
 
     @property
     def running(self):
@@ -2181,74 +2275,117 @@ class StanzaStream:
            :meth:`register_iq_response_future` and
            :meth:`send_and_wait_for_sent` for other cases raising exceptions.
 
+        .. deprecated:: 0.8
+
+           This method will be removed in 1.0. Use :meth:`send` instead.
+
+        .. versionchanged:: 0.8
+
+           On a timeout, :class:`TimeoutError` is now raised instead of
+           :class:`asyncio.TimeoutError`.
+
         """
-        iq.autoset_id()
-        fut = asyncio.Future(loop=self._loop)
-        self.register_iq_response_future(
-            iq.to,
-            iq.id_,
-            fut)
-        try:
-            yield from self.send_and_wait_for_sent(iq)
-        except:
-            fut.cancel()
-            raise
-        if not timeout:
-            reply = yield from fut
-        else:
-            reply = yield from asyncio.wait_for(
-                fut, timeout=timeout,
-                loop=self._loop)
-        return reply.payload
+        warnings.warn(
+            r"send_iq_and_wait_for_reply is deprecated and will be removed in"
+            r" 1.0",
+            DeprecationWarning,
+            stacklevel=1,
+        )
+        return (yield from self.send(iq, timeout=timeout))
 
     @asyncio.coroutine
     def send_and_wait_for_sent(self, stanza):
         """
         Send the given `stanza` over the given :class:`StanzaStream` `stream`.
 
-        Return when the stanza reaches either
-        :attr:`~StanzaState.SENT_WITHOUT_SM` or :attr:`~StanzaState.ACKED`
-        state.
+        .. deprecated:: 0.8
 
-        Raise :class:`ConnectionError` if :attr:`~StanzaState.DISCONNECTED` is
-        reached. Raise :class:`RuntimeError` if :attr:`~StanzaState.ABORTED` or
-        :attr:`~StanzaState.DROPPED` is reached.
-
-        Cancelling the coroutine :meth:`aborts <StanzaToken.abort>` the stanza
-        and returns immediately, even if the stanza has already left the active
-        queue.
+           This method will be removed in 1.0. Use :meth:`send` instead.
         """
-        fut = asyncio.Future()
+        warnings.warn(
+            r"send_and_wait_for_sent is deprecated and will be removed in 1.0",
+            DeprecationWarning,
+            stacklevel=1,
+        )
+        yield from self.enqueue(stanza)
 
+    @asyncio.coroutine
+    def send(self, stanza, *, timeout=None):
+        """
+        Send a stanza.
+
+        :param stanza: Stanza to send
+        :type stanza: :class:`~.IQ`, :class:`~.Presence` or :class:`~.Message`
+        :param timeout: Maximum time in seconds to wait for an IQ response, or
+                        :data:`None` to disable the timeout.
+        :type timeout: :class:`~numbers.Real` or :data:`None`
+        :raise OSError: if the underlying XML stream fails and stream
+                        management is not disabled.
+        :raise aioxmpp.stream.DestructionRequested:
+           if the stream is closed while sending the stanza or waiting for a
+           response.
+        :raise aioxmpp.errors.XMPPError: if an error IQ response is received
+        :raise aioxmpp.errors.ErroneousStanza: if the IQ response could not be
+                                               parsed
+        :return: IQ response :attr:`~.IQ.payload` or :data:`None`
+
+        Send the stanza and wait for it to be sent. If the stanza is an IQ
+        request, the response is awaited and the :attr:`~.IQ.payload` of the
+        response is returned.
+
+        The `timeout` as well as any of the exception cases referring to a
+        "response" do not apply for IQ response stanzas, message stanzas or
+        presence stanzas sent with this method, as this method only waits for
+        a reply if an IQ *request* stanza is being sent.
+
+        If `stanza` is an IQ request and the response is not received within
+        `timeout` seconds, :class:`TimeoutError` (not
+        :class:`asyncio.TimeoutError`!) is raised.
+
+        .. warning::
+
+           Setting a timeout is recommended for IQ requests. If the IQ is sent
+           directly to the clients server for processing (i.e. if the
+           :attr:`~.IQ.to` attribute is :data:`None`), malformed responses
+           are discarded instead of raising :class:`.errors.ErroneusStanza`.
+           This is due to limitations in the :mod:`aioxmpp.xso` code, which are
+           to be fixed at some point.
+
+        .. versionadded:: 0.8
+        """
+        stanza.autoset_id()
         self._logger.debug("sending %r and waiting for it to be sent",
                            stanza)
 
-        def cb(token, state):
-            self._logger.debug("token %r enters state %r", token, state)
-            if fut.done():
-                self._logger.warning("state change after future is done!")
-                return
+        if not isinstance(stanza, stanza_.IQ) or stanza.type_.is_response:
+            yield from self.enqueue(stanza)
+            return
 
-            if state == StanzaState.ACKED:
-                fut.set_result(None)
-            if state == StanzaState.SENT_WITHOUT_SM:
-                fut.set_result(None)
-            if state == StanzaState.DISCONNECTED:
-                fut.set_exception(ConnectionError("disconnected"))
-            if state == StanzaState.DROPPED:
-                fut.set_exception(RuntimeError("stanza dropped by filter"))
-            if state == StanzaState.ABORTED:
-                fut.set_exception(RuntimeError("stanza aborted"))
-
-        token = self.enqueue_stanza(stanza, on_state_change=cb)
-        self._logger.debug("using token %r", token)
+        fut = asyncio.Future()
+        self.register_iq_response_future(
+            stanza.to,
+            stanza.id_,
+            fut,
+        )
 
         try:
-            yield from fut
-        except asyncio.CancelledError:
-            if token.state == StanzaState.ACTIVE:
-                token.abort()
+            yield from self.enqueue(stanza)
+        except:
+            fut.cancel()
             raise
+
+        if not timeout:
+            reply = yield from fut
+        else:
+            try:
+                reply = yield from asyncio.wait_for(
+                    fut,
+                    timeout=timeout
+                )
+            except asyncio.TimeoutError:
+                raise TimeoutError
+
+        return reply.payload
 
 
 @contextlib.contextmanager

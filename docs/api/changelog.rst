@@ -79,6 +79,19 @@ Version 0.8
 * *Possibly breaking change*: :class:`aioxmpp.disco.Service` was split into
   :class:`aioxmpp.DiscoClient` and :class:`aioxmpp.DiscoServer`.
 
+* :class:`aioxmpp.stream.StanzaToken` objects are now :term:`awaitable`.
+
+* :meth:`aioxmpp.stream.StanzaStream.send`
+
+* *Deprecation*: :meth:`aioxmpp.stream.StanzaStream.send_and_wait_for_sent`
+  deprecated in favour of :meth:`~.StanzaStream.send`.
+
+* *Deprecation*: :meth:`aioxmpp.stream.StanzaStream.send_iq_and_wait_for_reply`
+  deprecated in favour of :meth:`~.StanzaStream.send`.
+
+* *Deprecation*: :meth:`aioxmpp.stream.StanzaStream.enqueue_stanza` is now
+  called :meth:`~aioxmpp.stream.StanzaStream.enqueue`.
+
 .. _api-changelog-0.7:
 
 Version 0.7

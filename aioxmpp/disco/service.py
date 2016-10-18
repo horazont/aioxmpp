@@ -437,7 +437,7 @@ class DiscoClient(service.Service):
         request_iq = stanza.IQ(to=jid, type_=structs.IQType.GET)
         request_iq.payload = disco_xso.InfoQuery(node=node)
 
-        response = yield from self.client.stream.send_iq_and_wait_for_reply(
+        response = yield from self.client.stream.send(
             request_iq
         )
 
@@ -472,7 +472,7 @@ class DiscoClient(service.Service):
         The `timeout` can be used to restrict the time to wait for a
         response. If the timeout triggers, :class:`TimeoutError` is raised.
 
-        If :meth:`~.StanzaStream.send_iq_and_wait_for_reply` raises an
+        If :meth:`~.StanzaStream.send` raises an
         exception, all queries which were running simultanously for the same
         target re-raise that exception. The result is not cached though. If a
         new query is sent at a later point for the same target, a new query is
@@ -553,7 +553,7 @@ class DiscoClient(service.Service):
         request_iq.payload = disco_xso.ItemsQuery(node=node)
 
         request = asyncio.async(
-            self.client.stream.send_iq_and_wait_for_reply(request_iq)
+            self.client.stream.send(request_iq)
         )
 
         self._items_pending[key] = request

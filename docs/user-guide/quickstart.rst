@@ -84,12 +84,12 @@ inside the ``async with`` block::
   # None is for "default language"
   msg.body[None] = "Hello World!"
 
-  await stream.send_and_wait_for_sent(msg)
+  await stream.send(msg)
 
 Relevant documentation:
 
 * :class:`aioxmpp.Message`
-* :meth:`aioxmpp.stream.StanzaStream.send_and_wait_for_sent`
+* :meth:`aioxmpp.stream.StanzaStream.send`
 
 
 .. note::
@@ -156,7 +156,7 @@ This example can be modified to be an echo bot by implementing the
       reply = msg.make_reply()
       reply.body.update(msg.body)
 
-      client.stream.enqueue_stanza(reply)
+      client.stream.enqueue(reply)
 
 .. note::
 
@@ -166,7 +166,7 @@ This example can be modified to be an echo bot by implementing the
 * :meth:`~aioxmpp.stream.StanzaStream.register_message_callback`. Definitely
   check this out for the semantics of the first two arguments!
 * :class:`aioxmpp.Message`
-* :meth:`~aioxmpp.stream.StanzaStream.enqueue_stanza`
+* :meth:`~aioxmpp.stream.StanzaStream.enqueue`
 
 
 React to presences
@@ -357,7 +357,7 @@ are now back inside the ``async with`` block)::
   )
 
   print("sending query to {}".format(peer_jid))
-  reply = await stream.send_iq_and_wait_for_reply(iq)
+  reply = await stream.send(iq)
   print("got response!")
 
 If the peer complies with the protocol, `reply` is an instance of our freshly
@@ -378,7 +378,7 @@ Relevant documentation:
 * :mod:`aioxmpp.xso`, especially :class:`aioxmpp.xso.XSO` and
   :class:`aioxmpp.xso.ChildText`
 * :meth:`aioxmpp.IQ.as_payload_class`
-* :meth:`aioxmpp.stream.StanzaStream.send_iq_and_wait_for_reply`
+* :meth:`aioxmpp.stream.StanzaStream.send`
 * also make sure to read the source of, for example, :mod:`aioxmpp.disco.xso`
   for more examples of :class:`~aioxmpp.XSO` subclasses.
 

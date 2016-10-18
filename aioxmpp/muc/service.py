@@ -736,7 +736,7 @@ class Room:
             type_=aioxmpp.PresenceType.AVAILABLE,
             to=self._mucjid.replace(resource=new_nick),
         )
-        yield from self._service.client.stream.send_and_wait_for_sent(
+        yield from self._service.client.stream.send(
             stanza
         )
 
@@ -775,7 +775,7 @@ class Room:
             ]
         )
 
-        yield from self.service.client.stream.send_iq_and_wait_for_reply(
+        yield from self.service.client.stream.send(
             iq
         )
 
@@ -806,7 +806,7 @@ class Room:
         )
         msg.subject.update(subject)
 
-        return self.service.client.stream.enqueue_stanza(msg)
+        return self.service.client.stream.enqueue(msg)
 
     def leave(self):
         """
@@ -826,7 +826,7 @@ class Room:
             type_=aioxmpp.structs.PresenceType.UNAVAILABLE,
             to=self._mucjid
         )
-        self.service.client.stream.enqueue_stanza(presence)
+        self.service.client.stream.enqueue(presence)
 
     @asyncio.coroutine
     def leave_and_wait(self):
@@ -901,7 +901,7 @@ class Room:
             message.body.update(body_or_stanza)
 
         tracker = aioxmpp.tracking.MessageTracker()
-        token = self.service.client.stream.enqueue_stanza(
+        token = self.service.client.stream.enqueue(
             message,
             on_state_change=tracker.on_stanza_state_change
         )
@@ -960,9 +960,7 @@ class Room:
 
         msg.xep0004_data.append(data)
 
-        yield from self.service.client.stream.send_and_wait_for_sent(
-            msg,
-        )
+        yield from self.service.client.stream.send(msg)
 
 
 def _connect_to_signal(signal, func):
@@ -1017,7 +1015,7 @@ class MUCClient(aioxmpp.service.Service):
         presence.xep0045_muc = muc_xso.GenericExt()
         presence.xep0045_muc.password = password
         presence.xep0045_muc.history = history
-        self.client.stream.enqueue_stanza(presence)
+        self.client.stream.enqueue(presence)
 
     def _stream_established(self):
         self.logger.debug("stream established, (re-)connecting to %d mucs",
@@ -1086,7 +1084,7 @@ class MUCClient(aioxmpp.service.Service):
                 type_=aioxmpp.structs.PresenceType.UNAVAILABLE,
             )
             unjoin.xep0045_muc = muc_xso.GenericExt()
-            self.client.stream.enqueue_stanza(unjoin)
+            self.client.stream.enqueue(unjoin)
 
     def _pending_on_enter(self, presence, occupant, **kwargs):
         mucjid = presence.from_.bare()
@@ -1298,7 +1296,7 @@ class MUCClient(aioxmpp.service.Service):
             ]
         )
 
-        yield from self.client.stream.send_iq_and_wait_for_reply(
+        yield from self.client.stream.send(
             iq
         )
 
@@ -1329,7 +1327,7 @@ class MUCClient(aioxmpp.service.Service):
             payload=muc_xso.OwnerQuery(),
         )
 
-        return (yield from self.client.stream.send_iq_and_wait_for_reply(
+        return (yield from self.client.stream.send(
             iq
         )).form
 
@@ -1366,6 +1364,6 @@ class MUCClient(aioxmpp.service.Service):
             payload=muc_xso.OwnerQuery(form=data),
         )
 
-        yield from self.client.stream.send_iq_and_wait_for_reply(
+        yield from self.client.stream.send(
             iq,
         )

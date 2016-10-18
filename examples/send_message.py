@@ -58,9 +58,7 @@ class SendMessage(Example):
         msg.body[None] = self.args.message
 
         print("sending message ...")
-        yield from self.client.stream.send_and_wait_for_sent(
-            msg
-        )
+        yield from self.client.stream.send(msg)
         print("message sent!")
 
 

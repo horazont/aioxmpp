@@ -1536,7 +1536,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
 
         @asyncio.coroutine
         def stimulus():
-            self.client.stream.enqueue_stanza(iq)
+            self.client.stream.enqueue(iq)
 
         run_coroutine_with_peer(
             stimulus(),
@@ -1612,7 +1612,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
 
         @asyncio.coroutine
         def stimulus():
-            self.client.stream.enqueue_stanza(iq)
+            self.client.stream.enqueue(iq)
 
         run_coroutine_with_peer(
             stimulus(),
@@ -1696,7 +1696,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
 
         @asyncio.coroutine
         def stimulus():
-            self.client.stream.enqueue_stanza(iq)
+            self.client.stream.enqueue(iq)
 
         run_coroutine_with_peer(
             stimulus(),
@@ -1766,7 +1766,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
 
         @asyncio.coroutine
         def stimulus():
-            self.client.stream.enqueue_stanza(iq)
+            self.client.stream.enqueue(iq)
 
         run_coroutine_with_peer(
             stimulus(),
@@ -2854,8 +2854,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
             iq = stanza.IQ(
                 type_=structs.IQType.SET,
             )
-            yield from self.client.stream.send_iq_and_wait_for_reply(
-                iq)
+            yield from self.client.stream.send(iq)
 
         self.client.before_stream_established.connect(coro)
 
@@ -3192,7 +3191,7 @@ class TestPresenceManagedClient(xmltestutils.XMLTestCase):
             base.mock_calls,
             [
                 unittest.mock.call.start(),
-                unittest.mock.call.stream.enqueue_stanza(unittest.mock.ANY)
+                unittest.mock.call.stream.enqueue(unittest.mock.ANY)
             ]
         )
 
@@ -3240,7 +3239,7 @@ class TestPresenceManagedClient(xmltestutils.XMLTestCase):
             base.mock_calls,
             [
                 unittest.mock.call.start(),
-                unittest.mock.call.stream.enqueue_stanza(unittest.mock.ANY)
+                unittest.mock.call.stream.enqueue(unittest.mock.ANY)
             ]
         )
 
@@ -3295,7 +3294,7 @@ class TestPresenceManagedClient(xmltestutils.XMLTestCase):
             base.mock_calls,
             [
                 unittest.mock.call.start(),
-                unittest.mock.call.stream.enqueue_stanza(unittest.mock.ANY)
+                unittest.mock.call.stream.enqueue(unittest.mock.ANY)
             ]
         )
 

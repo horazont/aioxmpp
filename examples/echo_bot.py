@@ -44,7 +44,7 @@ class EchoBot(Example):
         # make_reply() would not set the body though
         reply.body.update(msg.body)
 
-        self.client.stream.enqueue_stanza(reply)
+        self.client.stream.enqueue(reply)
 
     @asyncio.coroutine
     def run_simple_example(self):

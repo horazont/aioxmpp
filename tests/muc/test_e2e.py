@@ -291,7 +291,7 @@ class TestMuc(TestCase):
             to=self.mucjid
         )
         msg.body[None] = "foo"
-        self.firstwitch.stream.enqueue_stanza(msg)
+        yield from self.firstwitch.stream.send(msg)
 
         message, = yield from msg_future
         self.assertDictEqual(

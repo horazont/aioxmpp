@@ -168,9 +168,7 @@ class BlockJID(Example):
             )
 
             # send it and wait for a response
-            yield from self.client.stream.send_iq_and_wait_for_reply(
-                iq
-            )
+            yield from self.client.stream.send(iq)
         else:
             print("nothing to block")
 
@@ -181,9 +179,7 @@ class BlockJID(Example):
                 payload=BlockList(),
             )
 
-            result = yield from self.client.stream.send_iq_and_wait_for_reply(
-                iq,
-            )
+            result = yield from self.client.stream.send(iq)
 
             # print all the items; again, .items is a list of JIDs
             print("current block list:")

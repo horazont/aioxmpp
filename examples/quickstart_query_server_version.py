@@ -69,7 +69,7 @@ async def main(local_jid, password):
         )
 
         print("sending query to {}".format(peer_jid))
-        reply = await stream.send_iq_and_wait_for_reply(iq)
+        reply = await stream.send(iq)
         print("got response! logging off...")
 
     print("    name: {!r}".format(reply.name))
