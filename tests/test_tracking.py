@@ -119,12 +119,42 @@ class TestMessageState(unittest.TestCase):
         )
 
         self.assertLess(
+            tracking.MessageState.ERROR,
+            tracking.MessageState.DELIVERED_TO_SERVER,
+        )
+        self.assertLess(
+            tracking.MessageState.ERROR,
+            tracking.MessageState.DELIVERED_TO_RECIPIENT,
+        )
+        self.assertLess(
+            tracking.MessageState.ERROR,
+            tracking.MessageState.SEEN_BY_RECIPIENT,
+        )
+
+        self.assertLess(
+            tracking.MessageState.DELIVERED_TO_SERVER,
+            tracking.MessageState.ERROR,
+        )
+        self.assertLess(
+            tracking.MessageState.DELIVERED_TO_RECIPIENT,
+            tracking.MessageState.ERROR,
+        )
+        self.assertLess(
+            tracking.MessageState.SEEN_BY_RECIPIENT,
+            tracking.MessageState.ERROR,
+        )
+
+        self.assertLess(
             tracking.MessageState.TIMED_OUT,
             tracking.MessageState.ABORTED,
         )
         self.assertLess(
             tracking.MessageState.TIMED_OUT,
             tracking.MessageState.CLOSED,
+        )
+        self.assertLess(
+            tracking.MessageState.TIMED_OUT,
+            tracking.MessageState.ERROR,
         )
 
         self.assertLess(
@@ -135,6 +165,10 @@ class TestMessageState(unittest.TestCase):
             tracking.MessageState.ABORTED,
             tracking.MessageState.CLOSED,
         )
+        self.assertLess(
+            tracking.MessageState.ABORTED,
+            tracking.MessageState.ERROR,
+        )
 
         self.assertLess(
             tracking.MessageState.CLOSED,
@@ -143,10 +177,19 @@ class TestMessageState(unittest.TestCase):
         self.assertLess(
             tracking.MessageState.CLOSED,
             tracking.MessageState.TIMED_OUT,
+        )
+        self.assertLess(
+            tracking.MessageState.CLOSED,
+            tracking.MessageState.ERROR,
         )
 
         self.assertFalse(
             tracking.MessageState.ABORTED <
+            tracking.MessageState.IN_TRANSIT
+        )
+
+        self.assertFalse(
+            tracking.MessageState.ERROR <
             tracking.MessageState.IN_TRANSIT
         )
 
