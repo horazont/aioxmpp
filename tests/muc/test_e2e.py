@@ -41,10 +41,10 @@ class TestMuc(TestCase):
     @require_feature(namespaces.xep0045_muc)
     @blocking
     @asyncio.coroutine
-    def setUp(self, muc_info):
+    def setUp(self, muc_provider):
         services = [aioxmpp.MUCClient]
 
-        self.peer = muc_info.supported_at_entity
+        self.peer = muc_provider
         self.mucjid = self.peer.replace(localpart="coven")
 
         self.firstwitch, self.secondwitch, self.thirdwitch = \

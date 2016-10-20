@@ -36,14 +36,6 @@ import aioxmpp.security_layer
 _logger = logging.getLogger(__name__)
 
 
-FeatureInfo = collections.namedtuple(
-    "FeatureInfo",
-    [
-        "supported_at_entity",
-    ]
-)
-
-
 class Quirk(enum.Enum):
     """
     Enumeration of implementation quirks.
@@ -187,11 +179,10 @@ def discover_server_features(disco, peer, recurse_into_items=True):
 
     server_info = yield from disco.query_info(peer)
 
-    all_features = {}
-    all_features.update({
-        feature: FeatureInfo(peer)
+    all_features = {
+        feature: [peer]
         for feature in server_info.features
-    })
+    }
 
     if recurse_into_items:
         server_items = yield from disco.query_items(peer)
@@ -208,11 +199,8 @@ def discover_server_features(disco, peer, recurse_into_items=True):
         )
 
         for features in features_list:
-            all_features.update([
-                (feature, info)
-                for feature, info in features.items()
-                if feature not in all_features
-            ])
+            for feature, providers in features.items():
+                all_features.setdefault(feature, []).extend(providers)
 
     return all_features
 
@@ -235,7 +223,7 @@ class Provisioner(metaclass=abc.ABCMeta):
 
     .. automethod:: get_connected_client
 
-    .. automethod:: get_feature_info
+    .. automethod:: get_feature_provider
 
     .. automethod:: has_quirk
 
@@ -308,15 +296,52 @@ class Provisioner(metaclass=abc.ABCMeta):
         self._accounts_to_dispose.append(cm)
         return client
 
-    def get_feature_info(self, feature_ns):
+    def get_feature_provider(self, feature_nses):
         """
-        :param feature_ns: Namespace URI of the feature (as used in :xep:`30`)
-        :return: Feature information or :data:`None`
-        :rtype: :class:`FeatureInfo`
+        :param feature_ns: Namespace URIs to find a provider for
+        :type feature_ns: iterable of :class:`str`
+        :return: JID of the entity providing all features
+        :rtype: :class:`aioxmpp.JID`
 
-        If the feature is not supported, :data:`None` is returned.
+        If there is no entity supporting all requested features, :data:`None`
+        is returned.
         """
-        return self._featuremap.get(feature_ns, None)
+        providers = set()
+        iterator = iter(feature_nses)
+        try:
+            first_ns = next(iterator)
+        except StopIteration:
+            return None
+
+        providers = set(self._featuremap.get(first_ns, []))
+        for feature_ns in iterator:
+            providers &= set(self._featuremap.get(feature_ns, []))
+        if not providers:
+            return None
+        return next(iter(providers))
+
+    def get_feature_subset_provider(self, feature_nses, required_subset):
+        required_subset = set(required_subset)
+
+        candidates = {}
+        for feature_ns in feature_nses:
+            providers = self._featuremap.get(feature_ns, [])
+            for provider in providers:
+                candidates.setdefault(provider, set()).add(feature_ns)
+
+        candidates = sorted(
+            (
+                (provider, features)
+                for provider, features in candidates.items()
+                if features & required_subset == required_subset
+            ),
+            key=lambda x: (len(x[1]))
+        )
+
+        try:
+            return candidates.pop()
+        except IndexError:
+            return None, None
 
     def has_quirk(self, quirk):
         """
@@ -462,15 +487,11 @@ class AnonymousProvisioner(Provisioner):
 
         self._logger.debug("found %d features", len(self._featuremap))
         if self._logger.isEnabledFor(logging.DEBUG):
-            for jid, items in itertools.groupby(
-                    sorted(
-                        self._featuremap.items(),
-                        key=lambda x: (x[1].supported_at_entity, x[0])),
-                    lambda x: x[1].supported_at_entity):
+            for feature, providers in self._featuremap.items():
                 self._logger.debug(
-                    "%s provides %s",
-                    jid,
-                    ", ".join(item[0] for item in items)
+                    "%s provided by %s",
+                    feature,
+                    ", ".join(sorted(map(str, providers)))
                 )
 
         # clean up state

@@ -156,24 +156,54 @@ def require_feature(feature_var, argname=None):
     want to skip all tests in a class, apply the decorator to the ``setUp``
     method.
     """
+    if isinstance(feature_var, str):
+        feature_var = [feature_var]
 
     def decorator(f):
         @functools.wraps(f)
         def wrapper(*args, **kwargs):
             global provisioner
-            info = provisioner.get_feature_info(feature_var)
-            if info is None:
+            provider = provisioner.get_feature_provider(feature_var)
+            if provider is None:
                 raise unittest.SkipTest(
                     "provisioner does not provide a peer with "
                     "{!r}".format(feature_var)
                 )
 
             if argname is None:
-                args = args+(info,)
+                args = args+(provider,)
             else:
-                kwargs[argname] = info
+                kwargs[argname] = provider
 
             return f(*args, **kwargs)
+        return wrapper
+
+    return decorator
+
+
+def require_feature_subset(feature_vars, required_subset=[]):
+    required_subset = set(required_subset)
+    feature_vars = set(feature_vars) | required_subset
+
+    def decorator(f):
+        @functools.wraps(f)
+        def wrapper(*args, **kwargs):
+            global provisioner
+            jid, subset = provisioner.get_feature_subset_provider(
+                feature_vars,
+                required_subset
+            )
+            if jid is None:
+                raise unittest.SkipTest(
+                    "no peer could provide a subset of {!r} with at least "
+                    "{!r}".format(
+                        feature_vars,
+                        required_subset,
+                    )
+                )
+
+            return f(*(args+(jid, feature_vars)),
+                     **kwargs)
         return wrapper
 
     return decorator
