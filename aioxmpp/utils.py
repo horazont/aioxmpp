@@ -39,6 +39,8 @@ namespaces.stanzas = "urn:ietf:params:xml:ns:xmpp-stanzas"
 namespaces.streams = "urn:ietf:params:xml:ns:xmpp-streams"
 namespaces.stream_management = "urn:xmpp:sm:3"
 namespaces.bind = "urn:ietf:params:xml:ns:xmpp-bind"
+namespaces.aioxmpp = "https://zombofant.net/xmlns/aioxmpp"
+namespaces.aioxmpp_test = "https://zombofant.net/xmlns/aioxmpp#test"
 namespaces.aioxmpp_internal = "https://zombofant.net/xmlns/aioxmpp#internal"
 namespaces.xml = "http://www.w3.org/XML/1998/namespace"
 
