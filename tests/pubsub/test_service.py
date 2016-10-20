@@ -1656,5 +1656,32 @@ class TestService(unittest.TestCase):
             ]
         )
 
+    def test_purge(self):
+        self.cc.stream.send.return_value = None
+
+        run_coroutine(
+            self.s.purge(
+                TEST_TO,
+                "node",
+            )
+        )
+
+        self.assertEqual(
+            1,
+            len(self.cc.stream.send.mock_calls)
+        )
+
+        _, (request_iq, ), _ = \
+            self.cc.stream.send.mock_calls[0]
+
+        self.assertIsInstance(request_iq, aioxmpp.stanza.IQ)
+        self.assertEqual(request_iq.type_, aioxmpp.structs.IQType.SET)
+        self.assertEqual(request_iq.to, TEST_TO)
+        self.assertIsInstance(request_iq.payload, pubsub_xso.OwnerRequest)
+
+        payload = request_iq.payload.payload
+        self.assertIsInstance(payload, pubsub_xso.OwnerPurge)
+        self.assertEqual(payload.node, "node")
+
 
 # foo

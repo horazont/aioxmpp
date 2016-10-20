@@ -77,6 +77,7 @@ class PubSubClient(aioxmpp.service.Service):
           get_nodes
           get_node_affiliations
           get_node_subscriptions
+          purge
 
     Meta-information about the service:
 
@@ -127,6 +128,8 @@ class PubSubClient(aioxmpp.service.Service):
     .. automethod:: get_node_affiliations
 
     .. automethod:: get_node_subscriptions
+
+    .. automethod:: purge
 
     Receiving notifications:
 
@@ -270,13 +273,21 @@ class PubSubClient(aioxmpp.service.Service):
     @asyncio.coroutine
     def get_features(self, jid):
         """
-        Return the features as set of values from :class:`.xso.Feature`. To
-        get the full feature information, resort to using
+        Return the features supported at the PubSub service `jid`.
+
+        :return: Set of supported features
+        :rtype: set containing :class:`~.pubsub.xso.Feature` enumeration
+                members.
+
+        This simply uses service discovery to obtain the set of features and
+        converts the features to :class:`~.pubsub.xso.Feature` enumeration
+        members. To get the full feature information, resort to using
         :meth:`.DiscoClient.query_info` directly on `jid`.
 
         Features returned by the peer which are not valid pubsub features are
         not returned.
         """
+
         response = yield from self._disco.query_info(jid)
         result = set()
         for feature in response.features:
@@ -749,6 +760,30 @@ class PubSubClient(aioxmpp.service.Service):
                         )
                         for jid, subscription in subscriptions_to_set
                     ]
+                )
+            )
+        )
+
+        yield from self.client.stream.send(iq)
+
+    @asyncio.coroutine
+    def purge(self, jid, node):
+        """
+        Delete all items from a node.
+
+        :param jid: JID of the PubSub service
+        :param node: Name of the PubSub node
+        :type node: :class:`str`
+
+        Requires :attr:`.xso.Feature.PURGE`.
+        """
+
+        iq = aioxmpp.stanza.IQ(
+            type_=aioxmpp.structs.IQType.SET,
+            to=jid,
+            payload=pubsub_xso.OwnerRequest(
+                pubsub_xso.OwnerPurge(
+                    node
                 )
             )
         )

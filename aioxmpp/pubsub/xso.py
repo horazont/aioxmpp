@@ -830,6 +830,10 @@ class OwnerPurge(xso.XSO):
         "node",
     )
 
+    def __init__(self, node):
+        super().__init__()
+        self.node = node
+
 
 class OwnerSubscription(xso.XSO):
     TAG = (namespaces.xep0060_owner, "subscription")

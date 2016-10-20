@@ -2203,6 +2203,14 @@ class TestOwnerPurge(unittest.TestCase):
             xso.NO_DEFAULT,
         )
 
+    def test_init_default(self):
+        with self.assertRaises(TypeError):
+            pubsub_xso.OwnerPurge()
+
+    def test_init(self):
+        p = pubsub_xso.OwnerDelete("node")
+        self.assertEqual(p.node, "node")
+
 
 class TestOwnerSubscription(unittest.TestCase):
     def test_is_xso(self):
