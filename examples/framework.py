@@ -116,6 +116,7 @@ class Example(metaclass=abc.ABCMeta):
             )
 
         self.g_jid = self.args.local_jid
+
         if self.g_jid is None:
             try:
                 self.g_jid = aioxmpp.JID.fromstr(
@@ -142,7 +143,15 @@ class Example(metaclass=abc.ABCMeta):
             if self.args.ask_password:
                 password = getpass.getpass()
             else:
-                password = self.config.get("global", "password")
+                try:
+                    jid_sect = str(self.g_jid)
+                    if jid_sect not in self.config:
+                        jid_sect = "global"
+                    password = self.config.get(jid_sect, "password")
+                except configparser.NoOptionError:
+                    logging.error(('When the local JID %s is set, password ' +
+                                   'must be set as well.') % str(self.g_jid))
+                    raise
         else:
             password = None
             anonymous = anonymous or ""
