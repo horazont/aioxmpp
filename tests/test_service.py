@@ -938,6 +938,57 @@ class Test_apply_connect_depsignal(unittest.TestCase):
         )
 
 
+class Testadd_handler_spec(unittest.TestCase):
+    def test_adds_magic_attribute(self):
+        target = unittest.mock.Mock(spec=[])
+
+        self.assertFalse(
+            service.has_magic_attr(target),
+        )
+
+        service.add_handler_spec(
+            target,
+            unittest.mock.sentinel.foo,
+        )
+
+        self.assertTrue(
+            service.has_magic_attr(target),
+        )
+
+        self.assertIn(
+            unittest.mock.sentinel.foo,
+            service.get_magic_attr(target),
+        )
+
+    def test_preserves_existing_magic_attr(self):
+        target = unittest.mock.Mock(spec=[])
+        service.automake_magic_attr(target)
+        service.get_magic_attr(target).add(
+            unittest.mock.sentinel.bar
+        )
+
+        self.assertTrue(
+            service.has_magic_attr(target),
+        )
+
+        service.add_handler_spec(
+            target,
+            unittest.mock.sentinel.foo,
+        )
+
+        self.assertTrue(
+            service.has_magic_attr(target),
+        )
+
+        self.assertCountEqual(
+            service.get_magic_attr(target),
+            [
+                unittest.mock.sentinel.foo,
+                unittest.mock.sentinel.bar,
+            ]
+        )
+
+
 class Testiq_handler(unittest.TestCase):
     def setUp(self):
         self.decorator = service.iq_handler(

@@ -88,6 +88,28 @@ Test functions
 
 .. autofunction:: is_depsignal_handler
 
+Creating your own decorators
+----------------------------
+
+Sometimes, when you create your own service, it makes sense to create own
+decorators which depending services can use to make easy use of some features
+of your service.
+
+.. note::
+
+   Remember that it isn’t necessary to create custom decorators to simply
+   connect a method to a signal exposed by another service. Users of that
+   service should be using :func:`depsignal` instead.
+
+The key part is the :class:`HandlerSpec` object. It specifies the effect the
+decorator has on initialisation and shutdown of the service. To add a
+:class:`HandlerSpec` to a decorated method, use :func:`add_handler_spec` in the
+implementation of your decorator.
+
+.. autoclass:: HandlerSpec(key, is_unique=True, require_deps=[])
+
+.. autofunction:: add_handler_spec
+
 Metaclass
 =========
 
@@ -100,6 +122,7 @@ import abc
 import asyncio
 import collections
 import contextlib
+import functools
 import logging
 import warnings
 
@@ -107,18 +130,18 @@ import aioxmpp.callbacks
 import aioxmpp.stream
 
 
-def _automake_magic_attr(obj):
+def automake_magic_attr(obj):
     obj._aioxmpp_service_handlers = getattr(
         obj, "_aioxmpp_service_handlers", set()
     )
     return obj._aioxmpp_service_handlers
 
 
-def _get_magic_attr(obj):
+def get_magic_attr(obj):
     return obj._aioxmpp_service_handlers
 
 
-def _has_magic_attr(obj):
+def has_magic_attr(obj):
     return hasattr(
         obj, "_aioxmpp_service_handlers"
     )
@@ -298,10 +321,10 @@ class Meta(abc.ABCMeta):
         existing_handlers = set()
 
         for attr_name, attr_value in namespace.items():
-            if not _has_magic_attr(attr_value):
+            if not has_magic_attr(attr_value):
                 continue
 
-            new_handlers = _get_magic_attr(attr_value)
+            new_handlers = get_magic_attr(attr_value)
 
             unique_handlers = {
                 spec.key
@@ -504,8 +527,67 @@ class HandlerSpec(collections.namedtuple(
             "key",
             "require_deps",
         ])):
+    """
+    Specification of the effects of the decorator at initalisation and shutdown
+    time.
+
+    :param key: Context manager and arguments pair.
+    :type key: pair
+    :param is_unique: Whether multiple identical `key` values are allowed on a
+                      single class.
+    :type is_unique: :class:`bool`
+    :param require_deps: Dependent services which are required for the
+                         decorator to work.
+    :type require_deps: iterable of :class:`Service` classes
+
+    During initialisation of the :class:`Service` which has a method using a
+    given handler spec, the first part of the `key` pair is called with the
+    service instance as first, the client :class:`StanzaStream` as second and
+    the bound method as third argument. The second part of the `key` is
+    unpacked as additional positional arguments.
+
+    The result of the call must be a context manager, which is immediately
+    entered. On shutdown, the context manager is exited.
+
+    An example use would be the following handler spec::
+
+      HandlerSpec(
+          (func, (IQType.GET, some_payload_class)),
+          is_unique=True,
+      )
+
+    where ``func`` is a context manager which takes a service instance, a
+    stanza stream, a bound method as well as an IQ type and a payload class. On
+    enter, the context manager would register the method it received as third
+    argument on the stanza stream (second argument) as handler for the given IQ
+    type and payload class (fourth and fifth arguments).
+
+    If `is_unique` is true and several methods have :class:`HandlerSpec`
+    objects with the same `key`, :class:`TypeError` is raised at class
+    definition time.
+
+    If at class definition time any of the dependent classes in `require_deps`
+    are not declared using the order attributes (see :class:`Meta`), a
+    :class:`TypeError` is raised.
+    """
+
     def __new__(cls, key, is_unique=True, require_deps=()):
         return super().__new__(cls, is_unique, key, frozenset(require_deps))
+
+
+def add_handler_spec(f, handler_spec):
+    """
+    Attach a handler specification (see :class:`HandlerSpec`) to a function.
+
+    :param f: Function to attach the handler specification to.
+    :param handler_spec: Handler specification to attach to the function.
+    :type handler_spec: :class:`HandlerSpec`
+
+    This uses a private attribute, whose exact name is an implementation
+    detail. The `handler_spec` is stored in a :class:`set` bound to the
+    attribute.
+    """
+    automake_magic_attr(f).add(handler_spec)
 
 
 def _apply_iq_handler(instance, stream, func, type_, payload_cls):
@@ -582,7 +664,8 @@ def iq_handler(type_, payload_cls):
         if not asyncio.iscoroutinefunction(f):
             raise TypeError("a coroutine function is required")
 
-        _automake_magic_attr(f).add(
+        add_handler_spec(
+            f,
             HandlerSpec(
                 (_apply_iq_handler, (type_, payload_cls)),
             )
@@ -611,7 +694,8 @@ def message_handler(type_, from_):
         if asyncio.iscoroutinefunction(f):
             raise TypeError("message_handler must not be a coroutine function")
 
-        _automake_magic_attr(f).add(
+        add_handler_spec(
+            f,
             HandlerSpec(
                 (_apply_message_handler, (type_, from_))
             )
@@ -642,7 +726,8 @@ def presence_handler(type_, from_):
                 "presence_handler must not be a coroutine function"
             )
 
-        _automake_magic_attr(f).add(
+        add_handler_spec(
+            f,
             HandlerSpec(
                 (_apply_presence_handler, (type_, from_)),
             )
@@ -669,7 +754,8 @@ def inbound_message_filter(f):
             "inbound_message_filter must not be a coroutine function"
         )
 
-    _automake_magic_attr(f).add(
+    add_handler_spec(
+        f,
         HandlerSpec(
             (_apply_inbound_message_filter, ())
         ),
@@ -695,7 +781,8 @@ def inbound_presence_filter(f):
             "inbound_presence_filter must not be a coroutine function"
         )
 
-    _automake_magic_attr(f).add(
+    add_handler_spec(
+        f,
         HandlerSpec(
             (_apply_inbound_presence_filter, ())
         ),
@@ -721,7 +808,8 @@ def outbound_message_filter(f):
             "outbound_message_filter must not be a coroutine function"
         )
 
-    _automake_magic_attr(f).add(
+    add_handler_spec(
+        f,
         HandlerSpec(
             (_apply_outbound_message_filter, ())
         ),
@@ -748,7 +836,8 @@ def outbound_presence_filter(f):
             "outbound_presence_filter must not be a coroutine function"
         )
 
-    _automake_magic_attr(f).add(
+    add_handler_spec(
+        f,
         HandlerSpec(
             (_apply_outbound_presence_filter, ())
         ),
@@ -828,7 +917,8 @@ def depsignal(class_, signal_name, *, defer=False):
     """
 
     def decorator(f):
-        _automake_magic_attr(f).add(
+        add_handler_spec(
+            f,
             _depsignal_spec(class_, signal_name, f, defer)
         )
         return f
@@ -842,7 +932,7 @@ def is_iq_handler(type_, payload_cls, coro):
     """
 
     try:
-        handlers = _get_magic_attr(coro)
+        handlers = get_magic_attr(coro)
     except AttributeError:
         return False
 
@@ -858,7 +948,7 @@ def is_message_handler(type_, from_, cb):
     """
 
     try:
-        handlers = _get_magic_attr(cb)
+        handlers = get_magic_attr(cb)
     except AttributeError:
         return False
 
@@ -874,7 +964,7 @@ def is_presence_handler(type_, from_, cb):
     """
 
     try:
-        handlers = _get_magic_attr(cb)
+        handlers = get_magic_attr(cb)
     except AttributeError:
         return False
 
@@ -889,7 +979,7 @@ def is_inbound_message_filter(cb):
     """
 
     try:
-        handlers = _get_magic_attr(cb)
+        handlers = get_magic_attr(cb)
     except AttributeError:
         return False
 
@@ -905,7 +995,7 @@ def is_inbound_presence_filter(cb):
     """
 
     try:
-        handlers = _get_magic_attr(cb)
+        handlers = get_magic_attr(cb)
     except AttributeError:
         return False
 
@@ -921,7 +1011,7 @@ def is_outbound_message_filter(cb):
     """
 
     try:
-        handlers = _get_magic_attr(cb)
+        handlers = get_magic_attr(cb)
     except AttributeError:
         return False
 
@@ -937,7 +1027,7 @@ def is_outbound_presence_filter(cb):
     """
 
     try:
-        handlers = _get_magic_attr(cb)
+        handlers = get_magic_attr(cb)
     except AttributeError:
         return False
 
@@ -952,7 +1042,7 @@ def is_depsignal_handler(class_, signal_name, cb, *, defer=False):
     signal, class and connection mode.
     """
     try:
-        handlers = _get_magic_attr(cb)
+        handlers = get_magic_attr(cb)
     except AttributeError:
         return False
 
