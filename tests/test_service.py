@@ -36,6 +36,26 @@ from aioxmpp.testutils import (
 
 
 class TestServiceMeta(unittest.TestCase):
+    def setUp(self):
+        self.descriptor_cm = unittest.mock.Mock()
+
+        class FooDescriptor(service.Descriptor):
+            def __init__(self, *, deps=[]):
+                super().__init__()
+                self._deps = list(deps)
+
+            @property
+            def required_dependencies(self):
+                return list(self._deps)
+
+            def init_cm(self, instance):
+                return self.descriptor_cm(instance)
+
+        self.FooDescriptor = FooDescriptor
+
+    def tearDown(self):
+        del self.FooDescriptor
+
     def test_inherits_from_ABCMeta(self):
         self.assertTrue(issubclass(service.Meta, abc.ABCMeta))
 
@@ -567,6 +587,46 @@ class TestServiceMeta(unittest.TestCase):
                 r"inheritance from service class with handlers is forbidden"):
             class Bar(Foo):
                 pass
+
+    def test_collect_descriptors(self):
+        descriptor = self.FooDescriptor()
+
+        class Foo(metaclass=service.Meta):
+            x = descriptor
+
+        self.assertCountEqual(
+            Foo.SERVICE_DESCRIPTORS,
+            (
+                descriptor,
+            ),
+        )
+
+    def test_reject_inheritance_from_class_with_descriptors(self):
+        class Foo(metaclass=service.Meta):
+            x = self.FooDescriptor()
+
+        with self.assertRaisesRegex(
+                TypeError,
+                r"inheritance from service class with descriptors is "
+                "forbidden"):
+            class Bar(Foo):
+                pass
+
+    def test_reject_missing_descriptor_dependencies(self):
+        with self.assertRaisesRegex(
+                TypeError,
+                r"descriptor requires dependency .* but it is not declared"):
+            class Foo(metaclass=service.Meta):
+                x = self.FooDescriptor(deps=[unittest.mock.sentinel.foo])
+
+    def test_allow_properly_declared_descriptor_dependencies(self):
+        class Other(metaclass=service.Meta):
+            pass
+
+        class Foo(metaclass=service.Meta):
+            ORDER_AFTER = [Other]
+
+            x = self.FooDescriptor(deps=[Other])
 
 
 class TestService(unittest.TestCase):
@@ -2258,3 +2318,143 @@ class Testis_depsignal_handler(unittest.TestCase):
                 defer=True,
             )
         )
+
+
+class TestDescriptor(unittest.TestCase):
+    class DescriptorSubclass(service.Descriptor):
+        def init_cm(self, instance):
+            return unittest.mock.sentinel.cm
+
+    def setUp(self):
+        self.d = self.DescriptorSubclass()
+
+    def tearDown(self):
+        del self.d
+
+    def test_is_abstract_class(self):
+        with self.assertRaisesRegex(TypeError, "abstract methods init_cm"):
+            service.Descriptor()
+
+    def test_add_to_stack_uses_init_cm_to_obtain_cm_and_pushes(self):
+        with contextlib.ExitStack() as stack:
+            init_cm = stack.enter_context(
+                unittest.mock.patch.object(self.d, "init_cm")
+            )
+            init_cm.return_value = unittest.mock.sentinel.cm
+
+            target_stack = unittest.mock.Mock()
+
+            result = self.d.add_to_stack(
+                unittest.mock.sentinel.instance,
+                target_stack,
+            )
+
+        init_cm.assert_called_once_with(
+            unittest.mock.sentinel.instance,
+        )
+
+        target_stack.enter_context.assert_called_once_with(
+            unittest.mock.sentinel.cm,
+        )
+
+        self.assertEqual(
+            result,
+            target_stack.enter_context(),
+        )
+
+    def test___get___returns_self_for_None_instance(self):
+        self.assertIs(
+            self.d.__get__(None, unittest.mock.sentinel.owner),
+            self.d,
+        )
+
+    def test___get___raises_AttributeError_if_not_initialised(self):
+        with self.assertRaisesRegex(
+                AttributeError,
+                r"resource manager descriptor has not been initialised"):
+            self.d.__get__(
+                unittest.mock.sentinel.instance,
+                unittest.mock.sentinel.owner
+            )
+
+    def test_add_to_stack_causes___get___to_return_the_cm_result(self):
+        target_stack = unittest.mock.Mock()
+
+        result1 = self.d.add_to_stack(
+            unittest.mock.sentinel.instance,
+            target_stack,
+        )
+
+        result2 = self.d.__get__(
+            unittest.mock.sentinel.instance,
+            unittest.mock.sentinel.owner,
+        )
+
+        self.assertEqual(result1, result2)
+
+    def test___get___works_with_different_instances(self):
+        target_stack = unittest.mock.Mock()
+
+        result11 = self.d.add_to_stack(
+            unittest.mock.sentinel.instance1,
+            target_stack,
+        )
+
+        result12 = self.d.add_to_stack(
+            unittest.mock.sentinel.instance2,
+            target_stack,
+        )
+
+        result21 = self.d.__get__(
+            unittest.mock.sentinel.instance1,
+            unittest.mock.sentinel.owner,
+        )
+
+        result22 = self.d.__get__(
+            unittest.mock.sentinel.instance2,
+            unittest.mock.sentinel.owner,
+        )
+
+        with self.assertRaises(AttributeError):
+            self.d.__get__(
+                unittest.mock.sentinel.instance3,
+                unittest.mock.sentinel.owner,
+            )
+
+        self.assertEqual(result11, result21)
+        self.assertEqual(result12, result22)
+
+    def test_add_to_stack_stores_with_weakref(self):
+        with contextlib.ExitStack() as stack:
+            WeakKeyDictionary = stack.enter_context(
+                unittest.mock.patch(
+                    "weakref.WeakKeyDictionary",
+                    new=unittest.mock.MagicMock(),
+                ),
+            )
+
+            target_stack = unittest.mock.Mock()
+
+            self.d = self.DescriptorSubclass()
+
+            WeakKeyDictionary.assert_called_once_with()
+
+            self.d.add_to_stack(
+                unittest.mock.sentinel.instance,
+                target_stack,
+            )
+
+            self.assertIn(
+                unittest.mock._Call((
+                    "__setitem__",
+                    (
+                        unittest.mock.sentinel.instance,
+                        (
+                            unittest.mock.sentinel.cm,
+                            target_stack.enter_context(),
+                        )
+                    ),
+                    {}
+                )),
+                WeakKeyDictionary().mock_calls,
+            )

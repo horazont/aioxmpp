@@ -110,6 +110,19 @@ implementation of your decorator.
 
 .. autofunction:: add_handler_spec
 
+Creating your own descriptors
+-----------------------------
+
+Sometimes a decorator is not the right tool for the job, because with what you
+attempt to achieve, there’s simply no relationship to a method.
+
+In this case, subclassing :class:`Descriptor` is the way to go. It provides an
+abstract base class implementing a :term:`descriptor`. Using a
+:class:`Descriptor` subclass, you can create objects for each individual
+service instance using the descriptor, including cleanup.
+
+.. autoclass:: Descriptor
+
 Metaclass
 =========
 
@@ -122,9 +135,9 @@ import abc
 import asyncio
 import collections
 import contextlib
-import functools
 import logging
 import warnings
+import weakref
 
 import aioxmpp.callbacks
 import aioxmpp.stream
@@ -145,6 +158,99 @@ def has_magic_attr(obj):
     return hasattr(
         obj, "_aioxmpp_service_handlers"
     )
+
+
+class Descriptor(metaclass=abc.ABCMeta):
+    """
+    Abstract base class for resource managing descriptors on :class:`Service`
+    classes.
+
+    While resources such as callback slots can easily be managed with
+    decorators (see above), because they are inherently related to the method
+    they use, others cannot. A :class:`Descriptor` provides a method to
+    initialise a context manager. The context manager is entered when the
+    service is initialised and left when the service is shut down, thus
+    providing a way for the :class:`Descriptor` to manage the resource
+    associated with it.
+
+    The result from entering the context manager is accessible by reading the
+    attribute the descriptor is bound to.
+
+    Subclasses must implement the following:
+
+    .. automethod:: init_cm
+
+    Subclasses may override the following to modify the default behaviour:
+
+    .. autoattribute:: required_dependencies
+
+    .. automethod:: add_to_stack
+
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._data = weakref.WeakKeyDictionary()
+
+    @property
+    def required_dependencies(self):
+        """
+        Iterable of services which must be declared as dependencies on a class
+        using this descriptor.
+
+        The default implementation returns an empty list.
+        """
+        return []
+
+    @abc.abstractmethod
+    def init_cm(self, instance):
+        """
+        Create and return a :term:`context manager`.
+
+        :param instance: The service instance for which the CM is used.
+        :return: A context manager managing the resource.
+
+        The context manager is responsible for acquiring, initialising,
+        destructing and releasing the resource managed by this descriptor.
+
+        The returned context manager is not stored anywhere in the descriptor,
+        it is the responsibility of the caller to register it appropriately.
+        """
+
+    def add_to_stack(self, instance, stack):
+        """
+        Get the context manager for the service `instance` and push it to the
+        context manager `stack`.
+
+        :param instance: The service to get the context manager for.
+        :type instance: :class:`Service`
+        :param stack: The context manager stack to push the CM onto.
+        :type stack: :class:`contextlib.ExitStack`
+        :return: The object returned by the context manager on enter.
+
+        If a context manager has already been created for `instance`, it is
+        re-used.
+
+        On subsequent calls to :meth:`__get__` for the given `instance`, the
+        return value of this method will be returned, that is, the value
+        obtained from entering the context.
+        """
+
+        cm = self.init_cm(instance)
+        obj = stack.enter_context(cm)
+        self._data[instance] = cm, obj
+        return obj
+
+    def __get__(self, instance, owner):
+        if instance is None:
+            return self
+        try:
+            cm, obj = self._data[instance]
+        except KeyError:
+            raise AttributeError(
+                "resource manager descriptor has not been initialised"
+            )
+        return obj
 
 
 class Meta(abc.ABCMeta):
@@ -313,6 +419,12 @@ class Meta(abc.ABCMeta):
                 raise TypeError(
                     "inheritance from service class with handlers is forbidden"
                 )
+            if (hasattr(base, "SERVICE_DESCRIPTORS") and
+                    base.SERVICE_DESCRIPTORS):
+                raise TypeError(
+                    "inheritance from service class with descriptors is "
+                    "forbidden"
+                )
 
         namespace["ORDER_BEFORE"] = set(before_classes)
         namespace["ORDER_AFTER"] = set(after_classes)
@@ -367,6 +479,25 @@ class Meta(abc.ABCMeta):
                 )
 
         namespace["SERVICE_HANDLERS"] = tuple(SERVICE_HANDLERS)
+
+        SERVICE_DESCRIPTORS = []
+
+        for attr_name, attr_value in namespace.items():
+            if not isinstance(attr_value, Descriptor):
+                continue
+
+            missing = set(attr_value.required_dependencies) - orig_after
+            if missing:
+                raise TypeError(
+                    "descriptor requires dependency {!r} "
+                    "but it is not declared".format(
+                        next(iter(missing)),
+                    )
+                )
+
+            SERVICE_DESCRIPTORS.append(attr_value)
+
+        namespace["SERVICE_DESCRIPTORS"] = SERVICE_DESCRIPTORS
 
         return super().__new__(mcls, name, bases, namespace)
 
