@@ -130,6 +130,20 @@ Version 0.7
   :class:`ValueError` when an attempt to overwrite an existing listener is made,
   instead of silently replacing the callback.
 
+Version 0.7.2
+-------------
+
+* Fix resource leak which would emit::
+
+    task: <Task pending coro=<OrderedStateMachine.wait_for() running at /home/horazont/Projects/python/aioxmpp/aioxmpp/statemachine.py:170> wait_for=<Future pending cb=[Task._wakeup()]> cb=[XMLStream._stream_starts_closing()]>
+
+* Improve compatibility of :mod:`aioxmpp.muc` with Prosody 0.9 and below, which
+  misses sending the ``110`` status code on some presences.
+
+* Handle inbound message stanzas with empty from attribute. Those are legal as
+  per :rfc:`6120`, but were not handled properly.
+
+
 Version 0.6
 ===========
 

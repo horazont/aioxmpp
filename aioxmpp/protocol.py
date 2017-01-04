@@ -365,9 +365,9 @@ class XMLStream(asyncio.Protocol):
         self.close()
 
     def _require_connection(self, accept_partial=False):
-        if     (self._smachine.state == State.OPEN
-                or (accept_partial
-                    and self._smachine.state == State.STREAM_HEADER_SENT)):
+        if     (self._smachine.state == State.OPEN or
+                (accept_partial and
+                 self._smachine.state == State.STREAM_HEADER_SENT)):
             return
 
         if self._exception:
@@ -619,6 +619,9 @@ class XMLStream(asyncio.Protocol):
         .. versionadded:: 0.5
         """
         if self._smachine.state == State.CLOSED:
+            return
+        if self._smachine.state == State.READY:
+            self._smachine.state = State.CLOSED
             return
         if     (self._smachine.state != State.CLOSING and
                 self._transport.can_write_eof()):
