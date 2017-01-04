@@ -140,6 +140,9 @@ Version 0.7.2
 * Improve compatibility of :mod:`aioxmpp.muc` with Prosody 0.9 and below, which
   misses sending the ``110`` status code on some presences.
 
+* Handle inbound message stanzas with empty from attribute. Those are legal as
+  per :rfc:`6120`, but were not handled properly.
+
 
 Version 0.6
 ===========
