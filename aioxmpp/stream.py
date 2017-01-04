@@ -939,6 +939,13 @@ class StanzaStream:
                                "filter chain")
             return
 
+        # XXX: this should be fixed better, to avoid the ambiguity between bare
+        # JID wildcarding and stanzas originating from bare JIDs
+        # also, I don’t like how we handle from_=None now
+
+        if stanza_obj.from_ is None:
+            stanza_obj.from_ = self._local_jid
+
         keys = [(stanza_obj.type_, stanza_obj.from_),
                 (stanza_obj.type_, stanza_obj.from_.bare()),
                 (None, stanza_obj.from_),

@@ -840,6 +840,24 @@ class TestStanzaStream(StanzaStreamTestBase):
 
         self.assertIs(msg, fut.result())
 
+    def test_run_message_callback_for_message_without_from(self):
+        msg = make_test_message(from_=None)
+
+        fut = asyncio.Future()
+
+        self.stream.register_message_callback(
+            structs.MessageType.CHAT,
+            TEST_FROM.bare(),
+            fut.set_result)
+        self.stream.start(self.xmlstream)
+        self.stream.recv_stanza(msg)
+
+        run_coroutine(fut)
+
+        self.stream.stop()
+
+        self.assertIs(msg, fut.result())
+
     @unittest.skipIf(aioxmpp.version_info >= (1, 0, 0),
                      "not applying to this version of aioxmpp")
     def test_register_message_callback_casts_enum_and_warn(self):

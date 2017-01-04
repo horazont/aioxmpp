@@ -20,10 +20,6 @@ Version 0.8
 
 * :meth:`aioxmpp.muc.Room.request_voice`
 
-* Fix resource leak which would emit::
-
-    task: <Task pending coro=<OrderedStateMachine.wait_for() running at /home/horazont/Projects/python/aioxmpp/aioxmpp/statemachine.py:170> wait_for=<Future pending cb=[Task._wakeup()]> cb=[XMLStream._stream_starts_closing()]>
-
 * Support for ANONYMOUS SASL mechanism. See :meth:`aioxmpp.security_layer.make`
   for details.
 
@@ -52,9 +48,6 @@ Version 0.8
 
   * :meth:`~.AbstractClient.on_stream_destroyed` got a new argument `reason`
     which gives the exception which caused the stream to be destroyed.
-
-* Improve compatibility of :mod:`aioxmpp.muc` with Prosody 0.9 and below, which
-  misses sending the ``110`` status code on some presences.
 
 * Fix :meth:`aioxmpp.muc.Room.leave_and_wait` never returning.
 
@@ -235,6 +228,20 @@ Version 0.7
   :meth:`~.StanzaStream.register_presence_callback` now explicitly raise
   :class:`ValueError` when an attempt to overwrite an existing listener is made,
   instead of silently replacing the callback.
+
+Version 0.7.2
+-------------
+
+* Fix resource leak which would emit::
+
+    task: <Task pending coro=<OrderedStateMachine.wait_for() running at /home/horazont/Projects/python/aioxmpp/aioxmpp/statemachine.py:170> wait_for=<Future pending cb=[Task._wakeup()]> cb=[XMLStream._stream_starts_closing()]>
+
+* Improve compatibility of :mod:`aioxmpp.muc` with Prosody 0.9 and below, which
+  misses sending the ``110`` status code on some presences.
+
+* Handle inbound message stanzas with empty from attribute. Those are legal as
+  per :rfc:`6120`, but were not handled properly.
+
 
 Version 0.6
 ===========
