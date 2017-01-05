@@ -1353,6 +1353,14 @@ class StanzaStream:
         * ``type_``, ``None``
         * ``None``, ``None``
 
+        .. note::
+
+           When the server sends a stanza without from attribute, it is
+           replaced with the bare :attr:`local_jid`, as per :rfc:`6120`.
+
+           In the future, there might be a different way to select those
+           stanzas.
+
         .. versionchanged:: 0.7
 
            The `type_` argument is now supposed to be a
