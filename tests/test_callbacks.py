@@ -513,7 +513,7 @@ class TestFutureListener(unittest.TestCase):
     def test_error_dispatch(self):
         loop = asyncio.get_event_loop()
         fut = asyncio.Future(loop=loop)
-        obj = object()
+        obj = Exception()
         tl = FutureListener(fut)
 
         self.assertTrue(tl.is_valid())
