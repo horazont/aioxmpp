@@ -299,6 +299,10 @@ class StanzaToken:
 
        Wait until the stanza is either sent or failed to sent.
 
+       .. warning::
+
+          This only works with Python 3.5 or newer.
+
        :raises ConnectionError: if the stanza enters
                                 :attr:`~.StanzaState.DISCONNECTED` state.
        :raises RuntimeError: if the stanza enters :attr:`~.StanzaState.ABORTED`
@@ -393,7 +397,6 @@ class StanzaToken:
             raise
 
     __iter__ = __await__
-
 
 class StanzaStream:
     """

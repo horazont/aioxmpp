@@ -63,6 +63,9 @@ class FancyTestIQ(xso.XSO):
 stanza.IQ.register_child(stanza.IQ.payload, FancyTestIQ)
 
 
+CAN_AWAIT_STANZA_TOKEN = sys.version_info >= (3, 5)
+
+
 def make_test_iq(from_=TEST_FROM, to=TEST_TO,
                  type_=structs.IQType.GET,
                  autoset_id=True):
@@ -4454,6 +4457,8 @@ class TestStanzaToken(unittest.TestCase):
 
         self.assertIsNone(run_coroutine(task))
 
+    @unittest.skipUnless(CAN_AWAIT_STANZA_TOKEN,
+                         "requires Python 3.5+")
     def test_await_returns_on_SENT_WITHOUT_SM(self):
         task = asyncio.async(self.token.__await__())
         run_coroutine(asyncio.sleep(0.01))
@@ -4463,6 +4468,8 @@ class TestStanzaToken(unittest.TestCase):
 
         self.assertIsNone(run_coroutine(task))
 
+    @unittest.skipUnless(CAN_AWAIT_STANZA_TOKEN,
+                         "requires Python 3.5+")
     def test_await_returns_on_ACKED(self):
         task = asyncio.async(self.token.__await__())
         run_coroutine(asyncio.sleep(0.01))
@@ -4472,6 +4479,8 @@ class TestStanzaToken(unittest.TestCase):
 
         self.assertIsNone(run_coroutine(task))
 
+    @unittest.skipUnless(CAN_AWAIT_STANZA_TOKEN,
+                         "requires Python 3.5+")
     def test_await_waits_while_SENT(self):
         task = asyncio.async(self.token.__await__())
         run_coroutine(asyncio.sleep(0.01))
@@ -4486,6 +4495,8 @@ class TestStanzaToken(unittest.TestCase):
 
         self.assertIsNone(run_coroutine(task))
 
+    @unittest.skipUnless(CAN_AWAIT_STANZA_TOKEN,
+                         "requires Python 3.5+")
     def test_await_raises_ConnectionError_on_DISCONNECTED(self):
         task = asyncio.async(self.token.__await__())
         run_coroutine(asyncio.sleep(0.01))
@@ -4498,6 +4509,8 @@ class TestStanzaToken(unittest.TestCase):
                 r"disconnected"):
             run_coroutine(task)
 
+    @unittest.skipUnless(CAN_AWAIT_STANZA_TOKEN,
+                         "requires Python 3.5+")
     def test_await_raises_RuntimeError_on_DROPPED(self):
         task = asyncio.async(self.token.__await__())
         run_coroutine(asyncio.sleep(0.01))
@@ -4510,6 +4523,8 @@ class TestStanzaToken(unittest.TestCase):
                 r"dropped by filter"):
             run_coroutine(task)
 
+    @unittest.skipUnless(CAN_AWAIT_STANZA_TOKEN,
+                         "requires Python 3.5+")
     def test_await_raises_RuntimeError_on_ABORTED(self):
         task = asyncio.async(self.token.__await__())
         run_coroutine(asyncio.sleep(0.01))
@@ -4522,6 +4537,8 @@ class TestStanzaToken(unittest.TestCase):
                 r"aborted"):
             run_coroutine(task)
 
+    @unittest.skipUnless(CAN_AWAIT_STANZA_TOKEN,
+                         "requires Python 3.5+")
     def test_await_aborts_if_cancelled(self):
         task = asyncio.async(self.token.__await__())
         run_coroutine(asyncio.sleep(0.01))
@@ -4537,6 +4554,8 @@ class TestStanzaToken(unittest.TestCase):
             stream.StanzaState.ABORTED
         )
 
+    @unittest.skipUnless(CAN_AWAIT_STANZA_TOKEN,
+                         "requires Python 3.5+")
     def test_next_await_raises_usual_abort_error_after_cancel(self):
         task = asyncio.async(self.token.__await__())
         run_coroutine(asyncio.sleep(0.01))
@@ -4556,6 +4575,8 @@ class TestStanzaToken(unittest.TestCase):
                                     r"aborted"):
             run_coroutine(self.token)
 
+    @unittest.skipUnless(CAN_AWAIT_STANZA_TOKEN,
+                         "requires Python 3.5+")
     def test_await_does_not_abort_if_already_inflight(self):
         task = asyncio.async(self.token.__await__())
         run_coroutine(asyncio.sleep(0.01))
@@ -4575,14 +4596,20 @@ class TestStanzaToken(unittest.TestCase):
             stream.StanzaState.SENT,
         )
 
+    @unittest.skipUnless(CAN_AWAIT_STANZA_TOKEN,
+                         "requires Python 3.5+")
     def test_await_returns_immediately_if_already_SENT_WITHOUT_SM(self):
         self.token._set_state(stream.StanzaState.SENT_WITHOUT_SM)
         self.assertIsNone(run_coroutine(self.token))
 
+    @unittest.skipUnless(CAN_AWAIT_STANZA_TOKEN,
+                         "requires Python 3.5+")
     def test_await_returns_immediately_if_already_ACKED(self):
         self.token._set_state(stream.StanzaState.ACKED)
         self.assertIsNone(run_coroutine(self.token))
 
+    @unittest.skipUnless(CAN_AWAIT_STANZA_TOKEN,
+                         "requires Python 3.5+")
     def test_await_raises_immediately_if_already_DISCONNECTED(self):
         self.token._set_state(stream.StanzaState.DISCONNECTED)
 
@@ -4590,6 +4617,8 @@ class TestStanzaToken(unittest.TestCase):
                                     r"disconnected"):
             run_coroutine(self.token)
 
+    @unittest.skipUnless(CAN_AWAIT_STANZA_TOKEN,
+                         "requires Python 3.5+")
     def test_await_raises_immediately_if_already_ABORTED(self):
         self.token._set_state(stream.StanzaState.ABORTED)
 
@@ -4597,18 +4626,14 @@ class TestStanzaToken(unittest.TestCase):
                                     r"aborted"):
             run_coroutine(self.token)
 
+    @unittest.skipUnless(CAN_AWAIT_STANZA_TOKEN,
+                         "requires Python 3.5+")
     def test_await_raises_immediately_if_already_DROPPED(self):
         self.token._set_state(stream.StanzaState.DROPPED)
 
         with self.assertRaisesRegex(RuntimeError,
                                     r"dropped by filter"):
             run_coroutine(self.token)
-
-    def test_iter_is_identical_to_await(self):
-        self.assertIs(
-            stream.StanzaToken.__iter__,
-            stream.StanzaToken.__await__,
-        )
 
 
 class Testiq_handler(unittest.TestCase):
