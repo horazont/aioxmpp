@@ -39,6 +39,9 @@ Features
 
 * Well-tested and modular codebase.
 
+  .. image:: https://travis-ci.org/horazont/aioxmpp.svg?branch=master
+    :target: https://travis-ci.org/horazont/aioxmpp
+
 And there’s yet more to come! Check out the list of `open GitHub issues tagged
 as enhancement
 <https://github.com/horazont/aioxmpp/issues?q=is%3Aissue+is%3Aopen+label%3Aenhancement>`_
