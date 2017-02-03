@@ -39,7 +39,7 @@ Features
 
 * Well-tested and modular codebase.
 
-  .. image:: https://travis-ci.org/horazont/aioxmpp.svg?branch=master
+  .. image:: https://travis-ci.org/horazont/aioxmpp.svg?branch=devel
     :target: https://travis-ci.org/horazont/aioxmpp
 
 And there’s yet more to come! Check out the list of `open GitHub issues tagged
