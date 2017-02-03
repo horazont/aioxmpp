@@ -454,7 +454,7 @@ class AnonymousProvisioner(Provisioner):
     """
 
     def configure(self, section):
-        self.__host = section["host"]
+        self.__host = section.get("host")
         self.__domain = aioxmpp.JID.fromstr(section.get(
             "domain",
             self.__host

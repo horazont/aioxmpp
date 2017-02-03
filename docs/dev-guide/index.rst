@@ -95,15 +95,23 @@ example config file using that provisioner looks like this:
   provisioner=aioxmpp.e2etest.provision.AnonymousProvisioner
 
   [aioxmpp.e2etest.provision.AnonymousProvisioner]
-  host=localhost
+  domain=localhost
   pin_store=pinstore.json
   pin_type=0
 
 The ``aioxmpp.e2etest.provision.AnonymousProvisioner`` contains the options
-specific to that provisioner. ``host`` must be a valid JID domainpart and the
-XMPP host to connect to. ``pin_store`` and ``pin_type`` can be used to configure
-certificate pinning, in case the server you want to test against does not have a
-certificate which passes the default OpenSSL PKIX tests.
+specific to that provisioner.
+
+``domain`` must be a valid JID domainpart and the XMPP host to connect to. This
+must be a domain served by the target XMPP server. To connect to a local server
+whose hostname and IP address cannot be resolved from the XMPP domain name via
+the DNS, you can explicitly set the IP or hostname as well as the port to
+connect to with the ``host`` and ``port`` options. If ``domain`` is omitted but
+``host`` is set, it is assumed to be the same as ``host``.
+
+``pin_store`` and ``pin_type`` can be used to configure certificate pinning, in
+case the server you want to test against does not have a certificate which
+passes the default OpenSSL PKIX tests.
 
 If set, ``pin_store`` must point to a JSON file, which consists of a single
 object mapping host names to arrays of strings containing the base64
