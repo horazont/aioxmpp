@@ -31,6 +31,7 @@ import logging
 import aioxmpp
 import aioxmpp.disco
 import aioxmpp.security_layer
+import aioxmpp.connector
 
 
 _logger = logging.getLogger(__name__)
@@ -453,7 +454,12 @@ class AnonymousProvisioner(Provisioner):
     """
 
     def configure(self, section):
-        self.__host = aioxmpp.JID.fromstr(section["host"])
+        self.__host = section["host"]
+        self.__domain = aioxmpp.JID.fromstr(section.get(
+            "domain",
+            self.__host
+        ))
+        self.__port = section.getint("port")
         self.__security_layer = aioxmpp.make_security_layer(
             None,
             anonymous="",
@@ -465,9 +471,17 @@ class AnonymousProvisioner(Provisioner):
 
     @asyncio.coroutine
     def _make_client(self, logger):
+        override_peer = []
+        if self.__port is not None:
+            override_peer.append(
+                (self.__host, self.__port,
+                 aioxmpp.connector.STARTTLSConnector())
+            )
+
         return aioxmpp.PresenceManagedClient(
-            self.__host,
+            self.__domain,
             self.__security_layer,
+            override_peer=override_peer,
             logger=logger,
         )
 
@@ -481,7 +495,7 @@ class AnonymousProvisioner(Provisioner):
         self._featuremap.update(
             (yield from discover_server_features(
                 disco,
-                self.__host
+                self.__domain
             ))
         )
 
