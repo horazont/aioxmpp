@@ -60,7 +60,7 @@ class Testthreadlocal_resolver_instance(unittest.TestCase):
         )
 
     def test_get_resolver_is_thread_local(self):
-        with concurrent.futures.ThreadPoolExecutor() as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
             fut = executor.submit(network.get_resolver)
             done, waiting = concurrent.futures.wait([fut])
             self.assertSetEqual(done, {fut})
