@@ -20,6 +20,7 @@
 #
 ########################################################################
 import asyncio
+import contextlib
 import functools
 import itertools
 
@@ -618,3 +619,45 @@ class DiscoClient(service.Service):
         .. versionadded:: 0.5
         """
         self._info_pending[jid, node] = fut
+
+
+class mount_as_node(service.Descriptor):
+    """
+    Service descriptor which mounts the :class:`~.service.Service` as
+    :class:`.DiscoServer` node.
+
+    :param mountpoint: The mountpoint at which to mount the node.
+    :type mountpoint: :class:`str`
+
+    .. versionadded:: 0.8
+
+    When the service is instaniated, it is mounted as :class:`~.disco.Node` at
+    the given `mountpoint`; it must thus also inherit from
+    :class:`~.disco.Node` or implement a compatible interface.
+
+    .. autoattribute:: mountpoint
+    """
+
+    def __init__(self, mountpoint):
+        super().__init__()
+        self._mountpoint = mountpoint
+
+    @property
+    def mountpoint(self):
+        """
+        The mountpoint at which the node is mounted.
+        """
+        return self._mountpoint
+
+    @property
+    def required_dependencies(self):
+        return [DiscoServer]
+
+    @contextlib.contextmanager
+    def init_cm(self, instance):
+        disco = instance.dependencies[DiscoServer]
+        disco.mount_node(self._mountpoint, instance)
+        try:
+            yield
+        finally:
+            disco.unmount_node(self._mountpoint)

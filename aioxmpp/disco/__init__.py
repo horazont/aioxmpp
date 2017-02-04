@@ -74,6 +74,8 @@ Entity information
 
 .. autoclass:: StaticNode
 
+.. autoclass:: mount_as_node
+
 .. module:: aioxmpp.disco.xso
 
 .. currentmodule:: aioxmpp.disco.xso
@@ -109,4 +111,5 @@ Item queries
 """
 
 from . import xso  # NOQA
-from .service import DiscoClient, DiscoServer, Node, StaticNode  # NOQA
+from .service import (DiscoClient, DiscoServer, Node, StaticNode,  # NOQA
+                      mount_as_node)

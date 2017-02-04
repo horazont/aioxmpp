@@ -21,6 +21,7 @@
 ########################################################################
 import asyncio
 import unittest
+import sys
 
 import aioxmpp.service as service
 import aioxmpp.disco.service as disco_service
@@ -1371,3 +1372,63 @@ class TestDiscoClient(unittest.TestCase):
             run_coroutine(request)
 
         self.assertIs(ctx.exception, exc)
+
+
+class Testmount_as_node(unittest.TestCase):
+    def setUp(self):
+        self.pn = disco_service.mount_as_node(
+            unittest.mock.sentinel.mountpoint
+        )
+        self.instance = unittest.mock.Mock()
+        self.disco_server = unittest.mock.Mock()
+        self.instance.dependencies = {
+            disco_service.DiscoServer: self.disco_server
+        }
+
+    def tearDown(self):
+        del self.instance
+        del self.disco_server
+        del self.pn
+
+    def test_mountpoint(self):
+        self.assertEqual(
+            self.pn.mountpoint,
+            unittest.mock.sentinel.mountpoint,
+        )
+
+    def test_required_dependencies(self):
+        self.assertSetEqual(
+            set(self.pn.required_dependencies),
+            {disco_service.DiscoServer},
+        )
+
+    def test_contextmanager(self):
+        cm = self.pn.init_cm(self.instance)
+        self.disco_server.mount_node.assert_not_called()
+        cm.__enter__()
+        self.disco_server.mount_node.assert_called_once_with(
+            unittest.mock.sentinel.mountpoint,
+            self.instance,
+        )
+        self.disco_server.unmount_node.assert_not_called()
+        cm.__exit__(None, None, None)
+        self.disco_server.unmount_node.assert_called_once_with(
+            unittest.mock.sentinel.mountpoint,
+        )
+
+    def test_contextmanager_is_exception_safe(self):
+        cm = self.pn.init_cm(self.instance)
+        self.disco_server.mount_node.assert_not_called()
+        cm.__enter__()
+        self.disco_server.mount_node.assert_called_once_with(
+            unittest.mock.sentinel.mountpoint,
+            self.instance,
+        )
+        self.disco_server.unmount_node.assert_not_called()
+        try:
+            raise Exception()
+        except:
+            cm.__exit__(*sys.exc_info())
+        self.disco_server.unmount_node.assert_called_once_with(
+            unittest.mock.sentinel.mountpoint,
+        )

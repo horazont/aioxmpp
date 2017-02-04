@@ -102,6 +102,8 @@ Version 0.8
 * **Breaking change**: :attr:`aioxmpp.tracking.MessageState.UNKNOWN` renamed to
   :attr:`~.MessageState.CLOSED`.
 
+* :class:`aioxmpp.disco.mount_as_node`
+
 .. _api-changelog-0.7:
 
 Version 0.7
