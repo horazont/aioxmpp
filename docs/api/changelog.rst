@@ -104,6 +104,11 @@ Version 0.8
 
 * :class:`aioxmpp.disco.mount_as_node`
 
+* **Breaking change**: :meth:`aioxmpp.disco.Node.iter_items`,
+  :meth:`~aioxmpp.disco.Node.iter_features` and
+  :meth:`~aioxmpp.disco.Node.iter_identities` now get the request stanza passed
+  as first argument.
+
 .. _api-changelog-0.7:
 
 Version 0.7

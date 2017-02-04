@@ -47,15 +47,15 @@ class TestNode(unittest.TestCase):
         n = disco_service.Node()
         self.assertSequenceEqual(
             [],
-            list(n.iter_identities())
+            list(n.iter_identities(unittest.mock.sentinel.stanza))
         )
         self.assertSetEqual(
             {namespaces.xep0030_info},
-            set(n.iter_features())
+            set(n.iter_features(unittest.mock.sentinel.stanza))
         )
         self.assertSequenceEqual(
             [],
-            list(n.iter_items())
+            list(n.iter_items(unittest.mock.sentinel.stanza))
         )
 
     def test_register_feature_adds_the_feature(self):
@@ -70,7 +70,7 @@ class TestNode(unittest.TestCase):
                 "uri:foo",
                 namespaces.xep0030_info
             },
-            set(n.iter_features())
+            set(n.iter_features(unittest.mock.sentinel.stanza))
         )
 
         cb.assert_called_with()
@@ -92,7 +92,7 @@ class TestNode(unittest.TestCase):
                 "uri:bar",
                 namespaces.xep0030_info
             },
-            set(n.iter_features())
+            set(n.iter_features(unittest.mock.sentinel.stanza))
         )
 
         self.assertFalse(cb.mock_calls)
@@ -123,7 +123,7 @@ class TestNode(unittest.TestCase):
                 "uri:bar",
                 namespaces.xep0030_info
             },
-            set(n.iter_features())
+            set(n.iter_features(unittest.mock.sentinel.stanza))
         )
 
         n.unregister_feature("uri:foo")
@@ -136,7 +136,7 @@ class TestNode(unittest.TestCase):
                 "uri:bar",
                 namespaces.xep0030_info
             },
-            set(n.iter_features())
+            set(n.iter_features(unittest.mock.sentinel.stanza))
         )
 
         n.unregister_feature("uri:bar")
@@ -145,7 +145,7 @@ class TestNode(unittest.TestCase):
             {
                 namespaces.xep0030_info
             },
-            set(n.iter_features())
+            set(n.iter_features(unittest.mock.sentinel.stanza))
         )
 
         cb.assert_called_with()
@@ -175,7 +175,7 @@ class TestNode(unittest.TestCase):
             {
                 namespaces.xep0030_info
             },
-            set(n.iter_features())
+            set(n.iter_features(unittest.mock.sentinel.stanza))
         )
 
         self.assertFalse(cb.mock_calls)
@@ -194,7 +194,7 @@ class TestNode(unittest.TestCase):
             {
                 ("client", "pc", None, None),
             },
-            set(n.iter_identities())
+            set(n.iter_identities(unittest.mock.sentinel.stanza))
         )
 
         cb.assert_called_with()
@@ -222,7 +222,7 @@ class TestNode(unittest.TestCase):
             {
                 ("client", "pc", None, None),
             },
-            set(n.iter_identities())
+            set(n.iter_identities(unittest.mock.sentinel.stanza))
         )
 
     def test_register_identity_with_names(self):
@@ -248,7 +248,7 @@ class TestNode(unittest.TestCase):
                 ("client", "pc",
                  structs.LanguageTag.fromstr("de"), "Testidentität"),
             },
-            set(n.iter_identities())
+            set(n.iter_identities(unittest.mock.sentinel.stanza))
         )
 
     def test_unregister_identity_prohibits_removal_of_last_identity(self):
@@ -319,7 +319,7 @@ class TestNode(unittest.TestCase):
                  structs.LanguageTag.fromstr("de"), "Testidentität"),
                 ("foo", "bar", None, None),
             },
-            set(n.iter_identities())
+            set(n.iter_identities(unittest.mock.sentinel.stanza))
         )
 
         cb = unittest.mock.Mock()
@@ -336,7 +336,7 @@ class TestNode(unittest.TestCase):
                 ("client", "pc",
                  structs.LanguageTag.fromstr("de"), "Testidentität"),
             },
-            set(n.iter_identities())
+            set(n.iter_identities(unittest.mock.sentinel.stanza))
         )
 
 
@@ -358,7 +358,7 @@ class TestStaticNode(unittest.TestCase):
                 item1,
                 item2
             ],
-            list(self.n.iter_items())
+            list(self.n.iter_items(unittest.mock.sentinel.jid))
         )
 
 

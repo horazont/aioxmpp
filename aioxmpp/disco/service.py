@@ -90,8 +90,20 @@ class Node(object):
         self._identities = {}
         self._features = set()
 
-    def iter_identities(self):
+    def iter_identities(self, stanza):
         """
+        Return an iterator of tuples describing the identities of the node.
+
+        :param stanza: The IQ request stanza
+        :type stanza: :class:`~aioxmpp.IQ`
+        :rtype: iterable of (:class:`str`, :class:`str`, :class:`str` or :data:`None`, :class:`str` or :data:`None`) tuples
+        :return: :xep:`30` identities of this node
+
+        `stanza` is the :class:`aioxmpp.IQ` stanza of the request. This can be
+        used to hide a node depending on who is asking. If the returned
+        iterable is empty, the :class:`~.DiscoServer` returns an
+        ``<item-not-found/>`` error.
+
         Return an iterator which yields tuples consisting of the category, the
         type, the language code and the name of each identity declared in this
         :class:`Node`.
@@ -105,21 +117,39 @@ class Node(object):
             if not names:
                 yield category, type_, None, None
 
-    def iter_features(self):
+    def iter_features(self, stanza):
         """
-        Return an iterator which yields the `var` values of each feature
-        declared in this :class:`Node`, including the statically declared
-        :xep:`30` features.
+        Return an iterator which yields the features of the node.
+
+        :param stanza: The IQ request stanza
+        :type stanza: :class:`~aioxmpp.IQ`
+        :rtype: iterable of :class:`str`
+        :return: :xep:`30` features of this node
+
+        `stanza` is the :class:`aioxmpp.IQ` stanza of the request. This can be
+        used to filter the list according to who is asking (not recommended).
+
+        The features are returned as strings. The features demanded by
+        :xep:`30` are always returned.
+
         """
         return itertools.chain(
             iter(self.STATIC_FEATURES),
             iter(self._features)
         )
 
-    def iter_items(self):
+    def iter_items(self, stanza):
         """
-        Return an iterator which yields the :class:`.xso.Item` objects which
-        this node holds.
+        Return an iterator which yields the items of the node.
+
+        :param stanza: The IQ request stanza
+        :type stanza: :class:`~aioxmpp.IQ`
+        :rtype: iterable of :class:`~.disco.xso.Item`
+        :return: Items of the node
+
+        `stanza` is the :class:`aioxmpp.IQ` stanza of the request. This can be
+        used to localize the list to the language of the stanza or filter it
+        according to who is asking.
 
         A bare :class:`Node` cannot hold any items and will thus return an
         iterator which does not yield any element.
@@ -214,7 +244,7 @@ class StaticNode(Node):
         super().__init__()
         self.items = []
 
-    def iter_items(self):
+    def iter_items(self, stanza):
         return iter(self.items)
 
 
@@ -300,7 +330,7 @@ class DiscoServer(service.Service, Node):
 
         response = disco_xso.InfoQuery()
 
-        for category, type_, lang, name in node.iter_identities():
+        for category, type_, lang, name in node.iter_identities(iq):
             response.identities.append(disco_xso.Identity(
                 category=category,
                 type_=type_,
@@ -313,7 +343,7 @@ class DiscoServer(service.Service, Node):
                 condition=(namespaces.stanzas, "item-not-found"),
             )
 
-        response.features.update(node.iter_features())
+        response.features.update(node.iter_features(iq))
 
         return response
 
@@ -332,7 +362,7 @@ class DiscoServer(service.Service, Node):
             )
 
         response = disco_xso.ItemsQuery()
-        response.items.extend(node.iter_items())
+        response.items.extend(node.iter_items(iq.from_))
 
         return response
 
