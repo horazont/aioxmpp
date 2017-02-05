@@ -665,6 +665,43 @@ class TestDiscoServer(unittest.TestCase):
             response.items
         )
 
+    def test_items_query_forwards_stanza(self):
+        node = unittest.mock.Mock()
+        node.iter_items.return_value = iter([])
+
+        self.s.mount_node("foo", node)
+
+        self.request_items_iq.payload.node = "foo"
+        run_coroutine(
+            self.s.handle_items_request(self.request_items_iq)
+        )
+
+        node.iter_items.assert_called_once_with(
+            self.request_items_iq
+        )
+
+    def test_info_query_forwards_stanza(self):
+        node = unittest.mock.Mock()
+        node.iter_features.return_value = iter([])
+        node.iter_identities.return_value = iter([
+            ("automation", "command-list", None, None)
+        ])
+
+        self.s.mount_node("foo", node)
+
+        self.request_iq.payload.node = "foo"
+        run_coroutine(
+            self.s.handle_info_request(self.request_iq)
+        )
+
+        node.iter_features.assert_called_once_with(
+            self.request_iq
+        )
+
+        node.iter_identities.assert_called_once_with(
+            self.request_iq
+        )
+
 
 class TestDiscoClient(unittest.TestCase):
     def setUp(self):

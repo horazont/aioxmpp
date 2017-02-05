@@ -362,7 +362,7 @@ class DiscoServer(service.Service, Node):
             )
 
         response = disco_xso.ItemsQuery()
-        response.items.extend(node.iter_items(iq.from_))
+        response.items.extend(node.iter_items(iq))
 
         return response
 
