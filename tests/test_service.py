@@ -718,8 +718,6 @@ class TestService(unittest.TestCase):
                                  new=base.ExitStack) as ExitStack:
             s = ServiceWithHandlers(client)
 
-        print(ServiceWithHandlers.SERVICE_HANDLERS)
-
         self.assertCountEqual(
             res1.mock_calls,
             [
@@ -759,6 +757,56 @@ class TestService(unittest.TestCase):
                 )
                 for (handler_cm, args), obj
                 in ServiceWithHandlers.SERVICE_HANDLERS
+            ]
+        )
+
+        base.mock_calls.clear()
+
+        base._shutdown = CoroutineMock()
+
+        with unittest.mock.patch.object(s, "_shutdown", new=base._shutdown):
+            run_coroutine(s.shutdown())
+
+        self.assertSequenceEqual(
+            base.mock_calls,
+            [
+                unittest.mock.call._shutdown(),
+                unittest.mock.call.ExitStack().close(),
+            ]
+        )
+
+    def test_setup_descriptor_context(self):
+        class FooDescriptor(service.Descriptor):
+            def init_cm(self, instance):
+                return base.init_cm(instance)
+
+            def add_to_stack(self, instance, stack):
+                base.add_to_stack(self, instance, stack)
+
+        base = unittest.mock.Mock()
+        base.init_cm = unittest.mock.MagicMock()
+
+        self.maxDiff = None
+
+        class ServiceWithDescriptor(service.Service):
+            desc = FooDescriptor()
+
+        client = unittest.mock.Mock()
+
+        with unittest.mock.patch("contextlib.ExitStack",
+                                 new=base.ExitStack):
+            s = ServiceWithDescriptor(client)
+
+        calls = list(base.mock_calls)
+        self.assertSequenceEqual(
+            calls,
+            [
+                unittest.mock.call.ExitStack(),
+                unittest.mock.call.add_to_stack(
+                    ServiceWithDescriptor.desc,
+                    s,
+                    base.ExitStack(),
+                )
             ]
         )
 

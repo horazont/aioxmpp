@@ -578,6 +578,9 @@ class Service(metaclass=Meta):
                            *additional_args)
             )
 
+        for obj in self.SERVICE_DESCRIPTORS:
+            obj.add_to_stack(self, self.__context)
+
     def derive_logger(self, logger):
         """
         Return a child of `logger` specific for this instance. This is called
