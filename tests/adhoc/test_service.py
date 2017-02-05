@@ -19,8 +19,12 @@
 # <http://www.gnu.org/licenses/>.
 #
 ########################################################################
+import contextlib
+import random
 import unittest
 import unittest.mock
+
+from datetime import timedelta
 
 import aioxmpp.service
 
@@ -38,6 +42,7 @@ from aioxmpp.testutils import (
 
 
 TEST_PEER_JID = aioxmpp.JID.fromstr("foo@bar.baz/fnord")
+TEST_LOCAL_JID = aioxmpp.JID.fromstr("bar@bar.baz/fnord")
 
 
 class TestAdHocClient(unittest.TestCase):
@@ -129,6 +134,353 @@ class TestAdHocClient(unittest.TestCase):
         self.assertSequenceEqual(
             result,
             items,
+        )
+
+
+class TestCommandNode(unittest.TestCase):
+    def test_is_static_node(self):
+        self.assertTrue(issubclass(
+            adhoc_service.CommandEntry,
+            aioxmpp.disco.StaticNode,
+        ))
+
+    def test_defaults(self):
+        stanza = unittest.mock.Mock()
+
+        cn = adhoc_service.CommandEntry(
+            "foo",
+            unittest.mock.sentinel.handler,
+            features={}
+        )
+
+        self.assertDictEqual(
+            cn.name,
+            {
+                None: "foo",
+            }
+        )
+
+        self.assertIsInstance(
+            cn.name,
+            aioxmpp.structs.LanguageMap,
+        )
+
+        self.assertEqual(
+            cn.handler,
+            unittest.mock.sentinel.handler
+        )
+
+        self.assertIn(
+            ("automation", "command-node", None, "foo"),
+            list(cn.iter_identities(stanza))
+        )
+
+        self.assertCountEqual(
+            {
+                namespaces.xep0030_info,
+                namespaces.xep0050_commands,
+            },
+            cn.iter_features(unittest.mock.sentinel.stanza)
+        )
+
+        self.assertIsNone(
+            cn.is_allowed
+        )
+
+        self.assertTrue(
+            cn.is_allowed_for(unittest.mock.sentinel.jid)
+        )
+
+    def test_is_allowed_inhibits_identities_response(self):
+        stanza = unittest.mock.Mock()
+        is_allowed = unittest.mock.Mock()
+        is_allowed.return_value = False
+
+        cn = adhoc_service.CommandEntry(
+            "foo",
+            unittest.mock.sentinel.handler,
+            features={},
+            is_allowed=is_allowed
+        )
+
+        self.assertSequenceEqual([], list(cn.iter_identities(stanza)))
+        is_allowed.assert_called_once_with(
+            stanza.from_,
+        )
+
+        is_allowed.reset_mock()
+        is_allowed.return_value = True
+
+        self.assertIn(
+            ("automation", "command-node", None, "foo"),
+            list(cn.iter_identities(stanza))
+        )
+
+    def test_is_allowed_for_calls_is_allowed_if_defined(self):
+        is_allowed = unittest.mock.Mock()
+
+        cn = adhoc_service.CommandEntry(
+            "foo",
+            unittest.mock.sentinel.handler,
+            is_allowed=is_allowed,
+        )
+
+        result = cn.is_allowed_for(
+            unittest.mock.sentinel.a,
+            unittest.mock.sentinel.b,
+            x=unittest.mock.sentinel.x,
+        )
+
+        is_allowed.assert_called_once_with(
+            unittest.mock.sentinel.a,
+            unittest.mock.sentinel.b,
+            x=unittest.mock.sentinel.x,
+        )
+
+        self.assertEqual(
+            result,
+            is_allowed(),
+        )
+
+
+class TestAdHocServer(unittest.TestCase):
+    def setUp(self):
+        self.cc = make_connected_client()
+        self.cc.local_jid = TEST_LOCAL_JID
+        self.disco_service = unittest.mock.Mock()
+        self.s = adhoc_service.AdHocServer(
+            self.cc,
+            dependencies={
+                aioxmpp.disco.DiscoServer: self.disco_service,
+            }
+        )
+        self.disco_service.reset_mock()
+
+    def tearDown(self):
+        del self.s
+        del self.disco_service
+        del self.cc
+
+    def test_is_service(self):
+        self.assertTrue(issubclass(
+            adhoc_service.AdHocServer,
+            aioxmpp.service.Service
+        ))
+
+    def test_is_disco_node(self):
+        self.assertTrue(issubclass(
+            adhoc_service.AdHocServer,
+            aioxmpp.disco.Node
+        ))
+
+    def test_registers_iq_handler(self):
+        self.assertTrue(
+            aioxmpp.service.is_iq_handler(
+                aioxmpp.IQType.SET,
+                adhoc_xso.Command,
+                adhoc_service.AdHocServer._handle_command,
+            )
+        )
+
+    def test_registers_as_node(self):
+        self.assertIsInstance(
+            adhoc_service.AdHocServer.disco_node,
+            aioxmpp.disco.mount_as_node,
+        )
+        self.assertEqual(
+            adhoc_service.AdHocServer.disco_node.mountpoint,
+            "http://jabber.org/protocol/commands"
+        )
+
+    def test_items_empty_by_default(self):
+        self.assertSequenceEqual(
+            list(self.s.iter_items(unittest.mock.sentinel.jid)),
+            [],
+        )
+
+    def test_identity(self):
+        self.assertSetEqual(
+            {
+                ("automation", "command-list", None, None)
+            },
+            set(self.s.iter_identities(unittest.mock.sentinel.stanza))
+        )
+
+    def test_register_stateless_command_makes_it_appear_in_listing(self):
+        handler = unittest.mock.Mock()
+        base = unittest.mock.Mock()
+        base.CommandEntry().name.lookup.return_value = "some name"
+
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.adhoc.service.CommandEntry",
+                    new=base.CommandEntry,
+                ),
+            )
+
+            self.s.register_stateless_command(
+                "node",
+                unittest.mock.sentinel.name,
+                handler,
+            )
+
+        self.assertCountEqual(
+            [
+                (self.cc.local_jid, "node", "some name"),
+            ],
+            [
+                (item.jid, item.node, item.name)
+                for item in self.s.iter_items(base.stanza)
+            ]
+        )
+
+    def test_listing_respects_is_allowed(self):
+        handler = unittest.mock.Mock()
+        base = unittest.mock.Mock()
+        base.CommandEntry().name.lookup.return_value = "some name"
+
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.adhoc.service.CommandEntry",
+                    new=base.CommandEntry),
+            )
+
+            self.s.register_stateless_command(
+                "node",
+                unittest.mock.sentinel.name,
+                handler,
+            )
+
+        base.CommandEntry().is_allowed_for.return_value = False
+
+        items = [
+            (item.jid, item.node, item.name)
+            for item in self.s.iter_items(base.stanza)
+        ]
+
+        base.CommandEntry().is_allowed_for.assert_called_once_with(
+            base.stanza.from_,
+        )
+
+        self.assertCountEqual(
+            [
+            ],
+            items,
+        )
+
+    def test_register_stateless_registers_command_at_disco_service(self):
+        with contextlib.ExitStack() as stack:
+            CommandEntry = stack.enter_context(unittest.mock.patch(
+                "aioxmpp.adhoc.service.CommandEntry"
+            ))
+
+            self.s.register_stateless_command(
+                unittest.mock.sentinel.node,
+                unittest.mock.sentinel.name,
+                unittest.mock.sentinel.handler,
+                features=unittest.mock.sentinel.features,
+                is_allowed=unittest.mock.sentinel.is_allowed,
+            )
+
+        CommandEntry.assert_called_once_with(
+            unittest.mock.sentinel.name,
+            unittest.mock.sentinel.handler,
+            features=unittest.mock.sentinel.features,
+            is_allowed=unittest.mock.sentinel.is_allowed,
+        )
+
+        self.disco_service.mount_node.assert_called_once_with(
+            unittest.mock.sentinel.node,
+            CommandEntry()
+        )
+
+        (_, (_, obj), _), = self.disco_service.mount_node.mock_calls
+
+    def test__handle_command_raises_item_not_found_for_unknown_node(self):
+        req = aioxmpp.IQ(
+            type_=aioxmpp.IQType.SET,
+            from_=TEST_PEER_JID,
+            to=TEST_LOCAL_JID,
+            payload=adhoc_xso.Command(
+                "node",
+            )
+        )
+
+        with self.assertRaises(aioxmpp.errors.XMPPCancelError) as ctx:
+            run_coroutine(self.s._handle_command(req))
+
+        self.assertEqual(
+            ctx.exception.condition,
+            (namespaces.stanzas, "item-not-found"),
+        )
+
+        self.assertRegex(
+            ctx.exception.text,
+            "no such command: 'node'"
+        )
+
+    def test__handle_command_raises_forbidden_for_disallowed_node(self):
+        handler = CoroutineMock()
+        handler.return_value = unittest.mock.sentinel.result
+        is_allowed = unittest.mock.Mock()
+        is_allowed.return_value = False
+
+        self.s.register_stateless_command(
+            "node",
+            "Command name",
+            handler,
+            is_allowed=is_allowed,
+        )
+
+        req = aioxmpp.IQ(
+            type_=aioxmpp.IQType.SET,
+            from_=TEST_PEER_JID,
+            to=TEST_LOCAL_JID,
+            payload=adhoc_xso.Command(
+                "node",
+            )
+        )
+
+        with self.assertRaises(aioxmpp.errors.XMPPCancelError) as ctx:
+            run_coroutine(self.s._handle_command(req))
+
+        is_allowed.assert_called_once_with(req.from_)
+
+        self.assertEqual(
+            ctx.exception.condition,
+            (namespaces.stanzas, "forbidden"),
+        )
+
+        handler.assert_not_called()
+
+    def test__handle_command_dispatches_to_command(self):
+        handler = CoroutineMock()
+        handler.return_value = unittest.mock.sentinel.result
+
+        self.s.register_stateless_command(
+            "node",
+            "Command name",
+            handler,
+        )
+
+        req = aioxmpp.IQ(
+            type_=aioxmpp.IQType.SET,
+            from_=TEST_PEER_JID,
+            to=TEST_LOCAL_JID,
+            payload=adhoc_xso.Command(
+                "node",
+            )
+        )
+
+        result = run_coroutine(self.s._handle_command(req))
+
+        handler.assert_called_once_with(req)
+
+        self.assertEqual(
+            result,
+            unittest.mock.sentinel.result,
         )
 
 
@@ -747,3 +1099,49 @@ class TestClientSession(unittest.TestCase):
             {adhoc_xso.ActionType.EXECUTE,
              adhoc_xso.ActionType.CANCEL}
         )
+
+
+# class TestServerSession(unittest.TestCase):
+#     def setUp(self):
+#         self.cc = make_connected_client()
+#         self.s = self.cc.stream
+#         self.sessionid = "testsessionid"
+#         self.ss = adhoc_service.ServerSession(
+#             self.s,
+#             sessionid=self.sessionid
+#         )
+
+#     def tearDown(self):
+#         del self.ss
+#         del self.sessionid
+#         del self.s
+#         del self.cc
+
+#     def test_init_uses_system_entropy(self):
+#         self.assertIsInstance(
+#             adhoc_service._rng,
+#             random.SystemRandom,
+#         )
+
+#         with unittest.mock.patch("aioxmpp.adhoc.service._rng") as rng:
+#             rng.getrandbits.return_value = 1234
+
+#             self.ss = adhoc_service.ServerSession(
+#                 self.s,
+#                 TEST_PEER_JID,
+#             )
+
+#         rng.getrandbits.assert_called_once_with(64)
+
+#         self.assertEqual(
+#             self.ss.sessionid,
+#             "0gQAAAAAAAA"
+#         )
+
+#     def test_init(self):
+#         self.assertEqual(self.ss.sessionid, self.sessionid)
+#         self.assertEqual(self.ss.timeout, timedelta(seconds=60))
+
+#     def test_reply_raises_if_handle_has_not_been_called(self):
+#         with self.assertRaises(RuntimeError):
+#             pass

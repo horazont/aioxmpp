@@ -122,6 +122,7 @@ class ConnectedClientMock(unittest.mock.Mock):
             "start",
             "stop",
             "set_presence",
+            "local_jid",
         ])
 
         self.established = True

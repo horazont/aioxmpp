@@ -20,10 +20,17 @@
 #
 ########################################################################
 import asyncio
+# import base64
+import collections
 import logging
+import random
+
+# from datetime import timedelta
 
 import aioxmpp.disco
+import aioxmpp.disco.xso as disco_xso
 import aioxmpp.service
+import aioxmpp.structs
 
 from aioxmpp.utils import namespaces
 
@@ -31,9 +38,14 @@ from . import xso as adhoc_xso
 
 
 _logger = logging.getLogger(__name__)
+_rng = random.SystemRandom()
 
 
 class SessionError(RuntimeError):
+    pass
+
+
+class ClientCancelledError(SessionError):
     pass
 
 
@@ -57,6 +69,230 @@ class AdHocClient(aioxmpp.service.Service):
         )
 
         return namespaces.xep0050_commands in response.features
+
+
+CommandEntry = collections.namedtuple(
+    "CommandEntry",
+    [
+        "name",
+        "is_allowed",
+        "handler",
+        "features",
+    ]
+)
+
+
+class CommandEntry(aioxmpp.disco.StaticNode):
+    def __init__(self, name, handler, features=set(), is_allowed=None):
+        super().__init__()
+        if isinstance(name, str):
+            self.__name = aioxmpp.structs.LanguageMap({None: name})
+        else:
+            self.__name = aioxmpp.structs.LanguageMap(name)
+        self.__handler = handler
+
+        features = set(features) | {namespaces.xep0050_commands}
+        for feature in features:
+            self.register_feature(feature)
+
+        self.__is_allowed = is_allowed
+
+        self.register_identity(
+            "automation",
+            "command-node",
+            names=self.__name
+        )
+
+    @property
+    def name(self):
+        return self.__name
+
+    @property
+    def handler(self):
+        return self.__handler
+
+    @property
+    def is_allowed(self):
+        return self.__is_allowed
+
+    def is_allowed_for(self, *args, **kwargs):
+        if self.__is_allowed is None:
+            return True
+        return self.__is_allowed(*args, **kwargs)
+
+    def iter_identities(self, stanza):
+        if not self.is_allowed_for(stanza.from_):
+            return iter([])
+        return super().iter_identities(stanza)
+
+
+class AdHocServer(aioxmpp.service.Service, aioxmpp.disco.Node):
+    """
+    Support for serving Ad-Hoc commands.
+
+    .. automethod:: register_stateful_command
+
+    .. automethod:: register_stateless_command
+
+    .. automethod:: unregister_command
+    """
+
+    ORDER_AFTER = [aioxmpp.disco.DiscoServer]
+
+    disco_node = aioxmpp.disco.mount_as_node(
+        "http://jabber.org/protocol/commands"
+    )
+
+    def __init__(self, client, **kwargs):
+        super().__init__(client, **kwargs)
+        self.register_identity(
+            "automation", "command-list",
+        )
+
+        self._commands = {}
+        self._disco = self.dependencies[aioxmpp.disco.DiscoServer]
+
+    @aioxmpp.service.iq_handler(aioxmpp.IQType.SET,
+                                adhoc_xso.Command)
+    @asyncio.coroutine
+    def _handle_command(self, stanza):
+        try:
+            info = self._commands[stanza.payload.node]
+        except KeyError:
+            raise aioxmpp.errors.XMPPCancelError(
+                (namespaces.stanzas, "item-not-found"),
+                text="no such command: {!r}".format(
+                    stanza.payload.node
+                )
+            )
+
+        if not info.is_allowed_for(stanza.from_):
+            raise aioxmpp.errors.XMPPCancelError(
+                (namespaces.stanzas, "forbidden"),
+            )
+
+        return (yield from info.handler(stanza))
+
+    def iter_items(self, stanza):
+        local_jid = self.client.local_jid
+        for node, info in self._commands.items():
+            if not info.is_allowed_for(stanza.from_):
+                continue
+            yield disco_xso.Item(
+                local_jid,
+                name=info.name.lookup([
+                    aioxmpp.structs.LanguageRange.fromstr("en"),
+                    aioxmpp.structs.LanguageRange.fromstr("*"),
+                ]),
+                node=node,
+            )
+
+    # def register_stateful_command(self, node, name, handler, *,
+    #                               is_allowed=None,
+    #                               features={namespaces.xep0004_data}):
+    #     """
+    #     Register a handler for a stateful command.
+
+    #     :param node: Name of the command (``node`` in the service discovery
+    #                  list).
+    #     :type node: :class:`str`
+    #     :param name: Human-readable name of the command
+    #     :type name: :class:`str` or :class:`~.LanguageMap`
+    #     :param handler: Coroutine function to spawn when a new session is
+    #                     started.
+    #     :param is_allowed: A predicate which determines whether the command is
+    #                        shown and allowed for a given peer.
+    #     :type is_allowed: function or :data:`None`
+    #     :param features: Set of features to announce for the command
+    #     :type features: :class:`set` of :class:`str`
+
+    #     Whenever a new session is started, `handler` is invoked with a session
+    #     object which allows the handler to communicate with the client. The
+    #     details of the session are described at :class:`ServerSession`.
+
+    #     If `is_allowed` is not :data:`None`, it is invoked whenever a command
+    #     listing is generated and whenever a command session is about to start.
+    #     The :class:`~.JID` of the requester is passed as positional argument to
+    #     `is_allowed`. If `is_allowed` returns false, the command is not
+    #     included in the list and attempts to execute it are rejected with
+    #     ``<forbidden/>`` without calling `handler`.
+
+    #     If `is_allowed` is :data:`None`, the command is always visible and
+    #     allowed.
+
+    #     The `features` are returned on a service discovery info request for the
+    #     command node. By default, the :xep:`4` (Data Forms) namespace is
+    #     included, but this can be overridden by passing a different set without
+    #     that feature to `features`.
+
+    #     .. warning::
+
+    #        There is currently no rate-limiting mechanism implemented. It is
+    #        trivial for an attacker to exhaust memory by starting a huge amount
+    #        of sessions.
+
+    #     """
+
+    def register_stateless_command(self, node, name, handler, *,
+                                   is_allowed=None,
+                                   features={namespaces.xep0004_data}):
+        """
+        Register a handler for a stateless command.
+
+        :param node: Name of the command (``node`` in the service discovery
+                     list).
+        :type node: :class:`str`
+        :param name: Human-readable name of the command
+        :type name: :class:`str` or :class:`~.LanguageMap`
+        :param handler: Coroutine function to run to get the response for a
+                        request.
+        :param is_allowed: A predicate which determines whether the command is
+                           shown and allowed for a given peer.
+        :type is_allowed: function or :data:`None`
+        :param features: Set of features to announce for the command
+        :type features: :class:`set` of :class:`str`
+
+        When a request for the command is received, `handler` is invoked. The
+        semantics of `handler` are the same as for
+        :meth:`~.StanzaStream.register_iq_request_coro`. It must produce a
+        valid :class:`~.adhoc.xso.Command` response payload.
+
+        If `is_allowed` is not :data:`None`, it is invoked whenever a command
+        listing is generated and whenever a command request is received. The
+        :class:`~.JID` of the requester is passed as positional argument to
+        `is_allowed`. If `is_allowed` returns false, the command is not
+        included in the list and attempts to execute it are rejected with
+        ``<forbidden/>`` without calling `handler`.
+
+        If `is_allowed` is :data:`None`, the command is always visible and
+        allowed.
+
+        The `features` are returned on a service discovery info request for the
+        command node. By default, the :xep:`4` (Data Forms) namespace is
+        included, but this can be overridden by passing a different set without
+        that feature to `features`.
+        """
+
+        info = CommandEntry(
+            name,
+            handler,
+            is_allowed=is_allowed,
+            features=features,
+        )
+        self._commands[node] = info
+        self._disco.mount_node(
+            node,
+            info,
+        )
+
+    def unregister_command(self, node):
+        """
+        Unregister a command previously registered.
+
+        :param node: Name of the command (``node`` in the service discovery
+                     list).
+        :type node: :class:`str`
+        """
 
 
 class ClientSession:
@@ -296,3 +532,109 @@ class ClientSession:
                 )
 
         self._response = None
+
+
+# class ServerSession:
+#     """
+#     Represent an Ad-Hoc Commands session on the server side.
+
+#     :param stream: The stanza stream to communicate over
+#     :type stream: :class:`~.stream.StanzaStream`
+#     :param sessionid: Session ID to use for communication
+#     :type sessionid: :class:`str` or :data:`None`
+#     :param timeout: Maximum time to wait for a follow-up from the peer
+#     :type timeout: :class:`datetime.timedelta`
+
+#     The session knows its session ID and the peer JID and keeps track of client
+#     timeouts as well as the most recent reply.
+
+#     If `sessionid` is :data:`None`, a random session ID with at least 64 bits
+#     of entropy is generated.
+#     """
+
+#     def __init__(self, stream,
+#                  sessionid=None,
+#                  timeout=timedelta(seconds=60)):
+#         super().__init__()
+#         self.stream = stream
+#         self.peer_jid = peer_jid
+#         if sessionid is None:
+#             sessionid = base64.urlsafe_b64encode(
+#                 _rng.getrandbits(64).to_bytes(
+#                     64//8,
+#                     "little"
+#                 )
+#             ).rstrip(b"=").decode("ascii")
+#         self.sessionid = sessionid
+#         self.timeout = timeout
+#         self._future = None
+
+#     @asyncio.coroutine
+#     def handle(self, stanza):
+#         pass
+
+#     @asyncio.coroutine
+#     def reply(self, payload, status,
+#               *,
+#               actions={adhoc_xso.ActionType.NEXT,
+#                        adhoc_xso.ActionType.COMPLETE},
+#               default_action=adhoc_xso.ActionType.NEXT):
+#         """
+#         Send a reply to the peer.
+
+#         :param payload: Payload to send in the reply.
+#         :type payload: :class:`~.XSO` or sequence of :class:`~.XSO`
+#         :param status: Status of the command execution.
+#         :type status: :class:`~.adhoc.xso.CommandStatus`
+#         :param actions: Set of actions allowed now.
+#         :type actions: set of :class:`~.adhoc.xso.ActionType`
+#         :param default_action: The action to assume if the client simply
+#                                continues with
+#                                :attr:`~.adhoc.xso.ActionType.EXECUTE`.
+#         :type default_action: :class:`~.adhoc.xso.ActionType` member which is
+#                               not :attr:`~.adhoc.xso.ActionType.EXECUTE`
+#         :raise ClientCancelledError: if the client cancels the execution
+#         :raise RuntimeError: if the client has not yet sent a request
+#         :raise TimeoutError: if the client does not send a follow-up message in
+#                              time
+#         :return: The chosen action and the payload given by the peer.
+#         :rtype: Pair of :class:`~.adhoc.xso.ActionType` and sequence of
+#                 :class:`~.XSO` objects.
+
+#         Send a reply to the peer. The `payload` must be a single
+#         :class:`~.XSO` or a sequence of :class:`~.XSO` objects. A single
+#         :class:`~.XSO` is wrapped in a sequence. The sequence is used as
+#         payload for the Ad-Hoc Command response.
+
+#         `status` informs the client about the current status of execution. For
+#         all but the last reply, this should be
+#         :attr:`~.adhoc.xso.CommandStatus.EXECUTING`, but it should be set to
+#         :attr:`~.adhoc.xso.CommandStatus.COMPLETED` on the last reply.
+#         Unfortunately, we do not have a sensible way to infer this, which is
+#         why there is no default for this argument.
+
+#         `actions` is the set of actions allowed for the client. The default is
+#         to allow the :attr:`~.adhoc.xso.ActionType.NEXT` and
+#         :attr:`~.adhoc.xso.ActionType.COMPLETE` actions. Depending on your
+#         application, you may need a different set of actions. You do not need
+#         to specify the :attr:`~.adhoc.xso.ActionType.EXECUTE` or
+#         :attr:`~.adhoc.xso.ActionType.CANCEL` action types, which are
+#         implicitly allowed.
+
+#         `default_action` is the action which is assumed when the client simply
+#         specifies the :attr:`~.adhoc.xso.ActionType.EXECUTE` action. It
+#         defaults to :attr:`~.adhoc.xso.ActionType.NEXT` and *must* be included
+#         in the `actions` set.
+
+#         The response from the client is generally returned a as a tuple
+#         consisting of the action chosen by the client and the payload sent by
+#         the client.
+
+#         If the client chooses the :attr:`~.adhoc.xso.ActionType.CANCEL` action,
+#         a :class:`RuntimeError` exception is raised and a confirmation of
+#         cancellation is sent to the client automatically and the session is
+#         closed.
+
+#         If the client does not answer within the timeout, :class:`TimeoutError`
+#         is raised and the session is closed.
+#         """

@@ -39,7 +39,8 @@ Server-side
 
 .. autoclass:: AdHocServer
 
-.. autoclass:: ServerSession
+..
+    .. autoclass:: ServerSession
 
 XSOs
 ====
@@ -65,6 +66,7 @@ Enumerations
 from .service import (  # NOQA
     AdHocClient,
     ClientSession,
+    AdHocServer,
 )
 
 from .xso import (  # NOQA
