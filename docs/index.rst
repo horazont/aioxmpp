@@ -26,22 +26,29 @@ Contents:
 
 .. _features:
 
-Features
-########
+Feature overview
+################
 
 .. remember to update the feature list in the README
 
 * Native :xep:`198` (Stream Management) support for robustness against transient
   network failures (such as switching between wireless and wired networks).
 
+* Powerful declarative-style definition of XEP-based and custom protocols via
+  :mod:`aioxmpp.xso` and :mod:`aioxmpp.service`. Most of the time, you will not
+  get in contact with raw XML or character data, even when implementing a new
+  protocol.
+
+* Secure by default: TLS is required by default, as well as certificate
+  validation. Certificate or public key pinning can be used, if needed.
+
 * Support for :rfc:`6121` (Instant Messaging and Presence,
   :mod:`aioxmpp.presence`, :mod:`aioxmpp.roster`) roster and presence
   management, along with :xep:`45` (Multi-User Chats, :mod:`aioxmpp.muc`) for
   your human-to-human  needs.
 
-* Support for :xep:`60` (Publish-Subscribe, :mod:`aioxmpp.pubsub`) as well as powerful
-  declarative-style definition of your own protocols (:mod:`aioxmpp.xso`,
-  :mod:`aioxmpp.service`) for your machine-to-machine needs.
+* Support for :xep:`60` (Publish-Subscribe, :mod:`aioxmpp.pubsub`) and :xep:`50`
+  (Ad-Hoc Commands, :mod:`aioxmpp.adhoc`) for your machine-to-machine needs.
 
 * Several other XEPs, such as :xep:`115` (Entity Capabilities,
   :mod:`aioxmpp.entitycaps`, including native support for reading and writing
@@ -51,12 +58,53 @@ Features
 * APIs suitable for both one-shot scripts and long-running multi-account
   clients.
 
-* Secure by default: TLS is required by default, as well as certificate
-  validation. Certificate or public key pinning can be used, if needed.
+* Well-tested and modular codebase: :mod:`aioxmpp` is developed in test-driven
+  style and many modules are automatedly tested against a Prosody 0.9.
 
-* Well-tested and modular codebase.
+  .. image:: https://travis-ci.org/horazont/aioxmpp.svg?branch=devel
+    :target: https://travis-ci.org/horazont/aioxmpp
 
 Check out the :ref:`ug-quick-start` to get started with :mod:`aioxmpp` now! ☺
+
+Supported protocols
+===================
+
+The referenced standards are ordered by their serial number. Not included are
+specifications which define procedures which were followed or which are
+described in the documentation. Those are also linked at the respective places
+throughout the docs.
+
+From IETF RFCs
+--------------
+
+* :rfc:`4505` (SASL ANONYMOUS), see :func:`aioxmpp.make_security_layer` and :mod:`aiosasl`
+* :rfc:`4616` (SASL PLAIN), see :func:`aioxmpp.make_security_layer` and :mod:`aiosasl`
+* :rfc:`5802` (SASL SCRAM), see :func:`aioxmpp.make_security_layer` and :mod:`aiosasl`
+* :rfc:`6120` (XMPP Core), including some of the legacy from :rfc:`3920`
+* :rfc:`6121` (XMPPInstant Messaging and Presence)
+
+  * see :mod:`aioxmpp.presence` for managing inbound presence
+  * see :mod:`aioxmpp.roster` for managing the roster and presence subscriptions
+
+* :rfc:`6122` (XMPP Address Format)
+
+From XMPP Extension Proposals (XEPs)
+------------------------------------
+
+* :xep:`4` (Data Forms), see :mod:`aioxmpp.forms`
+* :xep:`30` (Service Discovery), see :mod:`aioxmpp.disco`
+* :xep:`45` (Multi-User Chat), see :mod:`aioxmpp.muc`
+* :xep:`50` (Ad-Hoc Commands), see :mod:`aioxmpp.adhoc`
+* :xep:`60` (Publish-Subscribe), see :mod:`aioxmpp.pubsub`
+* :xep:`68` (Field Standardisation for Data Forms), see :mod:`aioxmpp.forms`
+* :xep:`82` (XMPP Date and Time Profiles), via :class:`aioxmpp.xso.DateTime` and others
+* :xep:`115` (Entity Capabilities), see :mod:`aioxmpp.entitycaps`, including
+  read/write support for the capsdb
+* :xep:`198` (Stream Management), always enabled if supported by the server
+* :xep:`199` (XMPP Ping), used for aliveness-checks if Stream Management is not
+  avaliable
+* :xep:`368` (SRV records for XMPP over TLS)
+
 
 Dependencies
 ############
