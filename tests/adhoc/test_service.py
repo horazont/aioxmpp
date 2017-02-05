@@ -136,6 +136,46 @@ class TestAdHocClient(unittest.TestCase):
             items,
         )
 
+    def test_get_command_info_uses_disco(self):
+        self.disco_service.query_info.side_effect = None
+        self.disco_service.query_info.return_value = \
+            unittest.mock.sentinel.result
+
+        result = run_coroutine(
+            self.c.get_command_info(TEST_PEER_JID,
+                                    unittest.mock.sentinel.node),
+        )
+
+        self.disco_service.query_info.assert_called_with(
+            TEST_PEER_JID,
+            node=unittest.mock.sentinel.node,
+        )
+
+        self.assertEqual(
+            result,
+            unittest.mock.sentinel.result,
+        )
+
+    def test_execute(self):
+        with unittest.mock.patch(
+                "aioxmpp.adhoc.service.ClientSession") as ClientSession:
+            ClientSession().start = CoroutineMock()
+            ClientSession.reset_mock()
+            result = run_coroutine(self.c.execute(
+                unittest.mock.sentinel.peer,
+                unittest.mock.sentinel.node,
+            ))
+
+        ClientSession.assert_called_once_with(
+            self.cc.stream,
+            unittest.mock.sentinel.peer,
+            unittest.mock.sentinel.node,
+        )
+
+        ClientSession().start.assert_called_once_with()
+
+        self.assertEqual(result, ClientSession())
+
 
 class TestCommandNode(unittest.TestCase):
     def test_is_static_node(self):
@@ -293,8 +333,11 @@ class TestAdHocServer(unittest.TestCase):
         )
 
     def test_items_empty_by_default(self):
+        stanza = unittest.mock.Mock()
+        stanza.lang = None
+
         self.assertSequenceEqual(
-            list(self.s.iter_items(unittest.mock.sentinel.jid)),
+            list(self.s.iter_items(stanza)),
             [],
         )
 
@@ -368,6 +411,39 @@ class TestAdHocServer(unittest.TestCase):
             [
             ],
             items,
+        )
+
+    def test_listing_respects_request_language(self):
+        handler = unittest.mock.Mock()
+        base = unittest.mock.Mock()
+        base.stanza.lang = "de"
+        base.CommandEntry().name.lookup.return_value = "some name"
+
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.adhoc.service.CommandEntry",
+                    new=base.CommandEntry),
+            )
+
+            self.s.register_stateless_command(
+                "node",
+                unittest.mock.sentinel.name,
+                handler,
+            )
+
+        base.CommandEntry().is_allowed_for.return_value = True
+
+        items = [
+            (item.jid, item.node, item.name)
+            for item in self.s.iter_items(base.stanza)
+        ]
+
+        base.CommandEntry().name.lookup.assert_called_once_with(
+            [
+                aioxmpp.structs.LanguageRange.fromstr("de"),
+                aioxmpp.structs.LanguageRange.fromstr("en"),
+            ]
         )
 
     def test_register_stateless_registers_command_at_disco_service(self):
@@ -609,6 +685,32 @@ class TestClientSession(unittest.TestCase):
             {adhoc_xso.ActionType.EXECUTE,
              adhoc_xso.ActionType.CANCEL}
         )
+
+    def test_aenter_starts(self):
+        with unittest.mock.patch.object(self.session, "start") as start:
+            result = run_coroutine(self.session.__aenter__())
+            start.assert_called_once_with()
+        self.assertEqual(result, self.session)
+
+    def test_aenter_after_start_is_harmless(self):
+        response = unittest.mock.Mock()
+
+        self.send_iq_and_wait_for_reply.return_value = response
+        self.send_iq_and_wait_for_reply.side_effect = None
+
+        run_coroutine(self.session.start())
+        result = run_coroutine(self.session.__aenter__())
+        self.assertEqual(result, self.session)
+
+    def test_aexit_closes(self):
+        with unittest.mock.patch.object(self.session, "close") as close:
+            result = run_coroutine(self.session.__aexit__(
+                unittest.mock.sentinel.type_,
+                unittest.mock.sentinel.value,
+                unittest.mock.sentinel.tb,
+            ))
+        close.assert_called_once_with()
+        self.assertFalse(result)
 
     def test_reject_start_after_start(self):
         response = unittest.mock.Mock()

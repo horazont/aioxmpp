@@ -97,6 +97,7 @@ from .entitycaps import EntityCapsService  # NOQA
 from .muc import MUCClient  # NOQA
 from .pubsub import PubSubClient  # NOQA
 from .shim import SHIMService  # NOQA
+from .adhoc import AdHocClient, AdHocServer  # NOQA
 
 
 def set_strict_mode():

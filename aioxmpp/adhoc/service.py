@@ -50,10 +50,39 @@ class ClientCancelledError(SessionError):
 
 
 class AdHocClient(aioxmpp.service.Service):
+    """
+    Access other entities :xep:`50` Ad-Hoc commands.
+
+    This service provides helpers to conveniently access and execute :xep:`50`
+    Ad-Hoc commands.
+
+    .. automethod:: supports_commands
+
+    .. automethod:: get_commands
+
+    .. automethod:: get_command_info
+
+    .. automethod:: execute
+    """
+
     ORDER_AFTER = [aioxmpp.disco.DiscoClient]
 
     @asyncio.coroutine
     def get_commands(self, peer_jid):
+        """
+        Return the list of commands offered by the peer.
+
+        :param peer_jid: JID of the peer to query
+        :type peer_jid: :class:`~aioxmpp.JID`
+        :rtype: :class:`list` of :class:`~.disco.xso.Item`
+        :return: List of command items
+
+        In the returned list, each :class:`~.disco.xso.Item` represents one
+        command supported by the peer. The :attr:`~.disco.xso.Item.node`
+        attribute is the identifier of the command which can be used with
+        :meth:`get_command_info` and :meth:`execute`.
+        """
+
         disco = self.dependencies[aioxmpp.disco.DiscoClient]
         response = yield from disco.query_items(
             peer_jid,
@@ -62,13 +91,83 @@ class AdHocClient(aioxmpp.service.Service):
         return response.items
 
     @asyncio.coroutine
+    def get_command_info(self, peer_jid, command_name):
+        """
+        Obtain information about a command.
+
+        :param peer_jid: JID of the peer to query
+        :type peer_jid: :class:`~aioxmpp.JID`
+        :param command_name: Node name of the command
+        :type command_name: :class:`str`
+        :rtype: :class:`~.disco.xso.InfoQuery`
+        :return: Service discovery information about the command
+
+        Sends a service discovery query to the service discovery node of the
+        command. The returned object contains information about the command,
+        such as the namespaces used by its implementation (generally the
+        :xep:`4` data forms namespace) and possibly localisations of the
+        commands name.
+
+        The `command_name` can be obtained by inspecting the listing from
+        :meth:`get_commands` or from well-known command names as defined for
+        example in :xep:`133`.
+        """
+
+        disco = self.dependencies[aioxmpp.disco.DiscoClient]
+        response = yield from disco.query_info(
+            peer_jid,
+            node=command_name,
+        )
+        return response
+
+    @asyncio.coroutine
     def supports_commands(self, peer_jid):
+        """
+        Detect whether a peer supports :xep:`50` Ad-Hoc commands.
+
+        :param peer_jid: JID of the peer to query
+        :type peer_jid: :class:`aioxmpp.JID`
+        :rtype: :class:`bool`
+        :return: True if the peer supports the Ad-Hoc commands protocol, false
+                 otherwise.
+
+        Note that the fact that a peer supports the protocol does not imply
+        that it offers any commands.
+        """
+
         disco = self.dependencies[aioxmpp.disco.DiscoClient]
         response = yield from disco.query_info(
             peer_jid,
         )
 
         return namespaces.xep0050_commands in response.features
+
+    @asyncio.coroutine
+    def execute(self, peer_jid, command_name):
+        """
+        Start execution of a command with a peer.
+
+        :param peer_jid: JID of the peer to start the command at.
+        :type peer_jid: :class:`~aioxmpp.JID`
+        :param command_name: Node name of the command to execute.
+        :type command_name: :class:`str`
+        :rtype: :class:`~.adhoc.service.ClientSession`
+        :return: A started command execution session.
+
+        Initialises a client session and starts execution of the command. The
+        session is returned.
+
+        This may raise any exception which may be raised by
+        :meth:`~.adhoc.service.ClientSession.start`.
+        """
+
+        session = ClientSession(
+            self.client.stream,
+            peer_jid,
+            command_name,
+        )
+        yield from session.start()
+        return session
 
 
 CommandEntry = collections.namedtuple(
@@ -130,7 +229,7 @@ class AdHocServer(aioxmpp.service.Service, aioxmpp.disco.Node):
     """
     Support for serving Ad-Hoc commands.
 
-    .. automethod:: register_stateful_command
+    .. .. automethod:: register_stateful_command
 
     .. automethod:: register_stateless_command
 
@@ -140,6 +239,9 @@ class AdHocServer(aioxmpp.service.Service, aioxmpp.disco.Node):
     ORDER_AFTER = [aioxmpp.disco.DiscoServer]
 
     disco_node = aioxmpp.disco.mount_as_node(
+        "http://jabber.org/protocol/commands"
+    )
+    disco_feature = aioxmpp.disco.register_feature(
         "http://jabber.org/protocol/commands"
     )
 
@@ -175,15 +277,21 @@ class AdHocServer(aioxmpp.service.Service, aioxmpp.disco.Node):
 
     def iter_items(self, stanza):
         local_jid = self.client.local_jid
+        languages = [
+            aioxmpp.structs.LanguageRange.fromstr("en"),
+        ]
+
+        if stanza.lang is not None:
+            languages.insert(0, aioxmpp.structs.LanguageRange.fromstr(
+                str(stanza.lang)
+            ))
+
         for node, info in self._commands.items():
             if not info.is_allowed_for(stanza.from_):
                 continue
             yield disco_xso.Item(
                 local_jid,
-                name=info.name.lookup([
-                    aioxmpp.structs.LanguageRange.fromstr("en"),
-                    aioxmpp.structs.LanguageRange.fromstr("*"),
-                ]),
+                name=info.name.lookup(languages),
                 node=node,
             )
 
@@ -212,10 +320,10 @@ class AdHocServer(aioxmpp.service.Service, aioxmpp.disco.Node):
 
     #     If `is_allowed` is not :data:`None`, it is invoked whenever a command
     #     listing is generated and whenever a command session is about to start.
-    #     The :class:`~.JID` of the requester is passed as positional argument to
-    #     `is_allowed`. If `is_allowed` returns false, the command is not
-    #     included in the list and attempts to execute it are rejected with
-    #     ``<forbidden/>`` without calling `handler`.
+    #     The :class:`~aioxmpp.JID` of the requester is passed as positional
+    #     argument to `is_allowed`. If `is_allowed` returns false, the command
+    #     is not included in the list and attempts to execute it are rejected
+    #     with ``<forbidden/>`` without calling `handler`.
 
     #     If `is_allowed` is :data:`None`, the command is always visible and
     #     allowed.
@@ -259,8 +367,8 @@ class AdHocServer(aioxmpp.service.Service, aioxmpp.disco.Node):
 
         If `is_allowed` is not :data:`None`, it is invoked whenever a command
         listing is generated and whenever a command request is received. The
-        :class:`~.JID` of the requester is passed as positional argument to
-        `is_allowed`. If `is_allowed` returns false, the command is not
+        :class:`aioxmpp.JID` of the requester is passed as positional argument
+        to `is_allowed`. If `is_allowed` returns false, the command is not
         included in the list and attempts to execute it are rejected with
         ``<forbidden/>`` without calling `handler`.
 
@@ -308,7 +416,12 @@ class ClientSession:
 
     The constructor does not send any stanza, it merely prepares the internal
     state. To start the command itself, use the :class:`ClientSession` object
-    as context manager *or* call :meth:`start`.
+    as context manager or call :meth:`start`.
+
+    .. note::
+
+       The client session returned by :meth:`.AdHocClient.execute` is already
+       started.
 
     The `command_name` must be one of the :attr:`~.disco.xso.Item.node` values
     as returned by :meth:`.AdHocClient.get_commands`.
@@ -532,6 +645,16 @@ class ClientSession:
                 )
 
         self._response = None
+
+    @asyncio.coroutine
+    def __aenter__(self):
+        if self._response is None:
+            yield from self.start()
+        return self
+
+    @asyncio.coroutine
+    def __aexit__(self, exc_type, exc_value, exc_traceback):
+        yield from self.close()
 
 
 # class ServerSession:

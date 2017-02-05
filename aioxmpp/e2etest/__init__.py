@@ -136,12 +136,14 @@ config = None
 timeout = 1
 
 
-def require_feature(feature_var, argname=None):
+def require_feature(feature_var, argname=None, *, multiple=False):
     """
     :param feature_var: :xep:`30` feature ``var`` of the required feature
     :type feature_var: :class:`str`
     :param argname: Optional argument name to pass the :class:`FeatureInfo` to
     :type argname: :class:`str` or :data:`None`
+    :param multiple: If true, all peers are returned instead of a random one.
+    :type multiple: :class:`bool`
 
     Before running the function, it is tested that the feature specified by
     `feature_var` is provided in the environment of the current provisioner. If
@@ -151,6 +153,9 @@ def require_feature(feature_var, argname=None):
     the decorated function. If `argname` is :data:`None`, the feature info is
     passed as additional positional argument. otherwise, it is passed as
     keyword argument using the `argname`.
+
+    If `multiple` is true, all peers supporting the given feature are passed
+    in a set. Otherwise, only a random peer is returned.
 
     This decorator can be used on test methods, but not on test classes. If you
     want to skip all tests in a class, apply the decorator to the ``setUp``
@@ -163,17 +168,22 @@ def require_feature(feature_var, argname=None):
         @functools.wraps(f)
         def wrapper(*args, **kwargs):
             global provisioner
-            provider = provisioner.get_feature_provider(feature_var)
-            if provider is None:
+            if multiple:
+                arg = provisioner.get_feature_providers(feature_var)
+                has_provider = bool(arg)
+            else:
+                arg = provisioner.get_feature_provider(feature_var)
+                has_provider = arg is not None
+            if not has_provider:
                 raise unittest.SkipTest(
                     "provisioner does not provide a peer with "
                     "{!r}".format(feature_var)
                 )
 
             if argname is None:
-                args = args+(provider,)
+                args = args+(arg,)
             else:
-                kwargs[argname] = provider
+                kwargs[argname] = arg
 
             return f(*args, **kwargs)
         return wrapper

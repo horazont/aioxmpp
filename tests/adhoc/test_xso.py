@@ -82,6 +82,15 @@ class TestNote(unittest.TestCase):
             adhoc_xso.NoteType.INFO,
         )
 
+    def test_init(self):
+        n = adhoc_xso.Note(
+            adhoc_xso.NoteType.INFO,
+            "foo",
+        )
+
+        self.assertEqual(n.type_, adhoc_xso.NoteType.INFO)
+        self.assertEqual(n.body, "foo")
+
 
 class TestActions(unittest.TestCase):
     def test_is_xso(self):
@@ -292,6 +301,12 @@ class TestCommand(unittest.TestCase):
             adhoc_xso.Command,
             xso.XSO,
         ))
+
+    def test_is_iq_payload(self):
+        self.assertIn(
+            adhoc_xso.Command.TAG,
+            aioxmpp.IQ.CHILD_MAP,
+        )
 
     def test_tag(self):
         self.assertEqual(

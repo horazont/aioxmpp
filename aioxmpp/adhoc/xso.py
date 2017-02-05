@@ -66,6 +66,11 @@ class Note(xso.XSO):
         default=NoteType.INFO,
     )
 
+    def __init__(self, type_, body):
+        super().__init__()
+        self.type_ = type_
+        self.body = body
+
 
 class Actions(xso.XSO):
     TAG = (namespaces.xep0050_commands, "actions")
@@ -116,6 +121,7 @@ class Actions(xso.XSO):
         self.complete_is_allowed = ActionType.COMPLETE in values
 
 
+@aioxmpp.IQ.as_payload_class
 class Command(xso.XSO):
     TAG = (namespaces.xep0050_commands, "command")
 

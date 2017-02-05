@@ -30,14 +30,22 @@ supported.
 Client-side
 ===========
 
+.. currentmodule:: aioxmpp.adhoc
+
 .. autoclass:: AdHocClient
+
+.. currentmodule:: aioxmpp.adhoc.service
 
 .. autoclass:: ClientSession
 
 Server-side
 ===========
 
+.. currentmodule:: aioxmpp.adhoc
+
 .. autoclass:: AdHocServer
+
+.. currentmodule:: aioxmpp.adhoc.service
 
 ..
     .. autoclass:: ServerSession

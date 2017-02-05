@@ -65,6 +65,8 @@ class Quirk(enum.Enum):
 
     MUC_REWRITES_MESSAGE_ID = \
         "https://zombofant.net/xmlns/aioxmpp/e2etest/quirks#muc-id-rewrite"
+    NO_ADHOC_PING = \
+        "https://zombofant.net/xmlns/aioxmpp/e2etest/quirks#no-adhoc-ping"
 
 
 def fix_quirk_str(s):
@@ -297,14 +299,14 @@ class Provisioner(metaclass=abc.ABCMeta):
         self._accounts_to_dispose.append(cm)
         return client
 
-    def get_feature_provider(self, feature_nses):
+    def get_feature_providers(self, feature_nses):
         """
         :param feature_ns: Namespace URIs to find a provider for
         :type feature_ns: iterable of :class:`str`
-        :return: JID of the entity providing all features
-        :rtype: :class:`aioxmpp.JID`
+        :return: JIDs of the entities providing all features
+        :rtype: :class:`set` of :class:`aioxmpp.JID`
 
-        If there is no entity supporting all requested features, :data:`None`
+        If there is no entity supporting all requested features, the empty set
         is returned.
         """
         providers = set()
@@ -317,6 +319,19 @@ class Provisioner(metaclass=abc.ABCMeta):
         providers = set(self._featuremap.get(first_ns, []))
         for feature_ns in iterator:
             providers &= set(self._featuremap.get(feature_ns, []))
+        return providers
+
+    def get_feature_provider(self, feature_nses):
+        """
+        :param feature_ns: Namespace URIs to find a provider for
+        :type feature_ns: iterable of :class:`str`
+        :return: JID of the entity providing all features
+        :rtype: :class:`aioxmpp.JID`
+
+        If there is no entity supporting all requested features, :data:`None`
+        is returned.
+        """
+        providers = self.get_feature_providers(feature_nses)
         if not providers:
             return None
         return next(iter(providers))
