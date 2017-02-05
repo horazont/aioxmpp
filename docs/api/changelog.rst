@@ -111,6 +111,8 @@ Version 0.8
   :meth:`~aioxmpp.disco.Node.iter_identities` now get the request stanza passed
   as first argument.
 
+* :mod:`aioxmpp.adhoc`
+
 .. _api-changelog-0.7:
 
 Version 0.7

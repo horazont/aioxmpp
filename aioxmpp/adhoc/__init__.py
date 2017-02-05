@@ -27,6 +27,8 @@ This subpackage implements support for Ad-Hoc Commands as specified in
 :xep:`50`. Both the client and the server side of Ad-Hoc Commands are
 supported.
 
+.. versionadded:: 0.8
+
 Client-side
 ===========
 
