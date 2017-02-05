@@ -68,12 +68,13 @@ class TaskPool:
     .. automethod:: add
     """
 
-    def __init__(self, *, max_tasks=None, logger=None):
+    def __init__(self, *, max_tasks=None, default_limit=None, logger=None):
         super().__init__()
         if logger is None:
             logger = logging.getLogger(__name__)
         self._group_limits = {}
         self._group_tasks = {}
+        self.default_limit = default_limit
         self.set_limit((), max_tasks)
 
     def set_limit(self, group, new_limit):

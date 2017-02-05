@@ -145,12 +145,3 @@ class TestTaskPool(unittest.TestCase):
             result,
             async_()
         )
-
-    def test_spawn_respects_global_limit(self):
-        self.p.set_limit((), 0)
-        coro_fun = unittest.mock.Mock()
-
-        with self.assertRaisesRegex(
-                RuntimeError,
-                "maximum number of tasks in group '\(\)' exhausted"):
-            self.p.spawn(set(), coro_fun)
