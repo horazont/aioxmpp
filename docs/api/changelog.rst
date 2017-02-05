@@ -104,6 +104,8 @@ Version 0.8
 
 * :class:`aioxmpp.disco.mount_as_node`
 
+* :class:`aioxmpp.disco.register_feature`
+
 * **Breaking change**: :meth:`aioxmpp.disco.Node.iter_items`,
   :meth:`~aioxmpp.disco.Node.iter_features` and
   :meth:`~aioxmpp.disco.Node.iter_identities` now get the request stanza passed

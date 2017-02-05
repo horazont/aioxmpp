@@ -1432,3 +1432,61 @@ class Testmount_as_node(unittest.TestCase):
         self.disco_server.unmount_node.assert_called_once_with(
             unittest.mock.sentinel.mountpoint,
         )
+
+
+class Testregister_feature(unittest.TestCase):
+    def setUp(self):
+        self.pn = disco_service.register_feature(
+            unittest.mock.sentinel.feature
+        )
+        self.instance = unittest.mock.Mock()
+        self.disco_server = unittest.mock.Mock()
+        self.instance.dependencies = {
+            disco_service.DiscoServer: self.disco_server
+        }
+
+    def tearDown(self):
+        del self.instance
+        del self.disco_server
+        del self.pn
+
+    def test_mountpoint(self):
+        self.assertEqual(
+            self.pn.feature,
+            unittest.mock.sentinel.feature,
+        )
+
+    def test_required_dependencies(self):
+        self.assertSetEqual(
+            set(self.pn.required_dependencies),
+            {disco_service.DiscoServer},
+        )
+
+    def test_contextmanager(self):
+        cm = self.pn.init_cm(self.instance)
+        self.disco_server.register_feature.assert_not_called()
+        cm.__enter__()
+        self.disco_server.register_feature.assert_called_once_with(
+            unittest.mock.sentinel.feature,
+        )
+        self.disco_server.unregister_feature.assert_not_called()
+        cm.__exit__(None, None, None)
+        self.disco_server.unregister_feature.assert_called_once_with(
+            unittest.mock.sentinel.feature,
+        )
+
+    def test_contextmanager_is_exception_safe(self):
+        cm = self.pn.init_cm(self.instance)
+        self.disco_server.register_feature.assert_not_called()
+        cm.__enter__()
+        self.disco_server.register_feature.assert_called_once_with(
+            unittest.mock.sentinel.feature,
+        )
+        self.disco_server.unregister_feature.assert_not_called()
+        try:
+            raise Exception()
+        except:
+            cm.__exit__(*sys.exc_info())
+        self.disco_server.unregister_feature.assert_called_once_with(
+            unittest.mock.sentinel.feature,
+        )

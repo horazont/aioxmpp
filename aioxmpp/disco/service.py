@@ -691,3 +691,43 @@ class mount_as_node(service.Descriptor):
             yield
         finally:
             disco.unmount_node(self._mountpoint)
+
+
+class register_feature(service.Descriptor):
+    """
+    Service descriptor which registers a service discovery feature.
+
+    :param feature: The feature to register.
+    :type feature: :class:`str`
+
+    .. versionadded:: 0.8
+
+    When the service is instaniated, the `feature` is registered at the
+    :class:`~.DiscoServer`.
+
+    .. autoattribute:: feature
+    """
+
+    def __init__(self, feature):
+        super().__init__()
+        self._feature = feature
+
+    @property
+    def feature(self):
+        """
+        The feature which is registered.
+        """
+        return self._feature
+
+    @property
+    def required_dependencies(self):
+        return [DiscoServer]
+
+    @contextlib.contextmanager
+    def init_cm(self, instance):
+        disco = instance.dependencies[DiscoServer]
+        disco.register_feature(self._feature)
+        try:
+            yield
+        finally:
+            disco.unregister_feature(self._feature)
