@@ -16,4 +16,5 @@ Internal tools
    network
    protocol
    statemachine
+   tasks
    xml
