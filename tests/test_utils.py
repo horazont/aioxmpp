@@ -20,9 +20,10 @@
 #
 ########################################################################
 import asyncio
+import types
+import sys
 import unittest
 import unittest.mock
-import sys
 
 import aioxmpp.utils as utils
 
@@ -136,3 +137,80 @@ class Testbackground_task(unittest.TestCase):
             unittest.mock.ANY,
             unittest.mock.sentinel.result,
         )
+
+
+class Testmagicmethod(unittest.TestCase):
+    def test_invoke_on_class(self):
+        m = unittest.mock.Mock()
+
+        class Foo:
+            @utils.magicmethod
+            def foo(self_or_cls, *args, **kwargs):
+                return m(self_or_cls, *args, **kwargs)
+
+        result = Foo.foo(unittest.mock.sentinel.a1,
+                         unittest.mock.sentinel.a2,
+                         a=unittest.mock.sentinel.a3)
+
+        m.assert_called_once_with(
+            Foo,
+            unittest.mock.sentinel.a1,
+            unittest.mock.sentinel.a2,
+            a=unittest.mock.sentinel.a3,
+        )
+
+        self.assertEqual(result, m())
+
+    def test_invoke_on_object(self):
+        m = unittest.mock.Mock()
+
+        class Foo:
+            @utils.magicmethod
+            def foo(self_or_cls, *args, **kwargs):
+                return m(self_or_cls, *args, **kwargs)
+
+        instance = Foo()
+        result = instance.foo(unittest.mock.sentinel.a1,
+                              unittest.mock.sentinel.a2,
+                              a=unittest.mock.sentinel.a3)
+
+        m.assert_called_once_with(
+            instance,
+            unittest.mock.sentinel.a1,
+            unittest.mock.sentinel.a2,
+            a=unittest.mock.sentinel.a3,
+        )
+
+        self.assertEqual(result, m())
+
+    def test_instance_method_is_instance_method(self):
+        class Foo:
+            @utils.magicmethod
+            def foo(self_or_cls, *args, **kwargs):
+                pass
+
+        self.assertIsInstance(
+            Foo().foo,
+            types.MethodType
+        )
+
+    def test_class_method_is_also_method(self):
+        class Foo:
+            @utils.magicmethod
+            def foo(self_or_cls, *args, **kwargs):
+                pass
+
+        self.assertIsInstance(
+            Foo.foo,
+            types.MethodType
+        )
+
+    def test_magicmethod_can_be_overridden(self):
+        class Foo:
+            @utils.magicmethod
+            def foo(self_or_cls, *args, **kwargs):
+                pass
+
+        o = Foo()
+        o.foo = "bar"
+        self.assertEqual(o.foo, "bar")

@@ -69,3 +69,16 @@ def background_task(coro, logger):
         yield
     finally:
         task.cancel()
+
+
+class magicmethod:
+    __slots__ = ("_f",)
+
+    def __init__(self, f):
+        super().__init__()
+        self._f = f
+
+    def __get__(self, instance, class_):
+        if instance is None:
+            return types.MethodType(self._f, class_)
+        return types.MethodType(self._f, instance)
