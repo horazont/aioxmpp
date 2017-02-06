@@ -46,6 +46,22 @@ class ActionType(enum.Enum):
 
 
 class CommandStatus(enum.Enum):
+    """
+    Describes the status a command execution is in.
+
+    .. attribute:: EXECUTING
+
+       The command is being executed.
+
+    .. attribute:: COMPLETED
+
+       The command has been completed.
+
+    .. attribute:: CANCELED
+
+       The command has been canceled.
+    """
+
     EXECUTING = "executing"
     COMPLETED = "completed"
     CANCELED = "canceled"

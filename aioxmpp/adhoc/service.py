@@ -458,7 +458,7 @@ class ClientSession:
     def status(self):
         """
         The current status of command execution. This is either :data:`None` or
-        one of the :class:`CommandStatus` enumeration values.
+        one of the :class:`~.adhoc.CommandStatus` enumeration values.
 
         Initially, this attribute is :data:`None`. After calls to
         :meth:`start`, :meth:`proceed` or :meth:`close`, it takes the value of
@@ -708,7 +708,7 @@ class ClientSession:
 #         :param payload: Payload to send in the reply.
 #         :type payload: :class:`~.XSO` or sequence of :class:`~.XSO`
 #         :param status: Status of the command execution.
-#         :type status: :class:`~.adhoc.xso.CommandStatus`
+#         :type status: :class:`~.adhoc.CommandStatus`
 #         :param actions: Set of actions allowed now.
 #         :type actions: set of :class:`~.adhoc.xso.ActionType`
 #         :param default_action: The action to assume if the client simply
@@ -731,8 +731,8 @@ class ClientSession:
 
 #         `status` informs the client about the current status of execution. For
 #         all but the last reply, this should be
-#         :attr:`~.adhoc.xso.CommandStatus.EXECUTING`, but it should be set to
-#         :attr:`~.adhoc.xso.CommandStatus.COMPLETED` on the last reply.
+#         :attr:`~.adhoc.CommandStatus.EXECUTING`, but it should be set to
+#         :attr:`~.adhoc.CommandStatus.COMPLETED` on the last reply.
 #         Unfortunately, we do not have a sensible way to infer this, which is
 #         why there is no default for this argument.
 
