@@ -95,6 +95,7 @@ From XMPP Extension Proposals (XEPs)
 * :xep:`30` (Service Discovery), see :mod:`aioxmpp.disco`
 * :xep:`45` (Multi-User Chat), see :mod:`aioxmpp.muc`
 * :xep:`50` (Ad-Hoc Commands), see :mod:`aioxmpp.adhoc`
+* :xep:`59` (Result Set Management), see :mod:`aioxmpp.rsm`
 * :xep:`60` (Publish-Subscribe), see :mod:`aioxmpp.pubsub`
 * :xep:`68` (Field Standardisation for Data Forms), see :mod:`aioxmpp.forms`
 * :xep:`82` (XMPP Date and Time Profiles), via :class:`aioxmpp.xso.DateTime` and others

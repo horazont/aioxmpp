@@ -36,6 +36,7 @@ functionality or provide backwards compatibility.
    roster
    rfc6120
    rfc3921
+   rsm
    shim
 
 
