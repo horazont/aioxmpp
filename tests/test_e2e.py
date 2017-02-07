@@ -22,15 +22,16 @@
 import asyncio
 
 import aioxmpp.stream
+import aioxmpp.xso
 
 from aioxmpp.e2etest import (
-    blocking,
+    blocking_timed,
     TestCase,
 )
 
 
 class TestConnect(TestCase):
-    @blocking
+    @blocking_timed
     def test_provisioner_works_in_general(self):
         connected = yield from self.provisioner.get_connected_client()
         self.assertTrue(connected.running)
@@ -38,7 +39,7 @@ class TestConnect(TestCase):
 
 
 class TestMessaging(TestCase):
-    @blocking
+    @blocking_timed
     def test_message_from_a_to_b(self):
         a = yield from self.provisioner.get_connected_client()
         b = yield from self.provisioner.get_connected_client()
