@@ -70,3 +70,37 @@ class TestMessaging(TestCase):
             msg_rcvd.body[None],
             "Hello World!"
         )
+
+
+class TestMisc(TestCase):
+    @blocking_timed
+    def test_receive_response_from_iq_to_bare_explicit_self(self):
+        c = yield from self.provisioner.get_connected_client()
+
+        class MadeUpIQPayload(aioxmpp.xso.XSO):
+            TAG = "made-up", "made-up"
+
+        iq = aioxmpp.IQ(
+            to=c.local_jid.bare(),
+            type_=aioxmpp.IQType.GET,
+            payload=MadeUpIQPayload()
+        )
+
+        with self.assertRaises(aioxmpp.errors.XMPPCancelError):
+            yield from c.stream.send(iq)
+
+    @blocking_timed
+    def test_receive_response_from_iq_to_bare_self_using_None(self):
+        c = yield from self.provisioner.get_connected_client()
+
+        class MadeUpIQPayload(aioxmpp.xso.XSO):
+            TAG = "made-up", "made-up"
+
+        iq = aioxmpp.IQ(
+            to=None,
+            type_=aioxmpp.IQType.GET,
+            payload=MadeUpIQPayload()
+        )
+
+        with self.assertRaises(aioxmpp.errors.XMPPCancelError):
+            yield from c.stream.send(iq)

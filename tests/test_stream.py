@@ -2674,6 +2674,44 @@ class TestStanzaStream(StanzaStreamTestBase):
 
         self.assertIs(iq, fut.result())
 
+    def test_map_iq_from_None_to_bare_local_jid(self):
+        iq = make_test_iq(from_=None, type_=structs.IQType.RESULT)
+        iq.autoset_id()
+
+        fut = asyncio.Future()
+
+        self.stream.register_iq_response_callback(
+            TEST_FROM.bare(),
+            iq.id_,
+            fut.set_result)
+        self.stream.start(self.xmlstream)
+        self.stream.recv_stanza(iq)
+
+        run_coroutine(fut)
+
+        self.stream.stop()
+
+        self.assertIs(iq, fut.result())
+
+    def test_working_iq_from_bare_local_jid(self):
+        iq = make_test_iq(from_=TEST_FROM.bare(), type_=structs.IQType.RESULT)
+        iq.autoset_id()
+
+        fut = asyncio.Future()
+
+        self.stream.register_iq_response_callback(
+            TEST_FROM.bare(),
+            iq.id_,
+            fut.set_result)
+        self.stream.start(self.xmlstream)
+        self.stream.recv_stanza(iq)
+
+        run_coroutine(fut)
+
+        self.stream.stop()
+
+        self.assertIs(iq, fut.result())
+
     def test_unicast_error_on_erroneous_iq_result(self):
         req = make_test_iq(to=TEST_TO)
         resp = req.make_reply(type_=structs.IQType.RESULT)

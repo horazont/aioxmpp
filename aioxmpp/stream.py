@@ -884,17 +884,24 @@ class StanzaStream:
         if stanza_obj.type_.is_response:
             # iq response
             self._logger.debug("iq is response")
-            key = (stanza_obj.from_, stanza_obj.id_)
-            if key[0] == self._local_jid:
-                key = (None, key[1])
-            try:
-                self._iq_response_map.unicast(key, stanza_obj)
-                self._logger.debug("iq response delivered to key %r", key)
-            except KeyError:
+            keys = [(stanza_obj.from_, stanza_obj.id_)]
+            if self._local_jid is not None:
+                # needed for some servers
+                if keys[0][0] == self._local_jid:
+                    keys.append((None, keys[0][1]))
+                elif keys[0][0] is None:
+                    keys.append((self._local_jid, keys[0][1]))
+            for key in keys:
+                try:
+                    self._iq_response_map.unicast(key, stanza_obj)
+                    self._logger.debug("iq response delivered to key %r", key)
+                    break
+                except KeyError:
+                    pass
+            else:
                 self._logger.warning(
                     "unexpected IQ response: from=%r, id=%r",
                     *key)
-                return
         else:
             # iq request
             self._logger.debug("iq is request")
