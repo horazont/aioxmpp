@@ -2625,7 +2625,37 @@ class TestStanzaStream(StanzaStreamTestBase):
         with self.assertRaises(asyncio.QueueEmpty):
             self.sent_stanzas.get_nowait()
 
-    def test_map_iq_from_bare_local_jid_to_None(self):
+    def test_do_not_respond_to_UnknownIQPayload_at_stanza_with_broken_type(self):
+        iq = make_test_iq(type_=structs.IQType.RESULT)
+        aioxmpp.IQ.type_.mark_incomplete(iq)
+        self.stream.recv_erroneous_stanza(
+            iq,
+            stanza.UnknownIQPayload(iq, ('end', 'foo'), None)
+        )
+
+        self.stream.start(self.xmlstream)
+
+        run_coroutine(asyncio.sleep(0.01))
+
+        with self.assertRaises(asyncio.QueueEmpty):
+            self.sent_stanzas.get_nowait()
+
+    def test_do_not_respond_to_PayloadParsingError_at_stanza_with_broken_type(self):
+        iq = make_test_iq(type_=structs.IQType.RESULT)
+        aioxmpp.IQ.type_.mark_incomplete(iq)
+        self.stream.recv_erroneous_stanza(
+            iq,
+            stanza.PayloadParsingError(iq, ('end', 'foo'), None)
+        )
+
+        self.stream.start(self.xmlstream)
+
+        run_coroutine(asyncio.sleep(0.01))
+
+        with self.assertRaises(asyncio.QueueEmpty):
+            self.sent_stanzas.get_nowait()
+
+    def test_also_map_iq_from_bare_local_jid_to_None(self):
         iq = make_test_iq(from_=TEST_FROM.bare(), type_=structs.IQType.RESULT)
         iq.autoset_id()
 
@@ -2665,6 +2695,27 @@ class TestStanzaStream(StanzaStreamTestBase):
 
         self.assertIs(ctx.exception.partial_obj, resp)
 
+    def test_unicast_error_on_erroneous_iq_result_where_from_is_None(self):
+        req = make_test_iq(to=None)
+        resp = req.make_reply(type_=structs.IQType.RESULT)
+
+        self.stream.recv_erroneous_stanza(
+            resp,
+            stanza.UnknownIQPayload(resp, ('end', 'foo'), None)
+        )
+
+        fut = asyncio.Future()
+        self.stream.register_iq_response_future(
+            None,
+            req.id_,
+            fut)
+
+        self.stream.start(self.xmlstream)
+        with self.assertRaises(errors.ErroneousStanza) as ctx:
+            run_coroutine(fut)
+
+        self.assertIs(ctx.exception.partial_obj, resp)
+
     def test_unicast_error_on_erroneous_iq_error(self):
         req = make_test_iq(to=TEST_TO)
         resp = req.make_reply(type_=structs.IQType.ERROR)
@@ -2686,9 +2737,9 @@ class TestStanzaStream(StanzaStreamTestBase):
 
         self.assertIs(ctx.exception.partial_obj, resp)
 
-    def test_unicast_error_on_erroneous_iq_error_unless_from_is_None(self):
-        req = make_test_iq(type_=structs.IQType.GET, to=None)
-        resp = req.make_reply(type_=structs.IQType.RESULT)
+    def test_unicast_error_on_erroneous_iq_error_where_from_is_None(self):
+        req = make_test_iq(to=None)
+        resp = req.make_reply(type_=structs.IQType.ERROR)
 
         self.stream.recv_erroneous_stanza(
             resp,
@@ -2697,17 +2748,79 @@ class TestStanzaStream(StanzaStreamTestBase):
 
         fut = asyncio.Future()
         self.stream.register_iq_response_future(
-            req.to,
+            None,
             req.id_,
             fut)
 
         self.stream.start(self.xmlstream)
-        with self.assertRaises(asyncio.TimeoutError):
-            run_coroutine(fut, timeout=0.1)
+        with self.assertRaises(errors.ErroneousStanza) as ctx:
+            run_coroutine(fut)
+
+        self.assertIs(ctx.exception.partial_obj, resp)
 
     def test_do_not_crash_on_unsolicited_erroneous_iq_response(self):
         req = make_test_iq(to=TEST_TO)
         resp = req.make_reply(type_=structs.IQType.RESULT)
+
+        self.stream.recv_erroneous_stanza(
+            resp,
+            stanza.UnknownIQPayload(resp, ('end', 'foo'), None)
+        )
+
+        self.stream.start(self.xmlstream)
+
+        run_coroutine(asyncio.sleep(0))
+        self.assertTrue(self.stream.running)
+
+    def test_do_not_crash_on_iq_response_with_broken_from(self):
+        req = make_test_iq(to=TEST_TO)
+        resp = req.make_reply(type_=structs.IQType.RESULT)
+        aioxmpp.IQ.from_.mark_incomplete(resp)
+
+        self.stream.recv_erroneous_stanza(
+            resp,
+            stanza.UnknownIQPayload(resp, ('end', 'foo'), None)
+        )
+
+        self.stream.start(self.xmlstream)
+
+        run_coroutine(asyncio.sleep(0))
+        self.assertTrue(self.stream.running)
+
+    def test_do_not_crash_on_iq_response_with_broken_type(self):
+        req = make_test_iq(to=TEST_TO)
+        resp = req.make_reply(type_=structs.IQType.RESULT)
+        aioxmpp.IQ.type_.mark_incomplete(resp)
+
+        self.stream.recv_erroneous_stanza(
+            resp,
+            stanza.UnknownIQPayload(resp, ('end', 'foo'), None)
+        )
+
+        self.stream.start(self.xmlstream)
+
+        run_coroutine(asyncio.sleep(0))
+        self.assertTrue(self.stream.running)
+
+    def test_do_not_crash_on_iq_response_with_broken_id(self):
+        req = make_test_iq(to=TEST_TO)
+        resp = req.make_reply(type_=structs.IQType.RESULT)
+        aioxmpp.IQ.id_.mark_incomplete(resp)
+
+        self.stream.recv_erroneous_stanza(
+            resp,
+            stanza.UnknownIQPayload(resp, ('end', 'foo'), None)
+        )
+
+        self.stream.start(self.xmlstream)
+
+        run_coroutine(asyncio.sleep(0))
+        self.assertTrue(self.stream.running)
+
+    def test_do_not_crash_on_iq_response_with_broken_to(self):
+        req = make_test_iq(to=TEST_TO)
+        resp = req.make_reply(type_=structs.IQType.RESULT)
+        aioxmpp.IQ.to.mark_incomplete(resp)
 
         self.stream.recv_erroneous_stanza(
             resp,

@@ -115,6 +115,20 @@ STANZA_ERROR_TAGS = (
 )
 
 
+def _safe_format_attr(obj, attr_name):
+    try:
+        value = getattr(obj, attr_name)
+    except AttributeError as exc:
+        msg = str(exc)
+        if msg.startswith("attribute value is incomplete"):
+            return "<incomplete>"
+        else:
+            return "<unset>"
+    if isinstance(value, structs.JID):
+        return "'{!s}'".format(value)
+    return repr(value)
+
+
 class StanzaError(Exception):
     """
     Base class for exceptions raised when stanzas cannot be processed.
@@ -652,11 +666,12 @@ class Message(StanzaBase):
         return obj
 
     def __repr__(self):
-        return "<message from={!s} to={!s} id={!r} type={!r}>".format(
-            self.from_ if self.from_ is None else "'{!s}'".format(self.from_),
-            self.to if self.to is None else "'{!s}'".format(self.to),
-            self.id_,
-            self.type_)
+        return "<message from={} to={} id={} type={}>".format(
+            _safe_format_attr(self, "from_"),
+            _safe_format_attr(self, "to"),
+            _safe_format_attr(self, "id_"),
+            _safe_format_attr(self, "type_"),
+        )
 
 
 class Status(xso.AbstractTextChild):
@@ -792,12 +807,12 @@ class Presence(StanzaBase):
         self.show = show
 
     def __repr__(self):
-        return "<presence from={!s} to={!s} id={!r} type={!r}>".format(
-            self.from_ if self.from_ is None else "'{!s}'".format(self.from_),
-            self.to if self.to is None else "'{!s}'".format(self.to),
-            self.id_,
-            self.type_)
-
+        return "<presence from={} to={} id={} type={}>".format(
+            _safe_format_attr(self, "from_"),
+            _safe_format_attr(self, "to"),
+            _safe_format_attr(self, "id_"),
+            _safe_format_attr(self, "type_"),
+        )
 
 class IQ(StanzaBase):
     """
@@ -901,28 +916,21 @@ class IQ(StanzaBase):
         payload = ""
 
         try:
-            type_str = repr(self.type_)
             if self.type_.is_error:
                 payload = " error={!r}".format(self.error)
             elif self.payload:
                 payload = " data={!r}".format(self.payload)
         except AttributeError:
-            type_str = "<unset>"
             payload = " error={!r} data={!r}".format(
                 self.error,
                 self.payload
             )
 
-        try:
-            id_str = repr(self.id_)
-        except AttributeError:
-            id_str = "<unset>"
-
-        return "<iq from={!s} to={!s} id={!s} type={!s}{}>".format(
-            self.from_ if self.from_ is None else "'{!s}'".format(self.from_),
-            self.to if self.to is None else "'{!s}'".format(self.to),
-            id_str,
-            type_str,
+        return "<iq from={} to={} id={} type={}{}>".format(
+            _safe_format_attr(self, "from_"),
+            _safe_format_attr(self, "to"),
+            _safe_format_attr(self, "id_"),
+            _safe_format_attr(self, "type_"),
             payload)
 
     @classmethod

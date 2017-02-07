@@ -365,6 +365,18 @@ class TestMessage(unittest.TestCase):
             "<message from=None to=None id=None type=<MessageType.NORMAL: 'normal'>>"
         )
 
+    def test_repr_works_with_incomplete_attributes(self):
+        s = stanza.Message.__new__(stanza.Message)
+        stanza.Message.from_.mark_incomplete(s)
+        stanza.Message.to.mark_incomplete(s)
+        stanza.Message.type_.mark_incomplete(s)
+        stanza.Message.id_.mark_incomplete(s)
+        self.assertEqual(
+            repr(s),
+            "<message from=<incomplete> to=<incomplete> "
+            "id=<incomplete> type=<incomplete>>"
+        )
+
 
 class TestStatus(unittest.TestCase):
     def test_tag(self):
@@ -581,6 +593,18 @@ class TestPresence(unittest.TestCase):
         self.assertEqual(
             repr(s),
             "<presence from=None to=None id=None type=<PresenceType.AVAILABLE: None>>"
+        )
+
+    def test_repr_works_with_incomplete_attributes(self):
+        s = stanza.Presence.__new__(stanza.Presence)
+        stanza.Presence.from_.mark_incomplete(s)
+        stanza.Presence.to.mark_incomplete(s)
+        stanza.Presence.id_.mark_incomplete(s)
+        stanza.Presence.type_.mark_incomplete(s)
+        self.assertEqual(
+            repr(s),
+            "<presence from=<incomplete> to=<incomplete> "
+            "id=<incomplete> type=<incomplete>>"
         )
 
 
@@ -989,6 +1013,18 @@ class TestIQ(unittest.TestCase):
         self.assertEqual(
             repr(s),
             "<iq from=None to=None id=<unset> type=<unset> "
+            "error=None data=None>"
+        )
+
+    def test_repr_works_with_incomplete_attributes(self):
+        s = stanza.IQ.__new__(stanza.IQ)
+        stanza.IQ.from_.mark_incomplete(s)
+        stanza.IQ.to.mark_incomplete(s)
+        stanza.IQ.type_.mark_incomplete(s)
+        stanza.IQ.id_.mark_incomplete(s)
+        self.assertEqual(
+            repr(s),
+            "<iq from=<incomplete> to=<incomplete> id=<incomplete> type=<incomplete> "
             "error=None data=None>"
         )
 

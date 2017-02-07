@@ -113,6 +113,10 @@ Version 0.8
 
 * :mod:`aioxmpp.adhoc`
 
+* The handling of stanzas with unparseable attributes and stanzas originating
+  from the clients bare JID (i.e. from the clients server on behalf on the
+  account) has improved.
+
 .. _api-changelog-0.7:
 
 Version 0.7

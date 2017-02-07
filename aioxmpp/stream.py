@@ -1015,24 +1015,38 @@ class StanzaStream:
             stanza_obj
         )
 
-        if stanza_obj.type_.is_response:
-            if     (isinstance(stanza_obj, stanza.IQ) and
-                    stanza_obj.from_ is not None):
-                self._logger.debug(
-                    "erroneous stanza can be forwarded to handlers as error"
-                )
-
-                key = (stanza_obj.from_, stanza_obj.id_)
-                try:
-                    self._iq_response_map.unicast_error(
-                        key,
-                        errors.ErroneousStanza(stanza_obj)
-                    )
-                except KeyError:
-                    pass
+        try:
+            type_ = stanza_obj.type_
+        except AttributeError:
+            # ugh, type is broken
+            # exit early
+            self._logger.debug(
+                "stanza has broken type, cannot properly handle"
+            )
             return
 
-        if isinstance(exc, stanza.UnknownIQPayload):
+        if type_.is_response:
+            try:
+                from_ = stanza_obj.from_
+                id_ = stanza_obj.id_
+            except AttributeError:
+                pass
+            else:
+                if isinstance(stanza_obj, stanza.IQ):
+                    self._logger.debug(
+                        "erroneous stanza can be forwarded to handlers as "
+                        "error"
+                    )
+
+                    key = (from_, id_)
+                    try:
+                        self._iq_response_map.unicast_error(
+                            key,
+                            errors.ErroneousStanza(stanza_obj)
+                        )
+                    except KeyError:
+                        pass
+        elif isinstance(exc, stanza.UnknownIQPayload):
             reply = stanza_obj.make_error(error=stanza.Error(condition=(
                 namespaces.stanzas,
                 "feature-not-implemented")

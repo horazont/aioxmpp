@@ -277,12 +277,21 @@ class PropBaseMeta(type):
 class _PropBase(metaclass=PropBaseMeta):
     class NO_DEFAULT:
         def __repr__(self):
-            return "no default"
+            return "<no default>"
 
         def __bool__(self):
-            raise TypeError("cannot convert NO_DEFAULT to bool")
+            raise TypeError("cannot convert {!r} to bool".format(self))
 
     NO_DEFAULT = NO_DEFAULT()
+
+    class __INCOMPLETE:
+        def __repr__(self):
+            return "<incomplete value>"
+
+        def __bool__(self):
+            raise TypeError("cannot convert {!r} to bool".format(self))
+
+    __INCOMPLETE = __INCOMPLETE()
 
     def __init__(self, default=NO_DEFAULT,
                  *,
@@ -321,7 +330,7 @@ class _PropBase(metaclass=PropBaseMeta):
                 xso_query.GetDescriptor,
             )
         try:
-            return instance._xso_contents[self]
+            value = instance._xso_contents[self]
         except KeyError:
             if self.default is self.NO_DEFAULT:
                 raise AttributeError(
@@ -329,6 +338,14 @@ class _PropBase(metaclass=PropBaseMeta):
                         self, type_)
                 ) from None
             return self.default
+        if value is self.__INCOMPLETE:
+            raise AttributeError(
+                "attribute value is incomplete"
+            )
+        return value
+
+    def mark_incomplete(self, instance):
+        instance._xso_contents[self] = self.__INCOMPLETE
 
     def validate_contents(self, instance):
         try:
@@ -1380,6 +1397,11 @@ class ChildTextMap(ChildValueMap):
         )
 
 
+def _mark_attributes_incomplete(attrs, obj):
+    for attr in attrs:
+        attr.mark_incomplete(obj)
+
+
 class XMLStreamClass(xso_query.Class, abc.ABCMeta):
     """
     This metaclass is used to implement the fancy features of :class:`.XSO`
@@ -1741,6 +1763,8 @@ class XMLStreamClass(xso_query.Class, abc.ABCMeta):
                 try:
                     prop.from_value(obj, value)
                 except:
+                    prop.mark_incomplete(obj)
+                    _mark_attributes_incomplete(attr_map.values(), obj)
                     logger.debug("while parsing XSO", exc_info=True)
                     # true means suppress
                     if not obj.xso_error_handler(
