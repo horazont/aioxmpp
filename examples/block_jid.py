@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 ########################################################################
 # File name: block_jid.py
 # This file is part of: aioxmpp
@@ -98,6 +99,16 @@ class BlockCommand(aioxmpp.xso.XSO):
     )
 
 
+# again the only difference is the TAG
+@aioxmpp.stanza.IQ.as_payload_class
+class UnblockCommand(aioxmpp.xso.XSO):
+    TAG = ("urn:xmpp:blocking", "unblock")
+
+    items = aioxmpp.xso.ChildValueList(
+        BlockItemType()
+    )
+
+
 class BlockJID(Example):
     def prepare_argparse(self):
         super().prepare_argparse()
@@ -117,6 +128,16 @@ class BlockJID(Example):
         )
 
         self.argparse.add_argument(
+            "--remove",
+            dest="jids_to_unblock",
+            default=[],
+            action="append",
+            type=jid,
+            metavar="JID",
+            help="JID to unblock (can be specified multiple times)",
+        )
+
+        self.argparse.add_argument(
             "-l", "--list",
             action="store_true",
             default=False,
@@ -127,9 +148,11 @@ class BlockJID(Example):
     def configure(self):
         super().configure()
 
-        if not self.args.jids_to_block and not self.args.show_list:
+        if not (self.args.jids_to_block or
+                self.args.show_list or
+                self.args.jids_to_unblock):
             print("nothing to do!", file=sys.stderr)
-            print("specify --add and/or --list", file=sys.stderr)
+            print("specify --add and/or --remove and/or --list", file=sys.stderr)
             sys.exit(1)
 
     @asyncio.coroutine
@@ -154,23 +177,41 @@ class BlockJID(Example):
         if self.args.jids_to_block:
             # construct the block list request and add the JIDs by simply
             # placing them in the items attribute
-            blocklist = BlockCommand()
+            cmd = BlockCommand()
 
             # note that self.args.jids_to_block is a list of JID objects, not a
             # list of strings (that would not work, because BlockItem requires
             # the jid attribute to be a JID)
-            blocklist.items[:] = self.args.jids_to_block
+            cmd.items[:] = self.args.jids_to_block
 
             # construct the IQ request
             iq = aioxmpp.IQ(
                 type_=aioxmpp.IQType.SET,
-                payload=blocklist,
+                payload=cmd,
             )
 
             # send it and wait for a response
             yield from self.client.stream.send(iq)
         else:
             print("nothing to block")
+
+        if self.args.jids_to_unblock:
+            # construct the unblock list request and add the JIDs by simply
+            # placing them in the items attribute
+            cmd = UnblockCommand()
+
+            cmd.items[:] = self.args.jids_to_unblock
+
+            # construct the IQ request
+            iq = aioxmpp.IQ(
+                type_=aioxmpp.IQType.SET,
+                payload=cmd,
+            )
+
+            # send it and wait for a response
+            yield from self.client.stream.send(iq)
+        else:
+            print("nothing to unblock")
 
         if self.args.show_list:
             # construct the request to retrieve the block list
@@ -183,8 +224,8 @@ class BlockJID(Example):
 
             # print all the items; again, .items is a list of JIDs
             print("current block list:")
-            for item in result.items:
-                print(" ", item)
+            for item in sorted(result.items):
+                print("\t", item, sep="")
 
 
 if __name__ == "__main__":
