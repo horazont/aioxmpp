@@ -31,6 +31,18 @@ New major features
   Developer Guide. The :mod:`aioxmpp.e2etest` API is still highly experimental
   and should not be used outside of :mod:`aioxmpp`.
 
+New examples
+------------
+
+* ``adhoc_browser``: A graphical tool to browse and execute Ad-Hoc Commands.
+  Requires PyQt5. Run ``make`` in the examples directory and start with
+  ``python3 -m adhoc_browser``.
+
+* ``entity_items.py``, ``entity_info.py``: Show service discovery info and items
+  for arbitrary JIDs.
+
+* ``list_adhoc_commands.py``: List the Ad-Hoc commands offered by an entity.
+
 Breaking changes
 ----------------
 
