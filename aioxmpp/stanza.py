@@ -779,15 +779,10 @@ class Presence(StanzaBase):
 
     show = xso.ChildText(
         tag=(namespaces.client, "show"),
-        validator=xso.RestrictToSet({
-            "dnd",
-            "xa",
-            "away",
-            None,
-            "chat",
-        }),
-        validate=xso.ValidateMode.ALWAYS,
-        default=None,
+        type_=xso.EnumType(
+            structs.PresenceShow,
+        ),
+        default=structs.PresenceShow.NONE,
     )
 
     status = xso.ChildTextMap(Status)
@@ -801,7 +796,9 @@ class Presence(StanzaBase):
     ext = xso.ChildMap([])
     unhandled_children = xso.Collector()
 
-    def __init__(self, *, type_=structs.PresenceType.AVAILABLE, show=None, **kwargs):
+    def __init__(self, *,
+                 type_=structs.PresenceType.AVAILABLE,
+                 show=structs.PresenceShow.NONE, **kwargs):
         super().__init__(**kwargs)
         self.type_ = type_
         self.show = show
@@ -813,6 +810,7 @@ class Presence(StanzaBase):
             _safe_format_attr(self, "id_"),
             _safe_format_attr(self, "type_"),
         )
+
 
 class IQ(StanzaBase):
     """

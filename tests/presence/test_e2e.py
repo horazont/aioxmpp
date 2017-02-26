@@ -88,13 +88,13 @@ class TestPresence(TestCase):
 
         self.assertFalse(changed_fut.done())
 
-        pres.show = "dnd"
+        pres.show = aioxmpp.PresenceShow.DND
         yield from self.a.stream.send(pres)
 
         full_jid, stanza = yield from changed_fut
         self.assertIsInstance(stanza, aioxmpp.Presence)
         self.assertEqual(stanza.type_, aioxmpp.PresenceType.AVAILABLE)
-        self.assertEqual(stanza.show, "dnd")
+        self.assertEqual(stanza.show, aioxmpp.PresenceShow.DND)
         self.assertEqual(stanza.from_, self.a.local_jid)
         self.assertEqual(full_jid, stanza.from_)
 

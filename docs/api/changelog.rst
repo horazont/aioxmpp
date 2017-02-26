@@ -134,6 +134,15 @@ Version 0.8
   thus only affects descriptors which have a ``default`` other than
   :data:`None` (which includes an unset default).
 
+* **Breaking change**: :attr:`aioxmpp.Presence.show` now uses the
+  :class:`aioxmpp.PresenceShow` enumeration. The breakage is similar to the
+  breakage in the 0.7 release; if I had thought of it at that time, I would have
+  made the change back then, but it was overlooked.
+
+  Again, a utility script (``find-v0.8-type-transitions.sh``) is provided which
+  helps finding locations of code which need changing. See the
+  :ref:`api-changelog-0.7` for details.
+
 .. _api-changelog-0.7:
 
 Version 0.7

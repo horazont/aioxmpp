@@ -21,7 +21,6 @@
 ########################################################################
 import asyncio
 import contextlib
-import functools
 import ipaddress
 import itertools
 import logging
@@ -109,9 +108,9 @@ class Testdiscover_connectors(unittest.TestCase):
             )
             lookup_srv.side_effect = srv_records()
 
-            group_and_order = stack.enter_context(
-                unittest.mock.patch("aioxmpp.network.group_and_order_srv_records")
-            )
+            group_and_order = stack.enter_context(unittest.mock.patch(
+                "aioxmpp.network.group_and_order_srv_records"
+            ))
             group_and_order.return_value = grouped_results()
 
             result = run_coroutine(
@@ -206,9 +205,9 @@ class Testdiscover_connectors(unittest.TestCase):
             )
             lookup_srv.side_effect = srv_records()
 
-            group_and_order = stack.enter_context(
-                unittest.mock.patch("aioxmpp.network.group_and_order_srv_records")
-            )
+            group_and_order = stack.enter_context(unittest.mock.patch(
+                "aioxmpp.network.group_and_order_srv_records"
+            ))
             group_and_order.return_value = grouped_results()
 
             result = run_coroutine(
@@ -295,9 +294,9 @@ class Testdiscover_connectors(unittest.TestCase):
             )
             lookup_srv.side_effect = srv_records()
 
-            group_and_order = stack.enter_context(
-                unittest.mock.patch("aioxmpp.network.group_and_order_srv_records")
-            )
+            group_and_order = stack.enter_context(unittest.mock.patch(
+                "aioxmpp.network.group_and_order_srv_records"
+            ))
             group_and_order.return_value = grouped_results()
 
             result = run_coroutine(
@@ -359,9 +358,9 @@ class Testdiscover_connectors(unittest.TestCase):
             )
             lookup_srv.return_value = None
 
-            group_and_order = stack.enter_context(
-                unittest.mock.patch("aioxmpp.network.group_and_order_srv_records")
-            )
+            group_and_order = stack.enter_context(unittest.mock.patch(
+                "aioxmpp.network.group_and_order_srv_records"
+            ))
 
             result = run_coroutine(
                 node.discover_connectors(
@@ -438,9 +437,9 @@ class Testdiscover_connectors(unittest.TestCase):
             )
             lookup_srv.side_effect = srv_records()
 
-            group_and_order = stack.enter_context(
-                unittest.mock.patch("aioxmpp.network.group_and_order_srv_records")
-            )
+            group_and_order = stack.enter_context(unittest.mock.patch(
+                "aioxmpp.network.group_and_order_srv_records"
+            ))
             group_and_order.return_value = grouped_results()
 
             result = run_coroutine(
@@ -527,9 +526,9 @@ class Testdiscover_connectors(unittest.TestCase):
             )
             lookup_srv.side_effect = srv_records()
 
-            group_and_order = stack.enter_context(
-                unittest.mock.patch("aioxmpp.network.group_and_order_srv_records")
-            )
+            group_and_order = stack.enter_context(unittest.mock.patch(
+                "aioxmpp.network.group_and_order_srv_records"
+            ))
             group_and_order.return_value = grouped_results()
 
             result = run_coroutine(
@@ -1228,7 +1227,7 @@ class Testconnect_xmlstream(unittest.TestCase):
 
         with self.assertRaisesRegex(
                 errors.TLSFailure,
-                r"TLS failure") as exc_ctx:
+                r"TLS failure"):
             run_coroutine(node.connect_xmlstream(
                 jid,
                 base.metadata,
@@ -2139,7 +2138,7 @@ class TestClient(xmltestutils.XMLTestCase):
 
         self.client.start()
         run_coroutine(self.xmlstream.run_test(
-            self.resource_binding+
+            self.resource_binding +
             [
                 XMLStreamMock.Send(
                     iqreq,
@@ -2172,8 +2171,8 @@ class TestClient(xmltestutils.XMLTestCase):
 
         self.client.start()
         run_coroutine(self.xmlstream.run_test(
-            self.resource_binding+
-            self.sm_negotiation_exchange+
+            self.resource_binding +
+            self.sm_negotiation_exchange +
             [
                 XMLStreamMock.Send(
                     iqreq,
@@ -2221,8 +2220,7 @@ class TestClient(xmltestutils.XMLTestCase):
                     response=[
                         XMLStreamMock.Receive(
                             nonza.SMEnabled(resume=True,
-                                                  id_="foobar"),
-
+                                            id_="foobar"),
                         ),
                         XMLStreamMock.Fail(
                             exc=ConnectionError()
@@ -2269,11 +2267,10 @@ class TestClient(xmltestutils.XMLTestCase):
                 response=[
                     XMLStreamMock.Receive(
                         nonza.SMEnabled(resume=True,
-                                              id_="foobar"),
-
+                                        id_="foobar"),
                     ),
                     XMLStreamMock.Fail(
-                    exc=ConnectionError()
+                        exc=ConnectionError()
                     ),
                 ]
             ),
@@ -2310,9 +2307,10 @@ class TestClient(xmltestutils.XMLTestCase):
                             nonza.SMEnabled(
                                 resume=True,
                                 id_="foobar",
-                                location=(ipaddress.IPv6Address("fe80::"), 5222)),
-
-                    ),
+                                location=(
+                                    ipaddress.IPv6Address("fe80::"), 5222
+                                )),
+                        ),
                         XMLStreamMock.Fail(
                             exc=ConnectionError()
                         ),
@@ -2384,9 +2382,10 @@ class TestClient(xmltestutils.XMLTestCase):
                             nonza.SMEnabled(
                                 resume=True,
                                 id_="foobar",
-                                location=(ipaddress.IPv6Address("fe80::"), 5222)),
-
-                    ),
+                                location=(
+                                    ipaddress.IPv6Address("fe80::"), 5222
+                                )),
+                        ),
                         XMLStreamMock.Fail(
                             exc=ConnectionError()
                         ),
@@ -2479,8 +2478,7 @@ class TestClient(xmltestutils.XMLTestCase):
                 response=[
                     XMLStreamMock.Receive(
                         nonza.SMEnabled(resume=True,
-                                              id_="foobar"),
-
+                                        id_="foobar"),
                     ),
                     XMLStreamMock.Fail(
                         exc=ConnectionError()
@@ -2504,8 +2502,7 @@ class TestClient(xmltestutils.XMLTestCase):
                 response=[
                     XMLStreamMock.Receive(
                         nonza.SMEnabled(resume=True,
-                                              id_="foobar"),
-
+                                        id_="foobar"),
                     ),
                 ]
             ),
@@ -2737,14 +2734,14 @@ class TestClient(xmltestutils.XMLTestCase):
         self.client.stop()
         run_coroutine(asyncio.sleep(0))
 
-    def test_signals_fire_correctly_on_fail_after_established_sm_connection(self):
+    def test_signals_fire_correctly_on_fail_after_established_sm_connection(self):  # NOQA
         self.features[...] = nonza.StreamManagementFeature()
 
         self.client.backoff_start = timedelta(seconds=0)
         self.client.start()
 
         run_coroutine(self.xmlstream.run_test(
-            self.resource_binding+
+            self.resource_binding +
             self.sm_negotiation_exchange
         ))
 
@@ -2998,17 +2995,17 @@ class TestPresenceManagedClient(xmltestutils.XMLTestCase):
     def test_change_presence_to_available(self):
         self.client.presence = structs.PresenceState(
             available=True,
-            show="chat")
+            show=structs.PresenceShow.CHAT)
 
         run_coroutine(self.xmlstream.run_test([
         ]+self.resource_binding+[
             XMLStreamMock.Send(
                 stanza.Presence(type_=structs.PresenceType.AVAILABLE,
-                                show="chat",
+                                show=structs.PresenceShow.CHAT,
                                 id_="autoset"),
                 response=XMLStreamMock.Receive(
                     stanza.Presence(type_=structs.PresenceType.AVAILABLE,
-                                    show="chat",
+                                    show=structs.PresenceShow.CHAT,
                                     id_="autoset")
                 )
             )
@@ -3019,17 +3016,17 @@ class TestPresenceManagedClient(xmltestutils.XMLTestCase):
     def test_change_presence_while_available(self):
         self.client.presence = structs.PresenceState(
             available=True,
-            show="chat")
+            show=structs.PresenceShow.CHAT)
 
         run_coroutine(self.xmlstream.run_test([
         ]+self.resource_binding+[
             XMLStreamMock.Send(
                 stanza.Presence(type_=structs.PresenceType.AVAILABLE,
-                                show="chat",
+                                show=structs.PresenceShow.CHAT,
                                 id_="autoset"),
                 response=XMLStreamMock.Receive(
                     stanza.Presence(type_=structs.PresenceType.AVAILABLE,
-                                    show="chat",
+                                    show=structs.PresenceShow.CHAT,
                                     id_="autoset")
                 )
             )
@@ -3039,16 +3036,16 @@ class TestPresenceManagedClient(xmltestutils.XMLTestCase):
 
         self.client.presence = structs.PresenceState(
             available=True,
-            show="away")
+            show=structs.PresenceShow.AWAY)
 
         run_coroutine(self.xmlstream.run_test([
             XMLStreamMock.Send(
                 stanza.Presence(type_=structs.PresenceType.AVAILABLE,
-                                show="away",
+                                show=structs.PresenceShow.AWAY,
                                 id_="autoset"),
                 response=XMLStreamMock.Receive(
                     stanza.Presence(type_=structs.PresenceType.AVAILABLE,
-                                    show="away",
+                                    show=structs.PresenceShow.AWAY,
                                     id_="autoset")
                 )
             )
@@ -3059,17 +3056,17 @@ class TestPresenceManagedClient(xmltestutils.XMLTestCase):
     def test_change_presence_to_unavailable(self):
         self.client.presence = structs.PresenceState(
             available=True,
-            show="chat")
+            show=structs.PresenceShow.CHAT)
 
         run_coroutine(self.xmlstream.run_test([
         ]+self.resource_binding+[
             XMLStreamMock.Send(
                 stanza.Presence(type_=structs.PresenceType.AVAILABLE,
-                                show="chat",
+                                show=structs.PresenceShow.CHAT,
                                 id_="autoset"),
                 response=XMLStreamMock.Receive(
                     stanza.Presence(type_=structs.PresenceType.AVAILABLE,
-                                    show="chat",
+                                    show=structs.PresenceShow.CHAT,
                                     id_="autoset")
                 )
             )
@@ -3096,24 +3093,24 @@ class TestPresenceManagedClient(xmltestutils.XMLTestCase):
     def test_do_not_send_presence_twice_if_changed_while_establishing(self):
         self.client.presence = structs.PresenceState(
             available=True,
-            show="chat")
+            show=structs.PresenceShow.CHAT)
         run_coroutine(asyncio.sleep(0))
         self.assertTrue(self.client.running)
         self.assertFalse(self.client.established)
 
         self.client.presence = structs.PresenceState(
             available=True,
-            show="dnd")
+            show=structs.PresenceShow.DND)
 
         run_coroutine(self.xmlstream.run_test([
         ]+self.resource_binding+[
             XMLStreamMock.Send(
                 stanza.Presence(type_=structs.PresenceType.AVAILABLE,
-                                show="dnd",
+                                show=structs.PresenceShow.DND,
                                 id_="autoset"),
                 response=XMLStreamMock.Receive(
                     stanza.Presence(type_=structs.PresenceType.AVAILABLE,
-                                    show="dnd",
+                                    show=structs.PresenceShow.DND,
                                     id_="autoset")
                 )
             )
@@ -3142,17 +3139,17 @@ class TestPresenceManagedClient(xmltestutils.XMLTestCase):
     def test_re_establish_on_presence_rewrite_if_disconnected(self):
         self.client.presence = structs.PresenceState(
             available=True,
-            show="chat")
+            show=structs.PresenceShow.CHAT)
 
         run_coroutine(self.xmlstream.run_test([
         ]+self.resource_binding+[
             XMLStreamMock.Send(
                 stanza.Presence(type_=structs.PresenceType.AVAILABLE,
-                                show="chat",
+                                show=structs.PresenceShow.CHAT,
                                 id_="autoset"),
                 response=XMLStreamMock.Receive(
                     stanza.Presence(type_=structs.PresenceType.AVAILABLE,
-                                    show="chat",
+                                    show=structs.PresenceShow.CHAT,
                                     id_="autoset")
                 )
             ),
@@ -3179,11 +3176,11 @@ class TestPresenceManagedClient(xmltestutils.XMLTestCase):
         ]+self.resource_binding+[
             XMLStreamMock.Send(
                 stanza.Presence(type_=structs.PresenceType.AVAILABLE,
-                                show="chat",
+                                show=structs.PresenceShow.CHAT,
                                 id_="autoset"),
                 response=XMLStreamMock.Receive(
                     stanza.Presence(type_=structs.PresenceType.AVAILABLE,
-                                    show="chat",
+                                    show=structs.PresenceShow.CHAT,
                                     id_="autoset")
                 )
             ),
@@ -3204,7 +3201,7 @@ class TestPresenceManagedClient(xmltestutils.XMLTestCase):
         }
 
         expected = stanza.Presence(type_=structs.PresenceType.AVAILABLE,
-                                   show="chat",
+                                   show=structs.PresenceShow.CHAT,
                                    id_="autoset")
         expected.status.update(status_texts)
 
@@ -3226,7 +3223,7 @@ class TestPresenceManagedClient(xmltestutils.XMLTestCase):
             self.client.set_presence(
                 structs.PresenceState(
                     available=True,
-                    show="chat"),
+                    show=structs.PresenceShow.CHAT),
                 status=status_texts
             )
 
@@ -3253,7 +3250,7 @@ class TestPresenceManagedClient(xmltestutils.XMLTestCase):
 
     def test_set_presence_with_single_string(self):
         expected = stanza.Presence(type_=structs.PresenceType.AVAILABLE,
-                                   show="chat",
+                                   show=structs.PresenceShow.CHAT,
                                    id_="autoset")
         expected.status[None] = "foobar"
 
@@ -3275,7 +3272,7 @@ class TestPresenceManagedClient(xmltestutils.XMLTestCase):
             self.client.set_presence(
                 structs.PresenceState(
                     available=True,
-                    show="chat"),
+                    show=structs.PresenceShow.CHAT),
                 status="foobar"
             )
 
@@ -3302,7 +3299,7 @@ class TestPresenceManagedClient(xmltestutils.XMLTestCase):
 
     def test_set_presence_through_server(self):
         expected = stanza.Presence(type_=structs.PresenceType.AVAILABLE,
-                                   show="chat",
+                                   show=structs.PresenceShow.CHAT,
                                    id_="autoset")
         expected.status[None] = "foobar"
 
@@ -3326,7 +3323,7 @@ class TestPresenceManagedClient(xmltestutils.XMLTestCase):
             server.set_presence(
                 structs.PresenceState(
                     available=True,
-                    show="chat"),
+                    show=structs.PresenceShow.CHAT),
                 status="foobar"
             )
 
@@ -3533,7 +3530,7 @@ class TestUseConnected(unittest.TestCase):
 
         self.assertFalse(run_coroutine(task))
 
-    def test_aexit_stops_client_waits_for_on_failure_and_swallows_exception(self):
+    def test_aexit_stops_client_waits_for_on_failure_and_swallows_exception(self):  # NOQA
         self.client.established = True
         self.client.running = True
 

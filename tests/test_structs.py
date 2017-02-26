@@ -667,7 +667,7 @@ class TestPresenceState(unittest.TestCase):
     def test_init_defaults(self):
         ps = structs.PresenceState()
         self.assertFalse(ps.available)
-        self.assertIsNone(ps.show)
+        self.assertEqual(ps.show, structs.PresenceShow.NONE)
 
     def test_init_available(self):
         ps = structs.PresenceState(available=True)
@@ -678,29 +678,38 @@ class TestPresenceState(unittest.TestCase):
         self.assertIs(True, ps.available)
 
     def test_init_available_with_show(self):
-        ps = structs.PresenceState(available=True, show="dnd")
+        ps = structs.PresenceState(available=True,
+                                   show=structs.PresenceShow.DND)
         self.assertTrue(ps.available)
-        self.assertEqual("dnd", ps.show)
+        self.assertEqual(structs.PresenceShow.DND, ps.show)
 
     def test_init_available_validate_show(self):
         with self.assertRaises(ValueError):
             ps = structs.PresenceState(available=True, show="foobar")
         for value in ["dnd", "xa", "away", None, "chat"]:
-            ps = structs.PresenceState(available=True, show=value)
+            value = structs.PresenceShow(value)
+            ps = structs.PresenceState(
+                available=True,
+                show=value)
             self.assertEqual(value, ps.show)
 
     def test_init_unavailable_forbids_show(self):
         with self.assertRaises(ValueError):
-            structs.PresenceState(available=False, show="dnd")
+            structs.PresenceState(available=False,
+                                  show=structs.PresenceShow.DND)
 
     def test_ordering(self):
         values = [
             structs.PresenceState(),
-            structs.PresenceState(available=True, show="dnd"),
-            structs.PresenceState(available=True, show="xa"),
-            structs.PresenceState(available=True, show="away"),
+            structs.PresenceState(available=True,
+                                  show=structs.PresenceShow.XA),
+            structs.PresenceState(available=True,
+                                  show=structs.PresenceShow.AWAY),
             structs.PresenceState(available=True),
-            structs.PresenceState(available=True, show="chat"),
+            structs.PresenceState(available=True,
+                                  show=structs.PresenceShow.CHAT),
+            structs.PresenceState(available=True,
+                                  show=structs.PresenceShow.DND),
         ]
 
         for i in range(1, len(values)-1):
@@ -710,6 +719,22 @@ class TestPresenceState(unittest.TestCase):
                 self.assertNotEqual(v1, v2)
                 self.assertGreater(v2, v1)
                 self.assertGreaterEqual(v2, v1)
+
+    def test_proper_exception_on_invalid_ordering_operand(self):
+        with self.assertRaises(TypeError):
+            structs.PresenceState() < 1
+
+        with self.assertRaises(TypeError):
+            structs.PresenceState() > 1
+
+        with self.assertRaises(TypeError):
+            structs.PresenceState() >= 1
+
+        with self.assertRaises(TypeError):
+            structs.PresenceState() <= 1
+
+        self.assertFalse(structs.PresenceState() == 0)
+        self.assertTrue(structs.PresenceState() != 0)
 
     def test_equality(self):
         self.assertEqual(
@@ -721,12 +746,16 @@ class TestPresenceState(unittest.TestCase):
             structs.PresenceState(available=True)
         )
         self.assertEqual(
-            structs.PresenceState(available=True, show="dnd"),
-            structs.PresenceState(available=True, show="dnd")
+            structs.PresenceState(available=True,
+                                  show=structs.PresenceShow.DND),
+            structs.PresenceState(available=True,
+                                  show=structs.PresenceShow.DND),
         )
         self.assertFalse(
-            structs.PresenceState(available=True, show="dnd") !=
-            structs.PresenceState(available=True, show="dnd")
+            structs.PresenceState(available=True,
+                                  show=structs.PresenceShow.DND) !=
+            structs.PresenceState(available=True,
+                                  show=structs.PresenceShow.DND)
         )
 
     def test_equality_deals_with_different_types(self):
@@ -744,22 +773,24 @@ class TestPresenceState(unittest.TestCase):
             repr(structs.PresenceState(available=True))
         )
         self.assertEqual(
-            "<PresenceState available show='dnd'>",
-            repr(structs.PresenceState(available=True, show="dnd"))
+            "<PresenceState available show=<PresenceShow.DND: 'dnd'>>",
+            repr(structs.PresenceState(available=True,
+                                       show=structs.PresenceShow.DND))
         )
 
     def test_apply_to_stanza(self):
         stanza_obj = stanza.Presence(type_=structs.PresenceType.PROBE)
-        self.assertIsNone(stanza_obj.show)
+        self.assertEqual(stanza_obj.show, structs.PresenceShow.NONE)
 
-        ps = structs.PresenceState(available=True, show="dnd")
+        ps = structs.PresenceState(available=True,
+                                   show=structs.PresenceShow.DND)
         ps.apply_to_stanza(stanza_obj)
         self.assertEqual(
             structs.PresenceType.AVAILABLE,
             stanza_obj.type_
         )
         self.assertEqual(
-            "dnd",
+            structs.PresenceShow.DND,
             stanza_obj.show
         )
 
@@ -769,17 +800,19 @@ class TestPresenceState(unittest.TestCase):
             structs.PresenceType.UNAVAILABLE,
             stanza_obj.type_
         )
-        self.assertIsNone(
-            stanza_obj.show
+        self.assertEqual(
+            stanza_obj.show,
+            structs.PresenceShow.NONE,
         )
 
     def test_from_stanza(self):
         stanza_obj = stanza.Presence(
             type_=structs.PresenceType.AVAILABLE
         )
-        stanza_obj.show = "xa"
+        stanza_obj.show = structs.PresenceShow.XA
         self.assertEqual(
-            structs.PresenceState(available=True, show="xa"),
+            structs.PresenceState(available=True,
+                                  show=structs.PresenceShow.XA),
             structs.PresenceState.from_stanza(stanza_obj)
         )
 
@@ -802,7 +835,7 @@ class TestPresenceState(unittest.TestCase):
         stanza_obj = stanza.Presence(
             type_=structs.PresenceType.UNAVAILABLE
         )
-        stanza_obj.show = "dnd"
+        stanza_obj.show = structs.PresenceShow.AWAY
         self.assertEqual(
             structs.PresenceState(available=False),
             structs.PresenceState.from_stanza(stanza_obj)
@@ -812,7 +845,7 @@ class TestPresenceState(unittest.TestCase):
         stanza_obj = stanza.Presence(
             type_=structs.PresenceType.UNAVAILABLE,
         )
-        stanza_obj.show = "dnd"
+        stanza_obj.show = structs.PresenceShow.DND
         with self.assertRaises(ValueError):
             structs.PresenceState.from_stanza(stanza_obj, strict=True)
 

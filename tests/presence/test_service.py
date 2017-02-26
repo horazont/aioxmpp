@@ -241,22 +241,20 @@ class TestPresenceClient(unittest.TestCase):
             st
         )
 
-
-        self.s.handle_presence(
-            stanza.Presence(type_=structs.PresenceType.AVAILABLE,
-                            show="dnd",
-                            from_=TEST_PEER_JID1.replace(resource="bar"))
-        )
+        staway = stanza.Presence(type_=structs.PresenceType.AVAILABLE,
+                                 show=structs.PresenceShow.AWAY,
+                                 from_=TEST_PEER_JID1.replace(resource="baz"))
+        self.s.handle_presence(staway)
 
         self.assertIs(
             self.s.get_most_available_stanza(TEST_PEER_JID1),
             st
         )
 
-        st = stanza.Presence(type_=structs.PresenceType.AVAILABLE,
-                             show="chat",
-                             from_=TEST_PEER_JID1.replace(resource="baz"))
-        self.s.handle_presence(st)
+        stdnd = stanza.Presence(type_=structs.PresenceType.AVAILABLE,
+                                show=structs.PresenceShow.DND,
+                                from_=TEST_PEER_JID1.replace(resource="bar"))
+        self.s.handle_presence(stdnd)
 
         self.assertEqual(
             len(self.s.get_peer_resources(TEST_PEER_JID1)),
@@ -265,7 +263,7 @@ class TestPresenceClient(unittest.TestCase):
 
         self.assertIs(
             self.s.get_most_available_stanza(TEST_PEER_JID1),
-            st
+            stdnd
         )
 
     def test_get_most_available_stanza_returns_None_for_unavailable_JID(self):
@@ -401,17 +399,17 @@ class TestPresenceClient(unittest.TestCase):
         )
 
         st1 = stanza.Presence(type_=structs.PresenceType.AVAILABLE,
-                              show="dnd",
+                              show=structs.PresenceShow.DND,
                               from_=TEST_PEER_JID1.replace(resource="foo"))
         self.s.handle_presence(st1)
 
         st2 = stanza.Presence(type_=structs.PresenceType.AVAILABLE,
-                              show="dnd",
+                              show=structs.PresenceShow.DND,
                               from_=TEST_PEER_JID1.replace(resource="bar"))
         self.s.handle_presence(st2)
 
         st3 = stanza.Presence(type_=structs.PresenceType.AVAILABLE,
-                              show="chat",
+                              show=structs.PresenceShow.CHAT,
                               from_=TEST_PEER_JID1.replace(resource="bar"))
         self.s.handle_presence(st3)
 

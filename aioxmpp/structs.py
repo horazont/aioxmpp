@@ -846,8 +846,8 @@ class PresenceShow(enum.Enum):
     XA = "xa"
     EXTENDED_AWAY = "xa"
     AWAY = "away"
-    PLAIN = None
     NONE = None
+    PLAIN = None
     CHAT = "chat"
     FREE_FOR_CHAT = "chat"
     DND = "dnd"
@@ -904,19 +904,13 @@ class PresenceState:
 
     """
 
-    SHOW_VALUES = ["dnd", "xa", "away", None, "chat"]
-    SHOW_VALUE_WEIGHT = {
-        value: i
-        for i, value in enumerate(SHOW_VALUES)
-    }
-
     __slots__ = ["_available", "_show"]
 
-    def __init__(self, available=False, show=None):
+    def __init__(self, available=False, show=PresenceShow.NONE):
         super().__init__()
-        if not available and show:
+        if not available and show != PresenceShow.NONE:
             raise ValueError("Unavailable state cannot have show value")
-        if show not in PresenceState.SHOW_VALUES:
+        if not isinstance(show, PresenceShow):
             raise ValueError("Not a valid show value")
         self._available = bool(available)
         self._show = show
@@ -930,10 +924,11 @@ class PresenceState:
         return self._show
 
     def __lt__(self, other):
-        my_key = (self.available,
-                  PresenceState.SHOW_VALUE_WEIGHT[self.show])
-        other_key = (other.available,
-                     PresenceState.SHOW_VALUE_WEIGHT[other.show])
+        my_key = (self.available, self.show)
+        try:
+            other_key = (other.available, other.show)
+        except AttributeError:
+            return NotImplemented
         return my_key < other_key
 
     def __eq__(self, other):
@@ -946,7 +941,7 @@ class PresenceState:
     def __repr__(self):
         more = ""
         if self.available:
-            if self.show:
+            if self.show != PresenceShow.NONE:
                 more = " available show={!r}".format(self.show)
             else:
                 more = " available"
@@ -984,7 +979,7 @@ class PresenceState:
             raise ValueError("presence state stanza required")
         available = stanza_obj.type_ == PresenceType.AVAILABLE
         if not strict:
-            show = stanza_obj.show if available else None
+            show = stanza_obj.show if available else PresenceShow.NONE
         else:
             show = stanza_obj.show
         return cls(available=available, show=show)

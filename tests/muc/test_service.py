@@ -79,7 +79,7 @@ class TestOccupant(unittest.TestCase):
             TEST_MUC_JID.replace(resource="firstwitch"),
             presence_state=aioxmpp.structs.PresenceState(
                 available=True,
-                show="away"
+                show=aioxmpp.PresenceShow.AWAY,
             ),
             presence_status=status,
             affiliation="admin",
@@ -91,7 +91,7 @@ class TestOccupant(unittest.TestCase):
             occ.presence_state,
             aioxmpp.structs.PresenceState(
                 available=True,
-                show="away"
+                show=aioxmpp.PresenceShow.AWAY,
             )
         )
 
@@ -129,7 +129,7 @@ class TestOccupant(unittest.TestCase):
         presence = aioxmpp.stanza.Presence(
             from_=TEST_MUC_JID.replace(resource="secondwitch"),
             type_=aioxmpp.structs.PresenceType.AVAILABLE,
-            show="dnd"
+            show=aioxmpp.PresenceShow.DND,
         )
 
         presence.status[None] = "foo"
@@ -161,7 +161,7 @@ class TestOccupant(unittest.TestCase):
         presence = aioxmpp.stanza.Presence(
             from_=TEST_MUC_JID.replace(resource="secondwitch"),
             type_=aioxmpp.structs.PresenceType.AVAILABLE,
-            show="dnd"
+            show=aioxmpp.PresenceShow.DND,
         )
 
         presence.status[None] = "foo"
@@ -210,7 +210,7 @@ class TestOccupant(unittest.TestCase):
         presence = aioxmpp.stanza.Presence(
             from_=TEST_MUC_JID.replace(resource="secondwitch"),
             type_=aioxmpp.structs.PresenceType.AVAILABLE,
-            show="dnd"
+            show=aioxmpp.PresenceShow.DND,
         )
 
         presence.status[None] = "foo"
@@ -1043,7 +1043,7 @@ class TestRoom(unittest.TestCase):
             self.base.mock_calls.clear()
 
             # update presence stanza
-            presence.show = "away"
+            presence.show = aioxmpp.PresenceShow.AWAY
 
             second = original_Occupant.from_presence(presence)
             Occupant.from_presence.return_value = second
@@ -1170,7 +1170,7 @@ class TestRoom(unittest.TestCase):
             self.base.mock_calls.clear()
 
             # update presence stanza
-            presence.show = "away"
+            presence.show = aioxmpp.PresenceShow.AWAY
             presence.xep0045_muc_user.items[0].affiliation = "owner"
             presence.xep0045_muc_user.items[0].role = "moderator"
             presence.xep0045_muc_user.items[0].reason = "foobar"
@@ -1796,7 +1796,7 @@ class TestRoom(unittest.TestCase):
             self.mucjid
         )
         self.assertFalse(stanza.status)
-        self.assertIsNone(stanza.show)
+        self.assertEqual(stanza.show, aioxmpp.PresenceShow.NONE)
 
     def test_leave_and_wait(self):
         with unittest.mock.patch.object(

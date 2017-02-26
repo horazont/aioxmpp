@@ -440,28 +440,23 @@ class TestPresence(unittest.TestCase):
     def test_show_attr(self):
         self.assertIsInstance(
             stanza.Presence.show,
-            xso.ChildText)
+            xso.ChildText,
+        )
         self.assertEqual(
             (namespaces.client, "show"),
-            stanza.Presence.show.tag
-        )
-        self.assertEqual(
-            xso.ValidateMode.ALWAYS,
-            stanza.Presence.show.validate
+            stanza.Presence.show.tag,
         )
         self.assertIsInstance(
-            stanza.Presence.show.validator,
-            xso.RestrictToSet
+            stanza.Presence.show.type_,
+            xso.EnumType,
         )
-        self.assertSetEqual(
-            {
-                "dnd",
-                "away",
-                "xa",
-                None,
-                "chat",
-            },
-            stanza.Presence.show.validator.values
+        self.assertIs(
+            stanza.Presence.show.type_.enum_class,
+            structs.PresenceShow,
+        )
+        self.assertIs(
+            stanza.Presence.show.default,
+            structs.PresenceShow.NONE,
         )
 
     def test_status_attr(self):
@@ -504,7 +499,7 @@ class TestPresence(unittest.TestCase):
         s = stanza.Presence(
             from_=TEST_FROM,
             type_=structs.PresenceType.PROBE,
-            show="away"
+            show=structs.PresenceShow.AWAY,
         )
         self.assertEqual(
             TEST_FROM,
@@ -515,7 +510,26 @@ class TestPresence(unittest.TestCase):
             s.type_
         )
         self.assertEqual(
-            "away",
+            structs.PresenceShow.AWAY,
+            s.show,
+        )
+
+    def test_init_compat(self):
+        s = stanza.Presence(
+            from_=TEST_FROM,
+            type_=structs.PresenceType.PROBE,
+            show="xa",
+        )
+        self.assertEqual(
+            TEST_FROM,
+            s.from_
+        )
+        self.assertEqual(
+            structs.PresenceType.PROBE,
+            s.type_
+        )
+        self.assertEqual(
+            structs.PresenceShow.XA,
             s.show,
         )
 
@@ -525,7 +539,7 @@ class TestPresence(unittest.TestCase):
             s.type_,
             structs.PresenceType.AVAILABLE,
         )
-        self.assertIsNone(s.show)
+        self.assertEqual(s.show, structs.PresenceShow.NONE)
 
     def test_make_error(self):
         e = stanza.Error(
