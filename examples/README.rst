@@ -86,3 +86,18 @@ listed below.
   neither is given, the JID is prompted for on the terminal.
 
   Note that this option is shared with ``get_muc_config``.
+
+
+Running ``adhoc_browser``
+=========================
+
+To run ``adhoc_browser``, you need PyQt5 and you need to compile the Qt Designer
+UI file to python code. For the latter, run::
+
+  make
+
+in the examples directory. Now you can start the adhoc browser::
+
+  python3 -m adhoc_browser
+
+You may pass additional command line arguments like you can for other examples.

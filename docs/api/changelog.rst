@@ -3,6 +3,210 @@
 Changelog
 #########
 
+.. _api-changelog-0.8:
+
+Version 0.8
+===========
+
+New XEP implementations
+-----------------------
+
+* :mod:`aioxmpp.adhoc` (:xep:`50`): Support for using Ad-Hoc commands;
+  publishing own Ad-Hoc commands for others to use is not supported yet.
+
+New major features
+------------------
+
+* Services (see :mod:`aioxmpp.service`) are now even easier to write, using
+  the new :ref:`api-aioxmpp.service-decorators`. These allow automagically
+  registering methods as handlers or filters for stanzas and other often-used
+  things.
+
+  Existing services have been ported to this new system, and we recommend to
+  do the same with your own services!
+
+* :mod:`aioxmpp` now supports end-to-end testing using an XMPP server (such as
+  `Prosody <https://prosody.im>`_). For the crude details see
+  :mod:`aioxmpp.e2etest` and the :ref:`dg-end-to-end-tests` section in the
+  Developer Guide. The :mod:`aioxmpp.e2etest` API is still highly experimental
+  and should not be used outside of :mod:`aioxmpp`.
+
+New examples
+------------
+
+* ``adhoc_browser``: A graphical tool to browse and execute Ad-Hoc Commands.
+  Requires PyQt5. Run ``make`` in the examples directory and start with
+  ``python3 -m adhoc_browser``.
+
+* ``entity_items.py``, ``entity_info.py``: Show service discovery info and items
+  for arbitrary JIDs.
+
+* ``list_adhoc_commands.py``: List the Ad-Hoc commands offered by an entity.
+
+Breaking changes
+----------------
+
+Changes to the connection procedure:
+
+* If any of the connection errors encountered in
+  :meth:`aioxmpp.node.connect_xmlstream` is a
+  :class:`aioxmpp.errors.TLSFailure` *and all* other connection options also
+  failed, the :class:`~.errors.TLSFailure` is re-raised instead of a
+  :class:`aioxmpp.errors.MultiOSError` instance. This helps to prevent masking
+  of configuration problems.
+
+* The change of :meth:`aioxmpp.node.connect_xmlstream` described above also
+  affects the behaviour of :class:`aioxmpp.Client`, as
+  :class:`~.errors.TLSFailure` errors are treated as critical (in contrast to
+  :class:`OSError` subclasses).
+
+Changes in :class:`aioxmpp.Client` (formerly :class:`aioxmpp.AbstractClient`,
+see in the deprecations below for the name change)
+
+* The number of connection attempts made before the first connection is
+  successful is now bounded, configurable through the new parameter
+  `max_initial_attempts`. The default is at 4, which gives (together with the
+  default exponential backoff parameters) a minimum time of attempted
+  connections of about 5 seconds.
+
+* :meth:`~.Client.on_stream_suspended` was added (this is not a breaking
+  change, but belongs to the :class:`aioxmpp.Client` changes discussed here).
+
+* :meth:`~.Client.on_stream_destroyed` got a new argument `reason`
+  which gives the exception which caused the stream to be destroyed.
+
+Other breaking changes:
+
+* :attr:`aioxmpp.tracking.MessageState.UNKNOWN` renamed to
+  :attr:`~.MessageState.CLOSED`.
+
+* :meth:`aioxmpp.disco.Node.iter_items`,
+  :meth:`~aioxmpp.disco.Node.iter_features` and
+  :meth:`~aioxmpp.disco.Node.iter_identities` now get the request stanza passed
+  as first argument.
+
+* :attr:`aioxmpp.Presence.show` now uses the
+  :class:`aioxmpp.PresenceShow` enumeration. The breakage is similar to the
+  breakage in the 0.7 release; if I had thought of it at that time, I would have
+  made the change back then, but it was overlooked.
+
+  Again, a utility script (``find-v0.8-type-transitions.sh``) is provided which
+  helps finding locations of code which need changing. See the
+  :ref:`api-changelog-0.7` for details.
+
+* Presence states with ``show`` set to
+  :attr:`~.PresenceShow.DND` now order highest (before,
+  :attr:`~.PresenceShow.DND` ordered lowest). The rationale is that if a user
+  indicates :attr:`~.PresenceShow.DND` state at one resource, one should
+  probably respect the Do-Not-Disturb request on all resources.
+
+The following changes are not severe, but may still break code depending on how
+it is used:
+
+* :class:`aioxmpp.disco.Service` was split into
+  :class:`aioxmpp.DiscoClient` and :class:`aioxmpp.DiscoServer`.
+
+  If you need to be compatible with old versions, use code like this::
+
+    try:
+        from aioxmpp import DiscoClient, DiscoServer
+    except ImportError:
+        import aioxmpp.disco
+        DiscoClient = aioxmpp.disco.Service
+        DiscoServer = aioxmpp.disco.Service
+
+* Type coercion in XSO descriptors now behaves differently. Previously,
+  :data:`None` was hard-coded to be exempt from type coercion; this allowed
+  *any* :class:`~.xso.Text`,  :class:`~.xso.ChildText`, :class:`~.xso.Attr` and
+  other scalar descriptor to be assigned :data:`None`, unless a validator which
+  explicitly forbade that was installed. The use case was to have a default,
+  absence-indicating value which is outside the valid value range of the
+  ``type_``.
+
+  This is now handled by exempting the ``default`` of the descriptor from type
+  coercion and thus allowing assignment of that default by default. The change
+  thus only affects descriptors which have a ``default`` other than
+  :data:`None` (which includes an unset default).
+
+Minor features and bug fixes
+----------------------------
+
+* :class:`aioxmpp.stream.StanzaToken` objects are now :term:`awaitable`.
+
+* :meth:`aioxmpp.stream.StanzaStream.send` introduced as method which can be
+  used to send arbitrary stanzas. See the docs there to observe the full
+  awesomeness.
+
+* Improvement and fixes to :mod:`aioxmpp.muc`:
+
+  * Implemented :meth:`aioxmpp.muc.Room.request_voice`.
+  * Fix :meth:`aioxmpp.muc.Room.leave_and_wait` never returning.
+  * Do not emit :meth:`aioxmpp.muc.Room.on_join` when an unavailable presence
+    from an unknown occupant JID is received.
+
+* Added context managers for registering a callable as stanza handler or filter
+  temporarily:
+
+  * :func:`aioxmpp.stream.iq_handler`,
+  * :func:`aioxmpp.stream.message_handler`,
+  * :func:`aioxmpp.stream.presence_handler`, and
+  * :func:`aioxmpp.stream.stanza_filter`.
+
+* The :attr:`aioxmpp.service.Service.dependencies` attribute was added.
+
+* Support for ANONYMOUS SASL mechanism. See :meth:`aioxmpp.security_layer.make`
+  for details (requires aiosasl 0.3+).
+
+* Get rid of dependency on libxml2 development files. libxml2 itself is still
+  required, both directly and indirectly (through the lxml dependency).
+
+* The :class:`aioxmpp.PresenceServer` service was introduced and the
+  :class:`aioxmpp.PresenceManagedClient` was re-implemented on top of that.
+
+* Fix :exc:`AttributeError` being raised from ``state > None`` (and other
+  comparison operators), with ``state`` being a :class:`aioxmpp.PresenceState`
+  instance.
+
+  The more correct :exc:`TypeError` is now raised.
+
+* The handling of stanzas with unparseable attributes and stanzas originating
+  from the clients bare JID (i.e. from the clients server on behalf on the
+  account) has improved.
+
+* The examples now default to ``$XDG_CONFIG_HOME/aioxmpp-examples.ini`` for
+  configuration if it exists. (thanks, `@mcepl
+  <https://github.com/horazont/aioxmpp/pull/27>`_).
+
+Deprecations
+------------
+
+* Several classes were renamed:
+
+  * :class:`aioxmpp.node.AbstractClient` → :class:`aioxmpp.Client`
+  * :class:`aioxmpp.shim.Service` → :class:`aioxmpp.SHIMService`
+  * :class:`aioxmpp.muc.Service` → :class:`aioxmpp.MUCClient`
+  * :class:`aioxmpp.presence.Service` → :class:`aioxmpp.PresenceClient`
+  * :class:`aioxmpp.roster.Service` → :class:`aioxmpp.RosterClient`
+  * :class:`aioxmpp.entitycaps.Service` → :class:`aioxmpp.EntityCapsService`
+  * :class:`aioxmpp.pubsub.Service` → :class:`aioxmpp.PubSubClient`
+
+  The old names are still available until 1.0.
+
+* :meth:`~.StanzaStream.send_and_wait_for_sent` deprecated in favour of
+  :meth:`~.StanzaStream.send`.
+
+* :meth:`~.StanzaStream.send_iq_and_wait_for_reply` deprecated in favour of
+  :meth:`~.StanzaStream.send`.
+
+* :meth:`~.StanzaStream.enqueue_stanza` is now called
+  :meth:`~aioxmpp.stream.StanzaStream.enqueue`.
+
+* The `presence` argument to the constructor of and the
+  :attr:`~.UseConnected.presence` and :attr:`~.UseConnected.timeout` attributes
+  on :class:`aioxmpp.node.UseConnected` objects are deprecated.
+
+  See the respective documentation for details on the deprecation procedure.
+
 .. _api-changelog-0.7:
 
 Version 0.7

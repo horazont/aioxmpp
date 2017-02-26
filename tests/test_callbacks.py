@@ -12,7 +12,7 @@
 # This program is distributed in the hope that it will be useful, but
 # WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-# General Public License for more details.
+# Lesser General Public License for more details.
 #
 # You should have received a copy of the GNU Lesser General Public
 # License along with this program.  If not, see
@@ -513,7 +513,7 @@ class TestFutureListener(unittest.TestCase):
     def test_error_dispatch(self):
         loop = asyncio.get_event_loop()
         fut = asyncio.Future(loop=loop)
-        obj = object()
+        obj = Exception()
         tl = FutureListener(fut)
 
         self.assertTrue(tl.is_valid())

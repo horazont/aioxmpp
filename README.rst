@@ -16,14 +16,21 @@ Features
   transient network failures (such as switching between wireless and wired
   networks).
 
+* Powerful declarative-style definition of XEP-based and custom protocols. Most
+  of the time, you will not get in contact with raw XML or character data, even
+  when implementing a new protocol.
+
+* Secure by default: TLS is required by default, as well as certificate
+  validation. Certificate or public key pinning can be used, if needed.
+
 * Support for `RFC 6121 (Instant Messaging and Presence)
   <https://tools.ietf.org/html/rfc6121>`_ roster and presence management, along
   with `XEP-0045 (Multi-User Chats)
   <https://xmpp.org/extensions/xep-0045.html>`_ for your human-to-human needs.
 
 * Support for `XEP-0060 (Publish-Subscribe)
-  <https://xmpp.org/extensions/xep-0060.html>`_ as well as powerful
-  declarative-style definition of your own protocols for your machine-to-machine
+  <https://xmpp.org/extensions/xep-0060.html>`_ and `XEP-0050 (Ad-Hoc Commands)
+  <https://xmpp.org/extensions/xep-0050.html>`_ for your machine-to-machine
   needs.
 
 * Several other XEPs, such as `XEP-0115
@@ -34,13 +41,14 @@ Features
 * APIs suitable for both one-shot scripts and long-running multi-account
   clients.
 
-* Secure by default: TLS is required by default, as well as certificate
-  validation. Certificate or public key pinning can be used, if needed.
+* Well-tested and modular codebase: aioxmpp is developed in test-driven
+  style and many modules are automatedly tested against a Prosody 0.9.
 
-* Well-tested and modular codebase.
+  .. image:: https://travis-ci.org/horazont/aioxmpp.svg?branch=devel
+    :target: https://travis-ci.org/horazont/aioxmpp
 
-And there’s yet more to come! Check out the list of `open GitHub issues tagged
-as enhancement
+There is more and there’s yet more to come! Check out the list of supported XEPs
+in the `official documentation`_ and `open GitHub issues tagged as enhancement
 <https://github.com/horazont/aioxmpp/issues?q=is%3Aissue+is%3Aopen+label%3Aenhancement>`_
 for things which are planned and read on below on how to contribute.
 
@@ -49,7 +57,6 @@ Dependencies
 
 * Python ≥ 3.4 (or Python = 3.3 with tulip and enum34)
 * DNSPython
-* libxml2-devel (for some XML helpers)
 * lxml
 * `orderedset`__
 
@@ -70,7 +77,7 @@ Dependencies
   .. _pyasn1: https://pypi.python.org/pypi/pyasn1
   __ https://pypi.python.org/pypi/pyasn1-modules
 
-* `aiosasl`__
+* `aiosasl`__ (≥ 0.3 for ``ANONYMOUS`` support)
 
   __ https://pypi.python.org/pypi/aiosasl
 
@@ -126,7 +133,7 @@ the places listed above.
 Change log
 ==========
 
-The `change log`_ is included in the `official documentation`__.
+The `change log`_ is included in the `official documentation`_.
 
-.. _change log: https://docs.zombofant.net/aioxmpp/0.7/api/changelog.html
-__ https://docs.zombofant.net/aioxmpp/0.7/
+.. _change log: https://docs.zombofant.net/aioxmpp/devel/api/changelog.html
+.. _official documentation: https://docs.zombofant.net/aioxmpp/0.8/

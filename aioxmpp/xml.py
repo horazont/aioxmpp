@@ -12,7 +12,7 @@
 # This program is distributed in the hope that it will be useful, but
 # WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-# General Public License for more details.
+# Lesser General Public License for more details.
 #
 # You should have received a copy of the GNU Lesser General Public
 # License along with this program.  If not, see
@@ -69,8 +69,8 @@ Utility functions
 """
 
 import ctypes
+import ctypes.util
 import io
-import os
 
 import xml.sax
 import xml.sax.saxutils
@@ -81,10 +81,10 @@ from . import errors, structs, xso
 from .utils import namespaces
 
 
-if os.uname().sysname == 'Darwin':
-    libxml2 = ctypes.cdll.LoadLibrary('libxml2.dylib')
-else:
-    libxml2 = ctypes.cdll.LoadLibrary('libxml2.so')
+# this is more portable *and* we don’t need libxml-dev anymore.
+libxml2 = ctypes.cdll.LoadLibrary(
+    ctypes.util.find_library("xml2"),
+)
 
 
 def xmlValidateNameValue_str(s):

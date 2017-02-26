@@ -12,7 +12,7 @@
 # This program is distributed in the hope that it will be useful, but
 # WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-# General Public License for more details.
+# Lesser General Public License for more details.
 #
 # You should have received a copy of the GNU Lesser General Public
 # License along with this program.  If not, see
@@ -113,6 +113,20 @@ STANZA_ERROR_TAGS = (
     "undefined-condition",
     "unexpected-request",
 )
+
+
+def _safe_format_attr(obj, attr_name):
+    try:
+        value = getattr(obj, attr_name)
+    except AttributeError as exc:
+        msg = str(exc)
+        if msg.startswith("attribute value is incomplete"):
+            return "<incomplete>"
+        else:
+            return "<unset>"
+    if isinstance(value, structs.JID):
+        return "'{!s}'".format(value)
+    return repr(value)
 
 
 class StanzaError(Exception):
@@ -306,7 +320,8 @@ class Error(xso.XSO):
                 return result
         return self.EXCEPTION_CLS_MAP[self.type_](
             condition=self.condition,
-            text=self.text
+            text=self.text,
+            application_defined_condition=self.application_condition,
         )
 
     @classmethod
@@ -651,11 +666,12 @@ class Message(StanzaBase):
         return obj
 
     def __repr__(self):
-        return "<message from={!s} to={!s} id={!r} type={!r}>".format(
-            self.from_ if self.from_ is None else "'{!s}'".format(self.from_),
-            self.to if self.to is None else "'{!s}'".format(self.to),
-            self.id_,
-            self.type_)
+        return "<message from={} to={} id={} type={}>".format(
+            _safe_format_attr(self, "from_"),
+            _safe_format_attr(self, "to"),
+            _safe_format_attr(self, "id_"),
+            _safe_format_attr(self, "type_"),
+        )
 
 
 class Status(xso.AbstractTextChild):
@@ -763,15 +779,14 @@ class Presence(StanzaBase):
 
     show = xso.ChildText(
         tag=(namespaces.client, "show"),
-        validator=xso.RestrictToSet({
-            "dnd",
-            "xa",
-            "away",
-            None,
-            "chat",
-        }),
-        validate=xso.ValidateMode.ALWAYS,
-        default=None,
+        type_=xso.EnumType(
+            structs.PresenceShow,
+            allow_coerce=True,
+            deprecate_coerce=True,
+            allow_unknown=False,
+            accept_unknown=False,
+        ),
+        default=structs.PresenceShow.NONE,
     )
 
     status = xso.ChildTextMap(Status)
@@ -785,17 +800,20 @@ class Presence(StanzaBase):
     ext = xso.ChildMap([])
     unhandled_children = xso.Collector()
 
-    def __init__(self, *, type_=structs.PresenceType.AVAILABLE, show=None, **kwargs):
+    def __init__(self, *,
+                 type_=structs.PresenceType.AVAILABLE,
+                 show=structs.PresenceShow.NONE, **kwargs):
         super().__init__(**kwargs)
         self.type_ = type_
         self.show = show
 
     def __repr__(self):
-        return "<presence from={!s} to={!s} id={!r} type={!r}>".format(
-            self.from_ if self.from_ is None else "'{!s}'".format(self.from_),
-            self.to if self.to is None else "'{!s}'".format(self.to),
-            self.id_,
-            self.type_)
+        return "<presence from={} to={} id={} type={}>".format(
+            _safe_format_attr(self, "from_"),
+            _safe_format_attr(self, "to"),
+            _safe_format_attr(self, "id_"),
+            _safe_format_attr(self, "type_"),
+        )
 
 
 class IQ(StanzaBase):
@@ -900,28 +918,21 @@ class IQ(StanzaBase):
         payload = ""
 
         try:
-            type_str = repr(self.type_)
             if self.type_.is_error:
                 payload = " error={!r}".format(self.error)
             elif self.payload:
                 payload = " data={!r}".format(self.payload)
         except AttributeError:
-            type_str = "<unset>"
             payload = " error={!r} data={!r}".format(
                 self.error,
                 self.payload
             )
 
-        try:
-            id_str = repr(self.id_)
-        except AttributeError:
-            id_str = "<unset>"
-
-        return "<iq from={!s} to={!s} id={!s} type={!s}{}>".format(
-            self.from_ if self.from_ is None else "'{!s}'".format(self.from_),
-            self.to if self.to is None else "'{!s}'".format(self.to),
-            id_str,
-            type_str,
+        return "<iq from={} to={} id={} type={}{}>".format(
+            _safe_format_attr(self, "from_"),
+            _safe_format_attr(self, "to"),
+            _safe_format_attr(self, "id_"),
+            _safe_format_attr(self, "type_"),
             payload)
 
     @classmethod

@@ -12,7 +12,7 @@
 # This program is distributed in the hope that it will be useful, but
 # WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-# General Public License for more details.
+# Lesser General Public License for more details.
 #
 # You should have received a copy of the GNU Lesser General Public
 # License along with this program.  If not, see
@@ -58,6 +58,19 @@ Cheat Sheet:
    their appropriate immutable equivalents.
 
    These locations are marked accordingly.
+
+Attributes added to stanzas
+===========================
+
+:mod:`aioxmpp.forms` adds the following attributes to stanzas:
+
+.. attribute:: aioxmpp.Message.xep0004_data
+
+   A sequence of :class:`Data` instances. This is used for example by the
+   :mod:`~.muc` implementation (:xep:`45`).
+
+   .. versionadded:: 0.8
+
 
 .. _api-aioxmpp.forms-declarative-style:
 

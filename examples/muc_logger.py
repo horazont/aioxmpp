@@ -12,7 +12,7 @@
 # This program is distributed in the hope that it will be useful, but
 # WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-# General Public License for more details.
+# Lesser General Public License for more details.
 #
 # You should have received a copy of the GNU Lesser General Public
 # License along with this program.  If not, see
@@ -102,7 +102,7 @@ class MucLogger(Example):
 
     def make_simple_client(self):
         client = super().make_simple_client()
-        muc = client.summon(aioxmpp.muc.Service)
+        muc = client.summon(aioxmpp.MUCClient)
         room, self.room_future = muc.join(
             self.muc_jid,
             self.muc_nick
@@ -158,13 +158,15 @@ class MucLogger(Example):
             mode
         ))
 
-    async def run_example(self):
+    @asyncio.coroutine
+    def run_example(self):
         self.stop_event = self.make_sigint_event()
-        await super().run_example()
+        yield from super().run_example()
 
-    async def run_simple_example(self):
+    @asyncio.coroutine
+    def run_simple_example(self):
         print("waiting to join room...")
-        done, pending = await asyncio.wait(
+        done, pending = yield from asyncio.wait(
             [
                 self.room_future,
                 self.stop_event.wait(),
@@ -178,7 +180,7 @@ class MucLogger(Example):
         for fut in pending:
             fut.cancel()
 
-        await self.stop_event.wait()
+        yield from self.stop_event.wait()
 
 
 if __name__ == "__main__":

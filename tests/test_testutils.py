@@ -12,7 +12,7 @@
 # This program is distributed in the hope that it will be useful, but
 # WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-# General Public License for more details.
+# Lesser General Public License for more details.
 #
 # You should have received a copy of the GNU Lesser General Public
 # License along with this program.  If not, see
@@ -963,8 +963,11 @@ class Testmake_connected_client(unittest.TestCase):
         self.assertTrue(hasattr(cc.stream, "register_presence_callback"))
         self.assertIsInstance(cc.stream.send_iq_and_wait_for_reply,
                               CoroutineMock)
+        self.assertIsInstance(cc.stream.send, CoroutineMock)
 
         self.assertIsInstance(cc.stream_features, nonza.StreamFeatures)
+
+        self.assertIs(cc.stream.enqueue, cc.stream.enqueue_stanza)
 
     def test_summon_uses_services_dict(self):
         cc = make_connected_client()

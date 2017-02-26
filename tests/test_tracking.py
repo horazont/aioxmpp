@@ -12,7 +12,7 @@
 # This program is distributed in the hope that it will be useful, but
 # WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-# General Public License for more details.
+# Lesser General Public License for more details.
 #
 # You should have received a copy of the GNU Lesser General Public
 # License along with this program.  If not, see
@@ -93,63 +93,103 @@ class TestMessageState(unittest.TestCase):
         )
 
         self.assertLess(
-            tracking.MessageState.UNKNOWN,
+            tracking.MessageState.CLOSED,
             tracking.MessageState.DELIVERED_TO_SERVER,
         )
         self.assertLess(
-            tracking.MessageState.UNKNOWN,
+            tracking.MessageState.CLOSED,
             tracking.MessageState.DELIVERED_TO_RECIPIENT,
         )
         self.assertLess(
-            tracking.MessageState.UNKNOWN,
+            tracking.MessageState.CLOSED,
             tracking.MessageState.SEEN_BY_RECIPIENT,
         )
 
         self.assertLess(
             tracking.MessageState.DELIVERED_TO_SERVER,
-            tracking.MessageState.UNKNOWN,
+            tracking.MessageState.CLOSED,
         )
         self.assertLess(
             tracking.MessageState.DELIVERED_TO_RECIPIENT,
-            tracking.MessageState.UNKNOWN,
+            tracking.MessageState.CLOSED,
         )
         self.assertLess(
             tracking.MessageState.SEEN_BY_RECIPIENT,
-            tracking.MessageState.UNKNOWN,
+            tracking.MessageState.CLOSED,
+        )
+
+        self.assertLess(
+            tracking.MessageState.ERROR,
+            tracking.MessageState.DELIVERED_TO_SERVER,
+        )
+        self.assertLess(
+            tracking.MessageState.ERROR,
+            tracking.MessageState.DELIVERED_TO_RECIPIENT,
+        )
+        self.assertLess(
+            tracking.MessageState.ERROR,
+            tracking.MessageState.SEEN_BY_RECIPIENT,
+        )
+
+        self.assertLess(
+            tracking.MessageState.DELIVERED_TO_SERVER,
+            tracking.MessageState.ERROR,
+        )
+        self.assertLess(
+            tracking.MessageState.DELIVERED_TO_RECIPIENT,
+            tracking.MessageState.ERROR,
+        )
+        self.assertLess(
+            tracking.MessageState.SEEN_BY_RECIPIENT,
+            tracking.MessageState.ERROR,
         )
 
         self.assertLess(
             tracking.MessageState.TIMED_OUT,
             tracking.MessageState.ABORTED,
         )
+        self.assertLess(
+            tracking.MessageState.TIMED_OUT,
+            tracking.MessageState.CLOSED,
+        )
+        self.assertLess(
+            tracking.MessageState.TIMED_OUT,
+            tracking.MessageState.ERROR,
+        )
 
         self.assertLess(
             tracking.MessageState.ABORTED,
             tracking.MessageState.TIMED_OUT,
         )
-
-        self.assertLess(
-            tracking.MessageState.UNKNOWN,
-            tracking.MessageState.ABORTED,
-        )
-
         self.assertLess(
             tracking.MessageState.ABORTED,
-            tracking.MessageState.UNKNOWN,
+            tracking.MessageState.CLOSED,
+        )
+        self.assertLess(
+            tracking.MessageState.ABORTED,
+            tracking.MessageState.ERROR,
         )
 
         self.assertLess(
-            tracking.MessageState.TIMED_OUT,
-            tracking.MessageState.UNKNOWN,
+            tracking.MessageState.CLOSED,
+            tracking.MessageState.ABORTED,
         )
-
         self.assertLess(
-            tracking.MessageState.UNKNOWN,
+            tracking.MessageState.CLOSED,
             tracking.MessageState.TIMED_OUT,
+        )
+        self.assertLess(
+            tracking.MessageState.CLOSED,
+            tracking.MessageState.ERROR,
         )
 
         self.assertFalse(
             tracking.MessageState.ABORTED <
+            tracking.MessageState.IN_TRANSIT
+        )
+
+        self.assertFalse(
+            tracking.MessageState.ERROR <
             tracking.MessageState.IN_TRANSIT
         )
 

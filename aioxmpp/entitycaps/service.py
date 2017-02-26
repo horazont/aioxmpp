@@ -12,7 +12,7 @@
 # This program is distributed in the hope that it will be useful, but
 # WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-# General Public License for more details.
+# Lesser General Public License for more details.
 #
 # You should have received a copy of the GNU Lesser General Public
 # License along with this program.  If not, see
@@ -291,7 +291,7 @@ class Cache:
                 entry.captured_events))
 
 
-class Service(aioxmpp.service.Service):
+class EntityCapsService(aioxmpp.service.Service):
     """
     This service implements :xep:`0115`, transparently. Besides loading the
     service, no interaction is required to get some of the benefits of
@@ -320,13 +320,22 @@ class Service(aioxmpp.service.Service):
 
        The signal emits whenever the ``ver`` of the local client changes. This
        happens when the set of features or identities announced in the
-       :class:`.disco.Service` changes.
+       :class:`.DiscoServer` changes.
 
     .. autoattribute:: cache
 
+    .. versionchanged:: 0.8
+
+       This class was formerly known as :class:`aioxmpp.entitycaps.Service`. It
+       is still available under that name, but the alias will be removed in
+       1.0.
+
     """
 
-    ORDER_AFTER = {disco.Service}
+    ORDER_AFTER = {
+        disco.DiscoClient,
+        disco.DiscoServer,
+    }
 
     NODE = "http://aioxmpp.zombofant.net/"
 
@@ -338,25 +347,11 @@ class Service(aioxmpp.service.Service):
         self.ver = None
         self._cache = Cache()
 
-        self.disco = node.summon(disco.Service)
-        self._info_changed_token = self.disco.on_info_changed.connect(
-            self._info_changed
-        )
-        self.disco.register_feature(
+        self.disco_server = self.dependencies[disco.DiscoServer]
+        self.disco_client = self.dependencies[disco.DiscoClient]
+        self.disco_server.register_feature(
             "http://jabber.org/protocol/caps"
         )
-
-        self._inbound_filter_token = \
-            node.stream.service_inbound_presence_filter.register(
-                self.handle_inbound_presence,
-                type(self)
-            )
-
-        self._outbound_filter_token = \
-            node.stream.service_outbound_presence_filter.register(
-                self.handle_outbound_presence,
-                type(self)
-            )
 
     @property
     def cache(self):
@@ -377,6 +372,9 @@ class Service(aioxmpp.service.Service):
     def cache(self):
         self._cache = Cache()
 
+    @aioxmpp.service.depsignal(
+        disco.DiscoServer,
+        "on_info_changed")
     def _info_changed(self):
         asyncio.get_event_loop().call_soon(
             self.update_hash
@@ -384,26 +382,17 @@ class Service(aioxmpp.service.Service):
 
     @asyncio.coroutine
     def _shutdown(self):
-        self.client.stream.service_outbound_presence_filter.unregister(
-            self._outbound_filter_token
-        )
-        self.client.stream.service_inbound_presence_filter.unregister(
-            self._inbound_filter_token
-        )
-        self.disco.on_info_changed.disconnect(
-            self._info_changed_token
-        )
-        self.disco.unregister_feature(
+        self.disco_server.unregister_feature(
             "http://jabber.org/protocol/caps"
         )
         if self.ver is not None:
-            self.disco.unmount_node(
+            self.disco_server.unmount_node(
                 self.NODE + "#" + self.ver
             )
 
     @asyncio.coroutine
     def query_and_cache(self, jid, node, ver, hash_, fut):
-        data = yield from self.disco.query_info(
+        data = yield from self.disco_client.query_info(
             jid,
             node=node+"#"+ver,
             require_fresh=True)
@@ -440,6 +429,7 @@ class Service(aioxmpp.service.Service):
 
         return info
 
+    @aioxmpp.service.outbound_presence_filter
     def handle_outbound_presence(self, presence):
         if (self.ver is not None and
                 presence.type_ == aioxmpp.structs.PresenceType.AVAILABLE):
@@ -450,6 +440,7 @@ class Service(aioxmpp.service.Service):
             )
         return presence
 
+    @aioxmpp.service.inbound_presence_filter
     def handle_inbound_presence(self, presence):
         caps = presence.xep0115_caps
         presence.xep0115_caps = None
@@ -465,13 +456,13 @@ class Service(aioxmpp.service.Service):
                                  caps.ver,
                                  caps.hash_)
             )
-            self.disco.set_info_future(presence.from_, None, task)
+            self.disco_client.set_info_future(presence.from_, None, task)
 
         return presence
 
     def update_hash(self):
         identities = []
-        for category, type_, lang, name in self.disco.iter_identities():
+        for category, type_, lang, name in self.disco_server.iter_identities():
             identity = disco.xso.Identity(category=category,
                                           type_=type_)
             if lang is not None:
@@ -483,16 +474,16 @@ class Service(aioxmpp.service.Service):
         new_ver = hash_query(
             disco.xso.InfoQuery(
                 identities=identities,
-                features=self.disco.iter_features(),
+                features=self.disco_server.iter_features(),
             ),
             "sha1",
         )
 
         if self.ver != new_ver:
             if self.ver is not None:
-                self.disco.unmount_node(self.NODE + "#" + self.ver)
+                self.disco_server.unmount_node(self.NODE + "#" + self.ver)
             self.ver = new_ver
-            self.disco.mount_node(self.NODE + "#" + self.ver, self.disco)
+            self.disco_server.mount_node(self.NODE + "#" + self.ver, self.disco_server)
             self.on_ver_changed()
 
 

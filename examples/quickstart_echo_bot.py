@@ -12,7 +12,7 @@
 # This program is distributed in the hope that it will be useful, but
 # WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-# General Public License for more details.
+# Lesser General Public License for more details.
 #
 # You should have received a copy of the GNU Lesser General Public
 # License along with this program.  If not, see
@@ -37,9 +37,6 @@ async def main(local_jid, password):
     )
 
     def message_received(msg):
-        if msg.type_ != aioxmpp.MessageType.CHAT:
-            return
-
         if not msg.body:
             # do not reflect anything without a body
             return
@@ -53,7 +50,7 @@ async def main(local_jid, password):
         # make_reply() would not set the body though
         reply.body.update(msg.body)
 
-        client.stream.enqueue_stanza(reply)
+        client.stream.enqueue(reply)
 
     client.stream.register_message_callback(
         aioxmpp.MessageType.CHAT,

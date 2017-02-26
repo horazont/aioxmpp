@@ -12,7 +12,7 @@
 # This program is distributed in the hope that it will be useful, but
 # WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-# General Public License for more details.
+# Lesser General Public License for more details.
 #
 # You should have received a copy of the GNU Lesser General Public
 # License along with this program.  If not, see
@@ -49,7 +49,7 @@ class Roster(Example):
 
     def make_simple_client(self):
         client = super().make_simple_client()
-        self.roster = client.summon(aioxmpp.roster.Service)
+        self.roster = client.summon(aioxmpp.RosterClient)
         self.roster.on_initial_roster_received.connect(
             self._on_initial_roster,
         )
@@ -57,8 +57,9 @@ class Roster(Example):
 
         return client
 
-    async def run_simple_example(self):
-        done, pending = await asyncio.wait(
+    @asyncio.coroutine
+    def run_simple_example(self):
+        done, pending = yield from asyncio.wait(
             [
                 self.sigint_event.wait(),
                 self.done_event.wait()
@@ -68,9 +69,10 @@ class Roster(Example):
         for fut in pending:
             fut.cancel()
 
-    async def run_example(self):
+    @asyncio.coroutine
+    def run_example(self):
         self.sigint_event = self.make_sigint_event()
-        await super().run_example()
+        yield from super().run_example()
 
 
 if __name__ == "__main__":

@@ -84,12 +84,12 @@ inside the ``async with`` block::
   # None is for "default language"
   msg.body[None] = "Hello World!"
 
-  await stream.send_and_wait_for_sent(msg)
+  await stream.send(msg)
 
 Relevant documentation:
 
 * :class:`aioxmpp.Message`
-* :meth:`aioxmpp.stream.StanzaStream.send_and_wait_for_sent`
+* :meth:`aioxmpp.stream.StanzaStream.send`
 
 
 .. note::
@@ -146,9 +146,6 @@ This example can be modified to be an echo bot by implementing the
 ``message_received`` callback differently::
 
   def message_received(msg):
-      if msg.type_ != aioxmpp.MessageType.CHAT:
-          return
-
       if not msg.body:
           # do not reflect anything without a body
           return
@@ -156,7 +153,7 @@ This example can be modified to be an echo bot by implementing the
       reply = msg.make_reply()
       reply.body.update(msg.body)
 
-      client.stream.enqueue_stanza(reply)
+      client.stream.enqueue(reply)
 
 .. note::
 
@@ -166,7 +163,7 @@ This example can be modified to be an echo bot by implementing the
 * :meth:`~aioxmpp.stream.StanzaStream.register_message_callback`. Definitely
   check this out for the semantics of the first two arguments!
 * :class:`aioxmpp.Message`
-* :meth:`~aioxmpp.stream.StanzaStream.enqueue_stanza`
+* :meth:`~aioxmpp.stream.StanzaStream.enqueue`
 
 
 React to presences
@@ -177,8 +174,8 @@ Similar to handling messages, presences can also be handled.
 .. note::
 
    There exists a service which handles and manages peer presence
-   (:class:`aioxmpp.presence.Service`) and one which manages roster
-   subscriptions (:class:`aioxmpp.roster.Service`), which make most manual
+   (:class:`aioxmpp.PresenceClient`) and one which manages roster
+   subscriptions (:class:`aioxmpp.RosterClient`), which make most manual
    handling of presence obsolete. Read on on how to use services.
 
 Again, the code should be run before
@@ -241,7 +238,7 @@ part of the XMPP protocol. Services essentially do the same thing as discussed
 in the previous sections (sending and receiving messages, IQs and/or presences),
 but encapsulated away in a class. For details on that, see
 :mod:`aioxmpp.service` and an implementation, such as
-:class:`aioxmpp.disco.Service`.
+:class:`aioxmpp.DiscoClient`.
 
 Here we’ll show how to use services::
 
@@ -250,7 +247,7 @@ Here we’ll show how to use services::
       aioxmpp.make_security_layer(password)
   )
 
-  disco = client.summon(aioxmpp.disco.Service)
+  disco = client.summon(aioxmpp.DiscoClient)
 
   async with client.connected() as stream:
       info = await disco.query_info(
@@ -268,12 +265,13 @@ implemented as services.
 
 Relevant docmuentation:
 
-* :meth:`aioxmpp.node.AbstractClient.summon`
-* :class:`aioxmpp.disco.Service`, :meth:`~aioxmpp.disco.Service.query_info`
+* :meth:`aioxmpp.Client.summon`
+* :mod:`aioxmpp.disco`, :class:`aioxmpp.DiscoClient`,
+  :meth:`~aioxmpp.DiscoClient.query_info`
 
 
-Use :class:`aioxmpp.presence.Service` presence implementation
-=============================================================
+Use :class:`aioxmpp.PresenceClient` presence implementation
+===========================================================
 
 This section is mainly there to show you a service which is mostly used with
 callbacks::
@@ -289,7 +287,7 @@ callbacks::
   def peer_unavailable(jid):
       print("{} went offline".format(jid))
 
-  presence = client.summon(aioxmpp.presence.Service)
+  presence = client.summon(aioxmpp.PresenceClient)
   presence.on_bare_available.connect(peer_available)
   presence.on_bare_unavailable.connect(peer_unavailable)
 
@@ -301,9 +299,10 @@ available and unavailable presence is received.
 
 Relevant documentation:
 
-* :class:`aioxmpp.presence.Service`
+* :class:`aioxmpp.PresenceClient`
 * :class:`aioxmpp.callbacks.AdHocSignal`
 
+.. _ug-quickstart-send-iq:
 
 Send a custom IQ payload
 ========================
@@ -357,7 +356,7 @@ are now back inside the ``async with`` block)::
   )
 
   print("sending query to {}".format(peer_jid))
-  reply = await stream.send_iq_and_wait_for_reply(iq)
+  reply = await stream.send(iq)
   print("got response!")
 
 If the peer complies with the protocol, `reply` is an instance of our freshly
@@ -378,7 +377,7 @@ Relevant documentation:
 * :mod:`aioxmpp.xso`, especially :class:`aioxmpp.xso.XSO` and
   :class:`aioxmpp.xso.ChildText`
 * :meth:`aioxmpp.IQ.as_payload_class`
-* :meth:`aioxmpp.stream.StanzaStream.send_iq_and_wait_for_reply`
+* :meth:`aioxmpp.stream.StanzaStream.send`
 * also make sure to read the source of, for example, :mod:`aioxmpp.disco.xso`
   for more examples of :class:`~aioxmpp.XSO` subclasses.
 

@@ -12,7 +12,7 @@
 # This program is distributed in the hope that it will be useful, but
 # WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-# General Public License for more details.
+# Lesser General Public License for more details.
 #
 # You should have received a copy of the GNU Lesser General Public
 # License along with this program.  If not, see
@@ -21,6 +21,7 @@
 ########################################################################
 import asyncio
 import unittest
+import sys
 
 import aioxmpp.service as service
 import aioxmpp.disco.service as disco_service
@@ -46,15 +47,15 @@ class TestNode(unittest.TestCase):
         n = disco_service.Node()
         self.assertSequenceEqual(
             [],
-            list(n.iter_identities())
+            list(n.iter_identities(unittest.mock.sentinel.stanza))
         )
         self.assertSetEqual(
             {namespaces.xep0030_info},
-            set(n.iter_features())
+            set(n.iter_features(unittest.mock.sentinel.stanza))
         )
         self.assertSequenceEqual(
             [],
-            list(n.iter_items())
+            list(n.iter_items(unittest.mock.sentinel.stanza))
         )
 
     def test_register_feature_adds_the_feature(self):
@@ -69,7 +70,7 @@ class TestNode(unittest.TestCase):
                 "uri:foo",
                 namespaces.xep0030_info
             },
-            set(n.iter_features())
+            set(n.iter_features(unittest.mock.sentinel.stanza))
         )
 
         cb.assert_called_with()
@@ -91,7 +92,7 @@ class TestNode(unittest.TestCase):
                 "uri:bar",
                 namespaces.xep0030_info
             },
-            set(n.iter_features())
+            set(n.iter_features(unittest.mock.sentinel.stanza))
         )
 
         self.assertFalse(cb.mock_calls)
@@ -122,7 +123,7 @@ class TestNode(unittest.TestCase):
                 "uri:bar",
                 namespaces.xep0030_info
             },
-            set(n.iter_features())
+            set(n.iter_features(unittest.mock.sentinel.stanza))
         )
 
         n.unregister_feature("uri:foo")
@@ -135,7 +136,7 @@ class TestNode(unittest.TestCase):
                 "uri:bar",
                 namespaces.xep0030_info
             },
-            set(n.iter_features())
+            set(n.iter_features(unittest.mock.sentinel.stanza))
         )
 
         n.unregister_feature("uri:bar")
@@ -144,7 +145,7 @@ class TestNode(unittest.TestCase):
             {
                 namespaces.xep0030_info
             },
-            set(n.iter_features())
+            set(n.iter_features(unittest.mock.sentinel.stanza))
         )
 
         cb.assert_called_with()
@@ -174,7 +175,7 @@ class TestNode(unittest.TestCase):
             {
                 namespaces.xep0030_info
             },
-            set(n.iter_features())
+            set(n.iter_features(unittest.mock.sentinel.stanza))
         )
 
         self.assertFalse(cb.mock_calls)
@@ -193,7 +194,7 @@ class TestNode(unittest.TestCase):
             {
                 ("client", "pc", None, None),
             },
-            set(n.iter_identities())
+            set(n.iter_identities(unittest.mock.sentinel.stanza))
         )
 
         cb.assert_called_with()
@@ -221,7 +222,7 @@ class TestNode(unittest.TestCase):
             {
                 ("client", "pc", None, None),
             },
-            set(n.iter_identities())
+            set(n.iter_identities(unittest.mock.sentinel.stanza))
         )
 
     def test_register_identity_with_names(self):
@@ -247,7 +248,7 @@ class TestNode(unittest.TestCase):
                 ("client", "pc",
                  structs.LanguageTag.fromstr("de"), "Testidentität"),
             },
-            set(n.iter_identities())
+            set(n.iter_identities(unittest.mock.sentinel.stanza))
         )
 
     def test_unregister_identity_prohibits_removal_of_last_identity(self):
@@ -318,7 +319,7 @@ class TestNode(unittest.TestCase):
                  structs.LanguageTag.fromstr("de"), "Testidentität"),
                 ("foo", "bar", None, None),
             },
-            set(n.iter_identities())
+            set(n.iter_identities(unittest.mock.sentinel.stanza))
         )
 
         cb = unittest.mock.Mock()
@@ -335,7 +336,7 @@ class TestNode(unittest.TestCase):
                 ("client", "pc",
                  structs.LanguageTag.fromstr("de"), "Testidentität"),
             },
-            set(n.iter_identities())
+            set(n.iter_identities(unittest.mock.sentinel.stanza))
         )
 
 
@@ -357,14 +358,14 @@ class TestStaticNode(unittest.TestCase):
                 item1,
                 item2
             ],
-            list(self.n.iter_items())
+            list(self.n.iter_items(unittest.mock.sentinel.jid))
         )
 
 
-class TestService(unittest.TestCase):
+class TestDiscoServer(unittest.TestCase):
     def setUp(self):
         self.cc = make_connected_client()
-        self.s = disco_service.Service(self.cc)
+        self.s = disco_service.DiscoServer(self.cc)
         self.cc.reset_mock()
 
         self.request_iq = stanza.IQ(
@@ -383,14 +384,14 @@ class TestService(unittest.TestCase):
 
     def test_is_Service_subclass(self):
         self.assertTrue(issubclass(
-            disco_service.Service,
+            disco_service.DiscoServer,
             service.Service))
 
     def test_setup(self):
         cc = make_connected_client()
-        s = disco_service.Service(cc)
+        s = disco_service.DiscoServer(cc)
 
-        self.assertSequenceEqual(
+        self.assertCountEqual(
             [
                 unittest.mock.call.stream.register_iq_request_coro(
                     structs.IQType.GET,
@@ -408,7 +409,7 @@ class TestService(unittest.TestCase):
 
     def test_shutdown(self):
         run_coroutine(self.s.shutdown())
-        self.assertSequenceEqual(
+        self.assertCountEqual(
             [
                 unittest.mock.call.stream.unregister_iq_request_coro(
                     structs.IQType.GET,
@@ -420,6 +421,24 @@ class TestService(unittest.TestCase):
                 ),
             ],
             self.cc.mock_calls
+        )
+
+    def test_handle_info_request_is_decorated(self):
+        self.assertTrue(
+            service.is_iq_handler(
+                structs.IQType.GET,
+                disco_xso.InfoQuery,
+                disco_service.DiscoServer.handle_info_request,
+            )
+        )
+
+    def test_handle_items_request_is_decorated(self):
+        self.assertTrue(
+            service.is_iq_handler(
+                structs.IQType.GET,
+                disco_xso.ItemsQuery,
+                disco_service.DiscoServer.handle_items_request,
+            )
         )
 
     def test_default_response(self):
@@ -570,12 +589,151 @@ class TestService(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "feature already claimed"):
             self.s.register_feature(namespaces.xep0030_info)
 
+    def test_mount_node_produces_response(self):
+        node = disco_service.StaticNode()
+        node.register_identity("hierarchy", "leaf")
+
+        self.s.mount_node("foo", node)
+
+        self.request_iq.payload.node = "foo"
+        response = run_coroutine(self.s.handle_info_request(self.request_iq))
+
+        self.assertSetEqual(
+            {
+                ("hierarchy", "leaf", None, None),
+            },
+            set((item.category, item.type_,
+                 item.name, item.lang) for item in response.identities)
+        )
+
+    def test_mount_node_without_identity_produces_item_not_found(self):
+        node = disco_service.StaticNode()
+
+        self.s.mount_node("foo", node)
+
+        self.request_iq.payload.node = "foo"
+        with self.assertRaises(errors.XMPPModifyError):
+            run_coroutine(self.s.handle_info_request(self.request_iq))
+
+    def test_unmount_node(self):
+        node = disco_service.StaticNode()
+        node.register_identity("hierarchy", "leaf")
+
+        self.s.mount_node("foo", node)
+
+        self.s.unmount_node("foo")
+
+        self.request_iq.payload.node = "foo"
+        with self.assertRaises(errors.XMPPModifyError):
+            run_coroutine(self.s.handle_info_request(self.request_iq))
+
+    def test_default_items_response(self):
+        response = run_coroutine(
+            self.s.handle_items_request(self.request_items_iq)
+        )
+        self.assertIsInstance(response, disco_xso.ItemsQuery)
+        self.assertSequenceEqual(
+            [],
+            response.items
+        )
+
+    def test_items_query_returns_item_not_found_for_unknown_node(self):
+        self.request_items_iq.payload.node = "foobar"
+        with self.assertRaises(errors.XMPPModifyError):
+            run_coroutine(
+                self.s.handle_items_request(self.request_items_iq)
+            )
+
+    def test_items_query_returns_items_of_mounted_node(self):
+        item1 = disco_xso.Item(TEST_JID.replace(localpart="foo"))
+        item2 = disco_xso.Item(TEST_JID.replace(localpart="bar"))
+
+        node = disco_service.StaticNode()
+        node.register_identity("hierarchy", "leaf")
+        node.items.append(item1)
+        node.items.append(item2)
+
+        self.s.mount_node("foo", node)
+
+        self.request_items_iq.payload.node = "foo"
+        response = run_coroutine(
+            self.s.handle_items_request(self.request_items_iq)
+        )
+
+        self.assertSequenceEqual(
+            [item1, item2],
+            response.items
+        )
+
+    def test_items_query_forwards_stanza(self):
+        node = unittest.mock.Mock()
+        node.iter_items.return_value = iter([])
+
+        self.s.mount_node("foo", node)
+
+        self.request_items_iq.payload.node = "foo"
+        run_coroutine(
+            self.s.handle_items_request(self.request_items_iq)
+        )
+
+        node.iter_items.assert_called_once_with(
+            self.request_items_iq
+        )
+
+    def test_info_query_forwards_stanza(self):
+        node = unittest.mock.Mock()
+        node.iter_features.return_value = iter([])
+        node.iter_identities.return_value = iter([
+            ("automation", "command-list", None, None)
+        ])
+
+        self.s.mount_node("foo", node)
+
+        self.request_iq.payload.node = "foo"
+        run_coroutine(
+            self.s.handle_info_request(self.request_iq)
+        )
+
+        node.iter_features.assert_called_once_with(
+            self.request_iq
+        )
+
+        node.iter_identities.assert_called_once_with(
+            self.request_iq
+        )
+
+
+class TestDiscoClient(unittest.TestCase):
+    def setUp(self):
+        self.cc = make_connected_client()
+        self.s = disco_service.DiscoClient(self.cc)
+        self.cc.reset_mock()
+
+        self.request_iq = stanza.IQ(
+            structs.IQType.GET,
+            from_=structs.JID.fromstr("user@foo.example/res1"),
+            to=structs.JID.fromstr("user@bar.example/res2"))
+        self.request_iq.autoset_id()
+        self.request_iq.payload = disco_xso.InfoQuery()
+
+        self.request_items_iq = stanza.IQ(
+            structs.IQType.GET,
+            from_=structs.JID.fromstr("user@foo.example/res1"),
+            to=structs.JID.fromstr("user@bar.example/res2"))
+        self.request_items_iq.autoset_id()
+        self.request_items_iq.payload = disco_xso.ItemsQuery()
+
+    def test_is_Service_subclass(self):
+        self.assertTrue(issubclass(
+            disco_service.DiscoClient,
+            service.Service))
+
     def test_send_and_decode_info_query(self):
         to = structs.JID.fromstr("user@foo.example/res1")
         node = "foobar"
         response = disco_xso.InfoQuery()
 
-        self.cc.stream.send_iq_and_wait_for_reply.return_value = response
+        self.cc.stream.send.return_value = response
 
         result = run_coroutine(
             self.s.send_and_decode_info_query(to, node)
@@ -585,10 +743,10 @@ class TestService(unittest.TestCase):
 
         self.assertEqual(
             1,
-            len(self.cc.stream.send_iq_and_wait_for_reply.mock_calls)
+            len(self.cc.stream.send.mock_calls)
         )
 
-        call, = self.cc.stream.send_iq_and_wait_for_reply.mock_calls
+        call, = self.cc.stream.send.mock_calls
         # call[1] are args
         request_iq, = call[1]
 
@@ -912,87 +1070,11 @@ class TestService(unittest.TestCase):
             send_and_decode.mock_calls
         )
 
-    def test_mount_node_produces_response(self):
-        node = disco_service.StaticNode()
-        node.register_identity("hierarchy", "leaf")
-
-        self.s.mount_node("foo", node)
-
-        self.request_iq.payload.node = "foo"
-        response = run_coroutine(self.s.handle_info_request(self.request_iq))
-
-        self.assertSetEqual(
-            {
-                ("hierarchy", "leaf", None, None),
-            },
-            set((item.category, item.type_,
-                 item.name, item.lang) for item in response.identities)
-        )
-
-    def test_mount_node_without_identity_produces_item_not_found(self):
-        node = disco_service.StaticNode()
-
-        self.s.mount_node("foo", node)
-
-        self.request_iq.payload.node = "foo"
-        with self.assertRaises(errors.XMPPModifyError):
-            run_coroutine(self.s.handle_info_request(self.request_iq))
-
-    def test_unmount_node(self):
-        node = disco_service.StaticNode()
-        node.register_identity("hierarchy", "leaf")
-
-        self.s.mount_node("foo", node)
-
-        self.s.unmount_node("foo")
-
-        self.request_iq.payload.node = "foo"
-        with self.assertRaises(errors.XMPPModifyError):
-            run_coroutine(self.s.handle_info_request(self.request_iq))
-
-    def test_default_items_response(self):
-        response = run_coroutine(
-            self.s.handle_items_request(self.request_items_iq)
-        )
-        self.assertIsInstance(response, disco_xso.ItemsQuery)
-        self.assertSequenceEqual(
-            [],
-            response.items
-        )
-
-    def test_items_query_returns_item_not_found_for_unknown_node(self):
-        self.request_items_iq.payload.node = "foobar"
-        with self.assertRaises(errors.XMPPModifyError):
-            run_coroutine(
-                self.s.handle_items_request(self.request_items_iq)
-            )
-
-    def test_items_query_returns_items_of_mounted_node(self):
-        item1 = disco_xso.Item(TEST_JID.replace(localpart="foo"))
-        item2 = disco_xso.Item(TEST_JID.replace(localpart="bar"))
-
-        node = disco_service.StaticNode()
-        node.register_identity("hierarchy", "leaf")
-        node.items.append(item1)
-        node.items.append(item2)
-
-        self.s.mount_node("foo", node)
-
-        self.request_items_iq.payload.node = "foo"
-        response = run_coroutine(
-            self.s.handle_items_request(self.request_items_iq)
-        )
-
-        self.assertSequenceEqual(
-            [item1, item2],
-            response.items
-        )
-
     def test_query_items(self):
         to = structs.JID.fromstr("user@foo.example/res1")
         response = disco_xso.ItemsQuery()
 
-        self.cc.stream.send_iq_and_wait_for_reply.return_value = response
+        self.cc.stream.send.return_value = response
 
         result = run_coroutine(
             self.s.query_items(to)
@@ -1001,10 +1083,10 @@ class TestService(unittest.TestCase):
         self.assertIs(result, response)
         self.assertEqual(
             1,
-            len(self.cc.stream.send_iq_and_wait_for_reply.mock_calls)
+            len(self.cc.stream.send.mock_calls)
         )
 
-        call, = self.cc.stream.send_iq_and_wait_for_reply.mock_calls
+        call, = self.cc.stream.send.mock_calls
         # call[1] are args
         request_iq, = call[1]
 
@@ -1024,7 +1106,7 @@ class TestService(unittest.TestCase):
         to = structs.JID.fromstr("user@foo.example/res1")
         response = disco_xso.ItemsQuery()
 
-        self.cc.stream.send_iq_and_wait_for_reply.return_value = response
+        self.cc.stream.send.return_value = response
 
         with self.assertRaises(TypeError):
             self.s.query_items(to, "foobar")
@@ -1036,10 +1118,10 @@ class TestService(unittest.TestCase):
         self.assertIs(result, response)
         self.assertEqual(
             1,
-            len(self.cc.stream.send_iq_and_wait_for_reply.mock_calls)
+            len(self.cc.stream.send.mock_calls)
         )
 
-        call, = self.cc.stream.send_iq_and_wait_for_reply.mock_calls
+        call, = self.cc.stream.send.mock_calls
         # call[1] are args
         request_iq, = call[1]
 
@@ -1059,7 +1141,7 @@ class TestService(unittest.TestCase):
         to = structs.JID.fromstr("user@foo.example/res1")
         response = disco_xso.ItemsQuery()
 
-        self.cc.stream.send_iq_and_wait_for_reply.return_value = response
+        self.cc.stream.send.return_value = response
 
         with self.assertRaises(TypeError):
             self.s.query_items(to, "foobar")
@@ -1076,7 +1158,7 @@ class TestService(unittest.TestCase):
 
         self.assertEqual(
             1,
-            len(self.cc.stream.send_iq_and_wait_for_reply.mock_calls)
+            len(self.cc.stream.send.mock_calls)
         )
 
     def test_query_items_reraises_and_aliases_exception(self):
@@ -1097,7 +1179,7 @@ class TestService(unittest.TestCase):
 
         with unittest.mock.patch.object(
                 self.cc.stream,
-                "send_iq_and_wait_for_reply",
+                "send",
                 new=mock):
 
             task1 = asyncio.async(
@@ -1116,7 +1198,7 @@ class TestService(unittest.TestCase):
     def test_query_info_reraises_but_does_not_cache_exception(self):
         to = structs.JID.fromstr("user@foo.example/res1")
 
-        self.cc.stream.send_iq_and_wait_for_reply.side_effect = \
+        self.cc.stream.send.side_effect = \
             errors.XMPPCancelError(
                 condition=(namespaces.stanzas, "feature-not-implemented"),
             )
@@ -1126,7 +1208,7 @@ class TestService(unittest.TestCase):
                 self.s.query_items(to, node="foobar")
             )
 
-        self.cc.stream.send_iq_and_wait_for_reply.side_effect = \
+        self.cc.stream.send.side_effect = \
             ConnectionError()
 
         with self.assertRaises(ConnectionError):
@@ -1138,7 +1220,7 @@ class TestService(unittest.TestCase):
         to = structs.JID.fromstr("user@foo.example/res1")
 
         response1 = disco_xso.ItemsQuery()
-        self.cc.stream.send_iq_and_wait_for_reply.return_value = response1
+        self.cc.stream.send.return_value = response1
 
         with self.assertRaises(TypeError):
             self.s.query_items(to, "foobar")
@@ -1148,7 +1230,7 @@ class TestService(unittest.TestCase):
         )
 
         response2 = disco_xso.ItemsQuery()
-        self.cc.stream.send_iq_and_wait_for_reply.return_value = response2
+        self.cc.stream.send.return_value = response2
 
         result2 = run_coroutine(
             self.s.query_items(to, node="foobar", require_fresh=True)
@@ -1159,14 +1241,14 @@ class TestService(unittest.TestCase):
 
         self.assertEqual(
             2,
-            len(self.cc.stream.send_iq_and_wait_for_reply.mock_calls)
+            len(self.cc.stream.send.mock_calls)
         )
 
     def test_query_items_cache_clears_on_disconnect(self):
         to = structs.JID.fromstr("user@foo.example/res1")
 
         response1 = disco_xso.ItemsQuery()
-        self.cc.stream.send_iq_and_wait_for_reply.return_value = response1
+        self.cc.stream.send.return_value = response1
 
         with self.assertRaises(TypeError):
             self.s.query_items(to, "foobar")
@@ -1178,7 +1260,7 @@ class TestService(unittest.TestCase):
         self.cc.on_stream_destroyed()
 
         response2 = disco_xso.ItemsQuery()
-        self.cc.stream.send_iq_and_wait_for_reply.return_value = response2
+        self.cc.stream.send.return_value = response2
 
         result2 = run_coroutine(
             self.s.query_items(to, node="foobar")
@@ -1189,15 +1271,15 @@ class TestService(unittest.TestCase):
 
         self.assertEqual(
             2,
-            len(self.cc.stream.send_iq_and_wait_for_reply.mock_calls)
+            len(self.cc.stream.send.mock_calls)
         )
 
     def test_query_items_timeout(self):
         to = structs.JID.fromstr("user@foo.example/res1")
         response = disco_xso.ItemsQuery()
 
-        self.cc.stream.send_iq_and_wait_for_reply.delay = 1
-        self.cc.stream.send_iq_and_wait_for_reply.return_value = response
+        self.cc.stream.send.delay = 1
+        self.cc.stream.send.return_value = response
 
         with self.assertRaises(TimeoutError):
             result = run_coroutine(
@@ -1208,14 +1290,14 @@ class TestService(unittest.TestCase):
             [
                 unittest.mock.call(unittest.mock.ANY),
             ],
-            self.cc.stream.send_iq_and_wait_for_reply.mock_calls
+            self.cc.stream.send.mock_calls
         )
 
     def test_query_items_deduplicate_requests(self):
         to = structs.JID.fromstr("user@foo.example/res1")
         response = disco_xso.ItemsQuery()
 
-        self.cc.stream.send_iq_and_wait_for_reply.return_value = response
+        self.cc.stream.send.return_value = response
 
         result = run_coroutine(
             asyncio.gather(
@@ -1231,15 +1313,15 @@ class TestService(unittest.TestCase):
             [
                 unittest.mock.call(unittest.mock.ANY),
             ],
-            self.cc.stream.send_iq_and_wait_for_reply.mock_calls
+            self.cc.stream.send.mock_calls
         )
 
     def test_query_items_transparent_deduplication_when_cancelled(self):
         to = structs.JID.fromstr("user@foo.example/res1")
         response = disco_xso.ItemsQuery()
 
-        self.cc.stream.send_iq_and_wait_for_reply.return_value = response
-        self.cc.stream.send_iq_and_wait_for_reply.delay = 0.1
+        self.cc.stream.send.return_value = response
+        self.cc.stream.send.delay = 0.1
 
         q1 = asyncio.async(self.s.query_items(to))
         q2 = asyncio.async(self.s.query_items(to))
@@ -1257,7 +1339,7 @@ class TestService(unittest.TestCase):
                 unittest.mock.call(unittest.mock.ANY),
                 unittest.mock.call(unittest.mock.ANY),
             ],
-            self.cc.stream.send_iq_and_wait_for_reply.mock_calls
+            self.cc.stream.send.mock_calls
         )
 
     def test_set_info_cache(self):
@@ -1271,7 +1353,7 @@ class TestService(unittest.TestCase):
         )
 
         other_response = disco_xso.InfoQuery()
-        self.cc.stream.send_iq_and_wait_for_reply.return_value = \
+        self.cc.stream.send.return_value = \
             other_response
 
         result = run_coroutine(self.s.query_info(to, node=None))
@@ -1327,3 +1409,121 @@ class TestService(unittest.TestCase):
             run_coroutine(request)
 
         self.assertIs(ctx.exception, exc)
+
+
+class Testmount_as_node(unittest.TestCase):
+    def setUp(self):
+        self.pn = disco_service.mount_as_node(
+            unittest.mock.sentinel.mountpoint
+        )
+        self.instance = unittest.mock.Mock()
+        self.disco_server = unittest.mock.Mock()
+        self.instance.dependencies = {
+            disco_service.DiscoServer: self.disco_server
+        }
+
+    def tearDown(self):
+        del self.instance
+        del self.disco_server
+        del self.pn
+
+    def test_mountpoint(self):
+        self.assertEqual(
+            self.pn.mountpoint,
+            unittest.mock.sentinel.mountpoint,
+        )
+
+    def test_required_dependencies(self):
+        self.assertSetEqual(
+            set(self.pn.required_dependencies),
+            {disco_service.DiscoServer},
+        )
+
+    def test_contextmanager(self):
+        cm = self.pn.init_cm(self.instance)
+        self.disco_server.mount_node.assert_not_called()
+        cm.__enter__()
+        self.disco_server.mount_node.assert_called_once_with(
+            unittest.mock.sentinel.mountpoint,
+            self.instance,
+        )
+        self.disco_server.unmount_node.assert_not_called()
+        cm.__exit__(None, None, None)
+        self.disco_server.unmount_node.assert_called_once_with(
+            unittest.mock.sentinel.mountpoint,
+        )
+
+    def test_contextmanager_is_exception_safe(self):
+        cm = self.pn.init_cm(self.instance)
+        self.disco_server.mount_node.assert_not_called()
+        cm.__enter__()
+        self.disco_server.mount_node.assert_called_once_with(
+            unittest.mock.sentinel.mountpoint,
+            self.instance,
+        )
+        self.disco_server.unmount_node.assert_not_called()
+        try:
+            raise Exception()
+        except:
+            cm.__exit__(*sys.exc_info())
+        self.disco_server.unmount_node.assert_called_once_with(
+            unittest.mock.sentinel.mountpoint,
+        )
+
+
+class Testregister_feature(unittest.TestCase):
+    def setUp(self):
+        self.pn = disco_service.register_feature(
+            unittest.mock.sentinel.feature
+        )
+        self.instance = unittest.mock.Mock()
+        self.disco_server = unittest.mock.Mock()
+        self.instance.dependencies = {
+            disco_service.DiscoServer: self.disco_server
+        }
+
+    def tearDown(self):
+        del self.instance
+        del self.disco_server
+        del self.pn
+
+    def test_mountpoint(self):
+        self.assertEqual(
+            self.pn.feature,
+            unittest.mock.sentinel.feature,
+        )
+
+    def test_required_dependencies(self):
+        self.assertSetEqual(
+            set(self.pn.required_dependencies),
+            {disco_service.DiscoServer},
+        )
+
+    def test_contextmanager(self):
+        cm = self.pn.init_cm(self.instance)
+        self.disco_server.register_feature.assert_not_called()
+        cm.__enter__()
+        self.disco_server.register_feature.assert_called_once_with(
+            unittest.mock.sentinel.feature,
+        )
+        self.disco_server.unregister_feature.assert_not_called()
+        cm.__exit__(None, None, None)
+        self.disco_server.unregister_feature.assert_called_once_with(
+            unittest.mock.sentinel.feature,
+        )
+
+    def test_contextmanager_is_exception_safe(self):
+        cm = self.pn.init_cm(self.instance)
+        self.disco_server.register_feature.assert_not_called()
+        cm.__enter__()
+        self.disco_server.register_feature.assert_called_once_with(
+            unittest.mock.sentinel.feature,
+        )
+        self.disco_server.unregister_feature.assert_not_called()
+        try:
+            raise Exception()
+        except:
+            cm.__exit__(*sys.exc_info())
+        self.disco_server.unregister_feature.assert_called_once_with(
+            unittest.mock.sentinel.feature,
+        )

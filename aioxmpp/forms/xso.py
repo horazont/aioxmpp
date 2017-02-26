@@ -12,7 +12,7 @@
 # This program is distributed in the hope that it will be useful, but
 # WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-# General Public License for more details.
+# Lesser General Public License for more details.
 #
 # You should have received a copy of the GNU Lesser General Public
 # License along with this program.  If not, see
@@ -22,6 +22,7 @@
 import collections
 import enum
 
+import aioxmpp
 import aioxmpp.xso as xso
 
 from aioxmpp.utils import namespaces
@@ -264,9 +265,7 @@ class FieldType(enum.Enum):
 
         if self == to:
             return True
-        print(self, to)
         if self == FieldType.TEXT_SINGLE and to == FieldType.TEXT_PRIVATE:
-            print("ok")
             return True
         return False
 
@@ -565,6 +564,8 @@ class Data(AbstractItem):
        representing the table header.
 
        This only makes sense on :attr:`.DataType.RESULT` typed objects.
+
+    .. automethod:: get_form_type
     """
 
     TAG = (namespaces.xep0004_data, "x")
@@ -615,3 +616,25 @@ class Data(AbstractItem):
         if     (self.type_ == DataType.RESULT and
                 (self.reported is not None or self.items)):
             self._validate_result()
+
+    def get_form_type(self):
+        """
+        Extract the ``FORM_TYPE`` from the fields.
+
+        :return: ``FORM_TYPE`` value or :data:`None`
+        :rtype: :class:`str` or :data:`None`
+
+        Return :data:`None` if no well-formed ``FORM_TYPE`` field is found in
+        the list of fields.
+
+        .. versionadded:: 0.8
+        """
+
+        for field in self.fields:
+            if field.var == "FORM_TYPE" and field.type_ == FieldType.HIDDEN:
+                if len(field.values) != 1:
+                    return None
+                return field.values[0]
+
+
+aioxmpp.Message.xep0004_data = xso.ChildList([Data])

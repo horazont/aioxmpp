@@ -32,22 +32,32 @@ In theory, simply running
 
    pip3 install aioxmpp
 
-should install everything neccessary to run aioxmpp—except the development files
-for libxml2. You need to install these manually; how to do so depends on your
-distribution, here are some examples:
-
-.. code-block:: bash
-
-   apt install libxml2-dev    # debians
-   dnf install libxml2-devel  # redhats
-
-On ArchLinux, having libxml2 installed is sufficient; and as it is a dependency
-of lxml which in turn is a dependency of aioxmpp, you should have it already.
+should install everything neccessary to run aioxmpp. You may need to install
+dependencies for other packages manually. Most commonly you will need
+python3-dev, libssl-dev (for Cryptography/PyOpenSSL) and libxml2-dev (for lxml)
+(the package names will vary across platforms).
 
 .. note::
 
    There is also an AUR package for aioxmpp for ArchLinux. You might want to use
    that instead of installing using pip.
+
+.. note::
+
+   On Debian Jessie (Debian 8), the pip from the packages is too old to install
+   aioxmpp: it does not know the ``~=`` version comparison operator. This is
+   unfortunate, but ``~=`` provides safety against accidental incompatible
+   changes in dependencies.
+
+   To install on Debian Jessie, you will need to upgrade pip using:
+
+   .. code-block:: bash
+
+      pip3 install --upgrade setuptools
+      pip3 install --upgrade pip
+
+   (You may add the ``--user`` flag or use a virtualenv if you don’t want to
+   upgrade pip system-wide.)
 
 .. _ug-installation-source:
 

@@ -12,7 +12,7 @@
 # This program is distributed in the hope that it will be useful, but
 # WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-# General Public License for more details.
+# Lesser General Public License for more details.
 #
 # You should have received a copy of the GNU Lesser General Public
 # License along with this program.  If not, see
@@ -21,14 +21,20 @@
 ########################################################################
 import unittest
 
+import aioxmpp
 import aioxmpp.disco as disco
 import aioxmpp.disco.service as disco_service
 import aioxmpp.disco.xso as disco_xso
 
 
 class TestExports(unittest.TestCase):
-    def test_Service(self):
-        self.assertIs(disco.Service, disco_service.Service)
+    def test_DiscoClient(self):
+        self.assertIs(disco.DiscoClient, disco_service.DiscoClient)
+        self.assertIs(aioxmpp.DiscoClient, disco_service.DiscoClient)
+
+    def test_DiscoServer(self):
+        self.assertIs(disco.DiscoServer, disco_service.DiscoServer)
+        self.assertIs(aioxmpp.DiscoServer, disco_service.DiscoServer)
 
     def test_xso(self):
         self.assertIs(disco.xso, disco_xso)

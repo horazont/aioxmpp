@@ -8,3 +8,4 @@ library.
 
    installation
    quickstart
+   pitfalls

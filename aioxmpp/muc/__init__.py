@@ -12,7 +12,7 @@
 # This program is distributed in the hope that it will be useful, but
 # WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-# General Public License for more details.
+# Lesser General Public License for more details.
 #
 # You should have received a copy of the GNU Lesser General Public
 # License along with this program.  If not, see
@@ -31,13 +31,27 @@ Using Multi-User-Chats
 ======================
 
 To start using MUCs in your application, you have to load the :class:`Service`
-into the client, using :meth:`~.node.AbstractClient.summon`.
+into the client, using :meth:`~.node.Client.summon`.
 
-.. autoclass:: Service
+.. currentmodule:: aioxmpp
+
+.. autoclass:: MUCClient
+
+.. currentmodule:: aioxmpp.muc
+
+.. class:: Service
+
+   Alias of :class:`.MUCClient`.
+
+   .. deprecated:: 0.8
+
+      The alias will be removed in 1.0.
 
 The service returns :class:`Room` objects which are used to track joined MUCs:
 
 .. autoclass:: Room
+
+.. autoclass:: LeaveMode
 
 Inside rooms, there are occupants:
 
@@ -97,8 +111,9 @@ Owner namespace
 .. autoclass:: DestroyRequest
 
 """
-from .service import Service, Occupant, Room  # NOQA
+from .service import MUCClient, Occupant, Room, LeaveMode  # NOQA
 from . import xso  # NOQA
 from .xso import (  # NOQA
     ConfigurationForm
 )
+Service = MUCClient  # NOQA

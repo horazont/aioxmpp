@@ -13,7 +13,7 @@
 # This program is distributed in the hope that it will be useful, but
 # WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-# General Public License for more details.
+# Lesser General Public License for more details.
 #
 # You should have received a copy of the GNU Lesser General Public
 # License along with this program.  If not, see
@@ -72,7 +72,7 @@ async def main(local, password, peer,
         sys.stdin,
     )
 
-    client = aioxmpp.PresenceManagedClient(
+    client = aioxmpp.Client(
         local,
         aioxmpp.make_security_layer(
             password,
@@ -102,6 +102,12 @@ async def main(local, password, peer,
 
     try:
         async with client.connected() as stream:
+            # we send directed presence to the peer
+            pres = aioxmpp.Presence(
+                type_=aioxmpp.PresenceType.AVAILABLE,
+                to=peer,
+            )
+            await stream.send(pres)
             while True:
                 done, pending = await asyncio.wait(
                     [
@@ -128,7 +134,7 @@ async def main(local, password, peer,
                     )
                     msg.body[None] = line
 
-                    await stream.send_and_wait_for_sent(msg)
+                    await stream.send(msg)
 
                     read_future = asyncio.ensure_future(
                         sread.readline()
@@ -149,12 +155,10 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="""
         Send lines from stdin to the given peer and print messages received
-        from the peer to stdout.
-        """,
+        from the peer to stdout.""",
         epilog="""
         The password must be set in the XMPP_BRIDGE_PASSWORD environment
-        variable.
-        """
+        variable."""
     )
 
     parser.add_argument(

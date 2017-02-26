@@ -12,7 +12,7 @@
 # This program is distributed in the hope that it will be useful, but
 # WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-# General Public License for more details.
+# Lesser General Public License for more details.
 #
 # You should have received a copy of the GNU Lesser General Public
 # License along with this program.  If not, see
@@ -44,9 +44,10 @@ class EchoBot(Example):
         # make_reply() would not set the body though
         reply.body.update(msg.body)
 
-        self.client.stream.enqueue_stanza(reply)
+        self.client.stream.enqueue(reply)
 
-    async def run_simple_example(self):
+    @asyncio.coroutine
+    def run_simple_example(self):
         stop_event = self.make_sigint_event()
 
         self.client.stream.register_message_callback(
@@ -55,7 +56,7 @@ class EchoBot(Example):
             self.message_received,
         )
         print("echoing... (press Ctrl-C or send SIGTERM to stop)")
-        await stop_event.wait()
+        yield from stop_event.wait()
 
 if __name__ == "__main__":
     exec_example(EchoBot())

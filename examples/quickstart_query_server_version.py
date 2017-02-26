@@ -12,7 +12,7 @@
 # This program is distributed in the hope that it will be useful, but
 # WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-# General Public License for more details.
+# Lesser General Public License for more details.
 #
 # You should have received a copy of the GNU Lesser General Public
 # License along with this program.  If not, see
@@ -69,7 +69,7 @@ async def main(local_jid, password):
         )
 
         print("sending query to {}".format(peer_jid))
-        reply = await stream.send_iq_and_wait_for_reply(iq)
+        reply = await stream.send(iq)
         print("got response! logging off...")
 
     print("    name: {!r}".format(reply.name))

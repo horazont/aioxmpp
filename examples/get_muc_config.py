@@ -12,13 +12,14 @@
 # This program is distributed in the hope that it will be useful, but
 # WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-# General Public License for more details.
+# Lesser General Public License for more details.
 #
 # You should have received a copy of the GNU Lesser General Public
 # License along with this program.  If not, see
 # <http://www.gnu.org/licenses/>.
 #
 ########################################################################
+import asyncio
 import configparser
 
 import aioxmpp.muc
@@ -59,15 +60,14 @@ class ServerInfo(Example):
 
     def make_simple_client(self):
         client = super().make_simple_client()
-        client.summon(aioxmpp.muc.Service)
+        client.summon(aioxmpp.MUCClient)
         return client
 
-    async def run_example(self):
-        self.stop_event = self.make_sigint_event()
-        await super().run_example()
-
-    async def run_simple_example(self):
-        config = await self.client.summon(aioxmpp.muc.Service).get_room_config(
+    @asyncio.coroutine
+    def run_simple_example(self):
+        config = yield from self.client.summon(
+            aioxmpp.MUCClient
+        ).get_room_config(
             self.muc_jid
         )
         form = aioxmpp.muc.xso.ConfigurationForm.from_xso(config)

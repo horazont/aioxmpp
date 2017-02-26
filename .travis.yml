@@ -1,0 +1,28 @@
+language: python
+cache:
+  pip: true
+python:
+- "3.4"
+- "3.5"
+- "3.6"
+- "3.7-dev"
+before_install:
+- pip install hererocks
+- hererocks lua_install -r^ --lua=5.1
+- export PATH=$PATH:$PWD/lua_install/bin
+- luarocks install luaexpat
+- luarocks install luafilesystem
+- luarocks install luasocket
+- luarocks install luasec
+- hg clone https://hg.prosody.im/0.9/ prosody
+- |
+  cd prosody
+  ./configure --with-lua=$(pwd)/../lua_install
+  make
+  cd ..
+install:
+- pip install nose
+- pip install .
+- curl https://sotecware.net/files/noindex/prosody-test.tar.gz | tar -xz
+script:
+- ./utils/travis-test.py

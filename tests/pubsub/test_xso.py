@@ -12,7 +12,7 @@
 # This program is distributed in the hope that it will be useful, but
 # WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-# General Public License for more details.
+# Lesser General Public License for more details.
 #
 # You should have received a copy of the GNU Lesser General Public
 # License along with this program.  If not, see
@@ -1563,10 +1563,9 @@ class TestEventItems(unittest.TestCase):
         )
 
     def test_init_default(self):
-        items = pubsub_xso.EventItems()
-        self.assertSequenceEqual(items.items, [])
-        self.assertSequenceEqual(items.retracts, [])
-        self.assertIsNone(items.node)
+        with self.assertRaisesRegex(
+                TypeError, "required positional argument: 'node'"):
+            pubsub_xso.EventItems()
 
     def test_init(self):
         items_list = [
@@ -1837,7 +1836,7 @@ class TestEvent(unittest.TestCase):
         self.assertIsNone(ev.payload)
 
     def test_init(self):
-        items = pubsub_xso.EventItems()
+        items = pubsub_xso.EventItems(node="foo")
         ev = pubsub_xso.Event(items)
         self.assertIs(ev.payload, items)
 
@@ -2202,6 +2201,14 @@ class TestOwnerPurge(unittest.TestCase):
             pubsub_xso.OwnerPurge.node.default,
             xso.NO_DEFAULT,
         )
+
+    def test_init_default(self):
+        with self.assertRaises(TypeError):
+            pubsub_xso.OwnerPurge()
+
+    def test_init(self):
+        p = pubsub_xso.OwnerDelete("node")
+        self.assertEqual(p.node, "node")
 
 
 class TestOwnerSubscription(unittest.TestCase):

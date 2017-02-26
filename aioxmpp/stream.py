@@ -12,7 +12,7 @@
 # This program is distributed in the hope that it will be useful, but
 # WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-# General Public License for more details.
+# Lesser General Public License for more details.
 #
 # You should have received a copy of the GNU Lesser General Public
 # License along with this program.  If not, see
@@ -31,6 +31,20 @@ It provides ways to track stanzas on their way to the remote, as far as that is
 possible.
 
 .. autoclass:: StanzaStream
+
+Context managers
+================
+
+The following context managers can be used together with :class:`StanzaStream`
+instances and the filters available on them.
+
+.. autofunction:: iq_handler
+
+.. autofunction:: message_handler
+
+.. autofunction:: presence_handler
+
+.. autofunction:: stanza_filter
 
 Low-level stanza tracking
 =========================
@@ -56,9 +70,15 @@ classes:
 
 .. autoclass:: AppFilter
 
+Exceptions
+==========
+
+.. autoclass:: DestructionRequested
+
 """
 
 import asyncio
+import contextlib
 import functools
 import logging
 import warnings
@@ -68,6 +88,7 @@ from enum import Enum
 
 from . import (
     stanza,
+    stanza as stanza_,
     errors,
     custom_queue,
     nonza,
@@ -178,6 +199,13 @@ class PingEventType(Enum):
     TIMEOUT = 2
 
 
+class DestructionRequested(ConnectionError):
+    """
+    Subclass of :class:`ConnectionError` indicating that the destruction of the
+    stream was requested by the user, directly or indirectly.
+    """
+
+
 class StanzaState(Enum):
     """
     The various states an outgoing stanza can have.
@@ -262,14 +290,48 @@ class StanzaToken:
     `on_state_change` may be a function which will be called with the token and
     the new :class:`StanzaState` whenever the state of the token changes.
 
+    .. versionadded:: 0.8
+
+       Stanza tokens are :term:`awaitable`.
+
+    .. describe:: await token
+    .. describe:: yield from token
+
+       Wait until the stanza is either sent or failed to sent.
+
+       .. warning::
+
+          This only works with Python 3.5 or newer.
+
+       :raises ConnectionError: if the stanza enters
+                                :attr:`~.StanzaState.DISCONNECTED` state.
+       :raises RuntimeError: if the stanza enters :attr:`~.StanzaState.ABORTED`
+                             or :attr:`~.StanzaState.DROPPED` state.
+       :return: :data:`None`
+
+       If a coroutine awaiting a token is cancelled, the token is aborted. Use
+       :func:`asyncio.shield` to prevent this.
+
+       .. warning::
+
+          This is no guarantee that the recipient received the stanza. Without
+          stream management, it can not even guarenteed that the server has
+          seen the stanza.
+
+          This is primarily useful as a synchronisation primitive between the
+          sending of a stanza and another stream operation, such as closing the
+          stream.
+
     .. autoattribute:: state
 
     .. automethod:: abort
     """
+    __slots__ = ("stanza", "_state", "on_state_change", "_sent_future")
 
     def __init__(self, stanza, *, on_state_change=None):
         self.stanza = stanza
         self._state = StanzaState.ACTIVE
+        self._sent_future = None
         self.on_state_change = on_state_change
 
     @property
@@ -281,10 +343,29 @@ class StanzaToken:
 
         return self._state
 
+    def _update_future(self):
+        if self._sent_future.done():
+            return
+
+        if self._state == StanzaState.DISCONNECTED:
+            self._sent_future.set_exception(ConnectionError("disconnected"))
+        elif self._state == StanzaState.DROPPED:
+            self._sent_future.set_exception(
+                RuntimeError("stanza dropped by filter")
+            )
+        elif self._state == StanzaState.ABORTED:
+            self._sent_future.set_exception(RuntimeError("stanza aborted"))
+        elif     (self._state == StanzaState.SENT_WITHOUT_SM or
+                  self._state == StanzaState.ACKED):
+            self._sent_future.set_result(None)
+
     def _set_state(self, new_state):
         self._state = new_state
         if self.on_state_change is not None:
             self.on_state_change(self, new_state)
+
+        if self._sent_future is not None:
+            self._update_future()
 
     def abort(self):
         """
@@ -298,11 +379,24 @@ class StanzaToken:
         if     (self._state != StanzaState.ACTIVE and
                 self._state != StanzaState.ABORTED):
             raise RuntimeError("cannot abort stanza (already sent)")
-        self._state = StanzaState.ABORTED
+        self._set_state(StanzaState.ABORTED)
 
     def __repr__(self):
         return "<StanzaToken id=0x{:016x}>".format(id(self))
 
+    @asyncio.coroutine
+    def __await__(self):
+        if self._sent_future is None:
+            self._sent_future = asyncio.Future()
+            self._update_future()
+        try:
+            yield from asyncio.shield(self._sent_future)
+        except asyncio.CancelledError:
+            if self._state == StanzaState.ACTIVE:
+                self.abort()
+            raise
+
+    __iter__ = __await__
 
 class StanzaStream:
     """
@@ -379,7 +473,17 @@ class StanzaStream:
 
     Sending stanzas:
 
-    .. automethod:: enqueue_stanza
+    .. automethod:: send
+
+    .. automethod:: enqueue
+
+    .. method:: enqueue_stanza
+
+       Alias of :meth:`enqueue`.
+
+       .. deprecated:: 0.8
+
+          This alias is deprecated and will be removed in 1.0.
 
     .. automethod:: send_and_wait_for_sent
 
@@ -559,9 +663,14 @@ class StanzaStream:
 
     .. signal:: on_failure(exc)
 
-       A signal which will fire when the stream has failed. A failure
-       occurs whenever the main task of the :class:`StanzaStream` (the one
-       started by :meth:`start`) terminates with an exception.
+       Emits when the stream has failed, i.e. entered stopped state without
+       request by the user.
+
+       :param exc: The exception which caused the stream to fail.
+       :type exc: :class:`Exception`
+
+       A failure occurs whenever the main task of the :class:`StanzaStream`
+       (the one started by :meth:`start`) terminates with an exception.
 
        Examples are :class:`ConnectionError` as raised upon a ping timeout and
        any exceptions which may be raised by the
@@ -575,14 +684,27 @@ class StanzaStream:
 
           The closing behaviour was added.
 
-       The exception which occured is given as `exc`.
+    .. signal:: on_stream_destroyed(reason)
 
-    .. signal:: on_stream_destroyed()
+       The stream has been stopped in a manner which means that all state must
+       be discarded.
 
-       When a stream is destroyed so that all state shall be discarded (for
-       example, pending futures), this signal is fired.
+       :param reason: The exception which caused the stream to be destroyeds
+       :type reason: :class:`Exception`
 
-       This happens if a non-SM stream is stopped or if SM is being disabled.
+       When this signal is emitted, others have or will most likely see
+       unavailable presence from the XMPP resource associated with the stream,
+       and stanzas sent in the mean time are not guaranteed to be received.
+
+       `reason` may be a :class:`DestructionRequested` instance to indicate
+       that the destruction was requested by the user, in some way.
+
+       There is no guarantee (it is not even likely) that it is possible to
+       send stanzas over the stream at the time this signal is emitted.
+
+       .. versionchanged:: 0.8
+
+          The `reason` argument was added.
 
     .. signal:: on_stream_established()
 
@@ -629,6 +751,7 @@ class StanzaStream:
         self._xmlstream_exception = None
 
         self._established = False
+        self._closed = False
 
         self.ping_interval = timedelta(seconds=15)
         self.ping_opportunistic_interval = timedelta(seconds=15)
@@ -652,9 +775,19 @@ class StanzaStream:
     @property
     def local_jid(self):
         """
-        The `local_jid` argument to the constructor. This cannot be changed.
+        The `local_jid` argument to the constructor.
+
+        .. warning::
+
+           Changing this arbitrarily while the stream is running may have
+           unintended side effects.
+
         """
         return self._local_jid
+
+    @local_jid.setter
+    def local_jid(self, value):
+        self._local_jid = value
 
     def _coerce_enum(self, value, enum_class):
         if not isinstance(value, enum_class):
@@ -701,16 +834,18 @@ class StanzaStream:
         Destroy all state which does not make sense to keep after a disconnect
         (without stream management).
         """
-        self._logger.debug("destroying stream state")
+        self._logger.debug("destroying stream state (exc=%r)", exc)
         self._iq_response_map.close_all(exc)
         for task in self._iq_request_tasks:
+            # we don’t need to remove, that’s handled by their
+            # add_done_callback
             task.cancel()
         while not self._active_queue.empty():
             token = self._active_queue.get_nowait()
             token._set_state(StanzaState.DISCONNECTED)
 
         if self._established:
-            self.on_stream_destroyed()
+            self.on_stream_destroyed(exc)
             self._established = False
 
     def _iq_request_coro_done(self, request, task):
@@ -737,7 +872,7 @@ class StanzaStream:
         else:
             response = request.make_reply(type_=structs.IQType.RESULT)
             response.payload = payload
-        self.enqueue_stanza(response)
+        self.enqueue(response)
 
     def _process_incoming_iq(self, stanza_obj):
         """
@@ -749,17 +884,24 @@ class StanzaStream:
         if stanza_obj.type_.is_response:
             # iq response
             self._logger.debug("iq is response")
-            key = (stanza_obj.from_, stanza_obj.id_)
-            if key[0] == self._local_jid:
-                key = (None, key[1])
-            try:
-                self._iq_response_map.unicast(key, stanza_obj)
-                self._logger.debug("iq response delivered to key %r", key)
-            except KeyError:
+            keys = [(stanza_obj.from_, stanza_obj.id_)]
+            if self._local_jid is not None:
+                # needed for some servers
+                if keys[0][0] == self._local_jid:
+                    keys.append((None, keys[0][1]))
+                elif keys[0][0] is None:
+                    keys.append((self._local_jid, keys[0][1]))
+            for key in keys:
+                try:
+                    self._iq_response_map.unicast(key, stanza_obj)
+                    self._logger.debug("iq response delivered to key %r", key)
+                    break
+                except KeyError:
+                    pass
+            else:
                 self._logger.warning(
                     "unexpected IQ response: from=%r, id=%r",
                     *key)
-                return
         else:
             # iq request
             self._logger.debug("iq is request")
@@ -778,7 +920,7 @@ class StanzaStream:
                     condition=(namespaces.stanzas,
                                "feature-not-implemented"),
                 )
-                self.enqueue_stanza(response)
+                self.enqueue(response)
                 return
 
             task = asyncio.async(coro(stanza_obj))
@@ -880,35 +1022,49 @@ class StanzaStream:
             stanza_obj
         )
 
-        if stanza_obj.type_.is_response:
-            if     (isinstance(stanza_obj, stanza.IQ) and
-                    stanza_obj.from_ is not None):
-                self._logger.debug(
-                    "erroneous stanza can be forwarded to handlers as error"
-                )
-
-                key = (stanza_obj.from_, stanza_obj.id_)
-                try:
-                    self._iq_response_map.unicast_error(
-                        key,
-                        errors.ErroneousStanza(stanza_obj)
-                    )
-                except KeyError:
-                    pass
+        try:
+            type_ = stanza_obj.type_
+        except AttributeError:
+            # ugh, type is broken
+            # exit early
+            self._logger.debug(
+                "stanza has broken type, cannot properly handle"
+            )
             return
 
-        if isinstance(exc, stanza.UnknownIQPayload):
+        if type_.is_response:
+            try:
+                from_ = stanza_obj.from_
+                id_ = stanza_obj.id_
+            except AttributeError:
+                pass
+            else:
+                if isinstance(stanza_obj, stanza.IQ):
+                    self._logger.debug(
+                        "erroneous stanza can be forwarded to handlers as "
+                        "error"
+                    )
+
+                    key = (from_, id_)
+                    try:
+                        self._iq_response_map.unicast_error(
+                            key,
+                            errors.ErroneousStanza(stanza_obj)
+                        )
+                    except KeyError:
+                        pass
+        elif isinstance(exc, stanza.UnknownIQPayload):
             reply = stanza_obj.make_error(error=stanza.Error(condition=(
                 namespaces.stanzas,
                 "feature-not-implemented")
             ))
-            self.enqueue_stanza(reply)
+            self.enqueue(reply)
         elif isinstance(exc, stanza.PayloadParsingError):
             reply = stanza_obj.make_error(error=stanza.Error(condition=(
                 namespaces.stanzas,
                 "bad-request")
             ))
-            self.enqueue_stanza(reply)
+            self.enqueue(reply)
 
     def _process_incoming(self, xmlstream, queue_entry):
         """
@@ -1330,7 +1486,7 @@ class StanzaStream:
         :type type_: :class:`~.MessageType` or :data:`None`
         :param from_: Sender JID to listen for, or :data:`None` for a wildcard
                       match.
-        :type from_: :class:`~aioxmpp.JID or :data:`None`
+        :type from_: :class:`~aioxmpp.JID` or :data:`None`
         :param cb: Callback function to call
         :raises ValueError: if another function is already registered for the
                             same ``(type_, from_)`` pair.
@@ -1394,7 +1550,7 @@ class StanzaStream:
         :param type_: Message type to listen for.
         :type type_: :class:`~.MessageType` or :data:`None`
         :param from_: Sender JID to listen for.
-        :type from_: :class:`~aioxmpp.JID or :data:`None`
+        :type from_: :class:`~aioxmpp.JID` or :data:`None`
         :raises KeyError: if no function is currently registered for the given
                           ``(type_, from_)`` pair.
         :raises ValueError: if `type_` is not a valid
@@ -1434,7 +1590,7 @@ class StanzaStream:
         :type type_: :class:`~.PresenceType`
         :param from_: Sender JID to listen for, or :data:`None` for a wildcard
                       match.
-        :type from_: :class:`~aioxmpp.JID or :data:`None`.
+        :type from_: :class:`~aioxmpp.JID` or :data:`None`.
         :param cb: Callback function
         :raises ValueError: if another listener with the same ``(type_,
                             from_)`` pair is already registered
@@ -1482,7 +1638,7 @@ class StanzaStream:
         :type type_: :class:`~.PresenceType`
         :param from_: Sender JID to listen for, or :data:`None` for a wildcard
                       match.
-        :type from_: :class:`~aioxmpp.JID or :data:`None`.
+        :type from_: :class:`~aioxmpp.JID` or :data:`None`.
         :raises KeyError: if no callback is currently registered for the given
                           ``(type_, from_)`` pair
         :raises ValueError: if `type_` is not a valid
@@ -1574,6 +1730,7 @@ class StanzaStream:
             raise RuntimeError("already started")
 
         self._start_prepare(xmlstream, self.recv_stanza)
+        self._closed = False
         self._start_commit(xmlstream)
 
     def stop(self):
@@ -1614,33 +1771,51 @@ class StanzaStream:
         """
         Close the stream and the underlying XML stream (if any is connected).
 
-        This calls :meth:`wait_stop` and cleans up any Stream Management state,
-        if no error occurs. If an error occurs while the stream stops, that
-        error is re-raised and the stream management state is not cleared,
-        unless resumption is disabled.
+        This is essentially a way of saying "I do not want to use this stream
+        anymore" (until the next call to :meth:`start`). If the stream is
+        currently running, the XML stream is closed gracefully (potentially
+        sending an SM ack), the worker is stopped and any Stream Management
+        state is cleaned up.
+
+        If an error occurs while the stream stops, the error is ignored.
+
+        After the call to :meth:`close` has started, :meth:`on_failure` will
+        not be emitted, even if the XML stream fails before closure has
+        completed.
+
+        After a call to :meth:`close`, the stream is stopped, all SM state is
+        discarded and calls to :meth:`enqueue_stanza` raise a
+        :class:`DestructionRequested` ``"close() called"``. Such a
+        :class:`StanzaStream` can be re-started by calling :meth:`start`.
+
+        .. versionchanged:: 0.8
+
+           Before 0.8, an error during a call to :meth:`close` would stop the
+           stream from closing completely, and the exception was re-raised. If
+           SM was enabled, the state would have been kept, allowing for
+           resumption and ensuring that stanzas still enqueued or
+           unacknowledged would get a chance to be sent.
+
+           If you want to have guarantees that all stanzas sent up to a certain
+           point are sent, you should be using :meth:`send_and_wait_for_sent`
+           with stream management.
         """
-        if not self.running:
-            return
+        exc = DestructionRequested("close() called")
+
+        if self.running:
+            if self.sm_enabled:
+                self._xmlstream.send_xso(nonza.SMAcknowledgement(
+                    counter=self._sm_inbound_ctr
+                ))
+
+            yield from self._xmlstream.close_and_wait()  # does not raise
+            yield from self.wait_stop()  # may raise
+
+        self._closed = True
+        self._xmlstream_exception = exc
+        self._destroy_stream_state(self._xmlstream_exception)
         if self.sm_enabled:
-            self._xmlstream.send_xso(nonza.SMAcknowledgement(
-                counter=self._sm_inbound_ctr
-            ))
-
-        yield from self._xmlstream.close_and_wait()  # does not raise
-        yield from self.wait_stop()
-
-        if self._xmlstream_exception is not None:
-            exc = self._xmlstream_exception
-            if self.sm_enabled:
-                if self.sm_resumable:
-                    raise exc
-                self._destroy_stream_state(exc)
-                self.stop_sm()
-                return
-        else:
-            self._destroy_stream_state(ConnectionError("close() called"))
-            if self.sm_enabled:
-                self.stop_sm()
+            self.stop_sm()
 
     @asyncio.coroutine
     def _run(self, xmlstream):
@@ -1701,11 +1876,15 @@ class StanzaStream:
             # variables
             with (yield from self._broker_lock):
                 if not self.sm_enabled or not self.sm_resumable:
-                    if self.sm_enabled:
-                        self._stop_sm()
                     self._destroy_stream_state(
                         self._xmlstream_exception or
-                        ConnectionError("stream terminating"))
+                        DestructionRequested(
+                            "close() or stop() called and stream is not "
+                            "resumable"
+                        )
+                    )
+                    if self.sm_enabled:
+                        self._stop_sm()
 
                 self._start_rollback(xmlstream)
 
@@ -1721,15 +1900,35 @@ class StanzaStream:
     def recv_erroneous_stanza(self, partial_obj, exc):
         self._incoming_queue.put_nowait((partial_obj, exc))
 
-    def enqueue_stanza(self, stanza, **kwargs):
+    def enqueue(self, stanza, **kwargs):
         """
-        Enqueue a `stanza` to be sent. Return a :class:`StanzaToken` to track
-        the stanza. The `kwargs` are passed to the :class:`StanzaToken`
-        constructor.
+        Put a `stanza` in the internal transmission queue and return a token to
+        track it.
+
+        :param stanza: Stanza to send
+        :type stanza: :class:`IQ`, :class:`Message` or :class:`Presence`
+        :param kwargs: see :class:`StanzaToken`
+        :return: token which tracks the stanza
+        :rtype: :class:`StanzaToken`
+
+        The `stanza` is enqueued in the active queue for transmission and will
+        be sent on the next opportunity. The relative ordering of stanzas
+        enqueued is always preserved.
+
+        Return a fresh :class:`StanzaToken` instance which traks the progress
+        of the transmission of the `stanza`. The `kwargs` are forwarded to the
+        :class:`StanzaToken` constructor.
 
         This method calls :meth:`~.stanza.StanzaBase.autoset_id` on the stanza
         automatically.
+
+        .. seealso::
+
+           :meth:`send`
+              for a more high-level way to send stanzas.
         """
+        if self._closed:
+            raise self._xmlstream_exception
 
         stanza.validate()
         token = StanzaToken(stanza, **kwargs)
@@ -1738,6 +1937,8 @@ class StanzaStream:
         self._logger.debug("enqueued stanza %r with token %r",
                            stanza, token)
         return token
+
+    enqueue_stanza = enqueue
 
     @property
     def running(self):
@@ -2113,71 +2314,252 @@ class StanzaStream:
            :meth:`register_iq_response_future` and
            :meth:`send_and_wait_for_sent` for other cases raising exceptions.
 
+        .. deprecated:: 0.8
+
+           This method will be removed in 1.0. Use :meth:`send` instead.
+
+        .. versionchanged:: 0.8
+
+           On a timeout, :class:`TimeoutError` is now raised instead of
+           :class:`asyncio.TimeoutError`.
+
         """
-        iq.autoset_id()
-        fut = asyncio.Future(loop=self._loop)
-        self.register_iq_response_future(
-            iq.to,
-            iq.id_,
-            fut)
-        try:
-            yield from self.send_and_wait_for_sent(iq)
-        except:
-            fut.cancel()
-            raise
-        if not timeout:
-            reply = yield from fut
-        else:
-            reply = yield from asyncio.wait_for(
-                fut, timeout=timeout,
-                loop=self._loop)
-        return reply.payload
+        warnings.warn(
+            r"send_iq_and_wait_for_reply is deprecated and will be removed in"
+            r" 1.0",
+            DeprecationWarning,
+            stacklevel=1,
+        )
+        return (yield from self.send(iq, timeout=timeout))
 
     @asyncio.coroutine
     def send_and_wait_for_sent(self, stanza):
         """
         Send the given `stanza` over the given :class:`StanzaStream` `stream`.
 
-        Return when the stanza reaches either
-        :attr:`~StanzaState.SENT_WITHOUT_SM` or :attr:`~StanzaState.ACKED`
-        state.
+        .. deprecated:: 0.8
 
-        Raise :class:`ConnectionError` if :attr:`~StanzaState.DISCONNECTED` is
-        reached. Raise :class:`RuntimeError` if :attr:`~StanzaState.ABORTED` or
-        :attr:`~StanzaState.DROPPED` is reached.
-
-        Cancelling the coroutine :meth:`aborts <StanzaToken.abort>` the stanza
-        and returns immediately, even if the stanza has already left the active
-        queue.
+           This method will be removed in 1.0. Use :meth:`send` instead.
         """
-        fut = asyncio.Future()
+        warnings.warn(
+            r"send_and_wait_for_sent is deprecated and will be removed in 1.0",
+            DeprecationWarning,
+            stacklevel=1,
+        )
+        yield from self.enqueue(stanza)
 
+    @asyncio.coroutine
+    def send(self, stanza, *, timeout=None):
+        """
+        Send a stanza.
+
+        :param stanza: Stanza to send
+        :type stanza: :class:`~.IQ`, :class:`~.Presence` or :class:`~.Message`
+        :param timeout: Maximum time in seconds to wait for an IQ response, or
+                        :data:`None` to disable the timeout.
+        :type timeout: :class:`~numbers.Real` or :data:`None`
+        :raise OSError: if the underlying XML stream fails and stream
+                        management is not disabled.
+        :raise aioxmpp.stream.DestructionRequested:
+           if the stream is closed while sending the stanza or waiting for a
+           response.
+        :raise aioxmpp.errors.XMPPError: if an error IQ response is received
+        :raise aioxmpp.errors.ErroneousStanza: if the IQ response could not be
+                                               parsed
+        :return: IQ response :attr:`~.IQ.payload` or :data:`None`
+
+        Send the stanza and wait for it to be sent. If the stanza is an IQ
+        request, the response is awaited and the :attr:`~.IQ.payload` of the
+        response is returned.
+
+        The `timeout` as well as any of the exception cases referring to a
+        "response" do not apply for IQ response stanzas, message stanzas or
+        presence stanzas sent with this method, as this method only waits for
+        a reply if an IQ *request* stanza is being sent.
+
+        If `stanza` is an IQ request and the response is not received within
+        `timeout` seconds, :class:`TimeoutError` (not
+        :class:`asyncio.TimeoutError`!) is raised.
+
+        .. warning::
+
+           Setting a timeout is recommended for IQ requests. If the IQ is sent
+           directly to the clients server for processing (i.e. if the
+           :attr:`~.IQ.to` attribute is :data:`None`), malformed responses
+           are discarded instead of raising :class:`.errors.ErroneusStanza`.
+           This is due to limitations in the :mod:`aioxmpp.xso` code, which are
+           to be fixed at some point.
+
+        .. versionadded:: 0.8
+        """
+        stanza.autoset_id()
         self._logger.debug("sending %r and waiting for it to be sent",
                            stanza)
 
-        def cb(token, state):
-            self._logger.debug("token %r enters state %r", token, state)
-            if fut.done():
-                self._logger.warning("state change after future is done!")
-                return
+        if not isinstance(stanza, stanza_.IQ) or stanza.type_.is_response:
+            yield from self.enqueue(stanza)
+            return
 
-            if state == StanzaState.ACKED:
-                fut.set_result(None)
-            if state == StanzaState.SENT_WITHOUT_SM:
-                fut.set_result(None)
-            if state == StanzaState.DISCONNECTED:
-                fut.set_exception(ConnectionError("disconnected"))
-            if state == StanzaState.DROPPED:
-                fut.set_exception(RuntimeError("stanza dropped by filter"))
-            if state == StanzaState.ABORTED:
-                fut.set_exception(RuntimeError("stanza aborted"))
-
-        token = self.enqueue_stanza(stanza, on_state_change=cb)
-        self._logger.debug("using token %r", token)
+        fut = asyncio.Future()
+        self.register_iq_response_future(
+            stanza.to,
+            stanza.id_,
+            fut,
+        )
 
         try:
-            yield from fut
-        except asyncio.CancelledError:
-            if token.state == StanzaState.ACTIVE:
-                token.abort()
+            yield from self.enqueue(stanza)
+        except:
+            fut.cancel()
             raise
+
+        if not timeout:
+            reply = yield from fut
+        else:
+            try:
+                reply = yield from asyncio.wait_for(
+                    fut,
+                    timeout=timeout
+                )
+            except asyncio.TimeoutError:
+                raise TimeoutError
+
+        return reply.payload
+
+
+@contextlib.contextmanager
+def iq_handler(stream, type_, payload_cls, coro):
+    """
+    Context manager to temporarily register a coroutine to handle IQ requests
+    on a :class:`StanzaStream`.
+
+    :param stream: Stanza stream to register the coroutine at
+    :type stream: :class:`StanzaStream`
+    :param type_: IQ type to react to (must be a request type).
+    :type type_: :class:`~aioxmpp.IQType`
+    :param payload_cls: Payload class to react to (subclass of
+                        :class:`~xso.XSO`)
+    :type payload_cls: :class:`~.XMLStreamClass`
+    :param coro: Coroutine to register
+
+    The coroutine is registered when the context is entered and unregistered
+    when the context is exited. Running coroutines are not affected by exiting
+    the context manager.
+
+    .. versionadded:: 0.8
+    """
+
+    stream.register_iq_request_coro(
+        type_,
+        payload_cls,
+        coro,
+    )
+    try:
+        yield
+    finally:
+        stream.unregister_iq_request_coro(type_, payload_cls)
+
+
+@contextlib.contextmanager
+def message_handler(stream, type_, from_, cb):
+    """
+    Context manager to temporarily register a callback to handle messages on a
+    :class:`StanzaStream`.
+
+    :param stream: Stanza stream to register the coroutine at
+    :type stream: :class:`StanzaStream`
+    :param type_: Message type to listen for, or :data:`None` for a wildcard
+                  match.
+    :type type_: :class:`~.MessageType` or :data:`None`
+    :param from_: Sender JID to listen for, or :data:`None` for a wildcard
+                  match.
+    :type from_: :class:`~aioxmpp.JID` or :data:`None`
+    :param cb: Callback to register
+
+    The callback is registered when the context is entered and unregistered
+    when the context is exited.
+
+    .. versionadded:: 0.8
+    """
+
+    stream.register_message_callback(
+        type_,
+        from_,
+        cb,
+    )
+    try:
+        yield
+    finally:
+        stream.unregister_message_callback(
+            type_,
+            from_,
+        )
+
+
+@contextlib.contextmanager
+def presence_handler(stream, type_, from_, cb):
+    """
+    Context manager to temporarily register a callback to handle presence
+    stanzas on a :class:`StanzaStream`.
+
+    :param stream: Stanza stream to register the coroutine at
+    :type stream: :class:`StanzaStream`
+    :param type_: Presence type to listen for.
+    :type type_: :class:`~.PresenceType`
+    :param from_: Sender JID to listen for, or :data:`None` for a wildcard
+                  match.
+    :type from_: :class:`~aioxmpp.JID` or :data:`None`.
+    :param cb: Callback to register
+
+    The callback is registered when the context is entered and unregistered
+    when the context is exited.
+
+    .. versionadded:: 0.8
+    """
+
+    stream.register_presence_callback(
+        type_,
+        from_,
+        cb,
+    )
+    try:
+        yield
+    finally:
+        stream.unregister_presence_callback(
+            type_,
+            from_,
+        )
+
+
+_Undefined = object()
+
+
+@contextlib.contextmanager
+def stanza_filter(filter_, func, order=_Undefined):
+    """
+    Context manager to temporarily register a filter function on a
+    :class:`Filter`.
+
+    :param filter_: Filter to register the function at
+    :type filter_: :class:`Filter`
+    :param func: Filter function to register
+    :param order: Order parameter to pass to :meth:`.Filter.register`
+
+    The type of `order` is specific to the :class:`Filter` instance used, see
+    the documentation of :meth:`Filter.register` and :meth:`AppFilter.register`
+    respectively.
+
+    The filter function is registered when the context is entered and
+    unregistered when the context is exited.
+
+    .. versionadded:: 0.8
+    """
+
+    if order is _Undefined:
+        token = filter_.register(func)
+    else:
+        token = filter_.register(func, order)
+    try:
+        yield
+    finally:
+        filter_.unregister(token)

@@ -12,7 +12,7 @@
 # This program is distributed in the hope that it will be useful, but
 # WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-# General Public License for more details.
+# Lesser General Public License for more details.
 #
 # You should have received a copy of the GNU Lesser General Public
 # License along with this program.  If not, see
@@ -21,7 +21,6 @@
 ########################################################################
 import asyncio
 import contextlib
-import functools
 import ipaddress
 import itertools
 import logging
@@ -34,6 +33,7 @@ import dns.resolver
 
 import aiosasl
 
+import aioxmpp
 import aioxmpp.node as node
 import aioxmpp.structs as structs
 import aioxmpp.nonza as nonza
@@ -50,6 +50,7 @@ from aioxmpp.testutils import (
     run_coroutine,
     XMLStreamMock,
     run_coroutine_with_peer,
+    make_connected_client,
     CoroutineMock,
 )
 
@@ -107,9 +108,9 @@ class Testdiscover_connectors(unittest.TestCase):
             )
             lookup_srv.side_effect = srv_records()
 
-            group_and_order = stack.enter_context(
-                unittest.mock.patch("aioxmpp.network.group_and_order_srv_records")
-            )
+            group_and_order = stack.enter_context(unittest.mock.patch(
+                "aioxmpp.network.group_and_order_srv_records"
+            ))
             group_and_order.return_value = grouped_results()
 
             result = run_coroutine(
@@ -204,9 +205,9 @@ class Testdiscover_connectors(unittest.TestCase):
             )
             lookup_srv.side_effect = srv_records()
 
-            group_and_order = stack.enter_context(
-                unittest.mock.patch("aioxmpp.network.group_and_order_srv_records")
-            )
+            group_and_order = stack.enter_context(unittest.mock.patch(
+                "aioxmpp.network.group_and_order_srv_records"
+            ))
             group_and_order.return_value = grouped_results()
 
             result = run_coroutine(
@@ -293,9 +294,9 @@ class Testdiscover_connectors(unittest.TestCase):
             )
             lookup_srv.side_effect = srv_records()
 
-            group_and_order = stack.enter_context(
-                unittest.mock.patch("aioxmpp.network.group_and_order_srv_records")
-            )
+            group_and_order = stack.enter_context(unittest.mock.patch(
+                "aioxmpp.network.group_and_order_srv_records"
+            ))
             group_and_order.return_value = grouped_results()
 
             result = run_coroutine(
@@ -357,9 +358,9 @@ class Testdiscover_connectors(unittest.TestCase):
             )
             lookup_srv.return_value = None
 
-            group_and_order = stack.enter_context(
-                unittest.mock.patch("aioxmpp.network.group_and_order_srv_records")
-            )
+            group_and_order = stack.enter_context(unittest.mock.patch(
+                "aioxmpp.network.group_and_order_srv_records"
+            ))
 
             result = run_coroutine(
                 node.discover_connectors(
@@ -436,9 +437,9 @@ class Testdiscover_connectors(unittest.TestCase):
             )
             lookup_srv.side_effect = srv_records()
 
-            group_and_order = stack.enter_context(
-                unittest.mock.patch("aioxmpp.network.group_and_order_srv_records")
-            )
+            group_and_order = stack.enter_context(unittest.mock.patch(
+                "aioxmpp.network.group_and_order_srv_records"
+            ))
             group_and_order.return_value = grouped_results()
 
             result = run_coroutine(
@@ -525,9 +526,9 @@ class Testdiscover_connectors(unittest.TestCase):
             )
             lookup_srv.side_effect = srv_records()
 
-            group_and_order = stack.enter_context(
-                unittest.mock.patch("aioxmpp.network.group_and_order_srv_records")
-            )
+            group_and_order = stack.enter_context(unittest.mock.patch(
+                "aioxmpp.network.group_and_order_srv_records"
+            ))
             group_and_order.return_value = grouped_results()
 
             result = run_coroutine(
@@ -1138,12 +1139,8 @@ class Testconnect_xmlstream(unittest.TestCase):
 
         excs = [
             OSError(),
-            errors.TLSUnavailable(
-                (namespaces.streams, "policy-violation"),
-            ),
-            errors.TLSFailure(
-                (namespaces.streams, "policy-violation"),
-            ),
+            OSError(),
+            OSError(),
         ]
 
         base = unittest.mock.Mock()
@@ -1197,6 +1194,67 @@ class Testconnect_xmlstream(unittest.TestCase):
             excs,
         )
 
+    def test_raises_most_specific_if_any_error_is_TLS_related(self):
+        NCONNECTORS = 3
+
+        excs = [
+            OSError(),
+            errors.TLSUnavailable(
+                (namespaces.streams, "policy-violation"),
+            ),
+            errors.TLSFailure(
+                (namespaces.streams, "policy-violation"),
+            ),
+        ]
+
+        base = unittest.mock.Mock()
+        jid = unittest.mock.Mock()
+
+        for i in range(NCONNECTORS):
+            connect = CoroutineMock()
+            getattr(base, "c{}".format(i)).connect = connect
+
+        base.c0.connect.side_effect = excs[0]
+        base.c1.connect.side_effect = excs[1]
+        base.c2.connect.side_effect = excs[2]
+
+        self.discover_connectors.return_value = [
+            (getattr(unittest.mock.sentinel, "h{}".format(i)),
+             getattr(unittest.mock.sentinel, "p{}".format(i)),
+             getattr(base, "c{}".format(i)))
+            for i in range(NCONNECTORS)
+        ]
+
+        with self.assertRaisesRegex(
+                errors.TLSFailure,
+                r"TLS failure"):
+            run_coroutine(node.connect_xmlstream(
+                jid,
+                base.metadata,
+                loop=unittest.mock.sentinel.loop,
+            ))
+
+        self.discover_connectors.assert_called_with(
+            jid.domain.encode(),
+            loop=unittest.mock.sentinel.loop,
+            logger=node.logger,
+        )
+
+        self.assertSequenceEqual(
+            base.mock_calls,
+            [
+                getattr(unittest.mock.call, "c{}".format(i)).connect(
+                    unittest.mock.sentinel.loop,
+                    base.metadata,
+                    jid.domain,
+                    getattr(unittest.mock.sentinel, "h{}".format(i)),
+                    getattr(unittest.mock.sentinel, "p{}".format(i)),
+                    60.,
+                )
+                for i in range(3)
+            ]
+        )
+
     def test_handle_no_options(self):
         base = unittest.mock.Mock()
 
@@ -1220,7 +1278,7 @@ class Testconnect_xmlstream(unittest.TestCase):
                 ))
 
 
-class TestAbstractClient(xmltestutils.XMLTestCase):
+class TestClient(xmltestutils.XMLTestCase):
     @asyncio.coroutine
     def _connect_xmlstream(self, *args, **kwargs):
         self.connect_xmlstream_rec(*args, **kwargs)
@@ -1243,6 +1301,8 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
         self.failure_rec.return_value = None
         self.established_rec = unittest.mock.MagicMock()
         self.established_rec.return_value = None
+        self.suspended_rec = unittest.mock.MagicMock()
+        self.suspended_rec.return_value = None
         self.destroyed_rec = unittest.mock.MagicMock()
         self.destroyed_rec.return_value = None
         self.security_layer = object()
@@ -1261,13 +1321,15 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
         self.features = nonza.StreamFeatures()
         self.features[...] = rfc6120.BindFeature()
 
-        self.client = node.AbstractClient(
+        self.client = node.Client(
             self.test_jid,
             self.security_layer,
+            max_initial_attempts=None,
             loop=self.loop)
         self.client.on_failure.connect(self.failure_rec)
         self.client.on_stream_destroyed.connect(self.destroyed_rec)
         self.client.on_stream_established.connect(self.established_rec)
+        self.client.on_stream_suspended.connect(self.suspended_rec)
 
         # some XMLStreamMock test case parts
         self.sm_negotiation_exchange = [
@@ -1318,7 +1380,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
             yield unittest.mock.sentinel.p1
             yield unittest.mock.sentinel.p2
 
-        client = node.AbstractClient(
+        client = node.Client(
             self.test_jid,
             self.security_layer,
             override_peer=peer_iterator(),
@@ -1462,6 +1524,9 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
             cb.mock_calls
         )
 
+        self.suspended_rec.assert_not_called()
+        self.destroyed_rec.assert_called_once_with()
+
     def test_reconnect_on_failure(self):
         self.client.backoff_start = timedelta(seconds=0.008)
         self.client.negotiation_timeout = timedelta(seconds=0.01)
@@ -1469,9 +1534,10 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
 
         iq = stanza.IQ(structs.IQType.GET)
         iq.autoset_id()
+
         @asyncio.coroutine
         def stimulus():
-            self.client.stream.enqueue_stanza(iq)
+            self.client.stream.enqueue(iq)
 
         run_coroutine_with_peer(
             stimulus(),
@@ -1488,6 +1554,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
                 ]
             )
         )
+
         run_coroutine(
             self.xmlstream.run_test(
                 self.resource_binding
@@ -1513,6 +1580,255 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
         # the client has not failed
         self.assertFalse(self.failure_rec.mock_calls)
         self.assertTrue(self.client.established)
+
+    def test_reconnect_on_failure_unbounded(self):
+        self.client = node.Client(
+            self.test_jid,
+            self.security_layer,
+            max_initial_attempts=2,
+            loop=self.loop)
+        self.client.on_failure.connect(self.failure_rec)
+        self.client.on_stream_destroyed.connect(self.destroyed_rec)
+        self.client.on_stream_established.connect(self.established_rec)
+        self.client.on_stream_suspended.connect(self.suspended_rec)
+
+        call = unittest.mock.call(
+            self.test_jid,
+            self.security_layer,
+            negotiation_timeout=60.0,
+            override_peer=[],
+            loop=self.loop,
+            logger=self.client.logger)
+
+        self.client.backoff_start = timedelta(seconds=0.005)
+        self.client.backoff_factor = 2
+        self.client.backoff_cap = timedelta(seconds=0.1)
+        self.client.start()
+
+        run_coroutine(asyncio.sleep(0))
+        self.assertTrue(self.client.running)
+
+        iq = stanza.IQ(structs.IQType.GET)
+        iq.autoset_id()
+
+        @asyncio.coroutine
+        def stimulus():
+            self.client.stream.enqueue(iq)
+
+        run_coroutine_with_peer(
+            stimulus(),
+            self.xmlstream.run_test(
+                self.resource_binding+[
+                    XMLStreamMock.Send(
+                        iq,
+                        response=[
+                            XMLStreamMock.Fail(
+                                exc=ConnectionError()
+                            ),
+                        ]
+                    ),
+                ]
+            )
+        )
+
+        exc = OSError()
+        self.connect_xmlstream_rec.side_effect = exc
+        self.connect_xmlstream_rec.mock_calls.clear()
+
+        run_coroutine(asyncio.sleep(0.01))
+
+        self.assertSequenceEqual(
+            [call],
+            self.connect_xmlstream_rec.mock_calls
+        )
+
+        run_coroutine(asyncio.sleep(0.02))
+
+        self.assertSequenceEqual(
+            [call]*2,
+            self.connect_xmlstream_rec.mock_calls
+        )
+
+        run_coroutine(asyncio.sleep(0.04))
+
+        self.assertSequenceEqual(
+            [call]*3,
+            self.connect_xmlstream_rec.mock_calls
+        )
+
+        run_coroutine(asyncio.sleep(0.08))
+
+        self.assertSequenceEqual(
+            [call]*4,
+            self.connect_xmlstream_rec.mock_calls
+        )
+
+        run_coroutine(asyncio.sleep(0.1))
+
+        self.assertSequenceEqual(
+            [call]*5,
+            self.connect_xmlstream_rec.mock_calls
+        )
+
+        self.assertSequenceEqual(
+            [
+            ],
+            self.failure_rec.mock_calls
+        )
+
+        self.client.stop()
+        run_coroutine(asyncio.sleep(0))
+
+    def test_emit_destroyed_on_reconnect_without_sm(self):
+        stream_events = unittest.mock.Mock()
+        stream_events.suspend.return_value = None
+        stream_events.destroy.return_value = None
+        self.client.on_stream_suspended.connect(stream_events.suspend)
+        self.client.on_stream_destroyed.connect(stream_events.destroy)
+
+        self.client.backoff_start = timedelta(seconds=0.008)
+        self.client.negotiation_timeout = timedelta(seconds=0.01)
+        self.client.start()
+
+        reason = ConnectionError()
+
+        iq = stanza.IQ(structs.IQType.GET)
+        iq.autoset_id()
+
+        @asyncio.coroutine
+        def stimulus():
+            self.client.stream.enqueue(iq)
+
+        run_coroutine_with_peer(
+            stimulus(),
+            self.xmlstream.run_test(
+                self.resource_binding+[
+                    XMLStreamMock.Send(
+                        iq,
+                        response=[
+                            XMLStreamMock.Fail(
+                                exc=reason
+                            ),
+                        ]
+                    ),
+                ]
+            )
+        )
+
+        self.assertSequenceEqual(
+            stream_events.mock_calls,
+            [
+                unittest.mock.call.suspend(reason),
+                unittest.mock.call.destroy(),
+            ]
+        )
+
+        run_coroutine(
+            self.xmlstream.run_test(
+                self.resource_binding
+            )
+        )
+
+        run_coroutine(asyncio.sleep(0.015))
+
+        self.assertTrue(self.client.running)
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(
+                    self.test_jid,
+                    self.security_layer,
+                    negotiation_timeout=0.01,
+                    override_peer=[],
+                    loop=self.loop,
+                    logger=self.client.logger)
+            ]*2,
+            self.connect_xmlstream_rec.mock_calls
+        )
+
+        # the client has not failed
+        self.assertFalse(self.failure_rec.mock_calls)
+        self.assertTrue(self.client.established)
+
+    def test_emit_suspend_on_double_reconnect_without_sm(self):
+        stream_events = unittest.mock.Mock()
+        stream_events.suspend.return_value = None
+        stream_events.destroy.return_value = None
+        self.client.on_stream_suspended.connect(stream_events.suspend)
+        self.client.on_stream_destroyed.connect(stream_events.destroy)
+
+        self.client.backoff_start = timedelta(seconds=0.008)
+        self.client.negotiation_timeout = timedelta(seconds=0.01)
+        self.client.start()
+
+        reason = ConnectionError()
+
+        iq = stanza.IQ(structs.IQType.GET)
+        iq.autoset_id()
+
+        @asyncio.coroutine
+        def stimulus():
+            self.client.stream.enqueue(iq)
+
+        run_coroutine_with_peer(
+            stimulus(),
+            self.xmlstream.run_test(
+                self.resource_binding+[
+                    XMLStreamMock.Send(
+                        iq,
+                        response=[
+                            XMLStreamMock.Fail(
+                                exc=reason
+                            ),
+                        ]
+                    ),
+                ]
+            )
+        )
+
+        self.assertSequenceEqual(
+            stream_events.mock_calls,
+            [
+                unittest.mock.call.suspend(reason),
+                unittest.mock.call.destroy(),
+            ]
+        )
+
+        run_coroutine(
+            self.xmlstream.run_test(
+                self.resource_binding
+            )
+        )
+
+        run_coroutine(asyncio.sleep(0.015))
+
+        run_coroutine_with_peer(
+            stimulus(),
+            self.xmlstream.run_test(
+                self.resource_binding+[
+                    XMLStreamMock.Send(
+                        iq,
+                        response=[
+                            XMLStreamMock.Fail(
+                                exc=reason
+                            ),
+                        ]
+                    ),
+                ]
+            )
+        )
+
+        self.assertSequenceEqual(
+            stream_events.mock_calls,
+            [
+                unittest.mock.call.suspend(reason),
+                unittest.mock.call.destroy(),
+                unittest.mock.call.suspend(reason),
+                unittest.mock.call.destroy(),
+            ]
+        )
+
+        self.client.stop()
+        run_coroutine(asyncio.sleep(0))
 
     def test_fail_on_authentication_failure(self):
         exc = aiosasl.AuthenticationFailure("not-authorized")
@@ -1616,6 +1932,52 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
 
         self.client.stop()
         run_coroutine(asyncio.sleep(0))
+
+    def test_abort_after_max_initial_attempts(self):
+        self.client = node.Client(
+            self.test_jid,
+            self.security_layer,
+            max_initial_attempts=2,
+            loop=self.loop)
+        self.client.on_failure.connect(self.failure_rec)
+        self.client.on_stream_destroyed.connect(self.destroyed_rec)
+        self.client.on_stream_established.connect(self.established_rec)
+        self.client.on_stream_suspended.connect(self.suspended_rec)
+
+        call = unittest.mock.call(
+            self.test_jid,
+            self.security_layer,
+            negotiation_timeout=60.0,
+            override_peer=[],
+            loop=self.loop,
+            logger=self.client.logger)
+
+        exc = OSError()
+        self.connect_xmlstream_rec.side_effect = exc
+        self.client.backoff_start = timedelta(seconds=0.01)
+        self.client.backoff_factor = 2
+        self.client.backoff_cap = timedelta(seconds=0.1)
+        self.client.start()
+        run_coroutine(asyncio.sleep(0))
+        self.assertTrue(self.client.running)
+        self.assertFalse(self.client.stream.running)
+
+        self.assertSequenceEqual(
+            [call],
+            self.connect_xmlstream_rec.mock_calls
+        )
+
+        run_coroutine(asyncio.sleep(0.01))
+
+        self.assertSequenceEqual(
+            [call]*2,
+            self.connect_xmlstream_rec.mock_calls
+        )
+
+        run_coroutine(asyncio.sleep(0.02))
+
+        self.failure_rec.assert_called_once_with(exc)
+        self.assertFalse(self.client.running)
 
     def test_exponential_backoff_on_no_nameservers(self):
         call = unittest.mock.call(
@@ -1776,7 +2138,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
 
         self.client.start()
         run_coroutine(self.xmlstream.run_test(
-            self.resource_binding+
+            self.resource_binding +
             [
                 XMLStreamMock.Send(
                     iqreq,
@@ -1809,8 +2171,8 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
 
         self.client.start()
         run_coroutine(self.xmlstream.run_test(
-            self.resource_binding+
-            self.sm_negotiation_exchange+
+            self.resource_binding +
+            self.sm_negotiation_exchange +
             [
                 XMLStreamMock.Send(
                     iqreq,
@@ -1858,8 +2220,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
                     response=[
                         XMLStreamMock.Receive(
                             nonza.SMEnabled(resume=True,
-                                                  id_="foobar"),
-
+                                            id_="foobar"),
                         ),
                         XMLStreamMock.Fail(
                             exc=ConnectionError()
@@ -1906,11 +2267,10 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
                 response=[
                     XMLStreamMock.Receive(
                         nonza.SMEnabled(resume=True,
-                                              id_="foobar"),
-
+                                        id_="foobar"),
                     ),
                     XMLStreamMock.Fail(
-                    exc=ConnectionError()
+                        exc=ConnectionError()
                     ),
                 ]
             ),
@@ -1947,9 +2307,10 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
                             nonza.SMEnabled(
                                 resume=True,
                                 id_="foobar",
-                                location=(ipaddress.IPv6Address("fe80::"), 5222)),
-
-                    ),
+                                location=(
+                                    ipaddress.IPv6Address("fe80::"), 5222
+                                )),
+                        ),
                         XMLStreamMock.Fail(
                             exc=ConnectionError()
                         ),
@@ -2021,9 +2382,10 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
                             nonza.SMEnabled(
                                 resume=True,
                                 id_="foobar",
-                                location=(ipaddress.IPv6Address("fe80::"), 5222)),
-
-                    ),
+                                location=(
+                                    ipaddress.IPv6Address("fe80::"), 5222
+                                )),
+                        ),
                         XMLStreamMock.Fail(
                             exc=ConnectionError()
                         ),
@@ -2116,8 +2478,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
                 response=[
                     XMLStreamMock.Receive(
                         nonza.SMEnabled(resume=True,
-                                              id_="foobar"),
-
+                                        id_="foobar"),
                     ),
                     XMLStreamMock.Fail(
                         exc=ConnectionError()
@@ -2141,8 +2502,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
                 response=[
                     XMLStreamMock.Receive(
                         nonza.SMEnabled(resume=True,
-                                              id_="foobar"),
-
+                                        id_="foobar"),
                     ),
                 ]
             ),
@@ -2248,6 +2608,52 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
             self.client.local_jid
         )
 
+        self.assertEqual(
+            self.test_jid.bare(),
+            self.client.stream.local_jid
+        )
+
+        self.established_rec.assert_called_once_with()
+
+    def test_resource_binding_with_different_jid(self):
+        self.client.start()
+
+        bound_jid = self.test_jid.replace(
+            resource="foobarbaz",
+            localpart="transfnordistan",
+        )
+
+        run_coroutine(self.xmlstream.run_test([
+            XMLStreamMock.Send(
+                stanza.IQ(
+                    payload=rfc6120.Bind(
+                        resource=self.test_jid.resource),
+                    type_=structs.IQType.SET,
+                    id_="autoset"),
+                response=XMLStreamMock.Receive(
+                    stanza.IQ(
+                        payload=rfc6120.Bind(
+                            jid=bound_jid,
+                        ),
+                        type_=structs.IQType.RESULT,
+                        id_="autoset",
+                    )
+                )
+            )
+        ]))
+
+        run_coroutine(asyncio.sleep(0))
+
+        self.assertEqual(
+            bound_jid,
+            self.client.local_jid
+        )
+
+        self.assertEqual(
+            bound_jid.bare(),
+            self.client.stream.local_jid
+        )
+
         self.established_rec.assert_called_once_with()
 
     def test_stream_features_attribute(self):
@@ -2328,14 +2734,14 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
         self.client.stop()
         run_coroutine(asyncio.sleep(0))
 
-    def test_signals_fire_correctly_on_fail_after_established_sm_connection(self):
+    def test_signals_fire_correctly_on_fail_after_established_sm_connection(self):  # NOQA
         self.features[...] = nonza.StreamManagementFeature()
 
         self.client.backoff_start = timedelta(seconds=0)
         self.client.start()
 
         run_coroutine(self.xmlstream.run_test(
-            self.resource_binding+
+            self.resource_binding +
             self.sm_negotiation_exchange
         ))
 
@@ -2374,24 +2780,31 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
                 super().__init__(*args, **kwargs)
                 getattr(svc_init, type(self).__name__)(*args, **kwargs)
 
-        self.client.summon(Svc2)
+        svc2 = self.client.summon(Svc2)
 
         self.assertSequenceEqual(
+            svc_init.mock_calls,
             [
                 unittest.mock.call.Svc3(
                     self.client,
                     logger_base=logging.getLogger(
-                        "aioxmpp.node.AbstractClient"
-                    )
+                        "aioxmpp.node.Client"
+                    ),
+                    dependencies={},
                 ),
                 unittest.mock.call.Svc2(
                     self.client,
                     logger_base=logging.getLogger(
-                        "aioxmpp.node.AbstractClient"
-                    )
+                        "aioxmpp.node.Client"
+                    ),
+                    dependencies={Svc3: unittest.mock.ANY}
                 ),
             ],
-            svc_init.mock_calls
+        )
+
+        self.assertIsInstance(
+            svc2.dependencies[Svc3],
+            Svc3,
         )
 
         svc_init.mock_calls.clear()
@@ -2406,18 +2819,32 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
 
         svc_init.mock_calls.clear()
 
-        self.client.summon(Svc1)
+        svc1 = self.client.summon(Svc1)
 
         self.assertSequenceEqual(
             [
                 unittest.mock.call.Svc1(
                     self.client,
                     logger_base=logging.getLogger(
-                        "aioxmpp.node.AbstractClient"
-                    )
+                        "aioxmpp.node.Client"
+                    ),
+                    dependencies={
+                        Svc2: unittest.mock.ANY,
+                        Svc3: unittest.mock.ANY,
+                    }
                 ),
             ],
             svc_init.mock_calls
+        )
+
+        self.assertIs(
+            svc1.dependencies[Svc3],
+            svc2.dependencies[Svc3],
+        )
+
+        self.assertIs(
+            svc1.dependencies[Svc2],
+            svc2,
         )
 
     def test_call_before_stream_established(self):
@@ -2426,8 +2853,7 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
             iq = stanza.IQ(
                 type_=structs.IQType.SET,
             )
-            yield from self.client.stream.send_iq_and_wait_for_reply(
-                iq)
+            yield from self.client.stream.send(iq)
 
         self.client.before_stream_established.connect(coro)
 
@@ -2444,6 +2870,34 @@ class TestAbstractClient(xmltestutils.XMLTestCase):
                 )
             ),
         ]))
+
+    def test_connected(self):
+        with unittest.mock.patch("aioxmpp.node.UseConnected") as UseConnected:
+            result = self.client.connected()
+
+        UseConnected.assert_called_with(
+            self.client,
+            presence=aioxmpp.PresenceState(False),
+        )
+
+        self.assertEqual(result, UseConnected())
+
+    def test_connected_kwargs(self):
+        with unittest.mock.patch("aioxmpp.node.UseConnected") as UseConnected:
+            result = self.client.connected(
+                foo="bar",
+                fnord=10,
+                presence=aioxmpp.PresenceState(True),
+            )
+
+        UseConnected.assert_called_with(
+            self.client,
+            foo="bar",
+            fnord=10,
+            presence=aioxmpp.PresenceState(True),
+        )
+
+        self.assertEqual(result, UseConnected())
 
     def tearDown(self):
         for patch in self.patches:
@@ -2528,6 +2982,10 @@ class TestPresenceManagedClient(xmltestutils.XMLTestCase):
             )
         ]
 
+    def _set_stream_established(self):
+        run_coroutine(self.client.before_stream_established())
+        self.client.on_stream_established()
+
     def test_setup(self):
         self.assertEqual(
             structs.PresenceState(),
@@ -2537,17 +2995,17 @@ class TestPresenceManagedClient(xmltestutils.XMLTestCase):
     def test_change_presence_to_available(self):
         self.client.presence = structs.PresenceState(
             available=True,
-            show="chat")
+            show=structs.PresenceShow.CHAT)
 
         run_coroutine(self.xmlstream.run_test([
         ]+self.resource_binding+[
             XMLStreamMock.Send(
                 stanza.Presence(type_=structs.PresenceType.AVAILABLE,
-                                show="chat",
+                                show=structs.PresenceShow.CHAT,
                                 id_="autoset"),
                 response=XMLStreamMock.Receive(
                     stanza.Presence(type_=structs.PresenceType.AVAILABLE,
-                                    show="chat",
+                                    show=structs.PresenceShow.CHAT,
                                     id_="autoset")
                 )
             )
@@ -2558,17 +3016,17 @@ class TestPresenceManagedClient(xmltestutils.XMLTestCase):
     def test_change_presence_while_available(self):
         self.client.presence = structs.PresenceState(
             available=True,
-            show="chat")
+            show=structs.PresenceShow.CHAT)
 
         run_coroutine(self.xmlstream.run_test([
         ]+self.resource_binding+[
             XMLStreamMock.Send(
                 stanza.Presence(type_=structs.PresenceType.AVAILABLE,
-                                show="chat",
+                                show=structs.PresenceShow.CHAT,
                                 id_="autoset"),
                 response=XMLStreamMock.Receive(
                     stanza.Presence(type_=structs.PresenceType.AVAILABLE,
-                                    show="chat",
+                                    show=structs.PresenceShow.CHAT,
                                     id_="autoset")
                 )
             )
@@ -2578,16 +3036,16 @@ class TestPresenceManagedClient(xmltestutils.XMLTestCase):
 
         self.client.presence = structs.PresenceState(
             available=True,
-            show="away")
+            show=structs.PresenceShow.AWAY)
 
         run_coroutine(self.xmlstream.run_test([
             XMLStreamMock.Send(
                 stanza.Presence(type_=structs.PresenceType.AVAILABLE,
-                                show="away",
+                                show=structs.PresenceShow.AWAY,
                                 id_="autoset"),
                 response=XMLStreamMock.Receive(
                     stanza.Presence(type_=structs.PresenceType.AVAILABLE,
-                                    show="away",
+                                    show=structs.PresenceShow.AWAY,
                                     id_="autoset")
                 )
             )
@@ -2598,17 +3056,17 @@ class TestPresenceManagedClient(xmltestutils.XMLTestCase):
     def test_change_presence_to_unavailable(self):
         self.client.presence = structs.PresenceState(
             available=True,
-            show="chat")
+            show=structs.PresenceShow.CHAT)
 
         run_coroutine(self.xmlstream.run_test([
         ]+self.resource_binding+[
             XMLStreamMock.Send(
                 stanza.Presence(type_=structs.PresenceType.AVAILABLE,
-                                show="chat",
+                                show=structs.PresenceShow.CHAT,
                                 id_="autoset"),
                 response=XMLStreamMock.Receive(
                     stanza.Presence(type_=structs.PresenceType.AVAILABLE,
-                                    show="chat",
+                                    show=structs.PresenceShow.CHAT,
                                     id_="autoset")
                 )
             )
@@ -2618,6 +3076,14 @@ class TestPresenceManagedClient(xmltestutils.XMLTestCase):
 
         run_coroutine(self.xmlstream.run_test([
             XMLStreamMock.Close(),
+            # this is a race-condition of the test suite
+            # in a real stream, the Send would not happen as the stream
+            # changes state immediately and raises an exception from
+            # send_xso
+            XMLStreamMock.Send(
+                stanza.Presence(type_=structs.PresenceType.UNAVAILABLE,
+                                id_="autoset"),
+            ),
         ]))
 
         self.assertFalse(self.client.running)
@@ -2627,24 +3093,24 @@ class TestPresenceManagedClient(xmltestutils.XMLTestCase):
     def test_do_not_send_presence_twice_if_changed_while_establishing(self):
         self.client.presence = structs.PresenceState(
             available=True,
-            show="chat")
+            show=structs.PresenceShow.CHAT)
         run_coroutine(asyncio.sleep(0))
         self.assertTrue(self.client.running)
         self.assertFalse(self.client.established)
 
         self.client.presence = structs.PresenceState(
             available=True,
-            show="dnd")
+            show=structs.PresenceShow.DND)
 
         run_coroutine(self.xmlstream.run_test([
         ]+self.resource_binding+[
             XMLStreamMock.Send(
                 stanza.Presence(type_=structs.PresenceType.AVAILABLE,
-                                show="dnd",
+                                show=structs.PresenceShow.DND,
                                 id_="autoset"),
                 response=XMLStreamMock.Receive(
                     stanza.Presence(type_=structs.PresenceType.AVAILABLE,
-                                    show="dnd",
+                                    show=structs.PresenceShow.DND,
                                     id_="autoset")
                 )
             )
@@ -2673,17 +3139,17 @@ class TestPresenceManagedClient(xmltestutils.XMLTestCase):
     def test_re_establish_on_presence_rewrite_if_disconnected(self):
         self.client.presence = structs.PresenceState(
             available=True,
-            show="chat")
+            show=structs.PresenceShow.CHAT)
 
         run_coroutine(self.xmlstream.run_test([
         ]+self.resource_binding+[
             XMLStreamMock.Send(
                 stanza.Presence(type_=structs.PresenceType.AVAILABLE,
-                                show="chat",
+                                show=structs.PresenceShow.CHAT,
                                 id_="autoset"),
                 response=XMLStreamMock.Receive(
                     stanza.Presence(type_=structs.PresenceType.AVAILABLE,
-                                    show="chat",
+                                    show=structs.PresenceShow.CHAT,
                                     id_="autoset")
                 )
             ),
@@ -2702,17 +3168,19 @@ class TestPresenceManagedClient(xmltestutils.XMLTestCase):
             XMLStreamMock.Close()
         ]))
 
+        self.assertFalse(self.client.running)
+
         self.client.presence = self.client.presence
 
         run_coroutine(self.xmlstream.run_test([
         ]+self.resource_binding+[
             XMLStreamMock.Send(
                 stanza.Presence(type_=structs.PresenceType.AVAILABLE,
-                                show="chat",
+                                show=structs.PresenceShow.CHAT,
                                 id_="autoset"),
                 response=XMLStreamMock.Receive(
                     stanza.Presence(type_=structs.PresenceType.AVAILABLE,
-                                    show="chat",
+                                    show=structs.PresenceShow.CHAT,
                                     id_="autoset")
                 )
             ),
@@ -2733,11 +3201,12 @@ class TestPresenceManagedClient(xmltestutils.XMLTestCase):
         }
 
         expected = stanza.Presence(type_=structs.PresenceType.AVAILABLE,
-                                   show="chat",
+                                   show=structs.PresenceShow.CHAT,
                                    id_="autoset")
         expected.status.update(status_texts)
 
         base = unittest.mock.Mock()
+        base.stream.send = CoroutineMock()
         with contextlib.ExitStack() as stack:
             stack.enter_context(unittest.mock.patch.object(
                 self.client,
@@ -2754,17 +3223,17 @@ class TestPresenceManagedClient(xmltestutils.XMLTestCase):
             self.client.set_presence(
                 structs.PresenceState(
                     available=True,
-                    show="chat"),
+                    show=structs.PresenceShow.CHAT),
                 status=status_texts
             )
 
-            self.client.on_stream_established()
+            self._set_stream_established()
 
         self.assertSequenceEqual(
             base.mock_calls,
             [
                 unittest.mock.call.start(),
-                unittest.mock.call.stream.enqueue_stanza(unittest.mock.ANY)
+                unittest.mock.call.stream.send(unittest.mock.ANY)
             ]
         )
 
@@ -2781,11 +3250,12 @@ class TestPresenceManagedClient(xmltestutils.XMLTestCase):
 
     def test_set_presence_with_single_string(self):
         expected = stanza.Presence(type_=structs.PresenceType.AVAILABLE,
-                                   show="chat",
+                                   show=structs.PresenceShow.CHAT,
                                    id_="autoset")
         expected.status[None] = "foobar"
 
         base = unittest.mock.Mock()
+        base.stream.send = CoroutineMock()
         with contextlib.ExitStack() as stack:
             stack.enter_context(unittest.mock.patch.object(
                 self.client,
@@ -2802,17 +3272,17 @@ class TestPresenceManagedClient(xmltestutils.XMLTestCase):
             self.client.set_presence(
                 structs.PresenceState(
                     available=True,
-                    show="chat"),
+                    show=structs.PresenceShow.CHAT),
                 status="foobar"
             )
 
-            self.client.on_stream_established()
+            self._set_stream_established()
 
         self.assertSequenceEqual(
             base.mock_calls,
             [
                 unittest.mock.call.start(),
-                unittest.mock.call.stream.enqueue_stanza(unittest.mock.ANY)
+                unittest.mock.call.stream.send(unittest.mock.ANY)
             ]
         )
 
@@ -2827,18 +3297,14 @@ class TestPresenceManagedClient(xmltestutils.XMLTestCase):
 
         self.presence_sent_rec.assert_called_once_with()
 
-    def test_set_presence_is_robust_against_modification_of_the_argument(self):
-        status_texts = {
-            None: "generic",
-            structs.LanguageTag.fromstr("de"): "de",
-        }
-
+    def test_set_presence_through_server(self):
         expected = stanza.Presence(type_=structs.PresenceType.AVAILABLE,
-                                   show="chat",
+                                   show=structs.PresenceShow.CHAT,
                                    id_="autoset")
-        expected.status.update(status_texts)
+        expected.status[None] = "foobar"
 
         base = unittest.mock.Mock()
+        base.stream.send = CoroutineMock()
         with contextlib.ExitStack() as stack:
             stack.enter_context(unittest.mock.patch.object(
                 self.client,
@@ -2852,22 +3318,24 @@ class TestPresenceManagedClient(xmltestutils.XMLTestCase):
                 new=base.start
             ))
 
-            self.client.set_presence(
+            server = self.client.summon(aioxmpp.PresenceServer)
+
+            server.set_presence(
                 structs.PresenceState(
                     available=True,
-                    show="chat"),
-                status=status_texts
+                    show=structs.PresenceShow.CHAT),
+                status="foobar"
             )
 
-            del status_texts[None]
-
-            self.client.on_stream_established()
+            self._set_stream_established()
 
         self.assertSequenceEqual(
             base.mock_calls,
             [
                 unittest.mock.call.start(),
-                unittest.mock.call.stream.enqueue_stanza(unittest.mock.ANY)
+                unittest.mock.call.stream.send(
+                    unittest.mock.ANY
+                )
             ]
         )
 
@@ -2916,268 +3384,219 @@ class TestPresenceManagedClient(xmltestutils.XMLTestCase):
 
 class TestUseConnected(unittest.TestCase):
     def setUp(self):
-        self.client = unittest.mock.Mock()
-        self.client.presence = structs.PresenceState(False)
+        self.presence_server = unittest.mock.Mock()
+        self.presence_server.state = aioxmpp.PresenceState(False)
+        self.presence_server.status = {}
+        self.presence_server.priority = 0
+        self.client = make_connected_client()
         self.client.established = False
-        self.cm = node.UseConnected(self.client)
+        self.client.mock_services[aioxmpp.PresenceServer] = \
+            self.presence_server
+        self.client.established = False
+        self.client.running = False
+
+        self.cm = node.UseConnected(
+            self.client,
+            presence=aioxmpp.PresenceState(False),
+        )
 
     def tearDown(self):
-        del self.client
+        del self.cm
 
-    def test_init(self):
-        self.assertIsNone(self.cm.timeout)
-
-        cm = node.UseConnected(
-            self.client,
-            timeout=timedelta(seconds=0.1),
-            presence=structs.PresenceState(True, "away")
-        )
-
-        self.assertEqual(cm.timeout, timedelta(seconds=0.1))
-        self.assertEqual(cm.presence, structs.PresenceState(True, "away"))
-
-    def test_aenter_sets_presence(self):
-        self.assertEqual(self.client.presence, structs.PresenceState(False))
-
+    def test_aenter_listens_to_on_stream_established_to_detect_success(self):
         task = asyncio.async(self.cm.__aenter__())
-        run_coroutine(asyncio.sleep(0.01))
+        run_coroutine(asyncio.sleep(0.1))
 
-        self.assertEqual(self.client.presence, structs.PresenceState(True))
+        self.assertFalse(task.done(), task)
 
-        task.cancel()
+        self.client.on_stream_established()
 
-    def test_aenter_starts_client_directly_if_presence_is_unavailable(self):
-        self.client.running = False
+        self.assertEqual(run_coroutine(task), self.client.stream)
 
-        self.cm.presence = structs.PresenceState(False)
-
+    def test_aenter_listens_to_on_failure_to_detect_failure(self):
         task = asyncio.async(self.cm.__aenter__())
-        run_coroutine(asyncio.sleep(0.01))
+        run_coroutine(asyncio.sleep(0.1))
 
-        self.client.start.assert_called_with()
+        self.assertFalse(task.done(), task)
 
-        task.cancel()
+        exc = Exception()
 
-    def test_aenter_starts_client_after_setting_presence(self):
-        self.client.presence = unittest.mock.sentinel.foo
+        self.client.on_failure(exc)
 
-        self.client.running = False
-
-        presence_at_start = None
-
-        def check(*args, **kwargs):
-            nonlocal presence_at_start
-            presence_at_start = self.client.presence
-
-        self.cm.presence = structs.PresenceState(False)
-
-        self.client.start.side_effect = check
-
-        task = asyncio.async(self.cm.__aenter__())
-        run_coroutine(asyncio.sleep(0.01))
-
-        self.client.start.assert_called_with()
-
-        self.assertEqual(
-            presence_at_start,
-            structs.PresenceState(False),
-        )
-
-        task.cancel()
-
-    def test_aenter_sets_custom_presence(self):
-        pres = structs.PresenceState(True, "away")
-        self.cm.presence = pres
-
-        self.assertEqual(self.client.presence, structs.PresenceState(False))
-
-        task = asyncio.async(self.cm.__aenter__())
-        run_coroutine(asyncio.sleep(0.01))
-
-        self.assertIs(self.client.presence, pres)
-
-        task.cancel()
-
-    def test_aenter_succeeds_and_returns_StanzaStream_on_presence_sent(self):
-        task = asyncio.async(self.cm.__aenter__())
-        run_coroutine(asyncio.sleep(0.01))
-
-        self.assertFalse(task.done())
-
-        self.client.on_presence_sent.connect.assert_called_with(
-            unittest.mock.ANY,
-            self.client.on_presence_sent.AUTO_FUTURE,
-        )
-
-        _, (fut, _), _ = self.client.on_presence_sent.connect.mock_calls[0]
-
-        fut.set_result(None)
-
-        self.assertEqual(
-            run_coroutine(task),
-            self.client.stream
-        )
-
-    def test_aenter_re_raises_exception_from_on_failure(self):
-        task = asyncio.async(self.cm.__aenter__())
-        run_coroutine(asyncio.sleep(0.01))
-
-        self.assertFalse(task.done())
-
-        self.client.on_failure.connect.assert_called_with(
-            unittest.mock.ANY,
-            self.client.on_failure.AUTO_FUTURE,
-        )
-
-        _, (fut, _), _ = self.client.on_failure.connect.mock_calls[0]
-
-        class FooException(Exception):
-            pass
-
-        fut.set_exception(FooException())
-
-        with self.assertRaises(FooException):
+        with self.assertRaises(Exception) as ctx:
             run_coroutine(task)
 
-    def test_aenter_does_not_wait_if_established(self):
-        self.client.established = True
+        self.assertIs(ctx.exception, exc)
+
+    def test_aenter_calls_start_if_client_not_running(self):
+        task = asyncio.async(self.cm.__aenter__())
+        run_coroutine(asyncio.sleep(0.1))
+
+        self.client.start.assert_called_once_with()
+        self.client.stop.assert_not_called()
+
+        task.cancel()
+
+    def test_aenter_does_not_call_start_but_waits_if_not_established(self):
+        self.client.running = True
 
         task = asyncio.async(self.cm.__aenter__())
-        run_coroutine(asyncio.sleep(0.01))
+        run_coroutine(asyncio.sleep(0.1))
 
-        self.assertTrue(task.done())
+        self.client.start.assert_not_called()
+
+        self.assertFalse(task.done())
+
+        self.client.on_stream_established()
+
+        self.assertEqual(run_coroutine(task), self.client.stream)
+
+    def test_aenter_does_not_block_if_established(self):
+        self.client.running = True
+        self.client.established = True
 
         self.assertEqual(
-            run_coroutine(task),
-            self.client.stream
+            run_coroutine(self.cm.__aenter__()),
+            self.client.stream,
         )
 
-    def test_aenter_times_out(self):
-        self.cm.timeout = timedelta(seconds=0)
+    def test_aenter_raises_TimeoutError_on_timeout(self):
+        self.cm = node.UseConnected(
+            self.client,
+            presence=aioxmpp.PresenceState(False),
+            timeout=timedelta(seconds=0.01),
+        )
 
         with self.assertRaises(TimeoutError):
             run_coroutine(self.cm.__aenter__())
 
-    def test_aenter_cancels_futures_stops_stream_and_resets_presence_on_timeout(self):
-        self.cm.timeout = timedelta(seconds=0.1)
+        self.client.start.assert_called_once_with()
+        self.client.stop.assert_called_once_with()
 
+    def test_aenter_does_not_set_presence_by_default(self):
         task = asyncio.async(self.cm.__aenter__())
-        run_coroutine(asyncio.sleep(0.01))
+        run_coroutine(asyncio.sleep(0.1))
 
-        _, (fut1, _), _ = self.client.on_presence_sent.connect.mock_calls[0]
-        _, (fut2, _), _ = self.client.on_failure.connect.mock_calls[0]
-
-        self.assertEqual(fut1, fut2)
-
-        with self.assertRaises(TimeoutError):
-            run_coroutine(task)
-
-        self.assertTrue(fut1.cancelled())
-        self.assertTrue(fut2.cancelled())
-
-        self.client.stop.assert_called_with()
-        self.assertEqual(self.client.presence, structs.PresenceState(False))
-
-    def test_aexit_sets_presence_to_unavailable(self):
-        self.client.established = True
-        self.client.presence = structs.PresenceState(True)
-
-        task = asyncio.async(self.cm.__aexit__(None, None, None))
-        run_coroutine(asyncio.sleep(0.01))
-
-        self.assertEqual(self.client.presence, structs.PresenceState(False))
+        self.presence_server.set_presence.assert_not_called()
 
         task.cancel()
 
-    def test_aexit_waits_for_stopped_or_failed(self):
+    def test_aenter_sets_presence_if_not_unavailable(self):
+        p = unittest.mock.Mock(spec=aioxmpp.PresenceState)
+        p.available = True
+
+        self.cm = node.UseConnected(
+            self.client,
+            presence=p,
+        )
+
+        task = asyncio.async(self.cm.__aenter__())
+        run_coroutine(asyncio.sleep(0.1))
+
+        self.presence_server.set_presence.assert_called_once_with(p)
+
+        task.cancel()
+
+    def test_aenter_sets_presence_on_established_stream(self):
+        p = unittest.mock.Mock(spec=aioxmpp.PresenceState)
+        p.available = True
+
         self.client.established = True
-        self.client.presence = structs.PresenceState(True)
+        self.client.running = True
+
+        self.cm = node.UseConnected(
+            self.client,
+            presence=p,
+        )
+
+        task = asyncio.async(self.cm.__aenter__())
+        run_coroutine(asyncio.sleep(0.1))
+
+        self.presence_server.set_presence.assert_called_once_with(p)
+
+        task.cancel()
+
+    def test_aexit_stops_client_waits_for_on_stopped(self):
+        self.client.established = True
+        self.client.running = True
 
         task = asyncio.async(self.cm.__aexit__(None, None, None))
         run_coroutine(asyncio.sleep(0.01))
 
-        self.client.on_stopped.connect.assert_called_with(
-            unittest.mock.ANY,
-            self.client.on_stopped.AUTO_FUTURE,
-        )
+        self.assertFalse(task.done(), task)
+        self.client.stop.assert_called_once_with()
 
-        self.client.on_failure.connect.assert_called_with(
-            unittest.mock.ANY,
-            self.client.on_failure.AUTO_FUTURE,
-        )
-
-        _, (fut1, _), _ = self.client.on_stopped.connect.mock_calls[0]
-        _, (fut2, _), _ = self.client.on_failure.connect.mock_calls[0]
-
-        self.assertEqual(fut1, fut2)
-
-        fut1.set_result(None)
+        self.client.on_stopped()
 
         self.assertFalse(run_coroutine(task))
 
-    def test_aexit_re_raises_failure(self):
+    def test_aexit_stops_client_waits_for_on_failure_and_swallows_exception(self):  # NOQA
         self.client.established = True
-        self.client.presence = structs.PresenceState(True)
+        self.client.running = True
 
         task = asyncio.async(self.cm.__aexit__(None, None, None))
         run_coroutine(asyncio.sleep(0.01))
 
-        self.client.on_stopped.connect.assert_called_with(
-            unittest.mock.ANY,
-            self.client.on_stopped.AUTO_FUTURE,
-        )
+        self.assertFalse(task.done(), task)
+        self.client.stop.assert_called_once_with()
 
-        self.client.on_failure.connect.assert_called_with(
-            unittest.mock.ANY,
-            self.client.on_failure.AUTO_FUTURE,
-        )
-
-        _, (fut1, _), _ = self.client.on_stopped.connect.mock_calls[0]
-        _, (fut2, _), _ = self.client.on_failure.connect.mock_calls[0]
-
-        class FooException(Exception):
-            pass
-
-        fut1.set_exception(FooException())
-
-        with self.assertRaises(FooException):
-            run_coroutine(task)
-
-    def test_aexit_swallows_failure_in_exception_context(self):
-        self.client.established = True
-        self.client.presence = structs.PresenceState(True)
-
-        task = asyncio.async(self.cm.__aexit__(
-            unittest.mock.sentinel.exc_type,
-            unittest.mock.sentinel.exc_value,
-            unittest.mock.sentinel.exc_traceback,
-        ))
-        run_coroutine(asyncio.sleep(0.01))
-
-        self.client.on_stopped.connect.assert_called_with(
-            unittest.mock.ANY,
-            self.client.on_stopped.AUTO_FUTURE,
-        )
-
-        self.client.on_failure.connect.assert_called_with(
-            unittest.mock.ANY,
-            self.client.on_failure.AUTO_FUTURE,
-        )
-
-        _, (fut1, _), _ = self.client.on_stopped.connect.mock_calls[0]
-        _, (fut2, _), _ = self.client.on_failure.connect.mock_calls[0]
-
-        class FooException(Exception):
-            pass
-
-        fut1.set_exception(FooException())
+        self.client.on_failure(Exception())
 
         self.assertFalse(run_coroutine(task))
 
-    def test_aexit_does_not_wait_if_not_established(self):
-        self.client.established = False
-        self.client.presence = structs.PresenceState(True)
+    def test_aexit_does_not_wait_if_client_is_not_running(self):
+        run_coroutine(self.cm.__aexit__(None, None, None))
 
-        self.assertFalse(run_coroutine(self.cm.__aexit__(None, None, None)))
+    def test_construction_with_available_presence_warns(self):
+        with self.assertWarnsRegex(
+                DeprecationWarning,
+                r"using an available presence state for UseConnected is "
+                r"deprecated and will raise ValueError as of 1.0"):
+            node.UseConnected(self.client)
 
-        self.assertEqual(self.client.presence, structs.PresenceState(False))
+    def test_construction_with_unavailable_presence_does_not_warn(self):
+        with unittest.mock.patch("warnings.warn") as warn:
+            node.UseConnected(
+                self.client,
+                presence=aioxmpp.PresenceState(False)
+            )
+
+        warn.assert_not_called()
+
+    def test_access_on_timeout_attribute_warns(self):
+        with self.assertWarnsRegex(
+                DeprecationWarning,
+                r"the timeout attribute is deprecated and will be removed "
+                r"in 1.0"):
+            self.assertIsNone(self.cm.timeout)
+
+        with self.assertWarnsRegex(
+                DeprecationWarning,
+                r"the timeout attribute is deprecated and will be removed "
+                r"in 1.0"):
+            self.cm.timeout = timedelta(seconds=0.01)
+
+        with self.assertWarns(DeprecationWarning):
+            self.assertEqual(self.cm.timeout, timedelta(seconds=0.01))
+
+    def test_access_on_presence_attribute_warns(self):
+        with self.assertWarnsRegex(
+                DeprecationWarning,
+                r"the presence attribute is deprecated and will be removed "
+                r"in 1.0"):
+            self.assertEqual(
+                self.cm.presence,
+                aioxmpp.PresenceState(False),
+            )
+
+        with self.assertWarnsRegex(
+                DeprecationWarning,
+                r"the presence attribute is deprecated and will be removed "
+                r"in 1.0"):
+            self.cm.presence = aioxmpp.PresenceState(True)
+
+        with self.assertWarns(DeprecationWarning):
+            self.assertEqual(
+                self.cm.presence,
+                aioxmpp.PresenceState(True)
+            )

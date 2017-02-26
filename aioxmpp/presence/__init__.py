@@ -12,7 +12,7 @@
 # This program is distributed in the hope that it will be useful, but
 # WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-# General Public License for more details.
+# Lesser General Public License for more details.
 #
 # You should have received a copy of the GNU Lesser General Public
 # License along with this program.  If not, see
@@ -23,13 +23,28 @@
 :mod:`~aioxmpp.presence` --- Peer presence bookkeeping
 ######################################################
 
-This module provides a :class:`Service` to track the presence of peers, no
-matter whether they are in the roster or not.
+This module provides a :class:`.PresenceClient` service to track the presence
+of peers, no matter whether they are in the roster or not.
 
 .. versionadded:: 0.4
 
-.. autoclass:: Service
+.. currentmodule:: aioxmpp
+
+.. autoclass:: PresenceClient
+
+.. autoclass:: PresenceServer
+
+.. currentmodule:: aioxmpp.presence
+
+.. class:: Service
+
+   Alias of :class:`.PresenceClient`.
+
+   .. deprecated:: 0.8
+
+      The alias will be removed in 1.0.
 
 """
 
-from .service import Service  # NOQA
+from .service import PresenceClient, PresenceServer  # NOQA
+Service = PresenceClient  # NOQA

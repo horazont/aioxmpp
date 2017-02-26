@@ -12,7 +12,7 @@
 # This program is distributed in the hope that it will be useful, but
 # WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-# General Public License for more details.
+# Lesser General Public License for more details.
 #
 # You should have received a copy of the GNU Lesser General Public
 # License along with this program.  If not, see
@@ -32,9 +32,21 @@ Using Publish-Subscribe
 =======================
 
 To start using PubSub services in your application, you have to load the
-:class:`Service` into the client, using :meth:`~.node.AbstractClient.summon`.
+:class:`.PubSubClient` into the client, using :meth:`~.node.Client.summon`.
 
-.. autoclass:: Service
+.. currentmodule:: aioxmpp
+
+.. autoclass:: PubSubClient
+
+.. currentmodule:: aioxmpp.pubsub
+
+.. class:: Service
+
+   Alias of :class:`.PubSubClient`.
+
+   .. deprecated:: 0.8
+
+      The alias will be removed in 1.0.
 
 .. currentmodule:: aioxmpp.pubsub.xso
 
@@ -173,4 +185,5 @@ below:
 
 """
 
-from .service import Service
+from .service import PubSubClient  # NOQA
+Service = PubSubClient

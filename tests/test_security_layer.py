@@ -12,7 +12,7 @@
 # This program is distributed in the hope that it will be useful, but
 # WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-# General Public License for more details.
+# Lesser General Public License for more details.
 #
 # You should have received a copy of the GNU Lesser General Public
 # License along with this program.  If not, see
@@ -581,6 +581,7 @@ class TestHookablePKIXCertificateVerifier(unittest.TestCase):
             (19, None),
             (18, 0),
             (27, 0),
+            (21, 0),
         ]
 
     def test_is_certificate_verifier(self):
@@ -595,7 +596,8 @@ class TestHookablePKIXCertificateVerifier(unittest.TestCase):
             self.verifier.verify_recorded(
                 self.x509,
                 s
-            )
+            ),
+            s
         )
 
         self.assertSequenceEqual([], self.quick_check.mock_calls)
@@ -713,6 +715,69 @@ class TestHookablePKIXCertificateVerifier(unittest.TestCase):
                 self.x509,
                 0, 0,
                 True)
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call.get_extra_info("server_hostname"),
+            ],
+            self.transport.mock_calls
+        )
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(self.x509, self.transport.get_extra_info()),
+            ],
+            check_x509_hostname.mock_calls
+        )
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(self.x509, errors)
+            ],
+            verify_recorded.mock_calls
+        )
+
+        self.assertEqual(
+            verify_recorded(),
+            result
+        )
+
+        self.assertEqual(
+            check_x509_hostname(),
+            self.verifier.hostname_matches
+        )
+
+        self.assertIs(
+            self.x509,
+            self.verifier.leaf_x509
+        )
+
+    def test_verify_callback_treats_errno_21_on_leaf_as_last(self):
+        errors = set()
+        self.verifier.recorded_errors = errors
+
+        self.assertFalse(self.verifier.hostname_matches)
+        self.assertIsNone(self.verifier.leaf_x509)
+
+        with contextlib.ExitStack() as stack:
+            verify_recorded = stack.enter_context(
+                unittest.mock.patch.object(self.verifier, "verify_recorded")
+            )
+
+            check_x509_hostname = stack.enter_context(unittest.mock.patch(
+                "aioxmpp.security_layer.check_x509_hostname"
+            ))
+
+            result = self.verifier.verify_callback(
+                None,
+                self.x509,
+                21, 0,
+                True)
+
+        self.assertIn(
+            (self.x509, 21, 0),
+            self.verifier.recorded_errors,
+        )
 
         self.assertSequenceEqual(
             [
@@ -1771,6 +1836,125 @@ class TestPasswordSASLProvider(xmltestutils.XMLTestCase):
         aiosasl._system_random = random.SystemRandom()
 
 
+@unittest.skipUnless(hasattr(aiosasl, "ANONYMOUS"),
+                     "version of aiosasl does not support ANONYMOUS")
+class TestAnonymousSASLProvider(unittest.TestCase):
+    def setUp(self):
+        self.token = unittest.mock.sentinel.trace_token
+        self.sp = security_layer.AnonymousSASLProvider(
+            self.token
+        )
+
+        self.transport = object()
+        self.loop = asyncio.get_event_loop()
+
+        self.xmlstream = XMLStreamMock(self, loop=self.loop)
+        self.xmlstream.transport = self.transport
+
+        self.features = nonza.StreamFeatures()
+        self.mechanisms = security_layer.SASLMechanisms()
+        self.features[...] = self.mechanisms
+
+    def tearDown(self):
+        del self.sp
+        del self.token
+        del self.transport
+        del self.xmlstream
+        del self.features
+        del self.mechanisms
+
+    def test_return_false_if__find_supported_returns_None(self):
+        with contextlib.ExitStack() as stack:
+            _find_supported = stack.enter_context(
+                unittest.mock.patch.object(self.sp, "_find_supported")
+            )
+            _find_supported.return_value = None, None
+
+            _execute = stack.enter_context(
+                unittest.mock.patch.object(
+                    self.sp,
+                    "_execute",
+                    new=CoroutineMock()
+                )
+            )
+            _execute.return_value = unittest.mock.sentinel.execute_result
+
+            result = run_coroutine(self.sp.execute(
+                unittest.mock.sentinel.client_jid,
+                unittest.mock.sentinel.features,
+                unittest.mock.sentinel.xmlstream,
+                unittest.mock.sentinel.tls_transport,
+            ))
+
+        self.assertFalse(_execute.mock_calls)
+
+        self.assertFalse(result)
+
+        _find_supported.assert_called_with(
+            unittest.mock.sentinel.features,
+            [aiosasl.ANONYMOUS],
+        )
+
+    def test_call__execute_and_return_result_if__find_supported_passes(self):
+        with contextlib.ExitStack() as stack:
+            anon_mechanism = stack.enter_context(
+                unittest.mock.patch("aiosasl.ANONYMOUS"),
+            )
+            anon_mechanism.return_value = unittest.mock.sentinel.anon
+
+            _find_supported = stack.enter_context(
+                unittest.mock.patch.object(self.sp, "_find_supported")
+            )
+            _find_supported.return_value = (
+                aiosasl.ANONYMOUS, unittest.mock.sentinel.token
+            )
+
+            _execute = stack.enter_context(
+                unittest.mock.patch.object(
+                    self.sp,
+                    "_execute",
+                    new=CoroutineMock()
+                )
+            )
+            _execute.return_value = unittest.mock.sentinel.execute_result
+
+            SASLXMPPInterface = stack.enter_context(
+                unittest.mock.patch("aioxmpp.sasl.SASLXMPPInterface"),
+            )
+            SASLXMPPInterface.return_value = unittest.mock.sentinel.intf
+
+            result = run_coroutine(self.sp.execute(
+                unittest.mock.sentinel.client_jid,
+                unittest.mock.sentinel.features,
+                unittest.mock.sentinel.xmlstream,
+                unittest.mock.sentinel.tls_transport,
+            ))
+
+        _find_supported.assert_called_once_with(
+            unittest.mock.sentinel.features,
+            [anon_mechanism],
+        )
+
+        SASLXMPPInterface.assert_called_once_with(
+            unittest.mock.sentinel.xmlstream,
+        )
+
+        anon_mechanism.assert_called_once_with(
+            self.token,
+        )
+
+        _execute.assert_called_with(
+            unittest.mock.sentinel.intf,
+            unittest.mock.sentinel.anon,
+            unittest.mock.sentinel.token,
+        )
+
+        self.assertEqual(
+            result,
+            unittest.mock.sentinel.execute_result,
+        )
+
+
 class Testnegotiate_sasl(xmltestutils.XMLTestCase):
     def setUp(self):
         self.client_jid = structs.JID.fromstr("foo@bar.example")
@@ -2531,3 +2715,218 @@ class Testmake(unittest.TestCase):
             result,
             SecurityLayer(),
         )
+
+    def test_anonymous_and_password_provider(self):
+        with contextlib.ExitStack() as stack:
+            SecurityLayer = stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.security_layer.SecurityLayer"
+                )
+            )
+
+            PasswordSASLProvider = stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.security_layer.PasswordSASLProvider"
+                )
+            )
+
+            AnonymousSASLProvider = stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.security_layer.AnonymousSASLProvider"
+                )
+            )
+
+            PKIXCertificateVerifier = stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.security_layer.PKIXCertificateVerifier"
+                )
+            )
+
+            default_ssl_context = stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.security_layer.default_ssl_context"
+                )
+            )
+
+            result = security_layer.make(
+                unittest.mock.sentinel.password_provider,
+                anonymous=unittest.mock.sentinel.token,
+            )
+
+        PasswordSASLProvider.assert_called_once_with(
+            unittest.mock.sentinel.password_provider,
+        )
+
+        AnonymousSASLProvider.assert_called_once_with(
+            unittest.mock.sentinel.token,
+        )
+
+        SecurityLayer.assert_called_with(
+            default_ssl_context,
+            PKIXCertificateVerifier,
+            True,
+            (
+                AnonymousSASLProvider(),
+                PasswordSASLProvider(),
+            )
+        )
+
+        self.assertEqual(
+            result,
+            SecurityLayer(),
+        )
+
+    def test_anonymous_without_password_provider(self):
+        with contextlib.ExitStack() as stack:
+            SecurityLayer = stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.security_layer.SecurityLayer"
+                )
+            )
+
+            PasswordSASLProvider = stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.security_layer.PasswordSASLProvider"
+                )
+            )
+
+            AnonymousSASLProvider = stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.security_layer.AnonymousSASLProvider"
+                )
+            )
+
+            PKIXCertificateVerifier = stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.security_layer.PKIXCertificateVerifier"
+                )
+            )
+
+            default_ssl_context = stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.security_layer.default_ssl_context"
+                )
+            )
+
+            result = security_layer.make(
+                None,
+                anonymous=unittest.mock.sentinel.token,
+            )
+
+        PasswordSASLProvider.assert_not_called()
+
+        AnonymousSASLProvider.assert_called_once_with(
+            unittest.mock.sentinel.token,
+        )
+
+        SecurityLayer.assert_called_with(
+            default_ssl_context,
+            PKIXCertificateVerifier,
+            True,
+            (
+                AnonymousSASLProvider(),
+            )
+        )
+
+        self.assertEqual(
+            result,
+            SecurityLayer(),
+        )
+
+    def test_anonymous_with_empty_string(self):
+        with contextlib.ExitStack() as stack:
+            SecurityLayer = stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.security_layer.SecurityLayer"
+                )
+            )
+
+            PasswordSASLProvider = stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.security_layer.PasswordSASLProvider"
+                )
+            )
+
+            AnonymousSASLProvider = stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.security_layer.AnonymousSASLProvider"
+                )
+            )
+
+            PKIXCertificateVerifier = stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.security_layer.PKIXCertificateVerifier"
+                )
+            )
+
+            default_ssl_context = stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.security_layer.default_ssl_context"
+                )
+            )
+
+            result = security_layer.make(
+                None,
+                anonymous="",
+            )
+
+        PasswordSASLProvider.assert_not_called()
+
+        AnonymousSASLProvider.assert_called_once_with(
+            "",
+        )
+
+        SecurityLayer.assert_called_with(
+            default_ssl_context,
+            PKIXCertificateVerifier,
+            True,
+            (
+                AnonymousSASLProvider(),
+            )
+        )
+
+        self.assertEqual(
+            result,
+            SecurityLayer(),
+        )
+
+    def test_anonymous_without_AnonymousSASLProvider(self):
+        with contextlib.ExitStack() as stack:
+            SecurityLayer = stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.security_layer.SecurityLayer"
+                )
+            )
+
+            PasswordSASLProvider = stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.security_layer.PasswordSASLProvider"
+                )
+            )
+
+            stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.security_layer.AnonymousSASLProvider",
+                    new=None
+                )
+            )
+
+            PKIXCertificateVerifier = stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.security_layer.PKIXCertificateVerifier"
+                )
+            )
+
+            default_ssl_context = stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.security_layer.default_ssl_context"
+                )
+            )
+
+            with self.assertRaisesRegex(
+                    RuntimeError,
+                    r"aiosasl does not support ANONYMOUS, please upgrade"):
+                security_layer.make(
+                    None,
+                    anonymous="",
+                )

@@ -12,7 +12,7 @@
 # This program is distributed in the hope that it will be useful, but
 # WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-# General Public License for more details.
+# Lesser General Public License for more details.
 #
 # You should have received a copy of the GNU Lesser General Public
 # License along with this program.  If not, see
@@ -927,7 +927,7 @@ class TestXMLStreamClass(unittest.TestCase):
         )
 
     def test_call_error_handler_on_broken_attr(self):
-        class Cls(metaclass=xso_model.XMLStreamClass):
+        class Cls(xso.XSO):
             TAG = "foo"
 
             attr = xso.Attr(
@@ -960,7 +960,7 @@ class TestXMLStreamClass(unittest.TestCase):
         )
 
     def test_error_handler_on_broken_attr_can_suppress(self):
-        class Cls(metaclass=xso_model.XMLStreamClass):
+        class Cls(xso.XSO):
             TAG = "foo"
 
             attr = xso.Attr(
@@ -1084,6 +1084,89 @@ class TestXMLStreamClass(unittest.TestCase):
             ],
             missing.mock_calls
         )
+
+    def test_mark_attributes_as_incomplete_in_attribute_error_handling(
+            self):
+        class Cls(xso.XSO):
+            TAG = "foo"
+
+            foo = xso.Attr("foo", type_=xso.Integer())
+            bar = xso.Attr("bar")
+
+        Cls.xso_error_handler = unittest.mock.MagicMock()
+        Cls.xso_error_handler.return_value = True
+
+        gen = Cls.parse_events((None, "foo", {(None, "foo"): "10x"}), self.ctx)
+        next(gen)
+        with self.assertRaises(StopIteration) as ctx:
+            gen.send(("end", ))
+
+        obj = ctx.exception.value
+
+        with self.assertRaisesRegex(
+                AttributeError,
+                "attribute value is incomplete"):
+            obj.foo
+
+        with self.assertRaisesRegex(
+                AttributeError,
+                "attribute value is incomplete"):
+            obj.bar
+
+    def test_do_not_mark_parsed_attributes_as_incomplete(self):
+        class Cls(xso.XSO):
+            TAG = "foo"
+
+            foo = xso.Attr("foo", type_=xso.Integer())
+            bar = xso.Attr("bar")
+
+        Cls.xso_error_handler = unittest.mock.MagicMock()
+        Cls.xso_error_handler.return_value = True
+
+        gen = Cls.parse_events((None, "foo", collections.OrderedDict([
+            ((None, "bar"), "fnord"),
+            ((None, "foo"), "x")
+        ])), self.ctx)
+        next(gen)
+        with self.assertRaises(StopIteration) as ctx:
+            gen.send(("end", ))
+
+        obj = ctx.exception.value
+
+        with self.assertRaisesRegex(
+                AttributeError,
+                "attribute value is incomplete"):
+            obj.foo
+
+        self.assertEqual(obj.bar, "fnord")
+
+    def test_do_not_mark_attributes_as_incomplete_in_missing_attribute_handling(
+            self):
+        class Cls(xso.XSO):
+            TAG = "foo"
+
+            foo = xso.Attr("foo")
+            bar = xso.Attr("bar")
+
+        Cls.xso_error_handler = unittest.mock.MagicMock()
+        Cls.xso_error_handler.return_value = True
+
+        gen = Cls.parse_events((None, "foo", {}), self.ctx)
+        next(gen)
+        with self.assertRaises(StopIteration) as ctx:
+            gen.send(("end", ))
+
+        obj = ctx.exception.value
+
+        with self.assertRaisesRegex(
+                AttributeError,
+                "attribute is unset"):
+            obj.foo
+
+        with self.assertRaisesRegex(
+                AttributeError,
+                "attribute is unset"):
+            obj.bar
 
     def test_lang_propagation_from_context(self):
         class Bar(xso.XSO):
@@ -2289,6 +2372,18 @@ class Test_PropBase(unittest.TestCase):
             BoundDescriptor(),
         )
 
+    def test_mark_incomplete(self):
+        self.Cls.prop.mark_incomplete(self.obj)
+        with self.assertRaisesRegex(
+                AttributeError,
+                "attribute value is incomplete"):
+            self.obj.prop
+
+    def test_mark_incomplete_is_resolved_after_write(self):
+        self.Cls.prop.mark_incomplete(self.obj)
+        self.obj.prop = "foo"
+        self.assertEqual(self.obj.prop, "foo")
+
     def test_validator_recv(self):
         validator = unittest.mock.MagicMock()
         instance = make_instance_mock()
@@ -2485,15 +2580,18 @@ class Test_TypedPropBase(unittest.TestCase):
             instance._xso_contents
         )
 
-    def test_do_not_coerce_None(self):
+    def test_do_not_coerce_default(self):
         type_ = unittest.mock.MagicMock()
         instance = make_instance_mock()
 
         prop = xso_model._TypedPropBase(
-            default=None,
+            default=unittest.mock.sentinel.foo,
             type_=type_)
 
-        prop._set_from_code(instance, None)
+        prop._set_from_code(
+            instance,
+            unittest.mock.sentinel.foo
+        )
 
         self.assertSequenceEqual(
             [
@@ -2503,7 +2601,7 @@ class Test_TypedPropBase(unittest.TestCase):
 
         self.assertDictEqual(
             {
-                prop: None
+                prop: unittest.mock.sentinel.foo
             },
             instance._xso_contents
         )
@@ -3063,7 +3161,7 @@ class TestCollector(XMLTestCase):
 class TestAttr(XMLTestCase):
     def test_rejects_required_kwarg(self):
         with self.assertRaises(TypeError):
-            prop = xso.Attr("foo", required=False)
+            xso.Attr("foo", required=False)
 
     def test_default_defaults_to_no_default(self):
         prop = xso.Attr("foo")
@@ -3152,7 +3250,6 @@ class TestAttr(XMLTestCase):
             {
             },
             d)
-
 
     def test_validates(self):
         validator = unittest.mock.MagicMock()

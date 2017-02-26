@@ -12,7 +12,7 @@
 # This program is distributed in the hope that it will be useful, but
 # WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-# General Public License for more details.
+# Lesser General Public License for more details.
 #
 # You should have received a copy of the GNU Lesser General Public
 # License along with this program.  If not, see
@@ -22,8 +22,6 @@
 import asyncio
 import collections
 import concurrent.futures
-import contextlib
-import functools
 import random
 import unittest
 import unittest.mock
@@ -40,6 +38,9 @@ from aioxmpp.testutils import (
 
 
 class Testthreadlocal_resolver_instance(unittest.TestCase):
+    def tearDown(self):
+        network.reconfigure_resolver()
+
     def test_get_resolver_returns_Resolver_instance(self):
         self.assertIsInstance(
             network.get_resolver(),
@@ -59,7 +60,7 @@ class Testthreadlocal_resolver_instance(unittest.TestCase):
         )
 
     def test_get_resolver_is_thread_local(self):
-        with concurrent.futures.ThreadPoolExecutor() as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
             fut = executor.submit(network.get_resolver)
             done, waiting = concurrent.futures.wait([fut])
             self.assertSetEqual(done, {fut})

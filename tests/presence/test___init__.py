@@ -12,7 +12,7 @@
 # This program is distributed in the hope that it will be useful, but
 # WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-# General Public License for more details.
+# Lesser General Public License for more details.
 #
 # You should have received a copy of the GNU Lesser General Public
 # License along with this program.  If not, see
@@ -21,10 +21,17 @@
 ########################################################################
 import unittest
 
+import aioxmpp
 import aioxmpp.presence as presence
 import aioxmpp.presence.service as presence_service
 
 
 class TestExports(unittest.TestCase):
     def test_Service(self):
-        self.assertIs(presence.Service, presence_service.Service)
+        self.assertIs(presence.Service, presence_service.PresenceClient)
+
+    def test_RosterClient(self):
+        self.assertIs(presence.PresenceClient,
+                      presence_service.PresenceClient)
+        self.assertIs(aioxmpp.PresenceClient,
+                      presence_service.PresenceClient)

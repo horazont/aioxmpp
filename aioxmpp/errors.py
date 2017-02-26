@@ -12,7 +12,7 @@
 # This program is distributed in the hope that it will be useful, but
 # WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-# General Public License for more details.
+# Lesser General Public License for more details.
 #
 # You should have received a copy of the GNU Lesser General Public
 # License along with this program.  If not, see
@@ -88,7 +88,9 @@ def format_error_text(
         application_defined_condition=None):
     error_tag = xso.tag_to_str(condition)
     if application_defined_condition is not None:
-        error_tag += "/{}".format(application_defined_condition.tag)
+        error_tag += "/{}".format(
+            xso.tag_to_str(application_defined_condition.TAG)
+        )
     if text:
         error_tag += " ({!r})".format(text)
     return error_tag

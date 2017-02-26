@@ -12,7 +12,7 @@
 # This program is distributed in the hope that it will be useful, but
 # WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-# General Public License for more details.
+# Lesser General Public License for more details.
 #
 # You should have received a copy of the GNU Lesser General Public
 # License along with this program.  If not, see
@@ -46,6 +46,8 @@ Jabber IDs
 
 Presence
 ========
+
+.. autoclass:: PresenceShow
 
 .. autoclass:: PresenceState
 
@@ -767,6 +769,109 @@ class JID(collections.namedtuple("JID", ["localpart", "domain", "resource"])):
 
 
 @functools.total_ordering
+class PresenceShow(CompatibilityMixin, enum.Enum):
+    """
+    Enumeration to support the ``show`` element of presence stanzas.
+
+    The enumeration members support total ordering. The order is defined by
+    relevance and is the following (from lesser to greater): :attr:`XA`,
+    :attr:`AWAY`, :attr:`NONE`, :attr:`CHAT`, :attr:`DND`. The order is
+    intended to be used to extract the most relevant resource e.g. in a roster.
+
+    .. versionadded:: 0.8
+
+    .. attribute:: XA
+       :annotation: = "xa"
+
+       .. epigraph::
+
+          The entity or resource is away for an extended period (xa = "eXtended
+          Away").
+
+          -- :rfc:`6121`, Section 4.7.2.1
+
+    .. attribute:: EXTENDED_AWAY
+       :annotation: = "xa"
+
+       Alias to :attr:`XA`.
+
+    .. attribute:: AWAY
+       :annotation: = "away"
+
+       .. epigraph::
+
+          The entity or resource is temporarily away.
+
+          -- :rfc:`6121`, Section 4.7.2.1
+
+    .. attribute:: NONE
+       :annotation: = None
+
+       Signifies absence of the ``show`` element.
+
+    .. attribute:: PLAIN
+       :annotation: = None
+
+       Alias to :attr:`NONE`.
+
+    .. attribute:: CHAT
+       :annotation: = "chat"
+
+       .. epigraph::
+
+          The entity or resource is actively interested in chatting.
+
+          -- :rfc:`6121`, Section 4.7.2.1
+
+    .. attribute:: FREE_FOR_CHAT
+       :annotation: = "chat"
+
+       Alias to :attr:`CHAT`.
+
+    .. attribute:: DND
+       :annotation: = "dnd"
+
+       .. epigraph::
+
+          The entity or resource is busy (dnd = "Do Not Disturb").
+
+          -- :rfc:`6121`, Section 4.7.2.1
+
+    .. attribute:: DO_NOT_DISTURB
+       :annotation: = "dnd"
+
+       Alias to :attr:`DND`.
+
+    """
+    XA = "xa"
+    EXTENDED_AWAY = "xa"
+    AWAY = "away"
+    NONE = None
+    PLAIN = None
+    CHAT = "chat"
+    FREE_FOR_CHAT = "chat"
+    DND = "dnd"
+    DO_NOT_DISTURB = "dnd"
+
+    def __lt__(self, other):
+        try:
+            w1 = self._WEIGHTS[self]
+            w2 = self._WEIGHTS[other]
+        except KeyError:
+            return NotImplemented
+        return w1 < w2
+
+
+PresenceShow._WEIGHTS = {
+    PresenceShow.XA: -2,
+    PresenceShow.AWAY: -1,
+    PresenceShow.NONE: 0,
+    PresenceShow.CHAT: 1,
+    PresenceShow.DND: 2,
+}
+
+
+@functools.total_ordering
 class PresenceState:
     """
     Hold a presence state of an XMPP resource, as defined by the presence
@@ -799,20 +904,25 @@ class PresenceState:
 
     """
 
-    SHOW_VALUES = ["dnd", "xa", "away", None, "chat"]
-    SHOW_VALUE_WEIGHT = {
-        value: i
-        for i, value in enumerate(SHOW_VALUES)
-    }
-
     __slots__ = ["_available", "_show"]
 
-    def __init__(self, available=False, show=None):
+    def __init__(self, available=False, show=PresenceShow.NONE):
         super().__init__()
-        if not available and show:
+        if not available and show != PresenceShow.NONE:
             raise ValueError("Unavailable state cannot have show value")
-        if show not in PresenceState.SHOW_VALUES:
-            raise ValueError("Not a valid show value")
+        if not isinstance(show, PresenceShow):
+            try:
+                show = PresenceShow(show)
+            except ValueError:
+                raise ValueError("Not a valid show value") from None
+            else:
+                warnings.warn(
+                    "as of aioxmpp 1.0, the show argument must use "
+                    "PresenceShow instead of str",
+                    DeprecationWarning,
+                    stacklevel=2
+                )
+
         self._available = bool(available)
         self._show = show
 
@@ -825,10 +935,11 @@ class PresenceState:
         return self._show
 
     def __lt__(self, other):
-        my_key = (self.available,
-                  PresenceState.SHOW_VALUE_WEIGHT[self.show])
-        other_key = (other.available,
-                     PresenceState.SHOW_VALUE_WEIGHT[other.show])
+        my_key = (self.available, self.show)
+        try:
+            other_key = (other.available, other.show)
+        except AttributeError:
+            return NotImplemented
         return my_key < other_key
 
     def __eq__(self, other):
@@ -841,7 +952,7 @@ class PresenceState:
     def __repr__(self):
         more = ""
         if self.available:
-            if self.show:
+            if self.show != PresenceShow.NONE:
                 more = " available show={!r}".format(self.show)
             else:
                 more = " available"
@@ -879,7 +990,7 @@ class PresenceState:
             raise ValueError("presence state stanza required")
         available = stanza_obj.type_ == PresenceType.AVAILABLE
         if not strict:
-            show = stanza_obj.show if available else None
+            show = stanza_obj.show if available else PresenceShow.NONE
         else:
             show = stanza_obj.show
         return cls(available=available, show=show)
@@ -950,10 +1061,16 @@ class LanguageTag:
             return False
 
     def __lt__(self, other):
-        return self.match_str < other.match_str
+        try:
+            return self.match_str < other.match_str
+        except AttributeError:
+            return NotImplemented
 
     def __le__(self, other):
-        return self.match_str <= other.match_str
+        try:
+            return self.match_str <= other.match_str
+        except AttributeError:
+            return NotImplemented
 
     def __hash__(self):
         return hash(self.match_str)

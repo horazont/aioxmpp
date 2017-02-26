@@ -12,7 +12,7 @@
 # This program is distributed in the hope that it will be useful, but
 # WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-# General Public License for more details.
+# Lesser General Public License for more details.
 #
 # You should have received a copy of the GNU Lesser General Public
 # License along with this program.  If not, see
@@ -844,7 +844,7 @@ class TestSMEnabled(unittest.TestCase):
         )
         self.assertIs(
             nonza.SMEnabled.id_.default,
-            xso.NO_DEFAULT
+            None,
         )
 
     def test_location(self):

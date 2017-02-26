@@ -12,7 +12,7 @@
 # This program is distributed in the hope that it will be useful, but
 # WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-# General Public License for more details.
+# Lesser General Public License for more details.
 #
 # You should have received a copy of the GNU Lesser General Public
 # License along with this program.  If not, see
@@ -77,10 +77,11 @@ from .errors import ( # NOQA
     XMPPModifyError,
     XMPPWaitError,
 )
-from .node import PresenceManagedClient  # NOQA
+from .node import Client, PresenceManagedClient  # NOQA
 from .stanza import Presence, IQ, Message  # NOQA
 from .structs import (  # NOQA
     JID,
+    PresenceShow,
     PresenceState,
     MessageType,
     PresenceType,
@@ -88,6 +89,16 @@ from .structs import (  # NOQA
     ErrorType,
 )
 from .security_layer import make as make_security_layer  # NOQA
+
+# services
+from .presence import PresenceClient, PresenceServer  # NOQA
+from .roster import RosterClient  # NOQA
+from .disco import DiscoServer, DiscoClient  # NOQA
+from .entitycaps import EntityCapsService  # NOQA
+from .muc import MUCClient  # NOQA
+from .pubsub import PubSubClient  # NOQA
+from .shim import SHIMService  # NOQA
+from .adhoc import AdHocClient, AdHocServer  # NOQA
 
 
 def set_strict_mode():

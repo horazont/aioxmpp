@@ -76,6 +76,11 @@ class CoroutineAwareFunctionDocumenter(FunctionDocumenter):
         return ret
 
 
+class DecoratorDocumenter(FunctionDocumenter):
+    objtype = 'decorator'
+    priority = 3
+
+
 class CoroutineAwareMethodDocumenter(MethodDocumenter):
     objtype = 'method'
     priority = 4
@@ -180,4 +185,5 @@ def setup(app):
     app.add_autodocumenter(CoroutineAwareFunctionDocumenter)
     app.add_autodocumenter(CoroutineAwareMethodDocumenter)
     app.add_autodocumenter(SignalAwareMethodDocumenter)
+    app.add_autodocumenter(DecoratorDocumenter)
     return {'version': '1.0', 'parallel_read_safe': True}

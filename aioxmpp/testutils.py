@@ -12,7 +12,7 @@
 # This program is distributed in the hope that it will be useful, but
 # WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-# General Public License for more details.
+# Lesser General Public License for more details.
 #
 # You should have received a copy of the GNU Lesser General Public
 # License along with this program.  If not, see
@@ -122,12 +122,15 @@ class ConnectedClientMock(unittest.mock.Mock):
             "start",
             "stop",
             "set_presence",
+            "local_jid",
         ])
 
         self.established = True
 
         self.stream_features = nonza.StreamFeatures()
         self.stream.send_iq_and_wait_for_reply = CoroutineMock()
+        self.stream.send = CoroutineMock()
+        self.stream.enqueue_stanza = self.stream.enqueue
         self.mock_services = {}
 
     def _get_child_mock(self, **kw):

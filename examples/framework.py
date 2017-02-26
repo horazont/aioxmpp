@@ -12,7 +12,7 @@
 # This program is distributed in the hope that it will be useful, but
 # WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-# General Public License for more details.
+# Lesser General Public License for more details.
 #
 # You should have received a copy of the GNU Lesser General Public
 # License along with this program.  If not, see
@@ -26,7 +26,11 @@ import configparser
 import getpass
 import json
 import logging
+import logging.config
+import os
+import os.path
 import signal
+import sys
 
 try:
     import readline  # NOQA
@@ -42,9 +46,16 @@ class Example(metaclass=abc.ABCMeta):
         self.argparse = argparse.ArgumentParser()
 
     def prepare_argparse(self):
+
+        config_default_path = os.path.join(
+            os.environ.get("XDG_CONFIG_HOME", os.path.expanduser("~/.config")),
+            "aioxmpp_examples.ini")
+        if not os.path.exists(config_default_path):
+            config_default_path = None
+
         self.argparse.add_argument(
             "-c", "--config",
-            default=None,
+            default=config_default_path,
             type=argparse.FileType("r"),
             help="Configuration file to read",
         )
@@ -59,17 +70,26 @@ class Example(metaclass=abc.ABCMeta):
             help="JID to authenticate with (only required if not in config)"
         )
 
-        self.argparse.add_argument(
+        mutex = self.argparse.add_mutually_exclusive_group()
+        mutex.add_argument(
             "-p",
             dest="ask_password",
             action="store_true",
             default=False,
             help="Ask for password on stdio"
         )
+        mutex.add_argument(
+            "-A",
+            nargs="?",
+            dest="anonymous",
+            default=False,
+            help="Perform ANONYMOUS authentication"
+        )
 
         self.argparse.add_argument(
             "-v",
-            help="Increase verbosity",
+            help="Increase verbosity (this has no effect if a logging config"
+            " file is specified in the config file)",
             default=0,
             dest="verbosity",
             action="count",
@@ -77,20 +97,26 @@ class Example(metaclass=abc.ABCMeta):
 
     def configure(self):
         self.args = self.argparse.parse_args()
-        logging.basicConfig(
-            level={
-                0: logging.ERROR,
-                1: logging.WARNING,
-                2: logging.INFO,
-            }.get(self.args.verbosity, logging.DEBUG)
-        )
-
         self.config = configparser.ConfigParser()
         if self.args.config is not None:
             with self.args.config:
                 self.config.read_file(self.args.config)
 
+        if self.config.has_option("global", "logging"):
+            logging.config.fileConfig(
+                self.config.get("global", "logging")
+            )
+        else:
+            logging.basicConfig(
+                level={
+                    0: logging.ERROR,
+                    1: logging.WARNING,
+                    2: logging.INFO,
+                }.get(self.args.verbosity, logging.DEBUG)
+            )
+
         self.g_jid = self.args.local_jid
+
         if self.g_jid is None:
             try:
                 self.g_jid = aioxmpp.JID.fromstr(
@@ -112,15 +138,49 @@ class Example(metaclass=abc.ABCMeta):
             pin_store = None
             pin_type = None
 
-        if self.args.ask_password:
-            password = getpass.getpass()
+        anonymous = self.args.anonymous
+        if anonymous is False:
+            if self.args.ask_password:
+                password = getpass.getpass()
+            else:
+                try:
+                    jid_sect = str(self.g_jid)
+                    if jid_sect not in self.config:
+                        jid_sect = "global"
+                    password = self.config.get(jid_sect, "password")
+                except configparser.NoOptionError:
+                    logging.error(('When the local JID %s is set, password ' +
+                                   'must be set as well.') % str(self.g_jid))
+                    raise
         else:
-            password = self.config.get("global", "password")
+            password = None
+            anonymous = anonymous or ""
+
+        no_verify = self.config.getboolean(
+            str(self.g_jid), "no_verify",
+            fallback=self.config.getboolean("global", "no_verify",
+                                            fallback=False)
+        )
+        logging.info(
+            "constructing security layer with "
+            "pin_store=%r, "
+            "pin_type=%r, "
+            "anonymous=%r, "
+            "no_verify=%r, "
+            "not-None password %s",
+            pin_store,
+            pin_type,
+            anonymous,
+            no_verify,
+            password is not None,
+        )
 
         self.g_security_layer = aioxmpp.make_security_layer(
             password,
             pin_store=pin_store,
             pin_type=pin_type,
+            anonymous=anonymous,
+            no_verify=no_verify,
         )
 
     def make_simple_client(self):
@@ -138,15 +198,25 @@ class Example(metaclass=abc.ABCMeta):
         )
         return event
 
-    async def run_simple_example(self):
+    @asyncio.coroutine
+    def run_simple_example(self):
         raise NotImplementedError(
             "run_simple_example must be overriden if run_example isn’t"
         )
 
-    async def run_example(self):
+    @asyncio.coroutine
+    def run_example(self):
         self.client = self.make_simple_client()
-        async with self.client.connected():
-            await self.run_simple_example()
+        cm = self.client.connected()
+        aexit = cm.__aexit__
+        yield from cm.__aenter__()
+        try:
+            yield from self.run_simple_example()
+        except:
+            if not (yield from aexit(*sys.exc_info())):
+                raise
+        else:
+            yield from aexit(None, None, None)
 
 
 def exec_example(example):

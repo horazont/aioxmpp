@@ -12,7 +12,7 @@
 # This program is distributed in the hope that it will be useful, but
 # WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-# General Public License for more details.
+# Lesser General Public License for more details.
 #
 # You should have received a copy of the GNU Lesser General Public
 # License along with this program.  If not, see
@@ -365,6 +365,18 @@ class TestMessage(unittest.TestCase):
             "<message from=None to=None id=None type=<MessageType.NORMAL: 'normal'>>"
         )
 
+    def test_repr_works_with_incomplete_attributes(self):
+        s = stanza.Message.__new__(stanza.Message)
+        stanza.Message.from_.mark_incomplete(s)
+        stanza.Message.to.mark_incomplete(s)
+        stanza.Message.type_.mark_incomplete(s)
+        stanza.Message.id_.mark_incomplete(s)
+        self.assertEqual(
+            repr(s),
+            "<message from=<incomplete> to=<incomplete> "
+            "id=<incomplete> type=<incomplete>>"
+        )
+
 
 class TestStatus(unittest.TestCase):
     def test_tag(self):
@@ -428,28 +440,23 @@ class TestPresence(unittest.TestCase):
     def test_show_attr(self):
         self.assertIsInstance(
             stanza.Presence.show,
-            xso.ChildText)
+            xso.ChildText,
+        )
         self.assertEqual(
             (namespaces.client, "show"),
-            stanza.Presence.show.tag
-        )
-        self.assertEqual(
-            xso.ValidateMode.ALWAYS,
-            stanza.Presence.show.validate
+            stanza.Presence.show.tag,
         )
         self.assertIsInstance(
-            stanza.Presence.show.validator,
-            xso.RestrictToSet
+            stanza.Presence.show.type_,
+            xso.EnumType,
         )
-        self.assertSetEqual(
-            {
-                "dnd",
-                "away",
-                "xa",
-                None,
-                "chat",
-            },
-            stanza.Presence.show.validator.values
+        self.assertIs(
+            stanza.Presence.show.type_.enum_class,
+            structs.PresenceShow,
+        )
+        self.assertIs(
+            stanza.Presence.show.default,
+            structs.PresenceShow.NONE,
         )
 
     def test_status_attr(self):
@@ -492,7 +499,7 @@ class TestPresence(unittest.TestCase):
         s = stanza.Presence(
             from_=TEST_FROM,
             type_=structs.PresenceType.PROBE,
-            show="away"
+            show=structs.PresenceShow.AWAY,
         )
         self.assertEqual(
             TEST_FROM,
@@ -503,7 +510,26 @@ class TestPresence(unittest.TestCase):
             s.type_
         )
         self.assertEqual(
-            "away",
+            structs.PresenceShow.AWAY,
+            s.show,
+        )
+
+    def test_init_compat(self):
+        s = stanza.Presence(
+            from_=TEST_FROM,
+            type_=structs.PresenceType.PROBE,
+            show="xa",
+        )
+        self.assertEqual(
+            TEST_FROM,
+            s.from_
+        )
+        self.assertEqual(
+            structs.PresenceType.PROBE,
+            s.type_
+        )
+        self.assertEqual(
+            structs.PresenceShow.XA,
             s.show,
         )
 
@@ -513,7 +539,7 @@ class TestPresence(unittest.TestCase):
             s.type_,
             structs.PresenceType.AVAILABLE,
         )
-        self.assertIsNone(s.show)
+        self.assertEqual(s.show, structs.PresenceShow.NONE)
 
     def test_make_error(self):
         e = stanza.Error(
@@ -581,6 +607,18 @@ class TestPresence(unittest.TestCase):
         self.assertEqual(
             repr(s),
             "<presence from=None to=None id=None type=<PresenceType.AVAILABLE: None>>"
+        )
+
+    def test_repr_works_with_incomplete_attributes(self):
+        s = stanza.Presence.__new__(stanza.Presence)
+        stanza.Presence.from_.mark_incomplete(s)
+        stanza.Presence.to.mark_incomplete(s)
+        stanza.Presence.id_.mark_incomplete(s)
+        stanza.Presence.type_.mark_incomplete(s)
+        self.assertEqual(
+            repr(s),
+            "<presence from=<incomplete> to=<incomplete> "
+            "id=<incomplete> type=<incomplete>>"
         )
 
 
@@ -714,7 +752,8 @@ class TestError(unittest.TestCase):
         self.assertEqual(result, cond.to_exception())
 
     def test_to_exception_with_application_condition_only_if_cond_supports(self):
-        cond = unittest.mock.Mock([])
+        cond = unittest.mock.Mock(["TAG"])
+        cond.TAG = ("foo", "bar")
 
         obj = stanza.Error(
             type_=structs.ErrorType.CONTINUE,
@@ -729,6 +768,11 @@ class TestError(unittest.TestCase):
             errors.XMPPContinueError
         )
 
+        self.assertEqual(
+            result.application_defined_condition,
+            obj.application_condition,
+        )
+
         self.assertSequenceEqual(
             cond.mock_calls,
             [
@@ -736,7 +780,8 @@ class TestError(unittest.TestCase):
         )
 
     def test_override_with_default_exception_if_result_of_app_cond_is_no_exception(self):
-        cond = unittest.mock.Mock(["to_exception"])
+        cond = unittest.mock.Mock(["to_exception", "TAG"])
+        cond.TAG = ("foo", "bar")
 
         obj = stanza.Error(
             type_=structs.ErrorType.CONTINUE,
@@ -982,6 +1027,18 @@ class TestIQ(unittest.TestCase):
         self.assertEqual(
             repr(s),
             "<iq from=None to=None id=<unset> type=<unset> "
+            "error=None data=None>"
+        )
+
+    def test_repr_works_with_incomplete_attributes(self):
+        s = stanza.IQ.__new__(stanza.IQ)
+        stanza.IQ.from_.mark_incomplete(s)
+        stanza.IQ.to.mark_incomplete(s)
+        stanza.IQ.type_.mark_incomplete(s)
+        stanza.IQ.id_.mark_incomplete(s)
+        self.assertEqual(
+            repr(s),
+            "<iq from=<incomplete> to=<incomplete> id=<incomplete> type=<incomplete> "
             "error=None data=None>"
         )
 

@@ -12,7 +12,7 @@
 # This program is distributed in the hope that it will be useful, but
 # WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-# General Public License for more details.
+# Lesser General Public License for more details.
 #
 # You should have received a copy of the GNU Lesser General Public
 # License along with this program.  If not, see
@@ -71,12 +71,14 @@ class ListPresence(Example):
 
         return client
 
-    async def run_simple_example(self):
+    @asyncio.coroutine
+    def run_simple_example(self):
         print("collecting presences... ")
-        self.presences = await self.collector.done_future
+        self.presences = yield from self.collector.done_future
 
-    async def run_example(self):
-        await super().run_example()
+    @asyncio.coroutine
+    def run_example(self):
+        yield from super().run_example()
 
         print("found presences:")
         for i, pres in enumerate(self.presences):

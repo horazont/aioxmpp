@@ -12,7 +12,7 @@
 # This program is distributed in the hope that it will be useful, but
 # WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-# General Public License for more details.
+# Lesser General Public License for more details.
 #
 # You should have received a copy of the GNU Lesser General Public
 # License along with this program.  If not, see
@@ -28,6 +28,7 @@ from datetime import datetime, timedelta
 
 import aioxmpp.callbacks
 import aioxmpp.errors
+import aioxmpp.forms
 import aioxmpp.muc.service as muc_service
 import aioxmpp.muc.xso as muc_xso
 import aioxmpp.service as service
@@ -78,7 +79,7 @@ class TestOccupant(unittest.TestCase):
             TEST_MUC_JID.replace(resource="firstwitch"),
             presence_state=aioxmpp.structs.PresenceState(
                 available=True,
-                show="away"
+                show=aioxmpp.PresenceShow.AWAY,
             ),
             presence_status=status,
             affiliation="admin",
@@ -90,7 +91,7 @@ class TestOccupant(unittest.TestCase):
             occ.presence_state,
             aioxmpp.structs.PresenceState(
                 available=True,
-                show="away"
+                show=aioxmpp.PresenceShow.AWAY,
             )
         )
 
@@ -128,7 +129,7 @@ class TestOccupant(unittest.TestCase):
         presence = aioxmpp.stanza.Presence(
             from_=TEST_MUC_JID.replace(resource="secondwitch"),
             type_=aioxmpp.structs.PresenceType.AVAILABLE,
-            show="dnd"
+            show=aioxmpp.PresenceShow.DND,
         )
 
         presence.status[None] = "foo"
@@ -160,7 +161,7 @@ class TestOccupant(unittest.TestCase):
         presence = aioxmpp.stanza.Presence(
             from_=TEST_MUC_JID.replace(resource="secondwitch"),
             type_=aioxmpp.structs.PresenceType.AVAILABLE,
-            show="dnd"
+            show=aioxmpp.PresenceShow.DND,
         )
 
         presence.status[None] = "foo"
@@ -209,7 +210,7 @@ class TestOccupant(unittest.TestCase):
         presence = aioxmpp.stanza.Presence(
             from_=TEST_MUC_JID.replace(resource="secondwitch"),
             type_=aioxmpp.structs.PresenceType.AVAILABLE,
-            show="dnd"
+            show=aioxmpp.PresenceShow.DND,
         )
 
         presence.status[None] = "foo"
@@ -243,6 +244,8 @@ class TestRoom(unittest.TestCase):
 
         self.base = unittest.mock.Mock()
         self.base.service.logger = unittest.mock.Mock(name="logger")
+        self.base.service.client.stream.send = \
+            CoroutineMock()
 
         self.jmuc = muc_service.Room(self.base.service, self.mucjid)
 
@@ -282,6 +285,9 @@ class TestRoom(unittest.TestCase):
         self.jmuc.on_affiliation_change.connect(
             self.base.on_affiliation_change)
         self.jmuc.on_leave.connect(self.base.on_leave)
+
+    def tearDown(self):
+        del self.jmuc
 
     def test_event_attributes(self):
         self.assertIsInstance(
@@ -1037,7 +1043,7 @@ class TestRoom(unittest.TestCase):
             self.base.mock_calls.clear()
 
             # update presence stanza
-            presence.show = "away"
+            presence.show = aioxmpp.PresenceShow.AWAY
 
             second = original_Occupant.from_presence(presence)
             Occupant.from_presence.return_value = second
@@ -1164,7 +1170,7 @@ class TestRoom(unittest.TestCase):
             self.base.mock_calls.clear()
 
             # update presence stanza
-            presence.show = "away"
+            presence.show = aioxmpp.PresenceShow.AWAY
             presence.xep0045_muc_user.items[0].affiliation = "owner"
             presence.xep0045_muc_user.items[0].role = "moderator"
             presence.xep0045_muc_user.items[0].reason = "foobar"
@@ -1515,6 +1521,49 @@ class TestRoom(unittest.TestCase):
         )
         self.assertFalse(self.jmuc.active)
 
+    def test_do_not_treat_unavailable_stanzas_as_join(self):
+        presence = aioxmpp.stanza.Presence(
+            type_=aioxmpp.structs.PresenceType.AVAILABLE,
+            from_=TEST_MUC_JID.replace(resource="thirdwitch")
+        )
+        presence.xep0045_muc_user = muc_xso.UserExt(
+            status_codes={110},
+            items=[
+                muc_xso.UserItem(affiliation="member",
+                                 role="none"),
+            ]
+        )
+
+        self.jmuc._inbound_muc_user_presence(presence)
+
+        self.assertSequenceEqual(
+            self.base.mock_calls,
+            [
+                unittest.mock.call.on_enter(presence,
+                                            self.jmuc.this_occupant),
+            ]
+        )
+        self.base.mock_calls.clear()
+
+        presence = aioxmpp.stanza.Presence(
+            type_=aioxmpp.structs.PresenceType.UNAVAILABLE,
+            from_=TEST_MUC_JID.replace(resource="foo")
+        )
+        presence.xep0045_muc_user = muc_xso.UserExt(
+            items=[
+                muc_xso.UserItem(affiliation="member",
+                                 role="none"),
+            ]
+        )
+
+        self.jmuc._inbound_muc_user_presence(presence)
+
+        self.assertSequenceEqual(
+            self.base.mock_calls,
+            [
+            ]
+        )
+
     def test__inbound_muc_user_presence_ignores_self_leave_if_inactive(self):
         presence = aioxmpp.stanza.Presence(
             type_=aioxmpp.structs.PresenceType.UNAVAILABLE,
@@ -1546,7 +1595,7 @@ class TestRoom(unittest.TestCase):
 
         with unittest.mock.patch.object(
                 self.base.service.client.stream,
-                "send_iq_and_wait_for_reply",
+                "send",
                 new=CoroutineMock()) as send_iq:
             send_iq.return_value = None
 
@@ -1601,7 +1650,7 @@ class TestRoom(unittest.TestCase):
     def test_set_role_rejects_None_nick(self):
         with unittest.mock.patch.object(
                 self.base.service.client.stream,
-                "send_iq_and_wait_for_reply",
+                "send",
                 new=CoroutineMock()) as send_iq:
             send_iq.return_value = None
 
@@ -1618,7 +1667,7 @@ class TestRoom(unittest.TestCase):
     def test_set_role_rejects_None_role(self):
         with unittest.mock.patch.object(
                 self.base.service.client.stream,
-                "send_iq_and_wait_for_reply",
+                "send",
                 new=CoroutineMock()) as send_iq:
             send_iq.return_value = None
 
@@ -1635,7 +1684,7 @@ class TestRoom(unittest.TestCase):
     def test_set_role_fails(self):
         with unittest.mock.patch.object(
                 self.base.service.client.stream,
-                "send_iq_and_wait_for_reply",
+                "send",
                 new=CoroutineMock()) as send_iq:
             send_iq.return_value = None
             send_iq.side_effect = aioxmpp.errors.XMPPCancelError(
@@ -1648,6 +1697,32 @@ class TestRoom(unittest.TestCase):
                     "participant",
                     reason="foobar",
                 ))
+
+    def test_change_nick(self):
+        with unittest.mock.patch.object(
+                self.base.service.client.stream,
+                "send",
+                new=CoroutineMock()) as send_stanza:
+            send_stanza.return_value = None
+
+            run_coroutine(self.jmuc.change_nick(
+                "oldhag",
+            ))
+
+        _, (pres,), _ = send_stanza.mock_calls[-1]
+
+        self.assertIsInstance(
+            pres,
+            aioxmpp.stanza.Presence
+        )
+        self.assertEqual(
+            pres.type_,
+            aioxmpp.structs.PresenceType.AVAILABLE,
+        )
+        self.assertEqual(
+            pres.to,
+            self.mucjid.replace(resource="oldhag"),
+        )
 
     def test_set_affiliation_delegates_to_service(self):
         with unittest.mock.patch.object(
@@ -1676,7 +1751,7 @@ class TestRoom(unittest.TestCase):
         result = self.jmuc.set_subject(d)
 
         _, (stanza,), _ = self.base.service.client.stream.\
-            enqueue_stanza.mock_calls[-1]
+            enqueue.mock_calls[-1]
 
         self.assertIsInstance(
             stanza,
@@ -1699,14 +1774,14 @@ class TestRoom(unittest.TestCase):
 
         self.assertEqual(
             result,
-            self.base.service.client.stream.enqueue_stanza()
+            self.base.service.client.stream.enqueue()
         )
 
     def test_leave(self):
         self.jmuc.leave()
 
         _, (stanza,), _ = self.base.service.client.stream.\
-            enqueue_stanza.mock_calls[-1]
+            enqueue.mock_calls[-1]
 
         self.assertIsInstance(
             stanza,
@@ -1721,7 +1796,7 @@ class TestRoom(unittest.TestCase):
             self.mucjid
         )
         self.assertFalse(stanza.status)
-        self.assertIsNone(stanza.show)
+        self.assertEqual(stanza.show, aioxmpp.PresenceShow.NONE)
 
     def test_leave_and_wait(self):
         with unittest.mock.patch.object(
@@ -1821,7 +1896,7 @@ class TestRoom(unittest.TestCase):
 
         with unittest.mock.patch.object(
                 self.base.service.client.stream,
-                "enqueue_stanza",
+                "enqueue",
                 new=setup_stanza):
             tracker = self.jmuc.send_tracked_message(body)
 
@@ -1893,7 +1968,7 @@ class TestRoom(unittest.TestCase):
 
         with unittest.mock.patch.object(
                 self.base.service.client.stream,
-                "enqueue_stanza",
+                "enqueue",
                 new=setup_stanza):
             tracker = self.jmuc.send_tracked_message(body)
 
@@ -1962,7 +2037,7 @@ class TestRoom(unittest.TestCase):
 
         with unittest.mock.patch.object(
                 self.base.service.client.stream,
-                "enqueue_stanza",
+                "enqueue",
                 new=setup_stanza):
             tracker = self.jmuc.send_tracked_message(
                 body,
@@ -2001,7 +2076,7 @@ class TestRoom(unittest.TestCase):
 
         with unittest.mock.patch.object(
                 self.base.service.client.stream,
-                "enqueue_stanza",
+                "enqueue",
                 new=setup_stanza):
             tracker = self.jmuc.send_tracked_message(
                 stanza,
@@ -2036,7 +2111,7 @@ class TestRoom(unittest.TestCase):
 
         with unittest.mock.patch.object(
                 self.base.service.client.stream,
-                "enqueue_stanza",
+                "enqueue",
                 new=setup_stanza):
             tracker = self.jmuc.send_tracked_message(
                 stanza,
@@ -2048,7 +2123,7 @@ class TestRoom(unittest.TestCase):
 
         self.assertEqual(
             tracker.state,
-            tracking.MessageState.UNKNOWN
+            tracking.MessageState.CLOSED
         )
 
     def test_tracked_messages_are_set_to_unknown_on_resume(self):
@@ -2071,7 +2146,7 @@ class TestRoom(unittest.TestCase):
 
         with unittest.mock.patch.object(
                 self.base.service.client.stream,
-                "enqueue_stanza",
+                "enqueue",
                 new=setup_stanza):
             tracker = self.jmuc.send_tracked_message(
                 stanza,
@@ -2083,23 +2158,110 @@ class TestRoom(unittest.TestCase):
 
         self.assertEqual(
             tracker.state,
-            tracking.MessageState.UNKNOWN
+            tracking.MessageState.CLOSED
         )
 
-    def tearDown(self):
-        del self.jmuc
+    def test_request_voice(self):
+        run_coroutine(self.jmuc.request_voice())
+
+        self.assertEqual(
+            len(self.base.service.client.stream.send.mock_calls),
+            1,
+        )
+
+        _, (msg, ), _ = \
+            self.base.service.client.stream.send.mock_calls[0]
+
+        self.assertIsInstance(
+            msg,
+            aioxmpp.Message,
+        )
+
+        self.assertEqual(
+            msg.type_,
+            aioxmpp.MessageType.NORMAL,
+        )
+
+        self.assertEqual(
+            msg.to,
+            TEST_MUC_JID,
+        )
+
+        self.assertEqual(
+            len(msg.xep0004_data),
+            1
+        )
+
+        data, = msg.xep0004_data
+
+        self.assertIsInstance(
+            data,
+            aioxmpp.forms.Data,
+        )
+
+        self.assertEqual(
+            data.type_,
+            aioxmpp.forms.DataType.SUBMIT,
+        )
+
+        self.assertEqual(
+            len(data.fields),
+            2
+        )
+
+        field = data.fields[0]
+        self.assertIsInstance(
+            field,
+            aioxmpp.forms.Field,
+        )
+
+        self.assertEqual(
+            field.type_,
+            aioxmpp.forms.FieldType.HIDDEN,
+        )
+
+        self.assertEqual(
+            field.var,
+            "FORM_TYPE",
+        )
+
+        self.assertSequenceEqual(
+            field.values,
+            ["http://jabber.org/protocol/muc#request"]
+        )
+
+        field = data.fields[1]
+        self.assertIsInstance(
+            field,
+            aioxmpp.forms.Field,
+        )
+
+        self.assertEqual(
+            field.type_,
+            aioxmpp.forms.FieldType.LIST_SINGLE,
+        )
+
+        self.assertEqual(
+            field.var,
+            "muc#role",
+        )
+
+        self.assertSequenceEqual(
+            field.values,
+            ["participant"]
+        )
 
 
 class TestService(unittest.TestCase):
     def test_is_service(self):
         self.assertTrue(issubclass(
-            muc_service.Service,
+            muc_service.MUCClient,
             service.Service
         ))
 
     def setUp(self):
         self.cc = make_connected_client()
-        self.s = muc_service.Service(self.cc)
+        self.s = muc_service.MUCClient(self.cc)
 
     def test_event_attributes(self):
         self.assertIsInstance(
@@ -2109,7 +2271,7 @@ class TestService(unittest.TestCase):
 
     def test_init_and_shutdown(self):
         cc = make_connected_client()
-        s = muc_service.Service(cc)
+        s = muc_service.MUCClient(cc)
 
         calls = list(cc.mock_calls)
 
@@ -2119,7 +2281,7 @@ class TestService(unittest.TestCase):
                 unittest.mock.call.
                 stream.service_inbound_presence_filter.register(
                     s._inbound_presence_filter,
-                    muc_service.Service
+                    muc_service.MUCClient
                 ),
             ]
         )
@@ -2185,7 +2347,7 @@ class TestService(unittest.TestCase):
         self.assertTrue(room.autorejoin)
         self.assertIsNone(room.password)
 
-        _, (stanza,), _ = self.cc.stream.enqueue_stanza.mock_calls[-1]
+        _, (stanza,), _ = self.cc.stream.enqueue.mock_calls[-1]
         self.assertIsInstance(
             stanza,
             aioxmpp.stanza.Presence
@@ -2234,7 +2396,7 @@ class TestService(unittest.TestCase):
             room
         )
 
-        _, (stanza,), _ = self.cc.stream.enqueue_stanza.mock_calls[-1]
+        _, (stanza,), _ = self.cc.stream.enqueue.mock_calls[-1]
         self.assertIsInstance(
             stanza,
             aioxmpp.stanza.Presence
@@ -2274,7 +2436,7 @@ class TestService(unittest.TestCase):
         self.assertFalse(room.autorejoin)
         self.assertEqual(room.password, "foobar")
 
-        _, (stanza,), _ = self.cc.stream.enqueue_stanza.mock_calls[-1]
+        _, (stanza,), _ = self.cc.stream.enqueue.mock_calls[-1]
         self.assertIsInstance(
             stanza,
             aioxmpp.stanza.Presence
@@ -2314,7 +2476,7 @@ class TestService(unittest.TestCase):
             room
         )
 
-        _, (stanza,), _ = self.cc.stream.enqueue_stanza.mock_calls[-1]
+        _, (stanza,), _ = self.cc.stream.enqueue.mock_calls[-1]
         self.assertIsInstance(
             stanza,
             aioxmpp.stanza.Presence
@@ -2401,7 +2563,7 @@ class TestService(unittest.TestCase):
             self):
         room, future = self.s.join(TEST_MUC_JID, "thirdwitch")
 
-        self.cc.stream.enqueue_stanza.mock_calls.clear()
+        self.cc.stream.enqueue.mock_calls.clear()
 
         future.cancel()
 
@@ -2410,7 +2572,7 @@ class TestService(unittest.TestCase):
         with self.assertRaises(KeyError):
             self.s.get_muc(TEST_MUC_JID)
 
-        _, (stanza,), _ = self.cc.stream.enqueue_stanza.mock_calls[-1]
+        _, (stanza,), _ = self.cc.stream.enqueue.mock_calls[-1]
         self.assertIsInstance(
             stanza,
             aioxmpp.stanza.Presence
@@ -2600,7 +2762,7 @@ class TestService(unittest.TestCase):
         )
 
         self.assertSequenceEqual(
-            self.cc.stream.enqueue_stanza.mock_calls,
+            self.cc.stream.enqueue.mock_calls,
             []
         )
 
@@ -2608,7 +2770,7 @@ class TestService(unittest.TestCase):
 
         run_coroutine(asyncio.sleep(0))
 
-        _, (stanza,), _ = self.cc.stream.enqueue_stanza.mock_calls[-1]
+        _, (stanza,), _ = self.cc.stream.enqueue.mock_calls[-1]
         self.assertIsInstance(
             stanza,
             aioxmpp.stanza.Presence
@@ -2698,7 +2860,7 @@ class TestService(unittest.TestCase):
             ]
         )
         base.mock_calls.clear()
-        self.cc.stream.enqueue_stanza.mock_calls.clear()
+        self.cc.stream.enqueue.mock_calls.clear()
 
         self.cc.on_stream_established()
         run_coroutine(asyncio.sleep(0))
@@ -2714,13 +2876,13 @@ class TestService(unittest.TestCase):
             return result
 
         self.assertEqual(
-            len(self.cc.stream.enqueue_stanza.mock_calls),
+            len(self.cc.stream.enqueue.mock_calls),
             2,
         )
 
         self.assertSetEqual(
             extract(
-                self.cc.stream.enqueue_stanza.mock_calls,
+                self.cc.stream.enqueue.mock_calls,
                 lambda stanza: (stanza.to.bare(),)
             ),
             {
@@ -2731,7 +2893,7 @@ class TestService(unittest.TestCase):
 
         self.assertSetEqual(
             extract(
-                self.cc.stream.enqueue_stanza.mock_calls,
+                self.cc.stream.enqueue.mock_calls,
                 lambda stanza: (stanza.to.bare(),
                                 stanza.xep0045_muc.history.since)
             ),
@@ -2859,13 +3021,13 @@ class TestService(unittest.TestCase):
             ]
         )
         base.mock_calls.clear()
-        self.cc.stream.enqueue_stanza.mock_calls.clear()
+        self.cc.stream.enqueue.mock_calls.clear()
 
         self.cc.on_stream_established()
         run_coroutine(asyncio.sleep(0))
 
         self.assertEqual(
-            len(self.cc.stream.enqueue_stanza.mock_calls),
+            len(self.cc.stream.enqueue.mock_calls),
             0,
         )
 
@@ -2979,7 +3141,7 @@ class TestService(unittest.TestCase):
 
         with unittest.mock.patch.object(
                 self.cc.stream,
-                "send_iq_and_wait_for_reply",
+                "send",
                 new=CoroutineMock()) as send_iq:
             send_iq.return_value = None
 
@@ -3036,7 +3198,7 @@ class TestService(unittest.TestCase):
     def test_set_affiliation_rejects_None_affiliation(self):
         with unittest.mock.patch.object(
                 self.cc.stream,
-                "send_iq_and_wait_for_reply",
+                "send",
                 new=CoroutineMock()) as send_iq:
             send_iq.return_value = None
 
@@ -3054,7 +3216,7 @@ class TestService(unittest.TestCase):
     def test_set_affiliation_rejects_None_jid(self):
         with unittest.mock.patch.object(
                 self.cc.stream,
-                "send_iq_and_wait_for_reply",
+                "send",
                 new=CoroutineMock()) as send_iq:
             send_iq.return_value = None
 
@@ -3072,7 +3234,7 @@ class TestService(unittest.TestCase):
     def test_set_affiliation_rejects_None_mucjid(self):
         with unittest.mock.patch.object(
                 self.cc.stream,
-                "send_iq_and_wait_for_reply",
+                "send",
                 new=CoroutineMock()) as send_iq:
             send_iq.return_value = None
 
@@ -3090,7 +3252,7 @@ class TestService(unittest.TestCase):
     def test_set_affiliation_rejects_full_mucjid(self):
         with unittest.mock.patch.object(
                 self.cc.stream,
-                "send_iq_and_wait_for_reply",
+                "send",
                 new=CoroutineMock()) as send_iq:
             send_iq.return_value = None
 
@@ -3108,7 +3270,7 @@ class TestService(unittest.TestCase):
     def test_set_affiliation_fails(self):
         with unittest.mock.patch.object(
                 self.cc.stream,
-                "send_iq_and_wait_for_reply",
+                "send",
                 new=CoroutineMock()) as send_iq:
             send_iq.return_value = None
             send_iq.side_effect = aioxmpp.errors.XMPPCancelError(
@@ -3129,7 +3291,7 @@ class TestService(unittest.TestCase):
 
         with unittest.mock.patch.object(
                 self.cc.stream,
-                "send_iq_and_wait_for_reply",
+                "send",
                 new=CoroutineMock()) as send_iq:
             send_iq.return_value = reply
 
@@ -3173,7 +3335,7 @@ class TestService(unittest.TestCase):
     def test_get_room_config_rejects_full_mucjid(self):
         with unittest.mock.patch.object(
                 self.cc.stream,
-                "send_iq_and_wait_for_reply",
+                "send",
                 new=CoroutineMock()) as send_iq:
             with self.assertRaisesRegex(ValueError,
                                         "mucjid must be bare JID"):
@@ -3188,7 +3350,7 @@ class TestService(unittest.TestCase):
 
         with unittest.mock.patch.object(
                 self.cc.stream,
-                "send_iq_and_wait_for_reply",
+                "send",
                 new=CoroutineMock()) as send_iq:
             send_iq.return_value = None
 

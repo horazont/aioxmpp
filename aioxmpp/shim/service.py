@@ -12,7 +12,7 @@
 # This program is distributed in the hope that it will be useful, but
 # WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-# General Public License for more details.
+# Lesser General Public License for more details.
 #
 # You should have received a copy of the GNU Lesser General Public
 # License along with this program.  If not, see
@@ -23,17 +23,15 @@ import asyncio
 
 import aioxmpp.service
 
-import aioxmpp.disco
-
 from aioxmpp.utils import namespaces
 
 
-class Service(aioxmpp.service.Service):
+class SHIMService(aioxmpp.service.Service):
     """
     This service implements :xep:`131` feature advertisment.
 
     It registers the ``http://jabber.org/protocol/shim`` node with the
-    :class:`.disco.Service`. It publishes the supported headers on that node as
+    :class:`.DiscoServer`. It publishes the supported headers on that node as
     specified in the XEP.
 
     To announce supported headers, use the :meth:`register_header` and
@@ -42,14 +40,20 @@ class Service(aioxmpp.service.Service):
     .. automethod:: register_header
 
     .. automethod:: unregister_header
+
+    .. versionchanged:: 0.8
+
+       This class was formerly known as :class:`aioxmpp.shim.Service`. It
+       is still available under that name, but the alias will be removed in
+       1.0.
     """
 
-    ORDER_AFTER = [aioxmpp.disco.Service]
+    ORDER_AFTER = [aioxmpp.DiscoServer]
 
     def __init__(self, client, **kwargs):
         super().__init__(client, **kwargs)
 
-        self._disco = client.summon(aioxmpp.disco.Service)
+        self._disco = self.dependencies[aioxmpp.DiscoServer]
         self._disco.register_feature(namespaces.xep0131_shim)
 
         self._node = aioxmpp.disco.StaticNode()

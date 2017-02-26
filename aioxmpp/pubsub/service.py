@@ -12,7 +12,7 @@
 # This program is distributed in the hope that it will be useful, but
 # WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-# General Public License for more details.
+# Lesser General Public License for more details.
 #
 # You should have received a copy of the GNU Lesser General Public
 # License along with this program.  If not, see
@@ -30,7 +30,7 @@ import aioxmpp.structs
 from . import xso as pubsub_xso
 
 
-class Service(aioxmpp.service.Service):
+class PubSubClient(aioxmpp.service.Service):
     """
     Client service implementing a Publish-Subscribe client. By loading it into
     a client, it is possible to subscribe to, publish to and otherwise interact
@@ -77,6 +77,7 @@ class Service(aioxmpp.service.Service):
           get_nodes
           get_node_affiliations
           get_node_subscriptions
+          purge
 
     Meta-information about the service:
 
@@ -128,6 +129,8 @@ class Service(aioxmpp.service.Service):
 
     .. automethod:: get_node_subscriptions
 
+    .. automethod:: purge
+
     Receiving notifications:
 
     .. autosignal:: on_item_published(jid, node, item, *, message=None)
@@ -140,10 +143,15 @@ class Service(aioxmpp.service.Service):
 
     .. autosignal:: on_subscription_update(jid, node, state, *, subid=None, message=None)
 
+    .. versionchanged:: 0.8
+
+       This class was formerly known as :class:`aioxmpp.pubsub.Service`. It
+       is still available under that name, but the alias will be removed in
+       1.0.
     """
 
     ORDER_AFTER = [
-        aioxmpp.disco.Service
+        aioxmpp.DiscoClient,
     ]
 
     on_item_published = aioxmpp.callbacks.Signal(doc=
@@ -207,13 +215,9 @@ class Service(aioxmpp.service.Service):
 
     def __init__(self, client, **kwargs):
         super().__init__(client, **kwargs)
-        self._disco = self._client.summon(aioxmpp.disco.Service)
+        self._disco = self.dependencies[aioxmpp.DiscoClient]
 
-        client.stream.service_inbound_message_filter.register(
-            self.filter_inbound_message,
-            type(self)
-        )
-
+    @aioxmpp.service.inbound_message_filter
     def filter_inbound_message(self, msg):
         if (msg.xep0060_event is not None and
                 msg.xep0060_event.payload is not None):
@@ -269,13 +273,21 @@ class Service(aioxmpp.service.Service):
     @asyncio.coroutine
     def get_features(self, jid):
         """
-        Return the features as set of values from :class:`.xso.Feature`. To
-        get the full feature information, resort to using
-        :meth:`.disco.Service.query_info` directly on `jid`.
+        Return the features supported at the PubSub service `jid`.
+
+        :return: Set of supported features
+        :rtype: set containing :class:`~.pubsub.xso.Feature` enumeration
+                members.
+
+        This simply uses service discovery to obtain the set of features and
+        converts the features to :class:`~.pubsub.xso.Feature` enumeration
+        members. To get the full feature information, resort to using
+        :meth:`.DiscoClient.query_info` directly on `jid`.
 
         Features returned by the peer which are not valid pubsub features are
         not returned.
         """
+
         response = yield from self._disco.query_info(jid)
         result = set()
         for feature in response.features:
@@ -324,7 +336,7 @@ class Service(aioxmpp.service.Service):
             )
             iq.payload.options.data = config
 
-        response = yield from self.client.stream.send_iq_and_wait_for_reply(
+        response = yield from self.client.stream.send(
             iq
         )
         return response
@@ -353,7 +365,7 @@ class Service(aioxmpp.service.Service):
             pubsub_xso.Unsubscribe(subscription_jid, node=node, subid=subid)
         )
 
-        yield from self.client.stream.send_iq_and_wait_for_reply(
+        yield from self.client.stream.send(
             iq
         )
 
@@ -386,7 +398,7 @@ class Service(aioxmpp.service.Service):
             subid=subid,
         )
 
-        response = yield from self.client.stream.send_iq_and_wait_for_reply(
+        response = yield from self.client.stream.send(
             iq
         )
         return response.options.data
@@ -422,7 +434,7 @@ class Service(aioxmpp.service.Service):
         )
         iq.payload.options.data = data
 
-        yield from self.client.stream.send_iq_and_wait_for_reply(
+        yield from self.client.stream.send(
             iq
         )
 
@@ -443,7 +455,7 @@ class Service(aioxmpp.service.Service):
             pubsub_xso.Default(node=node)
         )
 
-        response = yield from self.client.stream.send_iq_and_wait_for_reply(iq)
+        response = yield from self.client.stream.send(iq)
         return response.payload.data
 
     @asyncio.coroutine
@@ -464,7 +476,7 @@ class Service(aioxmpp.service.Service):
             pubsub_xso.Items(node, max_items=max_items)
         )
 
-        return (yield from self.client.stream.send_iq_and_wait_for_reply(iq))
+        return (yield from self.client.stream.send(iq))
 
     @asyncio.coroutine
     def get_items_by_id(self, jid, node, ids):
@@ -494,7 +506,7 @@ class Service(aioxmpp.service.Service):
         if not iq.payload.payload.items:
             raise ValueError("ids must not be empty")
 
-        return (yield from self.client.stream.send_iq_and_wait_for_reply(iq))
+        return (yield from self.client.stream.send(iq))
 
     @asyncio.coroutine
     def get_subscriptions(self, jid, node=None):
@@ -511,7 +523,7 @@ class Service(aioxmpp.service.Service):
             pubsub_xso.Subscriptions(node=node)
         )
 
-        response = yield from self.client.stream.send_iq_and_wait_for_reply(iq)
+        response = yield from self.client.stream.send(iq)
         return response.payload
 
     @asyncio.coroutine
@@ -542,7 +554,7 @@ class Service(aioxmpp.service.Service):
             publish
         )
 
-        response = yield from self.client.stream.send_iq_and_wait_for_reply(iq)
+        response = yield from self.client.stream.send(iq)
 
         if response.payload.item is not None:
             return response.payload.item.id_ or id_
@@ -577,7 +589,7 @@ class Service(aioxmpp.service.Service):
             retract
         )
 
-        yield from self.client.stream.send_iq_and_wait_for_reply(iq)
+        yield from self.client.stream.send(iq)
 
     @asyncio.coroutine
     def create(self, jid, node=None):
@@ -599,7 +611,7 @@ class Service(aioxmpp.service.Service):
             payload=pubsub_xso.Request(create)
         )
 
-        response = yield from self.client.stream.send_iq_and_wait_for_reply(iq)
+        response = yield from self.client.stream.send(iq)
 
         if response is not None and response.payload.node is not None:
             return response.payload.node
@@ -627,7 +639,7 @@ class Service(aioxmpp.service.Service):
             )
         )
 
-        yield from self.client.stream.send_iq_and_wait_for_reply(iq)
+        yield from self.client.stream.send(iq)
 
     @asyncio.coroutine
     def get_nodes(self, jid, node=None):
@@ -638,7 +650,7 @@ class Service(aioxmpp.service.Service):
 
         Return a list of tuples consisting of the node names and their
         description (if available, otherwise :data:`None`). If more information
-        is needed, use :meth:`.disco.Service.get_items` directly.
+        is needed, use :meth:`.DiscoClient.get_items` directly.
 
         Only nodes whose :attr:`~.disco.xso.Item.jid` match the `jid` are
         returned.
@@ -677,7 +689,7 @@ class Service(aioxmpp.service.Service):
             )
         )
 
-        return (yield from self.client.stream.send_iq_and_wait_for_reply(iq))
+        return (yield from self.client.stream.send(iq))
 
     @asyncio.coroutine
     def get_node_subscriptions(self, jid, node):
@@ -696,7 +708,7 @@ class Service(aioxmpp.service.Service):
             )
         )
 
-        return (yield from self.client.stream.send_iq_and_wait_for_reply(iq))
+        return (yield from self.client.stream.send(iq))
 
     @asyncio.coroutine
     def change_node_affiliations(self, jid, node, affiliations_to_set):
@@ -724,7 +736,7 @@ class Service(aioxmpp.service.Service):
             )
         )
 
-        yield from self.client.stream.send_iq_and_wait_for_reply(iq)
+        yield from self.client.stream.send(iq)
 
     @asyncio.coroutine
     def change_node_subscriptions(self, jid, node, subscriptions_to_set):
@@ -752,4 +764,28 @@ class Service(aioxmpp.service.Service):
             )
         )
 
-        yield from self.client.stream.send_iq_and_wait_for_reply(iq)
+        yield from self.client.stream.send(iq)
+
+    @asyncio.coroutine
+    def purge(self, jid, node):
+        """
+        Delete all items from a node.
+
+        :param jid: JID of the PubSub service
+        :param node: Name of the PubSub node
+        :type node: :class:`str`
+
+        Requires :attr:`.xso.Feature.PURGE`.
+        """
+
+        iq = aioxmpp.stanza.IQ(
+            type_=aioxmpp.structs.IQType.SET,
+            to=jid,
+            payload=pubsub_xso.OwnerRequest(
+                pubsub_xso.OwnerPurge(
+                    node
+                )
+            )
+        )
+
+        yield from self.client.stream.send(iq)

@@ -12,7 +12,7 @@
 # This program is distributed in the hope that it will be useful, but
 # WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-# General Public License for more details.
+# Lesser General Public License for more details.
 #
 # You should have received a copy of the GNU Lesser General Public
 # License along with this program.  If not, see
@@ -381,6 +381,8 @@ class ConfigurationForm(aioxmpp.forms.Form):
 
     The attribute documentation is auto-generated from :xep:`45`; see there for
     details on the semantics of each field.
+
+    .. versionadded:: 0.7
     """
 
     FORM_TYPE = 'http://jabber.org/protocol/muc#roomconfig'

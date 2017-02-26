@@ -12,7 +12,7 @@
 # This program is distributed in the hope that it will be useful, but
 # WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-# General Public License for more details.
+# Lesser General Public License for more details.
 #
 # You should have received a copy of the GNU Lesser General Public
 # License along with this program.  If not, see
@@ -54,8 +54,9 @@ class PresenceInfo(Example):
         capabilities of peers.
         """
 
-    async def _show_info(self, full_jid):
-        info = await self.disco.query_info(full_jid)
+    @asyncio.coroutine
+    def _show_info(self, full_jid):
+        info = yield from self.disco.query_info(full_jid)
         print("{}:".format(full_jid))
         print("  features:")
         for feature in info.features:
@@ -82,25 +83,26 @@ class PresenceInfo(Example):
 
     def make_simple_client(self):
         client = super().make_simple_client()
-        self.disco = client.summon(aioxmpp.disco.Service)
-        self.caps = client.summon(aioxmpp.entitycaps.Service)
+        self.disco = client.summon(aioxmpp.DiscoClient)
+        self.caps = client.summon(aioxmpp.EntityCapsService)
 
         if self.args.system_capsdb:
             self.caps.cache.set_system_db_path(self.args.system_capsdb)
         self.caps.cache.set_user_db_path(self.args.user_capsdb)
 
-        self.presence = client.summon(aioxmpp.presence.Service)
+        self.presence = client.summon(aioxmpp.PresenceClient)
         self.presence.on_available.connect(
             self._on_available
         )
 
         return client
 
-    async def run_simple_example(self):
+    @asyncio.coroutine
+    def run_simple_example(self):
         for i in range(5, 0, -1):
             print("going to wait {} more seconds for further "
                   "presence".format(i))
-            await asyncio.sleep(1)
+            yield from asyncio.sleep(1)
 
 
 if __name__ == "__main__":

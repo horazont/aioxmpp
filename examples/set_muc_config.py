@@ -12,13 +12,14 @@
 # This program is distributed in the hope that it will be useful, but
 # WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-# General Public License for more details.
+# Lesser General Public License for more details.
 #
 # You should have received a copy of the GNU Lesser General Public
 # License along with this program.  If not, see
 # <http://www.gnu.org/licenses/>.
 #
 ########################################################################
+import asyncio
 import configparser
 
 import aioxmpp.muc
@@ -121,17 +122,14 @@ class ServerInfo(Example):
 
     def make_simple_client(self):
         client = super().make_simple_client()
-        client.summon(aioxmpp.muc.Service)
+        client.summon(aioxmpp.MUCClient)
         return client
 
-    async def run_example(self):
-        self.stop_event = self.make_sigint_event()
-        await super().run_example()
+    @asyncio.coroutine
+    def run_simple_example(self):
+        muc = self.client.summon(aioxmpp.MUCClient)
 
-    async def run_simple_example(self):
-        muc = self.client.summon(aioxmpp.muc.Service)
-
-        config = await muc.get_room_config(
+        config = yield from muc.get_room_config(
             self.muc_jid
         )
         form = aioxmpp.muc.xso.ConfigurationForm.from_xso(config)
@@ -151,7 +149,10 @@ class ServerInfo(Example):
         if self.args.name is not None:
             form.roomname.value = self.args.name
 
-        await muc.set_room_config(self.muc_jid, form.render_reply())
+        yield from muc.set_room_config(
+            self.muc_jid,
+            form.render_reply()
+        )
 
 
 if __name__ == "__main__":

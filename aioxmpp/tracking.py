@@ -12,7 +12,7 @@
 # This program is distributed in the hope that it will be useful, but
 # WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-# General Public License for more details.
+# Lesser General Public License for more details.
 #
 # You should have received a copy of the GNU Lesser General Public
 # License along with this program.  If not, see
@@ -70,10 +70,16 @@ class MessageState(Enum):
 
        This is a final state.
 
-    .. attribute:: UNKNOWN
+    .. attribute:: CLOSED
 
        The tracking itself got aborted and cannot make a statement about the
        delivery of the stanza.
+
+       This is a final state.
+
+    .. attribute:: ERROR
+
+       An error reply stanza has been received for the stanza which was sent.
 
        This is a final state.
 
@@ -103,8 +109,9 @@ class MessageState(Enum):
 
     def __lt__(self, other):
         if     ((other == MessageState.ABORTED or
-                 other == MessageState.UNKNOWN)
-                and self != MessageState.IN_TRANSIT):
+                 other == MessageState.CLOSED or
+                 other == MessageState.ERROR) and
+                self != MessageState.IN_TRANSIT):
             return True
         if     (other == MessageState.TIMED_OUT and
                 self != MessageState.IN_TRANSIT and
@@ -114,17 +121,21 @@ class MessageState(Enum):
 
     IN_TRANSIT = 0
     ABORTED = 1
-    UNKNOWN = 2
-    DELIVERED_TO_SERVER = 3
-    TIMED_OUT = 4
-    DELIVERED_TO_RECIPIENT = 5
-    SEEN_BY_RECIPIENT = 6
+    CLOSED = 2
+    ERROR = 3
+    DELIVERED_TO_SERVER = 4
+    TIMED_OUT = 5
+    DELIVERED_TO_RECIPIENT = 6
+    SEEN_BY_RECIPIENT = 7
 
 
 class MessageTracker(aioxmpp.statemachine.OrderedStateMachine):
     """
     This is the high-level equivalent of the :class:`~.StanzaToken`. This
     structure is used by different tracking implementations.
+
+    This is also a :class:`.OrderedStateMachine`, so see there for other
+    methods which allow waiting for a specific state.
 
     .. attribute:: state
 

@@ -12,7 +12,7 @@
 # This program is distributed in the hope that it will be useful, but
 # WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-# General Public License for more details.
+# Lesser General Public License for more details.
 #
 # You should have received a copy of the GNU Lesser General Public
 # License along with this program.  If not, see
@@ -26,6 +26,7 @@ from datetime import datetime, timedelta
 from enum import Enum
 
 import aioxmpp.callbacks
+import aioxmpp.forms
 import aioxmpp.service
 import aioxmpp.stanza
 import aioxmpp.structs
@@ -35,6 +36,41 @@ from . import xso as muc_xso
 
 
 class LeaveMode(Enum):
+    """
+    The different reasons for a user to leave or be removed from MUC.
+
+    .. attribute:: DISCONNECTED
+
+       The local client disconnected. This only occurs in events referring to
+       the local entity.
+
+    .. attribute:: SYSTEM_SHUTDOWN
+
+       The remote server shut down.
+
+    .. attribute:: NORMAL
+
+       The leave was initiated by the occupant themselves and was not a kick or
+       ban.
+
+    .. attribute:: KICKED
+
+       The user was kicked from the room.
+
+    .. attribute:: AFFILIATION_CHANGE
+
+       Changes in the affiliation of the user caused them to be removed.
+
+    .. attribute:: MODERATION_CHANGE
+
+       Changes in the moderation settings of the room caused the user to be
+       removed.
+
+    .. attribute:: BANNED
+
+       The user was banned from the room.
+    """
+
     DISCONNECTED = -2
     SYSTEM_SHUTDOWN = -1
     NORMAL = 0
@@ -168,17 +204,21 @@ class Room:
 
     .. autoattribute:: occupants
 
-    .. automethod:: set_role
-
-    .. automethod:: set_affiliation
-
-    .. automethod:: set_subject
+    .. automethod:: change_nick
 
     .. automethod:: leave
 
     .. automethod:: leave_and_wait
 
+    .. automethod:: request_voice
+
     .. automethod:: send_tracked_message
+
+    .. automethod:: set_role
+
+    .. automethod:: set_affiliation
+
+    .. automethod:: set_subject
 
     The interface provides signals for most of the rooms events. The following
     keyword arguments are used at several signal handlers (which is also noted
@@ -248,9 +288,8 @@ class Room:
     .. signal:: on_suspend()
 
        Emits when the stream used by this MUC gets destroyed (see
-       :meth:`~.node.AbstractClient.on_stream_destroyed`) and the MUC is
-       configured to automatically rejoin the user when the stream is
-       re-established.
+       :meth:`~.node.Client.on_stream_destroyed`) and the MUC is configured to
+       automatically rejoin the user when the stream is re-established.
 
     .. signal:: on_resume()
 
@@ -278,7 +317,7 @@ class Room:
        and/or `reason` keyword arguments are provided.
 
        If :attr:`autorejoin` is false and the stream gets destroyed, or if the
-       :class:`Service` is unloaded from a node, this event emits with
+       :class:`.MUCClient` is unloaded from a node, this event emits with
        `presence` set to :data:`None`.
 
     The following signals inform users about state changes related to **other**
@@ -387,7 +426,7 @@ class Room:
 
     def _cleanup_tracking(self, *args, **kwargs):
         for tracker in self._tracking.values():
-            tracker.state = aioxmpp.tracking.MessageState.UNKNOWN
+            tracker.state = aioxmpp.tracking.MessageState.CLOSED
         self._tracking.clear()
 
     @property
@@ -415,7 +454,7 @@ class Room:
         stays true until :meth:`on_exit` is emitted.
 
         When it becomes false, the :class:`Room` is removed from the
-        bookkeeping of the :class:`Service` to which it belongs and is thus
+        bookkeeping of the :class:`.MUCClient` to which it belongs and is thus
         dead.
         """
         return self._joined
@@ -447,7 +486,7 @@ class Room:
     @property
     def mucjid(self):
         """
-        The (bare) :class:`aioxmpp.JID of the MUC which this :class:`Room`
+        The (bare) :class:`aioxmpp.JID` of the MUC which this :class:`Room`
         tracks.
         """
         return self._mucjid
@@ -651,6 +690,13 @@ class Room:
         try:
             existing = self._occupant_info[info.occupantjid]
         except KeyError:
+            if stanza.type_ == aioxmpp.structs.PresenceType.UNAVAILABLE:
+                self._service.logger.debug(
+                    "received unavailable presence from unknown occupant %r."
+                    " ignoring.",
+                    stanza.from_,
+                )
+                return
             self._occupant_info[info.occupantjid] = info
             self.on_join(stanza, info)
             return
@@ -669,6 +715,29 @@ class Room:
             existing.update(info)
             self.on_leave(stanza, existing, mode, actor=actor, reason=reason)
             del self._occupant_info[existing.occupantjid]
+
+    @asyncio.coroutine
+    def change_nick(self, new_nick):
+        """
+        Change the nick name of the occupant.
+
+        :param new_nick: New nickname to use
+        :type new_nick: :class:`str`
+
+        This sends the request to change the nickname and waits for the request
+        to be sent over the stream.
+
+        The nick change may or may not happen; observe the
+        :meth:`on_nick_change` event.
+        """
+
+        stanza = aioxmpp.Presence(
+            type_=aioxmpp.PresenceType.AVAILABLE,
+            to=self._mucjid.replace(resource=new_nick),
+        )
+        yield from self._service.client.stream.send(
+            stanza
+        )
 
     @asyncio.coroutine
     def set_role(self, nick, role, *, reason=None):
@@ -705,15 +774,15 @@ class Room:
             ]
         )
 
-        yield from self.service.client.stream.send_iq_and_wait_for_reply(
+        yield from self.service.client.stream.send(
             iq
         )
 
     @asyncio.coroutine
     def set_affiliation(self, jid, affiliation, *, reason=None):
         """
-        Convenience wrapper around :meth:`Service.set_affiliation`. See there
-        for details, and consider its `mucjid` argument to be set to
+        Convenience wrapper around :meth:`.MUCClient.set_affiliation`. See
+        there for details, and consider its `mucjid` argument to be set to
         :attr:`mucjid`.
         """
         return (yield from self.service.set_affiliation(
@@ -736,7 +805,7 @@ class Room:
         )
         msg.subject.update(subject)
 
-        return self.service.client.stream.enqueue_stanza(msg)
+        return self.service.client.stream.enqueue(msg)
 
     def leave(self):
         """
@@ -756,7 +825,7 @@ class Room:
             type_=aioxmpp.structs.PresenceType.UNAVAILABLE,
             to=self._mucjid
         )
-        self.service.client.stream.enqueue_stanza(presence)
+        self.service.client.stream.enqueue(presence)
 
     @asyncio.coroutine
     def leave_and_wait(self):
@@ -768,7 +837,7 @@ class Room:
 
         self.leave()
 
-        def on_exit(*args):
+        def on_exit(*args, **kwargs):
             fut.set_result(None)
             return True
 
@@ -816,7 +885,7 @@ class Room:
            seconds; this avoids that sending a message becomes a memory leak.
 
         If the chat is exited in the meantime, the messages are set to
-        :attr:`~.MessageState.UNKNOWN` state. This also happens on suspension
+        :attr:`~.MessageState.CLOSED` state. This also happens on suspension
         and resumption.
         """
         if isinstance(body_or_stanza, aioxmpp.stanza.Message):
@@ -831,7 +900,7 @@ class Room:
             message.body.update(body_or_stanza)
 
         tracker = aioxmpp.tracking.MessageTracker()
-        token = self.service.client.stream.enqueue_stanza(
+        token = self.service.client.stream.enqueue(
             message,
             on_state_change=tracker.on_stanza_state_change
         )
@@ -849,16 +918,55 @@ class Room:
 
         return tracker
 
+    @asyncio.coroutine
+    def request_voice(self):
+        """
+        Request voice (participant role) in the room and wait for the request
+        to be sent.
 
-def _connect_to_filter(filter, func, service):
-    return filter, filter.register(func, service)
+        The participant role allows occupants to send messages while the room
+        is in moderated mode.
+
+        There is no guarantee that the request will be granted. To detect that
+        voice has been granted, observe the :meth:`on_role_change` signal.
+
+        .. versionadded:: 0.8
+        """
+
+        msg = aioxmpp.Message(
+            to=self.mucjid,
+            type_=aioxmpp.MessageType.NORMAL
+        )
+
+        data = aioxmpp.forms.Data(
+            aioxmpp.forms.DataType.SUBMIT,
+        )
+
+        data.fields.append(
+            aioxmpp.forms.Field(
+                type_=aioxmpp.forms.FieldType.HIDDEN,
+                var="FORM_TYPE",
+                values=["http://jabber.org/protocol/muc#request"],
+            ),
+        )
+        data.fields.append(
+            aioxmpp.forms.Field(
+                type_=aioxmpp.forms.FieldType.LIST_SINGLE,
+                var="muc#role",
+                values=["participant"],
+            )
+        )
+
+        msg.xep0004_data.append(data)
+
+        yield from self.service.client.stream.send(msg)
 
 
 def _connect_to_signal(signal, func):
     return signal, signal.connect(func)
 
 
-class Service(aioxmpp.service.Service):
+class MUCClient(aioxmpp.service.Service):
     """
     Client service implementing the a Multi-User Chat client. By loading it
     into a client, it is possible to join multi-user chats and implement
@@ -874,19 +982,17 @@ class Service(aioxmpp.service.Service):
 
     .. automethod:: set_room_config
 
+    .. versionchanged:: 0.8
+
+       This class was formerly known as :class:`aioxmpp.muc.Service`. It
+       is still available under that name, but the alias will be removed in
+       1.0.
+
     """
     on_muc_joined = aioxmpp.callbacks.Signal()
 
     def __init__(self, client, **kwargs):
         super().__init__(client, **kwargs)
-
-        self._filter_tokens = [
-            _connect_to_filter(
-                client.stream.service_inbound_presence_filter,
-                self._inbound_presence_filter,
-                Service
-            )
-        ]
 
         self._signal_tokens = [
             _connect_to_signal(
@@ -908,7 +1014,7 @@ class Service(aioxmpp.service.Service):
         presence.xep0045_muc = muc_xso.GenericExt()
         presence.xep0045_muc.password = password
         presence.xep0045_muc.history = history
-        self.client.stream.enqueue_stanza(presence)
+        self.client.stream.enqueue(presence)
 
     def _stream_established(self):
         self.logger.debug("stream established, (re-)connecting to %d mucs",
@@ -977,7 +1083,7 @@ class Service(aioxmpp.service.Service):
                 type_=aioxmpp.structs.PresenceType.UNAVAILABLE,
             )
             unjoin.xep0045_muc = muc_xso.GenericExt()
-            self.client.stream.enqueue_stanza(unjoin)
+            self.client.stream.enqueue(unjoin)
 
     def _pending_on_enter(self, presence, occupant, **kwargs):
         mucjid = presence.from_.bare()
@@ -994,16 +1100,6 @@ class Service(aioxmpp.service.Service):
 
     def _inbound_muc_user_presence(self, stanza):
         mucjid = stanza.from_.bare()
-        # try:
-        #     pending, fut, *_ = self._pending_mucs.pop(mucjid)
-        # except KeyError:
-        #     pass
-        # else:
-        #     if fut is not None:
-        #         fut.set_result(None)
-        #     self._joined_mucs[mucjid] = pending
-        #     pending._inbound_muc_user_presence(stanza)
-        #     return
 
         try:
             muc = self._joined_mucs[mucjid]
@@ -1023,6 +1119,7 @@ class Service(aioxmpp.service.Service):
         else:
             fut.set_exception(stanza.error.to_exception())
 
+    @aioxmpp.service.inbound_presence_filter
     def _inbound_presence_filter(self, stanza):
         if stanza.xep0045_muc_user is not None:
             self._inbound_muc_user_presence(stanza)
@@ -1065,10 +1162,6 @@ class Service(aioxmpp.service.Service):
         for muc in list(self._joined_mucs.values()):
             muc._disconnect()
         self._joined_mucs.clear()
-
-        for filter_, token in self._filter_tokens:
-            filter_.unregister(token)
-        self._filter_tokens.clear()
 
     def join(self, mucjid, nick, *,
              password=None, history=None, autorejoin=True):
@@ -1202,7 +1295,7 @@ class Service(aioxmpp.service.Service):
             ]
         )
 
-        yield from self.client.stream.send_iq_and_wait_for_reply(
+        yield from self.client.stream.send(
             iq
         )
 
@@ -1220,6 +1313,8 @@ class Service(aioxmpp.service.Service):
 
            :class:`~.ConfigurationForm`
               for a form template to work with the returned form
+
+        .. versionadded:: 0.7
         """
 
         if mucjid is None or not mucjid.is_bare:
@@ -1231,7 +1326,7 @@ class Service(aioxmpp.service.Service):
             payload=muc_xso.OwnerQuery(),
         )
 
-        return (yield from self.client.stream.send_iq_and_wait_for_reply(
+        return (yield from self.client.stream.send(
             iq
         )).form
 
@@ -1259,6 +1354,7 @@ class Service(aioxmpp.service.Service):
           form.moderatedroom = True
           await muc_service.set_rooom_config(mucjid, form.render_reply())
 
+        .. versionadded:: 0.7
         """
 
         iq = aioxmpp.stanza.IQ(
@@ -1267,6 +1363,6 @@ class Service(aioxmpp.service.Service):
             payload=muc_xso.OwnerQuery(form=data),
         )
 
-        yield from self.client.stream.send_iq_and_wait_for_reply(
+        yield from self.client.stream.send(
             iq,
         )
