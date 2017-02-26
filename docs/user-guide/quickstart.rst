@@ -174,8 +174,8 @@ Similar to handling messages, presences can also be handled.
 .. note::
 
    There exists a service which handles and manages peer presence
-   (:class:`aioxmpp.presence.Service`) and one which manages roster
-   subscriptions (:class:`aioxmpp.roster.Service`), which make most manual
+   (:class:`aioxmpp.PresenceClient`) and one which manages roster
+   subscriptions (:class:`aioxmpp.RosterClient`), which make most manual
    handling of presence obsolete. Read on on how to use services.
 
 Again, the code should be run before
@@ -238,7 +238,7 @@ part of the XMPP protocol. Services essentially do the same thing as discussed
 in the previous sections (sending and receiving messages, IQs and/or presences),
 but encapsulated away in a class. For details on that, see
 :mod:`aioxmpp.service` and an implementation, such as
-:class:`aioxmpp.disco.Service`.
+:class:`aioxmpp.DiscoClient`.
 
 Here we’ll show how to use services::
 
@@ -247,7 +247,7 @@ Here we’ll show how to use services::
       aioxmpp.make_security_layer(password)
   )
 
-  disco = client.summon(aioxmpp.disco.Service)
+  disco = client.summon(aioxmpp.DiscoClient)
 
   async with client.connected() as stream:
       info = await disco.query_info(
@@ -266,11 +266,12 @@ implemented as services.
 Relevant docmuentation:
 
 * :meth:`aioxmpp.Client.summon`
-* :class:`aioxmpp.disco.Service`, :meth:`~aioxmpp.disco.Service.query_info`
+* :mod:`aioxmpp.disco`, :class:`aioxmpp.DiscoClient`,
+  :meth:`~aioxmpp.DiscoClient.query_info`
 
 
-Use :class:`aioxmpp.presence.Service` presence implementation
-=============================================================
+Use :class:`aioxmpp.PresenceClient` presence implementation
+===========================================================
 
 This section is mainly there to show you a service which is mostly used with
 callbacks::
@@ -286,7 +287,7 @@ callbacks::
   def peer_unavailable(jid):
       print("{} went offline".format(jid))
 
-  presence = client.summon(aioxmpp.presence.Service)
+  presence = client.summon(aioxmpp.PresenceClient)
   presence.on_bare_available.connect(peer_available)
   presence.on_bare_unavailable.connect(peer_unavailable)
 
@@ -298,7 +299,7 @@ available and unavailable presence is received.
 
 Relevant documentation:
 
-* :class:`aioxmpp.presence.Service`
+* :class:`aioxmpp.PresenceClient`
 * :class:`aioxmpp.callbacks.AdHocSignal`
 
 .. _ug-quickstart-send-iq:
