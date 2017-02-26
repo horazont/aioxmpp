@@ -273,21 +273,41 @@ def connect_xmlstream(
     responsible for the given `jid` and authenticate against that server using
     the SASL mechansims described in `metadata`.
 
-    The part of the `metadata` (which must be a
-    :class:`.security_layer.SecurityLayer` object) specifying the use of TLS is
-    applied. If the security layer does not mandate TLS, the resulting XML
-    stream may not be using TLS. TLS is used whenever possible.
+    :param jid: Address of the user for which the connection is made.
+    :type jid: :class:`aioxmpp.JID`
+    :param metadata: Connection metadata for configuring the TLS usage.
+    :type metadata: :class:`~.security_layer.SecurityLayer`
+    :param negotiation_timeout: Timeout for each individual negotiation step.
+    :type negotiation_timeout: :class:`float` in seconds
+    :param override_peer: Sequence of connection options which take precedence
+                          over normal discovery methods.
+    :type override_peer: sequence of (:class:`str`, :class:`int`,
+                         :class:`~.BaseConnector`) triples
+    :param loop: asyncio event loop to use (defaults to current)
+    :type loop: :class:`asyncio.BaseEventLoop`
+    :param logger: Logger to use (defaults to module-wide logger)
+    :type logger: :class:`logging.Logger`
+    :raises ValueError: if the domain from the `jid` announces that XMPP is not
+                        supported at all.
+    :raises aioxmpp.errors.TLSFailure: if all connection attempts fail and one
+                                       of them is a :class:`~.TLSFailure`.
+    :raises aioxmpp.errors.MultiOSError: if all connection attempts fail.
+    :return: Transport, XML stream and the current stream features
+    :rtype: tuple of (:class:`asyncio.BaseTransport`, :class:`~.XMLStream`,
+            :class:`~.nonza.StreamFeatures`)
 
-    `override_peer` may be a list of triples consisting of ``(host, port,
-    connector)``, where `connector` is a
-    :class:`aioxmpp.connector.BaseConnector` instance. The options in the list
-    are tried first (in the order given), and only if all of them fail,
+    The part of the `metadata` specifying the use of TLS is applied. If the
+    security layer does not mandate TLS, the resulting XML stream may not be
+    using TLS. TLS is used whenever possible.
+
+    The connection options in `override_peer` are tried before any standardised
+    discovery of connection options is made. Only if all of them fail,
     automatic discovery of connection options is performed.
 
     `loop` may be a :class:`asyncio.BaseEventLoop` to use. Defaults to the
     current event loop.
 
-    If `domain` announces that XMPP is not supported at all,
+    If the domain from the `jid` announces that XMPP is not supported at all,
     :class:`ValueError` is raised. If no options are returned from
     :func:`discover_connectors` and `override_peer` is empty,
     :class:`ValueError` is raised, too.
@@ -299,7 +319,7 @@ def connect_xmlstream(
     A TLS problem is treated like any other connection problem and the other
     connection options are considered. However, if *all* connection options
     fail and the set of encountered errors includes a TLS error, the TLS error
-    is re-raised.
+    is re-raised instead of raising a :class:`aioxmpp.errors.MultiOSError`.
 
     Return a triple ``(transport, xmlstream, features)``. `transport`
     the underlying :class:`asyncio.Transport` which is used for the `xmlstream`

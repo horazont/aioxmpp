@@ -32,17 +32,10 @@ In theory, simply running
 
    pip3 install aioxmpp
 
-should install everything neccessary to run aioxmpp—except the development files
-for libxml2. You need to install these manually; how to do so depends on your
-distribution, here are some examples:
-
-.. code-block:: bash
-
-   apt install libxml2-dev    # debians
-   dnf install libxml2-devel  # redhats
-
-On ArchLinux, having libxml2 installed is sufficient; and as it is a dependency
-of lxml which in turn is a dependency of aioxmpp, you should have it already.
+should install everything neccessary to run aioxmpp. You may need to install
+dependencies for other packages manually. Most commonly you will need
+python3-dev, libssl-dev (for Cryptography/PyOpenSSL) and libxml2-dev (for lxml)
+(the package names will vary across platforms).
 
 .. note::
 

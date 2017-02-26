@@ -36,8 +36,8 @@ stanza handlers, filters and others.
 
 .. _api-aioxmpp.service-decorators:
 
-Decorators
-==========
+Decorators and Descriptors
+==========================
 
 These decorators provide special functionality when used on methods of
 :class:`Service` subclasses.
@@ -68,6 +68,16 @@ These decorators provide special functionality when used on methods of
 .. autodecorator:: outbound_presence_filter()
 
 .. autodecorator:: depsignal
+
+.. seealso::
+
+   :class:`~.disco.register_feature`
+      For a descriptor (see below) which allows to register a Service Discovery
+      feature when the service is instantiated.
+
+   :class:`~.disco.mount_as_node`
+      For a descriptor (see below) which allows to register a Service Discovery
+      node when the service is instantiated.
 
 Test functions
 --------------
