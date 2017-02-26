@@ -576,6 +576,84 @@ class TestJID(unittest.TestCase):
             structs.JID.fromstr("foo/" + "ü"*512)
 
 
+class TestPresenceShow(unittest.TestCase):
+    def test_aliases(self):
+        self.assertIs(
+            structs.PresenceShow.XA,
+            structs.PresenceShow.EXTENDED_AWAY
+        )
+
+        self.assertIs(
+            structs.PresenceShow.PLAIN,
+            structs.PresenceShow.NONE
+        )
+
+        self.assertIs(
+            structs.PresenceShow.CHAT,
+            structs.PresenceShow.FREE_FOR_CHAT
+        )
+
+        self.assertIs(
+            structs.PresenceShow.DND,
+            structs.PresenceShow.DO_NOT_DISTURB
+        )
+
+    def test_ordering_simple(self):
+        values = [
+            structs.PresenceShow.AWAY,
+            structs.PresenceShow.CHAT,
+            structs.PresenceShow.PLAIN,
+            structs.PresenceShow.DND,
+            structs.PresenceShow.XA,
+        ]
+        values.sort()
+
+        self.assertSequenceEqual(
+            [
+                structs.PresenceShow.XA,
+                structs.PresenceShow.AWAY,
+                structs.PresenceShow.PLAIN,
+                structs.PresenceShow.CHAT,
+                structs.PresenceShow.DND,
+            ],
+            values,
+        )
+
+    def test_proper_error_message_on_invalid_ordering_operand(self):
+        with self.assertRaises(TypeError):
+            structs.PresenceShow.AWAY < 1
+
+    def test_value(self):
+        values = [
+            "xa",
+            "away",
+            None,
+            "chat",
+            "dnd"
+        ]
+
+        for v in values:
+            m = structs.PresenceShow(v)
+            self.assertEqual(m.value, v)
+
+    def test_ordering(self):
+        values = [
+            structs.PresenceShow("xa"),
+            structs.PresenceShow("away"),
+            structs.PresenceShow(None),
+            structs.PresenceShow("chat"),
+            structs.PresenceShow("dnd"),
+        ]
+
+        for i in range(1, len(values)-1):
+            for v1, v2 in zip(values[:-i], values[i:]):
+                self.assertLess(v1, v2)
+                self.assertLessEqual(v1, v2)
+                self.assertNotEqual(v1, v2)
+                self.assertGreater(v2, v1)
+                self.assertGreaterEqual(v2, v1)
+
+
 class TestPresenceState(unittest.TestCase):
     def test_immutable(self):
         ps = structs.PresenceState()

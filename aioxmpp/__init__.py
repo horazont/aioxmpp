@@ -81,6 +81,7 @@ from .node import Client, PresenceManagedClient  # NOQA
 from .stanza import Presence, IQ, Message  # NOQA
 from .structs import (  # NOQA
     JID,
+    PresenceShow,
     PresenceState,
     MessageType,
     PresenceType,

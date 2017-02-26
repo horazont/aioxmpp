@@ -47,6 +47,8 @@ Jabber IDs
 Presence
 ========
 
+.. autoclass:: PresenceShow
+
 .. autoclass:: PresenceState
 
 .. currentmodule:: aioxmpp.structs
@@ -764,6 +766,109 @@ class JID(collections.namedtuple("JID", ["localpart", "domain", "resource"])):
         if not sep:
             resource = None
         return cls(localpart, domain, resource, strict=strict)
+
+
+@functools.total_ordering
+class PresenceShow(enum.Enum):
+    """
+    Enumeration to support the ``show`` element of presence stanzas.
+
+    The enumeration members support total ordering. The order is defined by
+    relevance and is the following (from lesser to greater): :attr:`XA`,
+    :attr:`AWAY`, :attr:`NONE`, :attr:`CHAT`, :attr:`DND`. The order is
+    intended to be used to extract the most relevant resource e.g. in a roster.
+
+    .. versionadded:: 0.8
+
+    .. attribute:: XA
+       :annotation: = "xa"
+
+       .. epigraph::
+
+          The entity or resource is away for an extended period (xa = "eXtended
+          Away").
+
+          -- :rfc:`6121`, Section 4.7.2.1
+
+    .. attribute:: EXTENDED_AWAY
+       :annotation: = "xa"
+
+       Alias to :attr:`XA`.
+
+    .. attribute:: AWAY
+       :annotation: = "away"
+
+       .. epigraph::
+
+          The entity or resource is temporarily away.
+
+          -- :rfc:`6121`, Section 4.7.2.1
+
+    .. attribute:: NONE
+       :annotation: = None
+
+       Signifies absence of the ``show`` element.
+
+    .. attribute:: PLAIN
+       :annotation: = None
+
+       Alias to :attr:`NONE`.
+
+    .. attribute:: CHAT
+       :annotation: = "chat"
+
+       .. epigraph::
+
+          The entity or resource is actively interested in chatting.
+
+          -- :rfc:`6121`, Section 4.7.2.1
+
+    .. attribute:: FREE_FOR_CHAT
+       :annotation: = "chat"
+
+       Alias to :attr:`CHAT`.
+
+    .. attribute:: DND
+       :annotation: = "dnd"
+
+       .. epigraph::
+
+          The entity or resource is busy (dnd = "Do Not Disturb").
+
+          -- :rfc:`6121`, Section 4.7.2.1
+
+    .. attribute:: DO_NOT_DISTURB
+       :annotation: = "dnd"
+
+       Alias to :attr:`DND`.
+
+    """
+    XA = "xa"
+    EXTENDED_AWAY = "xa"
+    AWAY = "away"
+    PLAIN = None
+    NONE = None
+    CHAT = "chat"
+    FREE_FOR_CHAT = "chat"
+    DND = "dnd"
+    DO_NOT_DISTURB = "dnd"
+
+    def __lt__(self, other):
+        try:
+            w1 = self._WEIGHTS[self]
+            w2 = self._WEIGHTS[other]
+        except KeyError:
+            return NotImplemented
+        return w1 < w2
+
+
+PresenceShow._WEIGHTS = {
+    PresenceShow.XA: -2,
+    PresenceShow.AWAY: -1,
+    PresenceShow.NONE: 0,
+    PresenceShow.CHAT: 1,
+    PresenceShow.DND: 2,
+}
 
 
 @functools.total_ordering
