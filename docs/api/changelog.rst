@@ -117,6 +117,10 @@ Version 0.8
   from the clients bare JID (i.e. from the clients server on behalf on the
   account) has improved.
 
+* The examples now default to ``$XDG_CONFIG_HOME/aioxmpp-examples.ini`` for
+  configuration if it exists. (thanks, `@mcepl
+  <https://github.com/horazont/aioxmpp/pull/27>`_).
+
 .. _api-changelog-0.7:
 
 Version 0.7
