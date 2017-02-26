@@ -2580,15 +2580,18 @@ class Test_TypedPropBase(unittest.TestCase):
             instance._xso_contents
         )
 
-    def test_do_not_coerce_None(self):
+    def test_do_not_coerce_default(self):
         type_ = unittest.mock.MagicMock()
         instance = make_instance_mock()
 
         prop = xso_model._TypedPropBase(
-            default=None,
+            default=unittest.mock.sentinel.foo,
             type_=type_)
 
-        prop._set_from_code(instance, None)
+        prop._set_from_code(
+            instance,
+            unittest.mock.sentinel.foo
+        )
 
         self.assertSequenceEqual(
             [
@@ -2598,7 +2601,7 @@ class Test_TypedPropBase(unittest.TestCase):
 
         self.assertDictEqual(
             {
-                prop: None
+                prop: unittest.mock.sentinel.foo
             },
             instance._xso_contents
         )

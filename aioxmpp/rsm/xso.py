@@ -29,7 +29,7 @@ namespaces.xep0059_rsm = "http://jabber.org/protocol/rsm"
 
 
 class _RangeLimitBase(xso.XSO):
-    value = xso.Text()
+    value = xso.Text(default=None)
 
     def __init__(self, value=None):
         super().__init__()

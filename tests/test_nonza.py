@@ -844,7 +844,7 @@ class TestSMEnabled(unittest.TestCase):
         )
         self.assertIs(
             nonza.SMEnabled.id_.default,
-            xso.NO_DEFAULT
+            None,
         )
 
     def test_location(self):

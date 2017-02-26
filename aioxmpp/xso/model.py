@@ -371,7 +371,7 @@ class _TypedPropBase(_PropBase):
         self.type_ = type_
 
     def __set__(self, instance, value):
-        if value is not None:
+        if self.default is self.NO_DEFAULT or value != self.default:
             value = self.type_.coerce(value)
         super().__set__(instance, value)
 

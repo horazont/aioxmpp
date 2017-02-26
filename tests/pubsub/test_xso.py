@@ -1563,10 +1563,9 @@ class TestEventItems(unittest.TestCase):
         )
 
     def test_init_default(self):
-        items = pubsub_xso.EventItems()
-        self.assertSequenceEqual(items.items, [])
-        self.assertSequenceEqual(items.retracts, [])
-        self.assertIsNone(items.node)
+        with self.assertRaisesRegex(
+                TypeError, "required positional argument: 'node'"):
+            pubsub_xso.EventItems()
 
     def test_init(self):
         items_list = [
@@ -1837,7 +1836,7 @@ class TestEvent(unittest.TestCase):
         self.assertIsNone(ev.payload)
 
     def test_init(self):
-        items = pubsub_xso.EventItems()
+        items = pubsub_xso.EventItems(node="foo")
         ev = pubsub_xso.Event(items)
         self.assertIs(ev.payload, items)
 

@@ -49,6 +49,9 @@ class Test_RangeLimitBase(unittest.TestCase):
             rsm_xso._RangeLimitBase.value,
             xso.Text,
         )
+        self.assertIsNone(
+            rsm_xso._RangeLimitBase.value.default,
+        )
 
     def test_init_default(self):
         l = rsm_xso._RangeLimitBase()

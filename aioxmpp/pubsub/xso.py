@@ -630,7 +630,7 @@ class EventItems(xso.XSO):
 
     items = xso.ChildList([EventItem])
 
-    def __init__(self, *, items=[], retracts=[], node=None):
+    def __init__(self, node, *, items=[], retracts=[]):
         super().__init__()
         self.items[:] = items
         self.retracts[:] = retracts

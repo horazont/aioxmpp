@@ -607,7 +607,7 @@ class SMEnabled(SMXSO):
         type_=xso.Bool(),
         default=False
     )
-    id_ = xso.Attr("id")
+    id_ = xso.Attr("id", default=None)
     location = xso.Attr(
         "location",
         type_=xso.ConnectionLocation(),

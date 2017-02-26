@@ -121,6 +121,19 @@ Version 0.8
   configuration if it exists. (thanks, `@mcepl
   <https://github.com/horazont/aioxmpp/pull/27>`_).
 
+* *Possibly breaking change*: Type coercion in XSO descriptors now behaves
+  differently. Previously, :data:`None` was hard-coded to be exempt from type
+  coercion; this allowed *any* :class:`~.xso.Text`,  :class:`~.xso.ChildText`,
+  :class:`~.xso.Attr` and other scalar descriptor to be assigned :data:`None`,
+  unless a validator which explicitly forbade that was installed. The use case
+  was to have a default, absence-indicating value which is outside the valid
+  value range of the ``type_``.
+
+  This is now handled by exempting the ``default`` of the descriptor from type
+  coercion and thus allowing assignment of that default by default. The change
+  thus only affects descriptors which have a ``default`` other than
+  :data:`None` (which includes an unset default).
+
 .. _api-changelog-0.7:
 
 Version 0.7

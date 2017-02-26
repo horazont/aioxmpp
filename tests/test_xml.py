@@ -1086,7 +1086,7 @@ class TestXMPPXMLProcessor(unittest.TestCase):
         class Bar(xso.XSO):
             TAG = ("uri:foo", "bar")
 
-            text = xso.Text()
+            text = xso.Text(default=None)
 
             def __init__(self, text=None):
                 super().__init__()
