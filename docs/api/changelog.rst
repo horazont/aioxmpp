@@ -66,6 +66,7 @@ Version 0.8
   * :class:`aioxmpp.presence.Service` -> :class:`aioxmpp.PresenceClient`
   * :class:`aioxmpp.roster.Service` -> :class:`aioxmpp.RosterClient`
   * :class:`aioxmpp.entitycaps.Service` -> :class:`aioxmpp.EntityCapsService`
+  * :class:`aioxmpp.pubsub.Service` -> :class:`aioxmpp.PubSubClient`
 
   The old names are still available until 1.0.
 

@@ -186,3 +186,4 @@ below:
 """
 
 from .service import PubSubClient  # NOQA
+Service = PubSubClient
