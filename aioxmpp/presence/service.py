@@ -118,10 +118,20 @@ class PresenceClient(aioxmpp.service.Service):
 
     def get_most_available_stanza(self, peer_jid):
         """
-        Return the stanza of the resource with the most available presence.
+        Obtain the stanza describing the most-available presence of the
+        contact.
 
-        The resources are sorted using the ordering defined on
-        :class:`~aioxmpp.PresenceState`.
+        :param peer_jid: Bare JID of the contact.
+        :type peer_jid: :class:`aioxmpp.JID`
+        :rtype: :class:`aioxmpp.Presence` or :data:`None`
+        :return: The presence stanza of the most available resource or
+                 :data:`None` if there is no available resource.
+
+        The "most available" resource is the one whose presence state orderest
+        highest according to :class:`~aioxmpp.PresenceState`.
+
+        If there is no available resource for a given `peer_jid`, :data:`None`
+        is returned.
         """
         presences = sorted(
             self.get_peer_resources(peer_jid).items(),
