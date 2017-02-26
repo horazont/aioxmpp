@@ -781,6 +781,10 @@ class Presence(StanzaBase):
         tag=(namespaces.client, "show"),
         type_=xso.EnumType(
             structs.PresenceShow,
+            allow_coerce=True,
+            deprecate_coerce=True,
+            allow_unknown=False,
+            accept_unknown=False,
         ),
         default=structs.PresenceShow.NONE,
     )

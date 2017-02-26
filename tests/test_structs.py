@@ -653,6 +653,16 @@ class TestPresenceShow(unittest.TestCase):
                 self.assertGreater(v2, v1)
                 self.assertGreaterEqual(v2, v1)
 
+    @unittest.skipIf(aioxmpp.version_info >= (1, 0, 0),
+                     "does not apply to this version of aioxmpp")
+    def test_uses_compat_mixin(self):
+        self.assertTrue(
+            issubclass(
+                structs.PresenceShow,
+                structs.CompatibilityMixin,
+            )
+        )
+
 
 class TestPresenceState(unittest.TestCase):
     def test_immutable(self):
@@ -669,6 +679,19 @@ class TestPresenceState(unittest.TestCase):
         self.assertFalse(ps.available)
         self.assertEqual(ps.show, structs.PresenceShow.NONE)
 
+    def test_init_compat(self):
+        with self.assertWarnsRegex(
+                DeprecationWarning,
+                "as of aioxmpp 1.0, the show argument must use "
+                "PresenceShow instead of str") as ctx:
+            ps = structs.PresenceState(True, "dnd")
+        self.assertIn(
+            "test_structs.py",
+            ctx.filename,
+        )
+        self.assertTrue(ps.available)
+        self.assertEqual(ps.show, structs.PresenceShow.DND)
+
     def test_init_available(self):
         ps = structs.PresenceState(available=True)
         self.assertTrue(ps.available)
@@ -681,7 +704,7 @@ class TestPresenceState(unittest.TestCase):
         ps = structs.PresenceState(available=True,
                                    show=structs.PresenceShow.DND)
         self.assertTrue(ps.available)
-        self.assertEqual(structs.PresenceShow.DND, ps.show)
+        self.assertIs(structs.PresenceShow.DND, ps.show)
 
     def test_init_available_validate_show(self):
         with self.assertRaises(ValueError):

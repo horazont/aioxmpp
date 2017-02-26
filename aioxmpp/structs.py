@@ -769,7 +769,7 @@ class JID(collections.namedtuple("JID", ["localpart", "domain", "resource"])):
 
 
 @functools.total_ordering
-class PresenceShow(enum.Enum):
+class PresenceShow(CompatibilityMixin, enum.Enum):
     """
     Enumeration to support the ``show`` element of presence stanzas.
 
@@ -911,7 +911,18 @@ class PresenceState:
         if not available and show != PresenceShow.NONE:
             raise ValueError("Unavailable state cannot have show value")
         if not isinstance(show, PresenceShow):
-            raise ValueError("Not a valid show value")
+            try:
+                show = PresenceShow(show)
+            except ValueError:
+                raise ValueError("Not a valid show value") from None
+            else:
+                warnings.warn(
+                    "as of aioxmpp 1.0, the show argument must use "
+                    "PresenceShow instead of str",
+                    DeprecationWarning,
+                    stacklevel=2
+                )
+
         self._available = bool(available)
         self._show = show
 
