@@ -341,7 +341,7 @@ class E2ETestPlugin(Plugin):
     def options(self, options, env=os.environ):
         options.add_option(
             "--e2etest-config",
-            dest="aioxmpptest_config",
+            dest="aioxmpp_e2e_config",
             metavar="FILE",
             default=".local/e2etest.ini",
             help="Configuration file for end-to-end tests "
@@ -352,7 +352,7 @@ class E2ETestPlugin(Plugin):
         self.enabled = True
         global config
         config = configparser.ConfigParser()
-        with open(options.aioxmpptest_config, "r") as f:
+        with open(options.aioxmpp_e2e_config, "r") as f:
             config.read_file(f)
 
     @blocking
