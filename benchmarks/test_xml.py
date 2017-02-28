@@ -58,7 +58,7 @@ class DeepNode(xso.XSO):
 
     def generate(self, rng, depth):
         self.data = "foo" * (2*rng.randint(1, 10))
-        if depth >= 4:
+        if depth >= 5:
             cls = DeepLeaf
         else:
             cls = DeepNode
@@ -92,6 +92,17 @@ class DeepRoot(xso.XSO):
 class Testwrite_single_xso(unittest.TestCase):
     KEY = "aioxmpp.xml", "write_single_xso"
 
+    @classmethod
+    def setUpClass(cls):
+        rng = random.Random(1)
+        cls.deep_samples = [
+            DeepRoot()
+            for i in range(10)
+        ]
+        for sample in cls.deep_samples:
+            with timed(cls.KEY+("deep", "generate")):
+                sample.generate(rng)
+
     def setUp(self):
         self.buf = io.BytesIO(bytearray(1024*1024))
 
@@ -118,12 +129,10 @@ class Testwrite_single_xso(unittest.TestCase):
         record(key+("sz",), self.buf.tell(), "B")
         record(key+("rate",), self.buf.tell() / t.elapsed, "B/s")
 
-    @times(100, pass_iteration=True)
+    @times(1000, pass_iteration=True)
     def test_deep(self, iteration=None):
         key = self.KEY + ("deep",)
-        item = DeepRoot()
-        rng = random.Random(iteration)
-        item.generate(rng)
+        item = self.deep_samples[iteration % len(self.deep_samples)]
         self._reset_buffer()
         with timed() as t:
             aioxmpp.xml.write_single_xso(item, self.buf)
