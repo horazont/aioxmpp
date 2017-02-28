@@ -335,8 +335,8 @@ def teardown_package():
     loop.close()
 
 
-class AioxmppPlugin(Plugin):
-    name = "aioxmpp"
+class E2ETestPlugin(Plugin):
+    name = "aioxmpp-e2e"
 
     def options(self, options, env=os.environ):
         options.add_option(
