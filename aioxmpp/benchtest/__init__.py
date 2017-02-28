@@ -269,21 +269,24 @@ class BenchmarkPlugin(Plugin):
             )
             if rhs == 0:
                 lhs += 1
-            c4num = " "*(c4lhs-lhs)+c4numberfmt.format(v)+("." if rhs == 0 else "")+" "*(c4rhs-rhs)
+            c4num = "".join([
+                " "*(c4lhs-lhs),
+                c4numberfmt.format(v),
+                "." if rhs == 0 else "",
+                " "*(c4rhs-rhs)
+            ])
 
-            # c4fmt = "{{:>{}.{}f}} {{}}{{}}".format(
-            #     c4len, max(round_to, 0),
-            # )
-
-            print(c12fmt.format("{}  {}".format(c1, c2)),
-                  c3fmt.format(c3),
-                  "{} {}{}".format(
-                      c4num,
-                      prefix or " ",
-                      unit,
-                  ),
-                  sep="  ",
-                  file=stream)
+            print(
+                c12fmt.format("{}  {}".format(c1, c2)),
+                c3fmt.format(c3),
+                "{} {}{}".format(
+                    c4num,
+                    prefix or " ",
+                    unit,
+                ),
+                sep="  ",
+                file=stream
+            )
 
         if self.report_filename is not None:
             with open(self.report_filename, "w") as f:
