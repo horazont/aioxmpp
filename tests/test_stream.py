@@ -4608,6 +4608,10 @@ class TestStanzaToken(unittest.TestCase):
 
         self.assertIsNone(run_coroutine(task))
 
+    def test__set_state_with_exception(self):
+        exc = Exception()
+        self.token._set_state(stream.StanzaState.FAILED, exc)
+
     @unittest.skipUnless(CAN_AWAIT_STANZA_TOKEN,
                          "requires Python 3.5+")
     def test_await_returns_on_SENT_WITHOUT_SM(self):
@@ -4627,6 +4631,18 @@ class TestStanzaToken(unittest.TestCase):
         self.assertFalse(task.done())
 
         self.token._set_state(stream.StanzaState.ACKED)
+
+        self.assertIsNone(run_coroutine(task))
+
+    @unittest.skipUnless(CAN_AWAIT_STANZA_TOKEN,
+                         "requires Python 3.5+")
+    def test_await_returns_on_ACKED_plainly_even_with_exception(
+            self):
+        task = asyncio.async(self.token.__await__())
+        run_coroutine(asyncio.sleep(0.01))
+        self.assertFalse(task.done())
+
+        self.token._set_state(stream.StanzaState.ACKED, Exception())
 
         self.assertIsNone(run_coroutine(task))
 
@@ -4704,6 +4720,36 @@ class TestStanzaToken(unittest.TestCase):
             self.token.state,
             stream.StanzaState.ABORTED
         )
+
+    @unittest.skipUnless(CAN_AWAIT_STANZA_TOKEN,
+                         "requires Python 3.5+")
+    def test_await_raises_ValueError_on_failed(self):
+        task = asyncio.async(self.token.__await__())
+        run_coroutine(asyncio.sleep(0.01))
+        self.assertFalse(task.done())
+
+        self.token._set_state(stream.StanzaState.FAILED)
+
+        with self.assertRaisesRegex(
+                ValueError,
+                "failed to send stanza for unknown local reasons") as ctx:
+            run_coroutine(self.token)
+
+    @unittest.skipUnless(CAN_AWAIT_STANZA_TOKEN,
+                         "requires Python 3.5+")
+    def test_await_reraises_exception_from_failed(self):
+        task = asyncio.async(self.token.__await__())
+        run_coroutine(asyncio.sleep(0.01))
+        self.assertFalse(task.done())
+
+        class FooException(Exception):
+            pass
+        exc = FooException()
+
+        self.token._set_state(stream.StanzaState.FAILED, exc)
+
+        with self.assertRaises(FooException) as ctx:
+            run_coroutine(task)
 
     @unittest.skipUnless(CAN_AWAIT_STANZA_TOKEN,
                          "requires Python 3.5+")

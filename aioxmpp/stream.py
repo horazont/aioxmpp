@@ -255,6 +255,15 @@ class StanzaState(Enum):
 
        This is a final state.
 
+    .. attribute:: FAILED
+
+       It was attempted to send the stanza, but it failed to serialise to
+       valid XML or another non-fatal transport error occured.
+
+       This is a final state.
+
+       .. versionadded:: 0.9
+
     """
     ACTIVE = 0
     SENT = 1
@@ -263,6 +272,7 @@ class StanzaState(Enum):
     ABORTED = 4
     DROPPED = 5
     DISCONNECTED = 6
+    FAILED = 7
 
 
 class StanzaErrorAwareListener:
@@ -307,6 +317,8 @@ class StanzaToken:
                                 :attr:`~.StanzaState.DISCONNECTED` state.
        :raises RuntimeError: if the stanza enters :attr:`~.StanzaState.ABORTED`
                              or :attr:`~.StanzaState.DROPPED` state.
+       :raises Exception: re-raised if the stanza token fails to serialise or
+                          another transient transport problem occurs.
        :return: :data:`None`
 
        If a coroutine awaiting a token is cancelled, the token is aborted. Use
@@ -322,15 +334,23 @@ class StanzaToken:
           sending of a stanza and another stream operation, such as closing the
           stream.
 
+    .. note::
+
+       Exceptions sent to the stanza token (when it enters
+       :attr:`StanzaState.FAILED`) are only available by awaiting the token,
+       not via the callback.
+
     .. autoattribute:: state
 
     .. automethod:: abort
     """
-    __slots__ = ("stanza", "_state", "on_state_change", "_sent_future")
+    __slots__ = ("stanza", "_state", "on_state_change", "_sent_future",
+                 "_state_exception")
 
     def __init__(self, stanza, *, on_state_change=None):
         self.stanza = stanza
         self._state = StanzaState.ACTIVE
+        self._state_exception = None
         self._sent_future = None
         self.on_state_change = on_state_change
 
@@ -355,12 +375,18 @@ class StanzaToken:
             )
         elif self._state == StanzaState.ABORTED:
             self._sent_future.set_exception(RuntimeError("stanza aborted"))
+        elif self._state == StanzaState.FAILED:
+            self._sent_future.set_exception(
+                self._state_exception or
+                ValueError("failed to send stanza for unknown local reasons")
+            )
         elif     (self._state == StanzaState.SENT_WITHOUT_SM or
                   self._state == StanzaState.ACKED):
             self._sent_future.set_result(None)
 
-    def _set_state(self, new_state):
+    def _set_state(self, new_state, exception=None):
         self._state = new_state
+        self._state_exception = exception
         if self.on_state_change is not None:
             self.on_state_change(self, new_state)
 
