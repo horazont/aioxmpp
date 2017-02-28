@@ -24,12 +24,12 @@ import contextlib
 import math
 import functools
 import time
-import unittest
+import os
 
 from nose.plugins import Plugin
 
 
-def autoscale_number(n, significant_digits=None):
+def scaleinfo(n, significant_digits=None):
     if abs(n) == 0:
         order_of_magnitude = 0
     else:
@@ -62,16 +62,24 @@ def autoscale_number(n, significant_digits=None):
     if significant_digits is not None:
         digits = order_of_magnitude - prefix_magnitude + 1
         round_to = significant_digits - digits
-        n = round(n, round_to)
-        fmt_num = "{{:.{}f}}".format(max(round_to, 0))
+        rhs = max(round_to, 0)
+        lhs = max(math.floor(math.log(n, 10))+1, 1)
+        return n, round_to, (lhs, rhs), PREFIXES[prefix_level]
     else:
-        fmt_num = "{:f}"
+        s = str(n)
+        lhs = s.index(".")
+        rhs = len(s)-s.index(".")-1
+        return n, 3, (lhs, rhs), PREFIXES[prefix_level]
 
+
+def autoscale_number(n, significant_digits=None):
+    n, round_to, _, prefix = scaleinfo(n, significant_digits)
+    n = round(n, round_to)
+    fmt_num = "{{:.{}f}}".format(max(round_to, 0))
     fmt = "{} {{prefix}}".format(fmt_num)
-
     return fmt.format(
         n,
-        prefix=PREFIXES[prefix_level]
+        prefix=prefix
     )
 
 
@@ -121,6 +129,26 @@ class Accumulator:
     @property
     def total_runs(self):
         return len(self.items)
+
+    def infodict(self):
+        return {
+            "nsamples": self.total_runs,
+            "avg": self.average,
+            "total": self.total,
+            "stddev": self.stddev,
+            "min": self.min,
+            "max": self.max,
+        }
+
+    @property
+    def structured_avg(self):
+        avg = self.average
+        stddev = self.stddev
+        if stddev == 0:
+            digits = None
+        else:
+            digits = math.ceil(math.log(avg / stddev, 10))
+        return scaleinfo(avg, digits) + (self.unit,)
 
     def __str__(self):
         avg = self.average
@@ -197,17 +225,69 @@ class BenchmarkPlugin(Plugin):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
+    def options(self, options, env=os.environ):
+        options.add_option(
+            "--benchmark-report",
+            dest="aioxmpp_bench_report",
+            default=None,
+            metavar="FILE",
+            help="File to save the report to",
+        )
+
     def configure(self, options, conf):
         self.enabled = True
-        global instance
-        if self.enabled:
-            instance = self
+        self.report_filename = options.aioxmpp_bench_report
 
     def report(self, stream):
+        data = {}
+        table = []
         for key, info in sorted(_registry.items(), key=lambda x: x[0]):
             if not info.total_runs:
                 continue
-            print(key, info, file=stream)
+            table.append(
+                (
+                    ".".join(key[:2]),
+                    "/".join(key[2:]),
+                    info.total_runs,
+                    info.structured_avg,
+                ),
+            )
+            data[key] = info.infodict()
+
+        table.sort()
+        c12len = max(len(c1)+len(c2)+2 for c1, c2, *_ in table)
+        c12fmt = "{{:<{}s}}".format(c12len)
+        c3len = max(math.floor(math.log10(v)) + 1
+                    for _, _, v, *_ in table)
+        c3fmt = "{{:>{}d}}".format(c3len)
+        c4lhs = max(lhs for _, _, _, (_, _, (lhs, _), _, _) in table)
+        c4rhs = max(rhs for _, _, _, (_, _, (_, rhs), _, _) in table)
+        for c1, c2, c3, (v, round_to, (lhs, rhs), prefix, unit) in table:
+            c4numberfmt = "{{:{}.{}f}}".format(
+                lhs+rhs+1,
+                rhs
+            )
+            if rhs == 0:
+                lhs += 1
+            c4num = " "*(c4lhs-lhs)+c4numberfmt.format(v)+("." if rhs == 0 else "")+" "*(c4rhs-rhs)
+
+            # c4fmt = "{{:>{}.{}f}} {{}}{{}}".format(
+            #     c4len, max(round_to, 0),
+            # )
+
+            print(c12fmt.format("{}  {}".format(c1, c2)),
+                  c3fmt.format(c3),
+                  "{} {}{}".format(
+                      c4num,
+                      prefix or " ",
+                      unit,
+                  ),
+                  sep="  ",
+                  file=stream)
+
+        if self.report_filename is not None:
+            with open(self.report_filename, "w") as f:
+                f.write(repr(data))
 
 
 _registry = collections.defaultdict(Accumulator)
