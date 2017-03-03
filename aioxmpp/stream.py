@@ -424,6 +424,7 @@ class StanzaToken:
 
     __iter__ = __await__
 
+
 class StanzaStream:
     """
     A stanza stream. This is the next layer of abstraction above the XMPP XML
@@ -1204,7 +1205,13 @@ class StanzaStream:
         self._logger.debug("forwarding stanza to xmlstream: %r",
                            stanza_obj)
 
-        xmlstream.send_xso(stanza_obj)
+        try:
+            xmlstream.send_xso(stanza_obj)
+        except Exception as exc:
+            self._logger.warning("failed to send stanza", exc_info=True)
+            token._set_state(StanzaState.FAILED, exc)
+            return
+
         if self._sm_enabled:
             token._set_state(StanzaState.SENT)
             self._sm_unacked_list.append(token)

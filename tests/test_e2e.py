@@ -104,3 +104,20 @@ class TestMisc(TestCase):
 
         with self.assertRaises(aioxmpp.errors.XMPPCancelError):
             yield from c.stream.send(iq)
+
+    @blocking_timed
+    def test_exception_from_non_wellformed(self):
+        c = yield from self.provisioner.get_connected_client()
+
+        msg = aioxmpp.Message(
+            to=c.local_jid,
+            type_=aioxmpp.MessageType.NORMAL,
+        )
+        msg.body[None] = "foo\u0000"
+
+        with self.assertRaisesRegex(ValueError, "not allowed"):
+            yield from c.stream.send(msg)
+
+        msg.body[None] = "foo"
+
+        yield from c.stream.send(msg)

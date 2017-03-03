@@ -3273,6 +3273,29 @@ class TestStanzaStream(StanzaStreamTestBase):
 
             self.assertTrue(response_fut.cancelled())
 
+    def test_handle_non_connection_exception_from_send_xso(self):
+        msg = make_test_message()
+
+        class FooException(Exception):
+            pass
+
+        exc = FooException()
+
+        self.xmlstream.send_xso = unittest.mock.Mock()
+        self.xmlstream.send_xso.side_effect = exc
+
+        self.stream.start(self.xmlstream)
+        token = self.stream.enqueue(msg)
+        self.assertEqual(token.state, stream.StanzaState.ACTIVE)
+
+        run_coroutine(asyncio.sleep(0.05))
+        self.assertTrue(self.stream.running)
+
+        self.assertEqual(token.state, stream.StanzaState.FAILED)
+
+        with self.assertRaises(FooException):
+            run_coroutine(token)
+
 
 class TestStanzaStreamSM(StanzaStreamTestBase):
     def setUp(self):

@@ -3,6 +3,17 @@
 Changelog
 #########
 
+.. _api-changelog-0.9:
+
+Version 0.9
+===========
+
+* Handle local serialisation issues more gracefully. Instead of sending a
+  half-serialised XSO down the stream and then raising an exception, leaving the
+  stream in an undefined state, XSOs are now serialised into a buffer (which is
+  re-used for performance when possible) and only if serialisation was
+  successful sent down the stream.
+
 .. _api-changelog-0.8:
 
 Version 0.8
