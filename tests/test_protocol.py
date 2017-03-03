@@ -591,6 +591,39 @@ class TestXMLStream(unittest.TestCase):
             )
         )
 
+    def test_send_xso_reraises_error_from_writer(self):
+        st = FakeIQ(structs.IQType.GET)
+        st.id_ = "id"
+        st.from_ = JID.fromstr("u1@foo.example/test")
+        st.to = JID.fromstr("u2@foo.example/test")
+        st.payload = Child()
+        st.payload.attr = "foo"
+
+        with contextlib.ExitStack() as stack:
+            write_xmlstream = stack.enter_context(unittest.mock.patch(
+                "aioxmpp.xml.write_xmlstream"
+            ))
+
+            t, p = self._make_stream(to=TEST_PEER)
+
+            p.connection_made(t)
+
+            stack.enter_context(unittest.mock.patch.object(
+                p,
+                "_require_connection",
+            ))
+
+            class FooException(Exception):
+                pass
+
+            exc = FooException()
+            write_xmlstream().send.return_value = exc
+
+            with self.assertRaises(FooException) as ctx:
+                p.send_xso(st)
+
+            self.assertIs(ctx.exception, exc)
+
     def test_can_starttls(self):
         t, p = self._make_stream(to=TEST_PEER)
         self.assertFalse(p.can_starttls())

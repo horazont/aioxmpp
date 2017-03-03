@@ -68,8 +68,10 @@ Utility functions
 
 """
 
+import copy
 import ctypes
 import ctypes.util
+import contextlib
 import io
 
 import xml.sax
@@ -172,6 +174,8 @@ class XMPPXMLGenerator:
 
     .. automethod:: flush
 
+    .. automethod:: buffer
+
     """
     def __init__(self, out,
                  short_empty_elements=True,
@@ -181,16 +185,24 @@ class XMPPXMLGenerator:
             self._flush = out.flush
         else:
             self._flush = None
-        self._ns_map_stack = [({}, {}, 0)]
-        self._curr_ns_map = {}
+
         self._short_empty_elements = short_empty_elements
         self._sorted_attributes = sorted_attributes
+
+        # NOTE: when adding state, make sure to handle it in buffer() and to
+        # add tests that buffer() handles it correctly
+        self._ns_map_stack = [({}, set(), 0)]
+        self._curr_ns_map = {}
         self._pending_start_element = False
         self._ns_prefixes_floating_in = {}
-        self._ns_prefixes_floating_out = {}
+        self._ns_prefixes_floating_out = set()
         self._ns_auto_prefixes_floating_in = set()
         self._ns_decls_floating_in = {}
         self._ns_counter = -1
+
+        # for buffer()
+        self._buf = None
+        self._buf_in_use = False
 
     def _roll_prefix(self):
         prefix_number = self._ns_counter + 1
@@ -491,6 +503,89 @@ class XMPPXMLGenerator:
         if self._flush:
             self._flush()
 
+    @contextlib.contextmanager
+    def _save_state(self):
+        """
+        Helper context manager for :meth:`buffer` which saves the whole state.
+
+        This is broken out in a separate method for readability and tested
+        indirectly by testing :meth:`buffer`.
+        """
+        ns_prefixes_floating_in = copy.copy(self._ns_prefixes_floating_in)
+        ns_prefixes_floating_out = copy.copy(self._ns_prefixes_floating_out)
+        ns_decls_floating_in = copy.copy(self._ns_decls_floating_in)
+        curr_ns_map = copy.copy(self._curr_ns_map)
+        ns_map_stack = copy.copy(self._ns_map_stack)
+        pending_start_element = self._pending_start_element
+        ns_counter = self._ns_counter
+        # XXX: I have been unable to find a test justifying copying this :/
+        # for completeness, I’m still doing it
+        ns_auto_prefixes_floating_in = \
+            copy.copy(self._ns_auto_prefixes_floating_in)
+        try:
+            yield
+        except:
+            self._ns_prefixes_floating_in = ns_prefixes_floating_in
+            self._ns_prefixes_floating_out = ns_prefixes_floating_out
+            self._ns_decls_floating_in = ns_decls_floating_in
+            self._pending_start_element = pending_start_element
+            self._curr_ns_map = curr_ns_map
+            self._ns_map_stack = ns_map_stack
+            self._ns_counter = ns_counter
+            self._ns_auto_prefixes_floating_in = ns_auto_prefixes_floating_in
+            raise
+
+    @contextlib.contextmanager
+    def buffer(self):
+        """
+        Context manager to temporarily buffer the output.
+
+        :raise RuntimeError: If two :meth:`buffer` context managers are used
+                             nestedly.
+
+        If the context manager is left without exception, the buffered output
+        is sent to the actual sink. Otherwise, it is discarded.
+
+        In addition to the output being buffered, buffer also captures the
+        entire state of the XML generator and restores it to the previous state
+        if the context manager is left with an exception.
+
+        This can be used to fail-safely attempt to serialise a subtree and
+        return to a well-defined state if serialisation fails.
+
+        :meth:`flush` is not called automatically.
+
+        If :meth:`flush` is called while a :meth:`buffer` context manager is
+        active, no actual flushing happens (but unfinished opening tags are
+        closed as usual, see the `short_empty_arguments` parameter).
+        """
+        if self._buf_in_use:
+            raise RuntimeError("nested use of buffer() is not supported")
+        self._buf_in_use = True
+        old_write = self._write
+        old_flush = self._flush
+
+        if self._buf is None:
+            self._buf = io.BytesIO()
+        else:
+            try:
+                self._buf.seek(0)
+                self._buf.truncate()
+            except BufferError:
+                # we need a fresh buffer for this, the other is still in use.
+                self._buf = io.BytesIO()
+
+        self._write = self._buf.write
+        self._flush = None
+        try:
+            with self._save_state():
+                yield
+            old_write(self._buf.getbuffer())
+        finally:
+            self._buf_in_use = False
+            self._write = old_write
+            self._flush = old_flush
+
 
 def write_objects(writer, *, autoflush=False):
     """
@@ -573,15 +668,23 @@ def write_xmlstream(f,
 
     abort = False
 
+    exc = None
+
     try:
         while True:
             try:
-                obj = yield
+                obj = yield exc
             except AbortStream:
                 abort = True
                 return
-            obj.unparse_to_sax(writer)
-            writer.flush()
+            exc = None
+            try:
+                with writer.buffer():
+                    obj.unparse_to_sax(writer)
+            except Exception as new_exc:
+                exc = new_exc
+            else:
+                writer.flush()
     finally:
         if not abort:
             writer.endElementNS((namespaces.xmlstream, "stream"), None)

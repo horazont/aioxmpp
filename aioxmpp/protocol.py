@@ -630,16 +630,35 @@ class XMLStream(asyncio.Protocol):
 
     def send_xso(self, obj):
         """
-        Send an XSO `obj` over the stream.
+        Send an XSO over the stream.
+
+        :param obj: The object to send.
+        :type obj: :class:`~.XSO`
+        :raises ConnectionError: if the connection is not fully established
+                                 yet.
+        :raises aioxmpp.errors.StreamError: if a stream error was received or
+                                            sent.
+        :raises OSError: if the stream got disconnected due to a another
+                         permanent transport error
+        :raises Exception: if serialisation of `obj` failed
 
         Calling :meth:`send_xso` while the stream is disconnected,
         disconnecting or still waiting for the remote to send a stream header
         causes :class:`ConnectionError` to be raised. If the stream got
         disconnected due to a transport or stream error, that exception is
         re-raised instead of the :class:`ConnectionError`.
+
+        .. versionchanged:: 0.9
+
+           Exceptions occuring during serialisation of `obj` are re-raised and
+           *no* content is sent over the stream. The stream is still valid and
+           usable afterwards.
+
         """
         self._require_connection()
-        self._writer.send(obj)
+        result = self._writer.send(obj)
+        if result is not None:
+            raise result
 
     def can_starttls(self):
         """
