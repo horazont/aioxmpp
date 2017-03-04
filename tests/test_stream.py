@@ -3273,6 +3273,8 @@ class TestStanzaStream(StanzaStreamTestBase):
 
             self.assertTrue(response_fut.cancelled())
 
+    @unittest.skipUnless(CAN_AWAIT_STANZA_TOKEN,
+                         "requires Python 3.5+")
     def test_handle_non_connection_exception_from_send_xso(self):
         msg = make_test_message()
 
