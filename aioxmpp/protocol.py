@@ -478,10 +478,8 @@ class XMLStream(asyncio.Protocol):
             self._rx_feed(blob)
         except errors.StreamError as exc:
             stanza_obj = nonza.StreamError.from_exception(exc)
-            try:
+            if not self._writer.closed:
                 self._writer.send(stanza_obj)
-            except StopIteration:
-                pass
             self._fail(exc)
             # shutdown, we do not really care about </stream:stream> by the
             # server at this point
@@ -550,13 +548,7 @@ class XMLStream(asyncio.Protocol):
 
     def _kill_state(self):
         if self._writer:
-            if inspect.getgeneratorstate(self._writer) == "GEN_SUSPENDED":
-                try:
-                    self._writer.throw(xml.AbortStream())
-                except StopIteration:
-                    pass
-            else:
-                self._writer = None
+            self._writer.abort()
 
         self._processor = None
         self._parser = None
@@ -576,7 +568,7 @@ class XMLStream(asyncio.Protocol):
             dest = DebugWrapper(self._transport, self._logger)
         else:
             dest = self._transport
-        self._writer = xml.write_xmlstream(
+        self._writer = xml.XMLStreamWriter(
             dest,
             self._to,
             nsmap={None: "jabber:client"},
@@ -600,7 +592,7 @@ class XMLStream(asyncio.Protocol):
         """
         self._require_connection(accept_partial=True)
         self._reset_state()
-        next(self._writer)
+        self._writer.start()
         self._smachine.rewind(State.STREAM_HEADER_SENT)
 
     def abort(self):
@@ -656,9 +648,7 @@ class XMLStream(asyncio.Protocol):
 
         """
         self._require_connection()
-        result = self._writer.send(obj)
-        if result is not None:
-            raise result
+        self._writer.send(obj)
 
     def can_starttls(self):
         """

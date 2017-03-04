@@ -33,6 +33,8 @@ The most useful class here is the :class:`XMPPXMLGenerator`:
 
 .. autoclass:: XMPPXMLGenerator
 
+.. autoclass:: XMLStreamWriter
+
 The following generator function can be used to send several
 :class:`~.stanza_model.XSO` instances along an XMPP stream without
 bothering with any cleanup.
@@ -692,6 +694,153 @@ def write_xmlstream(f,
                 writer.endPrefixMapping(prefix)
             writer.endDocument()
         writer.flush()
+
+
+class XMLStreamWriter:
+    """
+    A convenient class to write a standard conforming XML stream.
+
+    :param f: File-like object to write to.
+    :param to: Address to which the connection is addressed.
+    :type to: :class:`aioxmpp.JID`
+    :param from_: Optional address from which the connection originates.
+    :type from_: :class:`aioxmpp.JID`
+    :param version: Version of the XML stream protocol.
+    :type version: :class:`tuple` of (:class:`int`, :class:`int`)
+    :param nsmap: Mapping of namespaces to declare at the stream header.
+
+    .. note::
+
+       The constructor *does not* send a stream header. :meth:`start` must be
+       called explicitly to send a stream header.
+
+    The generated stream header follows :rfc:`6120` and has the ``to`` and
+    ``version`` attributes as well as optionally the ``from`` attribute
+    (controlled by `from_`). In addition, the namespace prefixes defined by
+    `nsmap` (mapping prefixes to namespace URIs) are declared on the stream
+    header.
+
+    .. note::
+
+       It is unfortunately not allowed to use namespace prefixes in stanzas
+       which were declared in stream headers as convenient as that would be.
+       The option is thus only useful to declare the default namespace for
+       stanzas.
+
+    .. autoattribute:: closed
+
+    The following methods are used to generate output:
+
+    .. automethod:: start
+
+    .. automethod:: send
+
+    .. automethod:: abort
+
+    .. automethod:: close
+    """
+
+    def __init__(self, f, to,
+                 from_=None,
+                 version=(1, 0),
+                 nsmap={},
+                 sorted_attributes=False):
+        super().__init__()
+        self._to = to
+        self._from = from_
+        self._version = version
+        self._writer = XMPPXMLGenerator(
+            out=f,
+            short_empty_elements=True,
+            sorted_attributes=sorted_attributes)
+        self._nsmap_to_use = {
+            "stream": namespaces.xmlstream
+        }
+        self._nsmap_to_use.update(nsmap)
+        self._closed = False
+
+    @property
+    def closed(self):
+        """
+        True if the stream has been closed by :meth:`abort` or :meth:`close`.
+        Read-only.
+        """
+        return self._closed
+
+    def start(self):
+        """
+        Send the stream header as described above.
+        """
+        attrs = {
+            (None, "to"): str(self._to),
+            (None, "version"): ".".join(map(str, self._version))
+        }
+        if self._from:
+            attrs[None, "from"] = str(self._from)
+
+        self._writer.startDocument()
+        for prefix, uri in self._nsmap_to_use.items():
+            self._writer.startPrefixMapping(prefix, uri)
+        self._writer.startElementNS(
+            (namespaces.xmlstream, "stream"),
+            None,
+            attrs)
+        self._writer.flush()
+
+    def send(self, xso):
+        """
+        Send a single XML stream object.
+
+        :param xso: Object to serialise and send.
+        :type xso: :class:`aioxmpp.xso.XSO`
+        :raises Exception: from any serialisation errors, usually
+                           :class:`ValueError`.
+
+        Serialise the `xso` and send it over the stream. If any serialisation
+        error occurs, no data is sent over the stream and the exception is
+        re-raised; the :meth:`send` method thus provides strong exception
+        safety.
+
+        .. warning::
+
+           The behaviour of :meth:`send` after :meth:`abort` or :meth:`close`
+           and before :meth:`start` is undefined.
+
+        """
+        with self._writer.buffer():
+            xso.unparse_to_sax(self._writer)
+
+    def abort(self):
+        """
+        Abort the stream.
+
+        The stream is flushed and the internal data structures are cleaned up.
+        No stream footer is sent. The stream is :attr:`closed` afterwards.
+
+        If the stream is already :attr:`closed`, this method does nothing.
+        """
+        if self._closed:
+            return
+        self._closed = True
+        self._writer.flush()
+        del self._writer
+
+    def close(self):
+        """
+        Close the stream.
+
+        The stream footer is sent and the internal structures are cleaned up.
+
+        If the stream is already :attr:`closed`, this method does nothing.
+        """
+        if self._closed:
+            return
+        self._closed = True
+        self._writer.endElementNS((namespaces.xmlstream, "stream"), None)
+        for prefix in self._nsmap_to_use:
+            self._writer.endPrefixMapping(prefix)
+        self._writer.endDocument()
+        del self._writer
 
 
 class ProcessorState(Enum):

@@ -601,7 +601,7 @@ class TestXMLStream(unittest.TestCase):
 
         with contextlib.ExitStack() as stack:
             write_xmlstream = stack.enter_context(unittest.mock.patch(
-                "aioxmpp.xml.write_xmlstream"
+                "aioxmpp.xml.XMLStreamWriter"
             ))
 
             t, p = self._make_stream(to=TEST_PEER)
@@ -617,7 +617,7 @@ class TestXMLStream(unittest.TestCase):
                 pass
 
             exc = FooException()
-            write_xmlstream().send.return_value = exc
+            write_xmlstream().send.side_effect = exc
 
             with self.assertRaises(FooException) as ctx:
                 p.send_xso(st)

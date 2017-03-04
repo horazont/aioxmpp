@@ -14,6 +14,15 @@ Version 0.9
   re-used for performance when possible) and only if serialisation was
   successful sent down the stream.
 
+* Replaced the hack-ish use of generators for
+  :func:`aioxmpp.xml.write_xmlstream` with a proper class,
+  :class:`aioxmpp.xml.XMLStreamWriter`.
+
+  The generator blew up when we tried to exfiltrate exceptions from it. For the
+  curious and brave, see the ``bug/odd-exception-thing`` branch. I actually
+  suspect a CPython bug there, but I was unable to isolate a proper test case.
+  It only blows up in the end-to-end tests.
+
 .. _api-changelog-0.8:
 
 Version 0.8
