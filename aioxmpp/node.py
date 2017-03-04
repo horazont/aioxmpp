@@ -699,7 +699,14 @@ class Client:
         self.on_stream_suspended.logger = \
             self.logger.getChild("on_stream_suspended")
 
-        self.stream = stream.StanzaStream(local_jid.bare())
+        if logger is not None:
+            stream_base_logger = self.logger
+        else:
+            stream_base_logger = logging.getLogger("aioxmpp")
+        self.stream = stream.StanzaStream(
+            local_jid.bare(),
+            base_logger=stream_base_logger
+        )
 
     def _stream_failure(self, exc):
         if self._failure_future.done():
