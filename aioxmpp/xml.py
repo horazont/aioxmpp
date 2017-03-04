@@ -35,16 +35,6 @@ The most useful class here is the :class:`XMPPXMLGenerator`:
 
 .. autoclass:: XMLStreamWriter
 
-The following generator function can be used to send several
-:class:`~.stanza_model.XSO` instances along an XMPP stream without
-bothering with any cleanup.
-
-.. autofunction:: write_xmlstream
-
-.. autofunction:: write_objects
-
-.. autoclass:: AbortStream
-
 Processing XML streams
 ======================
 
@@ -99,13 +89,6 @@ def xmlValidateNameValue_buf(b):
     if b"\0" in b:
         return False
     return bool(libxml2.xmlValidateNameValue(b))
-
-
-class AbortStream(Exception):
-    """
-    This is a signal exception which causes :func:`write_xmlstream` to stop
-    immediately without closing the stream.
-    """
 
 
 class XMPPXMLGenerator:
@@ -587,113 +570,6 @@ class XMPPXMLGenerator:
             self._buf_in_use = False
             self._write = old_write
             self._flush = old_flush
-
-
-def write_objects(writer, *, autoflush=False):
-    """
-    Return a generator. All :class:`.xso.XSO` objects sent into the generator
-    (using it’s :meth:`send` method) are written to the given
-    *writer*. *writer* must be an object supporting the namespace-aware SAX
-    interface.
-
-    If *autoflush* is true, :meth:`flush` is called on *writer* after each
-    object. Note that not all writers support :meth:`flush`, as it is not part
-    of the official SAX specification.
-    """
-    try:
-        while True:
-            obj = yield
-            obj.unparse_to_sax(writer)
-            if autoflush:
-                writer.flush()
-    except AbortStream:
-        pass
-
-
-def write_xmlstream(f,
-                    to,
-                    from_=None,
-                    version=(1, 0),
-                    nsmap={},
-                    sorted_attributes=False):
-    """
-    Return a generator, which writes an XMPP XML stream on the file-like object
-    `f`.
-
-    First, the generator writes the stream header and declares all namespaces
-    given in `nsmap` plus the xmlstream namespace, then the output is flushed
-    and the generator yields.
-
-    `to` must be a :class:`~aioxmpp.JID which refers to the peer. `from_` may
-    be the JID identifying the local side, but see `RFC 6120 for considerations
-    <https://tools.ietf.org/html/rfc6120#section-4.7.1>`_. `version` is the
-    tuple of integers representing the locally supported XMPP version.
-
-    `sorted_attributes` is passed to the :class:`XMPPXMLGenerator` which is
-    used by this function.
-
-    Now, user code can send :class:`~.xso.XSO` objects to the
-    generator using its :meth:`send` method. These objects get serialized to
-    the XML stream. Any exception raised during that is re-raised and the
-    stream is closed.
-
-    Using the :meth:`throw` method to throw a :class:`AbortStream` exception
-    will immediately stop the generator without closing the stream
-    properly, but with a last flush call to the writer. This can be used to
-    reset the stream.
-    """
-    nsmap_to_use = {
-        "stream": namespaces.xmlstream
-    }
-    nsmap_to_use.update(nsmap)
-
-    attrs = {
-        (None, "to"): str(to),
-        (None, "version"): ".".join(map(str, version))
-    }
-    if from_:
-        attrs[None, "from"] = str(from_)
-
-    writer = XMPPXMLGenerator(
-        out=f,
-        short_empty_elements=True,
-        sorted_attributes=sorted_attributes)
-
-    writer.startDocument()
-    for prefix, uri in nsmap_to_use.items():
-        writer.startPrefixMapping(prefix, uri)
-    writer.startElementNS(
-        (namespaces.xmlstream, "stream"),
-        None,
-        attrs)
-    writer.flush()
-
-    abort = False
-
-    exc = None
-
-    try:
-        while True:
-            try:
-                obj = yield exc
-            except AbortStream:
-                abort = True
-                return
-            exc = None
-            try:
-                with writer.buffer():
-                    obj.unparse_to_sax(writer)
-            except Exception as new_exc:
-                exc = new_exc
-            else:
-                writer.flush()
-    finally:
-        if not abort:
-            writer.endElementNS((namespaces.xmlstream, "stream"), None)
-            for prefix in nsmap_to_use:
-                writer.endPrefixMapping(prefix)
-            writer.endDocument()
-        writer.flush()
 
 
 class XMLStreamWriter:
