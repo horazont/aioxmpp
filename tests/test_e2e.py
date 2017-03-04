@@ -32,6 +32,7 @@ from aioxmpp.e2etest import (
 
 class TestConnect(TestCase):
     @blocking_timed
+    @asyncio.coroutine
     def test_provisioner_works_in_general(self):
         connected = yield from self.provisioner.get_connected_client()
         self.assertTrue(connected.running)
@@ -40,6 +41,7 @@ class TestConnect(TestCase):
 
 class TestMessaging(TestCase):
     @blocking_timed
+    @asyncio.coroutine
     def test_message_from_a_to_b(self):
         a = yield from self.provisioner.get_connected_client()
         b = yield from self.provisioner.get_connected_client()
@@ -74,6 +76,7 @@ class TestMessaging(TestCase):
 
 class TestMisc(TestCase):
     @blocking_timed
+    @asyncio.coroutine
     def test_receive_response_from_iq_to_bare_explicit_self(self):
         c = yield from self.provisioner.get_connected_client()
 
@@ -90,6 +93,7 @@ class TestMisc(TestCase):
             yield from c.stream.send(iq)
 
     @blocking_timed
+    @asyncio.coroutine
     def test_receive_response_from_iq_to_bare_self_using_None(self):
         c = yield from self.provisioner.get_connected_client()
 
@@ -106,6 +110,7 @@ class TestMisc(TestCase):
             yield from c.stream.send(iq)
 
     @blocking_timed
+    @asyncio.coroutine
     def test_exception_from_non_wellformed(self):
         c = yield from self.provisioner.get_connected_client()
 
