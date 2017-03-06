@@ -91,6 +91,17 @@ def xmlValidateNameValue_buf(b):
     return bool(libxml2.xmlValidateNameValue(b))
 
 
+def is_valid_cdata_str(s):
+    for c in s:
+        o = ord(c)
+        if o >= 32:
+            continue
+        if o < 9 or 11 <= o <= 12 or 14 <= o <= 31:
+            return False
+
+    return True
+
+
 class XMPPXMLGenerator:
     """
     :class:`XMPPXMLGenerator` works similar to
@@ -429,10 +440,7 @@ class XMPPXMLGenerator:
         raised.
         """
         self._finish_pending_start_element()
-        if any(0 <= ord(c) <= 8 or
-               11 <= ord(c) <= 12 or
-               14 <= ord(c) <= 31
-               for c in chars):
+        if not is_valid_cdata_str(chars):
             raise ValueError("control characters are not allowed in "
                              "well-formed XML")
         self._write(xml.sax.saxutils.escape(chars).encode("utf-8"))
