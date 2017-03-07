@@ -2159,6 +2159,11 @@ class XSO(metaclass=XMLStreamClass):
         """
 
     def unparse_to_sax(self, dest):
+        # XXX: if anyone has an idea on how to optimize this, this is a hotspot
+        # when serialising XML
+        # things which do not suffice or even change anything:
+        # 1. pull things in local variables
+        # 2. get rid of the try/finally, even without any replacement
         cls = type(self)
         attrib = {}
         for prop in cls.ATTR_MAP.values():
