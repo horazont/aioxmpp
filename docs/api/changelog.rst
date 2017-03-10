@@ -95,6 +95,10 @@ Version 0.9
 
 * :func:`aioxmpp.service.depfilter`
 
+* **Breaking change:** Re-write of :mod:`aioxmpp.tracking`. Sorry. But the new
+  API is more clearly defined and more correct. The (ab-)use of
+  :class:`aioxmpp.statemachine.OrderedStateMachine` never really worked anyways.
+
 .. _api-changelog-0.8:
 
 Version 0.8
