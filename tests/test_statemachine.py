@@ -64,6 +64,10 @@ class TestOrderedStateMachine(unittest.TestCase):
             States.STATE1,
             loop=self.loop)
 
+    def tearDown(self):
+        del self.osm
+        del self.loop
+
     def test_init(self):
         osm = statemachine.OrderedStateMachine(
             States.STATE1)
@@ -79,7 +83,7 @@ class TestOrderedStateMachine(unittest.TestCase):
 
         with self.assertRaisesRegex(TypeError,
                                     "states must be ordered"):
-            osm = statemachine.OrderedStateMachine(OtherStates.FOO)
+            statemachine.OrderedStateMachine(OtherStates.FOO)
 
     def test_wait_for_at_least(self):
         state_tasks = {
@@ -213,6 +217,5 @@ class TestOrderedStateMachine(unittest.TestCase):
                                     "cannot forward using rewind"):
             self.osm.rewind(States.STATE4)
 
-    def tearDown(self):
-        del self.osm
-        del self.loop
+    def test_wait_for_at_least_fails_if_state_is_unreachable(self):
+        self.osm.state
