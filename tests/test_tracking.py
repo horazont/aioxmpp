@@ -19,10 +19,12 @@
 # <http://www.gnu.org/licenses/>.
 #
 ########################################################################
+import contextlib
 import itertools
 import unittest
 import unittest.mock
 
+from datetime import timedelta
 
 import aioxmpp.tracking as tracking
 
@@ -257,3 +259,31 @@ class TestMessageTracker(unittest.TestCase):
                 self.t.response,
                 unittest.mock.sentinel.response,
             )
+
+    def test__set_timeout_with_number_calls_call_later(self):
+        with contextlib.ExitStack() as stack:
+            get_event_loop = stack.enter_context(unittest.mock.patch(
+                "asyncio.get_event_loop",
+            ))
+
+            self.t.set_timeout(unittest.mock.sentinel.timeout)
+
+        get_event_loop.assert_called_once_with()
+        get_event_loop().call_later.assert_called_once_with(
+            unittest.mock.sentinel.timeout,
+            self.t.close,
+        )
+
+    def test__set_timeout_with_timedelta_calls_call_later(self):
+        with contextlib.ExitStack() as stack:
+            get_event_loop = stack.enter_context(unittest.mock.patch(
+                "asyncio.get_event_loop",
+            ))
+
+            self.t.set_timeout(timedelta(days=1))
+
+        get_event_loop.assert_called_once_with()
+        get_event_loop().call_later.assert_called_once_with(
+            timedelta(days=1).total_seconds(),
+            self.t.close,
+        )

@@ -39,6 +39,39 @@ actual tracking is not implemented here.
    Method :meth:`~.muc.Room.send_tracked_message`
      implements tracking for messages sent through a MUC.
 
+.. _api-tracking-memory:
+
+General Remarks about Tracking and Memory Consumption
+=====================================================
+
+
+Tracking stanzas costs memory. There are basically two options on how to
+implement the management of additional information:
+
+1. Either the tracking stops when the :class:`MessageTracker` is released (i.e.
+   the last reference to it gets collected).
+
+2. Or the tracking is stopped explicitly by the user.
+
+Option (1) has the appeal that users (applications) do not have to worry about
+properly releasing the tracking objects. However, it has the downside that
+applications have to keep the :class:`MessageeTracker` instance around. Remember
+that connecting to callbacks of an object is *not* enough to keep it alive.
+
+Option (2) is somewhat like file objects work: in theory, you have to close
+them explicitly and manually: if you do not, there is no guarantee when the
+file is actually closed. It is thus a somewhat known Python idiom, and also is
+more explicit. And it doesn’t break callbacks.
+
+The implementation of :class:`MessageTracker` uses **Option 2**. So you have to
+:meth:`MessageTracker.close` all :class:`MessageTracker` objects to ensure that
+all tracking resources associated with it are released; this stops any tracking
+which is still in progress.
+
+It is strongly recommended that you close message trackers after a timeout. You
+can use :meth:`MessageTracker.set_timeout` for that, or manually call
+:meth:`MessageTracker.close` as desired.
+
 Interfaces
 ==========
 
@@ -47,11 +80,12 @@ Interfaces
 .. autoclass:: MessageState
 
 """
+import asyncio
+
+from datetime import timedelta
 from enum import Enum
 
 import aioxmpp.callbacks
-import aioxmpp.statemachine
-import aioxmpp.stream as stream
 
 
 class MessageState(Enum):
@@ -151,6 +185,8 @@ class MessageTracker:
 
     .. automethod:: close
 
+    .. automethod:: set_timeout
+
     "Protected" interface:
 
     .. automethod:: _set_state
@@ -210,6 +246,27 @@ class MessageTracker:
             return
         self._closed = True
         self.on_closed()
+
+    def set_timeout(self, timeout):
+        """
+        Automatically close the tracker after `timeout` has elapsed.
+
+        :param timeout: The timeout after which the tracker is closed
+                        automatically.
+        :type timeout: :class:`numbers.Real` or :class:`datetime.timedelta`
+
+        If the `timeout` is not a :class:`datetime.timedelta` instance, it is
+        assumed to be given as seconds.
+
+        The timeout cannot be cancelled after it has been set. It starts at the
+        very moment :meth:`set_timeout` is called.
+        """
+        loop = asyncio.get_event_loop()
+
+        if isinstance(timeout, timedelta):
+            timeout = timeout.total_seconds()
+
+        loop.call_later(timeout, self.close)
 
     # "Protected" Interface
 
