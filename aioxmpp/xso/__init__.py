@@ -96,12 +96,8 @@ Descriptors for XML-sourced attributes
 
 The following descriptors can be used to load XSO attributes from XML. There
 are two fundamentally different descriptor types: *scalar* and *non-scalar*
-(e.g. list) descriptors. *scalar* descriptor types always accept a
-value of :data:`None`, which represents the *absence* of the object (unless it
-is required by some means, e.g. ``Attr(required=True)``). *Non-scalar*
-descriptors generally have a different way to describe the absence and in
-addition have a mutable value. Assignment to the descriptor attribute is
-strictly type-checked.
+(e.g. list) descriptors. Assignment to the descriptor attribute is
+strictly type-checked for *scalar* descriptors.
 
 Scalar descriptors
 ^^^^^^^^^^^^^^^^^^
