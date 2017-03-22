@@ -625,11 +625,11 @@ class Service(metaclass=Meta):
         """
         When the service is instantiated through
         :meth:`~.Client.summon`, this attribute holds a mapping which maps the
-        service classes contained in the :attr:`~.Meta.ORDER_BEFORE` attribute
+        service classes contained in the :attr:`~.Meta.ORDER_AFTER` attribute
         to the respective instances related to the :attr:`client`.
 
         This is the preferred way to obtain dependencies specified via
-        :attr:`~.Meta.ORDER_BEFORE`.
+        :attr:`~.Meta.ORDER_AFTER`.
         """
         return self.__dependencies
 
@@ -1035,7 +1035,7 @@ def depsignal(class_, signal_name, *, defer=False):
     a class on which the service depends.
 
     :param class_: A service class which is listed in the
-                   :attr:`~.Meta.ORDERED_AFTER` relationship.
+                   :attr:`~.Meta.ORDER_AFTER` relationship.
     :type class_: :class:`Service` class
     :param signal_name: Attribute name of the signal to connect to
     :type signal_name: :class:`str`
