@@ -128,6 +128,8 @@ class ConnectedClientMock(unittest.mock.Mock):
         self.established = True
 
         self.stream_features = nonza.StreamFeatures()
+        self.stream.on_message_received = callbacks.AdHocSignal()
+        self.stream.on_presence_received = callbacks.AdHocSignal()
         self.stream.send_iq_and_wait_for_reply = CoroutineMock()
         self.stream.send = CoroutineMock()
         self.stream.enqueue_stanza = self.stream.enqueue

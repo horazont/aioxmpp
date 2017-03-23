@@ -34,6 +34,7 @@ import dns.resolver
 import aiosasl
 
 import aioxmpp
+import aioxmpp.dispatcher
 import aioxmpp.node as node
 import aioxmpp.structs as structs
 import aioxmpp.nonza as nonza
@@ -1416,6 +1417,16 @@ class TestClient(xmltestutils.XMLTestCase):
                          client.logger.getChild("on_stream_established"))
         self.assertEqual(client.on_stream_destroyed.logger,
                          client.logger.getChild("on_stream_destroyed"))
+
+        self.assertIsInstance(
+            client.stream._xxx_message_dispatcher,
+            aioxmpp.dispatcher.SimpleMessageDispatcher,
+        )
+
+        self.assertIsInstance(
+            client.stream._xxx_presence_dispatcher,
+            aioxmpp.dispatcher.SimplePresenceDispatcher,
+        )
 
         with self.assertRaises(AttributeError):
             client.local_jid = structs.JID.fromstr("bar@bar.example/baz")

@@ -37,6 +37,7 @@ import aioxmpp.nonza as nonza
 import aioxmpp.errors as errors
 import aioxmpp.callbacks as callbacks
 import aioxmpp.service as service
+import aioxmpp.dispatcher
 
 from datetime import timedelta
 
@@ -267,6 +268,20 @@ class StanzaStreamTestBase(xmltestutils.XMLTestCase):
         self.established_rec = unittest.mock.MagicMock()
         self.established_rec.return_value = None
         self.stream.on_stream_established.connect(self.established_rec)
+
+        client = unittest.mock.Mock()
+        client.local_jid = self.stream.local_jid
+        client.stream = self.stream
+
+        self.message_dispatcher = aioxmpp.dispatcher.SimpleMessageDispatcher(
+            client
+        )
+        self.presence_dispatcher = aioxmpp.dispatcher.SimplePresenceDispatcher(
+            client
+        )
+
+        self.stream._xxx_message_dispatcher = self.message_dispatcher
+        self.stream._xxx_presence_dispatcher = self.presence_dispatcher
 
     def tearDown(self):
         self.stream.stop()
@@ -882,7 +897,7 @@ class TestStanzaStream(StanzaStreamTestBase):
 
         with self.assertRaisesRegex(
                 ValueError,
-                r"only one listener is allowed per \(type_, from_\) pair"):
+                r"only one listener allowed"):
             self.stream.register_message_callback(
                 aioxmpp.structs.MessageType.CHAT,
                 None,
@@ -913,7 +928,8 @@ class TestStanzaStream(StanzaStreamTestBase):
                 unittest.mock.sentinel.cb,
             )
 
-        self.assertFalse(w)
+        # the one warning is about the deprecation of register_message itself
+        self.assertEqual(len(w), 1)
 
     def test_register_message_callback_rejects_duplicate_registration(self):
         self.stream.register_message_callback(
@@ -924,7 +940,7 @@ class TestStanzaStream(StanzaStreamTestBase):
 
         with self.assertRaisesRegex(
                 ValueError,
-                r"only one listener is allowed per \(type_, from_\) pair"):
+                r"only one listener allowed"):
             self.stream.register_message_callback(
                 structs.MessageType.CHAT,
                 None,
@@ -995,7 +1011,8 @@ class TestStanzaStream(StanzaStreamTestBase):
                 None,
             )
 
-        self.assertFalse(w)
+        # the one warning is about the deprecation of unregister_message itself
+        self.assertEqual(len(w), 1)
 
     def test_run_message_callback_from_wildcard(self):
         msg = make_test_message()
@@ -1121,7 +1138,7 @@ class TestStanzaStream(StanzaStreamTestBase):
 
         with self.assertRaisesRegex(
                 ValueError,
-                r"only one listener is allowed per \(type_, from_\) pair"):
+                r"only one listener allowed"):
             self.stream.register_presence_callback(
                 aioxmpp.structs.PresenceType.PROBE,
                 None,
@@ -1152,7 +1169,9 @@ class TestStanzaStream(StanzaStreamTestBase):
                 unittest.mock.sentinel.cb,
             )
 
-        self.assertFalse(w)
+        # the one warning is about the deprecation of
+        # register_presence_callback itself
+        self.assertEqual(len(w), 1)
 
     def test_register_presence_callback_rejects_duplicate_registration(self):
         self.stream.register_presence_callback(
@@ -1163,7 +1182,7 @@ class TestStanzaStream(StanzaStreamTestBase):
 
         with self.assertRaisesRegex(
                 ValueError,
-                r"only one listener is allowed per \(type_, from_\) pair"):
+                r"only one listener allowed"):
             self.stream.register_presence_callback(
                 structs.PresenceType.PROBE,
                 None,
@@ -1234,7 +1253,9 @@ class TestStanzaStream(StanzaStreamTestBase):
                 None,
             )
 
-        self.assertFalse(w)
+        # the one warning is about the deprecation of
+        # unregister_presence_callback itself
+        self.assertEqual(len(w), 1)
 
     def test_unregister_presence_callback(self):
         cb = unittest.mock.Mock()
@@ -3325,6 +3346,106 @@ class TestStanzaStream(StanzaStreamTestBase):
         self.stream.recv_stanza(pres)
 
         self.assertIs(run_coroutine(fut), pres)
+
+    def test_register_message_callback_calls_to_message_dispatcher(self):
+        with unittest.mock.patch.object(
+                self.message_dispatcher,
+                "register_callback") as register_callback:
+            with self.assertWarnsRegex(
+                    DeprecationWarning,
+                    "register_message_callback is deprecated; "
+                    "use aioxmpp.dispatcher.SimpleMessageDispatcher "
+                    "instead") as ctx:
+                self.stream.register_message_callback(
+                    aioxmpp.MessageType.CHAT,
+                    unittest.mock.sentinel.from_,
+                    unittest.mock.sentinel.cb,
+                )
+
+        register_callback.assert_called_once_with(
+            aioxmpp.MessageType.CHAT,
+            unittest.mock.sentinel.from_,
+            unittest.mock.sentinel.cb,
+        )
+
+        self.assertIn(
+            "test_stream.py",
+            ctx.filename,
+        )
+
+    def test_unregister_message_callback_calls_to_message_dispatcher(self):
+        with unittest.mock.patch.object(
+                self.message_dispatcher,
+                "unregister_callback") as unregister_callback:
+            with self.assertWarnsRegex(
+                    DeprecationWarning,
+                    "unregister_message_callback is deprecated; "
+                    "use aioxmpp.dispatcher.SimpleMessageDispatcher "
+                    "instead") as ctx:
+                self.stream.unregister_message_callback(
+                    aioxmpp.MessageType.CHAT,
+                    unittest.mock.sentinel.from_,
+                )
+
+        unregister_callback.assert_called_once_with(
+            aioxmpp.MessageType.CHAT,
+            unittest.mock.sentinel.from_,
+        )
+
+        self.assertIn(
+            "test_stream.py",
+            ctx.filename,
+        )
+
+    def test_register_presence_callback_calls_to_presence_dispatcher(self):
+        with unittest.mock.patch.object(
+                self.presence_dispatcher,
+                "register_callback") as register_callback:
+            with self.assertWarnsRegex(
+                    DeprecationWarning,
+                    "register_presence_callback is deprecated; "
+                    "use aioxmpp.dispatcher.SimplePresenceDispatcher "
+                    "or aioxmpp.PresenceClient instead") as ctx:
+                self.stream.register_presence_callback(
+                    aioxmpp.PresenceType.AVAILABLE,
+                    unittest.mock.sentinel.from_,
+                    unittest.mock.sentinel.cb,
+                )
+
+        register_callback.assert_called_once_with(
+            aioxmpp.PresenceType.AVAILABLE,
+            unittest.mock.sentinel.from_,
+            unittest.mock.sentinel.cb,
+        )
+
+        self.assertIn(
+            "test_stream.py",
+            ctx.filename,
+        )
+
+    def test_unregister_presence_callback_calls_to_presence_dispatcher(self):
+        with unittest.mock.patch.object(
+                self.presence_dispatcher,
+                "unregister_callback") as unregister_callback:
+            with self.assertWarnsRegex(
+                    DeprecationWarning,
+                    "unregister_presence_callback is deprecated; "
+                    "use aioxmpp.dispatcher.SimplePresenceDispatcher "
+                    "or aioxmpp.PresenceClient instead") as ctx:
+                self.stream.unregister_presence_callback(
+                    aioxmpp.PresenceType.AVAILABLE,
+                    unittest.mock.sentinel.from_,
+                )
+
+        unregister_callback.assert_called_once_with(
+            aioxmpp.PresenceType.AVAILABLE,
+            unittest.mock.sentinel.from_,
+        )
+
+        self.assertIn(
+            "test_stream.py",
+            ctx.filename,
+        )
 
 
 class TestStanzaStreamSM(StanzaStreamTestBase):

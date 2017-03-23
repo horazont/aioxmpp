@@ -778,6 +778,9 @@ class StanzaStream:
         self._logger = base_logger.getChild("StanzaStream")
         self._task = None
 
+        self._xxx_message_dispatcher = None
+        self._xxx_presence_dispatcher = None
+
         self._local_jid = local_jid
 
         self._active_queue = custom_queue.AsyncDeque(loop=self._loop)
@@ -1557,23 +1560,8 @@ class StanzaStream:
         specific callbacks win over less specific callbacks, and the match on
         the `from_` address takes precedence over the match on the `type_`.
 
-        To be explicit, the order in which callbacks are searched for a given
-        ``type_`` and ``from_`` of a stanza is:
-
-        * ``type_``, ``from_``
-        * ``type_``, ``from_.bare()``
-        * ``None``, ``from_``
-        * ``None``, ``from_.bare()``
-        * ``type_``, ``None``
-        * ``None``, ``None``
-
-        .. note::
-
-           When the server sends a stanza without from attribute, it is
-           replaced with the bare :attr:`local_jid`, as per :rfc:`6120`.
-
-           In the future, there might be a different way to select those
-           stanzas.
+        See :meth:`.SimpleStanzaDispatcher.register_callback` for the exact
+        wildcarding rules.
 
         .. versionchanged:: 0.7
 
@@ -1586,19 +1574,30 @@ class StanzaStream:
            raise a :class:`TypeError` as of the 1.0 release. See the Changelog
            for :ref:`api-changelog-0.7` for further details on how to upgrade
            your code efficiently.
+
+        .. deprecated:: 0.9
+
+           This method has been deprecated in favour of and is now implemented
+           in terms of the :class:`aioxmpp.dispatcher.SimpleMessageDispatcher`
+           service.
+
+           It is equivalent to call
+           :meth:`~.SimpleStanzaDispatcher.register_callback`, except that the
+           latter is not deprecated.
         """
         if type_ is not None:
             type_ = self._coerce_enum(type_, structs.MessageType)
-        key = type_, from_
-        if key in self._message_map:
-            raise ValueError(
-                "only one listener is allowed per (type_, from_) pair"
-            )
-
-        self._message_map[key] = cb
-        self._logger.debug(
-            "message callback registered: type=%r, from=%r",
-            type_, from_)
+        warnings.warn(
+            "register_message_callback is deprecated; use "
+            "aioxmpp.dispatcher.SimpleMessageDispatcher instead",
+            DeprecationWarning,
+            stacklevel=2
+        )
+        self._xxx_message_dispatcher.register_callback(
+            type_,
+            from_,
+            cb,
+        )
 
     def unregister_message_callback(self, type_, from_):
         """
@@ -1632,13 +1631,29 @@ class StanzaStream:
            raise a :class:`TypeError` as of the 1.0 release. See the Changelog
            for :ref:`api-changelog-0.7` for further details on how to upgrade
            your code efficiently.
+
+        .. deprecated:: 0.9
+
+           This method has been deprecated in favour of and is now implemented
+           in terms of the :class:`aioxmpp.dispatcher.SimpleMessageDispatcher`
+           service.
+
+           It is equivalent to call
+           :meth:`~.SimpleStanzaDispatcher.unregister_callback`, except that
+           the latter is not deprecated.
         """
         if type_ is not None:
             type_ = self._coerce_enum(type_, structs.MessageType)
-        del self._message_map[type_, from_]
-        self._logger.debug(
-            "message callback unregistered: type=%r, from=%r",
-            type_, from_)
+        warnings.warn(
+            "unregister_message_callback is deprecated; use "
+            "aioxmpp.dispatcher.SimpleMessageDispatcher instead",
+            DeprecationWarning,
+            stacklevel=2
+        )
+        self._xxx_message_dispatcher.unregister_callback(
+            type_,
+            from_,
+        )
 
     def register_presence_callback(self, type_, from_, cb):
         """
@@ -1663,6 +1678,9 @@ class StanzaStream:
         is identical, except that the ``type_=None`` entries described there do
         not apply for presence stanzas and are thus omitted.
 
+        See :meth:`.SimpleStanzaDispatcher.register_callback` for the exact
+        wildcarding rules.
+
         .. versionchanged:: 0.7
 
            The `type_` argument is now supposed to be a
@@ -1675,17 +1693,25 @@ class StanzaStream:
            for :ref:`api-changelog-0.7` for further details on how to upgrade
            your code efficiently.
 
+        .. deprecated:: 0.9
+
+           This method has been deprecated. It is recommended to use
+           :class:`aioxmpp.PresenceClient` instead.
+
         """
         type_ = self._coerce_enum(type_, structs.PresenceType)
-        key = type_, from_
-        if key in self._presence_map:
-            raise ValueError(
-                "only one listener is allowed per (type_, from_) pair"
-            )
-        self._presence_map[key] = cb
-        self._logger.debug(
-            "presence callback registered: type=%r, from=%r",
-            type_, from_)
+        warnings.warn(
+            "register_presence_callback is deprecated; use "
+            "aioxmpp.dispatcher.SimplePresenceDispatcher or "
+            "aioxmpp.PresenceClient instead",
+            DeprecationWarning,
+            stacklevel=2
+        )
+        self._xxx_presence_dispatcher.register_callback(
+            type_,
+            from_,
+            cb,
+        )
 
     def unregister_presence_callback(self, type_, from_):
         """
@@ -1721,12 +1747,24 @@ class StanzaStream:
            for :ref:`api-changelog-0.7` for further details on how to upgrade
            your code efficiently.
 
+        .. deprecated:: 0.9
+
+           This method has been deprecated. It is recommended to use
+           :class:`aioxmpp.PresenceClient` instead.
+
         """
         type_ = self._coerce_enum(type_, structs.PresenceType)
-        del self._presence_map[type_, from_]
-        self._logger.debug(
-            "presence callback unregistered: type=%r, from=%r",
-            type_, from_)
+        warnings.warn(
+            "unregister_presence_callback is deprecated; use "
+            "aioxmpp.dispatcher.SimplePresenceDispatcher or "
+            "aioxmpp.PresenceClient instead",
+            DeprecationWarning,
+            stacklevel=2
+        )
+        self._xxx_presence_dispatcher.unregister_callback(
+            type_,
+            from_,
+        )
 
     def _start_prepare(self, xmlstream, receiver):
         self._xmlstream_failure_token = xmlstream.on_closing.connect(

@@ -83,6 +83,7 @@ from . import (
     stanza,
     structs,
     security_layer,
+    dispatcher,
     presence as mod_presence,
 )
 from .utils import namespaces
@@ -706,6 +707,14 @@ class Client:
         self.stream = stream.StanzaStream(
             local_jid.bare(),
             base_logger=stream_base_logger
+        )
+
+        self.stream._xxx_message_dispatcher = self.summon(
+            dispatcher.SimpleMessageDispatcher,
+        )
+
+        self.stream._xxx_presence_dispatcher = self.summon(
+            dispatcher.SimplePresenceDispatcher,
         )
 
     def _stream_failure(self, exc):

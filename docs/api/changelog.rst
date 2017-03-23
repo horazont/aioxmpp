@@ -23,6 +23,23 @@ Version 0.9
   suspect a CPython bug there, but I was unable to isolate a proper test case.
   It only blows up in the end-to-end tests.
 
+* :mod:`aioxmpp.dispatcher`
+
+* :meth:`aioxmpp.stream.StanzaStream.on_message_received`,
+  :meth:`~aioxmpp.stream.StanzaStream.on_message_received`
+
+* **Deprecation**: The following methods on :class:`aioxmpp.stream.StanzaStream`
+  have been deprecated and will be removed in 1.0:
+
+  * :meth:`~.StanzaStream.register_message_callback`
+  * :meth:`~.StanzaStream.unregister_message_callback`
+  * :meth:`~.StanzaStream.register_presence_callback`
+  * :meth:`~.StanzaStream.unregister_presence_callback`
+
+  The former two are replaced by the
+  :class:`aioxmpp.dispatcher.SimpleMessageDispatcher` service and the latter two
+  should be replaced by proper use of the :class:`aioxmpp.PresenceClient`.
+
 .. _api-changelog-0.8:
 
 Version 0.8
