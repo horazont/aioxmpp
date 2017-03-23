@@ -3298,6 +3298,34 @@ class TestStanzaStream(StanzaStreamTestBase):
         with self.assertRaises(FooException):
             run_coroutine(token)
 
+    def test_emit_on_message_received_event(self):
+        msg = make_test_message()
+        fut = asyncio.Future()
+
+        self.stream.on_message_received.connect(
+            fut,
+            self.stream.on_message_received.AUTO_FUTURE
+        )
+
+        self.stream.start(self.xmlstream)
+        self.stream.recv_stanza(msg)
+
+        self.assertIs(run_coroutine(fut), msg)
+
+    def test_emit_on_presence_received_event(self):
+        pres = make_test_presence()
+        fut = asyncio.Future()
+
+        self.stream.on_presence_received.connect(
+            fut,
+            self.stream.on_presence_received.AUTO_FUTURE
+        )
+
+        self.stream.start(self.xmlstream)
+        self.stream.recv_stanza(pres)
+
+        self.assertIs(run_coroutine(fut), pres)
+
 
 class TestStanzaStreamSM(StanzaStreamTestBase):
     def setUp(self):

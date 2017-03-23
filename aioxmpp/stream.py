@@ -739,6 +739,24 @@ class StanzaStream:
        whenever a non-SM stream is started and whenever a stream which
        previously had SM disabled is started with SM enabled.
 
+    .. signal:: on_message_received(stanza)
+
+       Emits when a :class:`aioxmpp.Message` stanza has been received.
+
+       :param stanza: The received stanza.
+       :type stanza: :class:`aioxmpp.Message`
+
+       .. versionadded:: 0.9
+
+    .. signal:: on_presence_received(stanza)
+
+       Emits when a :class:`aioxmpp.Presence` stanza has been received.
+
+       :param stanza: The received stanza.
+       :type stanza: :class:`aioxmpp.Presence`
+
+       .. versionadded:: 0.9
+
     """
 
     _ALLOW_ENUM_COERCION = True
@@ -746,6 +764,9 @@ class StanzaStream:
     on_failure = callbacks.Signal()
     on_stream_destroyed = callbacks.Signal()
     on_stream_established = callbacks.Signal()
+
+    on_message_received = callbacks.Signal()
+    on_presence_received = callbacks.Signal()
 
     def __init__(self,
                  local_jid=None,
@@ -976,6 +997,8 @@ class StanzaStream:
                                "filter chain")
             return
 
+        self.on_message_received(stanza_obj)
+
         # XXX: this should be fixed better, to avoid the ambiguity between bare
         # JID wildcarding and stanzas originating from bare JIDs
         # also, I don’t like how we handle from_=None now
@@ -1024,6 +1047,8 @@ class StanzaStream:
             self._logger.debug("incoming presence dropped by application "
                                "filter chain")
             return
+
+        self.on_presence_received(stanza_obj)
 
         keys = [(stanza_obj.type_, stanza_obj.from_),
                 (stanza_obj.type_, None)]
