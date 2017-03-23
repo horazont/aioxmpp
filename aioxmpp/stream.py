@@ -792,8 +792,6 @@ class StanzaStream:
         # list of running IQ request coroutines: used to cancel them when the
         # stream is destroyed
         self._iq_request_tasks = []
-        self._message_map = {}
-        self._presence_map = {}
 
         self._ping_send_opportunistic = False
         self._next_ping_event_at = None
@@ -1002,37 +1000,6 @@ class StanzaStream:
 
         self.on_message_received(stanza_obj)
 
-        # XXX: this should be fixed better, to avoid the ambiguity between bare
-        # JID wildcarding and stanzas originating from bare JIDs
-        # also, I don’t like how we handle from_=None now
-
-        if stanza_obj.from_ is None:
-            stanza_obj.from_ = self._local_jid
-
-        keys = [(stanza_obj.type_, stanza_obj.from_),
-                (stanza_obj.type_, stanza_obj.from_.bare()),
-                (None, stanza_obj.from_),
-                (None, stanza_obj.from_.bare()),
-                (stanza_obj.type_, None),
-                (None, None)]
-
-        for key in keys:
-            try:
-                cb = self._message_map[key]
-            except KeyError:
-                continue
-            self._logger.debug("dispatching message using key %r to %r",
-                               key, cb)
-            self._loop.call_soon(cb, stanza_obj)
-            break
-        else:
-            self._logger.warning(
-                "unsolicited message dropped: from=%r, type=%r, id=%r",
-                stanza_obj.from_,
-                stanza_obj.type_,
-                stanza_obj.id_
-            )
-
     def _process_incoming_presence(self, stanza_obj):
         """
         Process an incoming presence stanza `stanza_obj`.
@@ -1052,24 +1019,6 @@ class StanzaStream:
             return
 
         self.on_presence_received(stanza_obj)
-
-        keys = [(stanza_obj.type_, stanza_obj.from_),
-                (stanza_obj.type_, None)]
-        for key in keys:
-            try:
-                cb = self._presence_map[key]
-            except KeyError:
-                continue
-            self._logger.debug("dispatching presence using key: %r", key)
-            self._loop.call_soon(cb, stanza_obj)
-            break
-        else:
-            self._logger.warning(
-                "unhandled presence dropped: from=%r, type=%r, id=%r",
-                stanza_obj.from_,
-                stanza_obj.type_,
-                stanza_obj.id_
-            )
 
     def _process_incoming_erroneous_stanza(self, stanza_obj, exc):
         self._logger.debug(
