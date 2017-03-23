@@ -780,7 +780,11 @@ def _apply_outbound_presence_filter(instance, stream, func):
 
 def _apply_connect_depsignal(instance, stream, func, dependency, signal_name,
                              mode):
-    signal = getattr(instance.dependencies[dependency], signal_name)
+    if dependency is aioxmpp.stream.StanzaStream:
+        dependency = instance.client.stream
+    else:
+        dependency = instance.dependencies[dependency]
+    signal = getattr(dependency, signal_name)
     if mode is None:
         return signal.context_connect(func)
     else:
@@ -1016,6 +1020,11 @@ def _depsignal_spec(class_, signal_name, f, defer):
         else:
             mode = aioxmpp.callbacks.AdHocSignal.STRONG
 
+    if class_ is not aioxmpp.stream.StanzaStream:
+        deps = (class_,)
+    else:
+        deps = ()
+
     return HandlerSpec(
         (
             _apply_connect_depsignal,
@@ -1025,7 +1034,7 @@ def _depsignal_spec(class_, signal_name, f, defer):
                 mode,
             )
         ),
-        require_deps=(class_,)
+        require_deps=deps,
     )
 
 
@@ -1036,7 +1045,8 @@ def depsignal(class_, signal_name, *, defer=False):
 
     :param class_: A service class which is listed in the
                    :attr:`~.Meta.ORDER_AFTER` relationship.
-    :type class_: :class:`Service` class
+    :type class_: :class:`Service` class or
+                  :class:`aioxmpp.stream.StanzaStream`
     :param signal_name: Attribute name of the signal to connect to
     :type signal_name: :class:`str`
     :param defer: Flag indicating whether deferred execution of the decorated
@@ -1044,7 +1054,10 @@ def depsignal(class_, signal_name, *, defer=False):
     :type defer: :class:`bool`
 
     The signal is discovered by accessing the attribute with the name
-    `signal_name` on the given `class_`.
+    `signal_name` on the given `class_`. If `class_` is
+    :class:`aioxmpp.stream.StanzaStream`, the signal is connected to the stream
+    of the client of the service, even though the stream is technically not an
+    actual service or dependency.
 
     If the signal is a :class:`.callbacks.Signal` and `defer` is false, the
     decorated object is connected using the default
@@ -1058,6 +1071,11 @@ def depsignal(class_, signal_name, *, defer=False):
 
     If the signal is a :class:`.callbacks.SyncSignal`, `defer` must be false
     and the decorated object must be a coroutine function.
+
+    .. versionchanged:: 0.9
+
+       Support for :class:`aioxmpp.stream.StanzaStream` as `class_` argument
+       was added.
     """
 
     def decorator(f):

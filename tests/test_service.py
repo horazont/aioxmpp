@@ -28,6 +28,7 @@ import unittest
 
 import aioxmpp.callbacks as callbacks
 import aioxmpp.service as service
+import aioxmpp.stream
 
 from aioxmpp.testutils import (
     run_coroutine,
@@ -1013,6 +1014,35 @@ class Test_apply_connect_depsignal(unittest.TestCase):
             dependency.signal_name.context_connect(),
         )
 
+    def test_can_connect_to_StanzaStream(self):
+        instance = unittest.mock.MagicMock()
+        dependency = unittest.mock.Mock()
+        instance.client.stream = dependency
+
+        result = service._apply_connect_depsignal(
+            instance,
+            unittest.mock.sentinel.stream,
+            unittest.mock.sentinel.func,
+            aioxmpp.stream.StanzaStream,
+            "signal_name",
+            unittest.mock.sentinel.mode,
+        )
+
+        self.assertSequenceEqual(
+            dependency.mock_calls,
+            [
+                unittest.mock.call.signal_name.context_connect(
+                    unittest.mock.sentinel.func,
+                    unittest.mock.sentinel.mode,
+                )
+            ]
+        )
+
+        self.assertEqual(
+            result,
+            dependency.signal_name.context_connect(),
+        )
+
     def test_does_not_pass_mode_if_it_is_None(self):
         instance = unittest.mock.MagicMock()
         dependency = unittest.mock.Mock()
@@ -1943,8 +1973,33 @@ class Testdepsignal(unittest.TestCase):
             cb._aioxmpp_service_handlers,
         )
 
-    def test_works_with_is_depsignal_handler(self):
-        pass
+    def test_adds_dependency(self):
+        def cb():
+            pass
+
+        self.decorator(cb)
+
+        spec, = cb._aioxmpp_service_handlers
+        self.assertIn(
+            self.S1,
+            spec.require_deps,
+        )
+
+    def test_does_not_add_dependency_for_StanzaStream(self):
+        def cb():
+            pass
+
+        decorator = service.depsignal(
+            aioxmpp.stream.StanzaStream,
+            "on_message_received",
+        )
+        decorator(cb)
+
+        spec, = cb._aioxmpp_service_handlers
+        self.assertNotIn(
+            aioxmpp.stream.StanzaStream,
+            spec.require_deps,
+        )
 
 
 class Testis_iq_handler(unittest.TestCase):
