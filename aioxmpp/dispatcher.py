@@ -19,6 +19,7 @@ Base Class for Stanza Dispatchers
 .. autoclass:: SimpleStanzaDispatcher
 """
 import abc
+import contextlib
 
 import aioxmpp.service
 import aioxmpp.stream
@@ -36,6 +37,8 @@ class SimpleStanzaDispatcher(metaclass=abc.ABCMeta):
     .. automethod:: register_callback
 
     .. automethod:: unregister_callback
+
+    .. automethod:: handler_context
 
     For deriving classes, the following methods are relevant:
 
@@ -191,6 +194,29 @@ class SimpleStanzaDispatcher(metaclass=abc.ABCMeta):
             wildcard_resource = False
 
         self._map.pop((type_, from_, wildcard_resource))
+
+    @contextlib.contextmanager
+    def handler_context(self, type_, from_, cb, *, wildcard_resource=True):
+        """
+        Context manager which temporarily registers a callback.
+
+        The arguments are the same as for :meth:`register_callback`.
+
+        When the context is entered, the callback `cb` is registered. When the
+        context is exited, no matter if an exception is raised or not, the
+        callback is unregistered.
+        """
+        self.register_callback(
+            type_, from_, cb,
+            wildcard_resource=wildcard_resource
+        )
+        try:
+            yield
+        finally:
+            self.unregister_callback(
+                type_, from_,
+                wildcard_resource=wildcard_resource
+            )
 
 
 class SimpleMessageDispatcher(aioxmpp.service.Service,

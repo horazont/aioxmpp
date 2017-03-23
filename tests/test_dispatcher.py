@@ -1,3 +1,4 @@
+import contextlib
 import unittest
 import unittest.mock
 
@@ -393,6 +394,108 @@ class TestSimpleStanzaDispatcher(unittest.TestCase):
                 "on_presence_received",
                 self.d._feed,
             )
+        )
+
+    def test_handler_context_is_context_manager(self):
+        cm = self.d.handler_context(
+            unittest.mock.sentinel.type_,
+            unittest.mock.sentinel.from_,
+            unittest.mock.sentinel.cb,
+            wildcard_resource=unittest.mock.sentinel.wildcard_resource,
+        )
+
+        self.assertTrue(hasattr(cm, "__enter__"))
+        self.assertTrue(hasattr(cm, "__exit__"))
+
+    def test_handler_context_enter_registers_callback(self):
+        cm = self.d.handler_context(
+            unittest.mock.sentinel.type_,
+            unittest.mock.sentinel.from_,
+            unittest.mock.sentinel.cb,
+            wildcard_resource=unittest.mock.sentinel.wildcard_resource,
+        )
+
+        # we need to mock this too, but we don’t want to test __exit__ here
+        with unittest.mock.patch.object(
+                self.d,
+                "unregister_callback") as unregister_callback:
+            with unittest.mock.patch.object(
+                    self.d,
+                    "register_callback") as register_callback:
+                cm.__enter__()
+
+            register_callback.assert_called_once_with(
+                unittest.mock.sentinel.type_,
+                unittest.mock.sentinel.from_,
+                unittest.mock.sentinel.cb,
+                wildcard_resource=unittest.mock.sentinel.wildcard_resource,
+            )
+
+            unregister_callback.assert_not_called()
+
+            cm.__exit__(None, None, None)
+
+    def test_handler_context_exit_unregisters_callback(self):
+        cm = self.d.handler_context(
+            unittest.mock.sentinel.type_,
+            unittest.mock.sentinel.from_,
+            unittest.mock.sentinel.cb,
+            wildcard_resource=unittest.mock.sentinel.wildcard_resource,
+        )
+
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(
+                unittest.mock.patch.object(
+                    self.d,
+                    "register_callback")
+            )
+            unregister_callback = stack.enter_context(
+                unittest.mock.patch.object(
+                    self.d,
+                    "unregister_callback")
+            )
+
+            cm.__enter__()
+            cm.__exit__(None, None, None)
+
+        unregister_callback.assert_called_once_with(
+            unittest.mock.sentinel.type_,
+            unittest.mock.sentinel.from_,
+            wildcard_resource=unittest.mock.sentinel.wildcard_resource,
+        )
+
+    def test_handler_context_exit_unregisters_and_does_not_swallow(self):
+        cm = self.d.handler_context(
+            unittest.mock.sentinel.type_,
+            unittest.mock.sentinel.from_,
+            unittest.mock.sentinel.cb,
+            wildcard_resource=unittest.mock.sentinel.wildcard_resource,
+        )
+
+        class FooException(Exception):
+            pass
+
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(
+                unittest.mock.patch.object(
+                    self.d,
+                    "register_callback")
+            )
+            unregister_callback = stack.enter_context(
+                unittest.mock.patch.object(
+                    self.d,
+                    "unregister_callback")
+            )
+            stack.enter_context(
+                self.assertRaises(FooException)
+            )
+            stack.enter_context(cm)
+            raise FooException()
+
+        unregister_callback.assert_called_once_with(
+            unittest.mock.sentinel.type_,
+            unittest.mock.sentinel.from_,
+            wildcard_resource=unittest.mock.sentinel.wildcard_resource,
         )
 
 
