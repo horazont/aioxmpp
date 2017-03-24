@@ -280,11 +280,12 @@ class SimplePresenceDispatcher(aioxmpp.service.Service,
 
     .. warning::
 
-       This class is only there to provide an implementing backend for the
-       deprecated :meth:`.StanzaStream.register_presence_callback` method.
-
-       It is strongly recommended to use the :class:`.PresenceClient` service
-       instead.
+       It is not recommended to mix the use of a
+       :class:`SimplePresenceDispatcher` with :class:`aioxmpp.RosterClient` and
+       :class:`aioxmpp.PresenceClient`. Both of these register callbacks at the
+       :class:`SimplePresenceDispatcher`. Registering callbacks for different
+       slots will either make those callbacks not be called at all or will
+       make the services miss stanzas.
     """
 
     @property
