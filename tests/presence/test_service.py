@@ -58,9 +58,25 @@ class TestPresenceClient(unittest.TestCase):
 
     def test_handle_presence_decorated(self):
         self.assertTrue(
-            service.is_depsignal_handler(
-                aioxmpp.stream.StanzaStream,
-                "on_presence_received",
+            service.is_presence_handler(
+                structs.PresenceType.AVAILABLE,
+                None,
+                presence_service.PresenceClient.handle_presence,
+            ),
+        )
+
+        self.assertTrue(
+            service.is_presence_handler(
+                structs.PresenceType.UNAVAILABLE,
+                None,
+                presence_service.PresenceClient.handle_presence,
+            ),
+        )
+
+        self.assertTrue(
+            service.is_presence_handler(
+                structs.PresenceType.ERROR,
+                None,
                 presence_service.PresenceClient.handle_presence,
             ),
         )
@@ -105,37 +121,6 @@ class TestPresenceClient(unittest.TestCase):
             },
             self.s.get_peer_resources(TEST_PEER_JID1)
         )
-
-    def test_ignore_subscription_presences(self):
-        subscription_types = [
-            aioxmpp.PresenceType.SUBSCRIBE,
-            aioxmpp.PresenceType.SUBSCRIBED,
-            aioxmpp.PresenceType.UNSUBSCRIBE,
-            aioxmpp.PresenceType.UNSUBSCRIBED,
-        ]
-        for type_ in subscription_types:
-            st = stanza.Presence(
-                type_=type_,
-                from_=TEST_PEER_JID1.replace(resource="foo"),
-            )
-            self.s.handle_presence(st)
-
-            self.assertDictEqual(
-                {},
-                self.s.get_peer_resources(TEST_PEER_JID1),
-            )
-
-            self.assertIsNone(
-                self.s.get_stanza(TEST_PEER_JID1),
-            )
-
-            self.assertIsNone(
-                self.s.get_stanza(TEST_PEER_JID1.replace(resource="foo")),
-            )
-
-            self.assertIsNone(
-                self.s.get_most_available_stanza(TEST_PEER_JID1),
-            )
 
     def test_get_stanza_returns_None_for_arbitrary_jid(self):
         self.assertIsNone(self.s.get_stanza(

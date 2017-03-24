@@ -104,11 +104,8 @@ class PresenceClient(aioxmpp.service.Service):
        1.0.
     """
 
-    _IGNORED_PRESENCE_TYPES = [
-        aioxmpp.structs.PresenceType.SUBSCRIBE,
-        aioxmpp.structs.PresenceType.SUBSCRIBED,
-        aioxmpp.structs.PresenceType.UNSUBSCRIBE,
-        aioxmpp.structs.PresenceType.UNSUBSCRIBED,
+    ORDER_AFTER = [
+        aioxmpp.dispatcher.SimplePresenceDispatcher,
     ]
 
     on_bare_available = aioxmpp.callbacks.Signal()
@@ -182,14 +179,16 @@ class PresenceClient(aioxmpp.service.Service):
         except KeyError:
             pass
 
-    @aioxmpp.service.depsignal(
-        aioxmpp.stream.StanzaStream,
-        "on_presence_received",
-    )
+    @aioxmpp.service.presence_handler(
+        aioxmpp.structs.PresenceType.AVAILABLE,
+        None)
+    @aioxmpp.service.presence_handler(
+        aioxmpp.structs.PresenceType.UNAVAILABLE,
+        None)
+    @aioxmpp.service.presence_handler(
+        aioxmpp.structs.PresenceType.ERROR,
+        None)
     def handle_presence(self, st):
-        if st.type_ in self._IGNORED_PRESENCE_TYPES:
-            return
-
         bare = st.from_.bare()
         resource = st.from_.resource
 
