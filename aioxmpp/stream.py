@@ -716,7 +716,7 @@ class StanzaStream:
        The stream has been stopped in a manner which means that all state must
        be discarded.
 
-       :param reason: The exception which caused the stream to be destroyeds
+       :param reason: The exception which caused the stream to be destroyed.
        :type reason: :class:`Exception`
 
        When this signal is emitted, others have or will most likely see
