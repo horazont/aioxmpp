@@ -441,25 +441,25 @@ class RosterClient(aioxmpp.service.Service):
 
         self.version = request.ver
 
-    @aioxmpp.service.presence_handler(
+    @aioxmpp.dispatcher.presence_handler(
         aioxmpp.structs.PresenceType.SUBSCRIBE,
         None)
     def handle_subscribe(self, stanza):
         self.on_subscribe(stanza)
 
-    @aioxmpp.service.presence_handler(
+    @aioxmpp.dispatcher.presence_handler(
         aioxmpp.structs.PresenceType.SUBSCRIBED,
         None)
     def handle_subscribed(self, stanza):
         self.on_subscribed(stanza)
 
-    @aioxmpp.service.presence_handler(
+    @aioxmpp.dispatcher.presence_handler(
         aioxmpp.structs.PresenceType.UNSUBSCRIBED,
         None)
     def handle_unsubscribed(self, stanza):
         self.on_unsubscribed(stanza)
 
-    @aioxmpp.service.presence_handler(
+    @aioxmpp.dispatcher.presence_handler(
         aioxmpp.structs.PresenceType.UNSUBSCRIBE,
         None)
     def handle_unsubscribe(self, stanza):

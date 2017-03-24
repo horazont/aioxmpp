@@ -58,7 +58,7 @@ class TestPresenceClient(unittest.TestCase):
 
     def test_handle_presence_decorated(self):
         self.assertTrue(
-            service.is_presence_handler(
+            aioxmpp.dispatcher.is_presence_handler(
                 structs.PresenceType.AVAILABLE,
                 None,
                 presence_service.PresenceClient.handle_presence,
@@ -66,7 +66,7 @@ class TestPresenceClient(unittest.TestCase):
         )
 
         self.assertTrue(
-            service.is_presence_handler(
+            aioxmpp.dispatcher.is_presence_handler(
                 structs.PresenceType.UNAVAILABLE,
                 None,
                 presence_service.PresenceClient.handle_presence,
@@ -74,7 +74,7 @@ class TestPresenceClient(unittest.TestCase):
         )
 
         self.assertTrue(
-            service.is_presence_handler(
+            aioxmpp.dispatcher.is_presence_handler(
                 structs.PresenceType.ERROR,
                 None,
                 presence_service.PresenceClient.handle_presence,

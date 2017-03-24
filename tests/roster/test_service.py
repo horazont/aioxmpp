@@ -267,7 +267,7 @@ class TestService(unittest.TestCase):
 
     def test_handle_subscribe_is_decorated(self):
         self.assertTrue(
-            service.is_presence_handler(
+            aioxmpp.dispatcher.is_presence_handler(
                 structs.PresenceType.SUBSCRIBE,
                 None,
                 roster_service.RosterClient.handle_subscribe,
@@ -276,7 +276,7 @@ class TestService(unittest.TestCase):
 
     def test_handle_subscribed_is_decorated(self):
         self.assertTrue(
-            service.is_presence_handler(
+            aioxmpp.dispatcher.is_presence_handler(
                 structs.PresenceType.SUBSCRIBED,
                 None,
                 roster_service.RosterClient.handle_subscribed,
@@ -285,7 +285,7 @@ class TestService(unittest.TestCase):
 
     def test_handle_unsubscribe_is_decorated(self):
         self.assertTrue(
-            service.is_presence_handler(
+            aioxmpp.dispatcher.is_presence_handler(
                 structs.PresenceType.UNSUBSCRIBE,
                 None,
                 roster_service.RosterClient.handle_unsubscribe,
@@ -294,7 +294,7 @@ class TestService(unittest.TestCase):
 
     def test_handle_unsubscribed_is_decorated(self):
         self.assertTrue(
-            service.is_presence_handler(
+            aioxmpp.dispatcher.is_presence_handler(
                 structs.PresenceType.UNSUBSCRIBED,
                 None,
                 roster_service.RosterClient.handle_unsubscribed,

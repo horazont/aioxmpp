@@ -179,13 +179,13 @@ class PresenceClient(aioxmpp.service.Service):
         except KeyError:
             pass
 
-    @aioxmpp.service.presence_handler(
+    @aioxmpp.dispatcher.presence_handler(
         aioxmpp.structs.PresenceType.AVAILABLE,
         None)
-    @aioxmpp.service.presence_handler(
+    @aioxmpp.dispatcher.presence_handler(
         aioxmpp.structs.PresenceType.UNAVAILABLE,
         None)
-    @aioxmpp.service.presence_handler(
+    @aioxmpp.dispatcher.presence_handler(
         aioxmpp.structs.PresenceType.ERROR,
         None)
     def handle_presence(self, st):
