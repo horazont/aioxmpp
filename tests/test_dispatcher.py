@@ -571,3 +571,387 @@ class TestSimplePresenceDispatcher(unittest.TestCase):
                 self.d._feed,
             )
         )
+
+
+class Test_apply_message_handler(unittest.TestCase):
+    def test_uses_SimpleMessageDispatcher(self):
+        instance = unittest.mock.MagicMock()
+        dependency = unittest.mock.Mock()
+        instance.dependencies.__getitem__.return_value = dependency
+
+        result = dispatcher._apply_message_handler(
+            instance,
+            unittest.mock.sentinel.stream,
+            unittest.mock.sentinel.func,
+            unittest.mock.sentinel.type_,
+            unittest.mock.sentinel.from_,
+        )
+
+        instance.dependencies.__getitem__.assert_called_once_with(
+            dispatcher.SimpleMessageDispatcher,
+        )
+
+        dependency.handler_context.assert_called_with(
+            unittest.mock.sentinel.type_,
+            unittest.mock.sentinel.from_,
+            unittest.mock.sentinel.func,
+        )
+
+        self.assertEqual(
+            result,
+            dependency.handler_context(),
+        )
+
+
+class Test_apply_presence_handler(unittest.TestCase):
+    def test_uses_SimplePresenceDispatcher(self):
+        instance = unittest.mock.MagicMock()
+        dependency = unittest.mock.Mock()
+        instance.dependencies.__getitem__.return_value = dependency
+
+        result = dispatcher._apply_presence_handler(
+            instance,
+            unittest.mock.sentinel.stream,
+            unittest.mock.sentinel.func,
+            unittest.mock.sentinel.type_,
+            unittest.mock.sentinel.from_,
+        )
+
+        instance.dependencies.__getitem__.assert_called_once_with(
+            dispatcher.SimplePresenceDispatcher,
+        )
+
+        dependency.handler_context.assert_called_with(
+            unittest.mock.sentinel.type_,
+            unittest.mock.sentinel.from_,
+            unittest.mock.sentinel.func,
+        )
+
+        self.assertEqual(
+            result,
+            dependency.handler_context(),
+        )
+
+
+class Testmessage_handler(unittest.TestCase):
+    def setUp(self):
+        self.decorator = dispatcher.message_handler(
+            unittest.mock.sentinel.type_,
+            unittest.mock.sentinel.from_
+        )
+
+    def tearDown(self):
+        del self.decorator
+
+    def test_works_as_decorator(self):
+        def cb():
+            pass
+
+        self.assertIs(
+            cb,
+            self.decorator(cb),
+        )
+
+    def test_adds_magic_attribute(self):
+        def cb():
+            pass
+
+        self.decorator(cb)
+
+        self.assertTrue(hasattr(cb, "_aioxmpp_service_handlers"))
+
+    def test_adds__apply_message_handler_entry(self):
+        def cb():
+            pass
+
+        self.decorator(cb)
+
+        self.assertIn(
+            aioxmpp.service.HandlerSpec(
+                (dispatcher._apply_message_handler,
+                 (unittest.mock.sentinel.type_,
+                  unittest.mock.sentinel.from_)),
+                is_unique=True,
+                require_deps=(
+                    dispatcher.SimpleMessageDispatcher,
+                ),
+            ),
+            cb._aioxmpp_service_handlers
+        )
+
+    def test_stacks_with_other_effects(self):
+        def cb():
+            pass
+
+        cb._aioxmpp_service_handlers = {"foo"}
+
+        self.decorator(cb)
+
+        self.assertIn(
+            aioxmpp.service.HandlerSpec(
+                (dispatcher._apply_message_handler,
+                 (unittest.mock.sentinel.type_,
+                  unittest.mock.sentinel.from_)),
+                is_unique=True,
+                require_deps=(
+                    dispatcher.SimpleMessageDispatcher,
+                ),
+            ),
+            cb._aioxmpp_service_handlers
+        )
+
+        self.assertIn(
+            "foo",
+            cb._aioxmpp_service_handlers,
+        )
+
+    def test_requires_non_coroutine(self):
+        with unittest.mock.patch(
+                "asyncio.iscoroutinefunction") as iscoroutinefunction:
+            iscoroutinefunction.return_value = True
+
+            with self.assertRaisesRegex(
+                    TypeError,
+                    "must not be a coroutine function"):
+                self.decorator(unittest.mock.sentinel.cb)
+
+        iscoroutinefunction.assert_called_with(
+            unittest.mock.sentinel.cb,
+        )
+
+    def test_works_with_is_message_handler(self):
+        def cb():
+            pass
+
+        self.assertFalse(
+            dispatcher.is_message_handler(
+                unittest.mock.sentinel.type_,
+                unittest.mock.sentinel.from_,
+                cb,
+            )
+        )
+
+        self.decorator(cb)
+
+        self.assertTrue(
+            dispatcher.is_message_handler(
+                unittest.mock.sentinel.type_,
+                unittest.mock.sentinel.from_,
+                cb,
+            )
+        )
+
+
+class Testpresence_handler(unittest.TestCase):
+    def setUp(self):
+        self.decorator = dispatcher.presence_handler(
+            unittest.mock.sentinel.type_,
+            unittest.mock.sentinel.from_
+        )
+
+    def tearDown(self):
+        del self.decorator
+
+    def test_works_as_decorator(self):
+        def cb():
+            pass
+
+        self.assertIs(
+            cb,
+            self.decorator(cb),
+        )
+
+    def test_adds_magic_attribute(self):
+        def cb():
+            pass
+
+        self.decorator(cb)
+
+        self.assertTrue(hasattr(cb, "_aioxmpp_service_handlers"))
+
+    def test_adds__apply_presence_handler_entry(self):
+        def cb():
+            pass
+
+        self.decorator(cb)
+
+        self.assertIn(
+            aioxmpp.service.HandlerSpec(
+                (dispatcher._apply_presence_handler,
+                 (unittest.mock.sentinel.type_,
+                  unittest.mock.sentinel.from_)),
+                is_unique=True,
+                require_deps=(
+                    dispatcher.SimplePresenceDispatcher,
+                ),
+            ),
+            cb._aioxmpp_service_handlers
+        )
+
+    def test_stacks_with_other_effects(self):
+        def cb():
+            pass
+
+        cb._aioxmpp_service_handlers = {"foo"}
+
+        self.decorator(cb)
+
+        self.assertIn(
+            aioxmpp.service.HandlerSpec(
+                (dispatcher._apply_presence_handler,
+                 (unittest.mock.sentinel.type_,
+                  unittest.mock.sentinel.from_)),
+                is_unique=True,
+                require_deps=(
+                    dispatcher.SimplePresenceDispatcher,
+                ),
+            ),
+            cb._aioxmpp_service_handlers
+        )
+
+        self.assertIn(
+            "foo",
+            cb._aioxmpp_service_handlers,
+        )
+
+    def test_requires_non_coroutine(self):
+        with unittest.mock.patch(
+                "asyncio.iscoroutinefunction") as iscoroutinefunction:
+            iscoroutinefunction.return_value = True
+
+            with self.assertRaisesRegex(
+                    TypeError,
+                    "must not be a coroutine function"):
+                self.decorator(unittest.mock.sentinel.cb)
+
+        iscoroutinefunction.assert_called_with(
+            unittest.mock.sentinel.cb,
+        )
+
+    def test_works_with_is_presence_handler(self):
+        def cb():
+            pass
+
+        self.assertFalse(
+            dispatcher.is_presence_handler(
+                unittest.mock.sentinel.type_,
+                unittest.mock.sentinel.from_,
+                cb,
+            )
+        )
+
+        self.decorator(cb)
+
+        self.assertTrue(
+            dispatcher.is_presence_handler(
+                unittest.mock.sentinel.type_,
+                unittest.mock.sentinel.from_,
+                cb,
+            )
+        )
+
+
+class Testis_message_handler(unittest.TestCase):
+    def test_return_false_if_magic_attr_is_missing(self):
+        self.assertFalse(
+            dispatcher.is_message_handler(
+                unittest.mock.sentinel.type_,
+                unittest.mock.sentinel.from_,
+                object()
+            )
+        )
+
+    def test_return_true_if_token_in_magic_attr(self):
+        m = unittest.mock.Mock()
+        m._aioxmpp_service_handlers = [
+            aioxmpp.service.HandlerSpec(
+                (dispatcher._apply_message_handler,
+                    (unittest.mock.sentinel.type_,
+                     unittest.mock.sentinel.from_)),
+                require_deps=(
+                    dispatcher.SimpleMessageDispatcher,
+                )
+            ),
+        ]
+
+        self.assertTrue(
+            dispatcher.is_message_handler(
+                unittest.mock.sentinel.type_,
+                unittest.mock.sentinel.from_,
+                m
+            )
+        )
+
+    def test_return_false_if_token_not_in_magic_attr(self):
+        m = unittest.mock.Mock()
+        m._aioxmpp_service_handlers = [
+            aioxmpp.service.HandlerSpec(
+                (dispatcher._apply_message_handler,
+                 (unittest.mock.sentinel.type2,
+                     unittest.mock.sentinel.from2)),
+                require_deps=(
+                    dispatcher.SimpleMessageDispatcher,
+                )
+            )
+        ]
+
+        self.assertFalse(
+            dispatcher.is_message_handler(
+                unittest.mock.sentinel.type_,
+                unittest.mock.sentinel.from_,
+                m
+            )
+        )
+
+
+class Testis_presence_handler(unittest.TestCase):
+    def test_return_false_if_magic_attr_is_missing(self):
+        self.assertFalse(
+            dispatcher.is_presence_handler(
+                unittest.mock.sentinel.type_,
+                unittest.mock.sentinel.from_,
+                object()
+            )
+        )
+
+    def test_return_true_if_token_in_magic_attr(self):
+        m = unittest.mock.Mock()
+        m._aioxmpp_service_handlers = [
+            aioxmpp.service.HandlerSpec(
+                (dispatcher._apply_presence_handler,
+                 (unittest.mock.sentinel.type_,
+                  unittest.mock.sentinel.from_)),
+                require_deps=(
+                    dispatcher.SimplePresenceDispatcher,
+                )
+            )
+        ]
+
+        self.assertTrue(
+            dispatcher.is_presence_handler(
+                unittest.mock.sentinel.type_,
+                unittest.mock.sentinel.from_,
+                m
+            )
+        )
+
+    def test_return_false_if_token_not_in_magic_attr(self):
+        m = unittest.mock.Mock()
+        m._aioxmpp_service_handlers = [
+            aioxmpp.service.HandlerSpec(
+                (dispatcher._apply_presence_handler,
+                 (unittest.mock.sentinel.type2,
+                  unittest.mock.sentinel.from2)),
+                require_deps=(
+                    dispatcher.SimplePresenceDispatcher,
+                )
+            )
+        ]
+
+        self.assertFalse(
+            dispatcher.is_presence_handler(
+                unittest.mock.sentinel.type_,
+                unittest.mock.sentinel.from_,
+                m
+            )
+        )

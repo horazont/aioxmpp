@@ -23,6 +23,7 @@ import asyncio
 import contextlib
 import unittest
 
+import aioxmpp.dispatcher
 import aioxmpp.errors as errors
 import aioxmpp.roster.service as roster_service
 import aioxmpp.roster.xso as roster_xso
@@ -195,7 +196,17 @@ class TestItem(unittest.TestCase):
 class TestService(unittest.TestCase):
     def setUp(self):
         self.cc = make_connected_client()
-        self.s = roster_service.RosterClient(self.cc)
+        self.presence_dispatcher = aioxmpp.dispatcher.SimplePresenceDispatcher(
+            self.cc
+        )
+        self.dependencies = {
+            aioxmpp.dispatcher.SimplePresenceDispatcher:
+                self.presence_dispatcher,
+        }
+        self.s = roster_service.RosterClient(
+            self.cc,
+            dependencies=self.dependencies
+        )
 
         self.user1 = structs.JID.fromstr("user@foo.example")
         self.user2 = structs.JID.fromstr("user@bar.example")
@@ -235,75 +246,15 @@ class TestService(unittest.TestCase):
         )
 
     def test_init(self):
-        s = roster_service.RosterClient(self.cc)
+        # required to clear listeners of dependency
+        run_coroutine(self.s.shutdown())
+        s = roster_service.RosterClient(
+            self.cc,
+            dependencies=self.dependencies
+        )
         self.assertDictEqual({}, s.items)
         self.assertEqual(None, s.version)
         self.assertDictEqual({}, s.groups)
-
-    def test_setup(self):
-        self.assertCountEqual(
-            [
-                unittest.mock.call.stream.register_iq_request_coro(
-                    structs.IQType.SET,
-                    roster_xso.Query,
-                    self.s.handle_roster_push
-                ),
-                unittest.mock.call.stream.register_presence_callback(
-                    structs.PresenceType.SUBSCRIBE,
-                    None,
-                    self.s.handle_subscribe
-                ),
-                unittest.mock.call.stream.register_presence_callback(
-                    structs.PresenceType.SUBSCRIBED,
-                    None,
-                    self.s.handle_subscribed
-                ),
-                unittest.mock.call.stream.register_presence_callback(
-                    structs.PresenceType.UNSUBSCRIBED,
-                    None,
-                    self.s.handle_unsubscribed
-                ),
-                unittest.mock.call.stream.register_presence_callback(
-                    structs.PresenceType.UNSUBSCRIBE,
-                    None,
-                    self.s.handle_unsubscribe
-                ),
-                unittest.mock.call.stream.send(
-                    unittest.mock.ANY,
-                    timeout=self.cc.negotiation_timeout.total_seconds()
-                )
-            ],
-            self.cc.mock_calls
-        )
-
-    def test_shutdown(self):
-        self.cc.mock_calls.clear()
-        run_coroutine(self.s.shutdown())
-        self.assertCountEqual(
-            [
-                unittest.mock.call.stream.unregister_presence_callback(
-                    structs.PresenceType.UNSUBSCRIBE,
-                    None
-                ),
-                unittest.mock.call.stream.unregister_presence_callback(
-                    structs.PresenceType.UNSUBSCRIBED,
-                    None
-                ),
-                unittest.mock.call.stream.unregister_presence_callback(
-                    structs.PresenceType.SUBSCRIBED,
-                    None
-                ),
-                unittest.mock.call.stream.unregister_presence_callback(
-                    structs.PresenceType.SUBSCRIBE,
-                    None
-                ),
-                unittest.mock.call.stream.unregister_iq_request_coro(
-                    structs.IQType.SET,
-                    roster_xso.Query
-                ),
-            ],
-            self.cc.mock_calls
-        )
 
     def test_handle_roster_push_is_decorated(self):
         self.assertTrue(

@@ -48,51 +48,13 @@ class TestPresenceClient(unittest.TestCase):
 
     def setUp(self):
         self.cc = make_connected_client()
-        self.s = presence_service.PresenceClient(self.cc)
-
-    def test_setup(self):
-        self.assertCountEqual(
-            self.cc.mock_calls,
-            [
-                unittest.mock.call.stream.register_presence_callback(
-                    structs.PresenceType.AVAILABLE,
-                    None,
-                    self.s.handle_presence
-                ),
-                unittest.mock.call.stream.register_presence_callback(
-                    structs.PresenceType.ERROR,
-                    None,
-                    self.s.handle_presence
-                ),
-                unittest.mock.call.stream.register_presence_callback(
-                    structs.PresenceType.UNAVAILABLE,
-                    None,
-                    self.s.handle_presence
-                ),
-            ]
+        self.presence_dispatcher = aioxmpp.dispatcher.SimplePresenceDispatcher(
+            self.cc,
         )
-
-    def test_shutdown(self):
-        self.cc.mock_calls.clear()
-        run_coroutine(self.s.shutdown())
-
-        self.assertCountEqual(
-            self.cc.mock_calls,
-            [
-                unittest.mock.call.stream.unregister_presence_callback(
-                    structs.PresenceType.UNAVAILABLE,
-                    None,
-                ),
-                unittest.mock.call.stream.unregister_presence_callback(
-                    structs.PresenceType.ERROR,
-                    None,
-                ),
-                unittest.mock.call.stream.unregister_presence_callback(
-                    structs.PresenceType.AVAILABLE,
-                    None,
-                ),
-            ]
-        )
+        self.s = presence_service.PresenceClient(self.cc, dependencies={
+            aioxmpp.dispatcher.SimplePresenceDispatcher:
+                self.presence_dispatcher,
+        })
 
     def test_handle_presence_decorated(self):
         self.assertTrue(

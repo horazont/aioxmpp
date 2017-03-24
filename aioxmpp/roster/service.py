@@ -341,6 +341,10 @@ class RosterClient(aioxmpp.service.Service):
        1.0.
     """
 
+    ORDER_AFTER = [
+        aioxmpp.dispatcher.SimplePresenceDispatcher,
+    ]
+
     on_initial_roster_received = callbacks.Signal()
     on_entry_name_changed = callbacks.Signal()
     on_entry_subscription_state_changed = callbacks.Signal()

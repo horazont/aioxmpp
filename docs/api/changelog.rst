@@ -40,6 +40,26 @@ Version 0.9
   :class:`aioxmpp.dispatcher.SimpleMessageDispatcher` service and the latter two
   should be replaced by proper use of the :class:`aioxmpp.PresenceClient`.
 
+* **Breaking change**: Classes using :func:`aioxmpp.service.message_handler` or
+  :func:`aioxmpp.service.presence_handler` have to declare
+  :class:`aioxmpp.dispatcher.SimpleMessageDispatcher` or
+  :class:`aioxmpp.dispatcher.SimplePresenceDispatcher` (respectively) in their
+  dependencies.
+
+  A backward-compatible way to do so is to declare the dependency
+  conditionally::
+
+    class FooService(aioxmpp.service.Service):
+        ORDER_AFTER = []
+        try:
+            import aioxmpp.dispatcher
+        except ImportError:
+            pass
+        else:
+            ORDER_AFTER.append(
+                aioxmpp.dispatcher.SimpleMessageDispatcher
+            )
+
 .. _api-changelog-0.8:
 
 Version 0.8

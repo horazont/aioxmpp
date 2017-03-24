@@ -13,12 +13,28 @@ Stanza Dispatchers for Messages and Presences
 
 .. autoclass:: SimplePresenceDispatcher
 
+
+Decorators for :class:`aioxmpp.service.Service` Methods
+=======================================================
+
+.. autodecorator:: message_handler
+
+.. autodecorator:: presence_handler
+
+Test Functions
+--------------
+
+.. autofunction:: is_message_handler
+
+.. autofunction:: is_presence_handler
+
 Base Class for Stanza Dispatchers
 =================================
 
 .. autoclass:: SimpleStanzaDispatcher
 """
 import abc
+import asyncio
 import contextlib
 
 import aioxmpp.service
@@ -279,3 +295,135 @@ class SimplePresenceDispatcher(aioxmpp.service.Service,
                                "on_presence_received")
     def _feed(self, stanza):
         super()._feed(stanza)
+
+
+def _apply_message_handler(instance, stream, func, type_, from_):
+    return instance.dependencies[SimpleMessageDispatcher].handler_context(
+        type_,
+        from_,
+        func,
+    )
+
+
+def _apply_presence_handler(instance, stream, func, type_, from_):
+    return instance.dependencies[SimplePresenceDispatcher].handler_context(
+        type_,
+        from_,
+        func,
+    )
+
+
+def message_handler(type_, from_):
+    """
+    Register the decorated function as message handler.
+
+    :param type_: Message type to listen for
+    :type type_: :class:`~.MessageType`
+    :param from_: Sender JIDs to listen for
+    :type from_: :class:`aioxmpp.JID` or :data:`None`
+    :raise TypeError: if the decorated object is a coroutine function
+
+    .. seealso::
+
+       :meth:`~.StanzaStream.register_message_callback`
+          for more details on the `type_` and `from_` arguments
+
+    .. versionchanged:: 0.9
+
+       This is now based on
+       :class:`aioxmpp.dispatcher.SimpleMessageDispatcher`.
+    """
+
+    def decorator(f):
+        if asyncio.iscoroutinefunction(f):
+            raise TypeError("message_handler must not be a coroutine function")
+
+        aioxmpp.service.add_handler_spec(
+            f,
+            aioxmpp.service.HandlerSpec(
+                (_apply_message_handler, (type_, from_)),
+                require_deps=(
+                    SimpleMessageDispatcher,
+                )
+            )
+        )
+        return f
+    return decorator
+
+
+def presence_handler(type_, from_):
+    """
+    Register the decorated function as presence stanza handler.
+
+    :param type_: Presence type to listen for
+    :type type_: :class:`~.PresenceType`
+    :param from_: Sender JIDs to listen for
+    :type from_: :class:`aioxmpp.JID` or :data:`None`
+    :raise TypeError: if the decorated object is a coroutine function
+
+    .. seealso::
+
+       :meth:`~.StanzaStream.register_presence_callback`
+          for more details on the `type_` and `from_` arguments
+
+    .. versionchanged:: 0.9
+
+       This is now based on
+       :class:`aioxmpp.dispatcher.SimplePresenceDispatcher`.
+    """
+
+    def decorator(f):
+        if asyncio.iscoroutinefunction(f):
+            raise TypeError(
+                "presence_handler must not be a coroutine function"
+            )
+
+        aioxmpp.service.add_handler_spec(
+            f,
+            aioxmpp.service.HandlerSpec(
+                (_apply_presence_handler, (type_, from_)),
+                require_deps=(
+                    SimplePresenceDispatcher,
+                )
+            )
+        )
+        return f
+    return decorator
+
+
+def is_message_handler(type_, from_, cb):
+    """
+    Return true if `cb` has been decorated with :func:`message_handler` for the
+    given `type_` and `from_`.
+    """
+
+    try:
+        handlers = aioxmpp.service.get_magic_attr(cb)
+    except AttributeError:
+        return False
+
+    return aioxmpp.service.HandlerSpec(
+        (_apply_message_handler, (type_, from_)),
+        require_deps=(
+            SimpleMessageDispatcher,
+        )
+    ) in handlers
+
+
+def is_presence_handler(type_, from_, cb):
+    """
+    Return true if `cb` has been decorated with :func:`presence_handler` for
+    the given `type_` and `from_`.
+    """
+
+    try:
+        handlers = aioxmpp.service.get_magic_attr(cb)
+    except AttributeError:
+        return False
+
+    return aioxmpp.service.HandlerSpec(
+        (_apply_presence_handler, (type_, from_)),
+        require_deps=(
+            SimplePresenceDispatcher,
+        )
+    ) in handlers

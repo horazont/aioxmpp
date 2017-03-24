@@ -104,6 +104,10 @@ class PresenceClient(aioxmpp.service.Service):
        1.0.
     """
 
+    ORDER_AFTER = [
+        aioxmpp.dispatcher.SimplePresenceDispatcher,
+    ]
+
     on_bare_available = aioxmpp.callbacks.Signal()
     on_bare_unavailable = aioxmpp.callbacks.Signal()
 

@@ -738,10 +738,6 @@ def _apply_iq_handler(instance, stream, func, type_, payload_cls):
     return aioxmpp.stream.iq_handler(stream, type_, payload_cls, func)
 
 
-def _apply_message_handler(instance, stream, func, type_, from_):
-    return aioxmpp.stream.message_handler(stream, type_, from_, func)
-
-
 def _apply_presence_handler(instance, stream, func, type_, from_):
     return aioxmpp.stream.presence_handler(stream, type_, from_, func)
 
@@ -816,6 +812,7 @@ def iq_handler(type_, payload_cls):
             f,
             HandlerSpec(
                 (_apply_iq_handler, (type_, payload_cls)),
+                require_deps=()
             )
         )
         return f
@@ -824,64 +821,22 @@ def iq_handler(type_, payload_cls):
 
 def message_handler(type_, from_):
     """
-    Register the decorated function as message handler.
+    Deprecated alias of :func:`.dispatcher.message_handler`.
 
-    :param type_: Message type to listen for
-    :type type_: :class:`~.MessageType`
-    :param from_: Sender JIDs to listen for
-    :type from_: :class:`aioxmpp.JID` or :data:`None`
-    :raise TypeError: if the decorated object is a coroutine function
-
-    .. seealso::
-
-       :meth:`~.StanzaStream.register_message_callback`
-          for more details on the `type_` and `from_` arguments
+    .. deprecated:: 0.9
     """
-
-    def decorator(f):
-        if asyncio.iscoroutinefunction(f):
-            raise TypeError("message_handler must not be a coroutine function")
-
-        add_handler_spec(
-            f,
-            HandlerSpec(
-                (_apply_message_handler, (type_, from_))
-            )
-        )
-        return f
-    return decorator
+    import aioxmpp.dispatcher
+    return aioxmpp.dispatcher.message_handler(type_, from_)
 
 
 def presence_handler(type_, from_):
     """
-    Register the decorated function as presence stanza handler.
+    Deprecated alias of :func:`.dispatcher.presence_handler`.
 
-    :param type_: Presence type to listen for
-    :type type_: :class:`~.PresenceType`
-    :param from_: Sender JIDs to listen for
-    :type from_: :class:`aioxmpp.JID` or :data:`None`
-    :raise TypeError: if the decorated object is a coroutine function
-
-    .. seealso::
-
-       :meth:`~.StanzaStream.register_presence_callback`
-          for more details on the `type_` and `from_` arguments
+    .. deprecated:: 0.9
     """
-
-    def decorator(f):
-        if asyncio.iscoroutinefunction(f):
-            raise TypeError(
-                "presence_handler must not be a coroutine function"
-            )
-
-        add_handler_spec(
-            f,
-            HandlerSpec(
-                (_apply_presence_handler, (type_, from_)),
-            )
-        )
-        return f
-    return decorator
+    import aioxmpp.dispatcher
+    return aioxmpp.dispatcher.presence_handler(type_, from_)
 
 
 def inbound_message_filter(f):
@@ -1105,34 +1060,22 @@ def is_iq_handler(type_, payload_cls, coro):
 
 def is_message_handler(type_, from_, cb):
     """
-    Return true if `cb` has been decorated with :func:`message_handler` for the
-    given `type_` and `from_`.
+    Deprecated alias of :func:`.dispatcher.is_message_handler`.
+
+    .. deprecated:: 0.9
     """
-
-    try:
-        handlers = get_magic_attr(cb)
-    except AttributeError:
-        return False
-
-    return HandlerSpec(
-        (_apply_message_handler, (type_, from_))
-    ) in handlers
+    import aioxmpp.dispatcher
+    return aioxmpp.dispatcher.is_message_handler(type_, from_, cb)
 
 
 def is_presence_handler(type_, from_, cb):
     """
-    Return true if `cb` has been decorated with :func:`presence_handler` for
-    the given `type_` and `from_`.
+    Deprecated alias of :func:`.dispatcher.is_presence_handler`.
+
+    .. deprecated:: 0.9
     """
-
-    try:
-        handlers = get_magic_attr(cb)
-    except AttributeError:
-        return False
-
-    return HandlerSpec(
-        (_apply_presence_handler, (type_, from_))
-    ) in handlers
+    import aioxmpp.dispatcher
+    return aioxmpp.dispatcher.is_presence_handler(type_, from_, cb)
 
 
 def is_inbound_message_filter(cb):
