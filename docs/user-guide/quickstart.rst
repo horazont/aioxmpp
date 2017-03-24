@@ -129,18 +129,24 @@ Of course, you can react to messages. For this, you need to register with the
 connecting, to avoid race conditions. So the following code should run
 before the ``async with``. To get all chat messages, you could use::
 
+  import aioxmpp.dispatcher
+
   def message_received(msg):
       print(msg)
 
-  client.stream.register_message_callback(
+  message_dispatcher = client.summon(
+     aioxmpp.dispatcher.SimpleMessageDispatcher
+  )
+  message_dispatcher.register_callback(
       aioxmpp.MessageType.CHAT,
       None,
       message_received,
   )
 
 The `message_received` callback will be called for all ``"chat"`` messages from
-any sender. By itself, it is not very useful, because the `msg` argument is the
-:class:`aioxmpp.Message` object.
+any sender. As it stands, the callback is not very useful, because the `msg`
+argument is the :class:`aioxmpp.Message` object and printing it won’t show the
+message contents.
 
 This example can be modified to be an echo bot by implementing the
 ``message_received`` callback differently::
@@ -160,10 +166,12 @@ This example can be modified to be an echo bot by implementing the
    A slightly more verbose version can also be found in the examples directory,
    as ``quickstart_echo_bot.py``.
 
-* :meth:`~aioxmpp.stream.StanzaStream.register_message_callback`. Definitely
-  check this out for the semantics of the first two arguments!
+* :class:`aioxmpp.dispatcher.SimpleMessageDispatcher`,
+  :meth:`~aioxmpp.dispatcher.SimpleStanzaDispatcher.register_callback`.
+  Definitely check this out for the semantics of the first two arguments!
 * :class:`aioxmpp.Message`
 * :meth:`~aioxmpp.stream.StanzaStream.enqueue`
+* :meth:`aioxmpp.Client.summon`
 
 
 React to presences
@@ -181,10 +189,16 @@ Similar to handling messages, presences can also be handled.
 Again, the code should be run before
 :meth:`~aioxmpp.PresenceManagedClient.connected`::
 
+  import aioxmpp.dispatcher
+
   def available_presence_received(pres):
       print(pres)
 
-  client.stream.register_presence_callback(
+  presence_dispatcher = client.summon(
+      aioxmpp.dispatcher.SimplePresenceDispatcher,
+  )
+
+  presence_dispatcher.register_callback(
       aioxmpp.PresenceType.AVAILABLE,
       None,
       available_presence_received,
@@ -195,9 +209,9 @@ callback.
 
 Relevant documentation:
 
-* :meth:`~aioxmpp.stream.StanzaStream.register_presence_callback`. Definitely
-  check this out for the semantics of the first two arguments (they are slightly
-  different from the semantics for the relevant message function).
+* :class:`aioxmpp.dispatcher.SimplePresenceDispatcher`,
+  :meth:`~aioxmpp.dispatcher.SimpleStanzaDispatcher.register_callback`.
+  Definitely check this out for the semantics of the first two arguments.
 * :class:`aioxmpp.Presence`
 
 

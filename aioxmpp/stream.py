@@ -739,6 +739,24 @@ class StanzaStream:
        whenever a non-SM stream is started and whenever a stream which
        previously had SM disabled is started with SM enabled.
 
+    .. signal:: on_message_received(stanza)
+
+       Emits when a :class:`aioxmpp.Message` stanza has been received.
+
+       :param stanza: The received stanza.
+       :type stanza: :class:`aioxmpp.Message`
+
+       .. versionadded:: 0.9
+
+    .. signal:: on_presence_received(stanza)
+
+       Emits when a :class:`aioxmpp.Presence` stanza has been received.
+
+       :param stanza: The received stanza.
+       :type stanza: :class:`aioxmpp.Presence`
+
+       .. versionadded:: 0.9
+
     """
 
     _ALLOW_ENUM_COERCION = True
@@ -746,6 +764,9 @@ class StanzaStream:
     on_failure = callbacks.Signal()
     on_stream_destroyed = callbacks.Signal()
     on_stream_established = callbacks.Signal()
+
+    on_message_received = callbacks.Signal()
+    on_presence_received = callbacks.Signal()
 
     def __init__(self,
                  local_jid=None,
@@ -756,6 +777,9 @@ class StanzaStream:
         self._loop = loop or asyncio.get_event_loop()
         self._logger = base_logger.getChild("StanzaStream")
         self._task = None
+
+        self._xxx_message_dispatcher = None
+        self._xxx_presence_dispatcher = None
 
         self._local_jid = local_jid
 
@@ -768,8 +792,6 @@ class StanzaStream:
         # list of running IQ request coroutines: used to cancel them when the
         # stream is destroyed
         self._iq_request_tasks = []
-        self._message_map = {}
-        self._presence_map = {}
 
         self._ping_send_opportunistic = False
         self._next_ping_event_at = None
@@ -976,36 +998,7 @@ class StanzaStream:
                                "filter chain")
             return
 
-        # XXX: this should be fixed better, to avoid the ambiguity between bare
-        # JID wildcarding and stanzas originating from bare JIDs
-        # also, I don’t like how we handle from_=None now
-
-        if stanza_obj.from_ is None:
-            stanza_obj.from_ = self._local_jid
-
-        keys = [(stanza_obj.type_, stanza_obj.from_),
-                (stanza_obj.type_, stanza_obj.from_.bare()),
-                (None, stanza_obj.from_),
-                (None, stanza_obj.from_.bare()),
-                (stanza_obj.type_, None),
-                (None, None)]
-
-        for key in keys:
-            try:
-                cb = self._message_map[key]
-            except KeyError:
-                continue
-            self._logger.debug("dispatching message using key %r to %r",
-                               key, cb)
-            self._loop.call_soon(cb, stanza_obj)
-            break
-        else:
-            self._logger.warning(
-                "unsolicited message dropped: from=%r, type=%r, id=%r",
-                stanza_obj.from_,
-                stanza_obj.type_,
-                stanza_obj.id_
-            )
+        self.on_message_received(stanza_obj)
 
     def _process_incoming_presence(self, stanza_obj):
         """
@@ -1025,23 +1018,7 @@ class StanzaStream:
                                "filter chain")
             return
 
-        keys = [(stanza_obj.type_, stanza_obj.from_),
-                (stanza_obj.type_, None)]
-        for key in keys:
-            try:
-                cb = self._presence_map[key]
-            except KeyError:
-                continue
-            self._logger.debug("dispatching presence using key: %r", key)
-            self._loop.call_soon(cb, stanza_obj)
-            break
-        else:
-            self._logger.warning(
-                "unhandled presence dropped: from=%r, type=%r, id=%r",
-                stanza_obj.from_,
-                stanza_obj.type_,
-                stanza_obj.id_
-            )
+        self.on_presence_received(stanza_obj)
 
     def _process_incoming_erroneous_stanza(self, stanza_obj, exc):
         self._logger.debug(
@@ -1532,23 +1509,8 @@ class StanzaStream:
         specific callbacks win over less specific callbacks, and the match on
         the `from_` address takes precedence over the match on the `type_`.
 
-        To be explicit, the order in which callbacks are searched for a given
-        ``type_`` and ``from_`` of a stanza is:
-
-        * ``type_``, ``from_``
-        * ``type_``, ``from_.bare()``
-        * ``None``, ``from_``
-        * ``None``, ``from_.bare()``
-        * ``type_``, ``None``
-        * ``None``, ``None``
-
-        .. note::
-
-           When the server sends a stanza without from attribute, it is
-           replaced with the bare :attr:`local_jid`, as per :rfc:`6120`.
-
-           In the future, there might be a different way to select those
-           stanzas.
+        See :meth:`.SimpleStanzaDispatcher.register_callback` for the exact
+        wildcarding rules.
 
         .. versionchanged:: 0.7
 
@@ -1561,19 +1523,30 @@ class StanzaStream:
            raise a :class:`TypeError` as of the 1.0 release. See the Changelog
            for :ref:`api-changelog-0.7` for further details on how to upgrade
            your code efficiently.
+
+        .. deprecated:: 0.9
+
+           This method has been deprecated in favour of and is now implemented
+           in terms of the :class:`aioxmpp.dispatcher.SimpleMessageDispatcher`
+           service.
+
+           It is equivalent to call
+           :meth:`~.SimpleStanzaDispatcher.register_callback`, except that the
+           latter is not deprecated.
         """
         if type_ is not None:
             type_ = self._coerce_enum(type_, structs.MessageType)
-        key = type_, from_
-        if key in self._message_map:
-            raise ValueError(
-                "only one listener is allowed per (type_, from_) pair"
-            )
-
-        self._message_map[key] = cb
-        self._logger.debug(
-            "message callback registered: type=%r, from=%r",
-            type_, from_)
+        warnings.warn(
+            "register_message_callback is deprecated; use "
+            "aioxmpp.dispatcher.SimpleMessageDispatcher instead",
+            DeprecationWarning,
+            stacklevel=2
+        )
+        self._xxx_message_dispatcher.register_callback(
+            type_,
+            from_,
+            cb,
+        )
 
     def unregister_message_callback(self, type_, from_):
         """
@@ -1607,13 +1580,29 @@ class StanzaStream:
            raise a :class:`TypeError` as of the 1.0 release. See the Changelog
            for :ref:`api-changelog-0.7` for further details on how to upgrade
            your code efficiently.
+
+        .. deprecated:: 0.9
+
+           This method has been deprecated in favour of and is now implemented
+           in terms of the :class:`aioxmpp.dispatcher.SimpleMessageDispatcher`
+           service.
+
+           It is equivalent to call
+           :meth:`~.SimpleStanzaDispatcher.unregister_callback`, except that
+           the latter is not deprecated.
         """
         if type_ is not None:
             type_ = self._coerce_enum(type_, structs.MessageType)
-        del self._message_map[type_, from_]
-        self._logger.debug(
-            "message callback unregistered: type=%r, from=%r",
-            type_, from_)
+        warnings.warn(
+            "unregister_message_callback is deprecated; use "
+            "aioxmpp.dispatcher.SimpleMessageDispatcher instead",
+            DeprecationWarning,
+            stacklevel=2
+        )
+        self._xxx_message_dispatcher.unregister_callback(
+            type_,
+            from_,
+        )
 
     def register_presence_callback(self, type_, from_, cb):
         """
@@ -1638,6 +1627,9 @@ class StanzaStream:
         is identical, except that the ``type_=None`` entries described there do
         not apply for presence stanzas and are thus omitted.
 
+        See :meth:`.SimpleStanzaDispatcher.register_callback` for the exact
+        wildcarding rules.
+
         .. versionchanged:: 0.7
 
            The `type_` argument is now supposed to be a
@@ -1650,17 +1642,25 @@ class StanzaStream:
            for :ref:`api-changelog-0.7` for further details on how to upgrade
            your code efficiently.
 
+        .. deprecated:: 0.9
+
+           This method has been deprecated. It is recommended to use
+           :class:`aioxmpp.PresenceClient` instead.
+
         """
         type_ = self._coerce_enum(type_, structs.PresenceType)
-        key = type_, from_
-        if key in self._presence_map:
-            raise ValueError(
-                "only one listener is allowed per (type_, from_) pair"
-            )
-        self._presence_map[key] = cb
-        self._logger.debug(
-            "presence callback registered: type=%r, from=%r",
-            type_, from_)
+        warnings.warn(
+            "register_presence_callback is deprecated; use "
+            "aioxmpp.dispatcher.SimplePresenceDispatcher or "
+            "aioxmpp.PresenceClient instead",
+            DeprecationWarning,
+            stacklevel=2
+        )
+        self._xxx_presence_dispatcher.register_callback(
+            type_,
+            from_,
+            cb,
+        )
 
     def unregister_presence_callback(self, type_, from_):
         """
@@ -1696,12 +1696,24 @@ class StanzaStream:
            for :ref:`api-changelog-0.7` for further details on how to upgrade
            your code efficiently.
 
+        .. deprecated:: 0.9
+
+           This method has been deprecated. It is recommended to use
+           :class:`aioxmpp.PresenceClient` instead.
+
         """
         type_ = self._coerce_enum(type_, structs.PresenceType)
-        del self._presence_map[type_, from_]
-        self._logger.debug(
-            "presence callback unregistered: type=%r, from=%r",
-            type_, from_)
+        warnings.warn(
+            "unregister_presence_callback is deprecated; use "
+            "aioxmpp.dispatcher.SimplePresenceDispatcher or "
+            "aioxmpp.PresenceClient instead",
+            DeprecationWarning,
+            stacklevel=2
+        )
+        self._xxx_presence_dispatcher.unregister_callback(
+            type_,
+            from_,
+        )
 
     def _start_prepare(self, xmlstream, receiver):
         self._xmlstream_failure_token = xmlstream.on_closing.connect(

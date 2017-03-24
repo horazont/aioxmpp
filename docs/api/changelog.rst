@@ -23,6 +23,43 @@ Version 0.9
   suspect a CPython bug there, but I was unable to isolate a proper test case.
   It only blows up in the end-to-end tests.
 
+* :mod:`aioxmpp.dispatcher`
+
+* :meth:`aioxmpp.stream.StanzaStream.on_message_received`,
+  :meth:`~aioxmpp.stream.StanzaStream.on_message_received`
+
+* **Deprecation**: The following methods on :class:`aioxmpp.stream.StanzaStream`
+  have been deprecated and will be removed in 1.0:
+
+  * :meth:`~.StanzaStream.register_message_callback`
+  * :meth:`~.StanzaStream.unregister_message_callback`
+  * :meth:`~.StanzaStream.register_presence_callback`
+  * :meth:`~.StanzaStream.unregister_presence_callback`
+
+  The former two are replaced by the
+  :class:`aioxmpp.dispatcher.SimpleMessageDispatcher` service and the latter two
+  should be replaced by proper use of the :class:`aioxmpp.PresenceClient`.
+
+* **Breaking change**: Classes using :func:`aioxmpp.service.message_handler` or
+  :func:`aioxmpp.service.presence_handler` have to declare
+  :class:`aioxmpp.dispatcher.SimpleMessageDispatcher` or
+  :class:`aioxmpp.dispatcher.SimplePresenceDispatcher` (respectively) in their
+  dependencies.
+
+  A backward-compatible way to do so is to declare the dependency
+  conditionally::
+
+    class FooService(aioxmpp.service.Service):
+        ORDER_AFTER = []
+        try:
+            import aioxmpp.dispatcher
+        except ImportError:
+            pass
+        else:
+            ORDER_AFTER.append(
+                aioxmpp.dispatcher.SimpleMessageDispatcher
+            )
+
 .. _api-changelog-0.8:
 
 Version 0.8

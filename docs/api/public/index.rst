@@ -60,6 +60,7 @@ sorted into this section.
    i18n
    callbacks
    connector
+   dispatcher
 
 
 APIs mainly relevant for extension developers

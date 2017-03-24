@@ -738,10 +738,6 @@ def _apply_iq_handler(instance, stream, func, type_, payload_cls):
     return aioxmpp.stream.iq_handler(stream, type_, payload_cls, func)
 
 
-def _apply_message_handler(instance, stream, func, type_, from_):
-    return aioxmpp.stream.message_handler(stream, type_, from_, func)
-
-
 def _apply_presence_handler(instance, stream, func, type_, from_):
     return aioxmpp.stream.presence_handler(stream, type_, from_, func)
 
@@ -780,7 +776,11 @@ def _apply_outbound_presence_filter(instance, stream, func):
 
 def _apply_connect_depsignal(instance, stream, func, dependency, signal_name,
                              mode):
-    signal = getattr(instance.dependencies[dependency], signal_name)
+    if dependency is aioxmpp.stream.StanzaStream:
+        dependency = instance.client.stream
+    else:
+        dependency = instance.dependencies[dependency]
+    signal = getattr(dependency, signal_name)
     if mode is None:
         return signal.context_connect(func)
     else:
@@ -812,6 +812,7 @@ def iq_handler(type_, payload_cls):
             f,
             HandlerSpec(
                 (_apply_iq_handler, (type_, payload_cls)),
+                require_deps=()
             )
         )
         return f
@@ -820,64 +821,22 @@ def iq_handler(type_, payload_cls):
 
 def message_handler(type_, from_):
     """
-    Register the decorated function as message handler.
+    Deprecated alias of :func:`.dispatcher.message_handler`.
 
-    :param type_: Message type to listen for
-    :type type_: :class:`~.MessageType`
-    :param from_: Sender JIDs to listen for
-    :type from_: :class:`aioxmpp.JID` or :data:`None`
-    :raise TypeError: if the decorated object is a coroutine function
-
-    .. seealso::
-
-       :meth:`~.StanzaStream.register_message_callback`
-          for more details on the `type_` and `from_` arguments
+    .. deprecated:: 0.9
     """
-
-    def decorator(f):
-        if asyncio.iscoroutinefunction(f):
-            raise TypeError("message_handler must not be a coroutine function")
-
-        add_handler_spec(
-            f,
-            HandlerSpec(
-                (_apply_message_handler, (type_, from_))
-            )
-        )
-        return f
-    return decorator
+    import aioxmpp.dispatcher
+    return aioxmpp.dispatcher.message_handler(type_, from_)
 
 
 def presence_handler(type_, from_):
     """
-    Register the decorated function as presence stanza handler.
+    Deprecated alias of :func:`.dispatcher.presence_handler`.
 
-    :param type_: Presence type to listen for
-    :type type_: :class:`~.PresenceType`
-    :param from_: Sender JIDs to listen for
-    :type from_: :class:`aioxmpp.JID` or :data:`None`
-    :raise TypeError: if the decorated object is a coroutine function
-
-    .. seealso::
-
-       :meth:`~.StanzaStream.register_presence_callback`
-          for more details on the `type_` and `from_` arguments
+    .. deprecated:: 0.9
     """
-
-    def decorator(f):
-        if asyncio.iscoroutinefunction(f):
-            raise TypeError(
-                "presence_handler must not be a coroutine function"
-            )
-
-        add_handler_spec(
-            f,
-            HandlerSpec(
-                (_apply_presence_handler, (type_, from_)),
-            )
-        )
-        return f
-    return decorator
+    import aioxmpp.dispatcher
+    return aioxmpp.dispatcher.presence_handler(type_, from_)
 
 
 def inbound_message_filter(f):
@@ -1016,6 +975,11 @@ def _depsignal_spec(class_, signal_name, f, defer):
         else:
             mode = aioxmpp.callbacks.AdHocSignal.STRONG
 
+    if class_ is not aioxmpp.stream.StanzaStream:
+        deps = (class_,)
+    else:
+        deps = ()
+
     return HandlerSpec(
         (
             _apply_connect_depsignal,
@@ -1025,7 +989,7 @@ def _depsignal_spec(class_, signal_name, f, defer):
                 mode,
             )
         ),
-        require_deps=(class_,)
+        require_deps=deps,
     )
 
 
@@ -1036,7 +1000,8 @@ def depsignal(class_, signal_name, *, defer=False):
 
     :param class_: A service class which is listed in the
                    :attr:`~.Meta.ORDER_AFTER` relationship.
-    :type class_: :class:`Service` class
+    :type class_: :class:`Service` class or
+                  :class:`aioxmpp.stream.StanzaStream`
     :param signal_name: Attribute name of the signal to connect to
     :type signal_name: :class:`str`
     :param defer: Flag indicating whether deferred execution of the decorated
@@ -1044,7 +1009,10 @@ def depsignal(class_, signal_name, *, defer=False):
     :type defer: :class:`bool`
 
     The signal is discovered by accessing the attribute with the name
-    `signal_name` on the given `class_`.
+    `signal_name` on the given `class_`. If `class_` is
+    :class:`aioxmpp.stream.StanzaStream`, the signal is connected to the stream
+    of the client of the service, even though the stream is technically not an
+    actual service or dependency.
 
     If the signal is a :class:`.callbacks.Signal` and `defer` is false, the
     decorated object is connected using the default
@@ -1058,6 +1026,11 @@ def depsignal(class_, signal_name, *, defer=False):
 
     If the signal is a :class:`.callbacks.SyncSignal`, `defer` must be false
     and the decorated object must be a coroutine function.
+
+    .. versionchanged:: 0.9
+
+       Support for :class:`aioxmpp.stream.StanzaStream` as `class_` argument
+       was added.
     """
 
     def decorator(f):
@@ -1087,34 +1060,22 @@ def is_iq_handler(type_, payload_cls, coro):
 
 def is_message_handler(type_, from_, cb):
     """
-    Return true if `cb` has been decorated with :func:`message_handler` for the
-    given `type_` and `from_`.
+    Deprecated alias of :func:`.dispatcher.is_message_handler`.
+
+    .. deprecated:: 0.9
     """
-
-    try:
-        handlers = get_magic_attr(cb)
-    except AttributeError:
-        return False
-
-    return HandlerSpec(
-        (_apply_message_handler, (type_, from_))
-    ) in handlers
+    import aioxmpp.dispatcher
+    return aioxmpp.dispatcher.is_message_handler(type_, from_, cb)
 
 
 def is_presence_handler(type_, from_, cb):
     """
-    Return true if `cb` has been decorated with :func:`presence_handler` for
-    the given `type_` and `from_`.
+    Deprecated alias of :func:`.dispatcher.is_presence_handler`.
+
+    .. deprecated:: 0.9
     """
-
-    try:
-        handlers = get_magic_attr(cb)
-    except AttributeError:
-        return False
-
-    return HandlerSpec(
-        (_apply_presence_handler, (type_, from_))
-    ) in handlers
+    import aioxmpp.dispatcher
+    return aioxmpp.dispatcher.is_presence_handler(type_, from_, cb)
 
 
 def is_inbound_message_filter(cb):
