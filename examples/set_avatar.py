@@ -20,12 +20,12 @@
 #
 ########################################################################
 import asyncio
-import argparse
 
 import aioxmpp
 import aioxmpp.avatar
 
 from framework import Example, exec_example
+
 
 class Avatar(Example):
     def prepare_argparse(self):

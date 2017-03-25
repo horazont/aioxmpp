@@ -42,6 +42,7 @@ class TestNamespaces(unittest.TestCase):
             namespaces.xep0084_metadata
         )
 
+
 class TestData(unittest.TestCase):
     def test_is_xso(self):
         self.assertTrue(issubclass(avatar_xso.Data, xso.XSO))
@@ -70,6 +71,7 @@ class TestData(unittest.TestCase):
             xso.Base64Binary
         )
 
+
 class TestMetadata(unittest.TestCase):
     def test_is_xso(self):
         self.assertTrue(issubclass(avatar_xso.Metadata, xso.XSO))
@@ -91,6 +93,7 @@ class TestMetadata(unittest.TestCase):
             avatar_xso.Metadata.pointer,
             xso.ChildList
         )
+
 
 class TestInfo(unittest.TestCase):
     def test_is_xso(self):
@@ -139,7 +142,6 @@ class TestInfo(unittest.TestCase):
         self.assertEqual(info.width, None)
         self.assertEqual(info.height, None)
         self.assertEqual(info.url, "http://example.com/avatar")
-
 
     def test_tag(self):
         self.assertEqual(

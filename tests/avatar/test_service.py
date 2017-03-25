@@ -26,7 +26,6 @@ import unittest
 
 import aioxmpp
 import aioxmpp.errors as errors
-import aioxmpp.xso as xso
 import aioxmpp.avatar.service as avatar_service
 import aioxmpp.avatar.xso as avatar_xso
 import aioxmpp.disco.xso as disco_xso
@@ -127,12 +126,11 @@ TEST_IMAGE_SHA1 = sha1.digest()
 TEST_IMAGE_SHA1_HEX = binascii.b2a_hex(TEST_IMAGE_SHA1).decode("ascii")
 del sha1
 
-
 # jids used in the tests
 TEST_FROM = aioxmpp.structs.JID.fromstr("foo@bar.example/baz")
 TEST_JID1 = aioxmpp.structs.JID.fromstr("bar@bar.example/baz")
 TEST_JID2 = aioxmpp.structs.JID.fromstr("baz@bar.example/baz")
-TEST_JID3 = aioxmpp.structs.JID.fromstr("fnord@bar.example/baz")
+
 
 class TestAvatarSet(unittest.TestCase):
 
@@ -246,7 +244,7 @@ class TestAvatarServer(unittest.TestCase):
         ))
 
     def  test_check_for_pep(self):
-        disco_info =  disco_xso.InfoQuery()
+        disco_info = disco_xso.InfoQuery()
         disco_info.identities.append(
             disco_xso.Identity(type_="pep", category="pubsub")
         )
@@ -262,7 +260,6 @@ class TestAvatarServer(unittest.TestCase):
 
             self.assertEqual(1, len(self.disco.query_info.mock_calls))
             self.disco.query_info.assert_called_with(TEST_FROM.bare())
-
 
         # this should wipe the cache and recheck with disco
         mock_reason = unittest.mock.Mock()
@@ -456,7 +453,6 @@ class AvatarClient(unittest.TestCase):
 
         pubsub_result = pubsub_xso.Event(items)
 
-
         mock_handler = unittest.mock.Mock()
         self.s.on_metadata_changed.connect(mock_handler)
 
@@ -485,7 +481,6 @@ class AvatarClient(unittest.TestCase):
         self.assertEqual(png_descr[1].url, "http://example.com/avatar")
 
         mock_handler.assert_called_with(TEST_JID1, descriptors)
-
 
     def test_get_avatar_metadata(self):
         aset = avatar_service.AvatarSet()
