@@ -1226,6 +1226,108 @@ class TestService(unittest.TestCase):
 
         self.assertIsNone(result)
 
+    def test_publish_without_id_without_response(self):
+        payload = unittest.mock.sentinel.payload
+        self.cc.stream.send.return_value = None
+
+        result = run_coroutine(self.s.publish(
+            TEST_TO,
+            "foo",
+            payload,
+        ))
+
+        self.assertEqual(
+            1,
+            len(self.cc.stream.send.mock_calls)
+        )
+
+        _, (request_iq, ), _ = \
+            self.cc.stream.send.mock_calls[0]
+
+        self.assertIsInstance(request_iq, aioxmpp.stanza.IQ)
+        self.assertEqual(request_iq.type_, aioxmpp.structs.IQType.SET)
+        self.assertEqual(request_iq.to, TEST_TO)
+        self.assertIsInstance(request_iq.payload, pubsub_xso.Request)
+
+        request = request_iq.payload
+        self.assertIsInstance(request.payload, pubsub_xso.Publish)
+        self.assertEqual(request.payload.node, "foo")
+        self.assertIs(request.payload.item.registered_payload, payload)
+
+        self.assertIsNone(result)
+
+    def test_publish_with_id_without_response(self):
+        payload = unittest.mock.sentinel.payload
+
+        response = pubsub_xso.Request()
+        response.payload = pubsub_xso.Publish()
+
+        self.cc.stream.send.return_value = response
+
+        result = run_coroutine(self.s.publish(
+            TEST_TO,
+            "foo",
+            payload,
+            id_="some-id",
+        ))
+
+        self.assertEqual(
+            1,
+            len(self.cc.stream.send.mock_calls)
+        )
+
+        _, (request_iq, ), _ = \
+            self.cc.stream.send.mock_calls[0]
+
+        self.assertIsInstance(request_iq, aioxmpp.stanza.IQ)
+        self.assertEqual(request_iq.type_, aioxmpp.structs.IQType.SET)
+        self.assertEqual(request_iq.to, TEST_TO)
+        self.assertIsInstance(request_iq.payload, pubsub_xso.Request)
+
+        request = request_iq.payload
+        self.assertIsInstance(request.payload, pubsub_xso.Publish)
+        self.assertEqual(request.payload.node, "foo")
+        self.assertIs(request.payload.item.registered_payload, payload)
+
+        self.assertEqual(result, "some-id")
+
+    def test_publish_to_jid_None(self):
+        payload = unittest.mock.sentinel.payload
+
+        response = pubsub_xso.Request()
+        response.payload = pubsub_xso.Publish()
+        response.payload.item = pubsub_xso.Item()
+        response.payload.item.id_ = "some-other-id"
+        self.cc.stream.send.return_value = response
+
+        result = run_coroutine(self.s.publish(
+            None,
+            "foo",
+            payload,
+        ))
+
+        self.assertEqual(
+            1,
+            len(self.cc.stream.send.mock_calls)
+        )
+
+        _, (request_iq, ), _ = \
+            self.cc.stream.send.mock_calls[0]
+
+        self.assertIsInstance(request_iq, aioxmpp.stanza.IQ)
+        self.assertEqual(request_iq.type_, aioxmpp.structs.IQType.SET)
+        self.assertIsNone(request_iq.to)
+        self.assertIsInstance(request_iq.payload, pubsub_xso.Request)
+
+        request = request_iq.payload
+        self.assertIsInstance(request.payload, pubsub_xso.Publish)
+        self.assertEqual(request.payload.node, "foo")
+        self.assertIs(request.payload.item.registered_payload, payload)
+
+
+        self.assertEqual(result, "some-other-id")
+
+
     def test_notify_uses_publish_with_None_payload(self):
         with contextlib.ExitStack() as stack:
             publish = stack.enter_context(
