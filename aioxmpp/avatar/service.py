@@ -338,35 +338,37 @@ class AvatarClient(service.Service):
         self._pubsub = self.dependencies[pubsub.PubSubClient]
 
     def _cook_metadata(self, jid, metadata):
+        def iter_metadata_info_nodes(metdata):
+            for item in metadata.payload.items:
+                info_map = item.registered_payload.info
+                for mime_type in info_map:
+                    for metadata_info_node in info_map[mime_type]:
+                        yield metadata_info_node
+
         result = collections.defaultdict(lambda: [])
-        for metadata_item in metadata.payload.items:
-            info_map = metadata_item.registered_payload.info
-            for mime_type in info_map:
-                for metadatum in info_map[mime_type]:
-                    if metadatum.url is not None:
-                        result[metadatum.mime_type].append(
-                            HttpAvatarDescriptor(
-                                remote_jid=jid,
-                                mime_type=metadatum.mime_type,
-                                id_=metadatum.id_,
-                                nbytes=metadatum.nbytes,
-                                width=metadatum.width,
-                                height=metadatum.height,
-                                url=metadatum.url,
-                            )
-                        )
-                    else:
-                        result[metadatum.mime_type].append(
-                            PubsubAvatarDescriptor(
-                                remote_jid=jid,
-                                mime_type=metadatum.mime_type,
-                                id_=metadatum.id_,
-                                nbytes=metadatum.nbytes,
-                                width=metadatum.width,
-                                height=metadatum.height,
-                                pubsub=self._pubsub,
-                            )
-                        )
+        for info_node in iter_metadata_info_nodes(metadata):
+            if info_node.url is not None:
+                descriptor = HttpAvatarDescriptor(
+                    remote_jid=jid,
+                    mime_type=info_node.mime_type,
+                    id_=info_node.id_,
+                    nbytes=info_node.nbytes,
+                    width=info_node.width,
+                    height=info_node.height,
+                    url=info_node.url,
+                )
+            else:
+                descriptor = PubsubAvatarDescriptor(
+                    remote_jid=jid,
+                    mime_type=info_node.mime_type,
+                    id_=info_node.id_,
+                    nbytes=info_node.nbytes,
+                    width=info_node.width,
+                    height=info_node.height,
+                    pubsub=self._pubsub,
+                )
+            result[info_node.mime_type].append(descriptor)
+
         return result
 
     @service.depsignal(pubsub.PubSubClient, "on_item_published")
