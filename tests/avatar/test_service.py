@@ -261,7 +261,7 @@ class TestAvatarServer(unittest.TestCase):
             run_coroutine(self.s._check_for_pep())
 
             self.assertEqual(1, len(self.disco.query_info.mock_calls))
-            self.disco.query_info.assert_called_with(TEST_FROM.bare)
+            self.disco.query_info.assert_called_with(TEST_FROM.bare())
 
 
         # this should wipe the cache and recheck with disco
@@ -278,7 +278,7 @@ class TestAvatarServer(unittest.TestCase):
             run_coroutine(self.s._check_for_pep())
 
             self.assertEqual(1, len(self.disco.query_info.mock_calls))
-            self.disco.query_info.assert_called_with(TEST_FROM.bare)
+            self.disco.query_info.assert_called_with(TEST_FROM.bare())
 
     def test_check_for_pep_failure(self):
 
@@ -300,7 +300,7 @@ class TestAvatarServer(unittest.TestCase):
             )
 
             self.disco.query_info.assert_called_with(
-                TEST_FROM.bare
+                TEST_FROM.bare()
             )
 
     def test_publish_avatar_set(self):
@@ -318,13 +318,13 @@ class TestAvatarServer(unittest.TestCase):
                 self.pubsub.publish.mock_calls,
                 [
                     unittest.mock.call(
-                        self.cc.local_jid,
+                        None,
                         namespaces.xep0084_data,
                         unittest.mock.ANY,
                         id_=avatar_set.png_id
                     ),
                     unittest.mock.call(
-                        self.cc.local_jid,
+                        None,
                         namespaces.xep0084_metadata,
                         avatar_set.metadata,
                         id_=avatar_set.png_id
@@ -349,7 +349,7 @@ class TestAvatarServer(unittest.TestCase):
                 self.pubsub.publish.mock_calls,
                 [
                     unittest.mock.call(
-                        self.cc.local_jid,
+                        None,
                         namespaces.xep0084_metadata,
                         unittest.mock.ANY,
                     ),

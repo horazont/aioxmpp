@@ -474,7 +474,7 @@ class AvatarServer(service.Service):
                 raise_exception()
 
         disco_info = yield from self._disco.query_info(
-            self.client.local_jid.bare
+            self.client.local_jid.bare()
         )
 
         for item in disco_info.identities.filter(attrs={"category": "pubsub"}):
@@ -506,14 +506,14 @@ class AvatarServer(service.Service):
         id_ = avatar_set.png_id
 
         yield from self._pubsub.publish(
-            self.client.local_jid,
+            None,
             namespaces.xep0084_data,
             avatar_xso.Data(avatar_set.image_bytes),
             id_=id_
         )
 
         yield from self._pubsub.publish(
-            self.client.local_jid,
+            None,
             namespaces.xep0084_metadata,
             avatar_set.metadata,
             id_=id_
@@ -529,7 +529,7 @@ class AvatarServer(service.Service):
         yield from self._check_for_pep()
 
         yield from self._pubsub.publish(
-            self.client.local_jid,
+            None,
             namespaces.xep0084_metadata,
             avatar_xso.Metadata()
         )
