@@ -26,7 +26,7 @@ import unittest
 
 import aioxmpp
 import aioxmpp.errors as errors
-import aioxmpp.xso.model as xso
+import aioxmpp.xso as xso
 import aioxmpp.avatar.service as avatar_service
 import aioxmpp.avatar.xso as avatar_xso
 import aioxmpp.disco.xso as disco_xso

@@ -45,6 +45,7 @@ class Data(xso.XSO):
     def __init__(self, image_data):
         self.data = image_data
 
+
 class Info(xso.XSO):
     """
     An info node specifying avatar metadata for a specific MIME type.
@@ -156,6 +157,7 @@ class Pointer(xso.XSO):
         self.nbytes = nbytes
         self.width = width
         self.height = height
+
 
 @pubsub_xso.as_payload_class
 class Metadata(xso.XSO):

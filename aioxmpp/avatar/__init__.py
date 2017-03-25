@@ -54,4 +54,4 @@ avatar image:
 
 """
 
-from .service import (AvatarSet, AvatarServer, AvatarClient)
+from .service import (AvatarSet, AvatarServer, AvatarClient)  # NOQA

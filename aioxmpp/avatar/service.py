@@ -301,7 +301,12 @@ class AvatarClient(service.Service):
     Retrieves and caches avatar information of other clients. Emits
     notifications on metadata changes.
 
-    .. autosignal:: on_metadata_changed
+    .. signal:: on_metadata_changed(jid, metadata)
+
+        Fires when avatar metadata changes.
+
+        :param jid: The JID which the avatar belongs to.
+        :param metadata: The list of metadata descriptors.
 
     .. automethod:: get_avatar_metadata
 
@@ -322,13 +327,7 @@ class AvatarClient(service.Service):
         namespaces.xep0084_metadata + "+notify"
     )
 
-    on_metadata_changed = callbacks.Signal(doc=
-    """
-    Fires when avatar metadata changes.
-
-    :param jid: The JID which the avatar belongs to.
-    :param metadata: The list of metadata descriptors.
-    """)
+    on_metadata_changed = callbacks.Signal()
 
     def __init__(self, client, **kwargs):
         super().__init__(client, **kwargs)
