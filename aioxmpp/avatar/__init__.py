@@ -50,7 +50,10 @@ avatar image:
 
 .. autoclass:: AvatarSet
 
-.. autoclass:: aioxmpp.avatar.service.AbstractAvatarDescriptor
+.. module:: aioxmpp.avatar.service
+.. currentmodule:: aioxmpp.avatar.service
+.. autoclass:: AbstractAvatarDescriptor
+   :members:
 
 """
 

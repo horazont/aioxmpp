@@ -186,7 +186,7 @@ class AbstractAvatarDescriptor:
         Try to retrieve the image data corresponding to this avatar
         descriptor.
 
-        This will raise :class:`NotImpementedError` if we are not
+        This will raise :class:`NotImplementedError` if we are not
         capable to retrieve the image data. It is guaranteed to not
         raise :class:`NotImplementedError` if :attr:`image_in_pubsub`
         is true.
@@ -301,6 +301,9 @@ class AvatarClient(service.Service):
     Retrieves and caches avatar information of other clients. Emits
     notifications on metadata changes.
 
+    .. note:: :class:`AvatarClient` only caches the metadata, not the
+              actual image data. This is the job of the caller.
+
     .. signal:: on_metadata_changed(jid, metadata)
 
         Fires when avatar metadata changes.
@@ -311,7 +314,6 @@ class AvatarClient(service.Service):
     .. automethod:: get_avatar_metadata
 
     .. automethod:: subscribe
-
     """
 
     ORDER_AFTER = [
