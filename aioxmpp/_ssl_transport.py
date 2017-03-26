@@ -433,7 +433,11 @@ class STARTTLSTransport(asyncio.Transport):
 
     def _raw_shutdown(self):
         self._remove_rw()
-        self._rawsock.shutdown(socket.SHUT_RDWR)
+        try:
+            self._rawsock.shutdown(socket.SHUT_RDWR)
+        except OSError:
+            # we cannot do anything anyways if this fails
+            pass
         self._force_close(None)
 
     def _read_ready(self):
