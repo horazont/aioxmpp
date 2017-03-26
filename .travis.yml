@@ -6,6 +6,10 @@ python:
 - "3.5"
 - "3.6"
 - "3.7-dev"
+env:
+- PROSODY_BRANCH=0.9
+- PROSODY_BRANCH=0.10
+- PROSODY_BRANCH=trunk
 before_install:
 - pip install hererocks
 - hererocks lua_install -r^ --lua=5.1
@@ -14,7 +18,7 @@ before_install:
 - luarocks install luafilesystem
 - luarocks install luasocket
 - luarocks install luasec
-- hg clone https://hg.prosody.im/0.9/ prosody
+- hg clone https://hg.prosody.im/$PROSODY_BRANCH/ prosody
 - |
   cd prosody
   ./configure --with-lua=$(pwd)/../lua_install
