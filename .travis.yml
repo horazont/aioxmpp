@@ -7,9 +7,13 @@ python:
 - "3.6"
 - "3.7-dev"
 env:
-- PROSODY_BRANCH=0.9
 - PROSODY_BRANCH=0.10
-- PROSODY_BRANCH=trunk
+matrix:
+  include:
+  - python: "3.6"
+    env: PROSODY_BRANCH=0.9
+  - python: "3.6"
+    env: PROSODY_BRANCH=trunk
 before_install:
 - pip install hererocks
 - hererocks lua_install -r^ --lua=5.1
