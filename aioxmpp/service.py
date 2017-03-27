@@ -44,11 +44,6 @@ These decorators provide special functionality when used on methods of
 
 .. note::
 
-   Inheritance from classes which have any of these decorators on any of its
-   methods is forbidden currently, because of the ambiguities which arise.
-
-.. note::
-
    These decorators work only on methods declared on :class:`Service`
    subclasses, as their functionality are implemented in cooperation with the
    :class:`Meta` metaclass and :class:`Service` itself.
@@ -136,7 +131,7 @@ service instance using the descriptor, including cleanup.
 Metaclass
 =========
 
-.. autoclass:: Meta([inherit_dependencies=True])
+.. autoclass:: Meta()
 
 
 """
@@ -263,14 +258,73 @@ class Descriptor(metaclass=abc.ABCMeta):
         return obj
 
 
+class DependencyGraphNode:
+    def __init__(self):
+        self.class_ = None
+
+    def __repr__(self):
+        return "DependencyGraphNode({!r})".format(self.class_)
+
+
+class DependencyGraph:
+
+    def __init__(self, edges=None, nodes=None):
+        if edges is None:
+            edges = []
+        if nodes is None:
+            nodes = []
+        self._edges = set(edges)
+        self._nodes = set(nodes)
+
+    def copy(self):
+        return DependencyGraph(self._edges, self._nodes)
+
+    def add_node(self, node):
+        self._nodes.add(node)
+
+    def add_edge(self, from_, to):
+        self._edges.add((from_, to))
+
+    def toposort(self):
+        edges = collections.defaultdict(lambda: set())
+        for from_, to in self._edges:
+            edges[from_].add(to)
+
+        sorted_ = []
+        marked = set()
+        done = set()
+
+        def visit(node):
+            if node in marked:
+                raise ValueError("dependency loop in service definitions")
+            if node in done:
+                return
+            done.add(node)
+            marked.add(node)
+            for dep in edges[node]:
+                visit(dep)
+            marked.remove(node)
+            sorted_.append(node)
+
+        # self is not yet in the class list
+        for node in self._nodes:
+            visit(node)
+
+        return sorted_
+
+
 class Meta(abc.ABCMeta):
     """
     The metaclass for services. The :class:`Service` class uses it and in
     general you should just inherit from :class:`Service` and define the
     dependency attributes as needed.
 
+    Only use :class:`Meta` explicitely if you know what you are doing,
+    and you most likely do not. :class:`Meta` is internal API and may
+    change at any point.
+
     Services have dependencies. A :class:`Meta` instance (i.e. a service class)
-    can declare dependencies using the following two attributes.
+    can declare dependencies using the following attributes.
 
     .. attribute:: ORDER_BEFORE
 
@@ -319,15 +373,31 @@ class Meta(abc.ABCMeta):
 
           See :attr:`SERVICE_BEFORE` for details on the deprecation cycle.
 
-    The dependencies are inherited from bases unless the `inherit_dependencies`
-    keyword argument is set to false.
+    Further, the following attribute is generated:
 
-    After a class has been instanciated, the full set of dependencies is
-    provided in the attributes, including all transitive relationships. These
-    attributes are updated when new classes are declared.
+    .. attribute:: PATCHED_ORDER_AFTER
+
+       An iterable of :class:`Service` classes. This includes all
+       classes in :attr:`ORDER_AFTER` and all classes which specify the class
+       in :attr:`ORDER_BEFORE`.
+
+       This is primarily used internally to handle :attr:`ORDER_BEFORE` when
+       summoning services.
+
+       It is an error to manually define :attr:`PATCHED_ORDER_AFTER` in a class
+       definition, doing to will raise a :class:`TypeError`.
+
+    The :attr:`ORDER_AFTER` and :attr:`ORDER_BEFORE` attribtes do not
+    change after class creation (in earlier versions they contained
+    the transitive completion of the dependency relation).
 
     Dependency relationships must not have cycles; a cycle results in a
     :class:`ValueError` when the class causing the cycle is declared.
+
+    .. note:
+
+      Subclassing instances of :class:`Meta` is forbidden. Trying to do so
+      will raise a :class:`TypeError`
 
     Example::
 
@@ -347,45 +417,10 @@ class Meta(abc.ABCMeta):
     be instanciated before ``Foo``. There is no dependency relationship between
     ``Baz`` and ``Fourth``.
 
-    Inheritance works too::
-
-        class Foo(metaclass=service.Meta):
-            pass
-
-        class Bar(metaclass=service.Meta):
-            ORDER_BEFORE = [Foo]
-
-        class Baz(Bar):
-            # has ORDER_BEFORE == {Foo}
-            pass
-
-        class Fourth(Bar, inherit_dependencies=False):
-            # has empty ORDER_BEFORE
-            pass
-
     """
 
-    @classmethod
-    def transitive_collect(mcls, classes, attr, seen):
-        for cls in classes:
-            yield cls
-            yield from mcls.transitive_collect(getattr(cls, attr), attr, seen)
-
-    @classmethod
-    def collect_and_inherit(mcls, bases, namespace, attr,
-                            inherit_dependencies):
-        classes = set(namespace.get(attr, []))
-        if inherit_dependencies:
-            for base in bases:
-                if isinstance(base, mcls):
-                    classes.update(getattr(base, attr))
-        classes.update(
-            mcls.transitive_collect(
-                list(classes),
-                attr,
-                set())
-        )
-        return classes
+    dependency_graph = DependencyGraph()
+    service_order = {}
 
     def __new__(mcls, name, bases, namespace, inherit_dependencies=True):
         if "SERVICE_BEFORE" in namespace or "SERVICE_AFTER" in namespace:
@@ -404,25 +439,17 @@ class Meta(abc.ABCMeta):
             except KeyError:
                 pass
 
-        orig_after = set(namespace.get("ORDER_AFTER", set()))
+        if "PATCHED_ORDER_AFTER" in namespace:
+            raise TypeError(
+                "PATCHED_PRDER_AFTER must not be defined manually. "
+                "it is supplied automatically by the metaclass."
+            )
 
-        before_classes = mcls.collect_and_inherit(
-            bases,
-            namespace,
-            "ORDER_BEFORE",
-            inherit_dependencies)
-
-        after_classes = mcls.collect_and_inherit(
-            bases,
-            namespace,
-            "ORDER_AFTER",
-            inherit_dependencies)
-
-        if before_classes & after_classes:
-            raise ValueError("dependency loop: {} loops through {}".format(
-                name,
-                next(iter(before_classes & after_classes)).__qualname__
-            ))
+        for base in bases:
+            if isinstance(base, Meta) and base is not Service:
+                raise TypeError(
+                    "subclassing services is prohibited."
+                )
 
         for base in bases:
             if hasattr(base, "SERVICE_HANDLERS") and base.SERVICE_HANDLERS:
@@ -436,8 +463,23 @@ class Meta(abc.ABCMeta):
                     "forbidden"
                 )
 
-        namespace["ORDER_BEFORE"] = set(before_classes)
-        namespace["ORDER_AFTER"] = set(after_classes)
+        namespace["ORDER_BEFORE"] = frozenset(
+            namespace.get("ORDER_BEFORE", ()))
+        namespace["ORDER_AFTER"] = frozenset(
+            namespace.get("ORDER_AFTER", ()))
+        namespace["PATCHED_ORDER_AFTER"] = namespace["ORDER_AFTER"]
+
+        new_deps = mcls.dependency_graph.copy()
+
+        depgraph_node = namespace["_depgraph_node"] = DependencyGraphNode()
+        new_deps.add_node(depgraph_node)
+        for cls in namespace["ORDER_AFTER"]:
+            new_deps.add_edge(depgraph_node, cls._depgraph_node)
+        for cls in namespace["ORDER_BEFORE"]:
+            new_deps.add_edge(cls._depgraph_node, depgraph_node)
+        sorted_ = new_deps.toposort()
+        mcls.dependency_graph = new_deps
+        mcls.service_order = dict((node, i) for i, node in enumerate(sorted_))
 
         SERVICE_HANDLERS = []
         existing_handlers = set()
@@ -475,7 +517,7 @@ class Meta(abc.ABCMeta):
             existing_handlers |= unique_handlers
 
             for spec in new_handlers:
-                missing = spec.require_deps - orig_after
+                missing = spec.require_deps - namespace["ORDER_AFTER"]
                 if missing:
                     raise TypeError(
                         "decorator requires dependency {!r} "
@@ -496,7 +538,8 @@ class Meta(abc.ABCMeta):
             if not isinstance(attr_value, Descriptor):
                 continue
 
-            missing = set(attr_value.required_dependencies) - orig_after
+            missing = set(attr_value.required_dependencies) - \
+                namespace["ORDER_AFTER"]
             if missing:
                 raise TypeError(
                     "descriptor requires dependency {!r} "
@@ -514,17 +557,24 @@ class Meta(abc.ABCMeta):
     def __init__(self, name, bases, namespace, inherit_dependencies=True):
         super().__init__(name, bases, namespace)
         for cls in self.ORDER_BEFORE:
-            cls.ORDER_AFTER.add(self)
-        for cls in self.ORDER_AFTER:
-            cls.ORDER_BEFORE.add(self)
-        self.SERVICE_BEFORE = self.ORDER_BEFORE
-        self.SERVICE_AFTER = self.ORDER_AFTER
+            cls.PATCHED_ORDER_AFTER |= frozenset([self])
+        self._depgraph_node.class_ = self
+
+    @property
+    def SERVICE_BEFORE(self):
+        return self.ORDER_BEFORE
+
+    @property
+    def SERVICE_AFTER(self):
+        return self.ORDER_AFTER
 
     def __lt__(self, other):
-        return other in self.ORDER_BEFORE
+        return (self.service_order[self._depgraph_node] <
+                self.service_order[other._depgraph_node])
 
     def __le__(self, other):
-        return self < other
+        return (self.service_order[self._depgraph_node] <=
+                self.service_order[other._depgraph_node])
 
 
 class Service(metaclass=Meta):
@@ -557,6 +607,10 @@ class Service(metaclass=Meta):
     arguments to :class:`Service`\ s on construction (due to the way
     :meth:`aioxmpp.Client.summon` works), there is no need for you
     to introduce custom arguments, and thus there should be no conflicts.
+
+    .. note::
+
+       Inheritance from classes which subclass Service is forbidden.
 
     .. autoattribute:: client
 

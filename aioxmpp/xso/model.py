@@ -213,7 +213,7 @@ class XSOList(list):
         """
         Return an iterable which produces a sequence of the elements inside
         this :class:`XSOList`, filtered by the criteria given as arguments. The
-        fucntion starts with a working sequence consisting of the whole list.
+        function starts with a working sequence consisting of the whole list.
 
         If `type_` is not :data:`None`, elements which are not an instance of
         the given type are excluded from the working sequence.
