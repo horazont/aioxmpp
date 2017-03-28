@@ -94,6 +94,7 @@ Filters
 import abc
 import asyncio
 import collections
+import contextlib
 import functools
 import logging
 import types
@@ -714,11 +715,17 @@ class Filter:
     Other arguments passed to :meth:`filter` are passed unmodified to each
     function called; only the first argument is subject to filtering.
 
+    .. versionchanged:: 0.9
+
+       This class was formerly available at :class:`aioxmpp.stream.Filter`.
+
     .. automethod:: register
 
     .. automethod:: filter
 
     .. automethod:: unregister
+
+    .. automethod:: context_register(func[, order])
     """
 
     class Token:
@@ -801,3 +808,27 @@ class Filter:
             raise ValueError("unregistered token: {!r}".format(
                 token_to_remove))
         del self._filter_order[i]
+
+    @contextlib.contextmanager
+    def context_register(self, func, *args):
+        """
+        :term:`Context manager <context manager>` which temporarily registers a
+        filter function.
+
+        :param func: The filter function to register.
+        :param order: The sorting key for the filter function.
+        :rtype: :term:`context manager`
+        :return: Context manager which temporarily registers the filter
+                 function.
+
+        If :meth:`register` does not require `order` because it has been
+        overridden in a subclass, the `order` argument can be omitted here,
+        too.
+
+        .. versionadded:: 0.9
+        """
+        token = self.register(func, *args)
+        try:
+            yield
+        finally:
+            self.unregister(token)

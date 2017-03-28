@@ -422,12 +422,6 @@ class TestService(unittest.TestCase):
             aioxmpp.DiscoClient: self.disco
         })
 
-        self.cc.stream.service_inbound_message_filter.register.\
-            assert_called_with(
-                self.s.filter_inbound_message,
-                pubsub_service.PubSubClient
-            )
-
     def test_filter_inbound_message_is_decorated(self):
         self.assertTrue(
             aioxmpp.service.is_inbound_message_filter(

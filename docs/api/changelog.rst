@@ -60,6 +60,12 @@ Version 0.9
                 aioxmpp.dispatcher.SimpleMessageDispatcher
             )
 
+* **Breaking change**: :class:`aioxmpp.stream.Filter` got renamed to
+  :class:`aioxmpp.callbacks.Filter`.
+
+* **Deprecation**: :func:`aioxmpp.stream.stanza_filter` got renamed to
+  :meth:`aioxmpp.callbacks.Filter.context_register`.
+
 .. _api-changelog-0.8:
 
 Version 0.8

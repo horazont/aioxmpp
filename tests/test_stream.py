@@ -5074,75 +5074,34 @@ class Testpresence_handler(unittest.TestCase):
 
 
 class Teststanza_filter(unittest.TestCase):
-    def setUp(self):
-        self.filter_ = unittest.mock.Mock()
-        self.cm = stream.stanza_filter(
-            self.filter_,
+    def test_calls_to_filter_context_register(self):
+        m = unittest.mock.Mock()
+        result = stream.stanza_filter(
+            m.filter_,
             unittest.mock.sentinel.func,
             unittest.mock.sentinel.order,
         )
 
-    def tearDown(self):
-        del self.filter_
-
-    def test_is_context_manager(self):
-        self.assertTrue(
-            hasattr(self.cm, "__enter__")
-        )
-        self.assertTrue(
-            hasattr(self.cm, "__exit__")
-        )
-
-    def test_enter_registers_filter(self):
-        self.cm.__enter__()
-
-        self.filter_.register.assert_called_with(
+        m.filter_.context_register.assert_called_once_with(
             unittest.mock.sentinel.func,
             unittest.mock.sentinel.order,
         )
+        self.assertEqual(
+            result,
+            m.filter_.context_register()
+        )
 
-    def test_enter_registers_filter_without_order_if_order_not_passed(self):
-        self.cm = stream.stanza_filter(
-            self.filter_,
+    def test_does_not_pass_order_if_not_given(self):
+        m = unittest.mock.Mock()
+        result = stream.stanza_filter(
+            m.filter_,
             unittest.mock.sentinel.func,
         )
 
-        self.cm.__enter__()
-
-        self.filter_.register.assert_called_with(
+        m.filter_.context_register.assert_called_once_with(
             unittest.mock.sentinel.func,
         )
-
-    def test_exit_unregisters_filter(self):
-        self.filter_.register.return_value = \
-            unittest.mock.sentinel.token
-
-        self.cm.__enter__()
-        self.filter_.reset_mock()
-
-        self.cm.__exit__(None, None, None)
-
-        self.filter_.unregister.assert_called_with(
-            unittest.mock.sentinel.token
+        self.assertEqual(
+            result,
+            m.filter_.context_register()
         )
-
-    def test_exit_does_not_swallow_exception_and_unregisters(self):
-        self.filter_.register.return_value = \
-            unittest.mock.sentinel.token
-
-        self.cm.__enter__()
-        self.filter_.reset_mock()
-
-        # we need to generate a trackback object
-        try:
-            raise ValueError()
-        except:
-            info = sys.exc_info()
-
-        result = self.cm.__exit__(*info)
-
-        self.filter_.unregister.assert_called_with(
-            unittest.mock.sentinel.token
-        )
-
-        self.assertFalse(result)

@@ -1071,22 +1071,6 @@ class TestService(unittest.TestCase):
             disco.DiscoClient: None,  # unused, but queried during init
         })
 
-        calls = list(cc.mock_calls)
-        self.assertCountEqual(
-            calls,
-            [
-                unittest.mock.call.
-                stream.service_inbound_presence_filter.register(
-                    s.handle_inbound_presence,
-                    entitycaps_service.EntityCapsService
-                ),
-                unittest.mock.call.
-                stream.service_outbound_presence_filter.register(
-                    s.handle_outbound_presence,
-                    entitycaps_service.EntityCapsService
-                ),
-            ]
-        )
         cc.mock_calls.clear()
 
         self.maxDiff = None
@@ -1111,21 +1095,6 @@ class TestService(unittest.TestCase):
         disco_service.mock_calls.clear()
 
         run_coroutine(s.shutdown())
-
-        calls = list(cc.mock_calls)
-        self.assertCountEqual(
-            calls,
-            [
-                unittest.mock.call.
-                stream.service_outbound_presence_filter.unregister(
-                    cc.stream.service_outbound_presence_filter.register(),
-                ),
-                unittest.mock.call.
-                stream.service_inbound_presence_filter.unregister(
-                    cc.stream.service_inbound_presence_filter.register(),
-                )
-            ],
-        )
 
         calls = list(disco_service.mock_calls)
         self.assertSequenceEqual(

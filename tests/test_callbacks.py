@@ -1388,3 +1388,120 @@ class TestFilter(unittest.TestCase):
             ],
             calls
         )
+
+    def test_context_register_is_context_manager(self):
+        cm = self.f.context_register(
+            unittest.mock.sentinel.func,
+            unittest.mock.sentinel.order,
+        )
+        self.assertTrue(
+            hasattr(cm, "__enter__")
+        )
+        self.assertTrue(
+            hasattr(cm, "__exit__")
+        )
+
+    def test_context_register_enter_registers_filter(self):
+        with contextlib.ExitStack() as stack:
+            register = stack.enter_context(unittest.mock.patch.object(
+                self.f,
+                "register",
+            ))
+            register.return_value = unittest.mock.sentinel.token
+            stack.enter_context(unittest.mock.patch.object(
+                self.f,
+                "unregister",
+            ))
+
+            cm = self.f.context_register(
+                unittest.mock.sentinel.func,
+                unittest.mock.sentinel.order
+            )
+            register.assert_not_called()
+            cm.__enter__()
+
+            register.assert_called_with(
+                unittest.mock.sentinel.func,
+                unittest.mock.sentinel.order,
+            )
+
+            cm.__exit__(None, None, None)
+
+    def test_context_register_enter_registers_filter_without_order_if_order_not_passed(self):  # NOQA
+        with contextlib.ExitStack() as stack:
+            register = stack.enter_context(unittest.mock.patch.object(
+                self.f,
+                "register",
+            ))
+            register.return_value = unittest.mock.sentinel.token
+            stack.enter_context(unittest.mock.patch.object(
+                self.f,
+                "unregister",
+            ))
+
+            cm = self.f.context_register(
+                unittest.mock.sentinel.func,
+            )
+            register.assert_not_called()
+            cm.__enter__()
+
+            register.assert_called_with(
+                unittest.mock.sentinel.func,
+            )
+
+            cm.__exit__(None, None, None)
+
+    def test_context_register_exit_unregisters_filter(self):
+        with contextlib.ExitStack() as stack:
+            register = stack.enter_context(unittest.mock.patch.object(
+                self.f,
+                "register",
+            ))
+            register.return_value = unittest.mock.sentinel.token
+            unregister = stack.enter_context(unittest.mock.patch.object(
+                self.f,
+                "unregister",
+            ))
+
+            cm = self.f.context_register(
+                unittest.mock.sentinel.func,
+                unittest.mock.sentinel.order,
+            )
+
+            cm.__enter__()
+            unregister.assert_not_called()
+
+            cm.__exit__(None, None, None)
+            unregister.assert_called_once_with(
+                unittest.mock.sentinel.token
+            )
+
+    def test_context_register_unregisters_also_on_exception(self):
+        class FooException(Exception):
+            pass
+
+        with contextlib.ExitStack() as stack:
+            register = stack.enter_context(unittest.mock.patch.object(
+                self.f,
+                "register",
+            ))
+            register.return_value = unittest.mock.sentinel.token
+            unregister = stack.enter_context(unittest.mock.patch.object(
+                self.f,
+                "unregister",
+            ))
+
+            stack.enter_context(self.assertRaises(FooException))
+
+            cm = self.f.context_register(
+                unittest.mock.sentinel.func,
+                unittest.mock.sentinel.order,
+            )
+
+            stack.enter_context(cm)
+
+            raise FooException()
+
+        unregister.assert_called_once_with(
+            unittest.mock.sentinel.token
+        )

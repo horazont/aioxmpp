@@ -2502,32 +2502,16 @@ def presence_handler(stream, type_, from_, cb):
 _Undefined = object()
 
 
-@contextlib.contextmanager
 def stanza_filter(filter_, func, order=_Undefined):
     """
-    Context manager to temporarily register a filter function on a
-    :class:`Filter`.
-
-    :param filter_: Filter to register the function at
-    :type filter_: :class:`Filter`
-    :param func: Filter function to register
-    :param order: Order parameter to pass to :meth:`.Filter.register`
-
-    The type of `order` is specific to the :class:`Filter` instance used, see
-    the documentation of :meth:`Filter.register` and :meth:`AppFilter.register`
-    respectively.
-
-    The filter function is registered when the context is entered and
-    unregistered when the context is exited.
+    This is a deprecated alias of
+    :meth:`aioxmpp.callbacks.Filter.context_register`.
 
     .. versionadded:: 0.8
-    """
 
-    if order is _Undefined:
-        token = filter_.register(func)
+    .. deprecated:: 0.9
+    """
+    if order is not _Undefined:
+        return filter_.context_register(func, order)
     else:
-        token = filter_.register(func, order)
-    try:
-        yield
-    finally:
-        filter_.unregister(token)
+        return filter_.context_register(func)

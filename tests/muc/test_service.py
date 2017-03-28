@@ -2269,36 +2269,11 @@ class TestService(unittest.TestCase):
             aioxmpp.callbacks.AdHocSignal
         )
 
-    def test_init_and_shutdown(self):
-        cc = make_connected_client()
-        s = muc_service.MUCClient(cc)
-
-        calls = list(cc.mock_calls)
-
-        self.assertSequenceEqual(
-            calls,
-            [
-                unittest.mock.call.
-                stream.service_inbound_presence_filter.register(
-                    s._inbound_presence_filter,
-                    muc_service.MUCClient
-                ),
-            ]
-        )
-        cc.mock_calls.clear()
-
-        run_coroutine(s.shutdown())
-
-        calls = list(cc.mock_calls)
-
-        self.assertSequenceEqual(
-            calls,
-            [
-                unittest.mock.call.
-                stream.service_inbound_presence_filter.unregister(
-                    cc.stream.service_inbound_presence_filter.register()
-                )
-            ]
+    def test_inbound_presence_filter_is_decorated(self):
+        self.assertTrue(
+            aioxmpp.service.is_inbound_presence_filter(
+                muc_service.MUCClient._inbound_presence_filter,
+            )
         )
 
     def test__inbound_presence_filter_passes_ordinary_presence(self):
