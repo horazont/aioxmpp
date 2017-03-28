@@ -167,6 +167,27 @@ class AvatarSet:
 class AbstractAvatarDescriptor:
     """
     Description of an avatar source retrieved from pubsub.
+
+    .. autoattribute:: mime_type
+
+    .. autoattribute:: id_
+
+    .. autoattribute:: nbytes
+
+    .. autoattribute:: remote_jid
+
+    .. autoattribute:: width
+
+    .. autoattribute:: height
+
+    .. autoattribute:: has_image_data_in_pubsub
+
+    .. autoattribute:: url
+
+    If :attr:`has_image_data_in_pubsub` is true, the image can be
+    retrieved by the following coroutine:
+
+    .. autocoroutine:: get_image_bytes
     """
 
     def __init__(self, remote_jid, mime_type, id_, nbytes, width=None,
@@ -309,7 +330,10 @@ class AvatarClient(service.Service):
         Fires when avatar metadata changes.
 
         :param jid: The JID which the avatar belongs to.
-        :param metadata: The list of metadata descriptors.
+        :param metadata: The new metadata descriptors.
+        :type metadata: a sequence of
+            :class:`~aioxmpp.avatar.service.AbstractAvatarDescriptor`
+            instances
 
     .. automethod:: get_avatar_metadata
 
@@ -391,8 +415,8 @@ class AvatarClient(service.Service):
         Retrieve a list of avatar descriptors for `jid`.
 
         The avatar descriptors are returned as a list of instances of
-        :class:`AbstractAvatarDescriptor`. An empty list means that the
-        avatar is unset.
+        :class:`~aioxmpp.avatar.service.AbstractAvatarDescriptor`.
+        An empty list means that the avatar is unset.
 
         If `require_fresh` is true, we will not lookup the avatar
         metadata from the cache, but make a new pubsub request.
