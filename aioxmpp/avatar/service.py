@@ -195,7 +195,7 @@ class AbstractAvatarDescriptor:
         yield
 
     @property
-    def image_in_pubsub(self):
+    def has_image_data_in_pubsub(self):
         """
         Whether the image can be retrieved from PubSub.
         """
@@ -213,7 +213,7 @@ class AbstractAvatarDescriptor:
         """
         The URL where the avatar image data can be found.
 
-        This is :data:`None` if :attr:`image_in_pubsub` is true.
+        This is :data:`None` if :attr:`has_image_data_in_pubsub` is true.
         """
         return self._url
 
@@ -262,7 +262,7 @@ class AbstractAvatarDescriptor:
 class PubsubAvatarDescriptor(AbstractAvatarDescriptor):
 
     @property
-    def image_in_pubsub(self):
+    def has_image_data_in_pubsub(self):
         return True
 
     @asyncio.coroutine
@@ -282,7 +282,7 @@ class PubsubAvatarDescriptor(AbstractAvatarDescriptor):
 class HttpAvatarDescriptor(AbstractAvatarDescriptor):
 
     @property
-    def image_in_pubsub(self):
+    def has_image_data_in_pubsub(self):
         return False
 
     @asyncio.coroutine
