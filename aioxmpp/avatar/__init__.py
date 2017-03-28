@@ -32,7 +32,10 @@ Services
 
 The following services are provided by this subpackage:
 
+.. currentmodule:: aioxmpp
+
 .. autosummary::
+
    AvatarServer
    AvatarClient
 
@@ -41,6 +44,8 @@ The detailed documentation of the classes follows:
 .. autoclass:: AvatarServer
 
 .. autoclass:: AvatarClient
+
+.. currentmodule:: aioxmpp.avatar
 
 Data Representation
 ===================
