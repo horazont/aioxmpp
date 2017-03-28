@@ -143,6 +143,7 @@ class ConnectedClientMock(unittest.mock.Mock):
         self.stream_features = nonza.StreamFeatures()
         self.stream.on_message_received = callbacks.AdHocSignal()
         self.stream.on_presence_received = callbacks.AdHocSignal()
+        self.stream.on_stream_destroyed = callbacks.AdHocSignal()
         self.stream.app_inbound_message_filter = FilterMock()
         self.stream.app_inbound_presence_filter = FilterMock()
         self.stream.app_outbound_message_filter = FilterMock()
