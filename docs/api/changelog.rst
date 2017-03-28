@@ -66,6 +66,8 @@ Version 0.9
 * **Deprecation**: :func:`aioxmpp.stream.stanza_filter` got renamed to
   :meth:`aioxmpp.callbacks.Filter.context_register`.
 
+* :mod:`aioxmpp.avatar` + examples
+
 .. _api-changelog-0.8:
 
 Version 0.8
