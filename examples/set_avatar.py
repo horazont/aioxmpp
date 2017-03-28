@@ -48,7 +48,7 @@ class Avatar(Example):
 
     def configure(self):
         super().configure()
-        self.avatar_file = self.args.avatar_file
+        self.avatar_file = self.args.set_avatar
         self.wipe_avatar = self.args.wipe_avatar
 
     def make_simple_client(self):
