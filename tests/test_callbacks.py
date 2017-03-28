@@ -35,7 +35,8 @@ from aioxmpp.callbacks import (
     Signal,
     AdHocSignal,
     SyncAdHocSignal,
-    SyncSignal
+    SyncSignal,
+    Filter,
 )
 
 from aioxmpp.testutils import run_coroutine, CoroutineMock
@@ -1226,3 +1227,164 @@ class TestSyncSignal(unittest.TestCase):
             s = SyncSignal(doc=unittest.mock.sentinel.doc)
 
         self.assertIs(Foo.s.__doc__, unittest.mock.sentinel.doc)
+
+
+class TestFilter_Token(unittest.TestCase):
+    def test_each_is_unique(self):
+        t1 = Filter.Token()
+        t2 = Filter.Token()
+        self.assertIsNot(t1, t2)
+        self.assertNotEqual(t1, t2)
+
+    def test_str(self):
+        self.assertRegex(
+            str(Filter.Token()),
+            r"<[a-zA-Z._]+\.Filter\.Token 0x[0-9a-f]+>"
+        )
+
+
+class TestFilter(unittest.TestCase):
+    def setUp(self):
+        self.f = Filter()
+
+    def tearDown(self):
+        del self.f
+
+    def test_register(self):
+        func = unittest.mock.Mock()
+        func.return_value = None
+
+        token = self.f.register(func, 0)
+        self.assertIsNotNone(token)
+
+    def test_filter_passes_args(self):
+        func = unittest.mock.Mock()
+        func.return_value = None
+
+        self.f.register(func, 0)
+
+        iq = unittest.mock.sentinel.iq
+
+        self.assertIsNone(self.f.filter(
+            iq,
+            unittest.mock.sentinel.foo,
+            bar=unittest.mock.sentinel.bar,
+        ))
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(
+                    iq,
+                    unittest.mock.sentinel.foo,
+                    bar=unittest.mock.sentinel.bar,
+                ),
+            ],
+            func.mock_calls
+        )
+
+    def test_filter_chain(self):
+        mock = unittest.mock.Mock()
+
+        self.f.register(mock.func1, 0)
+        self.f.register(mock.func2, 0)
+
+        result = self.f.filter(
+            mock.stanza,
+            unittest.mock.sentinel.foo,
+            unittest.mock.sentinel.bar,
+            fnord=unittest.mock.sentinel.fnord,
+        )
+
+        calls = list(mock.mock_calls)
+
+        self.assertEqual(
+            mock.func2(),
+            result
+        )
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call.func1(
+                    mock.stanza,
+                    unittest.mock.sentinel.foo,
+                    unittest.mock.sentinel.bar,
+                    fnord=unittest.mock.sentinel.fnord,
+                ),
+                unittest.mock.call.func2(
+                    mock.func1(),
+                    unittest.mock.sentinel.foo,
+                    unittest.mock.sentinel.bar,
+                    fnord=unittest.mock.sentinel.fnord,
+                ),
+            ],
+            calls
+        )
+
+    def test_filter_chain_aborts_on_None_result(self):
+        mock = unittest.mock.Mock()
+
+        mock.func2.return_value = None
+
+        self.f.register(mock.func1, 0)
+        self.f.register(mock.func2, 0)
+        self.f.register(mock.func3, 0)
+
+        result = self.f.filter(
+            mock.stanza,
+            unittest.mock.sentinel.foo,
+            unittest.mock.sentinel.bar,
+            fnord=unittest.mock.sentinel.fnord,
+        )
+
+        calls = list(mock.mock_calls)
+
+        self.assertIsNone(result)
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call.func1(
+                    mock.stanza,
+                    unittest.mock.sentinel.foo,
+                    unittest.mock.sentinel.bar,
+                    fnord=unittest.mock.sentinel.fnord,
+                ),
+                unittest.mock.call.func2(
+                    mock.func1(),
+                    unittest.mock.sentinel.foo,
+                    unittest.mock.sentinel.bar,
+                    fnord=unittest.mock.sentinel.fnord,
+                ),
+            ],
+            calls
+        )
+
+    def test_unregister_by_token(self):
+        func = unittest.mock.Mock()
+        token = self.f.register(func, 0)
+        self.f.unregister(token)
+        self.f.filter(object())
+        self.assertFalse(func.mock_calls)
+
+    def test_unregister_raises_ValueError_if_token_not_found(self):
+        with self.assertRaisesRegex(ValueError, "unregistered token"):
+            self.f.unregister(object())
+
+    def test_register_with_order(self):
+        mock = unittest.mock.Mock()
+
+        self.f.register(mock.func1, 1)
+        self.f.register(mock.func2, 0)
+        self.f.register(mock.func3, -1)
+
+        result = self.f.filter(mock.stanza)
+        calls = list(mock.mock_calls)
+
+        self.assertEqual(
+            mock.func1(),
+            result
+        )
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call.func3(mock.stanza),
+                unittest.mock.call.func2(mock.func3()),
+                unittest.mock.call.func1(mock.func2()),
+            ],
+            calls
+        )

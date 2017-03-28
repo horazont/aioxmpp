@@ -63,10 +63,9 @@ internal queues.
 Filters
 =======
 
-The filters used by the :class:`StanzaStream` are implemented by the following
-classes:
-
-.. autoclass:: Filter
+The service-level filters used by the :class:`StanzaStream` use
+:class:`~.callbacks.Filter`. The application-level filters are using the
+following class:
 
 .. autoclass:: AppFilter
 
@@ -101,83 +100,7 @@ from .plugins import xep0199
 from .utils import namespaces
 
 
-class Filter:
-    """
-    A filter chain for stanzas. The idea is to process a stanza through a
-    sequence of user- and service-definable functions.
-
-    Each function must either return the stanza it received as argument or
-    :data:`None`. If it returns :data:`None` the filtering aborts and the
-    caller of :meth:`filter` also receives :data:`None`.
-
-    Each function receives the result of the previous function for further
-    processing.
-
-    .. automethod:: register
-
-    .. automethod:: filter
-
-    .. automethod:: unregister
-    """
-
-    class Token:
-        def __str__(self):
-            return "<{}.{} 0x{:x}>".format(
-                type(self).__module__,
-                type(self).__qualname__,
-                id(self))
-
-    def __init__(self):
-        super().__init__()
-        self._filter_order = []
-
-    def register(self, func, order):
-        """
-        Register a function `func` as filter in the chain. `order` must be a
-        value which will be used to order the registered functions relative to
-        each other.
-
-        Functions with the same order are sorted in the order of their
-        addition, with the function which was added earliest first.
-
-        Remember that all values passed to `order` which are registered at the
-        same time in the same :class:`Filter` need to be at least partially
-        orderable with respect to each other.
-
-        Return an opaque token which is needed to unregister a function.
-        """
-        token = self.Token()
-        self._filter_order.append((order, token, func))
-        self._filter_order.sort(key=lambda x: x[0])
-        return token
-
-    def filter(self, stanza_obj):
-        """
-        Pass the given `stanza_obj` through the filter chain and return the
-        result of the chain. See :class:`Filter` for details on how the value
-        is passed through the registered functions.
-        """
-        for _, _, func in self._filter_order:
-            stanza_obj = func(stanza_obj)
-            if stanza_obj is None:
-                return None
-        return stanza_obj
-
-    def unregister(self, token_to_remove):
-        """
-        Unregister a function from the filter chain using the token returned by
-        :meth:`register`.
-        """
-        for i, (_, token, _) in enumerate(self._filter_order):
-            if token == token_to_remove:
-                break
-        else:
-            raise ValueError("unregistered token: {!r}".format(
-                token_to_remove))
-        del self._filter_order[i]
-
-
-class AppFilter(Filter):
+class AppFilter(callbacks.Filter):
     """
     A specialized :class:`Filter` version. The only difference is in the
     handling of the `order` argument to :meth:`register`:
@@ -810,16 +733,16 @@ class StanzaStream:
         self._broker_lock = asyncio.Lock(loop=loop)
 
         self.app_inbound_presence_filter = AppFilter()
-        self.service_inbound_presence_filter = Filter()
+        self.service_inbound_presence_filter = callbacks.Filter()
 
         self.app_inbound_message_filter = AppFilter()
-        self.service_inbound_message_filter = Filter()
+        self.service_inbound_message_filter = callbacks.Filter()
 
         self.app_outbound_presence_filter = AppFilter()
-        self.service_outbound_presence_filter = Filter()
+        self.service_outbound_presence_filter = callbacks.Filter()
 
         self.app_outbound_message_filter = AppFilter()
-        self.service_outbound_message_filter = Filter()
+        self.service_outbound_message_filter = callbacks.Filter()
 
     @property
     def local_jid(self):

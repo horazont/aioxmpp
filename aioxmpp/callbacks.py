@@ -83,6 +83,12 @@ These descriptors can be used on classes to have attributes which are signals:
 
 .. autoclass:: SyncSignal
 
+
+Filters
+=======
+
+.. autoclass:: Filter
+
 """
 
 import abc
@@ -689,3 +695,109 @@ class SyncSignal(AbstractSignal):
     @classmethod
     def make_adhoc_signal(cls):
         return SyncAdHocSignal()
+
+
+class Filter:
+    """
+    A filter chain for arbitrary data.
+
+    This is used for example in :class:`~.stream.StanzaStream` to allow
+    services and applications to filter inbound and outbound stanzas.
+
+    Each function registered with the filter receives at least one argument.
+    This argument is the object which is to be filtered. The function must
+    return the object, a replacement or :data:`None`. If :data:`None` is
+    returned, the filter chain aborts and further functions are not called.
+    Otherwise, the next function is called with the result of the previous
+    function until the filter chain is complete.
+
+    Other arguments passed to :meth:`filter` are passed unmodified to each
+    function called; only the first argument is subject to filtering.
+
+    .. automethod:: register
+
+    .. automethod:: filter
+
+    .. automethod:: unregister
+    """
+
+    class Token:
+        def __str__(self):
+            return "<{}.{} 0x{:x}>".format(
+                type(self).__module__,
+                type(self).__qualname__,
+                id(self))
+
+    def __init__(self):
+        super().__init__()
+        self._filter_order = []
+
+    def register(self, func, order):
+        """
+        Add a function to the filter chain.
+
+        :param func: A callable which is to be added to the filter chain.
+        :param order: An object indicating the ordering of the function
+                      relative to the others.
+        :return: Token representing the registration.
+
+        Register the function `func` as a filter into the chain. `order` must
+        be a value which is used as a sorting key to order the functions
+        registered in the chain.
+
+        The type of `order` depends on the use of the filter, as does the
+        number of arguments and keyword arguments which `func` must accept.
+        This will generally be documented at the place where the
+        :class:`Filter` is used.
+
+        Functions with the same order are sorted in the order of their
+        addition, with the function which was added earliest first.
+
+        Remember that all values passed to `order` which are registered at the
+        same time in the same :class:`Filter` need to be totally orderable with
+        respect to each other.
+
+        The returned token can be used to :meth:`unregister` a filter.
+        """
+        token = self.Token()
+        self._filter_order.append((order, token, func))
+        self._filter_order.sort(key=lambda x: x[0])
+        return token
+
+    def filter(self, obj, *args, **kwargs):
+        """
+        Filter the given object through the filter chain.
+
+        :param obj: The object to filter
+        :param args: Additional arguments to pass to each filter function.
+        :param kwargs: Additional keyword arguments to pass to each filter
+                       function.
+        :return: The filtered object or :data:`None`
+
+        See the documentation of :class:`Filter` on how filtering operates.
+
+        Returns the object returned by the last function in the filter chain or
+        :data:`None` if any function returned :data:`None`.
+        """
+        for _, _, func in self._filter_order:
+            obj = func(obj, *args, **kwargs)
+            if obj is None:
+                return None
+        return obj
+
+    def unregister(self, token_to_remove):
+        """
+        Unregister a filter function.
+
+        :param token_to_remove: The token as returned by :meth:`register`.
+
+        Unregister a function from the filter chain using the token returned by
+        :meth:`register`.
+        """
+        for i, (_, token, _) in enumerate(self._filter_order):
+            if token == token_to_remove:
+                break
+        else:
+            raise ValueError("unregistered token: {!r}".format(
+                token_to_remove))
+        del self._filter_order[i]
