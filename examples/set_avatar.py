@@ -20,6 +20,7 @@
 #
 ########################################################################
 import asyncio
+import sys
 
 import aioxmpp
 import aioxmpp.avatar
@@ -31,16 +32,18 @@ class Avatar(Example):
     def prepare_argparse(self):
         super().prepare_argparse()
 
-        self.argparse.add_argument(
-            "avatar_file",
-            help="the file PNG image that will be used as avatar."
+        group = self.argparse.add_mutually_exclusive_group(required=True)
+
+        group.add_argument(
+            "--set-avatar", nargs=1, metavar="AVATAR_FILE",
+            help="set the avatar to content of the supplied PNG file."
         )
 
-        self.argparse.add_argument(
+        group.add_argument(
             "--wipe-avatar",
             action="store_true",
             default=False,
-            help="set the avatar to no avatar when exiting."
+            help="set the avatar to no avatar."
         )
 
     def configure(self):
@@ -55,15 +58,16 @@ class Avatar(Example):
 
     @asyncio.coroutine
     def run_simple_example(self):
-        with open(self.avatar_file, "rb") as f:
-            image_data = f.read()
+        if self.avatar_file is not None:
+            with open(self.avatar_file, "rb") as f:
+                image_data = f.read()
 
-        avatar_set = aioxmpp.avatar.AvatarSet()
-        avatar_set.add_avatar_image("image/png", image_bytes=image_data)
+            avatar_set = aioxmpp.avatar.AvatarSet()
+            avatar_set.add_avatar_image("image/png", image_bytes=image_data)
 
-        yield from self.avatar.publish_avatar_set(avatar_set)
+            yield from self.avatar.publish_avatar_set(avatar_set)
 
-        if self.wipe_avatar:
+        elif self.wipe_avatar:
             yield from self.avatar.disable_avatar()
 
     @asyncio.coroutine
