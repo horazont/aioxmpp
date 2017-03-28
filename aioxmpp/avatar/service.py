@@ -364,10 +364,8 @@ class AvatarClient(service.Service):
     def _cook_metadata(self, jid, metadata):
         def iter_metadata_info_nodes(metdata):
             for item in metadata.payload.items:
-                info_map = item.registered_payload.info
-                for mime_type in info_map:
-                    for metadata_info_node in info_map[mime_type]:
-                        yield metadata_info_node
+                yield from item.registered_payload.iter_info_nodes()
+
 
         result = collections.defaultdict(lambda: [])
         for info_node in iter_metadata_info_nodes(metadata):

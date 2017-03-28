@@ -94,6 +94,31 @@ class TestMetadata(unittest.TestCase):
             xso.ChildList
         )
 
+    def test_iter_info_nodes(self):
+        info_list = [
+            avatar_xso.Info(id_=b"123",
+                            mime_type="image/png",
+                            nbytes=3),
+            avatar_xso.Info(id_=b"123",
+                            mime_type="image/png",
+                            nbytes=3,
+                            width=10),
+            avatar_xso.Info(id_=b"345",
+                            nbytes=4,
+                            mime_type="image/gif",
+                            url="http://example.com/avatar.gif"),
+        ]
+
+
+        metadata = avatar_xso.Metadata()
+        for item in info_list:
+            metadata.info[item.mime_type].append(item)
+
+        self.assertCountEqual(
+            list(metadata.iter_info_nodes()),
+            info_list
+        )
+
 
 class TestInfo(unittest.TestCase):
     def test_is_xso(self):

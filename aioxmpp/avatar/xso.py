@@ -177,3 +177,12 @@ class Metadata(xso.XSO):
 
     info = xso.ChildMap([Info], key=lambda x: x.mime_type)
     pointer = xso.ChildList([Pointer])
+
+    def iter_info_nodes(self):
+        """
+        Iterate over all :class:`Info` children.
+        """
+        info_map = self.info
+        for mime_type in info_map:
+            for metadata_info_node in info_map[mime_type]:
+                yield metadata_info_node
