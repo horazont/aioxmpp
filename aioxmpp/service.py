@@ -64,6 +64,8 @@ These decorators provide special functionality when used on methods of
 
 .. autodecorator:: depsignal
 
+.. autodecorator:: depfilter
+
 .. seealso::
 
    :class:`~.disco.register_feature`
@@ -92,6 +94,8 @@ Test functions
 .. autofunction:: is_outbound_presence_filter
 
 .. autofunction:: is_depsignal_handler
+
+.. autofunction:: is_depfilter_handler
 
 Creating your own decorators
 ----------------------------
@@ -869,6 +873,15 @@ def _apply_connect_depsignal(instance, stream, func, dependency, signal_name,
         return signal.context_connect(func, mode)
 
 
+def _apply_connect_depfilter(instance, stream, func, dependency, filter_name):
+    if dependency is aioxmpp.stream.StanzaStream:
+        dependency = instance.client.stream
+    else:
+        dependency = instance.dependencies[dependency]
+    filter_ = getattr(dependency, filter_name)
+    return filter_.context_register(func, type(instance))
+
+
 def iq_handler(type_, payload_cls):
     """
     Register the decorated coroutine function as IQ request handler.
@@ -1128,6 +1141,56 @@ def depsignal(class_, signal_name, *, defer=False):
     return decorator
 
 
+def _depfilter_spec(class_, filter_name):
+    require_deps = ()
+    if class_ is not aioxmpp.stream.StanzaStream:
+        require_deps = (class_,)
+
+    return HandlerSpec(
+        (
+            _apply_connect_depfilter,
+            (
+                class_,
+                filter_name,
+            )
+        ),
+        is_unique=True,
+        require_deps=require_deps,
+    )
+
+
+def depfilter(class_, filter_name):
+    """
+    Register the decorated method at the addressed :class:`~.callbacks.Filter`
+    on a class on which the service depends.
+
+    :param class_: A service class which is listed in the
+                   :attr:`~.Meta.ORDER_AFTER` relationship.
+    :type class_: :class:`Service` class or
+                  :class:`aioxmpp.stream.StanzaStream`
+    :param filter_name: Attribute name of the filter to register at
+    :type filter_name: :class:`str`
+
+    The filter at which the decorated method is registered is discovered by
+    accessing the attribute with the name `filter_name` on the instance of the
+    dependent class `class_`. If `class_` is
+    :class:`aioxmpp.stream.StanzaStream`, the filter is searched for on the
+    stream (and no dependendency needs to be declared).
+
+    .. versionadded:: 0.9
+    """
+    spec = _depfilter_spec(class_, filter_name)
+
+    def decorator(f):
+        add_handler_spec(
+            f,
+            spec,
+        )
+        return f
+
+    return decorator
+
+
 def is_iq_handler(type_, payload_cls, coro):
     """
     Return true if `coro` has been decorated with :func:`iq_handler` for the
@@ -1238,3 +1301,16 @@ def is_depsignal_handler(class_, signal_name, cb, *, defer=False):
         return False
 
     return _depsignal_spec(class_, signal_name, cb, defer) in handlers
+
+
+def is_depfilter_handler(class_, filter_name, filter_):
+    """
+    Return true if `filter_` has been decorated with :func:`depfilter` for the
+    given filter and class.
+    """
+    try:
+        handlers = get_magic_attr(filter_)
+    except AttributeError:
+        return False
+
+    return _depfilter_spec(class_, filter_name) in handlers

@@ -93,6 +93,8 @@ Version 0.9
 
 * Fix :meth:`aioxmpp.callbacks.AdHocSignal.future`.
 
+* :func:`aioxmpp.service.depfilter`
+
 .. _api-changelog-0.8:
 
 Version 0.8
