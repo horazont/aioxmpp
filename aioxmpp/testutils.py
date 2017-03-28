@@ -151,6 +151,7 @@ class ConnectedClientMock(unittest.mock.Mock):
         self.stream.service_inbound_presence_filter = FilterMock()
         self.stream.service_outbound_message_filter = FilterMock()
         self.stream.service_outbound_presence_filter = FilterMock()
+        self.stream.on_stream_destroyed = callbacks.AdHocSignal()
         self.stream.send_iq_and_wait_for_reply = CoroutineMock()
         self.stream.send = CoroutineMock()
         self.stream.enqueue_stanza = self.stream.enqueue

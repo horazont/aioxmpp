@@ -2036,8 +2036,8 @@ class XSO(metaclass=XMLStreamClass):
             TAG = ("jabber:client", "message")
             UNKNOWN_CHILD_POLICY = aioxmpp.xso.UnknownChildPolicy.DROP
 
-            type_ = aioxmpp.xso.Attr(tag="type", required=True)
-            from_ = aioxmpp.xso.Attr(tag="from", required=True)
+            type_ = aioxmpp.xso.Attr(tag="type")
+            from_ = aioxmpp.xso.Attr(tag="from")
             to = aioxmpp.xso.Attr(tag="to")
             id_ = aioxmpp.xso.Attr(tag="id")
 

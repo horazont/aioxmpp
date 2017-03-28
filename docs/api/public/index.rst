@@ -27,6 +27,7 @@ functionality or provide backwards compatibility.
    :maxdepth: 2
 
    adhoc
+   avatar
    disco
    entitycaps
    forms
