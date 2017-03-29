@@ -106,6 +106,7 @@ From XMPP Extension Proposals (XEPs)
 * :xep:`198` (Stream Management), always enabled if supported by the server
 * :xep:`199` (XMPP Ping), used for aliveness-checks if Stream Management is not
   avaliable
+* :xep:`280` (Message Carbons), see :mod:`aioxmpp.carbons`
 * :xep:`368` (SRV records for XMPP over TLS)
 
 

@@ -68,6 +68,8 @@ Version 0.9
 
 * :mod:`aioxmpp.avatar` + examples
 
+* :mod:`aioxmpp.carbons`
+
 .. _api-changelog-0.8:
 
 Version 0.8
