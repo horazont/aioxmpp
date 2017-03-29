@@ -22,11 +22,14 @@
 
 import unittest
 
+import aioxmpp
 import aioxmpp.xso as xso
 import aioxmpp.blocking.xso as blocking_xso
 
 from aioxmpp.utils import namespaces
 
+TEST_JID1 = aioxmpp.JID.fromstr("foo@exmaple.com")
+TEST_JID2 = aioxmpp.JID.fromstr("spam.example.com")
 
 class TestNamespace(unittest.TestCase):
     def test_namespace(self):
@@ -57,6 +60,18 @@ class TestBlockCommand(unittest.TestCase):
             (namespaces.xep0191, "block"),
         )
 
+    def test_init(self):
+        block_command = blocking_xso.BlockCommand([TEST_JID1, TEST_JID2])
+        self.assertCountEqual(
+            block_command.items,
+            [TEST_JID1, TEST_JID2]
+        )
+
+        block_command = blocking_xso.BlockCommand()
+        self.assertCountEqual(
+            block_command.items,
+            []
+        )
 
 class TestUnblockCommand(unittest.TestCase):
     def test_is_xso(self):
@@ -66,4 +81,17 @@ class TestUnblockCommand(unittest.TestCase):
         self.assertEqual(
             blocking_xso.UnblockCommand.TAG,
             (namespaces.xep0191, "unblock"),
+        )
+
+    def test_init(self):
+        unblock_command = blocking_xso.UnblockCommand([TEST_JID1, TEST_JID2])
+        self.assertCountEqual(
+            unblock_command.items,
+            [TEST_JID1, TEST_JID2]
+        )
+
+        unblock_command = blocking_xso.UnblockCommand()
+        self.assertCountEqual(
+            unblock_command.items,
+            []
         )

@@ -101,6 +101,7 @@ class BlockingClient(service.Service):
         )
 
         if namespaces.xep0191 not in server_info.features:
+            self._blocklist = None
             raise RuntimeError("server does not support blocklists!")
 
     @asyncio.coroutine
@@ -135,8 +136,7 @@ class BlockingClient(service.Service):
         if not jids_to_block:
             return
 
-        cmd = blocking_xso.BlockCommand()
-        cmd.items[:] = jids_to_block
+        cmd = blocking_xso.BlockCommand(jids_to_block)
         iq = aioxmpp.IQ(
             type_=aioxmpp.IQType.SET,
             payload=cmd,
@@ -154,8 +154,7 @@ class BlockingClient(service.Service):
         if not jids_to_unblock:
             return
 
-        cmd = blocking_xso.UnblockCommand()
-        cmd.items[:] = jids_to_unblock
+        cmd = blocking_xso.UnblockCommand(jids_to_unblock)
         iq = aioxmpp.IQ(
             type_=aioxmpp.IQType.SET,
             payload=cmd,
@@ -179,7 +178,7 @@ class BlockingClient(service.Service):
     @service.iq_handler(aioxmpp.IQType.SET, blocking_xso.BlockCommand)
     @asyncio.coroutine
     def handle_block_push(self, block_command):
-        must_signal = False
+        diff = ()
         with (yield from self._lock):
             if self._blocklist is None:
                 # this means the stream was destroyed while we were waiting for
@@ -192,15 +191,14 @@ class BlockingClient(service.Service):
                     block_command.from_ == self.client.local_jid.bare()):
                 diff = frozenset(block_command.payload.items)
                 self._blocklist |= diff
-                must_signal = True
 
-        if must_signal:
+        if diff:
             self.on_jids_blocked(diff)
 
     @service.iq_handler(aioxmpp.IQType.SET, blocking_xso.UnblockCommand)
     @asyncio.coroutine
     def handle_unblock_push(self, unblock_command):
-        must_signal = False
+        diff = ()
         with (yield from self._lock):
             if self._blocklist is None:
                 # this means the stream was destroyed while we were waiting for
@@ -217,8 +215,7 @@ class BlockingClient(service.Service):
                 else:
                     diff = frozenset(unblock_command.payload.items)
                     self._blocklist -= diff
-                must_signal = True
-        if must_signal:
+        if diff:
             self.on_jids_unblocked(diff)
 
     @service.depsignal(aioxmpp.stream.StanzaStream,

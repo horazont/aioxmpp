@@ -75,6 +75,9 @@ class BlockItemType(aioxmpp.xso.AbstractType):
 class BlockList(aioxmpp.xso.XSO):
     TAG = (namespaces.xep0191, "blocklist")
 
+    # this does not get an __init__ method, since the client never
+    # creates a BlockList with entries.
+
     # xso.ChildValueList uses an AbstractType (like the one we defined above)
     # to convert between child XSO instances and other python objects.
     # it is accessed like a normal list, but when parsing/serialising, the
@@ -84,20 +87,26 @@ class BlockList(aioxmpp.xso.XSO):
     )
 
 
-# the only difference is the TAG
 @aioxmpp.stanza.IQ.as_payload_class
 class BlockCommand(aioxmpp.xso.XSO):
     TAG = (namespaces.xep0191, "block")
+
+    def __init__(self, jids_to_block=None):
+        if jids_to_block is not None:
+            self.items[:] = jids_to_block
 
     items = aioxmpp.xso.ChildValueList(
         BlockItemType()
     )
 
 
-# again the only difference is the TAG
 @aioxmpp.stanza.IQ.as_payload_class
 class UnblockCommand(aioxmpp.xso.XSO):
     TAG = (namespaces.xep0191, "unblock")
+
+    def __init__(self, jids_to_block=None):
+        if jids_to_block is not None:
+            self.items[:] = jids_to_block
 
     items = aioxmpp.xso.ChildValueList(
         BlockItemType()
