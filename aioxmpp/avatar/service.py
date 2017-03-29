@@ -358,8 +358,8 @@ class AvatarClient(service.Service):
     def __init__(self, client, **kwargs):
         super().__init__(client, **kwargs)
         self._metadata_cache = {}
-
         self._pubsub = self.dependencies[pubsub.PubSubClient]
+        self._lock = asyncio.Lock()
 
     def _cook_metadata(self, jid, metadata):
         def iter_metadata_info_nodes(metdata):
@@ -423,35 +423,38 @@ class AvatarClient(service.Service):
         ``feature-not-implemented`` or ``item-not-found`` and return
         an empty list of avatar descriptors, since this is
         semantically equivalent to not having an avatar.
-
         """
-        if require_fresh:
-            del self._metadata_cache[jid]
+        if not require_fresh:
+            try:
+                return self._metadata_cache[jid]
+            except KeyError:
+                pass
 
-        try:
-            return self._metadata_cache[jid]
-        except KeyError:
-            pass
+        with (yield from self._lock):
+            if require_fresh:
+                del self._metadata_cache[jid]
+            elif jid in self._metadata_cache:
+                return self._metadata_cache[jid]
 
-        try:
-            metadata_raw = yield from self._pubsub.get_items(
-                jid,
-                namespaces.xep0084_metadata,
-                max_items=1
-            )
-        except aioxmpp.XMPPCancelError as e:
-            # transparently map feature-not-implemente and
-            # item-not-found to be equivalent unset avatar
-            if e.condition in ((namespaces.stanzas, "feature-not-implemented"),
-                               (namespaces.stanzas, "item-not-found")):
-                metadata = collections.defaultdict(lambda: [])
+            try:
+                metadata_raw = yield from self._pubsub.get_items(
+                    jid,
+                    namespaces.xep0084_metadata,
+                    max_items=1
+                )
+            except aioxmpp.XMPPCancelError as e:
+                # transparently map feature-not-implemente and
+                # item-not-found to be equivalent unset avatar
+                if e.condition in ((namespaces.stanzas, "feature-not-implemented"),
+                                   (namespaces.stanzas, "item-not-found")):
+                    metadata = collections.defaultdict(lambda: [])
+                else:
+                    raise
             else:
-                raise
-        else:
-            metadata = self._cook_metadata(jid, metadata_raw)
+                metadata = self._cook_metadata(jid, metadata_raw)
 
-        self._metadata_cache[jid] = metadata
-        return metadata
+            self._metadata_cache[jid] = metadata
+            return metadata
 
     @asyncio.coroutine
     def subscribe(self, jid):
@@ -480,6 +483,12 @@ class AvatarServer(service.Service):
         self._has_pep = None
         self._disco = self.dependencies[disco.DiscoClient]
         self._pubsub = self.dependencies[pubsub.PubSubClient]
+        # we use this lock to prevent race conditions between different
+        # calls of the methods by one client.
+        # XXX: Other, independent clients may still cause inconsistent
+        # data by race conditions, this should be fixed by at least
+        # checking for consistent data after an update.
+        self._lock = asyncio.Lock()
 
     @asyncio.coroutine
     def _check_for_pep(self):
@@ -531,19 +540,20 @@ class AvatarServer(service.Service):
 
         id_ = avatar_set.png_id
 
-        yield from self._pubsub.publish(
-            None,
-            namespaces.xep0084_data,
-            avatar_xso.Data(avatar_set.image_bytes),
-            id_=id_
-        )
+        with (yield from self._lock):
+            yield from self._pubsub.publish(
+                None,
+                namespaces.xep0084_data,
+                avatar_xso.Data(avatar_set.image_bytes),
+                id_=id_
+            )
 
-        yield from self._pubsub.publish(
-            None,
-            namespaces.xep0084_metadata,
-            avatar_set.metadata,
-            id_=id_
-        )
+            yield from self._pubsub.publish(
+                None,
+                namespaces.xep0084_metadata,
+                avatar_set.metadata,
+                id_=id_
+            )
 
     @asyncio.coroutine
     def disable_avatar(self):
@@ -554,8 +564,9 @@ class AvatarServer(service.Service):
         """
         yield from self._check_for_pep()
 
-        yield from self._pubsub.publish(
-            None,
-            namespaces.xep0084_metadata,
-            avatar_xso.Metadata()
-        )
+        with (yield from self._lock):
+            yield from self._pubsub.publish(
+                None,
+                namespaces.xep0084_metadata,
+                avatar_xso.Metadata()
+            )
