@@ -58,6 +58,14 @@ avatar image:
 .. currentmodule:: aioxmpp.avatar.service
 .. autoclass:: AbstractAvatarDescriptor()
 
+.. currentmodule:: aioxmpp.avatar
+
+Helpers
+=======
+
+.. autofunction:: normalize_id
+
 """
 
-from .service import (AvatarSet, AvatarServer, AvatarClient)  # NOQA
+from .service import (AvatarSet, AvatarServer, AvatarClient,
+                      normalize_id)  # NOQA

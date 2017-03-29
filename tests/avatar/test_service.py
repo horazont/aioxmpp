@@ -20,7 +20,6 @@
 #
 ########################################################################
 import base64
-import binascii
 import hashlib
 import unittest
 
@@ -122,8 +121,7 @@ JEmSJEmSJEmSJEmSJEmSJEmSJEmSJEkl+D+B9JFB0vqGWgAAAABJRU5ErkJggg==
 
 sha1 = hashlib.sha1()
 sha1.update(TEST_IMAGE)
-TEST_IMAGE_SHA1 = sha1.digest()
-TEST_IMAGE_SHA1_HEX = binascii.b2a_hex(TEST_IMAGE_SHA1).decode("ascii")
+TEST_IMAGE_SHA1 = sha1.hexdigest()
 del sha1
 
 # jids used in the tests
@@ -139,7 +137,7 @@ class TestAvatarSet(unittest.TestCase):
         aset.add_avatar_image("image/png", image_bytes=TEST_IMAGE)
         aset.add_avatar_image("image/png",
                               nbytes=0,
-                              id_=b"00000000000000000000",
+                              id_="0000000000",
                               url="http://example.com/avatar")
 
         self.assertEqual(
@@ -149,7 +147,7 @@ class TestAvatarSet(unittest.TestCase):
 
         self.assertEqual(
             aset.png_id,
-            TEST_IMAGE_SHA1_HEX,
+            TEST_IMAGE_SHA1,
         )
 
         self.assertEqual(
@@ -169,12 +167,22 @@ class TestAvatarSet(unittest.TestCase):
 
         self.assertEqual(
             aset.metadata.info["image/png"][1].id_,
-            b"00000000000000000000",
+            "0000000000",
         )
 
         self.assertEqual(
             aset.metadata.info["image/png"][1].url,
             "http://example.com/avatar",
+        )
+
+    def test_png_id_is_normalized(self):
+        aset = avatar_service.AvatarSet()
+        aset.add_avatar_image("image/png",
+                              image_bytes=TEST_IMAGE,
+                              id_=TEST_IMAGE_SHA1.upper())
+        self.assertEqual(
+            aset.metadata.info["image/png"][0].id_,
+            avatar_service.normalize_id(TEST_IMAGE_SHA1),
         )
 
     def test_error_checking(self):
@@ -187,7 +195,7 @@ class TestAvatarSet(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             # either the image bytes or an url must be given
             aset.add_avatar_image("image/png",
-                                  id_=b"00000000000000000000",
+                                  id_="00000000000000000000",
                                   nbytes=0)
 
         with self.assertRaises(RuntimeError):
@@ -378,15 +386,17 @@ class TestAvatarDescriptors(unittest.TestCase):
         descriptor = avatar_service.PubsubAvatarDescriptor(
             TEST_JID1,
             "image/png",
-            TEST_IMAGE_SHA1,
+            TEST_IMAGE_SHA1.upper(),
             len(TEST_IMAGE),
             pubsub=self.pubsub
         )
 
+        self.assertEqual(TEST_IMAGE_SHA1, descriptor.normalized_id)
+
         items = pubsub_xso.Items(
             namespaces.xep0084_data,
         )
-        item = pubsub_xso.Item(id_=TEST_IMAGE_SHA1_HEX)
+        item = pubsub_xso.Item(id_=TEST_IMAGE_SHA1)
         item.registered_payload = avatar_xso.Data(TEST_IMAGE)
         items.items.append(item)
         pubsub_result = pubsub_xso.Request(items)
@@ -403,7 +413,7 @@ class TestAvatarDescriptors(unittest.TestCase):
                     unittest.mock.call(
                         TEST_JID1,
                         namespaces.xep0084_data,
-                        [TEST_IMAGE_SHA1_HEX],
+                        [TEST_IMAGE_SHA1.upper()],
                     )
                 ]
             )
@@ -441,7 +451,7 @@ class AvatarClient(unittest.TestCase):
         aset.add_avatar_image("image/png", image_bytes=TEST_IMAGE)
         aset.add_avatar_image("image/png",
                               nbytes=0,
-                              id_=b"00000000000000000000",
+                              id_="00000000000000000000",
                               url="http://example.com/avatar")
 
         # construct the proper pubsub response
@@ -476,7 +486,7 @@ class AvatarClient(unittest.TestCase):
                                    avatar_service.PubsubAvatarDescriptor))
 
         self.assertEqual(png_descr[1].mime_type, "image/png")
-        self.assertEqual(png_descr[1].id_, b"00000000000000000000")
+        self.assertEqual(png_descr[1].id_, "00000000000000000000")
         self.assertEqual(png_descr[1].nbytes, 0)
         self.assertEqual(png_descr[1].url, "http://example.com/avatar")
 
@@ -487,7 +497,7 @@ class AvatarClient(unittest.TestCase):
         aset.add_avatar_image("image/png", image_bytes=TEST_IMAGE)
         aset.add_avatar_image("image/png",
                               nbytes=0,
-                              id_=b"00000000000000000000",
+                              id_="00000000000000000000",
                               url="http://example.com/avatar")
 
         # construct the proper pubsub response
@@ -533,7 +543,7 @@ class AvatarClient(unittest.TestCase):
                                        avatar_service.PubsubAvatarDescriptor))
 
             self.assertEqual(png_descr[1].mime_type, "image/png")
-            self.assertEqual(png_descr[1].id_, b"00000000000000000000")
+            self.assertEqual(png_descr[1].id_, "00000000000000000000")
             self.assertEqual(png_descr[1].nbytes, 0)
             self.assertEqual(png_descr[1].url, "http://example.com/avatar")
 

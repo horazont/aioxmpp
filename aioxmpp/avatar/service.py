@@ -20,7 +20,6 @@
 #
 ########################################################################
 import asyncio
-import binascii
 import collections
 import hashlib
 
@@ -33,6 +32,16 @@ import aioxmpp.pubsub as pubsub
 from aioxmpp.utils import namespaces
 
 from . import xso as avatar_xso
+
+
+def normalize_id(id_):
+    """
+    Normalize a SHA1 sum encoded as hexadecimal number in ASCII.
+
+    This does nothing but lowercase the string as to enable robust
+    comparison.
+    """
+    return id_.lower()
 
 
 class AvatarSet:
@@ -71,6 +80,8 @@ class AvatarSet:
     def png_id(self):
         """
         The SHA1 of the ``image/png`` image data.
+
+        This id is always normalized in the sense of :function:`normalize_id`.
         """
         return self._png_id
 
@@ -110,8 +121,9 @@ class AvatarSet:
 
                 sha1 = hashlib.sha1()
                 sha1.update(image_bytes)
-                id_computed = sha1.digest()
+                id_computed = normalize_id(sha1.hexdigest())
                 if id_ is not None:
+                    id_ = normalize_id(id_)
                     if id_ != id_computed:
                         raise RuntimeError(
                             "The given id does not match the SHA1 of "
@@ -131,7 +143,7 @@ class AvatarSet:
                     nbytes = nbytes_computed
 
                 self._image_bytes = image_bytes
-                self._png_id = binascii.b2a_hex(id_).decode("ascii")
+                self._png_id = id_
 
         if nbytes is None:
             raise RuntimeError(
@@ -172,6 +184,8 @@ class AbstractAvatarDescriptor:
 
     .. autoattribute:: id_
 
+    .. autoattribute:: normalized_id
+
     .. autoattribute:: nbytes
 
     .. autoattribute:: remote_jid
@@ -195,6 +209,7 @@ class AbstractAvatarDescriptor:
         self._remote_jid = remote_jid
         self._mime_type = mime_type
         self._id = id_
+        self._normalized_id = normalize_id(self._id)
         self._nbytes = nbytes
         self._width = width
         self._height = height
@@ -266,11 +281,21 @@ class AbstractAvatarDescriptor:
     @property
     def id_(self):
         """
-        The SHA1 of the image data.
+        The SHA1 of the image encoded as hexadecimal number in ASCII.
+
+        This is the original value returned from pubsub and should be
+        used for any further interaction with pubsub.
+        """
+        return self._id
+
+    @property
+    def normalized_id(self):
+        """
+        The SHA1 of the image data decoded to a :class:`bytes` object.
 
         This is supposed to be used for caching.
         """
-        return self._id
+        return self._normalized_id
 
     @property
     def mime_type(self):
@@ -291,7 +316,7 @@ class PubsubAvatarDescriptor(AbstractAvatarDescriptor):
         image_data = yield from self._pubsub.get_items_by_id(
             self._remote_jid,
             namespaces.xep0084_data,
-            [binascii.b2a_hex(self.id_).decode("ascii")],
+            [self.id_],
         )
         if not image_data.payload.items:
             raise RuntimeError("Avatar image data is not set.")
