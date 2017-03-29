@@ -578,6 +578,43 @@ class AvatarClient(unittest.TestCase):
                 ]
             )
 
+    def test_get_avatar_metadata_with_require_fresh_does_not_crash(self):
+        aset = avatar_service.AvatarSet()
+        aset.add_avatar_image("image/png", image_bytes=TEST_IMAGE)
+        aset.add_avatar_image("image/png",
+                              nbytes=0,
+                              id_="00000000000000000000",
+                              url="http://example.com/avatar")
+
+        # construct the proper pubsub response
+        items = pubsub_xso.Items(
+            namespaces.xep0084_metadata,
+        )
+        item = pubsub_xso.Item(id_=aset.png_id)
+        item.registered_payload = aset.metadata
+        items.items.append(item)
+
+        pubsub_result = pubsub_xso.Request(items)
+
+        with unittest.mock.patch.object(self.pubsub, "get_items",
+                                        new=CoroutineMock()):
+
+            self.pubsub.get_items.return_value = pubsub_result
+            run_coroutine(
+                self.s.get_avatar_metadata(TEST_JID1, require_fresh=True)
+            )
+
+            self.assertSequenceEqual(
+                self.pubsub.get_items.mock_calls,
+                [
+                    unittest.mock.call(
+                        TEST_JID1,
+                        namespaces.xep0084_metadata,
+                        max_items=1
+                    )
+                ]
+            )
+
     def test_get_avatar_metadata_mask_xmpp_errors(self):
         with unittest.mock.patch.object(self.pubsub, "get_items",
                                         new=CoroutineMock()):
