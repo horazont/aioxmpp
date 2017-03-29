@@ -140,6 +140,7 @@ import abc
 import asyncio
 import collections
 import contextlib
+import copy
 import logging
 import warnings
 import weakref
@@ -276,7 +277,7 @@ class DependencyGraph:
         self._edges = set(edges)
         self._nodes = set(nodes)
 
-    def copy(self):
+    def __deepcopy__(self):
         return DependencyGraph(self._edges, self._nodes)
 
     def add_node(self, node):
@@ -469,7 +470,7 @@ class Meta(abc.ABCMeta):
             namespace.get("ORDER_AFTER", ()))
         namespace["PATCHED_ORDER_AFTER"] = namespace["ORDER_AFTER"]
 
-        new_deps = mcls.dependency_graph.copy()
+        new_deps = copy.deepcopy(mcls.dependency_graph)
 
         depgraph_node = namespace["_depgraph_node"] = DependencyGraphNode()
         new_deps.add_node(depgraph_node)
