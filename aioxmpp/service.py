@@ -307,7 +307,6 @@ class DependencyGraph:
             marked.remove(node)
             sorted_.append(node)
 
-        # self is not yet in the class list
         for node in self._nodes:
             visit(node)
 
