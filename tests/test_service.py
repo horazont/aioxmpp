@@ -116,7 +116,9 @@ class TestServiceMeta(unittest.TestCase):
         class Baz(metaclass=service.Meta):
             ORDER_BEFORE = [Bar]
 
-        self.assertTrue(Foo >= Bar >= Baz)
+        self.assertGreater(Foo, Bar)
+        self.assertGreater(Bar, Baz)
+        self.assertGreater(Foo, Baz)
 
     def test_transitive_after_ordering(self):
         class Foo(metaclass=service.Meta):
@@ -128,7 +130,9 @@ class TestServiceMeta(unittest.TestCase):
         class Baz(metaclass=service.Meta):
             ORDER_AFTER = [Bar]
 
-        self.assertTrue(Foo <= Bar <= Baz)
+        self.assertLess(Foo, Bar)
+        self.assertLess(Bar, Baz)
+        self.assertLess(Foo, Baz)
 
     def test_loop_detect(self):
         class Foo(metaclass=service.Meta):
@@ -189,9 +193,9 @@ class TestServiceMeta(unittest.TestCase):
         class A(metaclass=service.Meta):
             pass
 
-        self.assertTrue(A <= A)
-        self.assertFalse(A < A)
-        self.assertFalse(A > A)
+        self.assertEqual(A, A)
+        self.assertLessEqual(A, A)
+        self.assertGreaterEqual(A, A)
 
     def test_topological_ordering_sort_fail(self):
         class A(metaclass=service.Meta):
@@ -236,7 +240,10 @@ class TestServiceMeta(unittest.TestCase):
             SERVICE_BEFORE = [Foo]
             SERVICE_AFTER = [Bar]
 
-        self.assertTrue(Foo > A > Bar)
+        self.assertGreater(Foo, A)
+        self.assertGreater(A, Bar)
+        self.assertGreater(Foo, Bar)
+
         self.assertEqual(
             Foo.PATCHED_ORDER_AFTER,
             {A}
