@@ -277,7 +277,7 @@ class DependencyGraph:
         self._edges = set(edges)
         self._nodes = set(nodes)
 
-    def __deepcopy__(self):
+    def __deepcopy__(self, memo):
         return DependencyGraph(self._edges, self._nodes)
 
     def add_node(self, node):
@@ -388,14 +388,16 @@ class Meta(abc.ABCMeta):
        It is an error to manually define :attr:`PATCHED_ORDER_AFTER` in a class
        definition, doing to will raise a :class:`TypeError`.
 
-    The :attr:`ORDER_AFTER` and :attr:`ORDER_BEFORE` attribtes do not
-    change after class creation (in earlier versions they contained
-    the transitive completion of the dependency relation).
+    .. versionchanged:: 0.9
+
+       The :attr:`ORDER_AFTER` and :attr:`ORDER_BEFORE` attribtes do not
+       change after class creation. In earlier versions they contained
+       the transitive completion of the dependency relation.
 
     Dependency relationships must not have cycles; a cycle results in a
     :class:`ValueError` when the class causing the cycle is declared.
 
-    .. note:
+    .. note::
 
       Subclassing instances of :class:`Meta` is forbidden. Trying to do so
       will raise a :class:`TypeError`
@@ -611,7 +613,11 @@ class Service(metaclass=Meta):
 
     .. note::
 
-       Inheritance from classes which subclass Service is forbidden.
+       Inheritance from classes which subclass :class:`Service` is forbidden.
+
+    .. versionchanged:: 0.9
+
+       It is no longer allowed to inherit from :class:`Service` subclasses.
 
     .. autoattribute:: client
 
