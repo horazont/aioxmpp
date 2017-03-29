@@ -373,7 +373,7 @@ class Meta(abc.ABCMeta):
 
           See :attr:`SERVICE_BEFORE` for details on the deprecation cycle.
 
-    Further, the following attribute is generated:
+    Further, the following attributes are generated:
 
     .. attribute:: PATCHED_ORDER_AFTER
 
@@ -385,7 +385,19 @@ class Meta(abc.ABCMeta):
        summoning services.
 
        It is an error to manually define :attr:`PATCHED_ORDER_AFTER` in a class
-       definition, doing to will raise a :class:`TypeError`.
+       definition, doing so will raise a :class:`TypeError`.
+
+       .. versionadded:: 0.9
+
+    .. attribute:: _DEPGRAPH_NODE
+
+       An internal token used for topological ordering. Consider this
+       name reserved by the metaclass.
+
+       It is an error to manually define :attr:`_DEPGRAPH_NODE` in a class
+       definition, doing so will raise a :class:`TypeError`.
+
+       .. versionadded:: 0.9
 
     .. versionchanged:: 0.9
 
@@ -400,6 +412,8 @@ class Meta(abc.ABCMeta):
 
       Subclassing instances of :class:`Meta` is forbidden. Trying to do so
       will raise a :class:`TypeError`
+
+      .. versionchanged:: 0.9
 
     Example::
 
@@ -622,9 +636,7 @@ class Service(metaclass=Meta):
 
        Inheritance from classes which subclass :class:`Service` is forbidden.
 
-    .. versionchanged:: 0.9
-
-       It is no longer allowed to inherit from :class:`Service` subclasses.
+       .. versionchanged:: 0.9
 
     .. autoattribute:: client
 
