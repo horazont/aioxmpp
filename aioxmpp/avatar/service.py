@@ -455,10 +455,11 @@ class AvatarClient(service.Service):
                 pass
 
         with (yield from self._lock):
-            if require_fresh:
-                del self._metadata_cache[jid]
-            elif jid in self._metadata_cache:
-                return self._metadata_cache[jid]
+            if jid in self._metadata_cache:
+                if require_fresh:
+                    del self._metadata_cache[jid]
+                else:
+                    return self._metadata_cache[jid]
 
             try:
                 metadata_raw = yield from self._pubsub.get_items(
