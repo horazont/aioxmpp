@@ -73,6 +73,28 @@ class TestServiceMeta(unittest.TestCase):
             Foo.ORDER_AFTER
         )
 
+    def test_defining_PATCHED_ORDER_AFTER_raises(self):
+
+        with self.assertRaisesRegex(
+                TypeError,
+                "PATCHED_ORDER_AFTER must not be defined manually\. "
+                "it is supplied automatically by the metaclass\."):
+            class Bar(metaclass=service.Meta):
+                pass
+
+            class Foo(metaclass=service.Meta):
+                PATCHED_ORDER_AFTER = [Bar]
+
+    def test_defining_DEPGRAPH_NODE_raises(self):
+
+        with self.assertRaisesRegex(
+                TypeError,
+                "_DEPGRAPH_NODE must not be defined manually\. "
+                "it is supplied automatically by the metaclass\."):
+
+            class Foo(metaclass=service.Meta):
+                _DEPGRAPH_NODE = None
+
     def test_configure_ordering(self):
         class Foo(metaclass=service.Meta):
             pass

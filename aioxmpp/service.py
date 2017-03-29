@@ -421,8 +421,8 @@ class Meta(abc.ABCMeta):
 
     """
 
-    dependency_graph = DependencyGraph()
-    service_order = {}
+    __dependency_graph = DependencyGraph()
+    __service_order = {}
 
     def __new__(mcls, name, bases, namespace, inherit_dependencies=True):
         if "SERVICE_BEFORE" in namespace or "SERVICE_AFTER" in namespace:
@@ -443,7 +443,13 @@ class Meta(abc.ABCMeta):
 
         if "PATCHED_ORDER_AFTER" in namespace:
             raise TypeError(
-                "PATCHED_PRDER_AFTER must not be defined manually. "
+                "PATCHED_ORDER_AFTER must not be defined manually. "
+                "it is supplied automatically by the metaclass."
+            )
+
+        if "_DEPGRAPH_NODE" in namespace:
+            raise TypeError(
+                "_DEPGRAPH_NODE must not be defined manually. "
                 "it is supplied automatically by the metaclass."
             )
 
@@ -471,17 +477,19 @@ class Meta(abc.ABCMeta):
             namespace.get("ORDER_AFTER", ()))
         namespace["PATCHED_ORDER_AFTER"] = namespace["ORDER_AFTER"]
 
-        new_deps = copy.deepcopy(mcls.dependency_graph)
+        new_deps = copy.deepcopy(mcls.__dependency_graph)
 
-        depgraph_node = namespace["_depgraph_node"] = DependencyGraphNode()
+        depgraph_node = namespace["_DEPGRAPH_NODE"] = DependencyGraphNode()
         new_deps.add_node(depgraph_node)
         for cls in namespace["ORDER_AFTER"]:
-            new_deps.add_edge(depgraph_node, cls._depgraph_node)
+            new_deps.add_edge(depgraph_node, cls._DEPGRAPH_NODE)
         for cls in namespace["ORDER_BEFORE"]:
-            new_deps.add_edge(cls._depgraph_node, depgraph_node)
+            new_deps.add_edge(cls._DEPGRAPH_NODE, depgraph_node)
         sorted_ = new_deps.toposort()
-        mcls.dependency_graph = new_deps
-        mcls.service_order = dict((node, i) for i, node in enumerate(sorted_))
+        mcls.__dependency_graph = new_deps
+        mcls.__service_order = dict(
+            (node, i) for i, node in enumerate(sorted_)
+        )
 
         SERVICE_HANDLERS = []
         existing_handlers = set()
@@ -560,7 +568,7 @@ class Meta(abc.ABCMeta):
         super().__init__(name, bases, namespace)
         for cls in self.ORDER_BEFORE:
             cls.PATCHED_ORDER_AFTER |= frozenset([self])
-        self._depgraph_node.class_ = self
+        self._DEPGRAPH_NODE.class_ = self
 
     @property
     def SERVICE_BEFORE(self):
@@ -571,12 +579,12 @@ class Meta(abc.ABCMeta):
         return self.ORDER_AFTER
 
     def __lt__(self, other):
-        return (self.service_order[self._depgraph_node] <
-                self.service_order[other._depgraph_node])
+        return (self.__service_order[self._DEPGRAPH_NODE] <
+                self.__service_order[other._DEPGRAPH_NODE])
 
     def __le__(self, other):
-        return (self.service_order[self._depgraph_node] <=
-                self.service_order[other._depgraph_node])
+        return (self.__service_order[self._DEPGRAPH_NODE] <=
+                self.__service_order[other._DEPGRAPH_NODE])
 
 
 class Service(metaclass=Meta):
