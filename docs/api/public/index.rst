@@ -28,6 +28,7 @@ functionality or provide backwards compatibility.
 
    adhoc
    avatar
+   blocking
    disco
    entitycaps
    forms
