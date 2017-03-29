@@ -63,6 +63,7 @@ sorted into this section.
    callbacks
    connector
    dispatcher
+   misc
 
 
 APIs mainly relevant for extension developers
