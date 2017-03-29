@@ -1318,9 +1318,7 @@ class TestService(unittest.TestCase):
         self.assertEqual(request.payload.node, "foo")
         self.assertIs(request.payload.item.registered_payload, payload)
 
-
         self.assertEqual(result, "some-other-id")
-
 
     def test_notify_uses_publish_with_None_payload(self):
         with contextlib.ExitStack() as stack:

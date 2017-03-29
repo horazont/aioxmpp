@@ -324,7 +324,6 @@ def setup_package():
     yield from provisioner.initialise()
 
 
-@asyncio.coroutine
 def teardown_package():
     global provisioner, config
     if config is None:

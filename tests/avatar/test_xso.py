@@ -109,7 +109,6 @@ class TestMetadata(unittest.TestCase):
                             url="http://example.com/avatar.gif"),
         ]
 
-
         metadata = avatar_xso.Metadata()
         for item in info_list:
             metadata.info[item.mime_type].append(item)
