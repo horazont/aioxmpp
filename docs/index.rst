@@ -59,7 +59,8 @@ Feature overview
   clients.
 
 * Well-tested and modular codebase: :mod:`aioxmpp` is developed in test-driven
-  style and many modules are automatedly tested against a Prosody 0.9.
+  style and many modules are automatedly tested against a Prosody 0.9, 0.10
+  and the most recent development version.
 
   .. image:: https://travis-ci.org/horazont/aioxmpp.svg?branch=devel
     :target: https://travis-ci.org/horazont/aioxmpp
