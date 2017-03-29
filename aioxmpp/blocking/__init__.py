@@ -28,7 +28,11 @@ This subpackage provides client side support for :xep:`0191`.
 The public interface of this package consists of a single
 :class:`~aioxmpp.Service`:
 
+.. currentmodule:: aioxmpp
+
 .. autoclass:: BlockingClient
+
+.. currentmodule:: aioxmpp.blocking
 
 """
 from .service import BlockingClient  # NOQA
