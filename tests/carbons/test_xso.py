@@ -49,6 +49,12 @@ class TestEnable(unittest.TestCase):
             (namespaces.xep0280_carbons_2, "enable"),
         )
 
+    def test_is_iq_payload(self):
+        self.assertIn(
+            carbons_xso.Enable,
+            aioxmpp.IQ.payload._classes,
+        )
+
 
 class TestDisable(unittest.TestCase):
     def test_is_xso(self):
@@ -60,6 +66,12 @@ class TestDisable(unittest.TestCase):
         self.assertEqual(
             carbons_xso.Disable.TAG,
             (namespaces.xep0280_carbons_2, "disable"),
+        )
+
+    def test_is_iq_payload(self):
+        self.assertIn(
+            carbons_xso.Disable,
+            aioxmpp.IQ.payload._classes,
         )
 
 

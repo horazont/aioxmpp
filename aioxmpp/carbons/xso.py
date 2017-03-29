@@ -24,16 +24,18 @@ import aioxmpp.xso as xso
 from aioxmpp.utils import namespaces
 
 from ..misc import Forwarded
-from ..stanza import Message
+from ..stanza import Message, IQ
 
 
 namespaces.xep0280_carbons_2 = "urn:xmpp:carbons:2"
 
 
+@IQ.as_payload_class
 class Enable(xso.XSO):
     TAG = (namespaces.xep0280_carbons_2, "enable")
 
 
+@IQ.as_payload_class
 class Disable(xso.XSO):
     TAG = (namespaces.xep0280_carbons_2, "disable")
 
