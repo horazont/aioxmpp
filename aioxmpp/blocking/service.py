@@ -44,7 +44,7 @@ class BlockingClient(service.Service):
 
     Signals:
 
-    .. signal:: on_initial_blocklist_reveived(blocklist)
+    .. signal:: on_initial_blocklist_received(blocklist)
 
        Fires when the initial blocklist was received from the server.
 
@@ -56,14 +56,16 @@ class BlockingClient(service.Service):
        Fires when additional JIDs are blocked.
 
        :param blocked_jids: the newly blocked JIDs
-       :type blocklist: :class:`~collections.abc.Set` of :class:`~aioxmpp.JID`
+       :type blocked_jids: :class:`~collections.abc.Set`
+           of :class:`~aioxmpp.JID`
 
     .. signal:: on_jids_blocked(blocked_jids)
 
        Fires when JIDs are unblocked.
 
        :param unblocked_jids: the now unblocked JIDs
-       :type blocklist: :class:`~collections.abc.Set` of :class:`~aioxmpp.JID`
+       :type unblocked_jids: :class:`~collections.abc.Set`
+           of :class:`~aioxmpp.JID`
 
     Coroutine methods:
 
