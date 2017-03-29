@@ -103,6 +103,7 @@ From XMPP Extension Proposals (XEPs)
 * :xep:`82` (XMPP Date and Time Profiles), via :class:`aioxmpp.xso.DateTime` and others
 * :xep:`115` (Entity Capabilities), see :mod:`aioxmpp.entitycaps`, including
   read/write support for the capsdb
+* :xep:`191` (Blocking Command), see :mod:`aioxmpp.blocking`
 * :xep:`198` (Stream Management), always enabled if supported by the server
 * :xep:`199` (XMPP Ping), used for aliveness-checks if Stream Management is not
   avaliable
