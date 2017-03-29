@@ -40,5 +40,27 @@ Service
 .. autoclass:: CarbonsClient
 
 .. currentmodule:: aioxmpp.carbons
+
+
+.. currentmodule:: aioxmpp.carbons.xso
+.. module:: aioxmpp.carbons.xso
+
+XSOs
+====
+
+.. attribute:: aioxmpp.Message.xep0280_sent
+
+   On a Carbon message, this holds the :class:`~.carbons.xso.Sent` XSO which in
+   turn holds the carbonated stanza.
+
+.. attribute:: aioxmpp.Message.xep0280_received
+
+   On a Carbon message, this holds the :class:`~.carbons.xso.Received` XSO
+   which in turn holds the carbonated stanza.
+
+.. autoclass:: Received
+
+.. autoclass:: Sent
+
 """
 from .service import CarbonsClient  # NOQA

@@ -21,7 +21,9 @@
 ########################################################################
 import unittest
 
+import aioxmpp
 import aioxmpp.carbons.xso as carbons_xso
+import aioxmpp.misc as misc_xso
 import aioxmpp.xso as xso
 
 from aioxmpp.utils import namespaces
@@ -58,4 +60,119 @@ class TestDisable(unittest.TestCase):
         self.assertEqual(
             carbons_xso.Disable.TAG,
             (namespaces.xep0280_carbons_2, "disable"),
+        )
+
+
+class Test_CarbonsWrapper(unittest.TestCase):
+    def test_is_xso(self):
+        self.assertTrue(
+            issubclass(carbons_xso._CarbonsWrapper, xso.XSO)
+        )
+
+    def test_has_no_tag(self):
+        self.assertFalse(hasattr(carbons_xso._CarbonsWrapper, "TAG"))
+
+    def test_forwarded(self):
+        self.assertIsInstance(
+            carbons_xso._CarbonsWrapper.forwarded,
+            xso.Child
+        )
+
+    def test_stanza_returns_None_if_forwarded_is_None(self):
+        s = carbons_xso._CarbonsWrapper()
+        self.assertIsNone(s.forwarded)
+        self.assertIsNone(s.stanza)
+
+    def test_stanza_returns_stanza_from_forwarded(self):
+        s = carbons_xso._CarbonsWrapper()
+        s.forwarded = misc_xso.Forwarded()
+        s.forwarded.stanza = unittest.mock.sentinel.foo
+
+        self.assertEqual(
+            s.stanza,
+            s.forwarded.stanza,
+        )
+
+    def test_setting_stanza_creates_forwarded(self):
+        s = carbons_xso._CarbonsWrapper()
+        self.assertIsNone(s.forwarded)
+
+        s.stanza = unittest.mock.sentinel.foo
+
+        self.assertIsInstance(
+            s.forwarded,
+            misc_xso.Forwarded,
+        )
+
+        self.assertEqual(
+            s.forwarded.stanza,
+            unittest.mock.sentinel.foo,
+        )
+
+    def test_setting_stanza_reuses_forwarded(self):
+        forwarded = misc_xso.Forwarded()
+        s = carbons_xso._CarbonsWrapper()
+        s.forwarded = forwarded
+        s.stanza = unittest.mock.sentinel.foo
+
+        self.assertIs(
+            s.forwarded,
+            forwarded,
+        )
+
+        self.assertEqual(
+            s.forwarded.stanza,
+            unittest.mock.sentinel.foo,
+        )
+
+
+class TestSent(unittest.TestCase):
+    def test_is_carbons_wrapper(self):
+        self.assertTrue(
+            issubclass(carbons_xso.Sent, carbons_xso._CarbonsWrapper)
+        )
+
+    def test_tag(self):
+        self.assertEqual(
+            carbons_xso.Sent.TAG,
+            (namespaces.xep0280_carbons_2, "sent"),
+        )
+
+
+class TestReceived(unittest.TestCase):
+    def test_is_carbons_wrapper(self):
+        self.assertTrue(
+            issubclass(carbons_xso.Received, carbons_xso._CarbonsWrapper)
+        )
+
+    def test_tag(self):
+        self.assertEqual(
+            carbons_xso.Received.TAG,
+            (namespaces.xep0280_carbons_2, "received"),
+        )
+
+
+class TestMessage(unittest.TestCase):
+    def test_xep0280_sent(self):
+        self.assertIsInstance(
+            aioxmpp.Message.xep0280_sent,
+            xso.Child,
+        )
+        self.assertSetEqual(
+            aioxmpp.Message.xep0280_sent._classes,
+            {
+                carbons_xso.Sent,
+            }
+        )
+
+    def test_xep0280_received(self):
+        self.assertIsInstance(
+            aioxmpp.Message.xep0280_received,
+            xso.Child,
+        )
+        self.assertSetEqual(
+            aioxmpp.Message.xep0280_received._classes,
+            {
+                carbons_xso.Received,
+            }
         )
