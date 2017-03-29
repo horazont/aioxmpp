@@ -35,18 +35,24 @@ class IMDispatcher(aioxmpp.service.Service):
     """
     Dispatches messages, taking into account carbons.
 
-    .. signal:: on_message(message, sent, source)
+    .. function:: message_filter(message, peer, sent, source)
 
        A message was received or sent.
 
        :param message: Message stanza
        :type message: :class:`aioxmpp.Message`
+       :param peer: The peer from/to which the stanza was received/sent
+       :type peer: :class:`aioxmpp.JID`
        :param sent: Whether the mesasge was sent or received.
        :type sent: :class:`bool`
        :param source: The source of the message.
        :type source: :class:`MessageSource`
 
        `message` is the message stanza which was sent or received.
+
+       `peer` is the JID of the peer involved in the message. If the message
+       was sent, this is the :attr:`~.StanzaBase.to` and otherwise it is the
+       :attr:`~.StanzaBase.from_` attribute of the stanza.
 
        If `sent` is true, the message was sent from this resource *or* another
        resource of the same account, if Message Carbons are enabled.
@@ -76,8 +82,11 @@ class IMDispatcher(aioxmpp.service.Service):
     def dispatch_message(self, message, *,
                          sent=False,
                          source=MessageSource.STREAM):
+        peer = message.to if sent else message.from_
+
         filtered = self.message_filter.filter(
             message,
+            peer,
             sent,
             source,
         )

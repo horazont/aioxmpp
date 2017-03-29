@@ -28,6 +28,7 @@ import aioxmpp.service
 
 import aioxmpp.im.p2p as p2p
 import aioxmpp.im.service as im_service
+import aioxmpp.im.dispatcher as im_dispatcher
 
 from aioxmpp.testutils import (
     make_connected_client,
@@ -66,13 +67,6 @@ class TestConversation(unittest.TestCase):
     def tearDown(self):
         del self.cc
 
-    def test_registers_message_handler(self):
-        self.cc.stream.register_message_callback.assert_called_once_with(
-            None,
-            PEER_JID,
-            self.c._Conversation__inbound_message,
-        )
-
     def test_members_contain_both_entities(self):
         members = list(self.c.members)
         self.assertCountEqual(
@@ -109,16 +103,14 @@ class TestConversation(unittest.TestCase):
 
     def test_inbound_message_dispatched_to_event(self):
         msg = unittest.mock.sentinel.message
-        self.c._Conversation__inbound_message(msg)
+        self.c._handle_message(
+            msg,
+            unittest.mock.sentinel.from_,
+            False,
+            im_dispatcher.MessageSource.STREAM
+        )
         self.listener.on_message_received.assert_called_once_with(
             msg,
-        )
-
-    def test_leave_disconnects_handler(self):
-        run_coroutine(self.c.leave())
-        self.cc.stream.unregister_message_callback.assert_called_once_with(
-            None,
-            PEER_JID,
         )
 
     def test_leave_calls_conversation_left(self):
@@ -151,6 +143,9 @@ class TestService(unittest.TestCase):
         deps = {
             im_service.ConversationService: im_service.ConversationService(
                 self.cc
+            ),
+            im_dispatcher.IMDispatcher: im_dispatcher.IMDispatcher(
+                self.cc
             )
         }
         self.svc = unittest.mock.Mock(["client", "_conversation_left"])
@@ -177,6 +172,12 @@ class TestService(unittest.TestCase):
     def test_depends_on_conversation_service(self):
         self.assertLess(
             im_service.ConversationService,
+            p2p.Service,
+        )
+
+    def test_depends_on_dispatcher_service(self):
+        self.assertLess(
+            im_dispatcher.IMDispatcher,
             p2p.Service,
         )
 
@@ -267,21 +268,28 @@ class TestService(unittest.TestCase):
 
         self.assertIsNot(c1, c2)
 
-    def test_has_message_filter(self):
+    def test_has_im_message_filter(self):
         self.assertTrue(
-            aioxmpp.service.is_inbound_message_filter(
-                p2p.Service._filter_inbound_message,
+            aioxmpp.service.is_depfilter_handler(
+                im_dispatcher.IMDispatcher,
+                "message_filter",
+                p2p.Service._filter_message,
             )
         )
 
     def test_message_filter_passes_stanzas(self):
         stanza = unittest.mock.Mock(["type_", "to", "from_", "id_"])
         self.assertIs(
-            self.s._filter_inbound_message(stanza),
+            self.s._filter_message(
+                stanza,
+                stanza.from_,
+                False,
+                im_dispatcher.MessageSource.STREAM,
+            ),
             stanza,
         )
 
-    def test_autocreate_conversation_from_chat_with_body(self):
+    def test_autocreate_conversation_from_recvd_chat_with_body(self):
         msg = aioxmpp.Message(
             type_=aioxmpp.MessageType.CHAT,
             from_=PEER_JID.replace(resource="foo"),
@@ -293,7 +301,12 @@ class TestService(unittest.TestCase):
                 "aioxmpp.im.p2p.Conversation",
             ))
 
-            self.assertIs(self.s._filter_inbound_message(msg), msg)
+            self.assertIsNone(self.s._filter_message(
+                msg,
+                msg.from_,
+                False,
+                im_dispatcher.MessageSource.STREAM,
+            ))
             Conversation.assert_called_once_with(
                 self.s,
                 msg.from_.bare(),
@@ -313,7 +326,60 @@ class TestService(unittest.TestCase):
                 Conversation()
             )
 
-    def test_autocreate_conversation_from_normal_with_body(self):
+            Conversation()._handle_message.assert_called_once_with(
+                msg,
+                msg.from_,
+                False,
+                im_dispatcher.MessageSource.STREAM,
+            )
+
+    def test_autocreate_based_on_peer(self):
+        msg = aioxmpp.Message(
+            type_=aioxmpp.MessageType.CHAT,
+            from_=PEER_JID.replace(resource="foo"),
+        )
+        msg.body[None] = "foo"
+
+        with contextlib.ExitStack() as stack:
+            Conversation = stack.enter_context(unittest.mock.patch(
+                "aioxmpp.im.p2p.Conversation",
+            ))
+
+            self.assertIsNone(self.s._filter_message(
+                msg,
+                PEER_JID.replace(localpart="fnord", resource="foo"),
+                False,
+                im_dispatcher.MessageSource.STREAM,
+            ))
+            Conversation.assert_called_once_with(
+                self.s,
+                PEER_JID.replace(localpart="fnord"),
+                parent=None
+            )
+
+            c = run_coroutine(self.s.get_conversation(
+                PEER_JID.replace(localpart="fnord")
+            ))
+            Conversation.assert_called_once_with(
+                self.s,
+                PEER_JID.replace(localpart="fnord"),
+                parent=None
+            )
+
+            self.assertEqual(c, Conversation())
+
+            self.listener.on_conversation_new.assert_called_once_with(
+                Conversation()
+            )
+
+            Conversation()._handle_message.assert_called_once_with(
+                msg,
+                PEER_JID.replace(localpart="fnord", resource="foo"),
+                False,
+                im_dispatcher.MessageSource.STREAM,
+            )
+
+    def test_autocreate_conversation_from_recvd_normal_with_body(self):
         msg = aioxmpp.Message(
             type_=aioxmpp.MessageType.NORMAL,
             from_=PEER_JID.replace(resource="foo"),
@@ -325,7 +391,12 @@ class TestService(unittest.TestCase):
                 "aioxmpp.im.p2p.Conversation",
             ))
 
-            self.assertIs(self.s._filter_inbound_message(msg), msg)
+            self.assertIsNone(self.s._filter_message(
+                msg,
+                msg.from_,
+                False,
+                im_dispatcher.MessageSource.STREAM,
+            ))
             Conversation.assert_called_once_with(
                 self.s,
                 msg.from_.bare(),
@@ -345,7 +416,14 @@ class TestService(unittest.TestCase):
                 Conversation()
             )
 
-    def test_no_autocreate_conversation_from_groupchat_with_body(self):
+            Conversation()._handle_message.assert_called_once_with(
+                msg,
+                msg.from_,
+                False,
+                im_dispatcher.MessageSource.STREAM,
+            )
+
+    def test_no_autocreate_conversation_from_recvd_groupchat_with_body(self):
         msg = aioxmpp.Message(
             type_=aioxmpp.MessageType.GROUPCHAT,
             from_=PEER_JID.replace(resource="foo"),
@@ -357,7 +435,15 @@ class TestService(unittest.TestCase):
                 "aioxmpp.im.p2p.Conversation",
             ))
 
-            self.assertIs(self.s._filter_inbound_message(msg), msg)
+            self.assertIs(
+                self.s._filter_message(
+                    msg,
+                    msg.from_,
+                    False,
+                    im_dispatcher.MessageSource.STREAM,
+                ),
+                msg
+            )
             Conversation.assert_not_called()
             self.listener.on_conversation_new.assert_not_called()
 
@@ -373,7 +459,15 @@ class TestService(unittest.TestCase):
                 "aioxmpp.im.p2p.Conversation",
             ))
 
-            self.assertIs(self.s._filter_inbound_message(msg), msg)
+            self.assertIs(
+                self.s._filter_message(
+                    msg,
+                    msg.from_,
+                    False,
+                    im_dispatcher.MessageSource.STREAM,
+                ),
+                msg
+            )
             Conversation.assert_not_called()
             self.listener.on_conversation_new.assert_not_called()
 
@@ -385,7 +479,15 @@ class TestService(unittest.TestCase):
                 "aioxmpp.im.p2p.Conversation",
             ))
 
-            self.assertIs(self.s._filter_inbound_message(msg), msg)
+            self.assertIs(
+                self.s._filter_message(
+                    msg,
+                    msg.from_,
+                    False,
+                    im_dispatcher.MessageSource.STREAM,
+                ),
+                msg
+            )
             Conversation.assert_not_called()
             self.listener.on_conversation_new.assert_not_called()
 
@@ -400,7 +502,15 @@ class TestService(unittest.TestCase):
                 "aioxmpp.im.p2p.Conversation",
             ))
 
-            self.assertIs(self.s._filter_inbound_message(msg), msg)
+            self.assertIs(
+                self.s._filter_message(
+                    msg,
+                    msg.from_,
+                    False,
+                    im_dispatcher.MessageSource.STREAM,
+                ),
+                msg
+            )
             Conversation.assert_not_called()
             self.listener.on_conversation_new.assert_not_called()
 
@@ -415,7 +525,15 @@ class TestService(unittest.TestCase):
                 "aioxmpp.im.p2p.Conversation",
             ))
 
-            self.assertIs(self.s._filter_inbound_message(msg), msg)
+            self.assertIs(
+                self.s._filter_message(
+                    msg,
+                    msg.from_,
+                    False,
+                    im_dispatcher.MessageSource.STREAM,
+                ),
+                msg
+            )
             Conversation.assert_not_called()
             self.listener.on_conversation_new.assert_not_called()
 
@@ -483,51 +601,3 @@ class TestE2E(TestCase):
         self.assertEqual(len(fwmsgs), 1)
         self.assertEqual(fwmsgs[0].body[None], "bar")
         self.assertEqual(len(swmsgs), 1)
-
-    # @blocking_timed
-    # @asyncio.coroutine
-    # def test_autocreate_conversation(self):
-    #     svc1 = self.firstwitch.summon(p2p.Service)
-
-    #     c1 = None
-
-    #     def new_conversation(conv):
-    #         nonlocal c1
-    #         c1 = conv
-    #         c1.on_message_received.connect(fwmsgs.append)
-    #         c1.on_message_received.connect(fwevset)
-
-    #     svc1.on_conversation_new.connect(new_conversation)
-
-    #     c2 = yield from self.secondwitch.summon(p2p.Service).get_conversation(
-    #         self.firstwitch.local_jid.bare()
-    #     )
-
-    #     fwmsgs = []
-    #     fwev = asyncio.Event()
-
-    #     def fwevset(*args):
-    #         fwev.set()
-
-    #     swmsgs = []
-    #     swev = asyncio.Event()
-
-    #     def swevset(*args):
-    #         swev.set()
-
-    #     c2.on_message_received.connect(swmsgs.append)
-    #     c2.on_message_received.connect(swevset)
-
-    #     msg = aioxmpp.Message(aioxmpp.MessageType.CHAT)
-    #     msg.body[None] = "foo"
-    #     yield from c2.send_message(msg)
-    #     yield from fwev.wait()
-
-    #     self.assertIsNotNone(c1)
-    #     self.assertIs(
-    #         c1,
-    #         (yield from svc1.get_conversation(self.secondwitch.local_jid)),
-    #     )
-
-    #     self.assertEqual(len(fwmsgs), 1)
-    #     self.assertEqual(fwmsgs[0].body[None], "foo")

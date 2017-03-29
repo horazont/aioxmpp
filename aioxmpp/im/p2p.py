@@ -19,6 +19,7 @@
 # <http://www.gnu.org/licenses/>.
 #
 ########################################################################
+
 import asyncio
 
 import aioxmpp.service
@@ -28,6 +29,8 @@ from .conversation import (
     AbstractConversation,
     AbstractConversationService,
 )
+
+from .dispatcher import IMDispatcher
 
 from .service import ConversationService
 
@@ -49,13 +52,8 @@ class Conversation(AbstractConversation):
             Member(self._client.local_jid, True),
             Member(peer_jid, False),
         )
-        self._client.stream.register_message_callback(
-            None,
-            self.__peer_jid,
-            self.__inbound_message,
-        )
 
-    def __inbound_message(self, msg):
+    def _handle_message(self, msg, peer, sent, source):
         self.on_message_received(msg)
 
     @property
@@ -82,10 +80,6 @@ class Conversation(AbstractConversation):
 
     @asyncio.coroutine
     def leave(self):
-        self._client.stream.unregister_message_callback(
-            None,
-            self.__peer_jid,
-        )
         yield from super().leave()
 
 
@@ -116,7 +110,10 @@ class Service(AbstractConversationService, aioxmpp.service.Service):
 
     """
 
-    ORDER_AFTER = [ConversationService]
+    ORDER_AFTER = [
+        ConversationService,
+        IMDispatcher,
+    ]
 
     def __init__(self, client, **kwargs):
         super().__init__(client, **kwargs)
@@ -132,21 +129,24 @@ class Service(AbstractConversationService, aioxmpp.service.Service):
         self.on_conversation_new(result)
         return result
 
-    @aioxmpp.service.inbound_message_filter
-    def _filter_inbound_message(self, msg):
+    @aioxmpp.service.depfilter(IMDispatcher, "message_filter")
+    def _filter_message(self, msg, peer, sent, source):
         try:
-            existing = self._conversationmap[msg.from_]
+            existing = self._conversationmap[peer]
         except KeyError:
             try:
-                existing = self._conversationmap[msg.from_.bare()]
+                existing = self._conversationmap[peer.bare()]
             except KeyError:
                 existing = None
 
-        if existing is None:
-            if     ((msg.type_ == aioxmpp.MessageType.CHAT or
-                     msg.type_ == aioxmpp.MessageType.NORMAL) and
-                    msg.body):
-                self._make_conversation(msg.from_.bare())
+        if     ((msg.type_ == aioxmpp.MessageType.CHAT or
+                 msg.type_ == aioxmpp.MessageType.NORMAL) and
+                msg.body):
+            if existing is None:
+                existing = self._make_conversation(peer.bare())
+
+            existing._handle_message(msg, peer, sent, source)
+            return None
 
         return msg
 

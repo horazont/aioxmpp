@@ -31,71 +31,6 @@ class InviteMode(enum.Enum):
     MEDIATED = 1
 
 
-# class AbstractConversationMember(metaclass=abc.ABCMeta):
-#     """
-#     Interface for a member in a conversation.
-
-#     The JIDs of a member can be either bare or full. Both bare and full JIDs
-#     can be used with the :class:`aioxmpp.PresenceClient` service to look up the
-#     presence information.
-
-#     .. autoattribute:: direct_jid
-
-#     .. autoattribute:: conversation_jid
-
-#     .. autoattribute:: root_conversation
-
-#     .. automethod:: get_direct_conversation
-#     """
-
-#     @abc.abstractproperty
-#     def direct_jid(self):
-#         """
-#         A :class:`aioxmpp.JID` which can be used to directly communicate with
-#         the member.
-
-#         May be :data:`None` if the direct JID is not known or has not been
-#         explicitly requested for the conversation.
-#         """
-
-#     @abc.abstractproperty
-#     def conversation_jid(self):
-#         """
-#         A :class:`~aioxmpp.JID` which can be used to communicate with the
-#         member in the context of the conversation.
-#         """
-
-#     @abc.abstractproperty
-#     def root_conversation(self):
-#         """
-#         The root conversation to which this member belongs.
-#         """
-
-#     def _not_implemented_error(self, what):
-#         return NotImplementedError(
-#             "{} not supported for this type of conversation".format(what)
-#         )
-
-#     @asyncio.coroutine
-#     def get_direct_conversation(self, *, prefer_direct=True):
-#         """
-#         Create or get and return a direct conversation with this member.
-
-#         :param prefer_direct: Control which JID is used to start the
-#                               conversation.
-#         :type prefer_direct: :class:`bool`
-#         :raises NotImplementedError: if a direct conversation is not supported
-#                                      for the type of conversation to which the
-#                                      member belongs.
-#         :return: New or existing conversation with the conversation member.
-#         :rtype: :class:`.AbstractConversation`
-
-#         This may not be available for all conversation implementations. If it
-#         is not available, :class:`NotImplementedError` is raised.
-#         """
-#         raise self._not_implemented_error("direct conversation")
-
-
 class ConversationState(enum.Enum):
     """
     State of a conversation.
@@ -198,14 +133,44 @@ class AbstractConversation(metaclass=abc.ABCMeta):
 
     Signals:
 
-    .. signal:: on_message_received(msg, member)
+    .. signal:: on_message(msg, member, source)
 
-       A message has been received within the conversation.
+       A message occured in the conversation.
 
        :param msg: Message which was received.
        :type msg: :class:`aioxmpp.Message`
        :param member: The member object of the sender.
        :type member: :class:`.AbstractConversationMember`
+       :param source: How the message was acquired
+       :type source: :class:`~.MessageSource`
+
+       This signal is emitted on the following events:
+
+       * A message was sent to the conversation and delivered directly to us.
+         This is the classic case of "a message was received". In this case,
+         `source` is :attr:`~.MessageSource.STREAM` and `member` is the
+         :class:`~.AbstractConversationMember` of the originator.
+
+       * A message was sent from this client. This is the classic case of "a
+         message was sent". In this case, `source` is
+         :attr:`~.MessageSource.STREAM` and `member` refers to ourselves.
+
+       * A carbon-copy of a message received by another resource of our account
+         which belongs to this conversation was received. `source` is
+         :attr:`~.MessageSource.CARBONS` and `member` is the
+         :class:`~.AbstractConversationMember` of the originator.
+
+       * A carbon-copy of a message sent by another resource of our account was
+         sent to this conversation. In this case, `source` is
+         :attr:`~.MessageSource.CARBONS` and `member` refers to ourselves.
+
+       Often, you don’t need to distinguish between carbon-copied and
+       non-carbon-copied messages.
+
+       All messages which are not handled otherwise (and for example dispatched
+       as :meth:`on_state_changed` signals) are dispatched to this event. This
+       may include messages not understood and/or which carry no textual
+       payload.
 
     .. signal:: on_state_changed(member, new_state, msg)
 

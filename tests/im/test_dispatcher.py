@@ -88,19 +88,6 @@ class TestIMDispatcher(unittest.TestCase):
             )
         )
 
-    def test_dispatch_simple_messages(self):
-        msg = aioxmpp.Message(
-            type_=aioxmpp.MessageType.CHAT
-        )
-
-        self.s.dispatch_message(msg)
-
-        self.listener.message_filter.assert_called_once_with(
-            msg,
-            False,
-            dispatcher.MessageSource.STREAM,
-        )
-
     def test_dispatch_presences(self):
         types = [
             (aioxmpp.PresenceType.AVAILABLE, True),
@@ -125,4 +112,37 @@ class TestIMDispatcher(unittest.TestCase):
             pres,
             TEST_PEER,
             False,
+        )
+
+
+    def test_dispatch_simple_messages(self):
+        msg = aioxmpp.Message(
+            type_=aioxmpp.MessageType.CHAT,
+            from_=TEST_PEER,
+            to=TEST_LOCAL,
+        )
+
+        self.s.dispatch_message(msg)
+
+        self.listener.message_filter.assert_called_once_with(
+            msg,
+            TEST_PEER,
+            False,
+            dispatcher.MessageSource.STREAM,
+        )
+
+    def test_dispatch_sent_messages(self):
+        msg = aioxmpp.Message(
+            type_=aioxmpp.MessageType.CHAT,
+            from_=TEST_LOCAL,
+            to=TEST_PEER,
+        )
+
+        self.s.dispatch_message(msg, sent=True)
+
+        self.listener.message_filter.assert_called_once_with(
+            msg,
+            TEST_PEER,
+            True,
+            dispatcher.MessageSource.STREAM,
         )
