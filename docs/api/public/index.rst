@@ -29,6 +29,7 @@ functionality or provide backwards compatibility.
    adhoc
    avatar
    blocking
+   carbons
    disco
    entitycaps
    forms
@@ -63,6 +64,7 @@ sorted into this section.
    callbacks
    connector
    dispatcher
+   misc
 
 
 APIs mainly relevant for extension developers

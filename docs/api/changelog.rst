@@ -70,6 +70,10 @@ Version 0.9
 
 * :mod:`aioxmpp.blocking`
 
+* :mod:`aioxmpp.carbons`
+
+* :mod:`aioxmpp.misc`
+
 .. _api-changelog-0.8:
 
 Version 0.8
