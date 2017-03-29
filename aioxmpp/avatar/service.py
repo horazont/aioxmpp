@@ -366,7 +366,6 @@ class AvatarClient(service.Service):
             for item in metadata.payload.items:
                 yield from item.registered_payload.iter_info_nodes()
 
-
         result = collections.defaultdict(lambda: [])
         for info_node in iter_metadata_info_nodes(metadata):
             if info_node.url is not None:
@@ -445,8 +444,9 @@ class AvatarClient(service.Service):
             except aioxmpp.XMPPCancelError as e:
                 # transparently map feature-not-implemente and
                 # item-not-found to be equivalent unset avatar
-                if e.condition in ((namespaces.stanzas, "feature-not-implemented"),
-                                   (namespaces.stanzas, "item-not-found")):
+                if e.condition in (
+                        (namespaces.stanzas, "feature-not-implemented"),
+                        (namespaces.stanzas, "item-not-found")):
                     metadata = collections.defaultdict(lambda: [])
                 else:
                     raise
