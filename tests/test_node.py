@@ -2841,16 +2841,10 @@ class TestClient(xmltestutils.XMLTestCase):
                     ),
                     dependencies={
                         Svc2: unittest.mock.ANY,
-                        Svc3: unittest.mock.ANY,
                     }
                 ),
             ],
             svc_init.mock_calls
-        )
-
-        self.assertIs(
-            svc1.dependencies[Svc3],
-            svc2.dependencies[Svc3],
         )
 
         self.assertIs(

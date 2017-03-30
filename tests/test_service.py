@@ -73,6 +73,28 @@ class TestServiceMeta(unittest.TestCase):
             Foo.ORDER_AFTER
         )
 
+    def test_defining_PATCHED_ORDER_AFTER_raises(self):
+
+        with self.assertRaisesRegex(
+                TypeError,
+                "PATCHED_ORDER_AFTER must not be defined manually\. "
+                "it is supplied automatically by the metaclass\."):
+            class Bar(metaclass=service.Meta):
+                pass
+
+            class Foo(metaclass=service.Meta):
+                PATCHED_ORDER_AFTER = [Bar]
+
+    def test_defining_DEPGRAPH_NODE_raises(self):
+
+        with self.assertRaisesRegex(
+                TypeError,
+                "_DEPGRAPH_NODE must not be defined manually\. "
+                "it is supplied automatically by the metaclass\."):
+
+            class Foo(metaclass=service.Meta):
+                _DEPGRAPH_NODE = None
+
     def test_configure_ordering(self):
         class Foo(metaclass=service.Meta):
             pass
@@ -89,15 +111,24 @@ class TestServiceMeta(unittest.TestCase):
             Bar.ORDER_AFTER
         )
         self.assertSetEqual(
-            {Bar},
+            set(),
+            Bar.PATCHED_ORDER_AFTER
+        )
+        self.assertSetEqual(
+            set(),
             Foo.ORDER_AFTER
         )
         self.assertSetEqual(
             set(),
             Foo.ORDER_BEFORE
         )
+        self.assertSetEqual(
+            {Bar},
+            Foo.PATCHED_ORDER_AFTER
+        )
 
     def test_transitive_before_ordering(self):
+
         class Foo(metaclass=service.Meta):
             pass
 
@@ -107,30 +138,9 @@ class TestServiceMeta(unittest.TestCase):
         class Baz(metaclass=service.Meta):
             ORDER_BEFORE = [Bar]
 
-        self.assertSetEqual(
-            {Foo},
-            Bar.ORDER_BEFORE
-        )
-        self.assertSetEqual(
-            {Foo, Bar},
-            Baz.ORDER_BEFORE
-        )
-        self.assertSetEqual(
-            {Bar, Baz},
-            Foo.ORDER_AFTER
-        )
-        self.assertSetEqual(
-            {Baz},
-            Bar.ORDER_AFTER
-        )
-        self.assertSetEqual(
-            set(),
-            Foo.ORDER_BEFORE
-        )
-        self.assertSetEqual(
-            set(),
-            Baz.ORDER_AFTER
-        )
+        self.assertGreater(Foo, Bar)
+        self.assertGreater(Bar, Baz)
+        self.assertGreater(Foo, Baz)
 
     def test_transitive_after_ordering(self):
         class Foo(metaclass=service.Meta):
@@ -142,30 +152,9 @@ class TestServiceMeta(unittest.TestCase):
         class Baz(metaclass=service.Meta):
             ORDER_AFTER = [Bar]
 
-        self.assertSetEqual(
-            {Foo},
-            Bar.ORDER_AFTER
-        )
-        self.assertSetEqual(
-            {Foo, Bar},
-            Baz.ORDER_AFTER
-        )
-        self.assertSetEqual(
-            {Bar, Baz},
-            Foo.ORDER_BEFORE
-        )
-        self.assertSetEqual(
-            {Baz},
-            Bar.ORDER_BEFORE
-        )
-        self.assertSetEqual(
-            set(),
-            Foo.ORDER_AFTER
-        )
-        self.assertSetEqual(
-            set(),
-            Baz.ORDER_BEFORE
-        )
+        self.assertLess(Foo, Bar)
+        self.assertLess(Bar, Baz)
+        self.assertLess(Foo, Baz)
 
     def test_loop_detect(self):
         class Foo(metaclass=service.Meta):
@@ -176,7 +165,7 @@ class TestServiceMeta(unittest.TestCase):
 
         with self.assertRaisesRegex(
                 ValueError,
-                "dependency loop: Fnord loops through .*\.(Foo|Bar)"):
+                "dependency loop in service definitions"):
 
             class Fnord(metaclass=service.Meta):
                 ORDER_BEFORE = [Foo]
@@ -185,7 +174,7 @@ class TestServiceMeta(unittest.TestCase):
             print(Fnord.ORDER_BEFORE)
             print(Fnord.ORDER_AFTER)
 
-    def test_partial_dependency_ordering_puts_earliest_first(self):
+    def test_topological_dependency_ordering_puts_earliest_first(self):
         class Foo(metaclass=service.Meta):
             pass
 
@@ -222,50 +211,33 @@ class TestServiceMeta(unittest.TestCase):
         self.assertGreaterEqual(Bar, Baz)
         self.assertGreaterEqual(Bar, Fourth)
 
-        services = [Foo, Bar, Baz, Fourth]
-
-        for a, b in itertools.product(services, services):
-            if a is b:
-                self.assertEqual(a, b)
-                self.assertFalse(a != b)
-            else:
-                self.assertNotEqual(a, b)
-                self.assertFalse(a == b)
-
-        services.sort()
-
-        self.assertSequenceEqual(
-            [Baz, Fourth, Bar, Foo],
-            services
-        )
-
-        services = [Foo, Bar, Fourth, Baz]
-        services.sort()
-
-        self.assertSequenceEqual(
-            [Fourth, Baz, Bar, Foo],
-            services
-        )
-
-    def test_simple_inheritance_inherit_ordering(self):
-        class Foo(metaclass=service.Meta):
-            pass
-
-        class Bar(metaclass=service.Meta):
-            pass
-
+    def test_topological_ordering_fail2(self):
         class A(metaclass=service.Meta):
-            ORDER_BEFORE = [Foo]
-            ORDER_AFTER = [Bar]
-
-        class B(A):
             pass
 
-        self.assertSetEqual(A.ORDER_BEFORE, B.ORDER_BEFORE)
-        self.assertSetEqual(A.ORDER_AFTER, B.ORDER_AFTER)
+        self.assertEqual(A, A)
+        self.assertLessEqual(A, A)
+        self.assertGreaterEqual(A, A)
 
-        self.assertIsNot(A.ORDER_BEFORE, B.ORDER_BEFORE)
-        self.assertIsNot(A.ORDER_AFTER, B.ORDER_AFTER)
+    def test_topological_ordering_sort_fail(self):
+        class A(metaclass=service.Meta):
+            pass
+
+        class B(metaclass=service.Meta):
+            pass
+
+        class C(metaclass=service.Meta):
+            ORDER_AFTER = [B]
+
+        class D(metaclass=service.Meta):
+            ORDER_BEFORE = [A, C]
+
+        for services in itertools.permutations([A, B, C, D]):
+            services = list(services)
+            services.sort()
+
+            if services.index(C) < services.index(B):
+                self.fail(services)
 
     def test_inheritance_ignores_non_service_classes(self):
         class Foo(metaclass=service.Meta):
@@ -279,88 +251,6 @@ class TestServiceMeta(unittest.TestCase):
 
         self.assertSetEqual(set(), Baz.ORDER_BEFORE)
 
-    def test_diamond_inheritance(self):
-        class Foo(metaclass=service.Meta):
-            pass
-
-        class Bar(metaclass=service.Meta):
-            pass
-
-        class Baz(metaclass=service.Meta):
-            pass
-
-        class A(metaclass=service.Meta):
-            ORDER_BEFORE = [Foo]
-
-        class B1(A):
-            ORDER_AFTER = [Bar]
-
-        class B2(A):
-            ORDER_BEFORE = [Baz]
-
-        class D(B1, B2):
-            pass
-
-        self.assertSetEqual(
-            {A, B1, B2, D},
-            Foo.ORDER_AFTER
-        )
-        self.assertSetEqual(
-            {B1, D},
-            Bar.ORDER_BEFORE
-        )
-        self.assertSetEqual(
-            {B2, D},
-            Baz.ORDER_AFTER
-        )
-        self.assertSetEqual(
-            {Foo, Baz},
-            D.ORDER_BEFORE
-        )
-        self.assertSetEqual(
-            {Foo, Baz},
-            B2.ORDER_BEFORE
-        )
-        self.assertSetEqual(
-            {Bar},
-            D.ORDER_AFTER
-        )
-        self.assertSetEqual(
-            {Bar},
-            B1.ORDER_AFTER
-        )
-
-    def test_inherit_dependencies_False(self):
-        class Foo(metaclass=service.Meta):
-            pass
-
-        class Bar(metaclass=service.Meta):
-            pass
-
-        class A(metaclass=service.Meta):
-            ORDER_BEFORE = [Foo]
-            ORDER_AFTER = [Bar]
-
-        class B(A, inherit_dependencies=False):
-            ORDER_AFTER = [Foo]
-
-        self.assertSetEqual(
-            {A},
-            Foo.ORDER_AFTER
-        )
-        self.assertSetEqual(
-            {B},
-            Foo.ORDER_BEFORE
-        )
-        self.assertSetEqual(
-            {Foo, A, Bar},
-            B.ORDER_AFTER
-        )
-        self.assertSetEqual(
-            set(),
-            B.ORDER_BEFORE
-        )
-
     def test_support_pre_0_3_attributes_on_class(self):
         class Foo(metaclass=service.Meta):
             pass
@@ -372,24 +262,13 @@ class TestServiceMeta(unittest.TestCase):
             SERVICE_BEFORE = [Foo]
             SERVICE_AFTER = [Bar]
 
-        class B(A, inherit_dependencies=False):
-            SERVICE_AFTER = [Foo]
+        self.assertGreater(Foo, A)
+        self.assertGreater(A, Bar)
+        self.assertGreater(Foo, Bar)
 
-        self.assertSetEqual(
-            {A},
-            Foo.ORDER_AFTER
-        )
-        self.assertSetEqual(
-            {B},
-            Foo.ORDER_BEFORE
-        )
-        self.assertSetEqual(
-            {Foo, A, Bar},
-            B.ORDER_AFTER
-        )
-        self.assertSetEqual(
-            set(),
-            B.ORDER_BEFORE
+        self.assertEqual(
+            Foo.PATCHED_ORDER_AFTER,
+            {A}
         )
 
     def test_support_pre_0_3_attributes_on_read(self):
@@ -539,7 +418,7 @@ class TestServiceMeta(unittest.TestCase):
                     ]
                 )
 
-    def test_allow_duplicate_handlers_on_different_objects_for_non_unique(self):
+    def test_allow_duplicate_handlers_on_different_objects_for_non_unique(self):  # NOQA
         class ObjectWithHandlers:
             def __init__(self, handlers=[]):
                 self._aioxmpp_service_handlers = set(handlers)
@@ -585,7 +464,7 @@ class TestServiceMeta(unittest.TestCase):
 
         with self.assertRaisesRegex(
                 TypeError,
-                r"inheritance from service class with handlers is forbidden"):
+                r"subclassing services is prohibited."):
             class Bar(Foo):
                 pass
 
@@ -608,8 +487,7 @@ class TestServiceMeta(unittest.TestCase):
 
         with self.assertRaisesRegex(
                 TypeError,
-                r"inheritance from service class with descriptors is "
-                "forbidden"):
+                r"subclassing services is prohibited."):
             class Bar(Foo):
                 pass
 

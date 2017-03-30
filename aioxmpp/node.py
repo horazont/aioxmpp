@@ -965,16 +965,20 @@ class Client:
 
     # services
 
-    def _summon(self, class_):
+    def _summon(self, class_, visited):
+        # this is essentially a topological sort algorithm
         try:
             return self._services[class_]
         except KeyError:
+            if class_ in visited:
+                raise ValueError("dependency loop")
+            visited.add(class_)
             instance = class_(
                 self,
                 logger_base=self.logger,
                 dependencies={
-                    depclass: self._services[depclass]
-                    for depclass in class_.ORDER_AFTER
+                    depclass: self._summon(depclass, visited)
+                    for depclass in class_.PATCHED_ORDER_AFTER
                 }
             )
             self._services[class_] = instance
@@ -991,10 +995,7 @@ class Client:
         are not there already). Afterwards, the class itself is summoned and
         the instance is returned.
         """
-        requirements = sorted(class_.ORDER_AFTER)
-        for req in requirements:
-            self._summon(req)
-        return self._summon(class_)
+        return self._summon(class_, set())
 
     # properties
 
