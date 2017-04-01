@@ -881,6 +881,35 @@ class Test_apply_connect_depsignal(unittest.TestCase):
             dependency.signal_name.context_connect(),
         )
 
+    def test_can_connect_to_Client(self):
+        instance = unittest.mock.MagicMock()
+        dependency = unittest.mock.Mock()
+        instance.client = dependency
+
+        result = service._apply_connect_depsignal(
+            instance,
+            unittest.mock.sentinel.stream,
+            unittest.mock.sentinel.func,
+            aioxmpp.node.Client,
+            "signal_name",
+            unittest.mock.sentinel.mode,
+        )
+
+        self.assertSequenceEqual(
+            dependency.mock_calls,
+            [
+                unittest.mock.call.signal_name.context_connect(
+                    unittest.mock.sentinel.func,
+                    unittest.mock.sentinel.mode,
+                )
+            ]
+        )
+
+        self.assertEqual(
+            result,
+            dependency.signal_name.context_connect(),
+        )
+
     def test_does_not_pass_mode_if_it_is_None(self):
         instance = unittest.mock.MagicMock()
         dependency = unittest.mock.Mock()
@@ -1666,6 +1695,23 @@ class Testdepsignal(unittest.TestCase):
         spec, = cb._aioxmpp_service_handlers
         self.assertNotIn(
             aioxmpp.stream.StanzaStream,
+            spec.require_deps,
+        )
+
+    def test_does_not_add_dependency_for_Client(self):
+        @asyncio.coroutine
+        def cb():
+            pass
+
+        decorator = service.depsignal(
+            aioxmpp.node.Client,
+            "before_stream_established",
+        )
+        decorator(cb)
+
+        spec, = cb._aioxmpp_service_handlers
+        self.assertNotIn(
+            aioxmpp.node.Client,
             spec.require_deps,
         )
 

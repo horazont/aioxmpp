@@ -74,6 +74,9 @@ Version 0.9
 
 * :mod:`aioxmpp.misc`
 
+* :func:`aioxmpp.service.depsignal` now supports connecting to
+  :class:`aioxmpp.stream.StanzaStream` and :class:`aioxmpp.Client` signals.
+
 .. _api-changelog-0.8:
 
 Version 0.8
