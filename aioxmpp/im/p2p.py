@@ -30,7 +30,7 @@ from .conversation import (
     AbstractConversationService,
 )
 
-from .dispatcher import IMDispatcher
+from .dispatcher import IMDispatcher, MessageSource
 
 from .service import ConversationService
 
@@ -54,7 +54,12 @@ class Conversation(AbstractConversation):
         )
 
     def _handle_message(self, msg, peer, sent, source):
-        self.on_message_received(msg)
+        if sent:
+            member = self.__members[0]
+        else:
+            member = self.__members[1]
+
+        self.on_message(msg, member, source)
 
     @property
     def peer_jid(self):
@@ -71,7 +76,7 @@ class Conversation(AbstractConversation):
     @asyncio.coroutine
     def send_message(self, msg):
         msg.to = self.__peer_jid
-        self.on_message_sent(msg)
+        self.on_message(msg, self.me, MessageSource.STREAM)
         yield from self._client.stream.send(msg)
 
     @asyncio.coroutine

@@ -19,9 +19,11 @@
 # <http://www.gnu.org/licenses/>.
 #
 ########################################################################
+import asyncio
 import enum
 
 import aioxmpp.callbacks
+import aioxmpp.carbons
 import aioxmpp.service
 import aioxmpp.stream
 
@@ -69,6 +71,8 @@ class IMDispatcher(aioxmpp.service.Service):
         # this helps one-to-one conversations a lot, because they can simply
         # re-use the PresenceClient state
         aioxmpp.dispatcher.SimplePresenceDispatcher,
+
+        aioxmpp.carbons.CarbonsClient,
     ]
 
     def __init__(self, client, **kwargs):
@@ -77,11 +81,42 @@ class IMDispatcher(aioxmpp.service.Service):
         self.presence_filter = aioxmpp.callbacks.Filter()
 
     @aioxmpp.service.depsignal(
+        aioxmpp.node.Client,
+        "before_stream_established")
+    @asyncio.coroutine
+    def enable_carbons(self, *args):
+        carbons = self.dependencies[aioxmpp.carbons.CarbonsClient]
+        try:
+            yield from carbons.enable()
+        except (RuntimeError, aioxmpp.errors.XMPPError):
+            self.logger.info(
+                "remote server does not support message carbons"
+            )
+        else:
+            self.logger.info(
+                "message carbons enabled successfully"
+            )
+
+    @aioxmpp.service.depsignal(
         aioxmpp.stream.StanzaStream,
         "on_message_received")
     def dispatch_message(self, message, *,
                          sent=False,
                          source=MessageSource.STREAM):
+        if message.xep0280_received is not None:
+            if (message.from_ is not None and
+                    message.from_ != self.client.local_jid.bare()):
+                return
+            message = message.xep0280_received.stanza
+            source = MessageSource.CARBONS
+        elif message.xep0280_sent is not None:
+            if (message.from_ is not None and
+                    message.from_ != self.client.local_jid.bare()):
+                return
+            message = message.xep0280_sent.stanza
+            sent = True
+            source = MessageSource.CARBONS
+
         peer = message.to if sent else message.from_
 
         filtered = self.message_filter.filter(

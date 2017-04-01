@@ -568,6 +568,7 @@ class SyncAdHocSignal(AbstractAdHocSignal):
         :meth:`connect` returns a token which can be used with
         :meth:`disconnect` to disconnect the coroutine.
         """
+        self.logger.debug("connecting %r", coro)
         return self._connect(coro)
 
     def context_connect(self, coro):

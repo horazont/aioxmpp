@@ -58,7 +58,7 @@ class TestConversation(unittest.TestCase):
 
         self.c = p2p.Conversation(self.svc, PEER_JID)
 
-        for ev in ["on_message_received"]:
+        for ev in ["on_message"]:
             listener = getattr(self.listener, ev)
             signal = getattr(self.c, ev)
             listener.return_value = None
@@ -101,6 +101,12 @@ class TestConversation(unittest.TestCase):
         self.cc.stream.send.assert_called_once_with(msg)
         self.assertEqual(msg.to, PEER_JID)
 
+        self.listener.on_message.assert_called_once_with(
+            msg,
+            self.c.me,
+            im_dispatcher.MessageSource.STREAM,
+        )
+
     def test_inbound_message_dispatched_to_event(self):
         msg = unittest.mock.sentinel.message
         self.c._handle_message(
@@ -109,8 +115,10 @@ class TestConversation(unittest.TestCase):
             False,
             im_dispatcher.MessageSource.STREAM
         )
-        self.listener.on_message_received.assert_called_once_with(
+        self.listener.on_message.assert_called_once_with(
             msg,
+            self.c.members[1],
+            im_dispatcher.MessageSource.STREAM,
         )
 
     def test_leave_calls_conversation_left(self):

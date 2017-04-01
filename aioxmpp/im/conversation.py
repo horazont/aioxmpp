@@ -217,8 +217,7 @@ class AbstractConversation(metaclass=abc.ABCMeta):
 
     """
 
-    on_message_received = aioxmpp.callbacks.Signal()
-    on_message_sent = aioxmpp.callbacks.Signal()
+    on_message = aioxmpp.callbacks.Signal()
     on_state_changed = aioxmpp.callbacks.Signal()
     on_exit = aioxmpp.callbacks.Signal()
 
