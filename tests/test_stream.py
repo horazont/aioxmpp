@@ -3851,6 +3851,82 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
             r"stream management disabled"
         )
 
+    def test_sm_resume_overflow(self):
+        iqs = [make_test_iq() for i in range(4)]
+
+        additional_iq = iqs.pop()
+
+        self.stream.start(self.xmlstream)
+        run_coroutine_with_peer(
+            self.stream.start_sm(),
+            self.xmlstream.run_test(self.successful_sm)
+        )
+
+        for iq in iqs:
+            self.stream.enqueue(iq)
+
+        run_coroutine(asyncio.sleep(0))
+
+        self.established_rec.assert_called_once_with()
+        self.established_rec.reset_mock()
+
+        self.stream._sm_outbound_base = 0xfffffffe
+        run_coroutine(self.xmlstream.run_test([
+            XMLStreamMock.Send(iqs[0]),
+            XMLStreamMock.Send(iqs[1]),
+            XMLStreamMock.Send(iqs[2]),
+            XMLStreamMock.Send(
+                nonza.SMRequest(),
+                response=XMLStreamMock.Receive(
+                    nonza.SMAcknowledgement(counter=0xffffffff)
+                )
+            )
+        ]))
+
+        self.stream.stop()
+
+        run_coroutine(asyncio.sleep(0))
+
+        self.assertFalse(self.destroyed_rec.mock_calls)
+
+        # enqueue a stanza before resumption and check that the sequence is
+        # correct (resumption-generated stanzas before new stanzas)
+        self.stream.enqueue(additional_iq)
+
+        run_coroutine_with_peer(
+            self.stream.resume_sm(self.xmlstream),
+            self.xmlstream.run_test([
+                XMLStreamMock.Send(
+                    nonza.SMResume(previd="foobar",
+                                         counter=0),
+                    response=XMLStreamMock.Receive(
+                        nonza.SMResumed(previd="foobar",
+                                              counter=0)
+                    )
+                ),
+                XMLStreamMock.Send(iqs[2]),
+                XMLStreamMock.Send(additional_iq),
+                XMLStreamMock.Send(nonza.SMRequest()),
+            ])
+        )
+
+        self.assertFalse(self.established_rec.mock_calls)
+
+        self.stream.stop()
+        run_coroutine(asyncio.sleep(0))
+        self.stream.stop_sm()
+
+        self.destroyed_rec.assert_called_once_with(unittest.mock.ANY)
+        _, (exc,), _ = self.destroyed_rec.mock_calls[0]
+        self.assertIsInstance(
+            exc,
+            ConnectionError,
+        )
+        self.assertRegex(
+            str(exc),
+            r"stream management disabled"
+        )
+
     def test_sm_race(self):
         iqs = [make_test_iq() for i in range(4)]
 
