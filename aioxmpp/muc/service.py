@@ -994,17 +994,6 @@ class MUCClient(aioxmpp.service.Service):
     def __init__(self, client, **kwargs):
         super().__init__(client, **kwargs)
 
-        self._signal_tokens = [
-            _connect_to_signal(
-                client.on_stream_established,
-                self._stream_established
-            ),
-            _connect_to_signal(
-                client.on_stream_destroyed,
-                self._stream_destroyed
-            )
-        ]
-
         self._pending_mucs = {}
         self._joined_mucs = {}
 
@@ -1016,6 +1005,7 @@ class MUCClient(aioxmpp.service.Service):
         presence.xep0045_muc.history = history
         self.client.stream.enqueue(presence)
 
+    @aioxmpp.service.depsignal(aioxmpp.Client, "on_stream_established")
     def _stream_established(self):
         self.logger.debug("stream established, (re-)connecting to %d mucs",
                           len(self._pending_mucs))
@@ -1027,6 +1017,7 @@ class MUCClient(aioxmpp.service.Service):
             self.logger.debug("%s: sending join presence", muc.mucjid)
             self._send_join_presence(muc.mucjid, history, nick, muc.password)
 
+    @aioxmpp.service.depsignal(aioxmpp.Client, "on_stream_destroyed")
     def _stream_destroyed(self):
         self.logger.debug(
             "stream destroyed, preparing autorejoin and cleaning up the others"

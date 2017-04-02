@@ -2276,6 +2276,24 @@ class TestService(unittest.TestCase):
             )
         )
 
+    def test__stream_established_is_decorated(self):
+        self.assertTrue(
+            aioxmpp.service.is_depsignal_handler(
+                aioxmpp.Client,
+                "on_stream_established",
+                muc_service.MUCClient._stream_established,
+            )
+        )
+
+    def test__stream_destroyed_is_decorated(self):
+        self.assertTrue(
+            aioxmpp.service.is_depsignal_handler(
+                aioxmpp.Client,
+                "on_stream_destroyed",
+                muc_service.MUCClient._stream_destroyed,
+            )
+        )
+
     def test__inbound_presence_filter_passes_ordinary_presence(self):
         presence = aioxmpp.stanza.Presence()
         self.assertIs(
