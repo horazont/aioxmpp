@@ -286,6 +286,13 @@ class StanzaToken:
 
         return self._state
 
+    @property
+    def future(self):
+        if self._sent_future is None:
+            self._sent_future = asyncio.Future()
+            self._update_future()
+        return self._sent_future
+
     def _update_future(self):
         if self._sent_future.done():
             return
@@ -335,11 +342,8 @@ class StanzaToken:
 
     @asyncio.coroutine
     def __await__(self):
-        if self._sent_future is None:
-            self._sent_future = asyncio.Future()
-            self._update_future()
         try:
-            yield from asyncio.shield(self._sent_future)
+            yield from asyncio.shield(self.future)
         except asyncio.CancelledError:
             if self._state == StanzaState.ACTIVE:
                 self.abort()
