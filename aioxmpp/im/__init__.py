@@ -46,6 +46,8 @@ Enumerations
 
 .. autoclass:: ConversationState
 
+.. autoclass:: ConversationFeature
+
 .. autoclass:: InviteMode
 
 Abstract base classes
@@ -66,5 +68,6 @@ Conversations
 
 from .conversation import (  # NOQA
     ConversationState,
+    ConversationFeature,
     InviteMode,
 )
