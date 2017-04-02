@@ -31,6 +31,7 @@ from aioxmpp.utils import namespaces
 TEST_JID1 = aioxmpp.JID.fromstr("foo@exmaple.com")
 TEST_JID2 = aioxmpp.JID.fromstr("spam.example.com")
 
+
 class TestNamespace(unittest.TestCase):
     def test_namespace(self):
         self.assertEqual(
@@ -72,6 +73,7 @@ class TestBlockCommand(unittest.TestCase):
             block_command.items,
             []
         )
+
 
 class TestUnblockCommand(unittest.TestCase):
     def test_is_xso(self):

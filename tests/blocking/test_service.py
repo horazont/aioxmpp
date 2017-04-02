@@ -74,6 +74,13 @@ class TestBlockingClient(unittest.TestCase):
             aioxmpp.DiscoClient
         )
 
+    def test_get_initial_blocklist_is_depsignal_handler(self):
+        self.assertTrue(aioxmpp.service.is_depsignal_handler(
+            aioxmpp.Client,
+            "before_stream_established",
+            self.s._get_initial_blocklist
+        ))
+
     def test_handle_stream_destroyed_is_depsignal_handler(self):
         self.assertTrue(aioxmpp.service.is_depsignal_handler(
             aioxmpp.stream.StanzaStream,

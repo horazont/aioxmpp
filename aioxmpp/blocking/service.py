@@ -83,10 +83,6 @@ class BlockingClient(service.Service):
         self._lock = asyncio.Lock()
         self._disco = self.dependencies[aioxmpp.DiscoClient]
 
-        self._bse_token = client.before_stream_established.connect(
-            self._get_initial_blocklist
-        )
-
     on_jids_blocked = callbacks.Signal()
     on_jids_unblocked = callbacks.Signal()
     on_initial_blocklist_received = callbacks.Signal()
@@ -104,6 +100,7 @@ class BlockingClient(service.Service):
             self._blocklist = None
             raise RuntimeError("server does not support blocklists!")
 
+    @service.depsignal(aioxmpp.Client, "before_stream_established")
     @asyncio.coroutine
     def _get_initial_blocklist(self):
         yield from self._check_for_blocking()
