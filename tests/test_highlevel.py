@@ -295,7 +295,7 @@ class TestProtocol(unittest.TestCase):
                         b'<r xmlns="urn:xmpp:sm:3"/>',
                         response=[
                             TransportMock.Receive(
-                                b'<a xmlns="urn:xmpp:sm:3" h="1"/>',
+                                b'<a xmlns="urn:xmpp:sm:3" h="0"/>',
                             ),
                             TransportMock.Receive(
                                 b'<r xmlns="urn:xmpp:sm:3"/>',
