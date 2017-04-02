@@ -72,6 +72,11 @@ It is strongly recommended that you close message trackers after a timeout. You
 can use :meth:`MessageTracker.set_timeout` for that, or manually call
 :meth:`MessageTracker.close` as desired.
 
+Tracking implementations
+========================
+
+.. autoclass:: BasicTrackingService
+
 Interfaces
 ==========
 
@@ -81,11 +86,13 @@ Interfaces
 
 """
 import asyncio
+import functools
 
 from datetime import timedelta
 from enum import Enum
 
 import aioxmpp.callbacks
+import aioxmpp.service
 
 
 class MessageState(Enum):
@@ -328,3 +335,139 @@ class MessageTracker:
         self._state = new_state
         self._response = response
         self.on_state_changed(self._state, self._response)
+
+
+class BasicTrackingService(aioxmpp.service.Service):
+    """
+    Error handling and :class:`~.StanzaToken`\ -based tracking for messages.
+
+    This service provides the most basic tracking of message stanzas. It can be
+    combined with other forms of tracking.
+
+    Specifically, the stanza is tracked using the means of
+    :class:`~.StanzaToken`, that is, until it is acknowledged by the server. In
+    addition, error stanzas in reply to the message are also tracked (but they
+    do not override states occuring after
+    :attr:`~.MessageState.DELIVERED_TO_SERVER`).
+
+    Tracking stanzas:
+
+    .. automethod:: send_tracked
+
+    .. automethod:: attach_tracker
+    """
+
+    def __init__(self, client, **kwargs):
+        super().__init__(client, **kwargs)
+        self._trackers = {}
+
+    @aioxmpp.service.inbound_message_filter
+    def _inbound_message_filter(self, message):
+        try:
+            if message.type_ != aioxmpp.MessageType.ERROR:
+                return message
+        except AttributeError:
+            return message
+
+        try:
+            key = message.from_.bare(), message.id_
+        except AttributeError:
+            return message
+
+        try:
+            tracker = self._trackers.pop(key)
+        except KeyError:
+            return message
+
+        if tracker.state == MessageState.DELIVERED_TO_RECIPIENT:
+            return
+        if tracker.state == MessageState.SEEN_BY_RECIPIENT:
+            return
+        tracker._set_state(MessageState.ERROR, message)
+
+    def _tracker_closed(self, key):
+        self._trackers.pop(key, None)
+
+    def _stanza_sent(self, tracker, token, fut):
+        try:
+            fut.result()
+        except asyncio.CancelledError:
+            pass
+        except:
+            tracker._set_state(MessageState.ABORTED)
+        else:
+            tracker._set_state(MessageState.DELIVERED_TO_SERVER)
+
+    def send_tracked(self, stanza, tracker):
+        """
+        Send a message stanza with tracking.
+
+        :param stanza: Message stanza to send.
+        :type stanza: :class:`aioxmpp.Message`
+        :param tracker: Message tracker to use.
+        :type tracker: :class:`~.MessageTracker`
+        :rtype: :class:`~.StanzaToken`
+        :return: The token used to send the stanza.
+
+        If `tracker` is :data:`None`, a new :class:`~.MessageTracker` is
+        created.
+
+        This configures tracking for the stanza as if by calling
+        :meth:`attach_tracker` with a `token` and sends the stanza through the
+        stream.
+
+        .. seealso::
+
+           :meth:`attach_tracker`
+              can be used if the stanza cannot be sent (e.g. because it is a
+              carbon-copy) or has already been sent.
+        """
+        token = self.client.stream.enqueue(stanza)
+        self.attach_tracker(stanza, tracker, token)
+        return token
+
+    def attach_tracker(self, stanza, tracker=None, token=None):
+        """
+        Configure tracking for a stanza without sending it.
+
+        :param stanza: Message stanza to send.
+        :type stanza: :class:`aioxmpp.Message`
+        :param tracker: Message tracker to use.
+        :type tracker: :class:`~.MessageTracker` or :data:`None`
+        :param token: Optional stanza token for more fine-grained tracking.
+        :type token: :class:`~.StanzaToken`
+        :rtype: :class:`~.MessageTracker`
+        :return: The message tracker.
+
+        If `tracker` is :data:`None`, a new :class:`~.MessageTracker` is
+        created.
+
+        If `token` is not :data:`None`, updates to the stanza `token` are
+        reflected in the `tracker`.
+
+        If an error reply is received, the tracker will enter
+        :class:`~.MessageState.ERROR` and the error will be set as
+        :attr:`~.MessageTracker.response`.
+
+        You should use :meth:`send_tracked` if possible. This method however is
+        very useful if you need to track carbon copies of sent messages, as a
+        stanza token is not available here and re-sending the message to obtain
+        one is generally not desirable ☺.
+        """
+        if tracker is None:
+            tracker = MessageTracker()
+        stanza.autoset_id()
+        key = stanza.to.bare(), stanza.id_
+        self._trackers[key] = tracker
+        tracker.on_closed.connect(
+            functools.partial(self._tracker_closed, key)
+        )
+        if token is not None:
+            token.future.add_done_callback(
+                functools.partial(
+                    self._stanza_sent,
+                    tracker,
+                    token,
+                )
+            )
+        return tracker

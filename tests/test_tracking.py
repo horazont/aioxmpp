@@ -19,6 +19,7 @@
 # <http://www.gnu.org/licenses/>.
 #
 ########################################################################
+import asyncio
 import contextlib
 import itertools
 import unittest
@@ -26,7 +27,18 @@ import unittest.mock
 
 from datetime import timedelta
 
+import aioxmpp.service
 import aioxmpp.tracking as tracking
+
+from aioxmpp.utils import namespaces
+
+from aioxmpp.testutils import (
+    make_connected_client,
+)
+
+
+TEST_LOCAL = aioxmpp.JID.fromstr("romeo@montague.example/garden")
+TEST_PEER = aioxmpp.JID.fromstr("juliet@capulet.example/chamber")
 
 
 class TestMessageTracker(unittest.TestCase):
@@ -287,3 +299,416 @@ class TestMessageTracker(unittest.TestCase):
             timedelta(days=1).total_seconds(),
             self.t.close,
         )
+
+
+class TestBasicTrackingService(unittest.TestCase):
+    def setUp(self):
+        self.cc = make_connected_client()
+        self.s = tracking.BasicTrackingService(self.cc)
+
+    def tearDown(self):
+        del self.s
+        del self.cc
+
+    def test_is_service(self):
+        self.assertTrue(issubclass(
+            tracking.BasicTrackingService,
+            aioxmpp.service.Service,
+        ))
+
+    def test_installs_message_filter(self):
+        self.assertTrue(aioxmpp.service.is_inbound_message_filter(
+            tracking.BasicTrackingService._inbound_message_filter,
+        ))
+
+    def test_inbound_message_filter_forwards_stanzas(self):
+        for type_ in aioxmpp.MessageType:
+            msg = aioxmpp.Message(
+                type_=type_,
+                from_=TEST_PEER,
+                to=TEST_LOCAL,
+            )
+            self.assertIs(
+                msg,
+                self.s._inbound_message_filter(msg),
+            )
+
+    def test_inbound_message_filter_forwards_broken_stanzas(self):
+        msg = object()
+        self.assertIs(
+            msg,
+            self.s._inbound_message_filter(msg),
+        )
+
+    def test_attach_tracker_calls_autoset_id(self):
+        msg = unittest.mock.Mock()
+        self.s.attach_tracker(msg)
+        msg.autoset_id.assert_called_once_with()
+
+    def test_attach_tracker_with_subsequent_error_modifies_tracking(self):
+        tracker = tracking.MessageTracker()
+        msg = aioxmpp.Message(
+            type_=aioxmpp.MessageType.CHAT,
+            from_=TEST_LOCAL,
+            to=TEST_PEER,
+        )
+        self.assertIs(
+            self.s.attach_tracker(msg, tracker),
+            tracker
+        )
+
+        error = msg.make_error(aioxmpp.stanza.Error.from_exception(
+            aioxmpp.XMPPCancelError(
+                (namespaces.stanzas, "feature-not-implemented")
+            )
+        ))
+
+        self.assertIsNone(self.s._inbound_message_filter(error))
+
+        self.assertEqual(
+            tracker.state,
+            tracking.MessageState.ERROR
+        )
+        self.assertIs(
+            tracker.response,
+            error,
+        )
+
+    def test_attach_tracker_with_subsequent_error_from_bare_modifies_tracking(
+            self):
+        tracker = tracking.MessageTracker()
+        msg = aioxmpp.Message(
+            type_=aioxmpp.MessageType.CHAT,
+            from_=TEST_LOCAL,
+            to=TEST_PEER,
+        )
+        self.assertIs(
+            self.s.attach_tracker(msg, tracker),
+            tracker
+        )
+
+        error = msg.make_error(aioxmpp.stanza.Error.from_exception(
+            aioxmpp.XMPPCancelError(
+                (namespaces.stanzas, "feature-not-implemented")
+            )
+        ))
+        error.from_ = error.from_.bare()
+
+        self.assertIsNone(self.s._inbound_message_filter(error))
+
+        self.assertEqual(
+            tracker.state,
+            tracking.MessageState.ERROR
+        )
+        self.assertIs(
+            tracker.response,
+            error,
+        )
+
+    def test_attach_tracker_with_subsequent_error_from_other_id_untracked(
+            self):
+        tracker = tracking.MessageTracker()
+        msg = aioxmpp.Message(
+            type_=aioxmpp.MessageType.CHAT,
+            from_=TEST_LOCAL,
+            to=TEST_PEER,
+        )
+        self.assertIs(
+            self.s.attach_tracker(msg, tracker),
+            tracker
+        )
+
+        error = msg.make_error(aioxmpp.stanza.Error.from_exception(
+            aioxmpp.XMPPCancelError(
+                (namespaces.stanzas, "feature-not-implemented")
+            )
+        ))
+        error.id_ = "fnord"
+
+        self.assertIs(self.s._inbound_message_filter(error), error)
+
+        self.assertEqual(
+            tracker.state,
+            tracking.MessageState.IN_TRANSIT
+        )
+        self.assertIs(
+            tracker.response,
+            None,
+        )
+
+    def test_attach_tracker_sets_delivered_to_server_if_ok(self):
+        tracker = tracking.MessageTracker()
+        msg = aioxmpp.Message(
+            type_=aioxmpp.MessageType.CHAT,
+            from_=TEST_LOCAL,
+            to=TEST_PEER,
+        )
+        token = unittest.mock.Mock()
+        self.assertIs(
+            self.s.attach_tracker(msg, tracker, token),
+            tracker
+        )
+
+        token.future.add_done_callback.assert_called_once_with(
+            unittest.mock.ANY,
+        )
+
+        _, (cb, ), _ = token.future.add_done_callback.mock_calls[0]
+
+        cb(token.future)
+
+        self.assertEqual(
+            tracker.state,
+            tracking.MessageState.DELIVERED_TO_SERVER,
+        )
+
+    def test_attach_tracker_sets_aborted_if_aborted(self):
+        tracker = tracking.MessageTracker()
+        msg = aioxmpp.Message(
+            type_=aioxmpp.MessageType.CHAT,
+            from_=TEST_LOCAL,
+            to=TEST_PEER,
+        )
+        token = unittest.mock.Mock()
+        self.assertIs(
+            self.s.attach_tracker(msg, tracker, token),
+            tracker
+        )
+
+        token.future.add_done_callback.assert_called_once_with(
+            unittest.mock.ANY,
+        )
+        token.future.result.side_effect = RuntimeError()
+
+        _, (cb, ), _ = token.future.add_done_callback.mock_calls[0]
+
+        cb(token.future)
+
+        self.assertEqual(
+            tracker.state,
+            tracking.MessageState.ABORTED,
+        )
+
+    def test_attach_tracker_sets_aborted_on_other_exception(self):
+        tracker = tracking.MessageTracker()
+        msg = aioxmpp.Message(
+            type_=aioxmpp.MessageType.CHAT,
+            from_=TEST_LOCAL,
+            to=TEST_PEER,
+        )
+        token = unittest.mock.Mock()
+        self.assertIs(
+            self.s.attach_tracker(msg, tracker, token),
+            tracker
+        )
+
+        class FooException(Exception):
+            pass
+
+        token.future.add_done_callback.assert_called_once_with(
+            unittest.mock.ANY,
+        )
+        token.future.result.side_effect = FooException()
+
+        _, (cb, ), _ = token.future.add_done_callback.mock_calls[0]
+
+        cb(token.future)
+
+        self.assertEqual(
+            tracker.state,
+            tracking.MessageState.ABORTED,
+        )
+
+    def test_attach_tracker_ignores_cancelled_stanza_token(self):
+        tracker = tracking.MessageTracker()
+        msg = aioxmpp.Message(
+            type_=aioxmpp.MessageType.CHAT,
+            from_=TEST_LOCAL,
+            to=TEST_PEER,
+        )
+        token = unittest.mock.Mock()
+        self.assertIs(
+            self.s.attach_tracker(msg, tracker, token),
+            tracker
+        )
+
+        token.future.add_done_callback.assert_called_once_with(
+            unittest.mock.ANY,
+        )
+        token.future.result.side_effect = asyncio.CancelledError()
+
+        _, (cb, ), _ = token.future.add_done_callback.mock_calls[0]
+
+        cb(token.future)
+
+        self.assertEqual(
+            tracker.state,
+            tracking.MessageState.IN_TRANSIT,
+        )
+
+    def test_attach_tracker_does_not_set_error_if_in_delivered_state(self):
+        tracker = tracking.MessageTracker()
+        msg = aioxmpp.Message(
+            type_=aioxmpp.MessageType.CHAT,
+            from_=TEST_LOCAL,
+            to=TEST_PEER,
+        )
+        self.assertIs(
+            self.s.attach_tracker(msg, tracker),
+            tracker
+        )
+
+        tracker._set_state(tracking.MessageState.DELIVERED_TO_RECIPIENT)
+
+        error = msg.make_error(aioxmpp.stanza.Error.from_exception(
+            aioxmpp.XMPPCancelError(
+                (namespaces.stanzas, "feature-not-implemented")
+            )
+        ))
+
+        self.assertIsNone(self.s._inbound_message_filter(error))
+
+        self.assertEqual(
+            tracker.state,
+            tracking.MessageState.DELIVERED_TO_RECIPIENT
+        )
+        self.assertIs(
+            tracker.response,
+            None,
+        )
+
+    def test_attach_tracker_does_not_set_error_if_in_seen_state(self):
+        tracker = tracking.MessageTracker()
+        msg = aioxmpp.Message(
+            type_=aioxmpp.MessageType.CHAT,
+            from_=TEST_LOCAL,
+            to=TEST_PEER,
+        )
+        self.assertIs(
+            self.s.attach_tracker(msg, tracker),
+            tracker
+        )
+
+        tracker._set_state(tracking.MessageState.SEEN_BY_RECIPIENT)
+
+        error = msg.make_error(aioxmpp.stanza.Error.from_exception(
+            aioxmpp.XMPPCancelError(
+                (namespaces.stanzas, "feature-not-implemented")
+            )
+        ))
+
+        self.assertIsNone(self.s._inbound_message_filter(error))
+
+        self.assertEqual(
+            tracker.state,
+            tracking.MessageState.SEEN_BY_RECIPIENT
+        )
+        self.assertIs(
+            tracker.response,
+            None,
+        )
+
+    def test_attach_tracker_with_subsequent_chat_is_not_tracked(self):
+        tracker = tracking.MessageTracker()
+        msg = aioxmpp.Message(
+            type_=aioxmpp.MessageType.CHAT,
+            from_=TEST_LOCAL,
+            to=TEST_PEER,
+        )
+        self.assertIs(
+            self.s.attach_tracker(msg, tracker),
+            tracker
+        )
+
+        reply = msg.make_reply()
+        reply.id_ = msg.id_
+        self.assertIs(
+            reply,
+            self.s._inbound_message_filter(reply)
+        )
+
+        self.assertEqual(
+            tracker.state,
+            tracking.MessageState.IN_TRANSIT
+        )
+
+    def test_inbound_message_filter_ignores_closed_tracker(self):
+        tracker = tracking.MessageTracker()
+        msg = aioxmpp.Message(
+            type_=aioxmpp.MessageType.CHAT,
+            from_=TEST_LOCAL,
+            to=TEST_PEER,
+        )
+        self.assertIs(
+            self.s.attach_tracker(msg, tracker),
+            tracker
+        )
+
+        tracker.close()
+
+        error = msg.make_error(aioxmpp.stanza.Error.from_exception(
+            aioxmpp.XMPPCancelError(
+                (namespaces.stanzas, "feature-not-implemented")
+            )
+        ))
+
+        self.assertIs(error, self.s._inbound_message_filter(error))
+
+        self.assertEqual(
+            tracker.state,
+            tracking.MessageState.IN_TRANSIT,
+        )
+        self.assertTrue(tracker.closed)
+
+    def test_attach_tracker_autocreates_tracker_if_needed(self):
+        msg = aioxmpp.Message(
+            type_=aioxmpp.MessageType.CHAT,
+            from_=TEST_LOCAL,
+            to=TEST_PEER,
+        )
+        tracker = self.s.attach_tracker(msg, None)
+        self.assertIsInstance(tracker, tracking.MessageTracker)
+
+        error = msg.make_error(aioxmpp.stanza.Error.from_exception(
+            aioxmpp.XMPPCancelError(
+                (namespaces.stanzas, "feature-not-implemented")
+            )
+        ))
+
+        self.assertIsNone(self.s._inbound_message_filter(error))
+
+        self.assertEqual(
+            tracker.state,
+            tracking.MessageState.ERROR
+        )
+        self.assertIs(
+            tracker.response,
+            error,
+        )
+
+    def test_send_tracked_attaches_and_returns_tracker(self):
+        tracker = unittest.mock.sentinel.tracker
+        msg = unittest.mock.sentinel.message
+
+        with contextlib.ExitStack() as stack:
+            attach_tracker = stack.enter_context(unittest.mock.patch.object(
+                self.s,
+                "attach_tracker",
+            ))
+
+            result = self.s.send_tracked(msg, tracker)
+
+            self.cc.stream.enqueue.assert_called_once_with(
+                msg,
+            )
+
+            attach_tracker.assert_called_once_with(
+                msg,
+                tracker,
+                self.cc.stream.enqueue(),
+            )
+
+            self.assertEqual(
+                result,
+                self.cc.stream.enqueue(),
+            )
