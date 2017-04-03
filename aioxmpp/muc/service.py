@@ -31,6 +31,7 @@ import aioxmpp.service
 import aioxmpp.stanza
 import aioxmpp.structs
 import aioxmpp.tracking
+import aioxmpp.im.dispatcher
 
 from . import xso as muc_xso
 
@@ -989,6 +990,11 @@ class MUCClient(aioxmpp.service.Service):
        1.0.
 
     """
+
+    ORDER_AFTER = [
+        aioxmpp.im.dispatcher.IMDispatcher,
+    ]
+
     on_muc_joined = aioxmpp.callbacks.Signal()
 
     def __init__(self, client, **kwargs):
@@ -1110,8 +1116,13 @@ class MUCClient(aioxmpp.service.Service):
         else:
             fut.set_exception(stanza.error.to_exception())
 
-    @aioxmpp.service.inbound_presence_filter
-    def _inbound_presence_filter(self, stanza):
+    @aioxmpp.service.depfilter(
+        aioxmpp.im.dispatcher.IMDispatcher,
+        "presence_filter")
+    def _handle_presence(self, stanza, peer, sent):
+        if sent:
+            return stanza
+
         if stanza.xep0045_muc_user is not None:
             self._inbound_muc_user_presence(stanza)
             return None

@@ -29,6 +29,7 @@ from datetime import datetime, timedelta
 import aioxmpp.callbacks
 import aioxmpp.errors
 import aioxmpp.forms
+import aioxmpp.im.dispatcher as im_dispatcher
 import aioxmpp.muc.service as muc_service
 import aioxmpp.muc.xso as muc_xso
 import aioxmpp.service as service
@@ -2261,7 +2262,10 @@ class TestService(unittest.TestCase):
 
     def setUp(self):
         self.cc = make_connected_client()
-        self.s = muc_service.MUCClient(self.cc)
+        self.im_dispatcher = im_dispatcher.IMDispatcher(self.cc)
+        self.s = muc_service.MUCClient(self.cc, dependencies={
+            im_dispatcher.IMDispatcher: self.im_dispatcher,
+        })
 
     def test_event_attributes(self):
         self.assertIsInstance(
@@ -2269,10 +2273,18 @@ class TestService(unittest.TestCase):
             aioxmpp.callbacks.AdHocSignal
         )
 
-    def test_inbound_presence_filter_is_decorated(self):
+    def test_depends_on_IMDispatcher(self):
+        self.assertIn(
+            im_dispatcher.IMDispatcher,
+            muc_service.MUCClient.ORDER_AFTER,
+        )
+
+    def test_handle_presence_is_decorated(self):
         self.assertTrue(
-            aioxmpp.service.is_inbound_presence_filter(
-                muc_service.MUCClient._inbound_presence_filter,
+            aioxmpp.service.is_depfilter_handler(
+                im_dispatcher.IMDispatcher,
+                "presence_filter",
+                muc_service.MUCClient._handle_presence,
             )
         )
 
@@ -2294,14 +2306,16 @@ class TestService(unittest.TestCase):
             )
         )
 
-    def test__inbound_presence_filter_passes_ordinary_presence(self):
+    def test__handle_presence_passes_ordinary_presence(self):
         presence = aioxmpp.stanza.Presence()
         self.assertIs(
             presence,
-            self.s._inbound_presence_filter(presence)
+            self.s._handle_presence(
+                presence, presence.from_, False
+            )
         )
 
-    def test__inbound_presence_filter_catches_presence_with_muc_user(self):
+    def test__handle_presence_catches_presence_with_muc_user(self):
         presence = aioxmpp.stanza.Presence()
         presence.xep0045_muc_user = muc_xso.UserExt()
 
@@ -2310,12 +2324,35 @@ class TestService(unittest.TestCase):
                 "_inbound_muc_user_presence") as handler:
             handler.return_value = 123
             self.assertIsNone(
-                self.s._inbound_presence_filter(presence)
+                self.s._handle_presence(
+                    presence,
+                    presence.from_,
+                    False,
+                )
             )
 
         handler.assert_called_with(presence)
 
-    def test__inbound_presence_filter_catches_presence_with_muc(self):
+    def test__handle_presence_ignores_presence_with_muc_user_if_sent(self):
+        presence = aioxmpp.stanza.Presence()
+        presence.xep0045_muc_user = muc_xso.UserExt()
+
+        with unittest.mock.patch.object(
+                self.s,
+                "_inbound_muc_user_presence") as handler:
+            handler.return_value = 123
+            self.assertIs(
+                presence,
+                self.s._handle_presence(
+                    presence,
+                    presence.from_,
+                    True,
+                )
+            )
+
+        handler.assert_not_called()
+
+    def test__handle_presence_catches_presence_with_muc(self):
         presence = aioxmpp.stanza.Presence()
         presence.xep0045_muc = muc_xso.GenericExt()
         with unittest.mock.patch.object(
@@ -2323,10 +2360,32 @@ class TestService(unittest.TestCase):
                 "_inbound_muc_presence") as handler:
             handler.return_value = 123
             self.assertIsNone(
-                self.s._inbound_presence_filter(presence)
+                self.s._handle_presence(
+                    presence,
+                    presence.from_,
+                    False,
+                )
             )
 
         handler.assert_called_with(presence)
+
+    def test__handle_presence_ignores_presence_with_muc_if_sent(self):
+        presence = aioxmpp.stanza.Presence()
+        presence.xep0045_muc = muc_xso.GenericExt()
+        with unittest.mock.patch.object(
+                self.s,
+                "_inbound_muc_presence") as handler:
+            handler.return_value = 123
+            self.assertIs(
+                presence,
+                self.s._handle_presence(
+                    presence,
+                    presence.from_,
+                    True,
+                )
+            )
+
+        handler.assert_not_called()
 
     def test_join_without_password_or_history(self):
         with self.assertRaises(KeyError):
@@ -2541,7 +2600,11 @@ class TestService(unittest.TestCase):
             type_=aioxmpp.structs.PresenceType.ERROR)
         response.xep0045_muc = muc_xso.GenericExt()
         response.error = aioxmpp.stanza.Error()
-        self.s._inbound_presence_filter(response)
+        self.s._handle_presence(
+            response,
+            response.from_,
+            False,
+        )
 
         self.assertTrue(future.done())
         self.assertIsInstance(
@@ -2589,9 +2652,11 @@ class TestService(unittest.TestCase):
             status_codes={110},
         )
 
-        base = unittest.mock.Mock()
-
-        self.s._inbound_presence_filter(occupant_presence)
+        self.s._handle_presence(
+            occupant_presence,
+            occupant_presence.from_,
+            False,
+        )
 
         self.assertTrue(future.done())
         self.assertIsNone(future.result())
@@ -2609,9 +2674,11 @@ class TestService(unittest.TestCase):
         )
         occupant_presence.xep0045_muc_user = muc_xso.UserExt()
 
-        base = unittest.mock.Mock()
-
-        self.s._inbound_presence_filter(occupant_presence)
+        self.s._handle_presence(
+            occupant_presence,
+            occupant_presence.from_,
+            False,
+        )
 
         self.assertFalse(future.done())
 
@@ -2649,7 +2716,11 @@ class TestService(unittest.TestCase):
             ))
 
             for presence in occupant_presences:
-                self.s._inbound_presence_filter(presence)
+                self.s._handle_presence(
+                    presence,
+                    presence.from_,
+                    False,
+                )
 
         self.assertSequenceEqual(
             base.mock_calls,
@@ -2697,7 +2768,11 @@ class TestService(unittest.TestCase):
             ))
 
             for presence in occupant_presences:
-                self.s._inbound_presence_filter(presence)
+                self.s._handle_presence(
+                    presence,
+                    presence.from_,
+                    False,
+                )
 
             self.s._inbound_message(msg)
 
@@ -2718,7 +2793,11 @@ class TestService(unittest.TestCase):
         presence.xep0045_muc_user = muc_xso.UserExt()
         presence.xep0045_muc_user.status_codes.add(110)
 
-        self.s._inbound_presence_filter(presence)
+        self.s._handle_presence(
+            presence,
+            presence.from_,
+            False,
+        )
         run_coroutine(asyncio.sleep(0))
 
         self.assertTrue(future.done())
@@ -2730,7 +2809,11 @@ class TestService(unittest.TestCase):
         presence.xep0045_muc_user = muc_xso.UserExt()
         presence.xep0045_muc_user.status_codes.add(110)
 
-        self.s._inbound_presence_filter(presence)
+        self.s._handle_presence(
+            presence,
+            presence.from_,
+            False,
+        )
         run_coroutine(asyncio.sleep(0))
 
         with self.assertRaises(KeyError):
@@ -2826,7 +2909,11 @@ class TestService(unittest.TestCase):
             status_codes={110}
         )
 
-        self.s._inbound_presence_filter(presence)
+        self.s._handle_presence(
+            presence,
+            presence.from_,
+            False,
+        )
         run_coroutine(asyncio.sleep(0))
 
         self.assertTrue(fut1.done())
@@ -2914,7 +3001,11 @@ class TestService(unittest.TestCase):
         presence.xep0045_muc_user = muc_xso.UserExt(
             status_codes={110}
         )
-        self.s._inbound_presence_filter(presence)
+        self.s._handle_presence(
+            presence,
+            presence.from_,
+            False,
+        )
 
         presence = aioxmpp.stanza.Presence(
             type_=aioxmpp.structs.PresenceType.AVAILABLE,
@@ -2924,7 +3015,11 @@ class TestService(unittest.TestCase):
         presence.xep0045_muc_user = muc_xso.UserExt(
             status_codes={110}
         )
-        self.s._inbound_presence_filter(presence)
+        self.s._handle_presence(
+            presence,
+            presence.from_,
+            False,
+        )
 
         run_coroutine(asyncio.sleep(0))
 
@@ -2984,7 +3079,11 @@ class TestService(unittest.TestCase):
             status_codes={110}
         )
 
-        self.s._inbound_presence_filter(presence)
+        self.s._handle_presence(
+            presence,
+            presence.from_,
+            False,
+        )
         run_coroutine(asyncio.sleep(0))
 
         self.assertTrue(fut1.done())
@@ -3065,7 +3164,11 @@ class TestService(unittest.TestCase):
             TEST_MUC_JID.replace(localpart="bar"),
             "thirdwitch")
 
-        self.s._inbound_presence_filter(presence)
+        self.s._handle_presence(
+            presence,
+            presence.from_,
+            False,
+        )
 
         base = unittest.mock.Mock()
 
