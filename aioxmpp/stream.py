@@ -1035,6 +1035,7 @@ class StanzaStream:
         # now handle stanzas, these always increment the SM counter
         if self._sm_enabled:
             self._sm_inbound_ctr += 1
+            self._sm_inbound_ctr &= 0xffffffff
 
         # check if the stanza has errors
         if exc is not None:
@@ -2238,6 +2239,9 @@ class StanzaStream:
         :attr:`StanzaState.ACKED` state and the counters are increased
         accordingly.
 
+        If called with an erroneous remote stanza counter
+        :class:`.errors.StreamNegotationFailure` will be raised.
+
         Attempting to call this without Stream Management enabled results in a
         :class:`RuntimeError`.
         """
@@ -2246,14 +2250,17 @@ class StanzaStream:
             raise RuntimeError("Stream Management is not enabled")
 
         self._logger.debug("sm_ack(%d)", remote_ctr)
-        to_drop = remote_ctr - self._sm_outbound_base
-        if to_drop < 0:
-            self._logger.warning(
-                "remote stanza counter is *less* than before "
-                "(outbound_base=%d, remote_ctr=%d)",
-                self._sm_outbound_base,
-                remote_ctr)
-            return
+        to_drop = (remote_ctr - self._sm_outbound_base) & 0xffffffff
+        self._logger.debug("sm_ack: to drop %d, unacked: %d",
+                           to_drop, len(self._sm_unacked_list))
+        if to_drop > len(self._sm_unacked_list):
+            raise errors.StreamNegotiationFailure(
+                "acked more stanzas than have been sent "
+                "(outbound_base={}, remote_ctr={})".format(
+                    self._sm_outbound_base,
+                    remote_ctr
+                )
+            )
 
         acked = self._sm_unacked_list[:to_drop]
         del self._sm_unacked_list[:to_drop]

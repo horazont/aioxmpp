@@ -74,6 +74,9 @@ Version 0.9
 
 * :mod:`aioxmpp.misc`
 
+* :xep:`Stream Management <198>` counters now wrap around as unsigned
+  32 bit integers, as the standard specifies.
+
 * :func:`aioxmpp.service.depsignal` now supports connecting to
   :class:`aioxmpp.stream.StanzaStream` and :class:`aioxmpp.Client` signals.
 
