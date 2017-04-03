@@ -20,10 +20,11 @@
 #
 ########################################################################
 import asyncio
+import contextlib
 
 import aioxmpp
 import aioxmpp.service as service
-import aioxmpp.signal as signal
+import aioxmpp.callbacks as callbacks
 
 
 class PEPClient(service.Service):
@@ -35,6 +36,16 @@ class PEPClient(service.Service):
     make PEP things easy. If you need more fine-grained control or do
     things which are not usually handled by the defaults when using PEP, use
     :class:`~aioxmpp.PubSubClient` directly.
+
+    See :class:`register_pep_node` for the high-level interface for
+    claiming a PEP node and receiving event notifications.
+
+    There also is a low-level interface:
+
+    .. automethod:: claim_pep_node
+
+    .. automethod:: unclaim_pep_node
+
     """
     ORDER_AFTER = [
         aioxmpp.DiscoClient,
@@ -42,16 +53,72 @@ class PEPClient(service.Service):
         aioxmpp.PubSubClient
     ]
 
-    on_personal_event = callbacks.Signal()
-
     def __init__(self, client, **kwargs):
         super().__init__(client, **kwargs)
         self._pubsub = self.dependencies[aioxmpp.PubSubClient]
         self._disco_client = self.dependencies[aioxmpp.DiscoClient]
         self._disco_server = self.dependencies[aioxmpp.DiscoServer]
 
+        self._pep_node_claims = {}
+
+    def claim_pep_node(self, node_namespace, handler, *,
+                       register_feature=True, notify=False):
+        """
+        Claim node `node_namespace`.
+
+        Dispatch event notifications for `node_namespace` to `handler`.
+
+        This registers `node_namespace` as feature for service discovery
+        unless ``register_feature=False`` is passed.
+
+        :param node_namespace: the pubsub node whose events shall be
+            handled.
+        :param handler: the handler to install.
+        :type handler: callable, see
+            :attr:`aioxmpp.PubSubClient.on_item_publish`
+            for the arguments.
+        :param register_feature: Whether to publish the `node_namespace`
+            as feature.
+        :param notify: Whether to register the `+notify` feature to
+            receive notification without explicit subscription.
+
+        :raises RuntimeError: if a handler for `node_namespace` is already
+            set.
+        """
+        if node_namespace in self._pep_node_claims:
+            raise RuntimeError(
+                "setting handler for already handled namespace"
+            )
+        if register_feature:
+            self._disco_server.register_feature(node_namespace)
+        if notify:
+            self._disco_server.register_feature(node_namespace + "+notify")
+        self._pep_node_claims[node_namespace] = handler, register_feature, notify
+
+    def unclaim_pep_node(self, node_namespace):
+        """
+        Unclaim `node_namespace`.
+
+        The `+notify` feature is automatically retracted if it was set
+        by :method:`set_event_handler`.
+
+        :param node_namespace: The PubSub node whose handler shall be unset.
+
+        :raises KeyError: If the no handler is registered for
+            `node_namespace`.
+        """
+        _, feature, notify = self._pep_node_claims[node_namespace]
+        if notify:
+            self._disco_server.unregister_feature(node_namespace + "+notify")
+        if feature:
+            self._disco_server.unregister_feature(node_namespace)
+        del self._pep_node_claims[node_namespace]
+
     @asyncio.coroutine
     def _check_for_pep(self):
+        # XXX: should this be done when the stream connects
+        # and we use the cached result later on (i.e. disable
+        # the PEP service if the server does not support PEP)
         disco_info = yield from self._disco_client.query_info(
             self.client.local_jid.bare()
         )
@@ -62,32 +129,74 @@ class PEPClient(service.Service):
         else:
             raise RuntimeError("server does not support PEP")
 
-    @service.depsignal(pubsub.PubSubClient, "on_item_published")
+    @service.depsignal(aioxmpp.PubSubClient, "on_item_published")
     def _handle_pubsub_publish(self, jid, node, item, *, message=None):
-        # TODO: filter by determining whether `jid` is a PEP virtual service
-        # problem: _handle_pubsub_publish is no coroutine
-        self.on_personal_event(jid, node, item, message=message)
+        try:
+            handler, _, _ = self._pep_node_claims[node]
+        except KeyError:
+            return
+
+        # TODO: handle empty payloads due to (mis-)configuration of
+        # the node specially.
+        handler(jid, node, item, message=message)
 
     def publish(self, node, data, *, id_=None):
-        self._check_for_pep()
-        yield from self._pubsub.publish(None, node, data, id_=id_)
+        """
+        Publish an item `data` in the PubSub node `node` on the
+        PEP service associated with the user's JID.
 
-class register_notify_feature(service.Descriptor):
-    """
-    Service descriptor which registers a ``+notify`` feature, for
-    automatic pubsub subscription.
+        If no `id_` is given it is generated by the server (and may be
+        returned).
 
-    :param node_namespace: The PubSub payload namespace to request
-         notifications for. (*This MUST NOT already include the
-        ``+notify``).
+        :param node: The PubSub node to publish to.
+        :param data: The item to publish.
+        :type data: An XSO representing the paylaod.
+        :param id_: The id the published item shall have.
+
+        :returns: The PubSub id of the published item or
+            :data:`None` if it is unknown.
+
+        """
+        yield from self._check_for_pep()
+        return (yield from self._pubsub.publish(None, node, data, id_=id_))
+
+    def subscribe(self, jid, node):
+        yield from self._pubsub.subscribe(jid, node)
+
+
+class register_pep_node(service.Descriptor):
     """
-    # TODO: this needs to check for PEP support
-    def __init__(self, node_namespace):
+    Service descriptor claiming a PEP node.
+
+    If `notify` is :data:`True` it registers a ``+notify`` feature,
+    for automatic pubsub subscription. All notifications sent to this
+    PEP node are broadcast by the :attr:`on_event_received` signal.
+
+    :param node_namespace: The PubSub payload namespace to handle.
+    :param register_feature: Whether to register the node namespace as feature.
+    :param notify: Whether to register for notifications.
+    :param max_items: Transparently handle the `max_items` configuration
+        option of the PubSub node.
+
+    .. signal:: on_event_received(jid, node, item, *, message=None)
+
+        Fires when a PubSub publish event is received for
+        :attr:`node_namespace`.
+
+    .. autoattribute:: node_namespace
+
+    .. autoattribute:: notify
+
+    """
+    def __init__(self, node_namespace, *, register_feature=True,
+                 notify=False, max_items=None):
         super().__init__()
         self._node_namespace = node_namespace
-        self._underlying_descriptor = aioxmpp.register_feature(
-            node_namespace + "+notify"
-        )
+        self._notify = notifty
+        self._register_feature = register_feature
+        self._max_itesm = max_items
+
+    on_event_received = callbacks.Signal()
 
     @property
     def node_namespace(self):
@@ -96,12 +205,32 @@ class register_notify_feature(service.Descriptor):
         """
         return self._node_namespace
 
+    @property
+    def register_feature(self):
+        """
+        Whether we register the node namespace as feature.
+        """
+        return self._register_feature
+
+    @property
+    def notify(self):
+        """
+        Wether we register the ``+nofity`` feature.
+        """
+        return self._notify
 
     @property
     def required_dependencies(self):
         return [PEPClient]
 
+    @contextlib.contextmanager
     def init_cm(self, instance):
-        return self._underlying_descriptor.init_cm(
-            instance.dependencies[PEPClient]
+        pep_client = instance.dependencies[PEPClient]
+        pep_client.claim_pep_node(
+            self._node_namespace,
+            self.on_event_received,
+            register_feature=self._register_feature,
+            notify=self._notify,
         )
+        yield
+        pep_client.unclaim_pep_node(self._node_namespace)

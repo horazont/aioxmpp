@@ -28,4 +28,9 @@ Protocol <163>` subset of :xep:`Publish-Subscribe <60>` comfortably.
 
 This protocol does not define any XSOs since PEP reuses the protocol
 defined by PubSub.
+
+.. autoclass:: PEPClient
+
+.. autoclass:: register_pep_node
 """
+from .service import (PEPClient, register_pep_node)  # NOQA
