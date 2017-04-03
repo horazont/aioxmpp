@@ -890,7 +890,7 @@ class StanzaStream:
                 response = stanza_obj.make_reply(type_=structs.IQType.ERROR)
                 response.error = stanza.Error(
                     condition=(namespaces.stanzas,
-                               "feature-not-implemented"),
+                               "service-unavailable"),
                 )
                 self.enqueue(response)
                 return
@@ -983,7 +983,7 @@ class StanzaStream:
         elif isinstance(exc, stanza.UnknownIQPayload):
             reply = stanza_obj.make_error(error=stanza.Error(condition=(
                 namespaces.stanzas,
-                "feature-not-implemented")
+                "service-unavailable")
             ))
             self.enqueue(reply)
         elif isinstance(exc, stanza.PayloadParsingError):

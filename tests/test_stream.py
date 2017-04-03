@@ -601,7 +601,7 @@ class TestStanzaStream(StanzaStreamTestBase):
 
         self.stream.stop()
 
-    def test_run_iq_request_without_handler(self):
+    def test_iq_request_without_handler_returns_service_unavailable(self):
         iq = make_test_iq()
         iq.autoset_id()
 
@@ -614,7 +614,7 @@ class TestStanzaStream(StanzaStreamTestBase):
             response_got.type_
         )
         self.assertEqual(
-            (namespaces.stanzas, "feature-not-implemented"),
+            (namespaces.stanzas, "service-unavailable"),
             response_got.error.condition
         )
 
@@ -2495,7 +2495,7 @@ class TestStanzaStream(StanzaStreamTestBase):
         )
         self.assertEqual(
             obj.error.condition,
-            (namespaces.stanzas, "feature-not-implemented")
+            (namespaces.stanzas, "service-unavailable")
         )
 
     def test_ignore_UnknownIQPayload_at_error_iq(self):
@@ -3437,7 +3437,7 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
         iq = make_test_iq()
         error_iq = iq.make_reply(type_=structs.IQType.ERROR)
         error_iq.error = stanza.Error(
-            condition=(namespaces.stanzas, "feature-not-implemented")
+            condition=(namespaces.stanzas, "service-unavailable")
         )
 
         iq_sent = make_test_iq()
@@ -3696,7 +3696,7 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
         ]
         for err_iq in error_iqs:
             err_iq.error = stanza.Error(
-                condition=(namespaces.stanzas, "feature-not-implemented")
+                condition=(namespaces.stanzas, "service-unavailable")
             )
 
         self.stream.start(self.xmlstream)
@@ -3740,7 +3740,7 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
         ]
         for err_iq in error_iqs:
             err_iq.error = stanza.Error(
-                condition=(namespaces.stanzas, "feature-not-implemented")
+                condition=(namespaces.stanzas, "service-unavailable")
             )
 
         self.stream.start(self.xmlstream)
