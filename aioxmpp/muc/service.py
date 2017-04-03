@@ -527,6 +527,10 @@ class Room:
         self._active = False
         self.on_resume()
 
+    def _handle_message(self, message, peer, sent, source):
+        if not sent:
+            self._inbound_message(message)
+
     def _inbound_message(self, stanza):
         self._service.logger.debug("%s: inbound message %r",
                                    self._mucjid,
@@ -1131,14 +1135,19 @@ class MUCClient(aioxmpp.service.Service):
             return None
         return stanza
 
-    def _inbound_message(self, stanza):
-        mucjid = stanza.from_.bare()
+    @aioxmpp.service.depfilter(
+        aioxmpp.im.dispatcher.IMDispatcher,
+        "message_filter")
+    def _handle_message(self, message, peer, sent, source):
+        mucjid = peer.bare()
         try:
             muc = self._joined_mucs[mucjid]
         except KeyError:
-            pass
-        else:
-            muc._inbound_message(stanza)
+            return message
+
+        muc._handle_message(
+            message, peer, sent, source
+        )
 
     def _muc_exited(self, muc, stanza, *args, **kwargs):
         try:
@@ -1218,17 +1227,6 @@ class MUCClient(aioxmpp.service.Service):
 
         if mucjid in self._pending_mucs:
             raise ValueError("already joined")
-
-        try:
-            self.client.stream.register_message_callback(
-                aioxmpp.structs.MessageType.GROUPCHAT,
-                mucjid,
-                self._inbound_message
-            )
-        except ValueError:
-            raise RuntimeError(
-                "message callback for MUC already in use"
-            )
 
         room = Room(self, mucjid)
         room.autorejoin = autorejoin

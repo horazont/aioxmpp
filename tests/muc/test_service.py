@@ -1212,6 +1212,34 @@ class TestRoom(unittest.TestCase):
                 "moderator"
             )
 
+    def test__handle_message_calls_inbound_for_received(self):
+        with unittest.mock.patch.object(
+                self.jmuc,
+                "_inbound_message") as _inbound_message:
+            self.jmuc._handle_message(
+                unittest.mock.sentinel.msg,
+                unittest.mock.sentinel.peer,
+                False,
+                unittest.mock.sentinel.source,
+            )
+
+        _inbound_message.assert_called_once_with(
+            unittest.mock.sentinel.msg
+        )
+
+    def test__handle_message_does_not_call_inbound_for_sent(self):
+        with unittest.mock.patch.object(
+                self.jmuc,
+                "_inbound_message") as _inbound_message:
+            self.jmuc._handle_message(
+                unittest.mock.sentinel.msg,
+                unittest.mock.sentinel.peer,
+                True,
+                unittest.mock.sentinel.source,
+            )
+
+        _inbound_message.assert_not_called()
+
     def test__inbound_message_handles_subject_of_occupant(self):
         pres = aioxmpp.stanza.Presence(
             from_=TEST_MUC_JID.replace(resource="secondwitch"),
@@ -2288,6 +2316,30 @@ class TestService(unittest.TestCase):
             )
         )
 
+    def test_handle_message_is_decorated(self):
+        self.assertTrue(
+            aioxmpp.service.is_depfilter_handler(
+                im_dispatcher.IMDispatcher,
+                "message_filter",
+                muc_service.MUCClient._handle_message,
+            )
+        )
+
+    def test_handle_message_ignores_unknown_groupchat_stanza(self):
+        msg = aioxmpp.Message(
+            type_=aioxmpp.MessageType.GROUPCHAT,
+            from_=TEST_MUC_JID.replace(resource="firstwitch"),
+        )
+        self.assertIs(
+            msg,
+            self.s._handle_message(
+                msg,
+                msg.from_,
+                False,
+                unittest.mock.sentinel.source,
+            )
+        )
+
     def test__stream_established_is_decorated(self):
         self.assertTrue(
             aioxmpp.service.is_depsignal_handler(
@@ -2419,11 +2471,7 @@ class TestService(unittest.TestCase):
             stanza.xep0045_muc.history
         )
 
-        self.cc.stream.register_message_callback.assert_called_with(
-            aioxmpp.structs.MessageType.GROUPCHAT,
-            TEST_MUC_JID,
-            self.s._inbound_message
-        )
+        self.cc.stream.register_message_callback.assert_not_called()
 
         self.assertFalse(future.done())
 
@@ -2578,17 +2626,6 @@ class TestService(unittest.TestCase):
                 "MUC JID must be bare"):
             self.s.join(
                 TEST_MUC_JID.replace(resource="firstwitch"),
-                "firstwitch"
-            )
-
-    def test_join_raises_if_message_callback_is_in_use(self):
-        self.cc.stream.register_message_callback.side_effect = ValueError()
-
-        with self.assertRaisesRegex(
-                RuntimeError,
-                "message callback for MUC already in use"):
-            self.s.join(
-                TEST_MUC_JID,
                 "firstwitch"
             )
 
@@ -2758,13 +2795,10 @@ class TestService(unittest.TestCase):
             type_=aioxmpp.structs.MessageType.GROUPCHAT,
         )
 
-        base = unittest.mock.Mock()
-
         with contextlib.ExitStack() as stack:
-            stack.enter_context(unittest.mock.patch.object(
+            _handle_message = stack.enter_context(unittest.mock.patch.object(
                 room,
-                "_inbound_message",
-                new=base.inbound_message
+                "_handle_message",
             ))
 
             for presence in occupant_presences:
@@ -2774,13 +2808,20 @@ class TestService(unittest.TestCase):
                     False,
                 )
 
-            self.s._inbound_message(msg)
+            self.assertIsNone(
+                self.s._handle_message(
+                    msg,
+                    msg.from_,
+                    unittest.mock.sentinel.sent,
+                    unittest.mock.sentinel.source,
+                )
+            )
 
-        self.assertSequenceEqual(
-            base.mock_calls,
-            [
-                unittest.mock.call.inbound_message(msg)
-            ]
+        _handle_message.assert_called_once_with(
+            msg,
+            msg.from_,
+            unittest.mock.sentinel.sent,
+            unittest.mock.sentinel.source,
         )
 
     def test_muc_is_untracked_when_user_leaves(self):
