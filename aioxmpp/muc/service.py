@@ -422,14 +422,6 @@ class Room:
         self.autorejoin = False
         self.password = None
 
-        self.on_exit.connect(self._cleanup_tracking)
-        self.on_resume.connect(self._cleanup_tracking)
-
-    def _cleanup_tracking(self, *args, **kwargs):
-        for tracker in self._tracking.values():
-            tracker.state = aioxmpp.tracking.MessageState.CLOSED
-        self._tracking.clear()
-
     @property
     def service(self):
         return self._service
@@ -851,77 +843,6 @@ class Room:
         )
 
         yield from fut
-
-    def _tracking_timeout(self, id_, tracker):
-        tracker.state = aioxmpp.tracking.MessageState.TIMED_OUT
-        try:
-            existing = self._tracking.pop[id_]
-        except KeyError:
-            pass
-        else:
-            if existing is tracker:
-                del self._tracking[id_]
-
-    def send_tracked_message(self, body_or_stanza, *,
-                             timeout=timedelta(seconds=120)):
-        """
-        Send a tracked message. The first argument can either be a
-        :class:`~.Message` or a mapping compatible with
-        :attr:`~.Message.body`.
-
-        Return a :class:`~.tracking.MessageTracker` which tracks the
-        message. See the documentation of :class:`~.MessageTracker` and
-        :class:`~.MessageState` for more details on tracking in general.
-
-        Tracking a MUC groupchat message supports tracking up to the
-        :attr:`~.MessageState.DELIVERED_TO_RECIPIENT` state. If a `timeout` is
-        given, it must be a :class:`~datetime.timedelta` indicating the time
-        span after which the tracking shall time out. `timeout` may be
-        :data:`None` to let the tracking never expire.
-
-        .. warning::
-
-           Some MUC implementations rewrite the ``id`` when the message is
-           reflected in the MUC. In that case, tracking cannot succeed beyond
-           the :attr:`~.MessageState.DELIVERED_TO_SERVER` state, which is
-           provided by the basic tracking interface.
-
-           To support these implementations, the `timeout` defaults at 120
-           seconds; this avoids that sending a message becomes a memory leak.
-
-        If the chat is exited in the meantime, the messages are set to
-        :attr:`~.MessageState.CLOSED` state. This also happens on suspension
-        and resumption.
-        """
-        if isinstance(body_or_stanza, aioxmpp.stanza.Message):
-            message = body_or_stanza
-            message.type_ = aioxmpp.structs.MessageType.GROUPCHAT
-            message.to = self.mucjid
-        else:
-            message = aioxmpp.stanza.Message(
-                type_=aioxmpp.structs.MessageType.GROUPCHAT,
-                to=self.mucjid
-            )
-            message.body.update(body_or_stanza)
-
-        tracker = aioxmpp.tracking.MessageTracker()
-        token = self.service.client.stream.enqueue(
-            message,
-            on_state_change=tracker.on_stanza_state_change
-        )
-        tracker.token = token
-
-        self._tracking[message.id_] = tracker
-
-        if timeout is not None:
-            asyncio.get_event_loop().call_later(
-                timeout.total_seconds(),
-                self._tracking_timeout,
-                message.id_,
-                tracker
-            )
-
-        return tracker
 
     @asyncio.coroutine
     def request_voice(self):
