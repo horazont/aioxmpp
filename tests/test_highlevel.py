@@ -173,7 +173,7 @@ class TestProtocol(unittest.TestCase):
                 [
                     TransportMock.Write(
                         b'<iq id="foo" type="error"><error type="cancel">'
-                        b'<feature-not-implemented'
+                        b'<service-unavailable'
                         b' xmlns="urn:ietf:params:xml:ns:xmpp-stanzas"/>'
                         b'</error></iq>'
                     ),
