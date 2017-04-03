@@ -80,6 +80,10 @@ Version 0.9
 * :func:`aioxmpp.service.depsignal` now supports connecting to
   :class:`aioxmpp.stream.StanzaStream` and :class:`aioxmpp.Client` signals.
 
+* Unknown and unhandled IQ get/set payloads are now replied to with
+  ``<service-unavailable/>`` instead of ``<feature-not-implemented/>``, as the
+  former is actually specified in :rfc:`6120` section 8.4.
+
 .. _api-changelog-0.8:
 
 Version 0.8
