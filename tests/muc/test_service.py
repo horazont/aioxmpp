@@ -286,42 +286,14 @@ class TestRoom(unittest.TestCase):
 
         self.jmuc = muc_service.Room(self.base.service, self.mucjid)
 
-        # this occupant state events
-        self.base.on_enter.return_value = None
-        self.base.on_exit.return_value = None
-        self.base.on_suspend.return_value = None
-        self.base.on_resume.return_value = None
-
-        self.jmuc.on_enter.connect(self.base.on_enter)
-        self.jmuc.on_exit.connect(self.base.on_exit)
-        self.jmuc.on_suspend.connect(self.base.on_suspend)
-        self.jmuc.on_resume.connect(self.base.on_resume)
-
-        # messaging events
-        self.base.on_message.return_value = None
-
-        self.jmuc.on_message.connect(self.base.on_message)
-
-        # room meta events
-        self.base.on_subject_change.return_value = None
-
-        self.jmuc.on_subject_change.connect(self.base.on_subject_change)
-
-        # other occupant presence/permission events
-        self.base.on_join.return_value = None
-        self.base.on_status_change.return_value = None
-        self.base.on_nick_change.return_value = None
-        self.base.on_role_change.return_value = None
-        self.base.on_affiliation_change.return_value = None
-        self.base.on_leave.return_value = None
-
-        self.jmuc.on_join.connect(self.base.on_join)
-        self.jmuc.on_status_change.connect(self.base.on_status_change)
-        self.jmuc.on_nick_change.connect(self.base.on_nick_change)
-        self.jmuc.on_role_change.connect(self.base.on_role_change)
-        self.jmuc.on_affiliation_change.connect(
-            self.base.on_affiliation_change)
-        self.jmuc.on_leave.connect(self.base.on_leave)
+        for ev in ["on_enter", "on_exit", "on_suspend", "on_resume",
+                   "on_message", "on_subject_change",
+                   "on_join", "on_status_change", "on_nick_change",
+                   "on_role_change", "on_affiliation_change",
+                   "on_leave"]:
+            cb = getattr(self.base, ev)
+            cb.return_value = None
+            getattr(self.jmuc, ev).connect(cb)
 
     def tearDown(self):
         del self.jmuc
