@@ -381,14 +381,6 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
        There may be `actor` and/or `reason` keyword arguments which provide
        details on who triggered the change in role and for what reason.
 
-    .. signal:: on_status_change(presence, occupant, **kwargs)
-
-       Emits when the presence state and/or status of an `occupant` in the room
-       changes.
-
-       `occupant` is the :class:`Occupant` instance tracking the occupant whose
-       status changed.
-
     .. signal:: on_nick_change(presence, occupant, **kwargs)
 
        Emits when the nick name (room name) of an `occupant` changes.
@@ -409,7 +401,7 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
     # other occupant state events
     on_join = aioxmpp.callbacks.Signal()
     on_leave = aioxmpp.callbacks.Signal()
-    on_status_change = aioxmpp.callbacks.Signal()
+    on_presence_changed = aioxmpp.callbacks.Signal()
     on_affiliation_change = aioxmpp.callbacks.Signal()
     on_nick_change = aioxmpp.callbacks.Signal()
     on_role_change = aioxmpp.callbacks.Signal()
@@ -606,12 +598,17 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
             )
         elif   (existing.presence_state != info.presence_state or
                 existing.presence_status != info.presence_status):
-            to_emit.append((self.on_status_change, (), {}))
+            to_emit.append((self.on_presence_changed,
+                            (existing, None, stanza),
+                            {}))
 
         if existing.role != info.role:
             to_emit.append((
                 self.on_role_change,
-                (),
+                (
+                    stanza,
+                    existing,
+                ),
                 {
                     "actor": stanza.xep0045_muc_user.items[0].actor,
                     "reason": stanza.xep0045_muc_user.items[0].reason,
@@ -621,7 +618,10 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
         if existing.affiliation != info.affiliation:
             to_emit.append((
                 self.on_affiliation_change,
-                (),
+                (
+                    stanza,
+                    existing,
+                ),
                 {
                     "actor": stanza.xep0045_muc_user.items[0].actor,
                     "reason": stanza.xep0045_muc_user.items[0].reason,
@@ -631,7 +631,7 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
         if to_emit:
             existing.update(info)
             for signal, args, kwargs in to_emit:
-                signal(stanza, existing, *args, **kwargs)
+                signal(*args, **kwargs)
 
         return result
 

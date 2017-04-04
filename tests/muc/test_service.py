@@ -288,7 +288,7 @@ class TestRoom(unittest.TestCase):
 
         for ev in ["on_enter", "on_exit", "on_suspend", "on_resume",
                    "on_message", "on_subject_change",
-                   "on_join", "on_status_change", "on_nick_change",
+                   "on_join", "on_presence_changed", "on_nick_change",
                    "on_role_change", "on_affiliation_change",
                    "on_leave"]:
             cb = getattr(self.base, ev)
@@ -316,7 +316,7 @@ class TestRoom(unittest.TestCase):
             aioxmpp.callbacks.AdHocSignal
         )
         self.assertIsInstance(
-            self.jmuc.on_status_change,
+            self.jmuc.on_presence_changed,
             aioxmpp.callbacks.AdHocSignal
         )
         self.assertIsInstance(
@@ -1049,7 +1049,7 @@ class TestRoom(unittest.TestCase):
                 "none"
             )
 
-    def test__inbound_muc_user_presence_emits_on_status_change(self):
+    def test__inbound_muc_user_presence_emits_on_presence_changed(self):
         presence = aioxmpp.stanza.Presence(
             type_=aioxmpp.structs.PresenceType.AVAILABLE,
             from_=TEST_MUC_JID.replace(resource="firstwitch")
@@ -1088,9 +1088,11 @@ class TestRoom(unittest.TestCase):
             self.assertSequenceEqual(
                 self.base.mock_calls,
                 [
-                    unittest.mock.call.on_status_change(
+                    unittest.mock.call.on_presence_changed(
+                        first,
+                        None,
                         presence,
-                        first)
+                    )
                 ]
             )
 
@@ -1293,7 +1295,11 @@ class TestRoom(unittest.TestCase):
             self.assertSequenceEqual(
                 self.base.mock_calls,
                 [
-                    unittest.mock.call.on_status_change(presence, first),
+                    unittest.mock.call.on_presence_changed(
+                        first,
+                        None,
+                        presence,
+                    ),
                     unittest.mock.call.on_role_change(
                         presence, first,
                         actor=None,
