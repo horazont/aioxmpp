@@ -195,59 +195,76 @@ class TestAvatarSet(unittest.TestCase):
             avatar_service.normalize_id(TEST_IMAGE_SHA1),
         )
 
-    def test_error_checking(self):
-
-        with self.assertRaises(RuntimeError):
-            # the id_ and the nbytes missing
+    def test_error_id_missing(self):
+        with self.assertRaisesRegex(
+                RuntimeError,
+                "^The SHA1 of the image data is not given an not inferable "):
             aset = avatar_service.AvatarSet()
             aset.add_avatar_image("image/png",
                                   nbytes=1024,
                                   url="http://example.com/avatar")
 
-        with self.assertRaises(RuntimeError):
-            # the id_ and the nbytes missing
+    def test_error_nbytes_missing(self):
+        with self.assertRaisesRegex(
+                RuntimeError,
+                "^Image data length is not given an not inferable "):
             aset = avatar_service.AvatarSet()
             aset.add_avatar_image("image/png",
                                   id_="00000000000000000000",
                                   url="http://example.com/avatar")
 
-        with self.assertRaises(RuntimeError):
-            # either the image bytes or an url must be given
+    def test_error_no_image_given(self):
+        with self.assertRaisesRegex(
+                RuntimeError,
+                "^Either the image bytes or an url to retrieve the avatar "):
             aset = avatar_service.AvatarSet()
             aset.add_avatar_image("image/png",
                                   id_="00000000000000000000",
                                   nbytes=0)
 
-        with self.assertRaises(RuntimeError):
+    def test_error_image_data_for_something_other_than_png(self):
+        with self.assertRaisesRegex(
+                RuntimeError,
+                "^The image bytes can only be given for image/png data\.$"):
             aset = avatar_service.AvatarSet()
             aset.add_avatar_image("image/gif",
                                   nbytes=1024,
                                   id_="00000000000000000000",
                                   image_bytes=TEST_IMAGE)
 
-        with self.assertRaises(RuntimeError):
+    def test_error_two_items_with_image_data(self):
+        with self.assertRaisesRegex(
+                RuntimeError,
+                "^Only one avatar image may be published directly\.$"):
             aset = avatar_service.AvatarSet()
             aset.add_avatar_image("image/png",
                                   image_bytes=TEST_IMAGE)
             aset.add_avatar_image("image/png",
                                   image_bytes=TEST_IMAGE)
 
-        with self.assertRaises(RuntimeError):
-            # SHA mismatch
+    def test_error_redundant_sha_mismatch(self):
+        with self.assertRaisesRegex(
+                RuntimeError,
+                "^The given id does not match the SHA1 of the image data\.$"):
             aset = avatar_service.AvatarSet()
             aset.add_avatar_image("image/png",
                                   id_="00000000000000000000",
                                   image_bytes=TEST_IMAGE)
 
-        with self.assertRaises(RuntimeError):
-            # nbytes mismatch
+    def test_error_redundant_nbytes_mismatch(self):
+        with self.assertRaisesRegex(
+                RuntimeError,
+                "^The given length does not match the length "
+                "of the image data\.$"):
             aset = avatar_service.AvatarSet()
             aset.add_avatar_image("image/png",
                                   nbytes=0,
                                   image_bytes=TEST_IMAGE)
 
-        with self.assertRaises(RuntimeError):
-            # no image given
+    def test_error_no_image(self):
+        with self.assertRaisesRegex(
+                RuntimeError,
+                "^Either the image bytes or an url to retrieve the avatar "):
             aset = avatar_service.AvatarSet()
             aset.add_avatar_image("image/png")
 
@@ -489,7 +506,7 @@ class TestAvatarDescriptors(unittest.TestCase):
             )
             self.assertEqual(res, TEST_IMAGE)
 
-    def test_HttpAvatarDescriptr(self):
+    def test_HttpAvatarDescriptor(self):
         descriptor = avatar_service.HttpAvatarDescriptor(
             TEST_JID1,
             "image/png",

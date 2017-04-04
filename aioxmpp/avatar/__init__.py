@@ -67,5 +67,5 @@ Helpers
 
 """
 
-from .service import (AvatarSet, AvatarServer, AvatarClient,
-                      normalize_id)  # NOQA
+from .service import (AvatarSet, AvatarServer, AvatarClient,  # NOQA
+                      normalize_id)

@@ -145,6 +145,12 @@ class AvatarSet:
                 self._image_bytes = image_bytes
                 self._png_id = id_
 
+        if image_bytes is None and url is None:
+            raise RuntimeError(
+                "Either the image bytes or an url to retrieve the avatar "
+                "image must be given."
+            )
+
         if nbytes is None:
             raise RuntimeError(
                 "Image data length is not given an not inferable "
@@ -160,12 +166,6 @@ class AvatarSet:
         if image_bytes is not None and mime_type != "image/png":
             raise RuntimeError(
                 "The image bytes can only be given for image/png data."
-            )
-
-        if image_bytes is None and url is None:
-            raise RuntimeError(
-                "Either the image bytes or an url to retrive the avatar "
-                "image must be given."
             )
 
         self._metadata.info[mime_type].append(
