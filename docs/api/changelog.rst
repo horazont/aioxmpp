@@ -88,6 +88,9 @@ Version 0.9
   objects are now a child of the client logger itself, and not at
   ``aioxmpp.XMLStream``.
 
+* Fix bug in :class:`aioxmpp.EntityCapsService` rendering it useless for
+  providing caps hashes to other entities.
+
 .. _api-changelog-0.8:
 
 Version 0.8
