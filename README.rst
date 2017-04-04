@@ -48,6 +48,9 @@ Features
   .. image:: https://travis-ci.org/horazont/aioxmpp.svg?branch=devel
     :target: https://travis-ci.org/horazont/aioxmpp
 
+  .. image:: https://coveralls.io/repos/github/horazont/aioxmpp/badge.svg?branch=devel
+    :target: https://coveralls.io/github/horazont/aioxmpp?branch=devel
+
 There is more and there’s yet more to come! Check out the list of supported XEPs
 in the `official documentation`_ and `open GitHub issues tagged as enhancement
 <https://github.com/horazont/aioxmpp/issues?q=is%3Aissue+is%3Aopen+label%3Aenhancement>`_
