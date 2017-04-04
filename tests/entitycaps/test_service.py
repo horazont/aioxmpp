@@ -1186,7 +1186,7 @@ class TestService(unittest.TestCase):
             presence
         )
 
-        self.assertIsNone(presence.xep0115_caps)
+        self.assertIs(presence.xep0115_caps, caps)
 
     def test_handle_inbound_presence_deals_with_None(self):
         presence = stanza.Presence()
@@ -1240,7 +1240,7 @@ class TestService(unittest.TestCase):
             presence
         )
 
-        self.assertIsNone(presence.xep0115_caps)
+        self.assertIs(presence.xep0115_caps, caps)
 
     def test_query_and_cache(self):
         self.maxDiff = None

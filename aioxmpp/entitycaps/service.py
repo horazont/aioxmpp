@@ -447,7 +447,6 @@ class EntityCapsService(aioxmpp.service.Service):
     @aioxmpp.service.inbound_presence_filter
     def handle_inbound_presence(self, presence):
         caps = presence.xep0115_caps
-        presence.xep0115_caps = None
 
         if caps is not None and caps.hash_ is not None:
             self.logger.debug(
