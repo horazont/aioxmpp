@@ -228,7 +228,6 @@ class AbstractAvatarDescriptor:
         is true.
         """
         raise NotImplementedError
-        yield
 
     @property
     def has_image_data_in_pubsub(self):
@@ -339,7 +338,6 @@ class HttpAvatarDescriptor(AbstractAvatarDescriptor):
         May raise NotImplementedError
         """
         raise NotImplementedError
-        yield
 
 
 class AvatarClient(service.Service):

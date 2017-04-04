@@ -175,6 +175,16 @@ class TestAvatarSet(unittest.TestCase):
             "http://example.com/avatar",
         )
 
+    def test_correct_redundant_information_is_ignored(self):
+        try:
+            aset = avatar_service.AvatarSet()
+            aset.add_avatar_image("image/png",
+                                  image_bytes=TEST_IMAGE,
+                                  nbytes=len(TEST_IMAGE),
+                                  id_=TEST_IMAGE_SHA1)
+        except RuntimeError:
+            self.fail("raises on correct redundant information")
+
     def test_png_id_is_normalized(self):
         aset = avatar_service.AvatarSet()
         aset.add_avatar_image("image/png",
@@ -186,21 +196,60 @@ class TestAvatarSet(unittest.TestCase):
         )
 
     def test_error_checking(self):
-        aset = avatar_service.AvatarSet()
 
         with self.assertRaises(RuntimeError):
-            # the id_ and the
-            aset.add_avatar_image("image/png", url="http://example.com/avatar")
+            # the id_ and the nbytes missing
+            aset = avatar_service.AvatarSet()
+            aset.add_avatar_image("image/png",
+                                  nbytes=1024,
+                                  url="http://example.com/avatar")
+
+        with self.assertRaises(RuntimeError):
+            # the id_ and the nbytes missing
+            aset = avatar_service.AvatarSet()
+            aset.add_avatar_image("image/png",
+                                  id_="00000000000000000000",
+                                  url="http://example.com/avatar")
 
         with self.assertRaises(RuntimeError):
             # either the image bytes or an url must be given
+            aset = avatar_service.AvatarSet()
             aset.add_avatar_image("image/png",
                                   id_="00000000000000000000",
                                   nbytes=0)
 
         with self.assertRaises(RuntimeError):
+            aset = avatar_service.AvatarSet()
             aset.add_avatar_image("image/gif",
+                                  nbytes=1024,
+                                  id_="00000000000000000000",
                                   image_bytes=TEST_IMAGE)
+
+        with self.assertRaises(RuntimeError):
+            aset = avatar_service.AvatarSet()
+            aset.add_avatar_image("image/png",
+                                  image_bytes=TEST_IMAGE)
+            aset.add_avatar_image("image/png",
+                                  image_bytes=TEST_IMAGE)
+
+        with self.assertRaises(RuntimeError):
+            # SHA mismatch
+            aset = avatar_service.AvatarSet()
+            aset.add_avatar_image("image/png",
+                                  id_="00000000000000000000",
+                                  image_bytes=TEST_IMAGE)
+
+        with self.assertRaises(RuntimeError):
+            # nbytes mismatch
+            aset = avatar_service.AvatarSet()
+            aset.add_avatar_image("image/png",
+                                  nbytes=0,
+                                  image_bytes=TEST_IMAGE)
+
+        with self.assertRaises(RuntimeError):
+            # no image given
+            aset = avatar_service.AvatarSet()
+            aset.add_avatar_image("image/png")
 
 
 class TestAvatarServer(unittest.TestCase):
@@ -382,6 +431,26 @@ class TestAvatarDescriptors(unittest.TestCase):
 
         self.cc.mock_calls.clear()
 
+    def test_attributes_defined_by_AbstractAvatarDescriptor(self):
+        a = avatar_service.AbstractAvatarDescriptor(
+            TEST_JID1, "image/png", TEST_IMAGE_SHA1, len(TEST_IMAGE)
+        )
+        with self.assertRaises(NotImplementedError):
+            run_coroutine(a.get_image_bytes())
+
+        with self.assertRaises(NotImplementedError):
+            a.has_image_data_in_pubsub
+
+        self.assertEqual(a.remote_jid, TEST_JID1)
+        self.assertEqual(a.mime_type, "image/png")
+        self.assertEqual(a.id_, TEST_IMAGE_SHA1)
+        self.assertEqual(a.nbytes, len(TEST_IMAGE))
+        self.assertEqual(a.normalized_id,
+                         avatar_service.normalize_id(TEST_IMAGE_SHA1))
+        self.assertEqual(a.url, None)
+        self.assertEqual(a.width, None)
+        self.assertEqual(a.height, None)
+
     def test_get_image_bytes(self):
         descriptor = avatar_service.PubsubAvatarDescriptor(
             TEST_JID1,
@@ -391,6 +460,7 @@ class TestAvatarDescriptors(unittest.TestCase):
             pubsub=self.pubsub
         )
 
+        self.assertTrue(descriptor.has_image_data_in_pubsub)
         self.assertEqual(TEST_IMAGE_SHA1, descriptor.normalized_id)
 
         items = pubsub_xso.Items(
@@ -418,6 +488,19 @@ class TestAvatarDescriptors(unittest.TestCase):
                 ]
             )
             self.assertEqual(res, TEST_IMAGE)
+
+    def test_HttpAvatarDescriptr(self):
+        descriptor = avatar_service.HttpAvatarDescriptor(
+            TEST_JID1,
+            "image/png",
+            TEST_IMAGE_SHA1.upper(),
+            len(TEST_IMAGE),
+            url="http://example.com/avatar"
+        )
+
+        self.assertFalse(descriptor.has_image_data_in_pubsub)
+        with self.assertRaises(NotImplementedError):
+            run_coroutine(descriptor.get_image_bytes())
 
 
 class AvatarClient(unittest.TestCase):

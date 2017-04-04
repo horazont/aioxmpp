@@ -311,6 +311,44 @@ class TestPointer(unittest.TestCase):
             avatar_xso.Pointer.TAG
         )
 
+    def test_init(self):
+        payload = unittest.mock.sentinel.payload
+
+        pointer = avatar_xso.Pointer(payload,
+                                     id_="123",
+                                     mime_type="image/png",
+                                     nbytes=3)
+        self.assertEqual(pointer.registered_payload, payload)
+        self.assertEqual(pointer.id_, "123")
+        self.assertEqual(pointer.mime_type, "image/png")
+        self.assertEqual(pointer.nbytes, 3)
+        self.assertEqual(pointer.width, None)
+        self.assertEqual(pointer.height, None)
+
+        pointer = avatar_xso.Pointer(payload,
+                                     id_="123",
+                                     mime_type="image/png",
+                                     nbytes=3,
+                                     width=10)
+        self.assertEqual(pointer.registered_payload, payload)
+        self.assertEqual(pointer.id_, "123")
+        self.assertEqual(pointer.mime_type, "image/png")
+        self.assertEqual(pointer.nbytes, 3)
+        self.assertEqual(pointer.width, 10)
+        self.assertEqual(pointer.height, None)
+
+        pointer = avatar_xso.Pointer(payload,
+                                     id_="123",
+                                     mime_type="image/png",
+                                     nbytes=3,
+                                     height=10)
+        self.assertEqual(pointer.registered_payload, payload)
+        self.assertEqual(pointer.id_, "123")
+        self.assertEqual(pointer.mime_type, "image/png")
+        self.assertEqual(pointer.nbytes, 3)
+        self.assertEqual(pointer.width, None)
+        self.assertEqual(pointer.height, 10)
+
     def test_registered_payload(self):
         self.assertIsInstance(
             avatar_xso.Pointer.registered_payload,
