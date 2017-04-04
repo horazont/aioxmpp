@@ -2,7 +2,8 @@
 source=
   aioxmpp
 omit=
-  aioxmpp/benchtest/*  
+  aioxmpp/benchtest/*
+  aioxmpp/e2etest/*
   */python?.?/*
   */python?.?-dev/*
   */dist-packages/*
