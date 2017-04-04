@@ -574,6 +574,8 @@ class XMPPXMLGenerator:
             with self._save_state():
                 yield
             old_write(self._buf.getbuffer())
+            if old_flush:
+                old_flush()
         finally:
             self._buf_in_use = False
             self._write = old_write

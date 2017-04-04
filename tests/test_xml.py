@@ -687,6 +687,88 @@ class TestXMPPXMLGenerator(XMLTestCase):
             b"".join(args[0] for _, args, _ in buf.write.mock_calls),
         )
 
+    def test_buffer_uses_flush_after_write(self):
+        buf = unittest.mock.Mock(["write", "flush"])
+
+        gen = xml.XMPPXMLGenerator(buf)
+        gen.startDocument()
+        gen.flush()
+
+        self.assertEqual(
+            b'<?xml version="1.0"?>',
+            b"".join(args[0] for _, args, _ in buf.write.mock_calls),
+        )
+
+        buf.flush.reset_mock()
+
+        with gen.buffer():
+            gen.startPrefixMapping(None, "uri:foo")
+            gen.startElementNS(("uri:foo", "foo"), None, {})
+            gen.endElementNS(("uri:foo", "foo"), None)
+            gen.endPrefixMapping(None)
+
+            self.assertEqual(
+                b'<?xml version="1.0"?>',
+                b"".join(args[0] for _, args, _ in buf.write.mock_calls),
+            )
+
+        buf.flush.assert_called_once_with()
+
+        self.assertEqual(
+            b'<?xml version="1.0"?><foo xmlns="uri:foo"/>',
+            b"".join(args[0] for _, args, _ in buf.write.mock_calls),
+        )
+
+        gen.startPrefixMapping(None, "uri:foo")
+        gen.startElementNS(("uri:foo", "foo"), None, {})
+        gen.endElementNS(("uri:foo", "foo"), None)
+        gen.endPrefixMapping(None)
+
+        self.assertEqual(
+            b'<?xml version="1.0"?><foo xmlns="uri:foo"/>'
+            b'<foo xmlns="uri:foo"/>',
+            b"".join(args[0] for _, args, _ in buf.write.mock_calls),
+        )
+
+    def test_buffer_can_deal_with_missing_flush(self):
+        buf = unittest.mock.Mock(["write"])
+
+        gen = xml.XMPPXMLGenerator(buf)
+        gen.startDocument()
+        gen.flush()
+
+        self.assertEqual(
+            b'<?xml version="1.0"?>',
+            b"".join(args[0] for _, args, _ in buf.write.mock_calls),
+        )
+
+        with gen.buffer():
+            gen.startPrefixMapping(None, "uri:foo")
+            gen.startElementNS(("uri:foo", "foo"), None, {})
+            gen.endElementNS(("uri:foo", "foo"), None)
+            gen.endPrefixMapping(None)
+
+            self.assertEqual(
+                b'<?xml version="1.0"?>',
+                b"".join(args[0] for _, args, _ in buf.write.mock_calls),
+            )
+
+        self.assertEqual(
+            b'<?xml version="1.0"?><foo xmlns="uri:foo"/>',
+            b"".join(args[0] for _, args, _ in buf.write.mock_calls),
+        )
+
+        gen.startPrefixMapping(None, "uri:foo")
+        gen.startElementNS(("uri:foo", "foo"), None, {})
+        gen.endElementNS(("uri:foo", "foo"), None)
+        gen.endPrefixMapping(None)
+
+        self.assertEqual(
+            b'<?xml version="1.0"?><foo xmlns="uri:foo"/>'
+            b'<foo xmlns="uri:foo"/>',
+            b"".join(args[0] for _, args, _ in buf.write.mock_calls),
+        )
+
     def test_buffer_buffers_output_and_discards_it_on_exception(self):
         buf = unittest.mock.Mock(io.BytesIO)
 
