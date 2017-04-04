@@ -247,6 +247,7 @@ class Provisioner(metaclass=abc.ABCMeta):
         super().__init__()
         self._accounts_to_dispose = []
         self._featuremap = {}
+        self._account_info = None
         self._logger = logger
         self.__counter = 0
 
@@ -367,6 +368,15 @@ class Provisioner(metaclass=abc.ABCMeta):
         """
         return quirk in self._quirks
 
+    def has_pep(self):
+        """
+        :return: true if the account has PEP support, false otherwise.
+        """
+        if not self._account_info:
+            return False
+        return any(ident.category == "pubsub" and ident.type_ == "pep"
+                   for ident in self._account_info.identities)
+
     @abc.abstractmethod
     def configure(self, section):
         """
@@ -469,6 +479,7 @@ class AnonymousProvisioner(Provisioner):
     """
 
     def configure(self, section):
+        super().configure(section)
         self.__host = section.get("host")
         self.__domain = aioxmpp.JID.fromstr(section.get(
             "domain",
@@ -522,6 +533,8 @@ class AnonymousProvisioner(Provisioner):
                     feature,
                     ", ".join(sorted(map(str, providers)))
                 )
+
+        self._account_info = yield from disco.query_info(None)
 
         # clean up state
         del client

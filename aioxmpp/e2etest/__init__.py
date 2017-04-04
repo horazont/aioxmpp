@@ -219,6 +219,19 @@ def require_feature_subset(feature_vars, required_subset=[]):
     return decorator
 
 
+def require_pep(f):
+    @functools.wraps(f)
+    def wrapper(*args, **kwargs):
+        global provisioner
+        if not provisioner.has_pep():
+            raise unittest.SkipTest(
+                "the provisioned account does not support PEP",
+            )
+
+        return f(*args, **kwargs)
+    return wrapper
+
+
 def skip_with_quirk(quirk):
     """
     :param quirk: The quirk to skip on
