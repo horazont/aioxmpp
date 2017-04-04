@@ -31,6 +31,7 @@ import aioxmpp.service
 import aioxmpp.stanza
 import aioxmpp.structs
 import aioxmpp.tracking
+import aioxmpp.im.conversation
 import aioxmpp.im.dispatcher
 
 from . import xso as muc_xso
@@ -87,14 +88,15 @@ class _OccupantDiffClass(Enum):
     LEFT = 2
 
 
-class Occupant:
+class Occupant(aioxmpp.im.conversation.AbstractConversationMember):
     """
     A tracking object to track a single occupant in a :class:`Room`.
 
-    .. attribute:: occupantjid
+    .. autoattribute:: direct_jid
 
-       The occupant JID of the occupant; this is the bare JID of the
-       :class:`Room`, with the nick of the occupant as resourcepart.
+    .. autoattribute:: conversation_jid
+
+    .. autoattribute:: nick
 
     .. attribute:: presence_state
 
@@ -113,34 +115,42 @@ class Occupant:
 
        The current role of the occupant within the room.
 
-    .. attribute:: jid
-
-       The actual JID of the occupant, if it is known.
-
     """
 
     def __init__(self,
                  occupantjid,
+                 is_self,
                  presence_state=aioxmpp.structs.PresenceState(available=True),
                  presence_status={},
                  affiliation=None,
                  role=None,
                  jid=None):
-        super().__init__()
-        self.occupantjid = occupantjid
+        super().__init__(occupantjid, is_self)
         self.presence_state = presence_state
         self.presence_status = aioxmpp.structs.LanguageMap(presence_status)
         self.affiliation = affiliation
         self.role = role
-        self.jid = jid
-        self.is_self = False
+        self._direct_jid = jid
+
+    @property
+    def direct_jid(self):
+        """
+        The real :class:`~aioxmpp.JID` of the occupant.
+
+        If the MUC is anonymous and we do not have the permission to see the
+        real JIDs of occupants, this is :data:`None`.
+        """
+        return self._direct_jid
 
     @property
     def nick(self):
-        return self.occupantjid.resource
+        """
+        The nickname of the occupant.
+        """
+        return self.conversation_jid.resource
 
     @classmethod
-    def from_presence(cls, presence):
+    def from_presence(cls, presence, is_self):
         try:
             item = presence.xep0045_muc_user.items[0]
         except (AttributeError, IndexError):
@@ -154,6 +164,7 @@ class Occupant:
 
         return cls(
             occupantjid=presence.from_,
+            is_self=is_self,
             presence_state=aioxmpp.structs.PresenceState.from_stanza(presence),
             presence_status=aioxmpp.structs.LanguageMap(presence.status),
             affiliation=affiliation,
@@ -162,27 +173,27 @@ class Occupant:
         )
 
     def update(self, other):
-        if self.occupantjid != other.occupantjid:
+        if self.conversation_jid != other.conversation_jid:
             raise ValueError("occupant JID mismatch")
         self.presence_state = other.presence_state
         self.presence_status.clear()
         self.presence_status.update(other.presence_status)
         self.affiliation = other.affiliation
         self.role = other.role
-        self.jid = other.jid
+        self._direct_jid = other.direct_jid
 
 
-class Room:
+class Room(aioxmpp.im.conversation.AbstractConversation):
     """
     Interface to a :xep:`0045` multi-user-chat room.
 
-    .. autoattribute:: mucjid
+    .. autoattribute:: jid
 
     .. autoattribute:: active
 
     .. autoattribute:: joined
 
-    .. autoattribute:: this_occupant
+    .. autoattribute:: me
 
     .. autoattribute:: subject
 
@@ -203,7 +214,7 @@ class Room:
     The following methods and properties provide interaction with the MUC
     itself:
 
-    .. autoattribute:: occupants
+    .. autoattribute:: members
 
     .. automethod:: change_nick
 
@@ -212,8 +223,6 @@ class Room:
     .. automethod:: leave_and_wait
 
     .. automethod:: request_voice
-
-    .. automethod:: send_tracked_message
 
     .. automethod:: set_role
 
@@ -409,8 +418,7 @@ class Room:
     on_subject_change = aioxmpp.callbacks.Signal()
 
     def __init__(self, service, mucjid):
-        super().__init__()
-        self._service = service
+        super().__init__(service)
         self._mucjid = mucjid
         self._occupant_info = {}
         self._subject = aioxmpp.structs.LanguageMap()
@@ -467,7 +475,7 @@ class Room:
         return self._subject_setter
 
     @property
-    def this_occupant(self):
+    def me(self):
         """
         A :class:`Occupant` instance which tracks the local user. This is
         :data:`None` until :meth:`on_enter` is emitted; it is never set to
@@ -477,7 +485,7 @@ class Room:
         return self._this_occupant
 
     @property
-    def mucjid(self):
+    def jid(self):
         """
         The (bare) :class:`aioxmpp.JID` of the MUC which this :class:`Room`
         tracks.
@@ -485,7 +493,7 @@ class Room:
         return self._mucjid
 
     @property
-    def occupants(self):
+    def members(self):
         """
         A copy of the list of occupants. The local user is always the first
         item in the list, unless the :meth:`on_enter` has not fired yet.
@@ -507,7 +515,7 @@ class Room:
             return
         self.on_exit(
             None,
-            self.this_occupant,
+            self._this_occupant,
             LeaveMode.DISCONNECTED
         )
         self._joined = False
@@ -628,7 +636,7 @@ class Room:
         return result
 
     def _handle_self_presence(self, stanza):
-        info = Occupant.from_presence(stanza)
+        info = Occupant.from_presence(stanza, True)
 
         if not self._active:
             if stanza.type_ == aioxmpp.structs.PresenceType.UNAVAILABLE:
@@ -642,7 +650,6 @@ class Room:
             self._service.logger.debug("%s: not active, configuring",
                                        self._mucjid)
             self._this_occupant = info
-            info.is_self = True
             self._joined = True
             self._active = True
             self.on_enter(stanza, info)
@@ -654,9 +661,9 @@ class Room:
             new_nick, = data
             self._service.logger.debug("%s: nick changed: %r -> %r",
                                        self._mucjid,
-                                       existing.occupantjid.resource,
+                                       existing.conversation_jid.resource,
                                        new_nick)
-            existing.occupantjid = existing.occupantjid.replace(
+            existing._conversation_jid = existing.conversation_jid.replace(
                 resource=new_nick
             )
             self.on_nick_change(stanza, existing)
@@ -677,15 +684,15 @@ class Room:
 
         if (110 in stanza.xep0045_muc_user.status_codes or
                 (self._this_occupant is not None and
-                 self._this_occupant.occupantjid == stanza.from_)):
+                 self._this_occupant.conversation_jid == stanza.from_)):
             self._service.logger.debug("%s: is self-presence",
                                        self._mucjid)
             self._handle_self_presence(stanza)
             return
 
-        info = Occupant.from_presence(stanza)
+        info = Occupant.from_presence(stanza, False)
         try:
-            existing = self._occupant_info[info.occupantjid]
+            existing = self._occupant_info[info.conversation_jid]
         except KeyError:
             if stanza.type_ == aioxmpp.structs.PresenceType.UNAVAILABLE:
                 self._service.logger.debug(
@@ -694,24 +701,28 @@ class Room:
                     stanza.from_,
                 )
                 return
-            self._occupant_info[info.occupantjid] = info
+            self._occupant_info[info.conversation_jid] = info
             self.on_join(stanza, info)
             return
 
         mode, data = self._diff_presence(stanza, info, existing)
         if mode == _OccupantDiffClass.NICK_CHANGED:
             new_nick, = data
-            del self._occupant_info[existing.occupantjid]
-            existing.occupantjid = existing.occupantjid.replace(
+            del self._occupant_info[existing.conversation_jid]
+            existing._conversation_jid = existing.conversation_jid.replace(
                 resource=new_nick
             )
-            self._occupant_info[existing.occupantjid] = existing
+            self._occupant_info[existing.conversation_jid] = existing
             self.on_nick_change(stanza, existing)
         elif mode == _OccupantDiffClass.LEFT:
             mode, actor, reason = data
             existing.update(info)
             self.on_leave(stanza, existing, mode, actor=actor, reason=reason)
-            del self._occupant_info[existing.occupantjid]
+            del self._occupant_info[existing.conversation_jid]
+
+    @asyncio.coroutine
+    def send_message_tracked(self, body):
+        pass
 
     @asyncio.coroutine
     def change_nick(self, new_nick):
@@ -760,7 +771,7 @@ class Room:
 
         iq = aioxmpp.stanza.IQ(
             type_=aioxmpp.structs.IQType.SET,
-            to=self.mucjid
+            to=self._mucjid
         )
 
         iq.payload = muc_xso.AdminQuery(
@@ -783,7 +794,7 @@ class Room:
         :attr:`mucjid`.
         """
         return (yield from self.service.set_affiliation(
-            self.mucjid,
+            self._mucjid,
             jid, affiliation,
             reason=reason))
 
@@ -798,7 +809,7 @@ class Room:
 
         msg = aioxmpp.stanza.Message(
             type_=aioxmpp.structs.MessageType.GROUPCHAT,
-            to=self.mucjid
+            to=self._mucjid
         )
         msg.subject.update(subject)
 
@@ -860,7 +871,7 @@ class Room:
         """
 
         msg = aioxmpp.Message(
-            to=self.mucjid,
+            to=self._mucjid,
             type_=aioxmpp.MessageType.NORMAL
         )
 
@@ -943,10 +954,10 @@ class MUCClient(aioxmpp.service.Service):
 
         for muc, fut, nick, history in self._pending_mucs.values():
             if muc.joined:
-                self.logger.debug("%s: resuming", muc.mucjid)
+                self.logger.debug("%s: resuming", muc.jid)
                 muc._resume()
-            self.logger.debug("%s: sending join presence", muc.mucjid)
-            self._send_join_presence(muc.mucjid, history, nick, muc.password)
+            self.logger.debug("%s: sending join presence", muc.jid)
+            self._send_join_presence(muc.jid, history, nick, muc.password)
 
     @aioxmpp.service.depsignal(aioxmpp.Client, "on_stream_destroyed")
     def _stream_destroyed(self):
@@ -959,15 +970,15 @@ class MUCClient(aioxmpp.service.Service):
             if not muc.autorejoin:
                 self.logger.debug(
                     "%s: pending without autorejoin -> ConnectionError",
-                    muc.mucjid
+                    muc.jid
                 )
                 fut.set_exception(ConnectionError())
             else:
                 self.logger.debug(
                     "%s: pending with autorejoin -> keeping",
-                    muc.mucjid
+                    muc.jid
                 )
-                new_pending[muc.mucjid] = (muc, fut) + tuple(more)
+                new_pending[muc.jid] = (muc, fut) + tuple(more)
         self._pending_mucs = new_pending
 
         for muc in list(self._joined_mucs.values()):
@@ -975,18 +986,18 @@ class MUCClient(aioxmpp.service.Service):
                 self.logger.debug(
                     "%s: connected with autorejoin, suspending and adding to "
                     "pending",
-                    muc.mucjid
+                    muc.jid
                 )
                 muc._suspend()
-                self._pending_mucs[muc.mucjid] = (
-                    muc, None, muc.this_occupant.nick, muc_xso.History(
+                self._pending_mucs[muc.jid] = (
+                    muc, None, muc.me.nick, muc_xso.History(
                         since=datetime.utcnow()
                     )
                 )
             else:
                 self.logger.debug(
                     "%s: connected with autorejoin, disconnecting",
-                    muc.mucjid
+                    muc.jid
                 )
                 muc._disconnect()
 
@@ -1072,9 +1083,9 @@ class MUCClient(aioxmpp.service.Service):
 
     def _muc_exited(self, muc, stanza, *args, **kwargs):
         try:
-            del self._joined_mucs[muc.mucjid]
+            del self._joined_mucs[muc.jid]
         except KeyError:
-            _, fut, *_ = self._pending_mucs.pop(muc.mucjid)
+            _, fut, *_ = self._pending_mucs.pop(muc.jid)
             if not fut.done():
                 fut.set_result(None)
 

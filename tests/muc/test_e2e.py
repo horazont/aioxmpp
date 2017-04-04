@@ -93,7 +93,7 @@ class TestMuc(TestCase):
         recvd_future = asyncio.Future()
 
         def onjoin(presence, occupant, **kwargs):
-            if occupant.occupantjid.resource != "thirdwitch":
+            if occupant.nick != "thirdwitch":
                 return
             nonlocal recvd_future
             recvd_future.set_result((presence, occupant))
@@ -107,13 +107,13 @@ class TestMuc(TestCase):
 
         presence, occupant = yield from recvd_future
         self.assertEqual(
-            occupant.occupantjid,
+            occupant.conversation_jid,
             self.mucjid.replace(resource="thirdwitch"),
         )
 
         self.assertEqual(
             presence.from_,
-            occupant.occupantjid,
+            occupant.conversation_jid,
         )
 
     @blocking_timed
@@ -322,8 +322,8 @@ class TestMuc(TestCase):
         yield from self.firstroom.change_nick("oldhag")
 
         presence, occupant = yield from self_future
-        self.assertEqual(occupant, self.firstroom.this_occupant)
-        self.assertEqual(occupant.occupantjid.resource, "oldhag")
+        self.assertEqual(occupant, self.firstroom.me)
+        self.assertEqual(occupant.nick, "oldhag")
 
         presence, occupant = yield from foreign_future
-        self.assertEqual(occupant.occupantjid.resource, "oldhag")
+        self.assertEqual(occupant.nick, "oldhag")
