@@ -555,19 +555,15 @@ class AvatarClient(unittest.TestCase):
                               url="http://example.com/avatar")
 
         # construct the proper pubsub response
-        items = pubsub_xso.EventItems(
-            namespaces.xep0084_metadata,
-        )
         item = pubsub_xso.EventItem(aset.metadata, id_=aset.png_id)
-        items.items.append(item)
-
-        pubsub_result = pubsub_xso.Event(items)
 
         mock_handler = unittest.mock.Mock()
         self.s.on_metadata_changed.connect(mock_handler)
 
-        self.s.handle_pubsub_publish(TEST_JID1, namespaces.xep0084_metadata,
-                                     pubsub_result)
+        self.s.handle_pubsub_publish(
+            TEST_JID1,
+            namespaces.xep0084_metadata,
+            item)
 
         descriptors = self.s._metadata_cache[TEST_JID1]
         self.assertEqual(len(descriptors), 1)
