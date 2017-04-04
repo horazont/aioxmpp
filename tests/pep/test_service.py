@@ -176,7 +176,7 @@ class TestPEPClient(unittest.TestCase):
                 "urn:example"
             )
 
-        handler.mock_calls.clear()
+        handler.reset_mock()
 
         self.s._handle_pubsub_publish(
             TEST_JID1,
