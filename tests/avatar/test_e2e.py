@@ -21,6 +21,7 @@
 ########################################################################
 import asyncio
 import base64
+import logging
 
 import aioxmpp.avatar
 import aioxmpp.e2etest
@@ -28,7 +29,8 @@ import aioxmpp.e2etest
 from aioxmpp.e2etest import (
     blocking,
     blocking_timed,
-    TestCase
+    TestCase,
+    require_pep,
 )
 
 
@@ -117,23 +119,26 @@ JEmSJEmSJEmSJEmSJEmSJEmSJEmSJEkl+D+B9JFB0vqGWgAAAABJRU5ErkJggg==
 
 class TestAvatar(TestCase):
 
+    @require_pep
     @blocking
     @asyncio.coroutine
     def setUp(self):
-        self.avatar_source, self.avatar_sink = yield from asyncio.gather(
+        self.client, = yield from asyncio.gather(
             self.provisioner.get_connected_client(
-                services=[aioxmpp.avatar.AvatarServer]
+                services=[
+                    aioxmpp.EntityCapsService,
+                    aioxmpp.PresenceServer,
+                    aioxmpp.avatar.AvatarServer,
+                    aioxmpp.avatar.AvatarClient,
+                ]
             ),
-            self.provisioner.get_connected_client(
-                services=[aioxmpp.avatar.AvatarClient]
-            )
         )
 
     @blocking_timed
     @asyncio.coroutine
     def test_provide_and_retrieve_avatar(self):
-        avatar_server = self.avatar_source.summon(aioxmpp.avatar.AvatarServer)
-        avatar_client = self.avatar_sink.summon(aioxmpp.avatar.AvatarClient)
+        avatar_server = self.client.summon(aioxmpp.avatar.AvatarServer)
+        avatar_client = self.client.summon(aioxmpp.avatar.AvatarClient)
 
         avatar_set = aioxmpp.avatar.AvatarSet()
         avatar_set.add_avatar_image("image/png", image_bytes=TEST_IMAGE)
@@ -141,7 +146,7 @@ class TestAvatar(TestCase):
         yield from avatar_server.publish_avatar_set(avatar_set)
 
         avatar_info = yield from avatar_client.get_avatar_metadata(
-            self.avatar_source.local_jid
+            self.client.local_jid.bare()
         )
 
         self.assertEqual(
@@ -149,7 +154,7 @@ class TestAvatar(TestCase):
             1
         )
 
-        info, = avatar_info
+        (info, ), = avatar_info.values()
 
         test_image_retrieved = yield from info.get_image_bytes()
 
@@ -161,14 +166,13 @@ class TestAvatar(TestCase):
     @blocking_timed
     @asyncio.coroutine
     def test_on_metadata_changed(self):
-
-        avatar_server = self.avatar_source.summon(aioxmpp.avatar.AvatarServer)
-        avatar_client = self.avatar_sink.summon(aioxmpp.avatar.AvatarClient)
+        avatar_server = self.client.summon(aioxmpp.avatar.AvatarServer)
+        avatar_client = self.client.summon(aioxmpp.avatar.AvatarClient)
 
         done = asyncio.Event()
 
         def handler(jid, metadata):
-            self.assertEqual(jid, self.avatar_source.local_jid)
+            self.assertEqual(jid, self.client.local_jid.bare())
             self.assertEqual(len(metadata), 1)
             done.set()
 
@@ -177,5 +181,7 @@ class TestAvatar(TestCase):
         avatar_set = aioxmpp.avatar.AvatarSet()
         avatar_set.add_avatar_image("image/png", image_bytes=TEST_IMAGE)
 
+        logging.info("publishing avatar")
         yield from avatar_server.publish_avatar_set(avatar_set)
+        logging.info("waiting for completion")
         yield from done.wait()
