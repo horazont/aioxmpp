@@ -38,13 +38,17 @@ class ServerInfo(Example):
 
         self.argparse.add_argument(
             "target_entity",
-            type=jid
+            default=None,
+            nargs="?",
+            type=jid,
+            help="Entity to query (leave empty to query account)"
         )
 
         self.argparse.add_argument(
-            "target_node",
+            "--node",
+            dest="target_node",
             default=None,
-            nargs="?",
+            help="disco node to query"
         )
 
     @asyncio.coroutine
@@ -52,7 +56,7 @@ class ServerInfo(Example):
         disco = self.client.summon(aioxmpp.DiscoClient)
         try:
             info = yield from disco.query_info(
-                self.args.target_entity,
+                self.args.target_entity or self.client.local_jid.bare(),
                 node=self.args.target_node,
                 timeout=10
             )
