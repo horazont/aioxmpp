@@ -22,7 +22,6 @@ before_install:
 install:
 - pip install nose coveralls
 - pip install .
-- curl https://sotecware.net/files/noindex/prosody-test.tar.gz | tar -xz
 script:
 - if [[ "x$TEST_MODE" = 'xe2e' ]]; then ./utils/travis-e2etest.py; fi
 - if [[ "x$TEST_MODE" = 'xcoverage' ]]; then nosetests --with-cover --cover-package aioxmpp tests; fi
