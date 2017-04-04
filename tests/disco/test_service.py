@@ -75,6 +75,23 @@ class TestNode(unittest.TestCase):
 
         cb.assert_called_with()
 
+    def test_iter_features_works_without_argument(self):
+        n = disco_service.Node()
+        cb = unittest.mock.Mock()
+        n.on_info_changed.connect(cb)
+
+        n.register_feature("uri:foo")
+
+        self.assertSetEqual(
+            {
+                "uri:foo",
+                namespaces.xep0030_info
+            },
+            set(n.iter_features())
+        )
+
+        cb.assert_called_with()
+
     def test_register_feature_prohibits_duplicate_registration(self):
         n = disco_service.Node()
         cb = unittest.mock.Mock()
@@ -195,6 +212,25 @@ class TestNode(unittest.TestCase):
                 ("client", "pc", None, None),
             },
             set(n.iter_identities(unittest.mock.sentinel.stanza))
+        )
+
+        cb.assert_called_with()
+
+    def test_iter_identities_works_without_stanza(self):
+        n = disco_service.Node()
+
+        cb = unittest.mock.Mock()
+        n.on_info_changed.connect(cb)
+
+        n.register_identity(
+            "client", "pc"
+        )
+
+        self.assertSetEqual(
+            {
+                ("client", "pc", None, None),
+            },
+            set(n.iter_identities())
         )
 
         cb.assert_called_with()
@@ -339,6 +375,13 @@ class TestNode(unittest.TestCase):
             set(n.iter_identities(unittest.mock.sentinel.stanza))
         )
 
+    def test_iter_items_works_without_argument(self):
+        n = disco_service.Node()
+        self.assertSequenceEqual(
+            list(n.iter_items()),
+            []
+        )
+
 
 class TestStaticNode(unittest.TestCase):
     def setUp(self):
@@ -359,6 +402,12 @@ class TestStaticNode(unittest.TestCase):
                 item2
             ],
             list(self.n.iter_items(unittest.mock.sentinel.jid))
+        )
+
+    def test_iter_items_works_without_argument(self):
+        self.assertSequenceEqual(
+            list(self.n.iter_items()),
+            []
         )
 
 

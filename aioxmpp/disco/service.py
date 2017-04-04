@@ -90,19 +90,28 @@ class Node(object):
         self._identities = {}
         self._features = set()
 
-    def iter_identities(self, stanza):
+    def iter_identities(self, stanza=None):
         """
         Return an iterator of tuples describing the identities of the node.
 
         :param stanza: The IQ request stanza
-        :type stanza: :class:`~aioxmpp.IQ`
+        :type stanza: :class:`~aioxmpp.IQ` or :data:`None`
         :rtype: iterable of (:class:`str`, :class:`str`, :class:`str` or :data:`None`, :class:`str` or :data:`None`) tuples
         :return: :xep:`30` identities of this node
 
-        `stanza` is the :class:`aioxmpp.IQ` stanza of the request. This can be
-        used to hide a node depending on who is asking. If the returned
+        `stanza` can be the :class:`aioxmpp.IQ` stanza of the request. This can
+        be used to hide a node depending on who is asking. If the returned
         iterable is empty, the :class:`~.DiscoServer` returns an
         ``<item-not-found/>`` error.
+
+        `stanza` may be :data:`None` if the identities are queried without
+        a specific request context. In that case, implementors should assume
+        that the result is visible to everybody.
+
+        .. note::
+
+           Subclasses must allow :data:`None` for `stanza` and default it to
+           :data:`None`.
 
         Return an iterator which yields tuples consisting of the category, the
         type, the language code and the name of each identity declared in this
@@ -117,7 +126,7 @@ class Node(object):
             if not names:
                 yield category, type_, None, None
 
-    def iter_features(self, stanza):
+    def iter_features(self, stanza=None):
         """
         Return an iterator which yields the features of the node.
 
@@ -129,6 +138,15 @@ class Node(object):
         `stanza` is the :class:`aioxmpp.IQ` stanza of the request. This can be
         used to filter the list according to who is asking (not recommended).
 
+        `stanza` may be :data:`None` if the features are queried without
+        a specific request context. In that case, implementors should assume
+        that the result is visible to everybody.
+
+        .. note::
+
+           Subclasses must allow :data:`None` for `stanza` and default it to
+           :data:`None`.
+
         The features are returned as strings. The features demanded by
         :xep:`30` are always returned.
 
@@ -138,7 +156,7 @@ class Node(object):
             iter(self._features)
         )
 
-    def iter_items(self, stanza):
+    def iter_items(self, stanza=None):
         """
         Return an iterator which yields the items of the node.
 
@@ -150,6 +168,15 @@ class Node(object):
         `stanza` is the :class:`aioxmpp.IQ` stanza of the request. This can be
         used to localize the list to the language of the stanza or filter it
         according to who is asking.
+
+        `stanza` may be :data:`None` if the items are queried without
+        a specific request context. In that case, implementors should assume
+        that the result is visible to everybody.
+
+        .. note::
+
+           Subclasses must allow :data:`None` for `stanza` and default it to
+           :data:`None`.
 
         A bare :class:`Node` cannot hold any items and will thus return an
         iterator which does not yield any element.
@@ -244,7 +271,7 @@ class StaticNode(Node):
         super().__init__()
         self.items = []
 
-    def iter_items(self, stanza):
+    def iter_items(self, stanza=None):
         return iter(self.items)
 
 
