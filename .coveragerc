@@ -1,0 +1,10 @@
+[run]
+source=
+  aioxmpp
+omit=
+  aioxmpp/benchtest/*  
+  */python?.?/*
+  */python?.?-dev/*
+  */dist-packages/*
+  */site-packages/*
+

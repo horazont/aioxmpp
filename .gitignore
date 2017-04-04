@@ -4,3 +4,4 @@ dist
 aioxmpp.egg-info
 .local
 .vagrant
+.coverage
