@@ -1,4 +1,5 @@
-#!/bin/bash
+#!/bin/bash -x
+set -euo pipefail
 pip install hererocks
 hererocks lua_install -r^ --lua=5.1
 luarocks install luaexpat
