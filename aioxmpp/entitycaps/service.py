@@ -376,6 +376,7 @@ class EntityCapsService(aioxmpp.service.Service):
         disco.DiscoServer,
         "on_info_changed")
     def _info_changed(self):
+        self.logger.debug("info changed, scheduling re-calculation of version")
         asyncio.get_event_loop().call_soon(
             self.update_hash
         )
@@ -426,6 +427,7 @@ class EntityCapsService(aioxmpp.service.Service):
             jid, node, ver, hash_,
             fut
         )
+        self.logger.debug("ver=%r maps to %r", ver, info)
 
         return info
 
@@ -433,11 +435,13 @@ class EntityCapsService(aioxmpp.service.Service):
     def handle_outbound_presence(self, presence):
         if (self.ver is not None and
                 presence.type_ == aioxmpp.structs.PresenceType.AVAILABLE):
+            self.logger.debug("injecting capabilities into outbound presence")
             presence.xep0115_caps = my_xso.Caps(
                 self.NODE,
                 self.ver,
                 "sha-1",
             )
+
         return presence
 
     @aioxmpp.service.inbound_presence_filter
@@ -471,19 +475,24 @@ class EntityCapsService(aioxmpp.service.Service):
                 identity.name = name
             identities.append(identity)
 
+        info = disco.xso.InfoQuery(
+            identities=identities,
+            features=self.disco_server.iter_features(),
+        )
+
         new_ver = hash_query(
-            disco.xso.InfoQuery(
-                identities=identities,
-                features=self.disco_server.iter_features(),
-            ),
+            info,
             "sha1",
         )
+
+        self.logger.debug("new ver=%r (features=%r)", new_ver, info.features)
 
         if self.ver != new_ver:
             if self.ver is not None:
                 self.disco_server.unmount_node(self.NODE + "#" + self.ver)
             self.ver = new_ver
-            self.disco_server.mount_node(self.NODE + "#" + self.ver, self.disco_server)
+            self.disco_server.mount_node(self.NODE + "#" + self.ver,
+                                         self.disco_server)
             self.on_ver_changed()
 
 
