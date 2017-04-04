@@ -721,7 +721,8 @@ class Testconnect_xmlstream(unittest.TestCase):
                     jid.domain,
                     getattr(unittest.mock.sentinel, "h{}".format(i)),
                     getattr(unittest.mock.sentinel, "p{}".format(i)),
-                    60.
+                    60.,
+                    base_logger=logger,
                 )
                 for i in range(3)
             ]
@@ -793,6 +794,7 @@ class Testconnect_xmlstream(unittest.TestCase):
                     getattr(unittest.mock.sentinel, "h{}".format(i)),
                     getattr(unittest.mock.sentinel, "p{}".format(i)),
                     unittest.mock.sentinel.timeout,
+                    base_logger=node.logger,
                 )
                 for i in range(3)
             ]
@@ -897,6 +899,7 @@ class Testconnect_xmlstream(unittest.TestCase):
                     getattr(unittest.mock.sentinel, "h{}".format(i)),
                     getattr(unittest.mock.sentinel, "p{}".format(i)),
                     60.,
+                    base_logger=node.logger,
                 )
                 for i in range(NCONNECTORS)
             ]
@@ -996,6 +999,7 @@ class Testconnect_xmlstream(unittest.TestCase):
                     getattr(unittest.mock.sentinel, "h{}".format(i)),
                     getattr(unittest.mock.sentinel, "p{}".format(i)),
                     60.,
+                    base_logger=node.logger,
                 )
                 for i in range(3)
             ]
@@ -1056,6 +1060,7 @@ class Testconnect_xmlstream(unittest.TestCase):
                     getattr(unittest.mock.sentinel, "h{}".format(i)),
                     getattr(unittest.mock.sentinel, "p{}".format(i)),
                     60.,
+                    base_logger=node.logger,
                 )
                 for i in range(3)
             ]
@@ -1121,6 +1126,7 @@ class Testconnect_xmlstream(unittest.TestCase):
                     getattr(unittest.mock.sentinel, "h{}".format(i)),
                     getattr(unittest.mock.sentinel, "p{}".format(i)),
                     60.,
+                    base_logger=node.logger
                 )
                 for i in range(2)
             ]
@@ -1185,6 +1191,7 @@ class Testconnect_xmlstream(unittest.TestCase):
                     getattr(unittest.mock.sentinel, "h{}".format(i)),
                     getattr(unittest.mock.sentinel, "p{}".format(i)),
                     60.,
+                    base_logger=node.logger,
                 )
                 for i in range(3)
             ]
@@ -1251,6 +1258,7 @@ class Testconnect_xmlstream(unittest.TestCase):
                     getattr(unittest.mock.sentinel, "h{}".format(i)),
                     getattr(unittest.mock.sentinel, "p{}".format(i)),
                     60.,
+                    base_logger=node.logger,
                 )
                 for i in range(3)
             ]

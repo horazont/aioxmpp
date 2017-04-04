@@ -84,6 +84,10 @@ Version 0.9
   ``<service-unavailable/>`` instead of ``<feature-not-implemented/>``, as the
   former is actually specified in :rfc:`6120` section 8.4.
 
+* The :class:`aioxmpp.protocol.XMLStream` loggers for :class:`aioxmpp.Client`
+  objects are now a child of the client logger itself, and not at
+  ``aioxmpp.XMLStream``.
+
 .. _api-changelog-0.8:
 
 Version 0.8

@@ -217,6 +217,7 @@ def _try_options(options, exceptions,
                 host,
                 port,
                 negotiation_timeout,
+                base_logger=logger,
             )
         except OSError as exc:
             logger.warning(
