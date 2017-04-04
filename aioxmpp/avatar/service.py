@@ -20,7 +20,6 @@
 #
 ########################################################################
 import asyncio
-import binascii
 import collections
 import hashlib
 
@@ -33,6 +32,16 @@ import aioxmpp.pubsub as pubsub
 from aioxmpp.utils import namespaces
 
 from . import xso as avatar_xso
+
+
+def normalize_id(id_):
+    """
+    Normalize a SHA1 sum encoded as hexadecimal number in ASCII.
+
+    This does nothing but lowercase the string as to enable robust
+    comparison.
+    """
+    return id_.lower()
 
 
 class AvatarSet:
@@ -71,6 +80,8 @@ class AvatarSet:
     def png_id(self):
         """
         The SHA1 of the ``image/png`` image data.
+
+        This id is always normalized in the sense of :function:`normalize_id`.
         """
         return self._png_id
 
@@ -110,8 +121,9 @@ class AvatarSet:
 
                 sha1 = hashlib.sha1()
                 sha1.update(image_bytes)
-                id_computed = sha1.digest()
+                id_computed = normalize_id(sha1.hexdigest())
                 if id_ is not None:
+                    id_ = normalize_id(id_)
                     if id_ != id_computed:
                         raise RuntimeError(
                             "The given id does not match the SHA1 of "
@@ -131,7 +143,13 @@ class AvatarSet:
                     nbytes = nbytes_computed
 
                 self._image_bytes = image_bytes
-                self._png_id = binascii.b2a_hex(id_).decode("ascii")
+                self._png_id = id_
+
+        if image_bytes is None and url is None:
+            raise RuntimeError(
+                "Either the image bytes or an url to retrieve the avatar "
+                "image must be given."
+            )
 
         if nbytes is None:
             raise RuntimeError(
@@ -150,12 +168,6 @@ class AvatarSet:
                 "The image bytes can only be given for image/png data."
             )
 
-        if image_bytes is None and url is None:
-            raise RuntimeError(
-                "Either the image bytes or an url to retrive the avatar "
-                "image must be given."
-            )
-
         self._metadata.info[mime_type].append(
             avatar_xso.Info(
                 id_=id_, mime_type=mime_type, nbytes=nbytes,
@@ -167,6 +179,29 @@ class AvatarSet:
 class AbstractAvatarDescriptor:
     """
     Description of an avatar source retrieved from pubsub.
+
+    .. autoattribute:: mime_type
+
+    .. autoattribute:: id_
+
+    .. autoattribute:: normalized_id
+
+    .. autoattribute:: nbytes
+
+    .. autoattribute:: remote_jid
+
+    .. autoattribute:: width
+
+    .. autoattribute:: height
+
+    .. autoattribute:: has_image_data_in_pubsub
+
+    .. autoattribute:: url
+
+    If :attr:`has_image_data_in_pubsub` is true, the image can be
+    retrieved by the following coroutine:
+
+    .. autocoroutine:: get_image_bytes
     """
 
     def __init__(self, remote_jid, mime_type, id_, nbytes, width=None,
@@ -192,10 +227,9 @@ class AbstractAvatarDescriptor:
         is true.
         """
         raise NotImplementedError
-        yield
 
     @property
-    def image_in_pubsub(self):
+    def has_image_data_in_pubsub(self):
         """
         Whether the image can be retrieved from PubSub.
         """
@@ -213,7 +247,7 @@ class AbstractAvatarDescriptor:
         """
         The URL where the avatar image data can be found.
 
-        This is :data:`None` if :attr:`image_in_pubsub` is true.
+        This is :data:`None` if :attr:`has_image_data_in_pubsub` is true.
         """
         return self._url
 
@@ -245,11 +279,21 @@ class AbstractAvatarDescriptor:
     @property
     def id_(self):
         """
-        The SHA1 of the image data.
+        The SHA1 of the image encoded as hexadecimal number in ASCII.
+
+        This is the original value returned from pubsub and should be
+        used for any further interaction with pubsub.
+        """
+        return self._id
+
+    @property
+    def normalized_id(self):
+        """
+        The SHA1 of the image data decoded to a :class:`bytes` object.
 
         This is supposed to be used for caching.
         """
-        return self._id
+        return normalize_id(self._id)
 
     @property
     def mime_type(self):
@@ -262,7 +306,7 @@ class AbstractAvatarDescriptor:
 class PubsubAvatarDescriptor(AbstractAvatarDescriptor):
 
     @property
-    def image_in_pubsub(self):
+    def has_image_data_in_pubsub(self):
         return True
 
     @asyncio.coroutine
@@ -270,7 +314,7 @@ class PubsubAvatarDescriptor(AbstractAvatarDescriptor):
         image_data = yield from self._pubsub.get_items_by_id(
             self._remote_jid,
             namespaces.xep0084_data,
-            [binascii.b2a_hex(self.id_).decode("ascii")],
+            [self.id_],
         )
         if not image_data.payload.items:
             raise RuntimeError("Avatar image data is not set.")
@@ -282,7 +326,7 @@ class PubsubAvatarDescriptor(AbstractAvatarDescriptor):
 class HttpAvatarDescriptor(AbstractAvatarDescriptor):
 
     @property
-    def image_in_pubsub(self):
+    def has_image_data_in_pubsub(self):
         return False
 
     @asyncio.coroutine
@@ -293,7 +337,6 @@ class HttpAvatarDescriptor(AbstractAvatarDescriptor):
         May raise NotImplementedError
         """
         raise NotImplementedError
-        yield
 
 
 class AvatarClient(service.Service):
@@ -309,7 +352,10 @@ class AvatarClient(service.Service):
         Fires when avatar metadata changes.
 
         :param jid: The JID which the avatar belongs to.
-        :param metadata: The list of metadata descriptors.
+        :param metadata: The new metadata descriptors.
+        :type metadata: a sequence of
+            :class:`~aioxmpp.avatar.service.AbstractAvatarDescriptor`
+            instances
 
     .. automethod:: get_avatar_metadata
 
@@ -334,16 +380,13 @@ class AvatarClient(service.Service):
     def __init__(self, client, **kwargs):
         super().__init__(client, **kwargs)
         self._metadata_cache = {}
-
         self._pubsub = self.dependencies[pubsub.PubSubClient]
+        self._lock = asyncio.Lock()
 
     def _cook_metadata(self, jid, metadata):
         def iter_metadata_info_nodes(metdata):
             for item in metadata.payload.items:
-                info_map = item.registered_payload.info
-                for mime_type in info_map:
-                    for metadata_info_node in info_map[mime_type]:
-                        yield metadata_info_node
+                yield from item.registered_payload.iter_info_nodes()
 
         result = collections.defaultdict(lambda: [])
         for info_node in iter_metadata_info_nodes(metadata):
@@ -391,8 +434,8 @@ class AvatarClient(service.Service):
         Retrieve a list of avatar descriptors for `jid`.
 
         The avatar descriptors are returned as a list of instances of
-        :class:`AbstractAvatarDescriptor`. An empty list means that the
-        avatar is unset.
+        :class:`~aioxmpp.avatar.service.AbstractAvatarDescriptor`.
+        An empty list means that the avatar is unset.
 
         If `require_fresh` is true, we will not lookup the avatar
         metadata from the cache, but make a new pubsub request.
@@ -401,35 +444,40 @@ class AvatarClient(service.Service):
         ``feature-not-implemented`` or ``item-not-found`` and return
         an empty list of avatar descriptors, since this is
         semantically equivalent to not having an avatar.
-
         """
-        if require_fresh:
-            del self._metadata_cache[jid]
+        if not require_fresh:
+            try:
+                return self._metadata_cache[jid]
+            except KeyError:
+                pass
 
-        try:
-            return self._metadata_cache[jid]
-        except KeyError:
-            pass
+        with (yield from self._lock):
+            if jid in self._metadata_cache:
+                if require_fresh:
+                    del self._metadata_cache[jid]
+                else:
+                    return self._metadata_cache[jid]
 
-        try:
-            metadata_raw = yield from self._pubsub.get_items(
-                jid,
-                namespaces.xep0084_metadata,
-                max_items=1
-            )
-        except aioxmpp.XMPPCancelError as e:
-            # transparently map feature-not-implemente and
-            # item-not-found to be equivalent unset avatar
-            if e.condition in ((namespaces.stanzas, "feature-not-implemented"),
-                               (namespaces.stanzas, "item-not-found")):
-                metadata = collections.defaultdict(lambda: [])
+            try:
+                metadata_raw = yield from self._pubsub.get_items(
+                    jid,
+                    namespaces.xep0084_metadata,
+                    max_items=1
+                )
+            except aioxmpp.XMPPCancelError as e:
+                # transparently map feature-not-implemente and
+                # item-not-found to be equivalent unset avatar
+                if e.condition in (
+                        (namespaces.stanzas, "feature-not-implemented"),
+                        (namespaces.stanzas, "item-not-found")):
+                    metadata = collections.defaultdict(lambda: [])
+                else:
+                    raise
             else:
-                raise
-        else:
-            metadata = self._cook_metadata(jid, metadata_raw)
+                metadata = self._cook_metadata(jid, metadata_raw)
 
-        self._metadata_cache[jid] = metadata
-        return metadata
+            self._metadata_cache[jid] = metadata
+            return metadata
 
     @asyncio.coroutine
     def subscribe(self, jid):
@@ -458,6 +506,12 @@ class AvatarServer(service.Service):
         self._has_pep = None
         self._disco = self.dependencies[disco.DiscoClient]
         self._pubsub = self.dependencies[pubsub.PubSubClient]
+        # we use this lock to prevent race conditions between different
+        # calls of the methods by one client.
+        # XXX: Other, independent clients may still cause inconsistent
+        # data by race conditions, this should be fixed by at least
+        # checking for consistent data after an update.
+        self._lock = asyncio.Lock()
 
     @asyncio.coroutine
     def _check_for_pep(self):
@@ -509,19 +563,20 @@ class AvatarServer(service.Service):
 
         id_ = avatar_set.png_id
 
-        yield from self._pubsub.publish(
-            None,
-            namespaces.xep0084_data,
-            avatar_xso.Data(avatar_set.image_bytes),
-            id_=id_
-        )
+        with (yield from self._lock):
+            yield from self._pubsub.publish(
+                None,
+                namespaces.xep0084_data,
+                avatar_xso.Data(avatar_set.image_bytes),
+                id_=id_
+            )
 
-        yield from self._pubsub.publish(
-            None,
-            namespaces.xep0084_metadata,
-            avatar_set.metadata,
-            id_=id_
-        )
+            yield from self._pubsub.publish(
+                None,
+                namespaces.xep0084_metadata,
+                avatar_set.metadata,
+                id_=id_
+            )
 
     @asyncio.coroutine
     def disable_avatar(self):
@@ -532,8 +587,9 @@ class AvatarServer(service.Service):
         """
         yield from self._check_for_pep()
 
-        yield from self._pubsub.publish(
-            None,
-            namespaces.xep0084_metadata,
-            avatar_xso.Metadata()
-        )
+        with (yield from self._lock):
+            yield from self._pubsub.publish(
+                None,
+                namespaces.xep0084_metadata,
+                avatar_xso.Metadata()
+            )

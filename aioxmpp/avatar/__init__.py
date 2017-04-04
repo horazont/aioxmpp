@@ -23,7 +23,6 @@
 :mod:`~aioxmpp.avatar` --- User avatar support (:xep:`0084`)
 ############################################################
 
-
 This module provides support for publishing and retrieving user
 avatars as per :xep:`User Avatar <84>`.
 
@@ -57,9 +56,16 @@ avatar image:
 
 .. module:: aioxmpp.avatar.service
 .. currentmodule:: aioxmpp.avatar.service
-.. autoclass:: AbstractAvatarDescriptor
-   :members:
+.. autoclass:: AbstractAvatarDescriptor()
+
+.. currentmodule:: aioxmpp.avatar
+
+Helpers
+=======
+
+.. autofunction:: normalize_id
 
 """
 
-from .service import (AvatarSet, AvatarServer, AvatarClient)  # NOQA
+from .service import (AvatarSet, AvatarServer, AvatarClient,  # NOQA
+                      normalize_id)

@@ -94,49 +94,73 @@ class TestMetadata(unittest.TestCase):
             xso.ChildList
         )
 
+    def test_iter_info_nodes(self):
+        info_list = [
+            avatar_xso.Info(id_="123",
+                            mime_type="image/png",
+                            nbytes=3),
+            avatar_xso.Info(id_="123",
+                            mime_type="image/png",
+                            nbytes=3,
+                            width=10),
+            avatar_xso.Info(id_="345",
+                            nbytes=4,
+                            mime_type="image/gif",
+                            url="http://example.com/avatar.gif"),
+        ]
+
+        metadata = avatar_xso.Metadata()
+        for item in info_list:
+            metadata.info[item.mime_type].append(item)
+
+        self.assertCountEqual(
+            list(metadata.iter_info_nodes()),
+            info_list
+        )
+
 
 class TestInfo(unittest.TestCase):
     def test_is_xso(self):
         self.assertTrue(issubclass(avatar_xso.Info, xso.XSO))
 
     def test_init(self):
-        info = avatar_xso.Info(id_=b"123",
+        info = avatar_xso.Info(id_="123",
                                mime_type="image/png",
                                nbytes=3)
-        self.assertEqual(info.id_, b"123")
+        self.assertEqual(info.id_, "123")
         self.assertEqual(info.mime_type, "image/png")
         self.assertEqual(info.nbytes, 3)
         self.assertEqual(info.width, None)
         self.assertEqual(info.height, None)
         self.assertEqual(info.url, None)
 
-        info = avatar_xso.Info(id_=b"123",
+        info = avatar_xso.Info(id_="123",
                                mime_type="image/png",
                                nbytes=3,
                                width=10)
-        self.assertEqual(info.id_, b"123")
+        self.assertEqual(info.id_, "123")
         self.assertEqual(info.mime_type, "image/png")
         self.assertEqual(info.nbytes, 3)
         self.assertEqual(info.width, 10)
         self.assertEqual(info.height, None)
         self.assertEqual(info.url, None)
 
-        info = avatar_xso.Info(id_=b"123",
+        info = avatar_xso.Info(id_="123",
                                mime_type="image/png",
                                nbytes=3,
                                height=10)
-        self.assertEqual(info.id_, b"123")
+        self.assertEqual(info.id_, "123")
         self.assertEqual(info.mime_type, "image/png")
         self.assertEqual(info.nbytes, 3)
         self.assertEqual(info.width, None)
         self.assertEqual(info.height, 10)
         self.assertEqual(info.url, None)
 
-        info = avatar_xso.Info(id_=b"123",
+        info = avatar_xso.Info(id_="123",
                                mime_type="image/png",
                                nbytes=3,
                                url="http://example.com/avatar")
-        self.assertEqual(info.id_, b"123")
+        self.assertEqual(info.id_, "123")
         self.assertEqual(info.mime_type, "image/png")
         self.assertEqual(info.nbytes, 3)
         self.assertEqual(info.width, None)
@@ -204,7 +228,7 @@ class TestInfo(unittest.TestCase):
 
         self.assertIsInstance(
             avatar_xso.Info.id_.type_,
-            xso.HexBinary
+            xso.String
         )
 
         self.assertIs(
@@ -287,6 +311,44 @@ class TestPointer(unittest.TestCase):
             avatar_xso.Pointer.TAG
         )
 
+    def test_init(self):
+        payload = unittest.mock.sentinel.payload
+
+        pointer = avatar_xso.Pointer(payload,
+                                     id_="123",
+                                     mime_type="image/png",
+                                     nbytes=3)
+        self.assertEqual(pointer.registered_payload, payload)
+        self.assertEqual(pointer.id_, "123")
+        self.assertEqual(pointer.mime_type, "image/png")
+        self.assertEqual(pointer.nbytes, 3)
+        self.assertEqual(pointer.width, None)
+        self.assertEqual(pointer.height, None)
+
+        pointer = avatar_xso.Pointer(payload,
+                                     id_="123",
+                                     mime_type="image/png",
+                                     nbytes=3,
+                                     width=10)
+        self.assertEqual(pointer.registered_payload, payload)
+        self.assertEqual(pointer.id_, "123")
+        self.assertEqual(pointer.mime_type, "image/png")
+        self.assertEqual(pointer.nbytes, 3)
+        self.assertEqual(pointer.width, 10)
+        self.assertEqual(pointer.height, None)
+
+        pointer = avatar_xso.Pointer(payload,
+                                     id_="123",
+                                     mime_type="image/png",
+                                     nbytes=3,
+                                     height=10)
+        self.assertEqual(pointer.registered_payload, payload)
+        self.assertEqual(pointer.id_, "123")
+        self.assertEqual(pointer.mime_type, "image/png")
+        self.assertEqual(pointer.nbytes, 3)
+        self.assertEqual(pointer.width, None)
+        self.assertEqual(pointer.height, 10)
+
     def test_registered_payload(self):
         self.assertIsInstance(
             avatar_xso.Pointer.registered_payload,
@@ -354,7 +416,7 @@ class TestPointer(unittest.TestCase):
 
         self.assertIsInstance(
             avatar_xso.Pointer.id_.type_,
-            xso.HexBinary
+            xso.String
         )
 
         self.assertIs(

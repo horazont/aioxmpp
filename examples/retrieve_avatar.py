@@ -75,7 +75,7 @@ class Avatar(Example):
         )
 
         for metadatum in metadata["image/png"]:
-            if metadatum.image_in_pubsub:
+            if metadatum.has_image_data_in_pubsub:
                 image = yield from metadatum.get_image_bytes()
                 with open(self.output_file, "wb") as avatar_image:
                     avatar_image.write(image)

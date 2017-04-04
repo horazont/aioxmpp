@@ -76,7 +76,7 @@ class Info(xso.XSO):
     """
     TAG = (namespaces.xep0084_metadata, "info")
 
-    id_ = xso.Attr(tag="id", type_=xso.HexBinary())
+    id_ = xso.Attr(tag="id", type_=xso.String())
     mime_type = xso.Attr(tag="type", type_=xso.String())
     nbytes = xso.Attr(tag="bytes", type_=xso.Integer())
     width = xso.Attr(tag="width", type_=xso.Integer(), default=None)
@@ -123,7 +123,7 @@ class Pointer(xso.XSO):
     TAG = (namespaces.xep0084_metadata, "pointer")
 
     # according to the XEP those MAY occur if their values are known
-    id_ = xso.Attr(tag="id", type_=xso.HexBinary(), default=None)
+    id_ = xso.Attr(tag="id", type_=xso.String(), default=None)
     mime_type = xso.Attr(tag="type", type_=xso.String(), default=None)
     nbytes = xso.Attr(tag="bytes", type_=xso.Integer(), default=None)
     width = xso.Attr(tag="width", type_=xso.Integer(), default=None)
@@ -177,3 +177,12 @@ class Metadata(xso.XSO):
 
     info = xso.ChildMap([Info], key=lambda x: x.mime_type)
     pointer = xso.ChildList([Pointer])
+
+    def iter_info_nodes(self):
+        """
+        Iterate over all :class:`Info` children.
+        """
+        info_map = self.info
+        for mime_type in info_map:
+            for metadata_info_node in info_map[mime_type]:
+                yield metadata_info_node
