@@ -209,7 +209,6 @@ class AbstractAvatarDescriptor:
         self._remote_jid = remote_jid
         self._mime_type = mime_type
         self._id = id_
-        self._normalized_id = normalize_id(self._id)
         self._nbytes = nbytes
         self._width = width
         self._height = height
@@ -294,7 +293,7 @@ class AbstractAvatarDescriptor:
 
         This is supposed to be used for caching.
         """
-        return self._normalized_id
+        return normalize_id(self._id)
 
     @property
     def mime_type(self):
