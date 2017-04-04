@@ -142,6 +142,21 @@ class TestPEPClient(unittest.TestCase):
                 "urn:example"
             )
 
+    def test_claim_pep_node_twice(self):
+        handler1 = unittest.mock.Mock()
+        handler2 = unittest.mock.Mock()
+        with unittest.mock.patch.object(
+                self.disco_server,
+                "register_feature"):
+            self.s.claim_pep_node("urn:example", handler1)
+            with self.assertRaisesRegex(RuntimeError,
+                    "^setting handler for already handled namespace$"):
+                self.s.claim_pep_node("urn:example", handler2)
+        with unittest.mock.patch.object(
+                self.disco_server,
+                "unregister_feature"):
+            self.s.unclaim_pep_node("urn:example")
+
     def test_claim_pep_node_handle_event_unclaim_pep_node(self):
         handler = unittest.mock.Mock()
         with unittest.mock.patch.object(
