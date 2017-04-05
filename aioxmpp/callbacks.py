@@ -534,7 +534,7 @@ class AdHocSignal(AbstractAdHocSignal):
         future from the signal, just cancel it.
         """
         fut = asyncio.Future()
-        self.connect(fut, self.WEAK)
+        self.connect(fut, self.AUTO_FUTURE)
         return fut
 
     __call__ = fire

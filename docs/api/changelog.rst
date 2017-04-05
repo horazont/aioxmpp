@@ -91,6 +91,8 @@ Version 0.9
 * Fix bug in :class:`aioxmpp.EntityCapsService` rendering it useless for
   providing caps hashes to other entities.
 
+* Fix :meth:`aioxmpp.callbacks.AdHocSignal.future`.
+
 .. _api-changelog-0.8:
 
 Version 0.8
