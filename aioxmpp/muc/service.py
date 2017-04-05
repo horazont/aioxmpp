@@ -420,7 +420,9 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
         self._joined = False
         self._active = False
         self._this_occupant = None
-        self._tracking = {}
+        self._tracking_by_id = {}
+        self._tracking_metadata = {}
+        self._tracking_by_sender_body = {}
         self.autorejoin = False
         self.password = None
 
@@ -519,10 +521,43 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
         self._active = False
         self.on_resume()
 
+    def _match_tracker(self, message):
+        try:
+            tracker = self._tracking_by_id[message.id_]
+        except KeyError:
+            try:
+                tracker = self._tracking_by_sender_body[
+                    message.from_, message.body.get(None)
+                ]
+            except KeyError:
+                tracker = None
+        if tracker is None:
+            return False
+
+        id_key, sender_body_key = self._tracking_metadata.pop(tracker)
+        del self._tracking_by_id[id_key]
+        del self._tracking_by_sender_body[sender_body_key]
+
+        try:
+            tracker._set_state(
+                aioxmpp.tracking.MessageState.DELIVERED_TO_RECIPIENT,
+                message,
+            )
+        except ValueError:
+            # this can happen if another implementation was faster with
+            # changing the state than we were.
+            pass
+
+        return True
+
     def _handle_message(self, message, peer, sent, source):
         self._service.logger.debug("%s: inbound message %r",
                                    self._mucjid,
                                    message)
+
+        if not sent:
+            if self._match_tracker(message):
+                return
 
         if (self._this_occupant and
                 self._this_occupant._conversation_jid == message.from_):
@@ -723,6 +758,7 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
     def send_message(self, msg):
         msg.type_ = aioxmpp.MessageType.GROUPCHAT
         msg.to = self._mucjid
+        msg.xep0045_muc_user = muc_xso.UserExt()
         yield from self.service.client.stream.send(msg)
         self.on_message(
             msg,
@@ -730,9 +766,39 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
             aioxmpp.im.dispatcher.MessageSource.STREAM
         )
 
+    def _tracker_closed(self, tracker):
+        try:
+            id_key, sender_body_key = self._tracking_metadata[tracker]
+        except KeyError:
+            return
+        self._tracking_by_id.pop(id_key, None)
+        self._tracking_by_sender_body.pop(sender_body_key, None)
+
     @asyncio.coroutine
-    def send_message_tracked(self, body):
-        pass
+    def send_message_tracked(self, msg):
+        msg.type_ = aioxmpp.MessageType.GROUPCHAT
+        msg.to = self._mucjid
+        msg.xep0045_muc_user = muc_xso.UserExt()
+        msg.autoset_id()
+        tracking_svc = self.service.dependencies[
+            aioxmpp.tracking.BasicTrackingService
+        ]
+        tracker = aioxmpp.tracking.MessageTracker()
+        id_key = msg.id_
+        sender_body_key = (self._this_occupant.conversation_jid,
+                           msg.body.get(None))
+        self._tracking_by_id[id_key] = tracker
+        self._tracking_metadata[tracker] = (
+            id_key,
+            sender_body_key,
+        )
+        self._tracking_by_sender_body[sender_body_key] = tracker
+        tracker.on_closed.connect(functools.partial(
+            self._tracker_closed,
+            tracker,
+        ))
+        yield from tracking_svc.send_tracked(msg, tracker)
+        return tracker
 
     @asyncio.coroutine
     def change_nick(self, new_nick):
@@ -940,6 +1006,7 @@ class MUCClient(aioxmpp.service.Service):
     ORDER_AFTER = [
         aioxmpp.im.dispatcher.IMDispatcher,
         aioxmpp.im.service.ConversationService,
+        aioxmpp.tracking.BasicTrackingService,
     ]
 
     ORDER_BEFORE = [
@@ -1084,6 +1151,13 @@ class MUCClient(aioxmpp.service.Service):
         aioxmpp.im.dispatcher.IMDispatcher,
         "message_filter")
     def _handle_message(self, message, peer, sent, source):
+        if (source == aioxmpp.im.dispatcher.MessageSource.CARBONS
+                and message.xep0045_muc_user):
+            return None
+
+        if message.type_ != aioxmpp.MessageType.GROUPCHAT:
+            return message
+
         mucjid = peer.bare()
         try:
             muc = self._joined_mucs[mucjid]

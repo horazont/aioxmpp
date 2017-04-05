@@ -256,27 +256,28 @@ class TestMuc(TestCase):
             "firstwitch",
         )
 
-    @skip_with_quirk(Quirk.MUC_REWRITES_MESSAGE_ID)
     @blocking_timed
     @asyncio.coroutine
     def test_send_tracked_message(self):
         msg_future = asyncio.Future()
         sent_future = asyncio.Future()
 
-        def onmessage(message, **kwargs):
+        def onmessage(message, member, source, **kwargs):
             nonlocal msg_future
             msg_future.set_result((message,))
             return True
 
-        def onstatechange(state):
+        def onstatechange(state, response=None):
             if state == aioxmpp.tracking.MessageState.DELIVERED_TO_RECIPIENT:
                 sent_future.set_result(None)
                 return True
 
         self.secondroom.on_message.connect(onmessage)
 
-        tracker = self.firstroom.send_tracked_message({None: "foo"})
-        tracker.on_state_change.connect(onstatechange)
+        msg = aioxmpp.Message(aioxmpp.MessageType.NORMAL)
+        msg.body[None] = "foo"
+        tracker = yield from self.firstroom.send_message_tracked(msg)
+        tracker.on_state_changed.connect(onstatechange)
         yield from sent_future
 
         message, = yield from msg_future

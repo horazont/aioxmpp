@@ -37,6 +37,7 @@ import aioxmpp.muc.xso as muc_xso
 import aioxmpp.service as service
 import aioxmpp.stanza
 import aioxmpp.structs
+import aioxmpp.tracking
 import aioxmpp.utils as utils
 
 from aioxmpp.testutils import (
@@ -285,6 +286,11 @@ class TestRoom(unittest.TestCase):
         self.base.service.logger = unittest.mock.Mock(name="logger")
         self.base.service.client.stream.send = \
             CoroutineMock()
+        self.base.service.dependencies = {}
+        self.base.service.dependencies[
+            aioxmpp.tracking.BasicTrackingService
+        ] = self.base.tracking_service
+        self.base.tracking_service.send_tracked = CoroutineMock()
 
         self.jmuc = muc_service.Room(self.base.service, self.mucjid)
 
@@ -2181,10 +2187,267 @@ class TestRoom(unittest.TestCase):
             {None: "some text"},
         )
 
+        self.assertIsInstance(
+            msg.xep0045_muc_user,
+            muc_xso.UserExt,
+        )
+
         self.base.on_message.assert_called_once_with(
             msg,
             self.jmuc.me,
             im_dispatcher.MessageSource.STREAM,
+        )
+
+    def test_send_message_tracked_uses_basic_tracking_service(self):
+        presence = aioxmpp.stanza.Presence(
+            type_=aioxmpp.structs.PresenceType.AVAILABLE,
+            from_=TEST_MUC_JID.replace(resource="thirdwitch")
+        )
+        presence.xep0045_muc_user = muc_xso.UserExt(
+            items=[
+                muc_xso.UserItem(affiliation="member",
+                                 role="participant"),
+            ],
+            status_codes={110},
+        )
+
+        self.jmuc._inbound_muc_user_presence(presence)
+
+        msg = aioxmpp.Message(aioxmpp.MessageType.NORMAL)
+        msg.body.update({None: "some text"})
+
+        with contextlib.ExitStack() as stack:
+            MessageTracker = stack.enter_context(
+                unittest.mock.patch("aioxmpp.tracking.MessageTracker")
+            )
+
+            result = run_coroutine(
+                self.jmuc.send_message_tracked(msg)
+            )
+
+            self.assertIsNotNone(msg.id_)
+
+            MessageTracker.assert_called_once_with()
+
+            self.base.tracking_service.send_tracked.assert_called_once_with(
+                msg,
+                MessageTracker()
+            )
+
+            self.assertEqual(
+                result,
+                MessageTracker(),
+            )
+
+        self.assertIsInstance(
+            msg,
+            aioxmpp.Message,
+        )
+
+        self.assertEqual(
+            msg.type_,
+            aioxmpp.MessageType.GROUPCHAT,
+        )
+
+        self.assertEqual(
+            msg.to,
+            self.jmuc.jid,
+        )
+
+        self.assertDictEqual(
+            msg.body,
+            {None: "some text"},
+        )
+
+        self.assertIsInstance(
+            msg.xep0045_muc_user,
+            muc_xso.UserExt,
+        )
+
+    def test_tracker_changes_state_on_reflection(self):
+        presence = aioxmpp.stanza.Presence(
+            type_=aioxmpp.structs.PresenceType.AVAILABLE,
+            from_=TEST_MUC_JID.replace(resource="thirdwitch")
+        )
+        presence.xep0045_muc_user = muc_xso.UserExt(
+            items=[
+                muc_xso.UserItem(affiliation="member",
+                                 role="participant"),
+            ],
+            status_codes={110},
+        )
+
+        self.jmuc._inbound_muc_user_presence(presence)
+
+        msg = aioxmpp.Message(aioxmpp.MessageType.NORMAL)
+        msg.body.update({None: "some text"})
+
+        tracker = run_coroutine(
+            self.jmuc.send_message_tracked(msg)
+        )
+
+        self.assertEqual(
+            tracker.state,
+            aioxmpp.tracking.MessageState.IN_TRANSIT,
+        )
+
+        reflected = aioxmpp.Message(
+            type_=aioxmpp.MessageType.GROUPCHAT,
+            from_=self.jmuc.me.conversation_jid,
+            id_=msg.id_,
+        )
+        reflected.body[None] = "other text"
+
+        self.jmuc._handle_message(
+            reflected,
+            reflected.from_,
+            False,
+            im_dispatcher.MessageSource.STREAM,
+        )
+
+        self.assertEqual(
+            tracker.state,
+            aioxmpp.tracking.MessageState.DELIVERED_TO_RECIPIENT,
+        )
+
+        self.assertEqual(tracker.response, reflected)
+
+        self.base.on_message.assert_not_called()
+
+    def test_tracker_matches_on_body_and_from_too(self):
+        presence = aioxmpp.stanza.Presence(
+            type_=aioxmpp.structs.PresenceType.AVAILABLE,
+            from_=TEST_MUC_JID.replace(resource="thirdwitch")
+        )
+        presence.xep0045_muc_user = muc_xso.UserExt(
+            items=[
+                muc_xso.UserItem(affiliation="member",
+                                 role="participant"),
+            ],
+            status_codes={110},
+        )
+
+        self.jmuc._inbound_muc_user_presence(presence)
+
+        msg = aioxmpp.Message(aioxmpp.MessageType.NORMAL)
+        msg.body.update({None: "some text"})
+
+        tracker = run_coroutine(
+            self.jmuc.send_message_tracked(msg)
+        )
+
+        self.assertEqual(
+            tracker.state,
+            aioxmpp.tracking.MessageState.IN_TRANSIT,
+        )
+
+        reflected = aioxmpp.Message(
+            type_=aioxmpp.MessageType.GROUPCHAT,
+            from_=self.jmuc.me.conversation_jid,
+            id_="#notmyid",
+        )
+        reflected.body[None] = "some text"
+
+        self.jmuc._handle_message(
+            reflected,
+            reflected.from_,
+            False,
+            im_dispatcher.MessageSource.STREAM,
+        )
+
+        self.assertEqual(
+            tracker.state,
+            aioxmpp.tracking.MessageState.DELIVERED_TO_RECIPIENT,
+        )
+
+        self.assertEqual(tracker.response, reflected)
+
+        self.base.on_message.assert_not_called()
+
+    def test_tracking_does_not_fail_on_race(self):
+        presence = aioxmpp.stanza.Presence(
+            type_=aioxmpp.structs.PresenceType.AVAILABLE,
+            from_=TEST_MUC_JID.replace(resource="thirdwitch")
+        )
+        presence.xep0045_muc_user = muc_xso.UserExt(
+            items=[
+                muc_xso.UserItem(affiliation="member",
+                                 role="participant"),
+            ],
+            status_codes={110},
+        )
+
+        self.jmuc._inbound_muc_user_presence(presence)
+
+        msg = aioxmpp.Message(aioxmpp.MessageType.NORMAL)
+        msg.body.update({None: "some text"})
+
+        tracker = run_coroutine(
+            self.jmuc.send_message_tracked(msg)
+        )
+        tracker._set_state(aioxmpp.tracking.MessageState.SEEN_BY_RECIPIENT)
+
+        reflected = aioxmpp.Message(
+            type_=aioxmpp.MessageType.GROUPCHAT,
+            from_=self.jmuc.me.conversation_jid,
+            id_=msg.id_,
+        )
+        reflected.body[None] = "some text"
+
+        self.jmuc._handle_message(
+            reflected,
+            reflected.from_,
+            False,
+            im_dispatcher.MessageSource.STREAM,
+        )
+
+        self.base.on_message.assert_not_called()
+
+    def test_tracking_state_cleanup_on_close(self):
+        presence = aioxmpp.stanza.Presence(
+            type_=aioxmpp.structs.PresenceType.AVAILABLE,
+            from_=TEST_MUC_JID.replace(resource="thirdwitch")
+        )
+        presence.xep0045_muc_user = muc_xso.UserExt(
+            items=[
+                muc_xso.UserItem(affiliation="member",
+                                 role="participant"),
+            ],
+            status_codes={110},
+        )
+
+        self.jmuc._inbound_muc_user_presence(presence)
+
+        msg = aioxmpp.Message(aioxmpp.MessageType.NORMAL)
+        msg.body.update({None: "some text"})
+
+        tracker = run_coroutine(
+            self.jmuc.send_message_tracked(msg)
+        )
+
+        self.assertEqual(
+            tracker.state,
+            aioxmpp.tracking.MessageState.IN_TRANSIT,
+        )
+
+        tracker.close()
+
+        reflected = aioxmpp.Message(
+            type_=aioxmpp.MessageType.GROUPCHAT,
+            from_=self.jmuc.me.conversation_jid,
+            id_=msg.id_,
+        )
+
+        self.jmuc._handle_message(
+            reflected,
+            reflected.from_,
+            False,
+            im_dispatcher.MessageSource.STREAM,
+        )
+
+        self.assertEqual(
+            tracker.state,
+            aioxmpp.tracking.MessageState.IN_TRANSIT,
         )
 
 
@@ -2201,9 +2464,13 @@ class TestService(unittest.TestCase):
         self.im_service = unittest.mock.Mock(
             spec=im_service.ConversationService
         )
+        self.tracking_service = unittest.mock.Mock(
+            spec=aioxmpp.tracking.BasicTrackingService
+        )
         self.s = muc_service.MUCClient(self.cc, dependencies={
             im_dispatcher.IMDispatcher: self.im_dispatcher,
             im_service.ConversationService: self.im_service,
+            aioxmpp.tracking.BasicTrackingService: self.tracking_service,
         })
 
     def test_depends_on_IMDispatcher(self):
@@ -2215,6 +2482,12 @@ class TestService(unittest.TestCase):
     def test_depends_on_ConversationService(self):
         self.assertIn(
             im_service.ConversationService,
+            muc_service.MUCClient.ORDER_AFTER,
+        )
+
+    def test_depends_on_BasicTrackingService(self):
+        self.assertIn(
+            aioxmpp.tracking.BasicTrackingService,
             muc_service.MUCClient.ORDER_AFTER,
         )
 
@@ -2247,6 +2520,7 @@ class TestService(unittest.TestCase):
             type_=aioxmpp.MessageType.GROUPCHAT,
             from_=TEST_MUC_JID.replace(resource="firstwitch"),
         )
+        msg.xep0045_muc_user = muc_xso.UserExt()
         self.assertIs(
             msg,
             self.s._handle_message(
@@ -2254,6 +2528,36 @@ class TestService(unittest.TestCase):
                 msg.from_,
                 False,
                 unittest.mock.sentinel.source,
+            )
+        )
+
+    def test_handle_message_ignores_nonmuc_ccd_message(self):
+        msg = aioxmpp.Message(
+            type_=aioxmpp.MessageType.CHAT,
+            from_=TEST_MUC_JID.replace(resource="firstwitch"),
+        )
+        self.assertIs(
+            msg,
+            self.s._handle_message(
+                msg,
+                msg.from_,
+                False,
+                im_dispatcher.MessageSource.CARBONS,
+            )
+        )
+
+    def test_handle_message_drops_received_carbon_of_pm(self):
+        msg = aioxmpp.Message(
+            type_=aioxmpp.MessageType.CHAT,
+            from_=TEST_MUC_JID.replace(resource="firstwitch"),
+        )
+        msg.xep0045_muc_user = muc_xso.UserExt()
+        self.assertIsNone(
+            self.s._handle_message(
+                msg,
+                msg.from_,
+                False,
+                im_dispatcher.MessageSource.CARBONS,
             )
         )
 
@@ -2689,7 +2993,7 @@ class TestService(unittest.TestCase):
             ]
         )
 
-    def test_forward_messages_to_joined_mucs(self):
+    def test_forward_groupchat_messages_to_joined_mucs(self):
         room, future = self.s.join(TEST_MUC_JID, "thirdwitch")
 
         def mkpresence(nick, is_self=False):
@@ -2743,6 +3047,57 @@ class TestService(unittest.TestCase):
             unittest.mock.sentinel.sent,
             unittest.mock.sentinel.source,
         )
+
+    def test_ignores_chat_messages_from_joined_mucs(self):
+        room, future = self.s.join(TEST_MUC_JID, "thirdwitch")
+
+        def mkpresence(nick, is_self=False):
+            presence = aioxmpp.stanza.Presence(
+                from_=TEST_MUC_JID.replace(resource=nick)
+            )
+            presence.xep0045_muc_user = muc_xso.UserExt(
+                status_codes={110} if is_self else set()
+            )
+            return presence
+
+        occupant_presences = [
+            mkpresence(nick, is_self=(nick == "thirdwitch"))
+            for nick in [
+                "firstwitch",
+                "secondwitch",
+                "thirdwitch",
+            ]
+        ]
+
+        msg = aioxmpp.stanza.Message(
+            from_=TEST_MUC_JID.replace(resource="firstwitch"),
+            type_=aioxmpp.structs.MessageType.CHAT,
+        )
+
+        with contextlib.ExitStack() as stack:
+            _handle_message = stack.enter_context(unittest.mock.patch.object(
+                room,
+                "_handle_message",
+            ))
+
+            for presence in occupant_presences:
+                self.s._handle_presence(
+                    presence,
+                    presence.from_,
+                    False,
+                )
+
+            self.assertIs(
+                msg,
+                self.s._handle_message(
+                    msg,
+                    msg.from_,
+                    unittest.mock.sentinel.sent,
+                    unittest.mock.sentinel.source,
+                )
+            )
+
+        _handle_message.assert_not_called()
 
     def test_muc_is_untracked_when_user_leaves(self):
         room, future = self.s.join(TEST_MUC_JID, "thirdwitch")

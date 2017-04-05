@@ -568,11 +568,7 @@ class AbstractConversation(metaclass=abc.ABCMeta):
 
         .. warning::
 
-           Active tracking objects consume memory for storing the state. It is
-           advisable to either set a `timeout` or
-           :meth:`.tracking.MessageTracker.cancel` the tracking from the
-           application at some point to prevent degration of performance and
-           running out of memory.
+            Read :ref:`api-tracking-memory`.
 
         .. seealso::
 
