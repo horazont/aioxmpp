@@ -688,7 +688,7 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
                 )
                 return
             self._occupant_info[info.conversation_jid] = info
-            self.on_join(stanza, info)
+            self.on_join(info)
             return
 
         mode, data = self._diff_presence(stanza, info, existing)

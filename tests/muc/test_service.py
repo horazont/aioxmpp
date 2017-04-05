@@ -629,7 +629,6 @@ class TestRoom(unittest.TestCase):
                 self.base.mock_calls,
                 [
                     unittest.mock.call.on_join(
-                        presence,
                         Occupant.from_presence()
                     )
                 ]
@@ -674,7 +673,7 @@ class TestRoom(unittest.TestCase):
             self.assertSequenceEqual(
                 self.base.mock_calls,
                 [
-                    unittest.mock.call.on_join(presence, first)
+                    unittest.mock.call.on_join(first)
                 ]
             )
             self.base.mock_calls.clear()
@@ -733,7 +732,7 @@ class TestRoom(unittest.TestCase):
             self.assertSequenceEqual(
                 self.base.mock_calls,
                 [
-                    unittest.mock.call.on_join(presence, first)
+                    unittest.mock.call.on_join(first)
                 ]
             )
             self.base.mock_calls.clear()
@@ -806,7 +805,7 @@ class TestRoom(unittest.TestCase):
             self.assertSequenceEqual(
                 self.base.mock_calls,
                 [
-                    unittest.mock.call.on_join(presence, first)
+                    unittest.mock.call.on_join(first)
                 ]
             )
             self.base.mock_calls.clear()
@@ -880,7 +879,7 @@ class TestRoom(unittest.TestCase):
             self.assertSequenceEqual(
                 self.base.mock_calls,
                 [
-                    unittest.mock.call.on_join(presence, first)
+                    unittest.mock.call.on_join(first)
                 ]
             )
             self.base.mock_calls.clear()
@@ -955,7 +954,7 @@ class TestRoom(unittest.TestCase):
             self.assertSequenceEqual(
                 self.base.mock_calls,
                 [
-                    unittest.mock.call.on_join(presence, first)
+                    unittest.mock.call.on_join(first)
                 ]
             )
             self.base.mock_calls.clear()
@@ -1019,7 +1018,7 @@ class TestRoom(unittest.TestCase):
             self.assertSequenceEqual(
                 self.base.mock_calls,
                 [
-                    unittest.mock.call.on_join(presence, first)
+                    unittest.mock.call.on_join(first)
                 ]
             )
             self.base.mock_calls.clear()
@@ -1073,7 +1072,7 @@ class TestRoom(unittest.TestCase):
             self.assertSequenceEqual(
                 self.base.mock_calls,
                 [
-                    unittest.mock.call.on_join(presence, first)
+                    unittest.mock.call.on_join(first)
                 ]
             )
             self.base.mock_calls.clear()
@@ -1129,7 +1128,7 @@ class TestRoom(unittest.TestCase):
             self.assertSequenceEqual(
                 self.base.mock_calls,
                 [
-                    unittest.mock.call.on_join(presence, first)
+                    unittest.mock.call.on_join(first)
                 ]
             )
             self.base.mock_calls.clear()
@@ -1277,7 +1276,7 @@ class TestRoom(unittest.TestCase):
             self.assertSequenceEqual(
                 self.base.mock_calls,
                 [
-                    unittest.mock.call.on_join(presence, first)
+                    unittest.mock.call.on_join(first)
                 ]
             )
             self.base.mock_calls.clear()
@@ -1336,7 +1335,7 @@ class TestRoom(unittest.TestCase):
 
         self.jmuc._inbound_muc_user_presence(pres)
 
-        _, (_, occupant), _ = self.base.on_join.mock_calls[-1]
+        _, (occupant, ), _ = self.base.on_join.mock_calls[-1]
         self.base.mock_calls.clear()
 
         msg = aioxmpp.stanza.Message(
@@ -1497,7 +1496,7 @@ class TestRoom(unittest.TestCase):
 
         self.jmuc._inbound_muc_user_presence(pres)
 
-        _, (_, occupant), _ = self.base.on_join.mock_calls[-1]
+        _, (occupant, ), _ = self.base.on_join.mock_calls[-1]
         self.base.mock_calls.clear()
 
         msg = aioxmpp.stanza.Message(
@@ -1988,7 +1987,7 @@ class TestRoom(unittest.TestCase):
 
         members = [
             occupant
-            for _, (_, occupant, *_), _ in self.base.on_join.mock_calls
+            for _, (occupant, *_), _ in self.base.on_join.mock_calls
         ]
 
         self.assertSetEqual(

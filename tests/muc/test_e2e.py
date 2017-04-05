@@ -92,11 +92,11 @@ class TestMuc(TestCase):
 
         recvd_future = asyncio.Future()
 
-        def onjoin(presence, occupant, **kwargs):
+        def onjoin(occupant, **kwargs):
             if occupant.nick != "thirdwitch":
                 return
             nonlocal recvd_future
-            recvd_future.set_result((presence, occupant))
+            recvd_future.set_result((occupant, ))
             # we do not want to be called again
             return True
 
@@ -105,15 +105,10 @@ class TestMuc(TestCase):
         thirdroom, fut = service.join(self.mucjid, "thirdwitch")
         yield from fut
 
-        presence, occupant = yield from recvd_future
+        occupant, = yield from recvd_future
         self.assertEqual(
             occupant.conversation_jid,
             self.mucjid.replace(resource="thirdwitch"),
-        )
-
-        self.assertEqual(
-            presence.from_,
-            occupant.conversation_jid,
         )
 
     @blocking_timed
