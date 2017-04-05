@@ -117,9 +117,9 @@ class TestMuc(TestCase):
         exit_fut = asyncio.Future()
         leave_fut = asyncio.Future()
 
-        def onexit(presence, occupant, mode, **kwargs):
+        def onexit(muc_leave_mode, **kwargs):
             nonlocal exit_fut
-            exit_fut.set_result((presence, occupant, mode))
+            exit_fut.set_result((muc_leave_mode,))
             return True
 
         def onleave(occupant, muc_leave_mode, **kwargs):
@@ -135,12 +135,7 @@ class TestMuc(TestCase):
             "none",
             reason="Thou art no real witch")
 
-        presence, occupant, mode = yield from exit_fut
-
-        self.assertEqual(
-            presence.type_,
-            aioxmpp.PresenceType.UNAVAILABLE,
-        )
+        mode, = yield from exit_fut
 
         self.assertEqual(
             mode,
@@ -160,9 +155,9 @@ class TestMuc(TestCase):
         exit_fut = asyncio.Future()
         leave_fut = asyncio.Future()
 
-        def onexit(presence, occupant, mode, **kwargs):
+        def onexit(muc_leave_mode, **kwargs):
             nonlocal exit_fut
-            exit_fut.set_result((presence, occupant, mode))
+            exit_fut.set_result((muc_leave_mode,))
             return True
 
         def onleave(occupant, muc_leave_mode, **kwargs):
@@ -178,12 +173,7 @@ class TestMuc(TestCase):
             "outcast",
             reason="Thou art no real witch")
 
-        presence, occupant, mode = yield from exit_fut
-
-        self.assertEqual(
-            presence.type_,
-            aioxmpp.PresenceType.UNAVAILABLE,
-        )
+        mode, = yield from exit_fut
 
         self.assertEqual(
             mode,
@@ -203,9 +193,9 @@ class TestMuc(TestCase):
         exit_fut = asyncio.Future()
         leave_fut = asyncio.Future()
 
-        def onexit(presence, occupant, mode, **kwargs):
+        def onexit(muc_leave_mode, **kwargs):
             nonlocal exit_fut
-            exit_fut.set_result((presence, occupant, mode))
+            exit_fut.set_result((muc_leave_mode,))
             return True
 
         def onleave(occupant, muc_leave_mode, **kwargs):
@@ -221,7 +211,7 @@ class TestMuc(TestCase):
         self.assertFalse(self.secondroom.active)
         self.assertFalse(self.secondroom.joined)
 
-        presence, occupant, mode = yield from exit_fut
+        mode, = yield from exit_fut
         self.assertEqual(
             mode,
             aioxmpp.muc.LeaveMode.NORMAL,

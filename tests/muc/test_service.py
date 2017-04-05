@@ -486,9 +486,8 @@ class TestRoom(unittest.TestCase):
             self.base.mock_calls,
             [
                 unittest.mock.call.on_exit(
-                    None,
-                    self.jmuc.me,
-                    muc_service.LeaveMode.DISCONNECTED),
+                    muc_leave_mode=muc_service.LeaveMode.DISCONNECTED
+                ),
             ]
         )
 
@@ -525,9 +524,8 @@ class TestRoom(unittest.TestCase):
             [
                 unittest.mock.call.on_suspend(),
                 unittest.mock.call.on_exit(
-                    None,
-                    self.jmuc.me,
-                    muc_service.LeaveMode.DISCONNECTED),
+                    muc_leave_mode=muc_service.LeaveMode.DISCONNECTED
+                ),
             ]
         )
 
@@ -1581,11 +1579,9 @@ class TestRoom(unittest.TestCase):
             self.base.mock_calls,
             [
                 unittest.mock.call.on_exit(
-                    presence,
-                    self.jmuc.me,
-                    muc_service.LeaveMode.NORMAL,
-                    actor=None,
-                    reason=None
+                    muc_leave_mode=muc_service.LeaveMode.NORMAL,
+                    muc_actor=None,
+                    muc_reason=None
                 )
             ]
         )
@@ -1645,11 +1641,9 @@ class TestRoom(unittest.TestCase):
             self.base.mock_calls,
             [
                 unittest.mock.call.on_exit(
-                    presence,
-                    self.jmuc.me,
-                    muc_service.LeaveMode.KICKED,
-                    actor=None,
-                    reason=None
+                    muc_leave_mode=muc_service.LeaveMode.KICKED,
+                    muc_actor=None,
+                    muc_reason=None
                 )
             ]
         )
@@ -1954,11 +1948,15 @@ class TestRoom(unittest.TestCase):
 
             leave.assert_called_with()
 
-            self.jmuc.on_exit(object(), object(), object())
+            self.jmuc.on_exit(muc_leave_mode=object(),
+                              muc_actor=object(),
+                              muc_reason=object())
 
             self.assertIsNone(run_coroutine(fut))
 
-            self.jmuc.on_exit(object(), object(), object())
+            self.jmuc.on_exit(muc_leave_mode=object(),
+                              muc_actor=object(),
+                              muc_reason=object())
 
     def test_members(self):
         presence = aioxmpp.stanza.Presence(
@@ -2980,9 +2978,9 @@ class TestService(unittest.TestCase):
             [
                 unittest.mock.call.enter1(unittest.mock.ANY,
                                           unittest.mock.ANY),
-                unittest.mock.call.exit1(None,
-                                         room1.me,
-                                         muc_service.LeaveMode.DISCONNECTED),
+                unittest.mock.call.exit1(
+                    muc_leave_mode=muc_service.LeaveMode.DISCONNECTED
+                ),
             ]
         )
         base.mock_calls.clear()

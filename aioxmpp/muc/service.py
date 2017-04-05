@@ -506,9 +506,7 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
         if not self._joined:
             return
         self.on_exit(
-            None,
-            self._this_occupant,
-            LeaveMode.DISCONNECTED
+            muc_leave_mode=LeaveMode.DISCONNECTED
         )
         self._joined = False
         self._active = False
@@ -660,7 +658,9 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
                                        self._mucjid,
                                        reason)
             existing.update(info)
-            self.on_exit(stanza, existing, mode, actor=actor, reason=reason)
+            self.on_exit(muc_leave_mode=mode,
+                         muc_actor=actor,
+                         muc_reason=reason)
             self._joined = False
             self._active = False
 
@@ -1072,7 +1072,7 @@ class MUCClient(aioxmpp.service.Service):
             message, peer, sent, source
         )
 
-    def _muc_exited(self, muc, stanza, *args, **kwargs):
+    def _muc_exited(self, muc, *args, **kwargs):
         try:
             del self._joined_mucs[muc.jid]
         except KeyError:
