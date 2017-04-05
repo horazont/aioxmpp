@@ -76,6 +76,13 @@ class TestMuc(TestCase):
         # owner of the muc
         yield from fut
 
+        secondwitch_fut = asyncio.Future()
+        def cb(member, **kwargs):
+            secondwitch_fut.set_result(member)
+            return True
+
+        self.firstroom.on_join.connect(cb)
+
         self.secondroom, fut = self.secondwitch.summon(
             aioxmpp.MUCClient
         ).join(
@@ -84,6 +91,11 @@ class TestMuc(TestCase):
         )
 
         yield from fut
+
+        # we also want to wait until firstwitch sees secondwitch
+
+        member = yield from secondwitch_fut
+        self.assertIn(member, self.firstroom.members)
 
     @blocking_timed
     @asyncio.coroutine
@@ -111,9 +123,61 @@ class TestMuc(TestCase):
             self.mucjid.replace(resource="thirdwitch"),
         )
 
+        self.assertIn(occupant, self.firstroom.members)
+
     @blocking_timed
     @asyncio.coroutine
     def test_kick(self):
+        exit_fut = asyncio.Future()
+        leave_fut = asyncio.Future()
+
+        def onexit(muc_leave_mode, muc_reason=None, **kwargs):
+            nonlocal exit_fut
+            exit_fut.set_result((muc_leave_mode, muc_reason))
+            return True
+
+        def onleave(occupant, muc_leave_mode, muc_reason=None, **kwargs):
+            nonlocal leave_fut
+            leave_fut.set_result((occupant, muc_leave_mode, muc_reason))
+            return True
+
+        self.secondroom.on_exit.connect(onexit)
+        self.firstroom.on_leave.connect(onleave)
+
+        for witch in self.firstroom.members:
+            if witch.nick == "secondwitch":
+                yield from self.firstroom.kick(witch, "Thou art no real witch")
+                break
+        else:
+            self.assertFalse(True, "secondwitch not found in members")
+
+        mode, reason = yield from exit_fut
+
+        self.assertEqual(
+            mode,
+            aioxmpp.muc.LeaveMode.KICKED,
+        )
+
+        self.assertEqual(
+            reason,
+            "Thou art no real witch",
+        )
+
+        occupant, mode, reason = yield from leave_fut
+
+        self.assertEqual(
+            mode,
+            aioxmpp.muc.LeaveMode.KICKED,
+        )
+
+        self.assertEqual(
+            reason,
+            "Thou art no real witch",
+        )
+
+    @blocking_timed
+    @asyncio.coroutine
+    def test_kick_using_set_role(self):
         exit_fut = asyncio.Future()
         leave_fut = asyncio.Future()
 
@@ -130,7 +194,7 @@ class TestMuc(TestCase):
         self.secondroom.on_exit.connect(onexit)
         self.firstroom.on_leave.connect(onleave)
 
-        yield from self.firstroom.set_role(
+        yield from self.firstroom.muc_set_role(
             "secondwitch",
             "none",
             reason="Thou art no real witch")
@@ -155,6 +219,56 @@ class TestMuc(TestCase):
         exit_fut = asyncio.Future()
         leave_fut = asyncio.Future()
 
+        def onexit(muc_leave_mode, muc_reason=None, **kwargs):
+            nonlocal exit_fut
+            exit_fut.set_result((muc_leave_mode, muc_reason))
+            return True
+
+        def onleave(occupant, muc_leave_mode, muc_reason=None, **kwargs):
+            nonlocal leave_fut
+            leave_fut.set_result((occupant, muc_leave_mode, muc_reason))
+            return True
+
+        self.secondroom.on_exit.connect(onexit)
+        self.firstroom.on_leave.connect(onleave)
+
+        for witch in self.firstroom.members:
+            if witch.nick == "secondwitch":
+                yield from self.firstroom.ban(witch, "Treason!")
+                break
+        else:
+            self.assertFalse(True, "secondwitch not found in members")
+
+        mode, reason = yield from exit_fut
+
+        self.assertEqual(
+            mode,
+            aioxmpp.muc.LeaveMode.BANNED,
+        )
+
+        self.assertEqual(
+            reason,
+            "Treason!",
+        )
+
+        occupant, mode, reason = yield from leave_fut
+
+        self.assertEqual(
+            mode,
+            aioxmpp.muc.LeaveMode.BANNED,
+        )
+
+        self.assertEqual(
+            reason,
+            "Treason!",
+        )
+
+    @blocking_timed
+    @asyncio.coroutine
+    def test_ban_using_set_affiliation(self):
+        exit_fut = asyncio.Future()
+        leave_fut = asyncio.Future()
+
         def onexit(muc_leave_mode, **kwargs):
             nonlocal exit_fut
             exit_fut.set_result((muc_leave_mode,))
@@ -168,7 +282,7 @@ class TestMuc(TestCase):
         self.secondroom.on_exit.connect(onexit)
         self.firstroom.on_leave.connect(onleave)
 
-        yield from self.firstroom.set_affiliation(
+        yield from self.firstroom.muc_set_affiliation(
             self.secondwitch.local_jid.bare(),
             "outcast",
             reason="Thou art no real witch")
@@ -206,7 +320,7 @@ class TestMuc(TestCase):
         self.firstroom.on_leave.connect(onleave)
         self.secondroom.on_exit.connect(onexit)
 
-        yield from self.secondroom.leave_and_wait()
+        yield from self.secondroom.leave()
 
         self.assertFalse(self.secondroom.active)
         self.assertFalse(self.secondroom.joined)
@@ -225,7 +339,7 @@ class TestMuc(TestCase):
 
     @blocking_timed
     @asyncio.coroutine
-    def test_set_subject(self):
+    def test_set_topic(self):
         subject_fut = asyncio.Future()
 
         def onsubject(member, subject, **kwargs):
@@ -235,7 +349,7 @@ class TestMuc(TestCase):
 
         self.secondroom.on_topic_changed.connect(onsubject)
 
-        self.firstroom.set_subject({None: "Wytches Brew!"})
+        yield from self.firstroom.set_topic({None: "Wytches Brew!"})
 
         member, subject = yield from subject_fut
 
@@ -329,7 +443,7 @@ class TestMuc(TestCase):
 
     @blocking_timed
     @asyncio.coroutine
-    def test_change_nick(self):
+    def test_set_nick(self):
         self_future = asyncio.Future()
         foreign_future = asyncio.Future()
 
@@ -345,7 +459,7 @@ class TestMuc(TestCase):
             functools.partial(onnickchange, self_future),
         )
 
-        yield from self.firstroom.change_nick("oldhag")
+        yield from self.firstroom.set_nick("oldhag")
 
         occupant, old_nick, new_nick = yield from self_future
         self.assertEqual(occupant, self.firstroom.me)

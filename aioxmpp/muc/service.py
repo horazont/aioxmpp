@@ -218,11 +218,9 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
 
     .. autoattribute:: members
 
-    .. automethod:: change_nick
+    .. automethod:: set_nick
 
     .. automethod:: leave
-
-    .. automethod:: leave_and_wait
 
     .. automethod:: request_voice
 
@@ -501,6 +499,18 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
             items = []
         items += list(self._occupant_info.values())
         return items
+
+    @property
+    def features(self):
+        return {
+            aioxmpp.im.conversation.ConversationFeature.BAN,
+            aioxmpp.im.conversation.ConversationFeature.BAN_WITH_KICK,
+            aioxmpp.im.conversation.ConversationFeature.KICK,
+            aioxmpp.im.conversation.ConversationFeature.SEND_MESSAGE,
+            aioxmpp.im.conversation.ConversationFeature.SEND_MESSAGE_TRACKED,
+            aioxmpp.im.conversation.ConversationFeature.SET_TOPIC,
+            aioxmpp.im.conversation.ConversationFeature.SET_NICK,
+        }
 
     def _suspend(self):
         self.on_suspend()
@@ -801,7 +811,7 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
         return tracker
 
     @asyncio.coroutine
-    def change_nick(self, new_nick):
+    def set_nick(self, new_nick):
         """
         Change the nick name of the occupant.
 
@@ -824,7 +834,15 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
         )
 
     @asyncio.coroutine
-    def set_role(self, nick, role, *, reason=None):
+    def kick(self, member, reason=None):
+        yield from self.muc_set_role(
+            member.nick,
+            "none",
+            reason=reason
+        )
+
+    @asyncio.coroutine
+    def muc_set_role(self, nick, role, *, reason=None):
         """
         Change the role of an occupant, identified by their `nick`, to the
         given new `role`. Optionally, a `reason` for the role change can be
@@ -863,7 +881,20 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
         )
 
     @asyncio.coroutine
-    def set_affiliation(self, jid, affiliation, *, reason=None):
+    def ban(self, member, reason=None, *, request_kick=True):
+        if member.direct_jid is None:
+            raise ValueError(
+                "cannot ban members whose direct JID is not "
+                "known")
+
+        yield from self.muc_set_affiliation(
+            member.direct_jid,
+            "outcast",
+            reason=reason
+        )
+
+    @asyncio.coroutine
+    def muc_set_affiliation(self, jid, affiliation, *, reason=None):
         """
         Convenience wrapper around :meth:`.MUCClient.set_affiliation`. See
         there for details, and consider its `mucjid` argument to be set to
@@ -874,7 +905,8 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
             jid, affiliation,
             reason=reason))
 
-    def set_subject(self, subject):
+    @asyncio.coroutine
+    def set_topic(self, new_topic):
         """
         Request to set the subject to `subject`. `subject` must be a mapping
         which maps :class:`~.structs.LanguageTag` tags to strings; :data:`None`
@@ -887,52 +919,34 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
             type_=aioxmpp.structs.MessageType.GROUPCHAT,
             to=self._mucjid
         )
-        msg.subject.update(subject)
+        msg.subject.update(new_topic)
 
-        return self.service.client.stream.enqueue(msg)
-
-    def leave(self):
-        """
-        Request to leave the MUC.
-
-        This sends unavailable presence to the bare :attr:`mucjid`. When the
-        leave is completed, :meth:`on_exit` fires.
-
-        .. seealso::
-
-           Method :meth:`leave_and_wait`
-             A coroutine which calls :meth:`leave` and returns when
-             :meth:`on_exit` is fired.
-
-        """
-        presence = aioxmpp.stanza.Presence(
-            type_=aioxmpp.structs.PresenceType.UNAVAILABLE,
-            to=self._mucjid
-        )
-        self.service.client.stream.enqueue(presence)
+        yield from self.service.client.stream.send(msg)
 
     @asyncio.coroutine
-    def leave_and_wait(self):
+    def leave(self):
         """
         Request to leave the MUC and wait for it. This effectively calls
         :meth:`leave` and waits for the next :meth:`on_exit` event.
         """
-        fut = asyncio.Future()
+        fut = self.on_exit.future()
 
-        self.leave()
-
-        def on_exit(*args, **kwargs):
+        def cb(**kwargs):
             fut.set_result(None)
-            return True
+            return True  # disconnect
 
-        self.on_exit.connect(
-            on_exit
+        self.on_exit.connect(cb)
+
+        presence = aioxmpp.stanza.Presence(
+            type_=aioxmpp.structs.PresenceType.UNAVAILABLE,
+            to=self._mucjid
         )
+        yield from self.service.client.stream.send(presence)
 
         yield from fut
 
     @asyncio.coroutine
-    def request_voice(self):
+    def muc_request_voice(self):
         """
         Request voice (participant role) in the room and wait for the request
         to be sent.

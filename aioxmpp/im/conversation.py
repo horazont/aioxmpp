@@ -520,15 +520,17 @@ class AbstractConversation(metaclass=abc.ABCMeta):
         """
         return set()
 
-    @asyncio.coroutine
     def send_message(self, body):
         """
         Send a message to the conversation.
 
         :param body: The message body.
+        :return: The stanza token obtained from sending.
+        :rtype: :class:`~aioxmpp.stream.StanzaToken`
 
         The default implementation simply calls :meth:`send_message_tracked`
-        and immediately cancels the tracking object.
+        and immediately cancels the tracking object, returning only the stanza
+        token.
 
         Subclasses may override this method with a more specialised
         implementation. Subclasses which do not provide tracked message sending
@@ -545,7 +547,6 @@ class AbstractConversation(metaclass=abc.ABCMeta):
         tracker.cancel()
 
     @abc.abstractmethod
-    @asyncio.coroutine
     def send_message_tracked(self, body, *, timeout=None):
         """
         Send a message to the conversation with tracking.
@@ -555,6 +556,9 @@ class AbstractConversation(metaclass=abc.ABCMeta):
         :type timeout: :class:`numbers.RealNumber`, :class:`datetime.timedelta`
                        or :data:`None`
         :raise NotImplementedError: if tracking is not implemented
+        :return: The stanza token obtained from sending and the
+            :class:`aioxmpp.tracking.MessageTracker` tracking the delivery.
+        :rtype: :class:`~aioxmpp.stream.StanzaToken`
 
         Tracking may not be supported by all implementations, and the degree of
         support varies with implementation. Please check the documentation
@@ -579,11 +583,13 @@ class AbstractConversation(metaclass=abc.ABCMeta):
         """
 
     @asyncio.coroutine
-    def kick(self, member):
+    def kick(self, member, reason=None):
         """
         Kick a member from a conversation.
 
         :param member: The member to kick.
+        :param reason: A reason to show to the kicked member.
+        :type reason: :class:`str`
         :raises aioxmpp.errors.XMPPError: if the server returned an error for
                                           the kick command.
 
@@ -595,9 +601,13 @@ class AbstractConversation(metaclass=abc.ABCMeta):
         raise self._not_implemented_error("kicking members")
 
     @asyncio.coroutine
-    def ban(self, member, *, request_kick=True):
+    def ban(self, member, reason=None, *, request_kick=True):
         """
         Ban a member from re-joining a conversation.
+
+        :param member: The member to ban.
+        :param reason: A reason to show to the banned member.
+        :type reason: :class:`str`
 
         If `request_kick` is true, the implementation attempts to kick the
         member from the conversation, too, if that does not happen
@@ -687,17 +697,31 @@ class AbstractConversation(metaclass=abc.ABCMeta):
            details on the semantics of features.
 
         """
+        raise self._not_implemented_error("changing the nickname")
 
     @asyncio.coroutine
     def set_topic(self, new_topic):
         """
         Change the (possibly publicly) visible topic of the conversation.
 
+        :param new_topic: The new topic for the conversation.
+        :type new_topic: :class:`str`
+
+        Sends the request to change the topic and waits for the request to
+        be sent.
+
+        There is no guarantee that the topic change will actually be
+        applied; listen to the :meth:`on_topic_chagned` event.
+
+        Implementations may provide a different method which provides more
+        feedback.
+
         .. seealso::
 
-           The corresponding feature is
+           The corresponding feature for this method is
            :attr:`.ConversationFeature.SET_TOPIC`. See :attr:`features` for
-           details.
+           details on the semantics of features.
+
 
         """
         raise self._not_implemented_error("changing the topic")
