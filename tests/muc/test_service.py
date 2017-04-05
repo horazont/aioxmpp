@@ -692,11 +692,10 @@ class TestRoom(unittest.TestCase):
                 self.base.mock_calls,
                 [
                     unittest.mock.call.on_leave(
-                        presence,
                         first,
-                        muc_service.LeaveMode.NORMAL,
-                        actor=None,
-                        reason=None)
+                        muc_leave_mode=muc_service.LeaveMode.NORMAL,
+                        muc_actor=None,
+                        muc_reason=None)
                 ]
             )
 
@@ -760,11 +759,10 @@ class TestRoom(unittest.TestCase):
                         actor=actor,
                         reason="Avaunt, you cullion!"),
                     unittest.mock.call.on_leave(
-                        presence,
                         first,
-                        muc_service.LeaveMode.KICKED,
-                        actor=actor,
-                        reason="Avaunt, you cullion!")
+                        muc_leave_mode=muc_service.LeaveMode.KICKED,
+                        muc_actor=actor,
+                        muc_reason="Avaunt, you cullion!")
                 ]
             )
 
@@ -841,11 +839,10 @@ class TestRoom(unittest.TestCase):
                         reason="Treason"
                     ),
                     unittest.mock.call.on_leave(
-                        presence,
                         first,
-                        muc_service.LeaveMode.BANNED,
-                        actor=actor,
-                        reason="Treason")
+                        muc_leave_mode=muc_service.LeaveMode.BANNED,
+                        muc_actor=actor,
+                        muc_reason="Treason")
                 ]
             )
             self.assertEqual(
@@ -912,11 +909,10 @@ class TestRoom(unittest.TestCase):
                         reason="foo"
                     ),
                     unittest.mock.call.on_leave(
-                        presence,
                         first,
-                        muc_service.LeaveMode.AFFILIATION_CHANGE,
-                        actor=actor,
-                        reason="foo")
+                        muc_leave_mode=muc_service.LeaveMode.AFFILIATION_CHANGE,
+                        muc_actor=actor,
+                        muc_reason="foo")
                 ]
             )
             self.assertEqual(
@@ -981,11 +977,10 @@ class TestRoom(unittest.TestCase):
                         reason="foo",
                     ),
                     unittest.mock.call.on_leave(
-                        presence,
                         first,
-                        muc_service.LeaveMode.MODERATION_CHANGE,
-                        actor=actor,
-                        reason="foo")
+                        muc_leave_mode=muc_service.LeaveMode.MODERATION_CHANGE,
+                        muc_actor=actor,
+                        muc_reason="foo")
                 ]
             )
             self.assertEqual(
@@ -1036,11 +1031,10 @@ class TestRoom(unittest.TestCase):
                 self.base.mock_calls,
                 [
                     unittest.mock.call.on_leave(
-                        presence,
                         first,
-                        muc_service.LeaveMode.SYSTEM_SHUTDOWN,
-                        actor=None,
-                        reason="foo")
+                        muc_leave_mode=muc_service.LeaveMode.SYSTEM_SHUTDOWN,
+                        muc_actor=None,
+                        muc_reason="foo")
                 ]
             )
             self.assertEqual(

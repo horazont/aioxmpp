@@ -115,13 +115,20 @@ class TestMuc(TestCase):
     @asyncio.coroutine
     def test_kick(self):
         exit_fut = asyncio.Future()
+        leave_fut = asyncio.Future()
 
         def onexit(presence, occupant, mode, **kwargs):
             nonlocal exit_fut
             exit_fut.set_result((presence, occupant, mode))
             return True
 
+        def onleave(occupant, muc_leave_mode, **kwargs):
+            nonlocal leave_fut
+            leave_fut.set_result((occupant, muc_leave_mode))
+            return True
+
         self.secondroom.on_exit.connect(onexit)
+        self.firstroom.on_leave.connect(onleave)
 
         yield from self.firstroom.set_role(
             "secondwitch",
@@ -140,17 +147,31 @@ class TestMuc(TestCase):
             aioxmpp.muc.LeaveMode.KICKED,
         )
 
+        occupant, mode = yield from leave_fut
+
+        self.assertEqual(
+            mode,
+            aioxmpp.muc.LeaveMode.KICKED,
+        )
+
     @blocking_timed
     @asyncio.coroutine
     def test_ban(self):
         exit_fut = asyncio.Future()
+        leave_fut = asyncio.Future()
 
         def onexit(presence, occupant, mode, **kwargs):
             nonlocal exit_fut
             exit_fut.set_result((presence, occupant, mode))
             return True
 
+        def onleave(occupant, muc_leave_mode, **kwargs):
+            nonlocal leave_fut
+            leave_fut.set_result((occupant, muc_leave_mode))
+            return True
+
         self.secondroom.on_exit.connect(onexit)
+        self.firstroom.on_leave.connect(onleave)
 
         yield from self.firstroom.set_affiliation(
             self.secondwitch.local_jid.bare(),
@@ -169,6 +190,13 @@ class TestMuc(TestCase):
             aioxmpp.muc.LeaveMode.BANNED,
         )
 
+        occupant, mode = yield from leave_fut
+
+        self.assertEqual(
+            mode,
+            aioxmpp.muc.LeaveMode.BANNED,
+        )
+
     @blocking_timed
     @asyncio.coroutine
     def test_leave(self):
@@ -180,9 +208,9 @@ class TestMuc(TestCase):
             exit_fut.set_result((presence, occupant, mode))
             return True
 
-        def onleave(presence, occupant, mode, **kwargs):
+        def onleave(occupant, muc_leave_mode, **kwargs):
             nonlocal leave_fut
-            leave_fut.set_result((presence, occupant, mode))
+            leave_fut.set_result((occupant, muc_leave_mode))
             return True
 
         self.firstroom.on_leave.connect(onleave)
@@ -199,7 +227,7 @@ class TestMuc(TestCase):
             aioxmpp.muc.LeaveMode.NORMAL,
         )
 
-        presence, occupant, mode = yield from leave_fut
+        occupant, mode = yield from leave_fut
         self.assertEqual(
             mode,
             aioxmpp.muc.LeaveMode.NORMAL,

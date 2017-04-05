@@ -703,7 +703,10 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
         elif mode == _OccupantDiffClass.LEFT:
             mode, actor, reason = data
             existing.update(info)
-            self.on_leave(stanza, existing, mode, actor=actor, reason=reason)
+            self.on_leave(existing,
+                          muc_leave_mode=mode,
+                          muc_actor=actor,
+                          muc_reason=reason)
             del self._occupant_info[existing.conversation_jid]
 
     @asyncio.coroutine
