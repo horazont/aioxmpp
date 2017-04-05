@@ -30,6 +30,8 @@ import aioxmpp.callbacks
 import aioxmpp.errors
 import aioxmpp.forms
 import aioxmpp.im.dispatcher as im_dispatcher
+import aioxmpp.im.service as im_service
+import aioxmpp.im.p2p as im_p2p
 import aioxmpp.muc.service as muc_service
 import aioxmpp.muc.xso as muc_xso
 import aioxmpp.service as service
@@ -1523,6 +1525,41 @@ class TestRoom(unittest.TestCase):
             ]
         )
 
+    def test_inbound_groupchat_message_with_body_emits_on_message_with_member(self):
+        pres = aioxmpp.stanza.Presence(
+            from_=TEST_MUC_JID.replace(resource="secondwitch"),
+        )
+        pres.xep0045_muc_user = muc_xso.UserExt(status_codes={110})
+
+        self.jmuc._inbound_muc_user_presence(pres)
+
+        self.base.on_enter.assert_called_once_with(pres, self.jmuc.me)
+        self.base.mock_calls.clear()
+
+        msg = aioxmpp.stanza.Message(
+            from_=TEST_MUC_JID.replace(resource="secondwitch"),
+            type_=aioxmpp.structs.MessageType.GROUPCHAT,
+        )
+        msg.body[None] = "foo"
+
+        self.jmuc._handle_message(
+            msg,
+            msg.from_,
+            False,
+            unittest.mock.sentinel.source,
+        )
+
+        self.assertSequenceEqual(
+            self.base.mock_calls,
+            [
+                unittest.mock.call.on_message(
+                    msg,
+                    self.jmuc.me,
+                    unittest.mock.sentinel.source,
+                )
+            ]
+        )
+
     def test__inbound_muc_user_presence_emits_on_enter_and_on_exit(self):
         presence = aioxmpp.stanza.Presence(
             type_=aioxmpp.structs.PresenceType.AVAILABLE,
@@ -2110,6 +2147,46 @@ class TestRoom(unittest.TestCase):
             ["participant"]
         )
 
+    def test_send_message(self):
+        msg = aioxmpp.Message(aioxmpp.MessageType.NORMAL)
+        msg.body.update({None: "some text"})
+
+        run_coroutine(
+            self.jmuc.send_message(msg)
+        )
+
+        self.base.service.client.stream.send.assert_called_once_with(
+            unittest.mock.ANY,
+        )
+
+        _, (msg, ), _ = self.base.service.client.stream.send.mock_calls[0]
+
+        self.assertIsInstance(
+            msg,
+            aioxmpp.Message,
+        )
+
+        self.assertEqual(
+            msg.type_,
+            aioxmpp.MessageType.GROUPCHAT,
+        )
+
+        self.assertEqual(
+            msg.to,
+            self.jmuc.jid,
+        )
+
+        self.assertDictEqual(
+            msg.body,
+            {None: "some text"},
+        )
+
+        self.base.on_message.assert_called_once_with(
+            msg,
+            self.jmuc.me,
+            im_dispatcher.MessageSource.STREAM,
+        )
+
 
 class TestService(unittest.TestCase):
     def test_is_service(self):
@@ -2121,20 +2198,30 @@ class TestService(unittest.TestCase):
     def setUp(self):
         self.cc = make_connected_client()
         self.im_dispatcher = im_dispatcher.IMDispatcher(self.cc)
+        self.im_service = unittest.mock.Mock(
+            spec=im_service.ConversationService
+        )
         self.s = muc_service.MUCClient(self.cc, dependencies={
             im_dispatcher.IMDispatcher: self.im_dispatcher,
+            im_service.ConversationService: self.im_service,
         })
-
-    def test_event_attributes(self):
-        self.assertIsInstance(
-            self.s.on_muc_joined,
-            aioxmpp.callbacks.AdHocSignal
-        )
 
     def test_depends_on_IMDispatcher(self):
         self.assertIn(
             im_dispatcher.IMDispatcher,
             muc_service.MUCClient.ORDER_AFTER,
+        )
+
+    def test_depends_on_ConversationService(self):
+        self.assertIn(
+            im_service.ConversationService,
+            muc_service.MUCClient.ORDER_AFTER,
+        )
+
+    def test_orders_before_P2P_Service(self):
+        self.assertIn(
+            im_p2p.Service,
+            muc_service.MUCClient.ORDER_BEFORE,
         )
 
     def test_handle_presence_is_decorated(self):
@@ -2274,6 +2361,9 @@ class TestService(unittest.TestCase):
             self.s.get_muc(TEST_MUC_JID)
 
         room, future = self.s.join(TEST_MUC_JID, "thirdwitch")
+
+        self.im_service._add_conversation.assert_called_once_with(room)
+
         self.assertIs(
             self.s.get_muc(TEST_MUC_JID),
             room

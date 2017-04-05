@@ -62,7 +62,7 @@ class Conversation(AbstractConversation):
         self.on_message(msg, member, source)
 
     @property
-    def peer_jid(self):
+    def jid(self):
         return self.__peer_jid
 
     @property

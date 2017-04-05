@@ -299,12 +299,9 @@ class TestMuc(TestCase):
 
         self.secondroom.on_message.connect(onmessage)
 
-        msg = aioxmpp.Message(
-            type_=aioxmpp.MessageType.GROUPCHAT,
-            to=self.mucjid
-        )
-        msg.body[None] = "foo"
-        yield from self.firstwitch.stream.send(msg)
+        msg = aioxmpp.Message(type_=aioxmpp.MessageType.CHAT)
+        msg.body.update({None: "foo"})
+        yield from self.firstroom.send_message(msg)
 
         message, member, = yield from msg_future
         self.assertDictEqual(
@@ -312,6 +309,14 @@ class TestMuc(TestCase):
             {
                 None: "foo"
             }
+        )
+        self.assertEqual(
+            message.type_,
+            aioxmpp.MessageType.GROUPCHAT,
+        )
+        self.assertEqual(
+            msg.type_,
+            aioxmpp.MessageType.GROUPCHAT,
         )
 
         self.assertCountEqual(

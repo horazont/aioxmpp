@@ -43,6 +43,10 @@ class DummyConversation(conv.AbstractConversation):
     def me(self):
         pass
 
+    @property
+    def jid(self):
+        pass
+
     @asyncio.coroutine
     def send_message_tracked(self, *args, **kwargs):
         return self.__mock.send_message_tracked(*args, **kwargs)

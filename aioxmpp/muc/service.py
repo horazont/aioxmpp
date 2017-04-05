@@ -33,6 +33,8 @@ import aioxmpp.structs
 import aioxmpp.tracking
 import aioxmpp.im.conversation
 import aioxmpp.im.dispatcher
+import aioxmpp.im.p2p
+import aioxmpp.im.service
 
 from . import xso as muc_xso
 
@@ -522,19 +524,25 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
                                    self._mucjid,
                                    message)
 
+        if (self._this_occupant and
+                self._this_occupant._conversation_jid == message.from_):
+            occupant = self._this_occupant
+        else:
+            occupant = self._occupant_info.get(message.from_, None)
+
         if not message.body and message.subject:
             self._subject = aioxmpp.structs.LanguageMap(message.subject)
             self._subject_setter = message.from_.resource
 
             self.on_topic_changed(
-                self._occupant_info.get(message.from_, None),
+                occupant,
                 self._subject,
             )
 
         elif message.body:
             self.on_message(
                 message,
-                self._occupant_info.get(message.from_, None),
+                occupant,
                 source,
             )
 
@@ -710,6 +718,17 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
                           muc_actor=actor,
                           muc_reason=reason)
             del self._occupant_info[existing.conversation_jid]
+
+    @asyncio.coroutine
+    def send_message(self, msg):
+        msg.type_ = aioxmpp.MessageType.GROUPCHAT
+        msg.to = self._mucjid
+        yield from self.service.client.stream.send(msg)
+        self.on_message(
+            msg,
+            self._this_occupant,
+            aioxmpp.im.dispatcher.MessageSource.STREAM
+        )
 
     @asyncio.coroutine
     def send_message_tracked(self, body):
@@ -920,9 +939,12 @@ class MUCClient(aioxmpp.service.Service):
 
     ORDER_AFTER = [
         aioxmpp.im.dispatcher.IMDispatcher,
+        aioxmpp.im.service.ConversationService,
     ]
 
-    on_muc_joined = aioxmpp.callbacks.Signal()
+    ORDER_BEFORE = [
+        aioxmpp.im.p2p.Service,
+    ]
 
     def __init__(self, client, **kwargs):
         super().__init__(client, **kwargs)
@@ -1173,6 +1195,10 @@ class MUCClient(aioxmpp.service.Service):
 
         if self.client.established:
             self._send_join_presence(mucjid, history, nick, password)
+
+        self.dependencies[
+            aioxmpp.im.service.ConversationService
+        ]._add_conversation(room)
 
         return room, fut
 

@@ -125,15 +125,15 @@ class TestConversation(unittest.TestCase):
         run_coroutine(self.c.leave())
         self.svc._conversation_left.assert_called_once_with(self.c)
 
-    def test_peer_jid(self):
+    def test_jid(self):
         self.assertEqual(
-            self.c.peer_jid,
+            self.c.jid,
             PEER_JID,
         )
 
-    def test_peer_jid_not_writable(self):
+    def test_jid_not_writable(self):
         with self.assertRaises(AttributeError):
-            self.c.peer_jid = self.c.peer_jid
+            self.c.jid = self.c.jid
 
     def test_message_tracking_not_implemented(self):
         with self.assertRaises(NotImplementedError):
@@ -579,19 +579,23 @@ class TestE2E(TestCase):
         fwmsgs = []
         fwev = asyncio.Event()
 
-        def fwevset(*args):
+        def fwevset(message, member, source):
+            if member == c1.me:
+                return
+            fwmsgs.append(message)
             fwev.set()
 
         swmsgs = []
         swev = asyncio.Event()
 
-        def swevset(*args):
+        def swevset(message, member, source):
+            if member == c2.me:
+                return
+            swmsgs.append(message)
             swev.set()
 
-        c1.on_message_received.connect(fwmsgs.append)
-        c1.on_message_received.connect(fwevset)
-        c2.on_message_received.connect(swmsgs.append)
-        c2.on_message_received.connect(swevset)
+        c1.on_message.connect(fwevset)
+        c2.on_message.connect(swevset)
 
         msg = aioxmpp.Message(aioxmpp.MessageType.CHAT)
         msg.body[None] = "foo"
