@@ -383,13 +383,13 @@ class AvatarClient(service.Service):
         self._pubsub = self.dependencies[pubsub.PubSubClient]
         self._lock = asyncio.Lock()
 
-    def _cook_metadata(self, jid, metadata):
-        def iter_metadata_info_nodes(metdata):
-            for item in metadata.payload.items:
+    def _cook_metadata(self, jid, items):
+        def iter_metadata_info_nodes(items):
+            for item in items:
                 yield from item.registered_payload.iter_info_nodes()
 
         result = collections.defaultdict(lambda: [])
-        for info_node in iter_metadata_info_nodes(metadata):
+        for info_node in iter_metadata_info_nodes(items):
             if info_node.url is not None:
                 descriptor = HttpAvatarDescriptor(
                     remote_jid=jid,
@@ -420,7 +420,7 @@ class AvatarClient(service.Service):
             return
 
         # update the metadata cache
-        metadata = self._cook_metadata(jid, item)
+        metadata = self._cook_metadata(jid, [item])
         self._metadata_cache[jid] = metadata
 
         self.on_metadata_changed(
@@ -474,7 +474,7 @@ class AvatarClient(service.Service):
                 else:
                     raise
             else:
-                metadata = self._cook_metadata(jid, metadata_raw)
+                metadata = self._cook_metadata(jid, metadata_raw.payload.items)
 
             self._metadata_cache[jid] = metadata
             return metadata
