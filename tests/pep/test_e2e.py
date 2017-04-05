@@ -60,15 +60,63 @@ class TestPEP(TestCase):
         def handler(jid, node, item, *, message=None):
             self.assertEqual(jid, self.client.local_jid.bare())
             self.assertEqual(node, "urn:example:payload")
-            self.assertEqual(item.payload.data, EXAMPLE_TEXT)
+            self.assertEqual(item.registered_payload.data, EXAMPLE_TEXT)
             done.set()
 
+        presence = self.client.summon(aioxmpp.PresenceServer)
         p = self.client.summon(aioxmpp.pep.PEPClient)
         p.claim_pep_node("urn:example:payload", handler, notify=True)
+        # this is necessary, otherwise the +notify feature will not be
+        # sent to the server.
+        yield from presence.resend_presence()
         payload = ExamplePayload()
         payload.data = EXAMPLE_TEXT
-        p.publish("urn:example:payload", payload)
+        yield from p.publish("urn:example:payload", payload)
         yield from done.wait()
         p.unclaim_pep_node("urn:example:payload")
 
-    # TODO: test the same thing with test_claim_node
+
+class ExampleService(aioxmpp.service.Service):
+    ORDER_AFTER = [aioxmpp.pep.PEPClient]
+
+    payload = aioxmpp.pep.register_pep_node("urn:example:payload", notify=True)
+
+    def __init__(self, client, **kwargs):
+        super().__init__(client, **kwargs)
+
+    def register_handler(self, handler):
+        self.payload.on_event_received.connect(handler)
+
+
+class Test_register_pep_node_Descriptor(TestCase):
+
+    @blocking
+    @asyncio.coroutine
+    def setUp(self):
+        self.client = yield from self.provisioner.get_connected_client(
+            services=[
+                aioxmpp.EntityCapsService,
+                aioxmpp.PresenceServer,
+                aioxmpp.PubSubClient,
+                aioxmpp.pep.PEPClient,
+                ExampleService,
+            ]
+        )
+
+    @blocking_timed
+    @asyncio.coroutine
+    def test_get_notification(self):
+        done = asyncio.Event()
+        def handler(jid, node, item, *, message=None):
+            self.assertEqual(jid, self.client.local_jid.bare())
+            self.assertEqual(node, "urn:example:payload")
+            self.assertEqual(item.registered_payload.data, EXAMPLE_TEXT)
+            done.set()
+
+        example = self.client.summon(ExampleService)
+        example.register_handler(handler)
+        p = self.client.summon(aioxmpp.pep.PEPClient)
+        payload = ExamplePayload()
+        payload.data = EXAMPLE_TEXT
+        yield from p.publish("urn:example:payload", payload)
+        yield from done.wait()

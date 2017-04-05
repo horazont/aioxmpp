@@ -79,7 +79,7 @@ class PEPClient(service.Service):
             for the arguments.
         :param register_feature: Whether to publish the `node_namespace`
             as feature.
-        :param notify: Whether to register the `+notify` feature to
+        :param notify: Whether to register the ``+notify`` feature to
             receive notification without explicit subscription.
 
         :raises RuntimeError: if a handler for `node_namespace` is already
@@ -99,20 +99,20 @@ class PEPClient(service.Service):
         """
         Unclaim `node_namespace`.
 
-        The `+notify` feature is automatically retracted if it was set
-        by :method:`set_event_handler`.
+        The feature for `node_namespace` and the ``+notify`` feature
+        are automatically retracted if they were set by
+        :method:`claim_pep_node`.
 
         :param node_namespace: The PubSub node whose handler shall be unset.
 
         :raises KeyError: If the no handler is registered for
             `node_namespace`.
         """
-        _, feature, notify = self._pep_node_claims[node_namespace]
+        _, feature, notify = self._pep_node_claims.pop(node_namespace)
         if notify:
             self._disco_server.unregister_feature(node_namespace + "+notify")
         if feature:
             self._disco_server.unregister_feature(node_namespace)
-        del self._pep_node_claims[node_namespace]
 
     @asyncio.coroutine
     def _check_for_pep(self):
@@ -163,6 +163,9 @@ class PEPClient(service.Service):
     def subscribe(self, jid, node):
         yield from self._pubsub.subscribe(jid, node)
 
+class RegisteredPEPNode:
+    # XXX: do we want to provide metadata in this class?
+    on_event_received = callbacks.Signal()
 
 class register_pep_node(service.Descriptor):
     """
@@ -192,11 +195,9 @@ class register_pep_node(service.Descriptor):
                  notify=False, max_items=None):
         super().__init__()
         self._node_namespace = node_namespace
-        self._notify = notifty
+        self._notify = notify
         self._register_feature = register_feature
-        self._max_itesm = max_items
-
-    on_event_received = callbacks.Signal()
+        self._max_items = max_items
 
     @property
     def node_namespace(self):
@@ -225,12 +226,13 @@ class register_pep_node(service.Descriptor):
 
     @contextlib.contextmanager
     def init_cm(self, instance):
+        value = RegisteredPEPNode()
         pep_client = instance.dependencies[PEPClient]
         pep_client.claim_pep_node(
             self._node_namespace,
-            self.on_event_received,
+            value.on_event_received,
             register_feature=self._register_feature,
             notify=self._notify,
         )
-        yield
+        yield value
         pep_client.unclaim_pep_node(self._node_namespace)
