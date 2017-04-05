@@ -287,7 +287,7 @@ class TestRoom(unittest.TestCase):
         self.jmuc = muc_service.Room(self.base.service, self.mucjid)
 
         for ev in ["on_enter", "on_exit", "on_suspend", "on_resume",
-                   "on_message", "on_subject_change",
+                   "on_message", "on_topic_changed",
                    "on_join", "on_presence_changed", "on_nick_change",
                    "on_role_change", "on_affiliation_change",
                    "on_leave"]:
@@ -332,7 +332,7 @@ class TestRoom(unittest.TestCase):
             aioxmpp.callbacks.AdHocSignal
         )
         self.assertIsInstance(
-            self.jmuc.on_subject_change,
+            self.jmuc.on_topic_changed,
             aioxmpp.callbacks.AdHocSignal
         )
         self.assertIsInstance(
@@ -1328,35 +1328,7 @@ class TestRoom(unittest.TestCase):
                 "moderator"
             )
 
-    def test__handle_message_calls_inbound_for_received(self):
-        with unittest.mock.patch.object(
-                self.jmuc,
-                "_inbound_message") as _inbound_message:
-            self.jmuc._handle_message(
-                unittest.mock.sentinel.msg,
-                unittest.mock.sentinel.peer,
-                False,
-                unittest.mock.sentinel.source,
-            )
-
-        _inbound_message.assert_called_once_with(
-            unittest.mock.sentinel.msg
-        )
-
-    def test__handle_message_does_not_call_inbound_for_sent(self):
-        with unittest.mock.patch.object(
-                self.jmuc,
-                "_inbound_message") as _inbound_message:
-            self.jmuc._handle_message(
-                unittest.mock.sentinel.msg,
-                unittest.mock.sentinel.peer,
-                True,
-                unittest.mock.sentinel.source,
-            )
-
-        _inbound_message.assert_not_called()
-
-    def test__inbound_message_handles_subject_of_occupant(self):
+    def test_handle_message_handles_subject_of_occupant(self):
         pres = aioxmpp.stanza.Presence(
             from_=TEST_MUC_JID.replace(resource="secondwitch"),
         )
@@ -1377,7 +1349,12 @@ class TestRoom(unittest.TestCase):
 
         old_subject = self.jmuc.subject
 
-        self.jmuc._inbound_message(msg)
+        self.jmuc._handle_message(
+            msg,
+            msg.from_,
+            False,
+            unittest.mock.sentinel.source,
+        )
 
         self.assertDictEqual(
             self.jmuc.subject,
@@ -1390,15 +1367,16 @@ class TestRoom(unittest.TestCase):
         self.assertSequenceEqual(
             self.base.mock_calls,
             [
-                unittest.mock.call.on_subject_change(
-                    msg,
-                    self.jmuc.subject,
-                    occupant=occupant
+                unittest.mock.call.on_topic_changed(
+                    occupant,
+                    {
+                        None: "foo",
+                    }
                 )
             ]
         )
 
-    def test__inbound_message_handles_subject_of_non_occupant(self):
+    def test_handle_message_handles_subject_of_non_occupant(self):
         msg = aioxmpp.stanza.Message(
             from_=TEST_MUC_JID.replace(resource="secondwitch"),
             type_=aioxmpp.structs.MessageType.GROUPCHAT,
@@ -1409,7 +1387,12 @@ class TestRoom(unittest.TestCase):
 
         old_subject = self.jmuc.subject
 
-        self.jmuc._inbound_message(msg)
+        self.jmuc._handle_message(
+            msg,
+            msg.from_,
+            False,
+            unittest.mock.sentinel.source,
+        )
 
         self.assertDictEqual(
             self.jmuc.subject,
@@ -1422,15 +1405,14 @@ class TestRoom(unittest.TestCase):
         self.assertSequenceEqual(
             self.base.mock_calls,
             [
-                unittest.mock.call.on_subject_change(
-                    msg,
-                    self.jmuc.subject,
-                    occupant=None
+                unittest.mock.call.on_topic_changed(
+                    None,
+                    msg.subject,
                 )
             ]
         )
 
-    def test__inbound_message_ignores_subject_if_body_is_present(self):
+    def test_handle_message_ignores_subject_if_body_is_present(self):
         msg = aioxmpp.stanza.Message(
             from_=TEST_MUC_JID.replace(resource="secondwitch"),
             type_=aioxmpp.structs.MessageType.GROUPCHAT,
@@ -1442,7 +1424,12 @@ class TestRoom(unittest.TestCase):
             aioxmpp.structs.LanguageTag.fromstr("de"): "bar"
         })
 
-        self.jmuc._inbound_message(msg)
+        self.jmuc._handle_message(
+            msg,
+            msg.from_,
+            False,
+            unittest.mock.sentinel.source
+        )
 
         self.assertDictEqual(
             self.jmuc.subject,
@@ -1450,9 +1437,9 @@ class TestRoom(unittest.TestCase):
         )
         self.assertIsNone(self.jmuc.subject_setter)
 
-        self.assertFalse(self.base.on_subject_change.mock_calls)
+        self.base.on_topic_changed.assert_not_called()
 
-    def test__inbound_message_does_not_reset_subject_if_no_subject_given(self):
+    def test_handle_message_does_not_reset_subject_if_no_subject_given(self):
         self.jmuc.subject[None] = "foo"
 
         msg = aioxmpp.stanza.Message(
@@ -1460,7 +1447,12 @@ class TestRoom(unittest.TestCase):
             type_=aioxmpp.structs.MessageType.GROUPCHAT,
         )
 
-        self.jmuc._inbound_message(msg)
+        self.jmuc._handle_message(
+            msg,
+            msg.from_,
+            False,
+            unittest.mock.sentinel.source
+        )
 
         self.assertDictEqual(
             self.jmuc.subject,
@@ -1470,32 +1462,34 @@ class TestRoom(unittest.TestCase):
         )
         self.assertIsNone(self.jmuc.subject_setter)
 
-        self.assertSequenceEqual(
-            self.base.mock_calls,
-            [
-            ]
-        )
+        self.base.on_topic_changed.assert_not_called()
 
-    def test__inbound_groupchat_message_with_body_emits_on_message(self):
+    def test_inbound_groupchat_message_with_body_emits_on_message(self):
         msg = aioxmpp.stanza.Message(
             from_=TEST_MUC_JID.replace(resource="secondwitch"),
             type_=aioxmpp.structs.MessageType.GROUPCHAT,
         )
         msg.body[None] = "foo"
 
-        self.jmuc._inbound_message(msg)
+        self.jmuc._handle_message(
+            msg,
+            msg.from_,
+            False,
+            unittest.mock.sentinel.source,
+        )
 
         self.assertSequenceEqual(
             self.base.mock_calls,
             [
                 unittest.mock.call.on_message(
                     msg,
-                    occupant=None
+                    None,
+                    unittest.mock.sentinel.source,
                 )
             ]
         )
 
-    def test__inbound_groupchat_message_with_body_emits_on_message_with_occupant(self):
+    def test_inbound_groupchat_message_with_body_emits_on_message_with_member(self):
         pres = aioxmpp.stanza.Presence(
             from_=TEST_MUC_JID.replace(resource="secondwitch"),
         )
@@ -1512,14 +1506,20 @@ class TestRoom(unittest.TestCase):
         )
         msg.body[None] = "foo"
 
-        self.jmuc._inbound_message(msg)
+        self.jmuc._handle_message(
+            msg,
+            msg.from_,
+            False,
+            unittest.mock.sentinel.source,
+        )
 
         self.assertSequenceEqual(
             self.base.mock_calls,
             [
                 unittest.mock.call.on_message(
                     msg,
-                    occupant=occupant
+                    self.jmuc.members[0],
+                    unittest.mock.sentinel.source,
                 )
             ]
         )

@@ -407,7 +407,7 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
     on_role_change = aioxmpp.callbacks.Signal()
 
     # room state events
-    on_subject_change = aioxmpp.callbacks.Signal()
+    on_topic_changed = aioxmpp.callbacks.Signal()
 
     def __init__(self, service, mucjid):
         super().__init__(service)
@@ -520,43 +520,29 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
         self.on_resume()
 
     def _handle_message(self, message, peer, sent, source):
-        if not sent:
-            self._inbound_message(message)
-
-    def _inbound_message(self, stanza):
         self._service.logger.debug("%s: inbound message %r",
                                    self._mucjid,
-                                   stanza)
+                                   message)
 
-        if not stanza.body and stanza.subject:
-            self._subject = aioxmpp.structs.LanguageMap(stanza.subject)
-            self._subject_setter = stanza.from_.resource
+        if not message.body and message.subject:
+            self._subject = aioxmpp.structs.LanguageMap(message.subject)
+            self._subject_setter = message.from_.resource
 
-            self.on_subject_change(
-                stanza,
+            self.on_topic_changed(
+                self._occupant_info.get(message.from_, None),
                 self._subject,
-                occupant=self._occupant_info.get(stanza.from_, None)
-            )
-        elif stanza.body:
-            self.on_message(
-                stanza,
-                occupant=self._occupant_info.get(stanza.from_, None)
             )
 
-        try:
-            tracker = self._tracking.pop(stanza.id_)
-        except KeyError:
-            pass
-        else:
-            try:
-                tracker.state = \
-                    aioxmpp.tracking.MessageState.DELIVERED_TO_RECIPIENT
-            except ValueError:
-                pass
+        elif message.body:
+            self.on_message(
+                message,
+                self._occupant_info.get(message.from_, None),
+                source,
+            )
 
     def _diff_presence(self, stanza, info, existing):
-        if    (not info.presence_state.available and
-               303 in stanza.xep0045_muc_user.status_codes):
+        if (not info.presence_state.available and
+                303 in stanza.xep0045_muc_user.status_codes):
             return (
                 _OccupantDiffClass.NICK_CHANGED,
                 (

@@ -368,6 +368,15 @@ class AbstractConversation(metaclass=abc.ABCMeta):
        where it is not trivial for the protocol to actually determine the old
        nickname or where no nickname was set before.
 
+    .. signal:: on_topic_changed(member, new_topic, **kwargs)
+
+        The topic of the conversation has changed.
+
+        :param member: The member object who changed the topic.
+        :type member: :class:`~.AbstractConversationMember`
+        :param new_topic: The new topic of the conversation.
+        :type new_topic: :class:`str`
+
     .. signal:: on_join(member, **kwargs)
 
        A new member has joined the conversation.

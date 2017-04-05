@@ -215,16 +215,16 @@ class TestMuc(TestCase):
     def test_set_subject(self):
         subject_fut = asyncio.Future()
 
-        def onsubject(message, subject, **kwargs):
+        def onsubject(member, subject, **kwargs):
             nonlocal subject_fut
-            subject_fut.set_result((message, subject))
+            subject_fut.set_result((member, subject))
             return True
 
-        self.secondroom.on_subject_change.connect(onsubject)
+        self.secondroom.on_topic_changed.connect(onsubject)
 
         self.firstroom.set_subject({None: "Wytches Brew!"})
 
-        message, subject = yield from subject_fut
+        member, subject = yield from subject_fut
 
         self.assertDictEqual(
             subject,
@@ -279,9 +279,9 @@ class TestMuc(TestCase):
     def test_send_message(self):
         msg_future = asyncio.Future()
 
-        def onmessage(message, **kwargs):
+        def onmessage(message, member, source, **kwargs):
             nonlocal msg_future
-            msg_future.set_result((message,))
+            msg_future.set_result((message, member,))
             return True
 
         self.secondroom.on_message.connect(onmessage)
@@ -293,12 +293,19 @@ class TestMuc(TestCase):
         msg.body[None] = "foo"
         yield from self.firstwitch.stream.send(msg)
 
-        message, = yield from msg_future
+        message, member, = yield from msg_future
         self.assertDictEqual(
             message.body,
             {
                 None: "foo"
             }
+        )
+
+        self.assertCountEqual(
+            [member],
+            [member
+             for member in self.secondroom.members
+             if member.nick == "firstwitch"],
         )
 
     @blocking_timed
