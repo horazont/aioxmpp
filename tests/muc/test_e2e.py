@@ -337,23 +337,27 @@ class TestMuc(TestCase):
         self_future = asyncio.Future()
         foreign_future = asyncio.Future()
 
-        def onnickchange(fut, presence, occupant, **kwargs):
-            fut.set_result((presence, occupant,))
+        def onnickchange(fut, occupant, old_nick, new_nick, **kwargs):
+            fut.set_result((occupant, old_nick, new_nick))
             return True
 
-        self.secondroom.on_nick_change.connect(
+        self.secondroom.on_nick_changed.connect(
             functools.partial(onnickchange, foreign_future),
         )
 
-        self.firstroom.on_nick_change.connect(
+        self.firstroom.on_nick_changed.connect(
             functools.partial(onnickchange, self_future),
         )
 
         yield from self.firstroom.change_nick("oldhag")
 
-        presence, occupant = yield from self_future
+        occupant, old_nick, new_nick = yield from self_future
         self.assertEqual(occupant, self.firstroom.me)
+        self.assertEqual(old_nick, "firstwitch")
         self.assertEqual(occupant.nick, "oldhag")
+        self.assertEqual(new_nick, occupant.nick)
 
-        presence, occupant = yield from foreign_future
+        occupant, old_nick, new_nick = yield from foreign_future
         self.assertEqual(occupant.nick, "oldhag")
+        self.assertEqual(old_nick, "firstwitch")
+        self.assertEqual(new_nick, occupant.nick)

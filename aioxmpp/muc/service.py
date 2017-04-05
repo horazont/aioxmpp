@@ -403,7 +403,7 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
     on_leave = aioxmpp.callbacks.Signal()
     on_presence_changed = aioxmpp.callbacks.Signal()
     on_affiliation_change = aioxmpp.callbacks.Signal()
-    on_nick_change = aioxmpp.callbacks.Signal()
+    on_nick_changed = aioxmpp.callbacks.Signal()
     on_role_change = aioxmpp.callbacks.Signal()
 
     # room state events
@@ -645,14 +645,15 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
         mode, data = self._diff_presence(stanza, info, existing)
         if mode == _OccupantDiffClass.NICK_CHANGED:
             new_nick, = data
+            old_nick = existing.nick
             self._service.logger.debug("%s: nick changed: %r -> %r",
                                        self._mucjid,
-                                       existing.conversation_jid.resource,
+                                       old_nick,
                                        new_nick)
             existing._conversation_jid = existing.conversation_jid.replace(
                 resource=new_nick
             )
-            self.on_nick_change(stanza, existing)
+            self.on_nick_changed(existing, old_nick, new_nick)
         elif mode == _OccupantDiffClass.LEFT:
             mode, actor, reason = data
             self._service.logger.debug("%s: we left the MUC. reason=%r",
@@ -694,12 +695,13 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
         mode, data = self._diff_presence(stanza, info, existing)
         if mode == _OccupantDiffClass.NICK_CHANGED:
             new_nick, = data
+            old_nick = existing.nick
             del self._occupant_info[existing.conversation_jid]
             existing._conversation_jid = existing.conversation_jid.replace(
                 resource=new_nick
             )
             self._occupant_info[existing.conversation_jid] = existing
-            self.on_nick_change(stanza, existing)
+            self.on_nick_changed(existing, old_nick, new_nick)
         elif mode == _OccupantDiffClass.LEFT:
             mode, actor, reason = data
             existing.update(info)

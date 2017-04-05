@@ -288,7 +288,7 @@ class TestRoom(unittest.TestCase):
 
         for ev in ["on_enter", "on_exit", "on_suspend", "on_resume",
                    "on_message", "on_topic_changed",
-                   "on_join", "on_presence_changed", "on_nick_change",
+                   "on_join", "on_presence_changed", "on_nick_changed",
                    "on_role_change", "on_affiliation_change",
                    "on_leave"]:
             cb = getattr(self.base, ev)
@@ -324,7 +324,7 @@ class TestRoom(unittest.TestCase):
             aioxmpp.callbacks.AdHocSignal
         )
         self.assertIsInstance(
-            self.jmuc.on_nick_change,
+            self.jmuc.on_nick_changed,
             aioxmpp.callbacks.AdHocSignal
         )
         self.assertIsInstance(
@@ -1098,7 +1098,7 @@ class TestRoom(unittest.TestCase):
                 presence.status
             )
 
-    def test__inbound_muc_user_presence_emits_on_nick_change(self):
+    def test__inbound_muc_user_presence_emits_on_nick_changed(self):
         presence = aioxmpp.stanza.Presence(
             type_=aioxmpp.structs.PresenceType.AVAILABLE,
             from_=TEST_MUC_JID.replace(resource="thirdwitch")
@@ -1139,7 +1139,11 @@ class TestRoom(unittest.TestCase):
             self.assertSequenceEqual(
                 self.base.mock_calls,
                 [
-                    unittest.mock.call.on_nick_change(presence, first)
+                    unittest.mock.call.on_nick_changed(
+                        first,
+                        "thirdwitch",
+                        "oldhag",
+                    )
                 ]
             )
             self.base.mock_calls.clear()
@@ -1171,7 +1175,7 @@ class TestRoom(unittest.TestCase):
             )
             self.base.mock_calls.clear()
 
-    def test__inbound_muc_self_presence_emits_on_nick_change(self):
+    def test__inbound_muc_self_presence_emits_on_nick_changed(self):
         presence = aioxmpp.stanza.Presence(
             type_=aioxmpp.structs.PresenceType.AVAILABLE,
             from_=TEST_MUC_JID.replace(resource="thirdwitch")
@@ -1214,7 +1218,11 @@ class TestRoom(unittest.TestCase):
             self.assertSequenceEqual(
                 self.base.mock_calls,
                 [
-                    unittest.mock.call.on_nick_change(presence, first)
+                    unittest.mock.call.on_nick_changed(
+                        first,
+                        "thirdwitch",
+                        "oldhag",
+                    )
                 ]
             )
             self.base.mock_calls.clear()
