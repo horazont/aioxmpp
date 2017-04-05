@@ -295,10 +295,10 @@ class TestRoom(unittest.TestCase):
 
         self.jmuc = muc_service.Room(self.base.service, self.mucjid)
 
-        for ev in ["on_enter", "on_exit", "on_suspend", "on_resume",
+        for ev in ["on_enter", "on_exit", "on_muc_suspend", "on_muc_resume",
                    "on_message", "on_topic_changed",
                    "on_join", "on_presence_changed", "on_nick_changed",
-                   "on_role_change", "on_affiliation_change",
+                   "on_muc_role_changed", "on_muc_affiliation_changed",
                    "on_leave"]:
             cb = getattr(self.base, ev)
             cb.return_value = None
@@ -329,7 +329,7 @@ class TestRoom(unittest.TestCase):
             aioxmpp.callbacks.AdHocSignal
         )
         self.assertIsInstance(
-            self.jmuc.on_affiliation_change,
+            self.jmuc.on_muc_affiliation_changed,
             aioxmpp.callbacks.AdHocSignal
         )
         self.assertIsInstance(
@@ -337,7 +337,7 @@ class TestRoom(unittest.TestCase):
             aioxmpp.callbacks.AdHocSignal
         )
         self.assertIsInstance(
-            self.jmuc.on_role_change,
+            self.jmuc.on_muc_role_changed,
             aioxmpp.callbacks.AdHocSignal
         )
         self.assertIsInstance(
@@ -345,22 +345,22 @@ class TestRoom(unittest.TestCase):
             aioxmpp.callbacks.AdHocSignal
         )
         self.assertIsInstance(
-            self.jmuc.on_suspend,
+            self.jmuc.on_muc_suspend,
             aioxmpp.callbacks.AdHocSignal
         )
         self.assertIsInstance(
-            self.jmuc.on_resume,
+            self.jmuc.on_muc_resume,
             aioxmpp.callbacks.AdHocSignal
         )
 
     def test_init(self):
         self.assertIs(self.jmuc.service, self.base.service)
         self.assertEqual(self.jmuc.jid, self.mucjid)
-        self.assertDictEqual(self.jmuc.subject, {})
-        self.assertIsInstance(self.jmuc.subject, aioxmpp.structs.LanguageMap)
-        self.assertFalse(self.jmuc.joined)
-        self.assertFalse(self.jmuc.active)
-        self.assertIsNone(self.jmuc.subject_setter)
+        self.assertDictEqual(self.jmuc.muc_subject, {})
+        self.assertIsInstance(self.jmuc.muc_subject, aioxmpp.structs.LanguageMap)
+        self.assertFalse(self.jmuc.muc_joined)
+        self.assertFalse(self.jmuc.muc_active)
+        self.assertIsNone(self.jmuc.muc_subject_setter)
         self.assertIsNone(self.jmuc.me)
         self.assertFalse(self.jmuc.autorejoin)
         self.assertIsNone(self.jmuc.password)
@@ -375,19 +375,19 @@ class TestRoom(unittest.TestCase):
 
     def test_active_is_not_writable(self):
         with self.assertRaises(AttributeError):
-            self.jmuc.active = True
+            self.jmuc.muc_active = True
 
     def test_subject_is_not_writable(self):
         with self.assertRaises(AttributeError):
-            self.jmuc.subject = "foo"
+            self.jmuc.muc_subject = "foo"
 
     def test_subject_setter_is_not_writable(self):
         with self.assertRaises(AttributeError):
-            self.jmuc.subject_setter = "bar"
+            self.jmuc.muc_subject_setter = "bar"
 
     def test_joined_is_not_writable(self):
         with self.assertRaises(AttributeError):
-            self.jmuc.joined = True
+            self.jmuc.muc_joined = True
 
     def test_me_is_not_writable(self):
         with self.assertRaises(AttributeError):
@@ -410,22 +410,22 @@ class TestRoom(unittest.TestCase):
         )
         self.jmuc._inbound_muc_user_presence(presence)
 
-        self.assertTrue(self.jmuc.joined)
-        self.assertTrue(self.jmuc.active)
+        self.assertTrue(self.jmuc.muc_joined)
+        self.assertTrue(self.jmuc.muc_active)
 
         self.jmuc.autorejoin = True
         self.base.mock_calls.clear()
 
         self.jmuc._suspend()
 
-        self.assertTrue(self.jmuc.joined)
-        self.assertFalse(self.jmuc.active)
+        self.assertTrue(self.jmuc.muc_joined)
+        self.assertFalse(self.jmuc.muc_active)
         self.assertIsNotNone(self.jmuc.me)
 
         self.assertSequenceEqual(
             self.base.mock_calls,
             [
-                unittest.mock.call.on_suspend(),
+                unittest.mock.call.on_muc_suspend(),
             ]
         )
 
@@ -446,22 +446,22 @@ class TestRoom(unittest.TestCase):
         )
         self.jmuc._inbound_muc_user_presence(presence)
 
-        self.assertTrue(self.jmuc.joined)
-        self.assertTrue(self.jmuc.active)
+        self.assertTrue(self.jmuc.muc_joined)
+        self.assertTrue(self.jmuc.muc_active)
 
         self.jmuc.autorejoin = False
         self.base.mock_calls.clear()
 
         self.jmuc._suspend()
 
-        self.assertFalse(self.jmuc.active)
-        self.assertTrue(self.jmuc.joined)
+        self.assertFalse(self.jmuc.muc_active)
+        self.assertTrue(self.jmuc.muc_joined)
         self.assertIsNotNone(self.jmuc.me)
 
         self.assertSequenceEqual(
             self.base.mock_calls,
             [
-                unittest.mock.call.on_suspend(),
+                unittest.mock.call.on_muc_suspend(),
             ]
         )
 
@@ -479,16 +479,16 @@ class TestRoom(unittest.TestCase):
         )
         self.jmuc._inbound_muc_user_presence(presence)
 
-        self.assertTrue(self.jmuc.joined)
-        self.assertTrue(self.jmuc.active)
+        self.assertTrue(self.jmuc.muc_joined)
+        self.assertTrue(self.jmuc.muc_active)
 
         self.jmuc.autorejoin = True
         self.base.mock_calls.clear()
 
         self.jmuc._disconnect()
 
-        self.assertFalse(self.jmuc.joined)
-        self.assertFalse(self.jmuc.active)
+        self.assertFalse(self.jmuc.muc_joined)
+        self.assertFalse(self.jmuc.muc_active)
         self.assertIsNotNone(self.jmuc.me)
 
         self.assertSequenceEqual(
@@ -514,8 +514,8 @@ class TestRoom(unittest.TestCase):
         )
         self.jmuc._inbound_muc_user_presence(presence)
 
-        self.assertTrue(self.jmuc.joined)
-        self.assertTrue(self.jmuc.active)
+        self.assertTrue(self.jmuc.muc_joined)
+        self.assertTrue(self.jmuc.muc_active)
 
         self.jmuc.autorejoin = True
         self.base.mock_calls.clear()
@@ -524,14 +524,14 @@ class TestRoom(unittest.TestCase):
 
         self.jmuc._disconnect()
 
-        self.assertFalse(self.jmuc.joined)
-        self.assertFalse(self.jmuc.active)
+        self.assertFalse(self.jmuc.muc_joined)
+        self.assertFalse(self.jmuc.muc_active)
         self.assertIsNotNone(self.jmuc.me)
 
         self.assertSequenceEqual(
             self.base.mock_calls,
             [
-                unittest.mock.call.on_suspend(),
+                unittest.mock.call.on_muc_suspend(),
                 unittest.mock.call.on_exit(
                     muc_leave_mode=muc_service.LeaveMode.DISCONNECTED
                 ),
@@ -539,16 +539,16 @@ class TestRoom(unittest.TestCase):
         )
 
     def test__disconnect_is_noop_if_not_entered(self):
-        self.assertFalse(self.jmuc.joined)
-        self.assertFalse(self.jmuc.active)
+        self.assertFalse(self.jmuc.muc_joined)
+        self.assertFalse(self.jmuc.muc_active)
 
         self.jmuc.autorejoin = True
         self.base.mock_calls.clear()
 
         self.jmuc._disconnect()
 
-        self.assertFalse(self.jmuc.joined)
-        self.assertFalse(self.jmuc.active)
+        self.assertFalse(self.jmuc.muc_joined)
+        self.assertFalse(self.jmuc.muc_active)
 
         self.assertSequenceEqual(
             self.base.mock_calls,
@@ -570,22 +570,22 @@ class TestRoom(unittest.TestCase):
         )
         self.jmuc._inbound_muc_user_presence(presence)
 
-        self.assertTrue(self.jmuc.joined)
-        self.assertTrue(self.jmuc.active)
+        self.assertTrue(self.jmuc.muc_joined)
+        self.assertTrue(self.jmuc.muc_active)
 
         self.jmuc.autorejoin = True
         self.base.mock_calls.clear()
 
         self.jmuc._suspend()
 
-        self.assertTrue(self.jmuc.joined)
-        self.assertFalse(self.jmuc.active)
+        self.assertTrue(self.jmuc.muc_joined)
+        self.assertFalse(self.jmuc.muc_active)
         old_occupant = self.jmuc.me
 
         self.jmuc._resume()
 
-        self.assertTrue(self.jmuc.joined)
-        self.assertFalse(self.jmuc.active)
+        self.assertTrue(self.jmuc.muc_joined)
+        self.assertFalse(self.jmuc.muc_active)
 
         presence = aioxmpp.stanza.Presence(
             type_=aioxmpp.structs.PresenceType.AVAILABLE,
@@ -600,14 +600,14 @@ class TestRoom(unittest.TestCase):
         )
         self.jmuc._inbound_muc_user_presence(presence)
 
-        self.assertTrue(self.jmuc.active)
+        self.assertTrue(self.jmuc.muc_active)
         self.assertIsNot(old_occupant, self.jmuc.me)
 
         self.assertSequenceEqual(
             self.base.mock_calls,
             [
-                unittest.mock.call.on_suspend(),
-                unittest.mock.call.on_resume(),
+                unittest.mock.call.on_muc_suspend(),
+                unittest.mock.call.on_muc_resume(),
                 unittest.mock.call.on_enter(presence, self.jmuc.me)
             ]
         )
@@ -760,7 +760,7 @@ class TestRoom(unittest.TestCase):
             self.assertSequenceEqual(
                 self.base.mock_calls,
                 [
-                    unittest.mock.call.on_role_change(
+                    unittest.mock.call.on_muc_role_changed(
                         presence,
                         first,
                         actor=actor,
@@ -833,13 +833,13 @@ class TestRoom(unittest.TestCase):
             self.assertSequenceEqual(
                 self.base.mock_calls,
                 [
-                    unittest.mock.call.on_role_change(
+                    unittest.mock.call.on_muc_role_changed(
                         presence,
                         first,
                         actor=actor,
                         reason="Treason",
                     ),
-                    unittest.mock.call.on_affiliation_change(
+                    unittest.mock.call.on_muc_affiliation_changed(
                         presence,
                         first,
                         actor=actor,
@@ -903,13 +903,13 @@ class TestRoom(unittest.TestCase):
             self.assertSequenceEqual(
                 self.base.mock_calls,
                 [
-                    unittest.mock.call.on_role_change(
+                    unittest.mock.call.on_muc_role_changed(
                         presence,
                         first,
                         actor=actor,
                         reason="foo",
                     ),
-                    unittest.mock.call.on_affiliation_change(
+                    unittest.mock.call.on_muc_affiliation_changed(
                         presence,
                         first,
                         actor=actor,
@@ -977,7 +977,7 @@ class TestRoom(unittest.TestCase):
             self.assertSequenceEqual(
                 self.base.mock_calls,
                 [
-                    unittest.mock.call.on_role_change(
+                    unittest.mock.call.on_muc_role_changed(
                         presence,
                         first,
                         actor=actor,
@@ -1308,11 +1308,11 @@ class TestRoom(unittest.TestCase):
                         None,
                         presence,
                     ),
-                    unittest.mock.call.on_role_change(
+                    unittest.mock.call.on_muc_role_changed(
                         presence, first,
                         actor=None,
                         reason="foobar"),
-                    unittest.mock.call.on_affiliation_change(
+                    unittest.mock.call.on_muc_affiliation_changed(
                         presence, first,
                         actor=None,
                         reason="foobar"),
@@ -1355,7 +1355,7 @@ class TestRoom(unittest.TestCase):
             None: "foo"
         })
 
-        old_subject = self.jmuc.subject
+        old_subject = self.jmuc.muc_subject
 
         self.jmuc._handle_message(
             msg,
@@ -1365,12 +1365,12 @@ class TestRoom(unittest.TestCase):
         )
 
         self.assertDictEqual(
-            self.jmuc.subject,
+            self.jmuc.muc_subject,
             msg.subject
         )
-        self.assertIsNot(self.jmuc.subject, msg.subject)
-        self.assertIsNot(self.jmuc.subject, old_subject)
-        self.assertEqual(self.jmuc.subject_setter, msg.from_.resource)
+        self.assertIsNot(self.jmuc.muc_subject, msg.subject)
+        self.assertIsNot(self.jmuc.muc_subject, old_subject)
+        self.assertEqual(self.jmuc.muc_subject_setter, msg.from_.resource)
 
         self.assertSequenceEqual(
             self.base.mock_calls,
@@ -1393,7 +1393,7 @@ class TestRoom(unittest.TestCase):
             None: "foo"
         })
 
-        old_subject = self.jmuc.subject
+        old_subject = self.jmuc.muc_subject
 
         self.jmuc._handle_message(
             msg,
@@ -1403,12 +1403,12 @@ class TestRoom(unittest.TestCase):
         )
 
         self.assertDictEqual(
-            self.jmuc.subject,
+            self.jmuc.muc_subject,
             msg.subject
         )
-        self.assertIsNot(self.jmuc.subject, msg.subject)
-        self.assertIsNot(self.jmuc.subject, old_subject)
-        self.assertEqual(self.jmuc.subject_setter, msg.from_.resource)
+        self.assertIsNot(self.jmuc.muc_subject, msg.subject)
+        self.assertIsNot(self.jmuc.muc_subject, old_subject)
+        self.assertEqual(self.jmuc.muc_subject_setter, msg.from_.resource)
 
         self.assertSequenceEqual(
             self.base.mock_calls,
@@ -1440,15 +1440,15 @@ class TestRoom(unittest.TestCase):
         )
 
         self.assertDictEqual(
-            self.jmuc.subject,
+            self.jmuc.muc_subject,
             {}
         )
-        self.assertIsNone(self.jmuc.subject_setter)
+        self.assertIsNone(self.jmuc.muc_subject_setter)
 
         self.base.on_topic_changed.assert_not_called()
 
     def test_handle_message_does_not_reset_subject_if_no_subject_given(self):
-        self.jmuc.subject[None] = "foo"
+        self.jmuc.muc_subject[None] = "foo"
 
         msg = aioxmpp.stanza.Message(
             from_=TEST_MUC_JID.replace(resource="secondwitch"),
@@ -1463,12 +1463,12 @@ class TestRoom(unittest.TestCase):
         )
 
         self.assertDictEqual(
-            self.jmuc.subject,
+            self.jmuc.muc_subject,
             {
                 None: "foo"
             }
         )
-        self.assertIsNone(self.jmuc.subject_setter)
+        self.assertIsNone(self.jmuc.muc_subject_setter)
 
         self.base.on_topic_changed.assert_not_called()
 
@@ -1591,8 +1591,8 @@ class TestRoom(unittest.TestCase):
         )
         self.base.mock_calls.clear()
 
-        self.assertTrue(self.jmuc.joined)
-        self.assertTrue(self.jmuc.active)
+        self.assertTrue(self.jmuc.muc_joined)
+        self.assertTrue(self.jmuc.muc_active)
         self.assertIsInstance(
             self.jmuc.me,
             muc_service.Occupant
@@ -1629,7 +1629,7 @@ class TestRoom(unittest.TestCase):
                 )
             ]
         )
-        self.assertFalse(self.jmuc.joined)
+        self.assertFalse(self.jmuc.muc_joined)
         self.assertIsInstance(
             self.jmuc.me,
             muc_service.Occupant
@@ -1641,7 +1641,7 @@ class TestRoom(unittest.TestCase):
         self.assertTrue(
             self.jmuc.me.is_self
         )
-        self.assertFalse(self.jmuc.active)
+        self.assertFalse(self.jmuc.muc_active)
 
     def test_detect_self_presence_from_jid_if_status_is_missing(self):
         presence = aioxmpp.stanza.Presence(
@@ -1691,7 +1691,7 @@ class TestRoom(unittest.TestCase):
                 )
             ]
         )
-        self.assertFalse(self.jmuc.joined)
+        self.assertFalse(self.jmuc.muc_joined)
         self.assertIsInstance(
             self.jmuc.me,
             muc_service.Occupant
@@ -1703,7 +1703,7 @@ class TestRoom(unittest.TestCase):
         self.assertTrue(
             self.jmuc.me.is_self
         )
-        self.assertFalse(self.jmuc.active)
+        self.assertFalse(self.jmuc.muc_active)
 
     def test_do_not_treat_unavailable_stanzas_as_join(self):
         presence = aioxmpp.stanza.Presence(
@@ -1770,8 +1770,8 @@ class TestRoom(unittest.TestCase):
         )
         self.base.mock_calls.clear()
 
-        self.assertFalse(self.jmuc.joined)
-        self.assertFalse(self.jmuc.active)
+        self.assertFalse(self.jmuc.muc_joined)
+        self.assertFalse(self.jmuc.muc_active)
         self.assertIsNone(self.jmuc.me)
 
     def test_muc_set_role(self):
@@ -3279,11 +3279,11 @@ class TestService(unittest.TestCase):
         room1.on_enter.connect(base.enter1)
         room2.on_enter.connect(base.enter2)
 
-        room1.on_suspend.connect(base.suspend1)
-        room2.on_suspend.connect(base.suspend2)
+        room1.on_muc_suspend.connect(base.suspend1)
+        room2.on_muc_suspend.connect(base.suspend2)
 
-        room1.on_resume.connect(base.resume1)
-        room2.on_resume.connect(base.resume2)
+        room1.on_muc_resume.connect(base.resume1)
+        room2.on_muc_resume.connect(base.resume2)
 
         room1.on_exit.connect(base.exit1)
         room2.on_exit.connect(base.exit2)
@@ -3379,8 +3379,8 @@ class TestService(unittest.TestCase):
         )
         base.mock_calls.clear()
 
-        self.assertFalse(room1.active)
-        self.assertFalse(room2.active)
+        self.assertFalse(room1.muc_active)
+        self.assertFalse(room2.muc_active)
 
         # now let both be joined
         presence = aioxmpp.stanza.Presence(
@@ -3449,11 +3449,11 @@ class TestService(unittest.TestCase):
         room1.on_enter.connect(base.enter1)
         room2.on_enter.connect(base.enter2)
 
-        room1.on_suspend.connect(base.suspend1)
-        room2.on_suspend.connect(base.suspend2)
+        room1.on_muc_suspend.connect(base.suspend1)
+        room2.on_muc_suspend.connect(base.suspend2)
 
-        room1.on_resume.connect(base.resume1)
-        room2.on_resume.connect(base.resume2)
+        room1.on_muc_resume.connect(base.resume1)
+        room2.on_muc_resume.connect(base.resume2)
 
         room1.on_exit.connect(base.exit1)
         room2.on_exit.connect(base.exit2)

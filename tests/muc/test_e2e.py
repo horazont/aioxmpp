@@ -322,8 +322,8 @@ class TestMuc(TestCase):
 
         yield from self.secondroom.leave()
 
-        self.assertFalse(self.secondroom.active)
-        self.assertFalse(self.secondroom.joined)
+        self.assertFalse(self.secondroom.muc_active)
+        self.assertFalse(self.secondroom.muc_joined)
 
         mode, = yield from exit_fut
         self.assertEqual(
@@ -361,12 +361,12 @@ class TestMuc(TestCase):
         )
 
         self.assertDictEqual(
-            self.secondroom.subject,
+            self.secondroom.muc_subject,
             subject,
         )
 
         self.assertEqual(
-            self.secondroom.subject_setter,
+            self.secondroom.muc_subject_setter,
             "firstwitch",
         )
 

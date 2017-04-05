@@ -394,17 +394,17 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
 
     # this occupant state events
     on_enter = aioxmpp.callbacks.Signal()
-    on_suspend = aioxmpp.callbacks.Signal()
-    on_resume = aioxmpp.callbacks.Signal()
+    on_muc_suspend = aioxmpp.callbacks.Signal()
+    on_muc_resume = aioxmpp.callbacks.Signal()
     on_exit = aioxmpp.callbacks.Signal()
 
     # other occupant state events
     on_join = aioxmpp.callbacks.Signal()
     on_leave = aioxmpp.callbacks.Signal()
     on_presence_changed = aioxmpp.callbacks.Signal()
-    on_affiliation_change = aioxmpp.callbacks.Signal()
+    on_muc_affiliation_changed = aioxmpp.callbacks.Signal()
     on_nick_changed = aioxmpp.callbacks.Signal()
-    on_role_change = aioxmpp.callbacks.Signal()
+    on_muc_role_changed = aioxmpp.callbacks.Signal()
 
     # room state events
     on_topic_changed = aioxmpp.callbacks.Signal()
@@ -429,7 +429,7 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
         return self._service
 
     @property
-    def active(self):
+    def muc_active(self):
         """
         A boolean attribute indicating whether the connection to the MUC is
         currently live.
@@ -443,7 +443,7 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
         return self._active
 
     @property
-    def joined(self):
+    def muc_joined(self):
         """
         This attribute becomes true when :meth:`on_enter` is first emitted and
         stays true until :meth:`on_exit` is emitted.
@@ -455,14 +455,14 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
         return self._joined
 
     @property
-    def subject(self):
+    def muc_subject(self):
         """
         The current subject of the MUC, as :class:`~.structs.LanguageMap`.
         """
         return self._subject
 
     @property
-    def subject_setter(self):
+    def muc_subject_setter(self):
         """
         The nick name of the entity who set the subject.
         """
@@ -513,7 +513,7 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
         }
 
     def _suspend(self):
-        self.on_suspend()
+        self.on_muc_suspend()
         self._active = False
 
     def _disconnect(self):
@@ -529,7 +529,7 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
         self._this_occupant = None
         self._occupant_info = {}
         self._active = False
-        self.on_resume()
+        self.on_muc_resume()
 
     def _match_tracker(self, message):
         try:
@@ -641,7 +641,7 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
 
         if existing.role != info.role:
             to_emit.append((
-                self.on_role_change,
+                self.on_muc_role_changed,
                 (
                     stanza,
                     existing,
@@ -654,7 +654,7 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
 
         if existing.affiliation != info.affiliation:
             to_emit.append((
-                self.on_affiliation_change,
+                self.on_muc_affiliation_changed,
                 (
                     stanza,
                     existing,
@@ -1047,7 +1047,7 @@ class MUCClient(aioxmpp.service.Service):
                           len(self._pending_mucs))
 
         for muc, fut, nick, history in self._pending_mucs.values():
-            if muc.joined:
+            if muc.muc_joined:
                 self.logger.debug("%s: resuming", muc.jid)
                 muc._resume()
             self.logger.debug("%s: sending join presence", muc.jid)
