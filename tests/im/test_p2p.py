@@ -94,11 +94,11 @@ class TestConversation(unittest.TestCase):
             self.c.me.is_self
         )
 
-    def test_send_message_stamps_to_and_sends(self):
+    def test_send_message_stamps_to_and_enqueues(self):
         msg = unittest.mock.Mock()
-        run_coroutine(self.c.send_message(msg))
+        token = self.c.send_message(msg)
 
-        self.cc.stream.send.assert_called_once_with(msg)
+        self.cc.stream.enqueue.assert_called_once_with(msg)
         self.assertEqual(msg.to, PEER_JID)
 
         self.listener.on_message.assert_called_once_with(
@@ -106,6 +106,8 @@ class TestConversation(unittest.TestCase):
             self.c.me,
             im_dispatcher.MessageSource.STREAM,
         )
+
+        self.assertEqual(token, self.cc.stream.enqueue())
 
     def test_inbound_message_dispatched_to_event(self):
         msg = unittest.mock.sentinel.message

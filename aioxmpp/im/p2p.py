@@ -73,11 +73,10 @@ class Conversation(AbstractConversation):
     def me(self):
         return self.__members[0]
 
-    @asyncio.coroutine
     def send_message(self, msg):
         msg.to = self.__peer_jid
         self.on_message(msg, self.me, MessageSource.STREAM)
-        yield from self._client.stream.send(msg)
+        return self._client.stream.enqueue(msg)
 
     @asyncio.coroutine
     def send_message_tracked(self, msg):
