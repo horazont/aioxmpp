@@ -32,7 +32,6 @@ from aioxmpp.e2etest import (
 )
 
 
-@unittest.skip("Does not work with prosody and SASL ANONYMOUS")
 class TestPrivateXMLStorage(TestCase):
 
     @blocking
