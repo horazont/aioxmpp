@@ -1956,7 +1956,7 @@ class TestRoom(unittest.TestCase):
         )
         self.assertFalse(stanza.body)
 
-    def test_leave_and_wait(self):
+    def test_leave(self):
         fut = asyncio.async(self.jmuc.leave())
         run_coroutine(asyncio.sleep(0))
         self.assertFalse(fut.done(), fut.done() and fut.result())
@@ -2908,14 +2908,11 @@ class TestService(unittest.TestCase):
             self.s.get_muc(TEST_MUC_JID)
 
     def test_join_rejects_joining_a_pending_muc(self):
-        self.s.join(TEST_MUC_JID, "firstwitch")
-        with self.assertRaisesRegex(
-                ValueError,
-                "already joined"):
-            self.s.join(
-                TEST_MUC_JID,
-                "thirdwitch",
-            )
+        room, fut = self.s.join(TEST_MUC_JID, "firstwitch")
+        room2, fut2 = self.s.join(TEST_MUC_JID, "thirdwitch")
+
+        self.assertIs(room, room2)
+        self.assertIs(fut, fut2)
 
     def test_join_rejects_non_bare_muc_jid(self):
         with self.assertRaisesRegex(
@@ -2999,6 +2996,34 @@ class TestService(unittest.TestCase):
             self.s.get_muc(TEST_MUC_JID),
             room
         )
+
+    def test_join_returns_existing_muc_and_done_future_if_joined(self):
+        room, future = self.s.join(TEST_MUC_JID, "thirdwitch")
+
+        occupant_presence = aioxmpp.stanza.Presence(
+            from_=TEST_MUC_JID.replace(resource="thirdwitch"),
+        )
+        occupant_presence.xep0045_muc_user = muc_xso.UserExt(
+            status_codes={110},
+        )
+
+        self.s._handle_presence(
+            occupant_presence,
+            occupant_presence.from_,
+            False,
+        )
+
+        self.assertTrue(future.done())
+        self.assertIsNone(future.result())
+
+        self.assertIs(
+            self.s.get_muc(TEST_MUC_JID),
+            room
+        )
+
+        room2, future2 = self.s.join(TEST_MUC_JID, "thirdwitch")
+        self.assertIs(room, room2)
+        self.assertTrue(future2.done())
 
     def test_join_not_completed_on_occupant_presence(self):
         room, future = self.s.join(TEST_MUC_JID, "thirdwitch")

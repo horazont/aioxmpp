@@ -375,7 +375,7 @@ class AbstractConversation(metaclass=abc.ABCMeta):
         :param member: The member object who changed the topic.
         :type member: :class:`~.AbstractConversationMember`
         :param new_topic: The new topic of the conversation.
-        :type new_topic: :class:`str`
+        :type new_topic: :class:`.LanguageMap`
 
     .. signal:: on_join(member, **kwargs)
 
@@ -600,10 +600,11 @@ class AbstractConversation(metaclass=abc.ABCMeta):
     @asyncio.coroutine
     def kick(self, member, reason=None):
         """
-        Kick a member from a conversation.
+        Kick a member from the conversation.
 
         :param member: The member to kick.
-        :param reason: A reason to show to the kicked member.
+        :param reason: A reason to show to the members of the conversation
+            including the kicked member.
         :type reason: :class:`str`
         :raises aioxmpp.errors.XMPPError: if the server returned an error for
                                           the kick command.
@@ -618,11 +619,15 @@ class AbstractConversation(metaclass=abc.ABCMeta):
     @asyncio.coroutine
     def ban(self, member, reason=None, *, request_kick=True):
         """
-        Ban a member from re-joining a conversation.
+        Ban a member from re-joining the conversation.
 
         :param member: The member to ban.
-        :param reason: A reason to show to the banned member.
+        :param reason: A reason to show to the members of the conversation
+            including the banned member.
         :type reason: :class:`str`
+        :param request_kick: A flag indicating that the member should be
+            removed from the conversation immediately, too.
+        :type request_kick: :class:`bool`
 
         If `request_kick` is true, the implementation attempts to kick the
         member from the conversation, too, if that does not happen
@@ -682,8 +687,8 @@ class AbstractConversation(metaclass=abc.ABCMeta):
         .. seealso::
 
            The corresponding feature for this method is
-           :attr:`.ConversationFeature.INVITE`. See :attr:`features` for details
-           on the semantics of features.
+           :attr:`.ConversationFeature.INVITE`. See :attr:`features` for
+           details on the semantics of features.
         """
         raise self._not_implemented_error("inviting entities")
 
