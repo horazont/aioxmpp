@@ -265,12 +265,17 @@ class Provisioner(metaclass=abc.ABCMeta):
     @asyncio.coroutine
     def get_connected_client(self, presence=aioxmpp.PresenceState(True),
                              *,
-                             services=[]):
+                             services=[],
+                             run_before_client_starts=None):
         """
         Return a connected client to a unique XMPP account.
 
         :param presence: initial presence to emit
         :type presence: :class:`aioxmpp.PresenceState`
+        :param run_before_client_starts: is run after the services
+            are summoned but before the client connects.
+        :type run_before_client_starts: coroutine receiving the client
+             as argument.
         :raise OSError: if the connection failed
         :raise RuntimeError: if a client could not be provisioned due to
                              resource constraints
@@ -295,6 +300,8 @@ class Provisioner(metaclass=abc.ABCMeta):
         client = yield from self._make_client(logger)
         for service in services:
             client.summon(service)
+        if run_before_client_starts is not None:
+            yield from run_before_client_starts(client)
         cm = client.connected(presence=presence)
         yield from cm.__aenter__()
         self._accounts_to_dispose.append(cm)
