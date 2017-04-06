@@ -29,6 +29,8 @@ from .conversation import (
     AbstractConversationService,
 )
 
+from .service import ConversationService
+
 
 class Member(AbstractConversationMember):
     def __init__(self, peer_jid, is_self):
@@ -71,6 +73,7 @@ class Conversation(AbstractConversation):
     @asyncio.coroutine
     def send_message(self, msg):
         msg.to = self.__peer_jid
+        self.on_message_sent(msg)
         yield from self._client.stream.send(msg)
 
     @asyncio.coroutine
@@ -113,13 +116,19 @@ class Service(AbstractConversationService, aioxmpp.service.Service):
 
     """
 
+    ORDER_AFTER = [ConversationService]
+
     def __init__(self, client, **kwargs):
         super().__init__(client, **kwargs)
         self._conversationmap = {}
+        self.on_conversation_new.connect(
+            self.dependencies[ConversationService]._add_conversation
+        )
 
     def _make_conversation(self, peer_jid):
         result = Conversation(self, peer_jid, parent=None)
         self._conversationmap[peer_jid] = result
+        print("_make_conversation", peer_jid)
         self.on_conversation_new(result)
         return result
 

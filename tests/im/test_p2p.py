@@ -27,6 +27,7 @@ import aioxmpp
 import aioxmpp.service
 
 import aioxmpp.im.p2p as p2p
+import aioxmpp.im.service as im_service
 
 from aioxmpp.testutils import (
     make_connected_client,
@@ -147,9 +148,14 @@ class TestService(unittest.TestCase):
         self.cc.stream.send = CoroutineMock()
         self.cc.stream.send.side_effect = AssertionError("not configured")
         self.cc.local_jid = LOCAL_JID
+        deps = {
+            im_service.ConversationService: im_service.ConversationService(
+                self.cc
+            )
+        }
         self.svc = unittest.mock.Mock(["client", "_conversation_left"])
         self.svc.client = self.cc
-        self.s = p2p.Service(self.cc)
+        self.s = p2p.Service(self.cc, dependencies=deps)
 
         self.listener = unittest.mock.Mock()
 
@@ -159,8 +165,20 @@ class TestService(unittest.TestCase):
             listener.return_value = None
             signal.connect(listener)
 
+        for ev in ["on_conversation_added"]:
+            listener = getattr(self.listener, ev)
+            signal = getattr(deps[im_service.ConversationService], ev)
+            listener.return_value = None
+            signal.connect(listener)
+
     def tearDown(self):
         del self.cc
+
+    def test_depends_on_conversation_service(self):
+        self.assertLess(
+            im_service.ConversationService,
+            p2p.Service,
+        )
 
     def test_get_conversation_creates_conversation(self):
         with contextlib.ExitStack() as stack:
@@ -182,6 +200,16 @@ class TestService(unittest.TestCase):
             c,
             Conversation(),
         )
+
+    def test_get_conversation_emits_event(self):
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(unittest.mock.patch(
+                "aioxmpp.im.p2p.Conversation"
+            ))
+
+            c = run_coroutine(self.s.get_conversation(PEER_JID))
+
+        self.listener.on_conversation_added.assert_called_once_with(c)
 
     def test_get_conversation_deduplicates(self):
         with contextlib.ExitStack() as stack:
