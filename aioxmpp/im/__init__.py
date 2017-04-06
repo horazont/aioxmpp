@@ -37,6 +37,9 @@ in the glossary and are linked.
    Communication context for two or more parties.
 :term:`Conversation Member`
    An entity taking part in a :term:`Conversation`.
+:term:`Conversation Implementation`
+   A :term:`Service` which provides means to create and manage specific
+   :class:`~.AbstractConversation` subclasses.
 
 Enumerations
 ============
