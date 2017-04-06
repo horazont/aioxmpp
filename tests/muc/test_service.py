@@ -362,8 +362,8 @@ class TestRoom(unittest.TestCase):
         self.assertFalse(self.jmuc.muc_active)
         self.assertIsNone(self.jmuc.muc_subject_setter)
         self.assertIsNone(self.jmuc.me)
-        self.assertFalse(self.jmuc.autorejoin)
-        self.assertIsNone(self.jmuc.password)
+        self.assertFalse(self.jmuc.muc_autorejoin)
+        self.assertIsNone(self.jmuc.muc_password)
 
     def test_service_is_not_writable(self):
         with self.assertRaises(AttributeError):
@@ -413,7 +413,7 @@ class TestRoom(unittest.TestCase):
         self.assertTrue(self.jmuc.muc_joined)
         self.assertTrue(self.jmuc.muc_active)
 
-        self.jmuc.autorejoin = True
+        self.jmuc.muc_autorejoin = True
         self.base.mock_calls.clear()
 
         self.jmuc._suspend()
@@ -449,7 +449,7 @@ class TestRoom(unittest.TestCase):
         self.assertTrue(self.jmuc.muc_joined)
         self.assertTrue(self.jmuc.muc_active)
 
-        self.jmuc.autorejoin = False
+        self.jmuc.muc_autorejoin = False
         self.base.mock_calls.clear()
 
         self.jmuc._suspend()
@@ -482,7 +482,7 @@ class TestRoom(unittest.TestCase):
         self.assertTrue(self.jmuc.muc_joined)
         self.assertTrue(self.jmuc.muc_active)
 
-        self.jmuc.autorejoin = True
+        self.jmuc.muc_autorejoin = True
         self.base.mock_calls.clear()
 
         self.jmuc._disconnect()
@@ -517,7 +517,7 @@ class TestRoom(unittest.TestCase):
         self.assertTrue(self.jmuc.muc_joined)
         self.assertTrue(self.jmuc.muc_active)
 
-        self.jmuc.autorejoin = True
+        self.jmuc.muc_autorejoin = True
         self.base.mock_calls.clear()
 
         self.jmuc._suspend()
@@ -542,7 +542,7 @@ class TestRoom(unittest.TestCase):
         self.assertFalse(self.jmuc.muc_joined)
         self.assertFalse(self.jmuc.muc_active)
 
-        self.jmuc.autorejoin = True
+        self.jmuc.muc_autorejoin = True
         self.base.mock_calls.clear()
 
         self.jmuc._disconnect()
@@ -573,7 +573,7 @@ class TestRoom(unittest.TestCase):
         self.assertTrue(self.jmuc.muc_joined)
         self.assertTrue(self.jmuc.muc_active)
 
-        self.jmuc.autorejoin = True
+        self.jmuc.muc_autorejoin = True
         self.base.mock_calls.clear()
 
         self.jmuc._suspend()
@@ -2745,8 +2745,8 @@ class TestService(unittest.TestCase):
             self.s.get_muc(TEST_MUC_JID),
             room
         )
-        self.assertTrue(room.autorejoin)
-        self.assertIsNone(room.password)
+        self.assertTrue(room.muc_autorejoin)
+        self.assertIsNone(room.muc_password)
 
         _, (stanza,), _ = self.cc.stream.enqueue.mock_calls[-1]
         self.assertIsInstance(
@@ -2785,8 +2785,8 @@ class TestService(unittest.TestCase):
             self.s.get_muc(TEST_MUC_JID),
             room
         )
-        self.assertTrue(room.autorejoin)
-        self.assertEqual(room.password, "foobar")
+        self.assertTrue(room.muc_autorejoin)
+        self.assertEqual(room.muc_password, "foobar")
 
         self.assertIs(
             self.s.get_muc(TEST_MUC_JID),
@@ -2830,8 +2830,8 @@ class TestService(unittest.TestCase):
             self.s.get_muc(TEST_MUC_JID),
             room
         )
-        self.assertFalse(room.autorejoin)
-        self.assertEqual(room.password, "foobar")
+        self.assertFalse(room.muc_autorejoin)
+        self.assertEqual(room.muc_password, "foobar")
 
         _, (stanza,), _ = self.cc.stream.enqueue.mock_calls[-1]
         self.assertIsInstance(

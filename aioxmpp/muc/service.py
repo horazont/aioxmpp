@@ -191,23 +191,23 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
 
     .. autoattribute:: jid
 
-    .. autoattribute:: active
+    .. autoattribute:: muc_active
 
-    .. autoattribute:: joined
+    .. autoattribute:: muc_joined
 
     .. autoattribute:: me
 
-    .. autoattribute:: subject
+    .. autoattribute:: muc_subject
 
-    .. autoattribute:: subject_setter
+    .. autoattribute:: muc_subject_setter
 
-    .. attribute:: autorejoin
+    .. attribute:: muc_autorejoin
 
        A boolean flag indicating whether this MUC is supposed to be
        automatically rejoined when the stream it is used gets destroyed and
        re-estabished.
 
-    .. attribute:: password
+    .. attribute:: muc_password
 
        The password to use when (re-)joining. If :attr:`autorejoin` is
        :data:`None`, this can be cleared after :meth:`on_enter` has been
@@ -224,11 +224,11 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
 
     .. automethod:: request_voice
 
-    .. automethod:: set_role
+    .. automethod:: muc_set_role
 
-    .. automethod:: set_affiliation
+    .. automethod:: muc_set_affiliation
 
-    .. automethod:: set_subject
+    .. automethod:: set_topic
 
     The interface provides signals for most of the rooms events. The following
     keyword arguments are used at several signal handlers (which is also noted
@@ -421,8 +421,8 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
         self._tracking_by_id = {}
         self._tracking_metadata = {}
         self._tracking_by_sender_body = {}
-        self.autorejoin = False
-        self.password = None
+        self.muc_autorejoin = False
+        self.muc_password = None
 
     @property
     def service(self):
@@ -1051,7 +1051,7 @@ class MUCClient(aioxmpp.service.Service):
                 self.logger.debug("%s: resuming", muc.jid)
                 muc._resume()
             self.logger.debug("%s: sending join presence", muc.jid)
-            self._send_join_presence(muc.jid, history, nick, muc.password)
+            self._send_join_presence(muc.jid, history, nick, muc.muc_password)
 
     @aioxmpp.service.depsignal(aioxmpp.Client, "on_stream_destroyed")
     def _stream_destroyed(self):
@@ -1061,7 +1061,7 @@ class MUCClient(aioxmpp.service.Service):
 
         new_pending = {}
         for muc, fut, *more in self._pending_mucs.values():
-            if not muc.autorejoin:
+            if not muc.muc_autorejoin:
                 self.logger.debug(
                     "%s: pending without autorejoin -> ConnectionError",
                     muc.jid
@@ -1076,7 +1076,7 @@ class MUCClient(aioxmpp.service.Service):
         self._pending_mucs = new_pending
 
         for muc in list(self._joined_mucs.values()):
-            if muc.autorejoin:
+            if muc.muc_autorejoin:
                 self.logger.debug(
                     "%s: connected with autorejoin, suspending and adding to "
                     "pending",
@@ -1262,8 +1262,8 @@ class MUCClient(aioxmpp.service.Service):
             raise ValueError("already joined")
 
         room = Room(self, mucjid)
-        room.autorejoin = autorejoin
-        room.password = password
+        room.muc_autorejoin = autorejoin
+        room.muc_password = password
         room.on_exit.connect(
             functools.partial(
                 self._muc_exited,
