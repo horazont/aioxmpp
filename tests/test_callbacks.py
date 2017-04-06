@@ -1041,7 +1041,7 @@ class TestAdHocSignal(unittest.TestCase):
             [
                 unittest.mock.call(
                     Future(),
-                    signal.WEAK,
+                    signal.AUTO_FUTURE,
                 ),
             ]
         )

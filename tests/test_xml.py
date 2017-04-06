@@ -27,6 +27,7 @@ import unittest.mock
 
 import lxml.sax
 
+import xml.sax as xml_sax
 import xml.sax.handler as saxhandler
 
 import aioxmpp.xml as xml
@@ -2122,3 +2123,13 @@ class Testread_single_xso(unittest.TestCase):
             result,
             base.read_xso()
         )
+
+    def test_reject_non_predefined_entities(self):
+        class Root(xso.XSO):
+            TAG = "root"
+
+            a = xso.Attr("a")
+
+        bio = io.BytesIO(b"<?xml version='1.0'?><root a='foo&uuml;'/>")
+        with self.assertRaises(xml_sax.SAXParseException):
+            xml.read_single_xso(bio, Root)

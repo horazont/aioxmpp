@@ -943,6 +943,68 @@ class Test_apply_connect_depsignal(unittest.TestCase):
         )
 
 
+class Test_apply_connect_depfilter(unittest.TestCase):
+    def test_uses_dependencies(self):
+        instance = unittest.mock.MagicMock()
+        dependency = unittest.mock.Mock()
+        instance.dependencies.__getitem__.return_value = dependency
+
+        result = service._apply_connect_depfilter(
+            instance,
+            unittest.mock.sentinel.stream,
+            unittest.mock.sentinel.func,
+            unittest.mock.sentinel.dependency,
+            "filter_name",
+        )
+
+        instance.dependencies.__getitem__.assert_called_with(
+            unittest.mock.sentinel.dependency,
+        )
+
+        self.assertSequenceEqual(
+            dependency.mock_calls,
+            [
+                unittest.mock.call.filter_name.context_register(
+                    unittest.mock.sentinel.func,
+                    type(instance),
+                )
+            ]
+        )
+
+        self.assertEqual(
+            result,
+            dependency.filter_name.context_register(),
+        )
+
+    def test_can_connect_to_StanzaStream(self):
+        instance = unittest.mock.MagicMock()
+        dependency = unittest.mock.Mock()
+        instance.client.stream = dependency
+
+        result = service._apply_connect_depfilter(
+            instance,
+            unittest.mock.sentinel.stream,
+            unittest.mock.sentinel.func,
+            aioxmpp.stream.StanzaStream,
+            "filter_name",
+        )
+
+        self.assertSequenceEqual(
+            dependency.mock_calls,
+            [
+                unittest.mock.call.filter_name.context_register(
+                    unittest.mock.sentinel.func,
+                    type(instance),
+                )
+            ]
+        )
+
+        self.assertEqual(
+            result,
+            dependency.filter_name.context_register(),
+        )
+
+
 class Testadd_handler_spec(unittest.TestCase):
     def test_adds_magic_attribute(self):
         target = unittest.mock.Mock(spec=[])
@@ -1716,6 +1778,84 @@ class Testdepsignal(unittest.TestCase):
         )
 
 
+class Testdepfilter(unittest.TestCase):
+    class S1:
+        pass
+
+    def setUp(self):
+        self.decorator = service.depfilter(
+            self.S1,
+            "filter",
+        )
+
+    def tearDown(self):
+        del self.decorator
+
+    def test_adds_magic_attribute(self):
+        def cb():
+            pass
+
+        self.decorator(cb)
+
+        self.assertTrue(hasattr(cb, "_aioxmpp_service_handlers"))
+
+    def test_stacks_with_other_effects(self):
+        def cb():
+            pass
+
+        cb._aioxmpp_service_handlers = {"foo"}
+
+        self.decorator(cb)
+
+        self.assertIn(
+            service.HandlerSpec(
+                (
+                    service._apply_connect_depfilter,
+                    (
+                        self.S1,
+                        "filter",
+                    ),
+                ),
+                is_unique=True,
+                require_deps=(self.S1,),
+            ),
+            cb._aioxmpp_service_handlers
+        )
+
+        self.assertIn(
+            "foo",
+            cb._aioxmpp_service_handlers,
+        )
+
+    def test_adds_dependency(self):
+        def cb():
+            pass
+
+        self.decorator(cb)
+
+        spec, = cb._aioxmpp_service_handlers
+        self.assertIn(
+            self.S1,
+            spec.require_deps,
+        )
+
+    def test_does_not_add_dependency_for_StanzaStream(self):
+        def cb():
+            pass
+
+        decorator = service.depfilter(
+            aioxmpp.stream.StanzaStream,
+            "some_filter",
+        )
+        decorator(cb)
+
+        spec, = cb._aioxmpp_service_handlers
+        self.assertNotIn(
+            aioxmpp.stream.StanzaStream,
+            spec.require_deps,
+        )
+
+
 class Testis_iq_handler(unittest.TestCase):
     def test_return_false_if_magic_attr_is_missing(self):
         self.assertFalse(
@@ -2085,6 +2225,67 @@ class Testis_depsignal_handler(unittest.TestCase):
                 "signal",
                 m,
                 defer=True,
+            )
+        )
+
+
+class Testis_depfilter_handler(unittest.TestCase):
+    class S1:
+        pass
+
+    def test_return_false_if_magic_attr_is_missing(self):
+        self.assertFalse(
+            service.is_depfilter_handler(
+                self.S1,
+                "filter",
+                object(),
+            )
+        )
+
+    def test_works_with_depfilter(self):
+        def f():
+            pass
+
+        service.depfilter(self.S1, "filter")(f)
+
+        self.assertTrue(
+            service.is_depfilter_handler(
+                self.S1,
+                "filter",
+                f,
+            )
+        )
+
+        self.assertFalse(
+            service.is_depfilter_handler(
+                self.S1,
+                "foo",
+                f,
+            )
+        )
+
+        self.assertFalse(
+            service.is_depfilter_handler(
+                aioxmpp.stream.StanzaStream,
+                "foo",
+                f,
+            )
+        )
+
+    def test_return_false_if_token_not_in_magic_attr(self):
+        m = unittest.mock.Mock()
+        m._aioxmpp_service_handlers = [
+            service.HandlerSpec(
+                (service._apply_outbound_message_filter,
+                 ())
+            )
+        ]
+
+        self.assertFalse(
+            service.is_depfilter_handler(
+                self.S1,
+                "filter",
+                m,
             )
         )
 

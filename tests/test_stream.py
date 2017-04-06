@@ -5030,6 +5030,151 @@ class TestStanzaToken(unittest.TestCase):
                                     r"dropped by filter"):
             run_coroutine(self.token)
 
+    def test_future_is_shared(self):
+        self.assertIs(self.token.future, self.token.future)
+
+    def test_future_is_created_on_first_access(self):
+        with unittest.mock.patch("asyncio.Future") as Future:
+            fut = self.token.future
+            Future.assert_called_once_with()
+            self.assertEqual(fut, Future())
+
+    def test_future_finishes_on_SENT_WITHOUT_SM(self):
+        fut = self.token.future
+        run_coroutine(asyncio.sleep(0.01))
+        self.assertFalse(fut.done())
+
+        self.token._set_state(stream.StanzaState.SENT_WITHOUT_SM)
+
+        self.assertIsNone(run_coroutine(fut))
+
+    def test_future_finishes_on_ACKED(self):
+        fut = self.token.future
+        run_coroutine(asyncio.sleep(0.01))
+        self.assertFalse(fut.done())
+
+        self.token._set_state(stream.StanzaState.ACKED)
+
+        self.assertIsNone(run_coroutine(fut))
+
+    def test_future_finishes_on_ACKED_plainly_even_with_exception(
+            self):
+        fut = self.token.future
+        run_coroutine(asyncio.sleep(0.01))
+        self.assertFalse(fut.done())
+
+        self.token._set_state(stream.StanzaState.ACKED, Exception())
+
+        self.assertIsNone(run_coroutine(fut))
+
+    def test_future_finishes_while_SENT(self):
+        fut = self.token.future
+        run_coroutine(asyncio.sleep(0.01))
+        self.assertFalse(fut.done())
+
+        self.token._set_state(stream.StanzaState.SENT)
+
+        run_coroutine(asyncio.sleep(0.01))
+        self.assertFalse(fut.done())
+
+        self.token._set_state(stream.StanzaState.ACKED)
+
+        self.assertIsNone(run_coroutine(fut))
+
+    def test_future_fails_with_ConnectionError_on_DISCONNECTED(self):
+        fut = self.token.future
+        run_coroutine(asyncio.sleep(0.01))
+        self.assertFalse(fut.done())
+
+        self.token._set_state(stream.StanzaState.DISCONNECTED)
+
+        with self.assertRaisesRegex(
+                ConnectionError,
+                r"disconnected"):
+            run_coroutine(fut)
+
+    def test_future_fails_with_RuntimeError_on_DROPPED(self):
+        fut = self.token.future
+        run_coroutine(asyncio.sleep(0.01))
+        self.assertFalse(fut.done())
+
+        self.token._set_state(stream.StanzaState.DROPPED)
+
+        with self.assertRaisesRegex(
+                RuntimeError,
+                r"dropped by filter"):
+            run_coroutine(fut)
+
+    def test_future_fails_with_RuntimeError_on_ABORTED(self):
+        fut = self.token.future
+        run_coroutine(asyncio.sleep(0.01))
+        self.assertFalse(fut.done())
+
+        self.token.abort()
+
+        with self.assertRaisesRegex(
+                RuntimeError,
+                r"aborted"):
+            run_coroutine(fut)
+
+    def test_future_fails_with_ValueError_on_failed(self):
+        fut = self.token.future
+        run_coroutine(asyncio.sleep(0.01))
+        self.assertFalse(fut.done())
+
+        self.token._set_state(stream.StanzaState.FAILED)
+
+        with self.assertRaisesRegex(
+                ValueError,
+                "failed to send stanza for unknown local reasons"):
+            run_coroutine(fut)
+
+    def test_future_reraises_exception_from_failed(self):
+        fut = self.token.future
+        run_coroutine(asyncio.sleep(0.01))
+        self.assertFalse(fut.done())
+
+        class FooException(Exception):
+            pass
+        exc = FooException()
+
+        self.token._set_state(stream.StanzaState.FAILED, exc)
+
+        with self.assertRaises(FooException):
+            run_coroutine(fut)
+
+    def test_future_is_done_if_already_SENT_WITHOUT_SM(self):
+        self.token._set_state(stream.StanzaState.SENT_WITHOUT_SM)
+        self.assertTrue(self.token.future.done())
+
+    def test_future_is_done_if_already_ACKED(self):
+        self.token._set_state(stream.StanzaState.ACKED)
+        self.assertTrue(self.token.future.done())
+
+    def test_future_is_done_and_has_exception_if_already_DISCONNECTED(self):
+        self.token._set_state(stream.StanzaState.DISCONNECTED)
+
+        self.assertTrue(self.token.future)
+        with self.assertRaisesRegex(ConnectionError,
+                                    r"disconnected"):
+            self.token.future.result()
+
+    def test_future_is_done_and_has_exception_if_already_ABORTED(self):
+        self.token._set_state(stream.StanzaState.ABORTED)
+
+        self.assertTrue(self.token.future)
+        with self.assertRaisesRegex(RuntimeError,
+                                    r"aborted"):
+            self.token.future.result()
+
+    def test_future_is_done_and_has_exception_if_already_DROPPED(self):
+        self.token._set_state(stream.StanzaState.DROPPED)
+
+        self.assertTrue(self.token.future)
+        with self.assertRaisesRegex(RuntimeError,
+                                    r"dropped by filter"):
+            self.token.future.result()
+
 
 class Testiq_handler(unittest.TestCase):
     def setUp(self):
