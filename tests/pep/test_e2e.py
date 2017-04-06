@@ -56,25 +56,25 @@ class TestPEP(TestCase):
     @blocking_timed
     @asyncio.coroutine
     def test_claim_node_and_get_notification(self):
-        done = asyncio.Event()
+        done = asyncio.Future()
         def handler(jid, node, item, *, message=None):
-            self.assertEqual(jid, self.client.local_jid.bare())
-            self.assertEqual(node, "urn:example:payload")
-            self.assertEqual(item.registered_payload.data, EXAMPLE_TEXT)
-            done.set()
+            done.set_result((jid, node, item))
 
         presence = self.client.summon(aioxmpp.PresenceServer)
         p = self.client.summon(aioxmpp.pep.PEPClient)
-        p.claim_pep_node("urn:example:payload", handler, notify=True)
+        claim = p.claim_pep_node("urn:example:payload", notify=True)
+        claim.on_item_publish.connect(handler)
         # this is necessary, otherwise the +notify feature will not be
         # sent to the server.
         yield from presence.resend_presence()
         payload = ExamplePayload()
         payload.data = EXAMPLE_TEXT
         yield from p.publish("urn:example:payload", payload)
-        yield from done.wait()
-        p.unclaim_pep_node("urn:example:payload")
-
+        jid, node, item = yield from done
+        self.assertEqual(jid, self.client.local_jid.bare())
+        self.assertEqual(node, "urn:example:payload")
+        self.assertEqual(item.registered_payload.data, EXAMPLE_TEXT)
+        claim.close()
 
 class ExampleService(aioxmpp.service.Service):
     ORDER_AFTER = [aioxmpp.pep.PEPClient]
@@ -85,7 +85,7 @@ class ExampleService(aioxmpp.service.Service):
         super().__init__(client, **kwargs)
 
     def register_handler(self, handler):
-        self.payload.on_event_received.connect(handler)
+        self.payload.on_item_publish.connect(handler)
 
 
 class Test_register_pep_node_Descriptor(TestCase):
@@ -106,12 +106,9 @@ class Test_register_pep_node_Descriptor(TestCase):
     @blocking_timed
     @asyncio.coroutine
     def test_get_notification(self):
-        done = asyncio.Event()
+        done = asyncio.Future()
         def handler(jid, node, item, *, message=None):
-            self.assertEqual(jid, self.client.local_jid.bare())
-            self.assertEqual(node, "urn:example:payload")
-            self.assertEqual(item.registered_payload.data, EXAMPLE_TEXT)
-            done.set()
+            done.set_result((jid, node, item))
 
         example = self.client.summon(ExampleService)
         example.register_handler(handler)
@@ -119,4 +116,7 @@ class Test_register_pep_node_Descriptor(TestCase):
         payload = ExamplePayload()
         payload.data = EXAMPLE_TEXT
         yield from p.publish("urn:example:payload", payload)
-        yield from done.wait()
+        jid, node, item = yield from done
+        self.assertEqual(jid, self.client.local_jid.bare())
+        self.assertEqual(node, "urn:example:payload")
+        self.assertEqual(item.registered_payload.data, EXAMPLE_TEXT)

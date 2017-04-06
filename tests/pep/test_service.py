@@ -20,12 +20,14 @@
 #
 ########################################################################
 import contextlib
+import gc
 import unittest
 import unittest.mock
 
 import aioxmpp
 import aioxmpp.disco.xso as disco_xso
 import aioxmpp.pep as pep
+import aioxmpp.pep.service as pep_service
 
 from aioxmpp.testutils import (
     make_connected_client,
@@ -53,7 +55,7 @@ class TestPEPClient(unittest.TestCase):
         self.s = pep.PEPClient(self.cc, dependencies={
             aioxmpp.DiscoClient: self.disco_client,
             aioxmpp.DiscoServer: self.disco_server,
-            aioxmpp.PubSubClient: self.pubsub
+            aioxmpp.PubSubClient: self.pubsub,
         })
 
     def tearDown(self):
@@ -72,26 +74,27 @@ class TestPEPClient(unittest.TestCase):
             disco_xso.Identity(type_="pep", category="pubsub")
         )
 
-        with unittest.mock.patch.object(self.disco_client, "query_info",
-                                        new=CoroutineMock()):
-            self.disco_client.query_info.return_value = disco_info
+        with unittest.mock.patch.object(
+                self.disco_client, "query_info",
+                new=CoroutineMock()) as query_info_mock:
+            query_info_mock.return_value = disco_info
             run_coroutine(self.s._check_for_pep())
-            self.disco_client.query_info.assert_called_once_with(
-                TEST_FROM.bare()
-            )
+        query_info_mock.assert_called_once_with(
+            TEST_FROM.bare()
+        )
 
     def test_check_for_pep_failure(self):
-
-        with unittest.mock.patch.object(self.disco_client, "query_info",
-                                        new=CoroutineMock()):
+        with unittest.mock.patch.object(
+                self.disco_client, "query_info",
+                new=CoroutineMock()) as query_info_mock:
             self.disco_client.query_info.return_value = disco_xso.InfoQuery()
 
             with self.assertRaises(RuntimeError):
                 run_coroutine(self.s._check_for_pep())
 
-            self.disco_client.query_info.assert_called_once_with(
-                TEST_FROM.bare()
-            )
+        query_info_mock.assert_called_once_with(
+            TEST_FROM.bare()
+        )
 
     def test_handle_pubsub_publish_is_depsignal_handler(self):
         self.assertTrue(aioxmpp.service.is_depsignal_handler(
@@ -102,7 +105,7 @@ class TestPEPClient(unittest.TestCase):
 
     def test_publish(self):
         with contextlib.ExitStack() as stack:
-            stack.enter_context(
+            check_for_pep_mock = stack.enter_context(
                 unittest.mock.patch.object(
                     self.s,
                     "_check_for_pep",
@@ -110,7 +113,7 @@ class TestPEPClient(unittest.TestCase):
                 )
             )
 
-            stack.enter_context(
+            publish_mock = stack.enter_context(
                 unittest.mock.patch.object(
                     self.pubsub,
                     "publish",
@@ -124,49 +127,46 @@ class TestPEPClient(unittest.TestCase):
                 id_="example-id",
             ))
 
-            self.s._check_for_pep.assert_called_once_with()
-            self.pubsub.publish.assert_called_once_with(
-                None,
-                "urn:example",
-                unittest.mock.sentinel.data,
-                id_="example-id",
-            )
-
-    def test_subscribe(self):
-        with unittest.mock.patch.object(self.pubsub,
-                                        "subscribe",
-                                        CoroutineMock()):
-            run_coroutine(self.s.subscribe(TEST_JID1, "urn:example"))
-            self.pubsub.subscribe.assert_called_once_with(
-                TEST_JID1,
-                "urn:example"
-            )
+        check_for_pep_mock.assert_called_once_with()
+        publish_mock.assert_called_once_with(
+            None,
+            "urn:example",
+            unittest.mock.sentinel.data,
+            id_="example-id",
+        )
 
     def test_claim_pep_node_twice(self):
         handler1 = unittest.mock.Mock()
         handler2 = unittest.mock.Mock()
         with unittest.mock.patch.object(
                 self.disco_server,
-                "register_feature"):
-            self.s.claim_pep_node("urn:example", handler1)
+                "register_feature") as register_feature_mock:
+            claim = self.s.claim_pep_node("urn:example")
+            claim.on_item_publish.connect(handler1)
+            register_feature_mock.assert_called_once_with("urn:example")
             with self.assertRaisesRegex(RuntimeError,
-                    "^setting handler for already handled namespace$"):
-                self.s.claim_pep_node("urn:example", handler2)
+                    "^claiming already claimed node$"):
+                claim2 = self.s.claim_pep_node("urn:example")
+                claim2.on_item_publish.connect(handler2)
+            # register feature mock was not called a second time
+            register_feature_mock.assert_called_once()
         with unittest.mock.patch.object(
                 self.disco_server,
-                "unregister_feature"):
-            self.s.unclaim_pep_node("urn:example")
+                "unregister_feature") as unregister_feature_mock:
+            claim.close()
+        unregister_feature_mock.assert_called_once_with("urn:example")
 
     def test_claim_pep_node_handle_event_unclaim_pep_node(self):
         handler = unittest.mock.Mock()
         with unittest.mock.patch.object(
                 self.disco_server,
-                "register_feature"):
-            self.s.claim_pep_node("urn:example", handler)
+                "register_feature") as register_feature_mock:
+            claim = self.s.claim_pep_node("urn:example")
+            claim.on_item_publish.connect(handler)
 
-            self.disco_server.register_feature.assert_called_once_with(
-                "urn:example"
-            )
+        register_feature_mock.assert_called_once_with(
+            "urn:example"
+        )
 
         self.s._handle_pubsub_publish(
             TEST_JID1,
@@ -184,12 +184,12 @@ class TestPEPClient(unittest.TestCase):
 
         with unittest.mock.patch.object(
                 self.disco_server,
-                "unregister_feature"):
-            self.s.unclaim_pep_node("urn:example")
+                "unregister_feature") as unregister_feature_mock:
+            claim.close()
 
-            self.disco_server.unregister_feature.assert_called_once_with(
-                "urn:example"
-            )
+        unregister_feature_mock.assert_called_once_with(
+            "urn:example"
+        )
 
         handler.reset_mock()
 
@@ -206,25 +206,26 @@ class TestPEPClient(unittest.TestCase):
         handler = unittest.mock.Mock()
         with unittest.mock.patch.object(
                 self.disco_server,
-                "register_feature"):
-            self.s.claim_pep_node("urn:example", handler, notify=True)
+                "register_feature") as register_feature_mock:
+            claim = self.s.claim_pep_node("urn:example", notify=True)
+            claim.on_item_publish.connect(handler)
 
-            self.assertCountEqual(
-                self.disco_server.register_feature.mock_calls,
-                [unittest.mock.call("urn:example+notify"),
-                 unittest.mock.call("urn:example")]
-            )
+        self.assertCountEqual(
+            register_feature_mock.mock_calls,
+            [unittest.mock.call("urn:example+notify"),
+             unittest.mock.call("urn:example")]
+        )
 
         with unittest.mock.patch.object(
                 self.disco_server,
-                "unregister_feature"):
-            self.s.unclaim_pep_node("urn:example")
+                "unregister_feature") as unregister_feature_mock:
+            claim.close()
 
-            self.assertCountEqual(
-                self.disco_server.unregister_feature.mock_calls,
-                [unittest.mock.call("urn:example+notify"),
-                 unittest.mock.call("urn:example")]
-            )
+        self.assertCountEqual(
+            unregister_feature_mock.mock_calls,
+            [unittest.mock.call("urn:example+notify"),
+             unittest.mock.call("urn:example")]
+        )
 
         handler.assert_not_called()
 
@@ -232,15 +233,112 @@ class TestPEPClient(unittest.TestCase):
         handler = unittest.mock.Mock()
         with unittest.mock.patch.object(
                 self.disco_server,
-                "register_feature"):
-            self.s.claim_pep_node("urn:example", handler,
-                                  register_feature=False)
-            self.disco_server.register_feature.assert_not_called()
+                "register_feature") as register_feature_mock:
+            claim = self.s.claim_pep_node("urn:example",
+                                          register_feature=False)
+            claim.on_item_publish.connect(handler)
+        register_feature_mock.assert_not_called()
 
         with unittest.mock.patch.object(
                 self.disco_server,
-                "unregister_feature"):
-            self.s.unclaim_pep_node("urn:example")
-            self.disco_server.unregister_feature.assert_not_called()
+                "unregister_feature") as unregister_feature_mock:
+            claim.close()
 
+        unregister_feature_mock.assert_not_called()
         handler.assert_not_called()
+
+    def test_closed_claim(self):
+        claim = self.s.claim_pep_node("urn:example")
+        claim.close()
+
+        with self.assertRaises(RuntimeError):
+            claim.notify = True
+
+        with self.assertRaises(RuntimeError):
+            claim.feature_registered = True
+
+    def test_claim_attributes(self):
+        with contextlib.ExitStack() as stack:
+
+            register_feature_mock = stack.enter_context(
+                unittest.mock.patch.object(
+                    self.disco_server, "register_feature"))
+
+            unregister_feature_mock = stack.enter_context(
+                unittest.mock.patch.object(
+                    self.disco_server, "unregister_feature"))
+
+            claim = self.s.claim_pep_node("urn:example")
+            register_feature_mock.assert_called_once_with("urn:example")
+            register_feature_mock.reset_mock()
+            self.assertFalse(claim.notify)
+            self.assertTrue(claim.feature_registered)
+            claim.notify = True
+            register_feature_mock.assert_called_once_with("urn:example+notify")
+            register_feature_mock.reset_mock()
+            self.assertTrue(claim.notify)
+            claim.notify = True
+            self.assertTrue(claim.notify)
+            register_feature_mock.assert_not_called()
+            register_feature_mock.reset_mock()
+            claim.notify = False
+            self.assertFalse(claim.notify)
+            unregister_feature_mock.assert_called_once_with(
+                "urn:example+notify"
+            )
+            unregister_feature_mock.reset_mock()
+            claim.notify = False
+            self.assertFalse(claim.notify)
+            unregister_feature_mock.assert_not_called()
+            unregister_feature_mock.reset_mock()
+
+            self.assertTrue(claim.feature_registered)
+            claim.feature_registered = True
+            register_feature_mock.assert_not_called()
+            register_feature_mock.reset_mock()
+            self.assertTrue(claim.feature_registered)
+            claim.feature_registered = False
+            self.assertFalse(claim.feature_registered)
+            unregister_feature_mock.assert_called_once_with("urn:example")
+            unregister_feature_mock.reset_mock()
+            claim.feature_registered = False
+            self.assertFalse(claim.feature_registered)
+            unregister_feature_mock.assert_not_called()
+            unregister_feature_mock.reset_mock()
+            claim.feature_registered = True
+            self.assertTrue(claim.feature_registered)
+            register_feature_mock.assert_called_once_with("urn:example")
+            register_feature_mock.reset_mock()
+
+
+    def test_close_is_idempotent(self):
+        claim = self.s.claim_pep_node("urn:example")
+        claim.close()
+        self.assertTrue(claim._closed)
+
+        class Token:
+            _closed = True
+
+            def __setattr__(myself, attr, value):
+                self.fail("setting attr")
+
+            def __getattr__(myself, attr, value):
+                self.fail("getting attr")
+
+        pep_service.RegisteredPEPNode.close(Token())
+
+    def test_is_claimed(self):
+        claim = self.s.claim_pep_node("urn:example")
+        self.assertTrue(self.s.is_claimed("urn:example"))
+        claim.close()
+        self.assertFalse(self.s.is_claimed("urn:example"))
+
+    def test_weakref_magic_works(self):
+        self.s.claim_pep_node("urn:example")
+
+        # trigger a garbage collection to ensure the pep node weakref
+        # is reaped – while this is not necessary on CPython it might
+        # be necessary on other implementations
+        gc.collect()
+
+        self.assertFalse(self.s.is_claimed("urn:example"))
