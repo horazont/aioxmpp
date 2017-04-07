@@ -30,6 +30,11 @@ namespaces.xep0049 = "jabber:iq:private"
 
 @aioxmpp.IQ.as_payload_class
 class Query(xso.XSO):
+    """
+    The XSO for queries to private XML storage.
+
+    .. automethod:: as_payload_class
+    """
     TAG = (namespaces.xep0049, "query")
 
     registered_payload = xso.Child([])

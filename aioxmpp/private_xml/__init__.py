@@ -19,5 +19,21 @@
 # <http://www.gnu.org/licenses/>.
 #
 ########################################################################
+"""
+:mod:`~aioxmpp.private_xml` – Private XML Storage support (:xep:`0049`)
+#######################################################################
+
+This module provides support for storing and retrieving private XML data on
+the server as per :xep:`Private XML Storage <49>`.
+
+.. autoclass:: PrivateXMLService
+
+To register payload XSOs for private storage :class:`Query` is
+exposed:
+
+.. autoclass:: Query
+
+"""
+
 from .xso import Query  # NOQA
 from .service import PrivateXMLService  # NOQA

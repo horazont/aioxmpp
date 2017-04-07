@@ -28,12 +28,31 @@ from . import xso as private_xml_xso
 
 
 class PrivateXMLService(service.Service):
+    """
+    Service for handling server side private XML storage.
+
+    .. automethod:: get_private_xml
+
+    .. automethod:: set_private_xml
+    """
 
     def __init__(self, client, **kwargs):
         super().__init__(client, **kwargs)
 
     @asyncio.coroutine
     def get_private_xml(self, query_xso):
+        """
+        Get the private XML data for the element `query_xso` from the
+        server.
+
+        :param query_xso: the object to retrieve.
+        :returns: the stored private XML data.
+
+        `query_xso` *must* serialize to an empty XML node of the
+        wanted namespace and type and *must* be registered as private
+        XML :class:`~private_xml_xso.Query` payload.
+
+        """
         iq = aioxmpp.IQ(
             type_=aioxmpp.IQType.GET,
             payload=private_xml_xso.Query(query_xso)
@@ -42,6 +61,12 @@ class PrivateXMLService(service.Service):
 
     @asyncio.coroutine
     def set_private_xml(self, xso):
+        """
+        Store the serialization of `xso` on the server as the private XML
+        data for the namespace of `xso`.
+
+        :param xso: the XSO whose serialization is send as private XML data.
+        """
         iq = aioxmpp.IQ(
             type_=aioxmpp.IQType.SET,
             payload=private_xml_xso.Query(xso)
