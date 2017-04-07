@@ -51,10 +51,6 @@ class DummyConversation(conv.AbstractConversation):
     def send_message_tracked(self, *args, **kwargs):
         return self.__mock.send_message_tracked(*args, **kwargs)
 
-    @asyncio.coroutine
-    def leave(self):
-        yield from super().leave()
-
 
 class TestConversation(unittest.TestCase):
     def setUp(self):
@@ -92,13 +88,16 @@ class TestConversation(unittest.TestCase):
         with self.assertRaises(AttributeError):
             self.c.parent = self.c.parent
 
-    def test_leave_calls_conversation_left_on_service(self):
-        run_coroutine(self.c.leave())
-        self.svc._conversation_left.assert_called_once_with(self.c)
-
     def test_send_message_calls_send_message_tracked_and_cancels_tracking(self):
-        run_coroutine(self.c.send_message(unittest.mock.sentinel.body))
+        token = unittest.mock.Mock()
+        tracker = unittest.mock.Mock()
+
+        self.c_mock.send_message_tracked.return_value = token, tracker
+
+        result = run_coroutine(self.c.send_message(unittest.mock.sentinel.body))
         self.c_mock.send_message_tracked.assert_called_once_with(
             unittest.mock.sentinel.body,
         )
-        self.c_mock.send_message_tracked().cancel.assert_called_once_with()
+
+        tracker.cancel.assert_called_once_with()
+        self.assertEqual(result, token)

@@ -84,7 +84,7 @@ class Conversation(AbstractConversation):
 
     @asyncio.coroutine
     def leave(self):
-        yield from super().leave()
+        self._service._conversation_left(self)
 
 
 class Service(AbstractConversationService, aioxmpp.service.Service):

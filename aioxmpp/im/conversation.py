@@ -347,8 +347,8 @@ class AbstractConversation(metaclass=abc.ABCMeta):
        .. note::
 
           In some implementations, unavailable presence implies that a
-          participant leaves the room, in which case :meth:`on_leave` is also
-          emitted.
+          participant leaves the room, in which case :meth:`on_leave` is
+          emitted instead.
 
     .. signal:: on_nick_changed(member, old_nick, new_nick, **kwargs)
 
@@ -524,13 +524,20 @@ class AbstractConversation(metaclass=abc.ABCMeta):
         """
         Send a message to the conversation.
 
-        :param body: The message body.
+        :param msg: The message to send.
+        :type msg: :class:`aioxmpp.Message`
         :return: The stanza token obtained from sending.
         :rtype: :class:`~aioxmpp.stream.StanzaToken`
 
         The default implementation simply calls :meth:`send_message_tracked`
         and immediately cancels the tracking object, returning only the stanza
         token.
+
+        There is no need to provide proper address attributes on `msg`.
+        Implementations will override those attributes with the values
+        appropriate for the conversation. Some implementations may allow the
+        user to choose a :attr:`~aioxmpp.Message.type_`, but others may simply
+        stamp it over.
 
         Subclasses may override this method with a more specialised
         implementation. Subclasses which do not provide tracked message sending
@@ -543,15 +550,17 @@ class AbstractConversation(metaclass=abc.ABCMeta):
            details.
 
         """
-        tracker = yield from self.send_message_tracked(body)
+        token, tracker = yield from self.send_message_tracked(body)
         tracker.cancel()
+        return token
 
     @abc.abstractmethod
-    def send_message_tracked(self, body, *, timeout=None):
+    def send_message_tracked(self, msg, *, timeout=None):
         """
         Send a message to the conversation with tracking.
 
-        :param body: The message body.
+        :param msg: The message to send.
+        :type msg: :class:`aioxmpp.Message`
         :param timeout: Timeout for the tracking.
         :type timeout: :class:`numbers.RealNumber`, :class:`datetime.timedelta`
                        or :data:`None`
@@ -559,6 +568,12 @@ class AbstractConversation(metaclass=abc.ABCMeta):
         :return: The stanza token obtained from sending and the
             :class:`aioxmpp.tracking.MessageTracker` tracking the delivery.
         :rtype: :class:`~aioxmpp.stream.StanzaToken`
+
+        There is no need to provide proper address attributes on `msg`.
+        Implementations will override those attributes with the values
+        appropriate for the conversation. Some implementations may allow the
+        user to choose a :attr:`~aioxmpp.Message.type_`, but others may simply
+        stamp it over.
 
         Tracking may not be supported by all implementations, and the degree of
         support varies with implementation. Please check the documentation
@@ -726,15 +741,10 @@ class AbstractConversation(metaclass=abc.ABCMeta):
         """
         raise self._not_implemented_error("changing the topic")
 
-    @abc.abstractmethod
     @asyncio.coroutine
     def leave(self):
         """
         Leave the conversation.
-
-        The base implementation calls
-        :meth:`.AbstractConversationService._conversation_left` and must be
-        called after all other preconditions for a leave have completed.
 
         .. seealso::
 
@@ -742,16 +752,8 @@ class AbstractConversation(metaclass=abc.ABCMeta):
            :attr:`.ConversationFeature.LEAVE`. See :attr:`features` for
            details.
         """
-        self._service._conversation_left(self)
 
 
 class AbstractConversationService(metaclass=abc.ABCMeta):
     on_conversation_new = aioxmpp.callbacks.Signal()
     on_conversation_left = aioxmpp.callbacks.Signal()
-
-    @abc.abstractmethod
-    def _conversation_left(self, c):
-        """
-        Called by :class:`AbstractConversation` after the conversation has been
-        left by the client.
-        """
