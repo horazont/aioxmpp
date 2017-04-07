@@ -53,7 +53,7 @@ class TestBlocking(TestCase):
                     aioxmpp.DiscoClient,
                     aioxmpp.BlockingClient,
             ],
-            run_before_client_starts=run_before,
+            prepare=run_before,
         ))
 
     @blocking_timed

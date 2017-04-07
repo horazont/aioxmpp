@@ -263,19 +263,17 @@ class Provisioner(metaclass=abc.ABCMeta):
         """
 
     @asyncio.coroutine
-    def get_connected_client(self, presence=aioxmpp.PresenceState(True),
-                             *,
-                             services=[],
-                             run_before_client_starts=None):
+    def get_connected_client(self, presence=aioxmpp.PresenceState(True), *,
+                             services=[], prepare=None):
         """
         Return a connected client to a unique XMPP account.
 
         :param presence: initial presence to emit
         :type presence: :class:`aioxmpp.PresenceState`
-        :param run_before_client_starts: is run after the services
+        :param prepare: a coroutine run after the services
             are summoned but before the client connects.
-        :type run_before_client_starts: coroutine receiving the client
-             as argument.
+        :type prepare: coroutine receiving the client
+             as argument
         :raise OSError: if the connection failed
         :raise RuntimeError: if a client could not be provisioned due to
                              resource constraints
@@ -292,6 +290,12 @@ class Provisioner(metaclass=abc.ABCMeta):
         Clients obtained from this function are cleaned up automatically on
         tear down of the test. The clients are stopped and the accounts
         deleted or cleared, so that each test starts with a fully fresh state.
+
+        A coroutine may be passed as `prepare` argument. It is called
+        with the client as the single argument after all services in
+        `services` have been summoned but before the client connects,
+        this is for example useful to connect signals that fire early
+        in the connection process.
         """
         id_ = self.__counter
         self.__counter += 1
@@ -300,8 +304,8 @@ class Provisioner(metaclass=abc.ABCMeta):
         client = yield from self._make_client(logger)
         for service in services:
             client.summon(service)
-        if run_before_client_starts is not None:
-            yield from run_before_client_starts(client)
+        if prepare is not None:
+            yield from prepare(client)
         cm = client.connected(presence=presence)
         yield from cm.__aenter__()
         self._accounts_to_dispose.append(cm)
