@@ -149,7 +149,7 @@ class TestPEPClient(unittest.TestCase):
                 claim2 = self.s.claim_pep_node("urn:example")
                 claim2.on_item_publish.connect(handler2)
             # register feature mock was not called a second time
-            register_feature_mock.assert_called_once()
+            self.assertEqual(len(register_feature_mock.mock_calls), 1)
         with unittest.mock.patch.object(
                 self.disco_server,
                 "unregister_feature") as unregister_feature_mock:
@@ -200,7 +200,7 @@ class TestPEPClient(unittest.TestCase):
             message=None
         )
 
-        handler.assert_not_called()
+        self.assertEqual(len(handler.mock_calls), 0)
 
     def test_claim_pep_node_with_notify(self):
         handler = unittest.mock.Mock()
@@ -227,7 +227,7 @@ class TestPEPClient(unittest.TestCase):
              unittest.mock.call("urn:example")]
         )
 
-        handler.assert_not_called()
+        self.assertEqual(len(handler.mock_calls), 0)
 
     def test_claim_pep_node_no_feature(self):
         handler = unittest.mock.Mock()
@@ -244,8 +244,8 @@ class TestPEPClient(unittest.TestCase):
                 "unregister_feature") as unregister_feature_mock:
             claim.close()
 
-        unregister_feature_mock.assert_not_called()
-        handler.assert_not_called()
+        self.assertEqual(len(unregister_feature_mock.mock_calls), 0)
+        self.assertEqual(len(handler.mock_calls), 0)
 
     def test_closed_claim(self):
         claim = self.s.claim_pep_node("urn:example")
@@ -279,7 +279,7 @@ class TestPEPClient(unittest.TestCase):
             self.assertTrue(claim.notify)
             claim.notify = True
             self.assertTrue(claim.notify)
-            register_feature_mock.assert_not_called()
+            self.assertEqual(len(register_feature_mock.mock), 0)
             register_feature_mock.reset_mock()
             claim.notify = False
             self.assertFalse(claim.notify)
@@ -289,12 +289,12 @@ class TestPEPClient(unittest.TestCase):
             unregister_feature_mock.reset_mock()
             claim.notify = False
             self.assertFalse(claim.notify)
-            unregister_feature_mock.assert_not_called()
+            self.assertEqual(len(register_feature_mock.mock), 0)
             unregister_feature_mock.reset_mock()
 
             self.assertTrue(claim.feature_registered)
             claim.feature_registered = True
-            register_feature_mock.assert_not_called()
+            self.assertEqual(len(register_feature_mock.mock), 0)
             register_feature_mock.reset_mock()
             self.assertTrue(claim.feature_registered)
             claim.feature_registered = False
@@ -303,7 +303,7 @@ class TestPEPClient(unittest.TestCase):
             unregister_feature_mock.reset_mock()
             claim.feature_registered = False
             self.assertFalse(claim.feature_registered)
-            unregister_feature_mock.assert_not_called()
+            self.assertEqual(len(register_feature_mock.mock), 0)
             unregister_feature_mock.reset_mock()
             claim.feature_registered = True
             self.assertTrue(claim.feature_registered)
