@@ -169,12 +169,10 @@ class TestAvatar(TestCase):
         avatar_server = self.client.summon(aioxmpp.avatar.AvatarServer)
         avatar_client = self.client.summon(aioxmpp.avatar.AvatarClient)
 
-        done = asyncio.Event()
+        done_future = asyncio.Future()
 
         def handler(jid, metadata):
-            self.assertEqual(jid, self.client.local_jid.bare())
-            self.assertEqual(len(metadata), 1)
-            done.set()
+            done_future.set_result((jid, metadata))
 
         avatar_client.on_metadata_changed.connect(handler)
 
@@ -184,4 +182,6 @@ class TestAvatar(TestCase):
         logging.info("publishing avatar")
         yield from avatar_server.publish_avatar_set(avatar_set)
         logging.info("waiting for completion")
-        yield from done.wait()
+        jid, metadata = yield from done_future
+        self.assertEqual(jid, self.client.local_jid.bare())
+        self.assertEqual(len(metadata), 1)
