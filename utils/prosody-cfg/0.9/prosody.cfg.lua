@@ -41,9 +41,10 @@ modules_enabled = {
 	-- Not essential, but recommended
 		"private"; -- Private XML storage (for room bookmarks, etc.)
 		"vcard"; -- Allow users to set vCards
-	
+
 	-- These are commented by default as they have a performance impact
-		--"privacy"; -- Support privacy lists
+		"privacy"; -- Support privacy lists
+		"blocking"; -- Support XEP-0191 blocklists atop privacy lists
 		--"compression"; -- Stream compression
 
 	-- Nice to have
@@ -57,7 +58,7 @@ modules_enabled = {
 	-- Admin interfaces
 		"admin_adhoc"; -- Allows administration via an XMPP client that supports ad-hoc commands
 		--"admin_telnet"; -- Opens telnet console interface on localhost port 5582
-	
+
 	-- HTTP modules
 		--"bosh"; -- Enable BOSH clients, aka "Jabber over HTTP"
 		--"http_files"; -- Serve static files from a directory over HTTP
