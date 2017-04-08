@@ -581,7 +581,7 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
     def features(self):
         """
         The set of features supported by this MUC. This may vary depending on
-        features expotred by the MUC service, so be sure to check this for each
+        features exported by the MUC service, so be sure to check this for each
         individual MUC.
         """
 
