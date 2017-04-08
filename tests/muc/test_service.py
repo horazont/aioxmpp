@@ -2354,6 +2354,286 @@ class TestRoom(unittest.TestCase):
 
         self.base.on_message.assert_not_called()
 
+    def test_tracker_does_not_match_for_different_from(self):
+        presence = aioxmpp.stanza.Presence(
+            type_=aioxmpp.structs.PresenceType.AVAILABLE,
+            from_=TEST_MUC_JID.replace(resource="thirdwitch")
+        )
+        presence.xep0045_muc_user = muc_xso.UserExt(
+            items=[
+                muc_xso.UserItem(affiliation="member",
+                                 role="participant"),
+            ],
+            status_codes={110},
+        )
+
+        self.jmuc._inbound_muc_user_presence(presence)
+
+        msg = aioxmpp.Message(aioxmpp.MessageType.NORMAL)
+        msg.body.update({None: "some text"})
+
+        tracker = run_coroutine(
+            self.jmuc.send_message_tracked(msg)
+        )
+
+        self.assertEqual(
+            tracker.state,
+            aioxmpp.tracking.MessageState.IN_TRANSIT,
+        )
+
+        reflected = aioxmpp.Message(
+            type_=aioxmpp.MessageType.GROUPCHAT,
+            from_=self.jmuc.me.conversation_jid.replace(resource="fnord"),
+            id_="#notmyid",
+        )
+        reflected.body[None] = "some text"
+
+        self.jmuc._handle_message(
+            reflected,
+            reflected.from_,
+            False,
+            im_dispatcher.MessageSource.STREAM,
+        )
+
+        self.assertEqual(
+            tracker.state,
+            aioxmpp.tracking.MessageState.IN_TRANSIT,
+        )
+
+        self.assertIsNone(tracker.response)
+
+        self.base.on_message.assert_called_once_with(
+            reflected,
+            None,
+            im_dispatcher.MessageSource.STREAM
+        )
+
+    def test_tracker_does_not_match_for_different_body(self):
+        presence = aioxmpp.stanza.Presence(
+            type_=aioxmpp.structs.PresenceType.AVAILABLE,
+            from_=TEST_MUC_JID.replace(resource="thirdwitch")
+        )
+        presence.xep0045_muc_user = muc_xso.UserExt(
+            items=[
+                muc_xso.UserItem(affiliation="member",
+                                 role="participant"),
+            ],
+            status_codes={110},
+        )
+
+        self.jmuc._inbound_muc_user_presence(presence)
+
+        msg = aioxmpp.Message(aioxmpp.MessageType.NORMAL)
+        msg.body.update({None: "some text"})
+
+        tracker = run_coroutine(
+            self.jmuc.send_message_tracked(msg)
+        )
+
+        self.assertEqual(
+            tracker.state,
+            aioxmpp.tracking.MessageState.IN_TRANSIT,
+        )
+
+        reflected = aioxmpp.Message(
+            type_=aioxmpp.MessageType.GROUPCHAT,
+            from_=self.jmuc.me.conversation_jid,
+            id_="#notmyid",
+        )
+        reflected.body[None] = "some other text"
+
+        self.jmuc._handle_message(
+            reflected,
+            reflected.from_,
+            False,
+            im_dispatcher.MessageSource.STREAM,
+        )
+
+        self.assertEqual(
+            tracker.state,
+            aioxmpp.tracking.MessageState.IN_TRANSIT,
+        )
+
+        self.assertIsNone(tracker.response)
+
+        self.base.on_message.assert_called_once_with(
+            reflected,
+            self.jmuc.me,
+            im_dispatcher.MessageSource.STREAM
+        )
+
+    def test_tracker_can_deal_with_localised_messages(self):
+        presence = aioxmpp.stanza.Presence(
+            type_=aioxmpp.structs.PresenceType.AVAILABLE,
+            from_=TEST_MUC_JID.replace(resource="thirdwitch")
+        )
+        presence.xep0045_muc_user = muc_xso.UserExt(
+            items=[
+                muc_xso.UserItem(affiliation="member",
+                                 role="participant"),
+            ],
+            status_codes={110},
+        )
+
+        self.jmuc._inbound_muc_user_presence(presence)
+
+        msg = aioxmpp.Message(aioxmpp.MessageType.NORMAL)
+        msg.body.update(
+            {aioxmpp.structs.LanguageTag.fromstr("de"): "ein Text"}
+        )
+
+        tracker = run_coroutine(
+            self.jmuc.send_message_tracked(msg)
+        )
+
+        self.assertEqual(
+            tracker.state,
+            aioxmpp.tracking.MessageState.IN_TRANSIT,
+        )
+
+        other_message = aioxmpp.Message(
+            type_=aioxmpp.MessageType.GROUPCHAT,
+            from_=self.jmuc.me.conversation_jid,
+            id_="#notmyid",
+        )
+        other_message.body[aioxmpp.structs.LanguageTag.fromstr("de")] = "ein anderer Text"
+
+        self.jmuc._handle_message(
+            other_message,
+            other_message.from_,
+            False,
+            im_dispatcher.MessageSource.STREAM,
+        )
+
+        self.assertEqual(
+            tracker.state,
+            aioxmpp.tracking.MessageState.IN_TRANSIT,
+        )
+
+        self.assertIsNone(tracker.response)
+
+        self.base.on_message.assert_called_once_with(
+            other_message,
+            self.jmuc.me,
+            im_dispatcher.MessageSource.STREAM
+        )
+        self.base.on_message.reset_mock()
+        self.base.on_message.return_value = None
+
+        reflected = aioxmpp.Message(
+            type_=aioxmpp.MessageType.GROUPCHAT,
+            from_=self.jmuc.me.conversation_jid,
+            id_="#notmyid",
+        )
+        reflected.body[aioxmpp.structs.LanguageTag.fromstr("de")] = "ein Text"
+
+        self.jmuc._handle_message(
+            reflected,
+            reflected.from_,
+            False,
+            im_dispatcher.MessageSource.STREAM,
+        )
+
+        self.assertEqual(
+            tracker.state,
+            aioxmpp.tracking.MessageState.DELIVERED_TO_RECIPIENT,
+        )
+
+        self.assertIs(tracker.response, reflected)
+
+        self.base.on_message.assert_not_called()
+
+    def test_tracker_body_from_match_works_with_multiple_identical_messages(self):
+        presence = aioxmpp.stanza.Presence(
+            type_=aioxmpp.structs.PresenceType.AVAILABLE,
+            from_=TEST_MUC_JID.replace(resource="thirdwitch")
+        )
+        presence.xep0045_muc_user = muc_xso.UserExt(
+            items=[
+                muc_xso.UserItem(affiliation="member",
+                                 role="participant"),
+            ],
+            status_codes={110},
+        )
+
+        self.jmuc._inbound_muc_user_presence(presence)
+
+        msg1 = aioxmpp.Message(aioxmpp.MessageType.NORMAL)
+        msg1.body.update({None: "some text"})
+
+        msg2 = aioxmpp.Message(aioxmpp.MessageType.NORMAL)
+        msg2.body.update({None: "some text"})
+
+        tracker1 = run_coroutine(
+            self.jmuc.send_message_tracked(msg1)
+        )
+
+        tracker2 = run_coroutine(
+            self.jmuc.send_message_tracked(msg2)
+        )
+
+        self.assertEqual(
+            tracker1.state,
+            aioxmpp.tracking.MessageState.IN_TRANSIT,
+        )
+
+        self.assertEqual(
+            tracker2.state,
+            aioxmpp.tracking.MessageState.IN_TRANSIT,
+        )
+
+        reflected1 = aioxmpp.Message(
+            type_=aioxmpp.MessageType.GROUPCHAT,
+            from_=self.jmuc.me.conversation_jid,
+            id_="#notmyid",
+        )
+        reflected1.body[None] = "some text"
+
+        self.jmuc._handle_message(
+            reflected1,
+            reflected1.from_,
+            False,
+            im_dispatcher.MessageSource.STREAM,
+        )
+
+        self.assertEqual(
+            tracker1.state,
+            aioxmpp.tracking.MessageState.DELIVERED_TO_RECIPIENT,
+        )
+
+        self.assertIs(tracker1.response, reflected1)
+
+        self.assertEqual(
+            tracker2.state,
+            aioxmpp.tracking.MessageState.IN_TRANSIT,
+        )
+
+        reflected2 = aioxmpp.Message(
+            type_=aioxmpp.MessageType.GROUPCHAT,
+            from_=self.jmuc.me.conversation_jid,
+            id_="#notmyid",
+        )
+        reflected2.body[None] = "some text"
+
+        self.jmuc._handle_message(
+            reflected2,
+            reflected2.from_,
+            False,
+            im_dispatcher.MessageSource.STREAM,
+        )
+
+        self.assertEqual(
+            tracker2.state,
+            aioxmpp.tracking.MessageState.DELIVERED_TO_RECIPIENT,
+        )
+
+        self.assertIs(
+            tracker2.response,
+            reflected2,
+        )
+
+        self.base.on_message.assert_not_called()
+
     def test_tracking_does_not_fail_on_race(self):
         presence = aioxmpp.stanza.Presence(
             type_=aioxmpp.structs.PresenceType.AVAILABLE,

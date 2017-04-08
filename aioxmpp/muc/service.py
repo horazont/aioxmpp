@@ -39,6 +39,21 @@ import aioxmpp.im.service
 from . import xso as muc_xso
 
 
+def _extract_one_pair(body):
+    """
+    Extract one language-text pair from a :class:`~.LanguageMap`.
+
+    This is used for tracking.
+    """
+    if not body:
+        return None, None
+
+    try:
+        return None, body[None]
+    except KeyError:
+        return next(iter(body.items()))
+
+
 class LeaveMode(Enum):
     """
     The different reasons for a user to leave or be removed from MUC.
@@ -618,18 +633,28 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
         try:
             tracker = self._tracking_by_id[message.id_]
         except KeyError:
+            key = message.from_, _extract_one_pair(message.body)
             try:
-                tracker = self._tracking_by_sender_body[
-                    message.from_, message.body.get(None)
-                ]
+                trackers = self._tracking_by_sender_body[key]
             except KeyError:
+                trackers = None
+
+            if not trackers:
                 tracker = None
+            else:
+                tracker = trackers[0]
+
         if tracker is None:
             return False
 
         id_key, sender_body_key = self._tracking_metadata.pop(tracker)
         del self._tracking_by_id[id_key]
-        del self._tracking_by_sender_body[sender_body_key]
+
+        # remove tracker from list and delete list map entry if empty
+        trackers = self._tracking_by_sender_body[sender_body_key]
+        del trackers[0]
+        if not trackers:
+            del self._tracking_by_sender_body[sender_body_key]
 
         try:
             tracker._set_state(
@@ -958,13 +983,16 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
         tracker = aioxmpp.tracking.MessageTracker()
         id_key = msg.id_
         sender_body_key = (self._this_occupant.conversation_jid,
-                           msg.body.get(None))
+                           _extract_one_pair(msg.body))
         self._tracking_by_id[id_key] = tracker
         self._tracking_metadata[tracker] = (
             id_key,
             sender_body_key,
         )
-        self._tracking_by_sender_body[sender_body_key] = tracker
+        self._tracking_by_sender_body.setdefault(
+            sender_body_key,
+            []
+        ).append(tracker)
         tracker.on_closed.connect(functools.partial(
             self._tracker_closed,
             tracker,
