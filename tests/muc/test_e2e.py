@@ -24,6 +24,8 @@ import functools
 import logging
 
 import aioxmpp.muc
+import aioxmpp.im.p2p
+import aioxmpp.im.service
 
 from aioxmpp.utils import namespaces
 
@@ -42,7 +44,11 @@ class TestMuc(TestCase):
     @blocking
     @asyncio.coroutine
     def setUp(self, muc_provider):
-        services = [aioxmpp.MUCClient]
+        services = [
+            aioxmpp.MUCClient,
+            aioxmpp.im.p2p.Service,
+            aioxmpp.im.service.ConversationService,
+        ]
 
         self.peer = muc_provider
         self.mucjid = self.peer.replace(localpart="coven")
@@ -440,6 +446,51 @@ class TestMuc(TestCase):
              for member in self.secondroom.members
              if member.nick == "firstwitch"],
         )
+
+    @blocking_timed
+    @asyncio.coroutine
+    def test_muc_pms(self):
+        firstwitch_convs = self.firstwitch.summon(
+            aioxmpp.im.service.ConversationService
+        )
+
+        firstconv_future = asyncio.Future()
+        first_msgs = asyncio.Queue()
+
+        def conv_added(conversation):
+            firstconv_future.set_result(conversation)
+
+            def message(message, member, source, **kwargs):
+                first_msgs.put_nowait((message, member, source))
+
+            conversation.on_message.connect(message)
+            return True
+
+        firstwitch_convs.on_conversation_added.connect(conv_added)
+
+        secondwitch_p2p = self.secondwitch.summon(
+            aioxmpp.im.p2p.Service,
+        )
+        secondconv = yield from secondwitch_p2p.get_conversation(
+            self.secondroom.members[1].conversation_jid
+        )
+
+        msg = aioxmpp.Message(type_=aioxmpp.MessageType.CHAT)
+        msg.body[None] = "I'll give thee a wind."
+
+        yield from secondconv.send_message(msg)
+        firstconv = yield from firstconv_future
+
+        self.assertEqual(firstconv.members[1].conversation_jid,
+                         self.firstroom.members[1].conversation_jid)
+
+        message, member, *_ = yield from first_msgs.get()
+        self.assertIsInstance(message, aioxmpp.Message)
+        self.assertDictEqual(
+            message.body,
+            msg.body,
+        )
+        self.assertEqual(member, firstconv.members[1])
 
     @blocking_timed
     @asyncio.coroutine

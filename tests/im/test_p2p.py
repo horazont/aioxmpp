@@ -25,6 +25,7 @@ import unittest
 
 import aioxmpp
 import aioxmpp.service
+import aioxmpp.muc.xso as muc_xso
 
 import aioxmpp.im.p2p as p2p
 import aioxmpp.im.service as im_service
@@ -373,6 +374,53 @@ class TestService(unittest.TestCase):
             Conversation.assert_called_once_with(
                 self.s,
                 PEER_JID.replace(localpart="fnord"),
+                parent=None
+            )
+
+            self.assertEqual(c, Conversation())
+
+            self.listener.on_conversation_new.assert_called_once_with(
+                Conversation()
+            )
+
+            Conversation()._handle_message.assert_called_once_with(
+                msg,
+                PEER_JID.replace(localpart="fnord", resource="foo"),
+                False,
+                im_dispatcher.MessageSource.STREAM,
+            )
+
+    def test_autocreate_with_fulljid_if_muc_tagged(self):
+        msg = aioxmpp.Message(
+            type_=aioxmpp.MessageType.CHAT,
+            from_=PEER_JID.replace(resource="foo"),
+        )
+        msg.body[None] = "foo"
+        msg.xep0045_muc_user = muc_xso.UserExt()
+
+        with contextlib.ExitStack() as stack:
+            Conversation = stack.enter_context(unittest.mock.patch(
+                "aioxmpp.im.p2p.Conversation",
+            ))
+
+            self.assertIsNone(self.s._filter_message(
+                msg,
+                PEER_JID.replace(localpart="fnord", resource="foo"),
+                False,
+                im_dispatcher.MessageSource.STREAM,
+            ))
+            Conversation.assert_called_once_with(
+                self.s,
+                PEER_JID.replace(localpart="fnord", resource="foo"),
+                parent=None
+            )
+
+            c = run_coroutine(self.s.get_conversation(
+                PEER_JID.replace(localpart="fnord", resource="foo")
+            ))
+            Conversation.assert_called_once_with(
+                self.s,
+                PEER_JID.replace(localpart="fnord", resource="foo"),
                 parent=None
             )
 

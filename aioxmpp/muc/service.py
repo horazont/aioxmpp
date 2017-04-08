@@ -1202,6 +1202,9 @@ class MUCClient(aioxmpp.service.Service):
     into a client, it is possible to join multi-user chats and implement
     interaction with them.
 
+    Private Messages into the MUC are not handled by this service. They are
+    handled by the normal :class:`.p2p.Service`.
+
     .. automethod:: join
 
     Manage rooms:
@@ -1377,13 +1380,18 @@ class MUCClient(aioxmpp.service.Service):
                 and message.xep0045_muc_user):
             return None
 
-        if message.type_ != aioxmpp.MessageType.GROUPCHAT:
-            return message
-
         mucjid = peer.bare()
         try:
             muc = self._joined_mucs[mucjid]
         except KeyError:
+            return message
+
+        if message.type_ != aioxmpp.MessageType.GROUPCHAT:
+            if muc is not None:
+                if source == aioxmpp.im.dispatcher.MessageSource.CARBONS:
+                    return None
+                # tag so that p2p.Service knows what to do
+                message.xep0045_muc_user = muc_xso.UserExt()
             return message
 
         muc._handle_message(

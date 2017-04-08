@@ -146,8 +146,12 @@ class Service(AbstractConversationService, aioxmpp.service.Service):
         if     ((msg.type_ == aioxmpp.MessageType.CHAT or
                  msg.type_ == aioxmpp.MessageType.NORMAL) and
                 msg.body):
+
             if existing is None:
-                existing = self._make_conversation(peer.bare())
+                conversation_jid = peer.bare()
+                if msg.xep0045_muc_user is not None:
+                    conversation_jid = peer
+                existing = self._make_conversation(conversation_jid)
 
             existing._handle_message(msg, peer, sent, source)
             return None

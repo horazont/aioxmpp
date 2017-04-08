@@ -2618,6 +2618,23 @@ class TestService(unittest.TestCase):
                 im_dispatcher.MessageSource.CARBONS,
             )
         )
+        self.assertIsNone(msg.xep0045_muc_user)
+
+    def test_handle_message_ignores_nonmuc_chat_message(self):
+        msg = aioxmpp.Message(
+            type_=aioxmpp.MessageType.CHAT,
+            from_=TEST_MUC_JID.replace(resource="firstwitch"),
+        )
+        self.assertIs(
+            msg,
+            self.s._handle_message(
+                msg,
+                msg.from_,
+                False,
+                im_dispatcher.MessageSource.STREAM,
+            )
+        )
+        self.assertIsNone(msg.xep0045_muc_user)
 
     def test_handle_message_drops_received_carbon_of_pm(self):
         msg = aioxmpp.Message(
@@ -3146,7 +3163,7 @@ class TestService(unittest.TestCase):
             unittest.mock.sentinel.source,
         )
 
-    def test_ignores_chat_messages_from_joined_mucs(self):
+    def test_tags_chat_messages_from_joined_mucs(self):
         room, future = self.s.join(TEST_MUC_JID, "thirdwitch")
 
         def mkpresence(nick, is_self=False):
@@ -3192,6 +3209,61 @@ class TestService(unittest.TestCase):
                     msg.from_,
                     unittest.mock.sentinel.sent,
                     unittest.mock.sentinel.source,
+                )
+            )
+
+            self.assertIsInstance(
+                msg.xep0045_muc_user,
+                muc_xso.UserExt,
+            )
+
+        _handle_message.assert_not_called()
+
+    def test_drop_untagged_pm_carbons_from_joined_mucs(self):
+        room, future = self.s.join(TEST_MUC_JID, "thirdwitch")
+
+        def mkpresence(nick, is_self=False):
+            presence = aioxmpp.stanza.Presence(
+                from_=TEST_MUC_JID.replace(resource=nick)
+            )
+            presence.xep0045_muc_user = muc_xso.UserExt(
+                status_codes={110} if is_self else set()
+            )
+            return presence
+
+        occupant_presences = [
+            mkpresence(nick, is_self=(nick == "thirdwitch"))
+            for nick in [
+                "firstwitch",
+                "secondwitch",
+                "thirdwitch",
+            ]
+        ]
+
+        msg = aioxmpp.stanza.Message(
+            from_=TEST_MUC_JID.replace(resource="firstwitch"),
+            type_=aioxmpp.structs.MessageType.CHAT,
+        )
+
+        with contextlib.ExitStack() as stack:
+            _handle_message = stack.enter_context(unittest.mock.patch.object(
+                room,
+                "_handle_message",
+            ))
+
+            for presence in occupant_presences:
+                self.s._handle_presence(
+                    presence,
+                    presence.from_,
+                    False,
+                )
+
+            self.assertIsNone(
+                self.s._handle_message(
+                    msg,
+                    msg.from_,
+                    unittest.mock.sentinel.sent,
+                    im_dispatcher.MessageSource.CARBONS,
                 )
             )
 
