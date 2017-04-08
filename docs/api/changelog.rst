@@ -74,6 +74,10 @@ Version 0.9
 
 * :mod:`aioxmpp.misc`
 
+* :mod:`aioxmpp.private_xml`
+
+* :mod:`aioxmpp.bookmarks`
+
 * :xep:`Stream Management <198>` counters now wrap around as unsigned
   32 bit integers, as the standard specifies.
 

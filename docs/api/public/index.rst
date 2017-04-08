@@ -29,12 +29,14 @@ functionality or provide backwards compatibility.
    adhoc
    avatar
    blocking
+   bookmarks
    carbons
    disco
    entitycaps
    forms
    muc
    presence
+   private_xml
    pubsub
    roster
    rfc6120
