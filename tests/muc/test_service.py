@@ -1379,7 +1379,8 @@ class TestRoom(unittest.TestCase):
                     occupant,
                     {
                         None: "foo",
-                    }
+                    },
+                    muc_nick=occupant.nick,
                 )
             ]
         )
@@ -1416,6 +1417,7 @@ class TestRoom(unittest.TestCase):
                 unittest.mock.call.on_topic_changed(
                     None,
                     msg.subject,
+                    muc_nick=msg.from_.resource,
                 )
             ]
         )

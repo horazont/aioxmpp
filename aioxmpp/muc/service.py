@@ -356,7 +356,7 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
             :meth:`.AbstractConversation.on_nick_changed` for the full
             specification.
 
-    .. signal:: on_topic_changed(member, new_topic, **kwargs)
+    .. signal:: on_topic_changed(member, new_topic, *, muc_nick=None, **kwargs)
 
         The topic of the conversation has changed.
 
@@ -364,10 +364,17 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
         :type member: :class:`Occupant` or :data:`None`
         :param new_topic: The new topic of the conversation.
         :type new_topic: :class:`.LanguageMap`
+        :param muc_nick: The nickname of the occupant who changed the topic.
+        :type muc_nick: :class:`str`
 
         The `member` is matched by nickname. It is possible that the member is
         not in the room at the time the topic chagne is received (for example
         on a join).
+
+        `muc_nick` is always the nickname of the entity who changed the topic.
+        If the entity is currently not joined or has changed nick since the
+        topic was set, `member` will be :data:`None`, but `muc_nick` is still
+        the nickname of the actor.
 
         .. note::
 
@@ -658,6 +665,7 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
             self.on_topic_changed(
                 occupant,
                 self._subject,
+                muc_nick=message.from_.resource,
             )
 
         elif message.body:
