@@ -869,6 +869,10 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
         """
         msg.type_ = aioxmpp.MessageType.GROUPCHAT
         msg.to = self._mucjid
+        # see https://mail.jabber.org/pipermail/standards/2017-January/032048.html  # NOQA
+        # for a full discussion on the rationale for this.
+        # TL;DR: we want to help entities to discover that a message is related
+        # to a MUC.
         msg.xep0045_muc_user = muc_xso.UserExt()
         yield from self.service.client.stream.send(msg)
         self.on_message(
@@ -937,11 +941,15 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
         the correct body a reflection.
 
         Obviously, this fails consistently in MUCs which re-write the body and
-        re-write the ID and randomly if the MUC always re-writes the ID but only
-        sometimes the body.
+        re-write the ID and randomly if the MUC always re-writes the ID but
+        only sometimes the body.
         """
         msg.type_ = aioxmpp.MessageType.GROUPCHAT
         msg.to = self._mucjid
+        # see https://mail.jabber.org/pipermail/standards/2017-January/032048.html  # NOQA
+        # for a full discussion on the rationale for this.
+        # TL;DR: we want to help entities to discover that a message is related
+        # to a MUC.
         msg.xep0045_muc_user = muc_xso.UserExt()
         msg.autoset_id()
         tracking_svc = self.service.dependencies[
