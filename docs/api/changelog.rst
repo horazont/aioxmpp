@@ -99,6 +99,10 @@ Version 0.9
   API is more clearly defined and more correct. The (ab-)use of
   :class:`aioxmpp.statemachine.OrderedStateMachine` never really worked anyways.
 
+* :mod:`aioxmpp.im`.
+
+* **Breaking change:** Re-design of interface to :mod:`aioxmpp.muc`.
+
 .. _api-changelog-0.8:
 
 Version 0.8
