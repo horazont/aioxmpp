@@ -69,6 +69,7 @@ setup(
         "Programming Language :: Python :: 3.3",
         "Programming Language :: Python :: 3.4",
         "Topic :: Communications :: Chat",
+        "Topic :: Internet :: XMPP",
     ],
     keywords="asyncio xmpp library",
     install_requires=install_requires,
