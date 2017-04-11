@@ -51,7 +51,7 @@ def _extract_one_pair(body):
     try:
         return None, body[None]
     except KeyError:
-        return next(iter(body.items()))
+        return min(body.items(), key=lambda x: x[0])
 
 
 class LeaveMode(Enum):
