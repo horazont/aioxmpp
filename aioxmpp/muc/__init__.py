@@ -27,6 +27,12 @@ This subpackage provides client-side support for :xep:`0045`.
 
 .. versionadded:: 0.5
 
+.. versionchanged:: 0.9
+
+    Nearly the whole public interface of this module has been re-written in
+    0.9 to make it coherent with the Modern IM interface defined by
+    :class:`aioxmpp.im`.
+
 Using Multi-User-Chats
 ======================
 

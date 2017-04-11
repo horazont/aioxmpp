@@ -109,7 +109,7 @@ class MucLogger(Example):
         )
 
         room.on_message.connect(self._on_message)
-        room.on_subject_change.connect(self._on_subject_change)
+        room.on_topic_changed.connect(self._on_topic_changed)
         room.on_enter.connect(self._on_enter)
         room.on_exit.connect(self._on_exit)
         room.on_leave.connect(self._on_leave)
@@ -117,45 +117,44 @@ class MucLogger(Example):
 
         return client
 
-    def _on_message(self, message, **kwargs):
+    def _on_message(self, message, member, source, **kwargs):
         print("{} {}: {}".format(
             datetime.utcnow().isoformat(),
-            message.from_.resource,
+            member.nick,
             message.body.lookup(self.language_selectors),
         ))
 
-    def _on_subject_change(self, message, subject, **kwargs):
+    def _on_topic_changed(self, member, new_topic, *, muc_nick=None, **kwargs):
         print("{} *** topic set by {}: {}".format(
             datetime.utcnow().isoformat(),
-            message.from_.resource,
-            subject.lookup(self.language_selectors),
+            member.nick if member is not None else muc_nick,
+            new_topic.lookup(self.language_selectors),
         ))
 
-    def _on_enter(self, presence, occupant=None, **kwargs):
+    def _on_enter(self, presence, occupant, **kwargs):
         print("{} *** entered room {}".format(
             datetime.utcnow().isoformat(),
-            presence.from_.bare()
+            presence.from_.bare(),
         ))
 
-    def _on_exit(self, presence, occupant=None, **kwargs):
-        print("{} *** left room {}".format(
+    def _on_exit(self, **kwargs):
+        print("{} *** left room".format(
             datetime.utcnow().isoformat(),
-            presence.from_.bare()
         ))
 
-    def _on_join(self, presence, occupant=None, **kwargs):
+    def _on_join(self, member, **kwargs):
         print("{} *** {} [{}] entered room".format(
             datetime.utcnow().isoformat(),
-            occupant.nick,
-            occupant.jid,
+            member.nick,
+            member.direct_jid,
         ))
 
-    def _on_leave(self, presence, occupant, mode, **kwargs):
+    def _on_leave(self, member, muc_leave_mode=None, **kwargs):
         print("{} *** {} [{}] left room ({})".format(
             datetime.utcnow().isoformat(),
-            occupant.nick,
-            occupant.jid,
-            mode
+            member.nick,
+            member.direct_jid,
+            muc_leave_mode,
         ))
 
     @asyncio.coroutine

@@ -24,6 +24,8 @@ import functools
 import logging
 
 import aioxmpp.muc
+import aioxmpp.im.p2p
+import aioxmpp.im.service
 
 from aioxmpp.utils import namespaces
 
@@ -42,7 +44,11 @@ class TestMuc(TestCase):
     @blocking
     @asyncio.coroutine
     def setUp(self, muc_provider):
-        services = [aioxmpp.MUCClient]
+        services = [
+            aioxmpp.MUCClient,
+            aioxmpp.im.p2p.Service,
+            aioxmpp.im.service.ConversationService,
+        ]
 
         self.peer = muc_provider
         self.mucjid = self.peer.replace(localpart="coven")
@@ -76,6 +82,13 @@ class TestMuc(TestCase):
         # owner of the muc
         yield from fut
 
+        secondwitch_fut = asyncio.Future()
+        def cb(member, **kwargs):
+            secondwitch_fut.set_result(member)
+            return True
+
+        self.firstroom.on_join.connect(cb)
+
         self.secondroom, fut = self.secondwitch.summon(
             aioxmpp.MUCClient
         ).join(
@@ -85,6 +98,11 @@ class TestMuc(TestCase):
 
         yield from fut
 
+        # we also want to wait until firstwitch sees secondwitch
+
+        member = yield from secondwitch_fut
+        self.assertIn(member, self.firstroom.members)
+
     @blocking_timed
     @asyncio.coroutine
     def test_join(self):
@@ -92,11 +110,11 @@ class TestMuc(TestCase):
 
         recvd_future = asyncio.Future()
 
-        def onjoin(presence, occupant, **kwargs):
-            if occupant.occupantjid.resource != "thirdwitch":
+        def onjoin(occupant, **kwargs):
+            if occupant.nick != "thirdwitch":
                 return
             nonlocal recvd_future
-            recvd_future.set_result((presence, occupant))
+            recvd_future.set_result((occupant, ))
             # we do not want to be called again
             return True
 
@@ -105,40 +123,96 @@ class TestMuc(TestCase):
         thirdroom, fut = service.join(self.mucjid, "thirdwitch")
         yield from fut
 
-        presence, occupant = yield from recvd_future
+        occupant, = yield from recvd_future
         self.assertEqual(
-            occupant.occupantjid,
+            occupant.conversation_jid,
             self.mucjid.replace(resource="thirdwitch"),
         )
 
-        self.assertEqual(
-            presence.from_,
-            occupant.occupantjid,
-        )
+        self.assertIn(occupant, self.firstroom.members)
 
     @blocking_timed
     @asyncio.coroutine
     def test_kick(self):
         exit_fut = asyncio.Future()
+        leave_fut = asyncio.Future()
 
-        def onexit(presence, occupant, mode, **kwargs):
+        def onexit(muc_leave_mode, muc_reason=None, **kwargs):
             nonlocal exit_fut
-            exit_fut.set_result((presence, occupant, mode))
+            exit_fut.set_result((muc_leave_mode, muc_reason))
+            return True
+
+        def onleave(occupant, muc_leave_mode, muc_reason=None, **kwargs):
+            nonlocal leave_fut
+            leave_fut.set_result((occupant, muc_leave_mode, muc_reason))
             return True
 
         self.secondroom.on_exit.connect(onexit)
+        self.firstroom.on_leave.connect(onleave)
 
-        yield from self.firstroom.set_role(
+        for witch in self.firstroom.members:
+            if witch.nick == "secondwitch":
+                yield from self.firstroom.kick(witch, "Thou art no real witch")
+                break
+        else:
+            self.assertFalse(True, "secondwitch not found in members")
+
+        mode, reason = yield from exit_fut
+
+        self.assertEqual(
+            mode,
+            aioxmpp.muc.LeaveMode.KICKED,
+        )
+
+        self.assertEqual(
+            reason,
+            "Thou art no real witch",
+        )
+
+        occupant, mode, reason = yield from leave_fut
+
+        self.assertEqual(
+            mode,
+            aioxmpp.muc.LeaveMode.KICKED,
+        )
+
+        self.assertEqual(
+            reason,
+            "Thou art no real witch",
+        )
+
+    @blocking_timed
+    @asyncio.coroutine
+    def test_kick_using_set_role(self):
+        exit_fut = asyncio.Future()
+        leave_fut = asyncio.Future()
+
+        def onexit(muc_leave_mode, **kwargs):
+            nonlocal exit_fut
+            exit_fut.set_result((muc_leave_mode,))
+            return True
+
+        def onleave(occupant, muc_leave_mode, **kwargs):
+            nonlocal leave_fut
+            leave_fut.set_result((occupant, muc_leave_mode))
+            return True
+
+        self.secondroom.on_exit.connect(onexit)
+        self.firstroom.on_leave.connect(onleave)
+
+        yield from self.firstroom.muc_set_role(
             "secondwitch",
             "none",
             reason="Thou art no real witch")
 
-        presence, occupant, mode = yield from exit_fut
+        mode, = yield from exit_fut
 
         self.assertEqual(
-            presence.type_,
-            aioxmpp.PresenceType.UNAVAILABLE,
+            mode,
+            aioxmpp.muc.LeaveMode.KICKED,
         )
+
+        occupant, mode = yield from leave_fut
 
         self.assertEqual(
             mode,
@@ -149,25 +223,84 @@ class TestMuc(TestCase):
     @asyncio.coroutine
     def test_ban(self):
         exit_fut = asyncio.Future()
+        leave_fut = asyncio.Future()
 
-        def onexit(presence, occupant, mode, **kwargs):
+        def onexit(muc_leave_mode, muc_reason=None, **kwargs):
             nonlocal exit_fut
-            exit_fut.set_result((presence, occupant, mode))
+            exit_fut.set_result((muc_leave_mode, muc_reason))
+            return True
+
+        def onleave(occupant, muc_leave_mode, muc_reason=None, **kwargs):
+            nonlocal leave_fut
+            leave_fut.set_result((occupant, muc_leave_mode, muc_reason))
             return True
 
         self.secondroom.on_exit.connect(onexit)
+        self.firstroom.on_leave.connect(onleave)
 
-        yield from self.firstroom.set_affiliation(
+        for witch in self.firstroom.members:
+            if witch.nick == "secondwitch":
+                yield from self.firstroom.ban(witch, "Treason!")
+                break
+        else:
+            self.assertFalse(True, "secondwitch not found in members")
+
+        mode, reason = yield from exit_fut
+
+        self.assertEqual(
+            mode,
+            aioxmpp.muc.LeaveMode.BANNED,
+        )
+
+        self.assertEqual(
+            reason,
+            "Treason!",
+        )
+
+        occupant, mode, reason = yield from leave_fut
+
+        self.assertEqual(
+            mode,
+            aioxmpp.muc.LeaveMode.BANNED,
+        )
+
+        self.assertEqual(
+            reason,
+            "Treason!",
+        )
+
+    @blocking_timed
+    @asyncio.coroutine
+    def test_ban_using_set_affiliation(self):
+        exit_fut = asyncio.Future()
+        leave_fut = asyncio.Future()
+
+        def onexit(muc_leave_mode, **kwargs):
+            nonlocal exit_fut
+            exit_fut.set_result((muc_leave_mode,))
+            return True
+
+        def onleave(occupant, muc_leave_mode, **kwargs):
+            nonlocal leave_fut
+            leave_fut.set_result((occupant, muc_leave_mode))
+            return True
+
+        self.secondroom.on_exit.connect(onexit)
+        self.firstroom.on_leave.connect(onleave)
+
+        yield from self.firstroom.muc_set_affiliation(
             self.secondwitch.local_jid.bare(),
             "outcast",
             reason="Thou art no real witch")
 
-        presence, occupant, mode = yield from exit_fut
+        mode, = yield from exit_fut
 
         self.assertEqual(
-            presence.type_,
-            aioxmpp.PresenceType.UNAVAILABLE,
+            mode,
+            aioxmpp.muc.LeaveMode.BANNED,
         )
+
+        occupant, mode = yield from leave_fut
 
         self.assertEqual(
             mode,
@@ -180,31 +313,31 @@ class TestMuc(TestCase):
         exit_fut = asyncio.Future()
         leave_fut = asyncio.Future()
 
-        def onexit(presence, occupant, mode, **kwargs):
+        def onexit(muc_leave_mode, **kwargs):
             nonlocal exit_fut
-            exit_fut.set_result((presence, occupant, mode))
+            exit_fut.set_result((muc_leave_mode,))
             return True
 
-        def onleave(presence, occupant, mode, **kwargs):
+        def onleave(occupant, muc_leave_mode, **kwargs):
             nonlocal leave_fut
-            leave_fut.set_result((presence, occupant, mode))
+            leave_fut.set_result((occupant, muc_leave_mode))
             return True
 
         self.firstroom.on_leave.connect(onleave)
         self.secondroom.on_exit.connect(onexit)
 
-        yield from self.secondroom.leave_and_wait()
+        yield from self.secondroom.leave()
 
-        self.assertFalse(self.secondroom.active)
-        self.assertFalse(self.secondroom.joined)
+        self.assertFalse(self.secondroom.muc_active)
+        self.assertFalse(self.secondroom.muc_joined)
 
-        presence, occupant, mode = yield from exit_fut
+        mode, = yield from exit_fut
         self.assertEqual(
             mode,
             aioxmpp.muc.LeaveMode.NORMAL,
         )
 
-        presence, occupant, mode = yield from leave_fut
+        occupant, mode = yield from leave_fut
         self.assertEqual(
             mode,
             aioxmpp.muc.LeaveMode.NORMAL,
@@ -212,19 +345,19 @@ class TestMuc(TestCase):
 
     @blocking_timed
     @asyncio.coroutine
-    def test_set_subject(self):
+    def test_set_topic(self):
         subject_fut = asyncio.Future()
 
-        def onsubject(message, subject, **kwargs):
+        def onsubject(member, subject, **kwargs):
             nonlocal subject_fut
-            subject_fut.set_result((message, subject))
+            subject_fut.set_result((member, subject))
             return True
 
-        self.secondroom.on_subject_change.connect(onsubject)
+        self.secondroom.on_topic_changed.connect(onsubject)
 
-        self.firstroom.set_subject({None: "Wytches Brew!"})
+        yield from self.firstroom.set_topic({None: "Wytches Brew!"})
 
-        message, subject = yield from subject_fut
+        member, subject = yield from subject_fut
 
         self.assertDictEqual(
             subject,
@@ -234,36 +367,37 @@ class TestMuc(TestCase):
         )
 
         self.assertDictEqual(
-            self.secondroom.subject,
+            self.secondroom.muc_subject,
             subject,
         )
 
         self.assertEqual(
-            self.secondroom.subject_setter,
+            self.secondroom.muc_subject_setter,
             "firstwitch",
         )
 
-    @skip_with_quirk(Quirk.MUC_REWRITES_MESSAGE_ID)
     @blocking_timed
     @asyncio.coroutine
     def test_send_tracked_message(self):
         msg_future = asyncio.Future()
         sent_future = asyncio.Future()
 
-        def onmessage(message, **kwargs):
+        def onmessage(message, member, source, **kwargs):
             nonlocal msg_future
             msg_future.set_result((message,))
             return True
 
-        def onstatechange(state):
+        def onstatechange(state, response=None):
             if state == aioxmpp.tracking.MessageState.DELIVERED_TO_RECIPIENT:
                 sent_future.set_result(None)
                 return True
 
         self.secondroom.on_message.connect(onmessage)
 
-        tracker = self.firstroom.send_tracked_message({None: "foo"})
-        tracker.on_state_change.connect(onstatechange)
+        msg = aioxmpp.Message(aioxmpp.MessageType.NORMAL)
+        msg.body[None] = "foo"
+        tracker = yield from self.firstroom.send_message_tracked(msg)
+        tracker.on_state_changed.connect(onstatechange)
         yield from sent_future
 
         message, = yield from msg_future
@@ -279,51 +413,112 @@ class TestMuc(TestCase):
     def test_send_message(self):
         msg_future = asyncio.Future()
 
-        def onmessage(message, **kwargs):
+        def onmessage(message, member, source, **kwargs):
             nonlocal msg_future
-            msg_future.set_result((message,))
+            msg_future.set_result((message, member,))
             return True
 
         self.secondroom.on_message.connect(onmessage)
 
-        msg = aioxmpp.Message(
-            type_=aioxmpp.MessageType.GROUPCHAT,
-            to=self.mucjid
-        )
-        msg.body[None] = "foo"
-        yield from self.firstwitch.stream.send(msg)
+        msg = aioxmpp.Message(type_=aioxmpp.MessageType.CHAT)
+        msg.body.update({None: "foo"})
+        yield from self.firstroom.send_message(msg)
 
-        message, = yield from msg_future
+        message, member, = yield from msg_future
         self.assertDictEqual(
             message.body,
             {
                 None: "foo"
             }
         )
+        self.assertEqual(
+            message.type_,
+            aioxmpp.MessageType.GROUPCHAT,
+        )
+        self.assertEqual(
+            msg.type_,
+            aioxmpp.MessageType.GROUPCHAT,
+        )
+
+        self.assertCountEqual(
+            [member],
+            [member
+             for member in self.secondroom.members
+             if member.nick == "firstwitch"],
+        )
 
     @blocking_timed
     @asyncio.coroutine
-    def test_change_nick(self):
+    def test_muc_pms(self):
+        firstwitch_convs = self.firstwitch.summon(
+            aioxmpp.im.service.ConversationService
+        )
+
+        firstconv_future = asyncio.Future()
+        first_msgs = asyncio.Queue()
+
+        def conv_added(conversation):
+            firstconv_future.set_result(conversation)
+
+            def message(message, member, source, **kwargs):
+                first_msgs.put_nowait((message, member, source))
+
+            conversation.on_message.connect(message)
+            return True
+
+        firstwitch_convs.on_conversation_added.connect(conv_added)
+
+        secondwitch_p2p = self.secondwitch.summon(
+            aioxmpp.im.p2p.Service,
+        )
+        secondconv = yield from secondwitch_p2p.get_conversation(
+            self.secondroom.members[1].conversation_jid
+        )
+
+        msg = aioxmpp.Message(type_=aioxmpp.MessageType.CHAT)
+        msg.body[None] = "I'll give thee a wind."
+
+        yield from secondconv.send_message(msg)
+        firstconv = yield from firstconv_future
+
+        self.assertEqual(firstconv.members[1].conversation_jid,
+                         self.firstroom.members[1].conversation_jid)
+
+        message, member, *_ = yield from first_msgs.get()
+        self.assertIsInstance(message, aioxmpp.Message)
+        self.assertDictEqual(
+            message.body,
+            msg.body,
+        )
+        self.assertEqual(member, firstconv.members[1])
+
+    @blocking_timed
+    @asyncio.coroutine
+    def test_set_nick(self):
         self_future = asyncio.Future()
         foreign_future = asyncio.Future()
 
-        def onnickchange(fut, presence, occupant, **kwargs):
-            fut.set_result((presence, occupant,))
+        def onnickchange(fut, occupant, old_nick, new_nick, **kwargs):
+            fut.set_result((occupant, old_nick, new_nick))
             return True
 
-        self.secondroom.on_nick_change.connect(
+        self.secondroom.on_nick_changed.connect(
             functools.partial(onnickchange, foreign_future),
         )
 
-        self.firstroom.on_nick_change.connect(
+        self.firstroom.on_nick_changed.connect(
             functools.partial(onnickchange, self_future),
         )
 
-        yield from self.firstroom.change_nick("oldhag")
+        yield from self.firstroom.set_nick("oldhag")
 
-        presence, occupant = yield from self_future
-        self.assertEqual(occupant, self.firstroom.this_occupant)
-        self.assertEqual(occupant.occupantjid.resource, "oldhag")
+        occupant, old_nick, new_nick = yield from self_future
+        self.assertEqual(occupant, self.firstroom.me)
+        self.assertEqual(old_nick, "firstwitch")
+        self.assertEqual(occupant.nick, "oldhag")
+        self.assertEqual(new_nick, occupant.nick)
 
-        presence, occupant = yield from foreign_future
-        self.assertEqual(occupant.occupantjid.resource, "oldhag")
+        occupant, old_nick, new_nick = yield from foreign_future
+        self.assertEqual(occupant.nick, "oldhag")
+        self.assertEqual(old_nick, "firstwitch")
+        self.assertEqual(new_nick, occupant.nick)

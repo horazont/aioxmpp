@@ -34,6 +34,7 @@ functionality or provide backwards compatibility.
    disco
    entitycaps
    forms
+   im
    muc
    presence
    private_xml
