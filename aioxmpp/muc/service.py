@@ -512,7 +512,7 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
         self._this_occupant = None
         self._tracking_by_id = {}
         self._tracking_metadata = {}
-        self._tracking_by_sender_body = {}
+        self._tracking_by_body = {}
         self.muc_autorejoin = False
         self.muc_password = None
 
@@ -633,10 +633,14 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
         try:
             tracker = self._tracking_by_id[message.id_]
         except KeyError:
-            key = message.from_, _extract_one_pair(message.body)
-            try:
-                trackers = self._tracking_by_sender_body[key]
-            except KeyError:
+            if (self._this_occupant is not None and
+                    message.from_ == self._this_occupant.conversation_jid):
+                key = _extract_one_pair(message.body)
+                try:
+                    trackers = self._tracking_by_body[key]
+                except KeyError:
+                    trackers = None
+            else:
                 trackers = None
 
             if not trackers:
@@ -647,14 +651,14 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
         if tracker is None:
             return False
 
-        id_key, sender_body_key = self._tracking_metadata.pop(tracker)
+        id_key, body_key = self._tracking_metadata.pop(tracker)
         del self._tracking_by_id[id_key]
 
         # remove tracker from list and delete list map entry if empty
-        trackers = self._tracking_by_sender_body[sender_body_key]
+        trackers = self._tracking_by_body[body_key]
         del trackers[0]
         if not trackers:
-            del self._tracking_by_sender_body[sender_body_key]
+            del self._tracking_by_body[body_key]
 
         try:
             tracker._set_state(
@@ -908,11 +912,11 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
 
     def _tracker_closed(self, tracker):
         try:
-            id_key, sender_body_key = self._tracking_metadata[tracker]
+            id_key, body_key = self._tracking_metadata[tracker]
         except KeyError:
             return
         self._tracking_by_id.pop(id_key, None)
-        self._tracking_by_sender_body.pop(sender_body_key, None)
+        self._tracking_by_body.pop(body_key, None)
 
     @asyncio.coroutine
     def send_message_tracked(self, msg):
@@ -982,15 +986,14 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
         ]
         tracker = aioxmpp.tracking.MessageTracker()
         id_key = msg.id_
-        sender_body_key = (self._this_occupant.conversation_jid,
-                           _extract_one_pair(msg.body))
+        body_key = _extract_one_pair(msg.body)
         self._tracking_by_id[id_key] = tracker
         self._tracking_metadata[tracker] = (
             id_key,
-            sender_body_key,
+            body_key,
         )
-        self._tracking_by_sender_body.setdefault(
-            sender_body_key,
+        self._tracking_by_body.setdefault(
+            body_key,
             []
         ).append(tracker)
         tracker.on_closed.connect(functools.partial(

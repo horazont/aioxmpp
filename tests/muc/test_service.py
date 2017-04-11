@@ -2462,6 +2462,68 @@ class TestRoom(unittest.TestCase):
             im_dispatcher.MessageSource.STREAM
         )
 
+    def test_tracker_follows_concurrent_nickchange(self):
+        presence = aioxmpp.stanza.Presence(
+            type_=aioxmpp.structs.PresenceType.AVAILABLE,
+            from_=TEST_MUC_JID.replace(resource="thirdwitch")
+        )
+        presence.xep0045_muc_user = muc_xso.UserExt(
+            items=[
+                muc_xso.UserItem(affiliation="member",
+                                 role="participant"),
+            ],
+            status_codes={110},
+        )
+
+        self.jmuc._inbound_muc_user_presence(presence)
+
+        msg = aioxmpp.Message(aioxmpp.MessageType.NORMAL)
+        msg.body.update({None: "some text"})
+
+        tracker = run_coroutine(
+            self.jmuc.send_message_tracked(msg)
+        )
+
+        self.assertEqual(
+            tracker.state,
+            aioxmpp.tracking.MessageState.IN_TRANSIT,
+        )
+
+        presence.type_ = aioxmpp.structs.PresenceType.UNAVAILABLE
+        presence.xep0045_muc_user.status_codes.add(303)
+        presence.xep0045_muc_user.status_codes.add(110)
+        presence.xep0045_muc_user.items[0].nick = "oldhag"
+
+        self.jmuc._inbound_muc_user_presence(presence)
+
+        self.assertEqual(
+            self.jmuc.me.conversation_jid,
+            TEST_MUC_JID.replace(resource="oldhag")
+        )
+
+        reflected = aioxmpp.Message(
+            type_=aioxmpp.MessageType.GROUPCHAT,
+            from_=TEST_MUC_JID.replace(resource="oldhag"),
+            id_="#notmyid",
+        )
+        reflected.body[None] = "some text"
+
+        self.jmuc._handle_message(
+            reflected,
+            reflected.from_,
+            False,
+            im_dispatcher.MessageSource.STREAM,
+        )
+
+        self.assertEqual(
+            tracker.state,
+            aioxmpp.tracking.MessageState.DELIVERED_TO_RECIPIENT,
+        )
+
+        self.assertIs(tracker.response, reflected)
+
+        self.base.on_message.assert_not_called()
+
     def test_tracker_can_deal_with_localised_messages(self):
         presence = aioxmpp.stanza.Presence(
             type_=aioxmpp.structs.PresenceType.AVAILABLE,
