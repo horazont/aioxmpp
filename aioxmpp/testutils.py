@@ -106,6 +106,24 @@ def run_coroutine_with_peer(
     return local_future.result()
 
 
+def make_listener(instance):
+    """
+    Return a :class:`unittest.mock.Mock` which has children connected to each
+    :class:`aioxmpp.callbacks.Signal` of `instance`.
+
+    The children are named exactly like the signals.
+    """
+    result = unittest.mock.Mock()
+    for name, obj in type(instance).__dict__.items():
+        if not isinstance(obj, callbacks.Signal):
+            continue
+        cb = getattr(result, name)
+        cb.return_value = None
+        getattr(instance, name).connect(cb)
+    return result
+
+
+
 class FilterMock(unittest.mock.Mock):
     def __init__(self):
         super().__init__([

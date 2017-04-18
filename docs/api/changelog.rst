@@ -107,6 +107,12 @@ Version 0.9
 
 * **Breaking change:** Re-design of interface to :mod:`aioxmpp.muc`.
 
+* Fix :attr:`aioxmpp.RosterClient.groups` not being updated when items are
+  removed during initial roster update.
+
+* :meth:`aioxmpp.RosterClient.on_group_added`,
+  :meth:`~aioxmpp.RosterClient.on_group_removed`.
+
 .. _api-changelog-0.8:
 
 Version 0.8
