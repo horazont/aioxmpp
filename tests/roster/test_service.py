@@ -489,9 +489,7 @@ class TestService(unittest.TestCase):
 
         self.cc.stream.send.return_value = response
 
-        task = asyncio.async(self.cc.before_stream_established())
-
-        run_coroutine(asyncio.sleep(0))
+        run_coroutine(self.cc.before_stream_established())
 
         self.assertSequenceEqual(
             [
@@ -522,6 +520,41 @@ class TestService(unittest.TestCase):
 
         self.assertIs(old_item, self.s.items[self.user2])
         self.assertEqual("new name", old_item.name)
+
+    def test_initial_roster_removes_contact_from_groups(self):
+        response = roster_xso.Query(
+            items=[
+                roster_xso.Item(
+                    jid=self.user2,
+                    name="some bar user",
+                    subscription="both",
+                    groups=[
+                        roster_xso.Group(name="group1"),
+                        roster_xso.Group(name="group2"),
+                    ]
+                )
+            ],
+            ver="foobar"
+        )
+
+        self.cc.stream.send.return_value = response
+
+        run_coroutine(self.cc.before_stream_established())
+
+        self.assertSetEqual(
+            self.s.groups["group1"],
+            {self.s.items[self.user2]},
+        )
+
+        self.assertSetEqual(
+            self.s.groups["group2"],
+            {self.s.items[self.user2]},
+        )
+
+        self.assertSetEqual(
+            self.s.groups.get("group3", set()),
+            set(),
+        )
 
     def test_on_entry_name_changed(self):
         request = roster_xso.Query(
@@ -659,6 +692,44 @@ class TestService(unittest.TestCase):
             ],
             cb.mock_calls
         )
+
+    def test_groups_are_cleaned_up_up_when_on_entry_removed_fires_on_push(self):
+        fut = asyncio.Future()
+
+        def handler(item):
+            try:
+                for group in item.groups:
+                    try:
+                        members = self.s.groups[group]
+                    except KeyError:
+                        members = set()
+                    self.assertNotIn(item, members)
+
+            except Exception as exc:
+                fut.set_exception(exc)
+            else:
+                fut.set_result(None)
+
+        new_jid = structs.JID.fromstr("fnord@foo.example")
+
+        request = roster_xso.Query(
+            items=[
+                roster_xso.Item(
+                    jid=self.user2,
+                    subscription="remove",
+                ),
+            ],
+            ver="foobar"
+        )
+
+        iq = stanza.IQ(type_=structs.IQType.SET)
+        iq.payload = request
+
+        self.s.on_entry_removed.connect(handler)
+
+        run_coroutine(self.s.handle_roster_push(iq))
+
+        run_coroutine(fut)
 
     def test_export_as_json(self):
         self.assertDictEqual(

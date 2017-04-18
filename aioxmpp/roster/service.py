@@ -465,6 +465,16 @@ class RosterClient(aioxmpp.service.Service):
     def handle_unsubscribe(self, stanza):
         self.on_unsubscribe(stanza)
 
+    def _remove_from_groups(self, item_to_remove, groups):
+        for group in groups:
+            try:
+                group_members = self.groups[group]
+            except KeyError:
+                continue
+            group_members.remove(item_to_remove)
+            if not group_members:
+                del self.groups[group]
+
     @asyncio.coroutine
     def _request_initial_roster(self):
         iq = stanza.IQ(type_=structs.IQType.GET)
@@ -498,6 +508,7 @@ class RosterClient(aioxmpp.service.Service):
 
         for removed_jid in removed_jids:
             old_item = self.items.pop(removed_jid)
+            self._remove_from_groups(old_item, old_item.groups)
             self.on_entry_removed(old_item)
 
         logger.debug("jids updated: %r", actual_jids - removed_jids)
