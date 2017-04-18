@@ -33,7 +33,11 @@ import aioxmpp.structs as structs
 
 from aioxmpp.utils import namespaces
 
-from aioxmpp.testutils import make_connected_client, run_coroutine
+from aioxmpp.testutils import (
+    make_connected_client,
+    run_coroutine,
+    make_listener,
+)
 
 
 TEST_JID = structs.JID.fromstr("user@foo.example")
@@ -238,6 +242,8 @@ class TestService(unittest.TestCase):
         run_coroutine(self.cc.before_stream_established())
 
         self.cc.stream.send.reset_mock()
+
+        self.listener = make_listener(self.s)
 
     def test_is_Service(self):
         self.assertIsInstance(
@@ -465,6 +471,40 @@ class TestService(unittest.TestCase):
             cb.mock_calls
         )
 
+    def test_initial_roster_fires_group_event(self):
+        response = roster_xso.Query(
+            items=[
+                roster_xso.Item(
+                    jid=self.user2,
+                    name="some bar user",
+                    subscription="both",
+                    groups={roster_xso.Group(name="a"),
+                            roster_xso.Group(name="b")}
+                ),
+                roster_xso.Item(
+                    jid=self.user1,
+                    name="some foo user",
+                    subscription="both",
+                    groups={roster_xso.Group(name="a"),
+                            roster_xso.Group(name="c")}
+                )
+            ],
+            ver="foobar"
+        )
+
+        self.cc.stream.send.return_value = response
+
+        run_coroutine(self.cc.before_stream_established())
+
+        self.assertCountEqual(
+            self.listener.on_group_added.mock_calls,
+            [
+                unittest.mock.call("a"),
+                unittest.mock.call("b"),
+                unittest.mock.call("c"),
+            ]
+        )
+
     def test_initial_roster_does_not_emit_entry_added_for_existing(self):
         old_item = self.s.items[self.user2]
 
@@ -554,6 +594,66 @@ class TestService(unittest.TestCase):
         self.assertSetEqual(
             self.s.groups.get("group3", set()),
             set(),
+        )
+
+    def test_initial_roster_fires_group_removed_event_for_removed_contact(self):  # NOQA
+        response = roster_xso.Query(
+            items=[
+                roster_xso.Item(
+                    jid=self.user2,
+                    name="some bar user",
+                    subscription="both",
+                    groups=[
+                        roster_xso.Group(name="group1"),
+                        roster_xso.Group(name="group2"),
+                    ]
+                )
+            ],
+            ver="foobar"
+        )
+
+        self.cc.stream.send.return_value = response
+
+        run_coroutine(self.cc.before_stream_established())
+
+        self.assertCountEqual(
+            self.listener.on_group_removed.mock_calls,
+            [
+                unittest.mock.call("group3"),
+            ]
+        )
+
+    def test_initial_roster_fires_group_removed_event_for_changed_contact(self):  # NOQA
+        response = roster_xso.Query(
+            items=[
+                roster_xso.Item(
+                    jid=self.user2,
+                    name="some bar user",
+                    subscription="both",
+                    groups=[
+                        roster_xso.Group(name="group1"),
+                        roster_xso.Group(name="group2"),
+                    ]
+                ),
+                roster_xso.Item(
+                    jid=self.user1,
+                    name="some foo user",
+                    subscription="both",
+                    groups={roster_xso.Group(name="group1")}
+                )
+            ],
+            ver="foobar"
+        )
+
+        self.cc.stream.send.return_value = response
+
+        run_coroutine(self.cc.before_stream_established())
+
+        self.assertCountEqual(
+            self.listener.on_group_removed.mock_calls,
+            [
+                unittest.mock.call("group3"),
+            ]
         )
 
     def test_groups_are_cleaned_up_up_when_on_entry_removed_fires_on_initial_roster(self):  # NOQA
@@ -733,6 +833,30 @@ class TestService(unittest.TestCase):
             cb.mock_calls
         )
 
+    def test_on_group_added_for_new_contact(self):
+        new_jid = structs.JID.fromstr("fnord@foo.example")
+
+        request = roster_xso.Query(
+            items=[
+                roster_xso.Item(
+                    jid=new_jid,
+                    subscription="none",
+                    groups={
+                        roster_xso.Group(name="a"),
+                        roster_xso.Group(name="group1"),
+                    },
+                ),
+            ],
+            ver="foobar"
+        )
+
+        iq = stanza.IQ(type_=structs.IQType.SET)
+        iq.payload = request
+
+        run_coroutine(self.s.handle_roster_push(iq))
+
+        self.listener.on_group_added.assert_called_once_with("a")
+
     def test_groups_are_set_up_when_on_entry_added_fires(self):
         fut = asyncio.Future()
 
@@ -771,6 +895,68 @@ class TestService(unittest.TestCase):
         run_coroutine(self.s.handle_roster_push(iq))
 
         run_coroutine(fut)
+
+    def test_on_group_added_for_existing_contact(self):
+        request = roster_xso.Query(
+            items=[
+                roster_xso.Item(
+                    jid=self.user2,
+                    subscription="none",
+                    groups={
+                        roster_xso.Group(name="group1"),
+                        roster_xso.Group(name="group2"),
+                        roster_xso.Group(name="group4"),
+                    },
+                ),
+            ],
+            ver="foobar"
+        )
+
+        iq = stanza.IQ(type_=structs.IQType.SET)
+        iq.payload = request
+
+        run_coroutine(self.s.handle_roster_push(iq))
+
+        self.listener.on_group_added.assert_called_once_with("group4")
+
+    def test_on_group_removed_for_existing_contact(self):
+        request = roster_xso.Query(
+            items=[
+                roster_xso.Item(
+                    jid=self.user2,
+                    subscription="none",
+                    groups={
+                        roster_xso.Group(name="group1"),
+                    },
+                ),
+            ],
+            ver="foobar"
+        )
+
+        iq = stanza.IQ(type_=structs.IQType.SET)
+        iq.payload = request
+
+        run_coroutine(self.s.handle_roster_push(iq))
+
+        self.listener.on_group_removed.assert_called_once_with("group2")
+
+    def test_on_group_removed_for_removed_contact(self):
+        request = roster_xso.Query(
+            items=[
+                roster_xso.Item(
+                    jid=self.user2,
+                    subscription="remove",
+                ),
+            ],
+            ver="foobar"
+        )
+
+        iq = stanza.IQ(type_=structs.IQType.SET)
+        iq.payload = request
+
+        run_coroutine(self.s.handle_roster_push(iq))
+
+        self.listener.on_group_removed.assert_called_once_with("group2")
 
     def test_groups_are_cleaned_up_up_when_on_entry_removed_fires_on_push(self):
         fut = asyncio.Future()
