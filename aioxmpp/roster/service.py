@@ -375,9 +375,9 @@ class RosterClient(aioxmpp.service.Service):
         except KeyError:
             stored_item = Item.from_xso_item(xso_item)
             self.items[xso_item.jid] = stored_item
-            self.on_entry_added(stored_item)
             for group in stored_item.groups:
                 self.groups.setdefault(group, set()).add(stored_item)
+            self.on_entry_added(stored_item)
             return
 
         to_call = []
@@ -430,11 +430,7 @@ class RosterClient(aioxmpp.service.Service):
                 except KeyError:
                     pass
                 else:
-                    for group in old_item.groups:
-                        groupset = self.groups[group]
-                        groupset.remove(old_item)
-                        if not groupset:
-                            del self.groups[group]
+                    self._remove_from_groups(old_item, old_item.groups)
                     self.on_entry_removed(old_item)
             else:
                 self._update_entry(item)

@@ -556,6 +556,46 @@ class TestService(unittest.TestCase):
             set(),
         )
 
+    def test_groups_are_cleaned_up_up_when_on_entry_removed_fires_on_initial_roster(self):  # NOQA
+        response = roster_xso.Query(
+            items=[
+                roster_xso.Item(
+                    jid=self.user2,
+                    name="some bar user",
+                    subscription="both",
+                    groups=[
+                        roster_xso.Group(name="group1"),
+                        roster_xso.Group(name="group2"),
+                    ]
+                ),
+            ],
+            ver="foobar"
+        )
+
+        fut = asyncio.Future()
+
+        def handler(item):
+            try:
+                for group in item.groups:
+                    try:
+                        members = self.s.groups[group]
+                    except KeyError:
+                        members = set()
+                    self.assertNotIn(item, members)
+
+            except Exception as exc:
+                fut.set_exception(exc)
+            else:
+                fut.set_result(None)
+
+        self.cc.stream.send.return_value = response
+
+        self.s.on_entry_removed.connect(handler)
+
+        run_coroutine(self.cc.before_stream_established())
+
+        run_coroutine(fut)
+
     def test_on_entry_name_changed(self):
         request = roster_xso.Query(
             items=[
@@ -692,6 +732,45 @@ class TestService(unittest.TestCase):
             ],
             cb.mock_calls
         )
+
+    def test_groups_are_set_up_when_on_entry_added_fires(self):
+        fut = asyncio.Future()
+
+        def handler(item):
+            try:
+                for group in item.groups:
+                    self.assertIn(group, self.s.groups)
+                    self.assertIn(item, self.s.groups[group])
+
+            except Exception as exc:
+                fut.set_exception(exc)
+            else:
+                fut.set_result(None)
+
+        new_jid = structs.JID.fromstr("fnord@foo.example")
+
+        request = roster_xso.Query(
+            items=[
+                roster_xso.Item(
+                    jid=new_jid,
+                    subscription="none",
+                    groups={
+                        roster_xso.Group(name="a"),
+                        roster_xso.Group(name="group1"),
+                    },
+                ),
+            ],
+            ver="foobar"
+        )
+
+        iq = stanza.IQ(type_=structs.IQType.SET)
+        iq.payload = request
+
+        self.s.on_entry_added.connect(handler)
+
+        run_coroutine(self.s.handle_roster_push(iq))
+
+        run_coroutine(fut)
 
     def test_groups_are_cleaned_up_up_when_on_entry_removed_fires_on_push(self):
         fut = asyncio.Future()
