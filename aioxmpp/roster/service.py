@@ -182,7 +182,7 @@ class RosterClient(aioxmpp.service.Service):
 
     .. attribute:: items
 
-       A dictionary mapping :class:`~aioxmpp.JID instances to corresponding
+       A dictionary mapping :class:`~aioxmpp.JID` instances to corresponding
        :class:`Item` instances.
 
     .. attribute:: groups
