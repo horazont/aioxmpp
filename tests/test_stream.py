@@ -4160,7 +4160,7 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
 
         iqs = [make_test_iq() for i in range(2)]
 
-        self.stream.ping_interval = timedelta(seconds=0.01)
+        self.stream.ping_interval = timedelta(seconds=0.1)
         self.stream.on_failure.connect(failure_handler)
 
         self.stream.start(self.xmlstream)
@@ -4171,9 +4171,9 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
 
         run_coroutine(asyncio.sleep(0))
         self.stream.enqueue(iqs[0])
-        run_coroutine(asyncio.sleep(0.005))
+        run_coroutine(asyncio.sleep(0.05))
         self.stream.enqueue(iqs[1])
-        run_coroutine(asyncio.sleep(0.006))
+        run_coroutine(asyncio.sleep(0.06))
 
         run_coroutine(self.xmlstream.run_test([
             XMLStreamMock.Send(iqs[0]),
