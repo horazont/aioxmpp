@@ -39,6 +39,11 @@ import aioxmpp.nonza as nonza
 from aioxmpp.utils import etree
 
 
+# FIXME: find a way to detect Travis CI and use 2.0 there, 1.0 otherwise.
+# 1.0 is sufficient normally, but on Travis we sometimes get spurious failures.
+DEFAULT_TIMEOUT = 2.0
+
+
 def make_protocol_mock():
     return unittest.mock.Mock([
         "connection_made",
@@ -50,7 +55,7 @@ def make_protocol_mock():
     ])
 
 
-def run_coroutine(coroutine, timeout=1.0, loop=None):
+def run_coroutine(coroutine, timeout=DEFAULT_TIMEOUT, loop=None):
     if not loop:
         loop = asyncio.get_event_loop()
     return loop.run_until_complete(
