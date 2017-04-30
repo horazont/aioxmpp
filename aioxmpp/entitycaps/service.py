@@ -20,16 +20,12 @@
 #
 ########################################################################
 import asyncio
-import base64
 import copy
 import functools
-import hashlib
 import logging
 import os
 import tempfile
 import urllib.parse
-
-from xml.sax.saxutils import escape
 
 import aioxmpp.callbacks
 import aioxmpp.disco as disco
@@ -38,103 +34,10 @@ import aioxmpp.xml
 import aioxmpp.xso
 
 from . import xso as my_xso
+from . import caps115
 
 
 logger = logging.getLogger("aioxmpp.entitycaps")
-
-
-def build_identities_string(identities):
-    identities = [
-        b"/".join([
-            escape(identity.category).encode("utf-8"),
-            escape(identity.type_).encode("utf-8"),
-            escape(str(identity.lang or "")).encode("utf-8"),
-            escape(identity.name or "").encode("utf-8"),
-        ])
-        for identity in identities
-    ]
-
-    if len(set(identities)) != len(identities):
-        raise ValueError("duplicate identity")
-
-    identities.sort()
-    identities.append(b"")
-    return b"<".join(identities)
-
-
-def build_features_string(features):
-    features = list(escape(feature).encode("utf-8") for feature in features)
-
-    if len(set(features)) != len(features):
-        raise ValueError("duplicate feature")
-
-    features.sort()
-    features.append(b"")
-    return b"<".join(features)
-
-
-def build_forms_string(forms):
-    types = set()
-    forms_list = []
-    for form in forms:
-        try:
-            form_types = set(
-                value
-                for field in form.fields.filter(attrs={"var": "FORM_TYPE"})
-                for value in field.values
-            )
-        except KeyError:
-            continue
-
-        if len(form_types) > 1:
-            raise ValueError("form with multiple types")
-        elif not form_types:
-            continue
-
-        type_ = escape(next(iter(form_types))).encode("utf-8")
-        if type_ in types:
-            raise ValueError("multiple forms of type {!r}".format(type_))
-        types.add(type_)
-        forms_list.append((type_, form))
-    forms_list.sort()
-
-    parts = []
-
-    for type_, form in forms_list:
-        parts.append(type_)
-
-        field_list = sorted(
-            (
-                (escape(field.var).encode("utf-8"), field.values)
-                for field in form.fields
-                if field.var != "FORM_TYPE"
-            ),
-            key=lambda x: x[0]
-        )
-
-        for var, values in field_list:
-            parts.append(var)
-            parts.extend(sorted(
-                escape(value).encode("utf-8") for value in values
-            ))
-
-    parts.append(b"")
-    return b"<".join(parts)
-
-
-def hash_query(query, algo):
-    hashimpl = hashlib.new(algo)
-    hashimpl.update(
-        build_identities_string(query.identities)
-    )
-    hashimpl.update(
-        build_features_string(query.features)
-    )
-    hashimpl.update(
-        build_forms_string(query.exts)
-    )
-
-    return base64.b64encode(hashimpl.digest()).decode("ascii")
 
 
 class Cache:
@@ -399,7 +302,7 @@ class EntityCapsService(aioxmpp.service.Service):
             require_fresh=True)
 
         try:
-            expected = hash_query(data, hash_.replace("-", ""))
+            expected = caps115.hash_query(data, hash_.replace("-", ""))
         except ValueError as exc:
             fut.set_exception(exc)
         else:
@@ -479,7 +382,7 @@ class EntityCapsService(aioxmpp.service.Service):
             features=self.disco_server.iter_features(),
         )
 
-        new_ver = hash_query(
+        new_ver = caps115.hash_query(
             info,
             "sha1",
         )
