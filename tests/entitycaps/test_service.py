@@ -83,36 +83,28 @@ class TestCache(unittest.TestCase):
         self.c = entitycaps_service.Cache()
 
     def test_lookup_in_database_key_errors_if_no_such_entry(self):
+        key = unittest.mock.Mock()
         with self.assertRaises(KeyError):
-            self.c.lookup_in_database("sha-1", "+9oi6+VEwgu5cRmjErECReGvCC0=")
+            self.c.lookup_in_database(key)
 
     def test_system_db_path_used_in_lookup(self):
         base = unittest.mock.Mock()
         base.p = unittest.mock.MagicMock()
-        base.quote = unittest.mock.Mock(wraps=urllib.parse.quote)
-        node = "http://foobar/#baz"
         self.c.set_system_db_path(base.p)
 
         with contextlib.ExitStack() as stack:
-            quote = stack.enter_context(unittest.mock.patch(
-                "urllib.parse.quote",
-                new=base.quote
-            ))
-
-            read_single_xso = stack.enter_context(unittest.mock.patch(
+            stack.enter_context(unittest.mock.patch(
                 "aioxmpp.xml.read_single_xso",
                 new=base.read_single_xso
             ))
 
-            result = self.c.lookup_in_database("sha-1", node)
+            result = self.c.lookup_in_database(base.key)
 
         calls = list(base.mock_calls)
         self.assertSequenceEqual(
             calls,
             [
-                unittest.mock.call.quote(node, safe=""),
-                unittest.mock.call.p.__truediv__(
-                    "sha-1_http%3A%2F%2Ffoobar%2F%23baz.xml"),
+                unittest.mock.call.p.__truediv__(base.key.path),
                 unittest.mock.call.p.__truediv__().open("rb"),
                 unittest.mock.call.p.__truediv__().open().__enter__(),
                 unittest.mock.call.read_single_xso(
@@ -134,37 +126,27 @@ class TestCache(unittest.TestCase):
         base = unittest.mock.Mock()
         base.p = unittest.mock.MagicMock()
         base.userp = unittest.mock.MagicMock()
-        base.quote = unittest.mock.Mock(wraps=urllib.parse.quote)
-        node = "http://foobar/#baz"
         self.c.set_system_db_path(base.p)
         self.c.set_user_db_path(base.userp)
 
-        with contextlib.ExitStack() as stack:
-            quote = stack.enter_context(unittest.mock.patch(
-                "urllib.parse.quote",
-                new=base.quote
-            ))
+        base.p.__truediv__().open.side_effect = FileNotFoundError()
+        base.mock_calls.clear()
 
-            read_single_xso = stack.enter_context(unittest.mock.patch(
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(unittest.mock.patch(
                 "aioxmpp.xml.read_single_xso",
                 new=base.read_single_xso
             ))
 
-            base.p.__truediv__().open.side_effect = FileNotFoundError()
-            base.mock_calls.clear()
-
-            result = self.c.lookup_in_database("sha-1", node)
+            result = self.c.lookup_in_database(base.key)
 
         calls = list(base.mock_calls)
         self.assertSequenceEqual(
             calls,
             [
-                unittest.mock.call.quote(node, safe=""),
-                unittest.mock.call.p.__truediv__(
-                    "sha-1_http%3A%2F%2Ffoobar%2F%23baz.xml"),
+                unittest.mock.call.p.__truediv__(base.key.path),
                 unittest.mock.call.p.__truediv__().open("rb"),
-                unittest.mock.call.userp.__truediv__(
-                    "sha-1_http%3A%2F%2Ffoobar%2F%23baz.xml"),
+                unittest.mock.call.userp.__truediv__(base.key.path),
                 unittest.mock.call.userp.__truediv__().open("rb"),
                 unittest.mock.call.userp.__truediv__().open().__enter__(),
                 unittest.mock.call.read_single_xso(
@@ -186,30 +168,20 @@ class TestCache(unittest.TestCase):
         base = unittest.mock.Mock()
         base.p = unittest.mock.MagicMock()
         base.userp = unittest.mock.MagicMock()
-        base.quote = unittest.mock.Mock(wraps=urllib.parse.quote)
-        node = "http://foobar/#baz"
         self.c.set_user_db_path(base.userp)
 
         with contextlib.ExitStack() as stack:
-            quote = stack.enter_context(unittest.mock.patch(
-                "urllib.parse.quote",
-                new=base.quote
-            ))
-
-            read_single_xso = stack.enter_context(unittest.mock.patch(
+            stack.enter_context(unittest.mock.patch(
                 "aioxmpp.xml.read_single_xso",
                 new=base.read_single_xso
             ))
 
-            result = self.c.lookup_in_database("sha-1", node)
-
+            result = self.c.lookup_in_database(base.key)
         calls = list(base.mock_calls)
         self.assertSequenceEqual(
             calls,
             [
-                unittest.mock.call.quote(node, safe=""),
-                unittest.mock.call.userp.__truediv__(
-                    "sha-1_http%3A%2F%2Ffoobar%2F%23baz.xml"),
+                unittest.mock.call.userp.__truediv__(base.key.path),
                 unittest.mock.call.userp.__truediv__().open("rb"),
                 unittest.mock.call.userp.__truediv__().open().__enter__(),
                 unittest.mock.call.read_single_xso(
@@ -228,15 +200,12 @@ class TestCache(unittest.TestCase):
         )
 
     def test_lookup_uses_lookup_in_database(self):
-        hash_ = object()
-        node = object()
-
         with unittest.mock.patch.object(
                 self.c,
                 "lookup_in_database") as lookup_in_database:
-            result = run_coroutine(self.c.lookup(hash_, node))
+            result = run_coroutine(self.c.lookup(unittest.mock.sentinel.key))
 
-        lookup_in_database.assert_called_with(hash_, node)
+        lookup_in_database.assert_called_with(unittest.mock.sentinel.key)
         self.assertEqual(result, lookup_in_database())
 
     def test_create_query_future_used_by_lookup(self):
@@ -259,22 +228,22 @@ class TestCache(unittest.TestCase):
             base.Future.return_value = fut
 
             self.assertIs(
-                self.c.create_query_future(base.hash_, base.node),
+                self.c.create_query_future(unittest.mock.sentinel.key),
                 fut,
             )
 
             task = asyncio.async(
-                self.c.lookup(base.hash_, base.node)
+                self.c.lookup(unittest.mock.sentinel.key)
             )
             run_coroutine(asyncio.sleep(0))
 
             self.assertFalse(task.done())
 
-            fut.set_result(base.result)
+            fut.set_result(unittest.mock.sentinel.result)
 
             run_coroutine(asyncio.sleep(0))
 
-            self.assertIs(task.result(), base.result)
+            self.assertIs(task.result(), unittest.mock.sentinel.result)
 
     def test_lookup_key_errors_if_no_matching_entry_or_future(self):
         fut = asyncio.Future()
@@ -296,12 +265,12 @@ class TestCache(unittest.TestCase):
             base.Future.return_value = fut
 
             self.assertIs(
-                self.c.create_query_future(base.hash_, base.node),
+                self.c.create_query_future(unittest.mock.sentinel.key),
                 fut,
             )
 
             with self.assertRaises(KeyError):
-                run_coroutine(self.c.lookup(base.hash_, base.other_node))
+                run_coroutine(self.c.lookup(unittest.mock.sentinel.other_key))
 
     def test_lookup_loops_on_query_futures(self):
         fut1 = asyncio.Future()
@@ -323,10 +292,10 @@ class TestCache(unittest.TestCase):
 
             base.lookup_in_database.side_effect = KeyError()
             base.Future.return_value = fut1
-            self.c.create_query_future(base.hash_, base.node)
+            self.c.create_query_future(unittest.mock.sentinel.key)
 
             task = asyncio.async(
-                self.c.lookup(base.hash_, base.node)
+                self.c.lookup(unittest.mock.sentinel.key)
             )
             run_coroutine(asyncio.sleep(0))
 
@@ -335,7 +304,7 @@ class TestCache(unittest.TestCase):
             fut1.set_exception(ValueError())
 
             base.Future.return_value = fut2
-            self.c.create_query_future(base.hash_, base.node)
+            self.c.create_query_future(unittest.mock.sentinel.key)
 
             run_coroutine(asyncio.sleep(0))
 
@@ -344,7 +313,7 @@ class TestCache(unittest.TestCase):
             fut2.set_exception(ValueError())
 
             base.Future.return_value = fut3
-            self.c.create_query_future(base.hash_, base.node)
+            self.c.create_query_future(unittest.mock.sentinel.key)
 
             run_coroutine(asyncio.sleep(0))
 
@@ -376,12 +345,12 @@ class TestCache(unittest.TestCase):
             base.Future.return_value = fut
 
             self.assertIs(
-                self.c.create_query_future(base.hash_, base.node),
+                self.c.create_query_future(unittest.mock.sentinel.key),
                 fut,
             )
 
             task = asyncio.async(
-                self.c.lookup(base.hash_, base.node)
+                self.c.lookup(unittest.mock.sentinel.key)
             )
             run_coroutine(asyncio.sleep(0))
 
@@ -394,11 +363,10 @@ class TestCache(unittest.TestCase):
             with self.assertRaises(KeyError):
                 run_coroutine(task)
 
-    def test_add_cache_entry_is_immediately_visible_in_lookup_and_defers_writeback(self):
+    def test_add_cache_entry_is_immediately_visible_in_lookup_and_defers_writeback(self):  # NOQA
         q = disco.xso.InfoQuery()
-        p = unittest.mock.Mock()
-        hash_ = object()
-        node = object()
+        p = unittest.mock.MagicMock()
+        key = unittest.mock.Mock()
         self.c.set_user_db_path(p)
 
         with contextlib.ExitStack() as stack:
@@ -416,31 +384,27 @@ class TestCache(unittest.TestCase):
             ))
 
             self.c.add_cache_entry(
-                hash_,
-                node,
+                key,
                 q,
             )
 
-        copy.assert_called_with(q)
+        copy.assert_called_once_with(q)
+
+        p.__truediv__.assert_called_once_with(key.path)
+
         run_in_executor.assert_called_with(
             None,
             entitycaps_service.writeback,
-            p,
-            hash_,
-            node,
+            p.__truediv__(),
             q.captured_events,
         )
         async.assert_called_with(run_in_executor())
 
-        result = self.c.lookup_in_database(hash_, node)
+        result = self.c.lookup_in_database(key)
         self.assertEqual(result, copy())
-        self.assertEqual(result.node, node)
 
-    def test_add_cache_entry_does_not_perform_writeback_if_no_userdb_is_set(self):
+    def test_add_cache_entry_does_not_perform_writeback_if_no_userdb_is_set(self):  # NOQA
         q = disco.xso.InfoQuery()
-        p = unittest.mock.Mock()
-        hash_ = object()
-        node = object()
 
         with contextlib.ExitStack() as stack:
             copy = stack.enter_context(unittest.mock.patch(
@@ -457,8 +421,7 @@ class TestCache(unittest.TestCase):
             ))
 
             self.c.add_cache_entry(
-                hash_,
-                node,
+                unittest.mock.sentinel.key,
                 q,
             )
 
@@ -466,9 +429,8 @@ class TestCache(unittest.TestCase):
         self.assertFalse(run_in_executor.mock_calls)
         self.assertFalse(async.mock_calls)
 
-        result = self.c.lookup_in_database(hash_, node)
+        result = self.c.lookup_in_database(unittest.mock.sentinel.key)
         self.assertEqual(result, copy())
-        self.assertEqual(result.node, node)
 
     def tearDown(self):
         del self.c
@@ -483,12 +445,29 @@ class TestService(unittest.TestCase):
         self.disco_server = unittest.mock.Mock()
         self.disco_server.on_info_changed.context_connect = \
             unittest.mock.MagicMock()
-        self.s = entitycaps_service.EntityCapsService(
-            self.cc,
-            dependencies={
-                disco.DiscoClient: self.disco_client,
-                disco.DiscoServer: self.disco_server,
-            }
+
+        self.impl115 = unittest.mock.Mock()
+        self.impl115.extract_keys.return_value = []
+        self.impl115.calculate_keys.return_value = []
+
+        with contextlib.ExitStack() as stack:
+            Implementation115 = stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.entitycaps.caps115.Implementation"
+                )
+            )
+            Implementation115.return_value = self.impl115
+
+            self.s = entitycaps_service.EntityCapsService(
+                self.cc,
+                dependencies={
+                    disco.DiscoClient: self.disco_client,
+                    disco.DiscoServer: self.disco_server,
+                }
+            )
+
+        Implementation115.assert_called_once_with(
+            entitycaps_service.EntityCapsService.NODE
         )
 
         self.disco_client.mock_calls.clear()
@@ -606,16 +585,12 @@ class TestService(unittest.TestCase):
         self.s.cache = c
         self.assertIs(self.s.cache, c)
 
-    def test_handle_inbound_presence_queries_disco(self):
-        caps = entitycaps_xso.Caps115(
-            TEST_DB_ENTRY_NODE_BARE,
-            TEST_DB_ENTRY_VER,
-            TEST_DB_ENTRY_HASH,
-        )
+    def test_handle_inbound_presence_extracts_115_keys_and_spawns_lookup(self):
+        presence = unittest.mock.Mock(spec=aioxmpp.Presence)
 
-        presence = stanza.Presence()
-        presence.from_ = TEST_FROM
-        presence.xep0115_caps = caps
+        self.impl115.extract_keys.return_value = iter([
+            unittest.mock.sentinel.key1,
+        ])
 
         with contextlib.ExitStack() as stack:
             async = stack.enter_context(
@@ -628,81 +603,26 @@ class TestService(unittest.TestCase):
 
             result = self.s.handle_inbound_presence(presence)
 
-        lookup_info.assert_called_with(
+        self.impl115.extract_keys.assert_called_once_with(presence)
+
+        lookup_info.assert_called_once_with(
             presence.from_,
-            caps.node, caps.ver, caps.hash_
+            [
+                unittest.mock.sentinel.key1,
+            ]
         )
 
-        async.assert_called_with(
+        async.assert_called_once_with(
             lookup_info()
         )
 
         self.disco_client.set_info_future.assert_called_with(
-            TEST_FROM,
+            presence.from_,
             None,
             async(),
         )
 
-        self.assertIs(
-            result,
-            presence
-        )
-
-        self.assertIs(presence.xep0115_caps, caps)
-
-    def test_handle_inbound_presence_deals_with_None(self):
-        presence = stanza.Presence()
-        presence.from_ = TEST_FROM
-        presence.xep0115_caps = None
-
-        with contextlib.ExitStack() as stack:
-            async = stack.enter_context(
-                unittest.mock.patch("asyncio.async")
-            )
-
-            lookup_info = stack.enter_context(
-                unittest.mock.patch.object(self.s, "lookup_info")
-            )
-
-            result = self.s.handle_inbound_presence(presence)
-
-        self.assertFalse(lookup_info.mock_calls)
-        self.assertFalse(async.mock_calls)
-        self.assertFalse(self.disco_client.mock_calls)
-        self.assertIs(
-            result,
-            presence
-        )
-
-        self.assertIsNone(presence.xep0115_caps)
-
-    def test_handle_inbound_presence_discards_if_hash_unset(self):
-        caps = entitycaps_xso.Caps115(
-            TEST_DB_ENTRY_NODE_BARE,
-            TEST_DB_ENTRY_VER,
-            TEST_DB_ENTRY_HASH,
-        )
-
-        # we have to hack deeply here, the validators are too smart for us
-        # it is still possible to receive such a stanza, as the validator is
-        # set to FROM_CODE
-        caps._xso_contents[entitycaps_xso.Caps115.hash_.xq_descriptor] = None
-        self.assertIsNone(caps.hash_)
-
-        presence = stanza.Presence()
-        presence.xep0115_caps = caps
-
-        with unittest.mock.patch("asyncio.async") as async:
-            result = self.s.handle_inbound_presence(presence)
-
-        self.assertFalse(async.mock_calls)
-
-        self.assertIs(
-            result,
-            presence
-        )
-
-        self.assertIs(presence.xep0115_caps, caps)
+        self.assertEqual(result, presence)
 
     def test_query_and_cache(self):
         self.maxDiff = None
@@ -713,12 +633,8 @@ class TestService(unittest.TestCase):
         base = unittest.mock.Mock()
         base.disco = self.disco_client
         base.disco.query_info.side_effect = None
+        base.key.verify.return_value = True
         with contextlib.ExitStack() as stack:
-            stack.enter_context(unittest.mock.patch(
-                "aioxmpp.entitycaps.caps115.hash_query",
-                new=base.hash_query
-            ))
-
             stack.enter_context(unittest.mock.patch.object(
                 self.s.cache,
                 "add_cache_entry",
@@ -726,13 +642,10 @@ class TestService(unittest.TestCase):
             ))
 
             base.disco.query_info.return_value = response
-            base.hash_query.return_value = ver
 
             result = run_coroutine(self.s.query_and_cache(
                 TEST_FROM,
-                "foobar",
-                ver,
-                "sha-1",
+                base.key,
                 base.fut,
             ))
 
@@ -742,16 +655,12 @@ class TestService(unittest.TestCase):
             [
                 unittest.mock.call.disco.query_info(
                     TEST_FROM,
-                    node="foobar#"+ver,
+                    node=base.key.node,
                     require_fresh=True
                 ),
-                unittest.mock.call.hash_query(
-                    response,
-                    "sha1"
-                ),
+                unittest.mock.call.key.verify(response),
                 unittest.mock.call.add_cache_entry(
-                    "sha-1",
-                    "foobar#"+ver,
+                    base.key,
                     response,
                 ),
                 unittest.mock.call.fut.set_result(
@@ -771,12 +680,8 @@ class TestService(unittest.TestCase):
         base = unittest.mock.Mock()
         base.disco = self.disco_client
         base.disco.query_info.side_effect = None
+        base.key.verify.return_value = False
         with contextlib.ExitStack() as stack:
-            stack.enter_context(unittest.mock.patch(
-                "aioxmpp.entitycaps.caps115.hash_query",
-                new=base.hash_query
-            ))
-
             stack.enter_context(unittest.mock.patch.object(
                 self.s.cache,
                 "add_cache_entry",
@@ -784,13 +689,10 @@ class TestService(unittest.TestCase):
             ))
 
             base.disco.query_info.return_value = response
-            base.hash_query.return_value = ver[:2]
 
             result = run_coroutine(self.s.query_and_cache(
                 TEST_FROM,
-                "foobar",
-                ver,
-                "sha-1",
+                base.key,
                 base.fut,
             ))
 
@@ -800,13 +702,10 @@ class TestService(unittest.TestCase):
             [
                 unittest.mock.call.disco.query_info(
                     TEST_FROM,
-                    node="foobar#"+ver,
+                    node=base.key.node,
                     require_fresh=True
                 ),
-                unittest.mock.call.hash_query(
-                    response,
-                    "sha1"
-                ),
+                unittest.mock.call.key.verify(response),
                 unittest.mock.call.fut.set_exception(unittest.mock.ANY)
             ]
         )
@@ -819,18 +718,14 @@ class TestService(unittest.TestCase):
     def test_query_and_cache_does_not_cache_on_ValueError(self):
         self.maxDiff = None
 
-        ver = TEST_DB_ENTRY_VER
         response = TEST_DB_ENTRY
+        exc = ValueError()
 
         base = unittest.mock.Mock()
         base.disco = self.disco_client
         base.disco.query_info.side_effect = None
+        base.key.verify.side_effect = exc
         with contextlib.ExitStack() as stack:
-            stack.enter_context(unittest.mock.patch(
-                "aioxmpp.entitycaps.caps115.hash_query",
-                new=base.hash_query
-            ))
-
             stack.enter_context(unittest.mock.patch.object(
                 self.s.cache,
                 "add_cache_entry",
@@ -838,14 +733,10 @@ class TestService(unittest.TestCase):
             ))
 
             base.disco.query_info.return_value = response
-            exc = ValueError()
-            base.hash_query.side_effect = exc
 
             result = run_coroutine(self.s.query_and_cache(
                 TEST_FROM,
-                "foobar",
-                ver,
-                "sha-1",
+                base.key,
                 base.fut,
             ))
 
@@ -855,13 +746,10 @@ class TestService(unittest.TestCase):
             [
                 unittest.mock.call.disco.query_info(
                     TEST_FROM,
-                    node="foobar#"+ver,
+                    node=base.key.node,
                     require_fresh=True
                 ),
-                unittest.mock.call.hash_query(
-                    response,
-                    "sha1"
-                ),
+                unittest.mock.call.key.verify(response),
                 unittest.mock.call.fut.set_exception(exc)
             ]
         )
@@ -888,24 +776,72 @@ class TestService(unittest.TestCase):
                 new=base.query_and_cache
             ))
 
-            cache_result = {}
-            base.lookup.return_value = cache_result
+            base.lookup.return_value = unittest.mock.sentinel.cache_result
 
             result = run_coroutine(self.s.lookup_info(
                 TEST_FROM,
-                "foobar",
-                "ver",
-                "hash"
+                [
+                    unittest.mock.sentinel.key,
+                ]
             ))
 
         self.assertSequenceEqual(
             base.mock_calls,
             [
-                unittest.mock.call.lookup("hash", "foobar#ver"),
+                unittest.mock.call.lookup(unittest.mock.sentinel.key),
             ]
         )
 
-        self.assertIs(result, cache_result)
+        self.assertIs(result, unittest.mock.sentinel.cache_result)
+
+    def test_lookup_info_asks_cache_for_all_keys_and_returns_value(self):
+        base = unittest.mock.Mock()
+        base.disco = self.disco_client
+        base.disco.query_info.side_effect = None
+        base.query_and_cache = CoroutineMock()
+        base.lookup = CoroutineMock()
+
+        ncall = 0
+
+        def lookup_side_effect(*args, **kwargs):
+            nonlocal ncall
+            ncall += 1
+            if ncall == 2:
+                return unittest.mock.sentinel.cache_result
+            raise KeyError()
+
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(unittest.mock.patch.object(
+                self.s.cache,
+                "lookup",
+                new=base.lookup,
+            ))
+
+            stack.enter_context(unittest.mock.patch.object(
+                self.s,
+                "query_and_cache",
+                new=base.query_and_cache
+            ))
+
+            base.lookup.side_effect = lookup_side_effect
+
+            result = run_coroutine(self.s.lookup_info(
+                TEST_FROM,
+                [
+                    unittest.mock.sentinel.key1,
+                    unittest.mock.sentinel.key2,
+                ]
+            ))
+
+        self.assertSequenceEqual(
+            base.mock_calls,
+            [
+                unittest.mock.call.lookup(unittest.mock.sentinel.key1),
+                unittest.mock.call.lookup(unittest.mock.sentinel.key2),
+            ]
+        )
+
+        self.assertIs(result, unittest.mock.sentinel.cache_result)
 
     def test_lookup_info_delegates_to_query_and_cache_on_miss(self):
         base = unittest.mock.Mock()
@@ -932,34 +868,36 @@ class TestService(unittest.TestCase):
                 new=base.query_and_cache
             ))
 
-            query_result = {}
             base.lookup.side_effect = KeyError()
-            base.query_and_cache.return_value = query_result
+            base.query_and_cache.return_value = \
+                unittest.mock.sentinel.query_result
 
             result = run_coroutine(self.s.lookup_info(
                 TEST_FROM,
-                "foobar",
-                "ver",
-                "hash"
+                [
+                    unittest.mock.sentinel.key1,
+                    unittest.mock.sentinel.key2,
+                ]
             ))
 
         calls = list(base.mock_calls)
         self.assertSequenceEqual(
             calls,
             [
-                unittest.mock.call.lookup("hash", "foobar#ver"),
-                unittest.mock.call.create_query_future("hash", "foobar#ver"),
+                unittest.mock.call.lookup(unittest.mock.sentinel.key1),
+                unittest.mock.call.lookup(unittest.mock.sentinel.key2),
+                unittest.mock.call.create_query_future(
+                    unittest.mock.sentinel.key1,
+                ),
                 unittest.mock.call.query_and_cache(
                     TEST_FROM,
-                    "foobar",
-                    "ver",
-                    "hash",
+                    unittest.mock.sentinel.key1,
                     base.create_query_future()
                 )
             ]
         )
 
-        self.assertIs(result, query_result)
+        self.assertIs(result, unittest.mock.sentinel.query_result)
 
     def test_update_hash(self):
         iter_features_result = iter([
@@ -975,24 +913,28 @@ class TestService(unittest.TestCase):
             ("client", "pc", structs.LanguageTag.fromstr("en"), "foo"),
         ])
 
-        self.s.ver = "old_ver"
-        old_ver = self.s.ver
-
         base = unittest.mock.Mock()
+
+        self.impl115.calculate_keys.return_value = [
+            base.key1,
+            base.key2,
+        ]
+
         with contextlib.ExitStack() as stack:
-            stack.enter_context(unittest.mock.patch(
-                "aioxmpp.entitycaps.caps115.hash_query",
-                new=base.hash_query
-            ))
+            hash_query = stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.entitycaps.caps115.hash_query"
+                )
+            )
 
             stack.enter_context(unittest.mock.patch(
                 "aioxmpp.disco.xso.InfoQuery",
                 new=base.InfoQuery
             ))
 
-            base.hash_query.return_value = "hash_query_result"
-
             self.s.update_hash()
+
+        hash_query.assert_not_called()
 
         base.InfoQuery.assert_called_with(
             identities=[
@@ -1006,30 +948,25 @@ class TestService(unittest.TestCase):
             features=iter_features_result
         )
 
-        base.hash_query.assert_called_with(
-            base.InfoQuery(),
-            "sha1",
+        self.impl115.calculate_keys.assert_called_once_with(
+            base.InfoQuery()
         )
 
         calls = list(self.disco_server.mock_calls)
-        self.assertSequenceEqual(
+        self.assertCountEqual(
             calls,
             [
                 unittest.mock.call.iter_identities(),
                 unittest.mock.call.iter_features(),
-                unittest.mock.call.unmount_node(
-                    "http://aioxmpp.zombofant.net/#"+old_ver
+                unittest.mock.call.mount_node(
+                    base.key1.node,
+                    self.disco_server,
                 ),
                 unittest.mock.call.mount_node(
-                    "http://aioxmpp.zombofant.net/#"+base.hash_query(),
+                    base.key2.node,
                     self.disco_server,
                 ),
             ]
-        )
-
-        self.assertEqual(
-            self.s.ver,
-            base.hash_query()
         )
 
     def test_update_hash_emits_on_ver_changed(self):
@@ -1044,7 +981,11 @@ class TestService(unittest.TestCase):
             ("client", "pc", structs.LanguageTag.fromstr("en"), "foo"),
         ])
 
-        self.s.ver = "old_ver"
+        base = unittest.mock.Mock()
+
+        self.impl115.calculate_keys.return_value = [
+            base.key1,
+        ]
 
         cb = unittest.mock.Mock()
 
@@ -1055,83 +996,73 @@ class TestService(unittest.TestCase):
         cb.assert_called_with()
 
     def test_update_hash_noop_if_unchanged(self):
-        self.s.ver = "hash_query_result"
+        self.disco_server.iter_features.return_value = iter([])
+
+        self.disco_server.iter_identities.return_value = iter([])
+
+        base = unittest.mock.Mock()
+
+        self.impl115.calculate_keys.return_value = [
+            base.key1,
+        ]
+
+        self.s.update_hash()
 
         cb = unittest.mock.Mock()
 
         self.s.on_ver_changed.connect(cb)
 
-        base = unittest.mock.Mock()
-        with contextlib.ExitStack() as stack:
-            stack.enter_context(unittest.mock.patch(
-                "aioxmpp.entitycaps.caps115.hash_query",
-                new=base.hash_query
-            ))
-            base.hash_query.return_value = "hash_query_result"
+        self.s.update_hash()
 
-            self.s.update_hash()
+        cb.assert_not_called()
 
-        self.assertFalse(cb.mock_calls)
-        calls = list(self.disco_server.mock_calls)
-        self.assertSequenceEqual(
-            calls,
-            [
-                unittest.mock.call.iter_identities(),
-                unittest.mock.call.iter_features(),
-            ]
-        )
+    def test_update_hash_unmounts_old_node_on_change(self):
+        self.disco_server.iter_features.return_value = iter([])
 
-    def test_update_hash_no_unmount_if_previous_was_None(self):
-        self.s.ver = None
+        self.disco_server.iter_identities.return_value = iter([])
 
         base = unittest.mock.Mock()
-        with contextlib.ExitStack() as stack:
-            stack.enter_context(unittest.mock.patch(
-                "aioxmpp.entitycaps.caps115.hash_query",
-                new=base.hash_query
-            ))
-            base.hash_query.return_value = "hash_query_result"
 
-            self.s.update_hash()
+        self.impl115.calculate_keys.return_value = [
+            base.key1,
+            base.key2,
+        ]
 
-        calls = list(self.disco_server.mock_calls)
-        self.assertSequenceEqual(
-            calls,
+        self.s.update_hash()
+
+        self.disco_server.unmount_node.assert_not_called()
+
+        self.impl115.calculate_keys.return_value = [
+            base.key3,
+            base.key4,
+        ]
+
+        self.s.update_hash()
+
+        self.assertCountEqual(
+            self.disco_server.unmount_node.mock_calls,
             [
-                unittest.mock.call.iter_identities(),
-                unittest.mock.call.iter_features(),
-                unittest.mock.call.mount_node(
-                    "http://aioxmpp.zombofant.net/#"+base.hash_query(),
-                    self.disco_server
-                ),
+                unittest.mock.call(base.key1.node),
+                unittest.mock.call(base.key2.node),
             ]
         )
 
     def test_update_hash_unmount_on_shutdown(self):
-        self.s.ver = None
-
         base = unittest.mock.Mock()
+
+        self.impl115.calculate_keys.return_value = [
+            base.key1,
+            base.key2,
+        ]
+
         with contextlib.ExitStack() as stack:
-            stack.enter_context(unittest.mock.patch(
+            hash_query = stack.enter_context(unittest.mock.patch(
                 "aioxmpp.entitycaps.caps115.hash_query",
-                new=base.hash_query
             ))
-            base.hash_query.return_value = "hash_query_result"
 
             self.s.update_hash()
 
-        calls = list(self.disco_server.mock_calls)
-        self.assertSequenceEqual(
-            calls,
-            [
-                unittest.mock.call.iter_identities(),
-                unittest.mock.call.iter_features(),
-                unittest.mock.call.mount_node(
-                    "http://aioxmpp.zombofant.net/#"+base.hash_query(),
-                    self.disco_server
-                ),
-            ]
-        )
+        hash_query.assert_not_called()
 
         self.disco_server.mock_calls.clear()
 
@@ -1140,7 +1071,14 @@ class TestService(unittest.TestCase):
         calls = list(self.disco_server.mock_calls)
         self.assertIn(
             unittest.mock.call.unmount_node(
-                "http://aioxmpp.zombofant.net/#"+base.hash_query(),
+                base.key1.node,
+            ),
+            calls
+        )
+
+        self.assertIn(
+            unittest.mock.call.unmount_node(
+                base.key2.node,
             ),
             calls
         )
@@ -1158,47 +1096,30 @@ class TestService(unittest.TestCase):
             self.s.update_hash
         )
 
-    def test_handle_outbound_presence_does_not_attach_caps_if_ver_is_None(
+    def test_handle_outbound_presence_inserts_115_keys(
             self):
-        self.s.ver = None
+        base = unittest.mock.Mock()
+        self.impl115.calculate_keys.return_value = [
+            base.key1,
+        ]
+        self.s.update_hash()
 
         presence = stanza.Presence()
         result = self.s.handle_outbound_presence(presence)
         self.assertIs(result, presence)
 
-        self.assertIsNone(presence.xep0115_caps, None)
-
-    def test_handle_outbound_presence_attaches_caps_if_not_None(self):
-        self.s.ver = "foo"
-
-        presence = stanza.Presence()
-        result = self.s.handle_outbound_presence(presence)
-        self.assertIs(result, presence)
-
-        self.assertIsInstance(
-            presence.xep0115_caps,
-            entitycaps_xso.Caps115
-        )
-        self.assertEqual(
-            presence.xep0115_caps.ver,
-            self.s.ver
-        )
-        self.assertEqual(
-            presence.xep0115_caps.node,
-            self.s.NODE
-        )
-        self.assertEqual(
-            presence.xep0115_caps.hash_,
-            "sha-1"
-        )
-        self.assertEqual(
-            presence.xep0115_caps.ext,
-            None
+        self.impl115.put_keys.assert_called_once_with(
+            {base.key1},
+            presence,
         )
 
     def test_handle_outbound_presence_does_not_attach_caps_to_non_available(
             self):
-        self.s.ver = "foo"
+        base = unittest.mock.Mock()
+        self.impl115.calculate_keys.return_value = [
+            base.key1,
+        ]
+        self.s.update_hash()
 
         types = [
             structs.PresenceType.UNAVAILABLE,
@@ -1211,9 +1132,14 @@ class TestService(unittest.TestCase):
 
         for type_ in types:
             presence = stanza.Presence(type_=type_)
-            result = self.s.handle_outbound_presence(presence)
-            self.assertIs(result, presence)
-            self.assertIsNone(result.xep0115_caps)
+            self.s.handle_outbound_presence(presence)
+
+        self.impl115.put_keys.assert_not_called()
+
+    def test_handle_outbound_presence_does_not_call_put_keys_if_unset(self):
+        presence = stanza.Presence()
+        self.s.handle_outbound_presence(presence)
+        self.impl115.put_keys.assert_not_called()
 
 
 class Testwriteback(unittest.TestCase):

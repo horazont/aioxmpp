@@ -20,9 +20,15 @@
 #
 ########################################################################
 import base64
+import collections
 import hashlib
+import pathlib
+import urllib.parse
 
 from xml.sax.saxutils import escape
+
+from .common import AbstractKey, AbstractImplementation
+from . import xso as caps_xso
 
 
 def build_identities_string(identities):
@@ -117,3 +123,53 @@ def hash_query(query, algo):
     )
 
     return base64.b64encode(hashimpl.digest()).decode("ascii")
+
+
+Key = collections.namedtuple("Key", ["algo", "node"])
+
+
+class Key(Key, AbstractKey):
+    @property
+    def path(self):
+        quoted = urllib.parse.quote(self.node, safe="")
+        return (pathlib.Path("hashes") /
+                "{}_{}.xml".format(self.algo, quoted))
+
+    @property
+    def ver(self):
+        return self.node.rsplit("#", 1)[1]
+
+    def verify(self, query_response):
+        digest_b64 = hash_query(query_response, self.algo.replace("-", ""))
+        return self.ver == digest_b64
+
+
+class Implementation(AbstractImplementation):
+    def __init__(self, node, **kwargs):
+        super().__init__(**kwargs)
+        self.__node = node
+
+    def extract_keys(self, obj):
+        caps = obj.xep0115_caps
+        if caps is None or caps.hash_ is None:
+            return
+
+        yield Key(caps.hash_, "{}#{}".format(caps.node, caps.ver))
+
+    def put_keys(self, keys, presence):
+        key, = keys
+
+        presence.xep0115_caps = caps_xso.Caps115(
+            self.__node,
+            key.ver,
+            key.algo,
+        )
+
+    def calculate_keys(self, query_response):
+        yield Key(
+            "sha-1",
+            "{}#{}".format(
+                self.__node,
+                hash_query(query_response, "sha1"),
+            )
+        )

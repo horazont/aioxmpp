@@ -83,10 +83,6 @@ class TestEntityCapabilities(TestCase):
         self.assertIsNotNone(
             presence.xep0115_caps,
         )
-        self.assertEqual(
-            presence.xep0115_caps.ver,
-            caps_server.ver,
-        )
 
         info = yield from disco_client.query_info(
             self.source.local_jid,

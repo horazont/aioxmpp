@@ -21,13 +21,49 @@
 ########################################################################
 import contextlib
 import functools
+import io
+import pathlib
 import unittest
 import unittest.mock
 
+import aioxmpp
 import aioxmpp.disco as disco
 import aioxmpp.entitycaps.caps115 as caps115
+import aioxmpp.entitycaps.xso as caps_xso
 import aioxmpp.forms.xso as forms_xso
 import aioxmpp.structs as structs
+
+
+_src = io.BytesIO(b"""\
+<?xml version="1.0" ?><query node="http://tkabber.jabber.ru/#+0mnUAF1ozCEc37cm\
+dPPsYbsfhg=" xmlns="http://jabber.org/protocol/disco#info"><identity category=\
+"client" name="Tkabber" type="pc"/><feature var="games:board"/><feature var="h\
+ttp://jabber.org/protocol/activity"/><feature var="http://jabber.org/protocol/\
+activity+notify"/><feature var="http://jabber.org/protocol/bytestreams"/><feat\
+ure var="http://jabber.org/protocol/chatstates"/><feature var="http://jabber.o\
+rg/protocol/commands"/><feature var="http://jabber.org/protocol/disco#info"/><\
+feature var="http://jabber.org/protocol/disco#items"/><feature var="http://jab\
+ber.org/protocol/geoloc"/><feature var="http://jabber.org/protocol/geoloc+noti\
+fy"/><feature var="http://jabber.org/protocol/ibb"/><feature var="http://jabbe\
+r.org/protocol/iqibb"/><feature var="http://jabber.org/protocol/mood"/><featur\
+e var="http://jabber.org/protocol/mood+notify"/><feature var="http://jabber.or\
+g/protocol/rosterx"/><feature var="http://jabber.org/protocol/si"/><feature va\
+r="http://jabber.org/protocol/si/profile/file-transfer"/><feature var="http://\
+jabber.org/protocol/tune"/><feature var="jabber:iq:avatar"/><feature var="jabb\
+er:iq:browse"/><feature var="jabber:iq:last"/><feature var="jabber:iq:oob"/><f\
+eature var="jabber:iq:privacy"/><feature var="jabber:iq:roster"/><feature var=\
+"jabber:iq:time"/><feature var="jabber:iq:version"/><feature var="jabber:x:dat\
+a"/><feature var="jabber:x:event"/><feature var="jabber:x:oob"/><feature var="\
+urn:xmpp:ping"/><feature var="urn:xmpp:time"/><x type="result" xmlns="jabber:x\
+:data"><field type="hidden" var="FORM_TYPE"><value>urn:xmpp:dataforms:software\
+info</value></field><field var="software"><value>Tkabber</value></field><field\
+ var="software_version"><value>1.0-svn-20140122 (Tcl/Tk 8.4.20)</value></field\
+><field var="os"><value>FreeBSD</value></field><field var="os_version"><value>\
+10.0-STABLE</value></field></x></query>""")
+TEST_DB_ENTRY = aioxmpp.xml.read_single_xso(_src, disco.xso.InfoQuery)
+TEST_DB_ENTRY_VER = "+0mnUAF1ozCEc37cmdPPsYbsfhg="
+TEST_DB_ENTRY_HASH = "sha-1"
+TEST_DB_ENTRY_NODE_BARE = "http://tkabber.jabber.ru/"
 
 
 class Testbuild_identities_string(unittest.TestCase):
@@ -566,4 +602,310 @@ class Testhash_query(unittest.TestCase):
         self.assertEqual(
             "q07IKJEyjvHSyhy//CH0CxmKi8w=",
             caps115.hash_query(info, "sha1")
+        )
+
+
+class TestKey(unittest.TestCase):
+    def test_init_via_args(self):
+        k = caps115.Key("algo", "node")
+
+        self.assertEqual(
+            k.algo,
+            "algo",
+        )
+        self.assertEqual(
+            k.node,
+            "node",
+        )
+
+    def test_init_via_kwargs(self):
+        k = caps115.Key(algo="somealgo", node="somenode")
+
+        self.assertEqual(
+            k.algo,
+            "somealgo",
+        )
+        self.assertEqual(
+            k.node,
+            "somenode",
+        )
+
+    def test_init_default(self):
+        with self.assertRaises(TypeError):
+            caps115.Key()
+
+    def test_hashable(self):
+        k1 = caps115.Key("algo", "node")
+        k2 = caps115.Key("algo", "node")
+
+        self.assertEqual(hash(k1), hash(k2))
+
+    def test_equality(self):
+        k1 = caps115.Key("algo", "node")
+        k2 = caps115.Key("algo", "node")
+        k3 = caps115.Key("somealgo", "somenode")
+
+        self.assertTrue(k1 == k2)
+        self.assertFalse(k1 != k2)
+        self.assertFalse(k1 == k3)
+        self.assertTrue(k1 != k3)
+
+        self.assertTrue(k2 == k1)
+        self.assertFalse(k2 != k1)
+        self.assertFalse(k2 == k3)
+        self.assertTrue(k2 != k3)
+
+        self.assertFalse(k3 == k1)
+        self.assertTrue(k3 != k1)
+        self.assertFalse(k3 == k2)
+        self.assertTrue(k3 != k2)
+
+    def test_path(self):
+        k1 = caps115.Key("algo", "node")
+        k2 = caps115.Key("somealgo", "somenode")
+
+        self.assertEqual(
+            k1.path,
+            pathlib.Path("hashes") / "{}_{}.xml".format("algo", "node"),
+        )
+
+        self.assertEqual(
+            k2.path,
+            pathlib.Path("hashes") /
+            "{}_{}.xml".format("somealgo", "somenode"),
+        )
+
+    def test_path_uses_urlescape(self):
+        k = caps115.Key("algo", unittest.mock.sentinel.node)
+
+        with contextlib.ExitStack() as stack:
+            urlescape = stack.enter_context(
+                unittest.mock.patch("urllib.parse.quote"),
+            )
+            urlescape.return_value = "urlescape_result"
+
+            path = k.path
+
+            urlescape.assert_called_once_with(
+                unittest.mock.sentinel.node,
+                safe=""
+            )
+
+            self.assertEqual(
+                path,
+                pathlib.Path("hashes") / "algo_urlescape_result.xml"
+            )
+
+    def test_ver(self):
+        pieces = unittest.mock.Mock()
+        node = unittest.mock.Mock()
+        node.rsplit.return_value = [
+            pieces.wrong,
+            pieces.ver,
+        ]
+        k = caps115.Key("algo", node)
+
+        ver = k.ver
+
+        node.rsplit.assert_called_once_with("#", 1)
+
+        self.assertEqual(ver, pieces.ver)
+
+    def test_verify_detects_correct_hash(self):
+        info = unittest.mock.Mock(spec=disco.xso.InfoQuery)
+        info.node = "http://foo"
+        key = unittest.mock.Mock(spec=caps115.Key)
+        key.ver = "hash_query_result"
+        key.verify = functools.partial(caps115.Key.verify, key)
+
+        with contextlib.ExitStack() as stack:
+            hash_query = stack.enter_context(
+                unittest.mock.patch("aioxmpp.entitycaps.caps115.hash_query")
+            )
+            hash_query.return_value = "hash_query_result"
+
+            result = key.verify(info)
+
+            key.algo.replace.assert_called_once_with("-", "")
+
+            hash_query.assert_called_once_with(
+                info,
+                key.algo.replace(),
+            )
+
+            self.assertTrue(result)
+
+    def test_verify_detects_ignores_node(self):
+        info = unittest.mock.Mock(spec=disco.xso.InfoQuery)
+        info.node = "http://fnord"
+        key = unittest.mock.Mock(spec=caps115.Key)
+        key.ver = "hash_query_result"
+        key.verify = functools.partial(caps115.Key.verify, key)
+
+        with contextlib.ExitStack() as stack:
+            hash_query = stack.enter_context(
+                unittest.mock.patch("aioxmpp.entitycaps.caps115.hash_query")
+            )
+            hash_query.return_value = "hash_query_result"
+
+            result = key.verify(info)
+
+            key.algo.replace.assert_called_once_with("-", "")
+
+            hash_query.assert_called_once_with(
+                info,
+                key.algo.replace(),
+            )
+
+            self.assertTrue(result)
+
+    def test_verify_detects_mismatching_digest(self):
+        info = unittest.mock.Mock(spec=disco.xso.InfoQuery)
+        info.node = "http://foo"
+        key = unittest.mock.Mock(spec=caps115.Key)
+        key.ver = "hash_query_result"
+        key.verify = functools.partial(caps115.Key.verify, key)
+
+        with contextlib.ExitStack() as stack:
+            hash_query = stack.enter_context(
+                unittest.mock.patch("aioxmpp.entitycaps.caps115.hash_query")
+            )
+            hash_query.return_value = "other_hash_query_result"
+
+            result = key.verify(info)
+
+            key.algo.replace.assert_called_once_with("-", "")
+
+            hash_query.assert_called_once_with(
+                info,
+                key.algo.replace(),
+            )
+
+            self.assertFalse(result)
+
+
+class TestImplementation(unittest.TestCase):
+    def setUp(self):
+        self.node = "testnode"
+        self.i = caps115.Implementation(self.node)
+
+    def test_extract_keys_returns_empty_for_capsless_presence(self):
+        p = unittest.mock.Mock(spec=aioxmpp.Presence)
+        p.xep0115_caps = None
+
+        self.assertSequenceEqual(
+            [],
+            list(self.i.extract_keys(p)),
+        )
+
+    def test_extract_keys_returns_empty_for_legacy_format(self):
+        p = unittest.mock.Mock(spec=aioxmpp.Presence)
+        p.xep0115_caps.ver = "ver"
+        p.xep0115_caps.node = "node"
+        p.xep0115_caps.hash_ = None
+        p.xep0115_caps.ext = "something"
+
+        self.assertSequenceEqual(
+            [],
+            list(self.i.extract_keys(p)),
+        )
+
+    def test_extract_keys_obtains_Key_from_Caps115_info(self):
+        p = unittest.mock.Mock(spec=aioxmpp.Presence)
+        p.xep0115_caps.ver = "ver"
+        p.xep0115_caps.node = "node"
+        p.xep0115_caps.hash_ = "hashfun"
+        p.xep0115_caps.ext = None
+
+        self.assertSequenceEqual(
+            [
+                caps115.Key("hashfun", "node#ver")
+            ],
+            list(self.i.extract_keys(p)),
+        )
+
+    def test_put_keys_generates_Caps115_object(self):
+        key = caps115.Key("algo", "node#ver_from_key")
+
+        p = unittest.mock.Mock(["xep0115_caps"])
+        p.xep0115_caps = None
+
+        self.i.put_keys(iter([key]), p)
+
+        self.assertIsInstance(
+            p.xep0115_caps,
+            caps_xso.Caps115,
+        )
+
+        self.assertEqual(
+            p.xep0115_caps.node,
+            self.node,
+        )
+
+        self.assertEqual(
+            p.xep0115_caps.ver,
+            key.ver
+        )
+
+        self.assertEqual(
+            p.xep0115_caps.hash_,
+            key.algo,
+        )
+
+    def test_put_keys_raises_ValueError_if_no_keys_passed(self):
+        with self.assertRaisesRegexp(ValueError, "values to unpack"):
+            self.i.put_keys(iter([]), unittest.mock.sentinel.presence)
+
+    def test_put_keys_raises_ValueError_if_too_many_keys_passed(self):
+        with self.assertRaisesRegexp(ValueError, "too many values"):
+            self.i.put_keys(
+                iter([unittest.mock.sentinel.k1, unittest.mock.sentinel.k2]),
+                unittest.mock.sentinel.presence
+            )
+
+    def test_calculate_keys_hashes_query_and_yields_key(self):
+        info = unittest.mock.Mock(spec=disco.xso.InfoQuery)
+
+        with contextlib.ExitStack() as stack:
+            hash_query = stack.enter_context(
+                unittest.mock.patch("aioxmpp.entitycaps.caps115.hash_query")
+            )
+            hash_query.return_value = "hash_query_result"
+
+            Key = stack.enter_context(
+                unittest.mock.patch("aioxmpp.entitycaps.caps115.Key")
+            )
+
+            result = list(self.i.calculate_keys(info))
+
+            hash_query.assert_called_once_with(
+                info,
+                "sha1",
+            )
+
+            Key.assert_called_once_with(
+                "sha-1",
+                "{}#{}".format(self.node, "hash_query_result")
+            )
+
+            self.assertSequenceEqual(
+                result,
+                [Key()],
+            )
+
+    def test_calculate_keys_on_real_data(self):
+        key, = self.i.calculate_keys(TEST_DB_ENTRY)
+        self.assertEqual(
+            key,
+            caps115.Key(
+                TEST_DB_ENTRY_HASH,
+                "{}#{}".format(self.node, TEST_DB_ENTRY_VER),
+            )
+        )
+
+    def test_calculate_keys_verify_roundtrip(self):
+        key, = self.i.calculate_keys(TEST_DB_ENTRY)
+
+        self.assertTrue(
+            key.verify(TEST_DB_ENTRY)
         )
