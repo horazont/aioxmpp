@@ -113,6 +113,9 @@ Version 0.9
 * :meth:`aioxmpp.RosterClient.on_group_added`,
   :meth:`~aioxmpp.RosterClient.on_group_removed`.
 
+* Roster pushes are now accepted also if the :attr:`~.StanzaBase.from_` is the
+  bare local JID instead of missing/empty (those are semantically equivalent).
+
 .. _api-changelog-0.8:
 
 Version 0.8

@@ -472,7 +472,7 @@ class RosterClient(aioxmpp.service.Service):
         roster_xso.Query)
     @asyncio.coroutine
     def handle_roster_push(self, iq):
-        if iq.from_:
+        if iq.from_ and iq.from_ != self.client.local_jid.bare():
             raise errors.XMPPAuthError((namespaces.stanzas, "forbidden"))
 
         request = iq.payload
