@@ -21,6 +21,7 @@
 ########################################################################
 import unittest
 
+import aioxmpp.hashes
 import aioxmpp.entitycaps.xso as entitycaps_xso
 import aioxmpp.stanza as stanza
 import aioxmpp.xso as xso
@@ -33,6 +34,12 @@ class TestNamespaces(unittest.TestCase):
         self.assertEqual(
             namespaces.xep0115_caps,
             "http://jabber.org/protocol/caps"
+        )
+
+    def test_ecaps2(self):
+        self.assertEqual(
+            namespaces.xep0390_caps,
+            "urn:xmpp:caps"
         )
 
 
@@ -139,3 +146,35 @@ class TestCaps115(unittest.TestCase):
         with self.assertRaisesRegex(TypeError,
                                     "positional argument"):
             entitycaps_xso.Caps115()
+
+
+class TestCaps390(unittest.TestCase):
+    def test_is_xso(self):
+        self.assertTrue(issubclass(
+            entitycaps_xso.Caps390,
+            xso.XSO,
+        ))
+
+    def test_is_hashes_parent(self):
+        self.assertTrue(issubclass(
+            entitycaps_xso.Caps390,
+            aioxmpp.hashes.HashesParent,
+        ))
+
+    def test_tag(self):
+        self.assertEqual(
+            entitycaps_xso.Caps390.TAG,
+            (namespaces.xep0390_caps, "c")
+        )
+
+    def test_attr_on_Presence(self):
+        self.assertIsInstance(
+            stanza.Presence.xep0390_caps,
+            xso.Child,
+        )
+        self.assertSetEqual(
+            {
+                entitycaps_xso.Caps390
+            },
+            set(stanza.Presence.xep0390_caps._classes)
+        )
