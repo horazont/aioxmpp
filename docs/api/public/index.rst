@@ -34,6 +34,7 @@ functionality or provide backwards compatibility.
    disco
    entitycaps
    forms
+   hashes
    im
    muc
    presence

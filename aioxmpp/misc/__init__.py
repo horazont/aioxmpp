@@ -27,11 +27,6 @@ This subpackage bundles XSO definitions for several XEPs. They do not get their
 own subpackage because they often only define one or two XSOs without any logic
 involved. The XSOs are often intended for re-use by other protocols.
 
-Stanza Forwarding (:xep:`297`)
-==============================
-
-.. autoclass:: Forwarded()
-
 
 Delayed Delivery (:xep:`203`)
 =============================
@@ -42,6 +37,12 @@ Delayed Delivery (:xep:`203`)
 
    A :class:`Delay` instance which indicates that the message has been
    delivered with delay.
+
+
+Stanza Forwarding (:xep:`297`)
+==============================
+
+.. autoclass:: Forwarded()
 
 
 """
