@@ -1145,7 +1145,7 @@ class TestService(unittest.TestCase):
         self.assertIs(self.s.cache, c)
 
     def test_handle_inbound_presence_queries_disco(self):
-        caps = entitycaps_xso.Caps(
+        caps = entitycaps_xso.Caps115(
             TEST_DB_ENTRY_NODE_BARE,
             TEST_DB_ENTRY_VER,
             TEST_DB_ENTRY_HASH,
@@ -1215,7 +1215,7 @@ class TestService(unittest.TestCase):
         self.assertIsNone(presence.xep0115_caps)
 
     def test_handle_inbound_presence_discards_if_hash_unset(self):
-        caps = entitycaps_xso.Caps(
+        caps = entitycaps_xso.Caps115(
             TEST_DB_ENTRY_NODE_BARE,
             TEST_DB_ENTRY_VER,
             TEST_DB_ENTRY_HASH,
@@ -1224,7 +1224,7 @@ class TestService(unittest.TestCase):
         # we have to hack deeply here, the validators are too smart for us
         # it is still possible to receive such a stanza, as the validator is
         # set to FROM_CODE
-        caps._xso_contents[entitycaps_xso.Caps.hash_.xq_descriptor] = None
+        caps._xso_contents[entitycaps_xso.Caps115.hash_.xq_descriptor] = None
         self.assertIsNone(caps.hash_)
 
         presence = stanza.Presence()
@@ -1715,7 +1715,7 @@ class TestService(unittest.TestCase):
 
         self.assertIsInstance(
             presence.xep0115_caps,
-            entitycaps_xso.Caps
+            entitycaps_xso.Caps115
         )
         self.assertEqual(
             presence.xep0115_caps.ver,

@@ -28,7 +28,7 @@ from aioxmpp.utils import namespaces
 namespaces.xep0115_caps = "http://jabber.org/protocol/caps"
 
 
-class Caps(xso.XSO):
+class Caps115(xso.XSO):
     """
     An entity capabilities extension for :class:`~.Presence`.
 
@@ -72,4 +72,4 @@ class Caps(xso.XSO):
         self.hash_ = hash_
 
 
-stanza.Presence.xep0115_caps = xso.Child([Caps], required=False)
+stanza.Presence.xep0115_caps = xso.Child([Caps115], required=False)

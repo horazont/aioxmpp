@@ -36,80 +36,80 @@ class TestNamespaces(unittest.TestCase):
         )
 
 
-class TestCaps(unittest.TestCase):
+class TestCaps115(unittest.TestCase):
     def test_is_xso(self):
         self.assertTrue(issubclass(
-            entitycaps_xso.Caps,
+            entitycaps_xso.Caps115,
             xso.XSO
         ))
 
     def test_tag(self):
         self.assertEqual(
             (namespaces.xep0115_caps, "c"),
-            entitycaps_xso.Caps.TAG
+            entitycaps_xso.Caps115.TAG
         )
 
     def test_node_attr(self):
         self.assertIsInstance(
-            entitycaps_xso.Caps.node,
+            entitycaps_xso.Caps115.node,
             xso.Attr
         )
         self.assertEqual(
             (None, "node"),
-            entitycaps_xso.Caps.node.tag
+            entitycaps_xso.Caps115.node.tag
         )
         self.assertIs(
-            entitycaps_xso.Caps.node.default,
+            entitycaps_xso.Caps115.node.default,
             xso.NO_DEFAULT
         )
 
     def test_hash_attr(self):
         self.assertIsInstance(
-            entitycaps_xso.Caps.hash_,
+            entitycaps_xso.Caps115.hash_,
             xso.Attr
         )
         self.assertEqual(
             (None, "hash"),
-            entitycaps_xso.Caps.hash_.tag
+            entitycaps_xso.Caps115.hash_.tag
         )
         self.assertIsInstance(
-            entitycaps_xso.Caps.hash_.validator,
+            entitycaps_xso.Caps115.hash_.validator,
             xso.Nmtoken
         )
         self.assertEqual(
             xso.ValidateMode.FROM_CODE,
-            entitycaps_xso.Caps.hash_.validate
+            entitycaps_xso.Caps115.hash_.validate
         )
         self.assertIs(
-            entitycaps_xso.Caps.hash_.default,
+            entitycaps_xso.Caps115.hash_.default,
             None
         )
 
     def test_ver_attr(self):
         self.assertIsInstance(
-            entitycaps_xso.Caps.ver,
+            entitycaps_xso.Caps115.ver,
             xso.Attr
         )
         self.assertEqual(
             (None, "ver"),
-            entitycaps_xso.Caps.ver.tag
+            entitycaps_xso.Caps115.ver.tag
         )
         self.assertIs(
-            entitycaps_xso.Caps.ver.default,
+            entitycaps_xso.Caps115.ver.default,
             xso.NO_DEFAULT
         )
 
     def test_ext_attr(self):
         self.assertIsInstance(
-            entitycaps_xso.Caps.ext,
+            entitycaps_xso.Caps115.ext,
             xso.Attr
         )
         self.assertEqual(
             (None, "ext"),
-            entitycaps_xso.Caps.ext.tag
+            entitycaps_xso.Caps115.ext.tag
         )
         self.assertIs(
-            entitycaps_xso.Caps.ext.default,
+            entitycaps_xso.Caps115.ext.default,
             None
         )
 
@@ -120,13 +120,13 @@ class TestCaps(unittest.TestCase):
         )
         self.assertSetEqual(
             {
-                entitycaps_xso.Caps
+                entitycaps_xso.Caps115
             },
             set(stanza.Presence.xep0115_caps._classes)
         )
 
     def test_init(self):
-        caps = entitycaps_xso.Caps(
+        caps = entitycaps_xso.Caps115(
             "node",
             "ver",
             "hash",
@@ -138,4 +138,4 @@ class TestCaps(unittest.TestCase):
 
         with self.assertRaisesRegex(TypeError,
                                     "positional argument"):
-            entitycaps_xso.Caps()
+            entitycaps_xso.Caps115()

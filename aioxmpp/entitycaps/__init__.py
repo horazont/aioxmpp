@@ -59,10 +59,10 @@ by the implementation.
 
 In general, you will not need to use these classes directly, nor encounter
 them, as the service filters them off the presence stanzas. If the filter is
-not loaded, the :class:`Caps` instance is available at
+not loaded, the :class:`Caps115` instance is available at
 :attr:`.Presence.xep0115_caps`.
 
-.. autoclass:: Caps
+.. autoclass:: Caps115
 
 
 """

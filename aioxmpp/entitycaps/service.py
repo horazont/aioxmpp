@@ -436,7 +436,7 @@ class EntityCapsService(aioxmpp.service.Service):
         if (self.ver is not None and
                 presence.type_ == aioxmpp.structs.PresenceType.AVAILABLE):
             self.logger.debug("injecting capabilities into outbound presence")
-            presence.xep0115_caps = my_xso.Caps(
+            presence.xep0115_caps = my_xso.Caps115(
                 self.NODE,
                 self.ver,
                 "sha-1",
