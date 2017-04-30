@@ -316,8 +316,34 @@ class TestService(unittest.TestCase):
         self.assertEqual("some bar user", self.s.items[self.user2].name)
 
     def test_handle_roster_push_rejects_push_with_nonempty_from(self):
+        self.cc.local_jid = structs.JID.fromstr("foo@bar.example")
+
+        iq = stanza.IQ(type_=structs.IQType.SET)
+        iq.from_ = structs.JID.fromstr("fnord@bar.example")
+
+        with self.assertRaises(errors.XMPPAuthError) as ctx:
+            run_coroutine(self.s.handle_roster_push(iq))
+
+        self.assertEqual(
+            (namespaces.stanzas, "forbidden"),
+            ctx.exception.condition
+        )
+
+    def test_handle_roster_push_accepts_push_from_bare_local_jid(self):
+        self.cc.local_jid = structs.JID.fromstr("foo@bar.example/fnord")
+
         iq = stanza.IQ(type_=structs.IQType.SET)
         iq.from_ = structs.JID.fromstr("foo@bar.example")
+        iq.payload = roster_xso.Query()
+
+        run_coroutine(self.s.handle_roster_push(iq))
+
+    def test_handle_roster_push_rejects_push_from_full_local_jid(self):
+        self.cc.local_jid = structs.JID.fromstr("foo@bar.example/fnord")
+
+        iq = stanza.IQ(type_=structs.IQType.SET)
+        iq.from_ = structs.JID.fromstr("foo@bar.example/fnord")
+        iq.payload = roster_xso.Query()
 
         with self.assertRaises(errors.XMPPAuthError) as ctx:
             run_coroutine(self.s.handle_roster_push(iq))
