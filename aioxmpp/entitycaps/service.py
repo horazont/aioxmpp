@@ -433,7 +433,8 @@ class EntityCapsService(aioxmpp.service.Service):
         return presence
 
     def update_hash(self):
-        info = self.disco_server.as_info_xso()
+        node = disco.StaticNode.clone(self.disco_server)
+        info = node.as_info_xso()
 
         new_keys = {}
 
@@ -458,7 +459,7 @@ class EntityCapsService(aioxmpp.service.Service):
 
         for group in new_keys.values():
             for key in group:
-                self.disco_server.mount_node(key.node, self.disco_server)
+                self.disco_server.mount_node(key.node, node)
 
         self.on_ver_changed()
 

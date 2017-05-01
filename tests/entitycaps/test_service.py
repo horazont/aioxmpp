@@ -447,6 +447,7 @@ class TestService(unittest.TestCase):
         self.disco_server = unittest.mock.Mock()
         self.disco_server.on_info_changed.context_connect = \
             unittest.mock.MagicMock()
+        self.disco_server.iter_items.return_value = []
 
         self.impl115 = unittest.mock.Mock()
         self.impl115.extract_keys.return_value = []
@@ -1110,18 +1111,26 @@ class TestService(unittest.TestCase):
                 )
             )
 
+            clone = stack.enter_context(
+                unittest.mock.patch.object(
+                    disco.StaticNode,
+                    "clone",
+                )
+            )
+
             self.s.update_hash()
 
         hash_query.assert_not_called()
 
-        self.disco_server.as_info_xso.assert_called_once_with()
+        clone.assert_called_once_with(self.disco_server)
+        clone().as_info_xso.assert_called_once_with()
 
         self.impl115.calculate_keys.assert_called_once_with(
-            self.disco_server.as_info_xso(),
+            clone().as_info_xso()
         )
 
         self.impl390.calculate_keys.assert_called_once_with(
-            self.disco_server.as_info_xso(),
+            clone().as_info_xso()
         )
 
         calls = list(self.disco_server.mount_node.mock_calls)
@@ -1130,15 +1139,15 @@ class TestService(unittest.TestCase):
             [
                 unittest.mock.call(
                     base.key1.node,
-                    self.disco_server,
+                    clone(),
                 ),
                 unittest.mock.call(
                     base.key2.node,
-                    self.disco_server,
+                    clone(),
                 ),
                 unittest.mock.call(
                     base.key3.node,
-                    self.disco_server,
+                    clone(),
                 ),
             ]
         )
@@ -1165,16 +1174,24 @@ class TestService(unittest.TestCase):
                 )
             )
 
+            clone = stack.enter_context(
+                unittest.mock.patch.object(
+                    disco.StaticNode,
+                    "clone",
+                )
+            )
+
             self.s.update_hash()
 
         hash_query.assert_not_called()
 
-        self.disco_server.as_info_xso.assert_called_once_with()
+        clone.assert_called_once_with(self.disco_server)
+        clone().as_info_xso.assert_called_once_with()
 
         self.impl115.calculate_keys.assert_not_called()
 
         self.impl390.calculate_keys.assert_called_once_with(
-            self.disco_server.as_info_xso(),
+            clone().as_info_xso()
         )
 
         calls = list(self.disco_server.mount_node.mock_calls)
@@ -1183,11 +1200,11 @@ class TestService(unittest.TestCase):
             [
                 unittest.mock.call(
                     base.key2.node,
-                    self.disco_server,
+                    clone(),
                 ),
                 unittest.mock.call(
                     base.key3.node,
-                    self.disco_server,
+                    clone(),
                 ),
             ]
         )
@@ -1214,14 +1231,22 @@ class TestService(unittest.TestCase):
                 )
             )
 
+            clone = stack.enter_context(
+                unittest.mock.patch.object(
+                    disco.StaticNode,
+                    "clone",
+                )
+            )
+
             self.s.update_hash()
 
         hash_query.assert_not_called()
 
-        self.disco_server.as_info_xso.assert_called_once_with()
+        clone.assert_called_once_with(self.disco_server)
+        clone().as_info_xso.assert_called_once_with()
 
         self.impl115.calculate_keys.assert_called_once_with(
-            self.disco_server.as_info_xso()
+            clone().as_info_xso()
         )
 
         self.impl390.calculate_keys.assert_not_called()
@@ -1232,7 +1257,7 @@ class TestService(unittest.TestCase):
             [
                 unittest.mock.call(
                     base.key1.node,
-                    self.disco_server,
+                    clone(),
                 ),
             ]
         )
@@ -1324,7 +1349,16 @@ class TestService(unittest.TestCase):
         ])
 
         self.disco_server.mount_node.reset_mock()
-        self.s.update_hash()
+
+        with contextlib.ExitStack() as stack:
+            clone = stack.enter_context(
+                unittest.mock.patch.object(
+                    disco.StaticNode,
+                    "clone",
+                )
+            )
+
+            self.s.update_hash()
 
         self.assertCountEqual(
             self.disco_server.unmount_node.mock_calls,
@@ -1338,9 +1372,9 @@ class TestService(unittest.TestCase):
         self.assertCountEqual(
             self.disco_server.mount_node.mock_calls,
             [
-                unittest.mock.call(base.key4.node, self.disco_server),
-                unittest.mock.call(base.key2.node, self.disco_server),
-                unittest.mock.call(base.key5.node, self.disco_server),
+                unittest.mock.call(base.key4.node, clone()),
+                unittest.mock.call(base.key2.node, clone()),
+                unittest.mock.call(base.key5.node, clone()),
             ]
         )
 
