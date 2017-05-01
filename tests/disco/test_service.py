@@ -917,6 +917,23 @@ class TestDiscoServer(unittest.TestCase):
 
         self.assertEqual(result, node.as_info_xso())
 
+    def test_info_query_sets_node(self):
+        node = unittest.mock.Mock()
+
+        self.s.mount_node("foo", node)
+        self.request_iq.payload.node = "foo"
+
+        result = run_coroutine(
+            self.s.handle_info_request(self.request_iq)
+        )
+
+        node.as_info_xso.assert_called_once_with(
+            self.request_iq
+        )
+
+        self.assertEqual(result.node, "foo")
+        self.assertEqual(result, node.as_info_xso())
+
 
 class TestDiscoClient(unittest.TestCase):
     def setUp(self):

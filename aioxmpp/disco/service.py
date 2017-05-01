@@ -430,6 +430,7 @@ class DiscoServer(service.Service, Node):
             )
 
         response = node.as_info_xso(iq)
+        response.node = request.node
 
         if not response.identities:
             raise errors.XMPPModifyError(
