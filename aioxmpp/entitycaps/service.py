@@ -226,11 +226,19 @@ class EntityCapsService(aioxmpp.service.Service):
 
     .. autoattribute:: cache
 
+    .. autoattribute:: xep115_support
+
+    .. autoattribute:: xep390_support
+
     .. versionchanged:: 0.8
 
        This class was formerly known as :class:`aioxmpp.entitycaps.Service`. It
        is still available under that name, but the alias will be removed in
        1.0.
+
+    .. versionchanged:: 0.9
+
+        Support for :xep:`390` was added.
 
     """
 
@@ -262,6 +270,28 @@ class EntityCapsService(aioxmpp.service.Service):
 
     @property
     def xep115_support(self):
+        """
+        Boolean to control whether :xep:`115` support is enabled or not.
+
+        Defaults to :data:`True`.
+
+        If set to false, inbound :xep:`115` capabilities will not be processed
+        and no :xep:`115` capabilities will be emitted.
+
+        .. note::
+
+            At some point, this will default to :data:`False` to save
+            bandwidth. The exact release depends on the adoption of :xep:`390`
+            and will be announced in time. If you depend on :xep:`115` support,
+            set this boolean to :data:`True`.
+
+            The attribute itself will not be removed until :xep:`115` support
+            is removed from :mod:`aioxmpp` entirely, which is unlikely to
+            happen any time soon.
+
+        .. versionadded:: 0.9
+        """
+
         return self._xep115_feature.enabled
 
     @xep115_support.setter
@@ -270,6 +300,18 @@ class EntityCapsService(aioxmpp.service.Service):
 
     @property
     def xep390_support(self):
+        """
+        Boolean to control whether :xep:`390` support is enabled or not.
+
+        Defaults to :data:`True`.
+
+        If set to false, inbound :xep:`390` Capability Hash Sets will not be
+        processed and no Capability Hash Sets or Capability Nodes will be
+        generated.
+
+        The hash algortihms used for generating Capability Hash Sets are those
+        from :data:`aioxmpp.hashes.default_hash_algorithms`.
+        """
         return self._xep390_feature.enabled
 
     @xep390_support.setter

@@ -125,6 +125,9 @@ Version 0.9
   to temporarily or permanently disable the registration of the feature on a
   service object.
 
+* **Breaking change:** Re-design of :class:`aioxmpp.entitycaps` to support
+  :xep:`390`. The interface of the :class:`aioxmpp.entitycaps.Cache` class has
+  been redesigned and some internal classes and functions have been renamed.
 
 .. _api-changelog-0.8:
 
