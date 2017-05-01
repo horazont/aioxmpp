@@ -433,20 +433,7 @@ class EntityCapsService(aioxmpp.service.Service):
         return presence
 
     def update_hash(self):
-        identities = []
-        for category, type_, lang, name in self.disco_server.iter_identities():
-            identity = disco.xso.Identity(category=category,
-                                          type_=type_)
-            if lang is not None:
-                identity.lang = lang
-            if name is not None:
-                identity.name = name
-            identities.append(identity)
-
-        info = disco.xso.InfoQuery(
-            identities=identities,
-            features=self.disco_server.iter_features(),
-        )
+        info = self.disco_server.as_info_xso()
 
         new_keys = {}
 

@@ -1092,19 +1092,6 @@ class TestService(unittest.TestCase):
         self.assertIs(result, unittest.mock.sentinel.query_result)
 
     def test_update_hash(self):
-        iter_features_result = iter([
-            "http://jabber.org/protocol/caps",
-            "http://jabber.org/protocol/disco#items",
-            "http://jabber.org/protocol/disco#info",
-        ])
-
-        self.disco_server.iter_features.return_value = iter_features_result
-
-        self.disco_server.iter_identities.return_value = iter([
-            ("client", "pc", None, None),
-            ("client", "pc", structs.LanguageTag.fromstr("en"), "foo"),
-        ])
-
         base = unittest.mock.Mock()
 
         self.impl115.calculate_keys.return_value = iter([
@@ -1123,50 +1110,33 @@ class TestService(unittest.TestCase):
                 )
             )
 
-            stack.enter_context(unittest.mock.patch(
-                "aioxmpp.disco.xso.InfoQuery",
-                new=base.InfoQuery
-            ))
-
             self.s.update_hash()
 
         hash_query.assert_not_called()
 
-        base.InfoQuery.assert_called_with(
-            identities=[
-                disco.xso.Identity(category="client",
-                                   type_="pc"),
-                disco.xso.Identity(category="client",
-                                   type_="pc",
-                                   lang=structs.LanguageTag.fromstr("en"),
-                                   name="foo"),
-            ],
-            features=iter_features_result
-        )
+        self.disco_server.as_info_xso.assert_called_once_with()
 
         self.impl115.calculate_keys.assert_called_once_with(
-            base.InfoQuery()
+            self.disco_server.as_info_xso(),
         )
 
         self.impl390.calculate_keys.assert_called_once_with(
-            base.InfoQuery()
+            self.disco_server.as_info_xso(),
         )
 
-        calls = list(self.disco_server.mock_calls)
+        calls = list(self.disco_server.mount_node.mock_calls)
         self.assertCountEqual(
             calls,
             [
-                unittest.mock.call.iter_identities(),
-                unittest.mock.call.iter_features(),
-                unittest.mock.call.mount_node(
+                unittest.mock.call(
                     base.key1.node,
                     self.disco_server,
                 ),
-                unittest.mock.call.mount_node(
+                unittest.mock.call(
                     base.key2.node,
                     self.disco_server,
                 ),
-                unittest.mock.call.mount_node(
+                unittest.mock.call(
                     base.key3.node,
                     self.disco_server,
                 ),
@@ -1177,19 +1147,6 @@ class TestService(unittest.TestCase):
         self.s.xep115_support = False
         self.disco_server.reset_mock()
 
-        iter_features_result = iter([
-            "http://jabber.org/protocol/caps",
-            "http://jabber.org/protocol/disco#items",
-            "http://jabber.org/protocol/disco#info",
-        ])
-
-        self.disco_server.iter_features.return_value = iter_features_result
-
-        self.disco_server.iter_identities.return_value = iter([
-            ("client", "pc", None, None),
-            ("client", "pc", structs.LanguageTag.fromstr("en"), "foo"),
-        ])
-
         base = unittest.mock.Mock()
 
         self.impl115.calculate_keys.return_value = iter([
@@ -1208,44 +1165,27 @@ class TestService(unittest.TestCase):
                 )
             )
 
-            stack.enter_context(unittest.mock.patch(
-                "aioxmpp.disco.xso.InfoQuery",
-                new=base.InfoQuery
-            ))
-
             self.s.update_hash()
 
         hash_query.assert_not_called()
 
-        base.InfoQuery.assert_called_with(
-            identities=[
-                disco.xso.Identity(category="client",
-                                   type_="pc"),
-                disco.xso.Identity(category="client",
-                                   type_="pc",
-                                   lang=structs.LanguageTag.fromstr("en"),
-                                   name="foo"),
-            ],
-            features=iter_features_result
-        )
+        self.disco_server.as_info_xso.assert_called_once_with()
 
         self.impl115.calculate_keys.assert_not_called()
 
         self.impl390.calculate_keys.assert_called_once_with(
-            base.InfoQuery()
+            self.disco_server.as_info_xso(),
         )
 
-        calls = list(self.disco_server.mock_calls)
+        calls = list(self.disco_server.mount_node.mock_calls)
         self.assertCountEqual(
             calls,
             [
-                unittest.mock.call.iter_identities(),
-                unittest.mock.call.iter_features(),
-                unittest.mock.call.mount_node(
+                unittest.mock.call(
                     base.key2.node,
                     self.disco_server,
                 ),
-                unittest.mock.call.mount_node(
+                unittest.mock.call(
                     base.key3.node,
                     self.disco_server,
                 ),
@@ -1256,19 +1196,6 @@ class TestService(unittest.TestCase):
         self.s.xep390_support = False
         self.disco_server.reset_mock()
 
-        iter_features_result = iter([
-            "http://jabber.org/protocol/caps",
-            "http://jabber.org/protocol/disco#items",
-            "http://jabber.org/protocol/disco#info",
-        ])
-
-        self.disco_server.iter_features.return_value = iter_features_result
-
-        self.disco_server.iter_identities.return_value = iter([
-            ("client", "pc", None, None),
-            ("client", "pc", structs.LanguageTag.fromstr("en"), "foo"),
-        ])
-
         base = unittest.mock.Mock()
 
         self.impl115.calculate_keys.return_value = iter([
@@ -1287,40 +1214,23 @@ class TestService(unittest.TestCase):
                 )
             )
 
-            stack.enter_context(unittest.mock.patch(
-                "aioxmpp.disco.xso.InfoQuery",
-                new=base.InfoQuery
-            ))
-
             self.s.update_hash()
 
         hash_query.assert_not_called()
 
-        base.InfoQuery.assert_called_with(
-            identities=[
-                disco.xso.Identity(category="client",
-                                   type_="pc"),
-                disco.xso.Identity(category="client",
-                                   type_="pc",
-                                   lang=structs.LanguageTag.fromstr("en"),
-                                   name="foo"),
-            ],
-            features=iter_features_result
-        )
+        self.disco_server.as_info_xso.assert_called_once_with()
 
         self.impl115.calculate_keys.assert_called_once_with(
-            base.InfoQuery()
+            self.disco_server.as_info_xso()
         )
 
         self.impl390.calculate_keys.assert_not_called()
 
-        calls = list(self.disco_server.mock_calls)
+        calls = list(self.disco_server.mount_node.mock_calls)
         self.assertCountEqual(
             calls,
             [
-                unittest.mock.call.iter_identities(),
-                unittest.mock.call.iter_features(),
-                unittest.mock.call.mount_node(
+                unittest.mock.call(
                     base.key1.node,
                     self.disco_server,
                 ),
