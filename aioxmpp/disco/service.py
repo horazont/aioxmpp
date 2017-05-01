@@ -429,22 +429,12 @@ class DiscoServer(service.Service, Node):
                 condition=(namespaces.stanzas, "item-not-found")
             )
 
-        response = disco_xso.InfoQuery()
-
-        for category, type_, lang, name in node.iter_identities(iq):
-            response.identities.append(disco_xso.Identity(
-                category=category,
-                type_=type_,
-                lang=lang,
-                name=name
-            ))
+        response = node.as_info_xso(iq)
 
         if not response.identities:
             raise errors.XMPPModifyError(
                 condition=(namespaces.stanzas, "item-not-found"),
             )
-
-        response.features.update(node.iter_features(iq))
 
         return response
 
