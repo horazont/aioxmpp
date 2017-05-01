@@ -720,6 +720,83 @@ class mount_as_node(service.Descriptor):
             disco.unmount_node(self._mountpoint)
 
 
+class RegisteredFeature:
+    """
+    Manage registration of a feature with a :class:`DiscoServer`.
+
+    :param service: The service implementing the service discovery server.
+    :type service: :class:`DiscoServer`
+    :param feature: The feature to register.
+    :type feature: :class:`str`
+
+    .. versionadded:: 0.9
+
+    This object can be used as a context manager. Upon entering the context,
+    the feature is registered. When the context is left, the feature is
+    unregistered.
+
+    .. note::
+
+        The context-manager use does not nest sensibly. Thus, do not use
+        th context-manager feature on :class:`RegisteredFeature` instances
+        which are created by :class:`register_feature`, as
+        :class:`register_feature` uses the context manager to
+        register/unregister the feature on initialisation/shutdown.
+
+    Independently, it is possible to control the registration status of the
+    feature using :attr:`enabled`.
+
+    .. autoattribute:: enabled
+
+    .. autoattribute:: feature
+
+    """
+
+    def __init__(self, service, feature):
+        self.__service = service
+        self.__feature = feature
+        self.__enabled = False
+
+    @property
+    def enabled(self):
+        """
+        Boolean indicating whether the feature is registered by this object
+        or not.
+
+        When this attribute is changed to :data:`True`, the feature is
+        registered. When the attribute is changed to :data:`False`, the feature
+        is unregisterd.
+        """
+        return self.__enabled
+
+    @enabled.setter
+    def enabled(self, value):
+        value = bool(value)
+        if value == self.__enabled:
+            return
+
+        if value:
+            self.__service.register_feature(self.__feature)
+        else:
+            self.__service.unregister_feature(self.__feature)
+
+        self.__enabled = value
+
+    @property
+    def feature(self):
+        """
+        The feature this object is controlling (read-only).
+        """
+        return self.__feature
+
+    def __enter__(self):
+        self.enabled = True
+        return self
+
+    def __exit__(self, exc_type, exc_value, tb):
+        self.enabled = False
+
+
 class register_feature(service.Descriptor):
     """
     Service descriptor which registers a service discovery feature.
@@ -732,7 +809,13 @@ class register_feature(service.Descriptor):
     When the service is instaniated, the `feature` is registered at the
     :class:`~.DiscoServer`.
 
-    .. autoattribute:: feature
+    On instances, the attribute which is described with this is a
+    :class:`RegisteredFeature` instance.
+
+    .. versionchanged:: 0.9
+
+        :class:`RegisteredFeature` was added; before, the attribute reads as
+        :data:`None`.
     """
 
     def __init__(self, feature):
@@ -750,11 +833,6 @@ class register_feature(service.Descriptor):
     def required_dependencies(self):
         return [DiscoServer]
 
-    @contextlib.contextmanager
     def init_cm(self, instance):
         disco = instance.dependencies[DiscoServer]
-        disco.register_feature(self._feature)
-        try:
-            yield
-        finally:
-            disco.unregister_feature(self._feature)
+        return RegisteredFeature(disco, self._feature)

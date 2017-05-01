@@ -118,6 +118,14 @@ Version 0.9
 
 * :mod:`aioxmpp.hashes`
 
+* :class:`aioxmpp.disco.RegisteredFeature` and changes to
+  :class:`aioxmpp.disco.register_feature`. Effectively, attributes described by
+  :class:`~aioxmpp.disco.register_feature` now have an
+  :attr:`~aioxmpp.disco.RegisteredFeature.enabled` attribute which can be used
+  to temporarily or permanently disable the registration of the feature on a
+  service object.
+
+
 .. _api-changelog-0.8:
 
 Version 0.8

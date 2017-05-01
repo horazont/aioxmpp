@@ -20,6 +20,7 @@
 #
 ########################################################################
 import asyncio
+import contextlib
 import unittest
 import sys
 
@@ -1520,6 +1521,151 @@ class Testmount_as_node(unittest.TestCase):
         )
 
 
+
+class TestRegisteredFeature(unittest.TestCase):
+    def setUp(self):
+        self.s = unittest.mock.Mock()
+        self.rf = disco_service.RegisteredFeature(
+            self.s,
+            unittest.mock.sentinel.feature,
+        )
+
+    def test_contextmanager(self):
+        self.s.register_feature.assert_not_called()
+        result = self.rf.__enter__()
+        self.assertIs(result, self.rf)
+        self.s.register_feature.assert_called_once_with(
+            unittest.mock.sentinel.feature,
+        )
+        self.s.unregister_feature.assert_not_called()
+        result = self.rf.__exit__(None, None, None)
+        self.assertFalse(result)
+        self.s.unregister_feature.assert_called_once_with(
+            unittest.mock.sentinel.feature,
+        )
+
+    def test_contextmanager_is_exception_safe(self):
+        class FooException(Exception):
+            pass
+
+        self.s.register_feature.assert_not_called()
+        with self.assertRaises(FooException):
+            with self.rf:
+                self.s.register_feature.assert_called_once_with(
+                    unittest.mock.sentinel.feature,
+                )
+                self.s.unregister_feature.assert_not_called()
+
+                raise FooException()
+
+        self.s.unregister_feature.assert_called_once_with(
+            unittest.mock.sentinel.feature,
+        )
+
+    def test_feature(self):
+        self.assertEqual(
+            self.rf.feature,
+            unittest.mock.sentinel.feature,
+        )
+
+    def test_feature_is_not_writable(self):
+        with self.assertRaises(AttributeError):
+            self.rf.feature = self.rf.feature
+
+    def test_enabled(self):
+        self.assertFalse(self.rf.enabled)
+
+    def test_enabled_changes_with_cm_use(self):
+        with self.rf:
+            self.assertTrue(self.rf.enabled)
+        self.assertFalse(self.rf.enabled)
+
+    def test_setting_enabled_registers_feature(self):
+        self.assertFalse(self.rf.enabled)
+        self.s.register_feature.assert_not_called()
+        self.rf.enabled = True
+        self.assertTrue(self.rf.enabled)
+        self.s.register_feature.assert_called_once_with(
+            unittest.mock.sentinel.feature,
+        )
+
+    def test_setting_enabled_is_idempotent(self):
+        self.assertFalse(self.rf.enabled)
+        self.s.register_feature.assert_not_called()
+        self.rf.enabled = True
+        self.assertTrue(self.rf.enabled)
+        self.s.register_feature.assert_called_once_with(
+            unittest.mock.sentinel.feature,
+        )
+
+        self.rf.enabled = True
+        self.assertTrue(self.rf.enabled)
+        self.s.register_feature.assert_called_once_with(
+            unittest.mock.sentinel.feature,
+        )
+
+    def test_clearing_enabled_unregisters_feature(self):
+        self.assertFalse(self.rf.enabled)
+        self.s.register_feature.assert_not_called()
+        self.rf.enabled = True
+        self.s.register_feature.assert_called_once_with(
+            unittest.mock.sentinel.feature,
+        )
+        self.s.unregister_feature.assert_not_called()
+
+        self.rf.enabled = False
+
+        self.s.unregister_feature.assert_called_once_with(
+            unittest.mock.sentinel.feature,
+        )
+
+    def test_clearing_enabled_is_idempotent(self):
+        self.assertFalse(self.rf.enabled)
+        self.s.register_feature.assert_not_called()
+        self.rf.enabled = True
+        self.s.register_feature.assert_called_once_with(
+            unittest.mock.sentinel.feature,
+        )
+        self.s.unregister_feature.assert_not_called()
+
+        self.rf.enabled = False
+        self.assertFalse(self.rf.enabled)
+
+        self.s.unregister_feature.assert_called_once_with(
+            unittest.mock.sentinel.feature,
+        )
+
+        self.rf.enabled = False
+
+        self.s.unregister_feature.assert_called_once_with(
+            unittest.mock.sentinel.feature,
+        )
+
+    def test_clearing_enabled_while_in_cm_does_not_duplicate_unregister(self):
+        with self.rf:
+            self.rf.enabled = False
+
+            self.s.unregister_feature.assert_called_once_with(
+                unittest.mock.sentinel.feature,
+            )
+
+        self.s.unregister_feature.assert_called_once_with(
+            unittest.mock.sentinel.feature,
+        )
+
+    def test_setting_enabled_before_entering_cm_does_not_duplicate_register(self):  # NOQA
+        self.rf.enabled = True
+
+        self.s.register_feature.assert_called_once_with(
+            unittest.mock.sentinel.feature,
+        )
+
+        with self.rf:
+            self.s.register_feature.assert_called_once_with(
+                unittest.mock.sentinel.feature,
+            )
+
+
 class Testregister_feature(unittest.TestCase):
     def setUp(self):
         self.pn = disco_service.register_feature(
@@ -1547,6 +1693,21 @@ class Testregister_feature(unittest.TestCase):
             set(self.pn.required_dependencies),
             {disco_service.DiscoServer},
         )
+
+    def test_init_cm_creates_RegisteredFeature(self):
+        with contextlib.ExitStack() as stack:
+            RegisteredFeature = stack.enter_context(
+                unittest.mock.patch("aioxmpp.disco.service.RegisteredFeature")
+            )
+
+            result = self.pn.init_cm(self.instance)
+
+        RegisteredFeature.assert_called_once_with(
+            self.disco_server,
+            unittest.mock.sentinel.feature,
+        )
+
+        self.assertEqual(result, RegisteredFeature())
 
     def test_contextmanager(self):
         cm = self.pn.init_cm(self.instance)
