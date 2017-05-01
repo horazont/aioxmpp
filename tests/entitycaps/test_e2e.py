@@ -53,6 +53,8 @@ class TestEntityCapabilities(TestCase):
                 ]
             )
         )
+        self.source.summon(aioxmpp.EntityCapsService).update_delay = 0
+        self.sink.summon(aioxmpp.EntityCapsService).update_delay = 0
 
     @blocking_timed
     @asyncio.coroutine
@@ -71,6 +73,8 @@ class TestEntityCapabilities(TestCase):
         self.sink.summon(aioxmpp.PresenceClient).on_available.connect(
             on_available
         )
+
+        yield from asyncio.sleep(0.11)
 
         presence = aioxmpp.Presence(
             type_=aioxmpp.PresenceType.AVAILABLE,
