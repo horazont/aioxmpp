@@ -96,7 +96,8 @@ class Node(object):
 
         :param stanza: The IQ request stanza
         :type stanza: :class:`~aioxmpp.IQ` or :data:`None`
-        :rtype: iterable of (:class:`str`, :class:`str`, :class:`str` or :data:`None`, :class:`str` or :data:`None`) tuples
+        :rtype: iterable of (:class:`str`, :class:`str`, :class:`str` or
+            :data:`None`, :class:`str` or :data:`None`) tuples
         :return: :xep:`30` identities of this node
 
         `stanza` can be the :class:`aioxmpp.IQ` stanza of the request. This can
@@ -265,6 +266,8 @@ class StaticNode(Node):
        It is the responsibility of the user to ensure that the set of items is
        valid. This includes avoiding duplicate items.
 
+    .. automethod:: clone
+
     """
 
     def __init__(self):
@@ -273,6 +276,39 @@ class StaticNode(Node):
 
     def iter_items(self, stanza=None):
         return iter(self.items)
+
+    @classmethod
+    def clone(cls, other_node):
+        """
+        Clone another :class:`Node` and return as :class:`StaticNode`.
+
+        :param other_node: The node which shall be cloned
+        :type other_node: :class:`Node`
+        :rtype: :class:`StaticNode`
+        :return: A static node which has the exact same features, identities
+            and items as `other_node`.
+
+        The features and identities are copied over into the resulting
+        :class:`StaticNode`. The items of `other_node` are not copied but
+        merely referenced, so changes to the item *objects* of `other_node`
+        will be reflected in the result.
+
+        .. versionadded:: 0.9
+        """
+
+        result = cls()
+        result._features = {
+            feature for feature in other_node.iter_features()
+            if feature not in cls.STATIC_FEATURES
+        }
+        for category, type_, lang, name in other_node.iter_identities():
+            names = result._identities.setdefault(
+                (category, type_),
+                aioxmpp.structs.LanguageMap()
+            )
+            names[lang] = name
+        result.items = list(other_node.iter_items())
+        return result
 
 
 class DiscoServer(service.Service, Node):

@@ -411,6 +411,63 @@ class TestStaticNode(unittest.TestCase):
             []
         )
 
+    def test_clone(self):
+        other_node = unittest.mock.Mock([
+            "iter_features",
+            "iter_identities",
+            "iter_items",
+        ])
+
+        features = [
+            "http://jabber.org/protocol/disco#info",
+            unittest.mock.sentinel.f1,
+            unittest.mock.sentinel.f2,
+            unittest.mock.sentinel.f3,
+        ]
+
+        identities = [
+            (unittest.mock.sentinel.cat1, unittest.mock.sentinel.t1,
+             unittest.mock.sentinel.lang11, unittest.mock.sentinel.name11),
+            (unittest.mock.sentinel.cat1, unittest.mock.sentinel.t1,
+             unittest.mock.sentinel.lang12, unittest.mock.sentinel.name12),
+            (unittest.mock.sentinel.cat2, unittest.mock.sentinel.t2,
+             None, unittest.mock.sentinel.name2),
+            (unittest.mock.sentinel.cat3, unittest.mock.sentinel.t3,
+             None, None),
+        ]
+
+        items = [
+            unittest.mock.sentinel.item1,
+            unittest.mock.sentinel.item2,
+        ]
+
+        other_node.iter_features.return_value = iter(features)
+        other_node.iter_identities.return_value = iter(identities)
+        other_node.iter_items.return_value = iter(items)
+
+        n = disco_service.StaticNode.clone(other_node)
+
+        self.assertIsInstance(n, disco_service.StaticNode)
+
+        other_node.iter_features.assert_called_once_with()
+        other_node.iter_identities.assert_called_once_with()
+        other_node.iter_items.assert_called_once_with()
+
+        self.assertCountEqual(
+            features,
+            list(n.iter_features()),
+        )
+
+        self.assertCountEqual(
+            identities,
+            list(n.iter_identities()),
+        )
+
+        self.assertCountEqual(
+            items,
+            list(n.iter_items()),
+        )
+
 
 class TestDiscoServer(unittest.TestCase):
     def setUp(self):

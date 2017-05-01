@@ -129,6 +129,8 @@ Version 0.9
   :xep:`390`. The interface of the :class:`aioxmpp.entitycaps.Cache` class has
   been redesigned and some internal classes and functions have been renamed.
 
+* :meth:`aioxmpp.disco.StaticNode.clone`
+
 .. _api-changelog-0.8:
 
 Version 0.8
