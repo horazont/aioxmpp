@@ -1118,6 +1118,13 @@ class TestService(unittest.TestCase):
                 )
             )
 
+            push_hashset = stack.enter_context(
+                unittest.mock.patch.object(
+                    self.s,
+                    "_push_hashset",
+                )
+            )
+
             self.s.update_hash()
 
         hash_query.assert_not_called()
@@ -1133,23 +1140,14 @@ class TestService(unittest.TestCase):
             clone().as_info_xso()
         )
 
-        calls = list(self.disco_server.mount_node.mock_calls)
-        self.assertCountEqual(
-            calls,
-            [
-                unittest.mock.call(
-                    base.key1.node,
-                    clone(),
-                ),
-                unittest.mock.call(
-                    base.key2.node,
-                    clone(),
-                ),
-                unittest.mock.call(
-                    base.key3.node,
-                    clone(),
-                ),
-            ]
+        self.disco_server.mount_node.assert_not_called()
+
+        push_hashset.assert_called_once_with(
+            clone(),
+            {
+                self.impl115: {base.key1},
+                self.impl390: {base.key2, base.key3},
+            }
         )
 
     def test_update_hash_ignores_115_if_disabled(self):
@@ -1181,6 +1179,13 @@ class TestService(unittest.TestCase):
                 )
             )
 
+            push_hashset = stack.enter_context(
+                unittest.mock.patch.object(
+                    self.s,
+                    "_push_hashset",
+                )
+            )
+
             self.s.update_hash()
 
         hash_query.assert_not_called()
@@ -1194,19 +1199,13 @@ class TestService(unittest.TestCase):
             clone().as_info_xso()
         )
 
-        calls = list(self.disco_server.mount_node.mock_calls)
-        self.assertCountEqual(
-            calls,
-            [
-                unittest.mock.call(
-                    base.key2.node,
-                    clone(),
-                ),
-                unittest.mock.call(
-                    base.key3.node,
-                    clone(),
-                ),
-            ]
+        self.disco_server.mount_node.assert_not_called()
+
+        push_hashset.assert_called_once_with(
+            clone(),
+            {
+                self.impl390: {base.key2, base.key3},
+            }
         )
 
     def test_update_hash_ignores_390_if_disabled(self):
@@ -1238,6 +1237,13 @@ class TestService(unittest.TestCase):
                 )
             )
 
+            push_hashset = stack.enter_context(
+                unittest.mock.patch.object(
+                    self.s,
+                    "_push_hashset",
+                )
+            )
+
             self.s.update_hash()
 
         hash_query.assert_not_called()
@@ -1251,114 +1257,186 @@ class TestService(unittest.TestCase):
 
         self.impl390.calculate_keys.assert_not_called()
 
-        calls = list(self.disco_server.mount_node.mock_calls)
+        self.disco_server.mount_node.assert_not_called()
+
+        push_hashset.assert_called_once_with(
+            clone(),
+            {
+                self.impl115: {base.key1},
+            }
+        )
+
+    def test__push_hashset_registers_nodes(self):
+        base = unittest.mock.Mock()
+
+        self.s._push_hashset(
+            unittest.mock.sentinel.node,
+            {
+                unittest.mock.sentinel.impl1: {
+                    base.key1,
+                },
+                unittest.mock.sentinel.impl2: {
+                    base.key2,
+                    base.key3,
+                }
+            }
+        )
+
         self.assertCountEqual(
-            calls,
+            self.disco_server.mount_node.mock_calls,
             [
-                unittest.mock.call(
-                    base.key1.node,
-                    clone(),
-                ),
+                unittest.mock.call(base.key1.node,
+                                   unittest.mock.sentinel.node),
+                unittest.mock.call(base.key2.node,
+                                   unittest.mock.sentinel.node),
+                unittest.mock.call(base.key3.node,
+                                   unittest.mock.sentinel.node),
             ]
         )
 
-    def test_update_hash_emits_on_ver_changed(self):
-        self.disco_server.iter_features.return_value = iter([
-            "http://jabber.org/protocol/caps",
-            "http://jabber.org/protocol/disco#items",
-            "http://jabber.org/protocol/disco#info",
-        ])
-
-        self.disco_server.iter_identities.return_value = iter([
-            ("client", "pc", None, None),
-            ("client", "pc", structs.LanguageTag.fromstr("en"), "foo"),
-        ])
-
+    def test__push_hashset_keeps_three_hashsets(self):
         base = unittest.mock.Mock()
 
-        self.impl115.calculate_keys.return_value = iter([
-            base.key1,
-        ])
+        self.s._push_hashset(
+            unittest.mock.sentinel.node1,
+            {
+                unittest.mock.sentinel.impl1: {
+                    base.key1,
+                },
+                unittest.mock.sentinel.impl2: {
+                    base.key2,
+                    base.key3,
+                }
+            }
+        )
 
-        self.impl390.calculate_keys.return_value = iter([
-            base.key2,
-            base.key3,
-        ])
+        self.s._push_hashset(
+            unittest.mock.sentinel.node2,
+            {
+                unittest.mock.sentinel.impl1: {
+                    base.key4,
+                },
+                unittest.mock.sentinel.impl2: {
+                    base.key5,
+                }
+            }
+        )
 
-        cb = unittest.mock.Mock()
+        self.s._push_hashset(
+            unittest.mock.sentinel.node3,
+            {
+                unittest.mock.sentinel.impl1: {
+                    base.key6,
+                },
+                unittest.mock.sentinel.impl2: {
+                    base.key7,
+                }
+            }
+        )
 
-        self.s.on_ver_changed.connect(cb)
+        self.assertCountEqual(
+            self.disco_server.mount_node.mock_calls,
+            [
+                unittest.mock.call(base.key1.node,
+                                   unittest.mock.sentinel.node1),
+                unittest.mock.call(base.key2.node,
+                                   unittest.mock.sentinel.node1),
+                unittest.mock.call(base.key3.node,
+                                   unittest.mock.sentinel.node1),
+                unittest.mock.call(base.key4.node,
+                                   unittest.mock.sentinel.node2),
+                unittest.mock.call(base.key5.node,
+                                   unittest.mock.sentinel.node2),
+                unittest.mock.call(base.key6.node,
+                                   unittest.mock.sentinel.node3),
+                unittest.mock.call(base.key7.node,
+                                   unittest.mock.sentinel.node3),
+            ]
+        )
 
-        self.s.update_hash()
+        self.assertCountEqual(
+            self.disco_server.unmount_node.mock_calls,
+            [],
+        )
 
-        cb.assert_called_with()
-
-    def test_update_hash_noop_if_unchanged(self):
-        self.disco_server.iter_features.return_value = iter([])
-
-        self.disco_server.iter_identities.return_value = iter([])
-
+    def test__push_hashset_fifo_behaviour(self):
         base = unittest.mock.Mock()
 
-        self.impl115.calculate_keys.return_value = [
-            base.key1,
-        ]
+        self.s._push_hashset(
+            unittest.mock.sentinel.node1,
+            {
+                unittest.mock.sentinel.impl1: {
+                    base.key1,
+                },
+                unittest.mock.sentinel.impl2: {
+                    base.key2,
+                    base.key3,
+                }
+            }
+        )
 
-        self.impl390.calculate_keys.return_value = [
-            base.key2,
-            base.key3,
-        ]
+        self.s._push_hashset(
+            unittest.mock.sentinel.node2,
+            {
+                unittest.mock.sentinel.impl1: {
+                    base.key4,
+                },
+                unittest.mock.sentinel.impl2: {
+                    base.key5,
+                }
+            }
+        )
 
-        self.s.update_hash()
+        self.s._push_hashset(
+            unittest.mock.sentinel.node3,
+            {
+                unittest.mock.sentinel.impl1: {
+                    base.key6,
+                },
+                unittest.mock.sentinel.impl2: {
+                    base.key7,
+                }
+            }
+        )
 
-        cb = unittest.mock.Mock()
+        self.s._push_hashset(
+            unittest.mock.sentinel.node4,
+            {
+                unittest.mock.sentinel.impl1: {
+                    base.key8,
+                },
+                unittest.mock.sentinel.impl2: {
+                    base.key9,
+                    base.key10,
+                }
+            }
+        )
 
-        self.s.on_ver_changed.connect(cb)
-
-        self.s.update_hash()
-
-        cb.assert_not_called()
-
-    def test_update_hash_unmounts_old_node_on_change(self):
-        self.disco_server.iter_features.return_value = iter([])
-
-        self.disco_server.iter_identities.return_value = iter([])
-
-        base = unittest.mock.Mock()
-
-        self.impl115.calculate_keys.return_value = iter([
-            base.key1,
-        ])
-
-        self.impl390.calculate_keys.return_value = iter([
-            base.key2,
-            base.key3,
-        ])
-
-        self.s.update_hash()
-
-        self.disco_server.unmount_node.assert_not_called()
-
-        self.impl115.calculate_keys.return_value = iter([
-            base.key4,
-        ])
-
-        self.impl390.calculate_keys.return_value = iter([
-            base.key2,
-            base.key5,
-        ])
-
-        self.disco_server.mount_node.reset_mock()
-
-        with contextlib.ExitStack() as stack:
-            clone = stack.enter_context(
-                unittest.mock.patch.object(
-                    disco.StaticNode,
-                    "clone",
-                )
-            )
-
-            self.s.update_hash()
+        self.assertCountEqual(
+            self.disco_server.mount_node.mock_calls,
+            [
+                unittest.mock.call(base.key1.node,
+                                   unittest.mock.sentinel.node1),
+                unittest.mock.call(base.key2.node,
+                                   unittest.mock.sentinel.node1),
+                unittest.mock.call(base.key3.node,
+                                   unittest.mock.sentinel.node1),
+                unittest.mock.call(base.key4.node,
+                                   unittest.mock.sentinel.node2),
+                unittest.mock.call(base.key5.node,
+                                   unittest.mock.sentinel.node2),
+                unittest.mock.call(base.key6.node,
+                                   unittest.mock.sentinel.node3),
+                unittest.mock.call(base.key7.node,
+                                   unittest.mock.sentinel.node3),
+                unittest.mock.call(base.key8.node,
+                                   unittest.mock.sentinel.node4),
+                unittest.mock.call(base.key9.node,
+                                   unittest.mock.sentinel.node4),
+                unittest.mock.call(base.key10.node,
+                                   unittest.mock.sentinel.node4),
+            ]
+        )
 
         self.assertCountEqual(
             self.disco_server.unmount_node.mock_calls,
@@ -1366,63 +1444,165 @@ class TestService(unittest.TestCase):
                 unittest.mock.call(base.key1.node),
                 unittest.mock.call(base.key2.node),
                 unittest.mock.call(base.key3.node),
-            ]
+            ],
+        )
+
+        self.disco_server.unmount_node.reset_mock()
+        self.disco_server.mount_node.reset_mock()
+
+        self.s._push_hashset(
+            unittest.mock.sentinel.node5,
+            {
+                unittest.mock.sentinel.impl1: {
+                    base.key11,
+                },
+                unittest.mock.sentinel.impl2: {
+                    base.key12,
+                    base.key13,
+                }
+            }
         )
 
         self.assertCountEqual(
             self.disco_server.mount_node.mock_calls,
             [
-                unittest.mock.call(base.key4.node, clone()),
-                unittest.mock.call(base.key2.node, clone()),
-                unittest.mock.call(base.key5.node, clone()),
+                unittest.mock.call(base.key11.node,
+                                   unittest.mock.sentinel.node5),
+                unittest.mock.call(base.key12.node,
+                                   unittest.mock.sentinel.node5),
+                unittest.mock.call(base.key13.node,
+                                   unittest.mock.sentinel.node5),
             ]
         )
 
-    def test_update_hash_unmount_on_shutdown(self):
+        self.assertCountEqual(
+            self.disco_server.unmount_node.mock_calls,
+            [
+                unittest.mock.call(base.key4.node),
+                unittest.mock.call(base.key5.node),
+            ],
+        )
+
+    def test__push_hashset_can_deal_with_hash_collisions(self):
+        # I know we’re insane to even consider this…
         base = unittest.mock.Mock()
 
-        self.impl115.calculate_keys.return_value = iter([
-            base.key3,
-        ])
-
-        self.impl390.calculate_keys.return_value = iter([
-            base.key1,
-            base.key2,
-        ])
-
-        with contextlib.ExitStack() as stack:
-            hash_query = stack.enter_context(unittest.mock.patch(
-                "aioxmpp.entitycaps.caps115.hash_query",
-            ))
-
-            self.s.update_hash()
-
-        hash_query.assert_not_called()
-
-        self.disco_server.mock_calls.clear()
-
-        run_coroutine(self.s.shutdown())
-
-        calls = list(self.disco_server.mock_calls)
-        self.assertIn(
-            unittest.mock.call.unmount_node(
-                base.key1.node,
-            ),
-            calls
+        self.s._push_hashset(
+            unittest.mock.sentinel.node1,
+            {
+                unittest.mock.sentinel.impl1: {
+                    base.key1,
+                },
+                unittest.mock.sentinel.impl2: {
+                    base.key2,
+                    base.key3,
+                }
+            }
         )
 
-        self.assertIn(
-            unittest.mock.call.unmount_node(
-                base.key2.node,
-            ),
-            calls
+        self.s._push_hashset(
+            unittest.mock.sentinel.node2,
+            {
+                unittest.mock.sentinel.impl1: {
+                    base.key1,
+                },
+                unittest.mock.sentinel.impl2: {
+                    base.key5,
+                }
+            }
         )
 
-        self.assertIn(
-            unittest.mock.call.unmount_node(
-                base.key3.node,
-            ),
-            calls
+        self.s._push_hashset(
+            unittest.mock.sentinel.node3,
+            {
+                unittest.mock.sentinel.impl1: {
+                    base.key6,
+                },
+                unittest.mock.sentinel.impl2: {
+                    base.key7,
+                }
+            }
+        )
+
+        self.s._push_hashset(
+            unittest.mock.sentinel.node4,
+            {
+                unittest.mock.sentinel.impl1: {
+                    base.key8,
+                },
+                unittest.mock.sentinel.impl2: {
+                    base.key9,
+                    base.key10,
+                }
+            }
+        )
+
+        self.assertCountEqual(
+            self.disco_server.mount_node.mock_calls,
+            [
+                unittest.mock.call(base.key1.node,
+                                   unittest.mock.sentinel.node1),
+                unittest.mock.call(base.key2.node,
+                                   unittest.mock.sentinel.node1),
+                unittest.mock.call(base.key3.node,
+                                   unittest.mock.sentinel.node1),
+                unittest.mock.call(base.key5.node,
+                                   unittest.mock.sentinel.node2),
+                unittest.mock.call(base.key6.node,
+                                   unittest.mock.sentinel.node3),
+                unittest.mock.call(base.key7.node,
+                                   unittest.mock.sentinel.node3),
+                unittest.mock.call(base.key8.node,
+                                   unittest.mock.sentinel.node4),
+                unittest.mock.call(base.key9.node,
+                                   unittest.mock.sentinel.node4),
+                unittest.mock.call(base.key10.node,
+                                   unittest.mock.sentinel.node4),
+            ]
+        )
+
+        self.assertCountEqual(
+            self.disco_server.unmount_node.mock_calls,
+            [
+                unittest.mock.call(base.key2.node),
+                unittest.mock.call(base.key3.node),
+            ],
+        )
+
+        self.disco_server.unmount_node.reset_mock()
+        self.disco_server.mount_node.reset_mock()
+
+        self.s._push_hashset(
+            unittest.mock.sentinel.node5,
+            {
+                unittest.mock.sentinel.impl1: {
+                    base.key11,
+                },
+                unittest.mock.sentinel.impl2: {
+                    base.key12,
+                    base.key13,
+                }
+            }
+        )
+
+        self.assertCountEqual(
+            self.disco_server.mount_node.mock_calls,
+            [
+                unittest.mock.call(base.key11.node,
+                                   unittest.mock.sentinel.node5),
+                unittest.mock.call(base.key12.node,
+                                   unittest.mock.sentinel.node5),
+                unittest.mock.call(base.key13.node,
+                                   unittest.mock.sentinel.node5),
+            ]
+        )
+
+        self.assertCountEqual(
+            self.disco_server.unmount_node.mock_calls,
+            [
+                unittest.mock.call(base.key1.node),
+                unittest.mock.call(base.key5.node),
+            ],
         )
 
     def test__info_changed_calls_update_hash_soon(self):
@@ -1448,7 +1628,13 @@ class TestService(unittest.TestCase):
             base.key3,
         ])
 
-        self.s.update_hash()
+        self.s._push_hashset(
+            unittest.mock.sentinel.node,
+            {
+                self.impl115: {base.key1},
+                self.impl390: {base.key2, base.key3},
+            }
+        )
 
         presence = stanza.Presence()
         result = self.s.handle_outbound_presence(presence)
@@ -1464,28 +1650,24 @@ class TestService(unittest.TestCase):
             presence,
         )
 
-    def test_handle_outbound_presence_does_not_insert_115_keys_if_disabled(self):  # NOQA
-        self.s.xep115_support = False
-
-        base = unittest.mock.Mock()
-        self.impl115.calculate_keys.return_value = [
-            base.key1,
-        ]
-        self.s.update_hash()
-
-        presence = stanza.Presence()
-        result = self.s.handle_outbound_presence(presence)
-        self.assertIs(result, presence)
-
-        self.impl115.put_keys.assert_not_called()
-
     def test_handle_outbound_presence_does_not_attach_caps_to_non_available(
             self):
         base = unittest.mock.Mock()
-        self.impl115.calculate_keys.return_value = [
+        self.impl115.calculate_keys.return_value = iter([
             base.key1,
-        ]
-        self.s.update_hash()
+        ])
+        self.impl390.calculate_keys.return_value = iter([
+            base.key2,
+            base.key3,
+        ])
+
+        self.s._push_hashset(
+            unittest.mock.sentinel.node,
+            {
+                self.impl115: {base.key1},
+                self.impl390: {base.key2, base.key3},
+            }
+        )
 
         types = [
             structs.PresenceType.UNAVAILABLE,

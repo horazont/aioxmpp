@@ -20,6 +20,7 @@
 #
 ########################################################################
 import asyncio
+import collections
 import copy
 import functools
 import logging
@@ -268,6 +269,9 @@ class EntityCapsService(aioxmpp.service.Service):
             aioxmpp.hashes.default_hash_algorithms
         )
 
+        self.__active_hashsets = []
+        self.__key_users = collections.Counter()
+
     @property
     def xep115_support(self):
         """
@@ -393,16 +397,19 @@ class EntityCapsService(aioxmpp.service.Service):
 
     @aioxmpp.service.outbound_presence_filter
     def handle_outbound_presence(self, presence):
-        if presence.type_ == aioxmpp.structs.PresenceType.AVAILABLE:
+        if (presence.type_ == aioxmpp.structs.PresenceType.AVAILABLE
+                and self.__active_hashsets):
+            current_hashset = self.__active_hashsets[-1]
+
             try:
-                keys = self.__current_keys[self.__115]
+                keys = current_hashset[self.__115]
             except KeyError:
                 pass
             else:
                 self.__115.put_keys(keys, presence)
 
             try:
-                keys = self.__current_keys[self.__390]
+                keys = current_hashset[self.__390]
             except KeyError:
                 pass
             else:
@@ -432,36 +439,39 @@ class EntityCapsService(aioxmpp.service.Service):
 
         return presence
 
+    def _push_hashset(self, node, hashset):
+        for group in hashset.values():
+            for key in group:
+                if not self.__key_users[key.node]:
+                    self.disco_server.mount_node(key.node, node)
+                self.__key_users[key.node] += 1
+        self.__active_hashsets.append(hashset)
+
+        for expired in self.__active_hashsets[:-3]:
+            for group in expired.values():
+                for key in group:
+                    self.__key_users[key.node] -= 1
+                    if not self.__key_users[key.node]:
+                        self.disco_server.unmount_node(key.node)
+                        del self.__key_users[key.node]
+
+        del self.__active_hashsets[:-3]
+
     def update_hash(self):
         node = disco.StaticNode.clone(self.disco_server)
         info = node.as_info_xso()
 
-        new_keys = {}
+        new_hashset = {}
 
         if self.xep115_support:
-            new_keys[self.__115] = set(self.__115.calculate_keys(info))
+            new_hashset[self.__115] = set(self.__115.calculate_keys(info))
 
         if self.xep390_support:
-            new_keys[self.__390] = set(self.__390.calculate_keys(info))
+            new_hashset[self.__390] = set(self.__390.calculate_keys(info))
 
-        if self.__current_keys == new_keys:
-            self.logger.debug("keys remained unchanged (%r)",
-                              new_keys)
-            return
+        self.logger.debug("new hashset=%r", new_hashset)
 
-        self.logger.debug("new keys=%r", new_keys)
-
-        for group in self.__current_keys.values():
-            for key in group:
-                self.disco_server.unmount_node(key.node)
-
-        self.__current_keys = new_keys
-
-        for group in new_keys.values():
-            for key in group:
-                self.disco_server.mount_node(key.node, node)
-
-        self.on_ver_changed()
+        self._push_hashset(node, new_hashset)
 
 
 def writeback(base_path, hash_, node, captured_events):
