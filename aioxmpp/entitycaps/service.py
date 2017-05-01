@@ -33,6 +33,8 @@ import aioxmpp.service
 import aioxmpp.xml
 import aioxmpp.xso
 
+from aioxmpp.utils import namespaces
+
 from . import xso as my_xso
 from . import caps115
 
@@ -242,6 +244,8 @@ class EntityCapsService(aioxmpp.service.Service):
 
     on_ver_changed = aioxmpp.callbacks.Signal()
 
+    xep115_support = disco.register_feature(namespaces.xep0115_caps)
+
     def __init__(self, node, **kwargs):
         super().__init__(node, **kwargs)
 
@@ -250,9 +254,6 @@ class EntityCapsService(aioxmpp.service.Service):
 
         self.disco_server = self.dependencies[disco.DiscoServer]
         self.disco_client = self.dependencies[disco.DiscoClient]
-        self.disco_server.register_feature(
-            "http://jabber.org/protocol/caps"
-        )
 
         self.__115 = caps115.Implementation(self.NODE)
 
@@ -286,9 +287,6 @@ class EntityCapsService(aioxmpp.service.Service):
 
     @asyncio.coroutine
     def _shutdown(self):
-        self.disco_server.unregister_feature(
-            "http://jabber.org/protocol/caps"
-        )
         if self.__current_keys:
             for key in self.__current_keys:
                 self.disco_server.unmount_node(key.node)
@@ -336,18 +334,26 @@ class EntityCapsService(aioxmpp.service.Service):
     def handle_outbound_presence(self, presence):
         if (presence.type_ == aioxmpp.structs.PresenceType.AVAILABLE and
                 self.__current_keys):
-            self.logger.debug("injecting capabilities into outbound presence")
-            self.__115.put_keys(self.__current_keys, presence)
+            if self.xep115_support.enabled:
+                self.logger.debug(
+                    "injecting capabilities into outbound presence"
+                )
+                self.__115.put_keys(self.__current_keys, presence)
 
         return presence
 
     @aioxmpp.service.inbound_presence_filter
     def handle_inbound_presence(self, presence):
-        keys = list(self.__115.extract_keys(presence))
-        lookup_task = asyncio.async(
-            self.lookup_info(presence.from_, keys)
-        )
-        self.disco_client.set_info_future(presence.from_, None, lookup_task)
+        if self.xep115_support.enabled:
+            keys = list(self.__115.extract_keys(presence))
+            lookup_task = asyncio.async(
+                self.lookup_info(presence.from_, keys)
+            )
+            self.disco_client.set_info_future(
+                presence.from_,
+                None,
+                lookup_task
+            )
 
         return presence
 

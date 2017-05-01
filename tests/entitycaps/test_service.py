@@ -33,6 +33,8 @@ import aioxmpp.stanza as stanza
 import aioxmpp.structs as structs
 import aioxmpp.xml
 
+from aioxmpp.utils import namespaces
+
 import aioxmpp.entitycaps.service as entitycaps_service
 import aioxmpp.entitycaps.xso as entitycaps_xso
 
@@ -490,6 +492,16 @@ class TestService(unittest.TestCase):
             service.Service
         ))
 
+    def test_registers_xep115_feature(self):
+        self.assertIsInstance(
+            entitycaps_service.EntityCapsService.xep115_support,
+            aioxmpp.disco.register_feature,
+        )
+        self.assertEqual(
+            entitycaps_service.EntityCapsService.xep115_support.feature,
+            namespaces.xep0115_caps,
+        )
+
     def test_after_disco(self):
         self.assertLess(
             disco.DiscoServer,
@@ -621,6 +633,33 @@ class TestService(unittest.TestCase):
             None,
             async(),
         )
+
+        self.assertEqual(result, presence)
+
+    def test_handle_inbound_presence_ignores_115_if_disabled(self):
+        self.s.xep115_support.enabled = False
+
+        presence = unittest.mock.Mock(spec=aioxmpp.Presence)
+
+        self.impl115.extract_keys.return_value = iter([
+            unittest.mock.sentinel.key1,
+        ])
+
+        with contextlib.ExitStack() as stack:
+            async = stack.enter_context(
+                unittest.mock.patch("asyncio.async")
+            )
+
+            lookup_info = stack.enter_context(
+                unittest.mock.patch.object(self.s, "lookup_info")
+            )
+
+            result = self.s.handle_inbound_presence(presence)
+
+        self.impl115.extract_keys.assert_not_called()
+        lookup_info.assert_not_called()
+        async.assert_not_called()
+        self.disco_client.set_info_future.assert_not_called()
 
         self.assertEqual(result, presence)
 
@@ -1096,8 +1135,7 @@ class TestService(unittest.TestCase):
             self.s.update_hash
         )
 
-    def test_handle_outbound_presence_inserts_115_keys(
-            self):
+    def test_handle_outbound_presence_inserts_115_keys(self):
         base = unittest.mock.Mock()
         self.impl115.calculate_keys.return_value = [
             base.key1,
@@ -1112,6 +1150,21 @@ class TestService(unittest.TestCase):
             {base.key1},
             presence,
         )
+
+    def test_handle_outbound_presence_does_not_insert_115_keys_if_disabled(self):  # NOQA
+        self.s.xep115_support.enabled = False
+
+        base = unittest.mock.Mock()
+        self.impl115.calculate_keys.return_value = [
+            base.key1,
+        ]
+        self.s.update_hash()
+
+        presence = stanza.Presence()
+        result = self.s.handle_outbound_presence(presence)
+        self.assertIs(result, presence)
+
+        self.impl115.put_keys.assert_not_called()
 
     def test_handle_outbound_presence_does_not_attach_caps_to_non_available(
             self):
@@ -1270,7 +1323,6 @@ class Testwriteback(unittest.TestCase):
                     base.hash_,
                     base.node,
                     base.data)
-
 
         self.assertIs(ctx.exception, exc)
 
