@@ -1050,3 +1050,14 @@ class TestCoroutineMock(unittest.TestCase):
             ],
             m.mock_calls
         )
+
+
+class TestMockMonkeyPatches(unittest.TestCase):
+    def test_assert_not_called_works(self):
+        m = unittest.mock.Mock()
+        m.assert_not_called()
+        self.assertFalse(m.mock_calls)
+
+        m()
+        with self.assertRaises(AssertionError):
+            m.assert_not_called()

@@ -779,3 +779,16 @@ class XMLStreamMock(InteractivityMock):
         fut = asyncio.Future()
         self._error_futures.append(fut)
         return fut
+
+
+if not hasattr(unittest.mock.Mock, "assert_not_called"):
+    def _assert_not_called(m):
+        if any(not call[0] for call in m.mock_calls):
+            raise AssertionError(
+                "expected {!r} to not have been called. "
+                "Called {} times".format(
+                    m._mock_name or 'mock',
+                    m.call_count)
+            )
+    unittest.mock.Mock.assert_not_called = _assert_not_called
+    del _assert_not_called
