@@ -35,8 +35,7 @@ import aioxmpp.xso
 
 from aioxmpp.utils import namespaces
 
-from . import xso as my_xso
-from . import caps115
+from . import caps115, caps390
 
 
 logger = logging.getLogger("aioxmpp.entitycaps")
@@ -244,18 +243,38 @@ class EntityCapsService(aioxmpp.service.Service):
 
     on_ver_changed = aioxmpp.callbacks.Signal()
 
-    xep115_support = disco.register_feature(namespaces.xep0115_caps)
+    _xep115_feature = disco.register_feature(namespaces.xep0115_caps)
+    _xep390_feature = disco.register_feature(namespaces.xep0390_caps)
 
     def __init__(self, node, **kwargs):
         super().__init__(node, **kwargs)
 
-        self.__current_keys = None
+        self.__current_keys = {}
         self._cache = Cache()
 
         self.disco_server = self.dependencies[disco.DiscoServer]
         self.disco_client = self.dependencies[disco.DiscoClient]
 
         self.__115 = caps115.Implementation(self.NODE)
+        self.__390 = caps390.Implementation(
+            aioxmpp.hashes.default_hash_algorithms
+        )
+
+    @property
+    def xep115_support(self):
+        return self._xep115_feature.enabled
+
+    @xep115_support.setter
+    def xep115_support(self, value):
+        self._xep115_feature.enabled = value
+
+    @property
+    def xep390_support(self):
+        return self._xep390_feature.enabled
+
+    @xep390_support.setter
+    def xep390_support(self, value):
+        self._xep390_feature.enabled = value
 
     @property
     def cache(self):
@@ -287,8 +306,8 @@ class EntityCapsService(aioxmpp.service.Service):
 
     @asyncio.coroutine
     def _shutdown(self):
-        if self.__current_keys:
-            for key in self.__current_keys:
+        for group in self.__current_keys.values():
+            for key in group:
                 self.disco_server.unmount_node(key.node)
 
     @asyncio.coroutine
@@ -332,20 +351,34 @@ class EntityCapsService(aioxmpp.service.Service):
 
     @aioxmpp.service.outbound_presence_filter
     def handle_outbound_presence(self, presence):
-        if (presence.type_ == aioxmpp.structs.PresenceType.AVAILABLE and
-                self.__current_keys):
-            if self.xep115_support.enabled:
-                self.logger.debug(
-                    "injecting capabilities into outbound presence"
-                )
-                self.__115.put_keys(self.__current_keys, presence)
+        if presence.type_ == aioxmpp.structs.PresenceType.AVAILABLE:
+            try:
+                keys = self.__current_keys[self.__115]
+            except KeyError:
+                pass
+            else:
+                self.__115.put_keys(keys, presence)
+
+            try:
+                keys = self.__current_keys[self.__390]
+            except KeyError:
+                pass
+            else:
+                self.__390.put_keys(keys, presence)
 
         return presence
 
     @aioxmpp.service.inbound_presence_filter
     def handle_inbound_presence(self, presence):
-        if self.xep115_support.enabled:
-            keys = list(self.__115.extract_keys(presence))
+        keys = []
+
+        if self.xep390_support:
+            keys.extend(self.__390.extract_keys(presence))
+
+        if self.xep115_support:
+            keys.extend(self.__115.extract_keys(presence))
+
+        if keys:
             lookup_task = asyncio.async(
                 self.lookup_info(presence.from_, keys)
             )
@@ -373,18 +406,32 @@ class EntityCapsService(aioxmpp.service.Service):
             features=self.disco_server.iter_features(),
         )
 
-        current_keys = frozenset(self.__115.calculate_keys(info))
+        new_keys = {}
 
-        self.logger.debug("new keys=%r", current_keys)
+        if self.xep115_support:
+            new_keys[self.__115] = set(self.__115.calculate_keys(info))
 
-        if self.__current_keys != current_keys:
-            if self.__current_keys:
-                for key in self.__current_keys:
-                    self.disco_server.unmount_node(key.node)
-            self.__current_keys = current_keys
-            for key in current_keys:
+        if self.xep390_support:
+            new_keys[self.__390] = set(self.__390.calculate_keys(info))
+
+        if self.__current_keys == new_keys:
+            self.logger.debug("keys remained unchanged (%r)",
+                              new_keys)
+            return
+
+        self.logger.debug("new keys=%r", new_keys)
+
+        for group in self.__current_keys.values():
+            for key in group:
+                self.disco_server.unmount_node(key.node)
+
+        self.__current_keys = new_keys
+
+        for group in new_keys.values():
+            for key in group:
                 self.disco_server.mount_node(key.node, self.disco_server)
-            self.on_ver_changed()
+
+        self.on_ver_changed()
 
 
 def writeback(base_path, hash_, node, captured_events):

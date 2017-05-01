@@ -176,6 +176,7 @@ class Implementation:
         return (
             Key(algo, digest)
             for algo, digest in presence.xep0390_caps.digests.items()
+            if aioxmpp.hashes.is_algo_supported(algo)
         )
 
     def put_keys(self, keys, presence):

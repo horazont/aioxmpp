@@ -20,6 +20,7 @@
 #
 ########################################################################
 import asyncio
+import base64
 
 import aioxmpp.stream
 import aioxmpp.entitycaps as caps
@@ -56,7 +57,6 @@ class TestEntityCapabilities(TestCase):
     @blocking_timed
     @asyncio.coroutine
     def test_caps_are_sent_with_presence(self):
-        caps_server = self.source.summon(aioxmpp.EntityCapsService)
         disco_client = self.sink.summon(aioxmpp.DiscoClient)
         disco_server = self.source.summon(aioxmpp.DiscoServer)
 
@@ -84,6 +84,11 @@ class TestEntityCapabilities(TestCase):
             presence.xep0115_caps,
         )
 
+        self.assertIsNotNone(
+            presence.xep0390_caps,
+        )
+        self.assertTrue(presence.xep0390_caps.digests)
+
         info = yield from disco_client.query_info(
             self.source.local_jid,
             node="{}#{}".format(
@@ -96,9 +101,23 @@ class TestEntityCapabilities(TestCase):
             set(disco_server.iter_features()),
         )
 
+        for algo, digest in presence.xep0390_caps.digests.items():
+            info = yield from disco_client.query_info(
+                self.source.local_jid,
+                node="urn:xmpp:caps#{}.{}".format(
+                    algo,
+                    base64.b64encode(digest).decode("ascii")
+                )
+            )
+            self.assertSetEqual(
+                info.features,
+                set(disco_server.iter_features()),
+                (algo, digest)
+            )
+
     @blocking_timed
     @asyncio.coroutine
-    def test_caps_are_processed_when_received(self):
+    def test_caps115_are_processed_when_received(self):
         info = disco.xso.InfoQuery()
         info.features.add("http://feature.test/feature")
         info.features.add("http://feature.test/another-feature")
@@ -160,6 +179,82 @@ class TestEntityCapabilities(TestCase):
         info1 = yield from disco_client.query_info(
             self.source.local_jid,
             node="http://test#{}".format(info_hash),
+        )
+        self.assertEqual(info1.features, info.features)
+
+        info2 = yield from disco_client.query_info(
+            self.source.local_jid,
+        )
+        self.assertEqual(info2.features, info.features)
+
+        self.assertFalse(disco_called_again)
+
+
+    @blocking_timed
+    @asyncio.coroutine
+    def test_caps390_are_processed_when_received(self):
+        info = disco.xso.InfoQuery()
+        info.features.add("http://feature.test/feature")
+        info.features.add("http://feature.test/another-feature")
+
+        info_hash = caps.caps390._calculate_hash(
+            "sha-256",
+            caps.caps390._get_hash_input(info)
+        )
+        info_hash_b64 = base64.b64encode(info_hash).decode("ascii")
+
+        disco_called = asyncio.Future()
+        disco_called_again = False
+
+        @asyncio.coroutine
+        def fake_disco_handler(iq):
+            nonlocal disco_called_again
+            if not disco_called.done():
+                disco_called.set_result(iq)
+            else:
+                disco_called_again = True
+            return info
+
+        self.source, self.sink = yield from asyncio.gather(
+            self.provisioner.get_connected_client(
+                services=[
+                    aioxmpp.PresenceServer,
+                ]
+            ),
+            self.provisioner.get_connected_client(
+                services=[
+                    aioxmpp.EntityCapsService,
+                    aioxmpp.PresenceServer,
+                    aioxmpp.PresenceClient,
+                ]
+            )
+        )
+
+        self.source.stream.register_iq_request_coro(
+            aioxmpp.IQType.GET,
+            disco.xso.InfoQuery,
+            fake_disco_handler,
+        )
+
+        presence = aioxmpp.Presence(
+            type_=aioxmpp.PresenceType.AVAILABLE,
+            to=self.sink.local_jid,
+        )
+        presence.xep0390_caps = caps.xso.Caps390()
+        presence.xep0390_caps.digests["sha-256"] = info_hash
+
+        yield from self.source.stream.send(presence)
+
+        info_request = (yield from disco_called).payload
+        self.assertEqual(
+            info_request.node,
+            "urn:xmpp:caps#sha-256.{}".format(info_hash_b64)
+        )
+
+        disco_client = self.sink.summon(aioxmpp.DiscoClient)
+        info1 = yield from disco_client.query_info(
+            self.source.local_jid,
+            node="urn:xmpp:caps#sha-256.{}".format(info_hash_b64),
         )
         self.assertEqual(info1.features, info.features)
 

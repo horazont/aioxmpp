@@ -611,20 +611,41 @@ class TestImplementation(unittest.TestCase):
             set(),
         )
 
-    def test_extract_keys_creates_Key_objects_from_digests(self):
+    def test_extract_keys_creates_Key_objects_from_digests_and_checks_for_support(self):  # NOQA
         presence = unittest.mock.Mock(["xep0390_caps"])
         presence.xep0390_caps.digests = {
             unittest.mock.sentinel.palgo1: unittest.mock.sentinel.pdigest1,
             unittest.mock.sentinel.palgo2: unittest.mock.sentinel.pdigest2,
+            unittest.mock.sentinel.palgo3: unittest.mock.sentinel.pdigest3,
         }
 
+        def is_algo_supported_impl(algo):
+            return algo != unittest.mock.sentinel.palgo2
+
+        with contextlib.ExitStack() as stack:
+            is_algo_supported = stack.enter_context(
+                unittest.mock.patch("aioxmpp.hashes.is_algo_supported")
+            )
+            is_algo_supported.side_effect = is_algo_supported_impl
+
+            result = set(self.i.extract_keys(presence))
+
+        self.assertCountEqual(
+            is_algo_supported.mock_calls,
+            [
+                unittest.mock.call(unittest.mock.sentinel.palgo1),
+                unittest.mock.call(unittest.mock.sentinel.palgo2),
+                unittest.mock.call(unittest.mock.sentinel.palgo3),
+            ]
+        )
+
         self.assertSetEqual(
-            set(self.i.extract_keys(presence)),
+            result,
             {
                 caps390.Key(unittest.mock.sentinel.palgo1,
                             unittest.mock.sentinel.pdigest1),
-                caps390.Key(unittest.mock.sentinel.palgo2,
-                            unittest.mock.sentinel.pdigest2),
+                caps390.Key(unittest.mock.sentinel.palgo3,
+                            unittest.mock.sentinel.pdigest3),
             }
         )
 
