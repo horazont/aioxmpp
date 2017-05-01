@@ -383,6 +383,120 @@ class TestNode(unittest.TestCase):
             []
         )
 
+    def test_as_info_xso(self):
+        n = disco_service.Node()
+
+        features = [
+            "http://jabber.org/protocol/disco#info",
+            unittest.mock.sentinel.f1,
+            unittest.mock.sentinel.f2,
+            unittest.mock.sentinel.f3,
+        ]
+
+        identities = [
+            ("cat1", "t1",
+             structs.LanguageTag.fromstr("lang-a"), "name11"),
+            ("cat1", "t1",
+             structs.LanguageTag.fromstr("lang-b"), "name12"),
+            ("cat2", "t2", None, "name2"),
+            ("cat3", "t3", None, None),
+        ]
+
+        with contextlib.ExitStack() as stack:
+            iter_features = stack.enter_context(
+                unittest.mock.patch.object(n, "iter_features")
+            )
+            iter_features.return_value = iter(features)
+
+            iter_identities = stack.enter_context(
+                unittest.mock.patch.object(n, "iter_identities")
+            )
+            iter_identities.return_value = iter(identities)
+
+            iter_items = stack.enter_context(
+                unittest.mock.patch.object(n, "iter_items")
+            )
+
+            result = n.as_info_xso()
+
+        self.assertIsInstance(
+            result,
+            disco_xso.InfoQuery,
+        )
+
+        iter_items.assert_not_called()
+
+        iter_features.assert_called_once_with(None)
+        iter_identities.assert_called_once_with(None)
+
+        self.assertSetEqual(
+            result.features,
+            set(features),
+        )
+
+        self.assertCountEqual(
+            [
+                (i.category, i.type_, i.lang, i.name)
+                for i in result.identities
+            ],
+            identities,
+        )
+
+    def test_as_info_xso_with_stanza(self):
+        n = disco_service.Node()
+
+        features = [
+            "http://jabber.org/protocol/disco#info",
+            unittest.mock.sentinel.f1,
+        ]
+
+        identities = [
+            ("cat1", "t1",
+             structs.LanguageTag.fromstr("lang-a"), "name11"),
+            ("cat1", "t1",
+             structs.LanguageTag.fromstr("lang-b"), "name12"),
+        ]
+
+        with contextlib.ExitStack() as stack:
+            iter_features = stack.enter_context(
+                unittest.mock.patch.object(n, "iter_features")
+            )
+            iter_features.return_value = iter(features)
+
+            iter_identities = stack.enter_context(
+                unittest.mock.patch.object(n, "iter_identities")
+            )
+            iter_identities.return_value = iter(identities)
+
+            iter_items = stack.enter_context(
+                unittest.mock.patch.object(n, "iter_items")
+            )
+
+            result = n.as_info_xso(unittest.mock.sentinel.stanza)
+
+        self.assertIsInstance(
+            result,
+            disco_xso.InfoQuery,
+        )
+
+        iter_items.assert_not_called()
+
+        iter_features.assert_called_once_with(unittest.mock.sentinel.stanza)
+        iter_identities.assert_called_once_with(unittest.mock.sentinel.stanza)
+
+        self.assertSetEqual(
+            result.features,
+            set(features),
+        )
+
+        self.assertCountEqual(
+            [
+                (i.category, i.type_, i.lang, i.name)
+                for i in result.identities
+            ],
+            identities,
+        )
+
 
 class TestStaticNode(unittest.TestCase):
     def setUp(self):

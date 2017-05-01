@@ -131,6 +131,8 @@ Version 0.9
 
 * :meth:`aioxmpp.disco.StaticNode.clone`
 
+* :meth:`aioxmpp.disco.Node.as_info_xso`
+
 .. _api-changelog-0.8:
 
 Version 0.8

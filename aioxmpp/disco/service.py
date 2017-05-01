@@ -61,6 +61,8 @@ class Node(object):
 
     .. automethod:: iter_identities
 
+    .. automethod:: as_info_xso
+
     To access items, use:
 
     .. automethod:: iter_items
@@ -252,6 +254,42 @@ class Node(object):
             raise ValueError("cannot remove last identity")
         del self._identities[key]
         self.on_info_changed()
+
+    def as_info_xso(self, stanza=None):
+        """
+        Construct a :class:`~.disco.xso.InfoQuery` response object for this
+        node.
+
+        :param stanza: The IQ request stanza
+        :type stanza: :class:`~aioxmpp.IQ`
+        :rtype: iterable of :class:`~.disco.xso.InfoQuery`
+        :return: The disco#info response for this node.
+
+        The resulting :class:`~.disco.xso.InfoQuery` carries the features and
+        identities as returned by :meth:`iter_features` and
+        :meth:`iter_identities`. The :attr:`~.disco.xso.InfoQuery.node`
+        attribute is at its default value and may need to be set by the caller
+        accordingly.
+
+        `stanza` is passed to :meth:`iter_features` and
+        :meth:`iter_identities`. See those methods for information on the
+        effects.
+
+        .. versionadded:: 0.9
+        """
+
+        result = disco_xso.InfoQuery()
+        result.features.update(self.iter_features(stanza))
+        result.identities[:] = (
+            disco_xso.Identity(
+                category=category,
+                type_=type_,
+                lang=lang,
+                name=name,
+            )
+            for category, type_, lang, name in self.iter_identities(stanza)
+        )
+        return result
 
 
 class StaticNode(Node):
