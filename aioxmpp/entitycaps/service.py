@@ -221,9 +221,9 @@ class EntityCapsService(aioxmpp.service.Service):
 
     .. signal:: on_ver_changed
 
-       The signal emits whenever the ``ver`` of the local client changes. This
-       happens when the set of features or identities announced in the
-       :class:`.DiscoServer` changes.
+       The signal emits whenever the Capability Hashset of the local client
+       changes. This happens when the set of features or identities announced
+       in the :class:`.DiscoServer` changes.
 
     .. autoattribute:: cache
 
@@ -440,6 +440,9 @@ class EntityCapsService(aioxmpp.service.Service):
         return presence
 
     def _push_hashset(self, node, hashset):
+        if self.__active_hashsets and hashset == self.__active_hashsets[-1]:
+            return False
+
         for group in hashset.values():
             for key in group:
                 if not self.__key_users[key.node]:
@@ -457,6 +460,8 @@ class EntityCapsService(aioxmpp.service.Service):
 
         del self.__active_hashsets[:-3]
 
+        return True
+
     def update_hash(self):
         node = disco.StaticNode.clone(self.disco_server)
         info = node.as_info_xso()
@@ -471,7 +476,8 @@ class EntityCapsService(aioxmpp.service.Service):
 
         self.logger.debug("new hashset=%r", new_hashset)
 
-        self._push_hashset(node, new_hashset)
+        if self._push_hashset(node, new_hashset):
+            self.on_ver_changed()
 
 
 def writeback(base_path, hash_, node, captured_events):

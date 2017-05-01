@@ -1124,8 +1124,10 @@ class TestService(unittest.TestCase):
                     "_push_hashset",
                 )
             )
+            push_hashset.return_value = True
 
-            self.s.update_hash()
+            with self.s.on_ver_changed.context_connect(base.cb):
+                self.s.update_hash()
 
         hash_query.assert_not_called()
 
@@ -1149,6 +1151,70 @@ class TestService(unittest.TestCase):
                 self.impl390: {base.key2, base.key3},
             }
         )
+
+        base.cb.assert_called_once_with()
+
+    def test_update_hash_does_not_emit_on_ver_changed_if_push_hashset_returns_false(self):  # NOQA
+        base = unittest.mock.Mock()
+
+        self.impl115.calculate_keys.return_value = iter([
+            base.key1,
+        ])
+
+        self.impl390.calculate_keys.return_value = iter([
+            base.key2,
+            base.key3,
+        ])
+
+        with contextlib.ExitStack() as stack:
+            hash_query = stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.entitycaps.caps115.hash_query"
+                )
+            )
+
+            clone = stack.enter_context(
+                unittest.mock.patch.object(
+                    disco.StaticNode,
+                    "clone",
+                )
+            )
+
+            push_hashset = stack.enter_context(
+                unittest.mock.patch.object(
+                    self.s,
+                    "_push_hashset",
+                )
+            )
+            push_hashset.return_value = False
+
+            with self.s.on_ver_changed.context_connect(base.cb):
+                self.s.update_hash()
+
+        hash_query.assert_not_called()
+
+        clone.assert_called_once_with(self.disco_server)
+        clone().as_info_xso.assert_called_once_with()
+
+        self.impl115.calculate_keys.assert_called_once_with(
+            clone().as_info_xso()
+        )
+
+        self.impl390.calculate_keys.assert_called_once_with(
+            clone().as_info_xso()
+        )
+
+        self.disco_server.mount_node.assert_not_called()
+
+        push_hashset.assert_called_once_with(
+            clone(),
+            {
+                self.impl115: {base.key1},
+                self.impl390: {base.key2, base.key3},
+            }
+        )
+
+        base.cb.assert_not_called()
 
     def test_update_hash_ignores_115_if_disabled(self):
         self.s.xep115_support = False
@@ -1602,6 +1668,107 @@ class TestService(unittest.TestCase):
             [
                 unittest.mock.call(base.key1.node),
                 unittest.mock.call(base.key5.node),
+            ],
+        )
+
+    def test__push_hashset_noop_and_returs_false_on_dup(self):
+        base = unittest.mock.Mock()
+
+        self.assertTrue(self.s._push_hashset(
+            unittest.mock.sentinel.node1,
+            {
+                unittest.mock.sentinel.impl1: {
+                    base.key1,
+                },
+                unittest.mock.sentinel.impl2: {
+                    base.key2,
+                    base.key3,
+                }
+            }
+        ))
+
+        self.assertTrue(self.s._push_hashset(
+            unittest.mock.sentinel.node2,
+            {
+                unittest.mock.sentinel.impl1: {
+                    base.key4,
+                },
+                unittest.mock.sentinel.impl2: {
+                    base.key5,
+                }
+            }
+        ))
+
+        self.assertTrue(self.s._push_hashset(
+            unittest.mock.sentinel.node3,
+            {
+                unittest.mock.sentinel.impl1: {
+                    base.key6,
+                },
+                unittest.mock.sentinel.impl2: {
+                    base.key7,
+                }
+            }
+        ))
+
+        self.assertTrue(self.s._push_hashset(
+            unittest.mock.sentinel.node4,
+            {
+                unittest.mock.sentinel.impl1: {
+                    base.key8,
+                },
+                unittest.mock.sentinel.impl2: {
+                    base.key9,
+                    base.key10,
+                }
+            }
+        ))
+
+        self.assertFalse(self.s._push_hashset(
+            unittest.mock.sentinel.node5,
+            {
+                unittest.mock.sentinel.impl1: {
+                    base.key8,
+                },
+                unittest.mock.sentinel.impl2: {
+                    base.key9,
+                    base.key10,
+                }
+            }
+        ))
+
+        self.assertCountEqual(
+            self.disco_server.mount_node.mock_calls,
+            [
+                unittest.mock.call(base.key1.node,
+                                   unittest.mock.sentinel.node1),
+                unittest.mock.call(base.key2.node,
+                                   unittest.mock.sentinel.node1),
+                unittest.mock.call(base.key3.node,
+                                   unittest.mock.sentinel.node1),
+                unittest.mock.call(base.key4.node,
+                                   unittest.mock.sentinel.node2),
+                unittest.mock.call(base.key5.node,
+                                   unittest.mock.sentinel.node2),
+                unittest.mock.call(base.key6.node,
+                                   unittest.mock.sentinel.node3),
+                unittest.mock.call(base.key7.node,
+                                   unittest.mock.sentinel.node3),
+                unittest.mock.call(base.key8.node,
+                                   unittest.mock.sentinel.node4),
+                unittest.mock.call(base.key9.node,
+                                   unittest.mock.sentinel.node4),
+                unittest.mock.call(base.key10.node,
+                                   unittest.mock.sentinel.node4),
+            ]
+        )
+
+        self.assertCountEqual(
+            self.disco_server.unmount_node.mock_calls,
+            [
+                unittest.mock.call(base.key1.node),
+                unittest.mock.call(base.key2.node),
+                unittest.mock.call(base.key3.node),
             ],
         )
 
