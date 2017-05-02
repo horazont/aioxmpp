@@ -794,6 +794,32 @@ class RegisteredFeature:
     :param feature: The feature to register.
     :type feature: :class:`str`
 
+    .. note::
+
+        Normally, you would not create an instance of this object manually.
+        Use the :class:`register_feature` descriptor on your
+        :class:`aioxmpp.Service` which will provide a
+        :class:`RegisteredFeature` object::
+
+            class Foo(aioxmpp.Service):
+                _some_feature = aioxmpp.disco.register_feature(
+                    "urn:of:the:feature"
+                )
+
+                # after __init__, self._some_feature is a RegisteredFeature
+                # instance.
+
+                @property
+                def some_feature_enabled(self):
+                    # better do not expose the enabled boolean directly; this
+                    # gives you the opportunity to do additional things when it
+                    # is changed, such as disabling multiple features at once.
+                    return self._some_feature.enabled
+
+                @some_feature_enabled.setter
+                def some_feature_enabled(self, value):
+                    self._some_feature.enabled = value
+
     .. versionadded:: 0.9
 
     This object can be used as a context manager. Upon entering the context,
