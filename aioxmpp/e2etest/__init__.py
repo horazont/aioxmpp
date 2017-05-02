@@ -324,7 +324,7 @@ def setup_package():
                 "this is not the aioxmpp test runner"
         return
 
-    timeout = config.get("global", "timeout", fallback=timeout)
+    timeout = config.getfloat("global", "timeout", fallback=timeout)
 
     provisioner_name = config.get("global", "provisioner")
     module_path, class_name = provisioner_name.rsplit(".", 1)
