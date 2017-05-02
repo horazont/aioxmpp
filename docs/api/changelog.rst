@@ -116,6 +116,23 @@ Version 0.9
 * Roster pushes are now accepted also if the :attr:`~.StanzaBase.from_` is the
   bare local JID instead of missing/empty (those are semantically equivalent).
 
+* :mod:`aioxmpp.hashes`
+
+* :class:`aioxmpp.disco.RegisteredFeature` and changes to
+  :class:`aioxmpp.disco.register_feature`. Effectively, attributes described by
+  :class:`~aioxmpp.disco.register_feature` now have an
+  :attr:`~aioxmpp.disco.RegisteredFeature.enabled` attribute which can be used
+  to temporarily or permanently disable the registration of the feature on a
+  service object.
+
+* **Breaking change:** Re-design of :class:`aioxmpp.entitycaps` to support
+  :xep:`390`. The interface of the :class:`aioxmpp.entitycaps.Cache` class has
+  been redesigned and some internal classes and functions have been renamed.
+
+* :meth:`aioxmpp.disco.StaticNode.clone`
+
+* :meth:`aioxmpp.disco.Node.as_info_xso`
+
 .. _api-changelog-0.8:
 
 Version 0.8

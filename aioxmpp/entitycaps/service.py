@@ -20,6 +20,7 @@
 #
 ########################################################################
 import asyncio
+import collections
 import copy
 import functools
 import logging
@@ -33,8 +34,9 @@ import aioxmpp.service
 import aioxmpp.xml
 import aioxmpp.xso
 
-from . import xso as my_xso
-from . import caps115
+from aioxmpp.utils import namespaces
+
+from . import caps115, caps390
 
 
 logger = logging.getLogger("aioxmpp.entitycaps")
@@ -206,8 +208,20 @@ class EntityCapsService(aioxmpp.service.Service):
        :meth:`on_ver_changed` signal and re-emit their current presence when it
        fires.
 
+       .. note::
+
+           Keeping peers up-to-date is a MUST in :xep:`390`.
+
        The service takes care of attaching capabilities information on the
        outgoing stanza, using a stanza filter.
+
+       .. warning::
+
+           :meth:`on_ver_changed` may be emitted at a considerable rate when
+           services are loaded or certain features (such as PEP-based services)
+           are configured. It is up to the application to limit the rate at
+           which presences are sent for the sole purpose of updating peers with
+           new capability information.
 
     2. Users should use a process-wide :class:`Cache` instance and assign it to
        the :attr:`cache` of each :class:`.entitycaps.Service` they use. This
@@ -219,17 +233,25 @@ class EntityCapsService(aioxmpp.service.Service):
 
     .. signal:: on_ver_changed
 
-       The signal emits whenever the ``ver`` of the local client changes. This
-       happens when the set of features or identities announced in the
-       :class:`.DiscoServer` changes.
+       The signal emits whenever the Capability Hashset of the local client
+       changes. This happens when the set of features or identities announced
+       in the :class:`.DiscoServer` changes.
 
     .. autoattribute:: cache
+
+    .. autoattribute:: xep115_support
+
+    .. autoattribute:: xep390_support
 
     .. versionchanged:: 0.8
 
        This class was formerly known as :class:`aioxmpp.entitycaps.Service`. It
        is still available under that name, but the alias will be removed in
        1.0.
+
+    .. versionchanged:: 0.9
+
+        Support for :xep:`390` was added.
 
     """
 
@@ -242,19 +264,75 @@ class EntityCapsService(aioxmpp.service.Service):
 
     on_ver_changed = aioxmpp.callbacks.Signal()
 
+    _xep115_feature = disco.register_feature(namespaces.xep0115_caps)
+    _xep390_feature = disco.register_feature(namespaces.xep0390_caps)
+
     def __init__(self, node, **kwargs):
         super().__init__(node, **kwargs)
 
-        self.__current_keys = None
+        self.__current_keys = {}
         self._cache = Cache()
 
         self.disco_server = self.dependencies[disco.DiscoServer]
         self.disco_client = self.dependencies[disco.DiscoClient]
-        self.disco_server.register_feature(
-            "http://jabber.org/protocol/caps"
-        )
 
         self.__115 = caps115.Implementation(self.NODE)
+        self.__390 = caps390.Implementation(
+            aioxmpp.hashes.default_hash_algorithms
+        )
+
+        self.__active_hashsets = []
+        self.__key_users = collections.Counter()
+
+    @property
+    def xep115_support(self):
+        """
+        Boolean to control whether :xep:`115` support is enabled or not.
+
+        Defaults to :data:`True`.
+
+        If set to false, inbound :xep:`115` capabilities will not be processed
+        and no :xep:`115` capabilities will be emitted.
+
+        .. note::
+
+            At some point, this will default to :data:`False` to save
+            bandwidth. The exact release depends on the adoption of :xep:`390`
+            and will be announced in time. If you depend on :xep:`115` support,
+            set this boolean to :data:`True`.
+
+            The attribute itself will not be removed until :xep:`115` support
+            is removed from :mod:`aioxmpp` entirely, which is unlikely to
+            happen any time soon.
+
+        .. versionadded:: 0.9
+        """
+
+        return self._xep115_feature.enabled
+
+    @xep115_support.setter
+    def xep115_support(self, value):
+        self._xep115_feature.enabled = value
+
+    @property
+    def xep390_support(self):
+        """
+        Boolean to control whether :xep:`390` support is enabled or not.
+
+        Defaults to :data:`True`.
+
+        If set to false, inbound :xep:`390` Capability Hash Sets will not be
+        processed and no Capability Hash Sets or Capability Nodes will be
+        generated.
+
+        The hash algortihms used for generating Capability Hash Sets are those
+        from :data:`aioxmpp.hashes.default_hash_algorithms`.
+        """
+        return self._xep390_feature.enabled
+
+    @xep390_support.setter
+    def xep390_support(self, value):
+        self._xep390_feature.enabled = value
 
     @property
     def cache(self):
@@ -286,11 +364,8 @@ class EntityCapsService(aioxmpp.service.Service):
 
     @asyncio.coroutine
     def _shutdown(self):
-        self.disco_server.unregister_feature(
-            "http://jabber.org/protocol/caps"
-        )
-        if self.__current_keys:
-            for key in self.__current_keys:
+        for group in self.__current_keys.values():
+            for key in group:
                 self.disco_server.unmount_node(key.node)
 
     @asyncio.coroutine
@@ -334,50 +409,86 @@ class EntityCapsService(aioxmpp.service.Service):
 
     @aioxmpp.service.outbound_presence_filter
     def handle_outbound_presence(self, presence):
-        if (presence.type_ == aioxmpp.structs.PresenceType.AVAILABLE and
-                self.__current_keys):
-            self.logger.debug("injecting capabilities into outbound presence")
-            self.__115.put_keys(self.__current_keys, presence)
+        if (presence.type_ == aioxmpp.structs.PresenceType.AVAILABLE
+                and self.__active_hashsets):
+            current_hashset = self.__active_hashsets[-1]
+
+            try:
+                keys = current_hashset[self.__115]
+            except KeyError:
+                pass
+            else:
+                self.__115.put_keys(keys, presence)
+
+            try:
+                keys = current_hashset[self.__390]
+            except KeyError:
+                pass
+            else:
+                self.__390.put_keys(keys, presence)
 
         return presence
 
     @aioxmpp.service.inbound_presence_filter
     def handle_inbound_presence(self, presence):
-        keys = list(self.__115.extract_keys(presence))
-        lookup_task = asyncio.async(
-            self.lookup_info(presence.from_, keys)
-        )
-        self.disco_client.set_info_future(presence.from_, None, lookup_task)
+        keys = []
+
+        if self.xep390_support:
+            keys.extend(self.__390.extract_keys(presence))
+
+        if self.xep115_support:
+            keys.extend(self.__115.extract_keys(presence))
+
+        if keys:
+            lookup_task = asyncio.async(
+                self.lookup_info(presence.from_, keys)
+            )
+            self.disco_client.set_info_future(
+                presence.from_,
+                None,
+                lookup_task
+            )
 
         return presence
 
+    def _push_hashset(self, node, hashset):
+        if self.__active_hashsets and hashset == self.__active_hashsets[-1]:
+            return False
+
+        for group in hashset.values():
+            for key in group:
+                if not self.__key_users[key.node]:
+                    self.disco_server.mount_node(key.node, node)
+                self.__key_users[key.node] += 1
+        self.__active_hashsets.append(hashset)
+
+        for expired in self.__active_hashsets[:-3]:
+            for group in expired.values():
+                for key in group:
+                    self.__key_users[key.node] -= 1
+                    if not self.__key_users[key.node]:
+                        self.disco_server.unmount_node(key.node)
+                        del self.__key_users[key.node]
+
+        del self.__active_hashsets[:-3]
+
+        return True
+
     def update_hash(self):
-        identities = []
-        for category, type_, lang, name in self.disco_server.iter_identities():
-            identity = disco.xso.Identity(category=category,
-                                          type_=type_)
-            if lang is not None:
-                identity.lang = lang
-            if name is not None:
-                identity.name = name
-            identities.append(identity)
+        node = disco.StaticNode.clone(self.disco_server)
+        info = node.as_info_xso()
 
-        info = disco.xso.InfoQuery(
-            identities=identities,
-            features=self.disco_server.iter_features(),
-        )
+        new_hashset = {}
 
-        current_keys = frozenset(self.__115.calculate_keys(info))
+        if self.xep115_support:
+            new_hashset[self.__115] = set(self.__115.calculate_keys(info))
 
-        self.logger.debug("new keys=%r", current_keys)
+        if self.xep390_support:
+            new_hashset[self.__390] = set(self.__390.calculate_keys(info))
 
-        if self.__current_keys != current_keys:
-            if self.__current_keys:
-                for key in self.__current_keys:
-                    self.disco_server.unmount_node(key.node)
-            self.__current_keys = current_keys
-            for key in current_keys:
-                self.disco_server.mount_node(key.node, self.disco_server)
+        self.logger.debug("new hashset=%r", new_hashset)
+
+        if self._push_hashset(node, new_hashset):
             self.on_ver_changed()
 
 

@@ -110,6 +110,8 @@ From XMPP Extension Proposals (XEPs)
 * :xep:`203` (Delayed Delivery), see :mod:`aioxmpp.misc`
 * :xep:`297` (Stanza Forwarding), see :mod:`aioxmpp.misc`
 * :xep:`280` (Message Carbons), see :mod:`aioxmpp.carbons`
+* :xep:`300` (Use of Cryptographic Hash Functions in XMPP),
+  see :mod:`aioxmpp.hashes`
 * :xep:`368` (SRV records for XMPP over TLS)
 
 

@@ -20,6 +20,7 @@
 #
 ########################################################################
 import asyncio
+import contextlib
 import unittest
 import sys
 
@@ -382,6 +383,120 @@ class TestNode(unittest.TestCase):
             []
         )
 
+    def test_as_info_xso(self):
+        n = disco_service.Node()
+
+        features = [
+            "http://jabber.org/protocol/disco#info",
+            unittest.mock.sentinel.f1,
+            unittest.mock.sentinel.f2,
+            unittest.mock.sentinel.f3,
+        ]
+
+        identities = [
+            ("cat1", "t1",
+             structs.LanguageTag.fromstr("lang-a"), "name11"),
+            ("cat1", "t1",
+             structs.LanguageTag.fromstr("lang-b"), "name12"),
+            ("cat2", "t2", None, "name2"),
+            ("cat3", "t3", None, None),
+        ]
+
+        with contextlib.ExitStack() as stack:
+            iter_features = stack.enter_context(
+                unittest.mock.patch.object(n, "iter_features")
+            )
+            iter_features.return_value = iter(features)
+
+            iter_identities = stack.enter_context(
+                unittest.mock.patch.object(n, "iter_identities")
+            )
+            iter_identities.return_value = iter(identities)
+
+            iter_items = stack.enter_context(
+                unittest.mock.patch.object(n, "iter_items")
+            )
+
+            result = n.as_info_xso()
+
+        self.assertIsInstance(
+            result,
+            disco_xso.InfoQuery,
+        )
+
+        iter_items.assert_not_called()
+
+        iter_features.assert_called_once_with(None)
+        iter_identities.assert_called_once_with(None)
+
+        self.assertSetEqual(
+            result.features,
+            set(features),
+        )
+
+        self.assertCountEqual(
+            [
+                (i.category, i.type_, i.lang, i.name)
+                for i in result.identities
+            ],
+            identities,
+        )
+
+    def test_as_info_xso_with_stanza(self):
+        n = disco_service.Node()
+
+        features = [
+            "http://jabber.org/protocol/disco#info",
+            unittest.mock.sentinel.f1,
+        ]
+
+        identities = [
+            ("cat1", "t1",
+             structs.LanguageTag.fromstr("lang-a"), "name11"),
+            ("cat1", "t1",
+             structs.LanguageTag.fromstr("lang-b"), "name12"),
+        ]
+
+        with contextlib.ExitStack() as stack:
+            iter_features = stack.enter_context(
+                unittest.mock.patch.object(n, "iter_features")
+            )
+            iter_features.return_value = iter(features)
+
+            iter_identities = stack.enter_context(
+                unittest.mock.patch.object(n, "iter_identities")
+            )
+            iter_identities.return_value = iter(identities)
+
+            iter_items = stack.enter_context(
+                unittest.mock.patch.object(n, "iter_items")
+            )
+
+            result = n.as_info_xso(unittest.mock.sentinel.stanza)
+
+        self.assertIsInstance(
+            result,
+            disco_xso.InfoQuery,
+        )
+
+        iter_items.assert_not_called()
+
+        iter_features.assert_called_once_with(unittest.mock.sentinel.stanza)
+        iter_identities.assert_called_once_with(unittest.mock.sentinel.stanza)
+
+        self.assertSetEqual(
+            result.features,
+            set(features),
+        )
+
+        self.assertCountEqual(
+            [
+                (i.category, i.type_, i.lang, i.name)
+                for i in result.identities
+            ],
+            identities,
+        )
+
 
 class TestStaticNode(unittest.TestCase):
     def setUp(self):
@@ -408,6 +523,63 @@ class TestStaticNode(unittest.TestCase):
         self.assertSequenceEqual(
             list(self.n.iter_items()),
             []
+        )
+
+    def test_clone(self):
+        other_node = unittest.mock.Mock([
+            "iter_features",
+            "iter_identities",
+            "iter_items",
+        ])
+
+        features = [
+            "http://jabber.org/protocol/disco#info",
+            unittest.mock.sentinel.f1,
+            unittest.mock.sentinel.f2,
+            unittest.mock.sentinel.f3,
+        ]
+
+        identities = [
+            (unittest.mock.sentinel.cat1, unittest.mock.sentinel.t1,
+             unittest.mock.sentinel.lang11, unittest.mock.sentinel.name11),
+            (unittest.mock.sentinel.cat1, unittest.mock.sentinel.t1,
+             unittest.mock.sentinel.lang12, unittest.mock.sentinel.name12),
+            (unittest.mock.sentinel.cat2, unittest.mock.sentinel.t2,
+             None, unittest.mock.sentinel.name2),
+            (unittest.mock.sentinel.cat3, unittest.mock.sentinel.t3,
+             None, None),
+        ]
+
+        items = [
+            unittest.mock.sentinel.item1,
+            unittest.mock.sentinel.item2,
+        ]
+
+        other_node.iter_features.return_value = iter(features)
+        other_node.iter_identities.return_value = iter(identities)
+        other_node.iter_items.return_value = iter(items)
+
+        n = disco_service.StaticNode.clone(other_node)
+
+        self.assertIsInstance(n, disco_service.StaticNode)
+
+        other_node.iter_features.assert_called_once_with()
+        other_node.iter_identities.assert_called_once_with()
+        other_node.iter_items.assert_called_once_with()
+
+        self.assertCountEqual(
+            features,
+            list(n.iter_features()),
+        )
+
+        self.assertCountEqual(
+            identities,
+            list(n.iter_identities()),
+        )
+
+        self.assertCountEqual(
+            items,
+            list(n.iter_items()),
         )
 
 
@@ -731,25 +903,36 @@ class TestDiscoServer(unittest.TestCase):
 
     def test_info_query_forwards_stanza(self):
         node = unittest.mock.Mock()
-        node.iter_features.return_value = iter([])
-        node.iter_identities.return_value = iter([
-            ("automation", "command-list", None, None)
-        ])
 
         self.s.mount_node("foo", node)
-
         self.request_iq.payload.node = "foo"
-        run_coroutine(
+
+        result = run_coroutine(
             self.s.handle_info_request(self.request_iq)
         )
 
-        node.iter_features.assert_called_once_with(
+        node.as_info_xso.assert_called_once_with(
             self.request_iq
         )
 
-        node.iter_identities.assert_called_once_with(
+        self.assertEqual(result, node.as_info_xso())
+
+    def test_info_query_sets_node(self):
+        node = unittest.mock.Mock()
+
+        self.s.mount_node("foo", node)
+        self.request_iq.payload.node = "foo"
+
+        result = run_coroutine(
+            self.s.handle_info_request(self.request_iq)
+        )
+
+        node.as_info_xso.assert_called_once_with(
             self.request_iq
         )
+
+        self.assertEqual(result.node, "foo")
+        self.assertEqual(result, node.as_info_xso())
 
 
 class TestDiscoClient(unittest.TestCase):
@@ -1520,6 +1703,151 @@ class Testmount_as_node(unittest.TestCase):
         )
 
 
+
+class TestRegisteredFeature(unittest.TestCase):
+    def setUp(self):
+        self.s = unittest.mock.Mock()
+        self.rf = disco_service.RegisteredFeature(
+            self.s,
+            unittest.mock.sentinel.feature,
+        )
+
+    def test_contextmanager(self):
+        self.s.register_feature.assert_not_called()
+        result = self.rf.__enter__()
+        self.assertIs(result, self.rf)
+        self.s.register_feature.assert_called_once_with(
+            unittest.mock.sentinel.feature,
+        )
+        self.s.unregister_feature.assert_not_called()
+        result = self.rf.__exit__(None, None, None)
+        self.assertFalse(result)
+        self.s.unregister_feature.assert_called_once_with(
+            unittest.mock.sentinel.feature,
+        )
+
+    def test_contextmanager_is_exception_safe(self):
+        class FooException(Exception):
+            pass
+
+        self.s.register_feature.assert_not_called()
+        with self.assertRaises(FooException):
+            with self.rf:
+                self.s.register_feature.assert_called_once_with(
+                    unittest.mock.sentinel.feature,
+                )
+                self.s.unregister_feature.assert_not_called()
+
+                raise FooException()
+
+        self.s.unregister_feature.assert_called_once_with(
+            unittest.mock.sentinel.feature,
+        )
+
+    def test_feature(self):
+        self.assertEqual(
+            self.rf.feature,
+            unittest.mock.sentinel.feature,
+        )
+
+    def test_feature_is_not_writable(self):
+        with self.assertRaises(AttributeError):
+            self.rf.feature = self.rf.feature
+
+    def test_enabled(self):
+        self.assertFalse(self.rf.enabled)
+
+    def test_enabled_changes_with_cm_use(self):
+        with self.rf:
+            self.assertTrue(self.rf.enabled)
+        self.assertFalse(self.rf.enabled)
+
+    def test_setting_enabled_registers_feature(self):
+        self.assertFalse(self.rf.enabled)
+        self.s.register_feature.assert_not_called()
+        self.rf.enabled = True
+        self.assertTrue(self.rf.enabled)
+        self.s.register_feature.assert_called_once_with(
+            unittest.mock.sentinel.feature,
+        )
+
+    def test_setting_enabled_is_idempotent(self):
+        self.assertFalse(self.rf.enabled)
+        self.s.register_feature.assert_not_called()
+        self.rf.enabled = True
+        self.assertTrue(self.rf.enabled)
+        self.s.register_feature.assert_called_once_with(
+            unittest.mock.sentinel.feature,
+        )
+
+        self.rf.enabled = True
+        self.assertTrue(self.rf.enabled)
+        self.s.register_feature.assert_called_once_with(
+            unittest.mock.sentinel.feature,
+        )
+
+    def test_clearing_enabled_unregisters_feature(self):
+        self.assertFalse(self.rf.enabled)
+        self.s.register_feature.assert_not_called()
+        self.rf.enabled = True
+        self.s.register_feature.assert_called_once_with(
+            unittest.mock.sentinel.feature,
+        )
+        self.s.unregister_feature.assert_not_called()
+
+        self.rf.enabled = False
+
+        self.s.unregister_feature.assert_called_once_with(
+            unittest.mock.sentinel.feature,
+        )
+
+    def test_clearing_enabled_is_idempotent(self):
+        self.assertFalse(self.rf.enabled)
+        self.s.register_feature.assert_not_called()
+        self.rf.enabled = True
+        self.s.register_feature.assert_called_once_with(
+            unittest.mock.sentinel.feature,
+        )
+        self.s.unregister_feature.assert_not_called()
+
+        self.rf.enabled = False
+        self.assertFalse(self.rf.enabled)
+
+        self.s.unregister_feature.assert_called_once_with(
+            unittest.mock.sentinel.feature,
+        )
+
+        self.rf.enabled = False
+
+        self.s.unregister_feature.assert_called_once_with(
+            unittest.mock.sentinel.feature,
+        )
+
+    def test_clearing_enabled_while_in_cm_does_not_duplicate_unregister(self):
+        with self.rf:
+            self.rf.enabled = False
+
+            self.s.unregister_feature.assert_called_once_with(
+                unittest.mock.sentinel.feature,
+            )
+
+        self.s.unregister_feature.assert_called_once_with(
+            unittest.mock.sentinel.feature,
+        )
+
+    def test_setting_enabled_before_entering_cm_does_not_duplicate_register(self):  # NOQA
+        self.rf.enabled = True
+
+        self.s.register_feature.assert_called_once_with(
+            unittest.mock.sentinel.feature,
+        )
+
+        with self.rf:
+            self.s.register_feature.assert_called_once_with(
+                unittest.mock.sentinel.feature,
+            )
+
+
 class Testregister_feature(unittest.TestCase):
     def setUp(self):
         self.pn = disco_service.register_feature(
@@ -1547,6 +1875,21 @@ class Testregister_feature(unittest.TestCase):
             set(self.pn.required_dependencies),
             {disco_service.DiscoServer},
         )
+
+    def test_init_cm_creates_RegisteredFeature(self):
+        with contextlib.ExitStack() as stack:
+            RegisteredFeature = stack.enter_context(
+                unittest.mock.patch("aioxmpp.disco.service.RegisteredFeature")
+            )
+
+            result = self.pn.init_cm(self.instance)
+
+        RegisteredFeature.assert_called_once_with(
+            self.disco_server,
+            unittest.mock.sentinel.feature,
+        )
+
+        self.assertEqual(result, RegisteredFeature())
 
     def test_contextmanager(self):
         cm = self.pn.init_cm(self.instance)
