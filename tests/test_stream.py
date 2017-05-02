@@ -4105,18 +4105,18 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
             self.stream.sm_resumable
 
     def test_sm_ping_automatic(self):
-        self.stream.ping_interval = timedelta(seconds=0.01)
-        self.stream.ping_opportunistic_interval = timedelta(seconds=0.01)
+        self.stream.ping_interval = timedelta(seconds=0.02)
+        self.stream.ping_opportunistic_interval = timedelta(seconds=0.02)
         self.stream.start(self.xmlstream)
         run_coroutine_with_peer(
             self.stream.start_sm(),
             self.xmlstream.run_test(self.successful_sm)
         )
 
-        run_coroutine(asyncio.sleep(0.005))
+        run_coroutine(asyncio.sleep(0.01))
         # the next would raise if anything had been sent before
         run_coroutine(self.xmlstream.run_test([]))
-        run_coroutine(asyncio.sleep(0.009))
+        run_coroutine(asyncio.sleep(0.015))
 
         run_coroutine(self.xmlstream.run_test([
             XMLStreamMock.Send(nonza.SMRequest())
