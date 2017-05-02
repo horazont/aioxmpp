@@ -22,7 +22,6 @@
 import asyncio
 import contextlib
 import io
-import itertools
 import unittest
 import unittest.mock
 import urllib.parse
@@ -868,6 +867,7 @@ class TestService(unittest.TestCase):
     def test_query_and_cache_checks_hash(self):
         self.maxDiff = None
 
+        ver = TEST_DB_ENTRY_VER
         response = TEST_DB_ENTRY
 
         base = unittest.mock.Mock()
@@ -1772,7 +1772,7 @@ class TestService(unittest.TestCase):
             ],
         )
 
-    def test__info_changed_calls_update_hash_later(self):
+    def test__info_changed_calls_update_hash_soon(self):
         with contextlib.ExitStack() as stack:
             get_event_loop = stack.enter_context(unittest.mock.patch(
                 "asyncio.get_event_loop"
@@ -1781,33 +1781,8 @@ class TestService(unittest.TestCase):
             self.s._info_changed()
 
         get_event_loop.assert_called_with()
-        get_event_loop().call_later.assert_called_once_with(
-            0.1,
-            self.s.update_hash,
-        )
-
-    def test__info_changed_cancels_previous_delayed_if_it_exists(self):
-        delayed = unittest.mock.Mock()
-
-        def generate_results():
-            for i in itertools.count():
-                yield getattr(delayed, "i{}".format(i))
-
-        with contextlib.ExitStack() as stack:
-            get_event_loop = stack.enter_context(unittest.mock.patch(
-                "asyncio.get_event_loop"
-            ))
-            get_event_loop().call_later.side_effect = generate_results()
-
-            self.s._info_changed()
-
-            self.s._info_changed()
-
-        delayed.i0.cancel.assert_called_once_with()
-
-        get_event_loop().call_later.assert_called_with(
-            0.1,
-            self.s.update_hash,
+        get_event_loop().call_soon.assert_called_with(
+            self.s.update_hash
         )
 
     def test_handle_outbound_presence_inserts_keys(self):

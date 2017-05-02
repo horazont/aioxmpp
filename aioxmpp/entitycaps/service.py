@@ -272,8 +272,6 @@ class EntityCapsService(aioxmpp.service.Service):
         self.__active_hashsets = []
         self.__key_users = collections.Counter()
 
-        self.__delayed_update_hash = None
-
     @property
     def xep115_support(self):
         """
@@ -348,14 +346,8 @@ class EntityCapsService(aioxmpp.service.Service):
         "on_info_changed")
     def _info_changed(self):
         self.logger.debug("info changed, scheduling re-calculation of version")
-
-        if self.__delayed_update_hash is not None:
-            self.__delayed_update_hash.cancel()
-
-        loop = asyncio.get_event_loop()
-        self.__delayed_update_hash = loop.call_later(
-            0.1,
-            self.update_hash,
+        asyncio.get_event_loop().call_soon(
+            self.update_hash
         )
 
     @asyncio.coroutine
