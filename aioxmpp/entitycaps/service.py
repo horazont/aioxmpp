@@ -208,8 +208,20 @@ class EntityCapsService(aioxmpp.service.Service):
        :meth:`on_ver_changed` signal and re-emit their current presence when it
        fires.
 
+       .. note::
+
+           Keeping peers up-to-date is a MUST in :xep:`390`.
+
        The service takes care of attaching capabilities information on the
        outgoing stanza, using a stanza filter.
+
+       .. warning::
+
+           :meth:`on_ver_changed` may be emitted at a considerable rate when
+           services are loaded or certain features (such as PEP-based services)
+           are configured. It is up to the application to limit the rate at
+           which presences are sent for the sole purpose of updating peers with
+           new capability information.
 
     2. Users should use a process-wide :class:`Cache` instance and assign it to
        the :attr:`cache` of each :class:`.entitycaps.Service` they use. This
