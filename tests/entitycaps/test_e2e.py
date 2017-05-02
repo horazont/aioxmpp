@@ -22,6 +22,8 @@
 import asyncio
 
 import aioxmpp.stream
+import aioxmpp.entitycaps as caps
+import aioxmpp.disco as disco
 
 from aioxmpp.e2etest import (
     blocking_timed,
@@ -81,10 +83,6 @@ class TestEntityCapabilities(TestCase):
         self.assertIsNotNone(
             presence.xep0115_caps,
         )
-        self.assertEqual(
-            presence.xep0115_caps.ver,
-            caps_server.ver,
-        )
 
         info = yield from disco_client.query_info(
             self.source.local_jid,
@@ -97,3 +95,77 @@ class TestEntityCapabilities(TestCase):
             info.features,
             set(disco_server.iter_features()),
         )
+
+    @blocking_timed
+    @asyncio.coroutine
+    def test_caps_are_processed_when_received(self):
+        info = disco.xso.InfoQuery()
+        info.features.add("http://feature.test/feature")
+        info.features.add("http://feature.test/another-feature")
+
+        info_hash = caps.caps115.hash_query(info, "sha1")
+
+        disco_called = asyncio.Future()
+        disco_called_again = False
+
+        @asyncio.coroutine
+        def fake_disco_handler(iq):
+            nonlocal disco_called_again
+            if not disco_called.done():
+                disco_called.set_result(iq)
+            else:
+                disco_called_again = True
+            return info
+
+        self.source, self.sink = yield from asyncio.gather(
+            self.provisioner.get_connected_client(
+                services=[
+                    aioxmpp.PresenceServer,
+                ]
+            ),
+            self.provisioner.get_connected_client(
+                services=[
+                    aioxmpp.EntityCapsService,
+                    aioxmpp.PresenceServer,
+                    aioxmpp.PresenceClient,
+                ]
+            )
+        )
+
+        self.source.stream.register_iq_request_coro(
+            aioxmpp.IQType.GET,
+            disco.xso.InfoQuery,
+            fake_disco_handler,
+        )
+
+        presence = aioxmpp.Presence(
+            type_=aioxmpp.PresenceType.AVAILABLE,
+            to=self.sink.local_jid,
+        )
+        presence.xep0115_caps = caps.xso.Caps115(
+            "http://test",
+            info_hash,
+            "sha-1",
+        )
+
+        yield from self.source.stream.send(presence)
+
+        info_request = (yield from disco_called).payload
+        self.assertEqual(
+            info_request.node,
+            "http://test#{}".format(info_hash)
+        )
+
+        disco_client = self.sink.summon(aioxmpp.DiscoClient)
+        info1 = yield from disco_client.query_info(
+            self.source.local_jid,
+            node="http://test#{}".format(info_hash),
+        )
+        self.assertEqual(info1.features, info.features)
+
+        info2 = yield from disco_client.query_info(
+            self.source.local_jid,
+        )
+        self.assertEqual(info2.features, info.features)
+
+        self.assertFalse(disco_called_again)
