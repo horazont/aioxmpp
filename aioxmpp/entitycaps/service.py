@@ -231,22 +231,6 @@ class EntityCapsService(aioxmpp.service.Service):
 
     .. autoattribute:: xep390_support
 
-    .. attribute:: update_delay
-        :annotation: = 0.1
-
-        Number of seconds (can be a float) by which the update of the
-        Capability Hash Set is delayed.
-
-        This is used to rate-limit the generation of caps-related presences. It
-        can be set to 0 ot effectively remove that rate-limit if rate-limiting
-        is applied elsewhere, but using a rate-limit is encouraged.
-
-        The Capability Hash Set is updated `update_delay` seconds after the
-        most recent change to the features/identities set on the
-        :class:`aioxmpp.DiscoServer`. That means if you those are changed in
-        intervals of ``0.9*update_delay``, the Capability Hash Set is never
-        updated.
-
     .. versionchanged:: 0.8
 
        This class was formerly known as :class:`aioxmpp.entitycaps.Service`. It
@@ -272,13 +256,6 @@ class EntityCapsService(aioxmpp.service.Service):
     _xep390_feature = disco.register_feature(namespaces.xep0390_caps)
 
     def __init__(self, node, **kwargs):
-        # this **must** be set before calling the inherited __init__, because
-        # that will trigger a call to _info_changed (due to our registration
-        # of features)
-        # the initial update shall happen quickly
-        self.__delayed_update_hash = None
-        self.update_delay = 0.01
-
         super().__init__(node, **kwargs)
 
         self.__current_keys = {}
@@ -295,7 +272,7 @@ class EntityCapsService(aioxmpp.service.Service):
         self.__active_hashsets = []
         self.__key_users = collections.Counter()
 
-        self.update_delay = 0.1
+        self.__delayed_update_hash = None
 
     @property
     def xep115_support(self):
@@ -377,7 +354,7 @@ class EntityCapsService(aioxmpp.service.Service):
 
         loop = asyncio.get_event_loop()
         self.__delayed_update_hash = loop.call_later(
-            self.update_delay,
+            0.1,
             self.update_hash,
         )
 

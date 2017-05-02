@@ -133,13 +133,6 @@ class TestAvatar(TestCase):
                 ]
             ),
         )
-        self.client.summon(aioxmpp.EntityCapsService).update_delay = 0
-
-        # wait for EntityCapsService to update
-        yield from asyncio.sleep(0.11)
-
-        # and force re-send of presence
-        self.client.summon(aioxmpp.PresenceServer).resend_presence()
 
     @blocking_timed
     @asyncio.coroutine

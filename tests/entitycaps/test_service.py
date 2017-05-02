@@ -1772,15 +1772,7 @@ class TestService(unittest.TestCase):
             ],
         )
 
-    def test_update_delay(self):
-        self.assertEqual(
-            self.s.update_delay,
-            0.1,
-        )
-
     def test__info_changed_calls_update_hash_later(self):
-        self.s.update_delay = unittest.mock.sentinel.update_delay
-
         with contextlib.ExitStack() as stack:
             get_event_loop = stack.enter_context(unittest.mock.patch(
                 "asyncio.get_event_loop"
@@ -1790,7 +1782,7 @@ class TestService(unittest.TestCase):
 
         get_event_loop.assert_called_with()
         get_event_loop().call_later.assert_called_once_with(
-            unittest.mock.sentinel.update_delay,
+            0.1,
             self.s.update_hash,
         )
 
