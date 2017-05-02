@@ -1,5 +1,5 @@
 ########################################################################
-# File name: xep0199.py
+# File name: __init__.py
 # This file is part of: aioxmpp
 #
 # LICENSE
@@ -20,21 +20,22 @@
 #
 ########################################################################
 """
-XEP-0199: XMPP Ping support
-###########################
+:mod:`~aioxmpp.ping` --- XMPP Ping (:xep:`199`)
+###############################################
+
+XMPP Ping is a ping on the XMPP protocol level. It can be used to detect
+connection liveness (although :class:`aioxmpp.stream.StanzaStream` and thus
+:class:`aioxmpp.Client` does that for you) and connectivity/availablility of
+remote domains.
+
+XSOs
+====
+
+Sometimes it is useful to send a ping manually instead of relying on the
+:class:`Service`. For this, the :class:`Ping` IQ payload can be used.
+
+.. autoclass:: Ping()
+
 """
 
-import aioxmpp.stanza
-import aioxmpp.xso as xso
-
-from aioxmpp.utils import namespaces
-
-namespaces.xep0199_ping = "urn:xmpp:ping"
-
-
-@aioxmpp.stanza.IQ.as_payload_class
-class Ping(xso.XSO):
-    TAG = (namespaces.xep0199_ping, "ping")
-    DECLARE_NS = {
-        None: namespaces.xep0199_ping
-    }
+from .xso import Ping
