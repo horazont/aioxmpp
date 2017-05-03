@@ -408,6 +408,8 @@ class RosterClient(aioxmpp.service.Service):
             self._request_initial_roster
         )
 
+        self.__roster_lock = asyncio.Lock()
+
         self.items = {}
         self.groups = {}
         self.version = None
@@ -477,19 +479,20 @@ class RosterClient(aioxmpp.service.Service):
 
         request = iq.payload
 
-        for item in request.items:
-            if item.subscription == "remove":
-                try:
-                    old_item = self.items.pop(item.jid)
-                except KeyError:
-                    pass
+        with (yield from self.__roster_lock):
+            for item in request.items:
+                if item.subscription == "remove":
+                    try:
+                        old_item = self.items.pop(item.jid)
+                    except KeyError:
+                        pass
+                    else:
+                        self._remove_from_groups(old_item, old_item.groups)
+                        self.on_entry_removed(old_item)
                 else:
-                    self._remove_from_groups(old_item, old_item.groups)
-                    self.on_entry_removed(old_item)
-            else:
-                self._update_entry(item)
+                    self._update_entry(item)
 
-        self.version = request.ver
+            self.version = request.ver
 
     @aioxmpp.dispatcher.presence_handler(
         aioxmpp.structs.PresenceType.SUBSCRIBE,
@@ -531,43 +534,44 @@ class RosterClient(aioxmpp.service.Service):
         iq = stanza.IQ(type_=structs.IQType.GET)
         iq.payload = roster_xso.Query()
 
-        logger.debug("requesting initial roster")
-        if self.client.stream_features.has_feature(
-                roster_xso.RosterVersioningFeature):
-            logger.debug("requesting incremental updates (old ver = %s)",
-                         self.version)
-            iq.payload.ver = self.version
+        with (yield from self.__roster_lock):
+            logger.debug("requesting initial roster")
+            if self.client.stream_features.has_feature(
+                    roster_xso.RosterVersioningFeature):
+                logger.debug("requesting incremental updates (old ver = %s)",
+                             self.version)
+                iq.payload.ver = self.version
 
-        response = yield from self.client.stream.send(
-            iq,
-            timeout=self.client.negotiation_timeout.total_seconds()
-        )
+            response = yield from self.client.stream.send(
+                iq,
+                timeout=self.client.negotiation_timeout.total_seconds()
+            )
 
-        if response is None:
-            logger.debug("roster will be updated incrementally")
+            if response is None:
+                logger.debug("roster will be updated incrementally")
+                self.on_initial_roster_received()
+                return True
+
+            self.version = response.ver
+            logger.debug("roster update received (new ver = %s)", self.version)
+
+            actual_jids = {item.jid for item in response.items}
+            known_jids = set(self.items.keys())
+
+            removed_jids = known_jids - actual_jids
+            logger.debug("jids dropped: %r", removed_jids)
+
+            for removed_jid in removed_jids:
+                old_item = self.items.pop(removed_jid)
+                self._remove_from_groups(old_item, old_item.groups)
+                self.on_entry_removed(old_item)
+
+            logger.debug("jids updated: %r", actual_jids - removed_jids)
+            for item in response.items:
+                self._update_entry(item)
+
             self.on_initial_roster_received()
             return True
-
-        self.version = response.ver
-        logger.debug("roster update received (new ver = %s)", self.version)
-
-        actual_jids = {item.jid for item in response.items}
-        known_jids = set(self.items.keys())
-
-        removed_jids = known_jids - actual_jids
-        logger.debug("jids dropped: %r", removed_jids)
-
-        for removed_jid in removed_jids:
-            old_item = self.items.pop(removed_jid)
-            self._remove_from_groups(old_item, old_item.groups)
-            self.on_entry_removed(old_item)
-
-        logger.debug("jids updated: %r", actual_jids - removed_jids)
-        for item in response.items:
-            self._update_entry(item)
-
-        self.on_initial_roster_received()
-        return True
 
     def export_as_json(self):
         """
