@@ -30,6 +30,11 @@ from aioxmpp.e2etest import (
 )
 
 
+@aioxmpp.IQ.as_payload_class
+class MadeUpIQPayload(aioxmpp.xso.XSO):
+    TAG = "made-up", "made-up"
+
+
 class TestConnect(TestCase):
     @blocking_timed
     @asyncio.coroutine
@@ -80,9 +85,6 @@ class TestMisc(TestCase):
     def test_receive_response_from_iq_to_bare_explicit_self(self):
         c = yield from self.provisioner.get_connected_client()
 
-        class MadeUpIQPayload(aioxmpp.xso.XSO):
-            TAG = "made-up", "made-up"
-
         iq = aioxmpp.IQ(
             to=c.local_jid.bare(),
             type_=aioxmpp.IQType.GET,
@@ -96,9 +98,6 @@ class TestMisc(TestCase):
     @asyncio.coroutine
     def test_receive_response_from_iq_to_bare_self_using_None(self):
         c = yield from self.provisioner.get_connected_client()
-
-        class MadeUpIQPayload(aioxmpp.xso.XSO):
-            TAG = "made-up", "made-up"
 
         iq = aioxmpp.IQ(
             to=None,

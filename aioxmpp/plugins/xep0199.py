@@ -24,6 +24,7 @@ XEP-0199: XMPP Ping support
 ###########################
 """
 
+import aioxmpp.stanza
 import aioxmpp.xso as xso
 
 from aioxmpp.utils import namespaces
@@ -31,6 +32,7 @@ from aioxmpp.utils import namespaces
 namespaces.xep0199_ping = "urn:xmpp:ping"
 
 
+@aioxmpp.stanza.IQ.as_payload_class
 class Ping(xso.XSO):
     TAG = (namespaces.xep0199_ping, "ping")
     DECLARE_NS = {

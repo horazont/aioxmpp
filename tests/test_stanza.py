@@ -36,7 +36,10 @@ TEST_FROM = structs.JID.fromstr("foo@example.test")
 TEST_TO = structs.JID.fromstr("bar@example.test")
 
 
+@stanza.IQ.as_payload_class
 class TestPayload(xso.XSO):
+    TAG = "foo", "bar"
+
     def __repr__(self):
         return "foobar"
 
@@ -892,7 +895,7 @@ class TestIQ(unittest.TestCase):
             stanza.IQ()
 
     def test_init(self):
-        payload = object()
+        payload = TestPayload()
 
         s = stanza.IQ(
             from_=TEST_FROM,
