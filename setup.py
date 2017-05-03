@@ -37,11 +37,11 @@ install_requires = [
     'aiosasl>=0.3',  # need 0.2+ for LGPLv3
     'aioopenssl>=0.1',
     'babel~=2.3',
-    'dnspython3~=1.14',
+    'dnspython3~=1.0',
     'lxml~=3.6',
     'multidict~=2.0',
     'orderedset>=1.2',
-    'pyOpenSSL>=15.0',
+    'pyOpenSSL',
     'pyasn1',
     'pyasn1_modules',
     'tzlocal~=1.2'
