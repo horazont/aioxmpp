@@ -135,6 +135,8 @@ Version 0.9
 
 * `strict` argument to :class:`aioxmpp.xso.Child`
 
+* :mod:`aioxmpp.ping`
+
 .. _api-changelog-0.8:
 
 Version 0.8

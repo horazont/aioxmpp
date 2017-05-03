@@ -24,8 +24,6 @@ import unittest
 import aioxmpp.disco
 import aioxmpp.service
 
-from aioxmpp.utils import namespaces
-
 import aioxmpp.ping.service as ping_service
 import aioxmpp.ping.xso as ping_xso
 
@@ -41,13 +39,26 @@ TEST_PEER = aioxmpp.JID.fromstr("juliet@capulet.lit/balcony")
 class TestService(unittest.TestCase):
     def setUp(self):
         self.cc = make_connected_client()
-        self.s = ping_service.PingService(self.cc)
+        self.disco_server = unittest.mock.Mock()
+        self.s = ping_service.PingService(self.cc, dependencies={
+            aioxmpp.DiscoServer: self.disco_server
+        })
 
     def test_is_service(self):
         self.assertTrue(issubclass(
             ping_service.PingService,
             aioxmpp.service.Service,
         ))
+
+    def test_register_ping_feature(self):
+        self.assertIsInstance(
+            ping_service.PingService._ping_feature,
+            aioxmpp.disco.register_feature,
+        )
+        self.assertEqual(
+            ping_service.PingService._ping_feature.feature,
+            "urn:xmpp:ping",
+        )
 
     def test_ping_sends_ping(self):
         self.cc.stream.send.return_value = ping_xso.Ping()
@@ -98,3 +109,17 @@ class TestService(unittest.TestCase):
             run_coroutine(self.s.ping(TEST_PEER))
 
         self.assertIs(ctx.exception, exc)
+
+    def test_handle_ping_is_decorated(self):
+        self.assertTrue(aioxmpp.service.is_iq_handler(
+            aioxmpp.IQType.GET,
+            ping_xso.Ping,
+            ping_service.PingService.handle_ping,
+        ))
+
+    def test_handle_ping_returns_pong(self):
+        result = run_coroutine(self.s.handle_ping(
+            unittest.mock.sentinel.request
+        ))
+
+        self.assertIsInstance(result, ping_xso.Ping)

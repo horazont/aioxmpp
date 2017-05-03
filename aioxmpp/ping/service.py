@@ -23,6 +23,9 @@ import asyncio
 
 import aioxmpp.disco
 import aioxmpp.service
+import aioxmpp.structs
+
+from aioxmpp.utils import namespaces
 
 from . import xso as ping_xso
 
@@ -31,8 +34,24 @@ class PingService(aioxmpp.service.Service):
     """
     Service implementing XMPP Ping (:xep:`199`).
 
+    This service implements the response to XMPP Pings and provides a method
+    to send pings.
+
     .. automethod:: ping
     """
+
+    ORDER_AFTER = [
+        aioxmpp.disco.DiscoServer,
+    ]
+
+    _ping_feature = aioxmpp.disco.register_feature(
+        namespaces.xep0199_ping
+    )
+
+    @aioxmpp.service.iq_handler(aioxmpp.structs.IQType.GET, ping_xso.Ping)
+    @asyncio.coroutine
+    def handle_ping(self, request):
+        return ping_xso.Ping()
 
     @asyncio.coroutine
     def ping(self, peer):
