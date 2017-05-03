@@ -35,6 +35,11 @@ from aioxmpp.utils import namespaces
 TEST_JID = structs.JID.fromstr("foo@bar.example/baz")
 
 
+@pubsub_xso.as_payload_class
+class SomePayload(xso.XSO):
+    TAG = "aioxmpp.tests.pubsub.test_xso", "foo"
+
+
 class TestNamespaces(unittest.TestCase):
     def test_features(self):
         self.assertIs(
@@ -1488,10 +1493,7 @@ class TestEventItem(unittest.TestCase):
         with self.assertRaises(TypeError):
             pubsub_xso.EventItem()
 
-        class Foo(xso.XSO):
-            pass
-
-        obj = Foo()
+        obj = SomePayload()
 
         item = pubsub_xso.EventItem(obj)
         self.assertIs(

@@ -2758,6 +2758,14 @@ class TestChild(XMLTestCase):
             self.ClsA.test_child.get_tag_map()
         )
 
+    def test_default_strict_is_False(self):
+        prop = xso.Child([])
+        self.assertIs(prop.strict, False)
+
+    def test_strict_controllable_from_init(self):
+        prop = xso.Child([], strict=True)
+        self.assertIs(prop.strict, True)
+
     def test_forbid_duplicate_tags(self):
         class ClsLeaf2(xso.XSO):
             TAG = "bar"
@@ -2908,6 +2916,52 @@ class TestChild(XMLTestCase):
         instance.prop = self.ClsA()
         del instance.prop
         self.assertIsNone(instance.prop)
+
+    def test_strict_rejects_non_registered_classes(self):
+        class Cls(xso.XSO):
+            prop = xso.Child([], strict=True)
+
+        instance = Cls()
+        with self.assertRaisesRegex(
+                TypeError,
+                "<class 'object'> object is not a valid value"):
+            instance.prop = object()
+
+    def test_strict_rejects_allows_reistered_classes(self):
+        class Child(xso.XSO):
+            TAG = "test", "test"
+
+        class Cls(xso.XSO):
+            prop = xso.Child([Child], strict=True)
+
+        child = Child()
+
+        instance = Cls()
+        instance.prop = child
+        self.assertIs(child, instance.prop)
+
+    def test_strict_rejects_unregistered_subclasses(self):
+        class Child(xso.XSO):
+            TAG = "test", "test"
+
+        class SubChild(xso.XSO):
+            pass
+
+        class Cls(xso.XSO):
+            prop = xso.Child([Child], strict=True)
+
+        instance = Cls()
+        with self.assertRaisesRegex(
+                TypeError,
+                "<class '.+\.SubChild'> object is not a valid value"):
+            instance.prop = SubChild()
+
+    def test_strict_allows_none_if_not_required(self):
+        class Cls(xso.XSO):
+            prop = xso.Child([], strict=True, required=False)
+
+        instance = Cls()
+        instance.prop = None
 
     def tearDown(self):
         del self.ClsA

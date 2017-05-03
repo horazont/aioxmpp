@@ -885,7 +885,7 @@ class IQ(StanzaBase):
             accept_unknown=False,
         )
     )
-    payload = xso.Child([])
+    payload = xso.Child([], strict=True)
 
     def __init__(self, type_, *, payload=None, error=None, **kwargs):
         super().__init__(**kwargs)
