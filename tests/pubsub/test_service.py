@@ -43,6 +43,11 @@ TEST_JID3 = aioxmpp.structs.JID.fromstr("fnord@bar.example/baz")
 TEST_TO = aioxmpp.structs.JID.fromstr("pubsub.example")
 
 
+@pubsub_xso.as_payload_class
+class SomePayload(aioxmpp.xso.XSO):
+    TAG = "aioxmpp.tests.pubsub.test_service", "foo"
+
+
 class TestService(unittest.TestCase):
     def test_is_service(self):
         self.assertTrue(issubclass(
@@ -122,8 +127,8 @@ class TestService(unittest.TestCase):
         )
 
     def test_filter_inbound_message_publish_emits_events(self):
-        item1 = unittest.mock.sentinel.item1
-        item2 = unittest.mock.sentinel.item2
+        item1 = SomePayload()
+        item2 = SomePayload()
 
         items = [
             pubsub_xso.EventItem(item1, id_="foo"),
@@ -164,8 +169,8 @@ class TestService(unittest.TestCase):
         )
 
     def test_filter_inbound_message_headline_publish_emits_events(self):
-        item1 = unittest.mock.sentinel.item1
-        item2 = unittest.mock.sentinel.item2
+        item1 = SomePayload()
+        item2 = SomePayload()
 
         items = [
             pubsub_xso.EventItem(item1, id_="foo"),
@@ -1069,7 +1074,7 @@ class TestService(unittest.TestCase):
         self.assertIsNone(request.payload.node)
 
     def test_publish_with_id(self):
-        payload = unittest.mock.sentinel.payload
+        payload = SomePayload()
 
         response = pubsub_xso.Request()
         response.payload = pubsub_xso.Publish()
@@ -1108,7 +1113,7 @@ class TestService(unittest.TestCase):
         self.assertEqual(result, "some-id")
 
     def test_publish_with_returned_id(self):
-        payload = unittest.mock.sentinel.payload
+        payload = SomePayload()
 
         response = pubsub_xso.Request()
         response.payload = pubsub_xso.Publish()
@@ -1149,7 +1154,7 @@ class TestService(unittest.TestCase):
         self.assertEqual(result, "some-other-id")
 
     def test_publish_without_given_id_and_with_returned_id(self):
-        payload = unittest.mock.sentinel.payload
+        payload = SomePayload()
 
         response = pubsub_xso.Request()
         response.payload = pubsub_xso.Publish()
@@ -1221,7 +1226,7 @@ class TestService(unittest.TestCase):
         self.assertIsNone(result)
 
     def test_publish_without_id_without_response(self):
-        payload = unittest.mock.sentinel.payload
+        payload = SomePayload()
         self.cc.stream.send.return_value = None
 
         result = run_coroutine(self.s.publish(
@@ -1251,7 +1256,7 @@ class TestService(unittest.TestCase):
         self.assertIsNone(result)
 
     def test_publish_with_id_without_response(self):
-        payload = unittest.mock.sentinel.payload
+        payload = SomePayload()
 
         response = pubsub_xso.Request()
         response.payload = pubsub_xso.Publish()
@@ -1286,7 +1291,7 @@ class TestService(unittest.TestCase):
         self.assertEqual(result, "some-id")
 
     def test_publish_to_jid_None(self):
-        payload = unittest.mock.sentinel.payload
+        payload = SomePayload()
 
         response = pubsub_xso.Request()
         response.payload = pubsub_xso.Publish()

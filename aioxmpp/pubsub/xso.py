@@ -218,7 +218,7 @@ class Item(xso.XSO):
         default=None
     )
 
-    registered_payload = xso.Child([])
+    registered_payload = xso.Child([], strict=True)
 
     unregistered_payload = xso.Collector()
 
@@ -609,7 +609,7 @@ class EventItem(xso.XSO):
         default=None,
     )
 
-    registered_payload = xso.Child([])
+    registered_payload = xso.Child([], strict=True)
 
     unregistered_payload = xso.Collector()
 
