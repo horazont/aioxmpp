@@ -28,6 +28,15 @@ connection liveness (although :class:`aioxmpp.stream.StanzaStream` and thus
 :class:`aioxmpp.Client` does that for you) and connectivity/availablility of
 remote domains.
 
+Service
+=======
+
+.. currentmodule:: aioxmpp
+
+.. autoclass:: PingService()
+
+.. currentmodule:: aioxmpp.ping
+
 XSOs
 ====
 
@@ -38,4 +47,5 @@ Sometimes it is useful to send a ping manually instead of relying on the
 
 """
 
+from .service import PingService
 from .xso import Ping
