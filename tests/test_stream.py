@@ -29,6 +29,7 @@ import warnings
 import sys
 
 import aioxmpp
+import aioxmpp.ping as ping
 import aioxmpp.structs as structs
 import aioxmpp.xso as xso
 import aioxmpp.stanza as stanza
@@ -42,7 +43,6 @@ import aioxmpp.dispatcher
 from datetime import timedelta
 
 from aioxmpp.utils import namespaces
-from aioxmpp.plugins import xep0199
 
 from aioxmpp.testutils import (
     run_coroutine,
@@ -1617,7 +1617,7 @@ class TestStanzaStream(StanzaStreamTestBase):
         )
         self.assertIsInstance(
             request.payload,
-            xep0199.Ping
+            ping.Ping,
         )
         self.assertEqual(
             structs.IQType.GET,
@@ -1682,7 +1682,7 @@ class TestStanzaStream(StanzaStreamTestBase):
         )
         self.assertIsInstance(
             request.payload,
-            xep0199.Ping
+            ping.Ping
         )
         self.assertEqual(
             structs.IQType.GET,

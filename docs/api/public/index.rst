@@ -37,6 +37,7 @@ functionality or provide backwards compatibility.
    hashes
    im
    muc
+   ping
    presence
    private_xml
    pubsub

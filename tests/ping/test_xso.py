@@ -1,5 +1,5 @@
 ########################################################################
-# File name: xep0199.py
+# File name: test_xso.py
 # This file is part of: aioxmpp
 #
 # LICENSE
@@ -19,22 +19,38 @@
 # <http://www.gnu.org/licenses/>.
 #
 ########################################################################
-"""
-XEP-0199: XMPP Ping support
-###########################
-"""
+import unittest
 
-import aioxmpp.stanza
-import aioxmpp.xso as xso
+import aioxmpp.xso
+
+import aioxmpp.ping.xso as ping_xso
 
 from aioxmpp.utils import namespaces
 
-namespaces.xep0199_ping = "urn:xmpp:ping"
+
+class TestNamespaces(unittest.TestCase):
+    def test_namespace(self):
+        self.assertEqual(
+            namespaces.xep0199_ping,
+            "urn:xmpp:ping"
+        )
 
 
-@aioxmpp.stanza.IQ.as_payload_class
-class Ping(xso.XSO):
-    TAG = (namespaces.xep0199_ping, "ping")
-    DECLARE_NS = {
-        None: namespaces.xep0199_ping
-    }
+class TestPing(unittest.TestCase):
+    def test_is_xso(self):
+        self.assertTrue(issubclass(
+            ping_xso.Ping,
+            aioxmpp.xso.XSO,
+        ))
+
+    def test_tag(self):
+        self.assertEqual(
+            ping_xso.Ping.TAG,
+            (namespaces.xep0199_ping, "ping")
+        )
+
+    def test_is_iq_payload(self):
+        self.assertIn(
+            ping_xso.Ping.TAG,
+            aioxmpp.IQ.CHILD_MAP,
+        )

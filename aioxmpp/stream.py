@@ -94,9 +94,9 @@ from . import (
     callbacks,
     protocol,
     structs,
+    ping,
 )
 
-from .plugins import xep0199
 from .utils import namespaces
 
 
@@ -1174,7 +1174,7 @@ class StanzaStream:
             xmlstream.send_xso(nonza.SMRequest())
         else:
             request = stanza.IQ(type_=structs.IQType.GET)
-            request.payload = xep0199.Ping()
+            request.payload = ping.Ping()
             request.autoset_id()
             self.register_iq_response_callback(
                 None,
