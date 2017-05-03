@@ -133,6 +133,8 @@ Version 0.9
 
 * :meth:`aioxmpp.disco.Node.as_info_xso`
 
+* `strict` argument to :class:`aioxmpp.xso.Child`
+
 .. _api-changelog-0.8:
 
 Version 0.8

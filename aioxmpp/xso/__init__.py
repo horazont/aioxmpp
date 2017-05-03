@@ -111,7 +111,7 @@ repeated that detailed on the other classes. Refer to the documentation of the
 
 .. autoclass:: LangAttr(*[, validator=None][, validate=ValidateMode.FROM_RECV][, default=None])
 
-.. autoclass:: Child(classes, *[, required=False])
+.. autoclass:: Child(classes, *[, required=False][, strict=False])
 
 .. autoclass:: ChildTag(tags, *[, text_policy=UnknownTextPolicy.FAIL][, child_policy=UnknownChildPolicy.FAIL][, attr_policy=UnknownAttrPolicy.FAIL][, default_ns=None][, allow_none=False])
 

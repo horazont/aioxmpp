@@ -458,6 +458,9 @@ class Child(_ChildPropBase):
     When assigned to a class’ attribute, it collects any child which matches
     any :attr:`XSO.TAG` of the given `classes`.
 
+    :param strict: Enable strict type checking on assigned values.
+    :type strict: :class:`bool`
+
     The tags among the `classes` must be unique, otherwise :class:`ValueError`
     is raised on construction.
 
@@ -467,6 +470,10 @@ class Child(_ChildPropBase):
     for the described attribute. Otherwise, a missing matching child is an
     error and the attribute cannot be set to :data:`None`.
 
+    If `strict` is true, only instances of the exact classes registered with
+    the descriptor can be assigned to it. Subclasses of the registered classes
+    also need to be registered explicitly to be allowed as types for values.
+
     .. automethod:: get_tag_map
 
     .. automethod:: from_events
@@ -474,19 +481,30 @@ class Child(_ChildPropBase):
     .. automethod:: to_sax
     """
 
-    def __init__(self, classes, required=False):
+    def __init__(self, classes, required=False, strict=False):
         super().__init__(
             classes,
             default=_PropBase.NO_DEFAULT if required else None
         )
+        self.__strict = strict
 
     @property
     def required(self):
         return self.default is _PropBase.NO_DEFAULT
 
+    @property
+    def strict(self):
+        return self.__strict
+
     def __set__(self, instance, value):
         if value is None and self.required:
             raise ValueError("cannot set required member to None")
+        if (self.__strict and
+                value is not None and
+                type(value) not in self._classes):
+            raise TypeError("{!r} object is not a valid value".format(
+                type(value)
+            ))
         super().__set__(instance, value)
 
     def __delete__(self, instance):
