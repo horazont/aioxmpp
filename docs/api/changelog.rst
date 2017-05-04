@@ -143,6 +143,9 @@ Version 0.9
   for its internal caches to prevent memory exhaustion in long running
   applications and/or with malicious peers.
 
+* :meth:`aioxmpp.DiscoClient.query_info` now supports a `no_cache` argument
+  which prevents caching of the request and response.
+
 .. _api-changelog-0.8:
 
 Version 0.8

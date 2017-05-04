@@ -1192,6 +1192,56 @@ class TestDiscoClient(unittest.TestCase):
             len(send_and_decode.mock_calls)
         )
 
+    def test_query_info_does_not_cache_if_no_cache_is_false(self):
+        to = structs.JID.fromstr("user@foo.example/res1")
+        response = {}
+
+        with unittest.mock.patch.object(
+                self.s,
+                "send_and_decode_info_query",
+                new=CoroutineMock()) as send_and_decode:
+            send_and_decode.return_value = response
+
+            result1 = run_coroutine(
+                self.s.query_info(to, node="foobar", no_cache=True)
+            )
+            result2 = run_coroutine(
+                self.s.query_info(to, node="foobar")
+            )
+
+            self.assertIs(result1, response)
+            self.assertIs(result2, response)
+
+        self.assertEqual(
+            2,
+            len(send_and_decode.mock_calls)
+        )
+
+    def test_query_info_with_no_cache_uses_cached_result(self):
+        to = structs.JID.fromstr("user@foo.example/res1")
+        response = {}
+
+        with unittest.mock.patch.object(
+                self.s,
+                "send_and_decode_info_query",
+                new=CoroutineMock()) as send_and_decode:
+            send_and_decode.return_value = response
+
+            result1 = run_coroutine(
+                self.s.query_info(to, node="foobar")
+            )
+            result2 = run_coroutine(
+                self.s.query_info(to, node="foobar", no_cache=True)
+            )
+
+            self.assertIs(result1, response)
+            self.assertIs(result2, response)
+
+        self.assertEqual(
+            1,
+            len(send_and_decode.mock_calls)
+        )
+
     def test_query_info_reraises_and_aliases_exception(self):
         to = structs.JID.fromstr("user@foo.example/res1")
 

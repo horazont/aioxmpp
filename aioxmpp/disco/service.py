@@ -606,7 +606,9 @@ class DiscoClient(service.Service):
         return response
 
     @asyncio.coroutine
-    def query_info(self, jid, *, node=None, require_fresh=False, timeout=None):
+    def query_info(self, jid, *,
+                   node=None, require_fresh=False, timeout=None,
+                   no_cache=False):
         """
         Query the features and identities of the specified entity.
 
@@ -618,6 +620,8 @@ class DiscoClient(service.Service):
         :type require_fresh: :class:`bool`
         :param timeout: Optional timeout for the response.
         :type timeout: :class:`float`
+        :param no_cache: Boolean flag to forbid caching of the request.
+        :type no_cache: :class:`bool`
         :rtype: :class:`.xso.InfoQuery`
         :return: Service discovery information of the `node` at `jid`.
 
@@ -639,6 +643,11 @@ class DiscoClient(service.Service):
         not need to use `require_fresh`, as all requests are implicitly
         cancelled whenever the underlying session gets destroyed.
 
+        `no_cache` can be set to true to prevent future requests to be aliased
+        to this request, i.e. the request is not stored in the internal request
+        cache. This does not affect `require_fresh`, i.e. if a cached result is
+        available, it is used.
+
         The `timeout` can be used to restrict the time to wait for a
         response. If the timeout triggers, :class:`TimeoutError` is raised.
 
@@ -647,6 +656,10 @@ class DiscoClient(service.Service):
         target re-raise that exception. The result is not cached though. If a
         new query is sent at a later point for the same target, a new query is
         actually sent, independent of the value chosen for `require_fresh`.
+
+        .. versionchanged:: 0.9
+
+            The `no_cache` argument was added.
         """
         key = jid, node
 
@@ -672,7 +685,8 @@ class DiscoClient(service.Service):
             )
         )
 
-        self._info_pending[key] = request
+        if not no_cache:
+            self._info_pending[key] = request
         try:
             if timeout is not None:
                 try:
