@@ -113,8 +113,10 @@ class PEPClient(service.Service):
             registered_node,
             weakref.WeakMethod(registered_node._unregister)
         )
-        # we cannot guarantee that disco is not cleared up already
+        # we cannot guarantee that disco is not cleared up already,
+        # so we do not unclaim the feature on exit
         finalizer.atexit = False
+
         self._pep_node_claims[node_namespace] = registered_node
 
         return registered_node
@@ -144,8 +146,17 @@ class PEPClient(service.Service):
         except KeyError:
             return
 
-        # TODO: handle empty payloads due to (mis-)configuration of
-        # the node specially.
+        # PEP requires, that notifies contain the data and that
+        # the namespace of the payload corresponds to the node,
+        # by enforcing this here we protect the consumers of
+        # the signal.
+        if (item.registered_payload is None or
+                item.registered_payload.TAG[0] != node):
+            self.logger.debug(
+                "ignoring notify from misconfigured PEP node %s at %s",
+                node, jid)
+            return
+
         registered_node.on_item_publish(jid, node, item, message=message)
 
     def publish(self, node, data, *, id_=None):
@@ -272,11 +283,13 @@ class RegisteredPEPNode:
                 "modifying a closed RegisteredPEPNode is forbidden"
             )
         # XXX: do we want to do strict type checking here?
-        if (not value) == self._notify:
-            if self._notify:
-                self._unregister_notify()
-            else:
-                self._register_notify()
+        if bool(value) == bool(self._notify):
+            return
+
+        if self._notify:
+            self._unregister_notify()
+        else:
+            self._register_notify()
 
     @property
     def feature_registered(self):
@@ -295,11 +308,13 @@ class RegisteredPEPNode:
                 "modifying a closed RegisteredPEPNode is forbidden"
             )
         # XXX: do we want to do strict type checking here?
-        if (not value) == self._feature_registered:
-            if self._feature_registered:
-                self._unregister_feature()
-            else:
-                self._register_feature()
+        if bool(value) == bool(self._feature_registered):
+            return
+
+        if self._feature_registered:
+            self._unregister_feature()
+        else:
+            self._register_feature()
 
 
 class register_pep_node(service.Descriptor):

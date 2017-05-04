@@ -28,6 +28,7 @@ import aioxmpp
 import aioxmpp.disco.xso as disco_xso
 import aioxmpp.pep as pep
 import aioxmpp.pep.service as pep_service
+import aioxmpp.pubsub.xso as pubsub_xso
 
 from aioxmpp.testutils import (
     make_connected_client,
@@ -168,17 +169,21 @@ class TestPEPClient(unittest.TestCase):
             "urn:example"
         )
 
+        registered = unittest.mock.Mock()
+        registered.TAG = "urn:example", "example"
+        payload = pubsub_xso.EventItem(registered)
+
         self.s._handle_pubsub_publish(
             TEST_JID1,
             "urn:example",
-            unittest.mock.sentinel.payload,
+            payload,
             message=None
         )
 
         handler.assert_called_once_with(
             TEST_JID1,
             "urn:example",
-            unittest.mock.sentinel.payload,
+            payload,
             message=None
         )
 
@@ -196,11 +201,71 @@ class TestPEPClient(unittest.TestCase):
         self.s._handle_pubsub_publish(
             TEST_JID1,
             "urn:example",
-            unittest.mock.sentinel.payload,
+            payload,
             message=None
         )
 
         self.assertEqual(len(handler.mock_calls), 0)
+
+    def test_handle_event_filters_empty_notify(self):
+
+        handler = unittest.mock.Mock()
+        with unittest.mock.patch.object(
+                self.disco_server,
+                "register_feature") as register_feature_mock:
+            claim = self.s.claim_pep_node("urn:example")
+            claim.on_item_publish.connect(handler)
+
+        payload = pubsub_xso.EventItem(None)
+
+        self.s._handle_pubsub_publish(
+            TEST_JID1,
+            "urn:example",
+            payload,
+            message=None
+        )
+
+        self.assertEqual(len(handler.mock_calls), 0)
+
+        with unittest.mock.patch.object(
+                self.disco_server,
+                "unregister_feature") as unregister_feature_mock:
+            claim.close()
+
+        unregister_feature_mock.assert_called_once_with(
+            "urn:example"
+        )
+
+    def test_handle_event_filters_malformed_notify(self):
+
+        handler = unittest.mock.Mock()
+        with unittest.mock.patch.object(
+                self.disco_server,
+                "register_feature") as register_feature_mock:
+            claim = self.s.claim_pep_node("urn:example")
+            claim.on_item_publish.connect(handler)
+
+        registered = unittest.mock.Mock()
+        registered.TAG = "urn:example:2", "example"
+        payload = pubsub_xso.EventItem(registered)
+
+        self.s._handle_pubsub_publish(
+            TEST_JID1,
+            "urn:example",
+            payload,
+            message=None
+        )
+
+        self.assertEqual(len(handler.mock_calls), 0)
+
+        with unittest.mock.patch.object(
+                self.disco_server,
+                "unregister_feature") as unregister_feature_mock:
+            claim.close()
+
+        unregister_feature_mock.assert_called_once_with(
+            "urn:example"
+        )
 
     def test_claim_pep_node_with_notify(self):
         handler = unittest.mock.Mock()
