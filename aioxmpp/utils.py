@@ -101,3 +101,50 @@ def mkdir_exist_ok(path):
     except FileExistsError:
         if not path.is_dir():
             raise
+
+
+class LazyTask(asyncio.Future):
+    """
+    :class:`asyncio.Future` subclass which spawns a coroutine when it is first
+    awaited.
+
+    :param coroutine_function: The coroutine function to invoke.
+    :param args: Arguments to pass to `coroutine_function`.
+
+    :class:`LazyTask` objects are awaitable. When the first attempt to await
+    them is made, the `coroutine_function` is started with the given `args` and
+    the result is awaited. Any further awaits on the :class:`LazyTask` will
+    await the same coroutine.
+    """
+
+    def __init__(self, coroutine_function, *args):
+        super().__init__()
+        self.__coroutine_function = coroutine_function
+        self.__args = args
+        self.__task = None
+
+    def add_done_callback(self, cb, *args):
+        self.__start_task()
+        return super().add_done_callback(cb, *args)
+
+    def __start_task(self):
+        if self.__task is None:
+            self.__task = asyncio.async(
+                self.__coroutine_function(*self.__args)
+            )
+            self.__task.add_done_callback(self.__task_done)
+
+    def __task_done(self, task):
+        if task.exception():
+            self.set_exception(task.exception())
+        else:
+            self.set_result(task.result())
+
+    def __iter__(self):
+        self.__start_task()
+        return super().__iter__()
+
+    if hasattr(asyncio.Future, "__await__"):
+        def __await__(self):
+            self.__start_task()
+            return super().__await__()
