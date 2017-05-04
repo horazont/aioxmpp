@@ -91,8 +91,24 @@ class PEPClient(service.Service):
         :returns: a :class:`~aioxmpp.pep.service.RegisteredPEPNode` instance
             representing the claim.
 
+        .. seealso::
+
+            :class:`aioxmpp.pep.register_pep_node`
+              a descriptor which can be used with
+              :class:`~aioxmpp.service.Service` subclasses to claim a PEP node
+              automatically.
+
         This registers `node_namespace` as feature for service discovery
         unless ``register_feature=False`` is passed.
+
+        .. note::
+
+            For `notify` to work, it is required that
+            :class:`aioxmpp.EntityCapsService` is loaded and that presence is
+            re-sent soon after
+            :meth:`~aioxmpp.EntityCapsService.on_ver_changed` fires. See the
+            documentation of the class and the signal for details.
+
         """
         if node_namespace in self._pep_node_claims:
             raise RuntimeError(
@@ -280,6 +296,14 @@ class RegisteredPEPNode:
 
         When setting this property the feature is registered and
         unregistered appropriately.
+
+        .. note::
+
+            For `notify` to work, it is required that
+            :class:`aioxmpp.EntityCapsService` is loaded and that presence is
+            re-sent soon after
+            :meth:`~aioxmpp.EntityCapsService.on_ver_changed` fires. See the
+            documentation of the class and the signal for details.
         """
         return self._notify
 
