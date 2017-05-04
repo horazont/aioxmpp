@@ -417,3 +417,119 @@ class TestPEPClient(unittest.TestCase):
         gc.collect()
 
         self.assertFalse(self.s.is_claimed("urn:example"))
+
+
+class ExampleService(aioxmpp.service.Service):
+
+    ORDER_AFTER = [
+        aioxmpp.pep.PEPClient
+    ]
+
+    _claim_1 = aioxmpp.pep.register_pep_node(
+        "urn:example:register_pep_node_example:1",
+    )
+
+    _claim_2 = aioxmpp.pep.register_pep_node(
+        "urn:example:register_pep_node_example:2",
+        notify=True,
+    )
+
+    _claim_3 = aioxmpp.pep.register_pep_node(
+        "urn:example:register_pep_node_example:3",
+        register_feature=False,
+    )
+
+    _claim_4 = aioxmpp.pep.register_pep_node(
+        "urn:example:register_pep_node_example:4",
+        notify=True, register_feature=False,
+    )
+
+    def __init__(self, client, **kwargs):
+        super().__init__(client, **kwargs)
+
+
+class Test_register_pep_node(unittest.TestCase):
+
+    def setUp(self):
+        self.cc = make_connected_client()
+        self.cc.local_jid = TEST_FROM
+
+        self.disco_client = aioxmpp.DiscoClient(self.cc)
+        self.disco_server = aioxmpp.DiscoServer(self.cc)
+        self.pubsub = aioxmpp.PubSubClient(self.cc, dependencies={
+            aioxmpp.DiscoClient: self.disco_client
+        })
+
+        self.pep = pep.PEPClient(self.cc, dependencies={
+            aioxmpp.DiscoClient: self.disco_client,
+            aioxmpp.DiscoServer: self.disco_server,
+            aioxmpp.PubSubClient: self.pubsub,
+        })
+
+        self.s = ExampleService(self.cc, dependencies={
+            pep.PEPClient: self.pep,
+        })
+
+    def tearDown(self):
+        del self.cc
+        del self.disco_client
+        del self.disco_server
+        del self.pubsub
+        del self.pep
+
+        # ensure the clients are collected
+        gc.collect()
+
+    def test_config(self):
+        self.assertEqual(
+            ExampleService._claim_1.node_namespace,
+            "urn:example:register_pep_node_example:1"
+        )
+        self.assertFalse(ExampleService._claim_1.notify)
+        self.assertTrue(ExampleService._claim_1.register_feature)
+
+        self.assertEqual(
+            ExampleService._claim_2.node_namespace,
+            "urn:example:register_pep_node_example:2"
+        )
+        self.assertTrue(ExampleService._claim_2.notify)
+        self.assertTrue(ExampleService._claim_2.register_feature)
+
+        self.assertEqual(
+            ExampleService._claim_3.node_namespace,
+            "urn:example:register_pep_node_example:3"
+        )
+        self.assertFalse(ExampleService._claim_3.notify)
+        self.assertFalse(ExampleService._claim_3.register_feature)
+
+        self.assertEqual(
+            ExampleService._claim_4.node_namespace,
+            "urn:example:register_pep_node_example:4"
+        )
+        self.assertTrue(ExampleService._claim_4.notify)
+        self.assertFalse(ExampleService._claim_4.register_feature)
+
+    def test_claims(self):
+        self.pep.is_claimed("urn:example:register_pep_node_example:1")
+        self.assertIsInstance(self.s._claim_1,
+                              aioxmpp.pep.service.RegisteredPEPNode)
+        self.assertFalse(self.s._claim_1.notify)
+        self.assertTrue(self.s._claim_1.feature_registered)
+
+        self.pep.is_claimed("urn:example:register_pep_node_example:2")
+        self.assertIsInstance(self.s._claim_2,
+                              aioxmpp.pep.service.RegisteredPEPNode)
+        self.assertTrue(self.s._claim_2.notify)
+        self.assertTrue(self.s._claim_2.feature_registered)
+
+        self.pep.is_claimed("urn:example:register_pep_node_example:3")
+        self.assertIsInstance(self.s._claim_3,
+                              aioxmpp.pep.service.RegisteredPEPNode)
+        self.assertFalse(self.s._claim_3.notify)
+        self.assertFalse(self.s._claim_3.feature_registered)
+
+        self.pep.is_claimed("urn:example:register_pep_node_example:4")
+        self.assertIsInstance(self.s._claim_4,
+                              aioxmpp.pep.service.RegisteredPEPNode)
+        self.assertTrue(self.s._claim_4.notify)
+        self.assertFalse(self.s._claim_4.feature_registered)

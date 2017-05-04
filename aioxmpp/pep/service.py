@@ -325,13 +325,12 @@ class RegisteredPEPNode:
 
 
 class register_pep_node(service.Descriptor):
-    """Service descriptor claiming a PEP node.
+    """
+    Service descriptor claiming a PEP node.
 
     :param node_namespace: The PubSub payload namespace to handle.
     :param register_feature: Whether to register the node namespace as feature.
     :param notify: Whether to register for notifications.
-    :param max_items: Transparently handle the `max_items` configuration
-        option of the PubSub node.
 
     If `notify` is :data:`True` it registers a ``+notify`` feature,
     for automatic pubsub subscription.
