@@ -197,13 +197,6 @@ class TestEntityCapabilities(TestCase):
             "http://test#{}".format(info_hash)
         )
 
-        disco_client = self.sink.summon(aioxmpp.DiscoClient)
-        info_node = yield from disco_client.query_info(
-            self.source.local_jid,
-            node="http://test#{}".format(info_hash),
-        )
-        self.assertEqual(info_node.features, info.features)
-
         self.assertFalse(disco_called_again)
 
     @blocking_timed
@@ -288,12 +281,5 @@ class TestEntityCapabilities(TestCase):
             disco_iq.payload.node,
             "urn:xmpp:caps#sha-256.{}".format(info_hash_b64)
         )
-
-        disco_client = self.sink.summon(aioxmpp.DiscoClient)
-        info_node = yield from disco_client.query_info(
-            self.source.local_jid,
-            node="urn:xmpp:caps#sha-256.{}".format(info_hash_b64),
-        )
-        self.assertEqual(info_node.features, info.features)
 
         self.assertFalse(disco_called_again)

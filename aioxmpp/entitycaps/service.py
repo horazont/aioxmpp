@@ -373,7 +373,9 @@ class EntityCapsService(aioxmpp.service.Service):
         data = yield from self.disco_client.query_info(
             jid,
             node=key.node,
-            require_fresh=True)
+            require_fresh=True,
+            no_cache=True,  # the caps node is never queried by apps
+        )
 
         try:
             if key.verify(data):

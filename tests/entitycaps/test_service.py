@@ -885,7 +885,8 @@ class TestService(unittest.TestCase):
                 unittest.mock.call.disco.query_info(
                     TEST_FROM,
                     node=base.key.node,
-                    require_fresh=True
+                    require_fresh=True,
+                    no_cache=True,
                 ),
                 unittest.mock.call.key.verify(response),
                 unittest.mock.call.add_cache_entry(
@@ -932,7 +933,8 @@ class TestService(unittest.TestCase):
                 unittest.mock.call.disco.query_info(
                     TEST_FROM,
                     node=base.key.node,
-                    require_fresh=True
+                    require_fresh=True,
+                    no_cache=True,
                 ),
                 unittest.mock.call.key.verify(response),
                 unittest.mock.call.fut.set_exception(unittest.mock.ANY)
@@ -976,7 +978,8 @@ class TestService(unittest.TestCase):
                 unittest.mock.call.disco.query_info(
                     TEST_FROM,
                     node=base.key.node,
-                    require_fresh=True
+                    require_fresh=True,
+                    no_cache=True,
                 ),
                 unittest.mock.call.key.verify(response),
                 unittest.mock.call.fut.set_exception(exc)
