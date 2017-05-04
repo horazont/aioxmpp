@@ -1,21 +1,10 @@
 language: python
 cache:
   pip: true
-python:
-- "3.4"
-- "3.5"
-- "3.6"
-- "3.7-dev"
 env:
 - PROSODY_BRANCH=0.10 TEST_MODE=e2e
-matrix:
-  include:
-  - python: "3.6"
-    env: PROSODY_BRANCH=0.9 TEST_MODE=e2e
-  - python: "3.6"
-    env: PROSODY_BRANCH=trunk TEST_MODE=e2e
-  - python: "3.6"
-    env: TEST_MODE=coverage
+os: osx
+python: "3.5"
 before_install:
 - export PATH=$PATH:$PWD/lua_install/bin
 - if [[ "x$TEST_MODE" = 'xe2e' ]]; then ./utils/install-prosody.sh; fi
