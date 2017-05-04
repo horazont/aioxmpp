@@ -137,6 +137,8 @@ Version 0.9
 
 * :mod:`aioxmpp.ping`
 
+* :mod:`aioxmpp.pep`
+
 .. _api-changelog-0.8:
 
 Version 0.8
