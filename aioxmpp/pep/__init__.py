@@ -35,7 +35,11 @@ defined by PubSub.
 .. note:: Payload classes which are to be used with PEP *must* be
           registered with :func:`aioxmpp.pubsub.xso.as_payload_class`.
 
+.. currentmodule:: aioxmpp
+
 .. autoclass:: PEPClient
+
+.. currentmodule:: aioxmpp.pep
 
 .. autoclass:: register_pep_node
 
