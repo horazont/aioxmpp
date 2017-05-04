@@ -309,7 +309,7 @@ class TestLazyTask(unittest.TestCase):
 
     def test_add_done_callback_spawns_task(self):
         fut = utils.LazyTask(self.coro)
-        cb = unittest.mock.Mock()
+        cb = unittest.mock.Mock(["__call__"])
 
         with unittest.mock.patch("asyncio.async") as async_:
             fut.add_done_callback(cb)
@@ -317,7 +317,7 @@ class TestLazyTask(unittest.TestCase):
 
     def test_add_done_callback_works(self):
         fut = utils.LazyTask(self.coro)
-        cb = unittest.mock.Mock()
+        cb = unittest.mock.Mock(["__call__"])
 
         fut.add_done_callback(cb)
 
