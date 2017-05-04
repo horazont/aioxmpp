@@ -568,10 +568,18 @@ class DiscoClient(service.Service):
     @asyncio.coroutine
     def query_info(self, jid, *, node=None, require_fresh=False, timeout=None):
         """
-        Query the features and identities of the specified entity. The entity
-        is identified by the `jid` and the optional `node`.
+        Query the features and identities of the specified entity.
 
-        Return the :class:`.xso.InfoQuery` instance returned by the peer.
+        :param jid: The entity to query.
+        :type jid: :class:`aioxmpp.JID`
+        :param node: The node to query.
+        :type node: :class:`str` or :data:`None`
+        :param require_fresh: Boolean flag to discard previous caches.
+        :type require_fresh: :class:`bool`
+        :param timeout: Optional timeout for the response.
+        :type timeout: :class:`float`
+        :rtype: :class:`.xso.InfoQuery`
+        :return: Service discovery information of the `node` at `jid`.
 
         The requests are cached. This means that only one request is ever fired
         for a given target (identified by the `jid` and the `node`). The
@@ -652,8 +660,18 @@ class DiscoClient(service.Service):
     def query_items(self, jid, *,
                     node=None, require_fresh=False, timeout=None):
         """
-        Send an items query to the given `jid`, querying for the items at the
-        `node`. Return the :class:`~.xso.ItemsQuery` result.
+        Query the items of the specified entity.
+
+        :param jid: The entity to query.
+        :type jid: :class:`aioxmpp.JID`
+        :param node: The node to query.
+        :type node: :class:`str` or :data:`None`
+        :param require_fresh: Boolean flag to discard previous caches.
+        :type require_fresh: :class:`bool`
+        :param timeout: Optional timeout for the response.
+        :type timeout: :class:`float`
+        :rtype: :class:`.xso.ItemsQuery`
+        :return: Service discovery items of the `node` at `jid`.
 
         The arguments have the same semantics as with :meth:`query_info`, as
         does the caching and error handling.
