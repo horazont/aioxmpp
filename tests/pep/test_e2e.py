@@ -20,7 +20,6 @@
 #
 ########################################################################
 import asyncio
-import unittest.mock
 
 import aioxmpp.pep
 import aioxmpp.xso as xso
@@ -32,12 +31,15 @@ from aioxmpp.e2etest import (
     TestCase
 )
 
+
 @pubsub_xso.as_payload_class
 class ExamplePayload(xso.XSO):
     TAG = ("urn:example:payload", "payload")
     data = xso.Text()
 
+
 EXAMPLE_TEXT = "Though this be madness, yet there is method in't"
+
 
 class TestPEP(TestCase):
 
@@ -57,6 +59,7 @@ class TestPEP(TestCase):
     @asyncio.coroutine
     def test_claim_node_and_get_notification(self):
         done = asyncio.Future()
+
         def handler(jid, node, item, *, message=None):
             done.set_result((jid, node, item))
 
@@ -75,6 +78,7 @@ class TestPEP(TestCase):
         self.assertEqual(node, "urn:example:payload")
         self.assertEqual(item.registered_payload.data, EXAMPLE_TEXT)
         claim.close()
+
 
 class ExampleService(aioxmpp.service.Service):
     ORDER_AFTER = [aioxmpp.pep.PEPClient]
@@ -107,6 +111,7 @@ class Test_register_pep_node_Descriptor(TestCase):
     @asyncio.coroutine
     def test_get_notification(self):
         done = asyncio.Future()
+
         def handler(jid, node, item, *, message=None):
             done.set_result((jid, node, item))
 

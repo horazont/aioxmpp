@@ -145,7 +145,8 @@ class TestPEPClient(unittest.TestCase):
             claim = self.s.claim_pep_node("urn:example")
             claim.on_item_publish.connect(handler1)
             register_feature_mock.assert_called_once_with("urn:example")
-            with self.assertRaisesRegex(RuntimeError,
+            with self.assertRaisesRegex(
+                    RuntimeError,
                     "^claiming already claimed node$"):
                 claim2 = self.s.claim_pep_node("urn:example")
                 claim2.on_item_publish.connect(handler2)
@@ -216,6 +217,10 @@ class TestPEPClient(unittest.TestCase):
             claim = self.s.claim_pep_node("urn:example")
             claim.on_item_publish.connect(handler)
 
+        register_feature_mock.assert_called_once_with(
+            "urn:example"
+        )
+
         payload = pubsub_xso.EventItem(None)
 
         self.s._handle_pubsub_publish(
@@ -244,6 +249,10 @@ class TestPEPClient(unittest.TestCase):
                 "register_feature") as register_feature_mock:
             claim = self.s.claim_pep_node("urn:example")
             claim.on_item_publish.connect(handler)
+
+        register_feature_mock.assert_called_once_with(
+            "urn:example"
+        )
 
         registered = unittest.mock.Mock()
         registered.TAG = "urn:example:2", "example"
@@ -374,7 +383,6 @@ class TestPEPClient(unittest.TestCase):
             self.assertTrue(claim.feature_registered)
             register_feature_mock.assert_called_once_with("urn:example")
             register_feature_mock.reset_mock()
-
 
     def test_close_is_idempotent(self):
         claim = self.s.claim_pep_node("urn:example")
