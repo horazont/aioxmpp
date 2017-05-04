@@ -139,6 +139,10 @@ Version 0.9
 
 * :mod:`aioxmpp.pep`
 
+* :class:`aioxmpp.DiscoClient` now uses :class:`aioxmpp.cache.LRUDict`
+  for its internal caches to prevent memory exhaustion in long running
+  applications and/or with malicious peers.
+
 .. _api-changelog-0.8:
 
 Version 0.8

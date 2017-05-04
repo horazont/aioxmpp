@@ -995,6 +995,99 @@ class TestDiscoClient(unittest.TestCase):
         self.assertFalse(request_iq.payload.identities)
         self.assertIs(request_iq.payload.node, node)
 
+    def test_uses_LRUDict(self):
+        with contextlib.ExitStack() as stack:
+            LRUDict = stack.enter_context(unittest.mock.patch(
+                "aioxmpp.cache.LRUDict",
+                new=unittest.mock.MagicMock()
+            ))
+
+            self.s = disco_service.DiscoClient(self.cc)
+
+        self.assertCountEqual(
+            LRUDict.mock_calls,
+            [
+                unittest.mock.call(),
+                unittest.mock.call(),
+            ]
+        )
+
+        LRUDict().__getitem__.side_effect = KeyError
+
+        with unittest.mock.patch.object(
+                self.s,
+                "send_and_decode_info_query",
+                new=CoroutineMock()) as send_and_decode:
+
+            run_coroutine(
+                self.s.query_info(unittest.mock.sentinel.jid,
+                                  node=unittest.mock.sentinel.node)
+            )
+
+        LRUDict().__setitem__.assert_called_once_with(
+            (unittest.mock.sentinel.jid, unittest.mock.sentinel.node),
+            unittest.mock.ANY,
+        )
+        LRUDict().__setitem__.reset_mock()
+
+        run_coroutine(
+            self.s.query_items(TEST_JID,
+                               node="some node")
+        )
+
+        LRUDict().__setitem__.assert_called_once_with(
+            (TEST_JID, "some node"),
+            unittest.mock.ANY,
+        )
+
+    def test_info_cache_size(self):
+        self.assertEqual(
+            self.s.info_cache_size,
+            10000,
+        )
+
+        self.assertEqual(
+            self.s.info_cache_size,
+            self.s._info_pending.maxsize,
+        )
+
+    def test_info_cache_size_is_settable(self):
+        self.s.info_cache_size = 5
+
+        self.assertEqual(
+            self.s.info_cache_size,
+            5,
+        )
+
+        self.assertEqual(
+            self.s._info_pending.maxsize,
+            self.s.info_cache_size,
+        )
+
+    def test_items_cache_size(self):
+        self.assertEqual(
+            self.s.items_cache_size,
+            100,
+        )
+
+        self.assertEqual(
+            self.s.items_cache_size,
+            self.s._items_pending.maxsize,
+        )
+
+    def test_items_cache_size_is_settable(self):
+        self.s.items_cache_size = 5
+
+        self.assertEqual(
+            self.s.items_cache_size,
+            5,
+        )
+
+        self.assertEqual(
+            self.s._items_pending.maxsize,
+            self.s.items_cache_size,
+        )
+
     def test_query_info(self):
         to = structs.JID.fromstr("user@foo.example/res1")
         response = {}

@@ -24,6 +24,7 @@ import contextlib
 import functools
 import itertools
 
+import aioxmpp.cache
 import aioxmpp.callbacks
 import aioxmpp.errors as errors
 import aioxmpp.service as service
@@ -500,11 +501,19 @@ class DiscoClient(service.Service):
 
     .. automethod:: query_items
 
-    To prime the cache with information, the following method can be used:
+    To prime the cache with information, the following methods can be used:
 
     .. automethod:: set_info_cache
 
     .. automethod:: set_info_future
+
+    To control the size of caches, the following properties are available:
+
+    .. autoattribute:: info_cache_size
+       :annotation: = 10000
+
+    .. autoattribute:: items_cache_size
+       :annotation: = 100
 
     Usage example, assuming that you have a :class:`.node.Client` `client`::
 
@@ -529,12 +538,43 @@ class DiscoClient(service.Service):
     def __init__(self, client, **kwargs):
         super().__init__(client, **kwargs)
 
-        self._info_pending = {}
-        self._items_pending = {}
+        self._info_pending = aioxmpp.cache.LRUDict()
+        self._info_pending.maxsize = 10000
+        self._items_pending = aioxmpp.cache.LRUDict()
+        self._items_pending.maxsize = 100
 
         self.client.on_stream_destroyed.connect(
             self._clear_cache
         )
+
+    @property
+    def info_cache_size(self):
+        """
+        Maximum number of cache entries in the cache for :meth:`query_info`.
+
+        This is mostly a measure to prevent malicious peers from exhausting
+        memory by spamming :mod:`aioxmpp.entitycaps` capability hashes.
+
+        .. versionadded:: 0.9
+        """
+        return self._info_pending.maxsize
+
+    @info_cache_size.setter
+    def info_cache_size(self, value):
+        self._info_pending.maxsize = value
+
+    @property
+    def items_cache_size(self):
+        """
+        Maximum number of cache entries in the cache for :meth:`query_items`.
+
+        .. versionadded:: 0.9
+        """
+        return self._items_pending.maxsize
+
+    @items_cache_size.setter
+    def items_cache_size(self, value):
+        self._items_pending.maxsize = value
 
     def _clear_cache(self):
         for fut in self._info_pending.values():
