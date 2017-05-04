@@ -172,7 +172,8 @@ class TestPEPClient(unittest.TestCase):
 
         registered = unittest.mock.Mock()
         registered.TAG = "urn:example", "example"
-        payload = pubsub_xso.EventItem(registered)
+        payload = unittest.mock.Mock()
+        payload.registered_payload = registered
 
         self.s._handle_pubsub_publish(
             TEST_JID1,
@@ -256,7 +257,8 @@ class TestPEPClient(unittest.TestCase):
 
         registered = unittest.mock.Mock()
         registered.TAG = "urn:example:2", "example"
-        payload = pubsub_xso.EventItem(registered)
+        payload = unittest.mock.Mock()
+        payload.registered_payload = registered
 
         self.s._handle_pubsub_publish(
             TEST_JID1,
