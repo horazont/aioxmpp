@@ -658,8 +658,8 @@ class TestService(unittest.TestCase):
         ])
 
         with contextlib.ExitStack() as stack:
-            async = stack.enter_context(
-                unittest.mock.patch("asyncio.async")
+            LazyTask = stack.enter_context(
+                unittest.mock.patch("aioxmpp.utils.LazyTask")
             )
 
             lookup_info = stack.enter_context(
@@ -670,21 +670,18 @@ class TestService(unittest.TestCase):
 
         self.impl115.extract_keys.assert_called_once_with(presence)
 
-        lookup_info.assert_called_once_with(
+        LazyTask.assert_called_once_with(
+            lookup_info,
             presence.from_,
             [
                 unittest.mock.sentinel.key1,
             ]
         )
 
-        async.assert_called_once_with(
-            lookup_info()
-        )
-
         self.disco_client.set_info_future.assert_called_with(
             presence.from_,
             None,
-            async(),
+            LazyTask(),
         )
 
         self.assertEqual(result, presence)
@@ -697,8 +694,8 @@ class TestService(unittest.TestCase):
         ])
 
         with contextlib.ExitStack() as stack:
-            async = stack.enter_context(
-                unittest.mock.patch("asyncio.async")
+            LazyTask = stack.enter_context(
+                unittest.mock.patch("aioxmpp.utils.LazyTask")
             )
 
             lookup_info = stack.enter_context(
@@ -709,21 +706,18 @@ class TestService(unittest.TestCase):
 
         self.impl390.extract_keys.assert_called_once_with(presence)
 
-        lookup_info.assert_called_once_with(
+        LazyTask.assert_called_once_with(
+            lookup_info,
             presence.from_,
             [
                 unittest.mock.sentinel.key1,
             ]
         )
 
-        async.assert_called_once_with(
-            lookup_info()
-        )
-
         self.disco_client.set_info_future.assert_called_with(
             presence.from_,
             None,
-            async(),
+            LazyTask(),
         )
 
         self.assertEqual(result, presence)
@@ -741,8 +735,8 @@ class TestService(unittest.TestCase):
         ])
 
         with contextlib.ExitStack() as stack:
-            async = stack.enter_context(
-                unittest.mock.patch("asyncio.async")
+            LazyTask = stack.enter_context(
+                unittest.mock.patch("aioxmpp.utils.LazyTask")
             )
 
             lookup_info = stack.enter_context(
@@ -753,7 +747,8 @@ class TestService(unittest.TestCase):
 
         self.impl390.extract_keys.assert_called_once_with(presence)
 
-        lookup_info.assert_called_once_with(
+        LazyTask.assert_called_once_with(
+            lookup_info,
             presence.from_,
             [
                 unittest.mock.sentinel.key2,
@@ -762,14 +757,10 @@ class TestService(unittest.TestCase):
             ]
         )
 
-        async.assert_called_once_with(
-            lookup_info()
-        )
-
         self.disco_client.set_info_future.assert_called_with(
             presence.from_,
             None,
-            async(),
+            LazyTask(),
         )
 
         self.assertEqual(result, presence)
@@ -789,8 +780,8 @@ class TestService(unittest.TestCase):
         ])
 
         with contextlib.ExitStack() as stack:
-            async = stack.enter_context(
-                unittest.mock.patch("asyncio.async")
+            LazyTask = stack.enter_context(
+                unittest.mock.patch("aioxmpp.utils.LazyTask")
             )
 
             lookup_info = stack.enter_context(
@@ -802,7 +793,8 @@ class TestService(unittest.TestCase):
         self.impl115.extract_keys.assert_not_called()
         self.impl390.extract_keys.assert_called_once_with(presence)
 
-        lookup_info.assert_called_once_with(
+        LazyTask.assert_called_once_with(
+            lookup_info,
             presence.from_,
             [
                 unittest.mock.sentinel.key2,
@@ -810,14 +802,10 @@ class TestService(unittest.TestCase):
             ]
         )
 
-        async.assert_called_once_with(
-            lookup_info()
-        )
-
         self.disco_client.set_info_future.assert_called_with(
             presence.from_,
             None,
-            async(),
+            LazyTask(),
         )
 
         self.assertEqual(result, presence)
@@ -837,8 +825,8 @@ class TestService(unittest.TestCase):
         ])
 
         with contextlib.ExitStack() as stack:
-            async = stack.enter_context(
-                unittest.mock.patch("asyncio.async")
+            LazyTask = stack.enter_context(
+                unittest.mock.patch("aioxmpp.utils.LazyTask")
             )
 
             lookup_info = stack.enter_context(
@@ -850,21 +838,18 @@ class TestService(unittest.TestCase):
         self.impl115.extract_keys.assert_called_once_with(presence)
         self.impl390.extract_keys.assert_not_called()
 
-        lookup_info.assert_called_once_with(
+        LazyTask.assert_called_once_with(
+            lookup_info,
             presence.from_,
             [
                 unittest.mock.sentinel.key1,
             ]
         )
 
-        async.assert_called_once_with(
-            lookup_info()
-        )
-
         self.disco_client.set_info_future.assert_called_with(
             presence.from_,
             None,
-            async(),
+            LazyTask(),
         )
 
         self.assertEqual(result, presence)

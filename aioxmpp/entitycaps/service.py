@@ -441,8 +441,10 @@ class EntityCapsService(aioxmpp.service.Service):
             keys.extend(self.__115.extract_keys(presence))
 
         if keys:
-            lookup_task = asyncio.async(
-                self.lookup_info(presence.from_, keys)
+            lookup_task = aioxmpp.utils.LazyTask(
+                self.lookup_info,
+                presence.from_,
+                keys,
             )
             self.disco_client.set_info_future(
                 presence.from_,
