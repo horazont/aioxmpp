@@ -36,15 +36,36 @@ from .service import ConversationService
 
 
 class Member(AbstractConversationMember):
+    """
+    Member of a one-on-one conversation.
+
+    .. autoattribute:: direct_jid
+
+    """
+
     def __init__(self, peer_jid, is_self):
         super().__init__(peer_jid, is_self)
 
     @property
     def direct_jid(self):
+        """
+        The JID of the peer.
+        """
+
         return self._conversation_jid
 
 
 class Conversation(AbstractConversation):
+    """
+    Implementation of :class:`~.im.conversation.AbstractConversation` for
+    one-on-one conversations.
+
+    .. seealso::
+
+        :class:`.im.conversation.AbstractConversation`
+          for documentation on the interface implemented by this class.
+    """
+
     def __init__(self, service, peer_jid, parent=None):
         super().__init__(service, parent=parent)
         self.__peer_jid = peer_jid
@@ -101,17 +122,12 @@ class Service(AbstractConversationService, aioxmpp.service.Service):
     bare and full JIDs of the same bare JID is not allowed, because it is
     ambiguous.
 
-    If bare JIDs are used, the conversation is assumed to be between
+    This service creates conversations if it detects them as one-on-one
+    conversations. Subscribe to
+    :meth:`aioxmpp.im.ConversationService.on_conversation_added` to be notified
+    about new conversations being auto-created.
 
-    .. note::
-
-       This service does *not* automatically create new conversations when
-       messages which cannot be mapped to any conversation are incoming. This
-       is handled by the :class:`AutoOneToOneConversationService` service. The
-       reason for this is that it must have a lower priority than multi-user
-       chat services so that those are able to handle those messages if they
-       belong to a new private multi-user chat conversation.
-
+    .. automethod:: get_conversation
     """
 
     ORDER_AFTER = [
@@ -129,7 +145,6 @@ class Service(AbstractConversationService, aioxmpp.service.Service):
     def _make_conversation(self, peer_jid):
         result = Conversation(self, peer_jid, parent=None)
         self._conversationmap[peer_jid] = result
-        print("_make_conversation", peer_jid)
         self.on_conversation_new(result)
         return result
 
@@ -143,8 +158,8 @@ class Service(AbstractConversationService, aioxmpp.service.Service):
             except KeyError:
                 existing = None
 
-        if     ((msg.type_ == aioxmpp.MessageType.CHAT or
-                 msg.type_ == aioxmpp.MessageType.NORMAL) and
+        if ((msg.type_ == aioxmpp.MessageType.CHAT or
+             msg.type_ == aioxmpp.MessageType.NORMAL) and
                 msg.body):
 
             if existing is None:
@@ -168,9 +183,13 @@ class Service(AbstractConversationService, aioxmpp.service.Service):
         :param current_jid: The current JID to lock the conversation to (see
                             :rfc:`6121`).
         :type current_jid: :class:`aioxmpp.JID`
+        :rtype: :class:`Conversation`
+        :return: The new or existing conversation with the peer.
 
-        `peer_jid` must be a full or bare JID.
+        `peer_jid` must be a full or bare JID. See the :class:`Service`
+        documentation for details.
         """
+
         try:
             return self._conversationmap[peer_jid]
         except KeyError:

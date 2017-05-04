@@ -55,7 +55,7 @@ class ConversationFeature(enum.Enum):
 
     .. seealso::
 
-       The :class:`.AbstractConversation.features` provides a set of features
+       The :attr:`.AbstractConversation.features` provides a set of features
        offered by a specific :term:`Conversation`.
 
     .. attribute:: BAN
