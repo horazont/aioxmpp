@@ -26,7 +26,6 @@ import pathlib
 import tempfile
 import unittest
 import unittest.mock
-import urllib.parse
 
 import aioxmpp.disco as disco
 import aioxmpp.service as service
@@ -1916,12 +1915,6 @@ class Testwriteback(unittest.TestCase):
                 new=base.unlink
             ))
 
-            base.quote = unittest.mock.Mock(wraps=urllib.parse.quote)
-            stack.enter_context(unittest.mock.patch(
-                "urllib.parse.quote",
-                new=base.quote,
-            ))
-
             stack.enter_context(unittest.mock.patch(
                 "aioxmpp.xml.XMPPXMLGenerator",
                 new=base.XMPPXMLGenerator
@@ -1991,12 +1984,6 @@ class Testwriteback(unittest.TestCase):
             stack.enter_context(unittest.mock.patch(
                 "os.unlink",
                 new=base.unlink
-            ))
-
-            base.quote = unittest.mock.Mock(wraps=urllib.parse.quote)
-            stack.enter_context(unittest.mock.patch(
-                "urllib.parse.quote",
-                new=base.quote,
             ))
 
             stack.enter_context(unittest.mock.patch(

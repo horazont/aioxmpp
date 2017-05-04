@@ -26,7 +26,6 @@ import functools
 import logging
 import os
 import tempfile
-import urllib.parse
 
 import aioxmpp.callbacks
 import aioxmpp.disco as disco
