@@ -1603,3 +1603,57 @@ class TestService(unittest.TestCase):
         self.assertIsInstance(st, stanza.Presence)
         self.assertEqual(st.to, TEST_JID)
         self.assertEqual(st.type_, structs.PresenceType.UNSUBSCRIBE)
+
+    def test_do_not_lose_update_during_initial_roster(self):
+        self.cc.mock_calls.clear()
+
+        initial = roster_xso.Query(
+            items=[
+                roster_xso.Item(
+                    jid=self.user2,
+                    name="some bar user",
+                    subscription="both"
+                )
+            ],
+            ver="foobar"
+        )
+
+        push = stanza.IQ(
+            type_=structs.IQType.SET,
+            payload=roster_xso.Query(
+                items=[
+                    roster_xso.Item(
+                        jid=self.user1,
+                        name="some foo user",
+                    ),
+                    roster_xso.Item(
+                        jid=self.user2,
+                        subscription="remove",
+                    )
+                ],
+                ver="foobar"
+            )
+        )
+
+        @asyncio.coroutine
+        def send(iq, timeout=None):
+            # this is brutal, but a sure way to provoke the race
+            asyncio.async(self.s.handle_roster_push(push))
+            # give the roster push a chance to act
+            # (we cannot yield from the handle_roster_push() here: in the fixed
+            # version that would be a deadlock)
+            yield from asyncio.sleep(0)
+            return initial
+
+        self.cc.stream.send = unittest.mock.Mock()
+        self.cc.stream.send.side_effect = send
+
+        initial_roster = asyncio.async(self.cc.before_stream_established())
+
+        run_coroutine(initial_roster)
+
+        self.assertNotIn(
+            self.user2,
+            self.s.items,
+            "initial roster processing lost a race against roster push"
+        )
