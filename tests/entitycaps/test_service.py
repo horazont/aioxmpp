@@ -22,11 +22,12 @@
 import asyncio
 import contextlib
 import io
+import pathlib
+import tempfile
 import unittest
 import unittest.mock
 import urllib.parse
 
-import aioxmpp.callbacks as callbacks
 import aioxmpp.disco as disco
 import aioxmpp.service as service
 import aioxmpp.stanza as stanza
@@ -36,7 +37,6 @@ import aioxmpp.xml
 from aioxmpp.utils import namespaces
 
 import aioxmpp.entitycaps.service as entitycaps_service
-import aioxmpp.entitycaps.xso as entitycaps_xso
 
 from aioxmpp.testutils import (
     make_connected_client,
@@ -83,6 +83,9 @@ TEST_DB_ENTRY_NODE_BARE = "http://tkabber.jabber.ru/"
 class TestCache(unittest.TestCase):
     def setUp(self):
         self.c = entitycaps_service.Cache()
+
+    def tearDown(self):
+        del self.c
 
     def test_lookup_in_database_key_errors_if_no_such_entry(self):
         key = unittest.mock.Mock()
@@ -434,8 +437,57 @@ class TestCache(unittest.TestCase):
         result = self.c.lookup_in_database(unittest.mock.sentinel.key)
         self.assertEqual(result, copy())
 
-    def tearDown(self):
-        del self.c
+    def test_writeback_from_add_cache_entry_creates_file(self):
+        q = disco.xso.InfoQuery()
+        q.captured_events = [
+            ("start", q.TAG[0], q.TAG[1], {}),
+            ("end",)
+        ]
+        key = unittest.mock.Mock()
+
+        with contextlib.ExitStack() as stack:
+            tempdir = stack.enter_context(
+                tempfile.TemporaryDirectory()
+            )
+
+            p = pathlib.Path(tempdir)
+            key.path = pathlib.Path("key") / "path" / "used"
+
+            self.c.set_user_db_path(p)
+
+            copy = stack.enter_context(unittest.mock.patch(
+                "copy.copy"
+            ))
+
+            run_in_executor = stack.enter_context(unittest.mock.patch.object(
+                asyncio.get_event_loop(),
+                "run_in_executor"
+            ))
+
+            async = stack.enter_context(unittest.mock.patch(
+                "asyncio.async"
+            ))
+
+            self.c.add_cache_entry(
+                key,
+                q,
+            )
+
+            copy.assert_called_once_with(q)
+
+            run_in_executor.assert_called_with(
+                None,
+                entitycaps_service.writeback,
+                p / key.path,
+                q.captured_events,
+            )
+            async.assert_called_with(run_in_executor())
+
+            entitycaps_service.writeback(
+                *run_in_executor.mock_calls[0][1][2:]
+            )
+
+            self.assertTrue((p / key.path).is_file())
 
 
 class TestService(unittest.TestCase):
@@ -1862,8 +1914,6 @@ class Testwriteback(unittest.TestCase):
         base = unittest.mock.Mock()
         base.p = unittest.mock.MagicMock()
         base.NamedTemporaryFile = unittest.mock.MagicMock()
-        base.hash_ = "sha-1"
-        base.node = "http://fnord/#foo"
 
         with contextlib.ExitStack() as stack:
             stack.enter_context(unittest.mock.patch(
@@ -1897,22 +1947,22 @@ class Testwriteback(unittest.TestCase):
                 new=base.events_to_sax
             ))
 
+            stack.enter_context(unittest.mock.patch(
+                "aioxmpp.utils.mkdir_exist_ok",
+                new=base.mkdir_exist_ok,
+            ))
+
             entitycaps_service.writeback(base.p,
-                                         base.hash_,
-                                         base.node,
                                          base.data)
 
         calls = list(base.mock_calls)
         self.assertSequenceEqual(
             calls,
             [
-                unittest.mock.call.quote(base.node, safe=""),
-                unittest.mock.call.p.__truediv__(
-                    "sha-1_http%3A%2F%2Ffnord%2F%23foo.xml"
-                ),
-                unittest.mock._Call(("p.__str__", (), {})),
+                unittest.mock.call.mkdir_exist_ok(base.p.parent),
+                unittest.mock._Call(("p.parent.__str__", (), {})),
                 unittest.mock.call.NamedTemporaryFile(
-                    dir=str(base.p),
+                    dir=str(base.p.parent),
                     delete=False
                 ),
                 unittest.mock.call.NamedTemporaryFile().__enter__(),
@@ -1926,10 +1976,10 @@ class Testwriteback(unittest.TestCase):
                     base.XMPPXMLGenerator()
                 ),
                 unittest.mock.call.XMPPXMLGenerator().endDocument(),
-                unittest.mock._Call(("p.__truediv__().__str__", (), {})),
+                unittest.mock._Call(("p.__str__", (), {})),
                 unittest.mock.call.replace(
                     base.NamedTemporaryFile().__enter__().name,
-                    str(base.p.__truediv__()),
+                    str(base.p),
                 ),
                 unittest.mock.call.NamedTemporaryFile().__exit__(
                     None, None, None
@@ -1941,8 +1991,6 @@ class Testwriteback(unittest.TestCase):
         base = unittest.mock.Mock()
         base.p = unittest.mock.MagicMock()
         base.NamedTemporaryFile = unittest.mock.MagicMock()
-        base.hash_ = "sha-1"
-        base.node = "http://fnord/#foo"
 
         with contextlib.ExitStack() as stack:
             stack.enter_context(unittest.mock.patch(
@@ -1976,14 +2024,17 @@ class Testwriteback(unittest.TestCase):
                 new=base.events_to_sax
             ))
 
+            stack.enter_context(unittest.mock.patch(
+                "aioxmpp.utils.mkdir_exist_ok",
+                new=base.mkdir_exist_ok,
+            ))
+
             exc = Exception()
             base.events_to_sax.side_effect = exc
 
             with self.assertRaises(Exception) as ctx:
                 entitycaps_service.writeback(
                     base.p,
-                    base.hash_,
-                    base.node,
                     base.data)
 
         self.assertIs(ctx.exception, exc)
@@ -1992,13 +2043,10 @@ class Testwriteback(unittest.TestCase):
         self.assertSequenceEqual(
             calls,
             [
-                unittest.mock.call.quote(base.node, safe=""),
-                unittest.mock.call.p.__truediv__(
-                    "sha-1_http%3A%2F%2Ffnord%2F%23foo.xml"
-                ),
-                unittest.mock._Call(("p.__str__", (), {})),
+                unittest.mock.call.mkdir_exist_ok(base.p.parent),
+                unittest.mock._Call(("p.parent.__str__", (), {})),
                 unittest.mock.call.NamedTemporaryFile(
-                    dir=str(base.p),
+                    dir=str(base.p.parent),
                     delete=False
                 ),
                 unittest.mock.call.NamedTemporaryFile().__enter__(),

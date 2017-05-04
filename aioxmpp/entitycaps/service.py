@@ -31,6 +31,7 @@ import urllib.parse
 import aioxmpp.callbacks
 import aioxmpp.disco as disco
 import aioxmpp.service
+import aioxmpp.utils
 import aioxmpp.xml
 import aioxmpp.xso
 
@@ -492,10 +493,10 @@ class EntityCapsService(aioxmpp.service.Service):
             self.on_ver_changed()
 
 
-def writeback(base_path, hash_, node, captured_events):
-    quoted = urllib.parse.quote(node, safe="")
-    dest_path = base_path / "{}_{}.xml".format(hash_, quoted)
-    with tempfile.NamedTemporaryFile(dir=str(base_path), delete=False) as tmpf:
+def writeback(path, captured_events):
+    aioxmpp.utils.mkdir_exist_ok(path.parent)
+    with tempfile.NamedTemporaryFile(dir=str(path.parent),
+                                     delete=False) as tmpf:
         try:
             generator = aioxmpp.xml.XMPPXMLGenerator(
                 tmpf,
@@ -506,4 +507,4 @@ def writeback(base_path, hash_, node, captured_events):
         except:
             os.unlink(tmpf.name)
             raise
-        os.replace(tmpf.name, str(dest_path))
+        os.replace(tmpf.name, str(path))
