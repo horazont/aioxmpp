@@ -214,3 +214,46 @@ class Testmagicmethod(unittest.TestCase):
         o = Foo()
         o.foo = "bar"
         self.assertEqual(o.foo, "bar")
+
+
+class Testmkdir_exist_ok(unittest.TestCase):
+    def test_successful_mkdir(self):
+        p = unittest.mock.Mock()
+        utils.mkdir_exist_ok(p)
+        self.assertSequenceEqual(
+            p.mock_calls,
+            [
+                unittest.mock.call.mkdir(parents=True),
+            ]
+        )
+
+    def test_mkdir_exists_but_is_directory(self):
+        p = unittest.mock.Mock()
+        p.is_dir.return_value = True
+        p.mkdir.side_effect = FileExistsError()
+        utils.mkdir_exist_ok(p)
+        self.assertSequenceEqual(
+            p.mock_calls,
+            [
+                unittest.mock.call.mkdir(parents=True),
+                unittest.mock.call.is_dir()
+            ]
+        )
+
+    def test_mkdir_exists_but_is_not_directory(self):
+        p = unittest.mock.Mock()
+        p.is_dir.return_value = False
+        exc = FileExistsError()
+        p.mkdir.side_effect = exc
+        with self.assertRaises(FileExistsError) as ctx:
+            utils.mkdir_exist_ok(p)
+
+        self.assertIs(ctx.exception, exc)
+
+        self.assertSequenceEqual(
+            p.mock_calls,
+            [
+                unittest.mock.call.mkdir(parents=True),
+                unittest.mock.call.is_dir()
+            ]
+        )

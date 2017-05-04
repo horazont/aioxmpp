@@ -82,3 +82,22 @@ class magicmethod:
         if instance is None:
             return types.MethodType(self._f, class_)
         return types.MethodType(self._f, instance)
+
+
+def mkdir_exist_ok(path):
+    """
+    Create a directory (including parents) if it does not exist yet.
+
+    :param path: Path to the directory to create.
+    :type path: :class:`pathlib.Path`
+
+    Uses :meth:`pathlib.Path.mkdir`; if the call fails with
+    :class:`FileNotFoundError` and `path` refers to a directory, it is treated
+    as success.
+    """
+
+    try:
+        path.mkdir(parents=True)
+    except FileExistsError:
+        if not path.is_dir():
+            raise
