@@ -341,12 +341,11 @@ class register_pep_node(service.Descriptor):
     """
 
     def __init__(self, node_namespace, *, register_feature=True,
-                 notify=False, max_items=None):
+                 notify=False):
         super().__init__()
         self._node_namespace = node_namespace
         self._notify = notify
         self._register_feature = register_feature
-        self._max_items = max_items
 
     @property
     def node_namespace(self):
