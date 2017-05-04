@@ -26,7 +26,6 @@ import pathlib
 import tempfile
 import unittest
 import unittest.mock
-import urllib.parse
 
 import aioxmpp.disco as disco
 import aioxmpp.service as service
@@ -658,8 +657,8 @@ class TestService(unittest.TestCase):
         ])
 
         with contextlib.ExitStack() as stack:
-            async = stack.enter_context(
-                unittest.mock.patch("asyncio.async")
+            LazyTask = stack.enter_context(
+                unittest.mock.patch("aioxmpp.utils.LazyTask")
             )
 
             lookup_info = stack.enter_context(
@@ -670,21 +669,18 @@ class TestService(unittest.TestCase):
 
         self.impl115.extract_keys.assert_called_once_with(presence)
 
-        lookup_info.assert_called_once_with(
+        LazyTask.assert_called_once_with(
+            lookup_info,
             presence.from_,
             [
                 unittest.mock.sentinel.key1,
             ]
         )
 
-        async.assert_called_once_with(
-            lookup_info()
-        )
-
         self.disco_client.set_info_future.assert_called_with(
             presence.from_,
             None,
-            async(),
+            LazyTask(),
         )
 
         self.assertEqual(result, presence)
@@ -697,8 +693,8 @@ class TestService(unittest.TestCase):
         ])
 
         with contextlib.ExitStack() as stack:
-            async = stack.enter_context(
-                unittest.mock.patch("asyncio.async")
+            LazyTask = stack.enter_context(
+                unittest.mock.patch("aioxmpp.utils.LazyTask")
             )
 
             lookup_info = stack.enter_context(
@@ -709,21 +705,18 @@ class TestService(unittest.TestCase):
 
         self.impl390.extract_keys.assert_called_once_with(presence)
 
-        lookup_info.assert_called_once_with(
+        LazyTask.assert_called_once_with(
+            lookup_info,
             presence.from_,
             [
                 unittest.mock.sentinel.key1,
             ]
         )
 
-        async.assert_called_once_with(
-            lookup_info()
-        )
-
         self.disco_client.set_info_future.assert_called_with(
             presence.from_,
             None,
-            async(),
+            LazyTask(),
         )
 
         self.assertEqual(result, presence)
@@ -741,8 +734,8 @@ class TestService(unittest.TestCase):
         ])
 
         with contextlib.ExitStack() as stack:
-            async = stack.enter_context(
-                unittest.mock.patch("asyncio.async")
+            LazyTask = stack.enter_context(
+                unittest.mock.patch("aioxmpp.utils.LazyTask")
             )
 
             lookup_info = stack.enter_context(
@@ -753,7 +746,8 @@ class TestService(unittest.TestCase):
 
         self.impl390.extract_keys.assert_called_once_with(presence)
 
-        lookup_info.assert_called_once_with(
+        LazyTask.assert_called_once_with(
+            lookup_info,
             presence.from_,
             [
                 unittest.mock.sentinel.key2,
@@ -762,14 +756,10 @@ class TestService(unittest.TestCase):
             ]
         )
 
-        async.assert_called_once_with(
-            lookup_info()
-        )
-
         self.disco_client.set_info_future.assert_called_with(
             presence.from_,
             None,
-            async(),
+            LazyTask(),
         )
 
         self.assertEqual(result, presence)
@@ -789,8 +779,8 @@ class TestService(unittest.TestCase):
         ])
 
         with contextlib.ExitStack() as stack:
-            async = stack.enter_context(
-                unittest.mock.patch("asyncio.async")
+            LazyTask = stack.enter_context(
+                unittest.mock.patch("aioxmpp.utils.LazyTask")
             )
 
             lookup_info = stack.enter_context(
@@ -802,7 +792,8 @@ class TestService(unittest.TestCase):
         self.impl115.extract_keys.assert_not_called()
         self.impl390.extract_keys.assert_called_once_with(presence)
 
-        lookup_info.assert_called_once_with(
+        LazyTask.assert_called_once_with(
+            lookup_info,
             presence.from_,
             [
                 unittest.mock.sentinel.key2,
@@ -810,14 +801,10 @@ class TestService(unittest.TestCase):
             ]
         )
 
-        async.assert_called_once_with(
-            lookup_info()
-        )
-
         self.disco_client.set_info_future.assert_called_with(
             presence.from_,
             None,
-            async(),
+            LazyTask(),
         )
 
         self.assertEqual(result, presence)
@@ -837,8 +824,8 @@ class TestService(unittest.TestCase):
         ])
 
         with contextlib.ExitStack() as stack:
-            async = stack.enter_context(
-                unittest.mock.patch("asyncio.async")
+            LazyTask = stack.enter_context(
+                unittest.mock.patch("aioxmpp.utils.LazyTask")
             )
 
             lookup_info = stack.enter_context(
@@ -850,21 +837,18 @@ class TestService(unittest.TestCase):
         self.impl115.extract_keys.assert_called_once_with(presence)
         self.impl390.extract_keys.assert_not_called()
 
-        lookup_info.assert_called_once_with(
+        LazyTask.assert_called_once_with(
+            lookup_info,
             presence.from_,
             [
                 unittest.mock.sentinel.key1,
             ]
         )
 
-        async.assert_called_once_with(
-            lookup_info()
-        )
-
         self.disco_client.set_info_future.assert_called_with(
             presence.from_,
             None,
-            async(),
+            LazyTask(),
         )
 
         self.assertEqual(result, presence)
@@ -901,7 +885,8 @@ class TestService(unittest.TestCase):
                 unittest.mock.call.disco.query_info(
                     TEST_FROM,
                     node=base.key.node,
-                    require_fresh=True
+                    require_fresh=True,
+                    no_cache=True,
                 ),
                 unittest.mock.call.key.verify(response),
                 unittest.mock.call.add_cache_entry(
@@ -948,7 +933,8 @@ class TestService(unittest.TestCase):
                 unittest.mock.call.disco.query_info(
                     TEST_FROM,
                     node=base.key.node,
-                    require_fresh=True
+                    require_fresh=True,
+                    no_cache=True,
                 ),
                 unittest.mock.call.key.verify(response),
                 unittest.mock.call.fut.set_exception(unittest.mock.ANY)
@@ -992,7 +978,8 @@ class TestService(unittest.TestCase):
                 unittest.mock.call.disco.query_info(
                     TEST_FROM,
                     node=base.key.node,
-                    require_fresh=True
+                    require_fresh=True,
+                    no_cache=True,
                 ),
                 unittest.mock.call.key.verify(response),
                 unittest.mock.call.fut.set_exception(exc)
@@ -1931,12 +1918,6 @@ class Testwriteback(unittest.TestCase):
                 new=base.unlink
             ))
 
-            base.quote = unittest.mock.Mock(wraps=urllib.parse.quote)
-            stack.enter_context(unittest.mock.patch(
-                "urllib.parse.quote",
-                new=base.quote,
-            ))
-
             stack.enter_context(unittest.mock.patch(
                 "aioxmpp.xml.XMPPXMLGenerator",
                 new=base.XMPPXMLGenerator
@@ -2006,12 +1987,6 @@ class Testwriteback(unittest.TestCase):
             stack.enter_context(unittest.mock.patch(
                 "os.unlink",
                 new=base.unlink
-            ))
-
-            base.quote = unittest.mock.Mock(wraps=urllib.parse.quote)
-            stack.enter_context(unittest.mock.patch(
-                "urllib.parse.quote",
-                new=base.quote,
             ))
 
             stack.enter_context(unittest.mock.patch(

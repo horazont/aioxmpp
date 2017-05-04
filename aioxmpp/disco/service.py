@@ -24,6 +24,7 @@ import contextlib
 import functools
 import itertools
 
+import aioxmpp.cache
 import aioxmpp.callbacks
 import aioxmpp.errors as errors
 import aioxmpp.service as service
@@ -500,11 +501,19 @@ class DiscoClient(service.Service):
 
     .. automethod:: query_items
 
-    To prime the cache with information, the following method can be used:
+    To prime the cache with information, the following methods can be used:
 
     .. automethod:: set_info_cache
 
     .. automethod:: set_info_future
+
+    To control the size of caches, the following properties are available:
+
+    .. autoattribute:: info_cache_size
+       :annotation: = 10000
+
+    .. autoattribute:: items_cache_size
+       :annotation: = 100
 
     Usage example, assuming that you have a :class:`.node.Client` `client`::
 
@@ -529,12 +538,43 @@ class DiscoClient(service.Service):
     def __init__(self, client, **kwargs):
         super().__init__(client, **kwargs)
 
-        self._info_pending = {}
-        self._items_pending = {}
+        self._info_pending = aioxmpp.cache.LRUDict()
+        self._info_pending.maxsize = 10000
+        self._items_pending = aioxmpp.cache.LRUDict()
+        self._items_pending.maxsize = 100
 
         self.client.on_stream_destroyed.connect(
             self._clear_cache
         )
+
+    @property
+    def info_cache_size(self):
+        """
+        Maximum number of cache entries in the cache for :meth:`query_info`.
+
+        This is mostly a measure to prevent malicious peers from exhausting
+        memory by spamming :mod:`aioxmpp.entitycaps` capability hashes.
+
+        .. versionadded:: 0.9
+        """
+        return self._info_pending.maxsize
+
+    @info_cache_size.setter
+    def info_cache_size(self, value):
+        self._info_pending.maxsize = value
+
+    @property
+    def items_cache_size(self):
+        """
+        Maximum number of cache entries in the cache for :meth:`query_items`.
+
+        .. versionadded:: 0.9
+        """
+        return self._items_pending.maxsize
+
+    @items_cache_size.setter
+    def items_cache_size(self, value):
+        self._items_pending.maxsize = value
 
     def _clear_cache(self):
         for fut in self._info_pending.values():
@@ -566,12 +606,24 @@ class DiscoClient(service.Service):
         return response
 
     @asyncio.coroutine
-    def query_info(self, jid, *, node=None, require_fresh=False, timeout=None):
+    def query_info(self, jid, *,
+                   node=None, require_fresh=False, timeout=None,
+                   no_cache=False):
         """
-        Query the features and identities of the specified entity. The entity
-        is identified by the `jid` and the optional `node`.
+        Query the features and identities of the specified entity.
 
-        Return the :class:`.xso.InfoQuery` instance returned by the peer.
+        :param jid: The entity to query.
+        :type jid: :class:`aioxmpp.JID`
+        :param node: The node to query.
+        :type node: :class:`str` or :data:`None`
+        :param require_fresh: Boolean flag to discard previous caches.
+        :type require_fresh: :class:`bool`
+        :param timeout: Optional timeout for the response.
+        :type timeout: :class:`float`
+        :param no_cache: Boolean flag to forbid caching of the request.
+        :type no_cache: :class:`bool`
+        :rtype: :class:`.xso.InfoQuery`
+        :return: Service discovery information of the `node` at `jid`.
 
         The requests are cached. This means that only one request is ever fired
         for a given target (identified by the `jid` and the `node`). The
@@ -591,6 +643,11 @@ class DiscoClient(service.Service):
         not need to use `require_fresh`, as all requests are implicitly
         cancelled whenever the underlying session gets destroyed.
 
+        `no_cache` can be set to true to prevent future requests to be aliased
+        to this request, i.e. the request is not stored in the internal request
+        cache. This does not affect `require_fresh`, i.e. if a cached result is
+        available, it is used.
+
         The `timeout` can be used to restrict the time to wait for a
         response. If the timeout triggers, :class:`TimeoutError` is raised.
 
@@ -599,6 +656,10 @@ class DiscoClient(service.Service):
         target re-raise that exception. The result is not cached though. If a
         new query is sent at a later point for the same target, a new query is
         actually sent, independent of the value chosen for `require_fresh`.
+
+        .. versionchanged:: 0.9
+
+            The `no_cache` argument was added.
         """
         key = jid, node
 
@@ -624,7 +685,8 @@ class DiscoClient(service.Service):
             )
         )
 
-        self._info_pending[key] = request
+        if not no_cache:
+            self._info_pending[key] = request
         try:
             if timeout is not None:
                 try:
@@ -652,8 +714,18 @@ class DiscoClient(service.Service):
     def query_items(self, jid, *,
                     node=None, require_fresh=False, timeout=None):
         """
-        Send an items query to the given `jid`, querying for the items at the
-        `node`. Return the :class:`~.xso.ItemsQuery` result.
+        Query the items of the specified entity.
+
+        :param jid: The entity to query.
+        :type jid: :class:`aioxmpp.JID`
+        :param node: The node to query.
+        :type node: :class:`str` or :data:`None`
+        :param require_fresh: Boolean flag to discard previous caches.
+        :type require_fresh: :class:`bool`
+        :param timeout: Optional timeout for the response.
+        :type timeout: :class:`float`
+        :rtype: :class:`.xso.ItemsQuery`
+        :return: Service discovery items of the `node` at `jid`.
 
         The arguments have the same semantics as with :meth:`query_info`, as
         does the caching and error handling.

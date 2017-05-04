@@ -26,7 +26,6 @@ import functools
 import logging
 import os
 import tempfile
-import urllib.parse
 
 import aioxmpp.callbacks
 import aioxmpp.disco as disco
@@ -374,7 +373,9 @@ class EntityCapsService(aioxmpp.service.Service):
         data = yield from self.disco_client.query_info(
             jid,
             node=key.node,
-            require_fresh=True)
+            require_fresh=True,
+            no_cache=True,  # the caps node is never queried by apps
+        )
 
         try:
             if key.verify(data):
@@ -441,8 +442,10 @@ class EntityCapsService(aioxmpp.service.Service):
             keys.extend(self.__115.extract_keys(presence))
 
         if keys:
-            lookup_task = asyncio.async(
-                self.lookup_info(presence.from_, keys)
+            lookup_task = aioxmpp.utils.LazyTask(
+                self.lookup_info,
+                presence.from_,
+                keys,
             )
             self.disco_client.set_info_future(
                 presence.from_,
