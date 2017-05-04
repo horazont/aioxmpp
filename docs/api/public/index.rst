@@ -39,6 +39,7 @@ functionality or provide backwards compatibility.
    muc
    ping
    presence
+   pep
    private_xml
    pubsub
    roster

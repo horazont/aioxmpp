@@ -103,6 +103,7 @@ from .avatar import AvatarClient, AvatarServer  # NOQA
 from .blocking import BlockingClient  # NOQA
 from .carbons import CarbonsClient  # NOQA
 from .ping import PingService  # NOQA
+from .pep import PEPClient  # NOQA
 
 
 def set_strict_mode():
