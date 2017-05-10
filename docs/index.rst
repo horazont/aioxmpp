@@ -95,14 +95,18 @@ From XMPP Extension Proposals (XEPs)
 * :xep:`4` (Data Forms), see :mod:`aioxmpp.forms`
 * :xep:`30` (Service Discovery), see :mod:`aioxmpp.disco`
 * :xep:`45` (Multi-User Chat), see :mod:`aioxmpp.muc`
+* :xep:`48` (Bookmarks), see :mod:`aioxmpp.bookmarks`
+* :xep:`49` (Private XML Storage), see :mod:`aioxmpp.private_xml`
 * :xep:`50` (Ad-Hoc Commands), see :mod:`aioxmpp.adhoc` (no support for offering
   commands to other entities)
 * :xep:`59` (Result Set Management), see :mod:`aioxmpp.rsm`
 * :xep:`60` (Publish-Subscribe), see :mod:`aioxmpp.pubsub`
 * :xep:`68` (Field Standardisation for Data Forms), see :mod:`aioxmpp.forms`
 * :xep:`82` (XMPP Date and Time Profiles), via :class:`aioxmpp.xso.DateTime` and others
+* :xep:`84` (User Avatar), see :mod:`aioxmpp.avatar`
 * :xep:`115` (Entity Capabilities), see :mod:`aioxmpp.entitycaps`, including
   read/write support for the capsdb
+* :xep:`163` (Personal Eventing Protocol), see :mod:`aioxmpp.pep`
 * :xep:`191` (Blocking Command), see :mod:`aioxmpp.blocking`
 * :xep:`198` (Stream Management), always enabled if supported by the server
 * :xep:`199` (XMPP Ping), used for aliveness-checks if Stream Management is not
@@ -113,6 +117,7 @@ From XMPP Extension Proposals (XEPs)
 * :xep:`300` (Use of Cryptographic Hash Functions in XMPP),
   see :mod:`aioxmpp.hashes`
 * :xep:`368` (SRV records for XMPP over TLS)
+* :xep:`390` (Entity Capabilities 2.0), see :mod:`aioxmpp.entitycaps`
 
 
 Dependencies
