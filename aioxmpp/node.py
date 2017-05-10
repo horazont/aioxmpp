@@ -478,6 +478,8 @@ class Client:
 
     Controlling the client:
 
+    .. automethod:: connected
+
     .. automethod:: start
 
     .. automethod:: stop
