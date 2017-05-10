@@ -82,7 +82,7 @@ From IETF RFCs
 * :rfc:`4616` (SASL PLAIN), see :func:`aioxmpp.make_security_layer` and :mod:`aiosasl`
 * :rfc:`5802` (SASL SCRAM), see :func:`aioxmpp.make_security_layer` and :mod:`aiosasl`
 * :rfc:`6120` (XMPP Core), including some of the legacy from :rfc:`3920`
-* :rfc:`6121` (XMPPInstant Messaging and Presence)
+* :rfc:`6121` (XMPP Instant Messaging and Presence)
 
   * see :mod:`aioxmpp.presence` for managing inbound presence
   * see :mod:`aioxmpp.roster` for managing the roster and presence subscriptions
