@@ -66,6 +66,8 @@ These decorators provide special functionality when used on methods of
 
 .. autodecorator:: depfilter
 
+.. autodecorator:: attrsignal
+
 .. seealso::
 
    :class:`~.disco.register_feature`
@@ -96,6 +98,8 @@ Test functions
 .. autofunction:: is_depsignal_handler
 
 .. autofunction:: is_depfilter_handler
+
+.. autofunction:: is_attrsignal_handler
 
 Creating your own decorators
 ----------------------------
@@ -190,6 +194,8 @@ class Descriptor(metaclass=abc.ABCMeta):
 
     .. automethod:: init_cm
 
+    .. autoattribute:: value_type
+
     Subclasses may override the following to modify the default behaviour:
 
     .. autoattribute:: required_dependencies
@@ -261,6 +267,15 @@ class Descriptor(metaclass=abc.ABCMeta):
                 "resource manager descriptor has not been initialised"
             )
         return obj
+
+    @abc.abstractproperty
+    def value_type(self):
+        """
+        The type of the value of the descriptor, once it is being accessed
+        as an object attribute.
+
+        .. versionadded:: 0.9
+        """
 
 
 class DependencyGraphNode:
@@ -882,6 +897,16 @@ def _apply_connect_depfilter(instance, stream, func, dependency, filter_name):
     return filter_.context_register(func, type(instance))
 
 
+def _apply_connect_attrsignal(instance, stream, func, descriptor, signal_name,
+                              mode):
+    obj = descriptor.__get__(instance, type(instance))
+    signal = getattr(obj, signal_name)
+    if mode is None:
+        return signal.context_connect(func)
+    else:
+        return signal.context_connect(func, mode)
+
+
 def iq_handler(type_, payload_cls):
     """
     Register the decorated coroutine function as IQ request handler.
@@ -1043,9 +1068,7 @@ def outbound_presence_filter(f):
     return f
 
 
-def _depsignal_spec(class_, signal_name, f, defer):
-    signal = getattr(class_, signal_name)
-
+def _signal_connect_mode(signal, f, defer):
     if isinstance(signal, aioxmpp.callbacks.SyncSignal):
         if not asyncio.iscoroutinefunction(f):
             raise TypeError(
@@ -1069,6 +1092,14 @@ def _depsignal_spec(class_, signal_name, f, defer):
             mode = aioxmpp.callbacks.AdHocSignal.ASYNC_WITH_LOOP(None)
         else:
             mode = aioxmpp.callbacks.AdHocSignal.STRONG
+
+    return mode
+
+
+def _depsignal_spec(class_, signal_name, f, defer):
+    signal = getattr(class_, signal_name)
+
+    mode = _signal_connect_mode(signal, f, defer)
 
     if (class_ is not aioxmpp.stream.StanzaStream and
             class_ is not aioxmpp.node.Client):
@@ -1104,8 +1135,8 @@ def depsignal(class_, signal_name, *, defer=False):
     :type defer: :class:`bool`
 
     The signal is discovered by accessing the attribute with the name
-    `signal_name` on the given `class_`. In addition, the following arguments are
-    supported for `class_`:
+    `signal_name` on the given `class_`. In addition, the following arguments
+    are supported for `class_`:
 
     1. :class:`aioxmpp.stream.StanzaStream`: the corresponding signal of the
        stream of the client running the service is used.
@@ -1136,6 +1167,68 @@ def depsignal(class_, signal_name, *, defer=False):
         add_handler_spec(
             f,
             _depsignal_spec(class_, signal_name, f, defer)
+        )
+        return f
+    return decorator
+
+
+def _attrsignal_spec(descriptor, signal_name, f, defer):
+    signal = getattr(descriptor.value_type, signal_name)
+    mode = _signal_connect_mode(signal, f, defer)
+
+    return HandlerSpec(
+        (
+            _apply_connect_attrsignal,
+            (
+                descriptor,
+                signal_name,
+                mode
+            )
+        ),
+        is_unique=True,
+        require_deps=(),
+    )
+
+
+def attrsignal(descriptor, signal_name, *, defer=False):
+    """
+    Connect the decorated method or coroutine method to the addressed signal on
+    a descriptor.
+
+    :param descriptor: The descriptor to connect to.
+    :type descriptor: :class:`Descriptor` subclass.
+    :param signal_name: Attribute name of the signal to connect to
+    :type signal_name: :class:`str`
+    :param defer: Flag indicating whether deferred execution of the decorated
+                  method is desired; see below for details.
+    :type defer: :class:`bool`
+
+    The signal is discovered by accessing the attribute with the name
+    `signal_name` on the :attr:`~Descriptor.value_type` of the `descriptor`.
+
+    During instantiation of the service, the value of the descriptor is used
+    to obtain the signal and then the decorated method is connected to the
+    signal.
+
+    If the signal is a :class:`.callbacks.Signal` and `defer` is false, the
+    decorated object is connected using the default
+    :attr:`~.callbacks.AdHocSignal.STRONG` mode.
+
+    If the signal is a :class:`.callbacks.Signal` and `defer` is true and the
+    decorated object is a coroutine function, the
+    :attr:`~.callbacks.AdHocSignal.SPAWN_WITH_LOOP` mode with the default
+    asyncio event loop is used. If the decorated object is not a coroutine
+    function, :attr:`~.callbacks.AdHocSignal.ASYNC_WITH_LOOP` is used instead.
+
+    If the signal is a :class:`.callbacks.SyncSignal`, `defer` must be false
+    and the decorated object must be a coroutine function.
+
+    .. versionadded:: 0.9
+    """
+    def decorator(f):
+        add_handler_spec(
+            f,
+            _attrsignal_spec(descriptor, signal_name, f, defer)
         )
         return f
     return decorator
@@ -1314,3 +1407,16 @@ def is_depfilter_handler(class_, filter_name, filter_):
         return False
 
     return _depfilter_spec(class_, filter_name) in handlers
+
+
+def is_attrsignal_handler(descriptor, signal_name, cb, *, defer=False):
+    """
+    Return true if `cb` has been decorated with :func:`attrsignal` for the
+    given signal, descriptor and connection mode.
+    """
+    try:
+        handlers = get_magic_attr(cb)
+    except AttributeError:
+        return False
+
+    return _attrsignal_spec(descriptor, signal_name, cb, defer) in handlers

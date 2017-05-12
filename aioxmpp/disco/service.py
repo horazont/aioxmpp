@@ -856,6 +856,10 @@ class mount_as_node(service.Descriptor):
         finally:
             disco.unmount_node(self._mountpoint)
 
+    @property
+    def value_type(self):
+        return type(None)
+
 
 class RegisteredFeature:
     """
@@ -999,3 +1003,7 @@ class register_feature(service.Descriptor):
     def init_cm(self, instance):
         disco = instance.dependencies[DiscoServer]
         return RegisteredFeature(disco, self._feature)
+
+    @property
+    def value_type(self):
+        return RegisteredFeature

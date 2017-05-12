@@ -480,6 +480,12 @@ class Test_register_pep_node(unittest.TestCase):
         # ensure the clients are collected
         gc.collect()
 
+    def test_value_type(self):
+        self.assertIs(
+            ExampleService._claim_1.value_type,
+            pep_service.RegisteredPEPNode,
+        )
+
     def test_config(self):
         self.assertEqual(
             ExampleService._claim_1.node_namespace,

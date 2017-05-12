@@ -406,3 +406,7 @@ class register_pep_node(service.Descriptor):
         )
         yield claim
         claim.close()
+
+    @property
+    def value_type(self):
+        return RegisteredPEPNode

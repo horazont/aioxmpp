@@ -146,6 +146,8 @@ Version 0.9
 * :meth:`aioxmpp.DiscoClient.query_info` now supports a `no_cache` argument
   which prevents caching of the request and response.
 
+* :func:`aioxmpp.service.attrsignal`
+
 .. _api-changelog-0.8:
 
 Version 0.8
