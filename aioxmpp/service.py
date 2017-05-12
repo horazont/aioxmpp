@@ -48,6 +48,53 @@ These decorators provide special functionality when used on methods of
    subclasses, as their functionality are implemented in cooperation with the
    :class:`Meta` metaclass and :class:`Service` itself.
 
+.. note::
+
+    These decorators and the descriptors (see below) are initialised in the
+    order in which they are declared at the class. In many cases, this does
+    not matter, but there are some corner cases.
+
+    For example: Suppose you have a class like this:
+
+    .. code-block:: python
+
+        class FooService(aioxmpp.service.Service):
+            feature = aioxmpp.disco.register_feature(
+                "some:namespace"
+            )
+
+            @aioxmpp.servie.depsignal(aioxmpp.DiscoServer, "on_info_changed")
+            def handle_on_info_changed(self):
+                pass
+
+    In this case, the ``handle_on_info_changed`` method is not invoked during
+    startup of the ``FooService``. In this case however:
+
+    .. code-block:: python
+
+        class FooService(aioxmpp.service.Service):
+            @aioxmpp.servie.depsignal(aioxmpp.DiscoServer, "on_info_changed")
+            def handle_on_info_changed(self):
+                pass
+
+            feature = aioxmpp.disco.register_feature(
+                "some:namespace"
+            )
+
+    The ``handle_on_info_changed`` *is* invoked during startup of the
+    ``FooService`` because the ``some:namespace`` feature is registered
+    *after* the signal is connected.
+
+    .. versionchanged:: 0.9
+
+        This behaviour was introduced in version 0.9.
+
+   When using a  descriptor and a :func:`depsignal`
+   connected to :meth:`.DiscoServer.on_info_changed`: if the
+   :class:`.disco.register_feature` is declared *before* the :func:`depsignal`,
+   the signal handler will not be invoked for that specific feature because
+   it is registered before the signal handler is connected).
+
 .. autodecorator:: iq_handler
 
 .. autodecorator:: message_handler
@@ -77,6 +124,10 @@ These decorators provide special functionality when used on methods of
    :class:`~.disco.mount_as_node`
       For a descriptor (see below) which allows to register a Service Discovery
       node when the service is instantiated.
+
+   :class:`~.pep.register_pep_node`
+      For a descriptor (see below) which allows to register a PEP node
+      including notification features.
 
 Test functions
 --------------
@@ -497,12 +548,6 @@ class Meta(abc.ABCMeta):
                 raise TypeError(
                     "inheritance from service class with handlers is forbidden"
                 )
-            if (hasattr(base, "SERVICE_DESCRIPTORS") and
-                    base.SERVICE_DESCRIPTORS):
-                raise TypeError(
-                    "inheritance from service class with descriptors is "
-                    "forbidden"
-                )
 
         namespace["ORDER_BEFORE"] = frozenset(
             namespace.get("ORDER_BEFORE", ()))
@@ -528,72 +573,63 @@ class Meta(abc.ABCMeta):
         existing_handlers = set()
 
         for attr_name, attr_value in namespace.items():
-            if not has_magic_attr(attr_value):
-                continue
+            if has_magic_attr(attr_value):
+                new_handlers = get_magic_attr(attr_value)
 
-            new_handlers = get_magic_attr(attr_value)
+                unique_handlers = {
+                    spec.key
+                    for spec in new_handlers
+                    if spec.is_unique
+                }
 
-            unique_handlers = {
-                spec.key
-                for spec in new_handlers
-                if spec.is_unique
-            }
+                conflicting = unique_handlers & existing_handlers
+                if conflicting:
+                    key = next(iter(conflicting))
+                    obj = next(iter(
+                        obj
+                        for obj_key, obj in SERVICE_HANDLERS
+                        if obj_key == key
+                    ))
 
-            conflicting = unique_handlers & existing_handlers
-            if conflicting:
-                key = next(iter(conflicting))
-                obj = next(iter(
-                    obj
-                    for obj_key, obj in SERVICE_HANDLERS
-                    if obj_key == key
-                ))
-
-                raise TypeError(
-                    "handler conflict between {!r} and {!r}: "
-                    "both want to use {!r}".format(
-                        obj,
-                        attr_value,
-                        key,
-                    )
-                )
-
-            existing_handlers |= unique_handlers
-
-            for spec in new_handlers:
-                missing = spec.require_deps - namespace["ORDER_AFTER"]
-                if missing:
                     raise TypeError(
-                        "decorator requires dependency {!r} "
-                        "but it is not declared".format(
-                            next(iter(missing))
+                        "handler conflict between {!r} and {!r}: "
+                        "both want to use {!r}".format(
+                            obj,
+                            attr_value,
+                            key,
                         )
                     )
 
-                SERVICE_HANDLERS.append(
-                    (spec.key, attr_value)
-                )
+                existing_handlers |= unique_handlers
+
+                for spec in new_handlers:
+                    missing = spec.require_deps - namespace["ORDER_AFTER"]
+                    if missing:
+                        raise TypeError(
+                            "decorator requires dependency {!r} "
+                            "but it is not declared".format(
+                                next(iter(missing))
+                            )
+                        )
+
+                    SERVICE_HANDLERS.append(
+                        (spec.key, attr_value)
+                    )
+
+            elif isinstance(attr_value, Descriptor):
+                missing = set(attr_value.required_dependencies) - \
+                    namespace["ORDER_AFTER"]
+                if missing:
+                    raise TypeError(
+                        "descriptor requires dependency {!r} "
+                        "but it is not declared".format(
+                            next(iter(missing)),
+                        )
+                    )
+
+                SERVICE_HANDLERS.append(attr_value)
 
         namespace["SERVICE_HANDLERS"] = tuple(SERVICE_HANDLERS)
-
-        SERVICE_DESCRIPTORS = []
-
-        for attr_name, attr_value in namespace.items():
-            if not isinstance(attr_value, Descriptor):
-                continue
-
-            missing = set(attr_value.required_dependencies) - \
-                namespace["ORDER_AFTER"]
-            if missing:
-                raise TypeError(
-                    "descriptor requires dependency {!r} "
-                    "but it is not declared".format(
-                        next(iter(missing)),
-                    )
-                )
-
-            SERVICE_DESCRIPTORS.append(attr_value)
-
-        namespace["SERVICE_DESCRIPTORS"] = SERVICE_DESCRIPTORS
 
         return super().__new__(mcls, name, bases, namespace)
 
@@ -602,6 +638,9 @@ class Meta(abc.ABCMeta):
         for cls in self.ORDER_BEFORE:
             cls.PATCHED_ORDER_AFTER |= frozenset([self])
         self._DEPGRAPH_NODE.class_ = self
+
+    def __prepare__(*args, **kwargs):
+        return collections.OrderedDict()
 
     @property
     def SERVICE_BEFORE(self):
@@ -679,16 +718,19 @@ class Service(metaclass=Meta):
         else:
             self.logger = self.derive_logger(logger_base)
 
-        for (handler_cm, additional_args), obj in self.SERVICE_HANDLERS:
-            self.__context.enter_context(
-                handler_cm(self,
-                           self.__client.stream,
-                           obj.__get__(self, type(self)),
-                           *additional_args)
-            )
-
-        for obj in self.SERVICE_DESCRIPTORS:
-            obj.add_to_stack(self, self.__context)
+        for item in self.SERVICE_HANDLERS:
+            if isinstance(item, Descriptor):
+                item.add_to_stack(self, self.__context)
+            else:
+                (handler_cm, additional_args), obj = item
+                self.__context.enter_context(
+                    handler_cm(
+                        self,
+                        self.__client.stream,
+                        obj.__get__(self, type(self)),
+                        *additional_args
+                    )
+                )
 
     def derive_logger(self, logger):
         """

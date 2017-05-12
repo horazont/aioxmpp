@@ -479,7 +479,7 @@ class TestServiceMeta(unittest.TestCase):
             x = descriptor
 
         self.assertCountEqual(
-            Foo.SERVICE_DESCRIPTORS,
+            Foo.SERVICE_HANDLERS,
             (
                 descriptor,
             ),
@@ -691,6 +691,94 @@ class TestService(unittest.TestCase):
                 unittest.mock.call.ExitStack(),
                 unittest.mock.call.add_to_stack(
                     ServiceWithDescriptor.desc,
+                    s,
+                    base.ExitStack(),
+                )
+            ]
+        )
+
+        base.mock_calls.clear()
+
+        base._shutdown = CoroutineMock()
+
+        with unittest.mock.patch.object(s, "_shutdown", new=base._shutdown):
+            run_coroutine(s.shutdown())
+
+        self.assertSequenceEqual(
+            base.mock_calls,
+            [
+                unittest.mock.call._shutdown(),
+                unittest.mock.call.ExitStack().close(),
+            ]
+        )
+
+    def test_setup_contexts_in_delaration_order(self):
+        class FooDescriptor(service.Descriptor):
+            def __init__(self, id_):
+                super().__init__()
+                self.__id = id_
+
+            def init_cm(self, instance):
+                return base.init_cm(instance, self.__id)
+
+            def add_to_stack(self, instance, stack):
+                base.add_to_stack(self, instance, stack)
+
+            @property
+            def value_type(self):
+                return None
+
+        base = unittest.mock.Mock()
+        base.init_cm = unittest.mock.MagicMock()
+
+        self.maxDiff = None
+
+        class ObjectWithHandlers:
+            def __init__(self, handlers=[]):
+                self._aioxmpp_service_handlers = set(handlers)
+
+            def __get__(self, instance, owner):
+                if instance is None:
+                    return self
+                return (unittest.mock.sentinel.got, self)
+
+        class ServiceWithDescriptor(service.Service):
+            desc1 = FooDescriptor(1)
+
+            x = ObjectWithHandlers(
+                [
+                    service.HandlerSpec((base.res1, ())),
+                ]
+            )
+
+            desc2 = FooDescriptor(2)
+
+        client = unittest.mock.Mock()
+
+        with unittest.mock.patch("contextlib.ExitStack",
+                                 new=base.ExitStack):
+            s = ServiceWithDescriptor(client)
+
+        calls = list(base.mock_calls)
+        self.assertSequenceEqual(
+            calls,
+            [
+                unittest.mock.call.ExitStack(),
+                unittest.mock.call.add_to_stack(
+                    ServiceWithDescriptor.desc1,
+                    s,
+                    base.ExitStack(),
+                ),
+                unittest.mock.call.res1(
+                    s,
+                    client.stream,
+                    (unittest.mock.sentinel.got, ServiceWithDescriptor.x)
+                ),
+                unittest.mock.call.ExitStack().enter_context(
+                    base.res1(),
+                ),
+                unittest.mock.call.add_to_stack(
+                    ServiceWithDescriptor.desc2,
                     s,
                     base.ExitStack(),
                 )
