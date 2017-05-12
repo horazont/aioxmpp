@@ -280,14 +280,17 @@ class TestAvatarService(unittest.TestCase):
             aioxmpp.DiscoClient: self.disco_client
         })
 
-        self.pubsub = aioxmpp.PubSubClient(self.cc, dependencies={
-            aioxmpp.DiscoClient: self.disco_client
+        self.pep = aioxmpp.PEPClient(self.cc, dependencies={
+            aioxmpp.DiscoClient: self.disco_client,
+            aioxmpp.DiscoServer: self.disco,
+            aioxmpp.PubSubClient: self.pubsub,
         })
 
         self.s = avatar_service.AvatarService(self.cc, dependencies={
             aioxmpp.DiscoClient: self.disco_client,
             aioxmpp.DiscoServer: self.disco,
             aioxmpp.PubSubClient: self.pubsub,
+            aioxmpp.PEPClient: self.pep,
         })
 
         self.cc.mock_calls.clear()
@@ -446,9 +449,9 @@ class TestAvatarService(unittest.TestCase):
             self.assertEqual(0, len(metadata.pointer))
 
     def test_handle_pubsub_publish(self):
-        self.assertTrue(aioxmpp.service.is_depsignal_handler(
-            aioxmpp.PubSubClient,
-            "on_item_published",
+        self.assertTrue(aioxmpp.service.is_attrsignal_handler(
+            avatar_service.AvatarService.avatar_pep,
+            "on_item_publish",
             self.s.handle_pubsub_publish
         ))
 

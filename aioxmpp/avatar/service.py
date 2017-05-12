@@ -27,6 +27,7 @@ import aioxmpp
 import aioxmpp.callbacks as callbacks
 import aioxmpp.service as service
 import aioxmpp.disco as disco
+import aioxmpp.pep as pep
 import aioxmpp.pubsub as pubsub
 
 from aioxmpp.utils import namespaces
@@ -378,14 +379,12 @@ class AvatarService(service.Service):
         disco.DiscoClient,
         disco.DiscoServer,
         pubsub.PubSubClient,
+        pep.PEPClient,
     ]
 
-    metadata_notify = disco.register_feature(
-        # register the notify capability for receiving avatar notifications
-        # automatically
-        # XXX: a PEPService on top of PubSubClient should handle this
-        # in the future
-        namespaces.xep0084_metadata + "+notify"
+    avatar_pep = pep.register_pep_node(
+        namespaces.xep0084_metadata,
+        notify=True,
     )
 
     on_metadata_changed = callbacks.Signal()
@@ -435,11 +434,8 @@ class AvatarService(service.Service):
 
         return result
 
-    @service.depsignal(pubsub.PubSubClient, "on_item_published")
+    @service.attrsignal(avatar_pep, "on_item_publish")
     def handle_pubsub_publish(self, jid, node, item, *, message=None):
-        if node != namespaces.xep0084_metadata:
-            return
-
         # update the metadata cache
         metadata = self._cook_metadata(jid, [item])
         self._metadata_cache[jid] = metadata
