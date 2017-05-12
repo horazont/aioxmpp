@@ -29,20 +29,17 @@ avatars as per :xep:`User Avatar <84>`.
 Services
 ========
 
-The following services are provided by this subpackage:
+The following service is provided by this subpackage:
 
 .. currentmodule:: aioxmpp
 
 .. autosummary::
 
-   AvatarServer
-   AvatarClient
+   AvatarService
 
 The detailed documentation of the classes follows:
 
-.. autoclass:: AvatarServer
-
-.. autoclass:: AvatarClient
+.. autoclass:: AvatarService()
 
 .. currentmodule:: aioxmpp.avatar
 
@@ -67,5 +64,5 @@ Helpers
 
 """
 
-from .service import (AvatarSet, AvatarServer, AvatarClient,  # NOQA
+from .service import (AvatarSet, AvatarService,  # NOQA
                       normalize_id)

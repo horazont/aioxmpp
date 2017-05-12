@@ -99,7 +99,7 @@ from .muc import MUCClient  # NOQA
 from .pubsub import PubSubClient  # NOQA
 from .shim import SHIMService  # NOQA
 from .adhoc import AdHocClient, AdHocServer  # NOQA
-from .avatar import AvatarClient, AvatarServer  # NOQA
+from .avatar import AvatarService  # NOQA
 from .blocking import BlockingClient  # NOQA
 from .carbons import CarbonsClient  # NOQA
 from .ping import PingService  # NOQA
