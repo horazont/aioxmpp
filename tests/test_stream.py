@@ -1653,17 +1653,17 @@ class TestStanzaStream(StanzaStreamTestBase):
             nonlocal exc
             exc = _exc
 
-        self.stream.ping_interval = timedelta(seconds=0.1)
+        self.stream.ping_interval = timedelta(seconds=0.5)
         self.stream.ping_opportunistic_interval = timedelta(seconds=0.1)
         self.stream.on_failure.connect(failure_handler)
 
         self.stream.start(self.xmlstream)
-        run_coroutine(asyncio.sleep(0.2))
+        run_coroutine(asyncio.sleep(0.7))
 
         request = self.sent_stanzas.get_nowait()
         response = request.make_reply(type_=structs.IQType.RESULT)
         self.stream.recv_stanza(response)
-        run_coroutine(asyncio.sleep(0.11))
+        run_coroutine(asyncio.sleep(0.6))
 
         self.assertIsNone(exc)
 
