@@ -1,8 +1,7 @@
 Licenses
 ========
 
-The whole ``aioxmpp`` is distributed under the GPLv3. See ``COPYING.gpl3`` for
-the full license text.
+The whole ``aioxmpp`` is distributed under the LGPLv3. See ``COPYING.gpl3`` together with ``COPYING.LESSER`` for the full license text.
 
 Dependencies
 ------------
@@ -25,6 +24,6 @@ The licenses of the dependencies shall be listed here, too:
 
 * ``multidict`` uses the Apache 2.0 license (see ``docs/licenses/apache20.txt``)
 
-* ``aiosasl`` uses the GPLv3 license (see ``COPYING.gpl3``)
+* ``aiosasl`` uses the LGPLv3 license (see ``COPYING.gpl3`` and ``COPYING.LESSER``)
 
 * ``aioopenssl`` uses the Apache 2.0 license (see ``docs/licenses/apache20.txt``)
