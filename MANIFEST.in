@@ -1,0 +1,4 @@
+include COPYING.gpl3
+include COPYING.LESSER
+include LICENSES
+include docs/licenses/*.txt
