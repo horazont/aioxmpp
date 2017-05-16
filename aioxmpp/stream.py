@@ -1924,8 +1924,14 @@ class StanzaStream:
     @asyncio.coroutine
     def start_sm(self, request_resumption=True):
         """
-        Start stream management (version 3). This negotiates stream management
-        with the server.
+        Start stream management (version 3).
+
+        :param request_resumption: Request that the stream shall be resumable.
+        :type request_resumption: :class:`bool`
+        :raises aioxmpp.errors.StreamNegotiationFailure: if the server rejects
+            the attempt to enable stream management.
+
+        This method attempts to starts stream management on the stream.
 
         If the server rejects the attempt to enable stream management, a
         :class:`.errors.StreamNegotiationFailure` is raised. The stream is
@@ -1940,14 +1946,14 @@ class StanzaStream:
 
         If an XML stream error occurs during the negotiation, the result
         depends on a few factors. In any case, the stream is not running
-        afterwards. If the :class:`SMEnabled` response was not received before
-        the XML stream died, SM is also disabled and the exception which caused
-        the stream to die is re-raised (this is due to the implementation of
-        :func:`~.protocol.send_and_wait_for`). If the :class:`SMEnabled`
-        response was received and annonuced support for resumption, SM is
-        enabled. Otherwise, it is disabled. No exception is raised if
-        :class:`SMEnabled` was received, as this method has no way to determine
-        that the stream failed.
+        afterwards. If the :class:`.nonza.SMEnabled` response was not received
+        before the XML stream died, SM is also disabled and the exception which
+        caused the stream to die is re-raised (this is due to the
+        implementation of :func:`~.protocol.send_and_wait_for`). If the
+        :class:`.nonza.SMEnabled` response was received and annonuced support
+        for resumption, SM is enabled. Otherwise, it is disabled. No exception
+        is raised if :class:`.nonza.SMEnabled` was received, as this method has
+        no way to determine that the stream failed.
 
         If negotiation succeeds, this coroutine initializes a new stream
         management session. The stream management state attributes become
