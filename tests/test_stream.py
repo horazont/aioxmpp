@@ -3340,6 +3340,124 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
 
         self.assertFalse(self.destroyed_rec.mock_calls)
 
+    def test_start_sm_with_resumption_timeout(self):
+        self.assertFalse(self.stream.sm_enabled)
+
+        # we need interaction here to show that SM gets negotiated
+        xmlstream = XMLStreamMock(self, loop=self.loop)
+
+        self.stream.start(xmlstream)
+
+        run_coroutine_with_peer(
+            self.stream.start_sm(request_resumption=True,
+                                 resumption_timeout=1000),
+            xmlstream.run_test(
+                [
+                    XMLStreamMock.Send(
+                        nonza.SMEnable(resume=True, max_=1000),
+                        response=XMLStreamMock.Receive(
+                            nonza.SMEnabled(resume=True,
+                                            id_="foobar",
+                                            location=("fe80::", 5222),
+                                            max_=900)
+                        )
+                    )
+                ]
+            )
+        )
+
+        self.assertTrue(self.stream.sm_enabled)
+
+        self.assertEqual(
+            0,
+            self.stream.sm_outbound_base
+        )
+        self.assertEqual(
+            0,
+            self.stream.sm_inbound_ctr
+        )
+        self.assertSequenceEqual(
+            [],
+            self.stream.sm_unacked_list
+        )
+        self.assertEqual(
+            "foobar",
+            self.stream.sm_id
+        )
+        self.assertEqual(
+            (ipaddress.IPv6Address("fe80::"), 5222),
+            self.stream.sm_location
+        )
+        self.assertEqual(
+            900,
+            self.stream.sm_max
+        )
+        self.assertTrue(self.stream.sm_resumable)
+
+        self.established_rec.assert_called_once_with()
+
+        self.stream.stop()
+        run_coroutine(asyncio.sleep(0))
+
+        self.assertFalse(self.destroyed_rec.mock_calls)
+
+    def test_start_sm_aliases_resumption_timeout_0_to_disabled(self):
+        self.assertFalse(self.stream.sm_enabled)
+
+        # we need interaction here to show that SM gets negotiated
+        xmlstream = XMLStreamMock(self, loop=self.loop)
+
+        self.stream.start(xmlstream)
+
+        run_coroutine_with_peer(
+            self.stream.start_sm(request_resumption=True,
+                                 resumption_timeout=0),
+            xmlstream.run_test(
+                [
+                    XMLStreamMock.Send(
+                        nonza.SMEnable(resume=False),
+                        response=XMLStreamMock.Receive(
+                            nonza.SMEnabled(resume=False,
+                                            id_="foobar")
+                        )
+                    )
+                ]
+            )
+        )
+
+        self.assertTrue(self.stream.sm_enabled)
+
+        self.assertEqual(
+            0,
+            self.stream.sm_outbound_base
+        )
+        self.assertEqual(
+            0,
+            self.stream.sm_inbound_ctr
+        )
+        self.assertSequenceEqual(
+            [],
+            self.stream.sm_unacked_list
+        )
+        self.assertEqual(
+            "foobar",
+            self.stream.sm_id
+        )
+        self.assertIsNone(
+            self.stream.sm_location
+        )
+        self.assertIsNone(
+            self.stream.sm_max
+        )
+        self.assertFalse(self.stream.sm_resumable)
+
+        self.established_rec.assert_called_once_with()
+
+        self.stream.stop()
+        run_coroutine(asyncio.sleep(0))
+
+        self.assertTrue(self.destroyed_rec.mock_calls)
+
     def test_sm_start_failure(self):
         self.stream.start(self.xmlstream)
         with self.assertRaises(errors.StreamNegotiationFailure):
