@@ -1350,6 +1350,17 @@ class TestClient(xmltestutils.XMLTestCase):
                 )
             )
         ]
+
+        self.sm_without_resumption = [
+            XMLStreamMock.Send(
+                nonza.SMEnable(resume=False),
+                response=XMLStreamMock.Receive(
+                    nonza.SMEnabled(resume=False,
+                                    id_="foobar")
+                )
+            )
+        ]
+
         self.resource_binding = [
             XMLStreamMock.Send(
                 stanza.IQ(
@@ -2128,6 +2139,80 @@ class TestClient(xmltestutils.XMLTestCase):
         run_coroutine(self.xmlstream.run_test(
             self.resource_binding +
             self.sm_negotiation_exchange
+        ))
+
+        self.assertTrue(self.client.stream.sm_enabled)
+        self.assertTrue(self.client.stream.running)
+        self.assertTrue(self.client.running)
+
+        self.established_rec.assert_called_once_with()
+        self.assertFalse(self.destroyed_rec.mock_calls)
+
+        self.client.stop()
+        run_coroutine(self.xmlstream.run_test([
+            XMLStreamMock.Send(
+                nonza.SMAcknowledgement(counter=0)
+            ),
+            XMLStreamMock.Close()
+        ]))
+
+    def test_default_resumption_timeout(self):
+        self.assertIsNone(self.client.resumption_timeout)
+
+    def test_resumption_timeout_checks_type(self):
+        with self.assertRaises(TypeError):
+            self.client.resumption_timeout = 1.2
+        with self.assertRaises(TypeError):
+            self.client.resumption_timeout = "2"
+        with self.assertRaises(TypeError):
+            self.client.resumption_timeout = False
+        with self.assertRaises(ValueError):
+            self.client.resumption_timeout = -1
+        self.client.resumption_timeout = None
+        self.assertEqual(self.client.resumption_timeout, None)
+        self.client.resumption_timeout = 1
+        self.assertEqual(self.client.resumption_timeout, 1)
+
+    def test_negotiate_stream_management_with_timeout_0(self):
+        self.features[...] = nonza.StreamManagementFeature()
+        self.client.resumption_timeout = 0
+
+        self.client.start()
+        run_coroutine(self.xmlstream.run_test(
+            self.resource_binding +
+            self.sm_without_resumption
+        ))
+
+        self.assertTrue(self.client.stream.sm_enabled)
+        self.assertTrue(self.client.stream.running)
+        self.assertTrue(self.client.running)
+
+        self.established_rec.assert_called_once_with()
+        self.assertFalse(self.destroyed_rec.mock_calls)
+
+        self.client.stop()
+        run_coroutine(self.xmlstream.run_test([
+            XMLStreamMock.Send(
+                nonza.SMAcknowledgement(counter=0)
+            ),
+            XMLStreamMock.Close()
+        ]))
+
+    def test_negotiate_stream_management_with_specific_timeout(self):
+        self.features[...] = nonza.StreamManagementFeature()
+        self.client.resumption_timeout = 20
+
+        self.client.start()
+        run_coroutine(self.xmlstream.run_test(
+            self.resource_binding + [
+                XMLStreamMock.Send(
+                    nonza.SMEnable(resume=True, max_=20),
+                    response=XMLStreamMock.Receive(
+                        nonza.SMEnabled(resume=True,
+                                        id_="foobar")
+                    )
+                )
+            ]
         ))
 
         self.assertTrue(self.client.stream.sm_enabled)
