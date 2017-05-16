@@ -921,6 +921,22 @@ class TestSMEnabled(unittest.TestCase):
             nonza.SMEnabled.max_.default,
             None
         )
+        self.assertEqual(
+            nonza.SMEnabled.max_.validate,
+            xso.ValidateMode.ALWAYS,
+        )
+        self.assertIsInstance(
+            nonza.SMEnabled.max_.validator,
+            xso.NumericRange,
+        )
+        self.assertEqual(
+            nonza.SMEnabled.max_.validator.min_,
+            0
+        )
+        self.assertEqual(
+            nonza.SMEnabled.max_.validator.max_,
+            None,
+        )
 
     def test_resume(self):
         self.assertIsInstance(
