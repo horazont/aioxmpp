@@ -486,11 +486,12 @@ class Client:
 
     .. autoattribute:: running
 
-    .. attribute:: negotiation_timeout = timedelta(seconds=60)
+    .. attribute:: negotiation_timeout
+        :annotation: = timedelta(seconds=60)
 
-       The timeout applied to the connection process and the individual steps
-       of negotiating the stream. See the `negotiation_timeout` argument to
-       :func:`connect_xmlstream`.
+        The timeout applied to the connection process and the individual steps
+        of negotiating the stream. See the `negotiation_timeout` argument to
+        :func:`connect_xmlstream`.
 
     .. attribute:: override_peer
 
