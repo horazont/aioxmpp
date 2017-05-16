@@ -146,6 +146,9 @@ Version 0.9
 * :meth:`aioxmpp.DiscoClient.query_info` now supports a `no_cache` argument
   which prevents caching of the request and response.
 
+* The `default` of XSO descriptors has incorrectly been passed through the
+  validator, despite the documentation saying otherwise. This has been fixed.
+
 .. _api-changelog-0.8:
 
 Version 0.8
