@@ -778,10 +778,15 @@ class TestSMEnable(unittest.TestCase):
     def test_default_init(self):
         obj = nonza.SMEnable()
         self.assertFalse(obj.resume)
+        self.assertIsNone(obj.max_)
 
     def test_init(self):
-        obj = nonza.SMEnable(resume=True)
+        obj = nonza.SMEnable(resume=True, max_=123)
         self.assertTrue(obj.resume)
+        self.assertEqual(
+            obj.max_,
+            123,
+        )
 
     def test_resume(self):
         self.assertIsInstance(
@@ -799,6 +804,40 @@ class TestSMEnable(unittest.TestCase):
         self.assertIs(
             nonza.SMEnable.resume.default,
             False
+        )
+
+    def test_max_(self):
+        self.assertIsInstance(
+            nonza.SMEnable.max_,
+            xso.Attr
+        )
+        self.assertEqual(
+            (None, "max"),
+            nonza.SMEnable.max_.tag
+        )
+        self.assertIsInstance(
+            nonza.SMEnable.max_.type_,
+            xso.Integer
+        )
+        self.assertIs(
+            nonza.SMEnable.max_.default,
+            None
+        )
+        self.assertEqual(
+            nonza.SMEnable.max_.validate,
+            xso.ValidateMode.ALWAYS,
+        )
+        self.assertIsInstance(
+            nonza.SMEnable.max_.validator,
+            xso.NumericRange,
+        )
+        self.assertEqual(
+            nonza.SMEnable.max_.validator.min_,
+            0
+        )
+        self.assertEqual(
+            nonza.SMEnable.max_.validator.max_,
+            None,
         )
 
 
