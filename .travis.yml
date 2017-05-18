@@ -1,6 +1,7 @@
 language: python
 cache:
   pip: true
+
 python:
 - "3.4"
 - "3.5"
@@ -11,19 +12,26 @@ env:
 matrix:
   include:
   - python: "3.6"
+    env: TEST_MODE=e2e-ejabberd
+    services:
+    - docker
+  - python: "3.6"
     env: PROSODY_BRANCH=0.9 TEST_MODE=e2e-prosody
   - python: "3.6"
     env: PROSODY_BRANCH=trunk TEST_MODE=e2e-prosody
   - python: "3.6"
     env: TEST_MODE=coverage
+
 before_install:
 - export PATH=$PATH:$PWD/lua_install/bin
 - if [[ "x$TEST_MODE" = 'xe2e-prosody' ]]; then ./utils/install-prosody.sh; fi
+- if [[ "x$TEST_MODE" = 'xe2e-ejabberd' ]]; then ./utils/prepare-ejabberd.sh; fi
 install:
 - pip install nose coveralls
 - pip install .
 script:
-- if [[ "x$TEST_MODE" = 'xe2e-prosody' ]]; then ./utils/travis-e2etest.py; fi
+- if [[ "x$TEST_MODE" = 'xe2e-prosody' ]]; then ./utils/travis-e2etest-prosody.py; fi
+- if [[ "x$TEST_MODE" = 'xe2e-ejabberd' ]]; then ./utils/travis-e2etest-ejabberd.py; fi
 - if [[ "x$TEST_MODE" = 'xcoverage' ]]; then nosetests --with-cover --cover-package aioxmpp tests; fi
 after_success:
 - if [[ "x$TEST_MODE" = 'xcoverage' ]]; then coveralls; fi

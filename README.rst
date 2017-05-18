@@ -48,8 +48,11 @@ Features
   clients.
 
 * Well-tested and modular codebase: aioxmpp is developed in test-driven
-  style and many modules are automatedly tested against a Prosody 0.9, 0.10
-  and the most recent development version.
+  style and many modules are automatedly tested against a
+  `Prosody <https://prosody.im/>`_ 0.9, 0.10 and the most recent development
+  version, as well as `ejabberd <https://www.ejabberd.im/>`_, two popular XMPP
+  servers.
+
 
 There is more and there’s yet more to come! Check out the list of supported XEPs
 in the `official documentation`_ and `open GitHub issues tagged as enhancement
