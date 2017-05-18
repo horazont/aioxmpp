@@ -3224,8 +3224,8 @@ class TestCollector(XMLTestCase):
     def test_to_sax_does_not_call_startDocument(self):
         prop = xso.Collector()
 
-        subtree1 = etree.fromstring("<foo/>")
-        subtree2 = etree.fromstring("<bar a='baz'>fnord</bar>")
+        subtree1 = etree.fromstring("<foo xmlns='uri:foo'/>")
+        subtree2 = etree.fromstring("<bar xmlns='uri:bar' a='baz'>fnord</bar>")
         subtree3 = etree.fromstring(
             "<baz><a/>"
             "<b c='something'/>"
@@ -3244,6 +3244,8 @@ class TestCollector(XMLTestCase):
 
         prop.to_sax(instance, sax_receiver)
         sax_receiver.startDocument.assert_not_called()
+        sax_receiver.startPrefixMapping.assert_not_called()
+        sax_receiver.endPrefixMapping.assert_not_called()
 
 
 class TestAttr(XMLTestCase):
@@ -6491,10 +6493,10 @@ class Testevents_to_sax(unittest.TestCase):
         del self.dest
 
 
-class TestStartDocumentFilter(unittest.TestCase):
+class Test_CollectorContentHandlerFilter(unittest.TestCase):
     def setUp(self):
         self.r = unittest.mock.Mock()
-        self.f = xso_model.StartDocumentFilter(self.r)
+        self.f = xso_model._CollectorContentHandlerFilter(self.r)
 
     def test_setDocumentLocator(self):
         self.f.setDocumentLocator(unittest.mock.sentinel.locator)
@@ -6515,18 +6517,13 @@ class TestStartDocumentFilter(unittest.TestCase):
             unittest.mock.sentinel.prefix,
             unittest.mock.sentinel.uri,
         )
-        self.r.startPrefixMapping.assert_called_once_with(
-            unittest.mock.sentinel.prefix,
-            unittest.mock.sentinel.uri,
-        )
+        self.r.startPrefixMapping.assert_not_called()
 
     def test_endPrefixMapping(self):
         self.f.endPrefixMapping(
             unittest.mock.sentinel.prefix,
         )
-        self.r.endPrefixMapping.assert_called_once_with(
-            unittest.mock.sentinel.prefix,
-        )
+        self.r.endPrefixMapping.assert_not_called()
 
     def test_startElement(self):
         self.f.startElement(

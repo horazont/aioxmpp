@@ -157,7 +157,7 @@ class TestXMPPXMLGenerator(XMLTestCase):
         gen.endDocument()
 
         self.assertEqual(
-            b'<?xml version="1.0"?><ns0:foo xmlns:ns0="uri:foo"/>',
+            b'<?xml version="1.0"?><foo xmlns="uri:foo"/>',
             self.buf.getvalue()
         )
 
@@ -181,14 +181,14 @@ class TestXMPPXMLGenerator(XMLTestCase):
         gen.startDocument()
         gen.startPrefixMapping("ns", "uri:foo")
         gen.startElementNS(("uri:foo", "foo"), None, None)
-        gen.startElementNS(("uri:bar", "e1"), None, None)
+        gen.startElementNS(("uri:bar", "e1"), None, {("uri:fnord", "a"): "v"})
         gen.endElementNS(("uri:bar", "e1"), None)
         gen.endElementNS(("uri:foo", "foo"), None)
         gen.endDocument()
         self.assertEqual(
             b'<?xml version="1.0"?>'
             b'<ns:foo xmlns:ns="uri:foo">'
-            b'<ns0:e1 xmlns:ns0="uri:bar"/>'
+            b'<e1 xmlns="uri:bar" xmlns:ns0="uri:fnord" ns0:a="v"/>'
             b'</ns:foo>',
             self.buf.getvalue()
         )
@@ -198,17 +198,17 @@ class TestXMPPXMLGenerator(XMLTestCase):
         gen.startDocument()
         gen.startPrefixMapping("ns", "uri:foo")
         gen.startElementNS(("uri:foo", "foo"), None, None)
-        gen.startElementNS(("uri:bar", "e"), None, None)
+        gen.startElementNS(("uri:bar", "e"), None, {("uri:fnord", "a"): "v"})
         gen.endElementNS(("uri:bar", "e"), None)
-        gen.startElementNS(("uri:baz", "e"), None, None)
-        gen.endElementNS(("uri:baz", "e"), None)
+        gen.startElementNS(("uri:bar", "e"), None, {("uri:baz", "a"): "v"})
+        gen.endElementNS(("uri:bar", "e"), None)
         gen.endElementNS(("uri:foo", "foo"), None)
         gen.endDocument()
         self.assertEqual(
             b'<?xml version="1.0"?>'
             b'<ns:foo xmlns:ns="uri:foo">'
-            b'<ns0:e xmlns:ns0="uri:bar"/>'
-            b'<ns0:e xmlns:ns0="uri:baz"/>'
+            b'<e xmlns="uri:bar" xmlns:ns0="uri:fnord" ns0:a="v"/>'
+            b'<e xmlns="uri:bar" xmlns:ns0="uri:baz" ns0:a="v"/>'
             b'</ns:foo>',
             self.buf.getvalue()
         )
@@ -554,7 +554,7 @@ class TestXMPPXMLGenerator(XMLTestCase):
         gen.startPrefixMapping("ns0", "uri:foo")
         gen.startElementNS(("uri:foo", "foo"), None, {})
         gen.startPrefixMapping("ns0", "uri:bar")
-        gen.startElementNS(("uri:foo", "bar"), None, {})
+        gen.startElementNS(("uri:foo", "bar"), None, {("uri:baz", "a"): "v"})
         gen.endElementNS(("uri:foo", "bar"), None)
         gen.endPrefixMapping("ns0")
         gen.endElementNS(("uri:foo", "foo"), None)
@@ -563,7 +563,8 @@ class TestXMPPXMLGenerator(XMLTestCase):
         self.assertEqual(
             b'<?xml version="1.0"?>'
             b'<ns0:foo xmlns:ns0="uri:foo">'
-            b'<ns1:bar xmlns:ns0="uri:bar" xmlns:ns1="uri:foo"/>'
+            b'<bar xmlns="uri:foo" xmlns:ns0="uri:bar" xmlns:ns1="uri:baz"'
+            b' ns1:a="v"/>'
             b'</ns0:foo>',
             self.buf.getvalue()
         )
@@ -1159,11 +1160,118 @@ class TestXMPPXMLGenerator(XMLTestCase):
 
         self.assertEqual(
             b'<?xml version="1.0"?>'
-            b'<ns0:bar xmlns:ns0="uri:foo">'
-            b'<ns1:foo xmlns:ns1="uri:fnord" xmlns:x="uri:bar" x:a="x"/>'
-            b'</ns0:bar>',
+            b'<bar xmlns="uri:foo">'
+            b'<foo xmlns="uri:fnord" xmlns:x="uri:bar" x:a="x"/>'
+            b'</bar>',
             buf.getvalue(),
         )
+
+    def test_attributes_in_ns_get_prefix_even_if_ns_matches_default(self):
+        gen = xml.XMPPXMLGenerator(self.buf, sorted_attributes=True)
+        gen.startDocument()
+        gen.startElementNS(("uri:foo", "foo"), None, {
+            ("uri:foo", "a"): "v",
+            (None, "a"): "v"
+        })
+        gen.endElementNS(("uri:foo", "foo"), None)
+        gen.endDocument()
+        self.assertEqual(
+            b'<?xml version="1.0"?>'
+            b'<foo xmlns="uri:foo" xmlns:ns0="uri:foo" a="v" ns0:a="v"/>',
+            self.buf.getvalue()
+        )
+
+    def test_attributes_in_ns_get_prefix_even_if_ns_matches_parent_default(self):
+        gen = xml.XMPPXMLGenerator(self.buf, sorted_attributes=True)
+        gen.startDocument()
+        gen.startElementNS(("uri:foo", "foo"), None, None)
+        gen.startElementNS(("uri:foo", "bar"), None, {
+            ("uri:foo", "a"): "v",
+            (None, "a"): "v"
+        })
+        gen.endElementNS(("uri:foo", "bar"), None)
+        gen.endElementNS(("uri:foo", "foo"), None)
+        gen.endDocument()
+        self.assertEqual(
+            b'<?xml version="1.0"?>'
+            b'<foo xmlns="uri:foo">'
+            b'<bar xmlns:ns0="uri:foo" a="v" ns0:a="v"/>'
+            b'</foo>',
+            self.buf.getvalue()
+        )
+
+    def test_auto_prefixes_are_cleared_when_pinned(self):
+        # this transcript was found while running an e2e test of private_xml
+
+        gen = xml.XMPPXMLGenerator(self.buf, sorted_attributes=True)
+        gen.startDocument()
+
+        gen.startPrefixMapping(
+            None,
+            'jabber:client'
+        )
+        gen.startPrefixMapping(
+            'stream',
+            'stream'
+        )
+        gen.startElementNS(
+            ('stream', 'stream'),
+            None,
+            {},
+        )
+
+        gen.startElementNS(
+            ('jabber:client', 'iq'),
+            None,
+            {(None, 'id'): 'xjDMHg9cpq0zJQxfzwYAP', (None, 'type'): 'set'}
+        )
+        gen.startPrefixMapping(None, 'jabber:iq:private')
+        gen.startElementNS(('jabber:iq:private', 'query'), None, {})
+        gen.startElementNS(
+            ('urn:example:unregistered', 'example'),
+            'ns00:example',
+            {}
+        )
+        gen.startElementNS(
+            ('urn:example:unregistered', 'payload'),
+            'ns00:payload',
+            {}
+        )
+        gen.endElementNS(('urn:example:unregistered', 'payload'),
+                         'ns00:payload')
+        gen.endElementNS(('urn:example:unregistered', 'example'),
+                         'ns00:example')
+        gen.endElementNS(('jabber:iq:private', 'query'), None)
+        gen.endPrefixMapping(None)
+        gen.endElementNS(('jabber:client', 'iq'), None)
+
+        gen.startPrefixMapping(None, 'urn:xmpp:sm:3')
+        gen.startElementNS(('urn:xmpp:sm:3', 'r'), None, {})
+        gen.endElementNS(('urn:xmpp:sm:3', 'r'), None)
+
+        # originally, this call raised a KeyError
+        gen.endPrefixMapping(None)
+
+        gen.endElementNS(('stream', 'stream'), None)
+        gen.endPrefixMapping(None)
+        gen.endPrefixMapping('stream')
+        gen.endDocument()
+
+        self.assertEqual(
+            b'<?xml version="1.0"?>'
+            b'<stream:stream xmlns="jabber:client" xmlns:stream="stream">'
+            b'<iq id="xjDMHg9cpq0zJQxfzwYAP" type="set">'
+            b'<query xmlns="jabber:iq:private">'
+            b'<example xmlns="urn:example:unregistered">'
+            b'<payload/>'
+            b'</example>'
+            b'</query>'
+            b'</iq>'
+            b'<r xmlns="urn:xmpp:sm:3"/>'
+            b'</stream:stream>',
+            self.buf.getvalue()
+        )
+
 
 
 class TestXMLStreamWriter(unittest.TestCase):
@@ -1251,7 +1359,7 @@ class TestXMLStreamWriter(unittest.TestCase):
         self.assertEqual(
             b'<?xml version="1.0"?>' +
             self.STREAM_HEADER +
-            b'<ns0:bar xmlns:ns0="uri:foo"/>'
+            b'<bar xmlns="uri:foo"/>'
             b'</stream:stream>',
             self.buf.getvalue())
 
@@ -1314,7 +1422,7 @@ class TestXMLStreamWriter(unittest.TestCase):
         self.assertEqual(
             b'<?xml version="1.0"?>' +
             self.STREAM_HEADER +
-            b'<ns0:bar xmlns:ns0="uri:foo"/>'
+            b'<bar xmlns="uri:foo"/>'
             b'</stream:stream>',
             self.buf.getvalue())
 
@@ -1329,7 +1437,7 @@ class TestXMLStreamWriter(unittest.TestCase):
         self.assertEqual(
             b'<?xml version="1.0"?>' +
             self.STREAM_HEADER +
-            b'<ns0:bar xmlns:ns0="uri:foo"/>',
+            b'<bar xmlns="uri:foo"/>',
             self.buf.getvalue())
 
     def test_abort_is_idempotent(self):
@@ -1343,7 +1451,7 @@ class TestXMLStreamWriter(unittest.TestCase):
         self.assertEqual(
             b'<?xml version="1.0"?>' +
             self.STREAM_HEADER +
-            b'<ns0:bar xmlns:ns0="uri:foo"/>',
+            b'<bar xmlns="uri:foo"/>',
             self.buf.getvalue())
 
     def test_abort_after_close_is_okay(self):
@@ -1357,7 +1465,7 @@ class TestXMLStreamWriter(unittest.TestCase):
         self.assertEqual(
             b'<?xml version="1.0"?>' +
             self.STREAM_HEADER +
-            b'<ns0:bar xmlns:ns0="uri:foo"/>'
+            b'<bar xmlns="uri:foo"/>'
             b'</stream:stream>',
             self.buf.getvalue())
 
@@ -1372,7 +1480,7 @@ class TestXMLStreamWriter(unittest.TestCase):
         self.assertEqual(
             b'<?xml version="1.0"?>' +
             self.STREAM_HEADER +
-            b'<ns0:bar xmlns:ns0="uri:foo"/>',
+            b'<bar xmlns="uri:foo"/>',
             self.buf.getvalue())
 
 
@@ -2200,6 +2308,12 @@ class TestFullstack(XMLTestCase):
         with io.BytesIO() as f:
             xml.write_single_xso(as_xso, f)
             serialised = f.getvalue()
+
+        # there is no need for named prefixes!
+        self.assertNotIn(
+            b'xmlns:',
+            serialised,
+        )
 
         print("serialised to {}".format(serialised))
 

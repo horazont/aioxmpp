@@ -109,7 +109,7 @@ class XMPPXMLGenerator:
 
     * It supports **only** namespace-conforming XML documents
     * It automatically chooses namespace prefixes if a namespace has not been
-      declared
+      declared, while avoiding to use prefixes at all if possible
     * It is in general stricter on (explicit) namespace declarations, to avoid
       ambiguities
     * It always uses utf-8 ☺
@@ -200,7 +200,10 @@ class XMPPXMLGenerator:
         self._buf = None
         self._buf_in_use = False
 
-    def _roll_prefix(self):
+    def _roll_prefix(self, attr):
+        if not attr and None not in self._ns_prefixes_floating_in:
+            return None
+
         prefix_number = self._ns_counter + 1
         while True:
             prefix = "ns{}".format(prefix_number)
@@ -222,15 +225,20 @@ class XMPPXMLGenerator:
                 return "xml:" + name[1]
             try:
                 prefix = self._ns_decls_floating_in[name[0]]
+                if attr and prefix is None:
+                    raise KeyError()
             except KeyError:
                 try:
                     prefix = self._curr_ns_map[name[0]]
                     if prefix in self._ns_prefixes_floating_in:
                         raise KeyError()
+                    if attr and prefix is None:
+                        raise KeyError()
                 except KeyError:
                     # namespace is undeclared, we have to declare it..
-                    prefix = self._roll_prefix()
+                    prefix = self._roll_prefix(attr)
                     self.startPrefixMapping(prefix, name[0], auto=True)
+
             if prefix:
                 return ":".join((prefix, name[1]))
 
@@ -275,6 +283,7 @@ class XMPPXMLGenerator:
         self._curr_ns_map.update(new_decls)
         self._ns_decls_floating_in = {}
         self._ns_prefixes_floating_in = {}
+        self._ns_auto_prefixes_floating_in.clear()
 
         return cleared_new_prefixes
 
@@ -316,7 +325,6 @@ class XMPPXMLGenerator:
         During a transaction, it is not allowed to declare the same prefix
         multiple times.
         """
-
         if     (prefix is not None and
                 (prefix == "xml" or
                  prefix == "xmlns" or

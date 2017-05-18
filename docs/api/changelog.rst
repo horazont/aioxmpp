@@ -161,6 +161,9 @@ Version 0.9
 
 * Fix serialisation of :class:`aioxmpp.xso.Collector` descriptors.
 
+* Make :class:`aioxmpp.xml.XMPPXMLGenerator` avoid the use of namespace
+  prefixes if a namespace is undeclared if possible.
+
 
 .. _api-changelog-0.8:
 
