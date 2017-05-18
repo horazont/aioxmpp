@@ -2423,6 +2423,18 @@ class Test_PropBase(unittest.TestCase):
             ],
             validator.mock_calls)
 
+    def test_validator_recv_ignores_default(self):
+        validator = unittest.mock.MagicMock()
+        instance = make_instance_mock()
+
+        prop = xso_model._PropBase(
+            default=self.default,
+            validator=validator,
+            validate=xso.ValidateMode.FROM_RECV)
+
+        prop._set_from_recv(instance, self.default)
+        validator.validate.assert_not_called()
+
     def test_validator_code(self):
         validator = unittest.mock.MagicMock()
         instance = make_instance_mock()
@@ -2461,6 +2473,18 @@ class Test_PropBase(unittest.TestCase):
                 unittest.mock.call.validate("baz"),
             ],
             validator.mock_calls)
+
+    def test_validator_code_ignores_default(self):
+        validator = unittest.mock.MagicMock()
+        instance = make_instance_mock()
+
+        prop = xso_model._PropBase(
+            default=self.default,
+            validator=validator,
+            validate=xso.ValidateMode.FROM_CODE)
+
+        prop._set_from_code(instance, self.default)
+        validator.validate.assert_not_called()
 
     def test_validator_always(self):
         validator = unittest.mock.MagicMock()
@@ -2566,12 +2590,7 @@ class Test_TypedPropBase(unittest.TestCase):
 
         prop._set_from_code(instance, "bar")
 
-        self.assertSequenceEqual(
-            [
-                unittest.mock.call.coerce("bar"),
-            ],
-            type_.mock_calls
-        )
+        type_.coerce.assert_called_once_with("bar")
 
         self.assertDictEqual(
             {
@@ -2684,11 +2703,7 @@ class TestText(XMLTestCase):
         prop = xso.Text(type_=type_)
         prop.__set__(instance, "foo")
 
-        self.assertSequenceEqual(
-            [
-                unittest.mock.call.coerce("foo"),
-            ],
-            type_.mock_calls)
+        type_.coerce.assert_called_once_with("foo")
 
     def test_to_sax_unset(self):
         instance = make_instance_mock()
@@ -2834,12 +2849,7 @@ class TestChild(XMLTestCase):
         obj = self.ClsA()
         obj.test_child = unittest.mock.MagicMock()
         self.ClsA.test_child.to_sax(obj, dest)
-        self.assertSequenceEqual(
-            [
-                unittest.mock.call.unparse_to_sax(dest)
-            ],
-            obj.test_child.mock_calls
-        )
+        obj.test_child.unparse_to_sax.assert_called_once_with(dest)
 
     def test_to_sax_unset(self):
         dest = unittest.mock.MagicMock()
@@ -3327,6 +3337,15 @@ class TestAttr(XMLTestCase):
             ],
             validator.mock_calls)
 
+    def test_validator_ignores_default(self):
+        validator = unittest.mock.MagicMock()
+        instance = make_instance_mock()
+
+        prop = xso.Attr("foo", validator=validator, default=None,
+                        validate=xso_model.ValidateMode.ALWAYS)
+        prop.__set__(instance, None)
+        validator.validate.assert_not_called()
+
     def test_coerces(self):
         type_ = unittest.mock.MagicMock()
         instance = make_instance_mock()
@@ -3334,12 +3353,7 @@ class TestAttr(XMLTestCase):
         prop = xso.Attr("foo", type_=type_)
         prop.__set__(instance, "bar")
 
-        self.assertSequenceEqual(
-            [
-                unittest.mock.call.coerce("bar"),
-            ],
-            type_.mock_calls
-        )
+        type_.coerce.assert_called_once_with("bar")
 
     def test_missing(self):
         ctx = xso_model.Context()
@@ -3434,11 +3448,8 @@ class TestChildText(XMLTestCase):
 
         drive_from_events(prop.from_events, instance, subtree, self.ctx)
 
-        self.assertSequenceEqual(
-            [
-                unittest.mock.call.parse("foo"),
-            ],
-            type_mock.mock_calls)
+        type_mock.parse.assert_called_once_with("foo")
+
         self.assertDictEqual(
             {
                 prop: type_mock.parse("foo"),
@@ -3660,12 +3671,7 @@ class TestChildText(XMLTestCase):
         prop = xso.ChildText("body", type_=type_)
         prop.__set__(instance, "bar")
 
-        self.assertSequenceEqual(
-            [
-                unittest.mock.call.coerce("bar"),
-            ],
-            type_.mock_calls
-        )
+        type_.coerce.assert_called_once_with("bar")
 
     def test_validate_contents_rejects_unset_and_undefaulted(self):
         instance = make_instance_mock()

@@ -59,6 +59,25 @@ the case that an error occured.
    such as Connection Reset by Peer break such a stream would defeat the
    purpose of Stream Management.
 
+
+.. note::
+
+    As of version 0.9, you can disable the resumption capaibility of Stream
+    Management using the :attr:`.Client.resumption_timeout` attribute. However,
+    that alone is no guarantee that sessions die quickly; it still depends a
+    lot on the way in which the network connection got interrupted and whether
+    or not the server is sending data to the (disconnected) client.
+
+    There are other timeouts, such as the ones from TCP, at play here which
+    need to be tweaked properly on the server-side. How to do so is out of
+    scope for aioxmpp.
+
+    (If you happen to find a client-side way, e.g. in another XMPP library, to
+    achieve the behaviour of letting the session die quickly in case of a
+    hard disconnect (e.g. a pulled cable), let me know. I’m quite convinced
+    that this is impossible, so I’d like to be proven wrong.)
+
+
 I am trying to connect to a bare IP and I get a DNS error
 =========================================================
 

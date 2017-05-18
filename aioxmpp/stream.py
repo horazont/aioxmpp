@@ -1922,10 +1922,36 @@ class StanzaStream:
         return self._task is not None and not self._task.done()
 
     @asyncio.coroutine
-    def start_sm(self, request_resumption=True):
+    def start_sm(self, request_resumption=True, resumption_timeout=None):
         """
-        Start stream management (version 3). This negotiates stream management
-        with the server.
+        Start stream management (version 3).
+
+        :param request_resumption: Request that the stream shall be resumable.
+        :type request_resumption: :class:`bool`
+        :param resumption_timeout: Maximum time in seconds for a stream to be
+            resumable.
+        :type resumption_timeout: :class:`int`
+        :raises aioxmpp.errors.StreamNegotiationFailure: if the server rejects
+            the attempt to enable stream management.
+
+        This method attempts to starts stream management on the stream.
+
+        `resumption_timeout` is the ``max`` attribute on
+        :class:`.nonza.SMEnabled`; it can be used to set a maximum time for
+        which the server shall consider the stream to still be alive after the
+        underlying transport (TCP) has failed. The server may impose its own
+        maximum or ignore the request, so there are no guarentees that the
+        session will stay alive for at most or at least `resumption_timeout`
+        seconds. Passing a `resumption_timeout` of 0 is equivalent to passing
+        false to `request_resumption` and takes precedence over
+        `request_resumption`.
+
+        .. note::
+
+            In addition to server implementation details, it is very well
+            possible that the server does not even detect that the underlying
+            transport has failed for quite some time for various reasons
+            (including high TCP timeouts).
 
         If the server rejects the attempt to enable stream management, a
         :class:`.errors.StreamNegotiationFailure` is raised. The stream is
@@ -1940,14 +1966,14 @@ class StanzaStream:
 
         If an XML stream error occurs during the negotiation, the result
         depends on a few factors. In any case, the stream is not running
-        afterwards. If the :class:`SMEnabled` response was not received before
-        the XML stream died, SM is also disabled and the exception which caused
-        the stream to die is re-raised (this is due to the implementation of
-        :func:`~.protocol.send_and_wait_for`). If the :class:`SMEnabled`
-        response was received and annonuced support for resumption, SM is
-        enabled. Otherwise, it is disabled. No exception is raised if
-        :class:`SMEnabled` was received, as this method has no way to determine
-        that the stream failed.
+        afterwards. If the :class:`.nonza.SMEnabled` response was not received
+        before the XML stream died, SM is also disabled and the exception which
+        caused the stream to die is re-raised (this is due to the
+        implementation of :func:`~.protocol.send_and_wait_for`). If the
+        :class:`.nonza.SMEnabled` response was received and annonuced support
+        for resumption, SM is enabled. Otherwise, it is disabled. No exception
+        is raised if :class:`.nonza.SMEnabled` was received, as this method has
+        no way to determine that the stream failed.
 
         If negotiation succeeds, this coroutine initializes a new stream
         management session. The stream management state attributes become
@@ -1959,11 +1985,16 @@ class StanzaStream:
         if self.sm_enabled:
             raise RuntimeError("Stream Management already enabled")
 
+        if resumption_timeout == 0:
+            request_resumption = False
+            resumption_timeout = None
+
         with (yield from self._broker_lock):
             response = yield from protocol.send_and_wait_for(
                 self._xmlstream,
                 [
-                    nonza.SMEnable(resume=bool(request_resumption)),
+                    nonza.SMEnable(resume=bool(request_resumption),
+                                   max_=resumption_timeout),
                 ],
                 [
                     nonza.SMEnabled,

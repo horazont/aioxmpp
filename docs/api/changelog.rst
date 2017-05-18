@@ -152,6 +152,13 @@ Version 0.9
   :class:`aioxmpp.service.Service` subclasses are now initialised in the order
   they are declared.
 
+* The `default` of XSO descriptors has incorrectly been passed through the
+  validator, despite the documentation saying otherwise. This has been fixed.
+
+* :attr:`aioxmpp.Client.resumption_timeout`: Support for specifying the
+  lifetime of a Stream  Management (:xep:`198`) session and disabling stream
+  resumption altogether.
+
 .. _api-changelog-0.8:
 
 Version 0.8

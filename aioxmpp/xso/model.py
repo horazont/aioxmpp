@@ -306,7 +306,8 @@ class _PropBase(metaclass=PropBaseMeta):
         instance._xso_contents[self] = value
 
     def __set__(self, instance, value):
-        if     (self.validate.from_code and
+        if     (self.default != value and
+                self.validate.from_code and
                 self.validator and
                 not self.validator.validate(value)):
             raise ValueError("invalid value")
@@ -316,7 +317,8 @@ class _PropBase(metaclass=PropBaseMeta):
         self.__set__(instance, value)
 
     def _set_from_recv(self, instance, value):
-        if     (self.validate.from_recv and
+        if     (self.default != value and
+                self.validate.from_recv and
                 self.validator and
                 not self.validator.validate(value)):
             raise ValueError("invalid value")

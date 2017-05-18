@@ -486,11 +486,12 @@ class Client:
 
     .. autoattribute:: running
 
-    .. attribute:: negotiation_timeout = timedelta(seconds=60)
+    .. attribute:: negotiation_timeout
+        :annotation: = timedelta(seconds=60)
 
-       The timeout applied to the connection process and the individual steps
-       of negotiating the stream. See the `negotiation_timeout` argument to
-       :func:`connect_xmlstream`.
+        The timeout applied to the connection process and the individual steps
+        of negotiating the stream. See the `negotiation_timeout` argument to
+        :func:`connect_xmlstream`.
 
     .. attribute:: override_peer
 
@@ -509,6 +510,9 @@ class Client:
           options set here.
 
        .. versionadded:: 0.6
+
+    .. autoattribute:: resumption_timeout
+        :annotation: = None
 
     Connection information:
 
@@ -693,6 +697,7 @@ class Client:
         self.backoff_cap = timedelta(seconds=60)
         self.override_peer = list(override_peer)
         self._max_initial_attempts = max_initial_attempts
+        self._resumption_timeout = None
 
         self.on_stopped.logger = self.logger.getChild("on_stopped")
         self.on_failure.logger = self.logger.getChild("on_failure")
@@ -809,7 +814,9 @@ class Client:
         if server_can_do_sm:
             self.logger.debug("attempting to start stream management")
             try:
-                yield from self.stream.start_sm()
+                yield from self.stream.start_sm(
+                    resumption_timeout=self._resumption_timeout
+                )
             except errors.StreamNegotiationFailure:
                 self.logger.debug("stream management failed to start")
             self.logger.debug("stream management started")
@@ -1042,6 +1049,43 @@ class Client:
         :attr:`on_stream_established`) and false otherwise.
         """
         return self._established
+
+    @property
+    def resumption_timeout(self):
+        """
+        The maximum time as integer in seconds for which the server shall hold
+        on to the session if the underlying transport breaks.
+
+        This is only relevant if the server supports
+        :xep:`Stream Management <198>` and the server may ignore the request
+        for a maximum timeout and/or impose its own maximum. After the
+        stream has been negotiated, :attr:`.StanzaStream.sm_max` holds the
+        actual timeout announced by the server (may be :data:`None` if the
+        server did not specify a timeout).
+
+        The default value of :data:`None` does not request any specific
+        timeout from the server and leaves it up to the server to decide.
+
+        Setting a :attr:`resumption_timeout` of zero (0) disables resumption.
+
+        .. versionadded:: 0.9
+        """
+        return self._resumption_timeout
+
+    @resumption_timeout.setter
+    def resumption_timeout(self, value):
+        if (value is not None and
+                (not isinstance(value, int) or isinstance(value, bool))):
+            raise TypeError(
+                "resumption_timeout must be int or None, got {!r}".format(
+                    value
+                )
+            )
+        if value is not None and value < 0:
+            raise ValueError(
+                "resumption timeout must be non-negative or None"
+            )
+        self._resumption_timeout = value
 
     def connected(self, *, presence=structs.PresenceState(False), **kwargs):
         """
