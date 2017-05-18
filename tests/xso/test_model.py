@@ -3211,6 +3211,30 @@ class TestCollector(XMLTestCase):
             parent_compare,
             parent_generated)
 
+    def test_to_sax_does_not_call_startDocument(self):
+        prop = xso.Collector()
+
+        subtree1 = etree.fromstring("<foo/>")
+        subtree2 = etree.fromstring("<bar a='baz'>fnord</bar>")
+        subtree3 = etree.fromstring(
+            "<baz><a/>"
+            "<b c='something'/>"
+            "<d i='am running out of'>dummy texts</d>"
+            "to insert</baz>")
+
+        instance = make_instance_mock({
+            prop: [
+                subtree1,
+                subtree2,
+                subtree3,
+            ]
+        })
+
+        sax_receiver = unittest.mock.Mock()
+
+        prop.to_sax(instance, sax_receiver)
+        sax_receiver.startDocument.assert_not_called()
+
 
 class TestAttr(XMLTestCase):
     def test_rejects_required_kwarg(self):
@@ -6459,3 +6483,107 @@ class Testevents_to_sax(unittest.TestCase):
 
     def tearDown(self):
         del self.dest
+
+
+class TestStartDocumentFilter(unittest.TestCase):
+    def setUp(self):
+        self.r = unittest.mock.Mock()
+        self.f = xso_model.StartDocumentFilter(self.r)
+
+    def test_setDocumentLocator(self):
+        self.f.setDocumentLocator(unittest.mock.sentinel.locator)
+        self.r.setDocumentLocator.assert_called_once_with(
+            unittest.mock.sentinel.locator,
+        )
+
+    def test_startDocument(self):
+        self.f.startDocument()
+        self.r.assert_not_called()
+
+    def test_endDocument(self):
+        self.f.endDocument()
+        self.r.assert_not_called()
+
+    def test_startPrefixMapping(self):
+        self.f.startPrefixMapping(
+            unittest.mock.sentinel.prefix,
+            unittest.mock.sentinel.uri,
+        )
+        self.r.startPrefixMapping.assert_called_once_with(
+            unittest.mock.sentinel.prefix,
+            unittest.mock.sentinel.uri,
+        )
+
+    def test_endPrefixMapping(self):
+        self.f.endPrefixMapping(
+            unittest.mock.sentinel.prefix,
+        )
+        self.r.endPrefixMapping.assert_called_once_with(
+            unittest.mock.sentinel.prefix,
+        )
+
+    def test_startElement(self):
+        self.f.startElement(
+            unittest.mock.sentinel.name,
+            unittest.mock.sentinel.attrs,
+        )
+        self.r.startElement.assert_called_once_with(
+            unittest.mock.sentinel.name,
+            unittest.mock.sentinel.attrs,
+        )
+
+    def test_startElementNS(self):
+        self.f.startElementNS(
+            unittest.mock.sentinel.name,
+            unittest.mock.sentinel.qname,
+            unittest.mock.sentinel.attrs,
+        )
+        self.r.startElementNS.assert_called_once_with(
+            unittest.mock.sentinel.name,
+            unittest.mock.sentinel.qname,
+            unittest.mock.sentinel.attrs,
+        )
+
+    def test_endElement(self):
+        self.f.endElement(
+            unittest.mock.sentinel.name,
+        )
+        self.r.endElement.assert_called_once_with(
+            unittest.mock.sentinel.name,
+        )
+
+    def test_endElementNS(self):
+        self.f.endElementNS(
+            unittest.mock.sentinel.name,
+            unittest.mock.sentinel.qname,
+        )
+        self.r.endElementNS.assert_called_once_with(
+            unittest.mock.sentinel.name,
+            unittest.mock.sentinel.qname,
+        )
+
+    def test_characters(self):
+        self.f.characters(unittest.mock.sentinel.data)
+        self.r.characters.assert_called_once_with(unittest.mock.sentinel.data)
+
+    def test_ignorableWhitespace(self):
+        self.f.ignorableWhitespace(unittest.mock.sentinel.data)
+        self.r.ignorableWhitespace.assert_called_once_with(
+            unittest.mock.sentinel.data
+        )
+
+    def test_processingInstruction(self):
+        self.f.processingInstruction(
+            unittest.mock.sentinel.target,
+            unittest.mock.sentinel.data,
+        )
+        self.r.processingInstruction.assert_called_once_with(
+            unittest.mock.sentinel.target,
+            unittest.mock.sentinel.data,
+        )
+
+    def test_skippedEntity(self):
+        self.f.skippedEntity(unittest.mock.sentinel.name)
+        self.r.skippedEntity.assert_called_once_with(
+            unittest.mock.sentinel.name
+        )

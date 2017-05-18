@@ -2133,3 +2133,76 @@ class Testread_single_xso(unittest.TestCase):
         bio = io.BytesIO(b"<?xml version='1.0'?><root a='foo&uuml;'/>")
         with self.assertRaises(xml_sax.SAXParseException):
             xml.read_single_xso(bio, Root)
+
+
+class SomeChild(xso.XSO):
+    TAG = "tests/test_xml.py", "child"
+
+    a1 = xso.Attr("a1", type_=xso.Bool())
+
+    text = xso.Text()
+
+class SomeXSO(xso.XSO):
+    TAG = "tests/test_xml.py", "root"
+
+    a1 = xso.Attr("a1")
+    a2 = xso.Attr("a2", type_=xso.Integer())
+
+    children = xso.ChildList([SomeChild])
+
+    other = xso.Collector()
+
+
+class TestFullstack(XMLTestCase):
+    def test_fullstack_test(self):
+        DATA = (
+            '<root xmlns="tests/test_xml.py" a1="foo" a2="10">'
+            '<child a1="true">Text of child 1</child>'
+            '<child a1="false">Text of child 2</child>'
+            '<other-child>Text of unknown child 1</other-child>'
+            '<other-child a1="foobar">Text of unknown child 2</other-child>'
+            '</root>'
+        )
+
+        tree1 = etree.fromstring(DATA)
+
+        with io.BytesIO(DATA.encode("utf-8")) as f:
+            as_xso = xml.read_single_xso(f, SomeXSO)
+
+        self.assertEqual(as_xso.a1, "foo")
+        self.assertEqual(as_xso.a2, 10)
+
+        self.assertEqual(len(as_xso.children), 2)
+
+        self.assertEqual(
+            as_xso.children[0].a1,
+            True,
+        )
+        self.assertEqual(
+            as_xso.children[0].text,
+            "Text of child 1",
+        )
+
+        self.assertEqual(
+            as_xso.children[1].a1,
+            False,
+        )
+        self.assertEqual(
+            as_xso.children[1].text,
+            "Text of child 2",
+        )
+
+        self.assertEqual(
+            len(as_xso.other),
+            2,
+        )
+
+        with io.BytesIO() as f:
+            xml.write_single_xso(as_xso, f)
+            serialised = f.getvalue()
+
+        print("serialised to {}".format(serialised))
+
+        tree2 = etree.fromstring(serialised)
+
+        self.assertSubtreeEqual(tree1, tree2)

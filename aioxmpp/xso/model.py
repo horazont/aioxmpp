@@ -686,7 +686,7 @@ class Collector(_PropBase):
 
     def to_sax(self, instance, dest):
         for node in self.__get__(instance, type(instance)):
-            lxml.sax.saxify(node, dest)
+            lxml.sax.saxify(node, StartDocumentFilter(dest))
 
 
 class Attr(Text):
@@ -2564,3 +2564,42 @@ def events_to_sax(events, dest):
             dest.endElementNS(name, None)
         elif ev_type == "text":
             dest.characters(ev_args[0])
+
+
+class StartDocumentFilter(xml.sax.handler.ContentHandler):
+    def __init__(self, receiver):
+        super().__init__()
+        self.__receiver = receiver
+
+    def setDocumentLocator(self, locator):
+        self.__receiver.setDocumentLocator(locator)
+
+    def startElement(self, name, attrs):
+        self.__receiver.startElement(name, attrs)
+
+    def endElement(self, name):
+        self.__receiver.endElement(name)
+
+    def startElementNS(self, name, qname, attrs):
+        self.__receiver.startElementNS(name, qname, attrs)
+
+    def endElementNS(self, name, qname):
+        self.__receiver.endElementNS(name, qname)
+
+    def startPrefixMapping(self, prefix, uri):
+        self.__receiver.startPrefixMapping(prefix, uri)
+
+    def endPrefixMapping(self, prefix):
+        self.__receiver.endPrefixMapping(prefix)
+
+    def characters(self, content):
+        self.__receiver.characters(content)
+
+    def ignorableWhitespace(self, content):
+        self.__receiver.ignorableWhitespace(content)
+
+    def processingInstruction(self, target, data):
+        self.__receiver.processingInstruction(target, data)
+
+    def skippedEntity(self, name):
+        self.__receiver.skippedEntity(name)

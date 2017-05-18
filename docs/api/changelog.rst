@@ -152,6 +152,8 @@ Version 0.9
   :class:`aioxmpp.service.Service` subclasses are now initialised in the order
   they are declared.
 
+* Fix serialisation of :class:`aioxmpp.xso.Collector` descriptors.
+
 .. _api-changelog-0.8:
 
 Version 0.8
