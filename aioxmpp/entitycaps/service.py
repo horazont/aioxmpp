@@ -196,9 +196,11 @@ class Cache:
 
 class EntityCapsService(aioxmpp.service.Service):
     """
-    This service implements :xep:`0115`, transparently. Besides loading the
-    service, no interaction is required to get some of the benefits of
-    :xep:`0115`.
+    Make use and provide service discovery information in presence broadcasts.
+
+    This service implements :xep:`0115` and :xep:`0390`, transparently.
+    Besides loading the service, no interaction is required to get some of
+    the benefits of :xep:`0115` and :xep:`0390`.
 
     Two additional things need to be done by users to get full support and
     performance:

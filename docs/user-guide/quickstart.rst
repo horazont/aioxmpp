@@ -124,9 +124,9 @@ Relevant documentation:
 React to messages (Echo Bot)
 ============================
 
-Of course, you can react to messages. For this, you need to register with the
-:class:`aioxmpp.stream.StanaStream` of the `client`. You better do this before
-connecting, to avoid race conditions. So the following code should run
+Of course, you can react to messages. For simple use-cases, you can use the
+:class:`aioxmpp.dispatcher.SimpleMessageDispatcher` service. You better do this
+before connecting, to avoid race conditions. So the following code should run
 before the ``async with``. To get all chat messages, you could use::
 
   import aioxmpp.dispatcher
@@ -134,9 +134,12 @@ before the ``async with``. To get all chat messages, you could use::
   def message_received(msg):
       print(msg)
 
+  # obtain an instance of the service (we’ll discuss services later)
   message_dispatcher = client.summon(
      aioxmpp.dispatcher.SimpleMessageDispatcher
   )
+
+  # register a message callback here
   message_dispatcher.register_callback(
       aioxmpp.MessageType.CHAT,
       None,
@@ -247,8 +250,8 @@ Use services
 ============
 
 Services have now been mentioned several times. The idea of a
-:class:`aioxmpp.service.Service` is to implement a specific XEP or an optional
-part of the XMPP protocol. Services essentially do the same thing as discussed
+:class:`aioxmpp.service.Service` is to implement a specific XEP or a part of
+the XMPP protocol. Services essentially do the same thing as discussed
 in the previous sections (sending and receiving messages, IQs and/or presences),
 but encapsulated away in a class. For details on that, see
 :mod:`aioxmpp.service` and an implementation, such as
@@ -273,9 +276,9 @@ by the entity identified by `target_jid`.
 
 The idea of services is to abstract away the details of the protocol
 implemented, and offer additional features (such as caching). Several services
-are offered by :mod:`aioxmpp`, the easiest way to find those is to simply check
-the :ref:`API Reference <api>`; most XEPs supported by :mod:`aioxmpp` are
-implemented as services.
+are offered by :mod:`aioxmpp`; most XEPs supported by :mod:`aioxmpp` are
+implemented as services. An overview of the existing services can be found in
+the API reference at :ref:`api-aioxmpp-services`.
 
 Relevant docmuentation:
 

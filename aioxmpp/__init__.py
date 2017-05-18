@@ -34,6 +34,29 @@ package:
 
 .. autodata:: version_info
 
+.. _api-aioxmpp-services:
+
+Overview of Services
+####################
+
+.. autosummary::
+    :nosignatures:
+
+    aioxmpp.AdHocClient
+    aioxmpp.AvatarService
+    aioxmpp.BlockingClient
+    aioxmpp.BookmarkClient
+    aioxmpp.CarbonsClient
+    aioxmpp.DiscoClient
+    aioxmpp.DiscoServer
+    aioxmpp.EntityCapsService
+    aioxmpp.MUCClient
+    aioxmpp.PingService
+    aioxmpp.PresenceClient
+    aioxmpp.PresenceServer
+    aioxmpp.PEPClient
+    aioxmpp.RosterClient
+
 Shorthands
 ##########
 
