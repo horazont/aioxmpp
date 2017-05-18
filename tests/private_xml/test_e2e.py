@@ -22,8 +22,11 @@
 import asyncio
 import unittest
 
+import aioxmpp
 import aioxmpp.private_xml as private_xml
 import aioxmpp.xso as xso
+
+from aioxmpp.utils import etree
 
 from aioxmpp.e2etest import (
     blocking,
@@ -48,24 +51,33 @@ class TestPrivateXMLStorage(TestCase):
     @blocking_timed
     @asyncio.coroutine
     def test_store_and_retrieve_xml_unregistered(self):
-        p = self.client.summon(private_xml.PrivateXMLService)
+        tree = etree.fromstring(
+            '<example xmlns="urn:example:unregistered">'
+            '<payload xmlns="urn:example:unregistered">'
+            'foobar'
+            '</payload>'
+            '</example>'
+        )
 
-        class Payload(xso.XSO):
-            TAG = ("urn:example:unregistered", "payload")
-            data = xso.Text(type_=xso.String())
+        query = private_xml.xso.Query(None)
+        query.unregistered_payload.append(tree)
 
-            def __init__(self, text=""):
-                self.data = text
+        iq = aioxmpp.IQ(
+            type_=aioxmpp.IQType.SET,
+            payload=query,
+        )
 
-        class Example(xso.XSO):
-            TAG = ("urn:example:unregistered", "example")
-            payload = xso.Child([Payload])
+        yield from self.client.stream.send(iq)
 
-            def __init__(self, payload=None):
-                self.payload = payload
+        query.unregistered_payload[0].clear()
 
-        yield from p.set_private_xml(Example(Payload("foobar")))
-        retrieved = yield from p.get_private_xml(Example())
+        iq = aioxmpp.IQ(
+            type_=aioxmpp.IQType.GET,
+            payload=query,
+        )
+
+        retrieved = yield from self.client.stream.send(iq)
+
         self.assertEqual(len(retrieved.unregistered_payload), 1)
         self.assertEqual(
             retrieved.unregistered_payload[0].tag,

@@ -37,7 +37,7 @@ class Query(xso.XSO):
     """
     TAG = (namespaces.xep0049, "query")
 
-    registered_payload = xso.Child([])
+    registered_payload = xso.Child([], strict=True)
     unregistered_payload = xso.Collector()
 
     def __init__(self, payload):

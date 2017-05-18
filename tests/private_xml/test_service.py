@@ -32,6 +32,11 @@ from aioxmpp.testutils import (
 )
 
 
+@private_xml_xso.Query.as_payload_class
+class FakePayload(aioxmpp.xso.XSO):
+    TAG = "tests/private_xml/test_service.py", "payload"
+
+
 class TestService(unittest.TestCase):
 
     def setUp(self):
@@ -53,11 +58,12 @@ class TestService(unittest.TestCase):
         ))
 
     def test_get_private_xml(self):
+        payload = FakePayload()
+
         with unittest.mock.patch.object(self.cc.stream, "send",
                                         new=CoroutineMock()) as mock_send:
             mock_send.return_value = unittest.mock.sentinel.result
-            res = run_coroutine(self.s.get_private_xml(
-                unittest.mock.sentinel.payload))
+            res = run_coroutine(self.s.get_private_xml(payload))
 
         self.assertEqual(len(mock_send.mock_calls), 1)
         try:
@@ -68,16 +74,16 @@ class TestService(unittest.TestCase):
         self.assertIsInstance(arg, aioxmpp.IQ)
         self.assertEqual(arg.type_, aioxmpp.IQType.GET)
         self.assertIsInstance(arg.payload, private_xml_xso.Query)
-        self.assertEqual(arg.payload.registered_payload,
-                         unittest.mock.sentinel.payload)
+        self.assertEqual(arg.payload.registered_payload, payload)
 
         self.assertEqual(res, unittest.mock.sentinel.result)
 
     def test_set_private_xml(self):
+        payload = FakePayload()
+
         with unittest.mock.patch.object(self.cc.stream, "send",
                                         new=CoroutineMock()) as mock_send:
-            run_coroutine(self.s.set_private_xml(
-                unittest.mock.sentinel.payload))
+            run_coroutine(self.s.set_private_xml(payload))
 
         self.assertEqual(len(mock_send.mock_calls), 1)
         try:
@@ -88,5 +94,4 @@ class TestService(unittest.TestCase):
         self.assertIsInstance(arg, aioxmpp.IQ)
         self.assertEqual(arg.type_, aioxmpp.IQType.SET)
         self.assertIsInstance(arg.payload, private_xml_xso.Query)
-        self.assertEqual(arg.payload.registered_payload,
-                         unittest.mock.sentinel.payload)
+        self.assertEqual(arg.payload.registered_payload, payload)
