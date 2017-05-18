@@ -668,21 +668,33 @@ class StanzaStream:
 
     .. signal:: on_message_received(stanza)
 
-       Emits when a :class:`aioxmpp.Message` stanza has been received.
+        Emits when a :class:`aioxmpp.Message` stanza has been received.
 
-       :param stanza: The received stanza.
-       :type stanza: :class:`aioxmpp.Message`
+        :param stanza: The received stanza.
+        :type stanza: :class:`aioxmpp.Message`
 
-       .. versionadded:: 0.9
+        .. seealso::
+
+            :class:`aioxmpp.dispatcher.SimpleMessageDispatcher`
+                for a service which allows to register callbacks for messages
+                based on the sender and type of the message.
+
+        .. versionadded:: 0.9
 
     .. signal:: on_presence_received(stanza)
 
-       Emits when a :class:`aioxmpp.Presence` stanza has been received.
+        Emits when a :class:`aioxmpp.Presence` stanza has been received.
 
-       :param stanza: The received stanza.
-       :type stanza: :class:`aioxmpp.Presence`
+        :param stanza: The received stanza.
+        :type stanza: :class:`aioxmpp.Presence`
 
-       .. versionadded:: 0.9
+        .. seealso::
+
+            :class:`aioxmpp.dispatcher.SimplePresenceDispatcher`
+                for a service which allows to register callbacks for presences
+                based on the sender and type of the message.
+
+        .. versionadded:: 0.9
 
     """
 
