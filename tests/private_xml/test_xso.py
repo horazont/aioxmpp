@@ -29,6 +29,11 @@ import aioxmpp.xso as xso
 from aioxmpp.utils import namespaces
 
 
+@private_xml_xso.Query.as_payload_class
+class FakePayload(xso.XSO):
+    TAG = "tests/private_xml/test_xso.py", "payload"
+
+
 class TestQuery(unittest.TestCase):
 
     def test_namespace(self):
@@ -47,10 +52,16 @@ class TestQuery(unittest.TestCase):
         )
 
     def test_init(self):
-        query = private_xml_xso.Query(unittest.mock.sentinel.payload)
+        payload = FakePayload()
+        query = private_xml_xso.Query(payload)
         self.assertEqual(
             query.registered_payload,
-            unittest.mock.sentinel.payload
+            payload
+        )
+
+    def test_registered_payload_is_strict(self):
+        self.assertTrue(
+            private_xml_xso.Query.registered_payload.strict,
         )
 
     def test_as_payload_class(self):

@@ -159,6 +159,9 @@ Version 0.9
   lifetime of a Stream  Management (:xep:`198`) session and disabling stream
   resumption altogether.
 
+* Fix serialisation of :class:`aioxmpp.xso.Collector` descriptors.
+
+
 .. _api-changelog-0.8:
 
 Version 0.8
