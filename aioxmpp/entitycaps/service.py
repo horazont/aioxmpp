@@ -264,9 +264,6 @@ class EntityCapsService(aioxmpp.service.Service):
 
     on_ver_changed = aioxmpp.callbacks.Signal()
 
-    _xep115_feature = disco.register_feature(namespaces.xep0115_caps)
-    _xep390_feature = disco.register_feature(namespaces.xep0390_caps)
-
     def __init__(self, node, **kwargs):
         super().__init__(node, **kwargs)
 
@@ -494,6 +491,12 @@ class EntityCapsService(aioxmpp.service.Service):
 
         if self._push_hashset(node, new_hashset):
             self.on_ver_changed()
+
+
+    # declare those at the bottom so that on_ver_changed gets emitted when the
+    # service is instantiated
+    _xep115_feature = disco.register_feature(namespaces.xep0115_caps)
+    _xep390_feature = disco.register_feature(namespaces.xep0390_caps)
 
 
 def writeback(path, captured_events):

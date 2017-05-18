@@ -65,7 +65,7 @@ class Avatar(Example):
 
     def make_simple_client(self):
         client = super().make_simple_client()
-        self.avatar = client.summon(aioxmpp.avatar.AvatarClient)
+        self.avatar = client.summon(aioxmpp.avatar.AvatarService)
         return client
 
     @asyncio.coroutine
@@ -86,6 +86,7 @@ class Avatar(Example):
     @asyncio.coroutine
     def run_example(self):
         yield from super().run_example()
+
 
 if __name__ == "__main__":
     exec_example(Avatar())

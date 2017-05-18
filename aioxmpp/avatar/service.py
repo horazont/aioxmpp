@@ -27,6 +27,7 @@ import aioxmpp
 import aioxmpp.callbacks as callbacks
 import aioxmpp.service as service
 import aioxmpp.disco as disco
+import aioxmpp.pep as pep
 import aioxmpp.pubsub as pubsub
 
 from aioxmpp.utils import namespaces
@@ -339,12 +340,17 @@ class HttpAvatarDescriptor(AbstractAvatarDescriptor):
         raise NotImplementedError
 
 
-class AvatarClient(service.Service):
+class AvatarService(service.Service):
     """
-    Retrieves and caches avatar information of other clients. Emits
-    notifications on metadata changes.
+    Access and publish User Avatars (:xep:`84`).
 
-    .. note:: :class:`AvatarClient` only caches the metadata, not the
+    This service provides an interface for accessing the avatar of other
+    entities in the network, getting notifications on avatar changes and
+    publishing an avatar for this entity.
+
+    Observing avatars:
+
+    .. note:: :class:`AvatarService` only caches the metadata, not the
               actual image data. This is the job of the caller.
 
     .. signal:: on_metadata_changed(jid, metadata)
@@ -360,28 +366,42 @@ class AvatarClient(service.Service):
     .. automethod:: get_avatar_metadata
 
     .. automethod:: subscribe
+
+    Publishing avatars:
+
+    .. automethod:: publish_avatar_set
+
+    .. automethod:: disable_avatar
+
     """
 
     ORDER_AFTER = [
+        disco.DiscoClient,
         disco.DiscoServer,
         pubsub.PubSubClient,
+        pep.PEPClient,
     ]
 
-    metadata_notify = disco.register_feature(
-        # register the notify capability for receiving avatar notifications
-        # automatically
-        # XXX: a PEPService on top of PubSubClient should handle this
-        # in the future
-        namespaces.xep0084_metadata + "+notify"
+    avatar_pep = pep.register_pep_node(
+        namespaces.xep0084_metadata,
+        notify=True,
     )
 
     on_metadata_changed = callbacks.Signal()
 
     def __init__(self, client, **kwargs):
         super().__init__(client, **kwargs)
+        self._has_pep = None
         self._metadata_cache = {}
         self._pubsub = self.dependencies[pubsub.PubSubClient]
-        self._lock = asyncio.Lock()
+        self._notify_lock = asyncio.Lock()
+        self._disco = self.dependencies[disco.DiscoClient]
+        # we use this lock to prevent race conditions between different
+        # calls of the methods by one client.
+        # XXX: Other, independent clients may still cause inconsistent
+        # data by race conditions, this should be fixed by at least
+        # checking for consistent data after an update.
+        self._publish_lock = asyncio.Lock()
 
     def _cook_metadata(self, jid, items):
         def iter_metadata_info_nodes(items):
@@ -414,11 +434,8 @@ class AvatarClient(service.Service):
 
         return result
 
-    @service.depsignal(pubsub.PubSubClient, "on_item_published")
+    @service.attrsignal(avatar_pep, "on_item_publish")
     def handle_pubsub_publish(self, jid, node, item, *, message=None):
-        if node != namespaces.xep0084_metadata:
-            return
-
         # update the metadata cache
         metadata = self._cook_metadata(jid, [item])
         self._metadata_cache[jid] = metadata
@@ -451,7 +468,7 @@ class AvatarClient(service.Service):
             except KeyError:
                 pass
 
-        with (yield from self._lock):
+        with (yield from self._notify_lock):
             if jid in self._metadata_cache:
                 if require_fresh:
                     del self._metadata_cache[jid]
@@ -485,33 +502,6 @@ class AvatarClient(service.Service):
         Explicitly subscribe to metadata change notifications for `jid`.
         """
         yield from self._pubsub.subscribe(jid, namespaces.xep0084_metadata)
-
-
-class AvatarServer(service.Service):
-    """
-    Registers the avatar with the server.
-
-    .. automethod:: publish_avatar_set
-
-    .. automethod:: disable_avatar
-    """
-
-    ORDER_AFTER = [
-        disco.DiscoClient,
-        pubsub.PubSubClient,
-    ]
-
-    def __init__(self, client, **kwargs):
-        super().__init__(client, **kwargs)
-        self._has_pep = None
-        self._disco = self.dependencies[disco.DiscoClient]
-        self._pubsub = self.dependencies[pubsub.PubSubClient]
-        # we use this lock to prevent race conditions between different
-        # calls of the methods by one client.
-        # XXX: Other, independent clients may still cause inconsistent
-        # data by race conditions, this should be fixed by at least
-        # checking for consistent data after an update.
-        self._lock = asyncio.Lock()
 
     @asyncio.coroutine
     def _check_for_pep(self):
@@ -563,7 +553,7 @@ class AvatarServer(service.Service):
 
         id_ = avatar_set.png_id
 
-        with (yield from self._lock):
+        with (yield from self._publish_lock):
             yield from self._pubsub.publish(
                 None,
                 namespaces.xep0084_data,
@@ -587,7 +577,7 @@ class AvatarServer(service.Service):
         """
         yield from self._check_for_pep()
 
-        with (yield from self._lock):
+        with (yield from self._publish_lock):
             yield from self._pubsub.publish(
                 None,
                 namespaces.xep0084_metadata,

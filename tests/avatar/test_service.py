@@ -269,20 +269,28 @@ class TestAvatarSet(unittest.TestCase):
             aset.add_avatar_image("image/png")
 
 
-class TestAvatarServer(unittest.TestCase):
-
+class TestAvatarService(unittest.TestCase):
     def setUp(self):
         self.cc = make_connected_client()
         self.cc.local_jid = TEST_FROM
 
-        self.disco = aioxmpp.DiscoClient(self.cc)
+        self.disco_client = aioxmpp.DiscoClient(self.cc)
+        self.disco = aioxmpp.DiscoServer(self.cc)
         self.pubsub = aioxmpp.PubSubClient(self.cc, dependencies={
-            aioxmpp.DiscoClient: self.disco
+            aioxmpp.DiscoClient: self.disco_client
         })
 
-        self.s = avatar_service.AvatarServer(self.cc, dependencies={
-            aioxmpp.DiscoClient: self.disco,
+        self.pep = aioxmpp.PEPClient(self.cc, dependencies={
+            aioxmpp.DiscoClient: self.disco_client,
+            aioxmpp.DiscoServer: self.disco,
             aioxmpp.PubSubClient: self.pubsub,
+        })
+
+        self.s = avatar_service.AvatarService(self.cc, dependencies={
+            aioxmpp.DiscoClient: self.disco_client,
+            aioxmpp.DiscoServer: self.disco,
+            aioxmpp.PubSubClient: self.pubsub,
+            aioxmpp.PEPClient: self.pep,
         })
 
         self.cc.mock_calls.clear()
@@ -290,23 +298,29 @@ class TestAvatarServer(unittest.TestCase):
     def tearDown(self):
         del self.s
         del self.cc
+        del self.disco_client
         del self.disco
         del self.pubsub
 
     def test_is_service(self):
         self.assertTrue(issubclass(
-            avatar_service.AvatarServer,
+            avatar_service.AvatarService,
             aioxmpp.service.Service
         ))
 
     def test_service_order(self):
         self.assertGreater(
-            avatar_service.AvatarServer,
+            avatar_service.AvatarService,
             aioxmpp.DiscoClient,
         )
 
         self.assertGreater(
-            avatar_service.AvatarServer,
+            avatar_service.AvatarService,
+            aioxmpp.DiscoServer,
+        )
+
+        self.assertGreater(
+            avatar_service.AvatarService,
             aioxmpp.PubSubClient,
         )
 
@@ -323,39 +337,39 @@ class TestAvatarServer(unittest.TestCase):
             disco_xso.Identity(type_="pep", category="pubsub")
         )
 
-        with unittest.mock.patch.object(self.disco, "query_info",
+        with unittest.mock.patch.object(self.disco_client, "query_info",
                                         new=CoroutineMock()):
-            self.disco.query_info.return_value = disco_info
+            self.disco_client.query_info.return_value = disco_info
 
             # run twice, the second call must not query again but use the
             # cache
             run_coroutine(self.s._check_for_pep())
             run_coroutine(self.s._check_for_pep())
 
-            self.assertEqual(1, len(self.disco.query_info.mock_calls))
-            self.disco.query_info.assert_called_with(TEST_FROM.bare())
+            self.assertEqual(1, len(self.disco_client.query_info.mock_calls))
+            self.disco_client.query_info.assert_called_with(TEST_FROM.bare())
 
         # this should wipe the cache and recheck with disco
         mock_reason = unittest.mock.Mock()
         self.s.handle_stream_destroyed(mock_reason)
 
-        with unittest.mock.patch.object(self.disco, "query_info",
+        with unittest.mock.patch.object(self.disco_client, "query_info",
                                         new=CoroutineMock()):
-            self.disco.query_info.return_value = disco_info
+            self.disco_client.query_info.return_value = disco_info
 
             # run twice, the second call must not query again but use the
             # cache
             run_coroutine(self.s._check_for_pep())
             run_coroutine(self.s._check_for_pep())
 
-            self.assertEqual(1, len(self.disco.query_info.mock_calls))
-            self.disco.query_info.assert_called_with(TEST_FROM.bare())
+            self.assertEqual(1, len(self.disco_client.query_info.mock_calls))
+            self.disco_client.query_info.assert_called_with(TEST_FROM.bare())
 
     def test_check_for_pep_failure(self):
 
-        with unittest.mock.patch.object(self.disco, "query_info",
+        with unittest.mock.patch.object(self.disco_client, "query_info",
                                         new=CoroutineMock()):
-            self.disco.query_info.return_value = disco_xso.InfoQuery()
+            self.disco_client.query_info.return_value = disco_xso.InfoQuery()
 
             # run twice, the second call must not query again but use the
             # cache
@@ -367,10 +381,10 @@ class TestAvatarServer(unittest.TestCase):
 
             self.assertEqual(
                 1,
-                len(self.disco.query_info.mock_calls)
+                len(self.disco_client.query_info.mock_calls)
             )
 
-            self.disco.query_info.assert_called_with(
+            self.disco_client.query_info.assert_called_with(
                 TEST_FROM.bare()
             )
 
@@ -434,116 +448,10 @@ class TestAvatarServer(unittest.TestCase):
             self.assertEqual(0, len(metadata.info))
             self.assertEqual(0, len(metadata.pointer))
 
-
-class TestAvatarDescriptors(unittest.TestCase):
-
-    def setUp(self):
-        self.cc = make_connected_client()
-        self.cc.local_jid = TEST_FROM
-
-        self.disco = aioxmpp.DiscoClient(self.cc)
-        self.pubsub = aioxmpp.PubSubClient(self.cc, dependencies={
-            aioxmpp.DiscoClient: self.disco
-        })
-
-        self.cc.mock_calls.clear()
-
-    def test_attributes_defined_by_AbstractAvatarDescriptor(self):
-        a = avatar_service.AbstractAvatarDescriptor(
-            TEST_JID1, "image/png", TEST_IMAGE_SHA1, len(TEST_IMAGE)
-        )
-        with self.assertRaises(NotImplementedError):
-            run_coroutine(a.get_image_bytes())
-
-        with self.assertRaises(NotImplementedError):
-            a.has_image_data_in_pubsub
-
-        self.assertEqual(a.remote_jid, TEST_JID1)
-        self.assertEqual(a.mime_type, "image/png")
-        self.assertEqual(a.id_, TEST_IMAGE_SHA1)
-        self.assertEqual(a.nbytes, len(TEST_IMAGE))
-        self.assertEqual(a.normalized_id,
-                         avatar_service.normalize_id(TEST_IMAGE_SHA1))
-        self.assertEqual(a.url, None)
-        self.assertEqual(a.width, None)
-        self.assertEqual(a.height, None)
-
-    def test_get_image_bytes(self):
-        descriptor = avatar_service.PubsubAvatarDescriptor(
-            TEST_JID1,
-            "image/png",
-            TEST_IMAGE_SHA1.upper(),
-            len(TEST_IMAGE),
-            pubsub=self.pubsub
-        )
-
-        self.assertTrue(descriptor.has_image_data_in_pubsub)
-        self.assertEqual(TEST_IMAGE_SHA1, descriptor.normalized_id)
-
-        items = pubsub_xso.Items(
-            namespaces.xep0084_data,
-        )
-        item = pubsub_xso.Item(id_=TEST_IMAGE_SHA1)
-        item.registered_payload = avatar_xso.Data(TEST_IMAGE)
-        items.items.append(item)
-        pubsub_result = pubsub_xso.Request(items)
-
-        with unittest.mock.patch.object(self.pubsub, "get_items_by_id",
-                                        new=CoroutineMock()):
-            self.pubsub.get_items_by_id.return_value = pubsub_result
-
-            res = run_coroutine(descriptor.get_image_bytes())
-
-            self.assertSequenceEqual(
-                self.pubsub.get_items_by_id.mock_calls,
-                [
-                    unittest.mock.call(
-                        TEST_JID1,
-                        namespaces.xep0084_data,
-                        [TEST_IMAGE_SHA1.upper()],
-                    )
-                ]
-            )
-            self.assertEqual(res, TEST_IMAGE)
-
-    def test_HttpAvatarDescriptor(self):
-        descriptor = avatar_service.HttpAvatarDescriptor(
-            TEST_JID1,
-            "image/png",
-            TEST_IMAGE_SHA1.upper(),
-            len(TEST_IMAGE),
-            url="http://example.com/avatar"
-        )
-
-        self.assertFalse(descriptor.has_image_data_in_pubsub)
-        with self.assertRaises(NotImplementedError):
-            run_coroutine(descriptor.get_image_bytes())
-
-
-class AvatarClient(unittest.TestCase):
-
-    def setUp(self):
-        self.cc = make_connected_client()
-        self.cc.local_jid = TEST_FROM
-
-        self.disco_client = aioxmpp.DiscoClient(self.cc)
-        self.disco = aioxmpp.DiscoServer(self.cc)
-
-        self.pubsub = aioxmpp.PubSubClient(self.cc, dependencies={
-            aioxmpp.DiscoClient: self.disco
-        })
-
-        self.s = avatar_service.AvatarClient(self.cc, dependencies={
-            aioxmpp.DiscoServer: self.disco,
-            aioxmpp.PubSubClient: self.pubsub,
-        })
-
-        self.cc.mock_calls.clear()
-
     def test_handle_pubsub_publish(self):
-        self.assertTrue(aioxmpp.service.is_depsignal_handler(
-            aioxmpp.PubSubClient,
-            "on_item_published",
+        self.assertTrue(aioxmpp.service.is_attrsignal_handler(
+            avatar_service.AvatarService.avatar_pep,
+            "on_item_publish",
             self.s.handle_pubsub_publish
         ))
 
@@ -766,3 +674,89 @@ class AvatarClient(unittest.TestCase):
                     ),
                 ]
             )
+
+
+
+class TestAvatarDescriptors(unittest.TestCase):
+
+    def setUp(self):
+        self.cc = make_connected_client()
+        self.cc.local_jid = TEST_FROM
+
+        self.disco = aioxmpp.DiscoClient(self.cc)
+        self.pubsub = aioxmpp.PubSubClient(self.cc, dependencies={
+            aioxmpp.DiscoClient: self.disco
+        })
+
+        self.cc.mock_calls.clear()
+
+    def test_attributes_defined_by_AbstractAvatarDescriptor(self):
+        a = avatar_service.AbstractAvatarDescriptor(
+            TEST_JID1, "image/png", TEST_IMAGE_SHA1, len(TEST_IMAGE)
+        )
+        with self.assertRaises(NotImplementedError):
+            run_coroutine(a.get_image_bytes())
+
+        with self.assertRaises(NotImplementedError):
+            a.has_image_data_in_pubsub
+
+        self.assertEqual(a.remote_jid, TEST_JID1)
+        self.assertEqual(a.mime_type, "image/png")
+        self.assertEqual(a.id_, TEST_IMAGE_SHA1)
+        self.assertEqual(a.nbytes, len(TEST_IMAGE))
+        self.assertEqual(a.normalized_id,
+                         avatar_service.normalize_id(TEST_IMAGE_SHA1))
+        self.assertEqual(a.url, None)
+        self.assertEqual(a.width, None)
+        self.assertEqual(a.height, None)
+
+    def test_get_image_bytes(self):
+        descriptor = avatar_service.PubsubAvatarDescriptor(
+            TEST_JID1,
+            "image/png",
+            TEST_IMAGE_SHA1.upper(),
+            len(TEST_IMAGE),
+            pubsub=self.pubsub
+        )
+
+        self.assertTrue(descriptor.has_image_data_in_pubsub)
+        self.assertEqual(TEST_IMAGE_SHA1, descriptor.normalized_id)
+
+        items = pubsub_xso.Items(
+            namespaces.xep0084_data,
+        )
+        item = pubsub_xso.Item(id_=TEST_IMAGE_SHA1)
+        item.registered_payload = avatar_xso.Data(TEST_IMAGE)
+        items.items.append(item)
+        pubsub_result = pubsub_xso.Request(items)
+
+        with unittest.mock.patch.object(self.pubsub, "get_items_by_id",
+                                        new=CoroutineMock()):
+            self.pubsub.get_items_by_id.return_value = pubsub_result
+
+            res = run_coroutine(descriptor.get_image_bytes())
+
+            self.assertSequenceEqual(
+                self.pubsub.get_items_by_id.mock_calls,
+                [
+                    unittest.mock.call(
+                        TEST_JID1,
+                        namespaces.xep0084_data,
+                        [TEST_IMAGE_SHA1.upper()],
+                    )
+                ]
+            )
+            self.assertEqual(res, TEST_IMAGE)
+
+    def test_HttpAvatarDescriptor(self):
+        descriptor = avatar_service.HttpAvatarDescriptor(
+            TEST_JID1,
+            "image/png",
+            TEST_IMAGE_SHA1.upper(),
+            len(TEST_IMAGE),
+            url="http://example.com/avatar"
+        )
+
+        self.assertFalse(descriptor.has_image_data_in_pubsub)
+        with self.assertRaises(NotImplementedError):
+            run_coroutine(descriptor.get_image_bytes())

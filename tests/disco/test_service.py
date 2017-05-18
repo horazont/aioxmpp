@@ -1802,6 +1802,12 @@ class Testmount_as_node(unittest.TestCase):
         del self.disco_server
         del self.pn
 
+    def test_value_type(self):
+        self.assertIs(
+            self.pn.value_type,
+            type(None),
+        )
+
     def test_mountpoint(self):
         self.assertEqual(
             self.pn.mountpoint,
@@ -2006,6 +2012,12 @@ class Testregister_feature(unittest.TestCase):
         del self.instance
         del self.disco_server
         del self.pn
+
+    def test_value_type(self):
+        self.assertIs(
+            self.pn.value_type,
+            disco_service.RegisteredFeature,
+        )
 
     def test_mountpoint(self):
         self.assertEqual(

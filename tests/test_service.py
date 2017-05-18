@@ -52,6 +52,10 @@ class TestServiceMeta(unittest.TestCase):
             def init_cm(self, instance):
                 return self.descriptor_cm(instance)
 
+            @property
+            def value_type(self):
+                return None
+
         self.FooDescriptor = FooDescriptor
 
     def tearDown(self):
@@ -475,7 +479,7 @@ class TestServiceMeta(unittest.TestCase):
             x = descriptor
 
         self.assertCountEqual(
-            Foo.SERVICE_DESCRIPTORS,
+            Foo.SERVICE_HANDLERS,
             (
                 descriptor,
             ),
@@ -662,6 +666,10 @@ class TestService(unittest.TestCase):
             def add_to_stack(self, instance, stack):
                 base.add_to_stack(self, instance, stack)
 
+            @property
+            def value_type(self):
+                return None
+
         base = unittest.mock.Mock()
         base.init_cm = unittest.mock.MagicMock()
 
@@ -683,6 +691,94 @@ class TestService(unittest.TestCase):
                 unittest.mock.call.ExitStack(),
                 unittest.mock.call.add_to_stack(
                     ServiceWithDescriptor.desc,
+                    s,
+                    base.ExitStack(),
+                )
+            ]
+        )
+
+        base.mock_calls.clear()
+
+        base._shutdown = CoroutineMock()
+
+        with unittest.mock.patch.object(s, "_shutdown", new=base._shutdown):
+            run_coroutine(s.shutdown())
+
+        self.assertSequenceEqual(
+            base.mock_calls,
+            [
+                unittest.mock.call._shutdown(),
+                unittest.mock.call.ExitStack().close(),
+            ]
+        )
+
+    def test_setup_contexts_in_delaration_order(self):
+        class FooDescriptor(service.Descriptor):
+            def __init__(self, id_):
+                super().__init__()
+                self.__id = id_
+
+            def init_cm(self, instance):
+                return base.init_cm(instance, self.__id)
+
+            def add_to_stack(self, instance, stack):
+                base.add_to_stack(self, instance, stack)
+
+            @property
+            def value_type(self):
+                return None
+
+        base = unittest.mock.Mock()
+        base.init_cm = unittest.mock.MagicMock()
+
+        self.maxDiff = None
+
+        class ObjectWithHandlers:
+            def __init__(self, handlers=[]):
+                self._aioxmpp_service_handlers = set(handlers)
+
+            def __get__(self, instance, owner):
+                if instance is None:
+                    return self
+                return (unittest.mock.sentinel.got, self)
+
+        class ServiceWithDescriptor(service.Service):
+            desc1 = FooDescriptor(1)
+
+            x = ObjectWithHandlers(
+                [
+                    service.HandlerSpec((base.res1, ())),
+                ]
+            )
+
+            desc2 = FooDescriptor(2)
+
+        client = unittest.mock.Mock()
+
+        with unittest.mock.patch("contextlib.ExitStack",
+                                 new=base.ExitStack):
+            s = ServiceWithDescriptor(client)
+
+        calls = list(base.mock_calls)
+        self.assertSequenceEqual(
+            calls,
+            [
+                unittest.mock.call.ExitStack(),
+                unittest.mock.call.add_to_stack(
+                    ServiceWithDescriptor.desc1,
+                    s,
+                    base.ExitStack(),
+                ),
+                unittest.mock.call.res1(
+                    s,
+                    client.stream,
+                    (unittest.mock.sentinel.got, ServiceWithDescriptor.x)
+                ),
+                unittest.mock.call.ExitStack().enter_context(
+                    base.res1(),
+                ),
+                unittest.mock.call.add_to_stack(
+                    ServiceWithDescriptor.desc2,
                     s,
                     base.ExitStack(),
                 )
@@ -1002,6 +1098,57 @@ class Test_apply_connect_depfilter(unittest.TestCase):
         self.assertEqual(
             result,
             dependency.filter_name.context_register(),
+        )
+
+
+class Test_apply_connect_attrsignal(unittest.TestCase):
+    def test_uses_descriptor(self):
+        descriptor = unittest.mock.PropertyMock()
+
+        result = service._apply_connect_attrsignal(
+            unittest.mock.sentinel.instance,
+            unittest.mock.sentinel.stream,
+            unittest.mock.sentinel.func,
+            descriptor,
+            "signal_name",
+            unittest.mock.sentinel.mode,
+        )
+
+        descriptor.assert_called_once_with()
+
+        descriptor().signal_name.context_connect\
+            .assert_called_once_with(
+                unittest.mock.sentinel.func,
+                unittest.mock.sentinel.mode,
+            )
+
+        self.assertEqual(
+            result,
+            descriptor().signal_name.context_connect(),
+        )
+
+    def test_default_mode(self):
+        descriptor = unittest.mock.PropertyMock()
+
+        result = service._apply_connect_attrsignal(
+            unittest.mock.sentinel.instance,
+            unittest.mock.sentinel.stream,
+            unittest.mock.sentinel.func,
+            descriptor,
+            "signal_name",
+            None,
+        )
+
+        descriptor.assert_called_once_with()
+
+        descriptor().signal_name.context_connect\
+            .assert_called_once_with(
+                unittest.mock.sentinel.func,
+            )
+
+        self.assertEqual(
+            result,
+            descriptor().signal_name.context_connect(),
         )
 
 
@@ -1856,6 +2003,240 @@ class Testdepfilter(unittest.TestCase):
         )
 
 
+class Testattrsignal(unittest.TestCase):
+    class DescriptorValue:
+        signal = callbacks.Signal()
+        sync = callbacks.SyncSignal()
+
+
+    class Descriptor(service.Descriptor):
+        def init_cm(self, instance):
+            raise NotImplementedError
+
+        @property
+        def value_type(self):
+            return Testattrsignal.DescriptorValue
+
+    def setUp(self):
+        self.descriptor = self.Descriptor()
+
+        self.decorator = service.attrsignal(
+            self.descriptor,
+            "signal",
+        )
+
+    def tearDown(self):
+        del self.decorator
+
+    def test_adds_magic_attribute(self):
+        def cb():
+            pass
+
+        self.decorator(cb)
+
+        self.assertTrue(hasattr(cb, "_aioxmpp_service_handlers"))
+
+    def test_uses_strong_by_default(self):
+        def cb():
+            pass
+
+        self.decorator(cb)
+
+        self.assertIn(
+            service.HandlerSpec(
+                (
+                    service._apply_connect_attrsignal,
+                    (
+                        self.descriptor,
+                        "signal",
+                        callbacks.AdHocSignal.STRONG,
+                    )
+                ),
+                is_unique=True,
+                require_deps=(),
+            ),
+            cb._aioxmpp_service_handlers
+        )
+
+    def test_defer_flag(self):
+        self.decorator = service.attrsignal(
+            self.descriptor,
+            "signal",
+            defer=True,
+        )
+
+        def cb():
+            pass
+
+        with unittest.mock.patch.object(
+                callbacks.AdHocSignal,
+                "ASYNC_WITH_LOOP") as ASYNC_WITH_LOOP:
+            ASYNC_WITH_LOOP.return_value = \
+                unittest.mock.sentinel.async_with_loop
+            self.decorator(cb)
+
+        ASYNC_WITH_LOOP.assert_called_with(
+            None,
+        )
+
+        self.assertIn(
+            service.HandlerSpec(
+                (
+                    service._apply_connect_attrsignal,
+                    (
+                        self.descriptor,
+                        "signal",
+                        unittest.mock.sentinel.async_with_loop,
+                    )
+                ),
+                is_unique=True,
+                require_deps=(),
+            ),
+            cb._aioxmpp_service_handlers
+        )
+
+    def test_require_coroutinefunction_for_sync_signal(self):
+        def cb():
+            pass
+
+        self.decorator = service.attrsignal(
+            self.descriptor,
+            "sync",
+        )
+
+        with self.assertRaisesRegex(
+                TypeError,
+                "a coroutine function is required for this signal"):
+            self.decorator(cb)
+
+    def test_coroutinefunction_and_sync_signal(self):
+        @asyncio.coroutine
+        def coro():
+            pass
+
+        self.decorator = service.attrsignal(
+            self.descriptor,
+            "sync",
+        )
+
+        self.decorator(coro)
+
+        self.assertIn(
+            service.HandlerSpec(
+                (
+                    service._apply_connect_attrsignal,
+                    (
+                        self.descriptor,
+                        "sync",
+                        None,
+                    )
+                ),
+                is_unique=True,
+                require_deps=(),
+            ),
+            coro._aioxmpp_service_handlers
+        )
+
+    def test_use_spawn_for_coroutinefunction_on_normal_signal_and_defer(self):
+        self.decorator = service.attrsignal(
+            self.descriptor,
+            "signal",
+            defer=True,
+        )
+
+        @asyncio.coroutine
+        def coro():
+            pass
+
+        with unittest.mock.patch.object(
+                callbacks.AdHocSignal,
+                "SPAWN_WITH_LOOP") as SPAWN_WITH_LOOP:
+            SPAWN_WITH_LOOP.return_value = \
+                unittest.mock.sentinel.spawn_with_loop
+            self.decorator(coro)
+
+        SPAWN_WITH_LOOP.assert_called_with(
+            None,
+        )
+
+        self.assertIn(
+            service.HandlerSpec(
+                (
+                    service._apply_connect_attrsignal,
+                    (
+                        self.descriptor,
+                        "signal",
+                        unittest.mock.sentinel.spawn_with_loop,
+                    )
+                ),
+                is_unique=True,
+                require_deps=(),
+            ),
+            coro._aioxmpp_service_handlers
+        )
+
+    def test_reject_coroutinefunction_on_normal_signal_without_defer(self):
+        self.decorator = service.attrsignal(
+            self.descriptor,
+            "signal",
+        )
+
+        @asyncio.coroutine
+        def coro():
+            pass
+
+        with self.assertRaisesRegex(
+                TypeError,
+                "cannot use coroutine function with this signal "
+                "without defer"):
+            self.decorator(coro)
+
+    def test_reject_defer_on_sync_signal(self):
+        self.decorator = service.attrsignal(
+            self.descriptor,
+            "sync",
+            defer=True,
+        )
+
+        @asyncio.coroutine
+        def coro():
+            pass
+
+        with self.assertRaisesRegex(
+                ValueError,
+                "cannot use defer with this signal"):
+            self.decorator(coro)
+
+    def test_stacks_with_other_effects(self):
+        def cb():
+            pass
+
+        cb._aioxmpp_service_handlers = {"foo"}
+
+        self.decorator(cb)
+
+        self.assertIn(
+            service.HandlerSpec(
+                (
+                    service._apply_connect_attrsignal,
+                    (
+                        self.descriptor,
+                        "signal",
+                        callbacks.AdHocSignal.STRONG,
+                    ),
+                ),
+                is_unique=True,
+                require_deps=(),
+            ),
+            cb._aioxmpp_service_handlers
+        )
+
+        self.assertIn(
+            "foo",
+            cb._aioxmpp_service_handlers,
+        )
+
+
 class Testis_iq_handler(unittest.TestCase):
     def test_return_false_if_magic_attr_is_missing(self):
         self.assertFalse(
@@ -2290,10 +2671,166 @@ class Testis_depfilter_handler(unittest.TestCase):
         )
 
 
+class Testis_attrsignal_handler(unittest.TestCase):
+    class DescriptorValue:
+        signal = callbacks.Signal()
+        sync = callbacks.SyncSignal()
+
+
+    class Descriptor(service.Descriptor):
+        def init_cm(self, instance):
+            raise NotImplementedError
+
+        @property
+        def value_type(self):
+            return Testattrsignal.DescriptorValue
+
+    def setUp(self):
+        self.descriptor = self.Descriptor()
+
+    def test_return_false_if_magic_attr_is_missing(self):
+        self.assertFalse(
+            service.is_attrsignal_handler(
+                self.descriptor,
+                "signal",
+                object(),
+            )
+        )
+
+    def test_return_true_if_token_in_magic_attr(self):
+        def cb(self):
+            pass
+
+        @asyncio.coroutine
+        def coro(self):
+            pass
+
+        tokens = [
+            (
+                "signal",
+                False,
+                cb,
+                service.HandlerSpec(
+                    (
+                        service._apply_connect_attrsignal,
+                        (
+                            self.descriptor,
+                            "signal",
+                            callbacks.AdHocSignal.STRONG,
+                        ),
+                    ),
+                    require_deps=()
+                )
+            ),
+            (
+                "signal",
+                True,
+                cb,
+                service.HandlerSpec(
+                    (
+                        service._apply_connect_attrsignal,
+                        (
+                            self.descriptor,
+                            "signal",
+                            unittest.mock.sentinel.async_with_loop,
+                        ),
+                    ),
+                    require_deps=()
+                )
+            ),
+            (
+                "signal",
+                True,
+                coro,
+                service.HandlerSpec(
+                    (
+                        service._apply_connect_attrsignal,
+                        (
+                            self.descriptor,
+                            "signal",
+                            unittest.mock.sentinel.spawn_with_loop,
+                        ),
+                    ),
+                    require_deps=()
+                )
+            ),
+            (
+                "sync",
+                False,
+                coro,
+                service.HandlerSpec(
+                    (
+                        service._apply_connect_attrsignal,
+                        (
+                            self.descriptor,
+                            "sync",
+                            None,
+                        ),
+                    ),
+                    require_deps=(),
+                )
+            ),
+        ]
+
+        for signal_name, defer, obj, spec in tokens:
+            with contextlib.ExitStack() as stack:
+                SPAWN_WITH_LOOP = stack.enter_context(
+                    unittest.mock.patch.object(
+                        callbacks.AdHocSignal,
+                        "SPAWN_WITH_LOOP")
+                )
+                SPAWN_WITH_LOOP.return_value = \
+                    unittest.mock.sentinel.spawn_with_loop
+
+                ASYNC_WITH_LOOP = stack.enter_context(
+                    unittest.mock.patch.object(
+                        callbacks.AdHocSignal,
+                        "ASYNC_WITH_LOOP")
+                )
+                ASYNC_WITH_LOOP.return_value = \
+                    unittest.mock.sentinel.async_with_loop
+
+                obj._aioxmpp_service_handlers = [
+                    spec,
+                ]
+
+                self.assertTrue(
+                    service.is_attrsignal_handler(
+                        self.descriptor,
+                        signal_name,
+                        obj,
+                        defer=defer,
+                    ),
+                    spec,
+                )
+
+    def test_return_false_if_token_not_in_magic_attr(self):
+        m = unittest.mock.Mock()
+        m._aioxmpp_service_handlers = [
+            service.HandlerSpec(
+                (service._apply_outbound_message_filter,
+                 ())
+            )
+        ]
+
+        self.assertFalse(
+            service.is_attrsignal_handler(
+                self.descriptor,
+                "signal",
+                m,
+                defer=True,
+            )
+        )
+
+
 class TestDescriptor(unittest.TestCase):
     class DescriptorSubclass(service.Descriptor):
         def init_cm(self, instance):
             return unittest.mock.sentinel.cm
+
+        @property
+        def value_type(self):
+            return None
 
     def setUp(self):
         self.d = self.DescriptorSubclass()

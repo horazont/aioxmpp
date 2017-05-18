@@ -128,8 +128,7 @@ class TestAvatar(TestCase):
                 services=[
                     aioxmpp.EntityCapsService,
                     aioxmpp.PresenceServer,
-                    aioxmpp.avatar.AvatarServer,
-                    aioxmpp.avatar.AvatarClient,
+                    aioxmpp.avatar.AvatarService,
                 ]
             ),
         )
@@ -137,15 +136,14 @@ class TestAvatar(TestCase):
     @blocking_timed
     @asyncio.coroutine
     def test_provide_and_retrieve_avatar(self):
-        avatar_server = self.client.summon(aioxmpp.avatar.AvatarServer)
-        avatar_client = self.client.summon(aioxmpp.avatar.AvatarClient)
+        avatar_impl = self.client.summon(aioxmpp.avatar.AvatarService)
 
         avatar_set = aioxmpp.avatar.AvatarSet()
         avatar_set.add_avatar_image("image/png", image_bytes=TEST_IMAGE)
 
-        yield from avatar_server.publish_avatar_set(avatar_set)
+        yield from avatar_impl.publish_avatar_set(avatar_set)
 
-        avatar_info = yield from avatar_client.get_avatar_metadata(
+        avatar_info = yield from avatar_impl.get_avatar_metadata(
             self.client.local_jid.bare()
         )
 
@@ -166,21 +164,20 @@ class TestAvatar(TestCase):
     @blocking_timed
     @asyncio.coroutine
     def test_on_metadata_changed(self):
-        avatar_server = self.client.summon(aioxmpp.avatar.AvatarServer)
-        avatar_client = self.client.summon(aioxmpp.avatar.AvatarClient)
+        avatar_impl = self.client.summon(aioxmpp.avatar.AvatarService)
 
         done_future = asyncio.Future()
 
         def handler(jid, metadata):
             done_future.set_result((jid, metadata))
 
-        avatar_client.on_metadata_changed.connect(handler)
+        avatar_impl.on_metadata_changed.connect(handler)
 
         avatar_set = aioxmpp.avatar.AvatarSet()
         avatar_set.add_avatar_image("image/png", image_bytes=TEST_IMAGE)
 
         logging.info("publishing avatar")
-        yield from avatar_server.publish_avatar_set(avatar_set)
+        yield from avatar_impl.publish_avatar_set(avatar_set)
         logging.info("waiting for completion")
         jid, metadata = yield from done_future
         self.assertEqual(jid, self.client.local_jid.bare())
