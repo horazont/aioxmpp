@@ -28,7 +28,11 @@ the server as per :xep:`Bookmarks <48>`.
 Service
 =======
 
+.. currentmodule:: aioxmpp
+
 .. autoclass:: BookmarkClient
+
+.. currentmodule:: aioxmpp.bookmarks
 
 XSOs
 ====

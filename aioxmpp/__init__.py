@@ -104,6 +104,7 @@ from .blocking import BlockingClient  # NOQA
 from .carbons import CarbonsClient  # NOQA
 from .ping import PingService  # NOQA
 from .pep import PEPClient  # NOQA
+from .bookmarks import BookmarkClient  # NOQA
 
 
 def set_strict_mode():
