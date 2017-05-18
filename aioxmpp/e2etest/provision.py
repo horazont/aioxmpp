@@ -22,9 +22,8 @@
 import abc
 import ast
 import asyncio
-import collections
 import enum
-import itertools
+import fnmatch
 import json
 import logging
 
@@ -151,8 +150,25 @@ def configure_quirks(section):
     return set(map(Quirk, map(fix_quirk_str, quirks)))
 
 
+def configure_blockmap(section):
+    blockmap_raw = ast.literal_eval(section.get("block_features",
+                                                fallback="{}"))
+    return {
+        aioxmpp.JID.fromstr(entity): features
+        for entity, features in blockmap_raw.items()
+    }
+
+
+def _is_feature_blocked(peer, feature, blockmap):
+    return any(
+        fnmatch.fnmatch(feature, item)
+        for item in blockmap.get(peer, [])
+    )
+
+
 @asyncio.coroutine
-def discover_server_features(disco, peer, recurse_into_items=True):
+def discover_server_features(disco, peer, recurse_into_items=True,
+                             blockmap={}):
     """
     Use :xep:`30` service discovery to discover features supported by the
     server.
@@ -185,6 +201,7 @@ def discover_server_features(disco, peer, recurse_into_items=True):
     all_features = {
         feature: [peer]
         for feature in server_info.features
+        if not _is_feature_blocked(peer, feature, blockmap)
     }
 
     if recurse_into_items:
@@ -405,6 +422,9 @@ class Provisioner(metaclass=abc.ABCMeta):
            :func:`configure_quirks`
               for a function which extracts a set of :class:`.Quirk`
               enumeration members from the configuration
+           :func:`configure_blockmap`
+              for a function which extracts a mapping which allows to block
+              features from specific hosts
         """
 
     @asyncio.coroutine
@@ -504,6 +524,7 @@ class AnonymousProvisioner(Provisioner):
                 section
             )
         )
+        self.__blockmap = configure_blockmap(section)
         self._quirks = configure_quirks(section)
 
     @asyncio.coroutine
@@ -532,7 +553,8 @@ class AnonymousProvisioner(Provisioner):
         self._featuremap.update(
             (yield from discover_server_features(
                 disco,
-                self.__domain
+                self.__domain,
+                blockmap=self.__blockmap,
             ))
         )
 
