@@ -29,6 +29,8 @@ import unittest.mock
 
 from datetime import timedelta
 
+import OpenSSL.SSL
+
 import dns.resolver
 
 import aiosasl
@@ -2019,6 +2021,81 @@ class TestClient(xmltestutils.XMLTestCase):
             logger=self.client.logger)
 
         exc = dns.resolver.NoNameservers()
+        self.connect_xmlstream_rec.side_effect = exc
+        self.client.backoff_start = timedelta(seconds=0.01)
+        self.client.backoff_factor = 2
+        self.client.backoff_cap = timedelta(seconds=0.1)
+        self.client.start()
+        run_coroutine(asyncio.sleep(0))
+        self.assertTrue(self.client.running)
+        self.assertFalse(self.client.stream.running)
+
+        self.assertSequenceEqual(
+            [call],
+            self.connect_xmlstream_rec.mock_calls
+        )
+
+        run_coroutine(asyncio.sleep(0.01))
+
+        self.assertSequenceEqual(
+            [call]*2,
+            self.connect_xmlstream_rec.mock_calls
+        )
+
+        run_coroutine(asyncio.sleep(0.02))
+
+        self.assertSequenceEqual(
+            [call]*3,
+            self.connect_xmlstream_rec.mock_calls
+        )
+
+        run_coroutine(asyncio.sleep(0.04))
+
+        self.assertSequenceEqual(
+            [call]*4,
+            self.connect_xmlstream_rec.mock_calls
+        )
+
+        run_coroutine(asyncio.sleep(0.08))
+
+        self.assertSequenceEqual(
+            [call]*5,
+            self.connect_xmlstream_rec.mock_calls
+        )
+
+        run_coroutine(asyncio.sleep(0.1))
+
+        self.assertSequenceEqual(
+            [call]*6,
+            self.connect_xmlstream_rec.mock_calls
+        )
+
+        run_coroutine(asyncio.sleep(0.1))
+
+        self.assertSequenceEqual(
+            [call]*7,
+            self.connect_xmlstream_rec.mock_calls
+        )
+
+        self.assertSequenceEqual(
+            [
+            ],
+            self.failure_rec.mock_calls
+        )
+
+        self.client.stop()
+        run_coroutine(asyncio.sleep(0))
+
+    def test_exponential_backoff_on_SSL_error(self):
+        call = unittest.mock.call(
+            self.test_jid,
+            self.security_layer,
+            negotiation_timeout=60.0,
+            override_peer=[],
+            loop=self.loop,
+            logger=self.client.logger)
+
+        exc = OpenSSL.SSL.Error
         self.connect_xmlstream_rec.side_effect = exc
         self.client.backoff_start = timedelta(seconds=0.01)
         self.client.backoff_factor = 2
