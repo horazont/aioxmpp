@@ -68,6 +68,8 @@ from datetime import timedelta
 
 import dns.resolver
 
+import OpenSSL.SSL
+
 import aiosasl
 
 from . import (
@@ -921,7 +923,8 @@ class Client:
                     if self.stream.sm_enabled:
                         self.stream.stop_sm()
                     raise
-                except (OSError, dns.resolver.NoNameservers) as exc:
+                except (OSError, dns.resolver.NoNameservers,
+                        OpenSSL.SSL.Error) as exc:
                     self.logger.info("connection error: (%s) %s",
                                      type(exc).__qualname__,
                                      exc)

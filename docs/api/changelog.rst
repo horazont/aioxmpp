@@ -164,6 +164,7 @@ Version 0.9
 * Make :class:`aioxmpp.xml.XMPPXMLGenerator` avoid the use of namespace
   prefixes if a namespace is undeclared if possible.
 
+* Attempt to reconnect if generic OpenSSL errors occur.
 
 .. _api-changelog-0.8:
 
