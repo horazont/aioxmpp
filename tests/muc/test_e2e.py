@@ -396,7 +396,7 @@ class TestMuc(TestCase):
 
         msg = aioxmpp.Message(aioxmpp.MessageType.NORMAL)
         msg.body[None] = "foo"
-        tracker = yield from self.firstroom.send_message_tracked(msg)
+        _, tracker = yield from self.firstroom.send_message_tracked(msg)
         tracker.on_state_changed.connect(onstatechange)
         yield from sent_future
 

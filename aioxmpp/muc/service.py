@@ -1000,8 +1000,8 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
             self._tracker_closed,
             tracker,
         ))
-        yield from tracking_svc.send_tracked(msg, tracker)
-        return tracker
+        token = yield from tracking_svc.send_tracked(msg, tracker)
+        return token, tracker
 
     @asyncio.coroutine
     def set_nick(self, new_nick):

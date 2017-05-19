@@ -567,7 +567,8 @@ class AbstractConversation(metaclass=abc.ABCMeta):
         :raise NotImplementedError: if tracking is not implemented
         :return: The stanza token obtained from sending and the
             :class:`aioxmpp.tracking.MessageTracker` tracking the delivery.
-        :rtype: :class:`~aioxmpp.stream.StanzaToken`
+        :rtype: :class:`~aioxmpp.stream.StanzaToken`,
+            :class:`~aioxmpp.tracking.MessageTracker`
 
         There is no need to provide proper address attributes on `msg`.
         Implementations will override those attributes with the values
@@ -581,9 +582,8 @@ class AbstractConversation(metaclass=abc.ABCMeta):
 
         `timeout` is the number of seconds (or a :class:`datetime.timedelta`
         object which defines the timespan) after which the tracking expires and
-        enters :attr:`.tracking.MessageState.TIMED_OUT` state if no response
-        has been received in the mean time. If `timeout` is set to
-        :data:`None`, the tracking never expires.
+        is closed if no response has been received in the mean time. If
+        `timeout` is set to :data:`None`, the tracking never expires.
 
         .. warning::
 

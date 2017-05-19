@@ -2211,23 +2211,27 @@ class TestRoom(unittest.TestCase):
                 unittest.mock.patch("aioxmpp.tracking.MessageTracker")
             )
 
+            self.base.tracking_service.send_tracked.return_value = \
+                unittest.mock.sentinel.token
+
             result = run_coroutine(
                 self.jmuc.send_message_tracked(msg)
             )
 
-            self.assertIsNotNone(msg.id_)
+        self.assertIsNotNone(msg.id_)
 
-            MessageTracker.assert_called_once_with()
+        MessageTracker.assert_called_once_with()
 
-            self.base.tracking_service.send_tracked.assert_called_once_with(
-                msg,
-                MessageTracker()
-            )
+        self.base.tracking_service.send_tracked.assert_called_once_with(
+            msg,
+            MessageTracker()
+        )
 
-            self.assertEqual(
-                result,
-                MessageTracker(),
-            )
+        self.assertEqual(
+            result,
+            (unittest.mock.sentinel.token,
+             MessageTracker(),)
+        )
 
         self.assertIsInstance(
             msg,
@@ -2272,7 +2276,7 @@ class TestRoom(unittest.TestCase):
         msg = aioxmpp.Message(aioxmpp.MessageType.NORMAL)
         msg.body.update({None: "some text"})
 
-        tracker = run_coroutine(
+        _, tracker = run_coroutine(
             self.jmuc.send_message_tracked(msg)
         )
 
@@ -2322,7 +2326,7 @@ class TestRoom(unittest.TestCase):
         msg = aioxmpp.Message(aioxmpp.MessageType.NORMAL)
         msg.body.update({None: "some text"})
 
-        tracker = run_coroutine(
+        _, tracker = run_coroutine(
             self.jmuc.send_message_tracked(msg)
         )
 
@@ -2372,7 +2376,7 @@ class TestRoom(unittest.TestCase):
         msg = aioxmpp.Message(aioxmpp.MessageType.NORMAL)
         msg.body.update({None: "some text"})
 
-        tracker = run_coroutine(
+        _, tracker = run_coroutine(
             self.jmuc.send_message_tracked(msg)
         )
 
@@ -2426,7 +2430,7 @@ class TestRoom(unittest.TestCase):
         msg = aioxmpp.Message(aioxmpp.MessageType.NORMAL)
         msg.body.update({None: "some text"})
 
-        tracker = run_coroutine(
+        _, tracker = run_coroutine(
             self.jmuc.send_message_tracked(msg)
         )
 
@@ -2480,7 +2484,7 @@ class TestRoom(unittest.TestCase):
         msg = aioxmpp.Message(aioxmpp.MessageType.NORMAL)
         msg.body.update({None: "some text"})
 
-        tracker = run_coroutine(
+        _, tracker = run_coroutine(
             self.jmuc.send_message_tracked(msg)
         )
 
@@ -2544,7 +2548,7 @@ class TestRoom(unittest.TestCase):
             {aioxmpp.structs.LanguageTag.fromstr("de"): "ein Text"}
         )
 
-        tracker = run_coroutine(
+        _, tracker = run_coroutine(
             self.jmuc.send_message_tracked(msg)
         )
 
@@ -2626,11 +2630,11 @@ class TestRoom(unittest.TestCase):
         msg2 = aioxmpp.Message(aioxmpp.MessageType.NORMAL)
         msg2.body.update({None: "some text"})
 
-        tracker1 = run_coroutine(
+        _, tracker1 = run_coroutine(
             self.jmuc.send_message_tracked(msg1)
         )
 
-        tracker2 = run_coroutine(
+        _, tracker2 = run_coroutine(
             self.jmuc.send_message_tracked(msg2)
         )
 
@@ -2714,7 +2718,7 @@ class TestRoom(unittest.TestCase):
         msg = aioxmpp.Message(aioxmpp.MessageType.NORMAL)
         msg.body.update({None: "some text"})
 
-        tracker = run_coroutine(
+        _, tracker = run_coroutine(
             self.jmuc.send_message_tracked(msg)
         )
         tracker._set_state(aioxmpp.tracking.MessageState.SEEN_BY_RECIPIENT)
@@ -2753,7 +2757,7 @@ class TestRoom(unittest.TestCase):
         msg = aioxmpp.Message(aioxmpp.MessageType.NORMAL)
         msg.body.update({None: "some text"})
 
-        tracker = run_coroutine(
+        _, tracker = run_coroutine(
             self.jmuc.send_message_tracked(msg)
         )
 
