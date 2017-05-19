@@ -3,24 +3,9 @@ cache:
   pip: true
 
 python:
-- "3.4"
-- "3.5"
-- "3.6"
-- "3.7-dev"
+- "pypy3"
 env:
 - PROSODY_BRANCH=0.10 TEST_MODE=e2e-prosody
-matrix:
-  include:
-  - python: "3.6"
-    env: TEST_MODE=e2e-ejabberd
-    services:
-    - docker
-  - python: "3.6"
-    env: PROSODY_BRANCH=0.9 TEST_MODE=e2e-prosody
-  - python: "3.6"
-    env: PROSODY_BRANCH=trunk TEST_MODE=e2e-prosody
-  - python: "3.6"
-    env: TEST_MODE=coverage
 
 before_install:
 - export PATH=$PATH:$PWD/lua_install/bin
