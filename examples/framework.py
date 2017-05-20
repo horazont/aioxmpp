@@ -148,7 +148,8 @@ class Example(metaclass=abc.ABCMeta):
                     if jid_sect not in self.config:
                         jid_sect = "global"
                     password = self.config.get(jid_sect, "password")
-                except configparser.NoOptionError:
+                except (configparser.NoOptionError, 
+                        configparser.NoSectionError):
                     logging.error(('When the local JID %s is set, password ' +
                                    'must be set as well.') % str(self.g_jid))
                     raise

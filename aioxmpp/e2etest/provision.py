@@ -22,9 +22,8 @@
 import abc
 import ast
 import asyncio
-import collections
 import enum
-import itertools
+import fnmatch
 import json
 import logging
 
@@ -151,8 +150,25 @@ def configure_quirks(section):
     return set(map(Quirk, map(fix_quirk_str, quirks)))
 
 
+def configure_blockmap(section):
+    blockmap_raw = ast.literal_eval(section.get("block_features",
+                                                fallback="{}"))
+    return {
+        aioxmpp.JID.fromstr(entity): features
+        for entity, features in blockmap_raw.items()
+    }
+
+
+def _is_feature_blocked(peer, feature, blockmap):
+    return any(
+        fnmatch.fnmatch(feature, item)
+        for item in blockmap.get(peer, [])
+    )
+
+
 @asyncio.coroutine
-def discover_server_features(disco, peer, recurse_into_items=True):
+def discover_server_features(disco, peer, recurse_into_items=True,
+                             blockmap={}):
     """
     Use :xep:`30` service discovery to discover features supported by the
     server.
@@ -185,6 +201,7 @@ def discover_server_features(disco, peer, recurse_into_items=True):
     all_features = {
         feature: [peer]
         for feature in server_info.features
+        if not _is_feature_blocked(peer, feature, blockmap)
     }
 
     if recurse_into_items:
@@ -247,6 +264,7 @@ class Provisioner(metaclass=abc.ABCMeta):
         super().__init__()
         self._accounts_to_dispose = []
         self._featuremap = {}
+        self._account_info = None
         self._logger = logger
         self.__counter = 0
 
@@ -262,14 +280,17 @@ class Provisioner(metaclass=abc.ABCMeta):
         """
 
     @asyncio.coroutine
-    def get_connected_client(self, presence=aioxmpp.PresenceState(True),
-                             *,
-                             services=[]):
+    def get_connected_client(self, presence=aioxmpp.PresenceState(True), *,
+                             services=[], prepare=None):
         """
         Return a connected client to a unique XMPP account.
 
         :param presence: initial presence to emit
         :type presence: :class:`aioxmpp.PresenceState`
+        :param prepare: a coroutine run after the services
+            are summoned but before the client connects.
+        :type prepare: coroutine receiving the client
+             as argument
         :raise OSError: if the connection failed
         :raise RuntimeError: if a client could not be provisioned due to
                              resource constraints
@@ -286,6 +307,12 @@ class Provisioner(metaclass=abc.ABCMeta):
         Clients obtained from this function are cleaned up automatically on
         tear down of the test. The clients are stopped and the accounts
         deleted or cleared, so that each test starts with a fully fresh state.
+
+        A coroutine may be passed as `prepare` argument. It is called
+        with the client as the single argument after all services in
+        `services` have been summoned but before the client connects,
+        this is for example useful to connect signals that fire early
+        in the connection process.
         """
         id_ = self.__counter
         self.__counter += 1
@@ -294,6 +321,8 @@ class Provisioner(metaclass=abc.ABCMeta):
         client = yield from self._make_client(logger)
         for service in services:
             client.summon(service)
+        if prepare is not None:
+            yield from prepare(client)
         cm = client.connected(presence=presence)
         yield from cm.__aenter__()
         self._accounts_to_dispose.append(cm)
@@ -367,6 +396,15 @@ class Provisioner(metaclass=abc.ABCMeta):
         """
         return quirk in self._quirks
 
+    def has_pep(self):
+        """
+        :return: true if the account has PEP support, false otherwise.
+        """
+        if not self._account_info:
+            return False
+        return any(ident.category == "pubsub" and ident.type_ == "pep"
+                   for ident in self._account_info.identities)
+
     @abc.abstractmethod
     def configure(self, section):
         """
@@ -384,6 +422,9 @@ class Provisioner(metaclass=abc.ABCMeta):
            :func:`configure_quirks`
               for a function which extracts a set of :class:`.Quirk`
               enumeration members from the configuration
+           :func:`configure_blockmap`
+              for a function which extracts a mapping which allows to block
+              features from specific hosts
         """
 
     @asyncio.coroutine
@@ -469,6 +510,7 @@ class AnonymousProvisioner(Provisioner):
     """
 
     def configure(self, section):
+        super().configure(section)
         self.__host = section.get("host")
         self.__domain = aioxmpp.JID.fromstr(section.get(
             "domain",
@@ -482,6 +524,7 @@ class AnonymousProvisioner(Provisioner):
                 section
             )
         )
+        self.__blockmap = configure_blockmap(section)
         self._quirks = configure_quirks(section)
 
     @asyncio.coroutine
@@ -510,7 +553,8 @@ class AnonymousProvisioner(Provisioner):
         self._featuremap.update(
             (yield from discover_server_features(
                 disco,
-                self.__domain
+                self.__domain,
+                blockmap=self.__blockmap,
             ))
         )
 
@@ -522,6 +566,8 @@ class AnonymousProvisioner(Provisioner):
                     feature,
                     ", ".join(sorted(map(str, providers)))
                 )
+
+        self._account_info = yield from disco.query_info(None)
 
         # clean up state
         del client

@@ -13,8 +13,6 @@ XEPs to directly implement support for
 Other stuff
 ===========
 
-* test framework to automatedly run integration tests against specified server
-  (will require ad-hoc commands...)
 * polish pubsub and muc implementation
 
 @stanza_model
@@ -26,12 +24,3 @@ Other stuff
 =============
 
 * Validator arithmetic?
-
-
-Presence stuff
-==============
-
-* we need a away to define the current presence
-* idea: move that to the Presence service
-* idea 2: use the Presence service to implement the features of PresenceManagedClient
-* idea 3: remove PresenceManagedClient and rename AbstractClient -> Client

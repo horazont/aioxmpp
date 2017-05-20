@@ -24,6 +24,7 @@ import contextlib
 import functools
 import itertools
 
+import aioxmpp.cache
 import aioxmpp.callbacks
 import aioxmpp.errors as errors
 import aioxmpp.service as service
@@ -61,6 +62,8 @@ class Node(object):
 
     .. automethod:: iter_identities
 
+    .. automethod:: as_info_xso
+
     To access items, use:
 
     .. automethod:: iter_items
@@ -90,19 +93,29 @@ class Node(object):
         self._identities = {}
         self._features = set()
 
-    def iter_identities(self, stanza):
+    def iter_identities(self, stanza=None):
         """
         Return an iterator of tuples describing the identities of the node.
 
         :param stanza: The IQ request stanza
-        :type stanza: :class:`~aioxmpp.IQ`
-        :rtype: iterable of (:class:`str`, :class:`str`, :class:`str` or :data:`None`, :class:`str` or :data:`None`) tuples
+        :type stanza: :class:`~aioxmpp.IQ` or :data:`None`
+        :rtype: iterable of (:class:`str`, :class:`str`, :class:`str` or
+            :data:`None`, :class:`str` or :data:`None`) tuples
         :return: :xep:`30` identities of this node
 
-        `stanza` is the :class:`aioxmpp.IQ` stanza of the request. This can be
-        used to hide a node depending on who is asking. If the returned
+        `stanza` can be the :class:`aioxmpp.IQ` stanza of the request. This can
+        be used to hide a node depending on who is asking. If the returned
         iterable is empty, the :class:`~.DiscoServer` returns an
         ``<item-not-found/>`` error.
+
+        `stanza` may be :data:`None` if the identities are queried without
+        a specific request context. In that case, implementors should assume
+        that the result is visible to everybody.
+
+        .. note::
+
+           Subclasses must allow :data:`None` for `stanza` and default it to
+           :data:`None`.
 
         Return an iterator which yields tuples consisting of the category, the
         type, the language code and the name of each identity declared in this
@@ -117,7 +130,7 @@ class Node(object):
             if not names:
                 yield category, type_, None, None
 
-    def iter_features(self, stanza):
+    def iter_features(self, stanza=None):
         """
         Return an iterator which yields the features of the node.
 
@@ -129,6 +142,15 @@ class Node(object):
         `stanza` is the :class:`aioxmpp.IQ` stanza of the request. This can be
         used to filter the list according to who is asking (not recommended).
 
+        `stanza` may be :data:`None` if the features are queried without
+        a specific request context. In that case, implementors should assume
+        that the result is visible to everybody.
+
+        .. note::
+
+           Subclasses must allow :data:`None` for `stanza` and default it to
+           :data:`None`.
+
         The features are returned as strings. The features demanded by
         :xep:`30` are always returned.
 
@@ -138,7 +160,7 @@ class Node(object):
             iter(self._features)
         )
 
-    def iter_items(self, stanza):
+    def iter_items(self, stanza=None):
         """
         Return an iterator which yields the items of the node.
 
@@ -150,6 +172,15 @@ class Node(object):
         `stanza` is the :class:`aioxmpp.IQ` stanza of the request. This can be
         used to localize the list to the language of the stanza or filter it
         according to who is asking.
+
+        `stanza` may be :data:`None` if the items are queried without
+        a specific request context. In that case, implementors should assume
+        that the result is visible to everybody.
+
+        .. note::
+
+           Subclasses must allow :data:`None` for `stanza` and default it to
+           :data:`None`.
 
         A bare :class:`Node` cannot hold any items and will thus return an
         iterator which does not yield any element.
@@ -225,6 +256,42 @@ class Node(object):
         del self._identities[key]
         self.on_info_changed()
 
+    def as_info_xso(self, stanza=None):
+        """
+        Construct a :class:`~.disco.xso.InfoQuery` response object for this
+        node.
+
+        :param stanza: The IQ request stanza
+        :type stanza: :class:`~aioxmpp.IQ`
+        :rtype: iterable of :class:`~.disco.xso.InfoQuery`
+        :return: The disco#info response for this node.
+
+        The resulting :class:`~.disco.xso.InfoQuery` carries the features and
+        identities as returned by :meth:`iter_features` and
+        :meth:`iter_identities`. The :attr:`~.disco.xso.InfoQuery.node`
+        attribute is at its default value and may need to be set by the caller
+        accordingly.
+
+        `stanza` is passed to :meth:`iter_features` and
+        :meth:`iter_identities`. See those methods for information on the
+        effects.
+
+        .. versionadded:: 0.9
+        """
+
+        result = disco_xso.InfoQuery()
+        result.features.update(self.iter_features(stanza))
+        result.identities[:] = (
+            disco_xso.Identity(
+                category=category,
+                type_=type_,
+                lang=lang,
+                name=name,
+            )
+            for category, type_, lang, name in self.iter_identities(stanza)
+        )
+        return result
+
 
 class StaticNode(Node):
     """
@@ -238,14 +305,49 @@ class StaticNode(Node):
        It is the responsibility of the user to ensure that the set of items is
        valid. This includes avoiding duplicate items.
 
+    .. automethod:: clone
+
     """
 
     def __init__(self):
         super().__init__()
         self.items = []
 
-    def iter_items(self, stanza):
+    def iter_items(self, stanza=None):
         return iter(self.items)
+
+    @classmethod
+    def clone(cls, other_node):
+        """
+        Clone another :class:`Node` and return as :class:`StaticNode`.
+
+        :param other_node: The node which shall be cloned
+        :type other_node: :class:`Node`
+        :rtype: :class:`StaticNode`
+        :return: A static node which has the exact same features, identities
+            and items as `other_node`.
+
+        The features and identities are copied over into the resulting
+        :class:`StaticNode`. The items of `other_node` are not copied but
+        merely referenced, so changes to the item *objects* of `other_node`
+        will be reflected in the result.
+
+        .. versionadded:: 0.9
+        """
+
+        result = cls()
+        result._features = {
+            feature for feature in other_node.iter_features()
+            if feature not in cls.STATIC_FEATURES
+        }
+        for category, type_, lang, name in other_node.iter_identities():
+            names = result._identities.setdefault(
+                (category, type_),
+                aioxmpp.structs.LanguageMap()
+            )
+            names[lang] = name
+        result.items = list(other_node.iter_items())
+        return result
 
 
 class DiscoServer(service.Service, Node):
@@ -328,22 +430,13 @@ class DiscoServer(service.Service, Node):
                 condition=(namespaces.stanzas, "item-not-found")
             )
 
-        response = disco_xso.InfoQuery()
-
-        for category, type_, lang, name in node.iter_identities(iq):
-            response.identities.append(disco_xso.Identity(
-                category=category,
-                type_=type_,
-                lang=lang,
-                name=name
-            ))
+        response = node.as_info_xso(iq)
+        response.node = request.node
 
         if not response.identities:
             raise errors.XMPPModifyError(
                 condition=(namespaces.stanzas, "item-not-found"),
             )
-
-        response.features.update(node.iter_features(iq))
 
         return response
 
@@ -408,11 +501,19 @@ class DiscoClient(service.Service):
 
     .. automethod:: query_items
 
-    To prime the cache with information, the following method can be used:
+    To prime the cache with information, the following methods can be used:
 
     .. automethod:: set_info_cache
 
     .. automethod:: set_info_future
+
+    To control the size of caches, the following properties are available:
+
+    .. autoattribute:: info_cache_size
+       :annotation: = 10000
+
+    .. autoattribute:: items_cache_size
+       :annotation: = 100
 
     Usage example, assuming that you have a :class:`.node.Client` `client`::
 
@@ -437,12 +538,43 @@ class DiscoClient(service.Service):
     def __init__(self, client, **kwargs):
         super().__init__(client, **kwargs)
 
-        self._info_pending = {}
-        self._items_pending = {}
+        self._info_pending = aioxmpp.cache.LRUDict()
+        self._info_pending.maxsize = 10000
+        self._items_pending = aioxmpp.cache.LRUDict()
+        self._items_pending.maxsize = 100
 
         self.client.on_stream_destroyed.connect(
             self._clear_cache
         )
+
+    @property
+    def info_cache_size(self):
+        """
+        Maximum number of cache entries in the cache for :meth:`query_info`.
+
+        This is mostly a measure to prevent malicious peers from exhausting
+        memory by spamming :mod:`aioxmpp.entitycaps` capability hashes.
+
+        .. versionadded:: 0.9
+        """
+        return self._info_pending.maxsize
+
+    @info_cache_size.setter
+    def info_cache_size(self, value):
+        self._info_pending.maxsize = value
+
+    @property
+    def items_cache_size(self):
+        """
+        Maximum number of cache entries in the cache for :meth:`query_items`.
+
+        .. versionadded:: 0.9
+        """
+        return self._items_pending.maxsize
+
+    @items_cache_size.setter
+    def items_cache_size(self, value):
+        self._items_pending.maxsize = value
 
     def _clear_cache(self):
         for fut in self._info_pending.values():
@@ -474,12 +606,24 @@ class DiscoClient(service.Service):
         return response
 
     @asyncio.coroutine
-    def query_info(self, jid, *, node=None, require_fresh=False, timeout=None):
+    def query_info(self, jid, *,
+                   node=None, require_fresh=False, timeout=None,
+                   no_cache=False):
         """
-        Query the features and identities of the specified entity. The entity
-        is identified by the `jid` and the optional `node`.
+        Query the features and identities of the specified entity.
 
-        Return the :class:`.xso.InfoQuery` instance returned by the peer.
+        :param jid: The entity to query.
+        :type jid: :class:`aioxmpp.JID`
+        :param node: The node to query.
+        :type node: :class:`str` or :data:`None`
+        :param require_fresh: Boolean flag to discard previous caches.
+        :type require_fresh: :class:`bool`
+        :param timeout: Optional timeout for the response.
+        :type timeout: :class:`float`
+        :param no_cache: Boolean flag to forbid caching of the request.
+        :type no_cache: :class:`bool`
+        :rtype: :class:`.xso.InfoQuery`
+        :return: Service discovery information of the `node` at `jid`.
 
         The requests are cached. This means that only one request is ever fired
         for a given target (identified by the `jid` and the `node`). The
@@ -499,6 +643,11 @@ class DiscoClient(service.Service):
         not need to use `require_fresh`, as all requests are implicitly
         cancelled whenever the underlying session gets destroyed.
 
+        `no_cache` can be set to true to prevent future requests to be aliased
+        to this request, i.e. the request is not stored in the internal request
+        cache. This does not affect `require_fresh`, i.e. if a cached result is
+        available, it is used.
+
         The `timeout` can be used to restrict the time to wait for a
         response. If the timeout triggers, :class:`TimeoutError` is raised.
 
@@ -507,6 +656,10 @@ class DiscoClient(service.Service):
         target re-raise that exception. The result is not cached though. If a
         new query is sent at a later point for the same target, a new query is
         actually sent, independent of the value chosen for `require_fresh`.
+
+        .. versionchanged:: 0.9
+
+            The `no_cache` argument was added.
         """
         key = jid, node
 
@@ -532,7 +685,8 @@ class DiscoClient(service.Service):
             )
         )
 
-        self._info_pending[key] = request
+        if not no_cache:
+            self._info_pending[key] = request
         try:
             if timeout is not None:
                 try:
@@ -560,8 +714,18 @@ class DiscoClient(service.Service):
     def query_items(self, jid, *,
                     node=None, require_fresh=False, timeout=None):
         """
-        Send an items query to the given `jid`, querying for the items at the
-        `node`. Return the :class:`~.xso.ItemsQuery` result.
+        Query the items of the specified entity.
+
+        :param jid: The entity to query.
+        :type jid: :class:`aioxmpp.JID`
+        :param node: The node to query.
+        :type node: :class:`str` or :data:`None`
+        :param require_fresh: Boolean flag to discard previous caches.
+        :type require_fresh: :class:`bool`
+        :param timeout: Optional timeout for the response.
+        :type timeout: :class:`float`
+        :rtype: :class:`.xso.ItemsQuery`
+        :return: Service discovery items of the `node` at `jid`.
 
         The arguments have the same semantics as with :meth:`query_info`, as
         does the caching and error handling.
@@ -692,6 +856,113 @@ class mount_as_node(service.Descriptor):
         finally:
             disco.unmount_node(self._mountpoint)
 
+    @property
+    def value_type(self):
+        return type(None)
+
+
+class RegisteredFeature:
+    """
+    Manage registration of a feature with a :class:`DiscoServer`.
+
+    :param service: The service implementing the service discovery server.
+    :type service: :class:`DiscoServer`
+    :param feature: The feature to register.
+    :type feature: :class:`str`
+
+    .. note::
+
+        Normally, you would not create an instance of this object manually.
+        Use the :class:`register_feature` descriptor on your
+        :class:`aioxmpp.Service` which will provide a
+        :class:`RegisteredFeature` object::
+
+            class Foo(aioxmpp.Service):
+                _some_feature = aioxmpp.disco.register_feature(
+                    "urn:of:the:feature"
+                )
+
+                # after __init__, self._some_feature is a RegisteredFeature
+                # instance.
+
+                @property
+                def some_feature_enabled(self):
+                    # better do not expose the enabled boolean directly; this
+                    # gives you the opportunity to do additional things when it
+                    # is changed, such as disabling multiple features at once.
+                    return self._some_feature.enabled
+
+                @some_feature_enabled.setter
+                def some_feature_enabled(self, value):
+                    self._some_feature.enabled = value
+
+    .. versionadded:: 0.9
+
+    This object can be used as a context manager. Upon entering the context,
+    the feature is registered. When the context is left, the feature is
+    unregistered.
+
+    .. note::
+
+        The context-manager use does not nest sensibly. Thus, do not use
+        th context-manager feature on :class:`RegisteredFeature` instances
+        which are created by :class:`register_feature`, as
+        :class:`register_feature` uses the context manager to
+        register/unregister the feature on initialisation/shutdown.
+
+    Independently, it is possible to control the registration status of the
+    feature using :attr:`enabled`.
+
+    .. autoattribute:: enabled
+
+    .. autoattribute:: feature
+
+    """
+
+    def __init__(self, service, feature):
+        self.__service = service
+        self.__feature = feature
+        self.__enabled = False
+
+    @property
+    def enabled(self):
+        """
+        Boolean indicating whether the feature is registered by this object
+        or not.
+
+        When this attribute is changed to :data:`True`, the feature is
+        registered. When the attribute is changed to :data:`False`, the feature
+        is unregisterd.
+        """
+        return self.__enabled
+
+    @enabled.setter
+    def enabled(self, value):
+        value = bool(value)
+        if value == self.__enabled:
+            return
+
+        if value:
+            self.__service.register_feature(self.__feature)
+        else:
+            self.__service.unregister_feature(self.__feature)
+
+        self.__enabled = value
+
+    @property
+    def feature(self):
+        """
+        The feature this object is controlling (read-only).
+        """
+        return self.__feature
+
+    def __enter__(self):
+        self.enabled = True
+        return self
+
+    def __exit__(self, exc_type, exc_value, tb):
+        self.enabled = False
+
 
 class register_feature(service.Descriptor):
     """
@@ -705,7 +976,13 @@ class register_feature(service.Descriptor):
     When the service is instaniated, the `feature` is registered at the
     :class:`~.DiscoServer`.
 
-    .. autoattribute:: feature
+    On instances, the attribute which is described with this is a
+    :class:`RegisteredFeature` instance.
+
+    .. versionchanged:: 0.9
+
+        :class:`RegisteredFeature` was added; before, the attribute reads as
+        :data:`None`.
     """
 
     def __init__(self, feature):
@@ -723,11 +1000,10 @@ class register_feature(service.Descriptor):
     def required_dependencies(self):
         return [DiscoServer]
 
-    @contextlib.contextmanager
     def init_cm(self, instance):
         disco = instance.dependencies[DiscoServer]
-        disco.register_feature(self._feature)
-        try:
-            yield
-        finally:
-            disco.unregister_feature(self._feature)
+        return RegisteredFeature(disco, self._feature)
+
+    @property
+    def value_type(self):
+        return RegisteredFeature

@@ -28,6 +28,7 @@ import unittest
 
 import aioxmpp.callbacks as callbacks
 import aioxmpp.service as service
+import aioxmpp.stream
 
 from aioxmpp.testutils import (
     run_coroutine,
@@ -51,6 +52,10 @@ class TestServiceMeta(unittest.TestCase):
             def init_cm(self, instance):
                 return self.descriptor_cm(instance)
 
+            @property
+            def value_type(self):
+                return None
+
         self.FooDescriptor = FooDescriptor
 
     def tearDown(self):
@@ -72,6 +77,28 @@ class TestServiceMeta(unittest.TestCase):
             Foo.ORDER_AFTER
         )
 
+    def test_defining_PATCHED_ORDER_AFTER_raises(self):
+
+        with self.assertRaisesRegex(
+                TypeError,
+                "PATCHED_ORDER_AFTER must not be defined manually\. "
+                "it is supplied automatically by the metaclass\."):
+            class Bar(metaclass=service.Meta):
+                pass
+
+            class Foo(metaclass=service.Meta):
+                PATCHED_ORDER_AFTER = [Bar]
+
+    def test_defining_DEPGRAPH_NODE_raises(self):
+
+        with self.assertRaisesRegex(
+                TypeError,
+                "_DEPGRAPH_NODE must not be defined manually\. "
+                "it is supplied automatically by the metaclass\."):
+
+            class Foo(metaclass=service.Meta):
+                _DEPGRAPH_NODE = None
+
     def test_configure_ordering(self):
         class Foo(metaclass=service.Meta):
             pass
@@ -88,15 +115,24 @@ class TestServiceMeta(unittest.TestCase):
             Bar.ORDER_AFTER
         )
         self.assertSetEqual(
-            {Bar},
+            set(),
+            Bar.PATCHED_ORDER_AFTER
+        )
+        self.assertSetEqual(
+            set(),
             Foo.ORDER_AFTER
         )
         self.assertSetEqual(
             set(),
             Foo.ORDER_BEFORE
         )
+        self.assertSetEqual(
+            {Bar},
+            Foo.PATCHED_ORDER_AFTER
+        )
 
     def test_transitive_before_ordering(self):
+
         class Foo(metaclass=service.Meta):
             pass
 
@@ -106,30 +142,9 @@ class TestServiceMeta(unittest.TestCase):
         class Baz(metaclass=service.Meta):
             ORDER_BEFORE = [Bar]
 
-        self.assertSetEqual(
-            {Foo},
-            Bar.ORDER_BEFORE
-        )
-        self.assertSetEqual(
-            {Foo, Bar},
-            Baz.ORDER_BEFORE
-        )
-        self.assertSetEqual(
-            {Bar, Baz},
-            Foo.ORDER_AFTER
-        )
-        self.assertSetEqual(
-            {Baz},
-            Bar.ORDER_AFTER
-        )
-        self.assertSetEqual(
-            set(),
-            Foo.ORDER_BEFORE
-        )
-        self.assertSetEqual(
-            set(),
-            Baz.ORDER_AFTER
-        )
+        self.assertGreater(Foo, Bar)
+        self.assertGreater(Bar, Baz)
+        self.assertGreater(Foo, Baz)
 
     def test_transitive_after_ordering(self):
         class Foo(metaclass=service.Meta):
@@ -141,30 +156,9 @@ class TestServiceMeta(unittest.TestCase):
         class Baz(metaclass=service.Meta):
             ORDER_AFTER = [Bar]
 
-        self.assertSetEqual(
-            {Foo},
-            Bar.ORDER_AFTER
-        )
-        self.assertSetEqual(
-            {Foo, Bar},
-            Baz.ORDER_AFTER
-        )
-        self.assertSetEqual(
-            {Bar, Baz},
-            Foo.ORDER_BEFORE
-        )
-        self.assertSetEqual(
-            {Baz},
-            Bar.ORDER_BEFORE
-        )
-        self.assertSetEqual(
-            set(),
-            Foo.ORDER_AFTER
-        )
-        self.assertSetEqual(
-            set(),
-            Baz.ORDER_BEFORE
-        )
+        self.assertLess(Foo, Bar)
+        self.assertLess(Bar, Baz)
+        self.assertLess(Foo, Baz)
 
     def test_loop_detect(self):
         class Foo(metaclass=service.Meta):
@@ -175,7 +169,7 @@ class TestServiceMeta(unittest.TestCase):
 
         with self.assertRaisesRegex(
                 ValueError,
-                "dependency loop: Fnord loops through .*\.(Foo|Bar)"):
+                "dependency loop in service definitions"):
 
             class Fnord(metaclass=service.Meta):
                 ORDER_BEFORE = [Foo]
@@ -184,7 +178,7 @@ class TestServiceMeta(unittest.TestCase):
             print(Fnord.ORDER_BEFORE)
             print(Fnord.ORDER_AFTER)
 
-    def test_partial_dependency_ordering_puts_earliest_first(self):
+    def test_topological_dependency_ordering_puts_earliest_first(self):
         class Foo(metaclass=service.Meta):
             pass
 
@@ -221,50 +215,33 @@ class TestServiceMeta(unittest.TestCase):
         self.assertGreaterEqual(Bar, Baz)
         self.assertGreaterEqual(Bar, Fourth)
 
-        services = [Foo, Bar, Baz, Fourth]
-
-        for a, b in itertools.product(services, services):
-            if a is b:
-                self.assertEqual(a, b)
-                self.assertFalse(a != b)
-            else:
-                self.assertNotEqual(a, b)
-                self.assertFalse(a == b)
-
-        services.sort()
-
-        self.assertSequenceEqual(
-            [Baz, Fourth, Bar, Foo],
-            services
-        )
-
-        services = [Foo, Bar, Fourth, Baz]
-        services.sort()
-
-        self.assertSequenceEqual(
-            [Fourth, Baz, Bar, Foo],
-            services
-        )
-
-    def test_simple_inheritance_inherit_ordering(self):
-        class Foo(metaclass=service.Meta):
-            pass
-
-        class Bar(metaclass=service.Meta):
-            pass
-
+    def test_topological_ordering_fail2(self):
         class A(metaclass=service.Meta):
-            ORDER_BEFORE = [Foo]
-            ORDER_AFTER = [Bar]
-
-        class B(A):
             pass
 
-        self.assertSetEqual(A.ORDER_BEFORE, B.ORDER_BEFORE)
-        self.assertSetEqual(A.ORDER_AFTER, B.ORDER_AFTER)
+        self.assertEqual(A, A)
+        self.assertLessEqual(A, A)
+        self.assertGreaterEqual(A, A)
 
-        self.assertIsNot(A.ORDER_BEFORE, B.ORDER_BEFORE)
-        self.assertIsNot(A.ORDER_AFTER, B.ORDER_AFTER)
+    def test_topological_ordering_sort_fail(self):
+        class A(metaclass=service.Meta):
+            pass
+
+        class B(metaclass=service.Meta):
+            pass
+
+        class C(metaclass=service.Meta):
+            ORDER_AFTER = [B]
+
+        class D(metaclass=service.Meta):
+            ORDER_BEFORE = [A, C]
+
+        for services in itertools.permutations([A, B, C, D]):
+            services = list(services)
+            services.sort()
+
+            if services.index(C) < services.index(B):
+                self.fail(services)
 
     def test_inheritance_ignores_non_service_classes(self):
         class Foo(metaclass=service.Meta):
@@ -278,88 +255,6 @@ class TestServiceMeta(unittest.TestCase):
 
         self.assertSetEqual(set(), Baz.ORDER_BEFORE)
 
-    def test_diamond_inheritance(self):
-        class Foo(metaclass=service.Meta):
-            pass
-
-        class Bar(metaclass=service.Meta):
-            pass
-
-        class Baz(metaclass=service.Meta):
-            pass
-
-        class A(metaclass=service.Meta):
-            ORDER_BEFORE = [Foo]
-
-        class B1(A):
-            ORDER_AFTER = [Bar]
-
-        class B2(A):
-            ORDER_BEFORE = [Baz]
-
-        class D(B1, B2):
-            pass
-
-        self.assertSetEqual(
-            {A, B1, B2, D},
-            Foo.ORDER_AFTER
-        )
-        self.assertSetEqual(
-            {B1, D},
-            Bar.ORDER_BEFORE
-        )
-        self.assertSetEqual(
-            {B2, D},
-            Baz.ORDER_AFTER
-        )
-        self.assertSetEqual(
-            {Foo, Baz},
-            D.ORDER_BEFORE
-        )
-        self.assertSetEqual(
-            {Foo, Baz},
-            B2.ORDER_BEFORE
-        )
-        self.assertSetEqual(
-            {Bar},
-            D.ORDER_AFTER
-        )
-        self.assertSetEqual(
-            {Bar},
-            B1.ORDER_AFTER
-        )
-
-    def test_inherit_dependencies_False(self):
-        class Foo(metaclass=service.Meta):
-            pass
-
-        class Bar(metaclass=service.Meta):
-            pass
-
-        class A(metaclass=service.Meta):
-            ORDER_BEFORE = [Foo]
-            ORDER_AFTER = [Bar]
-
-        class B(A, inherit_dependencies=False):
-            ORDER_AFTER = [Foo]
-
-        self.assertSetEqual(
-            {A},
-            Foo.ORDER_AFTER
-        )
-        self.assertSetEqual(
-            {B},
-            Foo.ORDER_BEFORE
-        )
-        self.assertSetEqual(
-            {Foo, A, Bar},
-            B.ORDER_AFTER
-        )
-        self.assertSetEqual(
-            set(),
-            B.ORDER_BEFORE
-        )
-
     def test_support_pre_0_3_attributes_on_class(self):
         class Foo(metaclass=service.Meta):
             pass
@@ -371,24 +266,13 @@ class TestServiceMeta(unittest.TestCase):
             SERVICE_BEFORE = [Foo]
             SERVICE_AFTER = [Bar]
 
-        class B(A, inherit_dependencies=False):
-            SERVICE_AFTER = [Foo]
+        self.assertGreater(Foo, A)
+        self.assertGreater(A, Bar)
+        self.assertGreater(Foo, Bar)
 
-        self.assertSetEqual(
-            {A},
-            Foo.ORDER_AFTER
-        )
-        self.assertSetEqual(
-            {B},
-            Foo.ORDER_BEFORE
-        )
-        self.assertSetEqual(
-            {Foo, A, Bar},
-            B.ORDER_AFTER
-        )
-        self.assertSetEqual(
-            set(),
-            B.ORDER_BEFORE
+        self.assertEqual(
+            Foo.PATCHED_ORDER_AFTER,
+            {A}
         )
 
     def test_support_pre_0_3_attributes_on_read(self):
@@ -538,7 +422,7 @@ class TestServiceMeta(unittest.TestCase):
                     ]
                 )
 
-    def test_allow_duplicate_handlers_on_different_objects_for_non_unique(self):
+    def test_allow_duplicate_handlers_on_different_objects_for_non_unique(self):  # NOQA
         class ObjectWithHandlers:
             def __init__(self, handlers=[]):
                 self._aioxmpp_service_handlers = set(handlers)
@@ -584,7 +468,7 @@ class TestServiceMeta(unittest.TestCase):
 
         with self.assertRaisesRegex(
                 TypeError,
-                r"inheritance from service class with handlers is forbidden"):
+                r"subclassing services is prohibited."):
             class Bar(Foo):
                 pass
 
@@ -595,7 +479,7 @@ class TestServiceMeta(unittest.TestCase):
             x = descriptor
 
         self.assertCountEqual(
-            Foo.SERVICE_DESCRIPTORS,
+            Foo.SERVICE_HANDLERS,
             (
                 descriptor,
             ),
@@ -607,8 +491,7 @@ class TestServiceMeta(unittest.TestCase):
 
         with self.assertRaisesRegex(
                 TypeError,
-                r"inheritance from service class with descriptors is "
-                "forbidden"):
+                r"subclassing services is prohibited."):
             class Bar(Foo):
                 pass
 
@@ -783,6 +666,10 @@ class TestService(unittest.TestCase):
             def add_to_stack(self, instance, stack):
                 base.add_to_stack(self, instance, stack)
 
+            @property
+            def value_type(self):
+                return None
+
         base = unittest.mock.Mock()
         base.init_cm = unittest.mock.MagicMock()
 
@@ -804,6 +691,94 @@ class TestService(unittest.TestCase):
                 unittest.mock.call.ExitStack(),
                 unittest.mock.call.add_to_stack(
                     ServiceWithDescriptor.desc,
+                    s,
+                    base.ExitStack(),
+                )
+            ]
+        )
+
+        base.mock_calls.clear()
+
+        base._shutdown = CoroutineMock()
+
+        with unittest.mock.patch.object(s, "_shutdown", new=base._shutdown):
+            run_coroutine(s.shutdown())
+
+        self.assertSequenceEqual(
+            base.mock_calls,
+            [
+                unittest.mock.call._shutdown(),
+                unittest.mock.call.ExitStack().close(),
+            ]
+        )
+
+    def test_setup_contexts_in_delaration_order(self):
+        class FooDescriptor(service.Descriptor):
+            def __init__(self, id_):
+                super().__init__()
+                self.__id = id_
+
+            def init_cm(self, instance):
+                return base.init_cm(instance, self.__id)
+
+            def add_to_stack(self, instance, stack):
+                base.add_to_stack(self, instance, stack)
+
+            @property
+            def value_type(self):
+                return None
+
+        base = unittest.mock.Mock()
+        base.init_cm = unittest.mock.MagicMock()
+
+        self.maxDiff = None
+
+        class ObjectWithHandlers:
+            def __init__(self, handlers=[]):
+                self._aioxmpp_service_handlers = set(handlers)
+
+            def __get__(self, instance, owner):
+                if instance is None:
+                    return self
+                return (unittest.mock.sentinel.got, self)
+
+        class ServiceWithDescriptor(service.Service):
+            desc1 = FooDescriptor(1)
+
+            x = ObjectWithHandlers(
+                [
+                    service.HandlerSpec((base.res1, ())),
+                ]
+            )
+
+            desc2 = FooDescriptor(2)
+
+        client = unittest.mock.Mock()
+
+        with unittest.mock.patch("contextlib.ExitStack",
+                                 new=base.ExitStack):
+            s = ServiceWithDescriptor(client)
+
+        calls = list(base.mock_calls)
+        self.assertSequenceEqual(
+            calls,
+            [
+                unittest.mock.call.ExitStack(),
+                unittest.mock.call.add_to_stack(
+                    ServiceWithDescriptor.desc1,
+                    s,
+                    base.ExitStack(),
+                ),
+                unittest.mock.call.res1(
+                    s,
+                    client.stream,
+                    (unittest.mock.sentinel.got, ServiceWithDescriptor.x)
+                ),
+                unittest.mock.call.ExitStack().enter_context(
+                    base.res1(),
+                ),
+                unittest.mock.call.add_to_stack(
+                    ServiceWithDescriptor.desc2,
                     s,
                     base.ExitStack(),
                 )
@@ -859,46 +834,6 @@ class Test_apply_iq_handler(unittest.TestCase):
             unittest.mock.sentinel.stream,
             unittest.mock.sentinel.type_,
             unittest.mock.sentinel.payload_cls,
-            unittest.mock.sentinel.func,
-        )
-
-
-class Test_apply_message_handler(unittest.TestCase):
-    def test_uses_stream_message_handler(self):
-        with unittest.mock.patch(
-                "aioxmpp.stream.message_handler") as message_handler:
-            service._apply_message_handler(
-                unittest.mock.sentinel.instance,
-                unittest.mock.sentinel.stream,
-                unittest.mock.sentinel.func,
-                unittest.mock.sentinel.type_,
-                unittest.mock.sentinel.from_,
-            )
-
-        message_handler.assert_called_with(
-            unittest.mock.sentinel.stream,
-            unittest.mock.sentinel.type_,
-            unittest.mock.sentinel.from_,
-            unittest.mock.sentinel.func,
-        )
-
-
-class Test_apply_presence_handler(unittest.TestCase):
-    def test_uses_stream_presence_handler(self):
-        with unittest.mock.patch(
-                "aioxmpp.stream.presence_handler") as presence_handler:
-            service._apply_presence_handler(
-                unittest.mock.sentinel.instance,
-                unittest.mock.sentinel.stream,
-                unittest.mock.sentinel.func,
-                unittest.mock.sentinel.type_,
-                unittest.mock.sentinel.from_,
-            )
-
-        presence_handler.assert_called_with(
-            unittest.mock.sentinel.stream,
-            unittest.mock.sentinel.type_,
-            unittest.mock.sentinel.from_,
             unittest.mock.sentinel.func,
         )
 
@@ -1013,6 +948,64 @@ class Test_apply_connect_depsignal(unittest.TestCase):
             dependency.signal_name.context_connect(),
         )
 
+    def test_can_connect_to_StanzaStream(self):
+        instance = unittest.mock.MagicMock()
+        dependency = unittest.mock.Mock()
+        instance.client.stream = dependency
+
+        result = service._apply_connect_depsignal(
+            instance,
+            unittest.mock.sentinel.stream,
+            unittest.mock.sentinel.func,
+            aioxmpp.stream.StanzaStream,
+            "signal_name",
+            unittest.mock.sentinel.mode,
+        )
+
+        self.assertSequenceEqual(
+            dependency.mock_calls,
+            [
+                unittest.mock.call.signal_name.context_connect(
+                    unittest.mock.sentinel.func,
+                    unittest.mock.sentinel.mode,
+                )
+            ]
+        )
+
+        self.assertEqual(
+            result,
+            dependency.signal_name.context_connect(),
+        )
+
+    def test_can_connect_to_Client(self):
+        instance = unittest.mock.MagicMock()
+        dependency = unittest.mock.Mock()
+        instance.client = dependency
+
+        result = service._apply_connect_depsignal(
+            instance,
+            unittest.mock.sentinel.stream,
+            unittest.mock.sentinel.func,
+            aioxmpp.node.Client,
+            "signal_name",
+            unittest.mock.sentinel.mode,
+        )
+
+        self.assertSequenceEqual(
+            dependency.mock_calls,
+            [
+                unittest.mock.call.signal_name.context_connect(
+                    unittest.mock.sentinel.func,
+                    unittest.mock.sentinel.mode,
+                )
+            ]
+        )
+
+        self.assertEqual(
+            result,
+            dependency.signal_name.context_connect(),
+        )
+
     def test_does_not_pass_mode_if_it_is_None(self):
         instance = unittest.mock.MagicMock()
         dependency = unittest.mock.Mock()
@@ -1043,6 +1036,119 @@ class Test_apply_connect_depsignal(unittest.TestCase):
         self.assertEqual(
             result,
             dependency.signal_name.context_connect(),
+        )
+
+
+class Test_apply_connect_depfilter(unittest.TestCase):
+    def test_uses_dependencies(self):
+        instance = unittest.mock.MagicMock()
+        dependency = unittest.mock.Mock()
+        instance.dependencies.__getitem__.return_value = dependency
+
+        result = service._apply_connect_depfilter(
+            instance,
+            unittest.mock.sentinel.stream,
+            unittest.mock.sentinel.func,
+            unittest.mock.sentinel.dependency,
+            "filter_name",
+        )
+
+        instance.dependencies.__getitem__.assert_called_with(
+            unittest.mock.sentinel.dependency,
+        )
+
+        self.assertSequenceEqual(
+            dependency.mock_calls,
+            [
+                unittest.mock.call.filter_name.context_register(
+                    unittest.mock.sentinel.func,
+                    type(instance),
+                )
+            ]
+        )
+
+        self.assertEqual(
+            result,
+            dependency.filter_name.context_register(),
+        )
+
+    def test_can_connect_to_StanzaStream(self):
+        instance = unittest.mock.MagicMock()
+        dependency = unittest.mock.Mock()
+        instance.client.stream = dependency
+
+        result = service._apply_connect_depfilter(
+            instance,
+            unittest.mock.sentinel.stream,
+            unittest.mock.sentinel.func,
+            aioxmpp.stream.StanzaStream,
+            "filter_name",
+        )
+
+        self.assertSequenceEqual(
+            dependency.mock_calls,
+            [
+                unittest.mock.call.filter_name.context_register(
+                    unittest.mock.sentinel.func,
+                    type(instance),
+                )
+            ]
+        )
+
+        self.assertEqual(
+            result,
+            dependency.filter_name.context_register(),
+        )
+
+
+class Test_apply_connect_attrsignal(unittest.TestCase):
+    def test_uses_descriptor(self):
+        descriptor = unittest.mock.PropertyMock()
+
+        result = service._apply_connect_attrsignal(
+            unittest.mock.sentinel.instance,
+            unittest.mock.sentinel.stream,
+            unittest.mock.sentinel.func,
+            descriptor,
+            "signal_name",
+            unittest.mock.sentinel.mode,
+        )
+
+        descriptor.assert_called_once_with()
+
+        descriptor().signal_name.context_connect\
+            .assert_called_once_with(
+                unittest.mock.sentinel.func,
+                unittest.mock.sentinel.mode,
+            )
+
+        self.assertEqual(
+            result,
+            descriptor().signal_name.context_connect(),
+        )
+
+    def test_default_mode(self):
+        descriptor = unittest.mock.PropertyMock()
+
+        result = service._apply_connect_attrsignal(
+            unittest.mock.sentinel.instance,
+            unittest.mock.sentinel.stream,
+            unittest.mock.sentinel.func,
+            descriptor,
+            "signal_name",
+            None,
+        )
+
+        descriptor.assert_called_once_with()
+
+        descriptor().signal_name.context_connect\
+            .assert_called_once_with(
+                unittest.mock.sentinel.func,
+            )
+
+        self.assertEqual(
+            result,
+            descriptor().signal_name.context_connect(),
         )
 
 
@@ -1208,212 +1314,42 @@ class Testiq_handler(unittest.TestCase):
 
 
 class Testmessage_handler(unittest.TestCase):
-    def setUp(self):
-        self.decorator = service.message_handler(
-            unittest.mock.sentinel.type_,
-            unittest.mock.sentinel.from_
-        )
-
-    def tearDown(self):
-        del self.decorator
-
-    def test_works_as_decorator(self):
-        def cb():
-            pass
-
-        self.assertIs(
-            cb,
-            self.decorator(cb),
-        )
-
-    def test_adds_magic_attribute(self):
-        def cb():
-            pass
-
-        self.decorator(cb)
-
-        self.assertTrue(hasattr(cb, "_aioxmpp_service_handlers"))
-
-    def test_adds__apply_message_handler_entry(self):
-        def cb():
-            pass
-
-        self.decorator(cb)
-
-        self.assertIn(
-            service.HandlerSpec(
-                (service._apply_message_handler,
-                 (unittest.mock.sentinel.type_,
-                  unittest.mock.sentinel.from_)),
-                is_unique=True,
-                require_deps=(),
-            ),
-            cb._aioxmpp_service_handlers
-        )
-
-    def test_stacks_with_other_effects(self):
-        def cb():
-            pass
-
-        cb._aioxmpp_service_handlers = {"foo"}
-
-        self.decorator(cb)
-
-        self.assertIn(
-            service.HandlerSpec(
-                (service._apply_message_handler,
-                 (unittest.mock.sentinel.type_,
-                  unittest.mock.sentinel.from_)),
-                is_unique=True,
-                require_deps=(),
-            ),
-            cb._aioxmpp_service_handlers
-        )
-
-        self.assertIn(
-            "foo",
-            cb._aioxmpp_service_handlers,
-        )
-
-    def test_requires_non_coroutine(self):
+    def test_forwards_to_dispatcher(self):
         with unittest.mock.patch(
-                "asyncio.iscoroutinefunction") as iscoroutinefunction:
-            iscoroutinefunction.return_value = True
+                "aioxmpp.dispatcher.message_handler") as message_handler:
+            result = service.message_handler(
+                unittest.mock.sentinel.a1,
+                unittest.mock.sentinel.a2,
+            )
 
-            with self.assertRaisesRegex(
-                    TypeError,
-                    "must not be a coroutine function"):
-                self.decorator(unittest.mock.sentinel.cb)
-
-        iscoroutinefunction.assert_called_with(
-            unittest.mock.sentinel.cb,
+        message_handler.assert_called_once_with(
+            unittest.mock.sentinel.a1,
+            unittest.mock.sentinel.a2,
         )
 
-    def test_works_with_is_message_handler(self):
-        def cb():
-            pass
-
-        self.assertFalse(
-            service.is_message_handler(
-                unittest.mock.sentinel.type_,
-                unittest.mock.sentinel.from_,
-                cb,
-            )
-        )
-
-        self.decorator(cb)
-
-        self.assertTrue(
-            service.is_message_handler(
-                unittest.mock.sentinel.type_,
-                unittest.mock.sentinel.from_,
-                cb,
-            )
+        self.assertEqual(
+            result,
+            message_handler(),
         )
 
 
 class Testpresence_handler(unittest.TestCase):
-    def setUp(self):
-        self.decorator = service.presence_handler(
-            unittest.mock.sentinel.type_,
-            unittest.mock.sentinel.from_
-        )
-
-    def tearDown(self):
-        del self.decorator
-
-    def test_works_as_decorator(self):
-        def cb():
-            pass
-
-        self.assertIs(
-            cb,
-            self.decorator(cb),
-        )
-
-    def test_adds_magic_attribute(self):
-        def cb():
-            pass
-
-        self.decorator(cb)
-
-        self.assertTrue(hasattr(cb, "_aioxmpp_service_handlers"))
-
-    def test_adds__apply_presence_handler_entry(self):
-        def cb():
-            pass
-
-        self.decorator(cb)
-
-        self.assertIn(
-            service.HandlerSpec(
-                (service._apply_presence_handler,
-                 (unittest.mock.sentinel.type_,
-                  unittest.mock.sentinel.from_)),
-                is_unique=True,
-                require_deps=(),
-            ),
-            cb._aioxmpp_service_handlers
-        )
-
-    def test_stacks_with_other_effects(self):
-        def cb():
-            pass
-
-        cb._aioxmpp_service_handlers = {"foo"}
-
-        self.decorator(cb)
-
-        self.assertIn(
-            service.HandlerSpec(
-                (service._apply_presence_handler,
-                 (unittest.mock.sentinel.type_,
-                  unittest.mock.sentinel.from_)),
-                is_unique=True,
-                require_deps=(),
-            ),
-            cb._aioxmpp_service_handlers
-        )
-
-        self.assertIn(
-            "foo",
-            cb._aioxmpp_service_handlers,
-        )
-
-    def test_requires_non_coroutine(self):
+    def test_forwards_to_dispatcher(self):
         with unittest.mock.patch(
-                "asyncio.iscoroutinefunction") as iscoroutinefunction:
-            iscoroutinefunction.return_value = True
+                "aioxmpp.dispatcher.presence_handler") as presence_handler:
+            result = service.presence_handler(
+                unittest.mock.sentinel.a1,
+                unittest.mock.sentinel.a2,
+            )
 
-            with self.assertRaisesRegex(
-                    TypeError,
-                    "must not be a coroutine function"):
-                self.decorator(unittest.mock.sentinel.cb)
-
-        iscoroutinefunction.assert_called_with(
-            unittest.mock.sentinel.cb,
+        presence_handler.assert_called_once_with(
+            unittest.mock.sentinel.a1,
+            unittest.mock.sentinel.a2,
         )
 
-    def test_works_with_is_presence_handler(self):
-        def cb():
-            pass
-
-        self.assertFalse(
-            service.is_presence_handler(
-                unittest.mock.sentinel.type_,
-                unittest.mock.sentinel.from_,
-                cb,
-            )
-        )
-
-        self.decorator(cb)
-
-        self.assertTrue(
-            service.is_presence_handler(
-                unittest.mock.sentinel.type_,
-                unittest.mock.sentinel.from_,
-                cb,
-            )
+        self.assertEqual(
+            result,
+            presence_handler(),
         )
 
 
@@ -1943,8 +1879,362 @@ class Testdepsignal(unittest.TestCase):
             cb._aioxmpp_service_handlers,
         )
 
-    def test_works_with_is_depsignal_handler(self):
+    def test_adds_dependency(self):
+        def cb():
+            pass
+
+        self.decorator(cb)
+
+        spec, = cb._aioxmpp_service_handlers
+        self.assertIn(
+            self.S1,
+            spec.require_deps,
+        )
+
+    def test_does_not_add_dependency_for_StanzaStream(self):
+        def cb():
+            pass
+
+        decorator = service.depsignal(
+            aioxmpp.stream.StanzaStream,
+            "on_message_received",
+        )
+        decorator(cb)
+
+        spec, = cb._aioxmpp_service_handlers
+        self.assertNotIn(
+            aioxmpp.stream.StanzaStream,
+            spec.require_deps,
+        )
+
+    def test_does_not_add_dependency_for_Client(self):
+        @asyncio.coroutine
+        def cb():
+            pass
+
+        decorator = service.depsignal(
+            aioxmpp.node.Client,
+            "before_stream_established",
+        )
+        decorator(cb)
+
+        spec, = cb._aioxmpp_service_handlers
+        self.assertNotIn(
+            aioxmpp.node.Client,
+            spec.require_deps,
+        )
+
+
+class Testdepfilter(unittest.TestCase):
+    class S1:
         pass
+
+    def setUp(self):
+        self.decorator = service.depfilter(
+            self.S1,
+            "filter",
+        )
+
+    def tearDown(self):
+        del self.decorator
+
+    def test_adds_magic_attribute(self):
+        def cb():
+            pass
+
+        self.decorator(cb)
+
+        self.assertTrue(hasattr(cb, "_aioxmpp_service_handlers"))
+
+    def test_stacks_with_other_effects(self):
+        def cb():
+            pass
+
+        cb._aioxmpp_service_handlers = {"foo"}
+
+        self.decorator(cb)
+
+        self.assertIn(
+            service.HandlerSpec(
+                (
+                    service._apply_connect_depfilter,
+                    (
+                        self.S1,
+                        "filter",
+                    ),
+                ),
+                is_unique=True,
+                require_deps=(self.S1,),
+            ),
+            cb._aioxmpp_service_handlers
+        )
+
+        self.assertIn(
+            "foo",
+            cb._aioxmpp_service_handlers,
+        )
+
+    def test_adds_dependency(self):
+        def cb():
+            pass
+
+        self.decorator(cb)
+
+        spec, = cb._aioxmpp_service_handlers
+        self.assertIn(
+            self.S1,
+            spec.require_deps,
+        )
+
+    def test_does_not_add_dependency_for_StanzaStream(self):
+        def cb():
+            pass
+
+        decorator = service.depfilter(
+            aioxmpp.stream.StanzaStream,
+            "some_filter",
+        )
+        decorator(cb)
+
+        spec, = cb._aioxmpp_service_handlers
+        self.assertNotIn(
+            aioxmpp.stream.StanzaStream,
+            spec.require_deps,
+        )
+
+
+class Testattrsignal(unittest.TestCase):
+    class DescriptorValue:
+        signal = callbacks.Signal()
+        sync = callbacks.SyncSignal()
+
+
+    class Descriptor(service.Descriptor):
+        def init_cm(self, instance):
+            raise NotImplementedError
+
+        @property
+        def value_type(self):
+            return Testattrsignal.DescriptorValue
+
+    def setUp(self):
+        self.descriptor = self.Descriptor()
+
+        self.decorator = service.attrsignal(
+            self.descriptor,
+            "signal",
+        )
+
+    def tearDown(self):
+        del self.decorator
+
+    def test_adds_magic_attribute(self):
+        def cb():
+            pass
+
+        self.decorator(cb)
+
+        self.assertTrue(hasattr(cb, "_aioxmpp_service_handlers"))
+
+    def test_uses_strong_by_default(self):
+        def cb():
+            pass
+
+        self.decorator(cb)
+
+        self.assertIn(
+            service.HandlerSpec(
+                (
+                    service._apply_connect_attrsignal,
+                    (
+                        self.descriptor,
+                        "signal",
+                        callbacks.AdHocSignal.STRONG,
+                    )
+                ),
+                is_unique=True,
+                require_deps=(),
+            ),
+            cb._aioxmpp_service_handlers
+        )
+
+    def test_defer_flag(self):
+        self.decorator = service.attrsignal(
+            self.descriptor,
+            "signal",
+            defer=True,
+        )
+
+        def cb():
+            pass
+
+        with unittest.mock.patch.object(
+                callbacks.AdHocSignal,
+                "ASYNC_WITH_LOOP") as ASYNC_WITH_LOOP:
+            ASYNC_WITH_LOOP.return_value = \
+                unittest.mock.sentinel.async_with_loop
+            self.decorator(cb)
+
+        ASYNC_WITH_LOOP.assert_called_with(
+            None,
+        )
+
+        self.assertIn(
+            service.HandlerSpec(
+                (
+                    service._apply_connect_attrsignal,
+                    (
+                        self.descriptor,
+                        "signal",
+                        unittest.mock.sentinel.async_with_loop,
+                    )
+                ),
+                is_unique=True,
+                require_deps=(),
+            ),
+            cb._aioxmpp_service_handlers
+        )
+
+    def test_require_coroutinefunction_for_sync_signal(self):
+        def cb():
+            pass
+
+        self.decorator = service.attrsignal(
+            self.descriptor,
+            "sync",
+        )
+
+        with self.assertRaisesRegex(
+                TypeError,
+                "a coroutine function is required for this signal"):
+            self.decorator(cb)
+
+    def test_coroutinefunction_and_sync_signal(self):
+        @asyncio.coroutine
+        def coro():
+            pass
+
+        self.decorator = service.attrsignal(
+            self.descriptor,
+            "sync",
+        )
+
+        self.decorator(coro)
+
+        self.assertIn(
+            service.HandlerSpec(
+                (
+                    service._apply_connect_attrsignal,
+                    (
+                        self.descriptor,
+                        "sync",
+                        None,
+                    )
+                ),
+                is_unique=True,
+                require_deps=(),
+            ),
+            coro._aioxmpp_service_handlers
+        )
+
+    def test_use_spawn_for_coroutinefunction_on_normal_signal_and_defer(self):
+        self.decorator = service.attrsignal(
+            self.descriptor,
+            "signal",
+            defer=True,
+        )
+
+        @asyncio.coroutine
+        def coro():
+            pass
+
+        with unittest.mock.patch.object(
+                callbacks.AdHocSignal,
+                "SPAWN_WITH_LOOP") as SPAWN_WITH_LOOP:
+            SPAWN_WITH_LOOP.return_value = \
+                unittest.mock.sentinel.spawn_with_loop
+            self.decorator(coro)
+
+        SPAWN_WITH_LOOP.assert_called_with(
+            None,
+        )
+
+        self.assertIn(
+            service.HandlerSpec(
+                (
+                    service._apply_connect_attrsignal,
+                    (
+                        self.descriptor,
+                        "signal",
+                        unittest.mock.sentinel.spawn_with_loop,
+                    )
+                ),
+                is_unique=True,
+                require_deps=(),
+            ),
+            coro._aioxmpp_service_handlers
+        )
+
+    def test_reject_coroutinefunction_on_normal_signal_without_defer(self):
+        self.decorator = service.attrsignal(
+            self.descriptor,
+            "signal",
+        )
+
+        @asyncio.coroutine
+        def coro():
+            pass
+
+        with self.assertRaisesRegex(
+                TypeError,
+                "cannot use coroutine function with this signal "
+                "without defer"):
+            self.decorator(coro)
+
+    def test_reject_defer_on_sync_signal(self):
+        self.decorator = service.attrsignal(
+            self.descriptor,
+            "sync",
+            defer=True,
+        )
+
+        @asyncio.coroutine
+        def coro():
+            pass
+
+        with self.assertRaisesRegex(
+                ValueError,
+                "cannot use defer with this signal"):
+            self.decorator(coro)
+
+    def test_stacks_with_other_effects(self):
+        def cb():
+            pass
+
+        cb._aioxmpp_service_handlers = {"foo"}
+
+        self.decorator(cb)
+
+        self.assertIn(
+            service.HandlerSpec(
+                (
+                    service._apply_connect_attrsignal,
+                    (
+                        self.descriptor,
+                        "signal",
+                        callbacks.AdHocSignal.STRONG,
+                    ),
+                ),
+                is_unique=True,
+                require_deps=(),
+            ),
+            cb._aioxmpp_service_handlers
+        )
+
+        self.assertIn(
+            "foo",
+            cb._aioxmpp_service_handlers,
+        )
 
 
 class Testis_iq_handler(unittest.TestCase):
@@ -1995,96 +2285,48 @@ class Testis_iq_handler(unittest.TestCase):
 
 
 class Testis_message_handler(unittest.TestCase):
-    def test_return_false_if_magic_attr_is_missing(self):
-        self.assertFalse(
-            service.is_message_handler(
-                unittest.mock.sentinel.type_,
-                unittest.mock.sentinel.from_,
-                object()
+    def test_forwards_to_dispatcher(self):
+        with unittest.mock.patch(
+                "aioxmpp.dispatcher."
+                "is_message_handler") as is_message_handler:
+            result = service.is_message_handler(
+                unittest.mock.sentinel.a1,
+                unittest.mock.sentinel.a2,
+                unittest.mock.sentinel.c,
             )
+
+        is_message_handler.assert_called_once_with(
+            unittest.mock.sentinel.a1,
+            unittest.mock.sentinel.a2,
+            unittest.mock.sentinel.c,
         )
 
-    def test_return_true_if_token_in_magic_attr(self):
-        m = unittest.mock.Mock()
-        m._aioxmpp_service_handlers = [
-            service.HandlerSpec(
-                (service._apply_message_handler,
-                    (unittest.mock.sentinel.type_,
-                     unittest.mock.sentinel.from_))
-            ),
-        ]
-
-        self.assertTrue(
-            service.is_message_handler(
-                unittest.mock.sentinel.type_,
-                unittest.mock.sentinel.from_,
-                m
-            )
-        )
-
-    def test_return_false_if_token_not_in_magic_attr(self):
-        m = unittest.mock.Mock()
-        m._aioxmpp_service_handlers = [
-            service.HandlerSpec(
-                (service._apply_message_handler,
-                 (unittest.mock.sentinel.type2,
-                     unittest.mock.sentinel.from2))
-            )
-        ]
-
-        self.assertFalse(
-            service.is_message_handler(
-                unittest.mock.sentinel.type_,
-                unittest.mock.sentinel.from_,
-                m
-            )
+        self.assertEqual(
+            result,
+            is_message_handler(),
         )
 
 
 class Testis_presence_handler(unittest.TestCase):
-    def test_return_false_if_magic_attr_is_missing(self):
-        self.assertFalse(
-            service.is_presence_handler(
-                unittest.mock.sentinel.type_,
-                unittest.mock.sentinel.from_,
-                object()
+    def test_forwards_to_dispatcher(self):
+        with unittest.mock.patch(
+                "aioxmpp.dispatcher."
+                "is_presence_handler") as is_presence_handler:
+            result = service.is_presence_handler(
+                unittest.mock.sentinel.a1,
+                unittest.mock.sentinel.a2,
+                unittest.mock.sentinel.c,
             )
+
+        is_presence_handler.assert_called_once_with(
+            unittest.mock.sentinel.a1,
+            unittest.mock.sentinel.a2,
+            unittest.mock.sentinel.c,
         )
 
-    def test_return_true_if_token_in_magic_attr(self):
-        m = unittest.mock.Mock()
-        m._aioxmpp_service_handlers = [
-            service.HandlerSpec(
-                (service._apply_presence_handler,
-                 (unittest.mock.sentinel.type_,
-                  unittest.mock.sentinel.from_))
-            )
-        ]
-
-        self.assertTrue(
-            service.is_presence_handler(
-                unittest.mock.sentinel.type_,
-                unittest.mock.sentinel.from_,
-                m
-            )
-        )
-
-    def test_return_false_if_token_not_in_magic_attr(self):
-        m = unittest.mock.Mock()
-        m._aioxmpp_service_handlers = [
-            service.HandlerSpec(
-                (service._apply_presence_handler,
-                 (unittest.mock.sentinel.type2,
-                  unittest.mock.sentinel.from2))
-            )
-        ]
-
-        self.assertFalse(
-            service.is_presence_handler(
-                unittest.mock.sentinel.type_,
-                unittest.mock.sentinel.from_,
-                m
-            )
+        self.assertEqual(
+            result,
+            is_presence_handler(),
         )
 
 
@@ -2368,10 +2610,227 @@ class Testis_depsignal_handler(unittest.TestCase):
         )
 
 
+class Testis_depfilter_handler(unittest.TestCase):
+    class S1:
+        pass
+
+    def test_return_false_if_magic_attr_is_missing(self):
+        self.assertFalse(
+            service.is_depfilter_handler(
+                self.S1,
+                "filter",
+                object(),
+            )
+        )
+
+    def test_works_with_depfilter(self):
+        def f():
+            pass
+
+        service.depfilter(self.S1, "filter")(f)
+
+        self.assertTrue(
+            service.is_depfilter_handler(
+                self.S1,
+                "filter",
+                f,
+            )
+        )
+
+        self.assertFalse(
+            service.is_depfilter_handler(
+                self.S1,
+                "foo",
+                f,
+            )
+        )
+
+        self.assertFalse(
+            service.is_depfilter_handler(
+                aioxmpp.stream.StanzaStream,
+                "foo",
+                f,
+            )
+        )
+
+    def test_return_false_if_token_not_in_magic_attr(self):
+        m = unittest.mock.Mock()
+        m._aioxmpp_service_handlers = [
+            service.HandlerSpec(
+                (service._apply_outbound_message_filter,
+                 ())
+            )
+        ]
+
+        self.assertFalse(
+            service.is_depfilter_handler(
+                self.S1,
+                "filter",
+                m,
+            )
+        )
+
+
+class Testis_attrsignal_handler(unittest.TestCase):
+    class DescriptorValue:
+        signal = callbacks.Signal()
+        sync = callbacks.SyncSignal()
+
+
+    class Descriptor(service.Descriptor):
+        def init_cm(self, instance):
+            raise NotImplementedError
+
+        @property
+        def value_type(self):
+            return Testattrsignal.DescriptorValue
+
+    def setUp(self):
+        self.descriptor = self.Descriptor()
+
+    def test_return_false_if_magic_attr_is_missing(self):
+        self.assertFalse(
+            service.is_attrsignal_handler(
+                self.descriptor,
+                "signal",
+                object(),
+            )
+        )
+
+    def test_return_true_if_token_in_magic_attr(self):
+        def cb(self):
+            pass
+
+        @asyncio.coroutine
+        def coro(self):
+            pass
+
+        tokens = [
+            (
+                "signal",
+                False,
+                cb,
+                service.HandlerSpec(
+                    (
+                        service._apply_connect_attrsignal,
+                        (
+                            self.descriptor,
+                            "signal",
+                            callbacks.AdHocSignal.STRONG,
+                        ),
+                    ),
+                    require_deps=()
+                )
+            ),
+            (
+                "signal",
+                True,
+                cb,
+                service.HandlerSpec(
+                    (
+                        service._apply_connect_attrsignal,
+                        (
+                            self.descriptor,
+                            "signal",
+                            unittest.mock.sentinel.async_with_loop,
+                        ),
+                    ),
+                    require_deps=()
+                )
+            ),
+            (
+                "signal",
+                True,
+                coro,
+                service.HandlerSpec(
+                    (
+                        service._apply_connect_attrsignal,
+                        (
+                            self.descriptor,
+                            "signal",
+                            unittest.mock.sentinel.spawn_with_loop,
+                        ),
+                    ),
+                    require_deps=()
+                )
+            ),
+            (
+                "sync",
+                False,
+                coro,
+                service.HandlerSpec(
+                    (
+                        service._apply_connect_attrsignal,
+                        (
+                            self.descriptor,
+                            "sync",
+                            None,
+                        ),
+                    ),
+                    require_deps=(),
+                )
+            ),
+        ]
+
+        for signal_name, defer, obj, spec in tokens:
+            with contextlib.ExitStack() as stack:
+                SPAWN_WITH_LOOP = stack.enter_context(
+                    unittest.mock.patch.object(
+                        callbacks.AdHocSignal,
+                        "SPAWN_WITH_LOOP")
+                )
+                SPAWN_WITH_LOOP.return_value = \
+                    unittest.mock.sentinel.spawn_with_loop
+
+                ASYNC_WITH_LOOP = stack.enter_context(
+                    unittest.mock.patch.object(
+                        callbacks.AdHocSignal,
+                        "ASYNC_WITH_LOOP")
+                )
+                ASYNC_WITH_LOOP.return_value = \
+                    unittest.mock.sentinel.async_with_loop
+
+                obj._aioxmpp_service_handlers = [
+                    spec,
+                ]
+
+                self.assertTrue(
+                    service.is_attrsignal_handler(
+                        self.descriptor,
+                        signal_name,
+                        obj,
+                        defer=defer,
+                    ),
+                    spec,
+                )
+
+    def test_return_false_if_token_not_in_magic_attr(self):
+        m = unittest.mock.Mock()
+        m._aioxmpp_service_handlers = [
+            service.HandlerSpec(
+                (service._apply_outbound_message_filter,
+                 ())
+            )
+        ]
+
+        self.assertFalse(
+            service.is_attrsignal_handler(
+                self.descriptor,
+                "signal",
+                m,
+                defer=True,
+            )
+        )
+
+
 class TestDescriptor(unittest.TestCase):
     class DescriptorSubclass(service.Descriptor):
         def init_cm(self, instance):
             return unittest.mock.sentinel.cm
+
+        @property
+        def value_type(self):
+            return None
 
     def setUp(self):
         self.d = self.DescriptorSubclass()

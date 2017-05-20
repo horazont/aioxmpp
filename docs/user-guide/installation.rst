@@ -1,13 +1,18 @@
 Installation
 ############
 
-There are currently two main ways of installing :mod:`aioxmpp`:
+You have three options for installing :mod:`aioxmpp`:
 
-1. :ref:`ug-installation-pypi`: this is recommended if you simply want to use
+1. :ref:`ug-installation-packages`: only on ArchLinux and only if you use AUR,
+   but if you do, this is the preferred way for your platform if you want
+   to use :mod:`aioxmpp` in your project. It is not recommended if you want to
+   hack on :mod:`aioxmpp` (use the third way then).
+
+2. :ref:`ug-installation-pypi`: this is recommended if you simply want to use
    :mod:`aioxmpp` in a project or need it as an dependency for something. It is
    not recommended if you want to hack on :mod:`aioxmpp`.
 
-2. :ref:`ug-installation-source`: this is recommended if you want to hack on
+3. :ref:`ug-installation-source`: this is recommended if you want to hack on
    :mod:`aioxmpp` or if you anticipate requiring bugfixes or new features while
    you use :mod:`aioxmpp`.
 
@@ -21,26 +26,76 @@ There are currently two main ways of installing :mod:`aioxmpp`:
    distributions are still lacking the awesomeness (``;-)``) of :mod:`aioxmpp`.
    *You* can change that.
 
+.. _ug-installation-packages:
+
+Installing using your system’s package manager
+==============================================
+
+Currently, aioxmpp is only packaged in AUR of ArchLinux. On ArchLinux, that
+is the preferred way to install aioxmpp.
+
+For other environments, you have to resort to the ways outlined below.
+
 .. _ug-installation-pypi:
 
 Installing from PyPI
 ====================
 
-In theory, simply running
+.. _ug-installation-pypi-deps-packages:
+
+Installing dependencies using your system’s package manager (recommended)
+-------------------------------------------------------------------------
+
+For Debian 8 (Jessie):
+
+.. code-block:: bash
+
+   apt install --no-install-recommends python3-dnspython python3-openssl \
+     python3-pyasn1 python3-pyasn1-modules build-essential libxml2-dev \
+     libxslt1-dev python3-dev libz-dev python3-pip
+
+
+For Debian 9 (Stretch):
+
+.. code-block:: bash
+
+   apt install --no-install-recommends python3-dnspython python3-openssl \
+     python3-pyasn1 python3-pyasn1-modules python3-multidict \
+     python3-tzlocal python3-lxml python3-babel python3-pip
+
+.. _ug-installation-pypi-deps-pypi:
+
+Installing dependencies from PyPI
+---------------------------------
+
+You will need some build dependencies for the dependencies, since some (such as
+lxml and PyOpenSSL) include C code which will be built during installation.
+
+In addition, we recommend installing PyOpenSSL using your system’s package
+manager even if you install other dependencies using pip.
+
+For Debian 8 (Jessie) and 9 (Stretch):
+
+.. code-block:: bash
+
+   apt install --no-install-recommends build-essential libssl-dev \
+     libxml2-dev libxslt1-dev python3-dev python3-openssl libz-dev \
+     python3-pip
+
+
+You can now proceed to installing aioxmpp via pip, which will install the
+dependencies from pip too.
+
+Installing aioxmpp
+------------------
+
+Now, simply running
 
 .. code-block:: bash
 
    pip3 install aioxmpp
 
-should install everything neccessary to run aioxmpp. You may need to install
-dependencies for other packages manually. Most commonly you will need
-python3-dev, libssl-dev (for Cryptography/PyOpenSSL) and libxml2-dev (for lxml)
-(the package names will vary across platforms).
-
-.. note::
-
-   There is also an AUR package for aioxmpp for ArchLinux. You might want to use
-   that instead of installing using pip.
+should install everything neccessary to run aioxmpp.
 
 .. note::
 
@@ -59,6 +114,7 @@ python3-dev, libssl-dev (for Cryptography/PyOpenSSL) and libxml2-dev (for lxml)
    (You may add the ``--user`` flag or use a virtualenv if you don’t want to
    upgrade pip system-wide.)
 
+
 .. _ug-installation-source:
 
 Installing in editable mode from source
@@ -70,8 +126,10 @@ from everywhere. You can read more about it in the relevant chapter from the
 <https://packaging.python.org/en/latest/distributing/#working-in-development-mode>`_.
 
 To install in editable mode, you first need a clone of the aioxmpp repository.
-Then you tell pip to install the local directory in editable mode. It will
-assume that you have all dependencies in place.
+Then you tell pip to install the local directory in editable mode. If you
+prefer to install dependencies using your system’s package manager, be sure
+to do so first (see :ref:`_ug-installation-pypi-deps-packages`), because
+:program:`pip3` will install them for you if they are missing.
 
 .. code-block:: bash
 
@@ -79,9 +137,6 @@ assume that you have all dependencies in place.
    cd aioxmpp
    git checkout devel  # make sure to use the devel branch
    pip3 install -e .  # install in editable mode
-
-If any dependencies are missing, you will notice rather quickly. Check the
-README to see what dependencies aioxmpp needs.
 
 Running the unittests
 ---------------------

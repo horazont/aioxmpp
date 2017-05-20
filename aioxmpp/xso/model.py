@@ -213,7 +213,7 @@ class XSOList(list):
         """
         Return an iterable which produces a sequence of the elements inside
         this :class:`XSOList`, filtered by the criteria given as arguments. The
-        fucntion starts with a working sequence consisting of the whole list.
+        function starts with a working sequence consisting of the whole list.
 
         If `type_` is not :data:`None`, elements which are not an instance of
         the given type are excluded from the working sequence.
@@ -306,7 +306,8 @@ class _PropBase(metaclass=PropBaseMeta):
         instance._xso_contents[self] = value
 
     def __set__(self, instance, value):
-        if     (self.validate.from_code and
+        if     (self.default != value and
+                self.validate.from_code and
                 self.validator and
                 not self.validator.validate(value)):
             raise ValueError("invalid value")
@@ -316,7 +317,8 @@ class _PropBase(metaclass=PropBaseMeta):
         self.__set__(instance, value)
 
     def _set_from_recv(self, instance, value):
-        if     (self.validate.from_recv and
+        if     (self.default != value and
+                self.validate.from_recv and
                 self.validator and
                 not self.validator.validate(value)):
             raise ValueError("invalid value")
@@ -458,6 +460,9 @@ class Child(_ChildPropBase):
     When assigned to a class’ attribute, it collects any child which matches
     any :attr:`XSO.TAG` of the given `classes`.
 
+    :param strict: Enable strict type checking on assigned values.
+    :type strict: :class:`bool`
+
     The tags among the `classes` must be unique, otherwise :class:`ValueError`
     is raised on construction.
 
@@ -467,6 +472,10 @@ class Child(_ChildPropBase):
     for the described attribute. Otherwise, a missing matching child is an
     error and the attribute cannot be set to :data:`None`.
 
+    If `strict` is true, only instances of the exact classes registered with
+    the descriptor can be assigned to it. Subclasses of the registered classes
+    also need to be registered explicitly to be allowed as types for values.
+
     .. automethod:: get_tag_map
 
     .. automethod:: from_events
@@ -474,19 +483,30 @@ class Child(_ChildPropBase):
     .. automethod:: to_sax
     """
 
-    def __init__(self, classes, required=False):
+    def __init__(self, classes, required=False, strict=False):
         super().__init__(
             classes,
             default=_PropBase.NO_DEFAULT if required else None
         )
+        self.__strict = strict
 
     @property
     def required(self):
         return self.default is _PropBase.NO_DEFAULT
 
+    @property
+    def strict(self):
+        return self.__strict
+
     def __set__(self, instance, value):
         if value is None and self.required:
             raise ValueError("cannot set required member to None")
+        if (self.__strict and
+                value is not None and
+                type(value) not in self._classes):
+            raise TypeError("{!r} object is not a valid value".format(
+                type(value)
+            ))
         super().__set__(instance, value)
 
     def __delete__(self, instance):
@@ -668,7 +688,7 @@ class Collector(_PropBase):
 
     def to_sax(self, instance, dest):
         for node in self.__get__(instance, type(instance)):
-            lxml.sax.saxify(node, dest)
+            lxml.sax.saxify(node, _CollectorContentHandlerFilter(dest))
 
 
 class Attr(Text):
@@ -2036,8 +2056,8 @@ class XSO(metaclass=XMLStreamClass):
             TAG = ("jabber:client", "message")
             UNKNOWN_CHILD_POLICY = aioxmpp.xso.UnknownChildPolicy.DROP
 
-            type_ = aioxmpp.xso.Attr(tag="type", required=True)
-            from_ = aioxmpp.xso.Attr(tag="from", required=True)
+            type_ = aioxmpp.xso.Attr(tag="type")
+            from_ = aioxmpp.xso.Attr(tag="from")
             to = aioxmpp.xso.Attr(tag="to")
             id_ = aioxmpp.xso.Attr(tag="id")
 
@@ -2159,6 +2179,11 @@ class XSO(metaclass=XMLStreamClass):
         """
 
     def unparse_to_sax(self, dest):
+        # XXX: if anyone has an idea on how to optimize this, this is a hotspot
+        # when serialising XML
+        # things which do not suffice or even change anything:
+        # 1. pull things in local variables
+        # 2. get rid of the try/finally, even without any replacement
         cls = type(self)
         attrib = {}
         for prop in cls.ATTR_MAP.values():
@@ -2541,3 +2566,36 @@ def events_to_sax(events, dest):
             dest.endElementNS(name, None)
         elif ev_type == "text":
             dest.characters(ev_args[0])
+
+
+class _CollectorContentHandlerFilter(xml.sax.handler.ContentHandler):
+    def __init__(self, receiver):
+        super().__init__()
+        self.__receiver = receiver
+
+    def setDocumentLocator(self, locator):
+        self.__receiver.setDocumentLocator(locator)
+
+    def startElement(self, name, attrs):
+        self.__receiver.startElement(name, attrs)
+
+    def endElement(self, name):
+        self.__receiver.endElement(name)
+
+    def startElementNS(self, name, qname, attrs):
+        self.__receiver.startElementNS(name, qname, attrs)
+
+    def endElementNS(self, name, qname):
+        self.__receiver.endElementNS(name, qname)
+
+    def characters(self, content):
+        self.__receiver.characters(content)
+
+    def ignorableWhitespace(self, content):
+        self.__receiver.ignorableWhitespace(content)
+
+    def processingInstruction(self, target, data):
+        self.__receiver.processingInstruction(target, data)
+
+    def skippedEntity(self, name):
+        self.__receiver.skippedEntity(name)

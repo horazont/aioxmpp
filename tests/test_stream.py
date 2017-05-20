@@ -29,6 +29,7 @@ import warnings
 import sys
 
 import aioxmpp
+import aioxmpp.ping as ping
 import aioxmpp.structs as structs
 import aioxmpp.xso as xso
 import aioxmpp.stanza as stanza
@@ -37,11 +38,11 @@ import aioxmpp.nonza as nonza
 import aioxmpp.errors as errors
 import aioxmpp.callbacks as callbacks
 import aioxmpp.service as service
+import aioxmpp.dispatcher
 
 from datetime import timedelta
 
 from aioxmpp.utils import namespaces
-from aioxmpp.plugins import xep0199
 
 from aioxmpp.testutils import (
     run_coroutine,
@@ -105,127 +106,7 @@ def make_mocked_streams(loop):
     return sent_stanzas, xmlstream, stanzastream
 
 
-class TestFilter_Token(unittest.TestCase):
-    def test_each_is_unique(self):
-        t1 = stream.Filter.Token()
-        t2 = stream.Filter.Token()
-        self.assertIsNot(t1, t2)
-        self.assertNotEqual(t1, t2)
-
-    def test_str(self):
-        self.assertRegex(
-            str(stream.Filter.Token()),
-            r"<[a-zA-Z._]+\.Filter\.Token 0x[0-9a-f]+>"
-        )
-
-
-class TestFilter(unittest.TestCase):
-    def setUp(self):
-        self.f = stream.Filter()
-
-    def test_register(self):
-        func = unittest.mock.Mock()
-        func.return_value = None
-
-        token = self.f.register(func, 0)
-        self.assertIsNotNone(token)
-
-    def test_filter(self):
-        func = unittest.mock.Mock()
-        func.return_value = None
-
-        self.f.register(func, 0)
-
-        iq = stanza.IQ(structs.IQType.GET)
-
-        self.assertIsNone(self.f.filter(iq))
-        self.assertSequenceEqual(
-            [
-                unittest.mock.call(iq),
-            ],
-            func.mock_calls
-        )
-
-    def test_filter_chain(self):
-        mock = unittest.mock.Mock()
-
-        self.f.register(mock.func1, 0)
-        self.f.register(mock.func2, 0)
-
-        result = self.f.filter(mock.stanza)
-
-        calls = list(mock.mock_calls)
-
-        self.assertEqual(
-            mock.func2(),
-            result
-        )
-        self.assertSequenceEqual(
-            [
-                unittest.mock.call.func1(mock.stanza),
-                unittest.mock.call.func2(mock.func1()),
-            ],
-            calls
-        )
-
-    def test_filter_chain_aborts_on_None_result(self):
-        mock = unittest.mock.Mock()
-
-        mock.func2.return_value = None
-
-        self.f.register(mock.func1, 0)
-        self.f.register(mock.func2, 0)
-        self.f.register(mock.func3, 0)
-
-        result = self.f.filter(mock.stanza)
-
-        calls = list(mock.mock_calls)
-
-        self.assertIsNone(result)
-        self.assertSequenceEqual(
-            [
-                unittest.mock.call.func1(mock.stanza),
-                unittest.mock.call.func2(mock.func1()),
-            ],
-            calls
-        )
-
-    def test_unregister_by_token(self):
-        func = unittest.mock.Mock()
-        token = self.f.register(func, 0)
-        self.f.unregister(token)
-        self.f.filter(object())
-        self.assertFalse(func.mock_calls)
-
-    def test_unregister_raises_ValueError_if_token_not_found(self):
-        with self.assertRaisesRegex(ValueError, "unregistered token"):
-            self.f.unregister(object())
-
-    def test_register_with_order(self):
-        mock = unittest.mock.Mock()
-
-        self.f.register(mock.func1, 1)
-        self.f.register(mock.func2, 0)
-        self.f.register(mock.func3, -1)
-
-        result = self.f.filter(mock.stanza)
-        calls = list(mock.mock_calls)
-
-        self.assertEqual(
-            mock.func1(),
-            result
-        )
-        self.assertSequenceEqual(
-            [
-                unittest.mock.call.func3(mock.stanza),
-                unittest.mock.call.func2(mock.func3()),
-                unittest.mock.call.func1(mock.func2()),
-            ],
-            calls
-        )
-
-
-class TestAppFilter(TestFilter):
+class TestAppFilter(unittest.TestCase):
     def setUp(self):
         super().setUp()
         self.f = stream.AppFilter()
@@ -267,6 +148,20 @@ class StanzaStreamTestBase(xmltestutils.XMLTestCase):
         self.established_rec = unittest.mock.MagicMock()
         self.established_rec.return_value = None
         self.stream.on_stream_established.connect(self.established_rec)
+
+        client = unittest.mock.Mock()
+        client.local_jid = self.stream.local_jid
+        client.stream = self.stream
+
+        self.message_dispatcher = aioxmpp.dispatcher.SimpleMessageDispatcher(
+            client
+        )
+        self.presence_dispatcher = aioxmpp.dispatcher.SimplePresenceDispatcher(
+            client
+        )
+
+        self.stream._xxx_message_dispatcher = self.message_dispatcher
+        self.stream._xxx_presence_dispatcher = self.presence_dispatcher
 
     def tearDown(self):
         self.stream.stop()
@@ -706,7 +601,7 @@ class TestStanzaStream(StanzaStreamTestBase):
 
         self.stream.stop()
 
-    def test_run_iq_request_without_handler(self):
+    def test_iq_request_without_handler_returns_service_unavailable(self):
         iq = make_test_iq()
         iq.autoset_id()
 
@@ -719,7 +614,7 @@ class TestStanzaStream(StanzaStreamTestBase):
             response_got.type_
         )
         self.assertEqual(
-            (namespaces.stanzas, "feature-not-implemented"),
+            (namespaces.stanzas, "service-unavailable"),
             response_got.error.condition
         )
 
@@ -882,7 +777,7 @@ class TestStanzaStream(StanzaStreamTestBase):
 
         with self.assertRaisesRegex(
                 ValueError,
-                r"only one listener is allowed per \(type_, from_\) pair"):
+                r"only one listener allowed"):
             self.stream.register_message_callback(
                 aioxmpp.structs.MessageType.CHAT,
                 None,
@@ -913,7 +808,8 @@ class TestStanzaStream(StanzaStreamTestBase):
                 unittest.mock.sentinel.cb,
             )
 
-        self.assertFalse(w)
+        # the one warning is about the deprecation of register_message itself
+        self.assertEqual(len(w), 1)
 
     def test_register_message_callback_rejects_duplicate_registration(self):
         self.stream.register_message_callback(
@@ -924,7 +820,7 @@ class TestStanzaStream(StanzaStreamTestBase):
 
         with self.assertRaisesRegex(
                 ValueError,
-                r"only one listener is allowed per \(type_, from_\) pair"):
+                r"only one listener allowed"):
             self.stream.register_message_callback(
                 structs.MessageType.CHAT,
                 None,
@@ -995,7 +891,8 @@ class TestStanzaStream(StanzaStreamTestBase):
                 None,
             )
 
-        self.assertFalse(w)
+        # the one warning is about the deprecation of unregister_message itself
+        self.assertEqual(len(w), 1)
 
     def test_run_message_callback_from_wildcard(self):
         msg = make_test_message()
@@ -1121,7 +1018,7 @@ class TestStanzaStream(StanzaStreamTestBase):
 
         with self.assertRaisesRegex(
                 ValueError,
-                r"only one listener is allowed per \(type_, from_\) pair"):
+                r"only one listener allowed"):
             self.stream.register_presence_callback(
                 aioxmpp.structs.PresenceType.PROBE,
                 None,
@@ -1152,7 +1049,9 @@ class TestStanzaStream(StanzaStreamTestBase):
                 unittest.mock.sentinel.cb,
             )
 
-        self.assertFalse(w)
+        # the one warning is about the deprecation of
+        # register_presence_callback itself
+        self.assertEqual(len(w), 1)
 
     def test_register_presence_callback_rejects_duplicate_registration(self):
         self.stream.register_presence_callback(
@@ -1163,7 +1062,7 @@ class TestStanzaStream(StanzaStreamTestBase):
 
         with self.assertRaisesRegex(
                 ValueError,
-                r"only one listener is allowed per \(type_, from_\) pair"):
+                r"only one listener allowed"):
             self.stream.register_presence_callback(
                 structs.PresenceType.PROBE,
                 None,
@@ -1234,7 +1133,9 @@ class TestStanzaStream(StanzaStreamTestBase):
                 None,
             )
 
-        self.assertFalse(w)
+        # the one warning is about the deprecation of
+        # unregister_presence_callback itself
+        self.assertEqual(len(w), 1)
 
     def test_unregister_presence_callback(self):
         cb = unittest.mock.Mock()
@@ -1716,7 +1617,7 @@ class TestStanzaStream(StanzaStreamTestBase):
         )
         self.assertIsInstance(
             request.payload,
-            xep0199.Ping
+            ping.Ping,
         )
         self.assertEqual(
             structs.IQType.GET,
@@ -1752,17 +1653,17 @@ class TestStanzaStream(StanzaStreamTestBase):
             nonlocal exc
             exc = _exc
 
-        self.stream.ping_interval = timedelta(seconds=0.1)
+        self.stream.ping_interval = timedelta(seconds=0.5)
         self.stream.ping_opportunistic_interval = timedelta(seconds=0.1)
         self.stream.on_failure.connect(failure_handler)
 
         self.stream.start(self.xmlstream)
-        run_coroutine(asyncio.sleep(0.2))
+        run_coroutine(asyncio.sleep(0.7))
 
         request = self.sent_stanzas.get_nowait()
         response = request.make_reply(type_=structs.IQType.RESULT)
         self.stream.recv_stanza(response)
-        run_coroutine(asyncio.sleep(0.11))
+        run_coroutine(asyncio.sleep(0.6))
 
         self.assertIsNone(exc)
 
@@ -1781,7 +1682,7 @@ class TestStanzaStream(StanzaStreamTestBase):
         )
         self.assertIsInstance(
             request.payload,
-            xep0199.Ping
+            ping.Ping
         )
         self.assertEqual(
             structs.IQType.GET,
@@ -2594,7 +2495,7 @@ class TestStanzaStream(StanzaStreamTestBase):
         )
         self.assertEqual(
             obj.error.condition,
-            (namespaces.stanzas, "feature-not-implemented")
+            (namespaces.stanzas, "service-unavailable")
         )
 
     def test_ignore_UnknownIQPayload_at_error_iq(self):
@@ -2869,83 +2770,6 @@ class TestStanzaStream(StanzaStreamTestBase):
 
         run_coroutine(asyncio.sleep(0))
         self.assertTrue(self.stream.running)
-
-    def test_message_callback_fallback_order(self):
-        base = unittest.mock.Mock()
-
-        self.stream.register_message_callback(
-            structs.MessageType.CHAT, TEST_FROM,
-            base.chat_full
-        )
-        base.chat_full.return_value = None
-        base.chat_full._is_coroutine = False
-
-        self.stream.register_message_callback(
-            structs.MessageType.CHAT, TEST_FROM.bare(),
-            base.chat_bare
-        )
-        base.chat_bare.return_value = None
-        base.chat_bare._is_coroutine = False
-
-        self.stream.register_message_callback(
-            None, TEST_FROM,
-            base.wildcard_full
-        )
-        base.wildcard_full.return_value = None
-        base.wildcard_full._is_coroutine = False
-
-        self.stream.register_message_callback(
-            None, TEST_FROM.bare(),
-            base.wildcard_bare
-        )
-        base.wildcard_bare.return_value = None
-        base.wildcard_bare._is_coroutine = False
-
-        self.stream.register_message_callback(
-            structs.MessageType.CHAT, None,
-            base.chat_wildcard
-        )
-        base.chat_wildcard.return_value = None
-        base.chat_wildcard._is_coroutine = False
-
-        self.stream.register_message_callback(
-            None, None,
-            base.fallback
-        )
-        base.fallback.return_value = None
-        base.fallback._is_coroutine = False
-
-        test_set = [
-            (structs.MessageType.CHAT, TEST_FROM, "chat_full"),
-            (structs.MessageType.CHAT, TEST_FROM.replace(resource="r2"), "chat_bare"),
-            (structs.MessageType.CHAT, TEST_FROM.bare(), "chat_bare"),
-            (structs.MessageType.CHAT, TEST_FROM.replace(domain="bar.example"), "chat_wildcard"),
-            (structs.MessageType.HEADLINE, TEST_FROM, "wildcard_full"),
-            (structs.MessageType.HEADLINE, TEST_FROM.replace(resource="r2"), "wildcard_bare"),
-            (structs.MessageType.HEADLINE, TEST_FROM.bare(), "wildcard_bare"),
-            (structs.MessageType.HEADLINE, TEST_FROM.replace(domain="bar.example"), "fallback"),
-        ]
-
-        stanza_set = []
-
-        self.stream.start(self.xmlstream)
-
-        for type_, from_, dest in test_set:
-            stanza = make_test_message(type_=type_, from_=from_)
-            stanza_set.append((stanza, dest))
-            self.stream.recv_stanza(
-                stanza
-            )
-
-        run_coroutine(asyncio.sleep(0.01))
-
-        self.assertSequenceEqual(
-            base.mock_calls,
-            [
-                getattr(unittest.mock.call, dest)(st)
-                for st, dest in stanza_set
-            ]
-        )
 
     def test_task_crash_leads_to_closing_of_xmlstream(self):
         self.stream.ping_interval = timedelta(seconds=0.01)
@@ -3273,6 +3097,159 @@ class TestStanzaStream(StanzaStreamTestBase):
 
             self.assertTrue(response_fut.cancelled())
 
+    @unittest.skipUnless(CAN_AWAIT_STANZA_TOKEN,
+                         "requires Python 3.5+")
+    def test_handle_non_connection_exception_from_send_xso(self):
+        msg = make_test_message()
+
+        class FooException(Exception):
+            pass
+
+        exc = FooException()
+
+        self.xmlstream.send_xso = unittest.mock.Mock()
+        self.xmlstream.send_xso.side_effect = exc
+
+        self.stream.start(self.xmlstream)
+        token = self.stream.enqueue(msg)
+        self.assertEqual(token.state, stream.StanzaState.ACTIVE)
+
+        run_coroutine(asyncio.sleep(0.05))
+        self.assertTrue(self.stream.running)
+
+        self.assertEqual(token.state, stream.StanzaState.FAILED)
+
+        with self.assertRaises(FooException):
+            run_coroutine(token)
+
+    def test_emit_on_message_received_event(self):
+        msg = make_test_message()
+        fut = asyncio.Future()
+
+        self.stream.on_message_received.connect(
+            fut,
+            self.stream.on_message_received.AUTO_FUTURE
+        )
+
+        self.stream.start(self.xmlstream)
+        self.stream.recv_stanza(msg)
+
+        self.assertIs(run_coroutine(fut), msg)
+
+    def test_emit_on_presence_received_event(self):
+        pres = make_test_presence()
+        fut = asyncio.Future()
+
+        self.stream.on_presence_received.connect(
+            fut,
+            self.stream.on_presence_received.AUTO_FUTURE
+        )
+
+        self.stream.start(self.xmlstream)
+        self.stream.recv_stanza(pres)
+
+        self.assertIs(run_coroutine(fut), pres)
+
+    def test_register_message_callback_calls_to_message_dispatcher(self):
+        with unittest.mock.patch.object(
+                self.message_dispatcher,
+                "register_callback") as register_callback:
+            with self.assertWarnsRegex(
+                    DeprecationWarning,
+                    "register_message_callback is deprecated; "
+                    "use aioxmpp.dispatcher.SimpleMessageDispatcher "
+                    "instead") as ctx:
+                self.stream.register_message_callback(
+                    aioxmpp.MessageType.CHAT,
+                    unittest.mock.sentinel.from_,
+                    unittest.mock.sentinel.cb,
+                )
+
+        register_callback.assert_called_once_with(
+            aioxmpp.MessageType.CHAT,
+            unittest.mock.sentinel.from_,
+            unittest.mock.sentinel.cb,
+        )
+
+        self.assertIn(
+            "test_stream.py",
+            ctx.filename,
+        )
+
+    def test_unregister_message_callback_calls_to_message_dispatcher(self):
+        with unittest.mock.patch.object(
+                self.message_dispatcher,
+                "unregister_callback") as unregister_callback:
+            with self.assertWarnsRegex(
+                    DeprecationWarning,
+                    "unregister_message_callback is deprecated; "
+                    "use aioxmpp.dispatcher.SimpleMessageDispatcher "
+                    "instead") as ctx:
+                self.stream.unregister_message_callback(
+                    aioxmpp.MessageType.CHAT,
+                    unittest.mock.sentinel.from_,
+                )
+
+        unregister_callback.assert_called_once_with(
+            aioxmpp.MessageType.CHAT,
+            unittest.mock.sentinel.from_,
+        )
+
+        self.assertIn(
+            "test_stream.py",
+            ctx.filename,
+        )
+
+    def test_register_presence_callback_calls_to_presence_dispatcher(self):
+        with unittest.mock.patch.object(
+                self.presence_dispatcher,
+                "register_callback") as register_callback:
+            with self.assertWarnsRegex(
+                    DeprecationWarning,
+                    "register_presence_callback is deprecated; "
+                    "use aioxmpp.dispatcher.SimplePresenceDispatcher "
+                    "or aioxmpp.PresenceClient instead") as ctx:
+                self.stream.register_presence_callback(
+                    aioxmpp.PresenceType.AVAILABLE,
+                    unittest.mock.sentinel.from_,
+                    unittest.mock.sentinel.cb,
+                )
+
+        register_callback.assert_called_once_with(
+            aioxmpp.PresenceType.AVAILABLE,
+            unittest.mock.sentinel.from_,
+            unittest.mock.sentinel.cb,
+        )
+
+        self.assertIn(
+            "test_stream.py",
+            ctx.filename,
+        )
+
+    def test_unregister_presence_callback_calls_to_presence_dispatcher(self):
+        with unittest.mock.patch.object(
+                self.presence_dispatcher,
+                "unregister_callback") as unregister_callback:
+            with self.assertWarnsRegex(
+                    DeprecationWarning,
+                    "unregister_presence_callback is deprecated; "
+                    "use aioxmpp.dispatcher.SimplePresenceDispatcher "
+                    "or aioxmpp.PresenceClient instead") as ctx:
+                self.stream.unregister_presence_callback(
+                    aioxmpp.PresenceType.AVAILABLE,
+                    unittest.mock.sentinel.from_,
+                )
+
+        unregister_callback.assert_called_once_with(
+            aioxmpp.PresenceType.AVAILABLE,
+            unittest.mock.sentinel.from_,
+        )
+
+        self.assertIn(
+            "test_stream.py",
+            ctx.filename,
+        )
+
 
 class TestStanzaStreamSM(StanzaStreamTestBase):
     def setUp(self):
@@ -3362,6 +3339,124 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
         run_coroutine(asyncio.sleep(0))
 
         self.assertFalse(self.destroyed_rec.mock_calls)
+
+    def test_start_sm_with_resumption_timeout(self):
+        self.assertFalse(self.stream.sm_enabled)
+
+        # we need interaction here to show that SM gets negotiated
+        xmlstream = XMLStreamMock(self, loop=self.loop)
+
+        self.stream.start(xmlstream)
+
+        run_coroutine_with_peer(
+            self.stream.start_sm(request_resumption=True,
+                                 resumption_timeout=1000),
+            xmlstream.run_test(
+                [
+                    XMLStreamMock.Send(
+                        nonza.SMEnable(resume=True, max_=1000),
+                        response=XMLStreamMock.Receive(
+                            nonza.SMEnabled(resume=True,
+                                            id_="foobar",
+                                            location=("fe80::", 5222),
+                                            max_=900)
+                        )
+                    )
+                ]
+            )
+        )
+
+        self.assertTrue(self.stream.sm_enabled)
+
+        self.assertEqual(
+            0,
+            self.stream.sm_outbound_base
+        )
+        self.assertEqual(
+            0,
+            self.stream.sm_inbound_ctr
+        )
+        self.assertSequenceEqual(
+            [],
+            self.stream.sm_unacked_list
+        )
+        self.assertEqual(
+            "foobar",
+            self.stream.sm_id
+        )
+        self.assertEqual(
+            (ipaddress.IPv6Address("fe80::"), 5222),
+            self.stream.sm_location
+        )
+        self.assertEqual(
+            900,
+            self.stream.sm_max
+        )
+        self.assertTrue(self.stream.sm_resumable)
+
+        self.established_rec.assert_called_once_with()
+
+        self.stream.stop()
+        run_coroutine(asyncio.sleep(0))
+
+        self.assertFalse(self.destroyed_rec.mock_calls)
+
+    def test_start_sm_aliases_resumption_timeout_0_to_disabled(self):
+        self.assertFalse(self.stream.sm_enabled)
+
+        # we need interaction here to show that SM gets negotiated
+        xmlstream = XMLStreamMock(self, loop=self.loop)
+
+        self.stream.start(xmlstream)
+
+        run_coroutine_with_peer(
+            self.stream.start_sm(request_resumption=True,
+                                 resumption_timeout=0),
+            xmlstream.run_test(
+                [
+                    XMLStreamMock.Send(
+                        nonza.SMEnable(resume=False),
+                        response=XMLStreamMock.Receive(
+                            nonza.SMEnabled(resume=False,
+                                            id_="foobar")
+                        )
+                    )
+                ]
+            )
+        )
+
+        self.assertTrue(self.stream.sm_enabled)
+
+        self.assertEqual(
+            0,
+            self.stream.sm_outbound_base
+        )
+        self.assertEqual(
+            0,
+            self.stream.sm_inbound_ctr
+        )
+        self.assertSequenceEqual(
+            [],
+            self.stream.sm_unacked_list
+        )
+        self.assertEqual(
+            "foobar",
+            self.stream.sm_id
+        )
+        self.assertIsNone(
+            self.stream.sm_location
+        )
+        self.assertIsNone(
+            self.stream.sm_max
+        )
+        self.assertFalse(self.stream.sm_resumable)
+
+        self.established_rec.assert_called_once_with()
+
+        self.stream.stop()
+        run_coroutine(asyncio.sleep(0))
+
+        self.assertTrue(self.destroyed_rec.mock_calls)
 
     def test_sm_start_failure(self):
         self.stream.start(self.xmlstream)
@@ -3460,7 +3555,7 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
         iq = make_test_iq()
         error_iq = iq.make_reply(type_=structs.IQType.ERROR)
         error_iq.error = stanza.Error(
-            condition=(namespaces.stanzas, "feature-not-implemented")
+            condition=(namespaces.stanzas, "service-unavailable")
         )
 
         iq_sent = make_test_iq()
@@ -3611,6 +3706,105 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
         # we don’t want XMLStreamMock testing
         self.xmlstream = XMLStreamMock(self, loop=self)
 
+    def test_sm_outbound_counter_overflow(self):
+        state_change_handler = unittest.mock.MagicMock()
+        iqs = [make_test_iq() for i in range(3)]
+
+        self.stream.start(self.xmlstream)
+        run_coroutine_with_peer(
+            self.stream.start_sm(),
+            self.xmlstream.run_test(self.successful_sm)
+        )
+
+        tokens = [
+            self.stream.enqueue(
+                iq, on_state_change=state_change_handler)
+            for iq in iqs]
+
+        run_coroutine(asyncio.sleep(0))
+        self.stream._sm_outbound_base = 0xfffffffe
+
+        self.assertEqual(
+            0xfffffffe,
+            self.stream.sm_outbound_base
+        )
+        self.assertSequenceEqual(
+            tokens,
+            self.stream.sm_unacked_list
+        )
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(token, stream.StanzaState.SENT)
+                for token in tokens
+            ],
+            state_change_handler.mock_calls
+        )
+        state_change_handler.reset_mock()
+
+        self.assertSequenceEqual(
+            [stream.StanzaState.SENT]*3,
+            [token.state for token in tokens]
+        )
+
+        self.stream.sm_ack(0xffffffff)
+        self.assertEqual(
+            0xffffffff,
+            self.stream.sm_outbound_base
+        )
+        self.assertSequenceEqual(
+            tokens[1:],
+            self.stream.sm_unacked_list
+        )
+        self.assertSequenceEqual(
+            [
+                stream.StanzaState.ACKED,
+                stream.StanzaState.SENT,
+                stream.StanzaState.SENT
+            ],
+            [token.state for token in tokens]
+        )
+
+        # idempotence with same number
+
+        self.stream.sm_ack(0xffffffff)
+        self.assertEqual(
+            0xffffffff,
+            self.stream.sm_outbound_base
+        )
+        self.assertSequenceEqual(
+            tokens[1:],
+            self.stream.sm_unacked_list
+        )
+        self.assertSequenceEqual(
+            [
+                stream.StanzaState.ACKED,
+                stream.StanzaState.SENT,
+                stream.StanzaState.SENT
+            ],
+            [token.state for token in tokens]
+        )
+
+        self.stream.sm_ack(1)
+        self.assertEqual(
+            1,
+            self.stream.sm_outbound_base
+        )
+        self.assertSequenceEqual(
+            [],
+            self.stream.sm_unacked_list
+        )
+        self.assertSequenceEqual(
+            [
+                stream.StanzaState.ACKED,
+                stream.StanzaState.ACKED,
+                stream.StanzaState.ACKED
+            ],
+            [token.state for token in tokens]
+        )
+
+        # we don’t want XMLStreamMock testing
+        self.xmlstream = XMLStreamMock(self, loop=self)
+
     def test_sm_inbound(self):
         iqs = [make_test_iq() for i in range(3)]
 
@@ -3620,7 +3814,7 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
         ]
         for err_iq in error_iqs:
             err_iq.error = stanza.Error(
-                condition=(namespaces.stanzas, "feature-not-implemented")
+                condition=(namespaces.stanzas, "service-unavailable")
             )
 
         self.stream.start(self.xmlstream)
@@ -3643,6 +3837,51 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
 
         self.assertEqual(
             3,
+            self.stream.sm_inbound_ctr
+        )
+
+        run_coroutine(self.xmlstream.run_test([
+            XMLStreamMock.Send(error_iqs.pop()),
+            XMLStreamMock.Send(nonza.SMRequest()),
+            XMLStreamMock.Send(error_iqs.pop()),
+            XMLStreamMock.Send(nonza.SMRequest()),
+            XMLStreamMock.Send(error_iqs.pop()),
+            XMLStreamMock.Send(nonza.SMRequest()),
+        ]))
+
+    def test_sm_inbound_counter_overflow(self):
+        iqs = [make_test_iq() for i in range(3)]
+
+        error_iqs = [
+            iq.make_reply(type_=structs.IQType.ERROR)
+            for iq in iqs
+        ]
+        for err_iq in error_iqs:
+            err_iq.error = stanza.Error(
+                condition=(namespaces.stanzas, "service-unavailable")
+            )
+
+        self.stream.start(self.xmlstream)
+        run_coroutine_with_peer(
+            self.stream.start_sm(),
+            self.xmlstream.run_test(self.successful_sm)
+        )
+
+        self.stream._sm_inbound_ctr = 0xffffffff
+        self.stream.recv_stanza(iqs.pop())
+        run_coroutine(asyncio.sleep(0))
+
+        self.assertEqual(
+            0,
+            self.stream.sm_inbound_ctr
+        )
+
+        self.stream.recv_stanza(iqs.pop())
+        self.stream.recv_stanza(iqs.pop())
+        run_coroutine(asyncio.sleep(0))
+
+        self.assertEqual(
+            2,
             self.stream.sm_inbound_ctr
         )
 
@@ -3705,6 +3944,82 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
                     response=XMLStreamMock.Receive(
                         nonza.SMResumed(previd="foobar",
                                               counter=2)
+                    )
+                ),
+                XMLStreamMock.Send(iqs[2]),
+                XMLStreamMock.Send(additional_iq),
+                XMLStreamMock.Send(nonza.SMRequest()),
+            ])
+        )
+
+        self.assertFalse(self.established_rec.mock_calls)
+
+        self.stream.stop()
+        run_coroutine(asyncio.sleep(0))
+        self.stream.stop_sm()
+
+        self.destroyed_rec.assert_called_once_with(unittest.mock.ANY)
+        _, (exc,), _ = self.destroyed_rec.mock_calls[0]
+        self.assertIsInstance(
+            exc,
+            ConnectionError,
+        )
+        self.assertRegex(
+            str(exc),
+            r"stream management disabled"
+        )
+
+    def test_sm_resume_overflow(self):
+        iqs = [make_test_iq() for i in range(4)]
+
+        additional_iq = iqs.pop()
+
+        self.stream.start(self.xmlstream)
+        run_coroutine_with_peer(
+            self.stream.start_sm(),
+            self.xmlstream.run_test(self.successful_sm)
+        )
+
+        for iq in iqs:
+            self.stream.enqueue(iq)
+
+        run_coroutine(asyncio.sleep(0))
+
+        self.established_rec.assert_called_once_with()
+        self.established_rec.reset_mock()
+
+        self.stream._sm_outbound_base = 0xfffffffe
+        run_coroutine(self.xmlstream.run_test([
+            XMLStreamMock.Send(iqs[0]),
+            XMLStreamMock.Send(iqs[1]),
+            XMLStreamMock.Send(iqs[2]),
+            XMLStreamMock.Send(
+                nonza.SMRequest(),
+                response=XMLStreamMock.Receive(
+                    nonza.SMAcknowledgement(counter=0xffffffff)
+                )
+            )
+        ]))
+
+        self.stream.stop()
+
+        run_coroutine(asyncio.sleep(0))
+
+        self.assertFalse(self.destroyed_rec.mock_calls)
+
+        # enqueue a stanza before resumption and check that the sequence is
+        # correct (resumption-generated stanzas before new stanzas)
+        self.stream.enqueue(additional_iq)
+
+        run_coroutine_with_peer(
+            self.stream.resume_sm(self.xmlstream),
+            self.xmlstream.run_test([
+                XMLStreamMock.Send(
+                    nonza.SMResume(previd="foobar",
+                                         counter=0),
+                    response=XMLStreamMock.Receive(
+                        nonza.SMResumed(previd="foobar",
+                                              counter=0)
                     )
                 ),
                 XMLStreamMock.Send(iqs[2]),
@@ -3859,6 +4174,15 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
         with self.assertRaisesRegex(RuntimeError, "not enabled"):
             run_coroutine(self.stream.resume_sm(self.xmlstream))
 
+    def test_sm_ack_too_many_stanzas_acked(self):
+        self.stream.start(self.xmlstream)
+        run_coroutine_with_peer(
+            self.stream.start_sm(),
+            self.xmlstream.run_test(self.successful_sm)
+        )
+        with self.assertRaises(errors.StreamNegotiationFailure):
+            self.stream.sm_ack(1)
+
     def test_stop_sm(self):
         self.stream.start(self.xmlstream)
         run_coroutine_with_peer(
@@ -3899,18 +4223,18 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
             self.stream.sm_resumable
 
     def test_sm_ping_automatic(self):
-        self.stream.ping_interval = timedelta(seconds=0.01)
-        self.stream.ping_opportunistic_interval = timedelta(seconds=0.01)
+        self.stream.ping_interval = timedelta(seconds=0.02)
+        self.stream.ping_opportunistic_interval = timedelta(seconds=0.02)
         self.stream.start(self.xmlstream)
         run_coroutine_with_peer(
             self.stream.start_sm(),
             self.xmlstream.run_test(self.successful_sm)
         )
 
-        run_coroutine(asyncio.sleep(0.005))
+        run_coroutine(asyncio.sleep(0.01))
         # the next would raise if anything had been sent before
         run_coroutine(self.xmlstream.run_test([]))
-        run_coroutine(asyncio.sleep(0.009))
+        run_coroutine(asyncio.sleep(0.015))
 
         run_coroutine(self.xmlstream.run_test([
             XMLStreamMock.Send(nonza.SMRequest())
@@ -3954,7 +4278,7 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
 
         iqs = [make_test_iq() for i in range(2)]
 
-        self.stream.ping_interval = timedelta(seconds=0.01)
+        self.stream.ping_interval = timedelta(seconds=0.1)
         self.stream.on_failure.connect(failure_handler)
 
         self.stream.start(self.xmlstream)
@@ -3965,9 +4289,9 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
 
         run_coroutine(asyncio.sleep(0))
         self.stream.enqueue(iqs[0])
-        run_coroutine(asyncio.sleep(0.005))
+        run_coroutine(asyncio.sleep(0.05))
         self.stream.enqueue(iqs[1])
-        run_coroutine(asyncio.sleep(0.006))
+        run_coroutine(asyncio.sleep(0.06))
 
         run_coroutine(self.xmlstream.run_test([
             XMLStreamMock.Send(iqs[0]),
@@ -4049,14 +4373,6 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
         self.assertIsNot(l1, l2)
         l1.append("foo")
         self.assertFalse(self.stream.sm_unacked_list)
-
-    def test_sm_ignore_late_remote_counter(self):
-        self.stream.start(self.xmlstream)
-        run_coroutine_with_peer(
-            self.stream.start_sm(),
-            self.xmlstream.run_test(self.successful_sm)
-        )
-        self.stream.sm_ack(-1)
 
     def test_cleanup_iq_response_listeners_on_sm_stop(self):
         fun = unittest.mock.MagicMock()
@@ -4608,6 +4924,10 @@ class TestStanzaToken(unittest.TestCase):
 
         self.assertIsNone(run_coroutine(task))
 
+    def test__set_state_with_exception(self):
+        exc = Exception()
+        self.token._set_state(stream.StanzaState.FAILED, exc)
+
     @unittest.skipUnless(CAN_AWAIT_STANZA_TOKEN,
                          "requires Python 3.5+")
     def test_await_returns_on_SENT_WITHOUT_SM(self):
@@ -4627,6 +4947,18 @@ class TestStanzaToken(unittest.TestCase):
         self.assertFalse(task.done())
 
         self.token._set_state(stream.StanzaState.ACKED)
+
+        self.assertIsNone(run_coroutine(task))
+
+    @unittest.skipUnless(CAN_AWAIT_STANZA_TOKEN,
+                         "requires Python 3.5+")
+    def test_await_returns_on_ACKED_plainly_even_with_exception(
+            self):
+        task = asyncio.async(self.token.__await__())
+        run_coroutine(asyncio.sleep(0.01))
+        self.assertFalse(task.done())
+
+        self.token._set_state(stream.StanzaState.ACKED, Exception())
 
         self.assertIsNone(run_coroutine(task))
 
@@ -4704,6 +5036,36 @@ class TestStanzaToken(unittest.TestCase):
             self.token.state,
             stream.StanzaState.ABORTED
         )
+
+    @unittest.skipUnless(CAN_AWAIT_STANZA_TOKEN,
+                         "requires Python 3.5+")
+    def test_await_raises_ValueError_on_failed(self):
+        task = asyncio.async(self.token.__await__())
+        run_coroutine(asyncio.sleep(0.01))
+        self.assertFalse(task.done())
+
+        self.token._set_state(stream.StanzaState.FAILED)
+
+        with self.assertRaisesRegex(
+                ValueError,
+                "failed to send stanza for unknown local reasons") as ctx:
+            run_coroutine(self.token)
+
+    @unittest.skipUnless(CAN_AWAIT_STANZA_TOKEN,
+                         "requires Python 3.5+")
+    def test_await_reraises_exception_from_failed(self):
+        task = asyncio.async(self.token.__await__())
+        run_coroutine(asyncio.sleep(0.01))
+        self.assertFalse(task.done())
+
+        class FooException(Exception):
+            pass
+        exc = FooException()
+
+        self.token._set_state(stream.StanzaState.FAILED, exc)
+
+        with self.assertRaises(FooException) as ctx:
+            run_coroutine(task)
 
     @unittest.skipUnless(CAN_AWAIT_STANZA_TOKEN,
                          "requires Python 3.5+")
@@ -4785,6 +5147,151 @@ class TestStanzaToken(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError,
                                     r"dropped by filter"):
             run_coroutine(self.token)
+
+    def test_future_is_shared(self):
+        self.assertIs(self.token.future, self.token.future)
+
+    def test_future_is_created_on_first_access(self):
+        with unittest.mock.patch("asyncio.Future") as Future:
+            fut = self.token.future
+            Future.assert_called_once_with()
+            self.assertEqual(fut, Future())
+
+    def test_future_finishes_on_SENT_WITHOUT_SM(self):
+        fut = self.token.future
+        run_coroutine(asyncio.sleep(0.01))
+        self.assertFalse(fut.done())
+
+        self.token._set_state(stream.StanzaState.SENT_WITHOUT_SM)
+
+        self.assertIsNone(run_coroutine(fut))
+
+    def test_future_finishes_on_ACKED(self):
+        fut = self.token.future
+        run_coroutine(asyncio.sleep(0.01))
+        self.assertFalse(fut.done())
+
+        self.token._set_state(stream.StanzaState.ACKED)
+
+        self.assertIsNone(run_coroutine(fut))
+
+    def test_future_finishes_on_ACKED_plainly_even_with_exception(
+            self):
+        fut = self.token.future
+        run_coroutine(asyncio.sleep(0.01))
+        self.assertFalse(fut.done())
+
+        self.token._set_state(stream.StanzaState.ACKED, Exception())
+
+        self.assertIsNone(run_coroutine(fut))
+
+    def test_future_finishes_while_SENT(self):
+        fut = self.token.future
+        run_coroutine(asyncio.sleep(0.01))
+        self.assertFalse(fut.done())
+
+        self.token._set_state(stream.StanzaState.SENT)
+
+        run_coroutine(asyncio.sleep(0.01))
+        self.assertFalse(fut.done())
+
+        self.token._set_state(stream.StanzaState.ACKED)
+
+        self.assertIsNone(run_coroutine(fut))
+
+    def test_future_fails_with_ConnectionError_on_DISCONNECTED(self):
+        fut = self.token.future
+        run_coroutine(asyncio.sleep(0.01))
+        self.assertFalse(fut.done())
+
+        self.token._set_state(stream.StanzaState.DISCONNECTED)
+
+        with self.assertRaisesRegex(
+                ConnectionError,
+                r"disconnected"):
+            run_coroutine(fut)
+
+    def test_future_fails_with_RuntimeError_on_DROPPED(self):
+        fut = self.token.future
+        run_coroutine(asyncio.sleep(0.01))
+        self.assertFalse(fut.done())
+
+        self.token._set_state(stream.StanzaState.DROPPED)
+
+        with self.assertRaisesRegex(
+                RuntimeError,
+                r"dropped by filter"):
+            run_coroutine(fut)
+
+    def test_future_fails_with_RuntimeError_on_ABORTED(self):
+        fut = self.token.future
+        run_coroutine(asyncio.sleep(0.01))
+        self.assertFalse(fut.done())
+
+        self.token.abort()
+
+        with self.assertRaisesRegex(
+                RuntimeError,
+                r"aborted"):
+            run_coroutine(fut)
+
+    def test_future_fails_with_ValueError_on_failed(self):
+        fut = self.token.future
+        run_coroutine(asyncio.sleep(0.01))
+        self.assertFalse(fut.done())
+
+        self.token._set_state(stream.StanzaState.FAILED)
+
+        with self.assertRaisesRegex(
+                ValueError,
+                "failed to send stanza for unknown local reasons"):
+            run_coroutine(fut)
+
+    def test_future_reraises_exception_from_failed(self):
+        fut = self.token.future
+        run_coroutine(asyncio.sleep(0.01))
+        self.assertFalse(fut.done())
+
+        class FooException(Exception):
+            pass
+        exc = FooException()
+
+        self.token._set_state(stream.StanzaState.FAILED, exc)
+
+        with self.assertRaises(FooException):
+            run_coroutine(fut)
+
+    def test_future_is_done_if_already_SENT_WITHOUT_SM(self):
+        self.token._set_state(stream.StanzaState.SENT_WITHOUT_SM)
+        self.assertTrue(self.token.future.done())
+
+    def test_future_is_done_if_already_ACKED(self):
+        self.token._set_state(stream.StanzaState.ACKED)
+        self.assertTrue(self.token.future.done())
+
+    def test_future_is_done_and_has_exception_if_already_DISCONNECTED(self):
+        self.token._set_state(stream.StanzaState.DISCONNECTED)
+
+        self.assertTrue(self.token.future)
+        with self.assertRaisesRegex(ConnectionError,
+                                    r"disconnected"):
+            self.token.future.result()
+
+    def test_future_is_done_and_has_exception_if_already_ABORTED(self):
+        self.token._set_state(stream.StanzaState.ABORTED)
+
+        self.assertTrue(self.token.future)
+        with self.assertRaisesRegex(RuntimeError,
+                                    r"aborted"):
+            self.token.future.result()
+
+    def test_future_is_done_and_has_exception_if_already_DROPPED(self):
+        self.token._set_state(stream.StanzaState.DROPPED)
+
+        self.assertTrue(self.token.future)
+        with self.assertRaisesRegex(RuntimeError,
+                                    r"dropped by filter"):
+            self.token.future.result()
 
 
 class Testiq_handler(unittest.TestCase):
@@ -4974,75 +5481,34 @@ class Testpresence_handler(unittest.TestCase):
 
 
 class Teststanza_filter(unittest.TestCase):
-    def setUp(self):
-        self.filter_ = unittest.mock.Mock()
-        self.cm = stream.stanza_filter(
-            self.filter_,
+    def test_calls_to_filter_context_register(self):
+        m = unittest.mock.Mock()
+        result = stream.stanza_filter(
+            m.filter_,
             unittest.mock.sentinel.func,
             unittest.mock.sentinel.order,
         )
 
-    def tearDown(self):
-        del self.filter_
-
-    def test_is_context_manager(self):
-        self.assertTrue(
-            hasattr(self.cm, "__enter__")
-        )
-        self.assertTrue(
-            hasattr(self.cm, "__exit__")
-        )
-
-    def test_enter_registers_filter(self):
-        self.cm.__enter__()
-
-        self.filter_.register.assert_called_with(
+        m.filter_.context_register.assert_called_once_with(
             unittest.mock.sentinel.func,
             unittest.mock.sentinel.order,
         )
+        self.assertEqual(
+            result,
+            m.filter_.context_register()
+        )
 
-    def test_enter_registers_filter_without_order_if_order_not_passed(self):
-        self.cm = stream.stanza_filter(
-            self.filter_,
+    def test_does_not_pass_order_if_not_given(self):
+        m = unittest.mock.Mock()
+        result = stream.stanza_filter(
+            m.filter_,
             unittest.mock.sentinel.func,
         )
 
-        self.cm.__enter__()
-
-        self.filter_.register.assert_called_with(
+        m.filter_.context_register.assert_called_once_with(
             unittest.mock.sentinel.func,
         )
-
-    def test_exit_unregisters_filter(self):
-        self.filter_.register.return_value = \
-            unittest.mock.sentinel.token
-
-        self.cm.__enter__()
-        self.filter_.reset_mock()
-
-        self.cm.__exit__(None, None, None)
-
-        self.filter_.unregister.assert_called_with(
-            unittest.mock.sentinel.token
+        self.assertEqual(
+            result,
+            m.filter_.context_register()
         )
-
-    def test_exit_does_not_swallow_exception_and_unregisters(self):
-        self.filter_.register.return_value = \
-            unittest.mock.sentinel.token
-
-        self.cm.__enter__()
-        self.filter_.reset_mock()
-
-        # we need to generate a trackback object
-        try:
-            raise ValueError()
-        except:
-            info = sys.exc_info()
-
-        result = self.cm.__exit__(*info)
-
-        self.filter_.unregister.assert_called_with(
-            unittest.mock.sentinel.token
-        )
-
-        self.assertFalse(result)

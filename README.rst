@@ -1,6 +1,12 @@
 ``aioxmpp``
 ###########
 
+.. image:: https://travis-ci.org/horazont/aioxmpp.svg?branch=devel
+  :target: https://travis-ci.org/horazont/aioxmpp
+
+.. image:: https://coveralls.io/repos/github/horazont/aioxmpp/badge.svg?branch=devel
+  :target: https://coveralls.io/github/horazont/aioxmpp?branch=devel
+
 ... is a pure-python XMPP library using the `asyncio`_ standard library module from Python 3.4 (and `available as a third-party module to Python 3.3`__).
 
 .. _asyncio: https://docs.python.org/3/library/asyncio.html
@@ -42,10 +48,11 @@ Features
   clients.
 
 * Well-tested and modular codebase: aioxmpp is developed in test-driven
-  style and many modules are automatedly tested against a Prosody 0.9.
+  style and many modules are automatedly tested against a
+  `Prosody <https://prosody.im/>`_ 0.9, 0.10 and the most recent development
+  version, as well as `ejabberd <https://www.ejabberd.im/>`_, two popular XMPP
+  servers.
 
-  .. image:: https://travis-ci.org/horazont/aioxmpp.svg?branch=devel
-    :target: https://travis-ci.org/horazont/aioxmpp
 
 There is more and there’s yet more to come! Check out the list of supported XEPs
 in the `official documentation`_ and `open GitHub issues tagged as enhancement
@@ -136,4 +143,4 @@ Change log
 The `change log`_ is included in the `official documentation`_.
 
 .. _change log: https://docs.zombofant.net/aioxmpp/devel/api/changelog.html
-.. _official documentation: https://docs.zombofant.net/aioxmpp/0.8/
+.. _official documentation: https://docs.zombofant.net/aioxmpp/0.9/

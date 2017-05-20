@@ -27,11 +27,20 @@ functionality or provide backwards compatibility.
    :maxdepth: 2
 
    adhoc
+   avatar
+   blocking
+   bookmarks
+   carbons
    disco
    entitycaps
    forms
+   hashes
+   im
    muc
+   ping
    presence
+   pep
+   private_xml
    pubsub
    roster
    rfc6120
@@ -60,6 +69,8 @@ sorted into this section.
    i18n
    callbacks
    connector
+   dispatcher
+   misc
 
 
 APIs mainly relevant for extension developers

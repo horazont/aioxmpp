@@ -29,11 +29,14 @@ import unittest.mock
 
 from datetime import timedelta
 
+import OpenSSL.SSL
+
 import dns.resolver
 
 import aiosasl
 
 import aioxmpp
+import aioxmpp.dispatcher
 import aioxmpp.node as node
 import aioxmpp.structs as structs
 import aioxmpp.nonza as nonza
@@ -720,7 +723,8 @@ class Testconnect_xmlstream(unittest.TestCase):
                     jid.domain,
                     getattr(unittest.mock.sentinel, "h{}".format(i)),
                     getattr(unittest.mock.sentinel, "p{}".format(i)),
-                    60.
+                    60.,
+                    base_logger=logger,
                 )
                 for i in range(3)
             ]
@@ -792,6 +796,7 @@ class Testconnect_xmlstream(unittest.TestCase):
                     getattr(unittest.mock.sentinel, "h{}".format(i)),
                     getattr(unittest.mock.sentinel, "p{}".format(i)),
                     unittest.mock.sentinel.timeout,
+                    base_logger=node.logger,
                 )
                 for i in range(3)
             ]
@@ -896,6 +901,7 @@ class Testconnect_xmlstream(unittest.TestCase):
                     getattr(unittest.mock.sentinel, "h{}".format(i)),
                     getattr(unittest.mock.sentinel, "p{}".format(i)),
                     60.,
+                    base_logger=node.logger,
                 )
                 for i in range(NCONNECTORS)
             ]
@@ -995,6 +1001,7 @@ class Testconnect_xmlstream(unittest.TestCase):
                     getattr(unittest.mock.sentinel, "h{}".format(i)),
                     getattr(unittest.mock.sentinel, "p{}".format(i)),
                     60.,
+                    base_logger=node.logger,
                 )
                 for i in range(3)
             ]
@@ -1055,6 +1062,7 @@ class Testconnect_xmlstream(unittest.TestCase):
                     getattr(unittest.mock.sentinel, "h{}".format(i)),
                     getattr(unittest.mock.sentinel, "p{}".format(i)),
                     60.,
+                    base_logger=node.logger,
                 )
                 for i in range(3)
             ]
@@ -1120,6 +1128,7 @@ class Testconnect_xmlstream(unittest.TestCase):
                     getattr(unittest.mock.sentinel, "h{}".format(i)),
                     getattr(unittest.mock.sentinel, "p{}".format(i)),
                     60.,
+                    base_logger=node.logger
                 )
                 for i in range(2)
             ]
@@ -1184,6 +1193,7 @@ class Testconnect_xmlstream(unittest.TestCase):
                     getattr(unittest.mock.sentinel, "h{}".format(i)),
                     getattr(unittest.mock.sentinel, "p{}".format(i)),
                     60.,
+                    base_logger=node.logger,
                 )
                 for i in range(3)
             ]
@@ -1250,6 +1260,7 @@ class Testconnect_xmlstream(unittest.TestCase):
                     getattr(unittest.mock.sentinel, "h{}".format(i)),
                     getattr(unittest.mock.sentinel, "p{}".format(i)),
                     60.,
+                    base_logger=node.logger,
                 )
                 for i in range(3)
             ]
@@ -1341,6 +1352,17 @@ class TestClient(xmltestutils.XMLTestCase):
                 )
             )
         ]
+
+        self.sm_without_resumption = [
+            XMLStreamMock.Send(
+                nonza.SMEnable(resume=False),
+                response=XMLStreamMock.Receive(
+                    nonza.SMEnabled(resume=False,
+                                    id_="foobar")
+                )
+            )
+        ]
+
         self.resource_binding = [
             XMLStreamMock.Send(
                 stanza.IQ(
@@ -1416,6 +1438,16 @@ class TestClient(xmltestutils.XMLTestCase):
                          client.logger.getChild("on_stream_established"))
         self.assertEqual(client.on_stream_destroyed.logger,
                          client.logger.getChild("on_stream_destroyed"))
+
+        self.assertIsInstance(
+            client.stream._xxx_message_dispatcher,
+            aioxmpp.dispatcher.SimpleMessageDispatcher,
+        )
+
+        self.assertIsInstance(
+            client.stream._xxx_presence_dispatcher,
+            aioxmpp.dispatcher.SimplePresenceDispatcher,
+        )
 
         with self.assertRaises(AttributeError):
             client.local_jid = structs.JID.fromstr("bar@bar.example/baz")
@@ -2054,6 +2086,81 @@ class TestClient(xmltestutils.XMLTestCase):
         self.client.stop()
         run_coroutine(asyncio.sleep(0))
 
+    def test_exponential_backoff_on_SSL_error(self):
+        call = unittest.mock.call(
+            self.test_jid,
+            self.security_layer,
+            negotiation_timeout=60.0,
+            override_peer=[],
+            loop=self.loop,
+            logger=self.client.logger)
+
+        exc = OpenSSL.SSL.Error
+        self.connect_xmlstream_rec.side_effect = exc
+        self.client.backoff_start = timedelta(seconds=0.01)
+        self.client.backoff_factor = 2
+        self.client.backoff_cap = timedelta(seconds=0.1)
+        self.client.start()
+        run_coroutine(asyncio.sleep(0))
+        self.assertTrue(self.client.running)
+        self.assertFalse(self.client.stream.running)
+
+        self.assertSequenceEqual(
+            [call],
+            self.connect_xmlstream_rec.mock_calls
+        )
+
+        run_coroutine(asyncio.sleep(0.01))
+
+        self.assertSequenceEqual(
+            [call]*2,
+            self.connect_xmlstream_rec.mock_calls
+        )
+
+        run_coroutine(asyncio.sleep(0.02))
+
+        self.assertSequenceEqual(
+            [call]*3,
+            self.connect_xmlstream_rec.mock_calls
+        )
+
+        run_coroutine(asyncio.sleep(0.04))
+
+        self.assertSequenceEqual(
+            [call]*4,
+            self.connect_xmlstream_rec.mock_calls
+        )
+
+        run_coroutine(asyncio.sleep(0.08))
+
+        self.assertSequenceEqual(
+            [call]*5,
+            self.connect_xmlstream_rec.mock_calls
+        )
+
+        run_coroutine(asyncio.sleep(0.1))
+
+        self.assertSequenceEqual(
+            [call]*6,
+            self.connect_xmlstream_rec.mock_calls
+        )
+
+        run_coroutine(asyncio.sleep(0.1))
+
+        self.assertSequenceEqual(
+            [call]*7,
+            self.connect_xmlstream_rec.mock_calls
+        )
+
+        self.assertSequenceEqual(
+            [
+            ],
+            self.failure_rec.mock_calls
+        )
+
+        self.client.stop()
+        run_coroutine(asyncio.sleep(0))
+
     def test_fail_on_value_error_while_live(self):
 
         self.client.backoff_start = timedelta(seconds=0.01)
@@ -2109,6 +2216,80 @@ class TestClient(xmltestutils.XMLTestCase):
         run_coroutine(self.xmlstream.run_test(
             self.resource_binding +
             self.sm_negotiation_exchange
+        ))
+
+        self.assertTrue(self.client.stream.sm_enabled)
+        self.assertTrue(self.client.stream.running)
+        self.assertTrue(self.client.running)
+
+        self.established_rec.assert_called_once_with()
+        self.assertFalse(self.destroyed_rec.mock_calls)
+
+        self.client.stop()
+        run_coroutine(self.xmlstream.run_test([
+            XMLStreamMock.Send(
+                nonza.SMAcknowledgement(counter=0)
+            ),
+            XMLStreamMock.Close()
+        ]))
+
+    def test_default_resumption_timeout(self):
+        self.assertIsNone(self.client.resumption_timeout)
+
+    def test_resumption_timeout_checks_type(self):
+        with self.assertRaises(TypeError):
+            self.client.resumption_timeout = 1.2
+        with self.assertRaises(TypeError):
+            self.client.resumption_timeout = "2"
+        with self.assertRaises(TypeError):
+            self.client.resumption_timeout = False
+        with self.assertRaises(ValueError):
+            self.client.resumption_timeout = -1
+        self.client.resumption_timeout = None
+        self.assertEqual(self.client.resumption_timeout, None)
+        self.client.resumption_timeout = 1
+        self.assertEqual(self.client.resumption_timeout, 1)
+
+    def test_negotiate_stream_management_with_timeout_0(self):
+        self.features[...] = nonza.StreamManagementFeature()
+        self.client.resumption_timeout = 0
+
+        self.client.start()
+        run_coroutine(self.xmlstream.run_test(
+            self.resource_binding +
+            self.sm_without_resumption
+        ))
+
+        self.assertTrue(self.client.stream.sm_enabled)
+        self.assertTrue(self.client.stream.running)
+        self.assertTrue(self.client.running)
+
+        self.established_rec.assert_called_once_with()
+        self.assertFalse(self.destroyed_rec.mock_calls)
+
+        self.client.stop()
+        run_coroutine(self.xmlstream.run_test([
+            XMLStreamMock.Send(
+                nonza.SMAcknowledgement(counter=0)
+            ),
+            XMLStreamMock.Close()
+        ]))
+
+    def test_negotiate_stream_management_with_specific_timeout(self):
+        self.features[...] = nonza.StreamManagementFeature()
+        self.client.resumption_timeout = 20
+
+        self.client.start()
+        run_coroutine(self.xmlstream.run_test(
+            self.resource_binding + [
+                XMLStreamMock.Send(
+                    nonza.SMEnable(resume=True, max_=20),
+                    response=XMLStreamMock.Receive(
+                        nonza.SMEnabled(resume=True,
+                                        id_="foobar")
+                    )
+                )
+            ]
         ))
 
         self.assertTrue(self.client.stream.sm_enabled)
@@ -2830,16 +3011,10 @@ class TestClient(xmltestutils.XMLTestCase):
                     ),
                     dependencies={
                         Svc2: unittest.mock.ANY,
-                        Svc3: unittest.mock.ANY,
                     }
                 ),
             ],
             svc_init.mock_calls
-        )
-
-        self.assertIs(
-            svc1.dependencies[Svc3],
-            svc2.dependencies[Svc3],
         )
 
         self.assertIs(

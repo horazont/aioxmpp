@@ -63,10 +63,9 @@ internal queues.
 Filters
 =======
 
-The filters used by the :class:`StanzaStream` are implemented by the following
-classes:
-
-.. autoclass:: Filter
+The service-level filters used by the :class:`StanzaStream` use
+:class:`~.callbacks.Filter`. The application-level filters are using the
+following class:
 
 .. autoclass:: AppFilter
 
@@ -95,89 +94,13 @@ from . import (
     callbacks,
     protocol,
     structs,
+    ping,
 )
 
-from .plugins import xep0199
 from .utils import namespaces
 
 
-class Filter:
-    """
-    A filter chain for stanzas. The idea is to process a stanza through a
-    sequence of user- and service-definable functions.
-
-    Each function must either return the stanza it received as argument or
-    :data:`None`. If it returns :data:`None` the filtering aborts and the
-    caller of :meth:`filter` also receives :data:`None`.
-
-    Each function receives the result of the previous function for further
-    processing.
-
-    .. automethod:: register
-
-    .. automethod:: filter
-
-    .. automethod:: unregister
-    """
-
-    class Token:
-        def __str__(self):
-            return "<{}.{} 0x{:x}>".format(
-                type(self).__module__,
-                type(self).__qualname__,
-                id(self))
-
-    def __init__(self):
-        super().__init__()
-        self._filter_order = []
-
-    def register(self, func, order):
-        """
-        Register a function `func` as filter in the chain. `order` must be a
-        value which will be used to order the registered functions relative to
-        each other.
-
-        Functions with the same order are sorted in the order of their
-        addition, with the function which was added earliest first.
-
-        Remember that all values passed to `order` which are registered at the
-        same time in the same :class:`Filter` need to be at least partially
-        orderable with respect to each other.
-
-        Return an opaque token which is needed to unregister a function.
-        """
-        token = self.Token()
-        self._filter_order.append((order, token, func))
-        self._filter_order.sort(key=lambda x: x[0])
-        return token
-
-    def filter(self, stanza_obj):
-        """
-        Pass the given `stanza_obj` through the filter chain and return the
-        result of the chain. See :class:`Filter` for details on how the value
-        is passed through the registered functions.
-        """
-        for _, _, func in self._filter_order:
-            stanza_obj = func(stanza_obj)
-            if stanza_obj is None:
-                return None
-        return stanza_obj
-
-    def unregister(self, token_to_remove):
-        """
-        Unregister a function from the filter chain using the token returned by
-        :meth:`register`.
-        """
-        for i, (_, token, _) in enumerate(self._filter_order):
-            if token == token_to_remove:
-                break
-        else:
-            raise ValueError("unregistered token: {!r}".format(
-                token_to_remove))
-        del self._filter_order[i]
-
-
-class AppFilter(Filter):
+class AppFilter(callbacks.Filter):
     """
     A specialized :class:`Filter` version. The only difference is in the
     handling of the `order` argument to :meth:`register`:
@@ -255,6 +178,15 @@ class StanzaState(Enum):
 
        This is a final state.
 
+    .. attribute:: FAILED
+
+       It was attempted to send the stanza, but it failed to serialise to
+       valid XML or another non-fatal transport error occured.
+
+       This is a final state.
+
+       .. versionadded:: 0.9
+
     """
     ACTIVE = 0
     SENT = 1
@@ -263,6 +195,7 @@ class StanzaState(Enum):
     ABORTED = 4
     DROPPED = 5
     DISCONNECTED = 6
+    FAILED = 7
 
 
 class StanzaErrorAwareListener:
@@ -307,6 +240,8 @@ class StanzaToken:
                                 :attr:`~.StanzaState.DISCONNECTED` state.
        :raises RuntimeError: if the stanza enters :attr:`~.StanzaState.ABORTED`
                              or :attr:`~.StanzaState.DROPPED` state.
+       :raises Exception: re-raised if the stanza token fails to serialise or
+                          another transient transport problem occurs.
        :return: :data:`None`
 
        If a coroutine awaiting a token is cancelled, the token is aborted. Use
@@ -322,15 +257,23 @@ class StanzaToken:
           sending of a stanza and another stream operation, such as closing the
           stream.
 
+    .. note::
+
+       Exceptions sent to the stanza token (when it enters
+       :attr:`StanzaState.FAILED`) are only available by awaiting the token,
+       not via the callback.
+
     .. autoattribute:: state
 
     .. automethod:: abort
     """
-    __slots__ = ("stanza", "_state", "on_state_change", "_sent_future")
+    __slots__ = ("stanza", "_state", "on_state_change", "_sent_future",
+                 "_state_exception")
 
     def __init__(self, stanza, *, on_state_change=None):
         self.stanza = stanza
         self._state = StanzaState.ACTIVE
+        self._state_exception = None
         self._sent_future = None
         self.on_state_change = on_state_change
 
@@ -342,6 +285,13 @@ class StanzaToken:
         """
 
         return self._state
+
+    @property
+    def future(self):
+        if self._sent_future is None:
+            self._sent_future = asyncio.Future()
+            self._update_future()
+        return self._sent_future
 
     def _update_future(self):
         if self._sent_future.done():
@@ -355,12 +305,18 @@ class StanzaToken:
             )
         elif self._state == StanzaState.ABORTED:
             self._sent_future.set_exception(RuntimeError("stanza aborted"))
+        elif self._state == StanzaState.FAILED:
+            self._sent_future.set_exception(
+                self._state_exception or
+                ValueError("failed to send stanza for unknown local reasons")
+            )
         elif     (self._state == StanzaState.SENT_WITHOUT_SM or
                   self._state == StanzaState.ACKED):
             self._sent_future.set_result(None)
 
-    def _set_state(self, new_state):
+    def _set_state(self, new_state, exception=None):
         self._state = new_state
+        self._state_exception = exception
         if self.on_state_change is not None:
             self.on_state_change(self, new_state)
 
@@ -386,17 +342,15 @@ class StanzaToken:
 
     @asyncio.coroutine
     def __await__(self):
-        if self._sent_future is None:
-            self._sent_future = asyncio.Future()
-            self._update_future()
         try:
-            yield from asyncio.shield(self._sent_future)
+            yield from asyncio.shield(self.future)
         except asyncio.CancelledError:
             if self._state == StanzaState.ACTIVE:
                 self.abort()
             raise
 
     __iter__ = __await__
+
 
 class StanzaStream:
     """
@@ -689,7 +643,7 @@ class StanzaStream:
        The stream has been stopped in a manner which means that all state must
        be discarded.
 
-       :param reason: The exception which caused the stream to be destroyeds
+       :param reason: The exception which caused the stream to be destroyed.
        :type reason: :class:`Exception`
 
        When this signal is emitted, others have or will most likely see
@@ -712,6 +666,36 @@ class StanzaStream:
        whenever a non-SM stream is started and whenever a stream which
        previously had SM disabled is started with SM enabled.
 
+    .. signal:: on_message_received(stanza)
+
+        Emits when a :class:`aioxmpp.Message` stanza has been received.
+
+        :param stanza: The received stanza.
+        :type stanza: :class:`aioxmpp.Message`
+
+        .. seealso::
+
+            :class:`aioxmpp.dispatcher.SimpleMessageDispatcher`
+                for a service which allows to register callbacks for messages
+                based on the sender and type of the message.
+
+        .. versionadded:: 0.9
+
+    .. signal:: on_presence_received(stanza)
+
+        Emits when a :class:`aioxmpp.Presence` stanza has been received.
+
+        :param stanza: The received stanza.
+        :type stanza: :class:`aioxmpp.Presence`
+
+        .. seealso::
+
+            :class:`aioxmpp.dispatcher.SimplePresenceDispatcher`
+                for a service which allows to register callbacks for presences
+                based on the sender and type of the message.
+
+        .. versionadded:: 0.9
+
     """
 
     _ALLOW_ENUM_COERCION = True
@@ -719,6 +703,9 @@ class StanzaStream:
     on_failure = callbacks.Signal()
     on_stream_destroyed = callbacks.Signal()
     on_stream_established = callbacks.Signal()
+
+    on_message_received = callbacks.Signal()
+    on_presence_received = callbacks.Signal()
 
     def __init__(self,
                  local_jid=None,
@@ -729,6 +716,9 @@ class StanzaStream:
         self._loop = loop or asyncio.get_event_loop()
         self._logger = base_logger.getChild("StanzaStream")
         self._task = None
+
+        self._xxx_message_dispatcher = None
+        self._xxx_presence_dispatcher = None
 
         self._local_jid = local_jid
 
@@ -741,8 +731,6 @@ class StanzaStream:
         # list of running IQ request coroutines: used to cancel them when the
         # stream is destroyed
         self._iq_request_tasks = []
-        self._message_map = {}
-        self._presence_map = {}
 
         self._ping_send_opportunistic = False
         self._next_ping_event_at = None
@@ -761,16 +749,16 @@ class StanzaStream:
         self._broker_lock = asyncio.Lock(loop=loop)
 
         self.app_inbound_presence_filter = AppFilter()
-        self.service_inbound_presence_filter = Filter()
+        self.service_inbound_presence_filter = callbacks.Filter()
 
         self.app_inbound_message_filter = AppFilter()
-        self.service_inbound_message_filter = Filter()
+        self.service_inbound_message_filter = callbacks.Filter()
 
         self.app_outbound_presence_filter = AppFilter()
-        self.service_outbound_presence_filter = Filter()
+        self.service_outbound_presence_filter = callbacks.Filter()
 
         self.app_outbound_message_filter = AppFilter()
-        self.service_outbound_message_filter = Filter()
+        self.service_outbound_message_filter = callbacks.Filter()
 
     @property
     def local_jid(self):
@@ -918,7 +906,7 @@ class StanzaStream:
                 response = stanza_obj.make_reply(type_=structs.IQType.ERROR)
                 response.error = stanza.Error(
                     condition=(namespaces.stanzas,
-                               "feature-not-implemented"),
+                               "service-unavailable"),
                 )
                 self.enqueue(response)
                 return
@@ -949,36 +937,7 @@ class StanzaStream:
                                "filter chain")
             return
 
-        # XXX: this should be fixed better, to avoid the ambiguity between bare
-        # JID wildcarding and stanzas originating from bare JIDs
-        # also, I don’t like how we handle from_=None now
-
-        if stanza_obj.from_ is None:
-            stanza_obj.from_ = self._local_jid
-
-        keys = [(stanza_obj.type_, stanza_obj.from_),
-                (stanza_obj.type_, stanza_obj.from_.bare()),
-                (None, stanza_obj.from_),
-                (None, stanza_obj.from_.bare()),
-                (stanza_obj.type_, None),
-                (None, None)]
-
-        for key in keys:
-            try:
-                cb = self._message_map[key]
-            except KeyError:
-                continue
-            self._logger.debug("dispatching message using key %r to %r",
-                               key, cb)
-            self._loop.call_soon(cb, stanza_obj)
-            break
-        else:
-            self._logger.warning(
-                "unsolicited message dropped: from=%r, type=%r, id=%r",
-                stanza_obj.from_,
-                stanza_obj.type_,
-                stanza_obj.id_
-            )
+        self.on_message_received(stanza_obj)
 
     def _process_incoming_presence(self, stanza_obj):
         """
@@ -998,23 +957,7 @@ class StanzaStream:
                                "filter chain")
             return
 
-        keys = [(stanza_obj.type_, stanza_obj.from_),
-                (stanza_obj.type_, None)]
-        for key in keys:
-            try:
-                cb = self._presence_map[key]
-            except KeyError:
-                continue
-            self._logger.debug("dispatching presence using key: %r", key)
-            self._loop.call_soon(cb, stanza_obj)
-            break
-        else:
-            self._logger.warning(
-                "unhandled presence dropped: from=%r, type=%r, id=%r",
-                stanza_obj.from_,
-                stanza_obj.type_,
-                stanza_obj.id_
-            )
+        self.on_presence_received(stanza_obj)
 
     def _process_incoming_erroneous_stanza(self, stanza_obj, exc):
         self._logger.debug(
@@ -1056,7 +999,7 @@ class StanzaStream:
         elif isinstance(exc, stanza.UnknownIQPayload):
             reply = stanza_obj.make_error(error=stanza.Error(condition=(
                 namespaces.stanzas,
-                "feature-not-implemented")
+                "service-unavailable")
             ))
             self.enqueue(reply)
         elif isinstance(exc, stanza.PayloadParsingError):
@@ -1108,6 +1051,7 @@ class StanzaStream:
         # now handle stanzas, these always increment the SM counter
         if self._sm_enabled:
             self._sm_inbound_ctr += 1
+            self._sm_inbound_ctr &= 0xffffffff
 
         # check if the stanza has errors
         if exc is not None:
@@ -1178,7 +1122,13 @@ class StanzaStream:
         self._logger.debug("forwarding stanza to xmlstream: %r",
                            stanza_obj)
 
-        xmlstream.send_xso(stanza_obj)
+        try:
+            xmlstream.send_xso(stanza_obj)
+        except Exception as exc:
+            self._logger.warning("failed to send stanza", exc_info=True)
+            token._set_state(StanzaState.FAILED, exc)
+            return
+
         if self._sm_enabled:
             token._set_state(StanzaState.SENT)
             self._sm_unacked_list.append(token)
@@ -1236,7 +1186,7 @@ class StanzaStream:
             xmlstream.send_xso(nonza.SMRequest())
         else:
             request = stanza.IQ(type_=structs.IQType.GET)
-            request.payload = xep0199.Ping()
+            request.payload = ping.Ping()
             request.autoset_id()
             self.register_iq_response_callback(
                 None,
@@ -1499,23 +1449,8 @@ class StanzaStream:
         specific callbacks win over less specific callbacks, and the match on
         the `from_` address takes precedence over the match on the `type_`.
 
-        To be explicit, the order in which callbacks are searched for a given
-        ``type_`` and ``from_`` of a stanza is:
-
-        * ``type_``, ``from_``
-        * ``type_``, ``from_.bare()``
-        * ``None``, ``from_``
-        * ``None``, ``from_.bare()``
-        * ``type_``, ``None``
-        * ``None``, ``None``
-
-        .. note::
-
-           When the server sends a stanza without from attribute, it is
-           replaced with the bare :attr:`local_jid`, as per :rfc:`6120`.
-
-           In the future, there might be a different way to select those
-           stanzas.
+        See :meth:`.SimpleStanzaDispatcher.register_callback` for the exact
+        wildcarding rules.
 
         .. versionchanged:: 0.7
 
@@ -1528,19 +1463,30 @@ class StanzaStream:
            raise a :class:`TypeError` as of the 1.0 release. See the Changelog
            for :ref:`api-changelog-0.7` for further details on how to upgrade
            your code efficiently.
+
+        .. deprecated:: 0.9
+
+           This method has been deprecated in favour of and is now implemented
+           in terms of the :class:`aioxmpp.dispatcher.SimpleMessageDispatcher`
+           service.
+
+           It is equivalent to call
+           :meth:`~.SimpleStanzaDispatcher.register_callback`, except that the
+           latter is not deprecated.
         """
         if type_ is not None:
             type_ = self._coerce_enum(type_, structs.MessageType)
-        key = type_, from_
-        if key in self._message_map:
-            raise ValueError(
-                "only one listener is allowed per (type_, from_) pair"
-            )
-
-        self._message_map[key] = cb
-        self._logger.debug(
-            "message callback registered: type=%r, from=%r",
-            type_, from_)
+        warnings.warn(
+            "register_message_callback is deprecated; use "
+            "aioxmpp.dispatcher.SimpleMessageDispatcher instead",
+            DeprecationWarning,
+            stacklevel=2
+        )
+        self._xxx_message_dispatcher.register_callback(
+            type_,
+            from_,
+            cb,
+        )
 
     def unregister_message_callback(self, type_, from_):
         """
@@ -1574,13 +1520,29 @@ class StanzaStream:
            raise a :class:`TypeError` as of the 1.0 release. See the Changelog
            for :ref:`api-changelog-0.7` for further details on how to upgrade
            your code efficiently.
+
+        .. deprecated:: 0.9
+
+           This method has been deprecated in favour of and is now implemented
+           in terms of the :class:`aioxmpp.dispatcher.SimpleMessageDispatcher`
+           service.
+
+           It is equivalent to call
+           :meth:`~.SimpleStanzaDispatcher.unregister_callback`, except that
+           the latter is not deprecated.
         """
         if type_ is not None:
             type_ = self._coerce_enum(type_, structs.MessageType)
-        del self._message_map[type_, from_]
-        self._logger.debug(
-            "message callback unregistered: type=%r, from=%r",
-            type_, from_)
+        warnings.warn(
+            "unregister_message_callback is deprecated; use "
+            "aioxmpp.dispatcher.SimpleMessageDispatcher instead",
+            DeprecationWarning,
+            stacklevel=2
+        )
+        self._xxx_message_dispatcher.unregister_callback(
+            type_,
+            from_,
+        )
 
     def register_presence_callback(self, type_, from_, cb):
         """
@@ -1605,6 +1567,9 @@ class StanzaStream:
         is identical, except that the ``type_=None`` entries described there do
         not apply for presence stanzas and are thus omitted.
 
+        See :meth:`.SimpleStanzaDispatcher.register_callback` for the exact
+        wildcarding rules.
+
         .. versionchanged:: 0.7
 
            The `type_` argument is now supposed to be a
@@ -1617,17 +1582,25 @@ class StanzaStream:
            for :ref:`api-changelog-0.7` for further details on how to upgrade
            your code efficiently.
 
+        .. deprecated:: 0.9
+
+           This method has been deprecated. It is recommended to use
+           :class:`aioxmpp.PresenceClient` instead.
+
         """
         type_ = self._coerce_enum(type_, structs.PresenceType)
-        key = type_, from_
-        if key in self._presence_map:
-            raise ValueError(
-                "only one listener is allowed per (type_, from_) pair"
-            )
-        self._presence_map[key] = cb
-        self._logger.debug(
-            "presence callback registered: type=%r, from=%r",
-            type_, from_)
+        warnings.warn(
+            "register_presence_callback is deprecated; use "
+            "aioxmpp.dispatcher.SimplePresenceDispatcher or "
+            "aioxmpp.PresenceClient instead",
+            DeprecationWarning,
+            stacklevel=2
+        )
+        self._xxx_presence_dispatcher.register_callback(
+            type_,
+            from_,
+            cb,
+        )
 
     def unregister_presence_callback(self, type_, from_):
         """
@@ -1663,12 +1636,24 @@ class StanzaStream:
            for :ref:`api-changelog-0.7` for further details on how to upgrade
            your code efficiently.
 
+        .. deprecated:: 0.9
+
+           This method has been deprecated. It is recommended to use
+           :class:`aioxmpp.PresenceClient` instead.
+
         """
         type_ = self._coerce_enum(type_, structs.PresenceType)
-        del self._presence_map[type_, from_]
-        self._logger.debug(
-            "presence callback unregistered: type=%r, from=%r",
-            type_, from_)
+        warnings.warn(
+            "unregister_presence_callback is deprecated; use "
+            "aioxmpp.dispatcher.SimplePresenceDispatcher or "
+            "aioxmpp.PresenceClient instead",
+            DeprecationWarning,
+            stacklevel=2
+        )
+        self._xxx_presence_dispatcher.unregister_callback(
+            type_,
+            from_,
+        )
 
     def _start_prepare(self, xmlstream, receiver):
         self._xmlstream_failure_token = xmlstream.on_closing.connect(
@@ -1949,10 +1934,36 @@ class StanzaStream:
         return self._task is not None and not self._task.done()
 
     @asyncio.coroutine
-    def start_sm(self, request_resumption=True):
+    def start_sm(self, request_resumption=True, resumption_timeout=None):
         """
-        Start stream management (version 3). This negotiates stream management
-        with the server.
+        Start stream management (version 3).
+
+        :param request_resumption: Request that the stream shall be resumable.
+        :type request_resumption: :class:`bool`
+        :param resumption_timeout: Maximum time in seconds for a stream to be
+            resumable.
+        :type resumption_timeout: :class:`int`
+        :raises aioxmpp.errors.StreamNegotiationFailure: if the server rejects
+            the attempt to enable stream management.
+
+        This method attempts to starts stream management on the stream.
+
+        `resumption_timeout` is the ``max`` attribute on
+        :class:`.nonza.SMEnabled`; it can be used to set a maximum time for
+        which the server shall consider the stream to still be alive after the
+        underlying transport (TCP) has failed. The server may impose its own
+        maximum or ignore the request, so there are no guarentees that the
+        session will stay alive for at most or at least `resumption_timeout`
+        seconds. Passing a `resumption_timeout` of 0 is equivalent to passing
+        false to `request_resumption` and takes precedence over
+        `request_resumption`.
+
+        .. note::
+
+            In addition to server implementation details, it is very well
+            possible that the server does not even detect that the underlying
+            transport has failed for quite some time for various reasons
+            (including high TCP timeouts).
 
         If the server rejects the attempt to enable stream management, a
         :class:`.errors.StreamNegotiationFailure` is raised. The stream is
@@ -1967,14 +1978,14 @@ class StanzaStream:
 
         If an XML stream error occurs during the negotiation, the result
         depends on a few factors. In any case, the stream is not running
-        afterwards. If the :class:`SMEnabled` response was not received before
-        the XML stream died, SM is also disabled and the exception which caused
-        the stream to die is re-raised (this is due to the implementation of
-        :func:`~.protocol.send_and_wait_for`). If the :class:`SMEnabled`
-        response was received and annonuced support for resumption, SM is
-        enabled. Otherwise, it is disabled. No exception is raised if
-        :class:`SMEnabled` was received, as this method has no way to determine
-        that the stream failed.
+        afterwards. If the :class:`.nonza.SMEnabled` response was not received
+        before the XML stream died, SM is also disabled and the exception which
+        caused the stream to die is re-raised (this is due to the
+        implementation of :func:`~.protocol.send_and_wait_for`). If the
+        :class:`.nonza.SMEnabled` response was received and annonuced support
+        for resumption, SM is enabled. Otherwise, it is disabled. No exception
+        is raised if :class:`.nonza.SMEnabled` was received, as this method has
+        no way to determine that the stream failed.
 
         If negotiation succeeds, this coroutine initializes a new stream
         management session. The stream management state attributes become
@@ -1986,11 +1997,16 @@ class StanzaStream:
         if self.sm_enabled:
             raise RuntimeError("Stream Management already enabled")
 
+        if resumption_timeout == 0:
+            request_resumption = False
+            resumption_timeout = None
+
         with (yield from self._broker_lock):
             response = yield from protocol.send_and_wait_for(
                 self._xmlstream,
                 [
-                    nonza.SMEnable(resume=bool(request_resumption)),
+                    nonza.SMEnable(resume=bool(request_resumption),
+                                   max_=resumption_timeout),
                 ],
                 [
                     nonza.SMEnabled,
@@ -2270,6 +2286,9 @@ class StanzaStream:
         :attr:`StanzaState.ACKED` state and the counters are increased
         accordingly.
 
+        If called with an erroneous remote stanza counter
+        :class:`.errors.StreamNegotationFailure` will be raised.
+
         Attempting to call this without Stream Management enabled results in a
         :class:`RuntimeError`.
         """
@@ -2278,14 +2297,17 @@ class StanzaStream:
             raise RuntimeError("Stream Management is not enabled")
 
         self._logger.debug("sm_ack(%d)", remote_ctr)
-        to_drop = remote_ctr - self._sm_outbound_base
-        if to_drop < 0:
-            self._logger.warning(
-                "remote stanza counter is *less* than before "
-                "(outbound_base=%d, remote_ctr=%d)",
-                self._sm_outbound_base,
-                remote_ctr)
-            return
+        to_drop = (remote_ctr - self._sm_outbound_base) & 0xffffffff
+        self._logger.debug("sm_ack: to drop %d, unacked: %d",
+                           to_drop, len(self._sm_unacked_list))
+        if to_drop > len(self._sm_unacked_list):
+            raise errors.StreamNegotiationFailure(
+                "acked more stanzas than have been sent "
+                "(outbound_base={}, remote_ctr={})".format(
+                    self._sm_outbound_base,
+                    remote_ctr
+                )
+            )
 
         acked = self._sm_unacked_list[:to_drop]
         del self._sm_unacked_list[:to_drop]
@@ -2534,32 +2556,16 @@ def presence_handler(stream, type_, from_, cb):
 _Undefined = object()
 
 
-@contextlib.contextmanager
 def stanza_filter(filter_, func, order=_Undefined):
     """
-    Context manager to temporarily register a filter function on a
-    :class:`Filter`.
-
-    :param filter_: Filter to register the function at
-    :type filter_: :class:`Filter`
-    :param func: Filter function to register
-    :param order: Order parameter to pass to :meth:`.Filter.register`
-
-    The type of `order` is specific to the :class:`Filter` instance used, see
-    the documentation of :meth:`Filter.register` and :meth:`AppFilter.register`
-    respectively.
-
-    The filter function is registered when the context is entered and
-    unregistered when the context is exited.
+    This is a deprecated alias of
+    :meth:`aioxmpp.callbacks.Filter.context_register`.
 
     .. versionadded:: 0.8
-    """
 
-    if order is _Undefined:
-        token = filter_.register(func)
+    .. deprecated:: 0.9
+    """
+    if order is not _Undefined:
+        return filter_.context_register(func, order)
     else:
-        token = filter_.register(func, order)
-    try:
-        yield
-    finally:
-        filter_.unregister(token)
+        return filter_.context_register(func)

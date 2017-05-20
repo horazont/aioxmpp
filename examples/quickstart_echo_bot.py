@@ -52,7 +52,10 @@ async def main(local_jid, password):
 
         client.stream.enqueue(reply)
 
-    client.stream.register_message_callback(
+    message_dispatcher = client.summon(
+        aioxmpp.dispatcher.SimpleMessageDispatcher
+    )
+    message_dispatcher.register_callback(
         aioxmpp.MessageType.CHAT,
         None,
         message_received,

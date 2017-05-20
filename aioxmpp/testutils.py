@@ -39,6 +39,11 @@ import aioxmpp.nonza as nonza
 from aioxmpp.utils import etree
 
 
+# FIXME: find a way to detect Travis CI and use 2.0 there, 1.0 otherwise.
+# 1.0 is sufficient normally, but on Travis we sometimes get spurious failures.
+DEFAULT_TIMEOUT = 2.0
+
+
 def make_protocol_mock():
     return unittest.mock.Mock([
         "connection_made",
@@ -50,7 +55,7 @@ def make_protocol_mock():
     ])
 
 
-def run_coroutine(coroutine, timeout=1.0, loop=None):
+def run_coroutine(coroutine, timeout=DEFAULT_TIMEOUT, loop=None):
     if not loop:
         loop = asyncio.get_event_loop()
     return loop.run_until_complete(
@@ -106,6 +111,37 @@ def run_coroutine_with_peer(
     return local_future.result()
 
 
+def make_listener(instance):
+    """
+    Return a :class:`unittest.mock.Mock` which has children connected to each
+    :class:`aioxmpp.callbacks.Signal` of `instance`.
+
+    The children are named exactly like the signals.
+    """
+    result = unittest.mock.Mock()
+    for name, obj in type(instance).__dict__.items():
+        if not isinstance(obj, callbacks.Signal):
+            continue
+        cb = getattr(result, name)
+        cb.return_value = None
+        getattr(instance, name).connect(cb)
+    return result
+
+
+
+class FilterMock(unittest.mock.Mock):
+    def __init__(self):
+        super().__init__([
+            "register",
+            "unregister",
+            "filter",
+        ])
+        self.context_register = unittest.mock.MagicMock([
+            "__enter__",
+            "__exit__",
+        ])
+
+
 class ConnectedClientMock(unittest.mock.Mock):
     on_stream_established = callbacks.Signal()
     on_stream_destroyed = callbacks.Signal()
@@ -128,6 +164,18 @@ class ConnectedClientMock(unittest.mock.Mock):
         self.established = True
 
         self.stream_features = nonza.StreamFeatures()
+        self.stream.on_message_received = callbacks.AdHocSignal()
+        self.stream.on_presence_received = callbacks.AdHocSignal()
+        self.stream.on_stream_destroyed = callbacks.AdHocSignal()
+        self.stream.app_inbound_message_filter = FilterMock()
+        self.stream.app_inbound_presence_filter = FilterMock()
+        self.stream.app_outbound_message_filter = FilterMock()
+        self.stream.app_outbound_presence_filter = FilterMock()
+        self.stream.service_inbound_message_filter = FilterMock()
+        self.stream.service_inbound_presence_filter = FilterMock()
+        self.stream.service_outbound_message_filter = FilterMock()
+        self.stream.service_outbound_presence_filter = FilterMock()
+        self.stream.on_stream_destroyed = callbacks.AdHocSignal()
         self.stream.send_iq_and_wait_for_reply = CoroutineMock()
         self.stream.send = CoroutineMock()
         self.stream.enqueue_stanza = self.stream.enqueue
@@ -731,3 +779,16 @@ class XMLStreamMock(InteractivityMock):
         fut = asyncio.Future()
         self._error_futures.append(fut)
         return fut
+
+
+if not hasattr(unittest.mock.Mock, "assert_not_called"):
+    def _assert_not_called(m):
+        if any(not call[0] for call in m.mock_calls):
+            raise AssertionError(
+                "expected {!r} to not have been called. "
+                "Called {} times".format(
+                    m._mock_name or 'mock',
+                    m.call_count)
+            )
+    unittest.mock.Mock.assert_not_called = _assert_not_called
+    del _assert_not_called

@@ -1,0 +1,12 @@
+[run]
+source=
+  aioxmpp
+omit=
+  aioxmpp/benchtest/*
+  aioxmpp/e2etest/*
+  aioxmpp/_ssl_transport.py
+  */python?.?/*
+  */python?.?-dev/*
+  */dist-packages/*
+  */site-packages/*
+

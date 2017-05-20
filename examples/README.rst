@@ -101,3 +101,39 @@ in the examples directory. Now you can start the adhoc browser::
   python3 -m adhoc_browser
 
 You may pass additional command line arguments like you can for other examples.
+
+``retrieve_avatar.py``
+======================
+
+``retrieve_avatar.py`` retrieves the PNG avatar of another user and
+stores it in a file.
+
+positional arguments:
+  ====================  ===================================================
+  output_file           the file the retrieved avatar image will be written
+                        to.
+  ====================  ===================================================
+
+Additional optional argument:
+
+  --remote-jid REMOTE_JID
+                        the jid of which to retrieve the avatar
+
+The remote JID may also be supplied in the examples config file::
+
+      [avatar]
+      remote_jid=foo@example.com
+
+If the remote JID is not given on the command line and also missing
+from the config file ``retrieve_avatar.py`` will prompt for it.
+
+``set_avatar.py``
+=================
+
+``set_avatar.py`` sets or unsets the avatar of the configured local
+JID.
+
+operations:
+  --set-avatar AVATAR_FILE
+                        set the avatar to content of the supplied PNG file.
+  --wipe-avatar         set the avatar to no avatar.

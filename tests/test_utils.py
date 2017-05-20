@@ -214,3 +214,139 @@ class Testmagicmethod(unittest.TestCase):
         o = Foo()
         o.foo = "bar"
         self.assertEqual(o.foo, "bar")
+
+
+class Testmkdir_exist_ok(unittest.TestCase):
+    def test_successful_mkdir(self):
+        p = unittest.mock.Mock()
+        utils.mkdir_exist_ok(p)
+        self.assertSequenceEqual(
+            p.mock_calls,
+            [
+                unittest.mock.call.mkdir(parents=True),
+            ]
+        )
+
+    def test_mkdir_exists_but_is_directory(self):
+        p = unittest.mock.Mock()
+        p.is_dir.return_value = True
+        p.mkdir.side_effect = FileExistsError()
+        utils.mkdir_exist_ok(p)
+        self.assertSequenceEqual(
+            p.mock_calls,
+            [
+                unittest.mock.call.mkdir(parents=True),
+                unittest.mock.call.is_dir()
+            ]
+        )
+
+    def test_mkdir_exists_but_is_not_directory(self):
+        p = unittest.mock.Mock()
+        p.is_dir.return_value = False
+        exc = FileExistsError()
+        p.mkdir.side_effect = exc
+        with self.assertRaises(FileExistsError) as ctx:
+            utils.mkdir_exist_ok(p)
+
+        self.assertIs(ctx.exception, exc)
+
+        self.assertSequenceEqual(
+            p.mock_calls,
+            [
+                unittest.mock.call.mkdir(parents=True),
+                unittest.mock.call.is_dir()
+            ]
+        )
+
+
+class TestLazyTask(unittest.TestCase):
+    def setUp(self):
+        self.coro = CoroutineMock()
+
+    def test_yield_from_able(self):
+        self.coro.return_value = unittest.mock.sentinel.result
+
+        @asyncio.coroutine
+        def user(fut):
+            return (yield from fut)
+
+        fut = utils.LazyTask(self.coro)
+
+        result = run_coroutine(user(fut))
+
+        self.assertEqual(result, unittest.mock.sentinel.result)
+
+    def test_run_coroutine_able(self):
+        self.coro.return_value = unittest.mock.sentinel.result
+
+        fut = utils.LazyTask(self.coro)
+
+        result = run_coroutine(fut)
+
+        self.assertEqual(result, unittest.mock.sentinel.result)
+
+    def test_async_able(self):
+        self.coro.return_value = unittest.mock.sentinel.result
+
+        fut = utils.LazyTask(self.coro)
+
+        result = run_coroutine(asyncio.async(fut))
+
+        self.assertEqual(result, unittest.mock.sentinel.result)
+
+    def test_runs_only_once_even_if_awaited_concurrently(self):
+        self.coro.return_value = unittest.mock.sentinel.result
+
+        fut = utils.LazyTask(self.coro)
+
+        result2 = run_coroutine(asyncio.async(fut))
+        result1 = run_coroutine(fut)
+
+        self.assertEqual(result1, result2)
+        self.assertEqual(result1, unittest.mock.sentinel.result)
+
+        self.coro.assert_called_once_with()
+
+    def test_add_done_callback_spawns_task(self):
+        fut = utils.LazyTask(self.coro)
+        cb = unittest.mock.Mock(["__call__"])
+
+        with unittest.mock.patch("asyncio.async") as async_:
+            fut.add_done_callback(cb)
+            async_.assert_called_once_with(unittest.mock.ANY)
+
+    def test_add_done_callback_works(self):
+        fut = utils.LazyTask(self.coro)
+        cb = unittest.mock.Mock(["__call__"])
+
+        fut.add_done_callback(cb)
+
+        run_coroutine(fut)
+
+        cb.assert_called_once_with(fut)
+
+    def test_is_future(self):
+        self.assertTrue(issubclass(
+            utils.LazyTask,
+            asyncio.Future,
+        ))
+
+    def test_passes_args(self):
+        self.coro.return_value = unittest.mock.sentinel.result
+
+        fut = utils.LazyTask(
+            self.coro,
+            unittest.mock.sentinel.a1,
+            unittest.mock.sentinel.a2,
+            unittest.mock.sentinel.a3,
+        )
+
+        result = run_coroutine(fut)
+
+        self.assertEqual(result, unittest.mock.sentinel.result)
+
+        self.coro.assert_called_once_with(
+            unittest.mock.sentinel.a1,
+            unittest.mock.sentinel.a2,
+            unittest.mock.sentinel.a3,
+        )

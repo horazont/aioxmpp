@@ -219,6 +219,19 @@ def require_feature_subset(feature_vars, required_subset=[]):
     return decorator
 
 
+def require_pep(f):
+    @functools.wraps(f)
+    def wrapper(*args, **kwargs):
+        global provisioner
+        if not provisioner.has_pep():
+            raise unittest.SkipTest(
+                "the provisioned account does not support PEP",
+            )
+
+        return f(*args, **kwargs)
+    return wrapper
+
+
 def skip_with_quirk(quirk):
     """
     :param quirk: The quirk to skip on
@@ -311,7 +324,7 @@ def setup_package():
                 "this is not the aioxmpp test runner"
         return
 
-    timeout = config.get("global", "timeout", fallback=timeout)
+    timeout = config.getfloat("global", "timeout", fallback=timeout)
 
     provisioner_name = config.get("global", "provisioner")
     module_path, class_name = provisioner_name.rsplit(".", 1)
@@ -324,7 +337,6 @@ def setup_package():
     yield from provisioner.initialise()
 
 
-@asyncio.coroutine
 def teardown_package():
     global provisioner, config
     if config is None:
@@ -335,13 +347,13 @@ def teardown_package():
     loop.close()
 
 
-class AioxmppPlugin(Plugin):
-    name = "aioxmpp"
+class E2ETestPlugin(Plugin):
+    name = "aioxmpp-e2e"
 
     def options(self, options, env=os.environ):
         options.add_option(
             "--e2etest-config",
-            dest="aioxmpptest_config",
+            dest="aioxmpp_e2e_config",
             metavar="FILE",
             default=".local/e2etest.ini",
             help="Configuration file for end-to-end tests "
@@ -352,7 +364,7 @@ class AioxmppPlugin(Plugin):
         self.enabled = True
         global config
         config = configparser.ConfigParser()
-        with open(options.aioxmpptest_config, "r") as f:
+        with open(options.aioxmpp_e2e_config, "r") as f:
             config.read_file(f)
 
     @blocking

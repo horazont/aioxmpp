@@ -182,7 +182,7 @@ class RosterClient(aioxmpp.service.Service):
 
     .. attribute:: items
 
-       A dictionary mapping :class:`~aioxmpp.JID instances to corresponding
+       A dictionary mapping :class:`~aioxmpp.JID` instances to corresponding
        :class:`Item` instances.
 
     .. attribute:: groups
@@ -228,6 +228,10 @@ class RosterClient(aioxmpp.service.Service):
        Fires when an `item` has been added to the roster. The attributes of the
        `item` are up-to-date when this callback fires.
 
+       When the event fires, the bookkeeping structures are already updated.
+       This implies that :meth:`on_group_added` is called before
+       :meth:`on_entry_added` if the entry adds a new group.
+
     .. signal:: on_entry_name_changed(item)
 
        Fires when a roster update changed the name of the `item`. The new name
@@ -253,6 +257,10 @@ class RosterClient(aioxmpp.service.Service):
 
        The name of the new group is in `group_name`.
 
+       At the time the event fires, the bookkeeping structures for the group
+       are already updated; this implies that :meth:`on_group_added` fires
+       *before* :meth:`on_entry_added_to_group` if the entry added a new group.
+
     .. signal:: on_entry_removed_from_group(item, group_name)
 
        Fires when an update removes an `item` from a group. The
@@ -265,11 +273,43 @@ class RosterClient(aioxmpp.service.Service):
 
        The name of the new group is in `group_name`.
 
+       At the time the event fires, the bookkeeping structures are already
+       updated; this implies that :meth:`on_group_removed` fires *before*
+       :meth:`on_entry_removed_from_group` if the removal of an entry from a
+       group causes the group to vanish.
+
     .. signal:: on_entry_removed(item)
 
        Fires after an entry has been removed from the roster. The entry is
        already removed from all bookkeeping structures, but the values on the
        `item` object are the same as right before the removal.
+
+       This implies that :meth:`on_group_removed` fires *before*
+       :meth:`on_entry_removed` if the removal of an entry causes a group to
+       vanish.
+
+    .. signal:: on_group_added(group)
+
+        Fires after a new group has been added to the bookkeeping structures.
+
+        :param group: Name of the new group.
+        :type group: :class:`str`
+
+        At the time the event fires, the group is empty.
+
+        .. versionadded:: 0.9
+
+    .. signal:: on_group_removed(group)
+
+        Fires after a new group has been removed from the bookkeeping
+        structures.
+
+        :param group: Name of the old group.
+        :type group: :class:`str`
+
+        At the time the event fires, the group is empty.
+
+        .. versionadded:: 0.9
 
     Modifying roster contents:
 
@@ -341,6 +381,10 @@ class RosterClient(aioxmpp.service.Service):
        1.0.
     """
 
+    ORDER_AFTER = [
+        aioxmpp.dispatcher.SimplePresenceDispatcher,
+    ]
+
     on_initial_roster_received = callbacks.Signal()
     on_entry_name_changed = callbacks.Signal()
     on_entry_subscription_state_changed = callbacks.Signal()
@@ -348,6 +392,9 @@ class RosterClient(aioxmpp.service.Service):
     on_entry_added = callbacks.Signal()
     on_entry_added_to_group = callbacks.Signal()
     on_entry_removed_from_group = callbacks.Signal()
+
+    on_group_added = callbacks.Signal()
+    on_group_removed = callbacks.Signal()
 
     on_subscribed = callbacks.Signal()
     on_subscribe = callbacks.Signal()
@@ -361,6 +408,8 @@ class RosterClient(aioxmpp.service.Service):
             self._request_initial_roster
         )
 
+        self.__roster_lock = asyncio.Lock()
+
         self.items = {}
         self.groups = {}
         self.version = None
@@ -371,9 +420,14 @@ class RosterClient(aioxmpp.service.Service):
         except KeyError:
             stored_item = Item.from_xso_item(xso_item)
             self.items[xso_item.jid] = stored_item
-            self.on_entry_added(stored_item)
             for group in stored_item.groups:
-                self.groups.setdefault(group, set()).add(stored_item)
+                try:
+                    group_members = self.groups[group]
+                except KeyError:
+                    group_members = self.groups.setdefault(group, set())
+                    self.on_group_added(group)
+                group_members.add(stored_item)
+            self.on_entry_added(stored_item)
             return
 
         to_call = []
@@ -399,7 +453,12 @@ class RosterClient(aioxmpp.service.Service):
             cb(stored_item)
 
         for group in added_to_groups:
-            self.groups.setdefault(group, set()).add(stored_item)
+            try:
+                group_members = self.groups[group]
+            except KeyError:
+                group_members = self.groups.setdefault(group, set())
+                self.on_group_added(group)
+            group_members.add(stored_item)
             self.on_entry_added_to_group(stored_item, group)
 
         for group in removed_from_groups:
@@ -407,6 +466,7 @@ class RosterClient(aioxmpp.service.Service):
             groupset.remove(stored_item)
             if not groupset:
                 del self.groups[group]
+                self.on_group_removed(group)
             self.on_entry_removed_from_group(stored_item, group)
 
     @aioxmpp.service.iq_handler(
@@ -414,94 +474,104 @@ class RosterClient(aioxmpp.service.Service):
         roster_xso.Query)
     @asyncio.coroutine
     def handle_roster_push(self, iq):
-        if iq.from_:
+        if iq.from_ and iq.from_ != self.client.local_jid.bare():
             raise errors.XMPPAuthError((namespaces.stanzas, "forbidden"))
 
         request = iq.payload
 
-        for item in request.items:
-            if item.subscription == "remove":
-                try:
-                    old_item = self.items.pop(item.jid)
-                except KeyError:
-                    pass
+        with (yield from self.__roster_lock):
+            for item in request.items:
+                if item.subscription == "remove":
+                    try:
+                        old_item = self.items.pop(item.jid)
+                    except KeyError:
+                        pass
+                    else:
+                        self._remove_from_groups(old_item, old_item.groups)
+                        self.on_entry_removed(old_item)
                 else:
-                    for group in old_item.groups:
-                        groupset = self.groups[group]
-                        groupset.remove(old_item)
-                        if not groupset:
-                            del self.groups[group]
-                    self.on_entry_removed(old_item)
-            else:
-                self._update_entry(item)
+                    self._update_entry(item)
 
-        self.version = request.ver
+            self.version = request.ver
 
-    @aioxmpp.service.presence_handler(
+    @aioxmpp.dispatcher.presence_handler(
         aioxmpp.structs.PresenceType.SUBSCRIBE,
         None)
     def handle_subscribe(self, stanza):
         self.on_subscribe(stanza)
 
-    @aioxmpp.service.presence_handler(
+    @aioxmpp.dispatcher.presence_handler(
         aioxmpp.structs.PresenceType.SUBSCRIBED,
         None)
     def handle_subscribed(self, stanza):
         self.on_subscribed(stanza)
 
-    @aioxmpp.service.presence_handler(
+    @aioxmpp.dispatcher.presence_handler(
         aioxmpp.structs.PresenceType.UNSUBSCRIBED,
         None)
     def handle_unsubscribed(self, stanza):
         self.on_unsubscribed(stanza)
 
-    @aioxmpp.service.presence_handler(
+    @aioxmpp.dispatcher.presence_handler(
         aioxmpp.structs.PresenceType.UNSUBSCRIBE,
         None)
     def handle_unsubscribe(self, stanza):
         self.on_unsubscribe(stanza)
+
+    def _remove_from_groups(self, item_to_remove, groups):
+        for group in groups:
+            try:
+                group_members = self.groups[group]
+            except KeyError:
+                continue
+            group_members.remove(item_to_remove)
+            if not group_members:
+                del self.groups[group]
+                self.on_group_removed(group)
 
     @asyncio.coroutine
     def _request_initial_roster(self):
         iq = stanza.IQ(type_=structs.IQType.GET)
         iq.payload = roster_xso.Query()
 
-        logger.debug("requesting initial roster")
-        if self.client.stream_features.has_feature(
-                roster_xso.RosterVersioningFeature):
-            logger.debug("requesting incremental updates (old ver = %s)",
-                         self.version)
-            iq.payload.ver = self.version
+        with (yield from self.__roster_lock):
+            logger.debug("requesting initial roster")
+            if self.client.stream_features.has_feature(
+                    roster_xso.RosterVersioningFeature):
+                logger.debug("requesting incremental updates (old ver = %s)",
+                             self.version)
+                iq.payload.ver = self.version
 
-        response = yield from self.client.stream.send(
-            iq,
-            timeout=self.client.negotiation_timeout.total_seconds()
-        )
+            response = yield from self.client.stream.send(
+                iq,
+                timeout=self.client.negotiation_timeout.total_seconds()
+            )
 
-        if response is None:
-            logger.debug("roster will be updated incrementally")
+            if response is None:
+                logger.debug("roster will be updated incrementally")
+                self.on_initial_roster_received()
+                return True
+
+            self.version = response.ver
+            logger.debug("roster update received (new ver = %s)", self.version)
+
+            actual_jids = {item.jid for item in response.items}
+            known_jids = set(self.items.keys())
+
+            removed_jids = known_jids - actual_jids
+            logger.debug("jids dropped: %r", removed_jids)
+
+            for removed_jid in removed_jids:
+                old_item = self.items.pop(removed_jid)
+                self._remove_from_groups(old_item, old_item.groups)
+                self.on_entry_removed(old_item)
+
+            logger.debug("jids updated: %r", actual_jids - removed_jids)
+            for item in response.items:
+                self._update_entry(item)
+
             self.on_initial_roster_received()
             return True
-
-        self.version = response.ver
-        logger.debug("roster update received (new ver = %s)", self.version)
-
-        actual_jids = {item.jid for item in response.items}
-        known_jids = set(self.items.keys())
-
-        removed_jids = known_jids - actual_jids
-        logger.debug("jids dropped: %r", removed_jids)
-
-        for removed_jid in removed_jids:
-            old_item = self.items.pop(removed_jid)
-            self.on_entry_removed(old_item)
-
-        logger.debug("jids updated: %r", actual_jids - removed_jids)
-        for item in response.items:
-            self._update_entry(item)
-
-        self.on_initial_roster_received()
-        return True
 
     def export_as_json(self):
         """

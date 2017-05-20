@@ -23,6 +23,7 @@ import asyncio
 import contextlib
 import unittest
 
+import aioxmpp.dispatcher
 import aioxmpp.errors as errors
 import aioxmpp.roster.service as roster_service
 import aioxmpp.roster.xso as roster_xso
@@ -32,7 +33,11 @@ import aioxmpp.structs as structs
 
 from aioxmpp.utils import namespaces
 
-from aioxmpp.testutils import make_connected_client, run_coroutine
+from aioxmpp.testutils import (
+    make_connected_client,
+    run_coroutine,
+    make_listener,
+)
 
 
 TEST_JID = structs.JID.fromstr("user@foo.example")
@@ -195,7 +200,17 @@ class TestItem(unittest.TestCase):
 class TestService(unittest.TestCase):
     def setUp(self):
         self.cc = make_connected_client()
-        self.s = roster_service.RosterClient(self.cc)
+        self.presence_dispatcher = aioxmpp.dispatcher.SimplePresenceDispatcher(
+            self.cc
+        )
+        self.dependencies = {
+            aioxmpp.dispatcher.SimplePresenceDispatcher:
+                self.presence_dispatcher,
+        }
+        self.s = roster_service.RosterClient(
+            self.cc,
+            dependencies=self.dependencies
+        )
 
         self.user1 = structs.JID.fromstr("user@foo.example")
         self.user2 = structs.JID.fromstr("user@bar.example")
@@ -228,6 +243,8 @@ class TestService(unittest.TestCase):
 
         self.cc.stream.send.reset_mock()
 
+        self.listener = make_listener(self.s)
+
     def test_is_Service(self):
         self.assertIsInstance(
             self.s,
@@ -235,75 +252,15 @@ class TestService(unittest.TestCase):
         )
 
     def test_init(self):
-        s = roster_service.RosterClient(self.cc)
+        # required to clear listeners of dependency
+        run_coroutine(self.s.shutdown())
+        s = roster_service.RosterClient(
+            self.cc,
+            dependencies=self.dependencies
+        )
         self.assertDictEqual({}, s.items)
         self.assertEqual(None, s.version)
         self.assertDictEqual({}, s.groups)
-
-    def test_setup(self):
-        self.assertCountEqual(
-            [
-                unittest.mock.call.stream.register_iq_request_coro(
-                    structs.IQType.SET,
-                    roster_xso.Query,
-                    self.s.handle_roster_push
-                ),
-                unittest.mock.call.stream.register_presence_callback(
-                    structs.PresenceType.SUBSCRIBE,
-                    None,
-                    self.s.handle_subscribe
-                ),
-                unittest.mock.call.stream.register_presence_callback(
-                    structs.PresenceType.SUBSCRIBED,
-                    None,
-                    self.s.handle_subscribed
-                ),
-                unittest.mock.call.stream.register_presence_callback(
-                    structs.PresenceType.UNSUBSCRIBED,
-                    None,
-                    self.s.handle_unsubscribed
-                ),
-                unittest.mock.call.stream.register_presence_callback(
-                    structs.PresenceType.UNSUBSCRIBE,
-                    None,
-                    self.s.handle_unsubscribe
-                ),
-                unittest.mock.call.stream.send(
-                    unittest.mock.ANY,
-                    timeout=self.cc.negotiation_timeout.total_seconds()
-                )
-            ],
-            self.cc.mock_calls
-        )
-
-    def test_shutdown(self):
-        self.cc.mock_calls.clear()
-        run_coroutine(self.s.shutdown())
-        self.assertCountEqual(
-            [
-                unittest.mock.call.stream.unregister_presence_callback(
-                    structs.PresenceType.UNSUBSCRIBE,
-                    None
-                ),
-                unittest.mock.call.stream.unregister_presence_callback(
-                    structs.PresenceType.UNSUBSCRIBED,
-                    None
-                ),
-                unittest.mock.call.stream.unregister_presence_callback(
-                    structs.PresenceType.SUBSCRIBED,
-                    None
-                ),
-                unittest.mock.call.stream.unregister_presence_callback(
-                    structs.PresenceType.SUBSCRIBE,
-                    None
-                ),
-                unittest.mock.call.stream.unregister_iq_request_coro(
-                    structs.IQType.SET,
-                    roster_xso.Query
-                ),
-            ],
-            self.cc.mock_calls
-        )
 
     def test_handle_roster_push_is_decorated(self):
         self.assertTrue(
@@ -316,7 +273,7 @@ class TestService(unittest.TestCase):
 
     def test_handle_subscribe_is_decorated(self):
         self.assertTrue(
-            service.is_presence_handler(
+            aioxmpp.dispatcher.is_presence_handler(
                 structs.PresenceType.SUBSCRIBE,
                 None,
                 roster_service.RosterClient.handle_subscribe,
@@ -325,7 +282,7 @@ class TestService(unittest.TestCase):
 
     def test_handle_subscribed_is_decorated(self):
         self.assertTrue(
-            service.is_presence_handler(
+            aioxmpp.dispatcher.is_presence_handler(
                 structs.PresenceType.SUBSCRIBED,
                 None,
                 roster_service.RosterClient.handle_subscribed,
@@ -334,7 +291,7 @@ class TestService(unittest.TestCase):
 
     def test_handle_unsubscribe_is_decorated(self):
         self.assertTrue(
-            service.is_presence_handler(
+            aioxmpp.dispatcher.is_presence_handler(
                 structs.PresenceType.UNSUBSCRIBE,
                 None,
                 roster_service.RosterClient.handle_unsubscribe,
@@ -343,7 +300,7 @@ class TestService(unittest.TestCase):
 
     def test_handle_unsubscribed_is_decorated(self):
         self.assertTrue(
-            service.is_presence_handler(
+            aioxmpp.dispatcher.is_presence_handler(
                 structs.PresenceType.UNSUBSCRIBED,
                 None,
                 roster_service.RosterClient.handle_unsubscribed,
@@ -359,8 +316,34 @@ class TestService(unittest.TestCase):
         self.assertEqual("some bar user", self.s.items[self.user2].name)
 
     def test_handle_roster_push_rejects_push_with_nonempty_from(self):
+        self.cc.local_jid = structs.JID.fromstr("foo@bar.example")
+
+        iq = stanza.IQ(type_=structs.IQType.SET)
+        iq.from_ = structs.JID.fromstr("fnord@bar.example")
+
+        with self.assertRaises(errors.XMPPAuthError) as ctx:
+            run_coroutine(self.s.handle_roster_push(iq))
+
+        self.assertEqual(
+            (namespaces.stanzas, "forbidden"),
+            ctx.exception.condition
+        )
+
+    def test_handle_roster_push_accepts_push_from_bare_local_jid(self):
+        self.cc.local_jid = structs.JID.fromstr("foo@bar.example/fnord")
+
         iq = stanza.IQ(type_=structs.IQType.SET)
         iq.from_ = structs.JID.fromstr("foo@bar.example")
+        iq.payload = roster_xso.Query()
+
+        run_coroutine(self.s.handle_roster_push(iq))
+
+    def test_handle_roster_push_rejects_push_from_full_local_jid(self):
+        self.cc.local_jid = structs.JID.fromstr("foo@bar.example/fnord")
+
+        iq = stanza.IQ(type_=structs.IQType.SET)
+        iq.from_ = structs.JID.fromstr("foo@bar.example/fnord")
+        iq.payload = roster_xso.Query()
 
         with self.assertRaises(errors.XMPPAuthError) as ctx:
             run_coroutine(self.s.handle_roster_push(iq))
@@ -514,6 +497,40 @@ class TestService(unittest.TestCase):
             cb.mock_calls
         )
 
+    def test_initial_roster_fires_group_event(self):
+        response = roster_xso.Query(
+            items=[
+                roster_xso.Item(
+                    jid=self.user2,
+                    name="some bar user",
+                    subscription="both",
+                    groups={roster_xso.Group(name="a"),
+                            roster_xso.Group(name="b")}
+                ),
+                roster_xso.Item(
+                    jid=self.user1,
+                    name="some foo user",
+                    subscription="both",
+                    groups={roster_xso.Group(name="a"),
+                            roster_xso.Group(name="c")}
+                )
+            ],
+            ver="foobar"
+        )
+
+        self.cc.stream.send.return_value = response
+
+        run_coroutine(self.cc.before_stream_established())
+
+        self.assertCountEqual(
+            self.listener.on_group_added.mock_calls,
+            [
+                unittest.mock.call("a"),
+                unittest.mock.call("b"),
+                unittest.mock.call("c"),
+            ]
+        )
+
     def test_initial_roster_does_not_emit_entry_added_for_existing(self):
         old_item = self.s.items[self.user2]
 
@@ -538,9 +555,7 @@ class TestService(unittest.TestCase):
 
         self.cc.stream.send.return_value = response
 
-        task = asyncio.async(self.cc.before_stream_established())
-
-        run_coroutine(asyncio.sleep(0))
+        run_coroutine(self.cc.before_stream_established())
 
         self.assertSequenceEqual(
             [
@@ -571,6 +586,141 @@ class TestService(unittest.TestCase):
 
         self.assertIs(old_item, self.s.items[self.user2])
         self.assertEqual("new name", old_item.name)
+
+    def test_initial_roster_removes_contact_from_groups(self):
+        response = roster_xso.Query(
+            items=[
+                roster_xso.Item(
+                    jid=self.user2,
+                    name="some bar user",
+                    subscription="both",
+                    groups=[
+                        roster_xso.Group(name="group1"),
+                        roster_xso.Group(name="group2"),
+                    ]
+                )
+            ],
+            ver="foobar"
+        )
+
+        self.cc.stream.send.return_value = response
+
+        run_coroutine(self.cc.before_stream_established())
+
+        self.assertSetEqual(
+            self.s.groups["group1"],
+            {self.s.items[self.user2]},
+        )
+
+        self.assertSetEqual(
+            self.s.groups["group2"],
+            {self.s.items[self.user2]},
+        )
+
+        self.assertSetEqual(
+            self.s.groups.get("group3", set()),
+            set(),
+        )
+
+    def test_initial_roster_fires_group_removed_event_for_removed_contact(self):  # NOQA
+        response = roster_xso.Query(
+            items=[
+                roster_xso.Item(
+                    jid=self.user2,
+                    name="some bar user",
+                    subscription="both",
+                    groups=[
+                        roster_xso.Group(name="group1"),
+                        roster_xso.Group(name="group2"),
+                    ]
+                )
+            ],
+            ver="foobar"
+        )
+
+        self.cc.stream.send.return_value = response
+
+        run_coroutine(self.cc.before_stream_established())
+
+        self.assertCountEqual(
+            self.listener.on_group_removed.mock_calls,
+            [
+                unittest.mock.call("group3"),
+            ]
+        )
+
+    def test_initial_roster_fires_group_removed_event_for_changed_contact(self):  # NOQA
+        response = roster_xso.Query(
+            items=[
+                roster_xso.Item(
+                    jid=self.user2,
+                    name="some bar user",
+                    subscription="both",
+                    groups=[
+                        roster_xso.Group(name="group1"),
+                        roster_xso.Group(name="group2"),
+                    ]
+                ),
+                roster_xso.Item(
+                    jid=self.user1,
+                    name="some foo user",
+                    subscription="both",
+                    groups={roster_xso.Group(name="group1")}
+                )
+            ],
+            ver="foobar"
+        )
+
+        self.cc.stream.send.return_value = response
+
+        run_coroutine(self.cc.before_stream_established())
+
+        self.assertCountEqual(
+            self.listener.on_group_removed.mock_calls,
+            [
+                unittest.mock.call("group3"),
+            ]
+        )
+
+    def test_groups_are_cleaned_up_up_when_on_entry_removed_fires_on_initial_roster(self):  # NOQA
+        response = roster_xso.Query(
+            items=[
+                roster_xso.Item(
+                    jid=self.user2,
+                    name="some bar user",
+                    subscription="both",
+                    groups=[
+                        roster_xso.Group(name="group1"),
+                        roster_xso.Group(name="group2"),
+                    ]
+                ),
+            ],
+            ver="foobar"
+        )
+
+        fut = asyncio.Future()
+
+        def handler(item):
+            try:
+                for group in item.groups:
+                    try:
+                        members = self.s.groups[group]
+                    except KeyError:
+                        members = set()
+                    self.assertNotIn(item, members)
+
+            except Exception as exc:
+                fut.set_exception(exc)
+            else:
+                fut.set_result(None)
+
+        self.cc.stream.send.return_value = response
+
+        self.s.on_entry_removed.connect(handler)
+
+        run_coroutine(self.cc.before_stream_established())
+
+        run_coroutine(fut)
 
     def test_on_entry_name_changed(self):
         request = roster_xso.Query(
@@ -708,6 +858,169 @@ class TestService(unittest.TestCase):
             ],
             cb.mock_calls
         )
+
+    def test_on_group_added_for_new_contact(self):
+        new_jid = structs.JID.fromstr("fnord@foo.example")
+
+        request = roster_xso.Query(
+            items=[
+                roster_xso.Item(
+                    jid=new_jid,
+                    subscription="none",
+                    groups={
+                        roster_xso.Group(name="a"),
+                        roster_xso.Group(name="group1"),
+                    },
+                ),
+            ],
+            ver="foobar"
+        )
+
+        iq = stanza.IQ(type_=structs.IQType.SET)
+        iq.payload = request
+
+        run_coroutine(self.s.handle_roster_push(iq))
+
+        self.listener.on_group_added.assert_called_once_with("a")
+
+    def test_groups_are_set_up_when_on_entry_added_fires(self):
+        fut = asyncio.Future()
+
+        def handler(item):
+            try:
+                for group in item.groups:
+                    self.assertIn(group, self.s.groups)
+                    self.assertIn(item, self.s.groups[group])
+
+            except Exception as exc:
+                fut.set_exception(exc)
+            else:
+                fut.set_result(None)
+
+        new_jid = structs.JID.fromstr("fnord@foo.example")
+
+        request = roster_xso.Query(
+            items=[
+                roster_xso.Item(
+                    jid=new_jid,
+                    subscription="none",
+                    groups={
+                        roster_xso.Group(name="a"),
+                        roster_xso.Group(name="group1"),
+                    },
+                ),
+            ],
+            ver="foobar"
+        )
+
+        iq = stanza.IQ(type_=structs.IQType.SET)
+        iq.payload = request
+
+        self.s.on_entry_added.connect(handler)
+
+        run_coroutine(self.s.handle_roster_push(iq))
+
+        run_coroutine(fut)
+
+    def test_on_group_added_for_existing_contact(self):
+        request = roster_xso.Query(
+            items=[
+                roster_xso.Item(
+                    jid=self.user2,
+                    subscription="none",
+                    groups={
+                        roster_xso.Group(name="group1"),
+                        roster_xso.Group(name="group2"),
+                        roster_xso.Group(name="group4"),
+                    },
+                ),
+            ],
+            ver="foobar"
+        )
+
+        iq = stanza.IQ(type_=structs.IQType.SET)
+        iq.payload = request
+
+        run_coroutine(self.s.handle_roster_push(iq))
+
+        self.listener.on_group_added.assert_called_once_with("group4")
+
+    def test_on_group_removed_for_existing_contact(self):
+        request = roster_xso.Query(
+            items=[
+                roster_xso.Item(
+                    jid=self.user2,
+                    subscription="none",
+                    groups={
+                        roster_xso.Group(name="group1"),
+                    },
+                ),
+            ],
+            ver="foobar"
+        )
+
+        iq = stanza.IQ(type_=structs.IQType.SET)
+        iq.payload = request
+
+        run_coroutine(self.s.handle_roster_push(iq))
+
+        self.listener.on_group_removed.assert_called_once_with("group2")
+
+    def test_on_group_removed_for_removed_contact(self):
+        request = roster_xso.Query(
+            items=[
+                roster_xso.Item(
+                    jid=self.user2,
+                    subscription="remove",
+                ),
+            ],
+            ver="foobar"
+        )
+
+        iq = stanza.IQ(type_=structs.IQType.SET)
+        iq.payload = request
+
+        run_coroutine(self.s.handle_roster_push(iq))
+
+        self.listener.on_group_removed.assert_called_once_with("group2")
+
+    def test_groups_are_cleaned_up_up_when_on_entry_removed_fires_on_push(self):
+        fut = asyncio.Future()
+
+        def handler(item):
+            try:
+                for group in item.groups:
+                    try:
+                        members = self.s.groups[group]
+                    except KeyError:
+                        members = set()
+                    self.assertNotIn(item, members)
+
+            except Exception as exc:
+                fut.set_exception(exc)
+            else:
+                fut.set_result(None)
+
+        new_jid = structs.JID.fromstr("fnord@foo.example")
+
+        request = roster_xso.Query(
+            items=[
+                roster_xso.Item(
+                    jid=self.user2,
+                    subscription="remove",
+                ),
+            ],
+            ver="foobar"
+        )
+
+        iq = stanza.IQ(type_=structs.IQType.SET)
+        iq.payload = request
+
+        self.s.on_entry_removed.connect(handler)
+
+        run_coroutine(self.s.handle_roster_push(iq))
+
+        run_coroutine(fut)
 
     def test_export_as_json(self):
         self.assertDictEqual(
@@ -1290,3 +1603,57 @@ class TestService(unittest.TestCase):
         self.assertIsInstance(st, stanza.Presence)
         self.assertEqual(st.to, TEST_JID)
         self.assertEqual(st.type_, structs.PresenceType.UNSUBSCRIBE)
+
+    def test_do_not_lose_update_during_initial_roster(self):
+        self.cc.mock_calls.clear()
+
+        initial = roster_xso.Query(
+            items=[
+                roster_xso.Item(
+                    jid=self.user2,
+                    name="some bar user",
+                    subscription="both"
+                )
+            ],
+            ver="foobar"
+        )
+
+        push = stanza.IQ(
+            type_=structs.IQType.SET,
+            payload=roster_xso.Query(
+                items=[
+                    roster_xso.Item(
+                        jid=self.user1,
+                        name="some foo user",
+                    ),
+                    roster_xso.Item(
+                        jid=self.user2,
+                        subscription="remove",
+                    )
+                ],
+                ver="foobar"
+            )
+        )
+
+        @asyncio.coroutine
+        def send(iq, timeout=None):
+            # this is brutal, but a sure way to provoke the race
+            asyncio.async(self.s.handle_roster_push(push))
+            # give the roster push a chance to act
+            # (we cannot yield from the handle_roster_push() here: in the fixed
+            # version that would be a deadlock)
+            yield from asyncio.sleep(0)
+            return initial
+
+        self.cc.stream.send = unittest.mock.Mock()
+        self.cc.stream.send.side_effect = send
+
+        initial_roster = asyncio.async(self.cc.before_stream_established())
+
+        run_coroutine(initial_roster)
+
+        self.assertNotIn(
+            self.user2,
+            self.s.items,
+            "initial roster processing lost a race against roster push"
+        )

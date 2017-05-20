@@ -173,7 +173,7 @@ class TestProtocol(unittest.TestCase):
                 [
                     TransportMock.Write(
                         b'<iq id="foo" type="error"><error type="cancel">'
-                        b'<feature-not-implemented'
+                        b'<service-unavailable'
                         b' xmlns="urn:ietf:params:xml:ns:xmpp-stanzas"/>'
                         b'</error></iq>'
                     ),
@@ -295,7 +295,7 @@ class TestProtocol(unittest.TestCase):
                         b'<r xmlns="urn:xmpp:sm:3"/>',
                         response=[
                             TransportMock.Receive(
-                                b'<a xmlns="urn:xmpp:sm:3" h="1"/>',
+                                b'<a xmlns="urn:xmpp:sm:3" h="0"/>',
                             ),
                             TransportMock.Receive(
                                 b'<r xmlns="urn:xmpp:sm:3"/>',

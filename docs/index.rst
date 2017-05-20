@@ -59,10 +59,16 @@ Feature overview
   clients.
 
 * Well-tested and modular codebase: :mod:`aioxmpp` is developed in test-driven
-  style and many modules are automatedly tested against a Prosody 0.9.
+  style and many modules are automatedly tested against a
+  `Prosody <https://prosody.im/>`_ 0.9, 0.10 and the most recent development
+  version, as well as `ejabberd <https://www.ejabberd.im/>`_, two popular XMPP
+  servers.
 
   .. image:: https://travis-ci.org/horazont/aioxmpp.svg?branch=devel
     :target: https://travis-ci.org/horazont/aioxmpp
+
+  .. image:: https://coveralls.io/repos/github/horazont/aioxmpp/badge.svg?branch=devel
+    :target: https://coveralls.io/github/horazont/aioxmpp?branch=devel
 
 Check out the :ref:`ug-quick-start` to get started with :mod:`aioxmpp` now! ☺
 
@@ -81,7 +87,7 @@ From IETF RFCs
 * :rfc:`4616` (SASL PLAIN), see :func:`aioxmpp.make_security_layer` and :mod:`aiosasl`
 * :rfc:`5802` (SASL SCRAM), see :func:`aioxmpp.make_security_layer` and :mod:`aiosasl`
 * :rfc:`6120` (XMPP Core), including some of the legacy from :rfc:`3920`
-* :rfc:`6121` (XMPPInstant Messaging and Presence)
+* :rfc:`6121` (XMPP Instant Messaging and Presence)
 
   * see :mod:`aioxmpp.presence` for managing inbound presence
   * see :mod:`aioxmpp.roster` for managing the roster and presence subscriptions
@@ -94,18 +100,29 @@ From XMPP Extension Proposals (XEPs)
 * :xep:`4` (Data Forms), see :mod:`aioxmpp.forms`
 * :xep:`30` (Service Discovery), see :mod:`aioxmpp.disco`
 * :xep:`45` (Multi-User Chat), see :mod:`aioxmpp.muc`
+* :xep:`48` (Bookmarks), see :mod:`aioxmpp.bookmarks`
+* :xep:`49` (Private XML Storage), see :mod:`aioxmpp.private_xml`
 * :xep:`50` (Ad-Hoc Commands), see :mod:`aioxmpp.adhoc` (no support for offering
   commands to other entities)
 * :xep:`59` (Result Set Management), see :mod:`aioxmpp.rsm`
 * :xep:`60` (Publish-Subscribe), see :mod:`aioxmpp.pubsub`
 * :xep:`68` (Field Standardisation for Data Forms), see :mod:`aioxmpp.forms`
 * :xep:`82` (XMPP Date and Time Profiles), via :class:`aioxmpp.xso.DateTime` and others
+* :xep:`84` (User Avatar), see :mod:`aioxmpp.avatar`
 * :xep:`115` (Entity Capabilities), see :mod:`aioxmpp.entitycaps`, including
   read/write support for the capsdb
+* :xep:`163` (Personal Eventing Protocol), see :mod:`aioxmpp.pep`
+* :xep:`191` (Blocking Command), see :mod:`aioxmpp.blocking`
 * :xep:`198` (Stream Management), always enabled if supported by the server
 * :xep:`199` (XMPP Ping), used for aliveness-checks if Stream Management is not
-  avaliable
+  avaliable and :mod:`aioxmpp.ping`
+* :xep:`203` (Delayed Delivery), see :mod:`aioxmpp.misc`
+* :xep:`297` (Stanza Forwarding), see :mod:`aioxmpp.misc`
+* :xep:`280` (Message Carbons), see :mod:`aioxmpp.carbons`
+* :xep:`300` (Use of Cryptographic Hash Functions in XMPP),
+  see :mod:`aioxmpp.hashes`
 * :xep:`368` (SRV records for XMPP over TLS)
+* :xep:`390` (Entity Capabilities 2.0), see :mod:`aioxmpp.entitycaps`
 
 
 Dependencies

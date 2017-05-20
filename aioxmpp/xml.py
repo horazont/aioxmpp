@@ -33,15 +33,7 @@ The most useful class here is the :class:`XMPPXMLGenerator`:
 
 .. autoclass:: XMPPXMLGenerator
 
-The following generator function can be used to send several
-:class:`~.stanza_model.XSO` instances along an XMPP stream without
-bothering with any cleanup.
-
-.. autofunction:: write_xmlstream
-
-.. autofunction:: write_objects
-
-.. autoclass:: AbortStream
+.. autoclass:: XMLStreamWriter
 
 Processing XML streams
 ======================
@@ -68,8 +60,10 @@ Utility functions
 
 """
 
+import copy
 import ctypes
 import ctypes.util
+import contextlib
 import io
 
 import xml.sax
@@ -97,11 +91,15 @@ def xmlValidateNameValue_buf(b):
     return bool(libxml2.xmlValidateNameValue(b))
 
 
-class AbortStream(Exception):
-    """
-    This is a signal exception which causes :func:`write_xmlstream` to stop
-    immediately without closing the stream.
-    """
+def is_valid_cdata_str(s):
+    for c in s:
+        o = ord(c)
+        if o >= 32:
+            continue
+        if o < 9 or 11 <= o <= 12 or 14 <= o <= 31:
+            return False
+
+    return True
 
 
 class XMPPXMLGenerator:
@@ -111,7 +109,7 @@ class XMPPXMLGenerator:
 
     * It supports **only** namespace-conforming XML documents
     * It automatically chooses namespace prefixes if a namespace has not been
-      declared
+      declared, while avoiding to use prefixes at all if possible
     * It is in general stricter on (explicit) namespace declarations, to avoid
       ambiguities
     * It always uses utf-8 ☺
@@ -172,6 +170,8 @@ class XMPPXMLGenerator:
 
     .. automethod:: flush
 
+    .. automethod:: buffer
+
     """
     def __init__(self, out,
                  short_empty_elements=True,
@@ -181,18 +181,29 @@ class XMPPXMLGenerator:
             self._flush = out.flush
         else:
             self._flush = None
-        self._ns_map_stack = [({}, {}, 0)]
-        self._curr_ns_map = {}
+
         self._short_empty_elements = short_empty_elements
         self._sorted_attributes = sorted_attributes
+
+        # NOTE: when adding state, make sure to handle it in buffer() and to
+        # add tests that buffer() handles it correctly
+        self._ns_map_stack = [({}, set(), 0)]
+        self._curr_ns_map = {}
         self._pending_start_element = False
         self._ns_prefixes_floating_in = {}
-        self._ns_prefixes_floating_out = {}
+        self._ns_prefixes_floating_out = set()
         self._ns_auto_prefixes_floating_in = set()
         self._ns_decls_floating_in = {}
         self._ns_counter = -1
 
-    def _roll_prefix(self):
+        # for buffer()
+        self._buf = None
+        self._buf_in_use = False
+
+    def _roll_prefix(self, attr):
+        if not attr and None not in self._ns_prefixes_floating_in:
+            return None
+
         prefix_number = self._ns_counter + 1
         while True:
             prefix = "ns{}".format(prefix_number)
@@ -214,15 +225,20 @@ class XMPPXMLGenerator:
                 return "xml:" + name[1]
             try:
                 prefix = self._ns_decls_floating_in[name[0]]
+                if attr and prefix is None:
+                    raise KeyError()
             except KeyError:
                 try:
                     prefix = self._curr_ns_map[name[0]]
                     if prefix in self._ns_prefixes_floating_in:
                         raise KeyError()
+                    if attr and prefix is None:
+                        raise KeyError()
                 except KeyError:
                     # namespace is undeclared, we have to declare it..
-                    prefix = self._roll_prefix()
+                    prefix = self._roll_prefix(attr)
                     self.startPrefixMapping(prefix, name[0], auto=True)
+
             if prefix:
                 return ":".join((prefix, name[1]))
 
@@ -267,6 +283,7 @@ class XMPPXMLGenerator:
         self._curr_ns_map.update(new_decls)
         self._ns_decls_floating_in = {}
         self._ns_prefixes_floating_in = {}
+        self._ns_auto_prefixes_floating_in.clear()
 
         return cleared_new_prefixes
 
@@ -308,7 +325,6 @@ class XMPPXMLGenerator:
         During a transaction, it is not allowed to declare the same prefix
         multiple times.
         """
-
         if     (prefix is not None and
                 (prefix == "xml" or
                  prefix == "xmlns" or
@@ -432,10 +448,7 @@ class XMPPXMLGenerator:
         raised.
         """
         self._finish_pending_start_element()
-        if any(0 <= ord(c) <= 8 or
-               11 <= ord(c) <= 12 or
-               14 <= ord(c) <= 31
-               for c in chars):
+        if not is_valid_cdata_str(chars):
             raise ValueError("control characters are not allowed in "
                              "well-formed XML")
         self._write(xml.sax.saxutils.escape(chars).encode("utf-8"))
@@ -491,104 +504,237 @@ class XMPPXMLGenerator:
         if self._flush:
             self._flush()
 
+    @contextlib.contextmanager
+    def _save_state(self):
+        """
+        Helper context manager for :meth:`buffer` which saves the whole state.
 
-def write_objects(writer, *, autoflush=False):
-    """
-    Return a generator. All :class:`.xso.XSO` objects sent into the generator
-    (using it’s :meth:`send` method) are written to the given
-    *writer*. *writer* must be an object supporting the namespace-aware SAX
-    interface.
+        This is broken out in a separate method for readability and tested
+        indirectly by testing :meth:`buffer`.
+        """
+        ns_prefixes_floating_in = copy.copy(self._ns_prefixes_floating_in)
+        ns_prefixes_floating_out = copy.copy(self._ns_prefixes_floating_out)
+        ns_decls_floating_in = copy.copy(self._ns_decls_floating_in)
+        curr_ns_map = copy.copy(self._curr_ns_map)
+        ns_map_stack = copy.copy(self._ns_map_stack)
+        pending_start_element = self._pending_start_element
+        ns_counter = self._ns_counter
+        # XXX: I have been unable to find a test justifying copying this :/
+        # for completeness, I’m still doing it
+        ns_auto_prefixes_floating_in = \
+            copy.copy(self._ns_auto_prefixes_floating_in)
+        try:
+            yield
+        except:
+            self._ns_prefixes_floating_in = ns_prefixes_floating_in
+            self._ns_prefixes_floating_out = ns_prefixes_floating_out
+            self._ns_decls_floating_in = ns_decls_floating_in
+            self._pending_start_element = pending_start_element
+            self._curr_ns_map = curr_ns_map
+            self._ns_map_stack = ns_map_stack
+            self._ns_counter = ns_counter
+            self._ns_auto_prefixes_floating_in = ns_auto_prefixes_floating_in
+            raise
 
-    If *autoflush* is true, :meth:`flush` is called on *writer* after each
-    object. Note that not all writers support :meth:`flush`, as it is not part
-    of the official SAX specification.
-    """
-    try:
-        while True:
-            obj = yield
-            obj.unparse_to_sax(writer)
-            if autoflush:
-                writer.flush()
-    except AbortStream:
-        pass
+    @contextlib.contextmanager
+    def buffer(self):
+        """
+        Context manager to temporarily buffer the output.
 
+        :raise RuntimeError: If two :meth:`buffer` context managers are used
+                             nestedly.
 
-def write_xmlstream(f,
-                    to,
-                    from_=None,
-                    version=(1, 0),
-                    nsmap={},
-                    sorted_attributes=False):
-    """
-    Return a generator, which writes an XMPP XML stream on the file-like object
-    `f`.
+        If the context manager is left without exception, the buffered output
+        is sent to the actual sink. Otherwise, it is discarded.
 
-    First, the generator writes the stream header and declares all namespaces
-    given in `nsmap` plus the xmlstream namespace, then the output is flushed
-    and the generator yields.
+        In addition to the output being buffered, buffer also captures the
+        entire state of the XML generator and restores it to the previous state
+        if the context manager is left with an exception.
 
-    `to` must be a :class:`~aioxmpp.JID which refers to the peer. `from_` may
-    be the JID identifying the local side, but see `RFC 6120 for considerations
-    <https://tools.ietf.org/html/rfc6120#section-4.7.1>`_. `version` is the
-    tuple of integers representing the locally supported XMPP version.
+        This can be used to fail-safely attempt to serialise a subtree and
+        return to a well-defined state if serialisation fails.
 
-    `sorted_attributes` is passed to the :class:`XMPPXMLGenerator` which is
-    used by this function.
+        :meth:`flush` is not called automatically.
 
-    Now, user code can send :class:`~.xso.XSO` objects to the
-    generator using its :meth:`send` method. These objects get serialized to
-    the XML stream. Any exception raised during that is re-raised and the
-    stream is closed.
+        If :meth:`flush` is called while a :meth:`buffer` context manager is
+        active, no actual flushing happens (but unfinished opening tags are
+        closed as usual, see the `short_empty_arguments` parameter).
+        """
+        if self._buf_in_use:
+            raise RuntimeError("nested use of buffer() is not supported")
+        self._buf_in_use = True
+        old_write = self._write
+        old_flush = self._flush
 
-    Using the :meth:`throw` method to throw a :class:`AbortStream` exception
-    will immediately stop the generator without closing the stream
-    properly, but with a last flush call to the writer. This can be used to
-    reset the stream.
-    """
-    nsmap_to_use = {
-        "stream": namespaces.xmlstream
-    }
-    nsmap_to_use.update(nsmap)
-
-    attrs = {
-        (None, "to"): str(to),
-        (None, "version"): ".".join(map(str, version))
-    }
-    if from_:
-        attrs[None, "from"] = str(from_)
-
-    writer = XMPPXMLGenerator(
-        out=f,
-        short_empty_elements=True,
-        sorted_attributes=sorted_attributes)
-
-    writer.startDocument()
-    for prefix, uri in nsmap_to_use.items():
-        writer.startPrefixMapping(prefix, uri)
-    writer.startElementNS(
-        (namespaces.xmlstream, "stream"),
-        None,
-        attrs)
-    writer.flush()
-
-    abort = False
-
-    try:
-        while True:
+        if self._buf is None:
+            self._buf = io.BytesIO()
+        else:
             try:
-                obj = yield
-            except AbortStream:
-                abort = True
-                return
-            obj.unparse_to_sax(writer)
-            writer.flush()
-    finally:
-        if not abort:
-            writer.endElementNS((namespaces.xmlstream, "stream"), None)
-            for prefix in nsmap_to_use:
-                writer.endPrefixMapping(prefix)
-            writer.endDocument()
-        writer.flush()
+                self._buf.seek(0)
+                self._buf.truncate()
+            except BufferError:
+                # we need a fresh buffer for this, the other is still in use.
+                self._buf = io.BytesIO()
+
+        self._write = self._buf.write
+        self._flush = None
+        try:
+            with self._save_state():
+                yield
+            old_write(self._buf.getbuffer())
+            if old_flush:
+                old_flush()
+        finally:
+            self._buf_in_use = False
+            self._write = old_write
+            self._flush = old_flush
+
+
+class XMLStreamWriter:
+    """
+    A convenient class to write a standard conforming XML stream.
+
+    :param f: File-like object to write to.
+    :param to: Address to which the connection is addressed.
+    :type to: :class:`aioxmpp.JID`
+    :param from_: Optional address from which the connection originates.
+    :type from_: :class:`aioxmpp.JID`
+    :param version: Version of the XML stream protocol.
+    :type version: :class:`tuple` of (:class:`int`, :class:`int`)
+    :param nsmap: Mapping of namespaces to declare at the stream header.
+
+    .. note::
+
+       The constructor *does not* send a stream header. :meth:`start` must be
+       called explicitly to send a stream header.
+
+    The generated stream header follows :rfc:`6120` and has the ``to`` and
+    ``version`` attributes as well as optionally the ``from`` attribute
+    (controlled by `from_`). In addition, the namespace prefixes defined by
+    `nsmap` (mapping prefixes to namespace URIs) are declared on the stream
+    header.
+
+    .. note::
+
+       It is unfortunately not allowed to use namespace prefixes in stanzas
+       which were declared in stream headers as convenient as that would be.
+       The option is thus only useful to declare the default namespace for
+       stanzas.
+
+    .. autoattribute:: closed
+
+    The following methods are used to generate output:
+
+    .. automethod:: start
+
+    .. automethod:: send
+
+    .. automethod:: abort
+
+    .. automethod:: close
+    """
+
+    def __init__(self, f, to,
+                 from_=None,
+                 version=(1, 0),
+                 nsmap={},
+                 sorted_attributes=False):
+        super().__init__()
+        self._to = to
+        self._from = from_
+        self._version = version
+        self._writer = XMPPXMLGenerator(
+            out=f,
+            short_empty_elements=True,
+            sorted_attributes=sorted_attributes)
+        self._nsmap_to_use = {
+            "stream": namespaces.xmlstream
+        }
+        self._nsmap_to_use.update(nsmap)
+        self._closed = False
+
+    @property
+    def closed(self):
+        """
+        True if the stream has been closed by :meth:`abort` or :meth:`close`.
+        Read-only.
+        """
+        return self._closed
+
+    def start(self):
+        """
+        Send the stream header as described above.
+        """
+        attrs = {
+            (None, "to"): str(self._to),
+            (None, "version"): ".".join(map(str, self._version))
+        }
+        if self._from:
+            attrs[None, "from"] = str(self._from)
+
+        self._writer.startDocument()
+        for prefix, uri in self._nsmap_to_use.items():
+            self._writer.startPrefixMapping(prefix, uri)
+        self._writer.startElementNS(
+            (namespaces.xmlstream, "stream"),
+            None,
+            attrs)
+        self._writer.flush()
+
+    def send(self, xso):
+        """
+        Send a single XML stream object.
+
+        :param xso: Object to serialise and send.
+        :type xso: :class:`aioxmpp.xso.XSO`
+        :raises Exception: from any serialisation errors, usually
+                           :class:`ValueError`.
+
+        Serialise the `xso` and send it over the stream. If any serialisation
+        error occurs, no data is sent over the stream and the exception is
+        re-raised; the :meth:`send` method thus provides strong exception
+        safety.
+
+        .. warning::
+
+           The behaviour of :meth:`send` after :meth:`abort` or :meth:`close`
+           and before :meth:`start` is undefined.
+
+        """
+        with self._writer.buffer():
+            xso.unparse_to_sax(self._writer)
+
+    def abort(self):
+        """
+        Abort the stream.
+
+        The stream is flushed and the internal data structures are cleaned up.
+        No stream footer is sent. The stream is :attr:`closed` afterwards.
+
+        If the stream is already :attr:`closed`, this method does nothing.
+        """
+        if self._closed:
+            return
+        self._closed = True
+        self._writer.flush()
+        del self._writer
+
+    def close(self):
+        """
+        Close the stream.
+
+        The stream footer is sent and the internal structures are cleaned up.
+
+        If the stream is already :attr:`closed`, this method does nothing.
+        """
+        if self._closed:
+            return
+        self._closed = True
+        self._writer.endElementNS((namespaces.xmlstream, "stream"), None)
+        for prefix in self._nsmap_to_use:
+            self._writer.endPrefixMapping(prefix)
+        self._writer.endDocument()
+        del self._writer
 
 
 class ProcessorState(Enum):

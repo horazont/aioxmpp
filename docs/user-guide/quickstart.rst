@@ -124,23 +124,32 @@ Relevant documentation:
 React to messages (Echo Bot)
 ============================
 
-Of course, you can react to messages. For this, you need to register with the
-:class:`aioxmpp.stream.StanaStream` of the `client`. You better do this before
-connecting, to avoid race conditions. So the following code should run
+Of course, you can react to messages. For simple use-cases, you can use the
+:class:`aioxmpp.dispatcher.SimpleMessageDispatcher` service. You better do this
+before connecting, to avoid race conditions. So the following code should run
 before the ``async with``. To get all chat messages, you could use::
+
+  import aioxmpp.dispatcher
 
   def message_received(msg):
       print(msg)
 
-  client.stream.register_message_callback(
+  # obtain an instance of the service (we’ll discuss services later)
+  message_dispatcher = client.summon(
+     aioxmpp.dispatcher.SimpleMessageDispatcher
+  )
+
+  # register a message callback here
+  message_dispatcher.register_callback(
       aioxmpp.MessageType.CHAT,
       None,
       message_received,
   )
 
 The `message_received` callback will be called for all ``"chat"`` messages from
-any sender. By itself, it is not very useful, because the `msg` argument is the
-:class:`aioxmpp.Message` object.
+any sender. As it stands, the callback is not very useful, because the `msg`
+argument is the :class:`aioxmpp.Message` object and printing it won’t show the
+message contents.
 
 This example can be modified to be an echo bot by implementing the
 ``message_received`` callback differently::
@@ -160,10 +169,12 @@ This example can be modified to be an echo bot by implementing the
    A slightly more verbose version can also be found in the examples directory,
    as ``quickstart_echo_bot.py``.
 
-* :meth:`~aioxmpp.stream.StanzaStream.register_message_callback`. Definitely
-  check this out for the semantics of the first two arguments!
+* :class:`aioxmpp.dispatcher.SimpleMessageDispatcher`,
+  :meth:`~aioxmpp.dispatcher.SimpleStanzaDispatcher.register_callback`.
+  Definitely check this out for the semantics of the first two arguments!
 * :class:`aioxmpp.Message`
 * :meth:`~aioxmpp.stream.StanzaStream.enqueue`
+* :meth:`aioxmpp.Client.summon`
 
 
 React to presences
@@ -181,10 +192,16 @@ Similar to handling messages, presences can also be handled.
 Again, the code should be run before
 :meth:`~aioxmpp.PresenceManagedClient.connected`::
 
+  import aioxmpp.dispatcher
+
   def available_presence_received(pres):
       print(pres)
 
-  client.stream.register_presence_callback(
+  presence_dispatcher = client.summon(
+      aioxmpp.dispatcher.SimplePresenceDispatcher,
+  )
+
+  presence_dispatcher.register_callback(
       aioxmpp.PresenceType.AVAILABLE,
       None,
       available_presence_received,
@@ -195,9 +212,9 @@ callback.
 
 Relevant documentation:
 
-* :meth:`~aioxmpp.stream.StanzaStream.register_presence_callback`. Definitely
-  check this out for the semantics of the first two arguments (they are slightly
-  different from the semantics for the relevant message function).
+* :class:`aioxmpp.dispatcher.SimplePresenceDispatcher`,
+  :meth:`~aioxmpp.dispatcher.SimpleStanzaDispatcher.register_callback`.
+  Definitely check this out for the semantics of the first two arguments.
 * :class:`aioxmpp.Presence`
 
 
@@ -233,8 +250,8 @@ Use services
 ============
 
 Services have now been mentioned several times. The idea of a
-:class:`aioxmpp.service.Service` is to implement a specific XEP or an optional
-part of the XMPP protocol. Services essentially do the same thing as discussed
+:class:`aioxmpp.service.Service` is to implement a specific XEP or a part of
+the XMPP protocol. Services essentially do the same thing as discussed
 in the previous sections (sending and receiving messages, IQs and/or presences),
 but encapsulated away in a class. For details on that, see
 :mod:`aioxmpp.service` and an implementation, such as
@@ -259,9 +276,9 @@ by the entity identified by `target_jid`.
 
 The idea of services is to abstract away the details of the protocol
 implemented, and offer additional features (such as caching). Several services
-are offered by :mod:`aioxmpp`, the easiest way to find those is to simply check
-the :ref:`API Reference <api>`; most XEPs supported by :mod:`aioxmpp` are
-implemented as services.
+are offered by :mod:`aioxmpp`; most XEPs supported by :mod:`aioxmpp` are
+implemented as services. An overview of the existing services can be found in
+the API reference at :ref:`api-aioxmpp-services`.
 
 Relevant docmuentation:
 

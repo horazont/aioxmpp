@@ -3,6 +3,283 @@
 Changelog
 #########
 
+.. _api-changelog-0.9:
+
+Version 0.9
+===========
+
+New XEP implementations
+-----------------------
+
+* :mod:`aioxmpp.bookmarks` (:xep:`48`): Support for accessing bookmark storage
+  (currently only from Private XML storage).
+
+* :mod:`aioxmpp.private_xml` (:xep:`49`): Support for accessing a server-side
+  account-private XML storage.
+
+* :mod:`aioxmpp.avatar` (:xep:`84`): Support for retrieving avatars,
+  notifications for changed avatars in contacts and setting the avatar of the
+  account itself.
+
+* :mod:`aioxmpp.pep` (:xep:`163`): Support for making use of the Personal
+  Eventing Protocol, a versatile protocol used to store and publish
+  account-specific information such as Avatars, OMEMO keys, etc. throughout the
+  XMPP network.
+
+* :mod:`aioxmpp.blocking` (:xep:`191`): Support for blocking contacts on the
+  server-side.
+
+* :mod:`aioxmpp.ping` (:xep:`199`): XMPP Ping has been used internally since
+  the very beginning (if Stream Management is not supported), but now there’s
+  also a service for applications to use.
+
+* :mod:`aioxmpp.carbons` (:xep:`280`): Support for receiving carbon-copies of
+  messages sent and received by other resources.
+
+* :mod:`aioxmpp.entitycaps` (:xep:`390`): Support for the new Entity
+  Capabilities 2.0 protocol was added.
+
+Most of these have been contributed by Sebastian Riese. Thanks for that!
+
+New major features
+------------------
+
+* :mod:`aioxmpp.im` is a new subpackage which provides Instant Messaging
+  services. It is still highly experimental, and feedback on the API is highly
+  appreciated.
+
+  The idea is to provide a unified interface to the different instant messaging
+  transports, such as direct one-on-one chat, Multi-User Chats (:xep:`45`) and
+  the soon-to-come Mediated Information Exchange (:xep:`369`).
+
+  Applications shall be able to use the interface without knowing the details
+  of the transport; features such as message delivery receipts and message
+  carbons shall work transparently.
+
+  In the course of this (see below), some breaking changes had to be made, but
+  we think that the gain is worth the damage.
+
+  For an introduction in those features, read the documentation of the
+  :mod:`aioxmpp.im` subpackage. The examples using IM features have been
+  updated accordingly.
+
+* The distribution of received presence and message stanzas has been reworked
+  (to help with :mod:`aioxmpp.im`, which needs a very different model of
+  message distribution than the traditional "register a handler for a sender
+  and type"). The classic registration functions have been deprecated (see
+  below) and were replaced by simple dispatcher services provided in
+  :mod:`aioxmpp.dispatcher`.
+
+New examples
+------------
+
+* ``carbons_sniffer.py``: Show a log of all messages received and sent by other
+  resources of the same account.
+
+* ``set_avatar.py``: Change the avatar of the account.
+
+* ``retrieve_avatar.py``: Retrieve the avatar of a member of the XMPP network
+  (sufficient permissions required, normally a roster subscription is enough).
+
+Breaking changes
+----------------
+
+* Classes using :func:`aioxmpp.service.message_handler` or
+  :func:`aioxmpp.service.presence_handler` have to declare
+  :class:`aioxmpp.dispatcher.SimpleMessageDispatcher` or
+  :class:`aioxmpp.dispatcher.SimplePresenceDispatcher` (respectively) in their
+  dependencies.
+
+  A backward-compatible way to do so is to declare the dependency
+  conditionally::
+
+    class FooService(aioxmpp.service.Service):
+        ORDER_AFTER = []
+        try:
+            import aioxmpp.dispatcher
+        except ImportError:
+            pass
+        else:
+            ORDER_AFTER.append(
+                aioxmpp.dispatcher.SimpleMessageDispatcher
+            )
+
+* :class:`aioxmpp.stream.Filter` got renamed to
+  :class:`aioxmpp.callbacks.Filter`. This should normally not affect your code.
+
+* Re-write of :mod:`aioxmpp.tracking` for :mod:`aioxmpp.im`. Sorry. But the new
+  API is more clearly defined and more correct. The (ab-)use of
+  :class:`aioxmpp.statemachine.OrderedStateMachine` never really worked
+  anyways.
+
+* Re-design of interface to :mod:`aioxmpp.muc`. This is unfortunate, but we
+  did not see a way to reasonably provide backward-compatibility while still
+  allowing for a clean integration with :mod:`aioxmpp.im`.
+
+* Re-design of :class:`aioxmpp.entitycaps` to support
+  :xep:`390`. The interface of the :class:`aioxmpp.entitycaps.Cache` class has
+  been redesigned and some internal classes and functions have been renamed.
+
+* :attr:`aioxmpp.IQ.payload`,
+  :attr:`aioxmpp.pubsub.xso.Item.registered_payload` and
+  :attr:`aioxmpp.pubsub.xso.EventItem.registered_payload` now strictly check
+  the type of objects assigned. The classes of those objects *must* be
+  registered with :meth:`aioxmpp.IQ.as_payload_class` or
+  :func:`aioxmpp.pubsub.xso.as_payload_class`, respectively.
+
+  Technically, that requirement existed always as soon as one wanted to be able
+  to *receive* those payloads: otherwise, one would simply not receive the
+  payload, but an exception or empty object instead. By enforcing this
+  requirement also for sending, we hope to improve the debugability of these
+  issues.
+
+* The descriptors and decorators for
+  :class:`aioxmpp.service.Service` subclasses are now initialised in the order
+  they are declared.
+
+  This should normally not affect you, there are only very specific
+  corner-cases where it makes a difference.
+
+Minor features and bug fixes
+----------------------------
+
+* Handle local serialisation issues more gracefully. Instead of sending a
+  half-serialised XSO down the stream and then raising an exception, leaving the
+  stream in an undefined state, XSOs are now serialised into a buffer (which is
+  re-used for performance when possible) and only if serialisation was
+  successful sent down the stream.
+
+* Replaced the hack-ish use of generators for
+  :func:`aioxmpp.xml.write_xmlstream` with a proper class,
+  :class:`aioxmpp.xml.XMLStreamWriter`.
+
+  The generator blew up when we tried to exfiltrate exceptions from it. For the
+  curious and brave, see the ``bug/odd-exception-thing`` branch. I actually
+  suspect a CPython bug there, but I was unable to isolate a proper test case.
+  It only blows up in the end-to-end tests.
+
+* :mod:`aioxmpp.dispatcher`: This is in connection with the :mod:`aioxmpp.im`
+  package
+
+* :mod:`aioxmpp.misc` provides XSO definitions for two minor XMPP protocol
+  parts (:xep:`203`, :xep:`297`), which are however reused in some of the
+  protocols implemented in this release.
+
+* :mod:`aioxmpp.hashes` (:xep:`300`): Friendly interface to the hash functions
+  and hash function names defined in :xep:`300`.
+
+* :xep:`Stream Management <198>` counters now wrap around as unsigned
+  32 bit integers, as the standard specifies.
+
+* :func:`aioxmpp.service.depsignal` now supports connecting to
+  :class:`aioxmpp.stream.StanzaStream` and :class:`aioxmpp.Client` signals.
+
+* Unknown and unhandled IQ get/set payloads are now replied to with
+  ``<service-unavailable/>`` instead of ``<feature-not-implemented/>``, as the
+  former is actually specified in :rfc:`6120` section 8.4.
+
+* The :class:`aioxmpp.protocol.XMLStream` loggers for :class:`aioxmpp.Client`
+  objects are now a child of the client logger itself, and not at
+  ``aioxmpp.XMLStream``.
+
+* Fix bug in :class:`aioxmpp.EntityCapsService` rendering it useless for
+  providing caps hashes to other entities.
+
+* Fix :meth:`aioxmpp.callbacks.AdHocSignal.future`, which was entirely unusable
+  before.
+
+* :func:`aioxmpp.service.depfilter`: A decorator (similar to the
+  :func:`aioxmpp.service.depsignal` decorator) which allows to add a
+  :class:`aioxmpp.service.Service` method to a
+  :class:`aioxmpp.callbacks.Filter` chain.
+
+* Fix :attr:`aioxmpp.RosterClient.groups` not being updated when items are
+  removed during initial roster update.
+
+* The two signals :meth:`aioxmpp.RosterClient.on_group_added`,
+  :meth:`~aioxmpp.RosterClient.on_group_removed` were added, which allow to
+  track which groups exist in a roster at all (a group exists if there’s at
+  least one member).
+
+* Roster pushes are now accepted also if the :attr:`~.StanzaBase.from_` is the
+  bare local JID instead of missing/empty (those are semantically equivalent).
+
+* :class:`aioxmpp.disco.RegisteredFeature` and changes to
+  :class:`aioxmpp.disco.register_feature`. Effectively, attributes described by
+  :class:`~aioxmpp.disco.register_feature` now have an
+  :attr:`~aioxmpp.disco.RegisteredFeature.enabled` attribute which can be used
+  to temporarily or permanently disable the registration of the feature on a
+  service object.
+
+* The :meth:`aioxmpp.disco.StaticNode.clone` method allows to copy another
+  :meth:`aioxmpp.disco.Node` as a :class:`aioxmpp.disco.StaticNode`.
+
+* The :meth:`aioxmpp.disco.Node.as_info_xso` methdo creates a
+  :class:`aioxmpp.disco.xso.InfoQuery` object containing the features and
+  identities of the node.
+
+* The `strict` argument was added to :class:`aioxmpp.xso.Child`. It allows to
+  enable strict type checking of the objects assigned to the descriptor. Only
+  those objects whose classes have been registered with the descriptor can be
+  assigned.
+
+  This helps with debugging issues for "extensible" descriptors such as the
+  :attr:`aioxmpp.IQ.payload` as described in the Breaking Changes section of
+  this release.
+
+* :class:`aioxmpp.DiscoClient` now uses :class:`aioxmpp.cache.LRUDict`
+  for its internal caches to prevent memory exhaustion in long running
+  applications and/or with malicious peers.
+
+* :meth:`aioxmpp.DiscoClient.query_info` now supports a `no_cache` argument
+  which prevents caching of the request and response.
+
+* :func:`aioxmpp.service.attrsignal`: A decorator (similar to the
+  :func:`aioxmpp.service.depsignal` decorator) which allows to connect to a
+  signal on a descriptor.
+
+* The `default` of XSO descriptors has incorrectly been passed through the
+  validator, despite the documentation saying otherwise. This has been fixed.
+
+* :attr:`aioxmpp.Client.resumption_timeout`: Support for specifying the
+  lifetime of a Stream  Management (:xep:`198`) session and disabling stream
+  resumption altogether. Thanks to `@jomag for bringing up the use-case
+  <https://github.com/horazont/aioxmpp/issues/114>`_.
+
+* Fix serialisation of :class:`aioxmpp.xso.Collector` descriptors.
+
+* Make :class:`aioxmpp.xml.XMPPXMLGenerator` avoid the use of namespace
+  prefixes if a namespace is undeclared if possible.
+
+* Attempt to reconnect if generic OpenSSL errors occur. Thanks to `@jomag for
+  reporting <https://github.com/horazont/aioxmpp/issues/116>`_.
+
+* The new :meth:`aioxmpp.stream.StanzaStream.on_message_received`,
+  :meth:`~aioxmpp.stream.StanzaStream.on_presence_received` signals
+  unconditionally fire when a message or presence is received. They are used
+  by the :mod:`aioxmpp.dispatcher` and :mod:`aioxmpp.im` implementations.
+
+Deprecations
+------------
+
+* The following methods on :class:`aioxmpp.stream.StanzaStream`
+  have been deprecated and will be removed in 1.0:
+
+  * :meth:`~.StanzaStream.register_message_callback`
+  * :meth:`~.StanzaStream.unregister_message_callback`
+  * :meth:`~.StanzaStream.register_presence_callback`
+  * :meth:`~.StanzaStream.unregister_presence_callback`
+
+  The former two are replaced by the
+  :class:`aioxmpp.dispatcher.SimpleMessageDispatcher` service and the latter two
+  should be replaced by proper use of the :class:`aioxmpp.PresenceClient` or
+  by :class:`aioxmpp.dispatcher.SimplePresenceDispatcher` if the
+  :class:`~aioxmpp.PresenceClient` is not sufficient.
+
+* :func:`aioxmpp.stream.stanza_filter` got renamed to
+  :meth:`aioxmpp.callbacks.Filter.context_register`.
+
+
 .. _api-changelog-0.8:
 
 Version 0.8

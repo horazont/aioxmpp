@@ -19,6 +19,7 @@
 # <http://www.gnu.org/licenses/>.
 #
 ########################################################################
+import aioxmpp.hashes
 import aioxmpp.stanza as stanza
 import aioxmpp.xso as xso
 
@@ -26,9 +27,10 @@ from aioxmpp.utils import namespaces
 
 
 namespaces.xep0115_caps = "http://jabber.org/protocol/caps"
+namespaces.xep0390_caps = "urn:xmpp:caps"
 
 
-class Caps(xso.XSO):
+class Caps115(xso.XSO):
     """
     An entity capabilities extension for :class:`~.Presence`.
 
@@ -72,4 +74,9 @@ class Caps(xso.XSO):
         self.hash_ = hash_
 
 
-stanza.Presence.xep0115_caps = xso.Child([Caps], required=False)
+class Caps390(aioxmpp.hashes.HashesParent, xso.XSO):
+    TAG = namespaces.xep0390_caps, "c"
+
+
+stanza.Presence.xep0115_caps = xso.Child([Caps115])
+stanza.Presence.xep0390_caps = xso.Child([Caps390])

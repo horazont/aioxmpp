@@ -104,6 +104,10 @@ class PresenceClient(aioxmpp.service.Service):
        1.0.
     """
 
+    ORDER_AFTER = [
+        aioxmpp.dispatcher.SimplePresenceDispatcher,
+    ]
+
     on_bare_available = aioxmpp.callbacks.Signal()
     on_bare_unavailable = aioxmpp.callbacks.Signal()
 
@@ -175,13 +179,13 @@ class PresenceClient(aioxmpp.service.Service):
         except KeyError:
             pass
 
-    @aioxmpp.service.presence_handler(
+    @aioxmpp.dispatcher.presence_handler(
         aioxmpp.structs.PresenceType.AVAILABLE,
         None)
-    @aioxmpp.service.presence_handler(
+    @aioxmpp.dispatcher.presence_handler(
         aioxmpp.structs.PresenceType.UNAVAILABLE,
         None)
-    @aioxmpp.service.presence_handler(
+    @aioxmpp.dispatcher.presence_handler(
         aioxmpp.structs.PresenceType.ERROR,
         None)
     def handle_presence(self, st):

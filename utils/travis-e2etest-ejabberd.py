@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 ########################################################################
-# File name: travis-test.py
+# File name: travis-e2etest.py
 # This file is part of: aioxmpp
 #
 # LICENSE
@@ -26,18 +26,31 @@ import os
 import time
 import sys
 
-prosody = subprocess.Popen(
+cwd = os.getcwd()
+
+ejabberd = subprocess.Popen(
     [
-        "./prosody",
+        "docker",
+        "run",
+        "-p", "5222:5222",
+        "--rm",
+        "-v", "{}:/etc/ejabberd".format(
+            os.path.join(cwd, "utils/ejabberd-cfg")
+        ),
+        "jprjr/ejabberd",
     ],
-    cwd=os.path.join(os.getcwd(), "prosody"),
 )
 
-time.sleep(2)
+time.sleep(5)
 
-if prosody.poll() is not None:
-    print("Prosody already terminated!", file=sys.stderr)
+if ejabberd.poll() is not None:
+    print("ejabberd already terminated!", file=sys.stderr)
     sys.exit(10)
+
+container_id = subprocess.check_output([
+    "docker", "ps", "-ql",
+]).decode().strip()
+print("I think the ejabberd container ID is {}".format(container_id))
 
 try:
     subprocess.check_call(
@@ -47,5 +60,9 @@ try:
          "tests"]
     )
 finally:
-    prosody.kill()
-    prosody.wait()
+    print("killing ejabberd")
+    subprocess.check_call([
+        "docker", "kill", container_id
+    ])
+    print("waiting for ejabberd to die...")
+    ejabberd.wait()

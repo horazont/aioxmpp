@@ -109,7 +109,7 @@ class OrderedStateMachine:
         for least_state, fut in self._least_waiters:
             if fut.done():
                 continue
-            if new_state >= least_state:
+            if not (new_state < least_state):
                 fut.set_result(None)
                 continue
             new_waiters.append((least_state, fut))
@@ -175,7 +175,7 @@ class OrderedStateMachine:
         Wait for a state to be entered which is greater than or equal to
         `new_state` and return.
         """
-        if self._state >= new_state:
+        if not (self._state < new_state):
             return
 
         fut = asyncio.Future(loop=self.loop)

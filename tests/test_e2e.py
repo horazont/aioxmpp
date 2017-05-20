@@ -30,8 +30,14 @@ from aioxmpp.e2etest import (
 )
 
 
+@aioxmpp.IQ.as_payload_class
+class MadeUpIQPayload(aioxmpp.xso.XSO):
+    TAG = "made-up", "made-up"
+
+
 class TestConnect(TestCase):
     @blocking_timed
+    @asyncio.coroutine
     def test_provisioner_works_in_general(self):
         connected = yield from self.provisioner.get_connected_client()
         self.assertTrue(connected.running)
@@ -40,6 +46,7 @@ class TestConnect(TestCase):
 
 class TestMessaging(TestCase):
     @blocking_timed
+    @asyncio.coroutine
     def test_message_from_a_to_b(self):
         a = yield from self.provisioner.get_connected_client()
         b = yield from self.provisioner.get_connected_client()
@@ -74,11 +81,9 @@ class TestMessaging(TestCase):
 
 class TestMisc(TestCase):
     @blocking_timed
+    @asyncio.coroutine
     def test_receive_response_from_iq_to_bare_explicit_self(self):
         c = yield from self.provisioner.get_connected_client()
-
-        class MadeUpIQPayload(aioxmpp.xso.XSO):
-            TAG = "made-up", "made-up"
 
         iq = aioxmpp.IQ(
             to=c.local_jid.bare(),
@@ -90,11 +95,9 @@ class TestMisc(TestCase):
             yield from c.stream.send(iq)
 
     @blocking_timed
+    @asyncio.coroutine
     def test_receive_response_from_iq_to_bare_self_using_None(self):
         c = yield from self.provisioner.get_connected_client()
-
-        class MadeUpIQPayload(aioxmpp.xso.XSO):
-            TAG = "made-up", "made-up"
 
         iq = aioxmpp.IQ(
             to=None,
@@ -104,3 +107,21 @@ class TestMisc(TestCase):
 
         with self.assertRaises(aioxmpp.errors.XMPPCancelError):
             yield from c.stream.send(iq)
+
+    @blocking_timed
+    @asyncio.coroutine
+    def test_exception_from_non_wellformed(self):
+        c = yield from self.provisioner.get_connected_client()
+
+        msg = aioxmpp.Message(
+            to=c.local_jid,
+            type_=aioxmpp.MessageType.NORMAL,
+        )
+        msg.body[None] = "foo\u0000"
+
+        with self.assertRaisesRegex(ValueError, "not allowed"):
+            yield from c.stream.send(msg)
+
+        msg.body[None] = "foo"
+
+        yield from c.stream.send(msg)

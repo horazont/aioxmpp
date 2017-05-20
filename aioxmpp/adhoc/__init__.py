@@ -32,7 +32,7 @@ supported.
 Client-side
 ===========
 
-.. currentmodule:: aioxmpp.adhoc
+.. currentmodule:: aioxmpp
 
 .. autoclass:: AdHocClient
 

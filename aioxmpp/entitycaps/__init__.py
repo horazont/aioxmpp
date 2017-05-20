@@ -20,14 +20,19 @@
 #
 ########################################################################
 """
-:mod:`~aioxmpp.entitycaps` --- Entity Capabilities support (:xep:`0115`)
-########################################################################
+:mod:`~aioxmpp.entitycaps` --- Entity Capabilities support (:xep:`390`, :xep:`0115`)
+####################################################################################
 
-This module provides support for :xep:`XEP-0115 (Entity Capabilities) <0115>`.
-To use it, :meth:`.Client.summon` the :class:`EntityCapsService` on a
+This module provides support for :xep:`XEP-0115 (Entity Capabilities) <0115>`
+and :xep:`XEP-0390 (Entity Capabilities 2.0) <0390>`. To use it,
+:meth:`.Client.summon` the :class:`aioxmpp.EntityCapsService` on a
 :class:`~.Client`. See the service documentation for more information.
 
 .. versionadded:: 0.5
+
+.. versionchanged:: 0.9
+
+    Support for :xep:`390` was added.
 
 Service
 =======
@@ -49,20 +54,6 @@ Service
 .. autoclass:: Cache
 
 .. currentmodule:: aioxmpp.entitycaps.xso
-
-:mod:`.entitycaps.xso` --- Presence payload
-===========================================
-
-The submodule :mod:`aioxmpp.entitycaps.xso` contains the
-:class:`~aioxmpp.xso.XSO` subclasses which describe the presence payload used
-by the implementation.
-
-In general, you will not need to use these classes directly, nor encounter
-them, as the service filters them off the presence stanzas. If the filter is
-not loaded, the :class:`Caps` instance is available at
-:attr:`.Presence.xep0115_caps`.
-
-.. autoclass:: Caps
 
 
 """

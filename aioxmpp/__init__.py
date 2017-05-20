@@ -34,6 +34,29 @@ package:
 
 .. autodata:: version_info
 
+.. _api-aioxmpp-services:
+
+Overview of Services
+####################
+
+.. autosummary::
+    :nosignatures:
+
+    aioxmpp.AdHocClient
+    aioxmpp.AvatarService
+    aioxmpp.BlockingClient
+    aioxmpp.BookmarkClient
+    aioxmpp.CarbonsClient
+    aioxmpp.DiscoClient
+    aioxmpp.DiscoServer
+    aioxmpp.EntityCapsService
+    aioxmpp.MUCClient
+    aioxmpp.PingService
+    aioxmpp.PresenceClient
+    aioxmpp.PresenceServer
+    aioxmpp.PEPClient
+    aioxmpp.RosterClient
+
 Shorthands
 ##########
 
@@ -77,7 +100,6 @@ from .errors import ( # NOQA
     XMPPModifyError,
     XMPPWaitError,
 )
-from .node import Client, PresenceManagedClient  # NOQA
 from .stanza import Presence, IQ, Message  # NOQA
 from .structs import (  # NOQA
     JID,
@@ -89,6 +111,7 @@ from .structs import (  # NOQA
     ErrorType,
 )
 from .security_layer import make as make_security_layer  # NOQA
+from .node import Client, PresenceManagedClient  # NOQA
 
 # services
 from .presence import PresenceClient, PresenceServer  # NOQA
@@ -99,6 +122,12 @@ from .muc import MUCClient  # NOQA
 from .pubsub import PubSubClient  # NOQA
 from .shim import SHIMService  # NOQA
 from .adhoc import AdHocClient, AdHocServer  # NOQA
+from .avatar import AvatarService  # NOQA
+from .blocking import BlockingClient  # NOQA
+from .carbons import CarbonsClient  # NOQA
+from .ping import PingService  # NOQA
+from .pep import PEPClient  # NOQA
+from .bookmarks import BookmarkClient  # NOQA
 
 
 def set_strict_mode():

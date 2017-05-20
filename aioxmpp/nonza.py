@@ -559,6 +559,14 @@ class SMEnable(SMXSO):
        Set this to :data:`True` to request the capability of resuming the
        stream later.
 
+    .. attribute:: max_
+
+        Maximum time, as integer in seconds, for which the stream should be
+        resumable after the connection dropped. Only relevant if
+        :attr:`resume` is true and may be overridden by the server.
+
+        .. versionadded:: 0.9
+
     """
 
     TAG = (namespaces.stream_management, "enable")
@@ -569,15 +577,25 @@ class SMEnable(SMXSO):
         default=False
     )
 
-    def __init__(self, resume=False):
+    max_ = xso.Attr(
+        "max",
+        type_=xso.Integer(),
+        default=None,
+        validate=xso.ValidateMode.ALWAYS,
+        validator=xso.NumericRange(min_=0),
+    )
+
+    def __init__(self, resume=False, max_=None):
         super().__init__()
         self.resume = resume
+        self.max_ = max_
 
     def __repr__(self):
-        return "<{}.{} resume={} at 0x{:x}>".format(
+        return "<{}.{} resume={} max={} at 0x{:x}>".format(
             type(self).__module__,
             type(self).__qualname__,
             self.resume,
+            self.max_,
             id(self),
         )
 
@@ -599,6 +617,12 @@ class SMEnabled(SMXSO):
        A hostname-port pair which defines to which host the client shall
        connect to resume the stream.
 
+    .. attribute:: max_
+
+        Maximum time, as integer in seconds, for which the stream will be
+        resumable after the connection dropped. Only relevant if
+        :attr:`resume` is true.
+
     """
     TAG = (namespaces.stream_management, "enabled")
 
@@ -607,15 +631,22 @@ class SMEnabled(SMXSO):
         type_=xso.Bool(),
         default=False
     )
+
     id_ = xso.Attr("id", default=None)
+
     location = xso.Attr(
         "location",
         type_=xso.ConnectionLocation(),
-        default=None)
+        default=None
+    )
+
     max_ = xso.Attr(
         "max",
         type_=xso.Integer(),
-        default=None)
+        default=None,
+        validate=xso.ValidateMode.ALWAYS,
+        validator=xso.NumericRange(min_=0),
+    )
 
     def __init__(self,
                  resume=False,

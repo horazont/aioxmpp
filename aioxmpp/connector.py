@@ -90,7 +90,8 @@ class BaseConnector(metaclass=abc.ABCMeta):
 
     @abc.abstractmethod
     @asyncio.coroutine
-    def connect(self, loop, metadata, domain, host, port, negotiation_timeout):
+    def connect(self, loop, metadata, domain, host, port, negotiation_timeout,
+                base_logger=None):
         """
         Establish a :class:`.protocol.XMLStream` for `domain` with the given
         `host` at the given TCP `port`.
@@ -109,6 +110,8 @@ class BaseConnector(metaclass=abc.ABCMeta):
         To detect the use of TLS on the stream, check whether
         :meth:`asyncio.Transport.get_extra_info` returns a non-:data:`None`
         value for ``"ssl_object"``.
+
+        `base_logger` is passed to :class:`aioxmpp.protocol.XMLStream`.
         """
 
 
@@ -129,7 +132,7 @@ class STARTTLSConnector(BaseConnector):
 
     @asyncio.coroutine
     def connect(self, loop, metadata, domain, host, port,
-                negotiation_timeout):
+                negotiation_timeout, base_logger=None):
         """
         .. seealso::
 
@@ -158,6 +161,7 @@ class STARTTLSConnector(BaseConnector):
         stream = protocol.XMLStream(
             to=domain,
             features_future=features_future,
+            base_logger=base_logger,
         )
 
         try:
@@ -261,7 +265,7 @@ class XMPPOverTLSConnector(BaseConnector):
 
     @asyncio.coroutine
     def connect(self, loop, metadata, domain, host, port,
-                negotiation_timeout):
+                negotiation_timeout, base_logger=None):
         """
         .. seealso::
 
@@ -287,6 +291,7 @@ class XMPPOverTLSConnector(BaseConnector):
         stream = protocol.XMLStream(
             to=domain,
             features_future=features_future,
+            base_logger=base_logger,
         )
 
         verifier = metadata.certificate_verifier_factory()

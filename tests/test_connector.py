@@ -139,6 +139,7 @@ class TestSTARTTLSConnector(unittest.TestCase):
                 unittest.mock.sentinel.host,
                 unittest.mock.sentinel.port,
                 unittest.mock.sentinel.timeout,
+                base_logger=unittest.mock.sentinel.base_logger,
             ))
 
         self.assertSequenceEqual(
@@ -150,6 +151,7 @@ class TestSTARTTLSConnector(unittest.TestCase):
                 unittest.mock.call.XMLStream(
                     to=unittest.mock.sentinel.domain,
                     features_future=features_future,
+                    base_logger=unittest.mock.sentinel.base_logger,
                 ),
                 unittest.mock.call.create_starttls_connection(
                     unittest.mock.sentinel.loop,
@@ -282,6 +284,7 @@ class TestSTARTTLSConnector(unittest.TestCase):
                 unittest.mock.call.XMLStream(
                     to=unittest.mock.sentinel.domain,
                     features_future=features_future,
+                    base_logger=None,
                 ),
                 unittest.mock.call.create_starttls_connection(
                     unittest.mock.sentinel.loop,
@@ -375,6 +378,7 @@ class TestSTARTTLSConnector(unittest.TestCase):
                 unittest.mock.call.XMLStream(
                     to=unittest.mock.sentinel.domain,
                     features_future=features_future,
+                    base_logger=None,
                 ),
                 unittest.mock.call.create_starttls_connection(
                     unittest.mock.sentinel.loop,
@@ -467,6 +471,7 @@ class TestSTARTTLSConnector(unittest.TestCase):
                 unittest.mock.call.XMLStream(
                     to=unittest.mock.sentinel.domain,
                     features_future=features_future,
+                    base_logger=None,
                 ),
                 unittest.mock.call.create_starttls_connection(
                     unittest.mock.sentinel.loop,
@@ -593,6 +598,7 @@ class TestSTARTTLSConnector(unittest.TestCase):
                 unittest.mock.call.XMLStream(
                     to=unittest.mock.sentinel.domain,
                     features_future=features_future,
+                    base_logger=None,
                 ),
                 unittest.mock.call.create_starttls_connection(
                     unittest.mock.sentinel.loop,
@@ -720,6 +726,7 @@ class TestSTARTTLSConnector(unittest.TestCase):
                 unittest.mock.call.XMLStream(
                     to=unittest.mock.sentinel.domain,
                     features_future=features_future,
+                    base_logger=None,
                 ),
                 unittest.mock.call.create_starttls_connection(
                     unittest.mock.sentinel.loop,
@@ -824,6 +831,7 @@ class TestXMPPOverTLSConnector(unittest.TestCase):
                 unittest.mock.sentinel.host,
                 unittest.mock.sentinel.port,
                 unittest.mock.sentinel.timeout,
+                base_logger=unittest.mock.sentinel.base_logger,
             ))
 
         self.assertSequenceEqual(
@@ -835,6 +843,7 @@ class TestXMPPOverTLSConnector(unittest.TestCase):
                 unittest.mock.call.XMLStream(
                     to=unittest.mock.sentinel.domain,
                     features_future=features_future,
+                    base_logger=unittest.mock.sentinel.base_logger,
                 ),
                 unittest.mock.call.metadata.certificate_verifier_factory(),
                 unittest.mock.call.certificate_verifier.pre_handshake(
@@ -958,6 +967,7 @@ class TestXMPPOverTLSConnector(unittest.TestCase):
                 unittest.mock.call.XMLStream(
                     to=unittest.mock.sentinel.domain,
                     features_future=features_future,
+                    base_logger=None,
                 ),
                 unittest.mock.call.metadata.certificate_verifier_factory(),
                 unittest.mock.call.certificate_verifier.pre_handshake(

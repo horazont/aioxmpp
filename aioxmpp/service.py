@@ -44,14 +44,56 @@ These decorators provide special functionality when used on methods of
 
 .. note::
 
-   Inheritance from classes which have any of these decorators on any of its
-   methods is forbidden currently, because of the ambiguities which arise.
-
-.. note::
-
    These decorators work only on methods declared on :class:`Service`
    subclasses, as their functionality are implemented in cooperation with the
    :class:`Meta` metaclass and :class:`Service` itself.
+
+.. note::
+
+    These decorators and the descriptors (see below) are initialised in the
+    order in which they are declared at the class. In many cases, this does
+    not matter, but there are some corner cases.
+
+    For example: Suppose you have a class like this:
+
+    .. code-block:: python
+
+        class FooService(aioxmpp.service.Service):
+            feature = aioxmpp.disco.register_feature(
+                "some:namespace"
+            )
+
+            @aioxmpp.servie.depsignal(aioxmpp.DiscoServer, "on_info_changed")
+            def handle_on_info_changed(self):
+                pass
+
+    In this case, the ``handle_on_info_changed`` method is not invoked during
+    startup of the ``FooService``. In this case however:
+
+    .. code-block:: python
+
+        class FooService(aioxmpp.service.Service):
+            @aioxmpp.servie.depsignal(aioxmpp.DiscoServer, "on_info_changed")
+            def handle_on_info_changed(self):
+                pass
+
+            feature = aioxmpp.disco.register_feature(
+                "some:namespace"
+            )
+
+    The ``handle_on_info_changed`` *is* invoked during startup of the
+    ``FooService`` because the ``some:namespace`` feature is registered
+    *after* the signal is connected.
+
+    .. versionchanged:: 0.9
+
+        This behaviour was introduced in version 0.9.
+
+   When using a  descriptor and a :func:`depsignal`
+   connected to :meth:`.DiscoServer.on_info_changed`: if the
+   :class:`.disco.register_feature` is declared *before* the :func:`depsignal`,
+   the signal handler will not be invoked for that specific feature because
+   it is registered before the signal handler is connected).
 
 .. autodecorator:: iq_handler
 
@@ -69,6 +111,10 @@ These decorators provide special functionality when used on methods of
 
 .. autodecorator:: depsignal
 
+.. autodecorator:: depfilter
+
+.. autodecorator:: attrsignal
+
 .. seealso::
 
    :class:`~.disco.register_feature`
@@ -78,6 +124,10 @@ These decorators provide special functionality when used on methods of
    :class:`~.disco.mount_as_node`
       For a descriptor (see below) which allows to register a Service Discovery
       node when the service is instantiated.
+
+   :class:`~.pep.register_pep_node`
+      For a descriptor (see below) which allows to register a PEP node
+      including notification features.
 
 Test functions
 --------------
@@ -97,6 +147,10 @@ Test functions
 .. autofunction:: is_outbound_presence_filter
 
 .. autofunction:: is_depsignal_handler
+
+.. autofunction:: is_depfilter_handler
+
+.. autofunction:: is_attrsignal_handler
 
 Creating your own decorators
 ----------------------------
@@ -136,7 +190,7 @@ service instance using the descriptor, including cleanup.
 Metaclass
 =========
 
-.. autoclass:: Meta([inherit_dependencies=True])
+.. autoclass:: Meta()
 
 
 """
@@ -145,6 +199,7 @@ import abc
 import asyncio
 import collections
 import contextlib
+import copy
 import logging
 import warnings
 import weakref
@@ -189,6 +244,8 @@ class Descriptor(metaclass=abc.ABCMeta):
     Subclasses must implement the following:
 
     .. automethod:: init_cm
+
+    .. autoattribute:: value_type
 
     Subclasses may override the following to modify the default behaviour:
 
@@ -262,6 +319,69 @@ class Descriptor(metaclass=abc.ABCMeta):
             )
         return obj
 
+    @abc.abstractproperty
+    def value_type(self):
+        """
+        The type of the value of the descriptor, once it is being accessed
+        as an object attribute.
+
+        .. versionadded:: 0.9
+        """
+
+
+class DependencyGraphNode:
+    def __init__(self):
+        self.class_ = None
+
+    def __repr__(self):
+        return "DependencyGraphNode({!r})".format(self.class_)
+
+
+class DependencyGraph:
+
+    def __init__(self, edges=None, nodes=None):
+        if edges is None:
+            edges = []
+        if nodes is None:
+            nodes = []
+        self._edges = set(edges)
+        self._nodes = set(nodes)
+
+    def __deepcopy__(self, memo):
+        return DependencyGraph(self._edges, self._nodes)
+
+    def add_node(self, node):
+        self._nodes.add(node)
+
+    def add_edge(self, from_, to):
+        self._edges.add((from_, to))
+
+    def toposort(self):
+        edges = collections.defaultdict(lambda: set())
+        for from_, to in self._edges:
+            edges[from_].add(to)
+
+        sorted_ = []
+        marked = set()
+        done = set()
+
+        def visit(node):
+            if node in marked:
+                raise ValueError("dependency loop in service definitions")
+            if node in done:
+                return
+            done.add(node)
+            marked.add(node)
+            for dep in edges[node]:
+                visit(dep)
+            marked.remove(node)
+            sorted_.append(node)
+
+        for node in self._nodes:
+            visit(node)
+
+        return sorted_
+
 
 class Meta(abc.ABCMeta):
     """
@@ -269,8 +389,12 @@ class Meta(abc.ABCMeta):
     general you should just inherit from :class:`Service` and define the
     dependency attributes as needed.
 
+    Only use :class:`Meta` explicitely if you know what you are doing,
+    and you most likely do not. :class:`Meta` is internal API and may
+    change at any point.
+
     Services have dependencies. A :class:`Meta` instance (i.e. a service class)
-    can declare dependencies using the following two attributes.
+    can declare dependencies using the following attributes.
 
     .. attribute:: ORDER_BEFORE
 
@@ -319,15 +443,47 @@ class Meta(abc.ABCMeta):
 
           See :attr:`SERVICE_BEFORE` for details on the deprecation cycle.
 
-    The dependencies are inherited from bases unless the `inherit_dependencies`
-    keyword argument is set to false.
+    Further, the following attributes are generated:
 
-    After a class has been instanciated, the full set of dependencies is
-    provided in the attributes, including all transitive relationships. These
-    attributes are updated when new classes are declared.
+    .. attribute:: PATCHED_ORDER_AFTER
+
+       An iterable of :class:`Service` classes. This includes all
+       classes in :attr:`ORDER_AFTER` and all classes which specify the class
+       in :attr:`ORDER_BEFORE`.
+
+       This is primarily used internally to handle :attr:`ORDER_BEFORE` when
+       summoning services.
+
+       It is an error to manually define :attr:`PATCHED_ORDER_AFTER` in a class
+       definition, doing so will raise a :class:`TypeError`.
+
+       .. versionadded:: 0.9
+
+    .. attribute:: _DEPGRAPH_NODE
+
+       An internal token used for topological ordering. Consider this
+       name reserved by the metaclass.
+
+       It is an error to manually define :attr:`_DEPGRAPH_NODE` in a class
+       definition, doing so will raise a :class:`TypeError`.
+
+       .. versionadded:: 0.9
+
+    .. versionchanged:: 0.9
+
+       The :attr:`ORDER_AFTER` and :attr:`ORDER_BEFORE` attribtes do not
+       change after class creation. In earlier versions they contained
+       the transitive completion of the dependency relation.
 
     Dependency relationships must not have cycles; a cycle results in a
     :class:`ValueError` when the class causing the cycle is declared.
+
+    .. note::
+
+      Subclassing instances of :class:`Meta` is forbidden. Trying to do so
+      will raise a :class:`TypeError`
+
+      .. versionchanged:: 0.9
 
     Example::
 
@@ -347,45 +503,10 @@ class Meta(abc.ABCMeta):
     be instanciated before ``Foo``. There is no dependency relationship between
     ``Baz`` and ``Fourth``.
 
-    Inheritance works too::
-
-        class Foo(metaclass=service.Meta):
-            pass
-
-        class Bar(metaclass=service.Meta):
-            ORDER_BEFORE = [Foo]
-
-        class Baz(Bar):
-            # has ORDER_BEFORE == {Foo}
-            pass
-
-        class Fourth(Bar, inherit_dependencies=False):
-            # has empty ORDER_BEFORE
-            pass
-
     """
 
-    @classmethod
-    def transitive_collect(mcls, classes, attr, seen):
-        for cls in classes:
-            yield cls
-            yield from mcls.transitive_collect(getattr(cls, attr), attr, seen)
-
-    @classmethod
-    def collect_and_inherit(mcls, bases, namespace, attr,
-                            inherit_dependencies):
-        classes = set(namespace.get(attr, []))
-        if inherit_dependencies:
-            for base in bases:
-                if isinstance(base, mcls):
-                    classes.update(getattr(base, attr))
-        classes.update(
-            mcls.transitive_collect(
-                list(classes),
-                attr,
-                set())
-        )
-        return classes
+    __dependency_graph = DependencyGraph()
+    __service_order = {}
 
     def __new__(mcls, name, bases, namespace, inherit_dependencies=True):
         if "SERVICE_BEFORE" in namespace or "SERVICE_AFTER" in namespace:
@@ -404,127 +525,138 @@ class Meta(abc.ABCMeta):
             except KeyError:
                 pass
 
-        orig_after = set(namespace.get("ORDER_AFTER", set()))
+        if "PATCHED_ORDER_AFTER" in namespace:
+            raise TypeError(
+                "PATCHED_ORDER_AFTER must not be defined manually. "
+                "it is supplied automatically by the metaclass."
+            )
 
-        before_classes = mcls.collect_and_inherit(
-            bases,
-            namespace,
-            "ORDER_BEFORE",
-            inherit_dependencies)
+        if "_DEPGRAPH_NODE" in namespace:
+            raise TypeError(
+                "_DEPGRAPH_NODE must not be defined manually. "
+                "it is supplied automatically by the metaclass."
+            )
 
-        after_classes = mcls.collect_and_inherit(
-            bases,
-            namespace,
-            "ORDER_AFTER",
-            inherit_dependencies)
-
-        if before_classes & after_classes:
-            raise ValueError("dependency loop: {} loops through {}".format(
-                name,
-                next(iter(before_classes & after_classes)).__qualname__
-            ))
+        for base in bases:
+            if isinstance(base, Meta) and base is not Service:
+                raise TypeError(
+                    "subclassing services is prohibited."
+                )
 
         for base in bases:
             if hasattr(base, "SERVICE_HANDLERS") and base.SERVICE_HANDLERS:
                 raise TypeError(
                     "inheritance from service class with handlers is forbidden"
                 )
-            if (hasattr(base, "SERVICE_DESCRIPTORS") and
-                    base.SERVICE_DESCRIPTORS):
-                raise TypeError(
-                    "inheritance from service class with descriptors is "
-                    "forbidden"
-                )
 
-        namespace["ORDER_BEFORE"] = set(before_classes)
-        namespace["ORDER_AFTER"] = set(after_classes)
+        namespace["ORDER_BEFORE"] = frozenset(
+            namespace.get("ORDER_BEFORE", ()))
+        namespace["ORDER_AFTER"] = frozenset(
+            namespace.get("ORDER_AFTER", ()))
+        namespace["PATCHED_ORDER_AFTER"] = namespace["ORDER_AFTER"]
+
+        new_deps = copy.deepcopy(mcls.__dependency_graph)
+
+        depgraph_node = namespace["_DEPGRAPH_NODE"] = DependencyGraphNode()
+        new_deps.add_node(depgraph_node)
+        for cls in namespace["ORDER_AFTER"]:
+            new_deps.add_edge(depgraph_node, cls._DEPGRAPH_NODE)
+        for cls in namespace["ORDER_BEFORE"]:
+            new_deps.add_edge(cls._DEPGRAPH_NODE, depgraph_node)
+        sorted_ = new_deps.toposort()
+        mcls.__dependency_graph = new_deps
+        mcls.__service_order = dict(
+            (node, i) for i, node in enumerate(sorted_)
+        )
 
         SERVICE_HANDLERS = []
         existing_handlers = set()
 
         for attr_name, attr_value in namespace.items():
-            if not has_magic_attr(attr_value):
-                continue
+            if has_magic_attr(attr_value):
+                new_handlers = get_magic_attr(attr_value)
 
-            new_handlers = get_magic_attr(attr_value)
+                unique_handlers = {
+                    spec.key
+                    for spec in new_handlers
+                    if spec.is_unique
+                }
 
-            unique_handlers = {
-                spec.key
-                for spec in new_handlers
-                if spec.is_unique
-            }
+                conflicting = unique_handlers & existing_handlers
+                if conflicting:
+                    key = next(iter(conflicting))
+                    obj = next(iter(
+                        obj
+                        for obj_key, obj in SERVICE_HANDLERS
+                        if obj_key == key
+                    ))
 
-            conflicting = unique_handlers & existing_handlers
-            if conflicting:
-                key = next(iter(conflicting))
-                obj = next(iter(
-                    obj
-                    for obj_key, obj in SERVICE_HANDLERS
-                    if obj_key == key
-                ))
-
-                raise TypeError(
-                    "handler conflict between {!r} and {!r}: "
-                    "both want to use {!r}".format(
-                        obj,
-                        attr_value,
-                        key,
-                    )
-                )
-
-            existing_handlers |= unique_handlers
-
-            for spec in new_handlers:
-                missing = spec.require_deps - orig_after
-                if missing:
                     raise TypeError(
-                        "decorator requires dependency {!r} "
-                        "but it is not declared".format(
-                            next(iter(missing))
+                        "handler conflict between {!r} and {!r}: "
+                        "both want to use {!r}".format(
+                            obj,
+                            attr_value,
+                            key,
                         )
                     )
 
-                SERVICE_HANDLERS.append(
-                    (spec.key, attr_value)
-                )
+                existing_handlers |= unique_handlers
+
+                for spec in new_handlers:
+                    missing = spec.require_deps - namespace["ORDER_AFTER"]
+                    if missing:
+                        raise TypeError(
+                            "decorator requires dependency {!r} "
+                            "but it is not declared".format(
+                                next(iter(missing))
+                            )
+                        )
+
+                    SERVICE_HANDLERS.append(
+                        (spec.key, attr_value)
+                    )
+
+            elif isinstance(attr_value, Descriptor):
+                missing = set(attr_value.required_dependencies) - \
+                    namespace["ORDER_AFTER"]
+                if missing:
+                    raise TypeError(
+                        "descriptor requires dependency {!r} "
+                        "but it is not declared".format(
+                            next(iter(missing)),
+                        )
+                    )
+
+                SERVICE_HANDLERS.append(attr_value)
 
         namespace["SERVICE_HANDLERS"] = tuple(SERVICE_HANDLERS)
-
-        SERVICE_DESCRIPTORS = []
-
-        for attr_name, attr_value in namespace.items():
-            if not isinstance(attr_value, Descriptor):
-                continue
-
-            missing = set(attr_value.required_dependencies) - orig_after
-            if missing:
-                raise TypeError(
-                    "descriptor requires dependency {!r} "
-                    "but it is not declared".format(
-                        next(iter(missing)),
-                    )
-                )
-
-            SERVICE_DESCRIPTORS.append(attr_value)
-
-        namespace["SERVICE_DESCRIPTORS"] = SERVICE_DESCRIPTORS
 
         return super().__new__(mcls, name, bases, namespace)
 
     def __init__(self, name, bases, namespace, inherit_dependencies=True):
         super().__init__(name, bases, namespace)
         for cls in self.ORDER_BEFORE:
-            cls.ORDER_AFTER.add(self)
-        for cls in self.ORDER_AFTER:
-            cls.ORDER_BEFORE.add(self)
-        self.SERVICE_BEFORE = self.ORDER_BEFORE
-        self.SERVICE_AFTER = self.ORDER_AFTER
+            cls.PATCHED_ORDER_AFTER |= frozenset([self])
+        self._DEPGRAPH_NODE.class_ = self
+
+    def __prepare__(*args, **kwargs):
+        return collections.OrderedDict()
+
+    @property
+    def SERVICE_BEFORE(self):
+        return self.ORDER_BEFORE
+
+    @property
+    def SERVICE_AFTER(self):
+        return self.ORDER_AFTER
 
     def __lt__(self, other):
-        return other in self.ORDER_BEFORE
+        return (self.__service_order[self._DEPGRAPH_NODE] <
+                self.__service_order[other._DEPGRAPH_NODE])
 
     def __le__(self, other):
-        return self < other
+        return (self.__service_order[self._DEPGRAPH_NODE] <=
+                self.__service_order[other._DEPGRAPH_NODE])
 
 
 class Service(metaclass=Meta):
@@ -558,6 +690,12 @@ class Service(metaclass=Meta):
     :meth:`aioxmpp.Client.summon` works), there is no need for you
     to introduce custom arguments, and thus there should be no conflicts.
 
+    .. note::
+
+       Inheritance from classes which subclass :class:`Service` is forbidden.
+
+       .. versionchanged:: 0.9
+
     .. autoattribute:: client
 
     .. autoattribute:: dependencies
@@ -580,16 +718,19 @@ class Service(metaclass=Meta):
         else:
             self.logger = self.derive_logger(logger_base)
 
-        for (handler_cm, additional_args), obj in self.SERVICE_HANDLERS:
-            self.__context.enter_context(
-                handler_cm(self,
-                           self.__client.stream,
-                           obj.__get__(self, type(self)),
-                           *additional_args)
-            )
-
-        for obj in self.SERVICE_DESCRIPTORS:
-            obj.add_to_stack(self, self.__context)
+        for item in self.SERVICE_HANDLERS:
+            if isinstance(item, Descriptor):
+                item.add_to_stack(self, self.__context)
+            else:
+                (handler_cm, additional_args), obj = item
+                self.__context.enter_context(
+                    handler_cm(
+                        self,
+                        self.__client.stream,
+                        obj.__get__(self, type(self)),
+                        *additional_args
+                    )
+                )
 
     def derive_logger(self, logger):
         """
@@ -625,11 +766,11 @@ class Service(metaclass=Meta):
         """
         When the service is instantiated through
         :meth:`~.Client.summon`, this attribute holds a mapping which maps the
-        service classes contained in the :attr:`~.Meta.ORDER_BEFORE` attribute
+        service classes contained in the :attr:`~.Meta.ORDER_AFTER` attribute
         to the respective instances related to the :attr:`client`.
 
         This is the preferred way to obtain dependencies specified via
-        :attr:`~.Meta.ORDER_BEFORE`.
+        :attr:`~.Meta.ORDER_AFTER`.
         """
         return self.__dependencies
 
@@ -738,10 +879,6 @@ def _apply_iq_handler(instance, stream, func, type_, payload_cls):
     return aioxmpp.stream.iq_handler(stream, type_, payload_cls, func)
 
 
-def _apply_message_handler(instance, stream, func, type_, from_):
-    return aioxmpp.stream.message_handler(stream, type_, from_, func)
-
-
 def _apply_presence_handler(instance, stream, func, type_, from_):
     return aioxmpp.stream.presence_handler(stream, type_, from_, func)
 
@@ -780,7 +917,32 @@ def _apply_outbound_presence_filter(instance, stream, func):
 
 def _apply_connect_depsignal(instance, stream, func, dependency, signal_name,
                              mode):
-    signal = getattr(instance.dependencies[dependency], signal_name)
+    if dependency is aioxmpp.stream.StanzaStream:
+        dependency = instance.client.stream
+    elif dependency is aioxmpp.node.Client:
+        dependency = instance.client
+    else:
+        dependency = instance.dependencies[dependency]
+    signal = getattr(dependency, signal_name)
+    if mode is None:
+        return signal.context_connect(func)
+    else:
+        return signal.context_connect(func, mode)
+
+
+def _apply_connect_depfilter(instance, stream, func, dependency, filter_name):
+    if dependency is aioxmpp.stream.StanzaStream:
+        dependency = instance.client.stream
+    else:
+        dependency = instance.dependencies[dependency]
+    filter_ = getattr(dependency, filter_name)
+    return filter_.context_register(func, type(instance))
+
+
+def _apply_connect_attrsignal(instance, stream, func, descriptor, signal_name,
+                              mode):
+    obj = descriptor.__get__(instance, type(instance))
+    signal = getattr(obj, signal_name)
     if mode is None:
         return signal.context_connect(func)
     else:
@@ -812,6 +974,7 @@ def iq_handler(type_, payload_cls):
             f,
             HandlerSpec(
                 (_apply_iq_handler, (type_, payload_cls)),
+                require_deps=()
             )
         )
         return f
@@ -820,64 +983,22 @@ def iq_handler(type_, payload_cls):
 
 def message_handler(type_, from_):
     """
-    Register the decorated function as message handler.
+    Deprecated alias of :func:`.dispatcher.message_handler`.
 
-    :param type_: Message type to listen for
-    :type type_: :class:`~.MessageType`
-    :param from_: Sender JIDs to listen for
-    :type from_: :class:`aioxmpp.JID` or :data:`None`
-    :raise TypeError: if the decorated object is a coroutine function
-
-    .. seealso::
-
-       :meth:`~.StanzaStream.register_message_callback`
-          for more details on the `type_` and `from_` arguments
+    .. deprecated:: 0.9
     """
-
-    def decorator(f):
-        if asyncio.iscoroutinefunction(f):
-            raise TypeError("message_handler must not be a coroutine function")
-
-        add_handler_spec(
-            f,
-            HandlerSpec(
-                (_apply_message_handler, (type_, from_))
-            )
-        )
-        return f
-    return decorator
+    import aioxmpp.dispatcher
+    return aioxmpp.dispatcher.message_handler(type_, from_)
 
 
 def presence_handler(type_, from_):
     """
-    Register the decorated function as presence stanza handler.
+    Deprecated alias of :func:`.dispatcher.presence_handler`.
 
-    :param type_: Presence type to listen for
-    :type type_: :class:`~.PresenceType`
-    :param from_: Sender JIDs to listen for
-    :type from_: :class:`aioxmpp.JID` or :data:`None`
-    :raise TypeError: if the decorated object is a coroutine function
-
-    .. seealso::
-
-       :meth:`~.StanzaStream.register_presence_callback`
-          for more details on the `type_` and `from_` arguments
+    .. deprecated:: 0.9
     """
-
-    def decorator(f):
-        if asyncio.iscoroutinefunction(f):
-            raise TypeError(
-                "presence_handler must not be a coroutine function"
-            )
-
-        add_handler_spec(
-            f,
-            HandlerSpec(
-                (_apply_presence_handler, (type_, from_)),
-            )
-        )
-        return f
-    return decorator
+    import aioxmpp.dispatcher
+    return aioxmpp.dispatcher.presence_handler(type_, from_)
 
 
 def inbound_message_filter(f):
@@ -989,9 +1110,7 @@ def outbound_presence_filter(f):
     return f
 
 
-def _depsignal_spec(class_, signal_name, f, defer):
-    signal = getattr(class_, signal_name)
-
+def _signal_connect_mode(signal, f, defer):
     if isinstance(signal, aioxmpp.callbacks.SyncSignal):
         if not asyncio.iscoroutinefunction(f):
             raise TypeError(
@@ -1016,6 +1135,20 @@ def _depsignal_spec(class_, signal_name, f, defer):
         else:
             mode = aioxmpp.callbacks.AdHocSignal.STRONG
 
+    return mode
+
+
+def _depsignal_spec(class_, signal_name, f, defer):
+    signal = getattr(class_, signal_name)
+
+    mode = _signal_connect_mode(signal, f, defer)
+
+    if (class_ is not aioxmpp.stream.StanzaStream and
+            class_ is not aioxmpp.node.Client):
+        deps = (class_,)
+    else:
+        deps = ()
+
     return HandlerSpec(
         (
             _apply_connect_depsignal,
@@ -1025,7 +1158,7 @@ def _depsignal_spec(class_, signal_name, f, defer):
                 mode,
             )
         ),
-        require_deps=(class_,)
+        require_deps=deps,
     )
 
 
@@ -1035,8 +1168,8 @@ def depsignal(class_, signal_name, *, defer=False):
     a class on which the service depends.
 
     :param class_: A service class which is listed in the
-                   :attr:`~.Meta.ORDERED_AFTER` relationship.
-    :type class_: :class:`Service` class
+                   :attr:`~.Meta.ORDER_AFTER` relationship.
+    :type class_: :class:`Service` class or one of the special cases below
     :param signal_name: Attribute name of the signal to connect to
     :type signal_name: :class:`str`
     :param defer: Flag indicating whether deferred execution of the decorated
@@ -1044,7 +1177,14 @@ def depsignal(class_, signal_name, *, defer=False):
     :type defer: :class:`bool`
 
     The signal is discovered by accessing the attribute with the name
-    `signal_name` on the given `class_`.
+    `signal_name` on the given `class_`. In addition, the following arguments
+    are supported for `class_`:
+
+    1. :class:`aioxmpp.stream.StanzaStream`: the corresponding signal of the
+       stream of the client running the service is used.
+
+    2. :class:`aioxmpp.Client`: the corresponding signal of the client running
+       the service is used.
 
     If the signal is a :class:`.callbacks.Signal` and `defer` is false, the
     decorated object is connected using the default
@@ -1058,6 +1198,11 @@ def depsignal(class_, signal_name, *, defer=False):
 
     If the signal is a :class:`.callbacks.SyncSignal`, `defer` must be false
     and the decorated object must be a coroutine function.
+
+    .. versionchanged:: 0.9
+
+       Support for :class:`aioxmpp.stream.StanzaStream` and
+       :class:`aioxmpp.Client` as `class_` argument was added.
     """
 
     def decorator(f):
@@ -1066,6 +1211,118 @@ def depsignal(class_, signal_name, *, defer=False):
             _depsignal_spec(class_, signal_name, f, defer)
         )
         return f
+    return decorator
+
+
+def _attrsignal_spec(descriptor, signal_name, f, defer):
+    signal = getattr(descriptor.value_type, signal_name)
+    mode = _signal_connect_mode(signal, f, defer)
+
+    return HandlerSpec(
+        (
+            _apply_connect_attrsignal,
+            (
+                descriptor,
+                signal_name,
+                mode
+            )
+        ),
+        is_unique=True,
+        require_deps=(),
+    )
+
+
+def attrsignal(descriptor, signal_name, *, defer=False):
+    """
+    Connect the decorated method or coroutine method to the addressed signal on
+    a descriptor.
+
+    :param descriptor: The descriptor to connect to.
+    :type descriptor: :class:`Descriptor` subclass.
+    :param signal_name: Attribute name of the signal to connect to
+    :type signal_name: :class:`str`
+    :param defer: Flag indicating whether deferred execution of the decorated
+                  method is desired; see below for details.
+    :type defer: :class:`bool`
+
+    The signal is discovered by accessing the attribute with the name
+    `signal_name` on the :attr:`~Descriptor.value_type` of the `descriptor`.
+
+    During instantiation of the service, the value of the descriptor is used
+    to obtain the signal and then the decorated method is connected to the
+    signal.
+
+    If the signal is a :class:`.callbacks.Signal` and `defer` is false, the
+    decorated object is connected using the default
+    :attr:`~.callbacks.AdHocSignal.STRONG` mode.
+
+    If the signal is a :class:`.callbacks.Signal` and `defer` is true and the
+    decorated object is a coroutine function, the
+    :attr:`~.callbacks.AdHocSignal.SPAWN_WITH_LOOP` mode with the default
+    asyncio event loop is used. If the decorated object is not a coroutine
+    function, :attr:`~.callbacks.AdHocSignal.ASYNC_WITH_LOOP` is used instead.
+
+    If the signal is a :class:`.callbacks.SyncSignal`, `defer` must be false
+    and the decorated object must be a coroutine function.
+
+    .. versionadded:: 0.9
+    """
+    def decorator(f):
+        add_handler_spec(
+            f,
+            _attrsignal_spec(descriptor, signal_name, f, defer)
+        )
+        return f
+    return decorator
+
+
+def _depfilter_spec(class_, filter_name):
+    require_deps = ()
+    if class_ is not aioxmpp.stream.StanzaStream:
+        require_deps = (class_,)
+
+    return HandlerSpec(
+        (
+            _apply_connect_depfilter,
+            (
+                class_,
+                filter_name,
+            )
+        ),
+        is_unique=True,
+        require_deps=require_deps,
+    )
+
+
+def depfilter(class_, filter_name):
+    """
+    Register the decorated method at the addressed :class:`~.callbacks.Filter`
+    on a class on which the service depends.
+
+    :param class_: A service class which is listed in the
+                   :attr:`~.Meta.ORDER_AFTER` relationship.
+    :type class_: :class:`Service` class or
+                  :class:`aioxmpp.stream.StanzaStream`
+    :param filter_name: Attribute name of the filter to register at
+    :type filter_name: :class:`str`
+
+    The filter at which the decorated method is registered is discovered by
+    accessing the attribute with the name `filter_name` on the instance of the
+    dependent class `class_`. If `class_` is
+    :class:`aioxmpp.stream.StanzaStream`, the filter is searched for on the
+    stream (and no dependendency needs to be declared).
+
+    .. versionadded:: 0.9
+    """
+    spec = _depfilter_spec(class_, filter_name)
+
+    def decorator(f):
+        add_handler_spec(
+            f,
+            spec,
+        )
+        return f
+
     return decorator
 
 
@@ -1087,34 +1344,22 @@ def is_iq_handler(type_, payload_cls, coro):
 
 def is_message_handler(type_, from_, cb):
     """
-    Return true if `cb` has been decorated with :func:`message_handler` for the
-    given `type_` and `from_`.
+    Deprecated alias of :func:`.dispatcher.is_message_handler`.
+
+    .. deprecated:: 0.9
     """
-
-    try:
-        handlers = get_magic_attr(cb)
-    except AttributeError:
-        return False
-
-    return HandlerSpec(
-        (_apply_message_handler, (type_, from_))
-    ) in handlers
+    import aioxmpp.dispatcher
+    return aioxmpp.dispatcher.is_message_handler(type_, from_, cb)
 
 
 def is_presence_handler(type_, from_, cb):
     """
-    Return true if `cb` has been decorated with :func:`presence_handler` for
-    the given `type_` and `from_`.
+    Deprecated alias of :func:`.dispatcher.is_presence_handler`.
+
+    .. deprecated:: 0.9
     """
-
-    try:
-        handlers = get_magic_attr(cb)
-    except AttributeError:
-        return False
-
-    return HandlerSpec(
-        (_apply_presence_handler, (type_, from_))
-    ) in handlers
+    import aioxmpp.dispatcher
+    return aioxmpp.dispatcher.is_presence_handler(type_, from_, cb)
 
 
 def is_inbound_message_filter(cb):
@@ -1191,3 +1436,29 @@ def is_depsignal_handler(class_, signal_name, cb, *, defer=False):
         return False
 
     return _depsignal_spec(class_, signal_name, cb, defer) in handlers
+
+
+def is_depfilter_handler(class_, filter_name, filter_):
+    """
+    Return true if `filter_` has been decorated with :func:`depfilter` for the
+    given filter and class.
+    """
+    try:
+        handlers = get_magic_attr(filter_)
+    except AttributeError:
+        return False
+
+    return _depfilter_spec(class_, filter_name) in handlers
+
+
+def is_attrsignal_handler(descriptor, signal_name, cb, *, defer=False):
+    """
+    Return true if `cb` has been decorated with :func:`attrsignal` for the
+    given signal, descriptor and connection mode.
+    """
+    try:
+        handlers = get_magic_attr(cb)
+    except AttributeError:
+        return False
+
+    return _attrsignal_spec(descriptor, signal_name, cb, defer) in handlers

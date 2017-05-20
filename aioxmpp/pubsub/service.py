@@ -273,8 +273,10 @@ class PubSubClient(aioxmpp.service.Service):
     @asyncio.coroutine
     def get_features(self, jid):
         """
-        Return the features supported at the PubSub service `jid`.
+        Return the features supported by a service.
 
+        :param jid: Address of the PubSub service to query.
+        :type jid: :class:`aioxmpp.JID`
         :return: Set of supported features
         :rtype: set containing :class:`~.pubsub.xso.Feature` enumeration
                 members.
@@ -302,14 +304,26 @@ class PubSubClient(aioxmpp.service.Service):
                   subscription_jid=None,
                   config=None):
         """
-        Subscribe to the pubsub `node` hosted at `jid`.
+        Subscribe to a node.
+
+        :param jid: Address of the PubSub service.
+        :type jid: :class:`aioxmpp.JID`
+        :param node: Name of the PubSub node to subscribe to.
+        :type node: :class:`str`
+        :param subscription_jid: The address to subscribe to the service.
+        :type subscription_jid: :class:`aioxmpp.JID`
+        :param config: Optional configuration of the subscription
+        :type config: :class:`~.forms.Data`
+        :raises aioxmpp.errors.XMPPError: as returned by the service
+        :return: The response from the server.
+        :rtype: :class:`.xso.Request`
 
         By default, the subscription request will be for the bare JID of the
         client. It can be specified explicitly using the `subscription_jid`
         argument.
 
         If the service requires it or if it makes sense for other reasons, the
-        subscription configuration :class:`~.forms.xso.Data` form can be passed
+        subscription configuration :class:`~.forms.Data` form can be passed
         using the `config` argument.
 
         On success, the whole :class:`.xso.Request` object returned by the
@@ -346,7 +360,17 @@ class PubSubClient(aioxmpp.service.Service):
                     subscription_jid=None,
                     subid=None):
         """
-        Unsubscribe from the pubsub `node` hosted at `jid`.
+        Unsubscribe from a node.
+
+        :param jid: Address of the PubSub service.
+        :type jid: :class:`aioxmpp.JID`
+        :param node: Name of the PubSub node to unsubscribe from.
+        :type node: :class:`str`
+        :param subscription_jid: The address to subscribe from the service.
+        :type subscription_jid: :class:`aioxmpp.JID`
+        :param subid: Unique ID of the subscription to remove.
+        :type subid: :class:`str`
+        :raises aioxmpp.errors.XMPPError: as returned by the service
 
         By default, the unsubscribe request will be for the bare JID of the
         client. It can be specified explicitly using the `subscription_jid`
@@ -374,15 +398,26 @@ class PubSubClient(aioxmpp.service.Service):
                                 subscription_jid=None,
                                 subid=None):
         """
-        Request the current configuration of a subscription to the pubsub
-        `node` hosted at `jid`.
+        Request the current configuration of a subscription.
+
+        :param jid: Address of the PubSub service.
+        :type jid: :class:`aioxmpp.JID`
+        :param node: Name of the PubSub node to query.
+        :type node: :class:`str`
+        :param subscription_jid: The address to query the configuration for.
+        :type subscription_jid: :class:`aioxmpp.JID`
+        :param subid: Unique ID of the subscription to query.
+        :type subid: :class:`str`
+        :raises aioxmpp.errors.XMPPError: as returned by the service
+        :return: The current configuration of the subscription.
+        :rtype: :class:`~.forms.Data`
 
         By default, the request will be on behalf of the bare JID of the
         client. It can be overriden using the `subscription_jid` argument.
 
         If available, the `subid` should also be specified.
 
-        On success, the :class:`~.forms.xso.Data` form is returned.
+        On success, the :class:`~.forms.Data` form is returned.
 
         If an error occurs, the corresponding :class:`~.errors.XMPPError` is
         raised.
@@ -408,8 +443,19 @@ class PubSubClient(aioxmpp.service.Service):
                                 subscription_jid=None,
                                 subid=None):
         """
-        Update the subscription configuration of a subscription to the pubsub
-        `node` hosted at `jid`.
+        Update the configuration of a subscription.
+
+        :param jid: Address of the PubSub service.
+        :type jid: :class:`aioxmpp.JID`
+        :param data: The new configuration of the subscription.
+        :type data: :class:`~.forms.Data`
+        :param node: Name of the PubSub node to modify.
+        :type node: :class:`str`
+        :param subscription_jid: The address to modify the configuration for.
+        :type subscription_jid: :class:`aioxmpp.JID`
+        :param subid: Unique ID of the subscription to modify.
+        :type subid: :class:`str`
+        :raises aioxmpp.errors.XMPPError: as returned by the service
 
         By default, the request will be on behalf of the bare JID of the
         client. It can be overriden using the `subscription_jid` argument.
@@ -417,7 +463,7 @@ class PubSubClient(aioxmpp.service.Service):
         If available, the `subid` should also be specified.
 
         The configuration must be given as `data` as a
-        :class:`~.forms.xso.Data` instance.
+        :class:`~.forms.Data` instance.
 
         If an error occurs, the corresponding :class:`~.errors.XMPPError` is
         raised.
@@ -441,10 +487,17 @@ class PubSubClient(aioxmpp.service.Service):
     @asyncio.coroutine
     def get_default_config(self, jid, node=None):
         """
-        Request the default configuration of the pubsub `node` hosted at
-        `jid`.
+        Request the default configuration of a node.
 
-        On success, the :class:`~.forms.xso.Data` form is returned.
+        :param jid: Address of the PubSub service.
+        :type jid: :class:`aioxmpp.JID`
+        :param node: Name of the PubSub node to query.
+        :type node: :class:`str`
+        :raises aioxmpp.errors.XMPPError: as returned by the service
+        :return: The default configuration of subscriptions at the node.
+        :rtype: :class:`~.forms.Data`
+
+        On success, the :class:`~.forms.Data` form is returned.
 
         If an error occurs, the corresponding :class:`~.errors.XMPPError` is
         raised.
@@ -461,7 +514,17 @@ class PubSubClient(aioxmpp.service.Service):
     @asyncio.coroutine
     def get_items(self, jid, node, *, max_items=None):
         """
-        Request the most recent items from the pubsub `node` hosted at `jid`.
+        Request the most recent items from a node.
+
+        :param jid: Address of the PubSub service.
+        :type jid: :class:`aioxmpp.JID`
+        :param node: Name of the PubSub node to query.
+        :type node: :class:`str`
+        :param max_items: Number of items to return at most.
+        :type max_items: :class:`int` or :data:`None`
+        :raises aioxmpp.errors.XMPPError: as returned by the service
+        :return: The response from the server.
+        :rtype: :class:`.xso.Request`.
 
         By default, as many as possible items are requested. If `max_items` is
         given, it must be a positive integer specifying the maximum number of
@@ -481,8 +544,17 @@ class PubSubClient(aioxmpp.service.Service):
     @asyncio.coroutine
     def get_items_by_id(self, jid, node, ids):
         """
-        Request specific items by their IDs from the pubsub `node` hosted at
-        `jid`.
+        Request specific items by their IDs from a node.
+
+        :param jid: Address of the PubSub service.
+        :type jid: :class:`aioxmpp.JID`
+        :param node: Name of the PubSub node to query.
+        :type node: :class:`str`
+        :param ids: The item IDs to return.
+        :type ids: :class:`~collections.abc.Iterable` of :class:`str`
+        :raises aioxmpp.errors.XMPPError: as returned by the service
+        :return: The response from the service
+        :rtype: :class:`.xso.Request`
 
         `ids` must be an iterable of :class:`str` of the IDs of the items to
         request from the pubsub node. If the iterable is empty,
@@ -511,8 +583,15 @@ class PubSubClient(aioxmpp.service.Service):
     @asyncio.coroutine
     def get_subscriptions(self, jid, node=None):
         """
-        Return a :class:`.xso.Subscriptions` object which contains all the
-        subscriptions of the local entity to the `node` located at `jid`.
+        Return all subscriptions of the local entity to a node.
+
+        :param jid: Address of the PubSub service.
+        :type jid: :class:`aioxmpp.JID`
+        :param node: Name of the PubSub node to query.
+        :type node: :class:`str`
+        :raises aioxmpp.errors.XMPPError: as returned by the service
+        :return: The subscriptions response from the service.
+        :rtype: :class:`.xso.Subscriptions.
 
         If `node` is :data:`None`, subscriptions on all nodes of the entity
         `jid` are listed.
@@ -529,6 +608,20 @@ class PubSubClient(aioxmpp.service.Service):
     @asyncio.coroutine
     def publish(self, jid, node, payload, *, id_=None):
         """
+        Publish an item to a node.
+
+        :param jid: Address of the PubSub service.
+        :type jid: :class:`aioxmpp.JID`
+        :param node: Name of the PubSub node to publish to.
+        :type node: :class:`str`
+        :param payload: Registered payload to publish.
+        :type payload: :class:`aioxmpp.xso.XSO`
+        :param id_: Item ID to use for the item.
+        :type id_: :class:`str` or :data:`None`.
+        :raises aioxmpp.errors.XMPPError: as returned by the service
+        :return: The Item ID which was used to publish the item.
+        :rtype: :class:`str` or :data:`None`
+
         Publish the given `payload` (which must be a :class:`aioxmpp.xso.XSO`
         registered with :attr:`.xso.Item.registered_payload`).
 
@@ -537,7 +630,8 @@ class PubSubClient(aioxmpp.service.Service):
         the node, it is replaced. If no ID is given, a ID is generated by the
         server.
 
-        Return the ID of the item as published.
+        Return the ID of the item as published (or :data:`None` if the server
+        does not inform us; this is unfortunately common).
         """
 
         publish = pubsub_xso.Publish()
@@ -556,13 +650,21 @@ class PubSubClient(aioxmpp.service.Service):
 
         response = yield from self.client.stream.send(iq)
 
-        if response.payload.item is not None:
+        if response is not None and response.payload.item is not None:
             return response.payload.item.id_ or id_
         return id_
 
     @asyncio.coroutine
     def notify(self, jid, node):
         """
+        Notify all subscribers of a node without publishing an item.
+
+        :param jid: Address of the PubSub service.
+        :type jid: :class:`aioxmpp.JID`
+        :param node: Name of the PubSub node to send a notify from.
+        :type node: :class:`str`
+        :raises aioxmpp.errors.XMPPError: as returned by the service
+
         "Publish" to the `node` at `jid` without any item. This merely fans out
         a notification. The exact semantics can be checked in :xep:`60`.
         """
@@ -571,6 +673,19 @@ class PubSubClient(aioxmpp.service.Service):
     @asyncio.coroutine
     def retract(self, jid, node, id_, *, notify=False):
         """
+        Retract a previously published item from a node.
+
+        :param jid: Address of the PubSub service.
+        :type jid: :class:`aioxmpp.JID`
+        :param node: Name of the PubSub node to send a notify from.
+        :type node: :class:`str`
+        :param id_: The ID of the item to retract.
+        :type id_: :class:`str`
+        :param notify: Flag indicating whether subscribers shall be notified
+            about the retraction.
+        :type notify: :class:`bool`
+        :raises aioxmpp.errors.XMPPError: as returned by the service
+
         Retract an item previously published to `node` at `jid`. `id_` must be
         the ItemID of the item to retract.
 
@@ -594,7 +709,15 @@ class PubSubClient(aioxmpp.service.Service):
     @asyncio.coroutine
     def create(self, jid, node=None):
         """
-        Create a new pubsub `node` at the given `jid`.
+        Create a new node at a service.
+
+        :param jid: Address of the PubSub service.
+        :type jid: :class:`aioxmpp.JID`
+        :param node: Name of the PubSub node to create.
+        :type node: :class:`str` or :data:`None`
+        :raises aioxmpp.errors.XMPPError: as returned by the service
+        :return: The name of the created node.
+        :rtype: :class:`str`
 
         If `node` is :data:`None`, an instant node is created (see :xep:`60`).
         The server may not support or allow the creation of instant nodes.
@@ -621,7 +744,16 @@ class PubSubClient(aioxmpp.service.Service):
     @asyncio.coroutine
     def delete(self, jid, node, *, redirect_uri=None):
         """
-        Delete an existing pubsub `node` at the given `jid`.
+        Delete an existing node.
+
+        :param jid: Address of the PubSub service.
+        :type jid: :class:`aioxmpp.JID`
+        :param node: Name of the PubSub node to delete.
+        :type node: :class:`str` or :data:`None`
+        :param redirect_uri: A URI to send to subscribers to indicate a
+            replacement for the deleted node.
+        :type redirect_uri: :class:`str` or :data:`None`
+        :raises aioxmpp.errors.XMPPError: as returned by the service
 
         Optionally, a `redirect_uri` can be given. The `redirect_uri` will be
         sent to subscribers in the message notifying them about the node
@@ -644,6 +776,17 @@ class PubSubClient(aioxmpp.service.Service):
     @asyncio.coroutine
     def get_nodes(self, jid, node=None):
         """
+        Request all nodes at a service or collection node.
+
+        :param jid: Address of the PubSub service.
+        :type jid: :class:`aioxmpp.JID`
+        :param node: Name of the collection node to query
+        :type node: :class:`str` or :data:`None`
+        :raises aioxmpp.errors.XMPPError: as returned by the service
+        :return: The list of nodes at the service or collection node.
+        :rtype: :class:`~collections.abc.Sequence` of tuples consisting of the
+            node name and its description.
+
         Request the nodes available at `jid`. If `node` is not :data:`None`,
         the request returns the children of the :xep:`248` collection node
         `node`. Make sure to check for the appropriate server feature first.
@@ -675,7 +818,15 @@ class PubSubClient(aioxmpp.service.Service):
     @asyncio.coroutine
     def get_node_affiliations(self, jid, node):
         """
-        Return the affiliations of other jids at the pubsub `node` at `jid`.
+        Return the affiliations of other jids at a node.
+
+        :param jid: Address of the PubSub service.
+        :type jid: :class:`aioxmpp.JID`
+        :param node: Name of the node to query
+        :type node: :class:`str`
+        :raises aioxmpp.errors.XMPPError: as returned by the service
+        :return: The response from the service.
+        :rtype: :class:`.xso.OwnerRequest`
 
         The affiliations are returned as :class:`.xso.OwnerRequest` instance
         whose :attr:`~.xso.OwnerRequest.payload` is a
@@ -694,7 +845,15 @@ class PubSubClient(aioxmpp.service.Service):
     @asyncio.coroutine
     def get_node_subscriptions(self, jid, node):
         """
-        Return the subscriptions of other jids at the pubsub `node` at `jid`.
+        Return the subscriptions of other jids with a node.
+
+        :param jid: Address of the PubSub service.
+        :type jid: :class:`aioxmpp.JID`
+        :param node: Name of the node to query
+        :type node: :class:`str`
+        :raises aioxmpp.errors.XMPPError: as returned by the service
+        :return: The response from the service.
+        :rtype: :class:`.xso.OwnerRequest`
 
         The subscriptions are returned as :class:`.xso.OwnerRequest` instance
         whose :attr:`~.xso.OwnerRequest.payload` is a
@@ -713,7 +872,16 @@ class PubSubClient(aioxmpp.service.Service):
     @asyncio.coroutine
     def change_node_affiliations(self, jid, node, affiliations_to_set):
         """
-        Update the affiliations of the pubsub `node` at `jid`.
+        Update the affiliations at a node.
+
+        :param jid: Address of the PubSub service.
+        :type jid: :class:`aioxmpp.JID`
+        :param node: Name of the node to modify
+        :type node: :class:`str`
+        :param affiliations_to_set: The affiliations to set at the node.
+        :type affiliations_to_set: :class:`~collections.abc.Iterable` of tuples
+            consisting of the JID to affiliate and the affiliation to use.
+        :raises aioxmpp.errors.XMPPError: as returned by the service
 
         `affiliations_to_set` must be an iterable of pairs (`jid`,
         `affiliation`), where the `jid` indicates the JID for which the
@@ -741,7 +909,17 @@ class PubSubClient(aioxmpp.service.Service):
     @asyncio.coroutine
     def change_node_subscriptions(self, jid, node, subscriptions_to_set):
         """
-        Update the subscriptions of the pubsub `node` at `jid`.
+        Update the subscriptions at a node.
+
+        :param jid: Address of the PubSub service.
+        :type jid: :class:`aioxmpp.JID`
+        :param node: Name of the node to modify
+        :type node: :class:`str`
+        :param subscriptions_to_set: The subscriptions to set at the node.
+        :type subscriptions_to_set: :class:`~collections.abc.Iterable` of
+            tuples consisting of the JID to (un)subscribe and the subscription
+            level to use.
+        :raises aioxmpp.errors.XMPPError: as returned by the service
 
         `subscriptions_to_set` must be an iterable of pairs (`jid`,
         `subscription`), where the `jid` indicates the JID for which the

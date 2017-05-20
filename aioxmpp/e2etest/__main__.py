@@ -20,6 +20,6 @@
 #
 ########################################################################
 import nose
-from aioxmpp.e2etest import AioxmppPlugin
+from aioxmpp.e2etest import E2ETestPlugin
 
-nose.main(addplugins=[AioxmppPlugin()])
+nose.main(addplugins=[E2ETestPlugin()])

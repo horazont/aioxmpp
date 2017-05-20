@@ -2423,6 +2423,18 @@ class Test_PropBase(unittest.TestCase):
             ],
             validator.mock_calls)
 
+    def test_validator_recv_ignores_default(self):
+        validator = unittest.mock.MagicMock()
+        instance = make_instance_mock()
+
+        prop = xso_model._PropBase(
+            default=self.default,
+            validator=validator,
+            validate=xso.ValidateMode.FROM_RECV)
+
+        prop._set_from_recv(instance, self.default)
+        validator.validate.assert_not_called()
+
     def test_validator_code(self):
         validator = unittest.mock.MagicMock()
         instance = make_instance_mock()
@@ -2461,6 +2473,18 @@ class Test_PropBase(unittest.TestCase):
                 unittest.mock.call.validate("baz"),
             ],
             validator.mock_calls)
+
+    def test_validator_code_ignores_default(self):
+        validator = unittest.mock.MagicMock()
+        instance = make_instance_mock()
+
+        prop = xso_model._PropBase(
+            default=self.default,
+            validator=validator,
+            validate=xso.ValidateMode.FROM_CODE)
+
+        prop._set_from_code(instance, self.default)
+        validator.validate.assert_not_called()
 
     def test_validator_always(self):
         validator = unittest.mock.MagicMock()
@@ -2566,12 +2590,7 @@ class Test_TypedPropBase(unittest.TestCase):
 
         prop._set_from_code(instance, "bar")
 
-        self.assertSequenceEqual(
-            [
-                unittest.mock.call.coerce("bar"),
-            ],
-            type_.mock_calls
-        )
+        type_.coerce.assert_called_once_with("bar")
 
         self.assertDictEqual(
             {
@@ -2684,11 +2703,7 @@ class TestText(XMLTestCase):
         prop = xso.Text(type_=type_)
         prop.__set__(instance, "foo")
 
-        self.assertSequenceEqual(
-            [
-                unittest.mock.call.coerce("foo"),
-            ],
-            type_.mock_calls)
+        type_.coerce.assert_called_once_with("foo")
 
     def test_to_sax_unset(self):
         instance = make_instance_mock()
@@ -2758,6 +2773,14 @@ class TestChild(XMLTestCase):
             self.ClsA.test_child.get_tag_map()
         )
 
+    def test_default_strict_is_False(self):
+        prop = xso.Child([])
+        self.assertIs(prop.strict, False)
+
+    def test_strict_controllable_from_init(self):
+        prop = xso.Child([], strict=True)
+        self.assertIs(prop.strict, True)
+
     def test_forbid_duplicate_tags(self):
         class ClsLeaf2(xso.XSO):
             TAG = "bar"
@@ -2826,12 +2849,7 @@ class TestChild(XMLTestCase):
         obj = self.ClsA()
         obj.test_child = unittest.mock.MagicMock()
         self.ClsA.test_child.to_sax(obj, dest)
-        self.assertSequenceEqual(
-            [
-                unittest.mock.call.unparse_to_sax(dest)
-            ],
-            obj.test_child.mock_calls
-        )
+        obj.test_child.unparse_to_sax.assert_called_once_with(dest)
 
     def test_to_sax_unset(self):
         dest = unittest.mock.MagicMock()
@@ -2908,6 +2926,52 @@ class TestChild(XMLTestCase):
         instance.prop = self.ClsA()
         del instance.prop
         self.assertIsNone(instance.prop)
+
+    def test_strict_rejects_non_registered_classes(self):
+        class Cls(xso.XSO):
+            prop = xso.Child([], strict=True)
+
+        instance = Cls()
+        with self.assertRaisesRegex(
+                TypeError,
+                "<class 'object'> object is not a valid value"):
+            instance.prop = object()
+
+    def test_strict_rejects_allows_reistered_classes(self):
+        class Child(xso.XSO):
+            TAG = "test", "test"
+
+        class Cls(xso.XSO):
+            prop = xso.Child([Child], strict=True)
+
+        child = Child()
+
+        instance = Cls()
+        instance.prop = child
+        self.assertIs(child, instance.prop)
+
+    def test_strict_rejects_unregistered_subclasses(self):
+        class Child(xso.XSO):
+            TAG = "test", "test"
+
+        class SubChild(xso.XSO):
+            pass
+
+        class Cls(xso.XSO):
+            prop = xso.Child([Child], strict=True)
+
+        instance = Cls()
+        with self.assertRaisesRegex(
+                TypeError,
+                "<class '.+\.SubChild'> object is not a valid value"):
+            instance.prop = SubChild()
+
+    def test_strict_allows_none_if_not_required(self):
+        class Cls(xso.XSO):
+            prop = xso.Child([], strict=True, required=False)
+
+        instance = Cls()
+        instance.prop = None
 
     def tearDown(self):
         del self.ClsA
@@ -3157,6 +3221,32 @@ class TestCollector(XMLTestCase):
             parent_compare,
             parent_generated)
 
+    def test_to_sax_does_not_call_startDocument(self):
+        prop = xso.Collector()
+
+        subtree1 = etree.fromstring("<foo xmlns='uri:foo'/>")
+        subtree2 = etree.fromstring("<bar xmlns='uri:bar' a='baz'>fnord</bar>")
+        subtree3 = etree.fromstring(
+            "<baz><a/>"
+            "<b c='something'/>"
+            "<d i='am running out of'>dummy texts</d>"
+            "to insert</baz>")
+
+        instance = make_instance_mock({
+            prop: [
+                subtree1,
+                subtree2,
+                subtree3,
+            ]
+        })
+
+        sax_receiver = unittest.mock.Mock()
+
+        prop.to_sax(instance, sax_receiver)
+        sax_receiver.startDocument.assert_not_called()
+        sax_receiver.startPrefixMapping.assert_not_called()
+        sax_receiver.endPrefixMapping.assert_not_called()
+
 
 class TestAttr(XMLTestCase):
     def test_rejects_required_kwarg(self):
@@ -3273,6 +3363,15 @@ class TestAttr(XMLTestCase):
             ],
             validator.mock_calls)
 
+    def test_validator_ignores_default(self):
+        validator = unittest.mock.MagicMock()
+        instance = make_instance_mock()
+
+        prop = xso.Attr("foo", validator=validator, default=None,
+                        validate=xso_model.ValidateMode.ALWAYS)
+        prop.__set__(instance, None)
+        validator.validate.assert_not_called()
+
     def test_coerces(self):
         type_ = unittest.mock.MagicMock()
         instance = make_instance_mock()
@@ -3280,12 +3379,7 @@ class TestAttr(XMLTestCase):
         prop = xso.Attr("foo", type_=type_)
         prop.__set__(instance, "bar")
 
-        self.assertSequenceEqual(
-            [
-                unittest.mock.call.coerce("bar"),
-            ],
-            type_.mock_calls
-        )
+        type_.coerce.assert_called_once_with("bar")
 
     def test_missing(self):
         ctx = xso_model.Context()
@@ -3380,11 +3474,8 @@ class TestChildText(XMLTestCase):
 
         drive_from_events(prop.from_events, instance, subtree, self.ctx)
 
-        self.assertSequenceEqual(
-            [
-                unittest.mock.call.parse("foo"),
-            ],
-            type_mock.mock_calls)
+        type_mock.parse.assert_called_once_with("foo")
+
         self.assertDictEqual(
             {
                 prop: type_mock.parse("foo"),
@@ -3606,12 +3697,7 @@ class TestChildText(XMLTestCase):
         prop = xso.ChildText("body", type_=type_)
         prop.__set__(instance, "bar")
 
-        self.assertSequenceEqual(
-            [
-                unittest.mock.call.coerce("bar"),
-            ],
-            type_.mock_calls
-        )
+        type_.coerce.assert_called_once_with("bar")
 
     def test_validate_contents_rejects_unset_and_undefaulted(self):
         instance = make_instance_mock()
@@ -6405,3 +6491,102 @@ class Testevents_to_sax(unittest.TestCase):
 
     def tearDown(self):
         del self.dest
+
+
+class Test_CollectorContentHandlerFilter(unittest.TestCase):
+    def setUp(self):
+        self.r = unittest.mock.Mock()
+        self.f = xso_model._CollectorContentHandlerFilter(self.r)
+
+    def test_setDocumentLocator(self):
+        self.f.setDocumentLocator(unittest.mock.sentinel.locator)
+        self.r.setDocumentLocator.assert_called_once_with(
+            unittest.mock.sentinel.locator,
+        )
+
+    def test_startDocument(self):
+        self.f.startDocument()
+        self.r.assert_not_called()
+
+    def test_endDocument(self):
+        self.f.endDocument()
+        self.r.assert_not_called()
+
+    def test_startPrefixMapping(self):
+        self.f.startPrefixMapping(
+            unittest.mock.sentinel.prefix,
+            unittest.mock.sentinel.uri,
+        )
+        self.r.startPrefixMapping.assert_not_called()
+
+    def test_endPrefixMapping(self):
+        self.f.endPrefixMapping(
+            unittest.mock.sentinel.prefix,
+        )
+        self.r.endPrefixMapping.assert_not_called()
+
+    def test_startElement(self):
+        self.f.startElement(
+            unittest.mock.sentinel.name,
+            unittest.mock.sentinel.attrs,
+        )
+        self.r.startElement.assert_called_once_with(
+            unittest.mock.sentinel.name,
+            unittest.mock.sentinel.attrs,
+        )
+
+    def test_startElementNS(self):
+        self.f.startElementNS(
+            unittest.mock.sentinel.name,
+            unittest.mock.sentinel.qname,
+            unittest.mock.sentinel.attrs,
+        )
+        self.r.startElementNS.assert_called_once_with(
+            unittest.mock.sentinel.name,
+            unittest.mock.sentinel.qname,
+            unittest.mock.sentinel.attrs,
+        )
+
+    def test_endElement(self):
+        self.f.endElement(
+            unittest.mock.sentinel.name,
+        )
+        self.r.endElement.assert_called_once_with(
+            unittest.mock.sentinel.name,
+        )
+
+    def test_endElementNS(self):
+        self.f.endElementNS(
+            unittest.mock.sentinel.name,
+            unittest.mock.sentinel.qname,
+        )
+        self.r.endElementNS.assert_called_once_with(
+            unittest.mock.sentinel.name,
+            unittest.mock.sentinel.qname,
+        )
+
+    def test_characters(self):
+        self.f.characters(unittest.mock.sentinel.data)
+        self.r.characters.assert_called_once_with(unittest.mock.sentinel.data)
+
+    def test_ignorableWhitespace(self):
+        self.f.ignorableWhitespace(unittest.mock.sentinel.data)
+        self.r.ignorableWhitespace.assert_called_once_with(
+            unittest.mock.sentinel.data
+        )
+
+    def test_processingInstruction(self):
+        self.f.processingInstruction(
+            unittest.mock.sentinel.target,
+            unittest.mock.sentinel.data,
+        )
+        self.r.processingInstruction.assert_called_once_with(
+            unittest.mock.sentinel.target,
+            unittest.mock.sentinel.data,
+        )
+
+    def test_skippedEntity(self):
+        self.f.skippedEntity(unittest.mock.sentinel.name)
+        self.r.skippedEntity.assert_called_once_with(
+            unittest.mock.sentinel.name
+        )

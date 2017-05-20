@@ -20,121 +20,26 @@
 #
 ########################################################################
 import asyncio
-import base64
+import collections
 import copy
 import functools
-import hashlib
 import logging
 import os
 import tempfile
-import urllib.parse
-
-from xml.sax.saxutils import escape
 
 import aioxmpp.callbacks
 import aioxmpp.disco as disco
 import aioxmpp.service
+import aioxmpp.utils
 import aioxmpp.xml
 import aioxmpp.xso
 
-from . import xso as my_xso
+from aioxmpp.utils import namespaces
+
+from . import caps115, caps390
 
 
 logger = logging.getLogger("aioxmpp.entitycaps")
-
-
-def build_identities_string(identities):
-    identities = [
-        b"/".join([
-            escape(identity.category).encode("utf-8"),
-            escape(identity.type_).encode("utf-8"),
-            escape(str(identity.lang or "")).encode("utf-8"),
-            escape(identity.name or "").encode("utf-8"),
-        ])
-        for identity in identities
-    ]
-
-    if len(set(identities)) != len(identities):
-        raise ValueError("duplicate identity")
-
-    identities.sort()
-    identities.append(b"")
-    return b"<".join(identities)
-
-
-def build_features_string(features):
-    features = list(escape(feature).encode("utf-8") for feature in features)
-
-    if len(set(features)) != len(features):
-        raise ValueError("duplicate feature")
-
-    features.sort()
-    features.append(b"")
-    return b"<".join(features)
-
-
-def build_forms_string(forms):
-    types = set()
-    forms_list = []
-    for form in forms:
-        try:
-            form_types = set(
-                value
-                for field in form.fields.filter(attrs={"var": "FORM_TYPE"})
-                for value in field.values
-            )
-        except KeyError:
-            continue
-
-        if len(form_types) > 1:
-            raise ValueError("form with multiple types")
-        elif not form_types:
-            continue
-
-        type_ = escape(next(iter(form_types))).encode("utf-8")
-        if type_ in types:
-            raise ValueError("multiple forms of type {!r}".format(type_))
-        types.add(type_)
-        forms_list.append((type_, form))
-    forms_list.sort()
-
-    parts = []
-
-    for type_, form in forms_list:
-        parts.append(type_)
-
-        field_list = sorted(
-            (
-                (escape(field.var).encode("utf-8"), field.values)
-                for field in form.fields
-                if field.var != "FORM_TYPE"
-            ),
-            key=lambda x: x[0]
-        )
-
-        for var, values in field_list:
-            parts.append(var)
-            parts.extend(sorted(
-                escape(value).encode("utf-8") for value in values
-            ))
-
-    parts.append(b"")
-    return b"<".join(parts)
-
-
-def hash_query(query, algo):
-    hashimpl = hashlib.new(algo)
-    hashimpl.update(
-        build_identities_string(query.identities)
-    )
-    hashimpl.update(
-        build_features_string(query.features)
-    )
-    hashimpl.update(
-        build_forms_string(query.exts)
-    )
-
-    return base64.b64encode(hashimpl.digest()).decode("ascii")
 
 
 class Cache:
@@ -173,14 +78,14 @@ class Cache:
         self._system_db_path = None
         self._user_db_path = None
 
-    def _erase_future(self, for_hash, for_node, fut):
+    def _erase_future(self, key, fut):
         try:
-            existing = self._lookup_cache[for_hash, for_node]
+            existing = self._lookup_cache[key]
         except KeyError:
             pass
         else:
             if existing is fut:
-                del self._lookup_cache[for_hash, for_node]
+                del self._lookup_cache[key]
 
     def set_system_db_path(self, path):
         self._system_db_path = path
@@ -188,44 +93,45 @@ class Cache:
     def set_user_db_path(self, path):
         self._user_db_path = path
 
-    def lookup_in_database(self, hash_, node):
+    def lookup_in_database(self, key):
         try:
-            result = self._memory_overlay[hash_, node]
+            result = self._memory_overlay[key]
         except KeyError:
             pass
         else:
-            logger.debug("memory cache hit: %s %r", hash_, node)
+            logger.debug("memory cache hit: %s", key)
             return result
 
-        quoted = urllib.parse.quote(node, safe="")
+        key_path = key.path
+
         if self._system_db_path is not None:
             try:
                 f = (
-                    self._system_db_path / "{}_{}.xml".format(hash_, quoted)
+                    self._system_db_path / key_path
                 ).open("rb")
             except OSError:
                 pass
             else:
-                logger.debug("system db hit: %s %r", hash_, node)
+                logger.debug("system db hit: %s", key)
                 with f:
                     return aioxmpp.xml.read_single_xso(f, disco.xso.InfoQuery)
 
         if self._user_db_path is not None:
             try:
                 f = (
-                    self._user_db_path / "{}_{}.xml".format(hash_, quoted)
+                    self._user_db_path / key_path
                 ).open("rb")
             except OSError:
                 pass
             else:
-                logger.debug("user db hit: %s %r", hash_, node)
+                logger.debug("user db hit: %s", key)
                 with f:
                     return aioxmpp.xml.read_single_xso(f, disco.xso.InfoQuery)
 
-        raise KeyError(node)
+        raise KeyError(key)
 
     @asyncio.coroutine
-    def lookup(self, hash_, node):
+    def lookup(self, key):
         """
         Look up the given `node` URL using the given `hash_` first in the
         database and then by waiting on the futures created with
@@ -238,14 +144,14 @@ class Cache:
         is used as the result.
         """
         try:
-            result = self.lookup_in_database(hash_, node)
+            result = self.lookup_in_database(key)
         except KeyError:
             pass
         else:
             return result
 
         while True:
-            fut = self._lookup_cache[hash_, node]
+            fut = self._lookup_cache[key]
             try:
                 result = yield from fut
             except ValueError:
@@ -253,7 +159,7 @@ class Cache:
             else:
                 return result
 
-    def create_query_future(self, hash_, node):
+    def create_query_future(self, key):
         """
         Create and return a :class:`asyncio.Future` for the given `hash_`
         function and `node` URL. The future is referenced internally and used
@@ -265,12 +171,12 @@ class Cache:
         """
         fut = asyncio.Future()
         fut.add_done_callback(
-            functools.partial(self._erase_future, hash_, node)
+            functools.partial(self._erase_future, key)
         )
-        self._lookup_cache[hash_, node] = fut
+        self._lookup_cache[key] = fut
         return fut
 
-    def add_cache_entry(self, hash_, node, entry):
+    def add_cache_entry(self, key, entry):
         """
         Add the given `entry` (which must be a :class:`~.disco.xso.InfoQuery`
         instance) to the user-level database keyed with the hash function type
@@ -279,23 +185,22 @@ class Cache:
         that the caller perfoms the validation.
         """
         copied_entry = copy.copy(entry)
-        copied_entry.node = node
-        self._memory_overlay[hash_, node] = copied_entry
+        self._memory_overlay[key] = copied_entry
         if self._user_db_path is not None:
             asyncio.async(asyncio.get_event_loop().run_in_executor(
                 None,
                 writeback,
-                self._user_db_path,
-                hash_,
-                node,
+                self._user_db_path / key.path,
                 entry.captured_events))
 
 
 class EntityCapsService(aioxmpp.service.Service):
     """
-    This service implements :xep:`0115`, transparently. Besides loading the
-    service, no interaction is required to get some of the benefits of
-    :xep:`0115`.
+    Make use and provide service discovery information in presence broadcasts.
+
+    This service implements :xep:`0115` and :xep:`0390`, transparently.
+    Besides loading the service, no interaction is required to get some of
+    the benefits of :xep:`0115` and :xep:`0390`.
 
     Two additional things need to be done by users to get full support and
     performance:
@@ -305,8 +210,20 @@ class EntityCapsService(aioxmpp.service.Service):
        :meth:`on_ver_changed` signal and re-emit their current presence when it
        fires.
 
+       .. note::
+
+           Keeping peers up-to-date is a MUST in :xep:`390`.
+
        The service takes care of attaching capabilities information on the
        outgoing stanza, using a stanza filter.
+
+       .. warning::
+
+           :meth:`on_ver_changed` may be emitted at a considerable rate when
+           services are loaded or certain features (such as PEP-based services)
+           are configured. It is up to the application to limit the rate at
+           which presences are sent for the sole purpose of updating peers with
+           new capability information.
 
     2. Users should use a process-wide :class:`Cache` instance and assign it to
        the :attr:`cache` of each :class:`.entitycaps.Service` they use. This
@@ -318,17 +235,25 @@ class EntityCapsService(aioxmpp.service.Service):
 
     .. signal:: on_ver_changed
 
-       The signal emits whenever the ``ver`` of the local client changes. This
-       happens when the set of features or identities announced in the
-       :class:`.DiscoServer` changes.
+       The signal emits whenever the Capability Hashset of the local client
+       changes. This happens when the set of features or identities announced
+       in the :class:`.DiscoServer` changes.
 
     .. autoattribute:: cache
+
+    .. autoattribute:: xep115_support
+
+    .. autoattribute:: xep390_support
 
     .. versionchanged:: 0.8
 
        This class was formerly known as :class:`aioxmpp.entitycaps.Service`. It
        is still available under that name, but the alias will be removed in
        1.0.
+
+    .. versionchanged:: 0.9
+
+        Support for :xep:`390` was added.
 
     """
 
@@ -344,14 +269,69 @@ class EntityCapsService(aioxmpp.service.Service):
     def __init__(self, node, **kwargs):
         super().__init__(node, **kwargs)
 
-        self.ver = None
+        self.__current_keys = {}
         self._cache = Cache()
 
         self.disco_server = self.dependencies[disco.DiscoServer]
         self.disco_client = self.dependencies[disco.DiscoClient]
-        self.disco_server.register_feature(
-            "http://jabber.org/protocol/caps"
+
+        self.__115 = caps115.Implementation(self.NODE)
+        self.__390 = caps390.Implementation(
+            aioxmpp.hashes.default_hash_algorithms
         )
+
+        self.__active_hashsets = []
+        self.__key_users = collections.Counter()
+
+    @property
+    def xep115_support(self):
+        """
+        Boolean to control whether :xep:`115` support is enabled or not.
+
+        Defaults to :data:`True`.
+
+        If set to false, inbound :xep:`115` capabilities will not be processed
+        and no :xep:`115` capabilities will be emitted.
+
+        .. note::
+
+            At some point, this will default to :data:`False` to save
+            bandwidth. The exact release depends on the adoption of :xep:`390`
+            and will be announced in time. If you depend on :xep:`115` support,
+            set this boolean to :data:`True`.
+
+            The attribute itself will not be removed until :xep:`115` support
+            is removed from :mod:`aioxmpp` entirely, which is unlikely to
+            happen any time soon.
+
+        .. versionadded:: 0.9
+        """
+
+        return self._xep115_feature.enabled
+
+    @xep115_support.setter
+    def xep115_support(self, value):
+        self._xep115_feature.enabled = value
+
+    @property
+    def xep390_support(self):
+        """
+        Boolean to control whether :xep:`390` support is enabled or not.
+
+        Defaults to :data:`True`.
+
+        If set to false, inbound :xep:`390` Capability Hash Sets will not be
+        processed and no Capability Hash Sets or Capability Nodes will be
+        generated.
+
+        The hash algortihms used for generating Capability Hash Sets are those
+        from :data:`aioxmpp.hashes.default_hash_algorithms`.
+        """
+        return self._xep390_feature.enabled
+
+    @xep390_support.setter
+    def xep390_support(self, value):
+        self._xep390_feature.enabled = value
 
     @property
     def cache(self):
@@ -376,121 +356,155 @@ class EntityCapsService(aioxmpp.service.Service):
         disco.DiscoServer,
         "on_info_changed")
     def _info_changed(self):
+        self.logger.debug("info changed, scheduling re-calculation of version")
         asyncio.get_event_loop().call_soon(
             self.update_hash
         )
 
     @asyncio.coroutine
     def _shutdown(self):
-        self.disco_server.unregister_feature(
-            "http://jabber.org/protocol/caps"
-        )
-        if self.ver is not None:
-            self.disco_server.unmount_node(
-                self.NODE + "#" + self.ver
-            )
+        for group in self.__current_keys.values():
+            for key in group:
+                self.disco_server.unmount_node(key.node)
 
     @asyncio.coroutine
-    def query_and_cache(self, jid, node, ver, hash_, fut):
+    def query_and_cache(self, jid, key, fut):
         data = yield from self.disco_client.query_info(
             jid,
-            node=node+"#"+ver,
-            require_fresh=True)
+            node=key.node,
+            require_fresh=True,
+            no_cache=True,  # the caps node is never queried by apps
+        )
 
         try:
-            expected = hash_query(data, hash_.replace("-", ""))
-        except ValueError as exc:
-            fut.set_exception(exc)
-        else:
-            if expected == ver:
-                self.cache.add_cache_entry(hash_, node+"#"+ver, data)
+            if key.verify(data):
+                self.cache.add_cache_entry(key, data)
                 fut.set_result(data)
             else:
-                fut.set_exception(ValueError("hash mismatch"))
+                raise ValueError("hash mismatch")
+        except ValueError as exc:
+            fut.set_exception(exc)
 
         return data
 
     @asyncio.coroutine
-    def lookup_info(self, jid, node, ver, hash_):
-        try:
-            info = yield from self.cache.lookup(hash_, node+"#"+ver)
-        except KeyError:
-            pass
-        else:
-            self.logger.debug("found ver=%r in cache", ver)
+    def lookup_info(self, jid, keys):
+        for key in keys:
+            try:
+                info = yield from self.cache.lookup(key)
+            except KeyError:
+                continue
+
+            self.logger.debug("found %s in cache", key)
             return info
 
-        self.logger.debug("have to query for ver=%r", ver)
-        fut = self.cache.create_query_future(hash_, node+"#"+ver)
+        first_key = keys[0]
+        self.logger.debug("using key %s to query peer", first_key)
+        fut = self.cache.create_query_future(first_key)
         info = yield from self.query_and_cache(
-            jid, node, ver, hash_,
-            fut
+            jid, first_key, fut
         )
+        self.logger.debug("%s maps to %r", key, info)
 
         return info
 
     @aioxmpp.service.outbound_presence_filter
     def handle_outbound_presence(self, presence):
-        if (self.ver is not None and
-                presence.type_ == aioxmpp.structs.PresenceType.AVAILABLE):
-            presence.xep0115_caps = my_xso.Caps(
-                self.NODE,
-                self.ver,
-                "sha-1",
-            )
+        if (presence.type_ == aioxmpp.structs.PresenceType.AVAILABLE
+                and self.__active_hashsets):
+            current_hashset = self.__active_hashsets[-1]
+
+            try:
+                keys = current_hashset[self.__115]
+            except KeyError:
+                pass
+            else:
+                self.__115.put_keys(keys, presence)
+
+            try:
+                keys = current_hashset[self.__390]
+            except KeyError:
+                pass
+            else:
+                self.__390.put_keys(keys, presence)
+
         return presence
 
     @aioxmpp.service.inbound_presence_filter
     def handle_inbound_presence(self, presence):
-        caps = presence.xep0115_caps
-        presence.xep0115_caps = None
+        keys = []
 
-        if caps is not None and caps.hash_ is not None:
-            self.logger.debug(
-                "inbound presence with ver=%r and hash=%r from %s",
-                caps.ver, caps.hash_,
-                presence.from_)
-            task = asyncio.async(
-                self.lookup_info(presence.from_,
-                                 caps.node,
-                                 caps.ver,
-                                 caps.hash_)
+        if self.xep390_support:
+            keys.extend(self.__390.extract_keys(presence))
+
+        if self.xep115_support:
+            keys.extend(self.__115.extract_keys(presence))
+
+        if keys:
+            lookup_task = aioxmpp.utils.LazyTask(
+                self.lookup_info,
+                presence.from_,
+                keys,
             )
-            self.disco_client.set_info_future(presence.from_, None, task)
+            self.disco_client.set_info_future(
+                presence.from_,
+                None,
+                lookup_task
+            )
 
         return presence
 
+    def _push_hashset(self, node, hashset):
+        if self.__active_hashsets and hashset == self.__active_hashsets[-1]:
+            return False
+
+        for group in hashset.values():
+            for key in group:
+                if not self.__key_users[key.node]:
+                    self.disco_server.mount_node(key.node, node)
+                self.__key_users[key.node] += 1
+        self.__active_hashsets.append(hashset)
+
+        for expired in self.__active_hashsets[:-3]:
+            for group in expired.values():
+                for key in group:
+                    self.__key_users[key.node] -= 1
+                    if not self.__key_users[key.node]:
+                        self.disco_server.unmount_node(key.node)
+                        del self.__key_users[key.node]
+
+        del self.__active_hashsets[:-3]
+
+        return True
+
     def update_hash(self):
-        identities = []
-        for category, type_, lang, name in self.disco_server.iter_identities():
-            identity = disco.xso.Identity(category=category,
-                                          type_=type_)
-            if lang is not None:
-                identity.lang = lang
-            if name is not None:
-                identity.name = name
-            identities.append(identity)
+        node = disco.StaticNode.clone(self.disco_server)
+        info = node.as_info_xso()
 
-        new_ver = hash_query(
-            disco.xso.InfoQuery(
-                identities=identities,
-                features=self.disco_server.iter_features(),
-            ),
-            "sha1",
-        )
+        new_hashset = {}
 
-        if self.ver != new_ver:
-            if self.ver is not None:
-                self.disco_server.unmount_node(self.NODE + "#" + self.ver)
-            self.ver = new_ver
-            self.disco_server.mount_node(self.NODE + "#" + self.ver, self.disco_server)
+        if self.xep115_support:
+            new_hashset[self.__115] = set(self.__115.calculate_keys(info))
+
+        if self.xep390_support:
+            new_hashset[self.__390] = set(self.__390.calculate_keys(info))
+
+        self.logger.debug("new hashset=%r", new_hashset)
+
+        if self._push_hashset(node, new_hashset):
             self.on_ver_changed()
 
 
-def writeback(base_path, hash_, node, captured_events):
-    quoted = urllib.parse.quote(node, safe="")
-    dest_path = base_path / "{}_{}.xml".format(hash_, quoted)
-    with tempfile.NamedTemporaryFile(dir=str(base_path), delete=False) as tmpf:
+    # declare those at the bottom so that on_ver_changed gets emitted when the
+    # service is instantiated
+    _xep115_feature = disco.register_feature(namespaces.xep0115_caps)
+    _xep390_feature = disco.register_feature(namespaces.xep0390_caps)
+
+
+def writeback(path, captured_events):
+    aioxmpp.utils.mkdir_exist_ok(path.parent)
+    with tempfile.NamedTemporaryFile(dir=str(path.parent),
+                                     delete=False) as tmpf:
         try:
             generator = aioxmpp.xml.XMPPXMLGenerator(
                 tmpf,
@@ -501,4 +515,4 @@ def writeback(base_path, hash_, node, captured_events):
         except:
             os.unlink(tmpf.name)
             raise
-        os.replace(tmpf.name, str(dest_path))
+        os.replace(tmpf.name, str(path))

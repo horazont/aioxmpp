@@ -68,6 +68,8 @@ from datetime import timedelta
 
 import dns.resolver
 
+import OpenSSL.SSL
+
 import aiosasl
 
 from . import (
@@ -83,6 +85,7 @@ from . import (
     stanza,
     structs,
     security_layer,
+    dispatcher,
     presence as mod_presence,
 )
 from .utils import namespaces
@@ -216,6 +219,7 @@ def _try_options(options, exceptions,
                 host,
                 port,
                 negotiation_timeout,
+                base_logger=logger,
             )
         except OSError as exc:
             logger.warning(
@@ -476,17 +480,20 @@ class Client:
 
     Controlling the client:
 
+    .. automethod:: connected
+
     .. automethod:: start
 
     .. automethod:: stop
 
     .. autoattribute:: running
 
-    .. attribute:: negotiation_timeout = timedelta(seconds=60)
+    .. attribute:: negotiation_timeout
+        :annotation: = timedelta(seconds=60)
 
-       The timeout applied to the connection process and the individual steps
-       of negotiating the stream. See the `negotiation_timeout` argument to
-       :func:`connect_xmlstream`.
+        The timeout applied to the connection process and the individual steps
+        of negotiating the stream. See the `negotiation_timeout` argument to
+        :func:`connect_xmlstream`.
 
     .. attribute:: override_peer
 
@@ -505,6 +512,9 @@ class Client:
           options set here.
 
        .. versionadded:: 0.6
+
+    .. autoattribute:: resumption_timeout
+        :annotation: = None
 
     Connection information:
 
@@ -689,6 +699,7 @@ class Client:
         self.backoff_cap = timedelta(seconds=60)
         self.override_peer = list(override_peer)
         self._max_initial_attempts = max_initial_attempts
+        self._resumption_timeout = None
 
         self.on_stopped.logger = self.logger.getChild("on_stopped")
         self.on_failure.logger = self.logger.getChild("on_failure")
@@ -699,7 +710,22 @@ class Client:
         self.on_stream_suspended.logger = \
             self.logger.getChild("on_stream_suspended")
 
-        self.stream = stream.StanzaStream(local_jid.bare())
+        if logger is not None:
+            stream_base_logger = self.logger
+        else:
+            stream_base_logger = logging.getLogger("aioxmpp")
+        self.stream = stream.StanzaStream(
+            local_jid.bare(),
+            base_logger=stream_base_logger
+        )
+
+        self.stream._xxx_message_dispatcher = self.summon(
+            dispatcher.SimpleMessageDispatcher,
+        )
+
+        self.stream._xxx_presence_dispatcher = self.summon(
+            dispatcher.SimplePresenceDispatcher,
+        )
 
     def _stream_failure(self, exc):
         if self._failure_future.done():
@@ -790,7 +816,9 @@ class Client:
         if server_can_do_sm:
             self.logger.debug("attempting to start stream management")
             try:
-                yield from self.stream.start_sm()
+                yield from self.stream.start_sm(
+                    resumption_timeout=self._resumption_timeout
+                )
             except errors.StreamNegotiationFailure:
                 self.logger.debug("stream management failed to start")
             self.logger.debug("stream management started")
@@ -895,7 +923,8 @@ class Client:
                     if self.stream.sm_enabled:
                         self.stream.stop_sm()
                     raise
-                except (OSError, dns.resolver.NoNameservers) as exc:
+                except (OSError, dns.resolver.NoNameservers,
+                        OpenSSL.SSL.Error) as exc:
                     self.logger.info("connection error: (%s) %s",
                                      type(exc).__qualname__,
                                      exc)
@@ -949,16 +978,20 @@ class Client:
 
     # services
 
-    def _summon(self, class_):
+    def _summon(self, class_, visited):
+        # this is essentially a topological sort algorithm
         try:
             return self._services[class_]
         except KeyError:
+            if class_ in visited:
+                raise ValueError("dependency loop")
+            visited.add(class_)
             instance = class_(
                 self,
                 logger_base=self.logger,
                 dependencies={
-                    depclass: self._services[depclass]
-                    for depclass in class_.ORDER_AFTER
+                    depclass: self._summon(depclass, visited)
+                    for depclass in class_.PATCHED_ORDER_AFTER
                 }
             )
             self._services[class_] = instance
@@ -975,10 +1008,7 @@ class Client:
         are not there already). Afterwards, the class itself is summoned and
         the instance is returned.
         """
-        requirements = sorted(class_.ORDER_AFTER)
-        for req in requirements:
-            self._summon(req)
-        return self._summon(class_)
+        return self._summon(class_, set())
 
     # properties
 
@@ -1022,6 +1052,43 @@ class Client:
         :attr:`on_stream_established`) and false otherwise.
         """
         return self._established
+
+    @property
+    def resumption_timeout(self):
+        """
+        The maximum time as integer in seconds for which the server shall hold
+        on to the session if the underlying transport breaks.
+
+        This is only relevant if the server supports
+        :xep:`Stream Management <198>` and the server may ignore the request
+        for a maximum timeout and/or impose its own maximum. After the
+        stream has been negotiated, :attr:`.StanzaStream.sm_max` holds the
+        actual timeout announced by the server (may be :data:`None` if the
+        server did not specify a timeout).
+
+        The default value of :data:`None` does not request any specific
+        timeout from the server and leaves it up to the server to decide.
+
+        Setting a :attr:`resumption_timeout` of zero (0) disables resumption.
+
+        .. versionadded:: 0.9
+        """
+        return self._resumption_timeout
+
+    @resumption_timeout.setter
+    def resumption_timeout(self, value):
+        if (value is not None and
+                (not isinstance(value, int) or isinstance(value, bool))):
+            raise TypeError(
+                "resumption_timeout must be int or None, got {!r}".format(
+                    value
+                )
+            )
+        if value is not None and value < 0:
+            raise ValueError(
+                "resumption timeout must be non-negative or None"
+            )
+        self._resumption_timeout = value
 
     def connected(self, *, presence=structs.PresenceState(False), **kwargs):
         """

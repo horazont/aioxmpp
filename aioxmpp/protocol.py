@@ -478,10 +478,8 @@ class XMLStream(asyncio.Protocol):
             self._rx_feed(blob)
         except errors.StreamError as exc:
             stanza_obj = nonza.StreamError.from_exception(exc)
-            try:
+            if not self._writer.closed:
                 self._writer.send(stanza_obj)
-            except StopIteration:
-                pass
             self._fail(exc)
             # shutdown, we do not really care about </stream:stream> by the
             # server at this point
@@ -550,13 +548,7 @@ class XMLStream(asyncio.Protocol):
 
     def _kill_state(self):
         if self._writer:
-            if inspect.getgeneratorstate(self._writer) == "GEN_SUSPENDED":
-                try:
-                    self._writer.throw(xml.AbortStream())
-                except StopIteration:
-                    pass
-            else:
-                self._writer = None
+            self._writer.abort()
 
         self._processor = None
         self._parser = None
@@ -576,7 +568,7 @@ class XMLStream(asyncio.Protocol):
             dest = DebugWrapper(self._transport, self._logger)
         else:
             dest = self._transport
-        self._writer = xml.write_xmlstream(
+        self._writer = xml.XMLStreamWriter(
             dest,
             self._to,
             nsmap={None: "jabber:client"},
@@ -600,7 +592,7 @@ class XMLStream(asyncio.Protocol):
         """
         self._require_connection(accept_partial=True)
         self._reset_state()
-        next(self._writer)
+        self._writer.start()
         self._smachine.rewind(State.STREAM_HEADER_SENT)
 
     def abort(self):
@@ -630,13 +622,30 @@ class XMLStream(asyncio.Protocol):
 
     def send_xso(self, obj):
         """
-        Send an XSO `obj` over the stream.
+        Send an XSO over the stream.
+
+        :param obj: The object to send.
+        :type obj: :class:`~.XSO`
+        :raises ConnectionError: if the connection is not fully established
+                                 yet.
+        :raises aioxmpp.errors.StreamError: if a stream error was received or
+                                            sent.
+        :raises OSError: if the stream got disconnected due to a another
+                         permanent transport error
+        :raises Exception: if serialisation of `obj` failed
 
         Calling :meth:`send_xso` while the stream is disconnected,
         disconnecting or still waiting for the remote to send a stream header
         causes :class:`ConnectionError` to be raised. If the stream got
         disconnected due to a transport or stream error, that exception is
         re-raised instead of the :class:`ConnectionError`.
+
+        .. versionchanged:: 0.9
+
+           Exceptions occuring during serialisation of `obj` are re-raised and
+           *no* content is sent over the stream. The stream is still valid and
+           usable afterwards.
+
         """
         self._require_connection()
         self._writer.send(obj)

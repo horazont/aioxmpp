@@ -1,28 +1,37 @@
 language: python
 cache:
   pip: true
+
 python:
 - "3.4"
 - "3.5"
 - "3.6"
 - "3.7-dev"
+env:
+- PROSODY_BRANCH=0.10 TEST_MODE=e2e-prosody
+matrix:
+  include:
+  - python: "3.6"
+    env: TEST_MODE=e2e-ejabberd
+    services:
+    - docker
+  - python: "3.6"
+    env: PROSODY_BRANCH=0.9 TEST_MODE=e2e-prosody
+  - python: "3.6"
+    env: PROSODY_BRANCH=trunk TEST_MODE=e2e-prosody
+  - python: "3.6"
+    env: TEST_MODE=coverage
+
 before_install:
-- pip install hererocks
-- hererocks lua_install -r^ --lua=5.1
 - export PATH=$PATH:$PWD/lua_install/bin
-- luarocks install luaexpat
-- luarocks install luafilesystem
-- luarocks install luasocket
-- luarocks install luasec
-- hg clone https://hg.prosody.im/0.9/ prosody
-- |
-  cd prosody
-  ./configure --with-lua=$(pwd)/../lua_install
-  make
-  cd ..
+- if [[ "x$TEST_MODE" = 'xe2e-prosody' ]]; then ./utils/install-prosody.sh; fi
+- if [[ "x$TEST_MODE" = 'xe2e-ejabberd' ]]; then ./utils/prepare-ejabberd.sh; fi
 install:
-- pip install nose
+- pip install nose coveralls
 - pip install .
-- curl https://sotecware.net/files/noindex/prosody-test.tar.gz | tar -xz
 script:
-- ./utils/travis-test.py
+- if [[ "x$TEST_MODE" = 'xe2e-prosody' ]]; then ./utils/travis-e2etest-prosody.py; fi
+- if [[ "x$TEST_MODE" = 'xe2e-ejabberd' ]]; then ./utils/travis-e2etest-ejabberd.py; fi
+- if [[ "x$TEST_MODE" = 'xcoverage' ]]; then nosetests --with-cover --cover-package aioxmpp tests; fi
+after_success:
+- if [[ "x$TEST_MODE" = 'xcoverage' ]]; then coveralls; fi
