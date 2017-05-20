@@ -165,7 +165,7 @@ def xep_role(typ, rawtext, text, lineno, inliner,
     indexnode['entries'] = [
         ('single', _('XMPP Extension Protocols (XEPs); XEP %s') % target,
          targetid, '')]
-    ref = inliner.document.settings.xep_base_url + 'xep-%04d' % xepnum
+    ref = inliner.document.settings.xep_base_url + 'xep-%04d.html' % xepnum
     rn = nodes.reference(title, title, internal=False, refuri=ref+anchor,
                          classes=[typ])
     return [indexnode, targetnode, rn], []
