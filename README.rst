@@ -143,4 +143,4 @@ Change log
 The `change log`_ is included in the `official documentation`_.
 
 .. _change log: https://docs.zombofant.net/aioxmpp/devel/api/changelog.html
-.. _official documentation: https://docs.zombofant.net/aioxmpp/devel/
+.. _official documentation: https://docs.zombofant.net/aioxmpp/0.9/
