@@ -67,6 +67,9 @@ Feature overview
   .. image:: https://travis-ci.org/horazont/aioxmpp.svg?branch=devel
     :target: https://travis-ci.org/horazont/aioxmpp
 
+  .. image:: https://coveralls.io/repos/github/horazont/aioxmpp/badge.svg?branch=devel
+    :target: https://coveralls.io/github/horazont/aioxmpp?branch=devel
+
 Check out the :ref:`ug-quick-start` to get started with :mod:`aioxmpp` now! ☺
 
 Supported protocols
