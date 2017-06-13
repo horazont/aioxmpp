@@ -102,16 +102,16 @@ class Status(xso.XSO):
         self.code = code
 
 
-class StatusCodeList(xso.AbstractType):
-    def parse(self, item):
+class StatusCodeList(xso.AbstractElementType):
+    def unpack(self, item):
         return item.code
 
-    def format(self, code):
+    def pack(self, code):
         item = Status(code)
         return item
 
-    def get_formatted_type(self):
-        return Status
+    def get_xso_types(self):
+        return [Status]
 
 
 class DestroyNotification(xso.XSO):

@@ -275,36 +275,39 @@ class TestStatus(unittest.TestCase):
 
 
 class TestStatusCodeList(unittest.TestCase):
-    def test_is_abstract_type(self):
+    def test_is_element_type(self):
         self.assertTrue(issubclass(
             muc_xso.StatusCodeList,
-            xso.AbstractType
+            xso.AbstractElementType
         ))
 
     def setUp(self):
         self.type_ = muc_xso.StatusCodeList()
 
-    def test_parse(self):
+    def tearDown(self):
+        del self.type_
+
+    def test_unpack(self):
         item = muc_xso.Status(123)
 
         self.assertEqual(
-            self.type_.parse(item),
+            self.type_.unpack(item),
             123
         )
 
-    def test_format(self):
-        item = self.type_.format(123)
+    def test_pack(self):
+        item = self.type_.pack(123)
         self.assertIsInstance(
             item,
             muc_xso.Status
         )
         self.assertEqual(item.code, 123)
 
-    def test_get_formatted_type(self):
-        self.assertIs(self.type_.get_formatted_type(), muc_xso.Status)
-
-    def tearDown(self):
-        del self.type_
+    def test_get_xso_types(self):
+        self.assertCountEqual(
+            self.type_.get_xso_types(),
+            [muc_xso.Status]
+        )
 
 
 class TestDestroyNotification(unittest.TestCase):

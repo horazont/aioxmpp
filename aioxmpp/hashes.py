@@ -229,15 +229,15 @@ class Hash(xso.XSO):
         return hash_from_algo(self.algo)
 
 
-class HashType(xso.AbstractType):
+class HashType(xso.AbstractElementType):
     @classmethod
-    def get_formatted_type(cls):
-        return Hash
+    def get_xso_types(cls):
+        return [Hash]
 
-    def parse(self, obj):
+    def unpack(self, obj):
         return obj.algo, obj.digest
 
-    def format(self, pair):
+    def pack(self, pair):
         return Hash(*pair)
 
 

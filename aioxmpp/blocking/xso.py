@@ -48,24 +48,24 @@ class BlockItem(aioxmpp.xso.XSO):
 # we can use this custom type together with xso.ChildValueList to access the
 # list of <item xmlns="urn:xmpp:blocking" /> elements like a normal python list
 # of JIDs.
-class BlockItemType(aioxmpp.xso.AbstractType):
-    # parse converts from the "raw", formatted representation (usually XML
-    # character data strings, in this case it’s a BlockItem instance) to the
+class BlockItemType(aioxmpp.xso.AbstractElementType):
+    # unpack converts from the "raw" XSO to the
     # "rich" python representation, in this case a JID object
-    def parse(self, item):
+    # think of unpack like of a high-level struct.unpack: we convert
+    # wire-format (XML trees) to python values
+    def unpack(self, item):
         return item.jid
 
-    # format converts back from the "rich" python representation (a JID object)
-    # to the "raw" XML stream representation, in this case a BlockItem XSO
-    def format(self, jid):
+    # pack is the reverse operation of unpack
+    def pack(self, jid):
         item = BlockItem()
         item.jid = jid
         return item
 
-    # we have to tell the XSO framework what type the format method will be
-    # returning.
-    def get_formatted_type(self):
-        return BlockItem
+    # we have to tell the XSO framework what XSO types are supported by this
+    # element type
+    def get_xso_types(self):
+        return [BlockItem]
 
 
 # the decorator tells the IQ stanza class that this is a valid payload; that is
@@ -78,8 +78,8 @@ class BlockList(aioxmpp.xso.XSO):
     # this does not get an __init__ method, since the client never
     # creates a BlockList with entries.
 
-    # xso.ChildValueList uses an AbstractType (like the one we defined above)
-    # to convert between child XSO instances and other python objects.
+    # xso.ChildValueList uses an AbstractElementType (like the one we defined
+    # above) to convert between child XSO instances and other python objects.
     # it is accessed like a normal list, but when parsing/serialising, the
     # elements are converted to XML structures using the given type.
     items = aioxmpp.xso.ChildValueList(

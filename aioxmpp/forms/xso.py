@@ -36,17 +36,17 @@ class Value(xso.XSO):
     value = xso.Text(default="")
 
 
-class ValueElement(xso.AbstractType):
-    def parse(self, item):
+class ValueElement(xso.AbstractElementType):
+    def unpack(self, item):
         return item.value
 
-    def format(self, value):
+    def pack(self, value):
         v = Value()
         v.value = value
         return v
 
-    def get_formatted_type(self):
-        return Value
+    def get_xso_types(self):
+        return [Value]
 
 
 class Option(xso.XSO):
@@ -67,19 +67,19 @@ class Option(xso.XSO):
             raise ValueError("option is missing a value")
 
 
-class OptionElement(xso.AbstractType):
-    def parse(self, item):
+class OptionElement(xso.AbstractElementType):
+    def unpack(self, item):
         return (item.value, item.label)
 
-    def format(self, value):
+    def pack(self, value):
         value, label = value
         o = Option()
         o.value = value
         o.label = label
         return o
 
-    def get_formatted_type(self):
-        return Option
+    def get_xso_types(self):
+        return [Option]
 
 
 class FieldType(enum.Enum):
@@ -386,7 +386,7 @@ class Field(xso.XSO):
 
     type_ = xso.Attr(
         (None, "type"),
-        type_=xso.EnumType(
+        type_=xso.EnumCDataType(
             FieldType,
         ),
         default=FieldType.TEXT_SINGLE,
@@ -469,17 +469,17 @@ class Instructions(xso.XSO):
     value = xso.Text(default="")
 
 
-class InstructionsElement(xso.AbstractType):
-    def parse(self, item):
+class InstructionsElement(xso.AbstractElementType):
+    def unpack(self, item):
         return item.value
 
-    def format(self, value):
+    def pack(self, value):
         v = Instructions()
         v.value = value
         return v
 
-    def get_formatted_type(self):
-        return Instructions
+    def get_xso_types(self):
+        return [Instructions]
 
 
 class DataType(enum.Enum):
@@ -572,7 +572,7 @@ class Data(AbstractItem):
 
     type_ = xso.Attr(
         "type",
-        type_=xso.EnumType(DataType)
+        type_=xso.EnumCDataType(DataType)
     )
 
     title = xso.ChildText(

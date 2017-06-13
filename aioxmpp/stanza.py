@@ -273,7 +273,7 @@ class Error(xso.XSO):
 
     type_ = xso.Attr(
         tag="type",
-        type_=xso.EnumType(
+        type_=xso.EnumCDataType(
             structs.ErrorType,
             allow_coerce=True,
             deprecate_coerce=True,
@@ -630,7 +630,7 @@ class Message(StanzaBase):
     id_ = xso.Attr(tag="id", default=None)
     type_ = xso.Attr(
         tag="type",
-        type_=xso.EnumType(
+        type_=xso.EnumCDataType(
             structs.MessageType,
             allow_coerce=True,
             deprecate_coerce=True,
@@ -764,7 +764,7 @@ class Presence(StanzaBase):
     id_ = xso.Attr(tag="id", default=None)
     type_ = xso.Attr(
         tag="type",
-        type_=xso.EnumType(
+        type_=xso.EnumCDataType(
             structs.PresenceType,
             allow_coerce=True,
             deprecate_coerce=True,
@@ -779,7 +779,7 @@ class Presence(StanzaBase):
 
     show = xso.ChildText(
         tag=(namespaces.client, "show"),
-        type_=xso.EnumType(
+        type_=xso.EnumCDataType(
             structs.PresenceShow,
             allow_coerce=True,
             deprecate_coerce=True,
@@ -874,7 +874,7 @@ class IQ(StanzaBase):
     id_ = xso.Attr(tag="id")
     type_ = xso.Attr(
         tag="type",
-        type_=xso.EnumType(
+        type_=xso.EnumCDataType(
             structs.IQType,
             allow_coerce=True,
             deprecate_coerce=True,

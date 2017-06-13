@@ -82,10 +82,10 @@ class TestHeader(unittest.TestCase):
 
 
 class TestHeaderType(unittest.TestCase):
-    def test_is_xso_type(self):
+    def test_is_element_type(self):
         self.assertTrue(issubclass(
             shim_xso.HeaderType,
-            xso.AbstractType
+            xso.AbstractElementType
         ))
 
     def setUp(self):
@@ -94,28 +94,28 @@ class TestHeaderType(unittest.TestCase):
     def tearDown(self):
         del self.t
 
-    def test_get_formatted_type(self):
-        self.assertIs(
-            self.t.get_formatted_type(),
-            shim_xso.Header,
+    def test_get_xso_types(self):
+        self.assertCountEqual(
+            self.t.get_xso_types(),
+            [shim_xso.Header],
         )
 
-    def test_parse(self):
+    def test_unpack(self):
         h = unittest.mock.Mock()
         h.name = unittest.mock.sentinel.name
         h.value = unittest.mock.sentinel.value
 
         self.assertEqual(
-            self.t.parse(h),
+            self.t.unpack(h),
             (
                 unittest.mock.sentinel.name,
                 unittest.mock.sentinel.value,
             )
         )
 
-    def test_format(self):
+    def test_pack(self):
         with unittest.mock.patch("aioxmpp.shim.xso.Header") as Header:
-            result = self.t.format(
+            result = self.t.pack(
                 (
                     unittest.mock.sentinel.name,
                     unittest.mock.sentinel.value,
