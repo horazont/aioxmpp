@@ -107,26 +107,23 @@ class Unknown(unittest.TestCase):
             )
 
 
-class TestAbstractType(unittest.TestCase):
-    class DummyType(xso.AbstractType):
+class TestAbstractCDataType(unittest.TestCase):
+    class DummyType(xso.AbstractCDataType):
         def parse(self, v):
             pass
 
     def test_is_abstract(self):
         self.assertIsInstance(
-            xso.AbstractType,
+            xso.AbstractCDataType,
             abc.ABCMeta)
         with self.assertRaises(TypeError):
-            xso.AbstractType()
+            xso.AbstractCDataType()
 
     def test_parse_method(self):
-        self.assertTrue(inspect.isfunction(xso.AbstractType.parse))
-
-    def test_get_formatted_type(self):
-        self.assertIs(xso.AbstractType.get_formatted_type(object()), str)
+        self.assertTrue(inspect.isfunction(xso.AbstractCDataType.parse))
 
     def test_format_method(self):
-        self.assertTrue(inspect.isfunction(xso.AbstractType.format))
+        self.assertTrue(inspect.isfunction(xso.AbstractCDataType.format))
         self.assertEqual(
             "foo",
             self.DummyType().format("foo"))
@@ -135,11 +132,48 @@ class TestAbstractType(unittest.TestCase):
             self.DummyType().format(23))
 
 
+class TestAbstractElementType(unittest.TestCase):
+    class DummyType(xso.AbstractElementType):
+        def unpack(self, obj):
+            pass
+
+        def pack(self, v):
+            pass
+
+        def get_xso_types(self):
+            pass
+
+    def test_is_abstract(self):
+        self.assertIsInstance(
+            xso.AbstractElementType,
+            abc.ABCMeta)
+        with self.assertRaises(TypeError):
+            xso.AbstractElementType()
+
+    def test_unpack_method(self):
+        self.assertTrue(inspect.isfunction(xso.AbstractElementType.unpack))
+
+    def test_coerce_method(self):
+        self.assertTrue(inspect.isfunction(xso.AbstractElementType.coerce))
+        self.assertEqual(
+            self.DummyType().coerce(unittest.mock.sentinel.value),
+            unittest.mock.sentinel.value
+        )
+
+    def test_get_xso_types(self):
+        self.assertTrue(inspect.isfunction(
+            xso.AbstractElementType.get_xso_types
+        ))
+
+    def test_pack_method(self):
+        self.assertTrue(inspect.isfunction(xso.AbstractElementType.pack))
+
+
 class TestStringType(unittest.TestCase):
-    def test_is_abstract_type(self):
+    def test_is_cdata_type(self):
         self.assertIsInstance(
             xso.String(),
-            xso.AbstractType)
+            xso.AbstractCDataType)
 
     def test_parse(self):
         t = xso.String()
@@ -212,10 +246,10 @@ class TestStringType(unittest.TestCase):
 
 
 class TestIntegerType(unittest.TestCase):
-    def test_is_abstract_type(self):
+    def test_is_cdata_type(self):
         self.assertIsInstance(
             xso.Integer(),
-            xso.AbstractType)
+            xso.AbstractCDataType)
 
     def test_parse(self):
         t = xso.Integer()
@@ -270,10 +304,10 @@ class TestIntegerType(unittest.TestCase):
 
 
 class TestFloatType(unittest.TestCase):
-    def test_is_abstract_type(self):
+    def test_is_cdata_type(self):
         self.assertIsInstance(
             xso.Float(),
-            xso.AbstractType)
+            xso.AbstractCDataType)
 
     def test_parse(self):
         t = xso.Float()
@@ -340,10 +374,10 @@ class TestFloatType(unittest.TestCase):
 
 
 class TestBoolType(unittest.TestCase):
-    def test_is_abstract_type(self):
+    def test_is_cdata_type(self):
         self.assertIsInstance(
             xso.Bool(),
-            xso.AbstractType)
+            xso.AbstractCDataType)
 
     def test_parse(self):
         t = xso.Bool()
@@ -389,10 +423,10 @@ class TestBoolType(unittest.TestCase):
 
 
 class TestDateTimeType(unittest.TestCase):
-    def test_is_abstract_type(self):
+    def test_is_cdata_type(self):
         self.assertIsInstance(
             xso.DateTime(),
-            xso.AbstractType)
+            xso.AbstractCDataType)
 
     def test_parse_example(self):
         t = xso.DateTime()
@@ -530,10 +564,10 @@ class TestDateTimeType(unittest.TestCase):
 
 
 class TestDate(unittest.TestCase):
-    def test_is_abstract_type(self):
+    def test_is_cdata_type(self):
         self.assertIsInstance(
             xso.Date(),
-            xso.AbstractType)
+            xso.AbstractCDataType)
 
     def test_parse(self):
         t = xso.Date()
@@ -570,10 +604,10 @@ class TestDate(unittest.TestCase):
 
 
 class TestTime(unittest.TestCase):
-    def test_is_abstract_type(self):
+    def test_is_cdata_type(self):
         self.assertIsInstance(
             xso.Time(),
-            xso.AbstractType)
+            xso.AbstractCDataType)
 
     def test_parse_example(self):
         t = xso.Time()
@@ -671,10 +705,10 @@ class TestTime(unittest.TestCase):
 
 
 class TestBase64Binary(unittest.TestCase):
-    def test_is_abstract_type(self):
+    def test_is_cdata_type(self):
         self.assertIsInstance(
             xso.Base64Binary(),
-            xso.AbstractType)
+            xso.AbstractCDataType)
 
     def test_parse(self):
         t = xso.Base64Binary()
@@ -767,10 +801,10 @@ class TestBase64Binary(unittest.TestCase):
 
 
 class TestHexBinary(unittest.TestCase):
-    def test_is_abstract_type(self):
+    def test_is_cdata_type(self):
         self.assertIsInstance(
             xso.HexBinary(),
-            xso.AbstractType)
+            xso.AbstractCDataType)
 
     def test_parse(self):
         t = xso.HexBinary()
@@ -829,10 +863,10 @@ class TestHexBinary(unittest.TestCase):
 
 
 class TestJID(unittest.TestCase):
-    def test_is_abstract_type(self):
+    def test_is_cdata_type(self):
         self.assertIsInstance(
             xso.JID(),
-            xso.AbstractType)
+            xso.AbstractCDataType)
 
     def test_parse(self):
         t = xso.JID()
@@ -904,10 +938,10 @@ class TestJID(unittest.TestCase):
 
 
 class TestConnectionLocation(unittest.TestCase):
-    def test_is_abstract_type(self):
+    def test_is_cdata_type(self):
         self.assertIsInstance(
             xso.ConnectionLocation(),
-            xso.AbstractType)
+            xso.AbstractCDataType)
 
     def test_parse_ipv6(self):
         t = xso.ConnectionLocation()
@@ -1036,10 +1070,10 @@ class TestConnectionLocation(unittest.TestCase):
 
 
 class TestLanguageTag(unittest.TestCase):
-    def test_is_abstract_type(self):
+    def test_is_cdata_type(self):
         self.assertIsInstance(
             xso.LanguageTag(),
-            xso.AbstractType)
+            xso.AbstractCDataType)
 
     def test_parse(self):
         t = xso.LanguageTag()
@@ -1084,56 +1118,58 @@ class TestLanguageTag(unittest.TestCase):
 
 
 class TestTextChildMap(unittest.TestCase):
-    def test_is_abstract_type(self):
+    def test_is_element_type(self):
         self.assertTrue(issubclass(
             xso.TextChildMap,
-            xso.AbstractType
+            xso.AbstractElementType
         ))
 
     def setUp(self):
         self.type_ = xso.TextChildMap(xso.AbstractTextChild)
 
-    def test_get_formatted_type(self):
-        self.assertIs(self.type_.get_formatted_type(),
-                      xso.AbstractTextChild)
+    def tearDown(self):
+        del self.type_
 
-    def test_parse(self):
+    def test_get_xso_types(self):
+        self.assertCountEqual(
+            self.type_.get_xso_types(),
+            [xso.AbstractTextChild]
+        )
+
+    def test_unpack(self):
         text, lang = "foo", structs.LanguageTag.fromstr("en-gb")
         item = xso.AbstractTextChild(text, lang)
         self.assertEqual(
             (lang, text),
-            self.type_.parse(item)
+            self.type_.unpack(item)
         )
 
-    def test_format(self):
+    def test_pack(self):
         text, lang = "foo", structs.LanguageTag.fromstr("en-gb")
-        item = self.type_.format((lang, text))
+        item = self.type_.pack((lang, text))
 
         self.assertEqual(item.text, text)
         self.assertEqual(item.lang, lang)
 
-    def tearDown(self):
-        del self.type_
 
-
-class TestEnumType(unittest.TestCase):
+class TestEnumCDataType(unittest.TestCase):
     class SomeEnum(Enum):
         X = 1
         Y = 2
         Z = 3
 
-    def test_is_type(self):
+    def test_is_cdata_type(self):
         self.assertTrue(issubclass(
-            xso.EnumType,
-            xso.AbstractType,
+            xso.EnumCDataType,
+            xso.AbstractCDataType,
         ))
 
     def test_init_default(self):
         with self.assertRaises(TypeError):
-            xso.EnumType()
+            xso.EnumCDataType()
 
     def test_init_with_enum(self):
-        e = xso.EnumType(self.SomeEnum)
+        e = xso.EnumCDataType(self.SomeEnum)
         self.assertIs(
             e.enum_class,
             self.SomeEnum
@@ -1144,7 +1180,7 @@ class TestEnumType(unittest.TestCase):
         )
 
     def test_init_with_custom_nested_type(self):
-        e = xso.EnumType(
+        e = xso.EnumCDataType(
             self.SomeEnum,
             nested_type=unittest.mock.sentinel.nested_type
         )
@@ -1160,7 +1196,7 @@ class TestEnumType(unittest.TestCase):
     def test_parse_uses_enum_and_nested_type(self):
         enum_class = unittest.mock.Mock()
         nested_type = unittest.mock.Mock()
-        e = xso.EnumType(enum_class, nested_type)
+        e = xso.EnumCDataType(enum_class, nested_type)
 
         result = e.parse(unittest.mock.sentinel.value)
 
@@ -1178,7 +1214,7 @@ class TestEnumType(unittest.TestCase):
         )
 
     def test_parse_works_with_actual_enum(self):
-        e = xso.EnumType(self.SomeEnum, xso.Integer())
+        e = xso.EnumCDataType(self.SomeEnum, xso.Integer())
         for enum_value in self.SomeEnum:
             self.assertEqual(
                 e.parse(str(enum_value.value)),
@@ -1189,7 +1225,7 @@ class TestEnumType(unittest.TestCase):
         enum_class = unittest.mock.Mock()
         enum_value = unittest.mock.Mock()
         nested_type = unittest.mock.Mock()
-        e = xso.EnumType(enum_class, nested_type)
+        e = xso.EnumCDataType(enum_class, nested_type)
 
         result = e.format(enum_value)
 
@@ -1203,29 +1239,25 @@ class TestEnumType(unittest.TestCase):
         )
 
     def test_format_works_with_actual_enums(self):
-        e = xso.EnumType(self.SomeEnum, xso.Integer())
+        e = xso.EnumCDataType(self.SomeEnum, xso.Integer())
         for enum_value in self.SomeEnum:
             self.assertEqual(
                 e.format(enum_value),
                 str(enum_value.value),
             )
 
-    def test_get_formatted_type_delegates_to_nested_type(self):
-        nested_type = unittest.mock.Mock()
-        e = xso.EnumType(
-            unittest.mock.sentinel.enum_class,
-            nested_type,
+    def test_get_formatted_type_not_implemented(self):
+        self.assertFalse(
+            hasattr(xso.EnumCDataType, "get_formatted_type")
         )
 
-        result = e.get_formatted_type()
-        nested_type.get_formatted_type.assert_called_with()
-        self.assertEqual(
-            result,
-            nested_type.get_formatted_type(),
+    def test_get_xso_types_not_implemented(self):
+        self.assertFalse(
+            hasattr(xso.EnumCDataType, "get_xso_types")
         )
 
     def test_pass_Enum_values_through_coerce(self):
-        e = xso.EnumType(self.SomeEnum)
+        e = xso.EnumCDataType(self.SomeEnum)
         for enum_value in self.SomeEnum:
             self.assertIs(enum_value, e.coerce(enum_value))
 
@@ -1237,7 +1269,7 @@ class TestEnumType(unittest.TestCase):
             object()
         ]
 
-        e = xso.EnumType(self.SomeEnum)
+        e = xso.EnumCDataType(self.SomeEnum)
 
         for thing in wrong:
             with self.assertRaises(TypeError):
@@ -1245,7 +1277,7 @@ class TestEnumType(unittest.TestCase):
 
     def test_try_to_coerce_if_allow_coerce_is_set(self):
         enum_class = unittest.mock.Mock()
-        e = xso.EnumType(
+        e = xso.EnumCDataType(
             enum_class,
             allow_coerce=True,
         )
@@ -1269,7 +1301,7 @@ class TestEnumType(unittest.TestCase):
 
         enum_class = unittest.mock.Mock()
         enum_class.side_effect = exc
-        e = xso.EnumType(enum_class, allow_coerce=True)
+        e = xso.EnumCDataType(enum_class, allow_coerce=True)
 
         with self.assertRaises(ValueError) as ctx:
             e.coerce(unittest.mock.sentinel.value)
@@ -1278,7 +1310,7 @@ class TestEnumType(unittest.TestCase):
 
     def test_deprecate_coerce(self):
         enum_class = self.SomeEnum
-        e = xso.EnumType(
+        e = xso.EnumCDataType(
             enum_class,
             allow_coerce=True,
             deprecate_coerce=True,
@@ -1306,7 +1338,7 @@ class TestEnumType(unittest.TestCase):
 
     def test_deprecate_coerce_custom_stacklevel(self):
         enum_class = self.SomeEnum
-        e = xso.EnumType(
+        e = xso.EnumCDataType(
             enum_class,
             allow_coerce=True,
             deprecate_coerce=unittest.mock.sentinel.stacklevel,
@@ -1334,7 +1366,7 @@ class TestEnumType(unittest.TestCase):
 
     def test_deprecate_coerce_does_not_emit_warning_for_enum_value(self):
         enum_class = self.SomeEnum
-        e = xso.EnumType(
+        e = xso.EnumCDataType(
             enum_class,
             allow_coerce=True,
             deprecate_coerce=True,
@@ -1360,7 +1392,7 @@ class TestEnumType(unittest.TestCase):
 
     def test_accept_unknown_by_default(self):
         enum_class = self.SomeEnum
-        e = xso.EnumType(
+        e = xso.EnumCDataType(
             enum_class,
             xso.Integer(),
         )
@@ -1371,7 +1403,7 @@ class TestEnumType(unittest.TestCase):
 
     def test_accept_unknown_can_be_turned_off(self):
         enum_class = self.SomeEnum
-        e = xso.EnumType(
+        e = xso.EnumCDataType(
             enum_class,
             xso.Integer(),
             accept_unknown=False,
@@ -1384,7 +1416,7 @@ class TestEnumType(unittest.TestCase):
 
     def test_allow_unknown_by_default(self):
         enum_class = self.SomeEnum
-        e = xso.EnumType(
+        e = xso.EnumCDataType(
             enum_class,
             xso.Integer(),
         )
@@ -1395,7 +1427,7 @@ class TestEnumType(unittest.TestCase):
 
     def test_allow_unknown_can_be_turned_off(self):
         enum_class = self.SomeEnum
-        e = xso.EnumType(
+        e = xso.EnumCDataType(
             enum_class,
             xso.Integer(),
             allow_unknown=False,
@@ -1408,7 +1440,7 @@ class TestEnumType(unittest.TestCase):
 
     def test_format_works_with_unknown(self):
         enum_class = self.SomeEnum
-        e = xso.EnumType(
+        e = xso.EnumCDataType(
             enum_class,
             xso.Integer(),
         )
@@ -1416,6 +1448,317 @@ class TestEnumType(unittest.TestCase):
         self.assertEqual(
             e.format(xso.Unknown(10)),
             "10",
+        )
+
+
+class TestEnumElementType(unittest.TestCase):
+    class SomeEnum(Enum):
+        X = 1
+        Y = 2
+        Z = 3
+
+    class FancyType(xso.AbstractElementType):
+        def get_xso_types(self):
+            raise NotImplementedError
+
+        def pack(self, obj):
+            return obj
+
+        def unpack(self, obj):
+            return obj
+
+    def test_is_element_type(self):
+        self.assertTrue(issubclass(
+            xso.EnumElementType,
+            xso.AbstractElementType,
+        ))
+
+    def test_init_default(self):
+        with self.assertRaises(TypeError):
+            xso.EnumElementType()
+
+    def test_init_with_enum(self):
+        with self.assertRaises(TypeError):
+            xso.EnumElementType(self.SomeEnum)
+
+    def test_init_with_custom_nested_type(self):
+        e = xso.EnumElementType(
+            self.SomeEnum,
+            nested_type=unittest.mock.sentinel.nested_type
+        )
+        self.assertIs(
+            e.enum_class,
+            self.SomeEnum
+        )
+        self.assertIs(
+            e.nested_type,
+            unittest.mock.sentinel.nested_type,
+        )
+
+    def test_unpack_uses_enum_and_nested_type(self):
+        enum_class = unittest.mock.Mock()
+        nested_type = unittest.mock.Mock()
+        e = xso.EnumElementType(enum_class, nested_type)
+
+        result = e.unpack(unittest.mock.sentinel.value)
+
+        nested_type.unpack.assert_called_with(
+            unittest.mock.sentinel.value,
+        )
+
+        enum_class.assert_called_with(
+            nested_type.unpack(),
+        )
+
+        self.assertEqual(
+            result,
+            enum_class(),
+        )
+
+    def test_unpack_works_with_actual_enum(self):
+        e = xso.EnumElementType(self.SomeEnum, self.FancyType())
+        for enum_value in self.SomeEnum:
+            self.assertEqual(
+                e.unpack(enum_value.value),
+                enum_value,
+            )
+
+    def test_pack_uses_enum_value_and_nested_type(self):
+        enum_class = unittest.mock.Mock()
+        enum_value = unittest.mock.Mock()
+        nested_type = unittest.mock.Mock()
+        e = xso.EnumElementType(enum_class, nested_type)
+
+        result = e.pack(enum_value)
+
+        nested_type.pack.assert_called_with(
+            enum_value.value,
+        )
+
+        self.assertEqual(
+            result,
+            nested_type.pack(),
+        )
+
+    def test_pack_works_with_actual_enums(self):
+        e = xso.EnumElementType(self.SomeEnum, self.FancyType())
+        for enum_value in self.SomeEnum:
+            self.assertEqual(
+                e.pack(enum_value),
+                enum_value.value,
+            )
+
+    def test_get_xso_types_delegates_to_nested_type(self):
+        nested_type = unittest.mock.Mock()
+        e = xso.EnumElementType(
+            unittest.mock.sentinel.enum_class,
+            nested_type,
+        )
+
+        result = e.get_xso_types()
+        nested_type.get_xso_types.assert_called_with()
+        self.assertEqual(
+            result,
+            nested_type.get_xso_types(),
+        )
+
+    def test_pass_Enum_values_through_coerce(self):
+        e = xso.EnumElementType(self.SomeEnum, self.FancyType())
+        for enum_value in self.SomeEnum:
+            self.assertIs(enum_value, e.coerce(enum_value))
+
+    def test_reject_non_Enum_values_on_coerce(self):
+        wrong = [
+            1,
+            "10",
+            10.2,
+            object()
+        ]
+
+        e = xso.EnumElementType(self.SomeEnum, self.FancyType())
+
+        for thing in wrong:
+            with self.assertRaises(TypeError):
+                e.coerce(thing)
+
+    def test_try_to_coerce_if_allow_coerce_is_set(self):
+        enum_class = unittest.mock.Mock()
+        e = xso.EnumElementType(
+            enum_class,
+            self.FancyType(),
+            allow_coerce=True,
+        )
+
+        with warnings.catch_warnings() as w:
+            result = e.coerce(unittest.mock.sentinel.value)
+
+        enum_class.assert_called_with(
+            unittest.mock.sentinel.value,
+        )
+
+        self.assertEqual(
+            result,
+            enum_class(),
+        )
+
+        self.assertFalse(w)
+
+    def test_value_error_propagates(self):
+        exc = ValueError()
+
+        enum_class = unittest.mock.Mock()
+        enum_class.side_effect = exc
+        e = xso.EnumElementType(enum_class, self.FancyType(),
+                                allow_coerce=True)
+
+        with self.assertRaises(ValueError) as ctx:
+            e.coerce(unittest.mock.sentinel.value)
+
+        self.assertIs(ctx.exception, exc)
+
+    def test_deprecate_coerce(self):
+        enum_class = self.SomeEnum
+        e = xso.EnumElementType(
+            enum_class,
+            self.FancyType(),
+            allow_coerce=True,
+            deprecate_coerce=True,
+        )
+
+        with contextlib.ExitStack() as stack:
+            warn = stack.enter_context(
+                unittest.mock.patch(
+                    "warnings.warn",
+                )
+            )
+
+            result = e.coerce(1)
+
+        warn.assert_called_with(
+            "assignment of non-enum values to this descriptor is deprecated",
+            DeprecationWarning,
+            stacklevel=4
+        )
+
+        self.assertEqual(
+            result,
+            enum_class(1),
+        )
+
+    def test_deprecate_coerce_custom_stacklevel(self):
+        enum_class = self.SomeEnum
+        e = xso.EnumElementType(
+            enum_class,
+            self.FancyType(),
+            allow_coerce=True,
+            deprecate_coerce=unittest.mock.sentinel.stacklevel,
+        )
+
+        with contextlib.ExitStack() as stack:
+            warn = stack.enter_context(
+                unittest.mock.patch(
+                    "warnings.warn",
+                )
+            )
+
+            result = e.coerce(1)
+
+        warn.assert_called_with(
+            "assignment of non-enum values to this descriptor is deprecated",
+            DeprecationWarning,
+            stacklevel=unittest.mock.sentinel.stacklevel
+        )
+
+        self.assertEqual(
+            result,
+            enum_class(1),
+        )
+
+    def test_deprecate_coerce_does_not_emit_warning_for_enum_value(self):
+        enum_class = self.SomeEnum
+        e = xso.EnumElementType(
+            enum_class,
+            self.FancyType(),
+            allow_coerce=True,
+            deprecate_coerce=True,
+        )
+
+        value = enum_class.X
+
+        with contextlib.ExitStack() as stack:
+            warn = stack.enter_context(
+                unittest.mock.patch(
+                    "warnings.warn",
+                )
+            )
+
+            result = e.coerce(value)
+
+        self.assertFalse(warn.mock_calls)
+
+        self.assertIs(
+            value,
+            result,
+        )
+
+    def test_accept_unknown_by_default(self):
+        enum_class = self.SomeEnum
+        e = xso.EnumElementType(
+            enum_class,
+            xso.Integer(),
+        )
+
+        value = e.coerce(xso.Unknown(10))
+        self.assertIsInstance(value, xso.Unknown)
+        self.assertEqual(xso.Unknown(10), value)
+
+    def test_accept_unknown_can_be_turned_off(self):
+        enum_class = self.SomeEnum
+        e = xso.EnumElementType(
+            enum_class,
+            xso.Integer(),
+            accept_unknown=False,
+        )
+
+        with self.assertRaisesRegex(
+                TypeError,
+                r"not a valid .* value: <Unknown: 10>"):
+            e.coerce(xso.Unknown(10))
+
+    def test_allow_unknown_by_default(self):
+        enum_class = self.SomeEnum
+        e = xso.EnumElementType(
+            enum_class,
+            self.FancyType(),
+        )
+
+        value = e.unpack(10)
+        self.assertIsInstance(value, xso.Unknown)
+        self.assertEqual(xso.Unknown(10), value)
+
+    def test_allow_unknown_can_be_turned_off(self):
+        enum_class = self.SomeEnum
+        e = xso.EnumElementType(
+            enum_class,
+            self.FancyType(),
+            allow_unknown=False,
+        )
+
+        with self.assertRaisesRegex(
+                ValueError,
+                r"10 is not a valid SomeEnum"):
+            e.unpack(10)
+
+    def test_format_works_with_unknown(self):
+        enum_class = self.SomeEnum
+        e = xso.EnumElementType(
+            enum_class,
+            self.FancyType(),
+        )
+
+        self.assertEqual(
+            e.pack(xso.Unknown(10)),
+            10,
         )
 
 
@@ -1929,3 +2272,77 @@ class TestNumericRange(unittest.TestCase):
             self.assertFalse(
                 v.validate(i),
             )
+
+
+class TestEnumType(unittest.TestCase):
+    def test_instanciates_EnumCDataType_by_default_and_passes_kwargs(self):
+        with contextlib.ExitStack() as stack:
+            EnumCDataType = stack.enter_context(
+                unittest.mock.patch("aioxmpp.xso.types.EnumCDataType")
+            )
+
+            result = xso.EnumType(
+                unittest.mock.sentinel.enum_class,
+                foo=unittest.mock.sentinel.foo,
+                bar=unittest.mock.sentinel.bar,
+            )
+
+        EnumCDataType.assert_called_once_with(
+            unittest.mock.sentinel.enum_class,
+            foo=unittest.mock.sentinel.foo,
+            bar=unittest.mock.sentinel.bar,
+        )
+
+        self.assertEqual(result, EnumCDataType())
+
+    def test_instanciates_EnumCDataType_for_AbstractCDataType(self):
+        m = unittest.mock.Mock(
+            spec=xso.AbstractCDataType
+        )
+
+        with contextlib.ExitStack() as stack:
+            EnumCDataType = stack.enter_context(
+                unittest.mock.patch("aioxmpp.xso.types.EnumCDataType")
+            )
+
+            result = xso.EnumType(
+                unittest.mock.sentinel.enum_class,
+                m,
+                foo=unittest.mock.sentinel.foo,
+                bar=unittest.mock.sentinel.bar,
+            )
+
+        EnumCDataType.assert_called_once_with(
+            unittest.mock.sentinel.enum_class,
+            m,
+            foo=unittest.mock.sentinel.foo,
+            bar=unittest.mock.sentinel.bar,
+        )
+
+        self.assertEqual(result, EnumCDataType())
+
+    def test_instanciates_EnumCDataType_for_AbstractElementType(self):
+        m = unittest.mock.Mock(
+            spec=xso.AbstractElementType
+        )
+
+        with contextlib.ExitStack() as stack:
+            EnumElementType = stack.enter_context(
+                unittest.mock.patch("aioxmpp.xso.types.EnumElementType")
+            )
+
+            result = xso.EnumType(
+                unittest.mock.sentinel.enum_class,
+                m,
+                foo=unittest.mock.sentinel.foo,
+                bar=unittest.mock.sentinel.bar,
+            )
+
+        EnumElementType.assert_called_once_with(
+            unittest.mock.sentinel.enum_class,
+            m,
+            foo=unittest.mock.sentinel.foo,
+            bar=unittest.mock.sentinel.bar,
+        )
+
+        self.assertEqual(result, EnumElementType())

@@ -8,6 +8,20 @@ Changelog
 Version 0.10
 ============
 
+* **Breaking change**: Split :class:`aioxmpp.xso.AbstractType` into
+  :class:`aioxmpp.xso.AbstractCDataType` (for which the
+  :class:`aioxmpp.xso.AbstractType` was originally intended) and
+  :class:`aioxmpp.xso.AbstractElementType` (which it has become through organic
+  growth). This split serves the maintainability of the code and offers
+  opportunities for better error detection.
+
+* *Deprecation*: The above split also caused a split of
+  :class:`aioxmpp.xso.EnumType` into :class:`aioxmpp.xso.EnumCDataType` and
+  :class:`aioxmpp.xso.EnumElementType`. :func:`aioxmpp.xso.EnumType` is now a
+  function which transparently creates the correct class. Use of that function
+  is deprecated and you should upgrade your code to use one of the two named
+  classes explicitly.
+
 .. _api-changelog-0.9:
 
 Version 0.9

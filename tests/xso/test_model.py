@@ -5046,20 +5046,17 @@ class TestChildValueList(unittest.TestCase):
 
         attr = xso.Attr("a", type_=xso.Integer())
 
-    class ChildValueType(xso.AbstractType):
+    class ChildValueType(xso.AbstractElementType):
         @classmethod
-        def get_formatted_type(cls):
-            return TestChildValueList.ChildXSO
+        def get_xso_types(cls):
+            return [TestChildValueList.ChildXSO]
 
-        def coerce(self, value):
-            return TestChildValueList.ChildXSO.attr.type_.coerce(value)
-
-        def format(self, value):
+        def pack(self, value):
             item = TestChildValueList.ChildXSO()
             item.attr = value
             return item
 
-        def parse(self, value):
+        def unpack(self, value):
             return value.attr
 
     def setUp(self):
@@ -5189,8 +5186,8 @@ class TestChildValueList(unittest.TestCase):
         with contextlib.ExitStack() as stack:
             stack.enter_context(unittest.mock.patch.object(
                 self.ChildValueType,
-                "format",
-                new=base.format
+                "pack",
+                new=base.pack
             ))
 
             self.Cls.values.to_sax(obj, base.dest)
@@ -5198,8 +5195,8 @@ class TestChildValueList(unittest.TestCase):
         self.assertSequenceEqual(
             base.mock_calls,
             [
-                unittest.mock.call.format(10),
-                unittest.mock.call.format().unparse_to_sax(base.dest)
+                unittest.mock.call.pack(10),
+                unittest.mock.call.pack().unparse_to_sax(base.dest)
             ]
         )
 
@@ -5217,8 +5214,8 @@ class TestChildValueList(unittest.TestCase):
         with contextlib.ExitStack() as stack:
             stack.enter_context(unittest.mock.patch.object(
                 self.ChildValueType,
-                "parse",
-                new=base.parse
+                "unpack",
+                new=base.unpack
             ))
 
             stack.enter_context(unittest.mock.patch.object(
@@ -5248,17 +5245,17 @@ class TestChildValueList(unittest.TestCase):
             calls,
             [
                 unittest.mock.call.process(obj, base.ev_args, base.ctx),
-                unittest.mock.call.parse(process_mock()),
+                unittest.mock.call.unpack(process_mock()),
                 unittest.mock.call.process(obj, base.ev_args, base.ctx),
-                unittest.mock.call.parse(process_mock()),
+                unittest.mock.call.unpack(process_mock()),
             ]
         )
 
         self.assertSequenceEqual(
             obj.values,
             [
-                base.parse(),
-                base.parse(),
+                base.unpack(),
+                base.unpack(),
             ]
         )
 
@@ -5284,8 +5281,8 @@ class TestChildValueList(unittest.TestCase):
         with contextlib.ExitStack() as stack:
             stack.enter_context(unittest.mock.patch.object(
                 self.ChildValueType,
-                "parse",
-                new=base.parse
+                "unpack",
+                new=base.unpack
             ))
 
             stack.enter_context(unittest.mock.patch.object(
@@ -5294,7 +5291,7 @@ class TestChildValueList(unittest.TestCase):
                 new=base.process
             ))
 
-            base.parse.return_value = 1
+            base.unpack.return_value = 1
             with self.assertRaises(StopIteration):
                 gen = Cls.values.from_events(
                     obj,
@@ -5303,7 +5300,7 @@ class TestChildValueList(unittest.TestCase):
                 )
                 next(gen)
 
-            base.parse.return_value = 2
+            base.unpack.return_value = 2
             with self.assertRaises(StopIteration):
                 gen = Cls.values.from_events(
                     obj,
@@ -5317,9 +5314,9 @@ class TestChildValueList(unittest.TestCase):
             calls,
             [
                 unittest.mock.call.process(obj, base.ev_args, base.ctx),
-                unittest.mock.call.parse(process_mock()),
+                unittest.mock.call.unpack(process_mock()),
                 unittest.mock.call.process(obj, base.ev_args, base.ctx),
-                unittest.mock.call.parse(process_mock()),
+                unittest.mock.call.unpack(process_mock()),
             ]
         )
 
@@ -5341,19 +5338,19 @@ class TestChildValueMap(unittest.TestCase):
         key = xso.Attr("k", type_=xso.Integer())
         value = xso.Attr("v", type_=xso.Integer())
 
-    class ChildValueType(xso.AbstractType):
+    class ChildValueType(xso.AbstractElementType):
         @classmethod
-        def get_formatted_type(cls):
-            return TestChildValueMap.ChildXSO
+        def get_xso_types(cls):
+            return [TestChildValueMap.ChildXSO]
 
-        def format(self, item):
+        def pack(self, item):
             key, value = item
             item = TestChildValueMap.ChildXSO()
             item.key = key
             item.value = value
             return item
 
-        def parse(self, item):
+        def unpack(self, item):
             return item.key, item.value
 
     def setUp(self):
@@ -5488,8 +5485,8 @@ class TestChildValueMap(unittest.TestCase):
         with contextlib.ExitStack() as stack:
             stack.enter_context(unittest.mock.patch.object(
                 self.ChildValueType,
-                "format",
-                new=base.format
+                "pack",
+                new=base.pack
             ))
 
             self.Cls.values.to_sax(obj, base.dest)
@@ -5497,8 +5494,8 @@ class TestChildValueMap(unittest.TestCase):
         self.assertSequenceEqual(
             base.mock_calls,
             [
-                unittest.mock.call.format((10, 20)),
-                unittest.mock.call.format().unparse_to_sax(base.dest)
+                unittest.mock.call.pack((10, 20)),
+                unittest.mock.call.pack().unparse_to_sax(base.dest)
             ]
         )
 
@@ -5516,8 +5513,8 @@ class TestChildValueMap(unittest.TestCase):
         with contextlib.ExitStack() as stack:
             stack.enter_context(unittest.mock.patch.object(
                 self.ChildValueType,
-                "parse",
-                new=base.parse
+                "unpack",
+                new=base.unpack
             ))
 
             stack.enter_context(unittest.mock.patch.object(
@@ -5526,7 +5523,7 @@ class TestChildValueMap(unittest.TestCase):
                 new=base.process
             ))
 
-            base.parse.return_value = (1, "a")
+            base.unpack.return_value = (1, "a")
             with self.assertRaises(StopIteration):
                 gen = self.Cls.values.from_events(
                     obj,
@@ -5535,7 +5532,7 @@ class TestChildValueMap(unittest.TestCase):
                 )
                 next(gen)
 
-            base.parse.return_value = (2, "b")
+            base.unpack.return_value = (2, "b")
             with self.assertRaises(StopIteration):
                 gen = self.Cls.values.from_events(
                     obj,
@@ -5549,9 +5546,9 @@ class TestChildValueMap(unittest.TestCase):
             calls,
             [
                 unittest.mock.call.process(obj, base.ev_args, base.ctx),
-                unittest.mock.call.parse(process_mock()),
+                unittest.mock.call.unpack(process_mock()),
                 unittest.mock.call.process(obj, base.ev_args, base.ctx),
-                unittest.mock.call.parse(process_mock()),
+                unittest.mock.call.unpack(process_mock()),
             ]
         )
 
@@ -5574,19 +5571,19 @@ class TestChildValueMultiMap(unittest.TestCase):
         key = xso.Attr("k", type_=xso.Integer())
         value = xso.Attr("v", type_=xso.Integer())
 
-    class ChildValueType(xso.AbstractType):
+    class ChildValueType(xso.AbstractElementType):
         @classmethod
-        def get_formatted_type(cls):
-            return TestChildValueMultiMap.ChildXSO
+        def get_xso_types(self):
+            return [TestChildValueMultiMap.ChildXSO]
 
-        def format(self, item):
+        def pack(self, item):
             key, value = item
             item = TestChildValueMultiMap.ChildXSO()
             item.key = key
             item.value = value
             return item
 
-        def parse(self, item):
+        def unpack(self, item):
             return item.key, item.value
 
     def setUp(self):
@@ -5698,8 +5695,8 @@ class TestChildValueMultiMap(unittest.TestCase):
         with contextlib.ExitStack() as stack:
             stack.enter_context(unittest.mock.patch.object(
                 self.ChildValueType,
-                "parse",
-                new=base.parse
+                "unpack",
+                new=base.unpack
             ))
 
             stack.enter_context(unittest.mock.patch.object(
@@ -5708,7 +5705,7 @@ class TestChildValueMultiMap(unittest.TestCase):
                 new=base.process
             ))
 
-            base.parse.return_value = ("x", "a")
+            base.unpack.return_value = ("x", "a")
             with self.assertRaises(StopIteration):
                 gen = self.Cls.values.from_events(
                     obj,
@@ -5717,7 +5714,7 @@ class TestChildValueMultiMap(unittest.TestCase):
                 )
                 next(gen)
 
-            base.parse.return_value = ("x", "b")
+            base.unpack.return_value = ("x", "b")
             with self.assertRaises(StopIteration):
                 gen = self.Cls.values.from_events(
                     obj,
@@ -5726,7 +5723,7 @@ class TestChildValueMultiMap(unittest.TestCase):
                 )
                 next(gen)
 
-            base.parse.return_value = ("z", "c")
+            base.unpack.return_value = ("z", "c")
             with self.assertRaises(StopIteration):
                 gen = self.Cls.values.from_events(
                     obj,
@@ -5740,11 +5737,11 @@ class TestChildValueMultiMap(unittest.TestCase):
             calls,
             [
                 unittest.mock.call.process(obj, base.ev_args, base.ctx),
-                unittest.mock.call.parse(process_mock()),
+                unittest.mock.call.unpack(process_mock()),
                 unittest.mock.call.process(obj, base.ev_args, base.ctx),
-                unittest.mock.call.parse(process_mock()),
+                unittest.mock.call.unpack(process_mock()),
                 unittest.mock.call.process(obj, base.ev_args, base.ctx),
-                unittest.mock.call.parse(process_mock()),
+                unittest.mock.call.unpack(process_mock()),
             ]
         )
 
@@ -5768,8 +5765,8 @@ class TestChildValueMultiMap(unittest.TestCase):
         with contextlib.ExitStack() as stack:
             stack.enter_context(unittest.mock.patch.object(
                 self.ChildValueType,
-                "format",
-                new=base.format
+                "pack",
+                new=base.pack
             ))
 
             self.Cls.values.to_sax(obj, base.dest)
@@ -5777,12 +5774,12 @@ class TestChildValueMultiMap(unittest.TestCase):
         self.assertSequenceEqual(
             base.mock_calls,
             [
-                unittest.mock.call.format(("x", "foo")),
-                unittest.mock.call.format().unparse_to_sax(base.dest),
-                unittest.mock.call.format(("x", "bar")),
-                unittest.mock.call.format().unparse_to_sax(base.dest),
-                unittest.mock.call.format(("z", "baz")),
-                unittest.mock.call.format().unparse_to_sax(base.dest),
+                unittest.mock.call.pack(("x", "foo")),
+                unittest.mock.call.pack().unparse_to_sax(base.dest),
+                unittest.mock.call.pack(("x", "bar")),
+                unittest.mock.call.pack().unparse_to_sax(base.dest),
+                unittest.mock.call.pack(("z", "baz")),
+                unittest.mock.call.pack().unparse_to_sax(base.dest),
             ]
         )
 

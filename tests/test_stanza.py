@@ -241,7 +241,7 @@ class TestMessage(unittest.TestCase):
         )
         self.assertIsInstance(
             stanza.Message.type_.type_,
-            xso.EnumType,
+            xso.EnumCDataType,
         )
         self.assertIs(
             stanza.Message.type_.type_.enum_class,
@@ -429,7 +429,7 @@ class TestPresence(unittest.TestCase):
         )
         self.assertIsInstance(
             stanza.Presence.type_.type_,
-            xso.EnumType,
+            xso.EnumCDataType,
         )
         self.assertIs(
             stanza.Presence.type_.type_.enum_class,
@@ -451,7 +451,7 @@ class TestPresence(unittest.TestCase):
         )
         self.assertIsInstance(
             stanza.Presence.show.type_,
-            xso.EnumType,
+            xso.EnumCDataType,
         )
         self.assertIs(
             stanza.Presence.show.type_.enum_class,
@@ -660,7 +660,7 @@ class TestError(unittest.TestCase):
         )
         self.assertIsInstance(
             stanza.Error.type_.type_,
-            xso.EnumType,
+            xso.EnumCDataType,
         )
         self.assertIs(
             stanza.Error.type_.type_.enum_class,
@@ -872,7 +872,7 @@ class TestIQ(unittest.TestCase):
         )
         self.assertIsInstance(
             stanza.IQ.type_.type_,
-            xso.EnumType
+            xso.EnumCDataType
         )
         self.assertIs(
             stanza.IQ.type_.type_.enum_class,

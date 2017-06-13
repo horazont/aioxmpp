@@ -64,28 +64,31 @@ class TestValue(unittest.TestCase):
 
 
 class TestValueElement(unittest.TestCase):
-    def test_is_type(self):
+    def test_is_element_type(self):
         self.assertTrue(issubclass(
             forms_xso.ValueElement,
-            xso.AbstractType
+            xso.AbstractElementType
         ))
 
-    def test_get_formatted_type(self):
+    def test_get_xso_types(self):
         t = forms_xso.ValueElement()
-        self.assertIs(t.get_formatted_type(), forms_xso.Value)
+        self.assertCountEqual(
+            t.get_xso_types(),
+            [forms_xso.Value]
+        )
 
-    def test_parse(self):
+    def test_unpack(self):
         t = forms_xso.ValueElement()
         v = forms_xso.Value()
         v.value = "foobar"
         self.assertEqual(
             v.value,
-            t.parse(v)
+            t.unpack(v)
         )
 
-    def test_format(self):
+    def test_pack(self):
         t = forms_xso.ValueElement()
-        v = t.format("foo")
+        v = t.pack("foo")
         self.assertIsInstance(
             v,
             forms_xso.Value
@@ -134,29 +137,32 @@ class TestOption(unittest.TestCase):
 
 
 class TestOptionElement(unittest.TestCase):
-    def test_is_type(self):
+    def test_is_element_type(self):
         self.assertTrue(issubclass(
             forms_xso.OptionElement,
-            xso.AbstractType
+            xso.AbstractElementType
         ))
 
-    def test_get_formatted_type(self):
+    def test_get_xso_types(self):
         t = forms_xso.OptionElement()
-        self.assertIs(t.get_formatted_type(), forms_xso.Option)
+        self.assertCountEqual(
+            t.get_xso_types(),
+            [forms_xso.Option]
+        )
 
-    def test_parse(self):
+    def test_unpack(self):
         t = forms_xso.OptionElement()
         o = forms_xso.Option()
         o.label = "fnord"
         o.value = "foobar"
         self.assertEqual(
             ("foobar", "fnord"),
-            t.parse(o)
+            t.unpack(o)
         )
 
-    def test_format(self):
+    def test_pack(self):
         t = forms_xso.OptionElement()
-        o = t.format(("foo", "bar"))
+        o = t.pack(("foo", "bar"))
         self.assertIsInstance(
             o,
             forms_xso.Option
@@ -312,7 +318,7 @@ class TestField(unittest.TestCase):
         )
         self.assertIsInstance(
             forms_xso.Field.type_.type_,
-            xso.EnumType
+            xso.EnumCDataType
         )
         self.assertIs(
             forms_xso.Field.type_.type_.enum_class,
@@ -505,31 +511,31 @@ class TestInstructions(unittest.TestCase):
 
 
 class TestInstructionsElement(unittest.TestCase):
-    def test_is_type(self):
+    def test_is_element_type(self):
         self.assertTrue(issubclass(
             forms_xso.InstructionsElement,
-            xso.AbstractType
+            xso.AbstractElementType
         ))
 
-    def test_get_formatted_type(self):
+    def test_get_xso_types(self):
         t = forms_xso.InstructionsElement()
-        self.assertIs(
-            t.get_formatted_type(),
-            forms_xso.Instructions
+        self.assertCountEqual(
+            t.get_xso_types(),
+            [forms_xso.Instructions]
         )
 
-    def test_parse(self):
+    def test_unpack(self):
         t = forms_xso.InstructionsElement()
         v = forms_xso.Instructions()
         v.value = "foobar"
         self.assertEqual(
             v.value,
-            t.parse(v)
+            t.unpack(v)
         )
 
-    def test_format(self):
+    def test_pack(self):
         t = forms_xso.InstructionsElement()
-        v = t.format("foo")
+        v = t.pack("foo")
         self.assertIsInstance(
             v,
             forms_xso.Instructions
@@ -633,7 +639,7 @@ class TestData(unittest.TestCase):
         )
         self.assertIsInstance(
             forms_xso.Data.type_.type_,
-            xso.EnumType
+            xso.EnumCDataType
         )
         self.assertEqual(
             forms_xso.Data.type_.type_.enum_class,

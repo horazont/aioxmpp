@@ -237,20 +237,13 @@ Types and validators from :mod:`~aioxmpp.xso.types`
 This module provides classes whose objects can be used as types and validators
 in :mod:`~aioxmpp.xso.model`.
 
-Types
------
+Character Data types
+--------------------
 
-Types are used to convert strings obtained from XML character data or attribute
-contents to python types. They are valid values for `type_` arguments e.g. for
-:class:`~aioxmpp.xso.Attr`.
-
-The basic type interface
-^^^^^^^^^^^^^^^^^^^^^^^^
-
-.. autoclass:: AbstractType
-
-Attribute and text types
-^^^^^^^^^^^^^^^^^^^^^^^^
+These types describe character data, i.e. text in XML. Thus, they can be used
+with :class:`Attr`, :class:`Text` and similar descriptors. They are used to
+deserialise XML character data to python values, such as integers or dates and
+vice versa. These types inherit from :class:`AbstractCDataType`.
 
 .. autoclass:: String
 
@@ -274,14 +267,30 @@ Attribute and text types
 
 .. autoclass:: LanguageTag
 
-.. autoclass:: EnumType
+.. autoclass:: EnumCDataType(enum_class, nested_type=xso.String(), *, allow_coerce=False, deprecate_coerce=False, allow_unknown=True, accept_unknown=True)
+
+.. autofunction:: EnumType(enum_class[, nested_type], *, allow_coerce=False, deprecate_coerce=False, allow_unknown=True, accept_unknown=True)
 
 .. autoclass:: Unknown
 
-Child list and map types
-^^^^^^^^^^^^^^^^^^^^^^^^
+Element types
+-------------
+
+These types describe structured XML data, i.e. subtrees. Thus, they can be used
+with the :class:`ChildValueList` and :class:`ChildValueMap` family of
+descriptors (which represent XSOs as python values). These types inherit from
+:class:`AbstractElementType`.
+
+.. autoclass:: EnumElementType
 
 .. autoclass:: TextChildMap
+
+Defining custom types
+---------------------
+
+.. autoclass:: AbstractCDataType
+
+.. autoclass:: AbstractElementType
 
 Validators
 ----------
@@ -478,7 +487,8 @@ def normalize_tag(tag):
 
 from .types import (  # NOQA
     Unknown,
-    AbstractType,
+    AbstractCDataType,
+    AbstractElementType,
     String,
     Integer,
     Float,
@@ -493,6 +503,8 @@ from .types import (  # NOQA
     LanguageTag,
     TextChildMap,
     EnumType,
+    EnumCDataType,
+    EnumElementType,
     AbstractValidator,
     RestrictToSet,
     Nmtoken,

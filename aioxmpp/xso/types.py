@@ -53,7 +53,8 @@ class Unknown:
     :type value: arbitrary
 
     Instances of this class may be emitted from and accepted by
-    :class:`EnumType`, see the documentation there for details.
+    :class:`EnumCDataType` and :class:`EnumElementType`, see the documentation
+    there for details.
 
     :class:`Unknown` instances compare equal when they hold an equal value.
     :class:`Unknown` objects are hashable if their values are hashable. The
@@ -84,11 +85,17 @@ class Unknown:
         )
 
 
-class AbstractType(metaclass=abc.ABCMeta):
+class AbstractCDataType(metaclass=abc.ABCMeta):
     """
-    This is the interface all types must implement.
+    Subclasses of this class describe character data types.
 
-    .. automethod:: get_formatted_type
+    They are used to convert python values from (:meth:`parse`) and to
+    (:meth:`format`) XML character data as well as enforce basic type
+    restrictions (:meth:`coerce`) when values are assigned to descriptors
+    using this type.
+
+    This type can be used by the character data descriptors, like :class:`Attr`
+    and :class:`Text`.
 
     .. automethod:: coerce
 
@@ -97,28 +104,15 @@ class AbstractType(metaclass=abc.ABCMeta):
     .. automethod:: format
     """
 
-    def get_formatted_type(self):
-        """
-        Return the type of the values returned by :meth:`format`.
-
-        The default implementation returns :class:`str`. For
-        :class:`AbstractType` subclasses which are used for anything different
-        than text, it might make sense to return a different type.
-
-        :class:`.xso.Attr` and :class:`.xso.Text` require that this function
-        returns :class:`str`.
-
-        .. versionadded:: 0.5
-        """
-        return str
-
     def coerce(self, v):
         """
         Force the given value `v` to be of the type represented by this
-        :class:`AbstractType`. :meth:`coerce` is called when user code assigns
-        values to descriptors which use the type; it is notably not called when
-        values are extracted from SAX events, as these go through :meth:`parse`
-        and that is expected to return correctly typed values.
+        :class:`AbstractCDataType`.
+
+        :meth:`coerce` is called when user code assigns values to descriptors
+        which use the type; it is notably not called when values are extracted
+        from SAX events, as these go through :meth:`parse` and that is expected
+        to return correctly typed values.
 
         If `v` cannot be sensibly coerced, :class:`TypeError` is raised (in
         some rare occasions, :class:`ValueError` may be ok too).
@@ -146,7 +140,7 @@ class AbstractType(metaclass=abc.ABCMeta):
 
         If conversion fails, :class:`ValueError` is raised.
 
-        The result of :meth:`parse` must pass through :meth:`check`.
+        The result of :meth:`parse` must pass through :meth:`coerce` unchanged.
         """
 
     def format(self, v):
@@ -154,11 +148,107 @@ class AbstractType(metaclass=abc.ABCMeta):
         Convert the value `v` of the type this class implements to a str.
 
         This conversion does not fail.
+
+        The returned value can be passed to :meth:`parse` to obtain `v`.
         """
         return str(v)
 
 
-class String(AbstractType):
+class AbstractElementType(metaclass=abc.ABCMeta):
+    """
+    Subclasses of this class describe XML subtree types.
+
+    They are used to convert python values from (:meth:`unpack`) and to
+    (:meth:`pack`) XML subtrees represented as :class:`XSO` instances as well
+    as enforce basic type restrictions (:meth:`coerce`) when values are
+    assigned to descriptors using this type.
+
+    This type can be used by the element descriptors, like
+    :class:`ChildValueList` and :class:`ChildValueMap`.
+
+    .. automethod:: get_xso_types
+
+    .. automethod:: coerce
+
+    .. automethod:: unpack
+
+    .. automethod:: pack
+    """
+
+    @abc.abstractmethod
+    def get_xso_types(self):
+        """
+        Return the :class:`XSO` subclasses supported by this type.
+
+        :rtype: :class:`~collections.Iterable` of :class:`XMLStreamClass`
+        :return: The :class:`XSO` subclasses which can be passed to
+            :meth:`unpack`.
+        """
+
+    @abc.abstractmethod
+    def unpack(self, obj):
+        """
+        Convert a :class:`XSO` instance to another object, usually a scalar
+        value or a tuple.
+
+        :param obj: The object to unpack.
+        :type obj: One of the types returned by :meth:`get_xso_types`.
+        :raises ValueError: if the conversaion fails.
+        :return: The unpacked value.
+
+        Think of unpack like a high-level :func:`struct.unpack`: it converts
+        wire-format data (XML subtrees represented as :class:`XSO` instances)
+        to python values.
+        """
+
+    @abc.abstractmethod
+    def pack(self, v):
+        """
+        Convert the value `v` of the type this class implements to an
+        :class:`XSO` instance.
+
+        :param v: Value to pack
+        :type v: as returned by :meth:`unpack`
+        :rtype: One of the types returned by :meth:`get_xso_types`.
+        :return: The packed value.
+
+        The returned value can be passed through :meth:`unpack` to obtain a
+        value equal to `v`.
+
+        Think of pack like a high-level :func:`struct.pack`: it converts
+        python values to wire-format (XML subtrees represented as :class:`XSO`
+        instances).
+        """
+
+    def coerce(self, v):
+        """
+        Force the given value `v` to be compatible to :meth:`pack`.
+
+        :meth:`coerce` is called when user code assigns
+        values to descriptors which use the type; it is notably not called when
+        values are extracted from SAX events, as these go through
+        :meth:`unpack` and that is expected to return correctly typed values.
+
+        If `v` cannot be sensibly coerced, :class:`TypeError` is raised (in
+        some rare occasions, :class:`ValueError` may be ok too).
+
+        Return a coerced version of `v` or `v` itself if it matches the
+        required type.
+
+        .. note::
+
+           For the sake of usability, coercion should only take place rarely;
+           in most of the cases, throwing :class:`TypeError` is the preferred
+           method.
+
+           Otherwise, a user might be surprised why the :class:`int` they
+           assigned to an attribute suddenly became a :class:`str`.
+
+        """
+        return v
+
+
+class String(AbstractCDataType):
     """
     Interpret the input value as string.
 
@@ -187,7 +277,7 @@ class String(AbstractType):
         return v
 
 
-class Integer(AbstractType):
+class Integer(AbstractCDataType):
     """
     Parse the value as base-10 integer and return the result as :class:`int`.
     """
@@ -201,7 +291,7 @@ class Integer(AbstractType):
         return int(v)
 
 
-class Float(AbstractType):
+class Float(AbstractCDataType):
     """
     Parse the value as decimal float and return the result as :class:`float`.
     """
@@ -215,7 +305,7 @@ class Float(AbstractType):
         return float(v)
 
 
-class Bool(AbstractType):
+class Bool(AbstractCDataType):
     """
     Parse the value as boolean:
 
@@ -244,7 +334,7 @@ class Bool(AbstractType):
             return "false"
 
 
-class DateTime(AbstractType):
+class DateTime(AbstractCDataType):
     """
     Parse the value as ISO datetime, possibly including microseconds and
     timezone information.
@@ -325,7 +415,7 @@ class DateTime(AbstractType):
         return result
 
 
-class Date(AbstractType):
+class Date(AbstractCDataType):
     """
     Implement the Date type from :xep:`0082`.
 
@@ -344,7 +434,7 @@ class Date(AbstractType):
         return v
 
 
-class Time(AbstractType):
+class Time(AbstractCDataType):
     """
     Implement the Time type from :xep:`0082`.
 
@@ -404,7 +494,7 @@ class Time(AbstractType):
         raise ValueError("time must have UTC timezone or none at all")
 
 
-class _BinaryType(AbstractType):
+class _BinaryType(AbstractCDataType):
     """
     Implements pointful coercion for binary types.
     """
@@ -452,7 +542,7 @@ class HexBinary(_BinaryType):
         return binascii.b2a_hex(v).decode("ascii")
 
 
-class JID(AbstractType):
+class JID(AbstractCDataType):
     """
     Parse the value as Jabber ID using :meth:`~aioxmpp.JID.fromstr` and
     return the :class:`aioxmpp.JID` object.
@@ -478,7 +568,7 @@ class JID(AbstractType):
         return structs.JID.fromstr(v, strict=self.strict)
 
 
-class ConnectionLocation(AbstractType):
+class ConnectionLocation(AbstractCDataType):
     """
     Parse the value as a host-port pair, as for example used for Stream
     Management reconnection location advisories.
@@ -532,7 +622,7 @@ class ConnectionLocation(AbstractType):
         return ":".join(map(str, v))
 
 
-class LanguageTag(AbstractType):
+class LanguageTag(AbstractCDataType):
     """
     Parses the value as Language Tag using
     :meth:`~.structs.LanguageTag.fromstr`.
@@ -550,7 +640,7 @@ class LanguageTag(AbstractType):
         return v
 
 
-class TextChildMap(AbstractType):
+class TextChildMap(AbstractElementType):
     """
     A type for use with :class:`.xso.ChildValueMap` and descendants of
     :class:`.xso.AbstractTextChild`.
@@ -571,26 +661,26 @@ class TextChildMap(AbstractType):
         super().__init__()
         self.xso_type = xso_type
 
-    def get_formatted_type(self):
-        return self.xso_type
+    def get_xso_types(self):
+        return [self.xso_type]
 
-    def parse(self, obj):
+    def unpack(self, obj):
         return obj.lang, obj.text
 
-    def format(self, item):
+    def pack(self, item):
         lang, text = item
         xso = self.xso_type(text=text, lang=lang)
         return xso
 
 
-class EnumType(AbstractType):
+class EnumCDataType(AbstractCDataType):
     """
     Use an :class:`enum.Enum` as type for an XSO descriptor.
 
     :param enum_class: The :class:`~enum.Enum` to use as type.
-    :param nested_type: A :class:`AbstractType` which can handle the values of
-                        the enumeration.
-    :type nested_type: :class:`AbstractType`
+    :param nested_type: A type which can handle the values of the enumeration
+        members.
+    :type nested_type: :class:`AbstractCDataType`
     :param allow_coerce: Allow coercion of different types to enumeration
                          values.
     :type allow_coerce: :class:`bool`
@@ -628,7 +718,7 @@ class EnumType(AbstractType):
              X = "foo"
 
          class SomeXSO(xso.XSO):
-             attr = xso.Attr("foo", xso.EnumType(E, allow_coerce=True))
+             attr = xso.Attr("foo", xso.EnumCDataType(E, allow_coerce=True))
 
          x = SomeXSO()
          x.attr = "foo"
@@ -660,7 +750,7 @@ class EnumType(AbstractType):
       class SomeXSO(xso.XSO):
           attr = xso.Attr(
               "foo",
-              type_=xso.EnumType(
+              type_=xso.EnumCDataType(
                   SomeEnum,
                   # have to use integer, because the value of e.g. SomeEnum.X
                   # is integer!
@@ -681,9 +771,6 @@ class EnumType(AbstractType):
         self.deprecate_coerce = deprecate_coerce
         self.accept_unknown = accept_unknown
         self.allow_unknown = allow_unknown
-
-    def get_formatted_type(self):
-        return self.nested_type.get_formatted_type()
 
     def coerce(self, value):
         if self.accept_unknown and isinstance(value, Unknown):
@@ -719,6 +806,105 @@ class EnumType(AbstractType):
 
     def format(self, v):
         return self.nested_type.format(v.value)
+
+
+class EnumElementType(AbstractElementType):
+    """
+    Use an :class:`enum.Enum` as type for an XSO descriptor.
+
+    :param enum_class: The :class:`~enum.Enum` to use as type.
+    :param nested_type: Type which describes the value type of the
+        `enum_class`.
+    :type nested_type: :class:`AbstractElementType`
+    :param allow_coerce: Allow coercion of different types to enumeration
+                         values.
+    :type allow_coerce: :class:`bool`
+    :param deprecate_coerce: Emit :class:`DeprecationWarning` when coercion
+                             occurs. Requires (but does not imply)
+                             `allow_coerce`.
+    :type deprecate_coerce: :class:`int` or :class:`bool`
+    :param allow_unknown: If true, unknown values are converted to
+                          :class:`Unknown` instances when parsing values from
+                          the XML stream.
+    :type allow_unknown: :class:`bool`
+    :param accept_unknown: If true, :class:`Unknown` instances are passed
+                           through :meth:`coerce` and can thus be assigned to
+                           descriptors using this type.
+    :type allow_unknown: :class:`bool`
+
+    A descriptor using this type will accept elements from the given
+    `enum_class` as values. Upon serialisiation, the :attr:`value` of the
+    enumeration element is taken and packed through the given `nested_type`.
+
+    Normally, :meth:`coerce` will raise :class:`TypeError` for any value which
+    is not an instance of `enum_class`. However, if `allow_coerce` is true, the
+    value is passed to the `enum_class` constructor and the result is returned;
+    the :class:`ValueError` raised from the `enum_class` constructor if an
+    invalid value is passed propagates unmodified.
+
+    .. seealso::
+
+        :class:`EnumCDataType`
+            for a detailed discussion on the implications of coercion.
+
+    Handling of :class:`Unknown` values: Using `allow_unknown` and
+    `accept_unknown` is advisable to stay compatible with future protocols,
+    which is why both are enabled by default. Considering that constructing an
+    :class:`Unknown` value needs to be done explicitly in code, it is unlikely
+    that a user will *accidentally* assign an unspecified value to a descriptor
+    using this type with `accept_unknown`.
+    """
+
+    def __init__(self, enum_class, nested_type, *,
+                 allow_coerce=False,
+                 deprecate_coerce=False,
+                 allow_unknown=True,
+                 accept_unknown=True):
+        super().__init__()
+        self.nested_type = nested_type
+        self.enum_class = enum_class
+        self.allow_coerce = allow_coerce
+        self.deprecate_coerce = deprecate_coerce
+        self.accept_unknown = accept_unknown
+        self.allow_unknown = allow_unknown
+
+    def get_xso_types(self):
+        return self.nested_type.get_xso_types()
+
+    def coerce(self, value):
+        if self.accept_unknown and isinstance(value, Unknown):
+            return value
+        if self.allow_coerce:
+            if self.deprecate_coerce:
+                if isinstance(value, self.enum_class):
+                    return value
+                stacklevel = (4 if self.deprecate_coerce is True
+                              else self.deprecate_coerce)
+                warnings.warn(
+                    "assignment of non-enum values to this descriptor is"
+                    " deprecated",
+                    DeprecationWarning,
+                    stacklevel=stacklevel,
+                )
+            return self.enum_class(value)
+        if isinstance(value, self.enum_class):
+            return value
+        raise TypeError("not a valid {} value: {!r}".format(
+            self.enum_class,
+            value,
+        ))
+
+    def unpack(self, s):
+        parsed = self.nested_type.unpack(s)
+        try:
+            return self.enum_class(parsed)
+        except ValueError:
+            if self.allow_unknown:
+                return Unknown(parsed)
+            raise
+
+    def pack(self, v):
+        return self.nested_type.pack(v.value)
 
 
 class AbstractValidator(metaclass=abc.ABCMeta):
@@ -897,3 +1083,36 @@ class NumericRange(AbstractValidator):
                 )
             ]
         return []
+
+
+_Undefined = object()
+
+
+def EnumType(enum_class, nested_type=_Undefined, **kwargs):
+    """
+    Create and return a :class:`EnumCDataType` or :class:`EnumElementType`,
+    depending on the type of `nested_type`.
+
+    If `nested_type` is a :class:`AbstractCDataType` or omitted, a
+    :class:`EnumCDataType` is constructed. Otherwise, :class:`EnumElementType`
+    is used.
+
+    The arguments are forwarded to the respective class’ constructor.
+
+    .. versionadded:: 0.10
+
+    .. deprecated:: 0.10
+
+        This function was introduced to ease the transition in 0.10 from
+        a unified :class:`EnumType` to split :class:`EnumCDataType` and
+        :class:`EnumElementType`.
+
+        It will be removed in 1.0.
+    """
+
+    if nested_type is _Undefined:
+        return EnumCDataType(enum_class, **kwargs)
+    if isinstance(nested_type, AbstractCDataType):
+        return EnumCDataType(enum_class, nested_type, **kwargs)
+    else:
+        return EnumElementType(enum_class, nested_type, **kwargs)

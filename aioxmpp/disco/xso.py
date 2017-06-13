@@ -116,14 +116,14 @@ class Feature(xso.XSO):
         self.var = var
 
 
-class FeatureSet(xso.AbstractType):
-    def get_formatted_type(self):
-        return Feature
+class FeatureSet(xso.AbstractElementType):
+    def get_xso_types(self):
+        return [Feature]
 
-    def parse(self, item):
+    def unpack(self, item):
         return item.var
 
-    def format(self, var):
+    def pack(self, var):
         return Feature(var)
 
 

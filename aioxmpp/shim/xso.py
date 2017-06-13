@@ -44,14 +44,14 @@ class Header(xso.XSO):
         self.value = value
 
 
-class HeaderType(xso.AbstractType):
-    def get_formatted_type(self):
-        return Header
+class HeaderType(xso.AbstractElementType):
+    def get_xso_types(self):
+        return [Header]
 
-    def parse(self, v):
+    def unpack(self, v):
         return v.name, v.value
 
-    def format(self, v):
+    def pack(self, v):
         name, value = v
         return Header(
             name,
