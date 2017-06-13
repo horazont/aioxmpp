@@ -386,7 +386,7 @@ class Field(xso.XSO):
 
     type_ = xso.Attr(
         (None, "type"),
-        type_=xso.EnumType(
+        type_=xso.EnumCDataType(
             FieldType,
         ),
         default=FieldType.TEXT_SINGLE,
@@ -572,7 +572,7 @@ class Data(AbstractItem):
 
     type_ = xso.Attr(
         "type",
-        type_=xso.EnumType(DataType)
+        type_=xso.EnumCDataType(DataType)
     )
 
     title = xso.ChildText(
