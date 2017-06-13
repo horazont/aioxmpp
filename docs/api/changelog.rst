@@ -3,6 +3,11 @@
 Changelog
 #########
 
+.. _api-changelog-0.10:
+
+Version 0.10
+============
+
 .. _api-changelog-0.9:
 
 Version 0.9
