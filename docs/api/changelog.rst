@@ -33,6 +33,9 @@ Version 0.10
   a :class:`aioxmpp.tracking.MessageTracker` for sent messages (including
   those sent by other resources of the account in the same conversation).
 
+* Fix (harmless) traceback in logs which could occur when using
+  :meth:`aioxmpp.muc.Room.send_message_tracked`.
+
 .. _api-changelog-0.9:
 
 Version 0.9

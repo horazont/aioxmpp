@@ -393,11 +393,15 @@ class BasicTrackingService(aioxmpp.service.Service):
         try:
             fut.result()
         except asyncio.CancelledError:
-            pass
+            return
         except:
-            tracker._set_state(MessageState.ABORTED)
+            next_state = MessageState.ABORTED
         else:
-            tracker._set_state(MessageState.DELIVERED_TO_SERVER)
+            next_state = MessageState.DELIVERED_TO_SERVER
+        try:
+            tracker._set_state(next_state)
+        except ValueError:
+            pass
 
     def send_tracked(self, stanza, tracker):
         """
