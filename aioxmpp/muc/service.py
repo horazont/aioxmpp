@@ -698,10 +698,19 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
             )
 
         elif message.body:
+            if occupant is not None and occupant == self._this_occupant:
+                tracker = aioxmpp.tracking.MessageTracker()
+                tracker._set_state(
+                    aioxmpp.tracking.MessageState.DELIVERED_TO_RECIPIENT
+                )
+                tracker.close()
+            else:
+                tracker = None
             self.on_message(
                 message,
                 occupant,
                 source,
+                tracker=tracker,
             )
 
     def _diff_presence(self, stanza, info, existing):
@@ -1004,6 +1013,7 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
             msg,
             self._this_occupant,
             aioxmpp.im.dispatcher.MessageSource.STREAM,
+            tracker=tracker,
         )
         return token, tracker
 

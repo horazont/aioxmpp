@@ -1487,53 +1487,14 @@ class TestRoom(unittest.TestCase):
             unittest.mock.sentinel.source,
         )
 
-        self.assertSequenceEqual(
-            self.base.mock_calls,
-            [
-                unittest.mock.call.on_message(
-                    msg,
-                    None,
-                    unittest.mock.sentinel.source,
-                )
-            ]
-        )
-
-    def test_inbound_groupchat_message_with_body_emits_on_message_with_member(self):
-        pres = aioxmpp.stanza.Presence(
-            from_=TEST_MUC_JID.replace(resource="secondwitch"),
-        )
-        pres.xep0045_muc_user = muc_xso.UserExt()
-
-        self.jmuc._inbound_muc_user_presence(pres)
-
-        _, (occupant, ), _ = self.base.on_join.mock_calls[-1]
-        self.base.mock_calls.clear()
-
-        msg = aioxmpp.stanza.Message(
-            from_=TEST_MUC_JID.replace(resource="secondwitch"),
-            type_=aioxmpp.structs.MessageType.GROUPCHAT,
-        )
-        msg.body[None] = "foo"
-
-        self.jmuc._handle_message(
+        self.base.on_message.assert_called_once_with(
             msg,
-            msg.from_,
-            False,
+            None,
             unittest.mock.sentinel.source,
+            tracker=None,
         )
 
-        self.assertSequenceEqual(
-            self.base.mock_calls,
-            [
-                unittest.mock.call.on_message(
-                    msg,
-                    self.jmuc.members[0],
-                    unittest.mock.sentinel.source,
-                )
-            ]
-        )
-
-    def test_inbound_groupchat_message_with_body_emits_on_message_with_member(self):
+    def test_inbound_groupchat_message_with_body_emits_on_message_with_me(self):
         pres = aioxmpp.stanza.Presence(
             from_=TEST_MUC_JID.replace(resource="secondwitch"),
         )
@@ -1541,11 +1502,62 @@ class TestRoom(unittest.TestCase):
 
         self.jmuc._inbound_muc_user_presence(pres)
 
+        msg = aioxmpp.stanza.Message(
+            from_=TEST_MUC_JID.replace(resource="secondwitch"),
+            type_=aioxmpp.structs.MessageType.GROUPCHAT,
+        )
+        msg.body[None] = "foo"
+
+        with contextlib.ExitStack() as stack:
+            MessageTracker = stack.enter_context(
+                unittest.mock.patch("aioxmpp.tracking.MessageTracker")
+            )
+
+            self.jmuc._handle_message(
+                msg,
+                msg.from_,
+                False,
+                unittest.mock.sentinel.source,
+            )
+
+        MessageTracker.assert_called_once_with()
+
+        MessageTracker()._set_state.assert_called_once_with(
+            aioxmpp.tracking.MessageState.DELIVERED_TO_RECIPIENT,
+        )
+
+        MessageTracker().close.assert_called_once_with()
+
+        self.base.on_message.assert_called_once_with(
+            msg,
+            self.jmuc.me,
+            unittest.mock.sentinel.source,
+            tracker=MessageTracker(),
+        )
+
+    def test_inbound_groupchat_message_with_body_emits_on_message_other_member(self):
+        pres = aioxmpp.stanza.Presence(
+            from_=TEST_MUC_JID.replace(resource="firstwitch"),
+        )
+        pres.xep0045_muc_user = muc_xso.UserExt(status_codes={})
+
+        self.jmuc._inbound_muc_user_presence(pres)
+
+        pres = aioxmpp.stanza.Presence(
+            from_=TEST_MUC_JID.replace(resource="secondwitch"),
+        )
+        pres.xep0045_muc_user = muc_xso.UserExt(status_codes={110})
+
+        self.jmuc._inbound_muc_user_presence(pres)
+
+        _, (occupant, ), _ = self.base.on_join.mock_calls[-1]
+        self.base.mock_calls.clear()
+
         self.base.on_enter.assert_called_once_with(pres, self.jmuc.me)
         self.base.mock_calls.clear()
 
         msg = aioxmpp.stanza.Message(
-            from_=TEST_MUC_JID.replace(resource="secondwitch"),
+            from_=TEST_MUC_JID.replace(resource="firstwitch"),
             type_=aioxmpp.structs.MessageType.GROUPCHAT,
         )
         msg.body[None] = "foo"
@@ -1557,15 +1569,11 @@ class TestRoom(unittest.TestCase):
             unittest.mock.sentinel.source,
         )
 
-        self.assertSequenceEqual(
-            self.base.mock_calls,
-            [
-                unittest.mock.call.on_message(
-                    msg,
-                    self.jmuc.me,
-                    unittest.mock.sentinel.source,
-                )
-            ]
+        self.base.on_message.assert_called_once_with(
+            msg,
+            occupant,
+            unittest.mock.sentinel.source,
+            tracker=None,
         )
 
     def test__inbound_muc_user_presence_emits_on_enter_and_on_exit(self):
@@ -2291,6 +2299,7 @@ class TestRoom(unittest.TestCase):
             msg,
             self.jmuc.me,
             im_dispatcher.MessageSource.STREAM,
+            tracker=MessageTracker(),
         )
 
     def test_tracker_changes_state_on_reflection(self):
@@ -2312,6 +2321,8 @@ class TestRoom(unittest.TestCase):
         msg.body.update({None: "some text"})
 
         _, tracker = self.jmuc.send_message_tracked(msg)
+
+        self.base.on_message.reset_mock()
 
         self.assertEqual(
             tracker.state,
@@ -2361,6 +2372,8 @@ class TestRoom(unittest.TestCase):
 
         _, tracker = self.jmuc.send_message_tracked(msg)
 
+        self.base.on_message.reset_mock()
+
         self.assertEqual(
             tracker.state,
             aioxmpp.tracking.MessageState.IN_TRANSIT,
@@ -2409,6 +2422,8 @@ class TestRoom(unittest.TestCase):
 
         _, tracker = self.jmuc.send_message_tracked(msg)
 
+        self.base.on_message.reset_mock()
+
         self.assertEqual(
             tracker.state,
             aioxmpp.tracking.MessageState.IN_TRANSIT,
@@ -2438,7 +2453,8 @@ class TestRoom(unittest.TestCase):
         self.base.on_message.assert_called_once_with(
             reflected,
             None,
-            im_dispatcher.MessageSource.STREAM
+            im_dispatcher.MessageSource.STREAM,
+            tracker=None,
         )
 
     def test_tracker_does_not_match_for_different_body(self):
@@ -2460,6 +2476,8 @@ class TestRoom(unittest.TestCase):
         msg.body.update({None: "some text"})
 
         _, tracker = self.jmuc.send_message_tracked(msg)
+
+        self.base.on_message.reset_mock()
 
         self.assertEqual(
             tracker.state,
@@ -2490,7 +2508,8 @@ class TestRoom(unittest.TestCase):
         self.base.on_message.assert_called_once_with(
             reflected,
             self.jmuc.me,
-            im_dispatcher.MessageSource.STREAM
+            im_dispatcher.MessageSource.STREAM,
+            tracker=unittest.mock.ANY,
         )
 
     def test_tracker_follows_concurrent_nickchange(self):
@@ -2512,6 +2531,8 @@ class TestRoom(unittest.TestCase):
         msg.body.update({None: "some text"})
 
         _, tracker = self.jmuc.send_message_tracked(msg)
+
+        self.base.on_message.reset_mock()
 
         self.assertEqual(
             tracker.state,
@@ -2575,6 +2596,8 @@ class TestRoom(unittest.TestCase):
 
         _, tracker = self.jmuc.send_message_tracked(msg)
 
+        self.base.on_message.reset_mock()
+
         self.assertEqual(
             tracker.state,
             aioxmpp.tracking.MessageState.IN_TRANSIT,
@@ -2604,7 +2627,8 @@ class TestRoom(unittest.TestCase):
         self.base.on_message.assert_called_once_with(
             other_message,
             self.jmuc.me,
-            im_dispatcher.MessageSource.STREAM
+            im_dispatcher.MessageSource.STREAM,
+            tracker=unittest.mock.ANY,
         )
         self.base.on_message.reset_mock()
         self.base.on_message.return_value = None
@@ -2656,6 +2680,8 @@ class TestRoom(unittest.TestCase):
         _, tracker1 = self.jmuc.send_message_tracked(msg1)
 
         _, tracker2 = self.jmuc.send_message_tracked(msg2)
+
+        self.base.on_message.reset_mock()
 
         self.assertEqual(
             tracker1.state,
@@ -2717,8 +2743,6 @@ class TestRoom(unittest.TestCase):
             reflected2,
         )
 
-        self.base.on_message.assert_not_called()
-
     def test_tracking_does_not_fail_on_race(self):
         presence = aioxmpp.stanza.Presence(
             type_=aioxmpp.structs.PresenceType.AVAILABLE,
@@ -2738,6 +2762,9 @@ class TestRoom(unittest.TestCase):
         msg.body.update({None: "some text"})
 
         _, tracker = self.jmuc.send_message_tracked(msg)
+
+        self.base.on_message.reset_mock()
+
         tracker._set_state(aioxmpp.tracking.MessageState.SEEN_BY_RECIPIENT)
 
         reflected = aioxmpp.Message(
@@ -2775,6 +2802,8 @@ class TestRoom(unittest.TestCase):
         msg.body.update({None: "some text"})
 
         _, tracker = self.jmuc.send_message_tracked(msg)
+
+        self.base.on_message.reset_mock()
 
         self.assertEqual(
             tracker.state,
