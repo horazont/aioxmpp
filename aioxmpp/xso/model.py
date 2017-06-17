@@ -34,7 +34,7 @@ import xml.sax.handler
 
 import lxml.sax
 
-import orderedset  # get it from PyPI
+import sortedcollections
 
 import multidict  # get it from PyPI
 
@@ -1588,7 +1588,7 @@ class XMLStreamClass(xso_query.Class, abc.ABCMeta):
     def __new__(mcls, name, bases, namespace, protect=True):
         text_property = None
         child_map = {}
-        child_props = orderedset.OrderedSet()
+        child_props = sortedcollections.OrderedSet()
         attr_map = {}
         collector_property = None
 

@@ -40,7 +40,7 @@ install_requires = [
     'dnspython~=1.0',
     'lxml~=3.6',
     'multidict~=2.0',
-    'orderedset>=1.2',
+    'sortedcollections>=0.5',
     'pyOpenSSL',
     'pyasn1',
     'pyasn1_modules',
