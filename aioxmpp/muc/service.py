@@ -1409,7 +1409,7 @@ class MUCClient(aioxmpp.service.Service):
                 return
         muc._inbound_muc_user_presence(stanza)
 
-    def _inbound_muc_presence(self, stanza):
+    def _inbound_presence_error(self, stanza):
         mucjid = stanza.from_.bare()
         try:
             pending, fut, *_ = self._pending_mucs.pop(mucjid)
@@ -1428,8 +1428,8 @@ class MUCClient(aioxmpp.service.Service):
         if stanza.xep0045_muc_user is not None:
             self._inbound_muc_user_presence(stanza)
             return None
-        if stanza.xep0045_muc is not None:
-            self._inbound_muc_presence(stanza)
+        if stanza.type_ == aioxmpp.structs.PresenceType.ERROR:
+            self._inbound_presence_error(stanza)
             return None
         return stanza
 

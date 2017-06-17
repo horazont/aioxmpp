@@ -3107,41 +3107,6 @@ class TestService(unittest.TestCase):
 
         handler.assert_not_called()
 
-    def test__handle_presence_catches_presence_with_muc(self):
-        presence = aioxmpp.stanza.Presence()
-        presence.xep0045_muc = muc_xso.GenericExt()
-        with unittest.mock.patch.object(
-                self.s,
-                "_inbound_muc_presence") as handler:
-            handler.return_value = 123
-            self.assertIsNone(
-                self.s._handle_presence(
-                    presence,
-                    presence.from_,
-                    False,
-                )
-            )
-
-        handler.assert_called_with(presence)
-
-    def test__handle_presence_ignores_presence_with_muc_if_sent(self):
-        presence = aioxmpp.stanza.Presence()
-        presence.xep0045_muc = muc_xso.GenericExt()
-        with unittest.mock.patch.object(
-                self.s,
-                "_inbound_muc_presence") as handler:
-            handler.return_value = 123
-            self.assertIs(
-                presence,
-                self.s._handle_presence(
-                    presence,
-                    presence.from_,
-                    True,
-                )
-            )
-
-        handler.assert_not_called()
-
     def test_join_without_password_or_history(self):
         with self.assertRaises(KeyError):
             self.s.get_muc(TEST_MUC_JID)
@@ -3338,7 +3303,6 @@ class TestService(unittest.TestCase):
         response = aioxmpp.stanza.Presence(
             from_=TEST_MUC_JID,
             type_=aioxmpp.structs.PresenceType.ERROR)
-        response.xep0045_muc = muc_xso.GenericExt()
         response.error = aioxmpp.stanza.Error()
         self.s._handle_presence(
             response,
