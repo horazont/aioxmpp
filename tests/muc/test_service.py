@@ -291,7 +291,6 @@ class TestRoom(unittest.TestCase):
         self.base.service.dependencies[
             aioxmpp.tracking.BasicTrackingService
         ] = self.base.tracking_service
-        self.base.tracking_service.send_tracked = CoroutineMock()
 
         self.jmuc = muc_service.Room(self.base.service, self.mucjid)
 
@@ -2214,9 +2213,7 @@ class TestRoom(unittest.TestCase):
             self.base.tracking_service.send_tracked.return_value = \
                 unittest.mock.sentinel.token
 
-            result = run_coroutine(
-                self.jmuc.send_message_tracked(msg)
-            )
+            result = self.jmuc.send_message_tracked(msg)
 
         self.assertIsNotNone(msg.id_)
 
@@ -2276,9 +2273,7 @@ class TestRoom(unittest.TestCase):
         msg = aioxmpp.Message(aioxmpp.MessageType.NORMAL)
         msg.body.update({None: "some text"})
 
-        _, tracker = run_coroutine(
-            self.jmuc.send_message_tracked(msg)
-        )
+        _, tracker = self.jmuc.send_message_tracked(msg)
 
         self.assertEqual(
             tracker.state,
@@ -2326,9 +2321,7 @@ class TestRoom(unittest.TestCase):
         msg = aioxmpp.Message(aioxmpp.MessageType.NORMAL)
         msg.body.update({None: "some text"})
 
-        _, tracker = run_coroutine(
-            self.jmuc.send_message_tracked(msg)
-        )
+        _, tracker = self.jmuc.send_message_tracked(msg)
 
         self.assertEqual(
             tracker.state,
@@ -2376,9 +2369,7 @@ class TestRoom(unittest.TestCase):
         msg = aioxmpp.Message(aioxmpp.MessageType.NORMAL)
         msg.body.update({None: "some text"})
 
-        _, tracker = run_coroutine(
-            self.jmuc.send_message_tracked(msg)
-        )
+        _, tracker = self.jmuc.send_message_tracked(msg)
 
         self.assertEqual(
             tracker.state,
@@ -2430,9 +2421,7 @@ class TestRoom(unittest.TestCase):
         msg = aioxmpp.Message(aioxmpp.MessageType.NORMAL)
         msg.body.update({None: "some text"})
 
-        _, tracker = run_coroutine(
-            self.jmuc.send_message_tracked(msg)
-        )
+        _, tracker = self.jmuc.send_message_tracked(msg)
 
         self.assertEqual(
             tracker.state,
@@ -2484,9 +2473,7 @@ class TestRoom(unittest.TestCase):
         msg = aioxmpp.Message(aioxmpp.MessageType.NORMAL)
         msg.body.update({None: "some text"})
 
-        _, tracker = run_coroutine(
-            self.jmuc.send_message_tracked(msg)
-        )
+        _, tracker = self.jmuc.send_message_tracked(msg)
 
         self.assertEqual(
             tracker.state,
@@ -2548,9 +2535,7 @@ class TestRoom(unittest.TestCase):
             {aioxmpp.structs.LanguageTag.fromstr("de"): "ein Text"}
         )
 
-        _, tracker = run_coroutine(
-            self.jmuc.send_message_tracked(msg)
-        )
+        _, tracker = self.jmuc.send_message_tracked(msg)
 
         self.assertEqual(
             tracker.state,
@@ -2630,13 +2615,9 @@ class TestRoom(unittest.TestCase):
         msg2 = aioxmpp.Message(aioxmpp.MessageType.NORMAL)
         msg2.body.update({None: "some text"})
 
-        _, tracker1 = run_coroutine(
-            self.jmuc.send_message_tracked(msg1)
-        )
+        _, tracker1 = self.jmuc.send_message_tracked(msg1)
 
-        _, tracker2 = run_coroutine(
-            self.jmuc.send_message_tracked(msg2)
-        )
+        _, tracker2 = self.jmuc.send_message_tracked(msg2)
 
         self.assertEqual(
             tracker1.state,
@@ -2718,9 +2699,7 @@ class TestRoom(unittest.TestCase):
         msg = aioxmpp.Message(aioxmpp.MessageType.NORMAL)
         msg.body.update({None: "some text"})
 
-        _, tracker = run_coroutine(
-            self.jmuc.send_message_tracked(msg)
-        )
+        _, tracker = self.jmuc.send_message_tracked(msg)
         tracker._set_state(aioxmpp.tracking.MessageState.SEEN_BY_RECIPIENT)
 
         reflected = aioxmpp.Message(
@@ -2757,9 +2736,7 @@ class TestRoom(unittest.TestCase):
         msg = aioxmpp.Message(aioxmpp.MessageType.NORMAL)
         msg.body.update({None: "some text"})
 
-        _, tracker = run_coroutine(
-            self.jmuc.send_message_tracked(msg)
-        )
+        _, tracker = self.jmuc.send_message_tracked(msg)
 
         self.assertEqual(
             tracker.state,

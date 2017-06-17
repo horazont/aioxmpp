@@ -918,7 +918,6 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
         self._tracking_by_id.pop(id_key, None)
         self._tracking_by_body.pop(body_key, None)
 
-    @asyncio.coroutine
     def send_message_tracked(self, msg):
         """
         Send a message to the MUC with tracking.
@@ -1000,7 +999,7 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
             self._tracker_closed,
             tracker,
         ))
-        token = yield from tracking_svc.send_tracked(msg, tracker)
+        token = tracking_svc.send_tracked(msg, tracker)
         return token, tracker
 
     @asyncio.coroutine

@@ -55,8 +55,9 @@ implement the management of additional information:
 
 Option (1) has the appeal that users (applications) do not have to worry about
 properly releasing the tracking objects. However, it has the downside that
-applications have to keep the :class:`MessageeTracker` instance around. Remember
-that connecting to callbacks of an object is *not* enough to keep it alive.
+applications have to keep the :class:`MessageeTracker` instance around.
+Remember that connecting to callbacks of an object is *not* enough to keep it
+alive.
 
 Option (2) is somewhat like file objects work: in theory, you have to close
 them explicitly and manually: if you do not, there is no guarantee when the
