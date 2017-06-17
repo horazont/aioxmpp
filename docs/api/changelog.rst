@@ -22,6 +22,8 @@ Version 0.10
   is deprecated and you should upgrade your code to use one of the two named
   classes explicitly.
 
+* Make :mod:`aioopenssl` a mandatory dependency.
+
 .. _api-changelog-0.9:
 
 Version 0.9

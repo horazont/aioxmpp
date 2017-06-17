@@ -19,7 +19,4 @@
 # <http://www.gnu.org/licenses/>.
 #
 ########################################################################
-try:
-    from aioopenssl import *
-except ImportError:
-    from ._ssl_transport import *
+from aioopenssl import *  # NOQA
