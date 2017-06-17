@@ -25,6 +25,9 @@ Version 0.10
 * Make :meth:`aioxmpp.muc.Room.send_message_tracked` a normal method instead
   of a coroutine (it was never intended to be a coroutine).
 
+* Emit :meth:`aioxmpp.im.conversation.AbstractConversation.on_message` for
+  MUC messages sent via :meth:`~aioxmpp.muc.Room.send_message_tracked`.
+
 .. _api-changelog-0.9:
 
 Version 0.9

@@ -2255,6 +2255,44 @@ class TestRoom(unittest.TestCase):
             muc_xso.UserExt,
         )
 
+    def test_send_message_tracked_emits_on_message_tracked_with_tracker(self):
+        presence = aioxmpp.stanza.Presence(
+            type_=aioxmpp.structs.PresenceType.AVAILABLE,
+            from_=TEST_MUC_JID.replace(resource="thirdwitch")
+        )
+        presence.xep0045_muc_user = muc_xso.UserExt(
+            items=[
+                muc_xso.UserItem(affiliation="member",
+                                 role="participant"),
+            ],
+            status_codes={110},
+        )
+
+        self.jmuc._inbound_muc_user_presence(presence)
+
+        msg = aioxmpp.Message(aioxmpp.MessageType.NORMAL)
+        msg.body.update({None: "some text"})
+
+        with contextlib.ExitStack() as stack:
+            MessageTracker = stack.enter_context(
+                unittest.mock.patch("aioxmpp.tracking.MessageTracker")
+            )
+
+            self.base.tracking_service.send_tracked.return_value = \
+                unittest.mock.sentinel.token
+
+            result = self.jmuc.send_message_tracked(msg)
+
+        self.assertIsNotNone(msg.id_)
+
+        MessageTracker.assert_called_once_with()
+
+        self.base.on_message.assert_called_once_with(
+            msg,
+            self.jmuc.me,
+            im_dispatcher.MessageSource.STREAM,
+        )
+
     def test_tracker_changes_state_on_reflection(self):
         presence = aioxmpp.stanza.Presence(
             type_=aioxmpp.structs.PresenceType.AVAILABLE,

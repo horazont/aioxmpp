@@ -1000,6 +1000,11 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
             tracker,
         ))
         token = tracking_svc.send_tracked(msg, tracker)
+        self.on_message(
+            msg,
+            self._this_occupant,
+            aioxmpp.im.dispatcher.MessageSource.STREAM,
+        )
         return token, tracker
 
     @asyncio.coroutine
