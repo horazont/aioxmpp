@@ -202,7 +202,7 @@ class TestXMLStreamClass(unittest.TestCase):
 
         self.assertSetEqual(
             {ClsA.body.xq_descriptor},
-            ClsA.CHILD_PROPS
+            set(ClsA.CHILD_PROPS)
         )
 
     def test_collect_child_property(self):
@@ -229,7 +229,7 @@ class TestXMLStreamClass(unittest.TestCase):
         )
         self.assertSetEqual(
             {Cls.c1.xq_descriptor, Cls.c2.xq_descriptor},
-            Cls.CHILD_PROPS
+            set(Cls.CHILD_PROPS)
         )
 
     def test_collect_child_flag_property(self):
@@ -244,7 +244,7 @@ class TestXMLStreamClass(unittest.TestCase):
         )
         self.assertSetEqual(
             {Cls.c1.xq_descriptor},
-            Cls.CHILD_PROPS
+            set(Cls.CHILD_PROPS)
         )
 
     def test_forbid_ambiguous_children(self):
@@ -280,7 +280,7 @@ class TestXMLStreamClass(unittest.TestCase):
             ClsB.CHILD_MAP)
         self.assertSetEqual(
             {ClsA.c1.xq_descriptor, ClsB.c2.xq_descriptor},
-            ClsB.CHILD_PROPS
+            set(ClsB.CHILD_PROPS)
         )
 
     def test_inheritance_child_ambiguous(self):
@@ -322,7 +322,7 @@ class TestXMLStreamClass(unittest.TestCase):
         )
         self.assertSetEqual(
             {ClsA.c1.xq_descriptor, ClsB.c2.xq_descriptor},
-            ClsC.CHILD_PROPS
+            set(ClsC.CHILD_PROPS)
         )
 
     def test_multi_inheritance_child_ambiguous(self):
@@ -362,7 +362,7 @@ class TestXMLStreamClass(unittest.TestCase):
             ClsD.CHILD_MAP)
         self.assertSetEqual(
             {ClsA.c1.xq_descriptor},
-            ClsD.CHILD_PROPS
+            set(ClsD.CHILD_PROPS)
         )
 
     def test_collect_attr_property(self):
@@ -550,7 +550,7 @@ class TestXMLStreamClass(unittest.TestCase):
         )
         self.assertSetEqual(
             {Cls.cl1.xq_descriptor, Cls.cl2.xq_descriptor},
-            Cls.CHILD_PROPS
+            set(Cls.CHILD_PROPS)
         )
 
     def test_forbid_ambiguous_children_with_lists(self):
@@ -583,7 +583,7 @@ class TestXMLStreamClass(unittest.TestCase):
         )
         self.assertSetEqual(
             {Cls.ct.xq_descriptor},
-            Cls.CHILD_PROPS
+            set(Cls.CHILD_PROPS)
         )
 
     def test_ordered_child_props(self):

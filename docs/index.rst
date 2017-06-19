@@ -133,11 +133,9 @@ Dependencies
 * Python ≥ 3.4 (or Python = 3.3 with tulip and enum34)
 * DNSPython
 * lxml
-* `orderedset`__
+* `sortedcollections`__
 
-  (Note that ``ordered_set`` does not work!)
-
-  __ https://pypi.python.org/pypi/orderedset
+  __ https://pypi.python.org/pypi/sortedcollections
 
 * `tzlocal`__ (for i18n support)
 

@@ -24,6 +24,8 @@ Version 0.10
 
 * Make :mod:`aioopenssl` a mandatory dependency.
 
+* Replace :mod:`orderedset` with :mod:`sortedcollections`.
+
 .. _api-changelog-0.9:
 
 Version 0.9
