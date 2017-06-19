@@ -55,8 +55,9 @@ implement the management of additional information:
 
 Option (1) has the appeal that users (applications) do not have to worry about
 properly releasing the tracking objects. However, it has the downside that
-applications have to keep the :class:`MessageeTracker` instance around. Remember
-that connecting to callbacks of an object is *not* enough to keep it alive.
+applications have to keep the :class:`MessageeTracker` instance around.
+Remember that connecting to callbacks of an object is *not* enough to keep it
+alive.
 
 Option (2) is somewhat like file objects work: in theory, you have to close
 them explicitly and manually: if you do not, there is no guarantee when the
@@ -392,11 +393,15 @@ class BasicTrackingService(aioxmpp.service.Service):
         try:
             fut.result()
         except asyncio.CancelledError:
-            pass
+            return
         except:
-            tracker._set_state(MessageState.ABORTED)
+            next_state = MessageState.ABORTED
         else:
-            tracker._set_state(MessageState.DELIVERED_TO_SERVER)
+            next_state = MessageState.DELIVERED_TO_SERVER
+        try:
+            tracker._set_state(next_state)
+        except ValueError:
+            pass
 
     def send_tracked(self, stanza, tracker):
         """

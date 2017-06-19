@@ -698,10 +698,19 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
             )
 
         elif message.body:
+            if occupant is not None and occupant == self._this_occupant:
+                tracker = aioxmpp.tracking.MessageTracker()
+                tracker._set_state(
+                    aioxmpp.tracking.MessageState.DELIVERED_TO_RECIPIENT
+                )
+                tracker.close()
+            else:
+                tracker = None
             self.on_message(
                 message,
                 occupant,
                 source,
+                tracker=tracker,
             )
 
     def _diff_presence(self, stanza, info, existing):
@@ -918,7 +927,6 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
         self._tracking_by_id.pop(id_key, None)
         self._tracking_by_body.pop(body_key, None)
 
-    @asyncio.coroutine
     def send_message_tracked(self, msg):
         """
         Send a message to the MUC with tracking.
@@ -1000,7 +1008,13 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
             self._tracker_closed,
             tracker,
         ))
-        token = yield from tracking_svc.send_tracked(msg, tracker)
+        token = tracking_svc.send_tracked(msg, tracker)
+        self.on_message(
+            msg,
+            self._this_occupant,
+            aioxmpp.im.dispatcher.MessageSource.STREAM,
+            tracker=tracker,
+        )
         return token, tracker
 
     @asyncio.coroutine
@@ -1395,7 +1409,7 @@ class MUCClient(aioxmpp.service.Service):
                 return
         muc._inbound_muc_user_presence(stanza)
 
-    def _inbound_muc_presence(self, stanza):
+    def _inbound_presence_error(self, stanza):
         mucjid = stanza.from_.bare()
         try:
             pending, fut, *_ = self._pending_mucs.pop(mucjid)
@@ -1414,8 +1428,8 @@ class MUCClient(aioxmpp.service.Service):
         if stanza.xep0045_muc_user is not None:
             self._inbound_muc_user_presence(stanza)
             return None
-        if stanza.xep0045_muc is not None:
-            self._inbound_muc_presence(stanza)
+        if stanza.type_ == aioxmpp.structs.PresenceType.ERROR:
+            self._inbound_presence_error(stanza)
             return None
         return stanza
 

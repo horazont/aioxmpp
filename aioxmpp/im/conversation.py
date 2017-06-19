@@ -267,7 +267,7 @@ class AbstractConversation(metaclass=abc.ABCMeta):
 
     Signals:
 
-    .. signal:: on_message(msg, member, source, **kwargs)
+    .. signal:: on_message(msg, member, source, tracker=None, **kwargs)
 
        A message occured in the conversation.
 
@@ -277,6 +277,8 @@ class AbstractConversation(metaclass=abc.ABCMeta):
        :type member: :class:`.AbstractConversationMember`
        :param source: How the message was acquired
        :type source: :class:`~.MessageSource`
+       :param tracker: A message tracker which tracks an outbound message.
+       :type trakcre: :class:`aioxmpp.tracking.MessageTracker`
 
        This signal is emitted on the following events:
 
@@ -305,6 +307,13 @@ class AbstractConversation(metaclass=abc.ABCMeta):
        as :meth:`on_state_changed` signals) are dispatched to this event. This
        may include messages not understood and/or which carry no textual
        payload.
+
+       `tracker` is set only for messages sent by the local member. If a
+       message is sent from the client without tracking, `tracker` is
+       :data:`None`; otherwise, the `tracker` is always set, even for messages
+       sent by other clients. It depends on the conversation implementation as
+       well as timing in which state a tracker is at the time the event is
+       emitted.
 
     .. signal:: on_state_changed(member, new_state, msg, **kwargs)
 

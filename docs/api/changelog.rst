@@ -26,6 +26,20 @@ Version 0.10
 
 * Replace :mod:`orderedset` with :mod:`sortedcollections`.
 
+* Make :meth:`aioxmpp.muc.Room.send_message_tracked` a normal method instead
+  of a coroutine (it was never intended to be a coroutine).
+
+* Emit :meth:`aioxmpp.im.conversation.AbstractConversation.on_message` for
+  MUC messages sent via :meth:`~aioxmpp.muc.Room.send_message_tracked`.
+
+* Add ``tracker`` argument to
+  :meth:`aioxmpp.im.conversation.AbstractConversation.on_message`. It carries
+  a :class:`aioxmpp.tracking.MessageTracker` for sent messages (including
+  those sent by other resources of the account in the same conversation).
+
+* Fix (harmless) traceback in logs which could occur when using
+  :meth:`aioxmpp.muc.Room.send_message_tracked`.
+
 .. _api-changelog-0.9:
 
 Version 0.9

@@ -519,6 +519,34 @@ class TestBasicTrackingService(unittest.TestCase):
             tracking.MessageState.ABORTED,
         )
 
+    def test_attach_tracker_handler_does_not_raise_exception_if_state_already_set(self):
+        tracker = tracking.MessageTracker()
+        msg = aioxmpp.Message(
+            type_=aioxmpp.MessageType.CHAT,
+            from_=TEST_LOCAL,
+            to=TEST_PEER,
+        )
+        token = unittest.mock.Mock()
+        self.assertIs(
+            self.s.attach_tracker(msg, tracker, token),
+            tracker
+        )
+
+        token.future.add_done_callback.assert_called_once_with(
+            unittest.mock.ANY,
+        )
+
+        _, (cb, ), _ = token.future.add_done_callback.mock_calls[0]
+
+        tracker._set_state(tracking.MessageState.DELIVERED_TO_RECIPIENT)
+
+        cb(token.future)
+
+        self.assertEqual(
+            tracker.state,
+            tracking.MessageState.DELIVERED_TO_RECIPIENT,
+        )
+
     def test_attach_tracker_ignores_cancelled_stanza_token(self):
         tracker = tracking.MessageTracker()
         msg = aioxmpp.Message(
