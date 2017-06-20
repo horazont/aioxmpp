@@ -1359,7 +1359,12 @@ class MUCClient(aioxmpp.service.Service):
                           self._pending_mucs,
                           self._joined_mucs)
 
-    def _pending_join_done(self, mucjid, fut):
+    def _pending_join_done(self, mucjid, room, fut):
+        try:
+            fut.result()
+        except Exception as exc:
+            room.on_failure(exc)
+
         if fut.cancelled():
             try:
                 del self._pending_mucs[mucjid]
@@ -1572,7 +1577,8 @@ class MUCClient(aioxmpp.service.Service):
         fut = asyncio.Future()
         fut.add_done_callback(functools.partial(
             self._pending_join_done,
-            mucjid
+            mucjid,
+            room,
         ))
         self._pending_mucs[mucjid] = room, fut, nick, history
 

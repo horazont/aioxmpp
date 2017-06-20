@@ -45,6 +45,7 @@ from aioxmpp.testutils import (
     make_connected_client,
     run_coroutine,
     CoroutineMock,
+    make_listener,
 )
 
 
@@ -3320,9 +3321,45 @@ class TestService(unittest.TestCase):
         with self.assertRaises(KeyError):
             self.s.get_muc(TEST_MUC_JID)
 
+    def test_on_failure_is_emitted_on_join_error(self):
+        room, future = self.s.join(TEST_MUC_JID, "thirdwitch")
+        listener = make_listener(room)
+
+        response = aioxmpp.stanza.Presence(
+            from_=TEST_MUC_JID,
+            type_=aioxmpp.structs.PresenceType.ERROR)
+        response.error = aioxmpp.stanza.Error()
+        self.s._handle_presence(
+            response,
+            response.from_,
+            False,
+        )
+
+        run_coroutine(asyncio.sleep(0))
+
+        listener.on_enter.assert_not_called()
+        listener.on_failure.assert_called_once_with(
+            future.exception(),
+        )
+
+    def test_on_failure_is_emitted_on_stream_destruction_without_autorejoin(self):
+        room, future = self.s.join(TEST_MUC_JID, "thirdwitch",
+                                   autorejoin=False)
+        listener = make_listener(room)
+
+        self.s._stream_destroyed()
+
+        run_coroutine(asyncio.sleep(0))
+
+        listener.on_enter.assert_not_called()
+        listener.on_failure.assert_called_once_with(
+            future.exception(),
+        )
+
     def test_pending_muc_removed_and_unavailable_presence_emitted_on_cancel(
             self):
         room, future = self.s.join(TEST_MUC_JID, "thirdwitch")
+        listener = make_listener(room)
 
         self.cc.stream.enqueue.mock_calls.clear()
 
@@ -3346,6 +3383,12 @@ class TestService(unittest.TestCase):
             stanza.xep0045_muc,
             muc_xso.GenericExt
         )
+
+        listener.on_failure.assert_called_once_with(unittest.mock.ANY)
+
+        _, (exc,), _ = listener.on_failure.mock_calls[-1]
+
+        self.assertIsInstance(exc, asyncio.CancelledError)
 
     def test_join_completed_on_self_presence(self):
         room, future = self.s.join(TEST_MUC_JID, "thirdwitch")
