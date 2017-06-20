@@ -32,7 +32,8 @@ from aioxmpp.testutils import (
     XMLStreamMock,
     run_coroutine_with_peer,
     make_connected_client,
-    CoroutineMock
+    CoroutineMock,
+    make_listener,
 )
 from aioxmpp.xmltestutils import XMLTestCase
 
@@ -1061,3 +1062,60 @@ class TestMockMonkeyPatches(unittest.TestCase):
         m()
         with self.assertRaises(AssertionError):
             m.assert_not_called()
+
+
+class Testmake_listener(unittest.TestCase):
+    def test_connects_to_signals(self):
+        class Foo:
+            on_a = callbacks.Signal()
+
+        f = Foo()
+        listener = make_listener(f)
+
+        f.on_a("foo")
+        listener.on_a.assert_called_once_with("foo")
+
+        listener.reset_mock()
+        f.on_a("bar")
+        listener.on_a.assert_called_once_with("bar")
+
+        listener.reset_mock()
+        f.on_a("baz")
+        listener.on_a.assert_called_once_with("baz")
+
+    def test_connects_to_signals_of_base_class(self):
+        class Foo:
+            on_a = callbacks.Signal()
+
+        class Bar(Foo):
+            on_b = callbacks.Signal()
+
+        b = Bar()
+        listener = make_listener(b)
+
+        b.on_a("foo")
+        listener.on_a.assert_called_once_with("foo")
+
+        listener.reset_mock()
+        b.on_a("bar")
+        listener.on_a.assert_called_once_with("bar")
+
+        listener.reset_mock()
+        b.on_a("baz")
+        listener.on_a.assert_called_once_with("baz")
+
+    def test_handles_overridden_attributes(self):
+        class Foo:
+            on_a = callbacks.Signal()
+            on_b = callbacks.Signal()
+
+        class Bar(Foo):
+            on_a = None
+            on_b = callbacks.Signal()
+            on_c = callbacks.Signal()
+
+        b = Bar()
+        listener = make_listener(b)
+
+        b.on_b("foo")
+        listener.on_b.assert_called_once_with("foo")
