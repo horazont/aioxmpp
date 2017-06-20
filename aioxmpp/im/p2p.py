@@ -146,6 +146,7 @@ class Service(AbstractConversationService, aioxmpp.service.Service):
         result = Conversation(self, peer_jid, parent=None)
         self._conversationmap[peer_jid] = result
         self.on_conversation_new(result)
+        result.on_enter()
         return result
 
     @aioxmpp.service.depfilter(IMDispatcher, "message_filter")

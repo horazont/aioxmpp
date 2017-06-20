@@ -35,6 +35,7 @@ from aioxmpp.testutils import (
     make_connected_client,
     CoroutineMock,
     run_coroutine,
+    make_listener,
 )
 
 from aioxmpp.e2etest import (
@@ -222,6 +223,25 @@ class TestService(unittest.TestCase):
             c = run_coroutine(self.s.get_conversation(PEER_JID))
 
         self.listener.on_conversation_added.assert_called_once_with(c)
+
+    def test_conversation_emits_on_enter_right_after_added(self):
+        def cb(conv):
+            conv.on_enter.assert_not_called()
+
+        self.s.dependencies[
+            im_service.ConversationService
+        ].on_conversation_added.connect(cb)
+
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(unittest.mock.patch(
+                "aioxmpp.im.p2p.Conversation"
+            ))
+
+            c = run_coroutine(self.s.get_conversation(PEER_JID))
+
+        self.listener.on_conversation_added.assert_called_once_with(c)
+
+        c.on_enter.assert_called_once_with()
 
     def test_get_conversation_deduplicates(self):
         with contextlib.ExitStack() as stack:
