@@ -386,6 +386,37 @@ class AbstractConversation(metaclass=abc.ABCMeta):
         :param new_topic: The new topic of the conversation.
         :type new_topic: :class:`.LanguageMap`
 
+    .. signal:: on_enter(**kwargs)
+
+        The conversation was entered.
+
+        This event is emitted up to once for a :class:`AbstractConversation`.
+
+        One of :meth:`on_enter` and :meth:`on_failure` is emitted exactly
+        once for each :class:`AbstractConversation` instance.
+
+        .. versionadded:: 0.10
+
+    .. signal:: on_failure(exc, **kwargs)
+
+        The conversation could not be entered.
+
+        :param exc: The exception which caused the operation to fail.
+        :type exc: :class:`Exception`
+
+        Often, `exc` will be a :class:`aioxmpp.errors.XMPPError` indicating
+        an error emitted from an involved server, such as permission problems,
+        conflicts or non-existant peers.
+
+        This signal can only be emitted instead of :meth:`on_enter` and not
+        after the room has been entered. If the conversation is terminated
+        due to a remote cause at a later point, :meth:`on_exit` is used.
+
+        One of :meth:`on_enter` and :meth:`on_failure` is emitted exactly
+        once for each :class:`AbstractConversation` instance.
+
+        .. versionadded:: 0.10
+
     .. signal:: on_join(member, **kwargs)
 
        A new member has joined the conversation.
@@ -461,6 +492,11 @@ class AbstractConversation(metaclass=abc.ABCMeta):
     on_join = aioxmpp.callbacks.Signal()
     on_leave = aioxmpp.callbacks.Signal()
     on_exit = aioxmpp.callbacks.Signal()
+    on_failed = aioxmpp.callbacks.Signal()
+    on_nick_changed = aioxmpp.callbacks.Signal()
+    on_enter = aioxmpp.callbacks.Signal()
+    on_failure = aioxmpp.callbacks.Signal()
+    on_topic_changed = aioxmpp.callbacks.Signal()
 
     def __init__(self, service, parent=None, **kwargs):
         super().__init__(**kwargs)

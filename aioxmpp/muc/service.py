@@ -481,25 +481,13 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
        details on who triggered the change in role and for what reason.
 
     """
-
-    on_message = aioxmpp.callbacks.Signal()
-
     # this occupant state events
-    on_enter = aioxmpp.callbacks.Signal()
     on_muc_suspend = aioxmpp.callbacks.Signal()
     on_muc_resume = aioxmpp.callbacks.Signal()
-    on_exit = aioxmpp.callbacks.Signal()
 
     # other occupant state events
-    on_join = aioxmpp.callbacks.Signal()
-    on_leave = aioxmpp.callbacks.Signal()
-    on_presence_changed = aioxmpp.callbacks.Signal()
     on_muc_affiliation_changed = aioxmpp.callbacks.Signal()
-    on_nick_changed = aioxmpp.callbacks.Signal()
     on_muc_role_changed = aioxmpp.callbacks.Signal()
-
-    # room state events
-    on_topic_changed = aioxmpp.callbacks.Signal()
 
     def __init__(self, service, mucjid):
         super().__init__(service)
