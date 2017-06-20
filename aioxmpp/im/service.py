@@ -93,11 +93,11 @@ class ConversationService(aioxmpp.service.Service):
         from the list automatically. There is no need to remove a conversation
         from the list explicitly.
         """
-        self.on_conversation_added(conversation)
-        conversation.on_exit.connect(
-            functools.partial(
-                self._handle_conversation_exit,
-                conversation
-            ),
+        handler = functools.partial(
+            self._handle_conversation_exit,
+            conversation
         )
+        conversation.on_exit.connect(handler)
+        conversation.on_failure.connect(handler)
         self._conversations.append(conversation)
+        self.on_conversation_added(conversation)
