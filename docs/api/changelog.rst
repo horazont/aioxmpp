@@ -55,6 +55,10 @@ Version 0.10
 
 * Implement :func:`aioxmpp.callbacks.first_signal`.
 
+* Specify :meth:`aioxmpp.im.conversation.AbstractConversation.on_enter` and
+  :meth:`~aioxmpp.im.conversation.AbstractConversation.on_failure` events and
+  implement emission of those for the existing conversation implementations.
+
 .. _api-changelog-0.9:
 
 Version 0.9
