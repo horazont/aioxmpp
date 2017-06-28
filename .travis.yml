@@ -21,6 +21,9 @@ matrix:
     env: PROSODY_BRANCH=trunk TEST_MODE=e2e-prosody
   - python: "3.6"
     env: TEST_MODE=coverage
+  allow_failures:
+  - python: "3.6"
+    env: PROSODY_BRANCH=trunk TEST_MODE=e2e-prosody
 
 before_install:
 - export PATH=$PATH:$PWD/lua_install/bin
