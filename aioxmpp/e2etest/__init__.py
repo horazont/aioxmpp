@@ -122,6 +122,7 @@ import asyncio
 import configparser
 import functools
 import importlib
+import logging
 import os
 import unittest
 
@@ -359,6 +360,13 @@ class E2ETestPlugin(Plugin):
             help="Configuration file for end-to-end tests "
             "(default: .local/e2etest.ini)"
         )
+        options.add_option(
+            "--e2etest-record",
+            dest="aioxmpp_e2e_record",
+            metavar="FILE",
+            default=None,
+            help="A file to write a transcript to"
+        )
 
     def configure(self, options, conf):
         self.enabled = True
@@ -366,6 +374,16 @@ class E2ETestPlugin(Plugin):
         config = configparser.ConfigParser()
         with open(options.aioxmpp_e2e_config, "r") as f:
             config.read_file(f)
+
+        if options.aioxmpp_e2e_record:
+            handler = logging.FileHandler(options.aioxmpp_e2e_record, "w")
+            formatter = logging.Formatter(
+                "%(name)s: %(levelname)s: %(message)s",
+                style="%"
+            )
+            handler.setFormatter(formatter)
+            logger = logging.getLogger("aioxmpp.e2etest.provision")
+            logger.addHandler(handler)
 
     @blocking
     @asyncio.coroutine
