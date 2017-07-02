@@ -24,9 +24,6 @@ import io
 import unittest
 import unittest.mock
 
-import lxml.etree
-import lxml.sax
-
 import aioxmpp
 import aioxmpp.private_xml
 import aioxmpp.xso
@@ -38,6 +35,9 @@ from aioxmpp.testutils import (
     CoroutineMock,
     run_coroutine
 )
+
+TEST_JID1 = aioxmpp.JID.fromstr("foo@bar.baz")
+TEST_JID2 = aioxmpp.JID.fromstr("bar@bar.baz")
 
 class TestBookmarkClient(unittest.TestCase):
 
@@ -65,13 +65,14 @@ class TestBookmarkClient(unittest.TestCase):
         del self.private_xml
         del self.s
 
-    def test_get_bookmarks(self):
+    def test__get_bookmarks(self):
         with unittest.mock.patch.object(
                 self.private_xml,
                 "get_private_xml",
                 new=CoroutineMock()) as get_private_xml_mock:
-            get_private_xml_mock.return_value = unittest.mock.sentinel.result
-            res = run_coroutine(self.s.get_bookmarks())
+            get_private_xml_mock.return_value.bookmarks = \
+                unittest.mock.sentinel.result
+            res = run_coroutine(self.s._get_bookmarks())
 
         self.assertIs(res, unittest.mock.sentinel.result)
         self.assertEqual(
@@ -83,13 +84,13 @@ class TestBookmarkClient(unittest.TestCase):
         self.assertIsInstance(arg, aioxmpp.bookmarks.Storage)
         self.assertEqual(len(arg.bookmarks), 0)
 
-    def test_set_bookmarks(self):
-        bookmarks = aioxmpp.bookmarks.Storage()
-        bookmarks.bookmarks.append(
+    def test__set_bookmarks(self):
+        bookmarks = []
+        bookmarks.append(
             aioxmpp.bookmarks.Conference(
                 "Coven", aioxmpp.JID.fromstr("coven@example.com")),
         )
-        bookmarks.bookmarks.append(
+        bookmarks.append(
             aioxmpp.bookmarks.URL(
                 "Interesting",
                 "http://example.com/"),
@@ -99,7 +100,7 @@ class TestBookmarkClient(unittest.TestCase):
                 self.private_xml,
                 "set_private_xml",
                 new=CoroutineMock()) as set_private_xml_mock:
-            run_coroutine(self.s.set_bookmarks(bookmarks))
+            run_coroutine(self.s._set_bookmarks(bookmarks))
 
         self.assertEqual(
             len(set_private_xml_mock.mock_calls),
@@ -107,7 +108,7 @@ class TestBookmarkClient(unittest.TestCase):
         )
         (_, (arg,), kwargs), = set_private_xml_mock.mock_calls
         self.assertEqual(len(kwargs), 0)
-        self.assertIs(arg, bookmarks)
+        self.assertEqual(arg.bookmarks, bookmarks)
 
     def test_set_bookmarks_failure(self):
         bookmarks = unittest.mock.sentinel.something_else
@@ -117,10 +118,110 @@ class TestBookmarkClient(unittest.TestCase):
                 new=CoroutineMock()) as set_private_xml_mock:
             with self.assertRaisesRegex(
                     TypeError,
-                    "^set_bookmarks only accepts bookmark.Storage objects$"):
+                    "can only assign an iterable$"):
                 run_coroutine(self.s.set_bookmarks(bookmarks))
 
         self.assertEqual(
             len(set_private_xml_mock.mock_calls),
             0
         )
+
+    def test_sync(self):
+        on_added = unittest.mock.Mock()
+        on_added.return_value = None
+        on_removed = unittest.mock.Mock()
+        on_removed.return_value = None
+        on_changed = unittest.mock.Mock()
+        on_changed.return_value = None
+
+        self.s.on_bookmark_added.connect(on_added)
+        self.s.on_bookmark_removed.connect(on_removed)
+        self.s.on_bookmark_changed.connect(on_changed)
+
+        with unittest.mock.patch.object(
+                self.private_xml,
+                "get_private_xml",
+                new=CoroutineMock()) as get_private_xml_mock:
+            get_private_xml_mock.return_value = aioxmpp.bookmarks.Storage()
+            get_private_xml_mock.return_value.bookmarks.append(
+                aioxmpp.bookmarks.Conference(
+                    jid=aioxmpp.JID.fromstr("foo@bar.baz"),
+                    name="foo",
+                    nick="quux"
+                )
+            )
+
+            run_coroutine(self.s.sync())
+            run_coroutine(self.s.sync())
+
+            get_private_xml_mock.return_value = aioxmpp.bookmarks.Storage()
+            get_private_xml_mock.return_value.bookmarks.append(
+                aioxmpp.bookmarks.Conference(
+                    jid=TEST_JID1,
+                    name="foo",
+                    nick="quux"
+                )
+            )
+            get_private_xml_mock.return_value.bookmarks.append(
+                aioxmpp.bookmarks.Conference(
+                    jid=TEST_JID1,
+                    name="foo",
+                    nick="quuux"
+                )
+            )
+
+            run_coroutine(self.s.sync())
+            run_coroutine(self.s.sync())
+
+            get_private_xml_mock.return_value = aioxmpp.bookmarks.Storage()
+            get_private_xml_mock.return_value.bookmarks.append(
+                aioxmpp.bookmarks.Conference(
+                    jid=TEST_JID1,
+                    name="foo",
+                    nick="quux"
+                )
+            )
+
+            run_coroutine(self.s.sync())
+            run_coroutine(self.s.sync())
+
+            get_private_xml_mock.return_value = aioxmpp.bookmarks.Storage()
+            get_private_xml_mock.return_value.bookmarks.append(
+                aioxmpp.bookmarks.Conference(
+                    jid=aioxmpp.JID.fromstr("foo@bar.baz"),
+                    name="foo",
+                    nick="quuux"
+                )
+            )
+
+            run_coroutine(self.s.sync())
+            run_coroutine(self.s.sync())
+
+        self.assertEqual(
+            len(on_added.mock_calls), 2
+        )
+
+        self.assertEqual(
+            len(on_removed.mock_calls), 1
+        )
+
+        self.assertEqual(
+            len(on_changed.mock_calls), 1
+        )
+
+
+    def test_add_bookmark(self):
+        pass
+
+    def test_add_bookmark_already_present(self):
+        pass
+
+    def test_remove_bookmark(self):
+        pass
+
+    def test_remove_bookmark_already_gone(self):
+        pass
+
+    def test_update_bookmark(self):
+        pass
+
