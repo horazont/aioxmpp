@@ -18,7 +18,7 @@ Version 0.10
 * **Breaking change**: :meth:`aioxmpp.BookmarkService.get_bookmarks`
   now returns a list instead of a :class:`aioxmpp.bookmarks.Storage`
   and :meth:`aioxmpp.BookmarkService.set_bookmarks` now accepts a
-  list. The list returned by the get method and its contents *must
+  list. The list returned by the get method and its elements *must
   not* be modified.
 
 * *Deprecation*: The above split also caused a split of
