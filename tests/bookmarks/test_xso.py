@@ -20,10 +20,8 @@
 #
 ########################################################################
 import unittest
-import logging
 
 import aioxmpp.structs
-import aioxmpp.private_xml as private_xml
 import aioxmpp.bookmarks.xso as bookmark_xso
 import aioxmpp.xso as xso
 
@@ -31,6 +29,7 @@ from aioxmpp.utils import namespaces
 
 EXAMPLE_JID1 = aioxmpp.JID.fromstr("coven@conference.shakespeare.lit")
 EXAMPLE_JID2 = aioxmpp.JID.fromstr("open_field@conference.shakespeare.lit")
+
 
 class TestNamespace(unittest.TestCase):
 
