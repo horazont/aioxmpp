@@ -231,8 +231,28 @@ class Storage(xso.XSO):
     .. attribute:: bookmarks
 
        A :class:`~xso.XSOList` of bookmarks.
-
     """
+
     TAG = (namespaces.xep0048, "storage")
 
     bookmarks = xso.ChildList([URL, Conference])
+
+
+def as_bookmark_class(xso_class):
+    """
+    Decorator to register `xso_class` as a custom bookmark class.
+
+    This is necessary to store and retrieve bookmarks of this kind.
+    """
+
+    if not issubclass(xso_class, Bookmark):
+        raise TypeError(
+            "Classes registered as bookmark types must be Bookmark subclasses"
+        )
+
+    Storage.register_child(
+        Storage.bookmarks,
+        xso_class
+    )
+
+    return xso_class

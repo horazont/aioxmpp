@@ -48,9 +48,11 @@ The following XSOs are used to represent an manipulate bookmark lists.
 
 .. autoclass:: URL
 
-The following is used internally as the XSO container for bookmarks. If
-you want to support custom bookmark types, they have to be registered
-as children with the :attr:`Storage.bookmarks` descriptor:
+To register custom bookmark classes use:
+
+.. autofunction:: as_bookmark_class
+
+The following is used internally as the XSO container for bookmarks.
 
 .. autoclass:: Storage
 
@@ -69,5 +71,6 @@ might cause data loss due to race conditions.
 
 """
 
-from .xso import (Storage, Bookmark, Conference, URL)  # NOQA
+from .xso import (Storage, Bookmark, Conference, URL,
+                  as_bookmark_class)  # NOQA
 from .service import BookmarkClient  # NOQA

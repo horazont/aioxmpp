@@ -49,6 +49,9 @@ Version 0.10
 * Fix :func:`aioxmpp.service.is_depsignal_handler` and
   :func:`~aioxmpp.service.is_attrsignal_handler` when used with ``defer=True``.
 
+* You can now register custom bookmark classes with
+  :func:`aioxmpp.bookmarks.as_bookmark_class`.
+
 .. _api-changelog-0.9:
 
 Version 0.9
