@@ -32,32 +32,34 @@ namespaces.xep0048 = "storage:bookmarks"
 
 
 class Bookmark(xso.XSO):
-    """A bookmark XSO abstract base class.
+    """
+    A bookmark XSO abstract base class.
 
     Every XSO class registered as child of :class:`Storage` must be
     a :class:`Bookmark` subclass.
 
     Bookmarks must provide the following interface:
 
-    .. autoproperty:: primary
+    .. autoattribute:: primary
 
-    .. autoproperty:: secondary
+    .. autoattribute:: secondary
 
-    .. autoproperty:: name
+    .. autoattribute:: name
 
     Equality is defined in terms of those properties:
 
     .. automethod:: __eq__
 
-    It is highly recommenden not to redefine :meth:`__eq__` in a
-    subclass, if you do so make sure that the following law
-    holds for :meth:`__eq__`, :attr:`primary` and :attr:`secondary`:
+    It is highly recommended not to redefine :meth:`__eq__` in a
+    subclass, if you do so make sure that the following axiom
+    relating :meth:`__eq__`, :attr:`primary` and :attr:`secondary`
+    holds::
 
         (type(a) == type(b) and
          a.primary == b.primary and
          a.secondary == b.secondary)
 
-    if and only if
+    if and only if::
 
         a == b
 
@@ -84,12 +86,17 @@ class Bookmark(xso.XSO):
         """
         Return the primary category of the bookmark.
 
+        The internal structure of the category is opaque to the code
+        using it; only equality and hashing must be provided and
+        operate by value. It is recommended that this be either a
+        single datum (e.g. a string or JID) or a tuple of data items.
+
         Together with the type and :attr:`secondary` this must *fully*
         determine the value of the bookmark.
 
         This is used in the computation of the change
-        signals. Bookmarks with different type or :property:`primary`
-        keys cannot be identified as changed.
+        signals. Bookmarks with different type or :attr:`primary`
+        keys cannot be identified as changed from/to one another.
         """
         raise NotImplementedError
 
