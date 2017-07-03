@@ -108,6 +108,7 @@ class BookmarkClient(service.Service):
         super().__init__(client, **kwargs)
         self._private_xml = self.dependencies[private_xml.PrivateXMLService]
         self._bookmark_cache = []
+        self._lock = asyncio.Lock()
 
     @asyncio.coroutine
     def _get_bookmarks(self):
@@ -265,9 +266,10 @@ class BookmarkClient(service.Service):
 
         :returns: a list of bookmarks
         """
-        bookmarks = yield from self._get_bookmarks()
-        self._diff_emit_update(bookmarks)
-        return bookmarks
+        with (yield from self._lock):
+            bookmarks = yield from self._get_bookmarks()
+            self._diff_emit_update(bookmarks)
+            return bookmarks
 
     @asyncio.coroutine
     def set_bookmarks(self, bookmarks):
@@ -285,9 +287,9 @@ class BookmarkClient(service.Service):
                   the bookmarklist at large, e.g. by syncing the
                   remote store with local data).
         """
-        yield from self._set_bookmarks(bookmarks)
-        self._diff_emit_update(bookmarks)
-        return bookmarks
+        with (yield from self._lock):
+            yield from self._set_bookmarks(bookmarks)
+            self._diff_emit_update(bookmarks)
 
     @asyncio.coroutine
     def sync(self):
@@ -301,58 +303,107 @@ class BookmarkClient(service.Service):
         yield from self.get_bookmarks()
 
     @asyncio.coroutine
-    def add_bookmark(self, new_bookmark):
+    def add_bookmark(self, new_bookmark, max_retries=3):
         """
-        Add a bookmark.
+        Add a bookmark and check whether it was successfully added to the
+        bookmark list. Already existant bookmarks are not added twice.
 
-        Already existant bookmarks are not added twice.
+        :raises RuntimeError: if the bookmark is not in the bookmark list
+                              after `max_retries` retries.
         """
-        bookmarks = yield from self._get_bookmarks()
-        for bookmark in bookmarks:
-            if bookmark == new_bookmark:
-                break
-        else:
-            bookmarks.append(new_bookmark)
-        yield from self._set_bookmarks(bookmarks)
+        with (yield from self._lock):
+            bookmarks = yield from self._get_bookmarks()
 
-        self._diff_emit_update(bookmarks)
+            if new_bookmark not in bookmarks:
+                bookmarks.append(new_bookmark)
+            yield from self._set_bookmarks(bookmarks)
+
+            retries = 0
+            bookmarks = yield from self._get_bookmarks()
+            while retries < max_retries:
+                if new_bookmark in bookmarks:
+                    break
+                bookmarks.append(new_bookmark)
+                yield from self._set_bookmarks(bookmarks)
+                bookmarks = yield from self._get_bookmarks()
+                retries += 1
+
+            self._diff_emit_update(bookmarks)
+
+            if new_bookmark not in bookmarks:
+                raise RuntimeError("Could not add bookmark")
 
     @asyncio.coroutine
-    def remove_bookmark(self, bookmark_to_remove):
+    def remove_bookmark(self, bookmark_to_remove, max_retries=3):
         """
-        Remove a bookmark.
+        Remove a bookmark and check it has been removed.
+
+        If there are multiple occurences of the same bookmark exactly
+        one is removed.
 
         This does nothing if the bookmarks does not match an existing
         bookmark according to bookmark-equality.
         """
-        bookmarks = yield from self._get_bookmarks()
-        result = []
-        not_removed = True
-        for bookmark in bookmarks:
-            if not_removed and bookmark == bookmark_to_remove:
-                not_removed = False
-                continue
-            else:
-                result.append(bookmark)
-        yield from self._set_bookmarks(result)
-        self._diff_emit_update(result)
+        with (yield from self._lock):
+            bookmarks = yield from self._get_bookmarks()
+            occurences = bookmarks.count(bookmark_to_remove)
+            error = False
+
+            if occurences:
+                bookmarks.remove(bookmark_to_remove)
+                yield from self._set_bookmarks(bookmarks)
+
+                retries = 0
+                bookmarks = yield from self._get_bookmarks()
+                new_occurences = bookmarks.count(bookmark_to_remove)
+                while retries < max_retries:
+                    if new_occurences < occurences:
+                        break
+                    bookmarks.remove(bookmark_to_remove)
+                    yield from self._set_bookmarks(bookmarks)
+                    bookmarks = yield from self._get_bookmarks()
+                    new_occurences = bookmarks.count(bookmark_to_remove)
+
+                if new_occurences >= occurences:
+                    error = True
+
+            self._diff_emit_update(bookmarks)
+
+            if error:
+                raise RuntimeError("Could not remove bookmark")
 
     @asyncio.coroutine
-    def update_bookmark(self, old, new):
+    def update_bookmark(self, old, new, max_retries=3):
         """
-        Update a bookmark.
+        Update a bookmark and check it was successful.
 
         The bookmark matches an existing bookmark `old` according to
         bookmark equalitiy and replaces it by `new`. The bookmark
         `new` is added if no bookmark matching `old` exists.
         """
-        bookmarks = yield from self._get_bookmarks()
-        for i, bookmark in enumerate(bookmarks):
-            if bookmark == old:
-                bookmarks[i] = new
-                break
-        else:
-            bookmarks.append(new)
-        yield from self._set_bookmarks(bookmarks)
+        def replace_bookmark():
+            for i, bookmark in enumerate(bookmarks):
+                if bookmark == old:
+                    bookmarks[i] = new
+                    break
+            else:
+                bookmarks.append(new)
 
-        self._diff_emit_update(bookmarks)
+        with (yield from self._lock):
+            bookmarks = yield from self._get_bookmarks()
+            replace_bookmark()
+            yield from self._set_bookmarks(bookmarks)
+
+            retries = 0
+            bookmarks = yield from self._get_bookmarks()
+            while retries <= max_retries:
+                if new in bookmarks:
+                    break
+                replace_bookmark()
+                yield from self._set_bookmarks(bookmarks)
+                bookmarks = yield from self._get_bookmarks()
+
+            self._diff_emit_update(bookmarks)
+
+            if new not in bookmarks:
+                raise RuntimeError("Cold not update bookmark")
