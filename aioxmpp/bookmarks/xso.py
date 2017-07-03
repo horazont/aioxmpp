@@ -19,7 +19,7 @@
 # <http://www.gnu.org/licenses/>.
 #
 ########################################################################
-from abc import abstractmethod, abstractproperty
+from abc import abstractproperty
 
 import aioxmpp.private_xml as private_xml
 import aioxmpp.xso as xso
