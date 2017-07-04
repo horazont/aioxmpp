@@ -20,6 +20,7 @@
 #
 ########################################################################
 import asyncio
+import contextlib
 import copy
 import logging
 import random
@@ -44,8 +45,9 @@ TEST_JID2 = aioxmpp.JID.fromstr("bar@bar.baz")
 
 class PrivateXMLSimulator:
 
-    def __init__(self):
+    def __init__(self, *, delay=0):
         self.stored = {}
+        self.delay = 0
 
     @asyncio.coroutine
     def get_private_xml(self, xso):
@@ -55,7 +57,10 @@ class PrivateXMLSimulator:
 
     @asyncio.coroutine
     def set_private_xml(self, xso):
-        self.stored[xso.TAG[0]] = copy.deepcopy(xso)
+        if self.delay == 0:
+            self.stored[xso.TAG[0]] = copy.deepcopy(xso)
+        else:
+            self.delay -= 1
 
 
 class ExampleXSO(aioxmpp.xso.XSO):
@@ -104,6 +109,25 @@ class TestPrivateXMLSimulator(unittest.TestCase):
         res = run_coroutine(test_private_xml())
         self.assertIs(type(res), ExampleXSO)
         self.assertEqual(res.text, "foo")
+
+    def test_store_delay(self):
+        results = []
+        self.private_xml.delay = 3
+
+        @asyncio.coroutine
+        def test_private_xml():
+            for i in range(5):
+                yield from self.private_xml.set_private_xml(ExampleXSO("foo"))
+                results.append(
+                    (yield from self.private_xml.get_private_xml(ExampleXSO()))
+                )
+        run_coroutine(test_private_xml())
+
+        self.assertEqual(results[0].text, "")
+        self.assertEqual(results[1].text, "")
+        self.assertEqual(results[2].text, "")
+        self.assertEqual(results[3].text, "foo")
+        self.assertEqual(results[4].text, "foo")
 
 
 class TestBookmarkClient(unittest.TestCase):
@@ -313,6 +337,47 @@ class TestBookmarkClient(unittest.TestCase):
         self.assertEqual(len(self.on_removed.mock_calls), 0)
         self.on_added.assert_called_once_with(bookmark)
 
+    def test_add_bookmark_delay(self):
+        self.private_xml.delay = 3
+        self.connect_mocks()
+        bookmark = aioxmpp.bookmarks.URL("An URL", "http://foo.bar/")
+        run_coroutine(self.s.add_bookmark(bookmark))
+
+        self.assertEqual(len(self.on_changed.mock_calls), 0)
+        self.assertEqual(len(self.on_removed.mock_calls), 0)
+        self.on_added.assert_called_once_with(bookmark)
+
+    def test_add_bookmark_delay_raises(self):
+        self.private_xml.delay = 4
+        with self.assertRaises(RuntimeError):
+            with unittest.mock.patch.object(self.s, "_diff_emit_update") as f:
+                bookmark = aioxmpp.bookmarks.URL("An URL", "http://foo.bar/")
+                run_coroutine(self.s.add_bookmark(bookmark))
+
+        # check that _diff_emit_update is called
+        self.assertEqual(len(f.mock_calls), 1)
+
+    def test_add_bookmark_set_raises(self):
+        class TokenException(Exception): pass
+
+        def set_bookmarks(*args, **kwargs):
+            raise TokenException
+
+        with contextlib.ExitStack() as e:
+            e.enter_context(self.assertRaises(TokenException))
+            diff_emit_update = e.enter_context(
+                unittest.mock.patch.object(self.s, "_diff_emit_update",)
+            )
+            e.enter_context(
+                unittest.mock.patch.object(self.s, "_set_bookmarks",
+                                           set_bookmarks)
+            )
+            bookmark = aioxmpp.bookmarks.URL("An URL", "http://foo.bar/")
+            run_coroutine(self.s.add_bookmark(bookmark))
+
+        # check that _diff_emit_update is called
+        self.assertEqual(len(diff_emit_update.mock_calls), 1)
+
     def test_add_bookmark_already_present(self):
         bookmark = aioxmpp.bookmarks.URL("An URL", "http://foo.bar/")
         run_coroutine(self.s.add_bookmark(bookmark))
@@ -337,6 +402,52 @@ class TestBookmarkClient(unittest.TestCase):
         self.assertEqual(len(self.on_changed.mock_calls), 0)
         self.assertEqual(len(self.on_added.mock_calls), 0)
         self.on_removed.assert_called_once_with(bookmark)
+
+    def test_discard_bookmark_delay(self):
+        bookmark = aioxmpp.bookmarks.URL("An URL", "http://foo.bar/")
+        run_coroutine(self.s.add_bookmark(bookmark))
+        self.private_xml.delay = 3
+        self.connect_mocks()
+        run_coroutine(self.s.discard_bookmark(bookmark))
+        self.assertEqual(len(self.on_changed.mock_calls), 0)
+        self.assertEqual(len(self.on_added.mock_calls), 0)
+        self.on_removed.assert_called_once_with(bookmark)
+
+    def test_discard_bookmark_delay_raises(self):
+        bookmark = aioxmpp.bookmarks.URL("An URL", "http://foo.bar/")
+        run_coroutine(self.s.add_bookmark(bookmark))
+        self.private_xml.delay = 4
+        with contextlib.ExitStack() as e:
+            e.enter_context(self.assertRaises(RuntimeError))
+            f = e.enter_context(
+                unittest.mock.patch.object(self.s, "_diff_emit_update")
+            )
+            run_coroutine(self.s.discard_bookmark(bookmark))
+        # check that _diff_emit_update is called
+        self.assertEqual(len(f.mock_calls), 1)
+
+    def test_discard_bookmark_set_raises(self):
+        bookmark = aioxmpp.bookmarks.URL("An URL", "http://foo.bar/")
+        run_coroutine(self.s.add_bookmark(bookmark))
+
+        class TokenException(Exception): pass
+
+        def set_bookmarks(*args, **kwargs):
+            raise TokenException
+
+        with contextlib.ExitStack() as e:
+            e.enter_context(self.assertRaises(TokenException))
+            diff_emit_update = e.enter_context(
+                unittest.mock.patch.object(self.s, "_diff_emit_update",)
+            )
+            e.enter_context(
+                unittest.mock.patch.object(self.s, "_set_bookmarks",
+                                           set_bookmarks)
+            )
+            run_coroutine(self.s.discard_bookmark(bookmark))
+
+        # check that _diff_emit_update is called
+        self.assertEqual(len(diff_emit_update.mock_calls), 1)
 
     def test_discard_bookmark_removes_one(self):
         bookmark = aioxmpp.bookmarks.URL("An URL", "http://foo.bar/")
@@ -367,6 +478,59 @@ class TestBookmarkClient(unittest.TestCase):
         self.assertEqual(len(self.on_removed.mock_calls), 0)
         self.assertEqual(len(self.on_added.mock_calls), 0)
         self.on_changed.assert_called_once_with(bookmark, new_bookmark)
+
+    def test_update_bookmark_delay(self):
+        bookmark = aioxmpp.bookmarks.URL("An URL", "http://foo.bar/")
+        run_coroutine(self.s.add_bookmark(bookmark))
+        self.private_xml.delay = 3
+        self.connect_mocks()
+        new_bookmark = copy.copy(bookmark)
+        new_bookmark.name = "THE URL"
+        run_coroutine(self.s.update_bookmark(bookmark, new_bookmark))
+        self.assertEqual(len(self.on_removed.mock_calls), 0)
+        self.assertEqual(len(self.on_added.mock_calls), 0)
+        self.on_changed.assert_called_once_with(bookmark, new_bookmark)
+
+    def test_update_bookmark_delay_raises(self):
+        bookmark = aioxmpp.bookmarks.URL("An URL", "http://foo.bar/")
+        new_bookmark = copy.copy(bookmark)
+        new_bookmark.name = "THE URL"
+        run_coroutine(self.s.add_bookmark(bookmark))
+
+        self.private_xml.delay = 4
+        with contextlib.ExitStack() as e:
+            e.enter_context(self.assertRaises(RuntimeError))
+            f = e.enter_context(
+                unittest.mock.patch.object(self.s, "_diff_emit_update")
+            )
+            run_coroutine(self.s.update_bookmark(bookmark, new_bookmark))
+        # check that _diff_emit_update is called
+        self.assertEqual(len(f.mock_calls), 1)
+
+    def test_discard_bookmark_set_raises(self):
+        bookmark = aioxmpp.bookmarks.URL("An URL", "http://foo.bar/")
+        new_bookmark = copy.copy(bookmark)
+        new_bookmark.name = "THE URL"
+        run_coroutine(self.s.add_bookmark(bookmark))
+
+        class TokenException(Exception): pass
+
+        def set_bookmarks(*args, **kwargs):
+            raise TokenException
+
+        with contextlib.ExitStack() as e:
+            e.enter_context(self.assertRaises(TokenException))
+            diff_emit_update = e.enter_context(
+                unittest.mock.patch.object(self.s, "_diff_emit_update",)
+            )
+            e.enter_context(
+                unittest.mock.patch.object(self.s, "_set_bookmarks",
+                                           set_bookmarks)
+            )
+            run_coroutine(self.s.update_bookmark(bookmark, new_bookmark))
+
+        # check that _diff_emit_update is called
+        self.assertEqual(len(diff_emit_update.mock_calls), 1)
 
     def test_concurrent_update_bookmark(self):
         bookmark = aioxmpp.bookmarks.URL("An URL", "http://foo.bar/")
