@@ -387,26 +387,28 @@ class BookmarkClient(service.Service):
             occurences = bookmarks.count(bookmark_to_remove)
 
             try:
-                if occurences:
+                if not occurences:
+                    return
+
+                modified_bookmarks = list(bookmarks)
+                modified_bookmarks.remove(bookmark_to_remove)
+                yield from self._set_bookmarks(modified_bookmarks)
+
+                retries = 0
+                bookmarks = yield from self._get_bookmarks()
+                new_occurences = bookmarks.count(bookmark_to_remove)
+                while retries < max_retries:
+                    if new_occurences < occurences:
+                        break
                     modified_bookmarks = list(bookmarks)
                     modified_bookmarks.remove(bookmark_to_remove)
                     yield from self._set_bookmarks(modified_bookmarks)
-
-                    retries = 0
                     bookmarks = yield from self._get_bookmarks()
                     new_occurences = bookmarks.count(bookmark_to_remove)
-                    while retries < max_retries:
-                        if new_occurences < occurences:
-                            break
-                        modified_bookmarks = list(bookmarks)
-                        modified_bookmarks.remove(bookmark_to_remove)
-                        yield from self._set_bookmarks(modified_bookmarks)
-                        bookmarks = yield from self._get_bookmarks()
-                        new_occurences = bookmarks.count(bookmark_to_remove)
-                        retries += 1
+                    retries += 1
 
-                    if new_occurences >= occurences:
-                        raise RuntimeError("Could not remove bookmark")
+                if new_occurences >= occurences:
+                    raise RuntimeError("Could not remove bookmark")
             finally:
                 self._diff_emit_update(bookmarks)
 
