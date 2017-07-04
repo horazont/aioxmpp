@@ -326,24 +326,28 @@ class BookmarkClient(service.Service):
         with (yield from self._lock):
             bookmarks = yield from self._get_bookmarks()
 
-            if new_bookmark not in bookmarks:
-                bookmarks.append(new_bookmark)
-            yield from self._set_bookmarks(bookmarks)
+            try:
+                modified_bookmarks = list(bookmarks)
+                if new_bookmark not in bookmarks:
+                    modified_bookmarks.append(new_bookmark)
+                yield from self._set_bookmarks(modified_bookmarks)
 
-            retries = 0
-            bookmarks = yield from self._get_bookmarks()
-            while retries < max_retries:
-                if new_bookmark in bookmarks:
-                    break
-                bookmarks.append(new_bookmark)
-                yield from self._set_bookmarks(bookmarks)
+                retries = 0
                 bookmarks = yield from self._get_bookmarks()
-                retries += 1
+                while retries < max_retries:
+                    if new_bookmark in bookmarks:
+                        break
+                    modified_bookmarks = list(bookmarks)
+                    modified_bookmarks.append(new_bookmark)
+                    yield from self._set_bookmarks(modified_bookmarks)
+                    bookmarks = yield from self._get_bookmarks()
+                    retries += 1
 
-            self._diff_emit_update(bookmarks)
+                if new_bookmark not in bookmarks:
+                    raise RuntimeError("Could not add bookmark")
 
-            if new_bookmark not in bookmarks:
-                raise RuntimeError("Could not add bookmark")
+            finally:
+                self._diff_emit_update(bookmarks)
 
     @asyncio.coroutine
     def remove_bookmark(self, bookmark_to_remove, *, max_retries=3):
@@ -375,30 +379,29 @@ class BookmarkClient(service.Service):
         with (yield from self._lock):
             bookmarks = yield from self._get_bookmarks()
             occurences = bookmarks.count(bookmark_to_remove)
-            error = False
 
-            if occurences:
-                bookmarks.remove(bookmark_to_remove)
-                yield from self._set_bookmarks(bookmarks)
+            try:
+                if occurences:
+                    modified_bookmarks = list(bookmarks)
+                    modified_bookmarks.remove(bookmark_to_remove)
+                    yield from self._set_bookmarks(modified_bookmarks)
 
-                retries = 0
-                bookmarks = yield from self._get_bookmarks()
-                new_occurences = bookmarks.count(bookmark_to_remove)
-                while retries < max_retries:
-                    if new_occurences < occurences:
-                        break
-                    bookmarks.remove(bookmark_to_remove)
-                    yield from self._set_bookmarks(bookmarks)
+                    retries = 0
                     bookmarks = yield from self._get_bookmarks()
                     new_occurences = bookmarks.count(bookmark_to_remove)
+                    while retries < max_retries:
+                        if new_occurences < occurences:
+                            break
+                        modified_bookmarks = list(bookmarks)
+                        modified_bookmarks.remove(bookmark_to_remove)
+                        yield from self._set_bookmarks(modified_bookmarks)
+                        bookmarks = yield from self._get_bookmarks()
+                        new_occurences = bookmarks.count(bookmark_to_remove)
 
-                if new_occurences >= occurences:
-                    error = True
-
-            self._diff_emit_update(bookmarks)
-
-            if error:
-                raise RuntimeError("Could not remove bookmark")
+                    if new_occurences >= occurences:
+                        raise RuntimeError("Could not remove bookmark")
+            finally:
+                self._diff_emit_update(bookmarks)
 
     @asyncio.coroutine
     def update_bookmark(self, old, new, *, max_retries=3):
@@ -433,29 +436,34 @@ class BookmarkClient(service.Service):
                   and modify the copy.
 
         """
-        def replace_bookmark():
-            for i, bookmark in enumerate(bookmarks):
-                if bookmark == old:
-                    bookmarks[i] = new
-                    break
-            else:
-                bookmarks.append(new)
+        def replace_bookmark(bookmarks, old, new):
+            modified_bookmarks = list(bookmarks)
+            try:
+                i = bookmarks.index(old)
+                modified_bookmarks[i] = new
+            except ValueError:
+                modified_bookmarks.append(new)
+            return modified_bookmarks
 
         with (yield from self._lock):
             bookmarks = yield from self._get_bookmarks()
-            replace_bookmark()
-            yield from self._set_bookmarks(bookmarks)
 
-            retries = 0
-            bookmarks = yield from self._get_bookmarks()
-            while retries <= max_retries:
-                if new in bookmarks:
-                    break
-                replace_bookmark()
-                yield from self._set_bookmarks(bookmarks)
+            try:
+                yield from self._set_bookmarks(
+                    replace_bookmark(bookmarks, old, new)
+                )
+
+                retries = 0
                 bookmarks = yield from self._get_bookmarks()
+                while retries <= max_retries:
+                    if new in bookmarks:
+                        break
+                    yield from self._set_bookmarks(
+                        replace_bookmark(bookmarks, old, new)
+                    )
+                    bookmarks = yield from self._get_bookmarks()
 
-            self._diff_emit_update(bookmarks)
-
-            if new not in bookmarks:
-                raise RuntimeError("Cold not update bookmark")
+                if new not in bookmarks:
+                    raise RuntimeError("Cold not update bookmark")
+            finally:
+                self._diff_emit_update(bookmarks)
