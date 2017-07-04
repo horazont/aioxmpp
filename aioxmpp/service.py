@@ -927,6 +927,12 @@ def _apply_connect_depsignal(instance, stream, func, dependency, signal_name,
     if mode is None:
         return signal.context_connect(func)
     else:
+        try:
+            mode_func, args = mode
+        except TypeError:
+            pass
+        else:
+            mode = mode_func(*args)
         return signal.context_connect(func, mode)
 
 
@@ -946,6 +952,12 @@ def _apply_connect_attrsignal(instance, stream, func, descriptor, signal_name,
     if mode is None:
         return signal.context_connect(func)
     else:
+        try:
+            mode_func, args = mode
+        except TypeError:
+            pass
+        else:
+            mode = mode_func(*args)
         return signal.context_connect(func, mode)
 
 
@@ -1124,14 +1136,14 @@ def _signal_connect_mode(signal, f, defer):
     else:
         if asyncio.iscoroutinefunction(f):
             if defer:
-                mode = aioxmpp.callbacks.AdHocSignal.SPAWN_WITH_LOOP(None)
+                mode = aioxmpp.callbacks.AdHocSignal.SPAWN_WITH_LOOP, (None,)
             else:
                 raise TypeError(
                     "cannot use coroutine function with this signal"
                     " without defer"
                 )
         elif defer:
-            mode = aioxmpp.callbacks.AdHocSignal.ASYNC_WITH_LOOP(None)
+            mode = aioxmpp.callbacks.AdHocSignal.ASYNC_WITH_LOOP, (None,)
         else:
             mode = aioxmpp.callbacks.AdHocSignal.STRONG
 
