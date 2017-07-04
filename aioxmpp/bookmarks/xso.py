@@ -98,7 +98,7 @@ class Bookmark(xso.XSO):
         signals. Bookmarks with different type or :attr:`primary`
         keys cannot be identified as changed from/to one another.
         """
-        raise NotImplementedError
+        raise NotImplementedError  # pragma: no cover
 
     @abstractproperty
     def secondary(self):
@@ -117,14 +117,14 @@ class Bookmark(xso.XSO):
         The length of the tuple must be the same for all bookmarks of
         a type.
         """
-        raise NotImplementedError
+        raise NotImplementedError  # pragma: no cover
 
     @abstractproperty
     def name(self):
         """
         The human-readable label or description of the bookmark.
         """
-        raise NotImplementedError
+        raise NotImplementedError  # pragma: no cover
 
 
 class Conference(Bookmark):
