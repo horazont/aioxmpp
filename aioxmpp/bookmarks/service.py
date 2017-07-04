@@ -21,6 +21,7 @@
 ########################################################################
 import asyncio
 
+import aioxmpp
 import aioxmpp.callbacks as callbacks
 import aioxmpp.service as service
 import aioxmpp.private_xml as private_xml
@@ -109,6 +110,11 @@ class BookmarkClient(service.Service):
         self._private_xml = self.dependencies[private_xml.PrivateXMLService]
         self._bookmark_cache = []
         self._lock = asyncio.Lock()
+
+    @service.depsignal(aioxmpp.Client, "on_stream_established", defer=True)
+    @asyncio.coroutine
+    def _stream_established(self):
+        yield from self.sync()
 
     @asyncio.coroutine
     def _get_bookmarks(self):

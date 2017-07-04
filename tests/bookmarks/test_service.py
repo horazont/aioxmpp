@@ -144,6 +144,24 @@ class TestBookmarkClient(unittest.TestCase):
             aioxmpp.bookmarks.BookmarkClient.ORDER_AFTER
         )
 
+    def test__stream_established_is_decorated(self):
+        self.assertTrue(
+            aioxmpp.service.is_depsignal_handler(
+                aioxmpp.Client,
+                "on_stream_established",
+                aioxmpp.bookmarks.BookmarkClient._stream_established,
+                defer=True,
+            )
+        )
+
+    def test__stream_established(self):
+        with unittest.mock.patch.object(
+                self.s,
+                "sync",
+                CoroutineMock()) as sync:
+            run_coroutine(self.s._stream_established())
+        self.assertEqual(len(sync.mock_calls), 1)
+
     def setUp(self):
         self.cc = make_connected_client()
         self.private_xml = PrivateXMLSimulator()
@@ -358,7 +376,8 @@ class TestBookmarkClient(unittest.TestCase):
         self.assertEqual(len(f.mock_calls), 1)
 
     def test_add_bookmark_set_raises(self):
-        class TokenException(Exception): pass
+        class TokenException(Exception):
+            pass
 
         def set_bookmarks(*args, **kwargs):
             raise TokenException
@@ -430,7 +449,8 @@ class TestBookmarkClient(unittest.TestCase):
         bookmark = aioxmpp.bookmarks.URL("An URL", "http://foo.bar/")
         run_coroutine(self.s.add_bookmark(bookmark))
 
-        class TokenException(Exception): pass
+        class TokenException(Exception):
+            pass
 
         def set_bookmarks(*args, **kwargs):
             raise TokenException
@@ -507,13 +527,14 @@ class TestBookmarkClient(unittest.TestCase):
         # check that _diff_emit_update is called
         self.assertEqual(len(f.mock_calls), 1)
 
-    def test_discard_bookmark_set_raises(self):
+    def test_update_bookmark_set_raises(self):
         bookmark = aioxmpp.bookmarks.URL("An URL", "http://foo.bar/")
         new_bookmark = copy.copy(bookmark)
         new_bookmark.name = "THE URL"
         run_coroutine(self.s.add_bookmark(bookmark))
 
-        class TokenException(Exception): pass
+        class TokenException(Exception):
+            pass
 
         def set_bookmarks(*args, **kwargs):
             raise TokenException
