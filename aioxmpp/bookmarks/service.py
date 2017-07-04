@@ -57,7 +57,7 @@ class BookmarkClient(service.Service):
 
     .. automethod:: add_bookmark
 
-    .. automethod:: remove_bookmark
+    .. automethod:: discard_bookmark
 
     .. automethod:: update_bookmark
 
@@ -282,7 +282,7 @@ class BookmarkClient(service.Service):
                   mitigate the race condition between clients
                   concurrently modifying the bookmarks and may lead to
                   data loss. Use :meth:`add_bookmark`,
-                  :meth:`remove_bookmark` and :meth:`update_bookmark`
+                  :meth:`discard_bookmark` and :meth:`update_bookmark`
                   instead. This method still has use-cases (modifying
                   the bookmarklist at large, e.g. by syncing the
                   remote store with local data).
@@ -350,7 +350,7 @@ class BookmarkClient(service.Service):
                 self._diff_emit_update(bookmarks)
 
     @asyncio.coroutine
-    def remove_bookmark(self, bookmark_to_remove, *, max_retries=3):
+    def discard_bookmark(self, bookmark_to_remove, *, max_retries=3):
         """
         Remove a bookmark and check it has been removed.
 

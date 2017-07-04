@@ -64,7 +64,7 @@ Notes on usage
 It is highly recommended to interact with the bookmark client via the
 provided signals and the get-modify-set methods
 :meth:`~BookmarkClient.add_bookmark`,
-:meth:`~BookmarkClient.remove_bookmark` and
+:meth:`~BookmarkClient.discard_bookmark` and
 :meth:`~BookmarkClient.update_bookmark`.  Using
 :meth:`~BookmarkClient.set_bookmarks` directly is error prone and
 might cause data loss due to race conditions.

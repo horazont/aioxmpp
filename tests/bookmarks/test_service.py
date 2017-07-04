@@ -329,29 +329,29 @@ class TestBookmarkClient(unittest.TestCase):
         self.assertEqual(len(self.on_removed.mock_calls), 0)
         self.assertEqual(len(self.on_added.mock_calls), 0)
 
-    def test_remove_bookmark(self):
+    def test_discard_bookmark(self):
         bookmark = aioxmpp.bookmarks.URL("An URL", "http://foo.bar/")
         run_coroutine(self.s.add_bookmark(bookmark))
         self.connect_mocks()
-        run_coroutine(self.s.remove_bookmark(bookmark))
+        run_coroutine(self.s.discard_bookmark(bookmark))
         self.assertEqual(len(self.on_changed.mock_calls), 0)
         self.assertEqual(len(self.on_added.mock_calls), 0)
         self.on_removed.assert_called_once_with(bookmark)
 
-    def test_remove_bookmark_removes_one(self):
+    def test_discard_bookmark_removes_one(self):
         bookmark = aioxmpp.bookmarks.URL("An URL", "http://foo.bar/")
         run_coroutine(self.s.set_bookmarks([bookmark, bookmark]))
         self.connect_mocks()
-        run_coroutine(self.s.remove_bookmark(bookmark))
+        run_coroutine(self.s.discard_bookmark(bookmark))
         self.assertEqual(len(self.on_changed.mock_calls), 0)
         self.assertEqual(len(self.on_added.mock_calls), 0)
         self.on_removed.assert_called_once_with(bookmark)
         self.assertCountEqual(self.s._bookmark_cache, [bookmark])
 
-    def test_remove_bookmark_already_gone(self):
+    def test_discard_bookmark_already_gone(self):
         bookmark = aioxmpp.bookmarks.URL("An URL", "http://foo.bar/")
         self.connect_mocks()
-        run_coroutine(self.s.remove_bookmark(bookmark))
+        run_coroutine(self.s.discard_bookmark(bookmark))
         self.assertEqual(len(self.on_changed.mock_calls), 0)
         self.assertEqual(len(self.on_removed.mock_calls), 0)
         self.assertEqual(len(self.on_added.mock_calls), 0)
@@ -450,7 +450,7 @@ class TestBookmarkClient(unittest.TestCase):
                 if not bookmark_list:
                     continue
 
-                run_coroutine(self.s.remove_bookmark(
+                run_coroutine(self.s.discard_bookmark(
                     bookmark_list[random.randrange(len(bookmark_list))]
                 ))
             else:
