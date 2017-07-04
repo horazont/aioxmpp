@@ -397,6 +397,7 @@ class BookmarkClient(service.Service):
                         yield from self._set_bookmarks(modified_bookmarks)
                         bookmarks = yield from self._get_bookmarks()
                         new_occurences = bookmarks.count(bookmark_to_remove)
+                        retries += 1
 
                     if new_occurences >= occurences:
                         raise RuntimeError("Could not remove bookmark")
@@ -462,6 +463,7 @@ class BookmarkClient(service.Service):
                         replace_bookmark(bookmarks, old, new)
                     )
                     bookmarks = yield from self._get_bookmarks()
+                    retries += 1
 
                 if new not in bookmarks:
                     raise RuntimeError("Cold not update bookmark")
