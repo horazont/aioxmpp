@@ -303,13 +303,25 @@ class BookmarkClient(service.Service):
         yield from self.get_bookmarks()
 
     @asyncio.coroutine
-    def add_bookmark(self, new_bookmark, max_retries=3):
+    def add_bookmark(self, new_bookmark, *, max_retries=3):
         """
         Add a bookmark and check whether it was successfully added to the
         bookmark list. Already existant bookmarks are not added twice.
 
+        :param new_bookmark: the bookmark to add
+        :type new_bookmark: an instance of :class:`~bookmark_xso.Bookmark`
+        :param max_retries: the number of retries if setting the bookmark
+                            fails
+        :type max_retries: :class:`int`
+
         :raises RuntimeError: if the bookmark is not in the bookmark list
                               after `max_retries` retries.
+
+        After setting the bookmark it is checked, whether the bookmark
+        is in the online storage, if it is not it is tried again at most
+        `max_retries` times to add the bookmark. A :class:`RuntimeError`
+        is raised if the bookmark could not be added successfully after
+        `max_retries`.
         """
         with (yield from self._lock):
             bookmarks = yield from self._get_bookmarks()
@@ -334,15 +346,31 @@ class BookmarkClient(service.Service):
                 raise RuntimeError("Could not add bookmark")
 
     @asyncio.coroutine
-    def remove_bookmark(self, bookmark_to_remove, max_retries=3):
+    def remove_bookmark(self, bookmark_to_remove, *, max_retries=3):
         """
         Remove a bookmark and check it has been removed.
+
+        :param bookmark_to_remove: the bookmark to remove
+        :type bookmark_to_remove: a :class:`~bookmark_xso.Bookmark` subclass.
+        :param max_retries: the number of retries of removing the bookmark
+                            fails.
+        :type max_retries: :class:`int`
+
+        :raises RuntimeError: if the bookmark is not removed from
+                              bookmark list after `max_retries`
+                              retries.
 
         If there are multiple occurences of the same bookmark exactly
         one is removed.
 
         This does nothing if the bookmarks does not match an existing
         bookmark according to bookmark-equality.
+
+        After setting the bookmark it is checked, whether the bookmark
+        is removed in the online storage, if it is not it is tried
+        again at most `max_retries` times to remove the bookmark. A
+        :class:`RuntimeError` is raised if the bookmark could not be
+        removed successfully after `max_retries`.
         """
         with (yield from self._lock):
             bookmarks = yield from self._get_bookmarks()
@@ -373,13 +401,37 @@ class BookmarkClient(service.Service):
                 raise RuntimeError("Could not remove bookmark")
 
     @asyncio.coroutine
-    def update_bookmark(self, old, new, max_retries=3):
+    def update_bookmark(self, old, new, *, max_retries=3):
         """
         Update a bookmark and check it was successful.
 
         The bookmark matches an existing bookmark `old` according to
         bookmark equalitiy and replaces it by `new`. The bookmark
         `new` is added if no bookmark matching `old` exists.
+
+        :param old: the bookmark to replace
+        :type bookmark_to_remove: a :class:`~bookmark_xso.Bookmark` subclass.
+        :param new: the replacement bookmark
+        :type bookmark_to_remove: a :class:`~bookmark_xso.Bookmark` subclass.
+        :param max_retries: the number of retries of removing the bookmark
+                            fails.
+        :type max_retries: :class:`int`
+
+        :raises RuntimeError: if the bookmark is not in the bookmark list
+                              after `max_retries` retries.
+
+        After replacing the bookmark it is checked, whether the
+        bookmark `new` is in the online storage, if it is not it is
+        tried again at most `max_retries` times to replace the
+        bookmark. A :class:`RuntimeError` is raised if the bookmark
+        could not be replaced successfully after `max_retries`.
+
+        .. note:: Do not modify a bookmark retrieved from the signals
+                  or from :meth:`get_bookmarks` to obtain the bookmark
+                  `new`, this will lead to data corruption as they are
+                  passed by reference.  Instead use :func:`copy.copy`
+                  and modify the copy.
+
         """
         def replace_bookmark():
             for i, bookmark in enumerate(bookmarks):

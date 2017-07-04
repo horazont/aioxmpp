@@ -242,7 +242,11 @@ def as_bookmark_class(xso_class):
     """
     Decorator to register `xso_class` as a custom bookmark class.
 
-    This is necessary to store and retrieve bookmarks of this kind.
+    This is necessary to store and retrieve such bookmarks.
+    The registered class must be a subclass of the abstract base class
+    :class:`Bookmark`.
+
+    :raises TypeError: if `xso_class` is not a subclass of :class:`Bookmark`.
     """
 
     if not issubclass(xso_class, Bookmark):
