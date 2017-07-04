@@ -455,7 +455,7 @@ class BookmarkClient(service.Service):
 
                 retries = 0
                 bookmarks = yield from self._get_bookmarks()
-                while retries <= max_retries:
+                while retries < max_retries:
                     if new in bookmarks:
                         break
                     yield from self._set_bookmarks(
