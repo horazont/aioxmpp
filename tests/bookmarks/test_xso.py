@@ -20,10 +20,8 @@
 #
 ########################################################################
 import unittest
-import logging
 
 import aioxmpp.structs
-import aioxmpp.private_xml as private_xml
 import aioxmpp.bookmarks.xso as bookmark_xso
 import aioxmpp.xso as xso
 
@@ -31,6 +29,7 @@ from aioxmpp.utils import namespaces
 
 EXAMPLE_JID1 = aioxmpp.JID.fromstr("coven@conference.shakespeare.lit")
 EXAMPLE_JID2 = aioxmpp.JID.fromstr("open_field@conference.shakespeare.lit")
+
 
 class TestNamespace(unittest.TestCase):
 
@@ -148,3 +147,53 @@ class TestURL(unittest.TestCase):
         self.assertNotEqual(url, url2)
         self.assertNotEqual(url, url3)
         self.assertNotEqual(url, conf)
+
+
+@bookmark_xso.as_bookmark_class
+class CustomBookmark(bookmark_xso.Bookmark):
+    TAG = ("urn:example:bookmark", "bookmark")
+
+    def __init__(self, name, contents):
+        self.name = name
+        self.contents = contents
+
+    name = aioxmpp.xso.Attr("name")
+    contents = aioxmpp.xso.Attr("contents")
+
+    @property
+    def primary(self):
+        return self.contents
+
+    @property
+    def secondary(self):
+        return (self.name,)
+
+
+class TestCustomBookmark(unittest.TestCase):
+
+    def test_registered(self):
+        self.assertIn(
+            CustomBookmark, bookmark_xso.Storage.bookmarks._classes
+        )
+
+    def test_non_Bookmarks_fail(self):
+        with self.assertRaises(TypeError):
+
+            @bookmark_xso.as_bookmark_class
+            class CustomBookmark(aioxmpp.xso.XSO):
+                TAG = ("urn:example:bookmark", "bookmark")
+
+                def __init__(self, name, contents):
+                    self.name = name
+                    self.contents = contents
+
+                name = aioxmpp.xso.Attr("name")
+                contents = aioxmpp.xso.Attr("contents")
+
+                @property
+                def primary(self):
+                    return self.contents
+
+                @property
+                def secondary(self):
+                    return (self.name,)

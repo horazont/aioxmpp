@@ -15,6 +15,12 @@ Version 0.10
   growth). This split serves the maintainability of the code and offers
   opportunities for better error detection.
 
+* **Breaking change**: :meth:`aioxmpp.BookmarkService.get_bookmarks`
+  now returns a list instead of a :class:`aioxmpp.bookmarks.Storage`
+  and :meth:`aioxmpp.BookmarkService.set_bookmarks` now accepts a
+  list. The list returned by the get method and its elements *must
+  not* be modified.
+
 * *Deprecation*: The above split also caused a split of
   :class:`aioxmpp.xso.EnumType` into :class:`aioxmpp.xso.EnumCDataType` and
   :class:`aioxmpp.xso.EnumElementType`. :func:`aioxmpp.xso.EnumType` is now a
@@ -42,6 +48,10 @@ Version 0.10
 
 * Fix :func:`aioxmpp.service.is_depsignal_handler` and
   :func:`~aioxmpp.service.is_attrsignal_handler` when used with ``defer=True``.
+
+* You can now register custom bookmark classes with
+  :func:`aioxmpp.bookmarks.as_bookmark_class`. The bookmark classes
+  must subclass the ABC :class:`aioxmpp.bookmarks.Bookmark`.
 
 .. _api-changelog-0.9:
 
