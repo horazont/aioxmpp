@@ -559,7 +559,7 @@ class AbstractConversation(metaclass=abc.ABCMeta):
            details.
 
         """
-        token, tracker = yield from self.send_message_tracked(body)
+        token, tracker = self.send_message_tracked(body)
         tracker.cancel()
         return token
 
