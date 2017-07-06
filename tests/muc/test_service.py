@@ -1248,6 +1248,7 @@ class TestRoom(unittest.TestCase):
                                      role="participant"),
                 ]
             )
+            presence.xep0045_muc_user.status_codes.add(110)
 
             third = original_Occupant.from_presence(presence, True)
             Occupant.from_presence.return_value = third
