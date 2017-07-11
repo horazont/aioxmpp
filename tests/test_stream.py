@@ -4317,7 +4317,7 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
 
         iqs = [make_test_iq() for i in range(2)]
 
-        self.stream.ping_interval = timedelta(seconds=0.01)
+        self.stream.ping_interval = timedelta(seconds=0.1)
         self.stream.on_failure.connect(failure_handler)
 
         self.stream.start(self.xmlstream)

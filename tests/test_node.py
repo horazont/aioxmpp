@@ -1632,9 +1632,9 @@ class TestClient(xmltestutils.XMLTestCase):
             loop=self.loop,
             logger=self.client.logger)
 
-        self.client.backoff_start = timedelta(seconds=0.005)
+        self.client.backoff_start = timedelta(seconds=0.05)
         self.client.backoff_factor = 2
-        self.client.backoff_cap = timedelta(seconds=0.1)
+        self.client.backoff_cap = timedelta(seconds=1)
         self.client.start()
 
         run_coroutine(asyncio.sleep(0))
@@ -1667,35 +1667,35 @@ class TestClient(xmltestutils.XMLTestCase):
         self.connect_xmlstream_rec.side_effect = exc
         self.connect_xmlstream_rec.mock_calls.clear()
 
-        run_coroutine(asyncio.sleep(0.01))
+        run_coroutine(asyncio.sleep(0.075))
 
         self.assertSequenceEqual(
             [call],
             self.connect_xmlstream_rec.mock_calls
         )
 
-        run_coroutine(asyncio.sleep(0.02))
+        run_coroutine(asyncio.sleep(0.125))
 
         self.assertSequenceEqual(
             [call]*2,
             self.connect_xmlstream_rec.mock_calls
         )
 
-        run_coroutine(asyncio.sleep(0.04))
+        run_coroutine(asyncio.sleep(0.25))
 
         self.assertSequenceEqual(
             [call]*3,
             self.connect_xmlstream_rec.mock_calls
         )
 
-        run_coroutine(asyncio.sleep(0.08))
+        run_coroutine(asyncio.sleep(0.5))
 
         self.assertSequenceEqual(
             [call]*4,
             self.connect_xmlstream_rec.mock_calls
         )
 
-        run_coroutine(asyncio.sleep(0.1))
+        run_coroutine(asyncio.sleep(1.0))
 
         self.assertSequenceEqual(
             [call]*5,
