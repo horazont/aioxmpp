@@ -19,22 +19,21 @@ matrix:
     env: PROSODY_BRANCH=0.9 TEST_MODE=e2e-prosody
   - python: "3.6"
     env: PROSODY_BRANCH=trunk TEST_MODE=e2e-prosody
-  - python: "3.6"
-    env: TEST_MODE=coverage
   allow_failures:
   - python: "3.6"
     env: PROSODY_BRANCH=trunk TEST_MODE=e2e-prosody
 
 before_install:
 - export PATH=$PATH:$PWD/lua_install/bin
+- export -p
 - if [[ "x$TEST_MODE" = 'xe2e-prosody' ]]; then ./utils/install-prosody.sh; fi
 - if [[ "x$TEST_MODE" = 'xe2e-ejabberd' ]]; then ./utils/prepare-ejabberd.sh; fi
 install:
 - pip install nose coveralls
 - pip install .
 script:
-- if [[ "x$TEST_MODE" = 'xe2e-prosody' ]]; then ./utils/travis-e2etest-prosody.py; fi
+- if [[ "x$TEST_MODE" = 'xe2e-prosody' && "x$TRAVIS_PYTHON_VERSION" == 'x3.6' && "x$PROSODY_BRANCH" == 'x0.10' ]]; then ./utils/travis-e2etest-prosody.py --cover; fi
+- if [[ "x$TEST_MODE" = 'xe2e-prosody' && ( "x$TRAVIS_PYTHON_VERSION" != 'x3.6' || "$x$PROSODY_BRANCH" != 'x0.10' ) ]]; then ./utils/travis-e2etest-prosody.py; fi
 - if [[ "x$TEST_MODE" = 'xe2e-ejabberd' ]]; then ./utils/travis-e2etest-ejabberd.py; fi
-- if [[ "x$TEST_MODE" = 'xcoverage' ]]; then nosetests --with-cover --cover-package aioxmpp tests; fi
 after_success:
-- if [[ "x$TEST_MODE" = 'xcoverage' ]]; then coveralls; fi
+- if [[ "x$TEST_MODE" == "xe2e-prosody" && -e .coverage ]]; then coveralls; fi

@@ -26,6 +26,17 @@ import os
 import time
 import sys
 
+argv = ["python3",
+        "-m", "aioxmpp.e2etest",
+        "--e2etest-config=.travis-e2etest.ini",
+        "tests"]
+
+if sys.argv[1:] == ["--cover"]:
+    print("running e2etests with covergae")
+    argv.insert(-1, "--with-cover")
+    argv.insert(-1, "--cover-package")
+    argv.insert(-1, "aioxmpp")
+
 prosody = subprocess.Popen(
     [
         "./prosody",
@@ -40,12 +51,7 @@ if prosody.poll() is not None:
     sys.exit(10)
 
 try:
-    subprocess.check_call(
-        ["python3",
-         "-m", "aioxmpp.e2etest",
-         "--e2etest-config=.travis-e2etest.ini",
-         "tests"]
-    )
+    subprocess.check_call(argv)
 finally:
     prosody.kill()
     prosody.wait()
