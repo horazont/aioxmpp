@@ -127,7 +127,7 @@ class BookmarkClient(service.Service):
             bookmark_xso.Storage()
         )
 
-        return res.bookmarks
+        return res.registered_payload.bookmarks
 
     @asyncio.coroutine
     def _set_bookmarks(self, bookmarks):

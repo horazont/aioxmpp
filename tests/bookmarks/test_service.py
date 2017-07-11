@@ -51,9 +51,10 @@ class PrivateXMLSimulator:
 
     @asyncio.coroutine
     def get_private_xml(self, xso):
-        return copy.deepcopy(
+        payload = copy.deepcopy(
             self.stored.setdefault(xso.TAG[0], copy.deepcopy(xso))
         )
+        return aioxmpp.private_xml.Query(payload)
 
     @asyncio.coroutine
     def set_private_xml(self, xso):
@@ -63,6 +64,7 @@ class PrivateXMLSimulator:
             self.delay -= 1
 
 
+@aioxmpp.private_xml.Query.as_payload_class
 class ExampleXSO(aioxmpp.xso.XSO):
     TAG = ("urn:example:foo", "example")
 
@@ -89,25 +91,32 @@ class TestPrivateXMLSimulator(unittest.TestCase):
         @asyncio.coroutine
         def test_private_xml():
             nonlocal before, after
-            before = yield from self.private_xml.get_private_xml(ExampleXSO())
+            before = (
+                yield from self.private_xml.get_private_xml(ExampleXSO())
+            ).registered_payload
             yield from self.private_xml.set_private_xml(ExampleXSO("foo"))
-            after = yield from self.private_xml.get_private_xml(ExampleXSO())
+            after = (
+                yield from self.private_xml.get_private_xml(ExampleXSO())
+            ).registered_payload
+
         run_coroutine(test_private_xml())
 
-        self.assertIs(type(before), ExampleXSO)
+        self.assertIsInstance(before, ExampleXSO)
         self.assertEqual(before.text, "")
 
-        self.assertIs(type(after), ExampleXSO)
+        self.assertIsInstance(after, ExampleXSO)
         self.assertEqual(after.text, "foo")
 
     def test_store_and_retrieve(self):
         @asyncio.coroutine
         def test_private_xml():
             yield from self.private_xml.set_private_xml(ExampleXSO("foo"))
-            return (yield from self.private_xml.get_private_xml(ExampleXSO()))
+            return (
+                yield from self.private_xml.get_private_xml(ExampleXSO())
+            ).registered_payload
 
         res = run_coroutine(test_private_xml())
-        self.assertIs(type(res), ExampleXSO)
+        self.assertIsInstance(res, ExampleXSO)
         self.assertEqual(res.text, "foo")
 
     def test_store_delay(self):
@@ -118,9 +127,9 @@ class TestPrivateXMLSimulator(unittest.TestCase):
         def test_private_xml():
             for i in range(5):
                 yield from self.private_xml.set_private_xml(ExampleXSO("foo"))
-                results.append(
-                    (yield from self.private_xml.get_private_xml(ExampleXSO()))
-                )
+                results.append((
+                    yield from self.private_xml.get_private_xml(ExampleXSO())
+                ).registered_payload)
         run_coroutine(test_private_xml())
 
         self.assertEqual(results[0].text, "")
@@ -191,7 +200,7 @@ class TestBookmarkClient(unittest.TestCase):
                 self.private_xml,
                 "get_private_xml",
                 new=CoroutineMock()) as get_private_xml_mock:
-            get_private_xml_mock.return_value.bookmarks = \
+            get_private_xml_mock.return_value.registered_payload.bookmarks = \
                 unittest.mock.sentinel.result
             res = run_coroutine(self.s._get_bookmarks())
 
@@ -263,57 +272,69 @@ class TestBookmarkClient(unittest.TestCase):
                 self.private_xml,
                 "get_private_xml",
                 new=CoroutineMock()) as get_private_xml_mock:
-            get_private_xml_mock.return_value = aioxmpp.bookmarks.Storage()
-            get_private_xml_mock.return_value.bookmarks.append(
+            result = aioxmpp.private_xml.Query(
+                aioxmpp.bookmarks.Storage()
+            )
+            result.registered_payload.bookmarks.append(
                 aioxmpp.bookmarks.Conference(
                     jid=aioxmpp.JID.fromstr("foo@bar.baz"),
                     name="foo",
                     nick="quux"
                 )
             )
+            get_private_xml_mock.return_value = result
 
             run_coroutine(self.s.sync())
             run_coroutine(self.s.sync())
 
-            get_private_xml_mock.return_value = aioxmpp.bookmarks.Storage()
-            get_private_xml_mock.return_value.bookmarks.append(
+            result = aioxmpp.private_xml.Query(
+                aioxmpp.bookmarks.Storage()
+            )
+            result.registered_payload.bookmarks.append(
                 aioxmpp.bookmarks.Conference(
                     jid=TEST_JID1,
                     name="foo",
                     nick="quux"
                 )
             )
-            get_private_xml_mock.return_value.bookmarks.append(
+            result.registered_payload.bookmarks.append(
                 aioxmpp.bookmarks.Conference(
                     jid=TEST_JID1,
                     name="foo",
                     nick="quuux"
                 )
             )
+            get_private_xml_mock.return_value = result
 
             run_coroutine(self.s.sync())
             run_coroutine(self.s.sync())
 
-            get_private_xml_mock.return_value = aioxmpp.bookmarks.Storage()
-            get_private_xml_mock.return_value.bookmarks.append(
+            result = aioxmpp.private_xml.Query(
+                aioxmpp.bookmarks.Storage()
+            )
+            result.registered_payload.bookmarks.append(
                 aioxmpp.bookmarks.Conference(
                     jid=TEST_JID1,
                     name="foo",
                     nick="quux"
                 )
             )
+            get_private_xml_mock.return_value = result
 
             run_coroutine(self.s.sync())
             run_coroutine(self.s.sync())
 
-            get_private_xml_mock.return_value = aioxmpp.bookmarks.Storage()
-            get_private_xml_mock.return_value.bookmarks.append(
+            result = aioxmpp.private_xml.Query(
+                aioxmpp.bookmarks.Storage()
+            )
+            result.registered_payload.bookmarks.append(
                 aioxmpp.bookmarks.Conference(
                     jid=aioxmpp.JID.fromstr("foo@bar.baz"),
                     name="foo",
                     nick="quuux"
                 )
             )
+            get_private_xml_mock.return_value = result
 
             run_coroutine(self.s.sync())
             run_coroutine(self.s.sync())
@@ -405,7 +426,7 @@ class TestBookmarkClient(unittest.TestCase):
         )
         self.assertCountEqual(self.s._bookmark_cache,
                               [bookmark])
-        self.assertCountEqual(stored.bookmarks,
+        self.assertCountEqual(stored.registered_payload.bookmarks,
                               [bookmark])
         self.connect_mocks()
         run_coroutine(self.s.add_bookmark(bookmark))
