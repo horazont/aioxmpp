@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 ########################################################################
-# File name: travis-e2etest.py
+# File name: travis-e2etest-ejabberd.py
 # This file is part of: aioxmpp
 #
 # LICENSE
