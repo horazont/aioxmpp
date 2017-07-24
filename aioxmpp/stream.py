@@ -923,7 +923,7 @@ class StanzaStream:
         """
         Process an incoming message stanza `stanza_obj`.
         """
-        self._logger.debug("incoming messgage: %r", stanza_obj)
+        self._logger.debug("incoming message: %r", stanza_obj)
 
         stanza_obj = self.service_inbound_message_filter.filter(stanza_obj)
         if stanza_obj is None:
