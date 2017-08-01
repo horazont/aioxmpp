@@ -59,6 +59,11 @@ in the `official documentation`_ and `open GitHub issues tagged as enhancement
 <https://github.com/horazont/aioxmpp/issues?q=is%3Aissue+is%3Aopen+label%3Aenhancement>`_
 for things which are planned and read on below on how to contribute.
 
+Documentation
+=============
+
+The ``aioxmpp`` API is thoroughly documented using Sphinx. Check out the `official documentation`_ for a `quick start`_ and the `API reference`_.
+
 Dependencies
 ============
 
@@ -142,3 +147,5 @@ The `change log`_ is included in the `official documentation`_.
 
 .. _change log: https://docs.zombofant.net/aioxmpp/devel/api/changelog.html
 .. _official documentation: https://docs.zombofant.net/aioxmpp/devel/
+.. _quick start: https://docs.zombofant.net/aioxmpp/devel/user-quide/quickstart.html
+.. _API reference: https://docs.zombofant.net/aioxmpp/devel/api/index.html
