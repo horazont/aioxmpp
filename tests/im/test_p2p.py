@@ -164,13 +164,7 @@ class TestService(unittest.TestCase):
         self.svc.client = self.cc
         self.s = p2p.Service(self.cc, dependencies=deps)
 
-        self.listener = unittest.mock.Mock()
-
-        for ev in ["on_conversation_new", "on_conversation_left"]:
-            listener = getattr(self.listener, ev)
-            signal = getattr(self.s, ev)
-            listener.return_value = None
-            signal.connect(listener)
+        self.listener = make_listener(self.s)
 
         for ev in ["on_conversation_added"]:
             listener = getattr(self.listener, ev)
@@ -231,7 +225,6 @@ class TestService(unittest.TestCase):
         self.s.dependencies[
             im_service.ConversationService
         ].on_conversation_added.connect(cb)
-
         with contextlib.ExitStack() as stack:
             stack.enter_context(unittest.mock.patch(
                 "aioxmpp.im.p2p.Conversation"
@@ -242,6 +235,16 @@ class TestService(unittest.TestCase):
         self.listener.on_conversation_added.assert_called_once_with(c)
 
         c.on_enter.assert_called_once_with()
+
+    def test_get_conversation_does_not_emit_spontaneous_event(self):
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(unittest.mock.patch(
+                "aioxmpp.im.p2p.Conversation"
+            ))
+
+            run_coroutine(self.s.get_conversation(PEER_JID))
+
+        self.listener.on_spontaneous_conversation.assert_not_called()
 
     def test_get_conversation_deduplicates(self):
         with contextlib.ExitStack() as stack:
@@ -357,6 +360,10 @@ class TestService(unittest.TestCase):
                 Conversation()
             )
 
+            self.listener.on_spontaneous_conversation.assert_called_once_with(
+                Conversation()
+            )
+
             Conversation()._handle_message.assert_called_once_with(
                 msg,
                 msg.from_,
@@ -400,6 +407,10 @@ class TestService(unittest.TestCase):
             self.assertEqual(c, Conversation())
 
             self.listener.on_conversation_new.assert_called_once_with(
+                Conversation()
+            )
+
+            self.listener.on_spontaneous_conversation.assert_called_once_with(
                 Conversation()
             )
 
@@ -450,6 +461,10 @@ class TestService(unittest.TestCase):
                 Conversation()
             )
 
+            self.listener.on_spontaneous_conversation.assert_called_once_with(
+                Conversation()
+            )
+
             Conversation()._handle_message.assert_called_once_with(
                 msg,
                 PEER_JID.replace(localpart="fnord", resource="foo"),
@@ -491,6 +506,10 @@ class TestService(unittest.TestCase):
             self.assertEqual(c, Conversation())
 
             self.listener.on_conversation_new.assert_called_once_with(
+                Conversation()
+            )
+
+            self.listener.on_spontaneous_conversation.assert_called_once_with(
                 Conversation()
             )
 

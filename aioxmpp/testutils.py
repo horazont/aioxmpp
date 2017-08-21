@@ -134,7 +134,6 @@ def make_listener(instance):
     return result
 
 
-
 class FilterMock(unittest.mock.Mock):
     def __init__(self):
         super().__init__([
