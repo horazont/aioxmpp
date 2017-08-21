@@ -1506,7 +1506,8 @@ class MUCClient(aioxmpp.service.Service):
         signal is emitted immediately with the new :class:`Room`.
 
         It is recommended to attach the desired signals to the :class:`Room`
-        before yielding next (e.g. in a non-deferred event handler to the :meth:`~.ConversationService.on_conversation_added` signal), to avoid
+        before yielding next (e.g. in a non-deferred event handler to the
+        :meth:`~.ConversationService.on_conversation_added` signal), to avoid
         races with the server. It is guaranteed that no signals are emitted
         before the next yield, and thus, it is safe to attach the signals right
         after :meth:`join` returned. (This is also the reason why :meth:`join`

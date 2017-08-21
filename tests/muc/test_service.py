@@ -1991,14 +1991,14 @@ class TestRoom(unittest.TestCase):
         self.assertEqual(stanza.show, aioxmpp.PresenceShow.NONE)
 
         self.jmuc.on_exit(muc_leave_mode=object(),
-                            muc_actor=object(),
-                            muc_reason=object())
+                          muc_actor=object(),
+                          muc_reason=object())
 
         self.assertIsNone(run_coroutine(fut))
 
         self.jmuc.on_exit(muc_leave_mode=object(),
-                            muc_actor=object(),
-                            muc_reason=object())
+                          muc_actor=object(),
+                          muc_reason=object())
 
     def test_members(self):
         presence = aioxmpp.stanza.Presence(
@@ -3342,7 +3342,8 @@ class TestService(unittest.TestCase):
             future.exception(),
         )
 
-    def test_on_failure_is_emitted_on_stream_destruction_without_autorejoin(self):
+    def test_on_failure_is_emitted_on_stream_destruction_without_autorejoin(
+            self):
         room, future = self.s.join(TEST_MUC_JID, "thirdwitch",
                                    autorejoin=False)
         listener = make_listener(room)
