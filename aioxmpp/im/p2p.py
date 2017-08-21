@@ -206,4 +206,3 @@ class Service(AbstractConversationService, aioxmpp.service.Service):
 
     def _conversation_left(self, conv):
         del self._conversationmap[conv.peer_jid]
-        self.on_conversation_left(conv)

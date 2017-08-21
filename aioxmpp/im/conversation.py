@@ -843,17 +843,7 @@ class AbstractConversationService(metaclass=abc.ABCMeta):
 
         .. versionadded:: 0.10
 
-    .. signal:: on_conversation_left(conversation)
-
-        Fires when a conversation is left.
-
-        :param conversation: The left conversation.
-        :type conversation: :class:`AbstractConversation`
-
-        The conversation is to be considered defunct afterwards.
-
     """
 
     on_conversation_new = aioxmpp.callbacks.Signal()
     on_spontaneous_conversation = aioxmpp.callbacks.Signal()
-    on_conversation_left = aioxmpp.callbacks.Signal()

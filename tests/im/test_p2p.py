@@ -296,7 +296,6 @@ class TestService(unittest.TestCase):
             self.listener.on_conversation_new.assert_called_once_with(c1)
             c1.peer_jid = PEER_JID
             self.s._conversation_left(c1)
-            self.listener.on_conversation_left.assert_called_once_with(c1)
             c2 = run_coroutine(self.s.get_conversation(PEER_JID))
             self.listener.on_conversation_new.assert_called_with(c2)
 
