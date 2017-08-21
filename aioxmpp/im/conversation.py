@@ -805,5 +805,55 @@ class AbstractConversation(metaclass=abc.ABCMeta):
 
 
 class AbstractConversationService(metaclass=abc.ABCMeta):
+    """
+    Abstract base class for
+    :term:`Conversation Services <Conversation Service>`.
+
+    Useful implementations:
+
+    .. autosummary::
+
+        aioxmpp.im.p2p.Service
+        aioxmpp.muc.MUCClient
+
+    Signals:
+
+    .. signal:: on_conversation_new(conversation)
+
+        Fires when a new conversation is created in the service.
+
+        :param conversation: The new conversation.
+        :type conversation: :class:`AbstractConversation`
+
+        .. seealso::
+
+            :meth:`.ConversationService.on_conversation_added`
+                is a signal shared among all :term:`Conversation
+                Implementations <Conversation Implementation>` which gets
+                emitted whenever a new conversation is added. If you need all
+                conversations, that is the signal to listen for.
+
+    .. signal:: on_spontaneous_conversation(conversation)
+
+        Like :meth:`on_conversation_new`, but is only emitted for conversations
+        which are created without local interaction.
+
+        :param conversation: The new conversation.
+        :type conversation: :class:`AbstractConversation`
+
+        .. versionadded:: 0.10
+
+    .. signal:: on_conversation_left(conversation)
+
+        Fires when a conversation is left.
+
+        :param conversation: The left conversation.
+        :type conversation: :class:`AbstractConversation`
+
+        The conversation is to be considered defunct afterwards.
+
+    """
+
     on_conversation_new = aioxmpp.callbacks.Signal()
+    on_spontaneous_conversation = aioxmpp.callbacks.Signal()
     on_conversation_left = aioxmpp.callbacks.Signal()

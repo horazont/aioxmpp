@@ -103,6 +103,12 @@ Conversations
 
 .. autoclass:: AbstractConversationMember
 
+
+Conversation Service
+--------------------
+
+.. autoclass:: AbstractConversationService
+
 """
 
 from .conversation import (  # NOQA

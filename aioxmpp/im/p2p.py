@@ -112,6 +112,11 @@ class Service(AbstractConversationService, aioxmpp.service.Service):
     """
     Manage one-to-one conversations.
 
+    .. seealso::
+
+        :class:`~.AbstractConversationService`
+            for useful common signals
+
     This service manages one-to-one conversations, including private
     conversations running in the framework of a multi-user chat. In those
     cases, the respective multi-user chat conversation service requests a
