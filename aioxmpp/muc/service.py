@@ -1240,9 +1240,15 @@ def _connect_to_signal(signal, func):
     return signal, signal.connect(func)
 
 
-class MUCClient(aioxmpp.service.Service):
+class MUCClient(aioxmpp.im.conversation.AbstractConversationService,
+                aioxmpp.service.Service):
     """
     :term:`Conversation Implementation` for Multi-User Chats (:xep:`45`).
+
+    .. seealso::
+
+        :class:`~.AbstractConversationService`
+            for useful common signals
 
     This service provides access to Multi-User Chats using the
     conversation interface defined by :mod:`aioxmpp.im`.
@@ -1274,6 +1280,11 @@ class MUCClient(aioxmpp.service.Service):
 
         This class was completely remodeled in 0.9 to conform with the
         :class:`aioxmpp.im` interface.
+
+    .. versionchanged:: 0.10
+
+        This class now conforms to the :class:`~.AbstractConversationService`
+        interface.
 
     """
 
@@ -1586,6 +1597,7 @@ class MUCClient(aioxmpp.service.Service):
         if self.client.established:
             self._send_join_presence(mucjid, history, nick, password)
 
+        self.on_conversation_new(room)
         self.dependencies[
             aioxmpp.im.service.ConversationService
         ]._add_conversation(room)

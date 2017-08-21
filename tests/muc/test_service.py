@@ -2925,6 +2925,12 @@ class TestService(unittest.TestCase):
             service.Service
         ))
 
+    def test_is_conversation_service(self):
+        self.assertTrue(issubclass(
+            muc_service.MUCClient,
+            im_conversation.AbstractConversationService,
+        ))
+
     def setUp(self):
         self.cc = make_connected_client()
         self.im_dispatcher = im_dispatcher.IMDispatcher(self.cc)
@@ -2939,6 +2945,7 @@ class TestService(unittest.TestCase):
             im_service.ConversationService: self.im_service,
             aioxmpp.tracking.BasicTrackingService: self.tracking_service,
         })
+        self.listener = make_listener(self.s)
 
     def test_depends_on_IMDispatcher(self):
         self.assertIn(
@@ -3116,6 +3123,7 @@ class TestService(unittest.TestCase):
         room, future = self.s.join(TEST_MUC_JID, "thirdwitch")
 
         self.im_service._add_conversation.assert_called_once_with(room)
+        self.listener.on_conversation_new.assert_called_once_with(room)
 
         self.assertIs(
             self.s.get_muc(TEST_MUC_JID),
