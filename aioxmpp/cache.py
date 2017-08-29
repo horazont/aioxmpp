@@ -103,7 +103,7 @@ class LRUDict(collections.abc.MutableMapping):
 
     def __setitem__(self, key, value):
         if self.__maxsize is not None and len(self.__data) >= self.__maxsize:
-            self._purge_old(len(self.__data) - (self.__maxsize-1))
+            self._purge_old(len(self.__data) - (self.__maxsize - 1))
         self.__data[key] = value
         self.__data_used[key] = self.__ctr
 

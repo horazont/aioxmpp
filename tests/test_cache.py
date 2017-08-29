@@ -84,7 +84,7 @@ class TestLRUDict(unittest.TestCase):
 
             self.assertEqual(
                 len(self.d),
-                i+1,
+                i + 1,
             )
 
         for k, v in zip(keys, values):
@@ -154,7 +154,7 @@ class TestLRUDict(unittest.TestCase):
         # keys have now been fetached in insertion order
         # reducing maxsize by one should remove first key, but not the others
 
-        self.d.maxsize = size-1
+        self.d.maxsize = size - 1
 
         with self.assertRaises(KeyError):
             self.d[keys[0]]
@@ -164,7 +164,7 @@ class TestLRUDict(unittest.TestCase):
 
         self.d[keys[1]]
 
-        self.d.maxsize = size-2
+        self.d.maxsize = size - 2
 
         with self.assertRaises(KeyError):
             self.d[keys[2]]
@@ -190,8 +190,8 @@ class TestLRUDict(unittest.TestCase):
     def test_lru_purge_when_storing(self):
         size = 4
         self.d.maxsize = size
-        keys = [object() for i in range(size+2)]
-        values = [object() for i in range(size+2)]
+        keys = [object() for i in range(size + 2)]
+        values = [object() for i in range(size + 2)]
 
         for k, v in zip(keys[:size], values[:size]):
             self.d[k] = v
@@ -213,7 +213,7 @@ class TestLRUDict(unittest.TestCase):
 
         self.d[keys[2]]
 
-        self.d[keys[size+1]] = values[size+1]
+        self.d[keys[size + 1]] = values[size + 1]
 
         with self.assertRaises(KeyError):
             self.d[keys[1]]
