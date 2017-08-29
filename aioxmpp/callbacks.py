@@ -68,6 +68,15 @@ Utilities
 
 .. autofunction:: first_signal
 
+Signal descriptors
+------------------
+
+These descriptors can be used on classes to have attributes which are signals:
+
+.. autoclass:: Signal
+
+.. autoclass:: SyncSignal
+
 Signal implementations (ad-hoc signals)
 ---------------------------------------
 
@@ -78,15 +87,6 @@ returned. This is where the behaviour of the signals is specified.
 .. autoclass:: AdHocSignal
 
 .. autoclass:: SyncAdHocSignal
-
-Signal descriptors
-------------------
-
-These descriptors can be used on classes to have attributes which are signals:
-
-.. autoclass:: Signal
-
-.. autoclass:: SyncSignal
 
 
 Filters
