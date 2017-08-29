@@ -59,6 +59,15 @@ Version 0.10
   :meth:`~aioxmpp.im.conversation.AbstractConversation.on_failure` events and
   implement emission of those for the existing conversation implementations.
 
+* Specify that :term:`Conversation Services <Conversation Service>` must
+  provide a non-coroutine method to start a conversation. Asynchronous parts
+  have to happen in the background. To await the completion of the
+  initialisation of the conversation, use
+  :func:`aioxmpp.callbacks.first_signal` as described in
+  :meth:`aioxmpp.im.conversation.AbstractConversation.on_enter`.
+
+* Make :meth:`aioxmpp.im.p2p.Service.get_conversation` a normal method.
+
 .. _api-changelog-0.9:
 
 Version 0.9

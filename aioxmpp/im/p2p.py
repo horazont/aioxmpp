@@ -181,7 +181,6 @@ class Service(AbstractConversationService, aioxmpp.service.Service):
 
         return msg
 
-    @asyncio.coroutine
     def get_conversation(self, peer_jid, *, current_jid=None):
         """
         Get or create a new one-to-one conversation with a peer.
@@ -196,6 +195,10 @@ class Service(AbstractConversationService, aioxmpp.service.Service):
 
         `peer_jid` must be a full or bare JID. See the :class:`Service`
         documentation for details.
+
+        .. versionchanged:: 0.10
+
+            In 0.9, this was a coroutine. Sorry.
         """
 
         try:
