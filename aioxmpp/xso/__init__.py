@@ -24,7 +24,7 @@
 ########################################################
 
 This subpackage deals with **X**\ ML **S**\ tream **O**\ bjects. XSOs can be
-stanzas, but in general anything which is sent after the XML stream header.
+stanzas, but in general any XML.
 
 The facilities in this subpackage are supposed to help developers of XEP
 plugins, as well as the main development of :mod:`aioxmpp`. The subpackage
