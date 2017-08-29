@@ -53,6 +53,8 @@ Version 0.10
   :func:`aioxmpp.bookmarks.as_bookmark_class`. The bookmark classes
   must subclass the ABC :class:`aioxmpp.bookmarks.Bookmark`.
 
+* Implement :func:`aioxmpp.callbacks.first_signal`.
+
 .. _api-changelog-0.9:
 
 Version 0.9
