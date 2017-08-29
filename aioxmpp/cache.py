@@ -118,3 +118,8 @@ class LRUDict(collections.abc.MutableMapping):
     def __delitem__(self, key):
         del self.__data[key]
         del self.__data_used[key]
+
+    def clear(self):
+        self.__data.clear()
+        self.__data_used.clear()
+        self.__ctr = 0

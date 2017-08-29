@@ -245,3 +245,20 @@ class TestLRUDict(unittest.TestCase):
 
         self.d[object()] = value
         self.d[object()] = value
+
+    def test_clear_removes_items(self):
+        size = 3
+        self.d.maxsize = size
+        keys = [object() for i in range(size)]
+        values = [object() for i in range(size)]
+
+        for i, (k, v) in enumerate(zip(keys, values)):
+            self.d[k] = v
+
+        self.d.clear()
+
+        self.assertEqual(len(self.d), 0)
+
+        for k in keys:
+            with self.assertRaises(KeyError):
+                self.d[k]
