@@ -202,7 +202,7 @@ class AbstractAvatarDescriptor:
     If :attr:`has_image_data_in_pubsub` is true, the image can be
     retrieved by the following coroutine:
 
-    .. autocoroutine:: get_image_bytes
+    .. automethod:: get_image_bytes
     """
 
     def __init__(self, remote_jid, mime_type, id_, nbytes, width=None,
