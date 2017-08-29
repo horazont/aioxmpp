@@ -1119,3 +1119,14 @@ class Testmake_listener(unittest.TestCase):
 
         b.on_b("foo")
         listener.on_b.assert_called_once_with("foo")
+
+    def test_has_no_non_listener_attributes(self):
+        class Foo:
+            on_a = callbacks.Signal()
+
+        f = Foo()
+        listener = make_listener(f)
+
+        self.assertFalse(hasattr(listener, "foobar"))
+        with self.assertRaises(AttributeError):
+            listener.foobar

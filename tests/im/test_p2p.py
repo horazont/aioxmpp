@@ -167,7 +167,8 @@ class TestService(unittest.TestCase):
         self.listener = make_listener(self.s)
 
         for ev in ["on_conversation_added"]:
-            listener = getattr(self.listener, ev)
+            listener = unittest.mock.Mock()
+            setattr(self.listener, ev, listener)
             signal = getattr(deps[im_service.ConversationService], ev)
             listener.return_value = None
             signal.connect(listener)
