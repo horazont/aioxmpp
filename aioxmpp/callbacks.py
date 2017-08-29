@@ -53,8 +53,8 @@ dynamically for each instance. They are the most commonly used:
 Ad-hoc signals are useful for testing and are the type of which the actual
 fields are.
 
-Class overview
-==============
+Signal overview
+===============
 
 .. autosummary::
 
@@ -62,6 +62,11 @@ Class overview
    SyncSignal
    AdHocSignal
    SyncAdHocSignal
+
+Utilities
+---------
+
+.. autofunction:: first_signal
 
 Signal implementations (ad-hoc signals)
 ---------------------------------------
@@ -833,3 +838,51 @@ class Filter:
             yield
         finally:
             self.unregister(token)
+
+
+def first_signal(*signals):
+    """
+    Connect to multiple signals and wait for the first to emit.
+
+    :param signals: Signals to connect to.
+    :type signals: :class:`AdHocSignal`
+    :return: An awaitable for the first signal to emit.
+
+    The awaitable returns the first argument passed to the signal. If the first
+    argument is an exception, the exception is re-raised from the awaitable.
+
+    A common use-case is a situation where a class exposes a "on_finished" type
+    signal and an "on_failure" type signal. :func:`first_signal` can be used
+    to combine those nicely::
+
+        # e.g. a aioxmpp.im.conversation.AbstractConversation
+        conversation = ...
+        await first_signal(
+            # emits without arguments when the conversation is successfully
+            # entered
+            conversation.on_enter,
+            # emits with an exception when entering the conversation fails
+            conversation.on_failure,
+        )
+        # await first_signal(...) will either raise an exception (failed) or
+        # return None (success)
+
+    .. warning::
+
+        Only works with signals which emit with zero or one argument. Signals
+        which emit with more than one argument or with keyword arguments are
+        silently ignored! (Thus, if only such signals are connected, the
+        future will never complete.)
+
+        (This is a side-effect of the implementation of
+        :meth:`AdHocSignal.AUTO_FUTURE`).
+
+    .. note::
+
+        Does not work with coroutine signals (:class:`SyncAdHocSignal`).
+    """
+
+    fut = asyncio.Future()
+    for signal in signals:
+        signal.connect(fut, signal.AUTO_FUTURE)
+    return fut

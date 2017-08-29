@@ -37,6 +37,7 @@ from aioxmpp.callbacks import (
     SyncAdHocSignal,
     SyncSignal,
     Filter,
+    first_signal,
 )
 
 from aioxmpp.testutils import run_coroutine, CoroutineMock
@@ -1505,3 +1506,56 @@ class TestFilter(unittest.TestCase):
         unregister.assert_called_once_with(
             unittest.mock.sentinel.token
         )
+
+
+class Testfirst_signal(unittest.TestCase):
+    def test_connects_future_to_both_and_returns_future(self):
+        s1 = unittest.mock.Mock()
+        s2 = unittest.mock.Mock()
+
+        with contextlib.ExitStack() as stack:
+            Future = stack.enter_context(unittest.mock.patch("asyncio.Future"))
+
+            result = first_signal(s1, s2)
+
+        Future.assert_called_once_with()
+
+        s1.connect.assert_called_once_with(
+            Future(),
+            s1.AUTO_FUTURE,
+        )
+
+        s2.connect.assert_called_once_with(
+            Future(),
+            s2.AUTO_FUTURE,
+        )
+
+        self.assertEqual(Future(), result)
+
+    def test_works_for_common_use_case_with_success(self):
+        s1 = AdHocSignal()
+        s2 = AdHocSignal()
+
+        fut = first_signal(s1, s2)
+
+        self.assertFalse(fut.done())
+
+        s1()
+
+        self.assertTrue(fut.done())
+        self.assertIsNone(fut.result())
+
+    def test_works_for_common_use_case_with_exception(self):
+        exc = Exception()
+
+        s1 = AdHocSignal()
+        s2 = AdHocSignal()
+
+        fut = first_signal(s1, s2)
+
+        self.assertFalse(fut.done())
+
+        s2(exc)
+
+        self.assertTrue(fut.done())
+        self.assertIs(fut.exception(), exc)
