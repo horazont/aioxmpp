@@ -386,7 +386,7 @@ class AbstractConversation(metaclass=abc.ABCMeta):
         :param new_topic: The new topic of the conversation.
         :type new_topic: :class:`.LanguageMap`
 
-    .. signal:: on_enter(**kwargs)
+    .. signal:: on_enter()
 
         The conversation was entered.
 
@@ -395,9 +395,26 @@ class AbstractConversation(metaclass=abc.ABCMeta):
         One of :meth:`on_enter` and :meth:`on_failure` is emitted exactly
         once for each :class:`AbstractConversation` instance.
 
+        .. seealso::
+
+            :func:`aioxmpp.callbacks.first_signal` can be used nicely to await
+            the completion of entering a conversation::
+
+                conv = ... # let this be your conversation
+                await first_signal(conv.on_enter, conv.on_failure)
+                # await first_signal() will either return None (success) or
+                # raise the exception passed to :meth:`on_failure`.
+
+        .. note::
+
+            This and :meth:`on_failure` are the only signals which **must not**
+            receive keyword arguments, so that they continue to work with
+            :attr:`.AdHocSignal.AUTO_FUTURE` and
+            :func:`~.callbacks.first_signal`.
+
         .. versionadded:: 0.10
 
-    .. signal:: on_failure(exc, **kwargs)
+    .. signal:: on_failure(exc)
 
         The conversation could not be entered.
 
@@ -414,6 +431,13 @@ class AbstractConversation(metaclass=abc.ABCMeta):
 
         One of :meth:`on_enter` and :meth:`on_failure` is emitted exactly
         once for each :class:`AbstractConversation` instance.
+
+        .. note::
+
+            This and :meth:`on_failure` are the only signals which **must not**
+            receive keyword arguments, so that they continue to work with
+            :attr:`.AdHocSignal.AUTO_FUTURE` and
+            :func:`~.callbacks.first_signal`.
 
         .. versionadded:: 0.10
 
@@ -815,6 +839,14 @@ class AbstractConversationService(metaclass=abc.ABCMeta):
 
         aioxmpp.im.p2p.Service
         aioxmpp.muc.MUCClient
+
+    In general, conversation services should provide a method (*not* a coroutine
+    method) to start a conversation using the service. That method should return
+    the fresh :class:`~.AbstractConversation` object immediately and start
+    possibly needed background tasks to actually initiate the conversation. The
+    caller should use the :meth:`~.AbstractConversation.on_enter` and
+    :meth:`~.AbstractConversation.on_failure` signals to be notified of the
+    result of the join operation.
 
     Signals:
 
