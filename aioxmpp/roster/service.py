@@ -435,7 +435,7 @@ class RosterClient(aioxmpp.service.Service):
         if stored_item.name != xso_item.name:
             to_call.append(self.on_entry_name_changed)
 
-        if     (stored_item.subscription != xso_item.subscription or
+        if (stored_item.subscription != xso_item.subscription or
                 stored_item.approved != xso_item.approved or
                 stored_item.ask != xso_item.ask):
             to_call.append(self.on_entry_subscription_state_changed)
