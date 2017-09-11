@@ -6,6 +6,7 @@ luarocks install luaexpat
 luarocks install luafilesystem
 luarocks install luasocket
 luarocks install luasec
+luarocks install luabitop
 hg clone https://hg.prosody.im/$PROSODY_BRANCH/ prosody
 hg clone https://hg.prosody.im/prosody-modules/ prosody-modules
 cp -r utils/prosody-cfg/$PROSODY_BRANCH/* prosody/
