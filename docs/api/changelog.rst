@@ -284,10 +284,6 @@ Version 0.9.1
 
 * Fix incompatibility with latest pyasn1 releases.
 
-
-Version 0.9.1
--------------
-
 * *Slight Breaking change* (yes, I know!) to fix a crucial bug with Python
   3.4.6. :func:`aioxmpp.node.discover_connectors` now takes a :class:`str`
   argument instead of :class:`bytes` for the domain name. Passing a
