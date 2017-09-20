@@ -131,7 +131,7 @@ class STARTTLSConnector(BaseConnector):
         return False
 
     @asyncio.coroutine
-    def connect(self, loop, metadata, domain, host, port,
+    def connect(self, loop, metadata, domain: str, host, port,
                 negotiation_timeout, base_logger=None):
         """
         .. seealso::
