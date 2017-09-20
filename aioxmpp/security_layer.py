@@ -169,6 +169,9 @@ def extract_python_dict_from_x509(x509):
             if dNSName is None:
                 continue
 
+            if not dNSName.isValue:
+                continue
+
             result.setdefault("subjectAltName", []).append(
                 ("DNS", str(dNSName))
             )
