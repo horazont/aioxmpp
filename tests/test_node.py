@@ -59,6 +59,20 @@ from aioxmpp.testutils import (
 
 
 class Testdiscover_connectors(unittest.TestCase):
+    def setUp(self):
+        self.hosts = [
+            unittest.mock.Mock(spec=bytes)
+            for i in range(4)
+        ]
+
+        for i, host in enumerate(self.hosts, 1):
+            host.decode.return_value = getattr(
+                unittest.mock.sentinel, "host{}".format(i)
+            )
+
+        self.domain = unittest.mock.Mock(spec=str)
+        self.domain.encode.return_value = unittest.mock.sentinel.domain
+
     def test_request_SRV_records(self):
         loop = asyncio.get_event_loop()
 
@@ -76,18 +90,18 @@ class Testdiscover_connectors(unittest.TestCase):
             yield [
                 (unittest.mock.sentinel.prio1,
                  unittest.mock.sentinel.weight1,
-                 (unittest.mock.sentinel.host1, unittest.mock.sentinel.port1)),
+                 (self.hosts[0], unittest.mock.sentinel.port1)),
                 (unittest.mock.sentinel.prio2,
                  unittest.mock.sentinel.weight2,
-                 (unittest.mock.sentinel.host2, unittest.mock.sentinel.port2)),
+                 (self.hosts[1], unittest.mock.sentinel.port2)),
             ]
             yield [
                 (unittest.mock.sentinel.prio3,
                  unittest.mock.sentinel.weight3,
-                 (unittest.mock.sentinel.host3, unittest.mock.sentinel.port3)),
+                 (self.hosts[2], unittest.mock.sentinel.port3)),
                 (unittest.mock.sentinel.prio4,
                  unittest.mock.sentinel.weight4,
-                 (unittest.mock.sentinel.host4, unittest.mock.sentinel.port4)),
+                 (self.hosts[3], unittest.mock.sentinel.port4)),
             ]
 
         def grouped_results():
@@ -118,10 +132,12 @@ class Testdiscover_connectors(unittest.TestCase):
 
             result = run_coroutine(
                 node.discover_connectors(
-                    unittest.mock.sentinel.domain,
+                    self.domain,
                     loop=loop,
                 )
             )
+
+        self.domain.encode.assert_called_once_with("idna")
 
         self.assertSequenceEqual(
             lookup_srv.mock_calls,
@@ -136,6 +152,9 @@ class Testdiscover_connectors(unittest.TestCase):
                 ),
             ]
         )
+
+        for host in self.hosts[:4]:
+            host.decode.assert_called_once_with("ascii")
 
         group_and_order.assert_called_with(
             [
@@ -180,10 +199,10 @@ class Testdiscover_connectors(unittest.TestCase):
             yield [
                 (unittest.mock.sentinel.prio1,
                  unittest.mock.sentinel.weight1,
-                 (unittest.mock.sentinel.host1, unittest.mock.sentinel.port1)),
+                 (self.hosts[0], unittest.mock.sentinel.port1)),
                 (unittest.mock.sentinel.prio2,
                  unittest.mock.sentinel.weight2,
-                 (unittest.mock.sentinel.host2, unittest.mock.sentinel.port2)),
+                 (self.hosts[1], unittest.mock.sentinel.port2)),
             ]
             yield None
 
@@ -215,10 +234,12 @@ class Testdiscover_connectors(unittest.TestCase):
 
             result = run_coroutine(
                 node.discover_connectors(
-                    unittest.mock.sentinel.domain,
+                    self.domain,
                     loop=loop,
                 )
             )
+
+        self.domain.encode.assert_called_once_with("idna")
 
         self.assertSequenceEqual(
             lookup_srv.mock_calls,
@@ -233,6 +254,9 @@ class Testdiscover_connectors(unittest.TestCase):
                 ),
             ]
         )
+
+        for host in self.hosts[:2]:
+            host.decode.assert_called_once_with("ascii")
 
         group_and_order.assert_called_with(
             [
@@ -270,10 +294,10 @@ class Testdiscover_connectors(unittest.TestCase):
             yield [
                 (unittest.mock.sentinel.prio3,
                  unittest.mock.sentinel.weight3,
-                 (unittest.mock.sentinel.host3, unittest.mock.sentinel.port3)),
+                 (self.hosts[2], unittest.mock.sentinel.port3)),
                 (unittest.mock.sentinel.prio4,
                  unittest.mock.sentinel.weight4,
-                 (unittest.mock.sentinel.host4, unittest.mock.sentinel.port4)),
+                 (self.hosts[3], unittest.mock.sentinel.port4)),
             ]
 
         def grouped_results():
@@ -304,10 +328,15 @@ class Testdiscover_connectors(unittest.TestCase):
 
             result = run_coroutine(
                 node.discover_connectors(
-                    unittest.mock.sentinel.domain,
+                    self.domain,
                     loop=loop,
                 )
             )
+
+        self.domain.encode.assert_called_once_with("idna")
+
+        for host in self.hosts[2:4]:
+            host.decode.assert_called_once_with("ascii")
 
         self.assertSequenceEqual(
             lookup_srv.mock_calls,
@@ -367,10 +396,12 @@ class Testdiscover_connectors(unittest.TestCase):
 
             result = run_coroutine(
                 node.discover_connectors(
-                    unittest.mock.sentinel.domain,
+                    self.domain,
                     loop=loop,
                 )
             )
+
+        self.domain.encode.assert_called_once_with("idna")
 
         self.assertSequenceEqual(
             lookup_srv.mock_calls,
@@ -390,7 +421,7 @@ class Testdiscover_connectors(unittest.TestCase):
 
         self.assertSequenceEqual(
             result,
-            [(unittest.mock.sentinel.domain,
+            [(self.domain,
               5222,
               unittest.mock.sentinel.starttls0)],
         )
@@ -413,10 +444,10 @@ class Testdiscover_connectors(unittest.TestCase):
             yield [
                 (unittest.mock.sentinel.prio3,
                  unittest.mock.sentinel.weight3,
-                 (unittest.mock.sentinel.host3, unittest.mock.sentinel.port3)),
+                 (self.hosts[2], unittest.mock.sentinel.port3)),
                 (unittest.mock.sentinel.prio4,
                  unittest.mock.sentinel.weight4,
-                 (unittest.mock.sentinel.host4, unittest.mock.sentinel.port4)),
+                 (self.hosts[3], unittest.mock.sentinel.port4)),
             ]
 
         def grouped_results():
@@ -447,10 +478,15 @@ class Testdiscover_connectors(unittest.TestCase):
 
             result = run_coroutine(
                 node.discover_connectors(
-                    unittest.mock.sentinel.domain,
+                    self.domain,
                     loop=loop,
                 )
             )
+
+        self.domain.encode.assert_called_once_with("idna")
+
+        for host in self.hosts[2:4]:
+            host.decode.assert_called_once_with("ascii")
 
         self.assertSequenceEqual(
             lookup_srv.mock_calls,
@@ -501,10 +537,10 @@ class Testdiscover_connectors(unittest.TestCase):
             yield [
                 (unittest.mock.sentinel.prio3,
                  unittest.mock.sentinel.weight3,
-                 (unittest.mock.sentinel.host3, unittest.mock.sentinel.port3)),
+                 (self.hosts[2], unittest.mock.sentinel.port3)),
                 (unittest.mock.sentinel.prio4,
                  unittest.mock.sentinel.weight4,
-                 (unittest.mock.sentinel.host4, unittest.mock.sentinel.port4)),
+                 (self.hosts[3], unittest.mock.sentinel.port4)),
             ]
             yield ValueError()
 
@@ -536,10 +572,15 @@ class Testdiscover_connectors(unittest.TestCase):
 
             result = run_coroutine(
                 node.discover_connectors(
-                    unittest.mock.sentinel.domain,
+                    self.domain,
                     loop=loop,
                 )
             )
+
+        self.domain.encode.assert_called_once_with("idna")
+
+        for host in self.hosts[2:4]:
+            host.decode.assert_called_once_with("ascii")
 
         self.assertSequenceEqual(
             lookup_srv.mock_calls,
@@ -591,10 +632,12 @@ class Testdiscover_connectors(unittest.TestCase):
                                         "XMPP not enabled on domain .*"):
                 run_coroutine(
                     node.discover_connectors(
-                        unittest.mock.sentinel.domain,
+                        self.domain,
                         loop=loop,
                     )
                 )
+
+        self.domain.encode.assert_called_once_with("idna")
 
         self.assertSequenceEqual(
             lookup_srv.mock_calls,
@@ -628,10 +671,12 @@ class Testdiscover_connectors(unittest.TestCase):
                                         "XMPP not enabled on domain .*"):
                 run_coroutine(
                     node.discover_connectors(
-                        unittest.mock.sentinel.domain,
+                        self.domain,
                         loop=loop,
                     )
                 )
+
+        self.domain.encode.assert_called_once_with("idna")
 
         self.assertSequenceEqual(
             lookup_srv.mock_calls,
@@ -706,10 +751,10 @@ class Testconnect_xmlstream(unittest.TestCase):
             logger=logger,
         ))
 
-        jid.domain.encode.assert_called_with("idna")
+        jid.domain.encode.assert_not_called()
 
         self.discover_connectors.assert_called_with(
-            jid.domain.encode(),
+            jid.domain,
             loop=unittest.mock.sentinel.loop,
             logger=logger,
         )
@@ -771,8 +816,10 @@ class Testconnect_xmlstream(unittest.TestCase):
             loop=unittest.mock.sentinel.loop,
         ))
 
+        jid.domain.encode.assert_not_called()
+
         self.discover_connectors.assert_called_with(
-            jid.domain.encode(),
+            jid.domain,
             loop=unittest.mock.sentinel.loop,
             logger=node.logger,
         )
@@ -857,8 +904,10 @@ class Testconnect_xmlstream(unittest.TestCase):
             loop=unittest.mock.sentinel.loop,
         ))
 
+        jid.domain.encode.assert_not_called()
+
         self.discover_connectors.assert_called_with(
-            jid.domain.encode(),
+            jid.domain,
             loop=unittest.mock.sentinel.loop,
             logger=node.logger,
         )
@@ -963,10 +1012,12 @@ class Testconnect_xmlstream(unittest.TestCase):
                 loop=unittest.mock.sentinel.loop,
             ))
 
+        jid.domain.encode.assert_not_called()
+
         self.assertEqual(exc_ctx.exception, exc)
 
         self.discover_connectors.assert_called_with(
-            jid.domain.encode(),
+            jid.domain,
             loop=unittest.mock.sentinel.loop,
             logger=node.logger,
         )
@@ -1046,8 +1097,10 @@ class Testconnect_xmlstream(unittest.TestCase):
             loop=unittest.mock.sentinel.loop,
         ))
 
+        jid.domain.encode.assert_not_called()
+
         self.discover_connectors.assert_called_with(
-            jid.domain.encode(),
+            jid.domain,
             loop=unittest.mock.sentinel.loop,
             logger=node.logger,
         )
@@ -1116,6 +1169,8 @@ class Testconnect_xmlstream(unittest.TestCase):
             loop=unittest.mock.sentinel.loop,
         ))
 
+        jid.domain.encode.assert_not_called()
+
         self.assertFalse(self.discover_connectors.mock_calls)
 
         self.assertSequenceEqual(
@@ -1177,8 +1232,10 @@ class Testconnect_xmlstream(unittest.TestCase):
                 loop=unittest.mock.sentinel.loop,
             ))
 
+        jid.domain.encode.assert_not_called()
+
         self.discover_connectors.assert_called_with(
-            jid.domain.encode(),
+            jid.domain,
             loop=unittest.mock.sentinel.loop,
             logger=node.logger,
         )
@@ -1244,8 +1301,10 @@ class Testconnect_xmlstream(unittest.TestCase):
                 loop=unittest.mock.sentinel.loop,
             ))
 
+        jid.domain.encode.assert_not_called()
+
         self.discover_connectors.assert_called_with(
-            jid.domain.encode(),
+            jid.domain,
             loop=unittest.mock.sentinel.loop,
             logger=node.logger,
         )

@@ -103,7 +103,10 @@ def lookup_addresses(loop, jid):
 
 
 @asyncio.coroutine
-def discover_connectors(domain, loop=None, logger=logger):
+def discover_connectors(
+        domain: str,
+        loop=None,
+        logger=logger):
     """
     Discover all connection options for a domain, in descending order of
     preference.
@@ -139,9 +142,11 @@ def discover_connectors(domain, loop=None, logger=logger):
     .. versionadded:: 0.6
     """
 
+    domain_encoded = domain.encode("idna")
+
     try:
         starttls_srv_records = yield from network.lookup_srv(
-            domain,
+            domain_encoded,
             "xmpp-client",
         )
         starttls_srv_disabled = False
@@ -151,7 +156,7 @@ def discover_connectors(domain, loop=None, logger=logger):
 
     try:
         tls_srv_records = yield from network.lookup_srv(
-            domain,
+            domain_encoded,
             "xmpps-client",
         )
         tls_srv_disabled = False
@@ -178,12 +183,14 @@ def discover_connectors(domain, loop=None, logger=logger):
     tls_srv_records = tls_srv_records or []
 
     srv_records = [
-        (prio, weight, (host, port, connector.STARTTLSConnector()))
+        (prio, weight, (host.decode("ascii"), port,
+                        connector.STARTTLSConnector()))
         for prio, weight, (host, port) in starttls_srv_records
     ]
 
     srv_records.extend(
-        (prio, weight, (host, port, connector.XMPPOverTLSConnector()))
+        (prio, weight, (host.decode("ascii"), port,
+                        connector.XMPPOverTLSConnector()))
         for prio, weight, (host, port) in tls_srv_records
     )
 
@@ -341,8 +348,6 @@ def connect_xmlstream(
     """
     loop = asyncio.get_event_loop() if loop is None else loop
 
-    domain = jid.domain.encode("idna")
-
     options = list(override_peer)
 
     exceptions = []
@@ -356,7 +361,7 @@ def connect_xmlstream(
         return result
 
     options = list((yield from discover_connectors(
-        domain,
+        jid.domain,
         loop=loop,
         logger=logger,
     )))

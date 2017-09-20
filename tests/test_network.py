@@ -988,8 +988,8 @@ class Testlookup_srv(unittest.TestCase):
                 resolver=unittest.mock.sentinel.resolver,
             )),
             [
-                (0, 1, ("xmpp.foo.test", 5222)),
-                (2, 1, ("xmpp.bar.test", 5222)),
+                (0, 1, (b"xmpp.foo.test", 5222)),
+                (2, 1, (b"xmpp.bar.test", 5222)),
             ]
         )
 

@@ -287,7 +287,11 @@ def repeated_query(qname, rdtype,
 
 
 @asyncio.coroutine
-def lookup_srv(domain, service, transport="tcp", **kwargs):
+def lookup_srv(
+        domain: bytes,
+        service: str,
+        transport: str="tcp",
+        **kwargs):
     """
     Query the DNS for SRV records describing how the given `service` over the
     given `transport` is implemented for the given `domain`. `domain` must be
@@ -336,7 +340,7 @@ def lookup_srv(domain, service, transport="tcp", **kwargs):
             )
 
         items[i] = (prio, weight, (
-            host.rstrip(".").encode("ascii").decode("IDNA"),
+            host.rstrip(".").encode("ascii"),
             port))
 
     return items
