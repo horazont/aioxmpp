@@ -911,7 +911,13 @@ class StanzaStream:
                 self.enqueue(response)
                 return
 
-            task = asyncio.async(coro(stanza_obj))
+            try:
+                awaitable = coro(stanza_obj)
+            except Exception as exc:
+                awaitable = asyncio.Future()
+                awaitable.set_exception(exc)
+
+            task = asyncio.async(awaitable)
             task.add_done_callback(
                 functools.partial(
                     self._iq_request_coro_done,
@@ -1316,33 +1322,37 @@ class StanzaStream:
         self._logger.debug("iq response unregistered: from=%r, id=%r",
                            from_, id_)
 
-    def register_iq_request_coro(self, type_, payload_cls, coro):
+    def register_iq_request_coro(self, type_, payload_cls, cb):
         """
-        Register a coroutine to run when an IQ request is received.
+        Register a coroutine function or a function returning an awaitable to
+        run when an IQ request is received.
 
         :param type_: IQ type to react to (must be a request type).
         :type type_: :class:`~aioxmpp.IQType`
-        :param payload_cls: Payload class to react to (subclass of :class:`~xso.XSO`)
+        :param payload_cls: Payload class to react to (subclass of
+            :class:`~xso.XSO`)
         :type payload_cls: :class:`~.XMLStreamClass`
-        :param coro: Coroutine to run
+        :param cb: Function or coroutine function to invoke
         :raises ValueError: if there is already a coroutine registered for this
-                            targe
+                            target
         :raises ValueError: if `type_` is not a request IQ type
         :raises ValueError: if `type_` is not a valid
                             :class:`~.IQType` (and cannot be cast to a
                             :class:`~.IQType`)
 
-        The coroutine `coro` will be spawned whenever an IQ stanza with the
-        given `type_` and payload being an instance of the `payload_cls` is
-        received. The coroutine must return a valid value for the
-        :attr:`.IQ.payload` attribute. The value will be set as the
-        payload attribute value of an IQ response (with type
-        :attr:`~.IQType.RESULT`) which is generated and sent by the stream.
+        The callback `cb` will be called whenever an IQ stanza with the given
+        `type_` and payload being an instance of the `payload_cls` is received.
 
-        If the coroutine raises an exception, it will be converted to a
-        :class:`~.stanza.Error` object. That error object is then used as
-        payload for an IQ response (with type :attr:`~.IQType.ERROR`) which is
-        generated and sent by the stream.
+        The callback must either be a coroutine function or otherwise return an
+        awaitable. The awaitable must evaluate to a valid value for the
+        :attr:`.IQ.payload` attribute. That value will be set as the payload
+        attribute value of an IQ response (with type :attr:`~.IQType.RESULT`)
+        which is generated and sent by the stream.
+
+        If the awaitable or the function raises an exception, it will be
+        converted to a :class:`~.stanza.Error` object. That error object is
+        then used as payload for an IQ response (with type
+        :attr:`~.IQType.ERROR`) which is generated and sent by the stream.
 
         If the exception is a subclass of :class:`aioxmpp.errors.XMPPError`, it
         is converted to an :class:`~.stanza.Error` instance directly.
@@ -1353,6 +1363,26 @@ class StanzaStream:
         :meth:`~.IQ.as_payload_class`. Otherwise, the payload will
         not be recognised by the stream parser and the IQ is automatically
         responded to with a ``feature-not-implemented`` error.
+
+        .. warning::
+
+            When using a coroutine function for `cb`, there is no guarantee
+            that concurrent IQ handlers and other coroutines will execute in
+            any defined order. This implies that the strong ordering guarantees
+            normally provided by XMPP XML Streams are lost when using coroutine
+            functions for `cb`. For this reason, the use of non-coroutine
+            functions is allowed.
+
+        .. note::
+
+            Using a non-coroutine function for `cb` will generally lead to
+            less readable code. For the sake of readability, it is recommended
+            prefer coroutine functions.
+
+        .. versionchanged:: 0.10
+
+            Accepts an awaitable as last argument in addition to coroutine
+            functions.
 
         .. versionadded:: 0.6
 
@@ -1386,7 +1416,7 @@ class StanzaStream:
         if key in self._iq_request_map:
             raise ValueError("only one listener is allowed per tag")
 
-        self._iq_request_map[key] = coro
+        self._iq_request_map[key] = cb
         self._logger.debug(
             "iq request coroutine registered: type=%r, payload=%r",
             type_, payload_cls)

@@ -55,6 +55,11 @@ Version 0.10
 
 * Implement :func:`aioxmpp.callbacks.first_signal`.
 
+* Support for passing a function returning an awaitable as callback to
+  :meth:`aioxmpp.stream.StanzaStream.register_iq_request_coro`. In contrast
+  to coroutines, a callback function can exploit the strong ordering guarantee
+  of the XMPP XML Stream.
+
 .. _api-changelog-0.9:
 
 Version 0.9
