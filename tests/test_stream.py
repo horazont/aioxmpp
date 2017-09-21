@@ -3549,6 +3549,38 @@ class TestStanzaStream(StanzaStreamTestBase):
             unittest.mock.sentinel.result,
         )
 
+    def test_send_returns_normal_result_if_cb_returns_None(self):
+        cb = unittest.mock.Mock()
+        cb.return_value = None
+
+        iq = make_test_iq()
+        iq.autoset_id()
+
+        self.stream.start(self.xmlstream)
+
+        task = asyncio.async(self.stream.send(iq, cb=cb))
+
+        run_coroutine(self.sent_stanzas.get())
+        self.assertFalse(task.done())
+        cb.assert_not_called()
+
+        reply = iq.make_reply(type_=structs.IQType.RESULT)
+        reply.payload = FancyTestIQ()
+
+        self.stream.recv_stanza(reply)
+
+        run_coroutine(asyncio.sleep(0))
+
+        self.assertTrue(task.done())
+        cb.assert_called_once_with(reply)
+
+        result = run_coroutine(task)
+
+        self.assertIs(
+            result,
+            reply.payload,
+        )
+
 
 class TestStanzaStreamSM(StanzaStreamTestBase):
     def setUp(self):

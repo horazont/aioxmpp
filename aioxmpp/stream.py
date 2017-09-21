@@ -2446,8 +2446,30 @@ class StanzaStream:
         the response is received, so it can benefit from the strong ordering
         guarantees given by XMPP XML Streams.
 
-        Since the return value of coroutine functions is awaitable, it is valid
-        and supported to pass a coroutine function as `cb`.
+        The `cb` may also return :data:`None`, in which case :meth:`send` will
+        simply return the IQ payload as if `cb` was not given. Since the return
+        value of coroutine functions is awaitable, it is valid and supported to
+        pass a coroutine function as `cb`.
+
+        .. warning::
+
+            Remember that it is an implementation detail of the event loop when
+            a coroutine is scheduled after it awaited an awaitable; this implies
+            that if the caller of :meth:`send` is merely awaiting the
+            :meth:`send` coroutine, the strong ordering guarantees of XMPP XML
+            Streams are lost.
+
+            To regain those, use the `cb` argument.
+
+        .. note::
+
+            For the sake of readability, unless you really need the strong
+            ordering guarantees, avoid the use of the `cb` argument. Avoid
+            using a coroutine function unless you really need to.
+
+        .. versionchanged:: 0.9
+
+            The `cb` argument was added.
 
         .. versionadded:: 0.8
         """
@@ -2489,21 +2511,22 @@ class StanzaStream:
             (including error stanzas).
             """
             nonlocal fut
+            if cb is not None:
+                try:
+                    nested_fut = cb(stanza)
+                except Exception as exc:
+                    fut.set_exception(exc)
+                else:
+                    if nested_fut is not None:
+                        nested_fut.add_done_callback(nested_cb)
+                        return
+
             # we can’t even use StanzaErrorAwareListener because we want to
             # forward error stanzas to the cb too...
-            if cb is None:
-                if stanza.type_.is_error:
-                    fut.set_exception(stanza.error.to_exception())
-                else:
-                    fut.set_result(stanza.payload)
-                return
-
-            try:
-                nested_fut = cb(stanza)
-            except Exception as exc:
-                fut.set_exception(exc)
+            if stanza.type_.is_error:
+                fut.set_exception(stanza.error.to_exception())
             else:
-                nested_fut.add_done_callback(nested_cb)
+                fut.set_result(stanza.payload)
 
         def handler_error(exc):
             """
