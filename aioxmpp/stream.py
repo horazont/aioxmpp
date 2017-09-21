@@ -445,15 +445,9 @@ class StanzaStream:
 
     Receiving stanzas:
 
-    .. automethod:: register_iq_request_coro
+    .. automethod:: register_iq_request_handler
 
-    .. automethod:: unregister_iq_request_coro
-
-    .. automethod:: register_iq_response_future
-
-    .. automethod:: register_iq_response_callback
-
-    .. automethod:: unregister_iq_response
+    .. automethod:: unregister_iq_request_handler
 
     .. automethod:: register_message_callback
 
@@ -462,6 +456,18 @@ class StanzaStream:
     .. automethod:: register_presence_callback
 
     .. automethod:: unregister_presence_callback
+
+    Rarely used registries / deprecated aliases:
+
+    .. automethod:: register_iq_request_coro
+
+    .. automethod:: unregister_iq_request_handler
+
+    .. automethod:: register_iq_response_future
+
+    .. automethod:: register_iq_response_callback
+
+    .. automethod:: unregister_iq_response
 
     Inbound stanza filters allow to hook into the stanza processing by
     replacing, modifying or otherwise processing stanza contents *before* the
@@ -1322,7 +1328,22 @@ class StanzaStream:
         self._logger.debug("iq response unregistered: from=%r, id=%r",
                            from_, id_)
 
-    def register_iq_request_coro(self, type_, payload_cls, cb):
+    def register_iq_request_coro(self, type_, payload_cls, coro):
+        """
+        Alias of :meth:`register_iq_request_handler`.
+
+        .. deprecated:: 0.10
+
+            This alias will be removed in version 1.0.
+        """
+        warnings.warn(
+            "register_iq_request_coro is a deprecated alias to "
+            "register_iq_request_handler and will be removed in aioxmpp 1.0",
+            DeprecationWarning,
+            stacklevel=2)
+        return self.register_iq_request_handler(type_, payload_cls, coro)
+
+    def register_iq_request_handler(self, type_, payload_cls, cb):
         """
         Register a coroutine function or a function returning an awaitable to
         run when an IQ request is received.
@@ -1384,6 +1405,8 @@ class StanzaStream:
             Accepts an awaitable as last argument in addition to coroutine
             functions.
 
+            Renamed from :meth:`register_iq_request_coro`.
+
         .. versionadded:: 0.6
 
            If the stream is :meth:`stop`\ -ped (only if SM is not enabled) or
@@ -1422,9 +1445,18 @@ class StanzaStream:
             type_, payload_cls)
 
     def unregister_iq_request_coro(self, type_, payload_cls):
+        warnings.warn(
+            "unregister_iq_request_coro is a deprecated alias to "
+            "unregister_iq_request_handler and will be removed in aioxmpp 1.0",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.unregister_iq_request_handler(type_, payload_cls)
+
+    def unregister_iq_request_handler(self, type_, payload_cls):
         """
         Unregister a coroutine previously registered with
-        :meth:`register_iq_request_coro`.
+        :meth:`register_iq_request_handler`.
 
         :param type_: IQ type to react to (must be a request type).
         :type type_: :class:`~structs.IQType`
@@ -1439,6 +1471,10 @@ class StanzaStream:
 
         The match is solely made using the `type_` and `payload_cls` arguments,
         which have the same meaning as in :meth:`register_iq_request_coro`.
+
+        .. versionchanged:: 0.10
+
+            Renamed from :meth:`unregister_iq_request_coro`.
 
         .. versionchanged:: 0.7
 
@@ -2589,7 +2625,7 @@ def iq_handler(stream, type_, payload_cls, coro):
     .. versionadded:: 0.8
     """
 
-    stream.register_iq_request_coro(
+    stream.register_iq_request_handler(
         type_,
         payload_cls,
         coro,
@@ -2597,7 +2633,7 @@ def iq_handler(stream, type_, payload_cls, coro):
     try:
         yield
     finally:
-        stream.unregister_iq_request_coro(type_, payload_cls)
+        stream.unregister_iq_request_handler(type_, payload_cls)
 
 
 @contextlib.contextmanager

@@ -957,7 +957,7 @@ class Testmake_connected_client(unittest.TestCase):
         )
 
         self.assertTrue(hasattr(cc.stream, "register_iq_response_future"))
-        self.assertTrue(hasattr(cc.stream, "register_iq_request_coro"))
+        self.assertTrue(hasattr(cc.stream, "register_iq_request_handler"))
         self.assertTrue(hasattr(cc.stream, "register_message_callback"))
         self.assertTrue(hasattr(cc.stream, "register_iq_response_callback"))
         self.assertTrue(hasattr(cc.stream, "register_presence_callback"))

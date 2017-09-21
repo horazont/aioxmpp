@@ -66,6 +66,15 @@ Version 0.10
   to awaiting the result of :meth:`~aioxmpp.stream.StanzaStream.send`, the
   callback can exploit the strong ordering guarantee of the XMPP XML Stream.
 
+* *Deprecation*: The name
+  :meth:`aioxmpp.stream.StanzaStream.register_iq_request_coro` is deprecated
+  in favour of :meth:`~aioxmpp.stream.StanzaStream.register_iq_request_handler`.
+  The old alias persists, but will be removed with the release of 1.0. Using
+  the old alias emits a warning.
+
+  Likewise, :meth:`~aioxmpp.stream.StanzaStream.unregister_iq_request_coro` was
+  renamed to :meth:`~aioxmpp.stream.StanzaStream.unregister_iq_request_handler`.
+
 .. _api-changelog-0.9:
 
 Version 0.9

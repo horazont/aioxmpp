@@ -973,7 +973,7 @@ def iq_handler(type_, payload_cls):
 
     .. seealso::
 
-       :meth:`~.StanzaStream.register_iq_request_coro`
+       :meth:`~.StanzaStream.register_iq_request_handler`
           for more details on the `type_` and `payload_cls` arguments
 
     """

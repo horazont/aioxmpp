@@ -151,7 +151,7 @@ class TestEntityCapabilities(TestCase):
             )
         )
 
-        self.source.stream.register_iq_request_coro(
+        self.source.stream.register_iq_request_handler(
             aioxmpp.IQType.GET,
             disco.xso.InfoQuery,
             fake_disco_handler,
@@ -239,7 +239,7 @@ class TestEntityCapabilities(TestCase):
             )
         )
 
-        self.source.stream.register_iq_request_coro(
+        self.source.stream.register_iq_request_handler(
             aioxmpp.IQType.GET,
             disco.xso.InfoQuery,
             fake_disco_handler,
