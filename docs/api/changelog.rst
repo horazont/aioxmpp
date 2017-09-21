@@ -75,6 +75,9 @@ Version 0.10
   Likewise, :meth:`~aioxmpp.stream.StanzaStream.unregister_iq_request_coro` was
   renamed to :meth:`~aioxmpp.stream.StanzaStream.unregister_iq_request_handler`.
 
+* The :func:`aioxmpp.service.iq_handler` decorator function now allows normal
+  functions to be decorated (in addition to coroutine functions).
+
 .. _api-changelog-0.9:
 
 Version 0.9

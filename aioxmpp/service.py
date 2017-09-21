@@ -963,25 +963,26 @@ def _apply_connect_attrsignal(instance, stream, func, descriptor, signal_name,
 
 def iq_handler(type_, payload_cls):
     """
-    Register the decorated coroutine function as IQ request handler.
+    Register the decorated function or coroutine function as IQ request
+    handler.
 
     :param type_: IQ type to listen for
     :type type_: :class:`~.IQType`
     :param payload_cls: Payload XSO class to listen for
     :type payload_cls: :class:`~.XSO` subclass
-    :raise TypeError: if the decorated object is not a coroutine function
+
+    If the decorated function is not a coroutine function, it must return an
+    awaitable instead.
 
     .. seealso::
 
        :meth:`~.StanzaStream.register_iq_request_handler`
-          for more details on the `type_` and `payload_cls` arguments
+          for more details on the `type_` and `payload_cls` arguments, as well
+          as behaviour expected from the decorated function.
 
     """
 
     def decorator(f):
-        if not asyncio.iscoroutinefunction(f):
-            raise TypeError("a coroutine function is required")
-
         add_handler_spec(
             f,
             HandlerSpec(
