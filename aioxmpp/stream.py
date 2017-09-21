@@ -461,7 +461,7 @@ class StanzaStream:
 
     .. automethod:: register_iq_request_coro
 
-    .. automethod:: unregister_iq_request_handler
+    .. automethod:: unregister_iq_request_coro
 
     .. automethod:: register_iq_response_future
 
