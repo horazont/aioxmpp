@@ -1339,19 +1339,14 @@ class Testiq_handler(unittest.TestCase):
             coro._aioxmpp_service_handlers,
         )
 
-    def test_requires_coroutine(self):
+    def test_accepts_normal_function(self):
         with unittest.mock.patch(
                 "asyncio.iscoroutinefunction") as iscoroutinefunction:
             iscoroutinefunction.return_value = False
 
-            with self.assertRaisesRegex(
-                    TypeError,
-                    "a coroutine function is required"):
-                self.decorator(unittest.mock.sentinel.coro)
+            self.decorator(unittest.mock.sentinel.coro)
 
-        iscoroutinefunction.assert_called_with(
-            unittest.mock.sentinel.coro,
-        )
+        iscoroutinefunction.assert_not_called()
 
     def test_works_with_is_iq_handler(self):
         @asyncio.coroutine

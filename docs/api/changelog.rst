@@ -55,6 +55,29 @@ Version 0.10
 
 * Implement :func:`aioxmpp.callbacks.first_signal`.
 
+* Support for passing a function returning an awaitable as callback to
+  :meth:`aioxmpp.stream.StanzaStream.register_iq_request_coro`. In contrast
+  to coroutines, a callback function can exploit the strong ordering guarantee
+  of the XMPP XML Stream.
+
+* Support for passing a callback function to
+  :meth:`aioxmpp.stream.StanzaStream.send` which is invoked on responses to an
+  IQ request sent through :meth:`~aioxmpp.stream.StanzaStream.send`. In contrast
+  to awaiting the result of :meth:`~aioxmpp.stream.StanzaStream.send`, the
+  callback can exploit the strong ordering guarantee of the XMPP XML Stream.
+
+* *Deprecation*: The name
+  :meth:`aioxmpp.stream.StanzaStream.register_iq_request_coro` is deprecated
+  in favour of :meth:`~aioxmpp.stream.StanzaStream.register_iq_request_handler`.
+  The old alias persists, but will be removed with the release of 1.0. Using
+  the old alias emits a warning.
+
+  Likewise, :meth:`~aioxmpp.stream.StanzaStream.unregister_iq_request_coro` was
+  renamed to :meth:`~aioxmpp.stream.StanzaStream.unregister_iq_request_handler`.
+
+* The :func:`aioxmpp.service.iq_handler` decorator function now allows normal
+  functions to be decorated (in addition to coroutine functions).
+
 .. _api-changelog-0.9:
 
 Version 0.9

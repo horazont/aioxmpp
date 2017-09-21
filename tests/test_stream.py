@@ -417,13 +417,13 @@ class TestStanzaStream(StanzaStreamTestBase):
 
     @unittest.skipIf(aioxmpp.version_info >= (1, 0, 0),
                      "not applying to this version of aioxmpp")
-    def test_register_iq_request_coro_casts_enum_and_warn(self):
+    def test_register_iq_request_handler_casts_enum_and_warn(self):
         self.stream._ALLOW_ENUM_COERCION = True
         with self.assertWarnsRegex(
                 DeprecationWarning,
                 r"passing a non-enum value as type_ is deprecated and will "
                 "be invalid as of aioxmpp 1.0") as ctx:
-            self.stream.register_iq_request_coro(
+            self.stream.register_iq_request_handler(
                 "get",
                 FancyTestIQ,
                 unittest.mock.sentinel.coro,
@@ -437,31 +437,31 @@ class TestStanzaStream(StanzaStreamTestBase):
         with self.assertRaisesRegex(
                 ValueError,
                 r"only one listener is allowed per tag"):
-            self.stream.register_iq_request_coro(
+            self.stream.register_iq_request_handler(
                 structs.IQType.GET,
                 FancyTestIQ,
                 unittest.mock.sentinel.coro,
             )
 
-    def test_register_iq_request_coro_raises_on_string_type(self):
+    def test_register_iq_request_handler_raises_on_string_type(self):
         if aioxmpp.version_info < (1, 0, 0):
             self.stream._ALLOW_ENUM_COERCION = False
 
         with self.assertRaisesRegex(
                 TypeError,
                 r"type_ must be IQType, got .*"):
-            self.stream.register_iq_request_coro(
+            self.stream.register_iq_request_handler(
                 "get",
                 FancyTestIQ,
                 unittest.mock.sentinel.coro,
             )
 
-    def test_register_iq_request_coro_does_not_warn_on_enum(self):
+    def test_register_iq_request_handler_does_not_warn_on_enum(self):
         self.stream._ALLOW_ENUM_COERCION = True
 
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
-            self.stream.register_iq_request_coro(
+            self.stream.register_iq_request_handler(
                 structs.IQType.GET,
                 FancyTestIQ,
                 unittest.mock.sentinel.coro,
@@ -469,12 +469,12 @@ class TestStanzaStream(StanzaStreamTestBase):
 
         self.assertFalse(w)
 
-    def test_register_iq_request_coro_rejects_duplicate_registration(self):
+    def test_register_iq_request_handler_rejects_duplicate_registration(self):
         @asyncio.coroutine
         def handle_request(stanza):
             pass
 
-        self.stream.register_iq_request_coro(
+        self.stream.register_iq_request_handler(
             structs.IQType.GET,
             FancyTestIQ,
             handle_request)
@@ -484,15 +484,15 @@ class TestStanzaStream(StanzaStreamTestBase):
             pass
 
         with self.assertRaises(ValueError):
-            self.stream.register_iq_request_coro(
+            self.stream.register_iq_request_handler(
                 structs.IQType.GET,
                 FancyTestIQ,
                 handle_request)
 
     @unittest.skipIf(aioxmpp.version_info >= (1, 0, 0),
                      "not applying to this version of aioxmpp")
-    def test_unregister_iq_request_coro_casts_enum_and_warn(self):
-        self.stream.register_iq_request_coro(
+    def test_unregister_iq_request_handler_casts_enum_and_warn(self):
+        self.stream.register_iq_request_handler(
             structs.IQType.GET,
             FancyTestIQ,
             unittest.mock.sentinel.coro,
@@ -503,7 +503,7 @@ class TestStanzaStream(StanzaStreamTestBase):
                 DeprecationWarning,
                 r"passing a non-enum value as type_ is deprecated and will "
                 "be invalid as of aioxmpp 1.0") as ctx:
-            self.stream.unregister_iq_request_coro(
+            self.stream.unregister_iq_request_handler(
                 "get",
                 FancyTestIQ,
             )
@@ -514,13 +514,13 @@ class TestStanzaStream(StanzaStreamTestBase):
         )
 
         with self.assertRaises(KeyError):
-            self.stream.unregister_iq_request_coro(
+            self.stream.unregister_iq_request_handler(
                 structs.IQType.GET,
                 FancyTestIQ,
             )
 
-    def test_unregister_iq_request_coro_raises_on_string_type(self):
-        self.stream.register_iq_request_coro(
+    def test_unregister_iq_request_handler_raises_on_string_type(self):
+        self.stream.register_iq_request_handler(
             structs.IQType.GET,
             FancyTestIQ,
             unittest.mock.sentinel.coro,
@@ -532,13 +532,13 @@ class TestStanzaStream(StanzaStreamTestBase):
         with self.assertRaisesRegex(
                 TypeError,
                 r"type_ must be IQType, got .*"):
-            self.stream.unregister_iq_request_coro(
+            self.stream.unregister_iq_request_handler(
                 "get",
                 FancyTestIQ,
             )
 
-    def test_unregister_iq_request_coro_does_not_warn_on_enum(self):
-        self.stream.register_iq_request_coro(
+    def test_unregister_iq_request_handler_does_not_warn_on_enum(self):
+        self.stream.register_iq_request_handler(
             structs.IQType.GET,
             FancyTestIQ,
             unittest.mock.sentinel.coro,
@@ -548,17 +548,17 @@ class TestStanzaStream(StanzaStreamTestBase):
 
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
-            self.stream.unregister_iq_request_coro(
+            self.stream.unregister_iq_request_handler(
                 structs.IQType.GET,
                 FancyTestIQ,
             )
 
         self.assertFalse(w)
 
-    def test_register_iq_request_coro_raises_on_response_IQType(self):
+    def test_register_iq_request_handler_raises_on_response_IQType(self):
         for member in structs.IQType:
             if member.is_request:
-                self.stream.register_iq_request_coro(
+                self.stream.register_iq_request_handler(
                     member,
                     FancyTestIQ,
                     unittest.mock.sentinel.coro,
@@ -567,7 +567,7 @@ class TestStanzaStream(StanzaStreamTestBase):
                 with self.assertRaisesRegex(
                         ValueError,
                         r".* is not a request IQType"):
-                    self.stream.register_iq_request_coro(
+                    self.stream.register_iq_request_handler(
                         member,
                         FancyTestIQ,
                         unittest.mock.sentinel.coro,
@@ -585,7 +585,36 @@ class TestStanzaStream(StanzaStreamTestBase):
             response_payload = FancyTestIQ()
             return response_payload
 
-        self.stream.register_iq_request_coro(
+        self.stream.register_iq_request_handler(
+            structs.IQType.GET,
+            FancyTestIQ,
+            handle_request)
+        self.stream.start(self.xmlstream)
+        self.stream.recv_stanza(iq)
+
+        response_iq = run_coroutine(self.sent_stanzas.get())
+        self.assertEqual(iq.to, response_iq.from_)
+        self.assertEqual(iq.from_, response_iq.to)
+        self.assertEqual(iq.id_, response_iq.id_)
+        self.assertEqual(structs.IQType.RESULT, response_iq.type_)
+        self.assertIs(response_payload, response_iq.payload)
+
+        self.stream.stop()
+
+    def test_run_iq_request_func_with_awaitable_result(self):
+        iq = make_test_iq()
+        iq.autoset_id()
+
+        response_payload, response_iq = None, None
+
+        def handle_request(stanza):
+            nonlocal response_payload
+            response_payload = FancyTestIQ()
+            fut = asyncio.Future()
+            fut.set_result(response_payload)
+            return fut
+
+        self.stream.register_iq_request_handler(
             structs.IQType.GET,
             FancyTestIQ,
             handle_request)
@@ -630,7 +659,35 @@ class TestStanzaStream(StanzaStreamTestBase):
         def handle_request(stanza):
             raise Exception("foo")
 
-        self.stream.register_iq_request_coro(
+        self.stream.register_iq_request_handler(
+            structs.IQType.GET,
+            FancyTestIQ,
+            handle_request)
+        self.stream.start(self.xmlstream)
+        self.stream.recv_stanza(iq)
+
+        response_got = run_coroutine(self.sent_stanzas.get())
+        self.assertEqual(
+            structs.IQType.ERROR,
+            response_got.type_
+        )
+        self.assertEqual(
+            (namespaces.stanzas, "undefined-condition"),
+            response_got.error.condition
+        )
+
+        self.stream.stop()
+
+    def test_run_iq_request_func_with_generic_exception(self):
+        iq = make_test_iq()
+        iq.autoset_id()
+
+        response_got = None
+
+        def handle_request(stanza):
+            raise Exception("foo")
+
+        self.stream.register_iq_request_handler(
             structs.IQType.GET,
             FancyTestIQ,
             handle_request)
@@ -662,7 +719,7 @@ class TestStanzaStream(StanzaStreamTestBase):
                 text="foobarbaz",
             )
 
-        self.stream.register_iq_request_coro(
+        self.stream.register_iq_request_handler(
             structs.IQType.GET,
             FancyTestIQ,
             handle_request)
@@ -685,13 +742,48 @@ class TestStanzaStream(StanzaStreamTestBase):
 
         self.stream.stop()
 
-    def test_unregister_iq_request_coro_raises_if_none_was_registered(self):
+    def test_run_iq_request_func_with_xmpp_exception(self):
+        iq = make_test_iq()
+        iq.autoset_id()
+
+        response_got = None
+
+        def handle_request(stanza):
+            raise errors.XMPPWaitError(
+                condition=(namespaces.stanzas, "gone"),
+                text="foobarbaz",
+            )
+
+        self.stream.register_iq_request_handler(
+            structs.IQType.GET,
+            FancyTestIQ,
+            handle_request)
+        self.stream.start(self.xmlstream)
+        self.stream.recv_stanza(iq)
+
+        response_got = run_coroutine(self.sent_stanzas.get())
+        self.assertEqual(
+            structs.IQType.ERROR,
+            response_got.type_
+        )
+        self.assertEqual(
+            (namespaces.stanzas, "gone"),
+            response_got.error.condition
+        )
+        self.assertEqual(
+            "foobarbaz",
+            response_got.error.text
+        )
+
+        self.stream.stop()
+
+    def test_unregister_iq_request_handler_raises_if_none_was_registered(self):
         with self.assertRaises(KeyError):
-            self.stream.unregister_iq_request_coro(
+            self.stream.unregister_iq_request_handler(
                 structs.IQType.GET,
                 FancyTestIQ)
 
-    def test_unregister_iq_request_coro(self):
+    def test_unregister_iq_request_handler(self):
         iq = make_test_iq()
         iq.autoset_id()
 
@@ -702,11 +794,11 @@ class TestStanzaStream(StanzaStreamTestBase):
             nonlocal recvd
             recvd = stanza
 
-        self.stream.register_iq_request_coro(
+        self.stream.register_iq_request_handler(
             structs.IQType.GET,
             FancyTestIQ,
             handle_request)
-        self.stream.unregister_iq_request_coro(
+        self.stream.unregister_iq_request_handler(
             structs.IQType.GET,
             FancyTestIQ)
 
@@ -1399,7 +1491,7 @@ class TestStanzaStream(StanzaStreamTestBase):
                 exc = inner_exc
                 raise
 
-        self.stream.register_iq_request_coro(
+        self.stream.register_iq_request_handler(
             structs.IQType.GET,
             FancyTestIQ,
             coro,
@@ -1433,7 +1525,7 @@ class TestStanzaStream(StanzaStreamTestBase):
                 exc = inner_exc
                 raise
 
-        self.stream.register_iq_request_coro(
+        self.stream.register_iq_request_handler(
             structs.IQType.GET,
             FancyTestIQ,
             coro,
@@ -2936,8 +3028,8 @@ class TestStanzaStream(StanzaStreamTestBase):
 
             stack.enter_context(unittest.mock.patch.object(
                 self.stream,
-                "register_iq_response_future",
-                new=base.register_iq_response_future,
+                "_iq_response_map",
+                new=base.iq_response_map,
             ))
 
             task = asyncio.async(self.stream.send(iq))
@@ -2945,14 +3037,13 @@ class TestStanzaStream(StanzaStreamTestBase):
 
             self.assertFalse(task.done())
             base.enqueue.assert_called_with(unittest.mock.ANY)
-            base.register_iq_response_future.assert_called_once_with(
-                iq.to,
-                iq.id_,
+            base.iq_response_map.add_listener.assert_called_once_with(
+                (iq.to, iq.id_),
                 unittest.mock.ANY,
             )
 
-            _, (_, _, response_fut), _ = \
-                base.register_iq_response_future.mock_calls[0]
+            _, (_, listener), _ = \
+                base.iq_response_map.add_listener.mock_calls[0]
 
             stanza_fut.set_result(None)
 
@@ -2960,7 +3051,7 @@ class TestStanzaStream(StanzaStreamTestBase):
 
             self.assertFalse(task.done())
 
-            response_fut.set_result(response)
+            listener.data(response)
 
             payload = run_coroutine(task)
 
@@ -2984,8 +3075,8 @@ class TestStanzaStream(StanzaStreamTestBase):
 
             stack.enter_context(unittest.mock.patch.object(
                 self.stream,
-                "register_iq_response_future",
-                new=base.register_iq_response_future,
+                "_iq_response_map",
+                new=base.iq_response_map,
             ))
 
             task = asyncio.async(self.stream.send(iq))
@@ -2993,14 +3084,13 @@ class TestStanzaStream(StanzaStreamTestBase):
 
             self.assertFalse(task.done())
             base.enqueue.assert_called_with(unittest.mock.ANY)
-            base.register_iq_response_future.assert_called_once_with(
-                iq.to,
-                iq.id_,
+            base.iq_response_map.add_listener.assert_called_once_with(
+                (iq.to, iq.id_),
                 unittest.mock.ANY,
             )
 
-            _, (_, _, response_fut), _ = \
-                base.register_iq_response_future.mock_calls[0]
+            _, (_, listener), _ = \
+                base.iq_response_map.add_listener.mock_calls[0]
 
             stanza_fut.set_result(None)
 
@@ -3008,11 +3098,67 @@ class TestStanzaStream(StanzaStreamTestBase):
 
             self.assertFalse(task.done())
 
-            response_fut.set_exception(exc)
+            listener.error(exc)
 
             with self.assertRaises(Exception) as ctx:
                 run_coroutine(task)
             self.assertIs(ctx.exception, exc)
+
+    def test_send_raises_stanza_error_from_reply(self):
+        iq = make_test_iq()
+        iq.autoset_id()
+        reply = iq.make_reply(type_=structs.IQType.ERROR)
+        reply.error = stanza.Error(
+            condition=(namespaces.stanzas, "remote-server-not-found"),
+            text="foo",
+        )
+
+        exc = Exception()
+
+        stanza_fut = asyncio.Future()
+
+        base = unittest.mock.Mock()
+        base.enqueue.return_value = stanza_fut
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(unittest.mock.patch.object(
+                self.stream,
+                "enqueue",
+                new=base.enqueue
+            ))
+
+            stack.enter_context(unittest.mock.patch.object(
+                self.stream,
+                "_iq_response_map",
+                new=base.iq_response_map,
+            ))
+
+            task = asyncio.async(self.stream.send(iq))
+            run_coroutine(asyncio.sleep(0.01))
+
+            self.assertFalse(task.done())
+            base.enqueue.assert_called_with(unittest.mock.ANY)
+            base.iq_response_map.add_listener.assert_called_once_with(
+                (iq.to, iq.id_),
+                unittest.mock.ANY,
+            )
+
+            _, (_, listener), _ = \
+                base.iq_response_map.add_listener.mock_calls[0]
+
+            stanza_fut.set_result(None)
+
+            run_coroutine(asyncio.sleep(0.01))
+
+            self.assertFalse(task.done())
+
+            listener.data(reply)
+
+            with self.assertRaises(errors.XMPPCancelError) as ctx:
+                run_coroutine(task)
+
+            self.assertEqual(ctx.exception.condition,
+                             (namespaces.stanzas, "remote-server-not-found"))
+            self.assertEqual(ctx.exception.text, "foo")
 
     def test_send_timeout_affects_iq_reply(self):
         iq = make_test_iq()
@@ -3028,32 +3174,18 @@ class TestStanzaStream(StanzaStreamTestBase):
                 new=base.enqueue
             ))
 
-            stack.enter_context(unittest.mock.patch.object(
-                self.stream,
-                "register_iq_response_future",
-                new=base.register_iq_response_future,
-            ))
-
             task = asyncio.async(self.stream.send(iq, timeout=0.001))
             run_coroutine(asyncio.sleep(0.01))
 
             self.assertFalse(task.done())
             base.enqueue.assert_called_with(unittest.mock.ANY)
-            base.register_iq_response_future.assert_called_once_with(
-                iq.to,
-                iq.id_,
-                unittest.mock.ANY,
-            )
-
-            _, (_, _, response_fut), _ = \
-                base.register_iq_response_future.mock_calls[0]
 
             stanza_fut.set_result(None)
 
             with self.assertRaises(TimeoutError):
                 run_coroutine(task)
 
-    def test_send_iq_cancels_response_future_if_enqueue_fails(self):
+    def test_send_invalidates_listener_if_enqueue_fails(self):
         iq = make_test_iq()
         exc = Exception()
 
@@ -3070,8 +3202,8 @@ class TestStanzaStream(StanzaStreamTestBase):
 
             stack.enter_context(unittest.mock.patch.object(
                 self.stream,
-                "register_iq_response_future",
-                new=base.register_iq_response_future,
+                "_iq_response_map",
+                new=base.iq_response_map,
             ))
 
             task = asyncio.async(self.stream.send(iq, timeout=0.001))
@@ -3079,14 +3211,13 @@ class TestStanzaStream(StanzaStreamTestBase):
 
             self.assertFalse(task.done())
             base.enqueue.assert_called_with(unittest.mock.ANY)
-            base.register_iq_response_future.assert_called_once_with(
-                iq.to,
-                iq.id_,
+            base.iq_response_map.add_listener.assert_called_once_with(
+                (iq.to, iq.id_),
                 unittest.mock.ANY,
             )
 
-            _, (_, _, response_fut), _ = \
-                base.register_iq_response_future.mock_calls[0]
+            _, (_, listener), _ = \
+                base.iq_response_map.add_listener.mock_calls[0]
 
             stanza_fut.set_exception(exc)
 
@@ -3095,7 +3226,7 @@ class TestStanzaStream(StanzaStreamTestBase):
 
             self.assertIs(ctx.exception, exc)
 
-            self.assertTrue(response_fut.cancelled())
+            self.assertFalse(listener.is_valid())
 
     @unittest.skipUnless(CAN_AWAIT_STANZA_TOKEN,
                          "requires Python 3.5+")
@@ -3249,6 +3380,266 @@ class TestStanzaStream(StanzaStreamTestBase):
             "test_stream.py",
             ctx.filename,
         )
+
+    def test_send_rejects_cb_argument_for_messages(self):
+        msg = make_test_message()
+
+        self.stream.start(self.xmlstream)
+
+        with self.assertRaisesRegex(
+                ValueError,
+                r"cb not supported with non-IQ non-request stanzas"):
+            run_coroutine(self.stream.send(msg, cb=unittest.mock.sentinel.cb))
+
+        self.assertTrue(self.sent_stanzas.empty())
+
+    def test_send_rejects_cb_argument_for_presences(self):
+        pres = make_test_presence()
+
+        self.stream.start(self.xmlstream)
+
+        with self.assertRaisesRegex(
+                ValueError,
+                r"cb not supported with non-IQ non-request stanzas"):
+            run_coroutine(self.stream.send(pres, cb=unittest.mock.sentinel.cb))
+
+        self.assertTrue(self.sent_stanzas.empty())
+
+    def test_send_rejects_cb_argument_for_iq_responses(self):
+        iq = make_test_iq(type_=structs.IQType.RESULT)
+
+        self.stream.start(self.xmlstream)
+
+        with self.assertRaisesRegex(
+                ValueError,
+                r"cb not supported with non-IQ non-request stanzas"):
+            run_coroutine(self.stream.send(iq, cb=unittest.mock.sentinel.cb))
+
+        self.assertTrue(self.sent_stanzas.empty())
+
+    def test_send_awaits_cb_result_and_returns_result(self):
+        cb = unittest.mock.Mock()
+        cb.return_value = asyncio.Future()
+
+        iq = make_test_iq()
+        iq.autoset_id()
+
+        self.stream.start(self.xmlstream)
+
+        task = asyncio.async(self.stream.send(iq, cb=cb))
+
+        run_coroutine(self.sent_stanzas.get())
+        self.assertFalse(task.done())
+        cb.assert_not_called()
+
+        reply = iq.make_reply(type_=structs.IQType.RESULT)
+
+        self.stream.recv_stanza(reply)
+
+        run_coroutine(asyncio.sleep(0))
+
+        self.assertFalse(task.done())
+        cb.assert_called_once_with(reply)
+
+        cb.return_value.set_result(unittest.mock.sentinel.result)
+
+        result = run_coroutine(task)
+
+        self.assertEqual(
+            result,
+            unittest.mock.sentinel.result,
+        )
+
+    def test_send_awaits_cb_result_and_reraises_exception(self):
+        class FooException(Exception):
+            pass
+
+        exc = FooException()
+
+        cb = unittest.mock.Mock()
+        cb.return_value = asyncio.Future()
+
+        iq = make_test_iq()
+        iq.autoset_id()
+
+        self.stream.start(self.xmlstream)
+
+        task = asyncio.async(self.stream.send(iq, cb=cb))
+
+        run_coroutine(self.sent_stanzas.get())
+        self.assertFalse(task.done())
+        cb.assert_not_called()
+
+        reply = iq.make_reply(type_=structs.IQType.RESULT)
+
+        self.stream.recv_stanza(reply)
+
+        run_coroutine(asyncio.sleep(0))
+
+        self.assertFalse(task.done())
+        cb.assert_called_once_with(reply)
+
+        cb.return_value.set_exception(exc)
+
+        with self.assertRaises(FooException):
+            run_coroutine(task)
+
+    def test_send_reraises_exception_from_cb(self):
+        class FooException(Exception):
+            pass
+
+        exc = FooException()
+
+        cb = unittest.mock.Mock()
+        cb.side_effect = exc
+
+        iq = make_test_iq()
+        iq.autoset_id()
+
+        self.stream.start(self.xmlstream)
+
+        task = asyncio.async(self.stream.send(iq, cb=cb))
+
+        run_coroutine(self.sent_stanzas.get())
+        self.assertFalse(task.done())
+        cb.assert_not_called()
+
+        reply = iq.make_reply(type_=structs.IQType.RESULT)
+
+        self.stream.recv_stanza(reply)
+
+        run_coroutine(asyncio.sleep(0))
+
+        cb.assert_called_once_with(reply)
+        self.assertTrue(task.done())
+
+        with self.assertRaises(FooException):
+            run_coroutine(task)
+
+    def test_send_awaits_cb_result_and_returns_result_for_stanza_errors(self):
+        cb = unittest.mock.Mock()
+        cb.return_value = asyncio.Future()
+
+        iq = make_test_iq()
+        iq.autoset_id()
+
+        self.stream.start(self.xmlstream)
+
+        task = asyncio.async(self.stream.send(iq, cb=cb))
+
+        run_coroutine(self.sent_stanzas.get())
+        self.assertFalse(task.done())
+        cb.assert_not_called()
+
+        reply = iq.make_reply(type_=structs.IQType.ERROR)
+
+        self.stream.recv_stanza(reply)
+
+        run_coroutine(asyncio.sleep(0))
+
+        self.assertFalse(task.done())
+        cb.assert_called_once_with(reply)
+
+        cb.return_value.set_result(unittest.mock.sentinel.result)
+
+        result = run_coroutine(task)
+
+        self.assertEqual(
+            result,
+            unittest.mock.sentinel.result,
+        )
+
+    def test_send_returns_normal_result_if_cb_returns_None(self):
+        cb = unittest.mock.Mock()
+        cb.return_value = None
+
+        iq = make_test_iq()
+        iq.autoset_id()
+
+        self.stream.start(self.xmlstream)
+
+        task = asyncio.async(self.stream.send(iq, cb=cb))
+
+        run_coroutine(self.sent_stanzas.get())
+        self.assertFalse(task.done())
+        cb.assert_not_called()
+
+        reply = iq.make_reply(type_=structs.IQType.RESULT)
+        reply.payload = FancyTestIQ()
+
+        self.stream.recv_stanza(reply)
+
+        run_coroutine(asyncio.sleep(0))
+
+        self.assertTrue(task.done())
+        cb.assert_called_once_with(reply)
+
+        result = run_coroutine(task)
+
+        self.assertIs(
+            result,
+            reply.payload,
+        )
+
+    @unittest.skipIf(aioxmpp.version_info >= (1, 0, 0),
+                     "not applying to this version of aioxmpp")
+    def test_register_iq_request_coro_warns_and_forwards_to_handler(self):
+        with contextlib.ExitStack() as stack:
+            handler = stack.enter_context(unittest.mock.patch.object(
+                self.stream,
+                "register_iq_request_handler",
+            ))
+
+            stack.enter_context(
+                self.assertWarnsRegex(
+                    DeprecationWarning,
+                    r"register_iq_request_coro is a deprecated alias to "
+                    r"register_iq_request_handler and will be removed in "
+                    r"aioxmpp 1.0")
+            )
+
+            result = self.stream.register_iq_request_coro(
+                unittest.mock.sentinel.type_,
+                unittest.mock.sentinel.payload_class,
+                unittest.mock.sentinel.coro,
+            )
+
+        handler.assert_called_once_with(
+            unittest.mock.sentinel.type_,
+            unittest.mock.sentinel.payload_class,
+            unittest.mock.sentinel.coro,
+        )
+
+        self.assertEqual(result, handler())
+
+    @unittest.skipIf(aioxmpp.version_info >= (1, 0, 0),
+                     "not applying to this version of aioxmpp")
+    def test_unregister_iq_request_coro_warns_and_forwards_to_handler(self):
+        with contextlib.ExitStack() as stack:
+            handler = stack.enter_context(unittest.mock.patch.object(
+                self.stream,
+                "unregister_iq_request_handler",
+            ))
+
+            stack.enter_context(
+                self.assertWarnsRegex(
+                    DeprecationWarning,
+                    r"unregister_iq_request_coro is a deprecated alias to "
+                    r"unregister_iq_request_handler and will be removed in "
+                    r"aioxmpp 1.0")
+            )
+
+            result = self.stream.unregister_iq_request_coro(
+                unittest.mock.sentinel.type_,
+                unittest.mock.sentinel.payload_class,
+            )
+
+        handler.assert_called_once_with(
+            unittest.mock.sentinel.type_,
+            unittest.mock.sentinel.payload_class,
+        )
+
+        self.assertEqual(result, handler())
 
 
 class TestStanzaStreamSM(StanzaStreamTestBase):
@@ -5319,7 +5710,7 @@ class Testiq_handler(unittest.TestCase):
     def test_enter_registers_coroutine(self):
         self.cm.__enter__()
 
-        self.stream.register_iq_request_coro.assert_called_with(
+        self.stream.register_iq_request_handler.assert_called_with(
             unittest.mock.sentinel.iqtype,
             unittest.mock.sentinel.payload,
             unittest.mock.sentinel.coro,
@@ -5331,7 +5722,7 @@ class Testiq_handler(unittest.TestCase):
 
         self.cm.__exit__(None, None, None)
 
-        self.stream.unregister_iq_request_coro.assert_called_with(
+        self.stream.unregister_iq_request_handler.assert_called_with(
             unittest.mock.sentinel.iqtype,
             unittest.mock.sentinel.payload,
         )
@@ -5348,7 +5739,7 @@ class Testiq_handler(unittest.TestCase):
 
         result = self.cm.__exit__(*info)
 
-        self.stream.unregister_iq_request_coro.assert_called_with(
+        self.stream.unregister_iq_request_handler.assert_called_with(
             unittest.mock.sentinel.iqtype,
             unittest.mock.sentinel.payload,
         )

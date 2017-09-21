@@ -152,6 +152,10 @@ class AsyncTagListener(TagListener):
 
 
 class OneshotTagListener(TagListener):
+    def __init__(self, ondata, onerror=None, **kwargs):
+        super().__init__(ondata, onerror=onerror, **kwargs)
+        self._cancelled = False
+
     def data(self, data):
         super().data(data)
         return True
@@ -159,6 +163,12 @@ class OneshotTagListener(TagListener):
     def error(self, exc):
         super().error(exc)
         return True
+
+    def cancel(self):
+        self._cancelled = True
+
+    def is_valid(self):
+        return not self._cancelled and super().is_valid()
 
 
 class OneshotAsyncTagListener(OneshotTagListener, AsyncTagListener):

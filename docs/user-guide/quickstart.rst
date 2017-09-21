@@ -228,7 +228,7 @@ IQ request handlers, instead of normal functions::
   async def request_handler(request):
       print(request)
 
-  client.stream.register_iq_request_coro(
+  client.stream.register_iq_request_handler(
       aioxmpp.IQType.GET,
       aioxmpp.disco.xso.InfoQuery,
       request_handler,
@@ -241,7 +241,7 @@ exception will be converted to a proper ``"error"`` IQ response.
 
 Relevant documentation:
 
-* :meth:`~aioxmpp.stream.StanzaStream.register_iq_request_coro`
+* :meth:`~aioxmpp.stream.StanzaStream.register_iq_request_handler`
 * :class:`aioxmpp.IQ`
 * :class:`aioxmpp.errors.XMPPError`
 
@@ -428,7 +428,7 @@ with``)::
       result.os = "MFHBμKOS (My Fancy HomeBrew Micro Kernel Operating System)"
       return result
 
-  client.stream.register_iq_request_coro(
+  client.stream.register_iq_request_handler(
       aioxmpp.IQType.GET,
       Query,
       handler,
@@ -451,7 +451,7 @@ for the ``"result"`` IQ or raise an exception (which would be converted to an
 
 Relevant documentation:
 
-* :meth:`aioxmpp.stream.StanzaStream.register_iq_request_coro`
+* :meth:`aioxmpp.stream.StanzaStream.register_iq_request_handler`
 * :meth:`aioxmpp.IQ.as_payload_class`
 
 

@@ -237,6 +237,25 @@ class TestTagDispatcher(unittest.TestCase):
             mock.mock_calls
         )
 
+    def test_unicast_to_cancelled_oneshot(self):
+        mock = unittest.mock.Mock()
+        obj = object()
+
+        l = OneshotTagListener(mock)
+
+        nh = TagDispatcher()
+        nh.add_listener("tag", l)
+
+        l.cancel()
+
+        with self.assertRaises(KeyError):
+            nh.unicast("tag", obj)
+
+        self.assertSequenceEqual(
+            [],
+            mock.mock_calls
+        )
+
     def test_unicast_removes_for_true_result(self):
         mock = unittest.mock.Mock()
         mock.return_value = True
@@ -268,6 +287,28 @@ class TestTagDispatcher(unittest.TestCase):
             [
                 unittest.mock.call(obj)
             ],
+            error.mock_calls
+        )
+        self.assertFalse(data.mock_calls)
+
+    def test_broadcast_error_to_cancelled_oneshot(self):
+        data = unittest.mock.Mock()
+        error = unittest.mock.Mock()
+        obj = object()
+
+        l = OneshotTagListener(data, error)
+
+        nh = TagDispatcher()
+        nh.add_listener("tag", l)
+
+        l.cancel()
+
+        nh.broadcast_error(obj)
+        with self.assertRaises(KeyError):
+            nh.unicast("tag", obj)
+
+        self.assertSequenceEqual(
+            [],
             error.mock_calls
         )
         self.assertFalse(data.mock_calls)

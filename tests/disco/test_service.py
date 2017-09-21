@@ -614,12 +614,12 @@ class TestDiscoServer(unittest.TestCase):
 
         self.assertCountEqual(
             [
-                unittest.mock.call.stream.register_iq_request_coro(
+                unittest.mock.call.stream.register_iq_request_handler(
                     structs.IQType.GET,
                     disco_xso.InfoQuery,
                     s.handle_info_request
                 ),
-                unittest.mock.call.stream.register_iq_request_coro(
+                unittest.mock.call.stream.register_iq_request_handler(
                     structs.IQType.GET,
                     disco_xso.ItemsQuery,
                     s.handle_items_request
@@ -632,11 +632,11 @@ class TestDiscoServer(unittest.TestCase):
         run_coroutine(self.s.shutdown())
         self.assertCountEqual(
             [
-                unittest.mock.call.stream.unregister_iq_request_coro(
+                unittest.mock.call.stream.unregister_iq_request_handler(
                     structs.IQType.GET,
                     disco_xso.InfoQuery
                 ),
-                unittest.mock.call.stream.unregister_iq_request_coro(
+                unittest.mock.call.stream.unregister_iq_request_handler(
                     structs.IQType.GET,
                     disco_xso.ItemsQuery
                 ),

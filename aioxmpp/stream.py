@@ -445,6 +445,20 @@ class StanzaStream:
 
     Receiving stanzas:
 
+    .. automethod:: register_iq_request_handler
+
+    .. automethod:: unregister_iq_request_handler
+
+    .. automethod:: register_message_callback
+
+    .. automethod:: unregister_message_callback
+
+    .. automethod:: register_presence_callback
+
+    .. automethod:: unregister_presence_callback
+
+    Rarely used registries / deprecated aliases:
+
     .. automethod:: register_iq_request_coro
 
     .. automethod:: unregister_iq_request_coro
@@ -454,14 +468,6 @@ class StanzaStream:
     .. automethod:: register_iq_response_callback
 
     .. automethod:: unregister_iq_response
-
-    .. automethod:: register_message_callback
-
-    .. automethod:: unregister_message_callback
-
-    .. automethod:: register_presence_callback
-
-    .. automethod:: unregister_presence_callback
 
     Inbound stanza filters allow to hook into the stanza processing by
     replacing, modifying or otherwise processing stanza contents *before* the
@@ -911,7 +917,13 @@ class StanzaStream:
                 self.enqueue(response)
                 return
 
-            task = asyncio.async(coro(stanza_obj))
+            try:
+                awaitable = coro(stanza_obj)
+            except Exception as exc:
+                awaitable = asyncio.Future()
+                awaitable.set_exception(exc)
+
+            task = asyncio.async(awaitable)
             task.add_done_callback(
                 functools.partial(
                     self._iq_request_coro_done,
@@ -1318,31 +1330,50 @@ class StanzaStream:
 
     def register_iq_request_coro(self, type_, payload_cls, coro):
         """
-        Register a coroutine to run when an IQ request is received.
+        Alias of :meth:`register_iq_request_handler`.
+
+        .. deprecated:: 0.10
+
+            This alias will be removed in version 1.0.
+        """
+        warnings.warn(
+            "register_iq_request_coro is a deprecated alias to "
+            "register_iq_request_handler and will be removed in aioxmpp 1.0",
+            DeprecationWarning,
+            stacklevel=2)
+        return self.register_iq_request_handler(type_, payload_cls, coro)
+
+    def register_iq_request_handler(self, type_, payload_cls, cb):
+        """
+        Register a coroutine function or a function returning an awaitable to
+        run when an IQ request is received.
 
         :param type_: IQ type to react to (must be a request type).
         :type type_: :class:`~aioxmpp.IQType`
-        :param payload_cls: Payload class to react to (subclass of :class:`~xso.XSO`)
+        :param payload_cls: Payload class to react to (subclass of
+            :class:`~xso.XSO`)
         :type payload_cls: :class:`~.XMLStreamClass`
-        :param coro: Coroutine to run
+        :param cb: Function or coroutine function to invoke
         :raises ValueError: if there is already a coroutine registered for this
-                            targe
+                            target
         :raises ValueError: if `type_` is not a request IQ type
         :raises ValueError: if `type_` is not a valid
                             :class:`~.IQType` (and cannot be cast to a
                             :class:`~.IQType`)
 
-        The coroutine `coro` will be spawned whenever an IQ stanza with the
-        given `type_` and payload being an instance of the `payload_cls` is
-        received. The coroutine must return a valid value for the
-        :attr:`.IQ.payload` attribute. The value will be set as the
-        payload attribute value of an IQ response (with type
-        :attr:`~.IQType.RESULT`) which is generated and sent by the stream.
+        The callback `cb` will be called whenever an IQ stanza with the given
+        `type_` and payload being an instance of the `payload_cls` is received.
 
-        If the coroutine raises an exception, it will be converted to a
-        :class:`~.stanza.Error` object. That error object is then used as
-        payload for an IQ response (with type :attr:`~.IQType.ERROR`) which is
-        generated and sent by the stream.
+        The callback must either be a coroutine function or otherwise return an
+        awaitable. The awaitable must evaluate to a valid value for the
+        :attr:`.IQ.payload` attribute. That value will be set as the payload
+        attribute value of an IQ response (with type :attr:`~.IQType.RESULT`)
+        which is generated and sent by the stream.
+
+        If the awaitable or the function raises an exception, it will be
+        converted to a :class:`~.stanza.Error` object. That error object is
+        then used as payload for an IQ response (with type
+        :attr:`~.IQType.ERROR`) which is generated and sent by the stream.
 
         If the exception is a subclass of :class:`aioxmpp.errors.XMPPError`, it
         is converted to an :class:`~.stanza.Error` instance directly.
@@ -1353,6 +1384,28 @@ class StanzaStream:
         :meth:`~.IQ.as_payload_class`. Otherwise, the payload will
         not be recognised by the stream parser and the IQ is automatically
         responded to with a ``feature-not-implemented`` error.
+
+        .. warning::
+
+            When using a coroutine function for `cb`, there is no guarantee
+            that concurrent IQ handlers and other coroutines will execute in
+            any defined order. This implies that the strong ordering guarantees
+            normally provided by XMPP XML Streams are lost when using coroutine
+            functions for `cb`. For this reason, the use of non-coroutine
+            functions is allowed.
+
+        .. note::
+
+            Using a non-coroutine function for `cb` will generally lead to
+            less readable code. For the sake of readability, it is recommended
+            prefer coroutine functions.
+
+        .. versionchanged:: 0.10
+
+            Accepts an awaitable as last argument in addition to coroutine
+            functions.
+
+            Renamed from :meth:`register_iq_request_coro`.
 
         .. versionadded:: 0.6
 
@@ -1386,19 +1439,29 @@ class StanzaStream:
         if key in self._iq_request_map:
             raise ValueError("only one listener is allowed per tag")
 
-        self._iq_request_map[key] = coro
+        self._iq_request_map[key] = cb
         self._logger.debug(
             "iq request coroutine registered: type=%r, payload=%r",
             type_, payload_cls)
 
     def unregister_iq_request_coro(self, type_, payload_cls):
+        warnings.warn(
+            "unregister_iq_request_coro is a deprecated alias to "
+            "unregister_iq_request_handler and will be removed in aioxmpp 1.0",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.unregister_iq_request_handler(type_, payload_cls)
+
+    def unregister_iq_request_handler(self, type_, payload_cls):
         """
         Unregister a coroutine previously registered with
-        :meth:`register_iq_request_coro`.
+        :meth:`register_iq_request_handler`.
 
         :param type_: IQ type to react to (must be a request type).
         :type type_: :class:`~structs.IQType`
-        :param payload_cls: Payload class to react to (subclass of :class:`~xso.XSO`)
+        :param payload_cls: Payload class to react to (subclass of
+            :class:`~xso.XSO`)
         :type payload_cls: :class:`~.XMLStreamClass`
         :raises KeyError: if no coroutine has been registered for the given
                           ``(type_, payload_cls)`` pair
@@ -1408,6 +1471,10 @@ class StanzaStream:
 
         The match is solely made using the `type_` and `payload_cls` arguments,
         which have the same meaning as in :meth:`register_iq_request_coro`.
+
+        .. versionchanged:: 0.10
+
+            Renamed from :meth:`unregister_iq_request_coro`.
 
         .. versionchanged:: 0.7
 
@@ -2371,7 +2438,7 @@ class StanzaStream:
         yield from self.enqueue(stanza)
 
     @asyncio.coroutine
-    def send(self, stanza, *, timeout=None):
+    def send(self, stanza, *, timeout=None, cb=None):
         """
         Send a stanza.
 
@@ -2380,6 +2447,8 @@ class StanzaStream:
         :param timeout: Maximum time in seconds to wait for an IQ response, or
                         :data:`None` to disable the timeout.
         :type timeout: :class:`~numbers.Real` or :data:`None`
+        :param cb: Optional callback which is called synchronously when the
+            reply is received (IQ requests only!)
         :raise OSError: if the underlying XML stream fails and stream
                         management is not disabled.
         :raise aioxmpp.stream.DestructionRequested:
@@ -2387,7 +2456,8 @@ class StanzaStream:
            response.
         :raise aioxmpp.errors.XMPPError: if an error IQ response is received
         :raise aioxmpp.errors.ErroneousStanza: if the IQ response could not be
-                                               parsed
+            parsed
+        :raise ValueError: if `cb` is given and `stanza` is not an IQ request.
         :return: IQ response :attr:`~.IQ.payload` or :data:`None`
 
         Send the stanza and wait for it to be sent. If the stanza is an IQ
@@ -2403,14 +2473,39 @@ class StanzaStream:
         `timeout` seconds, :class:`TimeoutError` (not
         :class:`asyncio.TimeoutError`!) is raised.
 
+        If `cb` is given, `stanza` must be an IQ request (otherwise,
+        :class:`ValueError` is raised before the stanza is sent). It must be a
+        callable returning an awaitable. It receives the response stanza as
+        first and only argument. The returned awaitable is awaited by
+        :meth:`send` and the result is returned instead of the original
+        payload. `cb` is called synchronously from the stream handling loop when
+        the response is received, so it can benefit from the strong ordering
+        guarantees given by XMPP XML Streams.
+
+        The `cb` may also return :data:`None`, in which case :meth:`send` will
+        simply return the IQ payload as if `cb` was not given. Since the return
+        value of coroutine functions is awaitable, it is valid and supported to
+        pass a coroutine function as `cb`.
+
         .. warning::
 
-           Setting a timeout is recommended for IQ requests. If the IQ is sent
-           directly to the clients server for processing (i.e. if the
-           :attr:`~.IQ.to` attribute is :data:`None`), malformed responses
-           are discarded instead of raising :class:`.errors.ErroneusStanza`.
-           This is due to limitations in the :mod:`aioxmpp.xso` code, which are
-           to be fixed at some point.
+            Remember that it is an implementation detail of the event loop when
+            a coroutine is scheduled after it awaited an awaitable; this implies
+            that if the caller of :meth:`send` is merely awaiting the
+            :meth:`send` coroutine, the strong ordering guarantees of XMPP XML
+            Streams are lost.
+
+            To regain those, use the `cb` argument.
+
+        .. note::
+
+            For the sake of readability, unless you really need the strong
+            ordering guarantees, avoid the use of the `cb` argument. Avoid
+            using a coroutine function unless you really need to.
+
+        .. versionchanged:: 0.9
+
+            The `cb` argument was added.
 
         .. versionadded:: 0.8
         """
@@ -2419,20 +2514,80 @@ class StanzaStream:
                            stanza)
 
         if not isinstance(stanza, stanza_.IQ) or stanza.type_.is_response:
+            if cb is not None:
+                raise ValueError(
+                    "cb not supported with non-IQ non-request stanzas"
+                )
             yield from self.enqueue(stanza)
             return
 
+        # we use the long way with a custom listener instead of a future here
+        # to ensure that the callback is called synchronously from within the
+        # queue handling loop.
+        # we need that to ensure that the strong ordering guarantees reach the
+        # `cb` function.
+
         fut = asyncio.Future()
-        self.register_iq_response_future(
-            stanza.to,
-            stanza.id_,
-            fut,
+
+        def nested_cb(task):
+            """
+            This callback is used to handle awaitables returned by the `cb`.
+            """
+            nonlocal fut
+            if task.exception() is None:
+                fut.set_result(task.result())
+            else:
+                fut.set_exception(task.exception())
+
+        def handler_ok(stanza):
+            """
+            This handler is invoked synchronously by
+            :meth:`_process_incoming_iq` (via
+            :class:`aioxmpp.callbacks.TagDispatcher`) for response stanzas
+            (including error stanzas).
+            """
+            nonlocal fut
+            if cb is not None:
+                try:
+                    nested_fut = cb(stanza)
+                except Exception as exc:
+                    fut.set_exception(exc)
+                else:
+                    if nested_fut is not None:
+                        nested_fut.add_done_callback(nested_cb)
+                        return
+
+            # we can’t even use StanzaErrorAwareListener because we want to
+            # forward error stanzas to the cb too...
+            if stanza.type_.is_error:
+                fut.set_exception(stanza.error.to_exception())
+            else:
+                fut.set_result(stanza.payload)
+
+        def handler_error(exc):
+            """
+            This handler is invoked synchronously by
+            :meth:`_process_incoming_iq` (via
+            :class:`aioxmpp.callbacks.TagDispatcher`) for response errors (
+            such as parsing errors, connection errors, etc.).
+            """
+            nonlocal fut
+            fut.set_exception(exc)
+
+        listener = callbacks.OneshotTagListener(
+            handler_ok,
+            handler_error,
+        )
+
+        self._iq_response_map.add_listener(
+            (stanza.to, stanza.id_),
+            listener,
         )
 
         try:
             yield from self.enqueue(stanza)
-        except:
-            fut.cancel()
+        except Exception:
+            listener.cancel()
             raise
 
         if not timeout:
@@ -2445,8 +2600,7 @@ class StanzaStream:
                 )
             except asyncio.TimeoutError:
                 raise TimeoutError
-
-        return reply.payload
+        return reply
 
 
 @contextlib.contextmanager
@@ -2471,7 +2625,7 @@ def iq_handler(stream, type_, payload_cls, coro):
     .. versionadded:: 0.8
     """
 
-    stream.register_iq_request_coro(
+    stream.register_iq_request_handler(
         type_,
         payload_cls,
         coro,
@@ -2479,7 +2633,7 @@ def iq_handler(stream, type_, payload_cls, coro):
     try:
         yield
     finally:
-        stream.unregister_iq_request_coro(type_, payload_cls)
+        stream.unregister_iq_request_handler(type_, payload_cls)
 
 
 @contextlib.contextmanager

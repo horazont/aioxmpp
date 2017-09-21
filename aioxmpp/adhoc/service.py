@@ -362,7 +362,7 @@ class AdHocServer(aioxmpp.service.Service, aioxmpp.disco.Node):
 
         When a request for the command is received, `handler` is invoked. The
         semantics of `handler` are the same as for
-        :meth:`~.StanzaStream.register_iq_request_coro`. It must produce a
+        :meth:`~.StanzaStream.register_iq_request_handler`. It must produce a
         valid :class:`~.adhoc.xso.Command` response payload.
 
         If `is_allowed` is not :data:`None`, it is invoked whenever a command
