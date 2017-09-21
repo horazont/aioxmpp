@@ -2403,15 +2403,6 @@ class StanzaStream:
         `timeout` seconds, :class:`TimeoutError` (not
         :class:`asyncio.TimeoutError`!) is raised.
 
-        .. warning::
-
-           Setting a timeout is recommended for IQ requests. If the IQ is sent
-           directly to the clients server for processing (i.e. if the
-           :attr:`~.IQ.to` attribute is :data:`None`), malformed responses
-           are discarded instead of raising :class:`.errors.ErroneusStanza`.
-           This is due to limitations in the :mod:`aioxmpp.xso` code, which are
-           to be fixed at some point.
-
         .. versionadded:: 0.8
         """
         stanza.autoset_id()
