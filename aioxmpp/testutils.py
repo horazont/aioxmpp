@@ -118,15 +118,21 @@ def make_listener(instance):
 
     The children are named exactly like the signals.
     """
-    result = unittest.mock.Mock()
-    for name, obj in type(instance).__dict__.items():
-        if not isinstance(obj, callbacks.Signal):
+    result = unittest.mock.Mock([])
+    names = {
+        name
+        for type_ in type(instance).__mro__
+        for name in type_.__dict__
+    }
+    for name in names:
+        signal = getattr(instance, name)
+        if not isinstance(signal, callbacks.AdHocSignal):
             continue
-        cb = getattr(result, name)
+        cb = unittest.mock.Mock()
+        setattr(result, name, cb)
         cb.return_value = None
-        getattr(instance, name).connect(cb)
+        signal.connect(cb)
     return result
-
 
 
 class FilterMock(unittest.mock.Mock):

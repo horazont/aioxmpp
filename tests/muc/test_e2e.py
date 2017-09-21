@@ -471,7 +471,7 @@ class TestMuc(TestCase):
         secondwitch_p2p = self.secondwitch.summon(
             aioxmpp.im.p2p.Service,
         )
-        secondconv = yield from secondwitch_p2p.get_conversation(
+        secondconv = secondwitch_p2p.get_conversation(
             self.secondroom.members[1].conversation_jid
         )
 

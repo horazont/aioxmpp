@@ -386,6 +386,61 @@ class AbstractConversation(metaclass=abc.ABCMeta):
         :param new_topic: The new topic of the conversation.
         :type new_topic: :class:`.LanguageMap`
 
+    .. signal:: on_enter()
+
+        The conversation was entered.
+
+        This event is emitted up to once for a :class:`AbstractConversation`.
+
+        One of :meth:`on_enter` and :meth:`on_failure` is emitted exactly
+        once for each :class:`AbstractConversation` instance.
+
+        .. seealso::
+
+            :func:`aioxmpp.callbacks.first_signal` can be used nicely to await
+            the completion of entering a conversation::
+
+                conv = ... # let this be your conversation
+                await first_signal(conv.on_enter, conv.on_failure)
+                # await first_signal() will either return None (success) or
+                # raise the exception passed to :meth:`on_failure`.
+
+        .. note::
+
+            This and :meth:`on_failure` are the only signals which **must not**
+            receive keyword arguments, so that they continue to work with
+            :attr:`.AdHocSignal.AUTO_FUTURE` and
+            :func:`~.callbacks.first_signal`.
+
+        .. versionadded:: 0.10
+
+    .. signal:: on_failure(exc)
+
+        The conversation could not be entered.
+
+        :param exc: The exception which caused the operation to fail.
+        :type exc: :class:`Exception`
+
+        Often, `exc` will be a :class:`aioxmpp.errors.XMPPError` indicating
+        an error emitted from an involved server, such as permission problems,
+        conflicts or non-existant peers.
+
+        This signal can only be emitted instead of :meth:`on_enter` and not
+        after the room has been entered. If the conversation is terminated
+        due to a remote cause at a later point, :meth:`on_exit` is used.
+
+        One of :meth:`on_enter` and :meth:`on_failure` is emitted exactly
+        once for each :class:`AbstractConversation` instance.
+
+        .. note::
+
+            This and :meth:`on_failure` are the only signals which **must not**
+            receive keyword arguments, so that they continue to work with
+            :attr:`.AdHocSignal.AUTO_FUTURE` and
+            :func:`~.callbacks.first_signal`.
+
+        .. versionadded:: 0.10
+
     .. signal:: on_join(member, **kwargs)
 
        A new member has joined the conversation.
@@ -461,6 +516,11 @@ class AbstractConversation(metaclass=abc.ABCMeta):
     on_join = aioxmpp.callbacks.Signal()
     on_leave = aioxmpp.callbacks.Signal()
     on_exit = aioxmpp.callbacks.Signal()
+    on_failed = aioxmpp.callbacks.Signal()
+    on_nick_changed = aioxmpp.callbacks.Signal()
+    on_enter = aioxmpp.callbacks.Signal()
+    on_failure = aioxmpp.callbacks.Signal()
+    on_topic_changed = aioxmpp.callbacks.Signal()
 
     def __init__(self, service, parent=None, **kwargs):
         super().__init__(**kwargs)
@@ -769,5 +829,53 @@ class AbstractConversation(metaclass=abc.ABCMeta):
 
 
 class AbstractConversationService(metaclass=abc.ABCMeta):
+    """
+    Abstract base class for
+    :term:`Conversation Services <Conversation Service>`.
+
+    Useful implementations:
+
+    .. autosummary::
+
+        aioxmpp.im.p2p.Service
+        aioxmpp.muc.MUCClient
+
+    In general, conversation services should provide a method (*not* a coroutine
+    method) to start a conversation using the service. That method should return
+    the fresh :class:`~.AbstractConversation` object immediately and start
+    possibly needed background tasks to actually initiate the conversation. The
+    caller should use the :meth:`~.AbstractConversation.on_enter` and
+    :meth:`~.AbstractConversation.on_failure` signals to be notified of the
+    result of the join operation.
+
+    Signals:
+
+    .. signal:: on_conversation_new(conversation)
+
+        Fires when a new conversation is created in the service.
+
+        :param conversation: The new conversation.
+        :type conversation: :class:`AbstractConversation`
+
+        .. seealso::
+
+            :meth:`.ConversationService.on_conversation_added`
+                is a signal shared among all :term:`Conversation
+                Implementations <Conversation Implementation>` which gets
+                emitted whenever a new conversation is added. If you need all
+                conversations, that is the signal to listen for.
+
+    .. signal:: on_spontaneous_conversation(conversation)
+
+        Like :meth:`on_conversation_new`, but is only emitted for conversations
+        which are created without local interaction.
+
+        :param conversation: The new conversation.
+        :type conversation: :class:`AbstractConversation`
+
+        .. versionadded:: 0.10
+
+    """
+
     on_conversation_new = aioxmpp.callbacks.Signal()
-    on_conversation_left = aioxmpp.callbacks.Signal()
+    on_spontaneous_conversation = aioxmpp.callbacks.Signal()

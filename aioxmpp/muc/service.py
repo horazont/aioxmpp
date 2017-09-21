@@ -481,25 +481,13 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
        details on who triggered the change in role and for what reason.
 
     """
-
-    on_message = aioxmpp.callbacks.Signal()
-
     # this occupant state events
-    on_enter = aioxmpp.callbacks.Signal()
     on_muc_suspend = aioxmpp.callbacks.Signal()
     on_muc_resume = aioxmpp.callbacks.Signal()
-    on_exit = aioxmpp.callbacks.Signal()
 
     # other occupant state events
-    on_join = aioxmpp.callbacks.Signal()
-    on_leave = aioxmpp.callbacks.Signal()
-    on_presence_changed = aioxmpp.callbacks.Signal()
     on_muc_affiliation_changed = aioxmpp.callbacks.Signal()
-    on_nick_changed = aioxmpp.callbacks.Signal()
     on_muc_role_changed = aioxmpp.callbacks.Signal()
-
-    # room state events
-    on_topic_changed = aioxmpp.callbacks.Signal()
 
     def __init__(self, service, mucjid):
         super().__init__(service)
@@ -1252,9 +1240,15 @@ def _connect_to_signal(signal, func):
     return signal, signal.connect(func)
 
 
-class MUCClient(aioxmpp.service.Service):
+class MUCClient(aioxmpp.im.conversation.AbstractConversationService,
+                aioxmpp.service.Service):
     """
     :term:`Conversation Implementation` for Multi-User Chats (:xep:`45`).
+
+    .. seealso::
+
+        :class:`~.AbstractConversationService`
+            for useful common signals
 
     This service provides access to Multi-User Chats using the
     conversation interface defined by :mod:`aioxmpp.im`.
@@ -1286,6 +1280,11 @@ class MUCClient(aioxmpp.service.Service):
 
         This class was completely remodeled in 0.9 to conform with the
         :class:`aioxmpp.im` interface.
+
+    .. versionchanged:: 0.10
+
+        This class now conforms to the :class:`~.AbstractConversationService`
+        interface.
 
     """
 
@@ -1371,7 +1370,12 @@ class MUCClient(aioxmpp.service.Service):
                           self._pending_mucs,
                           self._joined_mucs)
 
-    def _pending_join_done(self, mucjid, fut):
+    def _pending_join_done(self, mucjid, room, fut):
+        try:
+            fut.result()
+        except Exception as exc:
+            room.on_failure(exc)
+
         if fut.cancelled():
             try:
                 del self._pending_mucs[mucjid]
@@ -1513,7 +1517,8 @@ class MUCClient(aioxmpp.service.Service):
         signal is emitted immediately with the new :class:`Room`.
 
         It is recommended to attach the desired signals to the :class:`Room`
-        before yielding next (e.g. in a non-deferred event handler to the :meth:`~.ConversationService.on_conversation_added` signal), to avoid
+        before yielding next (e.g. in a non-deferred event handler to the
+        :meth:`~.ConversationService.on_conversation_added` signal), to avoid
         races with the server. It is guaranteed that no signals are emitted
         before the next yield, and thus, it is safe to attach the signals right
         after :meth:`join` returned. (This is also the reason why :meth:`join`
@@ -1584,13 +1589,15 @@ class MUCClient(aioxmpp.service.Service):
         fut = asyncio.Future()
         fut.add_done_callback(functools.partial(
             self._pending_join_done,
-            mucjid
+            mucjid,
+            room,
         ))
         self._pending_mucs[mucjid] = room, fut, nick, history
 
         if self.client.established:
             self._send_join_presence(mucjid, history, nick, password)
 
+        self.on_conversation_new(room)
         self.dependencies[
             aioxmpp.im.service.ConversationService
         ]._add_conversation(room)

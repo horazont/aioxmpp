@@ -35,6 +35,7 @@ from aioxmpp.testutils import (
     make_connected_client,
     CoroutineMock,
     run_coroutine,
+    make_listener,
 )
 
 from aioxmpp.e2etest import (
@@ -163,16 +164,11 @@ class TestService(unittest.TestCase):
         self.svc.client = self.cc
         self.s = p2p.Service(self.cc, dependencies=deps)
 
-        self.listener = unittest.mock.Mock()
-
-        for ev in ["on_conversation_new", "on_conversation_left"]:
-            listener = getattr(self.listener, ev)
-            signal = getattr(self.s, ev)
-            listener.return_value = None
-            signal.connect(listener)
+        self.listener = make_listener(self.s)
 
         for ev in ["on_conversation_added"]:
-            listener = getattr(self.listener, ev)
+            listener = unittest.mock.Mock()
+            setattr(self.listener, ev, listener)
             signal = getattr(deps[im_service.ConversationService], ev)
             listener.return_value = None
             signal.connect(listener)
@@ -198,7 +194,7 @@ class TestService(unittest.TestCase):
                 "aioxmpp.im.p2p.Conversation"
             ))
 
-            c = run_coroutine(self.s.get_conversation(PEER_JID))
+            c = self.s.get_conversation(PEER_JID)
 
         self.cc.stream.register_message_callback.assert_not_called()
 
@@ -219,9 +215,37 @@ class TestService(unittest.TestCase):
                 "aioxmpp.im.p2p.Conversation"
             ))
 
-            c = run_coroutine(self.s.get_conversation(PEER_JID))
+            c = self.s.get_conversation(PEER_JID)
 
         self.listener.on_conversation_added.assert_called_once_with(c)
+
+    def test_conversation_emits_on_enter_right_after_added(self):
+        def cb(conv):
+            conv.on_enter.assert_not_called()
+
+        self.s.dependencies[
+            im_service.ConversationService
+        ].on_conversation_added.connect(cb)
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(unittest.mock.patch(
+                "aioxmpp.im.p2p.Conversation"
+            ))
+
+            c = self.s.get_conversation(PEER_JID)
+
+        self.listener.on_conversation_added.assert_called_once_with(c)
+
+        c.on_enter.assert_called_once_with()
+
+    def test_get_conversation_does_not_emit_spontaneous_event(self):
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(unittest.mock.patch(
+                "aioxmpp.im.p2p.Conversation"
+            ))
+
+            self.s.get_conversation(PEER_JID)
+
+        self.listener.on_spontaneous_conversation.assert_not_called()
 
     def test_get_conversation_deduplicates(self):
         with contextlib.ExitStack() as stack:
@@ -229,8 +253,8 @@ class TestService(unittest.TestCase):
                 "aioxmpp.im.p2p.Conversation"
             ))
 
-            c1 = run_coroutine(self.s.get_conversation(PEER_JID))
-            c2 = run_coroutine(self.s.get_conversation(PEER_JID))
+            c1 = self.s.get_conversation(PEER_JID)
+            c2 = self.s.get_conversation(PEER_JID)
 
         Conversation.assert_called_once_with(
             self.s,
@@ -251,10 +275,10 @@ class TestService(unittest.TestCase):
             ))
             Conversation.side_effect = generate_mocks()
 
-            c1 = run_coroutine(self.s.get_conversation(PEER_JID))
+            c1 = self.s.get_conversation(PEER_JID)
             c1.peer_jid = PEER_JID
             self.s._conversation_left(c1)
-            c2 = run_coroutine(self.s.get_conversation(PEER_JID))
+            c2 = self.s.get_conversation(PEER_JID)
 
         self.assertIsNot(c1, c2)
 
@@ -269,12 +293,11 @@ class TestService(unittest.TestCase):
             ))
             Conversation.side_effect = generate_mocks()
 
-            c1 = run_coroutine(self.s.get_conversation(PEER_JID))
+            c1 = self.s.get_conversation(PEER_JID)
             self.listener.on_conversation_new.assert_called_once_with(c1)
             c1.peer_jid = PEER_JID
             self.s._conversation_left(c1)
-            self.listener.on_conversation_left.assert_called_once_with(c1)
-            c2 = run_coroutine(self.s.get_conversation(PEER_JID))
+            c2 = self.s.get_conversation(PEER_JID)
             self.listener.on_conversation_new.assert_called_with(c2)
 
         self.assertIsNot(c1, c2)
@@ -324,7 +347,7 @@ class TestService(unittest.TestCase):
                 parent=None
             )
 
-            c = run_coroutine(self.s.get_conversation(PEER_JID))
+            c = self.s.get_conversation(PEER_JID)
             Conversation.assert_called_once_with(
                 self.s,
                 msg.from_.bare(),
@@ -334,6 +357,10 @@ class TestService(unittest.TestCase):
             self.assertEqual(c, Conversation())
 
             self.listener.on_conversation_new.assert_called_once_with(
+                Conversation()
+            )
+
+            self.listener.on_spontaneous_conversation.assert_called_once_with(
                 Conversation()
             )
 
@@ -368,9 +395,9 @@ class TestService(unittest.TestCase):
                 parent=None
             )
 
-            c = run_coroutine(self.s.get_conversation(
+            c = self.s.get_conversation(
                 PEER_JID.replace(localpart="fnord")
-            ))
+            )
             Conversation.assert_called_once_with(
                 self.s,
                 PEER_JID.replace(localpart="fnord"),
@@ -380,6 +407,10 @@ class TestService(unittest.TestCase):
             self.assertEqual(c, Conversation())
 
             self.listener.on_conversation_new.assert_called_once_with(
+                Conversation()
+            )
+
+            self.listener.on_spontaneous_conversation.assert_called_once_with(
                 Conversation()
             )
 
@@ -415,9 +446,9 @@ class TestService(unittest.TestCase):
                 parent=None
             )
 
-            c = run_coroutine(self.s.get_conversation(
+            c = self.s.get_conversation(
                 PEER_JID.replace(localpart="fnord", resource="foo")
-            ))
+            )
             Conversation.assert_called_once_with(
                 self.s,
                 PEER_JID.replace(localpart="fnord", resource="foo"),
@@ -427,6 +458,10 @@ class TestService(unittest.TestCase):
             self.assertEqual(c, Conversation())
 
             self.listener.on_conversation_new.assert_called_once_with(
+                Conversation()
+            )
+
+            self.listener.on_spontaneous_conversation.assert_called_once_with(
                 Conversation()
             )
 
@@ -461,7 +496,7 @@ class TestService(unittest.TestCase):
                 parent=None
             )
 
-            c = run_coroutine(self.s.get_conversation(PEER_JID))
+            c = self.s.get_conversation(PEER_JID)
             Conversation.assert_called_once_with(
                 self.s,
                 msg.from_.bare(),
@@ -471,6 +506,10 @@ class TestService(unittest.TestCase):
             self.assertEqual(c, Conversation())
 
             self.listener.on_conversation_new.assert_called_once_with(
+                Conversation()
+            )
+
+            self.listener.on_spontaneous_conversation.assert_called_once_with(
                 Conversation()
             )
 
@@ -618,11 +657,11 @@ class TestE2E(TestCase):
     @blocking_timed
     @asyncio.coroutine
     def test_converse_with_preexisting(self):
-        c1 = yield from self.firstwitch.summon(p2p.Service).get_conversation(
+        c1 = self.firstwitch.summon(p2p.Service).get_conversation(
             self.secondwitch.local_jid.bare()
         )
 
-        c2 = yield from self.secondwitch.summon(p2p.Service).get_conversation(
+        c2 = self.secondwitch.summon(p2p.Service).get_conversation(
             self.firstwitch.local_jid.bare()
         )
 

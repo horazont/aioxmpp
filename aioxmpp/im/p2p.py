@@ -112,6 +112,11 @@ class Service(AbstractConversationService, aioxmpp.service.Service):
     """
     Manage one-to-one conversations.
 
+    .. seealso::
+
+        :class:`~.AbstractConversationService`
+            for useful common signals
+
     This service manages one-to-one conversations, including private
     conversations running in the framework of a multi-user chat. In those
     cases, the respective multi-user chat conversation service requests a
@@ -142,10 +147,13 @@ class Service(AbstractConversationService, aioxmpp.service.Service):
             self.dependencies[ConversationService]._add_conversation
         )
 
-    def _make_conversation(self, peer_jid):
+    def _make_conversation(self, peer_jid, spontaneous):
         result = Conversation(self, peer_jid, parent=None)
         self._conversationmap[peer_jid] = result
+        if spontaneous:
+            self.on_spontaneous_conversation(result)
         self.on_conversation_new(result)
+        result.on_enter()
         return result
 
     @aioxmpp.service.depfilter(IMDispatcher, "message_filter")
@@ -166,14 +174,13 @@ class Service(AbstractConversationService, aioxmpp.service.Service):
                 conversation_jid = peer.bare()
                 if msg.xep0045_muc_user is not None:
                     conversation_jid = peer
-                existing = self._make_conversation(conversation_jid)
+                existing = self._make_conversation(conversation_jid, True)
 
             existing._handle_message(msg, peer, sent, source)
             return None
 
         return msg
 
-    @asyncio.coroutine
     def get_conversation(self, peer_jid, *, current_jid=None):
         """
         Get or create a new one-to-one conversation with a peer.
@@ -188,14 +195,17 @@ class Service(AbstractConversationService, aioxmpp.service.Service):
 
         `peer_jid` must be a full or bare JID. See the :class:`Service`
         documentation for details.
+
+        .. versionchanged:: 0.10
+
+            In 0.9, this was a coroutine. Sorry.
         """
 
         try:
             return self._conversationmap[peer_jid]
         except KeyError:
             pass
-        return self._make_conversation(peer_jid)
+        return self._make_conversation(peer_jid, False)
 
     def _conversation_left(self, conv):
         del self._conversationmap[conv.peer_jid]
-        self.on_conversation_left(conv)
