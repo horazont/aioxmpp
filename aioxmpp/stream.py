@@ -1428,7 +1428,8 @@ class StanzaStream:
 
         :param type_: IQ type to react to (must be a request type).
         :type type_: :class:`~structs.IQType`
-        :param payload_cls: Payload class to react to (subclass of :class:`~xso.XSO`)
+        :param payload_cls: Payload class to react to (subclass of
+            :class:`~xso.XSO`)
         :type payload_cls: :class:`~.XMLStreamClass`
         :raises KeyError: if no coroutine has been registered for the given
                           ``(type_, payload_cls)`` pair
@@ -2401,7 +2402,7 @@ class StanzaStream:
         yield from self.enqueue(stanza)
 
     @asyncio.coroutine
-    def send(self, stanza, *, timeout=None):
+    def send(self, stanza, *, timeout=None, cb=None):
         """
         Send a stanza.
 
@@ -2410,6 +2411,8 @@ class StanzaStream:
         :param timeout: Maximum time in seconds to wait for an IQ response, or
                         :data:`None` to disable the timeout.
         :type timeout: :class:`~numbers.Real` or :data:`None`
+        :param cb: Optional callback which is called synchronously when the
+            reply is received (IQ requests only!)
         :raise OSError: if the underlying XML stream fails and stream
                         management is not disabled.
         :raise aioxmpp.stream.DestructionRequested:
@@ -2417,7 +2420,8 @@ class StanzaStream:
            response.
         :raise aioxmpp.errors.XMPPError: if an error IQ response is received
         :raise aioxmpp.errors.ErroneousStanza: if the IQ response could not be
-                                               parsed
+            parsed
+        :raise ValueError: if `cb` is given and `stanza` is not an IQ request.
         :return: IQ response :attr:`~.IQ.payload` or :data:`None`
 
         Send the stanza and wait for it to be sent. If the stanza is an IQ
@@ -2433,6 +2437,18 @@ class StanzaStream:
         `timeout` seconds, :class:`TimeoutError` (not
         :class:`asyncio.TimeoutError`!) is raised.
 
+        If `cb` is given, `stanza` must be an IQ request (otherwise,
+        :class:`ValueError` is raised before the stanza is sent). It must be a
+        callable returning an awaitable. It receives the response stanza as
+        first and only argument. The returned awaitable is awaited by
+        :meth:`send` and the result is returned instead of the original
+        payload. `cb` is called synchronously from the stream handling loop when
+        the response is received, so it can benefit from the strong ordering
+        guarantees given by XMPP XML Streams.
+
+        Since the return value of coroutine functions is awaitable, it is valid
+        and supported to pass a coroutine function as `cb`.
+
         .. versionadded:: 0.8
         """
         stanza.autoset_id()
@@ -2440,20 +2456,79 @@ class StanzaStream:
                            stanza)
 
         if not isinstance(stanza, stanza_.IQ) or stanza.type_.is_response:
+            if cb is not None:
+                raise ValueError(
+                    "cb not supported with non-IQ non-request stanzas"
+                )
             yield from self.enqueue(stanza)
             return
 
+        # we use the long way with a custom listener instead of a future here
+        # to ensure that the callback is called synchronously from within the
+        # queue handling loop.
+        # we need that to ensure that the strong ordering guarantees reach the
+        # `cb` function.
+
         fut = asyncio.Future()
-        self.register_iq_response_future(
-            stanza.to,
-            stanza.id_,
-            fut,
+
+        def nested_cb(task):
+            """
+            This callback is used to handle awaitables returned by the `cb`.
+            """
+            nonlocal fut
+            if task.exception() is None:
+                fut.set_result(task.result())
+            else:
+                fut.set_exception(task.exception())
+
+        def handler_ok(stanza):
+            """
+            This handler is invoked synchronously by
+            :meth:`_process_incoming_iq` (via
+            :class:`aioxmpp.callbacks.TagDispatcher`) for response stanzas
+            (including error stanzas).
+            """
+            nonlocal fut
+            # we can’t even use StanzaErrorAwareListener because we want to
+            # forward error stanzas to the cb too...
+            if cb is None:
+                if stanza.type_.is_error:
+                    fut.set_exception(stanza.error.to_exception())
+                else:
+                    fut.set_result(stanza.payload)
+                return
+
+            try:
+                nested_fut = cb(stanza)
+            except Exception as exc:
+                fut.set_exception(exc)
+            else:
+                nested_fut.add_done_callback(nested_cb)
+
+        def handler_error(exc):
+            """
+            This handler is invoked synchronously by
+            :meth:`_process_incoming_iq` (via
+            :class:`aioxmpp.callbacks.TagDispatcher`) for response errors (
+            such as parsing errors, connection errors, etc.).
+            """
+            nonlocal fut
+            fut.set_exception(exc)
+
+        listener = callbacks.OneshotTagListener(
+            handler_ok,
+            handler_error,
+        )
+
+        self._iq_response_map.add_listener(
+            (stanza.to, stanza.id_),
+            listener,
         )
 
         try:
             yield from self.enqueue(stanza)
-        except:
-            fut.cancel()
+        except Exception:
+            listener.cancel()
             raise
 
         if not timeout:
@@ -2466,8 +2541,7 @@ class StanzaStream:
                 )
             except asyncio.TimeoutError:
                 raise TimeoutError
-
-        return reply.payload
+        return reply
 
 
 @contextlib.contextmanager
