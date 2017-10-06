@@ -743,7 +743,7 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
                     reason,
                 )
             )
-        elif   (existing.presence_state != info.presence_state or
+        elif (existing.presence_state != info.presence_state or
                 existing.presence_status != info.presence_status):
             to_emit.append((self.on_presence_changed,
                             (existing, None, stanza),
@@ -874,13 +874,14 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
                           muc_reason=reason)
             del self._occupant_info[existing.conversation_jid]
 
-    @asyncio.coroutine
     def send_message(self, msg):
         """
         Send a message to the MUC.
 
         :param msg: The message to send.
         :type msg: :class:`aioxmpp.Message`
+        :return: The stanza token of the message.
+        :rtype: :class:`~aioxmpp.stream.StanzaToken`
 
         There is no need to set the address attributes or the type of the
         message correctly; those will be overridden by this method to conform
@@ -900,12 +901,8 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
         # TL;DR: we want to help entities to discover that a message is related
         # to a MUC.
         msg.xep0045_muc_user = muc_xso.UserExt()
-        yield from self.service.client.stream.send(msg)
-        self.on_message(
-            msg,
-            self._this_occupant,
-            aioxmpp.im.dispatcher.MessageSource.STREAM
-        )
+        result = self.service.client.stream.enqueue(msg)
+        return result
 
     def _tracker_closed(self, tracker):
         try:

@@ -2156,15 +2156,15 @@ class TestRoom(unittest.TestCase):
         msg = aioxmpp.Message(aioxmpp.MessageType.NORMAL)
         msg.body.update({None: "some text"})
 
-        run_coroutine(
-            self.jmuc.send_message(msg)
-        )
+        token = self.jmuc.send_message(msg)
 
-        self.base.service.client.stream.send.assert_called_once_with(
+        self.base.service.client.stream.enqueue.assert_called_once_with(
             unittest.mock.ANY,
         )
 
-        _, (msg, ), _ = self.base.service.client.stream.send.mock_calls[0]
+        _, (msg, ), _ = self.base.service.client.stream.enqueue.mock_calls[0]
+
+        self.assertEqual(token, self.base.service.client.stream.enqueue())
 
         self.assertIsInstance(
             msg,
@@ -2191,10 +2191,56 @@ class TestRoom(unittest.TestCase):
             muc_xso.UserExt,
         )
 
+        # on_message should not be called for untracked messages because it will
+        # be called once the reflection has been received!
+        self.base.on_message.assert_not_called()
+
+    def test_send_message_with_reflection(self):
+        # we need to be in the MUC for the tracking argument to be working
+        presence = aioxmpp.stanza.Presence(
+            type_=aioxmpp.structs.PresenceType.AVAILABLE,
+            from_=TEST_MUC_JID.replace(resource="thirdwitch")
+        )
+        presence.xep0045_muc_user = muc_xso.UserExt(
+            status_codes={110},
+            items=[
+                muc_xso.UserItem(affiliation="member",
+                                 role="none"),
+            ]
+        )
+
+        self.jmuc._inbound_muc_user_presence(presence)
+
+        msg = aioxmpp.Message(aioxmpp.MessageType.GROUPCHAT)
+        msg.body.update({None: "some text"})
+
+        self.jmuc.send_message(msg)
+
+        self.base.service.client.stream.enqueue.assert_called_once_with(
+            unittest.mock.ANY,
+        )
+
+        _, (msg, ), _ = self.base.service.client.stream.enqueue.mock_calls[0]
+
+        reply = msg.make_reply()
+        reply.body.update(msg.body)
+        reply.from_ = reply.from_.replace(resource=self.jmuc.me.nick)
+        msg.xep0045_muc_user = muc_xso.UserExt()
+
+        self.jmuc._handle_message(reply, reply.from_, False,
+                                  im_dispatcher.MessageSource.STREAM)
+
         self.base.on_message.assert_called_once_with(
-            msg,
+            reply,
             self.jmuc.me,
             im_dispatcher.MessageSource.STREAM,
+            tracker=unittest.mock.ANY,
+        )
+
+        tracker = self.base.on_message.mock_calls[0][2]["tracker"]
+        self.assertEqual(
+            tracker.state,
+            aioxmpp.tracking.MessageState.DELIVERED_TO_RECIPIENT
         )
 
     def test_send_message_tracked_uses_basic_tracking_service(self):

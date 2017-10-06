@@ -91,6 +91,19 @@ Version 0.10
 
 * Make :meth:`aioxmpp.im.p2p.Service.get_conversation` a normal method.
 
+* *Possibly breaking change*: :meth:`aioxmpp.muc.Room.send_message` is not a
+  coroutine anymore, but it returns an awaitable; this means that in most
+  cases, this should not break.
+
+  :meth:`~aioxmpp.muc.Room.send_message` was a coroutine by accident; it should
+  never have been that, according to the specification in
+  :meth:`aioxmpp.im.conversation.AbstractConversation.send_message`.
+
+* Fixed duplicate emission of
+  :meth:`~aioxmpp.im.conversation.AbstractConversation.on_message` events
+  for untracked (sent through :meth:`aioxmpp.muc.Room.send_message`) MUC
+  messages.
+
 .. _api-changelog-0.9:
 
 Version 0.9
