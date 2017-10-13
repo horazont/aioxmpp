@@ -380,7 +380,6 @@ Deprecations
 * :func:`aioxmpp.stream.stanza_filter` got renamed to
   :meth:`aioxmpp.callbacks.Filter.context_register`.
 
-
 Version 0.9.1
 -------------
 
