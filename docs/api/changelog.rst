@@ -396,6 +396,8 @@ Version 0.9.1
   For the same reason, :func:`aioxmpp.network.lookup_srv` now returns
   :class:`bytes` for hostnames instead of :class:`str`.
 
+* Fix issues with different versions of :mod:`pyasn1`.
+
 
 .. _api-changelog-0.8:
 
