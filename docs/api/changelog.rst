@@ -279,6 +279,11 @@ Deprecations
 * :func:`aioxmpp.stream.stanza_filter` got renamed to
   :meth:`aioxmpp.callbacks.Filter.context_register`.
 
+Version 0.9.1
+-------------
+
+* Fix issues with different versions of :mod:`pyasn1`.
+
 
 .. _api-changelog-0.8:
 
