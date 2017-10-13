@@ -2547,6 +2547,9 @@ class StanzaStream:
             (including error stanzas).
             """
             nonlocal fut
+            if fut.cancelled():
+                return
+
             if cb is not None:
                 try:
                     nested_fut = cb(stanza)
@@ -2572,6 +2575,8 @@ class StanzaStream:
             such as parsing errors, connection errors, etc.).
             """
             nonlocal fut
+            if fut.cancelled():
+                return
             fut.set_exception(exc)
 
         listener = callbacks.OneshotTagListener(

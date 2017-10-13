@@ -3228,6 +3228,91 @@ class TestStanzaStream(StanzaStreamTestBase):
 
             self.assertFalse(listener.is_valid())
 
+    def test_send_does_not_kill_stream_on_reply_when_cancelled(self):
+        iq = make_test_iq()
+        response = iq.make_reply(type_=structs.IQType.RESULT)
+        response.payload = FancyTestIQ()
+
+        stanza_fut = asyncio.Future()
+        stanza_fut.set_result(None)
+
+        base = unittest.mock.Mock()
+        base.enqueue.return_value = stanza_fut
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(unittest.mock.patch.object(
+                self.stream,
+                "enqueue",
+                new=base.enqueue
+            ))
+
+            stack.enter_context(unittest.mock.patch.object(
+                self.stream,
+                "_iq_response_map",
+                new=base.iq_response_map,
+            ))
+
+            task = asyncio.async(self.stream.send(iq))
+            run_coroutine(asyncio.sleep(0.01))
+
+            self.assertFalse(task.done())
+            base.enqueue.assert_called_with(unittest.mock.ANY)
+            base.iq_response_map.add_listener.assert_called_once_with(
+                (iq.to, iq.id_),
+                unittest.mock.ANY,
+            )
+
+            _, (_, listener), _ = \
+                base.iq_response_map.add_listener.mock_calls[0]
+
+            task.cancel()
+
+            with self.assertRaises(asyncio.CancelledError):
+                run_coroutine(task)
+
+            listener.data(response)
+
+    def test_send_does_not_kill_stream_on_error_when_cancelled(self):
+        iq = make_test_iq()
+        exc = Exception()
+
+        stanza_fut = asyncio.Future()
+        stanza_fut.set_result(None)
+
+        base = unittest.mock.Mock()
+        base.enqueue.return_value = stanza_fut
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(unittest.mock.patch.object(
+                self.stream,
+                "enqueue",
+                new=base.enqueue
+            ))
+
+            stack.enter_context(unittest.mock.patch.object(
+                self.stream,
+                "_iq_response_map",
+                new=base.iq_response_map,
+            ))
+
+            task = asyncio.async(self.stream.send(iq))
+            run_coroutine(asyncio.sleep(0.01))
+
+            self.assertFalse(task.done())
+            base.enqueue.assert_called_with(unittest.mock.ANY)
+            base.iq_response_map.add_listener.assert_called_once_with(
+                (iq.to, iq.id_),
+                unittest.mock.ANY,
+            )
+
+            _, (_, listener), _ = \
+                base.iq_response_map.add_listener.mock_calls[0]
+
+            task.cancel()
+
+            with self.assertRaises(asyncio.CancelledError):
+                run_coroutine(task)
+
+            listener.error(exc)
+
     @unittest.skipUnless(CAN_AWAIT_STANZA_TOKEN,
                          "requires Python 3.5+")
     def test_handle_non_connection_exception_from_send_xso(self):
