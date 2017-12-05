@@ -104,6 +104,12 @@ Version 0.10
   for untracked (sent through :meth:`aioxmpp.muc.Room.send_message`) MUC
   messages.
 
+* Re-read the nameserver config if :class:`dns.resolver.NoNameservers` is
+  raised during a query using the thread-local global resolver (the default).
+
+  The resolver config is only reloaded up to once for each query; any further
+  errors are treated as authoritative / related to the zone.
+
 .. _api-changelog-0.9:
 
 Version 0.9
