@@ -297,6 +297,11 @@ class TestXMLStream(unittest.TestCase):
         self.maxDiff = None
         self.loop = asyncio.get_event_loop()
 
+    def tearDown(self):
+        self.loop.set_exception_handler(
+            type(self.loop).default_exception_handler
+        )
+
     def _make_peer_header(self, version=(1, 0)):
         return PEER_STREAM_HEADER_TEMPLATE.format(
             minor=version[1],
@@ -1771,11 +1776,6 @@ class TestXMLStream(unittest.TestCase):
         self.assertIn(
             unittest.mock.call().cancel(),
             async_.mock_calls,
-        )
-
-    def tearDown(self):
-        self.loop.set_exception_handler(
-            type(self.loop).default_exception_handler
         )
 
 
