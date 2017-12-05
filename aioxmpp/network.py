@@ -260,6 +260,11 @@ def repeated_query(qname, rdtype,
         except (dns.resolver.NoAnswer, dns.resolver.NXDOMAIN):
             return None
         except (dns.resolver.NoNameservers):
+            # make sure we have the correct config
+            if use_tlr and i == 0:
+                reconfigure_resolver()
+                resolver = get_resolver()
+                continue
             resolver.set_flags(dns.flags.RD | dns.flags.AD | dns.flags.CD)
             try:
                 yield from loop.run_in_executor(
