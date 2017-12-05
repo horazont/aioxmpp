@@ -52,6 +52,7 @@ Enumerations
 """
 
 import asyncio
+import contextlib
 import functools
 import inspect
 import logging
@@ -149,15 +150,40 @@ class DebugWrapper:
         else:
             self._flush = lambda: None
         self._pieces = []
+        self._total_len = 0
+        self._muted = False
+        self._written_mute_marker = False
 
-    def write(self, data):
-        self._pieces.append(data)
-        self.dest.write(data)
-
-    def flush(self):
+    def _emit(self):
         self.logger.debug("SENT %r", b"".join(self._pieces))
         self._pieces = []
+        self._total_len = 0
+
+    def write(self, data):
+        if self._muted:
+            if not self._written_mute_marker:
+                self._pieces.append(b"<!-- some bytes omitted -->")
+                self._written_mute_marker = True
+        else:
+            self._pieces.append(data)
+            self._total_len += len(data)
+        result = self.dest.write(data)
+        if self._total_len >= 4096:
+            self._emit()
+        return result
+
+    def flush(self):
+        self._emit()
         self._flush()
+
+    @contextlib.contextmanager
+    def mute(self):
+        self._muted = True
+        self._written_mute_marker = False
+        try:
+            yield
+        finally:
+            self._muted = False
 
 
 class XMLStream(asyncio.Protocol):
@@ -219,6 +245,10 @@ class XMLStream(asyncio.Protocol):
     .. automethod:: close
 
     .. automethod:: abort
+
+    Controlling debug output:
+
+    .. automethod:: mute
 
     Signals:
 
@@ -563,9 +593,11 @@ class XMLStream(asyncio.Protocol):
         self._processor.on_exception = self._rx_exception
         self._parser = xml.make_parser()
         self._parser.setContentHandler(self._processor)
+        self._debug_wrapper = None
 
         if self._logger.getEffectiveLevel() <= logging.DEBUG:
             dest = DebugWrapper(self._transport, self._logger)
+            self._debug_wrapper = dest
         else:
             dest = self._transport
         self._writer = xml.XMLStreamWriter(
@@ -714,6 +746,21 @@ class XMLStream(asyncio.Protocol):
         This attribute cannot be set.
         """
         return self._smachine.state
+
+    @contextlib.contextmanager
+    def mute(self):
+        """
+        A context-manager which prohibits logging of data sent over the stream.
+
+        Data sent over the stream is replaced with
+        ``<!-- some bytes omitted -->``. This is mainly useful during
+        authentication.
+        """
+        if self._debug_wrapper is None:
+            yield
+        else:
+            with self._debug_wrapper.mute():
+                yield
 
 
 @asyncio.coroutine

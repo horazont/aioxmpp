@@ -56,13 +56,15 @@ class TestSASLXMPPInterface(xmltestutils.XMLTestCase):
         state, payload = self._run_test(
             self.sm.initiate("foo", b"bar"),
             [
+                XMLStreamMock.Mute(),
                 XMLStreamMock.Send(
                     nonza.SASLAuth(mechanism="foo",
                                    payload=b"bar"),
                     response=XMLStreamMock.Receive(
                         nonza.SASLSuccess()
                     )
-                )
+                ),
+                XMLStreamMock.Unmute(),
             ]
         )
         self.assertEqual(state, "success")
@@ -73,6 +75,7 @@ class TestSASLXMPPInterface(xmltestutils.XMLTestCase):
             self._run_test(
                 self.sm.initiate("foo", b"bar"),
                 [
+                    XMLStreamMock.Mute(),
                     XMLStreamMock.Send(
                         nonza.SASLAuth(mechanism="foo",
                                        payload=b"bar"),
@@ -81,7 +84,8 @@ class TestSASLXMPPInterface(xmltestutils.XMLTestCase):
                                 condition=(namespaces.sasl, "not-authorized")
                             )
                         )
-                    )
+                    ),
+                    XMLStreamMock.Unmute(),
                 ]
             )
 
@@ -94,13 +98,15 @@ class TestSASLXMPPInterface(xmltestutils.XMLTestCase):
         state, payload = self._run_test(
             self.sm.initiate("foo", b"bar"),
             [
+                XMLStreamMock.Mute(),
                 XMLStreamMock.Send(
                     nonza.SASLAuth(mechanism="foo",
                                    payload=b"bar"),
                     response=XMLStreamMock.Receive(
                         nonza.SASLChallenge(payload=b"baz")
                     )
-                )
+                ),
+                XMLStreamMock.Unmute(),
             ]
         )
         self.assertEqual(state, "challenge")
@@ -112,12 +118,14 @@ class TestSASLXMPPInterface(xmltestutils.XMLTestCase):
         state, payload = self._run_test(
             self.sm.respond(b"bar"),
             [
+                XMLStreamMock.Mute(),
                 XMLStreamMock.Send(
                     nonza.SASLResponse(payload=b"bar"),
                     response=XMLStreamMock.Receive(
                         nonza.SASLSuccess()
                     )
-                )
+                ),
+                XMLStreamMock.Unmute(),
             ]
         )
         self.assertEqual(state, "success")
@@ -130,6 +138,7 @@ class TestSASLXMPPInterface(xmltestutils.XMLTestCase):
             self._run_test(
                 self.sm.respond(b"bar"),
                 [
+                    XMLStreamMock.Mute(),
                     XMLStreamMock.Send(
                         nonza.SASLResponse(payload=b"bar"),
                         response=XMLStreamMock.Receive(
@@ -138,7 +147,8 @@ class TestSASLXMPPInterface(xmltestutils.XMLTestCase):
                                            "credentials-expired")
                             )
                         )
-                    )
+                    ),
+                    XMLStreamMock.Unmute(),
                 ]
             )
 
@@ -153,12 +163,14 @@ class TestSASLXMPPInterface(xmltestutils.XMLTestCase):
         state, payload = self._run_test(
             self.sm.respond(b"bar"),
             [
+                XMLStreamMock.Mute(),
                 XMLStreamMock.Send(
                     nonza.SASLResponse(payload=b"bar"),
                     response=XMLStreamMock.Receive(
                         nonza.SASLChallenge(payload=b"baz")
                     )
-                )
+                ),
+                XMLStreamMock.Unmute(),
             ]
         )
         self.assertEqual(state, "challenge")

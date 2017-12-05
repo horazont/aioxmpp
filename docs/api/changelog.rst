@@ -110,6 +110,11 @@ Version 0.10
   The resolver config is only reloaded up to once for each query; any further
   errors are treated as authoritative / related to the zone.
 
+* Add :meth:`aioxmpp.protocol.XMLStream.mute` context manager to suppress debug
+  logging of stream contents.
+
+* Exclude authentication information sent during SASL.
+
 .. _api-changelog-0.9:
 
 Version 0.9

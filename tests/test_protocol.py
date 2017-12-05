@@ -21,6 +21,8 @@
 ########################################################################
 import asyncio
 import contextlib
+import io
+import logging
 import unittest
 import unittest.mock
 
@@ -38,7 +40,7 @@ from aioxmpp.testutils import (
 )
 from aioxmpp import xmltestutils
 
-from aioxmpp.protocol import XMLStream
+from aioxmpp.protocol import XMLStream, DebugWrapper
 from aioxmpp.structs import JID
 from aioxmpp.utils import namespaces
 
@@ -106,10 +108,200 @@ FakeIQ = stanza.IQ
 FakeIQ.register_child(FakeIQ.payload, Child)
 
 
+class TestDebugWrapper(unittest.TestCase):
+    def setUp(self):
+        self.buf = unittest.mock.Mock([
+            "write",
+            "flush",
+        ])
+        self.logger = unittest.mock.Mock([
+            "debug",
+        ])
+
+    def test_forwards_writes(self):
+        dw = DebugWrapper(self.buf, self.logger)
+        self.buf.write.return_value = unittest.mock.sentinel.written
+        self.assertEqual(dw.write(b"foobar"),
+                         unittest.mock.sentinel.written)
+        self.buf.write.assert_called_once_with(b"foobar")
+
+    def test_forwards_flush_and_emits_log_message(self):
+        dw = DebugWrapper(self.buf, self.logger)
+        dw.write(b"foo")
+        dw.write(b"bar")
+        dw.write(b"bazfnord")
+
+        dw.flush()
+
+        self.buf.flush.assert_called_once_with()
+        self.logger.debug.assert_called_once_with("SENT %r", b"foobarbazfnord")
+
+    def test_flush_works_with_backend_which_does_not_support_flush(self):
+        buf = unittest.mock.Mock(["write"])
+        dw = DebugWrapper(buf, self.logger)
+        dw.write(b"foo")
+        dw.write(b"bar")
+        dw.write(b"bazfnord")
+
+        dw.flush()
+
+        self.logger.debug.assert_called_once_with("SENT %r", b"foobarbazfnord")
+
+    def test_flushes_log_after_write_with_more_than_4096_bytes(self):
+        dw = DebugWrapper(self.buf, self.logger)
+        dw.write(b"x"*4098)
+
+        self.logger.debug.assert_called_once_with("SENT %r", b"x"*4098)
+        self.buf.flush.assert_not_called()
+
+    def test_flushes_log_after_accumulation_of_4096_bytes(self):
+        dw = DebugWrapper(self.buf, self.logger)
+        for i in range(4):
+            dw.write(b"x" * 1024)
+
+        self.logger.debug.assert_called_once_with("SENT %r", b"x"*4096)
+        self.buf.flush.assert_not_called()
+
+    def test_allows_to_reaccumulate_4096_bytes_after_autoflush(self):
+        dw = DebugWrapper(self.buf, self.logger)
+        for i in range(7):
+            dw.write(b"x" * 1024)
+
+        self.logger.debug.assert_called_once_with("SENT %r", b"x"*4096)
+        self.buf.flush.assert_not_called()
+
+    def test_allows_to_reaccumulate_4096_bytes_after_forced_flush(self):
+        dw = DebugWrapper(self.buf, self.logger)
+        for i in range(3):
+            dw.write(b"x" * 1024)
+        dw.flush()
+        self.logger.debug.reset_mock()
+        self.buf.flush.reset_mock()
+
+        for i in range(3):
+            dw.write(b"x" * 1024)
+
+        self.logger.debug.assert_not_called()
+        self.buf.flush.assert_not_called()
+
+    def test_flushes_not_before_4096_bytes(self):
+        dw = DebugWrapper(self.buf, self.logger)
+        dw.write(b"x"*4095)
+
+        self.logger.debug.assert_not_called()
+
+    def test_mute_replaces_write_with_placeholder(self):
+        dw = DebugWrapper(self.buf, self.logger)
+        dw.write(b"foo")
+        self.buf.write.assert_called_once_with(b"foo")
+        self.buf.write.reset_mock()
+
+        with dw.mute():
+            dw.write(b"bar")
+            self.buf.write.assert_called_once_with(b"bar")
+            self.buf.write.reset_mock()
+
+        dw.write(b"baz")
+        self.buf.write.assert_called_once_with(b"baz")
+        self.buf.write.reset_mock()
+
+        dw.flush()
+
+        self.logger.debug.assert_called_once_with(
+            "SENT %r",
+            b"foo<!-- some bytes omitted -->baz"
+        )
+
+    def test_mute_replaces_multiple_writes_with_single_placeholder(self):
+        dw = DebugWrapper(self.buf, self.logger)
+        dw.write(b"foo")
+        self.buf.write.assert_called_once_with(b"foo")
+        self.buf.write.reset_mock()
+
+        with dw.mute():
+            dw.write(b"bar")
+            self.buf.write.assert_called_once_with(b"bar")
+            self.buf.write.reset_mock()
+            dw.write(b"fnord")
+            self.buf.write.assert_called_once_with(b"fnord")
+            self.buf.write.reset_mock()
+
+        dw.write(b"baz")
+        self.buf.write.assert_called_once_with(b"baz")
+        self.buf.write.reset_mock()
+
+        dw.flush()
+
+        self.logger.debug.assert_called_once_with(
+            "SENT %r",
+            b"foo<!-- some bytes omitted -->baz"
+        )
+
+    def test_mute_creates_new_marker_for_new_mute_invocation(self):
+        dw = DebugWrapper(self.buf, self.logger)
+        dw.write(b"foo")
+        self.buf.write.assert_called_once_with(b"foo")
+        self.buf.write.reset_mock()
+
+        with dw.mute():
+            dw.write(b"bar")
+            self.buf.write.assert_called_once_with(b"bar")
+            self.buf.write.reset_mock()
+
+        with dw.mute():
+            dw.write(b"fnord")
+            self.buf.write.assert_called_once_with(b"fnord")
+            self.buf.write.reset_mock()
+
+        dw.write(b"baz")
+        self.buf.write.assert_called_once_with(b"baz")
+        self.buf.write.reset_mock()
+
+        dw.flush()
+
+        self.logger.debug.assert_called_once_with(
+            "SENT %r",
+            b"foo<!-- some bytes omitted --><!-- some bytes omitted -->baz"
+        )
+
+    def test_mute_correctly_unmutes_on_exception(self):
+        class FooException(Exception):
+            pass
+
+        dw = DebugWrapper(self.buf, self.logger)
+        dw.write(b"foo")
+        self.buf.write.assert_called_once_with(b"foo")
+        self.buf.write.reset_mock()
+
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(self.assertRaises(FooException))
+            stack.enter_context(dw.mute())
+            dw.write(b"bar")
+            self.buf.write.assert_called_once_with(b"bar")
+            self.buf.write.reset_mock()
+            raise FooException()
+
+        dw.write(b"baz")
+        self.buf.write.assert_called_once_with(b"baz")
+        self.buf.write.reset_mock()
+
+        dw.flush()
+
+        self.logger.debug.assert_called_once_with(
+            "SENT %r",
+            b"foo<!-- some bytes omitted -->baz"
+        )
+
+
 class TestXMLStream(unittest.TestCase):
     def setUp(self):
         self.maxDiff = None
         self.loop = asyncio.get_event_loop()
+
+    def tearDown(self):
+        self.loop.set_exception_handler(
+            type(self.loop).default_exception_handler
+        )
 
     def _make_peer_header(self, version=(1, 0)):
         return PEER_STREAM_HEADER_TEMPLATE.format(
@@ -1587,10 +1779,64 @@ class TestXMLStream(unittest.TestCase):
             async_.mock_calls,
         )
 
-    def tearDown(self):
-        self.loop.set_exception_handler(
-            type(self.loop).default_exception_handler
+    def test_mute_forwards_to_debug_wrapper(self):
+        t, p = self._make_stream(to=TEST_PEER)
+
+        run_coroutine(t.run_test(
+            [
+                TransportMock.Write(
+                    STREAM_HEADER,
+                    response=[
+                        TransportMock.Receive(
+                            self._make_peer_header(version=(1, 0))
+                        ),
+                    ]),
+            ],
+            partial=True
+        ))
+
+        self.assertIsInstance(p._debug_wrapper, DebugWrapper)
+
+        mute = unittest.mock.Mock()
+        mute.return_value = unittest.mock.MagicMock(
+            ["__enter__", "__exit__"]
         )
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(unittest.mock.patch.object(
+                p._debug_wrapper,
+                "mute",
+                new=mute,
+            ))
+
+            cm = p.mute()
+            with cm:
+                mute.assert_called_once_with()
+                mute().__enter__.assert_called_once_with()
+            mute().__exit__.assert_called_once_with(None, None, None)
+
+    def test_mute_works_without_debugging_enabled(self):
+        logger = logging.getLogger("test")
+        logger.setLevel(logging.ERROR)
+
+        t, p = self._make_stream(to=TEST_PEER, base_logger=logger)
+
+        run_coroutine(t.run_test(
+            [
+                TransportMock.Write(
+                    STREAM_HEADER,
+                    response=[
+                        TransportMock.Receive(
+                            self._make_peer_header(version=(1, 0))
+                        ),
+                    ]),
+            ],
+            partial=True
+        ))
+
+        self.assertIsNone(p._debug_wrapper)
+
+        with p.mute():
+            pass
 
 
 class Testsend_and_wait_for(xmltestutils.XMLTestCase):

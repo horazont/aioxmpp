@@ -1644,6 +1644,7 @@ class TestPasswordSASLProvider(xmltestutils.XMLTestCase):
             self._test_provider(
                 provider,
                 actions=[
+                    XMLStreamMock.Mute(),
                     XMLStreamMock.Send(
                         nonza.SASLAuth(mechanism="PLAIN",
                                        payload=payload),
@@ -1653,7 +1654,8 @@ class TestPasswordSASLProvider(xmltestutils.XMLTestCase):
                                            "malformed-request")
                             )
                         )
-                    )
+                    ),
+                    XMLStreamMock.Unmute(),
                 ],
                 tls_transport=True)
 
@@ -1674,13 +1676,15 @@ class TestPasswordSASLProvider(xmltestutils.XMLTestCase):
             self._test_provider(
                 provider,
                 actions=[
+                    XMLStreamMock.Mute(),
                     XMLStreamMock.Send(
                         nonza.SASLAuth(
                             mechanism="PLAIN",
                             payload=payload),
                         response=XMLStreamMock.Receive(
                             nonza.SASLSuccess())
-                    )
+                    ),
+                    XMLStreamMock.Unmute(),
                 ],
                 tls_transport=True)
         )
@@ -1710,6 +1714,7 @@ class TestPasswordSASLProvider(xmltestutils.XMLTestCase):
             self._test_provider(
                 provider,
                 actions=[
+                    XMLStreamMock.Mute(),
                     XMLStreamMock.Send(
                         nonza.SASLAuth(
                             mechanism="SCRAM-SHA-1",
@@ -1719,6 +1724,8 @@ class TestPasswordSASLProvider(xmltestutils.XMLTestCase):
                                 condition=(namespaces.sasl, "invalid-mechanism")
                             ))
                     ),
+                    XMLStreamMock.Unmute(),
+                    XMLStreamMock.Mute(),
                     XMLStreamMock.Send(
                         nonza.SASLAuth(
                             mechanism="PLAIN",
@@ -1727,6 +1734,7 @@ class TestPasswordSASLProvider(xmltestutils.XMLTestCase):
                             nonza.SASLSuccess()
                         )
                     ),
+                    XMLStreamMock.Unmute(),
                 ],
                 tls_transport=True)
         )
@@ -1758,6 +1766,7 @@ class TestPasswordSASLProvider(xmltestutils.XMLTestCase):
             self._test_provider(
                 provider,
                 actions=[
+                    XMLStreamMock.Mute(),
                     XMLStreamMock.Send(
                         nonza.SASLAuth(
                             mechanism="PLAIN",
@@ -1768,6 +1777,7 @@ class TestPasswordSASLProvider(xmltestutils.XMLTestCase):
                             )
                         )
                     ),
+                    XMLStreamMock.Unmute(),
                 ]*3,
                 tls_transport=True)
 
@@ -1800,6 +1810,7 @@ class TestPasswordSASLProvider(xmltestutils.XMLTestCase):
             self._test_provider(
                 provider,
                 actions=[
+                    XMLStreamMock.Mute(),
                     XMLStreamMock.Send(
                         nonza.SASLAuth(
                             mechanism="SCRAM-SHA-1",
@@ -1811,6 +1822,8 @@ class TestPasswordSASLProvider(xmltestutils.XMLTestCase):
                             )
                         )
                     ),
+                    XMLStreamMock.Unmute(),
+                    XMLStreamMock.Mute(),
                     XMLStreamMock.Send(
                         nonza.SASLAuth(mechanism="PLAIN",
                                        payload=plain_payload),
@@ -1820,7 +1833,8 @@ class TestPasswordSASLProvider(xmltestutils.XMLTestCase):
                                            "mechanism-too-weak")
                             )
                         )
-                    )
+                    ),
+                    XMLStreamMock.Unmute(),
                 ],
                 tls_transport=True
             )

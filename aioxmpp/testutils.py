@@ -25,6 +25,7 @@ utilities themselves are tested, which is meta, but cool.
 """
 import asyncio
 import collections
+import contextlib
 import functools
 import logging
 import unittest
@@ -592,6 +593,14 @@ class XMLStreamMock(InteractivityMock):
         def __new__(cls, *, response=None):
             return super().__new__(cls, response)
 
+    class Mute(collections.namedtuple("Mute", ["response"])):
+        def __new__(cls, *, response=None):
+            return super().__new__(cls, response)
+
+    class Unmute(collections.namedtuple("Unmute", ["response"])):
+        def __new__(cls, *, response=None):
+            return super().__new__(cls, response)
+
     class STARTTLS(collections.namedtuple("STARTTLS", [
             "ssl_context", "post_handshake_callback", "response"])):
         def __new__(cls, ssl_context, post_handshake_callback,
@@ -650,6 +659,10 @@ class XMLStreamMock(InteractivityMock):
                     yield from self._starttls(*args)
                 elif action == "abort":
                     yield from self._abort(*args)
+                elif action == "mute":
+                    yield from self._mute(*args)
+                elif action == "unmute":
+                    yield from self._unmute(*args)
                 else:
                     assert False
 
@@ -684,6 +697,14 @@ class XMLStreamMock(InteractivityMock):
     @asyncio.coroutine
     def _reset(self):
         self._basic("reset", self.Reset)
+
+    @asyncio.coroutine
+    def _mute(self):
+        self._basic("mute", self.Mute)
+
+    @asyncio.coroutine
+    def _unmute(self):
+        self._basic("unmute", self.Unmute)
 
     @asyncio.coroutine
     def _abort(self):
@@ -777,6 +798,14 @@ class XMLStreamMock(InteractivityMock):
             yield from fut
         except Exception:
             pass
+
+    @contextlib.contextmanager
+    def mute(self):
+        self._queue.put_nowait(("mute",))
+        try:
+            yield
+        finally:
+            self._queue.put_nowait(("unmute",))
 
     def can_starttls(self):
         return self.can_starttls_value
