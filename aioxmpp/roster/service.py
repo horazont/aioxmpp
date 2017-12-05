@@ -700,6 +700,8 @@ class RosterClient(aioxmpp.service.Service):
         """
         (Pre-)approve a subscription request from `peer_jid`.
 
+        :param peer_jid: The peer to (pre-)approve.
+
         This sends a ``"subscribed"`` presence to the peer; if the peer has
         previously asked for a subscription, this will seal the deal and create
         the subscription.
@@ -707,6 +709,11 @@ class RosterClient(aioxmpp.service.Service):
         If the peer has not requested a subscription (yet), it is marked as
         pre-approved by the server. A future subscription request by the peer
         will then be confirmed by the server automatically.
+
+        .. note::
+
+            Pre-approval is an OPTIONAL feature in :rfc:`6121`. It is announced
+            as a stream feature.
         """
         self.client.stream.enqueue(
             stanza.Presence(type_=structs.PresenceType.SUBSCRIBED,

@@ -312,7 +312,7 @@ class XMPPXMLGenerator:
         can use any namespace you like at any time. If you use a namespace
         whose URI has not been associated with a prefix yet, a free prefix will
         automatically be chosen. To avoid unneccessary performance penalties,
-        do not use prefixes of the form ``"{:d}".format(n)``, for any
+        do not use prefixes of the form ``"ns{:d}".format(n)``, for any
         non-negative number of `n`.
 
         It is however required to call :meth:`endPrefixMapping` after a
