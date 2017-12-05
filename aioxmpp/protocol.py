@@ -246,6 +246,10 @@ class XMLStream(asyncio.Protocol):
 
     .. automethod:: abort
 
+    Controlling debug output:
+
+    .. automethod:: mute
+
     Signals:
 
     .. signal:: on_closing
@@ -589,9 +593,11 @@ class XMLStream(asyncio.Protocol):
         self._processor.on_exception = self._rx_exception
         self._parser = xml.make_parser()
         self._parser.setContentHandler(self._processor)
+        self._debug_wrapper = None
 
         if self._logger.getEffectiveLevel() <= logging.DEBUG:
             dest = DebugWrapper(self._transport, self._logger)
+            self._debug_wrapper = dest
         else:
             dest = self._transport
         self._writer = xml.XMLStreamWriter(
@@ -740,6 +746,21 @@ class XMLStream(asyncio.Protocol):
         This attribute cannot be set.
         """
         return self._smachine.state
+
+    @contextlib.contextmanager
+    def mute(self):
+        """
+        A context-manager which prohibits logging of data sent over the stream.
+
+        Data sent over the stream is replaced with
+        ``<!-- some bytes omitted -->``. This is mainly useful during
+        authentication.
+        """
+        if self._debug_wrapper is None:
+            yield
+        else:
+            with self._debug_wrapper.mute():
+                yield
 
 
 @asyncio.coroutine

@@ -104,6 +104,9 @@ Version 0.10
   for untracked (sent through :meth:`aioxmpp.muc.Room.send_message`) MUC
   messages.
 
+* Add :meth:`aioxmpp.protocol.XMLStream.mute` context manager to suppress debug
+  logging of stream contents.
+
 .. _api-changelog-0.9:
 
 Version 0.9

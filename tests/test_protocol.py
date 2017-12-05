@@ -22,6 +22,7 @@
 import asyncio
 import contextlib
 import io
+import logging
 import unittest
 import unittest.mock
 
@@ -1777,6 +1778,65 @@ class TestXMLStream(unittest.TestCase):
             unittest.mock.call().cancel(),
             async_.mock_calls,
         )
+
+    def test_mute_forwards_to_debug_wrapper(self):
+        t, p = self._make_stream(to=TEST_PEER)
+
+        run_coroutine(t.run_test(
+            [
+                TransportMock.Write(
+                    STREAM_HEADER,
+                    response=[
+                        TransportMock.Receive(
+                            self._make_peer_header(version=(1, 0))
+                        ),
+                    ]),
+            ],
+            partial=True
+        ))
+
+        self.assertIsInstance(p._debug_wrapper, DebugWrapper)
+
+        mute = unittest.mock.Mock()
+        mute.return_value = unittest.mock.MagicMock(
+            ["__enter__", "__exit__"]
+        )
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(unittest.mock.patch.object(
+                p._debug_wrapper,
+                "mute",
+                new=mute,
+            ))
+
+            cm = p.mute()
+            with cm:
+                mute.assert_called_once_with()
+                mute().__enter__.assert_called_once_with()
+            mute().__exit__.assert_called_once_with(None, None, None)
+
+    def test_mute_works_without_debugging_enabled(self):
+        logger = logging.getLogger("test")
+        logger.setLevel(logging.ERROR)
+
+        t, p = self._make_stream(to=TEST_PEER, base_logger=logger)
+
+        run_coroutine(t.run_test(
+            [
+                TransportMock.Write(
+                    STREAM_HEADER,
+                    response=[
+                        TransportMock.Receive(
+                            self._make_peer_header(version=(1, 0))
+                        ),
+                    ]),
+            ],
+            partial=True
+        ))
+
+        self.assertIsNone(p._debug_wrapper)
+
+        with p.mute():
+            pass
 
 
 class Testsend_and_wait_for(xmltestutils.XMLTestCase):
