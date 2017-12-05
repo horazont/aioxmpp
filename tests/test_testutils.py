@@ -573,7 +573,6 @@ class TestTransportMock(unittest.TestCase):
             )
         )
 
-
     def test_exception_from_stimulus_bubbles_up(self):
         exc = ConnectionError("foobar")
 
@@ -745,6 +744,41 @@ class TestXMLStreamMock(XMLTestCase):
                                     "unexpected close"):
             run_coroutine(self.xmlstream.run_test(
                 [
+                ],
+            ))
+
+    def test_mute_unmute_cycle(self):
+        with self.xmlstream.mute():
+            run_coroutine(self.xmlstream.run_test(
+                [
+                    XMLStreamMock.Mute(),
+                ],
+            ))
+
+        run_coroutine(self.xmlstream.run_test(
+            [
+                XMLStreamMock.Unmute(),
+            ],
+        ))
+
+    def test_catch_surplus_mute(self):
+        with self.xmlstream.mute():
+            with self.assertRaisesRegex(AssertionError,
+                                        "unexpected mute"):
+                run_coroutine(self.xmlstream.run_test(
+                    [
+                    ],
+                ))
+
+    def test_catch_surplus_unmute(self):
+        with self.xmlstream.mute():
+            pass
+
+        with self.assertRaisesRegex(AssertionError,
+                                    "unexpected unmute"):
+            run_coroutine(self.xmlstream.run_test(
+                [
+                    XMLStreamMock.Mute(),
                 ],
             ))
 
