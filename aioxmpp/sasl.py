@@ -80,15 +80,17 @@ class SASLXMPPInterface(aiosasl.SASLInterface):
 
     @asyncio.coroutine
     def initiate(self, mechanism, payload=None):
-        return (yield from self._send_sasl_node_and_wait_for(
-            nonza.SASLAuth(mechanism=mechanism,
-                           payload=payload)))
+        with self.xmlstream.mute():
+            return (yield from self._send_sasl_node_and_wait_for(
+                nonza.SASLAuth(mechanism=mechanism,
+                               payload=payload)))
 
     @asyncio.coroutine
     def respond(self, payload):
-        return (yield from self._send_sasl_node_and_wait_for(
-            nonza.SASLResponse(payload=payload)
-        ))
+        with self.xmlstream.mute():
+            return (yield from self._send_sasl_node_and_wait_for(
+                nonza.SASLResponse(payload=payload)
+            ))
 
     @asyncio.coroutine
     def abort(self):

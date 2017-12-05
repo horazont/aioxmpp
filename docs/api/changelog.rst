@@ -107,6 +107,8 @@ Version 0.10
 * Add :meth:`aioxmpp.protocol.XMLStream.mute` context manager to suppress debug
   logging of stream contents.
 
+* Exclude authentication information sent during SASL.
+
 .. _api-changelog-0.9:
 
 Version 0.9
