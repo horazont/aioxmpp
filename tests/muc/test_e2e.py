@@ -133,6 +133,47 @@ class TestMuc(TestCase):
 
     @blocking_timed
     @asyncio.coroutine
+    def test_join_history(self):
+        service = self.thirdwitch.summon(aioxmpp.MUCClient)
+
+        recvd_future = asyncio.Future()
+
+        def onjoin(occupant, **kwargs):
+            if occupant.nick != "thirdwitch":
+                return
+            nonlocal recvd_future
+            recvd_future.set_result((occupant, ))
+            # we do not want to be called again
+            return True
+
+        self.firstroom.on_join.connect(onjoin)
+
+        msg = aioxmpp.Message(type_=aioxmpp.MessageType.GROUPCHAT)
+        msg.body[None] = "test"
+        yield from self.firstroom.send_message(msg)
+
+        thirdroom, fut = service.join(
+            self.mucjid,
+            "thirdwitch",
+            history=aioxmpp.muc.xso.History(seconds=10)
+        )
+        yield from fut
+
+        occupant, = yield from recvd_future
+        self.assertEqual(
+            occupant.conversation_jid,
+            self.mucjid.replace(resource="thirdwitch"),
+        )
+
+        yield from asyncio.sleep(0.2)
+
+        self.assertEqual(thirdroom.muc_state,
+                         aioxmpp.muc.RoomState.ACTIVE)
+
+        self.assertIn(occupant, self.firstroom.members)
+
+    @blocking_timed
+    @asyncio.coroutine
     def test_kick(self):
         exit_fut = asyncio.Future()
         leave_fut = asyncio.Future()

@@ -115,6 +115,12 @@ Version 0.10
 
 * Exclude authentication information sent during SASL.
 
+* The :meth:`aioxmpp.muc.Room.on_message` events fired during :xep:`45` history
+  replay now always have a non-:data:`None` `member` argument.
+
+  Please see the documentation of the event for some caveats of this `member`
+  argument as well as the rationale.
+
 .. _api-changelog-0.9:
 
 Version 0.9

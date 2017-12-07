@@ -304,6 +304,15 @@ class TestRoom(unittest.TestCase):
             cb.return_value = None
             getattr(self.jmuc, ev).connect(cb)
 
+        self.listener = make_listener(self.jmuc)
+
+        self.msg_end_of_history = aioxmpp.Message(
+            from_=TEST_MUC_JID.replace(resource="firstwitch"),
+            type_=aioxmpp.MessageType.GROUPCHAT,
+        )
+        self.msg_end_of_history.subject.update({None: None})
+        self.msg_end_of_history.xep0045_muc_user = muc_xso.UserExt()
+
     def tearDown(self):
         del self.jmuc
 
@@ -1537,7 +1546,8 @@ class TestRoom(unittest.TestCase):
             tracker=MessageTracker(),
         )
 
-    def test_inbound_groupchat_message_with_body_emits_on_message_other_member(self):
+    def test_inbound_groupchat_message_with_body_emits_on_message_other_member(
+            self):
         pres = aioxmpp.stanza.Presence(
             from_=TEST_MUC_JID.replace(resource="firstwitch"),
         )
@@ -1557,6 +1567,12 @@ class TestRoom(unittest.TestCase):
 
         self.base.on_enter.assert_called_once_with(pres, self.jmuc.me)
         self.base.mock_calls.clear()
+
+        # end of history replay
+        self.jmuc._handle_message(self.msg_end_of_history,
+                                  self.msg_end_of_history.from_,
+                                  False,
+                                  im_dispatcher.MessageSource.STREAM)
 
         msg = aioxmpp.stanza.Message(
             from_=TEST_MUC_JID.replace(resource="firstwitch"),
@@ -2464,6 +2480,10 @@ class TestRoom(unittest.TestCase):
         )
 
         self.jmuc._inbound_muc_user_presence(presence)
+        self.jmuc._handle_message(self.msg_end_of_history,
+                                  self.msg_end_of_history.from_,
+                                  False,
+                                  im_dispatcher.MessageSource.STREAM)
 
         msg = aioxmpp.Message(aioxmpp.MessageType.NORMAL)
         msg.body.update({None: "some text"})
@@ -2962,6 +2982,567 @@ class TestRoom(unittest.TestCase):
             },
             self.jmuc.features,
         )
+
+    def test_state(self):
+        self.assertEqual(self.jmuc.muc_state,
+                         muc_service.RoomState.JOIN_PRESENCE)
+
+    def test_state_during_presence_state_transfer(self):
+        presence = aioxmpp.stanza.Presence(
+            type_=aioxmpp.structs.PresenceType.AVAILABLE,
+            from_=TEST_MUC_JID.replace(resource="firstwitch")
+        )
+        presence.xep0045_muc_user = muc_xso.UserExt(
+            items=[
+                muc_xso.UserItem(affiliation="member",
+                                 role="participant"),
+            ],
+            status_codes=set(),
+        )
+
+        self.jmuc._inbound_muc_user_presence(presence)
+
+        self.assertEqual(self.jmuc.muc_state,
+                         muc_service.RoomState.JOIN_PRESENCE)
+
+        presence = aioxmpp.stanza.Presence(
+            type_=aioxmpp.structs.PresenceType.AVAILABLE,
+            from_=TEST_MUC_JID.replace(resource="thirdwitch")
+        )
+        presence.xep0045_muc_user = muc_xso.UserExt(
+            items=[
+                muc_xso.UserItem(affiliation="member",
+                                 role="participant"),
+            ],
+            status_codes={110},
+        )
+
+        self.jmuc._inbound_muc_user_presence(presence)
+
+        self.assertEqual(self.jmuc.muc_state,
+                         muc_service.RoomState.HISTORY)
+
+    def test_state_during_history_replay(self):
+        presence = aioxmpp.stanza.Presence(
+            type_=aioxmpp.structs.PresenceType.AVAILABLE,
+            from_=TEST_MUC_JID.replace(resource="thirdwitch")
+        )
+        presence.xep0045_muc_user = muc_xso.UserExt(
+            items=[
+                muc_xso.UserItem(affiliation="member",
+                                 role="participant"),
+            ],
+            status_codes={110},
+        )
+
+        self.jmuc._inbound_muc_user_presence(presence)
+
+        self.assertEqual(self.jmuc.muc_state,
+                         muc_service.RoomState.HISTORY)
+
+        message = aioxmpp.Message(
+            from_=TEST_MUC_JID.replace(resource="firstwitch"),
+            type_=aioxmpp.MessageType.GROUPCHAT,
+        )
+        message.xep0045_muc_user = muc_xso.UserExt()
+
+        self.jmuc._handle_message(message, message.from_, False,
+                                  im_dispatcher.MessageSource.STREAM)
+
+        self.assertEqual(self.jmuc.muc_state,
+                         muc_service.RoomState.HISTORY)
+
+        message = aioxmpp.Message(
+            from_=TEST_MUC_JID.replace(resource="firstwitch"),
+            type_=aioxmpp.MessageType.GROUPCHAT,
+        )
+        message.xep0045_muc_user = muc_xso.UserExt()
+
+        self.jmuc._handle_message(message, message.from_, False,
+                                  im_dispatcher.MessageSource.STREAM)
+
+        self.assertEqual(self.jmuc.muc_state,
+                         muc_service.RoomState.HISTORY)
+
+        self.jmuc._handle_message(self.msg_end_of_history,
+                                  self.msg_end_of_history.from_,
+                                  False,
+                                  im_dispatcher.MessageSource.STREAM)
+
+        self.assertEqual(self.jmuc.muc_state,
+                         muc_service.RoomState.ACTIVE)
+
+    def test_state_disconnect(self):
+        presence = aioxmpp.stanza.Presence(
+            type_=aioxmpp.structs.PresenceType.AVAILABLE,
+            from_=TEST_MUC_JID.replace(resource="thirdwitch")
+        )
+        presence.xep0045_muc_user = muc_xso.UserExt(
+            items=[
+                muc_xso.UserItem(affiliation="member",
+                                 role="participant"),
+            ],
+            status_codes={110},
+        )
+
+        self.jmuc._inbound_muc_user_presence(presence)
+
+        self.assertEqual(self.jmuc.muc_state,
+                         muc_service.RoomState.HISTORY)
+
+        message = aioxmpp.Message(
+            from_=TEST_MUC_JID.replace(resource="firstwitch"),
+            type_=aioxmpp.MessageType.GROUPCHAT,
+        )
+        message.subject.update({None: None})
+        message.xep0045_muc_user = muc_xso.UserExt()
+
+        self.jmuc._handle_message(message, message.from_, False,
+                                  im_dispatcher.MessageSource.STREAM)
+
+        self.assertEqual(self.jmuc.muc_state,
+                         muc_service.RoomState.ACTIVE)
+
+        self.jmuc._disconnect()
+
+        self.assertEqual(self.jmuc.muc_state,
+                         muc_service.RoomState.DISCONNECTED)
+
+    def test_state_suspend(self):
+        presence = aioxmpp.stanza.Presence(
+            type_=aioxmpp.structs.PresenceType.AVAILABLE,
+            from_=TEST_MUC_JID.replace(resource="thirdwitch")
+        )
+        presence.xep0045_muc_user = muc_xso.UserExt(
+            items=[
+                muc_xso.UserItem(affiliation="member",
+                                 role="participant"),
+            ],
+            status_codes={110},
+        )
+
+        self.jmuc._inbound_muc_user_presence(presence)
+
+        self.assertEqual(self.jmuc.muc_state,
+                         muc_service.RoomState.HISTORY)
+
+        message = aioxmpp.Message(
+            from_=TEST_MUC_JID.replace(resource="firstwitch"),
+            type_=aioxmpp.MessageType.GROUPCHAT,
+        )
+        message.subject.update({None: None})
+        message.xep0045_muc_user = muc_xso.UserExt()
+
+        self.jmuc._handle_message(message, message.from_, False,
+                                  im_dispatcher.MessageSource.STREAM)
+
+        self.assertEqual(self.jmuc.muc_state,
+                         muc_service.RoomState.ACTIVE)
+
+        self.jmuc._suspend()
+
+        self.assertEqual(self.jmuc.muc_state,
+                         muc_service.RoomState.DISCONNECTED)
+
+    def test_state_suspend_resume_cycle(self):
+        self.jmuc._suspend()
+
+        self.assertEqual(self.jmuc.muc_state,
+                         muc_service.RoomState.DISCONNECTED)
+
+        self.jmuc._resume()
+
+        self.assertEqual(self.jmuc.muc_state,
+                         muc_service.RoomState.JOIN_PRESENCE)
+
+    def test_generate_transitional_occupant_objects_for_history(self):
+        presence = aioxmpp.stanza.Presence(
+            type_=aioxmpp.structs.PresenceType.AVAILABLE,
+            from_=TEST_MUC_JID.replace(resource="thirdwitch")
+        )
+        presence.xep0045_muc_user = muc_xso.UserExt(
+            items=[
+                muc_xso.UserItem(affiliation="member",
+                                 role="participant"),
+            ],
+            status_codes={110},
+        )
+
+        self.jmuc._inbound_muc_user_presence(presence)
+
+        message = aioxmpp.Message(
+            from_=TEST_MUC_JID.replace(resource="firstwitch"),
+            type_=aioxmpp.MessageType.GROUPCHAT,
+        )
+        message.body[None] = "something"
+        message.xep0045_muc_user = muc_xso.UserExt()
+
+        self.jmuc._handle_message(message, message.from_, False,
+                                  im_dispatcher.MessageSource.STREAM)
+
+        self.listener.on_message.assert_called_once_with(
+            message,
+            unittest.mock.ANY,
+            im_dispatcher.MessageSource.STREAM,
+            tracker=None,
+        )
+
+        _, (_, occupant, _), _ = self.listener.on_message.mock_calls[0]
+
+        self.assertIsNotNone(occupant)
+        self.assertEqual(occupant.nick, "firstwitch")
+        self.assertIsNone(occupant.direct_jid)
+
+    def test_include_real_jid_in_transitional_occupant_objects_if_available(
+            self):
+        presence = aioxmpp.stanza.Presence(
+            type_=aioxmpp.structs.PresenceType.AVAILABLE,
+            from_=TEST_MUC_JID.replace(resource="thirdwitch")
+        )
+        presence.xep0045_muc_user = muc_xso.UserExt(
+            items=[
+                muc_xso.UserItem(affiliation="member",
+                                 role="participant"),
+            ],
+            status_codes={110},
+        )
+
+        self.jmuc._inbound_muc_user_presence(presence)
+
+        message = aioxmpp.Message(
+            from_=TEST_MUC_JID.replace(resource="firstwitch"),
+            type_=aioxmpp.MessageType.GROUPCHAT,
+        )
+        message.body[None] = "something"
+        message.xep0045_muc_user = muc_xso.UserExt(
+            items=[
+                muc_xso.UserItem(jid=TEST_ENTITY_JID),
+            ],
+        )
+
+        self.jmuc._handle_message(message, message.from_, False,
+                                  im_dispatcher.MessageSource.STREAM)
+
+        self.listener.on_message.assert_called_once_with(
+            message,
+            unittest.mock.ANY,
+            im_dispatcher.MessageSource.STREAM,
+            tracker=None,
+        )
+
+        _, (_, occupant, _), _ = self.listener.on_message.mock_calls[0]
+
+        self.assertIsNotNone(occupant)
+        self.assertEqual(occupant.nick, "firstwitch")
+        self.assertEqual(occupant.direct_jid, TEST_ENTITY_JID)
+
+    def test_require_jid_match_to_reuse_current_occupants_object(self):
+        presence = aioxmpp.stanza.Presence(
+            type_=aioxmpp.structs.PresenceType.AVAILABLE,
+            from_=TEST_MUC_JID.replace(resource="firstwitch")
+        )
+        presence.xep0045_muc_user = muc_xso.UserExt(
+            items=[
+                muc_xso.UserItem(affiliation="member",
+                                 role="participant",
+                                 jid=TEST_ENTITY_JID.replace(
+                                     localpart="firstwitch"
+                                 )),
+            ],
+            status_codes=set(),
+        )
+
+        self.jmuc._inbound_muc_user_presence(presence)
+
+        presence = aioxmpp.stanza.Presence(
+            type_=aioxmpp.structs.PresenceType.AVAILABLE,
+            from_=TEST_MUC_JID.replace(resource="thirdwitch")
+        )
+        presence.xep0045_muc_user = muc_xso.UserExt(
+            items=[
+                muc_xso.UserItem(affiliation="member",
+                                 role="participant"),
+            ],
+            status_codes={110},
+        )
+
+        self.jmuc._inbound_muc_user_presence(presence)
+
+        message = aioxmpp.Message(
+            from_=TEST_MUC_JID.replace(resource="firstwitch"),
+            type_=aioxmpp.MessageType.GROUPCHAT,
+        )
+        message.body[None] = "something"
+        message.xep0045_muc_user = muc_xso.UserExt(
+            items=[
+                muc_xso.UserItem(jid=TEST_ENTITY_JID.replace(
+                    localpart="mallory"
+                )),
+            ],
+        )
+
+        self.jmuc._handle_message(message, message.from_, False,
+                                  im_dispatcher.MessageSource.STREAM)
+
+        self.listener.on_message.assert_called_once_with(
+            message,
+            unittest.mock.ANY,
+            im_dispatcher.MessageSource.STREAM,
+            tracker=None,
+        )
+
+        self.assertTrue(any(occupant.nick == "firstwitch"
+                            for occupant in self.jmuc.members))
+
+        _, (_, occupant, _), _ = self.listener.on_message.mock_calls[0]
+
+        self.assertIsNotNone(occupant)
+
+        self.assertNotIn(occupant, self.jmuc.members)
+
+        self.assertEqual(occupant.nick, "firstwitch")
+        self.assertEqual(
+            occupant.direct_jid,
+            TEST_ENTITY_JID.replace(localpart="mallory")
+        )
+
+    def test_re_use_actual_occupant_if_jid_matches(self):
+        presence = aioxmpp.stanza.Presence(
+            type_=aioxmpp.structs.PresenceType.AVAILABLE,
+            from_=TEST_MUC_JID.replace(resource="firstwitch")
+        )
+        presence.xep0045_muc_user = muc_xso.UserExt(
+            items=[
+                muc_xso.UserItem(affiliation="member",
+                                 role="participant",
+                                 jid=TEST_ENTITY_JID.replace(
+                                     localpart="firstwitch"
+                                 )),
+            ],
+            status_codes=set(),
+        )
+
+        self.jmuc._inbound_muc_user_presence(presence)
+
+        presence = aioxmpp.stanza.Presence(
+            type_=aioxmpp.structs.PresenceType.AVAILABLE,
+            from_=TEST_MUC_JID.replace(resource="thirdwitch")
+        )
+        presence.xep0045_muc_user = muc_xso.UserExt(
+            items=[
+                muc_xso.UserItem(affiliation="member",
+                                 role="participant"),
+            ],
+            status_codes={110},
+        )
+
+        self.jmuc._inbound_muc_user_presence(presence)
+
+        message = aioxmpp.Message(
+            from_=TEST_MUC_JID.replace(resource="firstwitch"),
+            type_=aioxmpp.MessageType.GROUPCHAT,
+        )
+        message.body[None] = "something"
+        message.xep0045_muc_user = muc_xso.UserExt(
+            items=[
+                muc_xso.UserItem(jid=TEST_ENTITY_JID.replace(
+                    localpart="firstwitch"
+                )),
+            ],
+        )
+
+        self.jmuc._handle_message(message, message.from_, False,
+                                  im_dispatcher.MessageSource.STREAM)
+
+        self.listener.on_message.assert_called_once_with(
+            message,
+            unittest.mock.ANY,
+            im_dispatcher.MessageSource.STREAM,
+            tracker=None,
+        )
+
+        firstwitch, = (
+            occupant for occupant in self.jmuc.members
+            if occupant.nick == "firstwitch"
+        )
+
+        _, (_, occupant, _), _ = self.listener.on_message.mock_calls[0]
+
+        self.assertIsNotNone(occupant)
+        self.assertIs(firstwitch, occupant)
+
+    def test_re_use_transient_occupant_if_jid_matches(self):
+        presence = aioxmpp.stanza.Presence(
+            type_=aioxmpp.structs.PresenceType.AVAILABLE,
+            from_=TEST_MUC_JID.replace(resource="thirdwitch")
+        )
+        presence.xep0045_muc_user = muc_xso.UserExt(
+            items=[
+                muc_xso.UserItem(affiliation="member",
+                                 role="participant"),
+            ],
+            status_codes={110},
+        )
+
+        self.jmuc._inbound_muc_user_presence(presence)
+
+        message = aioxmpp.Message(
+            from_=TEST_MUC_JID.replace(resource="firstwitch"),
+            type_=aioxmpp.MessageType.GROUPCHAT,
+        )
+        message.body[None] = "something"
+        message.xep0045_muc_user = muc_xso.UserExt(
+            items=[
+                muc_xso.UserItem(jid=TEST_ENTITY_JID.replace(
+                    localpart="firstwitch"
+                )),
+            ],
+        )
+        self.jmuc._handle_message(message, message.from_, False,
+                                  im_dispatcher.MessageSource.STREAM)
+
+        self.listener.on_message.assert_called_once_with(
+            message,
+            unittest.mock.ANY,
+            im_dispatcher.MessageSource.STREAM,
+            tracker=None,
+        )
+        _, (_, occupant1, _), _ = self.listener.on_message.mock_calls[0]
+        self.listener.on_message.reset_mock()
+
+        message = aioxmpp.Message(
+            from_=TEST_MUC_JID.replace(resource="firstwitch"),
+            type_=aioxmpp.MessageType.GROUPCHAT,
+        )
+        message.body[None] = "something"
+        message.xep0045_muc_user = muc_xso.UserExt(
+            items=[
+                muc_xso.UserItem(jid=TEST_ENTITY_JID.replace(
+                    localpart="firstwitch"
+                )),
+            ],
+        )
+        self.jmuc._handle_message(message, message.from_, False,
+                                  im_dispatcher.MessageSource.STREAM)
+
+        self.listener.on_message.assert_called_once_with(
+            message,
+            unittest.mock.ANY,
+            im_dispatcher.MessageSource.STREAM,
+            tracker=None,
+        )
+        _, (_, occupant2, _), _ = self.listener.on_message.mock_calls[0]
+        self.listener.on_message.reset_mock()
+
+        self.assertIsNotNone(occupant1)
+        self.assertIs(occupant1, occupant2)
+
+    def test_do_not_reuse_after_suspend_resume(self):
+        presence = aioxmpp.stanza.Presence(
+            type_=aioxmpp.structs.PresenceType.AVAILABLE,
+            from_=TEST_MUC_JID.replace(resource="thirdwitch")
+        )
+        presence.xep0045_muc_user = muc_xso.UserExt(
+            items=[
+                muc_xso.UserItem(affiliation="member",
+                                 role="participant"),
+            ],
+            status_codes={110},
+        )
+
+        self.jmuc._inbound_muc_user_presence(presence)
+
+        message = aioxmpp.Message(
+            from_=TEST_MUC_JID.replace(resource="firstwitch"),
+            type_=aioxmpp.MessageType.GROUPCHAT,
+        )
+        message.body[None] = "something"
+        message.xep0045_muc_user = muc_xso.UserExt(
+            items=[
+                muc_xso.UserItem(jid=TEST_ENTITY_JID.replace(
+                    localpart="firstwitch"
+                )),
+            ],
+        )
+        self.jmuc._handle_message(message, message.from_, False,
+                                  im_dispatcher.MessageSource.STREAM)
+
+        self.listener.on_message.assert_called_once_with(
+            message,
+            unittest.mock.ANY,
+            im_dispatcher.MessageSource.STREAM,
+            tracker=None,
+        )
+        _, (_, occupant1, _), _ = self.listener.on_message.mock_calls[0]
+        self.listener.on_message.reset_mock()
+
+        message = aioxmpp.Message(
+            from_=TEST_MUC_JID.replace(resource="firstwitch"),
+            type_=aioxmpp.MessageType.GROUPCHAT,
+        )
+        message.body[None] = "something"
+        message.xep0045_muc_user = muc_xso.UserExt(
+            items=[
+                muc_xso.UserItem(jid=TEST_ENTITY_JID.replace(
+                    localpart="firstwitch"
+                )),
+            ],
+        )
+        self.jmuc._handle_message(message, message.from_, False,
+                                  im_dispatcher.MessageSource.STREAM)
+
+        self.listener.on_message.assert_called_once_with(
+            message,
+            unittest.mock.ANY,
+            im_dispatcher.MessageSource.STREAM,
+            tracker=None,
+        )
+        _, (_, occupant2, _), _ = self.listener.on_message.mock_calls[0]
+        self.listener.on_message.reset_mock()
+
+        self.jmuc._suspend()
+        self.jmuc._resume()
+
+        presence = aioxmpp.stanza.Presence(
+            type_=aioxmpp.structs.PresenceType.AVAILABLE,
+            from_=TEST_MUC_JID.replace(resource="thirdwitch")
+        )
+        presence.xep0045_muc_user = muc_xso.UserExt(
+            items=[
+                muc_xso.UserItem(affiliation="member",
+                                 role="participant"),
+            ],
+            status_codes={110},
+        )
+
+        self.jmuc._inbound_muc_user_presence(presence)
+
+        message = aioxmpp.Message(
+            from_=TEST_MUC_JID.replace(resource="firstwitch"),
+            type_=aioxmpp.MessageType.GROUPCHAT,
+        )
+        message.body[None] = "something"
+        message.xep0045_muc_user = muc_xso.UserExt(
+            items=[
+                muc_xso.UserItem(jid=TEST_ENTITY_JID.replace(
+                    localpart="firstwitch"
+                )),
+            ],
+        )
+        self.jmuc._handle_message(message, message.from_, False,
+                                  im_dispatcher.MessageSource.STREAM)
+
+        self.listener.on_message.assert_called_once_with(
+            message,
+            unittest.mock.ANY,
+            im_dispatcher.MessageSource.STREAM,
+            tracker=None,
+        )
+        _, (_, occupant3, _), _ = self.listener.on_message.mock_calls[0]
+        self.listener.on_message.reset_mock()
+
+        self.assertIsNotNone(occupant3)
+        self.assertIsNot(occupant3, occupant1)
 
 
 class TestService(unittest.TestCase):

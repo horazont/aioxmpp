@@ -199,6 +199,49 @@ class Occupant(aioxmpp.im.conversation.AbstractConversationMember):
         self.role = other.role
         self._direct_jid = other.direct_jid
 
+    def __repr__(self):
+        return "<{}.{} occupantjid={!r} uid={!r} jid={!r}>".format(
+            type(self).__module__,
+            type(self).__qualname__,
+            self._conversation_jid,
+            self._uid,
+            self._direct_jid,
+        )
+
+
+class RoomState(Enum):
+    """
+    Enumeration which describes the state a :class:`~.muc.Room` is in.
+
+    .. attribute:: JOIN_PRESENCE
+
+        The room is in the process of being joined and the presence state
+        transfer is going on.
+
+    .. attribute:: HISTORY
+
+        Presence state transfer has happened, but the room subject has not
+        been received yet. This is where history replay messages are
+        received.
+
+        When entering this state, :attr:`~.muc.Room.muc_active` becomes true.
+
+    .. attribute:: ACTIVE
+
+        The join has completed, including history replay and receiving the
+        subject.
+
+    .. attribute:: DISCONNECTED
+
+        The MUC is suspended or disconnected. If the MUC is disconnected,
+        :attr:`~.muc.Room.muc_joined` will be false, too.
+    """
+
+    JOIN_PRESENCE = 0
+    HISTORY = 1
+    ACTIVE = 2
+    DISCONNECTED = 3
+
 
 class Room(aioxmpp.im.conversation.AbstractConversation):
     """
@@ -232,6 +275,8 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
     .. autoattribute:: muc_active
 
     .. autoattribute:: muc_joined
+
+    .. autoattribute:: muc_state
 
     .. autoattribute:: muc_subject
 
@@ -326,6 +371,26 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
 
           See :meth:`send_message_tracked` for details and caveats on the
           tracking implementation.
+
+        When **history replay** happens, the `member` argument is always not
+        :data:`None`. However, since joins and leaves are not part of the
+        history, it is not always possible to reason about the identity of the
+        sender of a history message. To avoid possible spoofing attacks, the
+        following caveats apply to the :class:`~.Occupant` objects handed as
+        `member` during history replay:
+
+        * Two identical :class:`~.Occupant` objects are only used *iff* the
+          nickname *and* the actual address of the entity are equal. This
+          implies that unless this client has the permission to see JIDs of
+          occupants of the MUC, all :class:`~.Occupant` objects during history
+          replay will be different instances.
+        * If the nickname and the actual address of a message from history
+          match, the current :class:`~.Occupant` object for the respective
+          occupant is used.
+        * :class:`~.Occupant` objects which are created for history replay are
+          never part of :attr:`members`. They are only use to convey the
+          information passed in the messages from the history replay, which
+          would otherwise be inaccessible.
 
         .. seealso::
 
@@ -501,12 +566,25 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
         self._tracking_by_id = {}
         self._tracking_metadata = {}
         self._tracking_by_body = {}
+        self._state = RoomState.JOIN_PRESENCE
+        self._history_replay_occupants = {}
         self.muc_autorejoin = False
         self.muc_password = None
 
     @property
     def service(self):
         return self._service
+
+    @property
+    def muc_state(self):
+        """
+        The state the MUC is in. This is one of the
+        :class:`~.muc.RoomState` enumeration values. See there for
+        documentation on the meaning.
+
+        This state is more detailed than :attr:`muc_active`.
+        """
+        return self._state
 
     @property
     def muc_active(self):
@@ -601,6 +679,8 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
     def _suspend(self):
         self.on_muc_suspend()
         self._active = False
+        self._state = RoomState.DISCONNECTED
+        self._history_replay_occupants.clear()
 
     def _disconnect(self):
         if not self._joined:
@@ -610,11 +690,14 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
         )
         self._joined = False
         self._active = False
+        self._state = RoomState.DISCONNECTED
+        self._history_replay_occupants.clear()
 
     def _resume(self):
         self._this_occupant = None
         self._occupant_info = {}
         self._active = False
+        self._state = RoomState.JOIN_PRESENCE
         self.on_muc_resume()
 
     def _match_tracker(self, message):
@@ -675,6 +758,31 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
         else:
             occupant = self._occupant_info.get(message.from_, None)
 
+            if self._state == RoomState.HISTORY and not sent:
+                if (message.xep0045_muc_user and
+                        message.xep0045_muc_user.items):
+                    item = message.xep0045_muc_user.items[0]
+                    jid = item.jid or None
+                    affiliation = item.affiliation or None
+                    role = item.role or None
+                else:
+                    jid = None
+                    affiliation = None
+                    role = None
+
+                occupant = self._history_replay_occupants.get(jid, occupant)
+
+                if (not occupant or
+                        occupant.direct_jid is None or
+                        occupant.direct_jid != jid):
+                    occupant = Occupant(message.from_, False,
+                                        presence_state=aioxmpp.PresenceState(),
+                                        jid=jid,
+                                        affiliation=affiliation,
+                                        role=role)
+                    if jid is not None:
+                        self._history_replay_occupants[jid] = occupant
+
         if not message.body and message.subject:
             self._subject = aioxmpp.structs.LanguageMap(message.subject)
             self._subject_setter = message.from_.resource
@@ -684,6 +792,9 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
                 self._subject,
                 muc_nick=message.from_.resource,
             )
+
+            self._state = RoomState.ACTIVE
+            self._history_replay_occupants.clear()
 
         elif message.body:
             if occupant is not None and occupant == self._this_occupant:
@@ -799,6 +910,7 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
             self._this_occupant = info
             self._joined = True
             self._active = True
+            self._state = RoomState.HISTORY
             self.on_enter(stanza, info)
             return
 
