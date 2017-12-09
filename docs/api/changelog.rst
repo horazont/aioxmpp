@@ -8,6 +8,23 @@ Changelog
 Version 0.10
 ============
 
+.. warning::
+
+    When running :mod:`aioxmpp.muc` against a Prosody-hosted MUC, a Prosody
+    version higher than 0.9.12 (for the 0.9 branch) or higher than 0.10.0
+    (for the 0.10 branch) is required, since all earlier versions are affected
+    by `Prosody issue #1053 <https://prosody.im/issues/1053>`_.
+
+    If an affected version of Prosody is used, three things will happen (which
+    all are a symptom of the same issue):
+
+    * :attr:`aioxmpp.muc.Occupant.uid` will not be useful in any way.
+    * :meth:`aioxmpp.muc.Room.on_message` may receive `member` arguments which
+      are not part of the :attr:`aioxmpp.muc.Room.members` and which may also
+      lack other information (such as bare JIDs).
+    * :attr:`aioxmpp.muc.Room.muc_state` will never reach the
+      :attr:`aioxmpp.muc.RoomState.ACTIVE` state.
+
 * **Breaking change**: Split :class:`aioxmpp.xso.AbstractType` into
   :class:`aioxmpp.xso.AbstractCDataType` (for which the
   :class:`aioxmpp.xso.AbstractType` was originally intended) and
