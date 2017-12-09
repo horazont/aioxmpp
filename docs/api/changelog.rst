@@ -16,14 +16,19 @@ Version 0.10
     by `Prosody issue #1053 <https://prosody.im/issues/1053>`_.
 
     If an affected version of Prosody is used, three things will happen (which
-    all are a symptom of the same issue):
+    all are a symptom of the same issue) until the first non-history message
+    or the first presence update is received:
 
-    * :attr:`aioxmpp.muc.Occupant.uid` will not be useful in any way.
+    * :attr:`aioxmpp.muc.Occupant.uid` will not be useful in any way (but also
+      not harmful, security-wise).
     * :meth:`aioxmpp.muc.Room.on_message` may receive `member` arguments which
       are not part of the :attr:`aioxmpp.muc.Room.members` and which may also
       lack other information (such as bare JIDs).
-    * :attr:`aioxmpp.muc.Room.muc_state` will never reach the
+    * :attr:`aioxmpp.muc.Room.muc_state` will not reach the
       :attr:`aioxmpp.muc.RoomState.ACTIVE` state.
+
+    Once the first non-history message or the first presence update is received,
+    the situation resolves itself.
 
 * **Breaking change**: Split :class:`aioxmpp.xso.AbstractType` into
   :class:`aioxmpp.xso.AbstractCDataType` (for which the

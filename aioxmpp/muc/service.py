@@ -710,6 +710,10 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
             aioxmpp.im.conversation.ConversationFeature.SET_NICK,
         }
 
+    def _enter_active_state(self):
+        self._state = RoomState.ACTIVE
+        self._history_replay_occupants.clear()
+
     def _suspend(self):
         self.on_muc_suspend()
         self._active = False
@@ -782,6 +786,14 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
                                    self._mucjid,
                                    message)
 
+        if self._state == RoomState.HISTORY and not message.xep0203_delay:
+            self._service.logger.debug(
+                "%s: received un-delayed message during history replay: "
+                "assuming that server is buggy and replay is over.",
+                self._mucjid,
+            )
+            self._enter_active_state()
+
         if not sent:
             if self._match_tracker(message):
                 return
@@ -827,8 +839,7 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
                 muc_nick=message.from_.resource,
             )
 
-            self._state = RoomState.ACTIVE
-            self._history_replay_occupants.clear()
+            self._enter_active_state()
 
         elif message.body:
             if occupant is not None and occupant == self._this_occupant:
@@ -977,6 +988,15 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
         self._service.logger.debug("%s: inbound muc user presence %r",
                                    self._mucjid,
                                    stanza)
+
+        if self._state == RoomState.HISTORY:
+            # prosody issue #1053 <https://prosody.im/issues/1053>
+            self._service.logger.debug(
+                "%s: received presence during history replay: "
+                "assuming that server is buggy and replay is over.",
+                self._mucjid,
+            )
+            self._enter_active_state()
 
         if (110 in stanza.xep0045_muc_user.status_codes or
                 (self._this_occupant is not None and
