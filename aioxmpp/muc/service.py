@@ -21,6 +21,7 @@
 ########################################################################
 import asyncio
 import functools
+import uuid
 
 from datetime import datetime, timedelta
 from enum import Enum
@@ -109,9 +110,16 @@ class Occupant(aioxmpp.im.conversation.AbstractConversationMember):
     """
     A tracking object to track a single occupant in a :class:`Room`.
 
+    .. seealso::
+
+        :class:`~.AbstractConversationMember`
+            for additional notes on some of the pre-defined attributes.
+
     .. autoattribute:: direct_jid
 
     .. autoattribute:: conversation_jid
+
+    .. autoattribute:: uid
 
     .. autoattribute:: nick
 
@@ -148,6 +156,13 @@ class Occupant(aioxmpp.im.conversation.AbstractConversationMember):
         self.affiliation = affiliation
         self.role = role
         self._direct_jid = jid
+        if jid is None:
+            self._uid = b"urn:uuid:" + uuid.uuid4().bytes
+        else:
+            self._set_uid_from_direct_jid(self._direct_jid)
+
+    def _set_uid_from_direct_jid(self, jid):
+        self._uid = b"xmpp:" + str(jid.bare()).encode("utf-8")
 
     @property
     def direct_jid(self):
@@ -165,6 +180,23 @@ class Occupant(aioxmpp.im.conversation.AbstractConversationMember):
         The nickname of the occupant.
         """
         return self.conversation_jid.resource
+
+    @property
+    def uid(self):
+        """
+        This is either a random identifier if the real JID of the occupant is
+        not known, or an identifier derived from the real JID of the occupant.
+
+        Note that as per the semantics of the :attr:`uid`, users **must** treat
+        it as opaque.
+
+        .. seealso::
+
+            :class:`~aioxmpp.im.conversation.AbstractConversationMember.uid`
+                Documentation of the attribute on the base class, with
+                additional information on semantics.
+        """
+        return self._uid
 
     @classmethod
     def from_presence(cls, presence, is_self):
@@ -197,6 +229,8 @@ class Occupant(aioxmpp.im.conversation.AbstractConversationMember):
         self.presence_status.update(other.presence_status)
         self.affiliation = other.affiliation
         self.role = other.role
+        if self._direct_jid is None and other.direct_jid is not None:
+            self._set_uid_from_direct_jid(other.direct_jid)
         self._direct_jid = other.direct_jid
 
     def __repr__(self):
@@ -354,7 +388,7 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
         :param msg: Message which was received.
         :type msg: :class:`aioxmpp.Message`
         :param member: The member object of the sender.
-        :type member: :class:`.AbstractConversationMember`
+        :type member: :class:`.Occupant`
         :param source: How the message was acquired
         :type source: :class:`~.MessageSource`
 

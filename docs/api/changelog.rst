@@ -121,6 +121,10 @@ Version 0.10
   Please see the documentation of the event for some caveats of this `member`
   argument as well as the rationale.
 
+* Introduce :attr:`aioxmpp.im.conversation.AbstractConversationMember.uid`
+  attribute which can be used to re-identify entities in conversations across
+  reboots and rejoins.
+
 .. _api-changelog-0.9:
 
 Version 0.9

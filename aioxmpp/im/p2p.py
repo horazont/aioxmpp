@@ -54,6 +54,10 @@ class Member(AbstractConversationMember):
 
         return self._conversation_jid
 
+    @property
+    def uid(self) -> bytes:
+        return b"xmpp:" + str(self._conversation_jid.bare()).encode("utf-8")
+
 
 class Conversation(AbstractConversation):
     """

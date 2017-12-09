@@ -95,6 +95,24 @@ class TestConversation(unittest.TestCase):
         self.assertTrue(
             self.c.me.is_self
         )
+        self.assertEqual(
+            b"xmpp:" + str(self.c.me.direct_jid.bare()).encode("utf-8"),
+            self.c.me.uid,
+        )
+
+    def test_other(self):
+        self.assertIsNot(self.c.members[1], self.c.me)
+        self.assertEqual(
+            self.c.members[1].direct_jid,
+            PEER_JID,
+        )
+        self.assertFalse(
+            self.c.members[1].is_self,
+        )
+        self.assertEqual(
+            b"xmpp:" + str(PEER_JID).encode("utf-8"),
+            self.c.members[1].uid,
+        )
 
     def test_send_message_stamps_to_and_enqueues(self):
         msg = unittest.mock.Mock()

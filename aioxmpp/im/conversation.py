@@ -214,6 +214,22 @@ class ConversationState(enum.Enum):
 
 
 class AbstractConversationMember(metaclass=abc.ABCMeta):
+    """
+    Represent a member in a :class:`~.AbstractConversation`.
+
+    While all :term:`implementations <Conversation Implementation>` will have
+    their own additional attributes, the following attributes must exist on
+    all subclasses:
+
+    .. autoattribute:: conversation_jid
+
+    .. autoattribute:: direct_jid
+
+    .. autoattribute:: is_self
+
+    .. autoattribute:: uid
+    """
+
     def __init__(self,
                  conversation_jid,
                  is_self):
@@ -223,6 +239,13 @@ class AbstractConversationMember(metaclass=abc.ABCMeta):
 
     @property
     def direct_jid(self):
+        """
+        If available, this is the :class:`~aioxmpp.JID` address of the member
+        for direct contact, outside of the conversation. It is independent of
+        the conversation itself.
+
+        If not available, this attribute reads as :data:`None`.
+        """
         return None
 
     @property
@@ -235,7 +258,25 @@ class AbstractConversationMember(metaclass=abc.ABCMeta):
 
     @property
     def is_self(self):
+        """
+        True if the member refers to ourselves in the conversation, false
+        otherwise.
+        """
         return self._is_self
+
+    @abc.abstractproperty
+    def uid(self) -> bytes:
+        """
+        This is a unique ID for the occupant. It can be used across sessions
+        and restarts to assert equality between occupants. It is guaranteed
+        to be equal if and only if the entity is the same (up to a uncertainty
+        caused by the limited length of the unique ID, somewhere in the order
+        of ``2**(-120)``).
+
+        The identifier is always a :class:`bytes` and **must** be treated as
+        opaque by users. The only guarantee which is given is that its length
+        will be less than 4096 bytes.
+        """
 
 
 class AbstractConversation(metaclass=abc.ABCMeta):
@@ -385,6 +426,25 @@ class AbstractConversation(metaclass=abc.ABCMeta):
         :type member: :class:`~.AbstractConversationMember`
         :param new_topic: The new topic of the conversation.
         :type new_topic: :class:`.LanguageMap`
+
+    .. signal:: on_uid_changed(member, old_uid, **kwargs)
+
+        This rare signal notifies that the
+        :attr:`~.AbstractConversationMember.uid` of a member has changed.
+
+        :param member: The member object for which the UID has changed.
+        :type member: :class:`~.AbstractConversationMember`
+        :param old_uid: The old UID of the member.
+        :type old_uid: :class:`bytes`
+
+        The new uid is already available at the members
+        :attr:`~.AbstractConversationMember.uid` attribute.
+
+        This signal can only fire for multi-user conversations where the
+        visibility of identifying information changes. In many cases, it will
+        be irrelevant for the application, but for some use-cases it might be
+        important to be able to re-write historical messages to use the new
+        uid.
 
     .. signal:: on_enter()
 

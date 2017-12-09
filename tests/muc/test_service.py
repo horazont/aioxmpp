@@ -23,6 +23,7 @@ import asyncio
 import contextlib
 import functools
 import unittest
+import uuid
 
 from datetime import datetime, timedelta
 
@@ -278,6 +279,162 @@ class TestOccupant(unittest.TestCase):
         self.assertEqual(occ.direct_jid, TEST_ENTITY_JID)
 
         self.assertIs(occ.presence_status, old_status_dict)
+
+    def test_random_uid_without_jid(self):
+        presence = aioxmpp.stanza.Presence(
+            from_=TEST_MUC_JID.replace(resource="secondwitch"),
+        )
+
+        uuid_sentinel = uuid.UUID(bytes=b"0123456789abcdef")
+
+        with contextlib.ExitStack() as stack:
+            uuid4 = stack.enter_context(unittest.mock.patch("uuid.uuid4"))
+            uuid4.return_value = uuid_sentinel
+
+            occ = muc_service.Occupant.from_presence(
+                presence,
+                unittest.mock.sentinel.is_self,
+            )
+
+        uuid4.assert_called_once_with()
+
+        self.assertEqual(
+            b"urn:uuid:" + uuid_sentinel.bytes,
+            occ.uid,
+        )
+
+    def test_uid_from_jid_if_jid_is_known(self):
+        presence = aioxmpp.stanza.Presence(
+            from_=TEST_MUC_JID.replace(resource="secondwitch"),
+        )
+
+        presence.xep0045_muc_user = muc_xso.UserExt(
+            items=[
+                muc_xso.UserItem(
+                    affiliation="owner",
+                    role="moderator",
+                    jid=TEST_ENTITY_JID.replace(resource="foo")
+                )
+            ]
+        )
+
+        with contextlib.ExitStack() as stack:
+            uuid4 = stack.enter_context(unittest.mock.patch("uuid.uuid4"))
+
+            occ = muc_service.Occupant.from_presence(
+                presence,
+                unittest.mock.sentinel.is_self,
+            )
+
+        uuid4.assert_not_called()
+
+        self.assertEqual(
+            b"xmpp:" + str(TEST_ENTITY_JID.bare()).encode("utf-8"),
+            occ.uid,
+        )
+
+    def test_uid_stays_constant_over_updates(self):
+        presence = aioxmpp.stanza.Presence(
+            from_=TEST_MUC_JID.replace(resource="secondwitch"),
+        )
+
+        occ = muc_service.Occupant.from_presence(
+            presence,
+            unittest.mock.sentinel.is_self,
+        )
+
+        presence = aioxmpp.stanza.Presence(
+            from_=TEST_MUC_JID.replace(resource="secondwitch"),
+        )
+
+        presence.xep0045_muc_user = muc_xso.UserExt(
+            items=[
+                muc_xso.UserItem(
+                    affiliation="owner",
+                    role="moderator",
+                )
+            ]
+        )
+
+        old_uid = occ.uid
+
+        occ.update(muc_service.Occupant.from_presence(
+            presence,
+            unittest.mock.sentinel.is_self,
+        ))
+
+        self.assertEqual(old_uid, occ.uid)
+
+    def test_uid_changes_if_jid_becomes_known(self):
+        presence = aioxmpp.stanza.Presence(
+            from_=TEST_MUC_JID.replace(resource="secondwitch"),
+        )
+
+        occ = muc_service.Occupant.from_presence(
+            presence,
+            unittest.mock.sentinel.is_self,
+        )
+
+        presence = aioxmpp.stanza.Presence(
+            from_=TEST_MUC_JID.replace(resource="secondwitch"),
+        )
+
+        presence.xep0045_muc_user = muc_xso.UserExt(
+            items=[
+                muc_xso.UserItem(
+                    affiliation="owner",
+                    role="moderator",
+                    jid=TEST_ENTITY_JID
+                )
+            ]
+        )
+
+        old_uid = occ.uid
+
+        occ.update(muc_service.Occupant.from_presence(
+            presence,
+            unittest.mock.sentinel.is_self,
+        ))
+
+        self.assertEqual(
+            b"xmpp:" + str(TEST_ENTITY_JID.bare()).encode("utf-8"),
+            occ.uid,
+        )
+
+        self.assertNotEqual(old_uid, occ.uid)
+
+    def test_uid_stays_intact_if_jid_becomes_unknown(self):
+        presence = aioxmpp.stanza.Presence(
+            from_=TEST_MUC_JID.replace(resource="secondwitch"),
+        )
+
+        presence.xep0045_muc_user = muc_xso.UserExt(
+            items=[
+                muc_xso.UserItem(
+                    affiliation="owner",
+                    role="moderator",
+                    jid=TEST_ENTITY_JID
+                )
+            ]
+        )
+
+        occ = muc_service.Occupant.from_presence(
+            presence,
+            unittest.mock.sentinel.is_self,
+        )
+
+        presence = aioxmpp.stanza.Presence(
+            from_=TEST_MUC_JID.replace(resource="secondwitch"),
+        )
+
+        old_uid = occ.uid
+
+        occ.update(muc_service.Occupant.from_presence(
+            presence,
+            unittest.mock.sentinel.is_self,
+        ))
+
+        self.assertEqual(old_uid, occ.uid)
 
 
 class TestRoom(unittest.TestCase):
