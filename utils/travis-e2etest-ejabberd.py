@@ -34,10 +34,10 @@ ejabberd = subprocess.Popen(
         "run",
         "-p", "5222:5222",
         "--rm",
-        "-v", "{}:/etc/ejabberd".format(
+        "-v", "{}:/home/p1/cfg/".format(
             os.path.join(cwd, "utils/ejabberd-cfg")
         ),
-        "jprjr/ejabberd",
+        "ejabberd/ecs",
     ],
 )
 
