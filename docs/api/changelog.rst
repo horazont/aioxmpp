@@ -142,6 +142,10 @@ Version 0.10
   attribute which can be used to re-identify entities in conversations across
   reboots and rejoins.
 
+* **Breaking change**: Since multiple ``<delay/>`` elements can occur in a
+  stanza, :attr:`aioxmpp.Message.xep0203_delay` is now a list instead of a
+  single :class:`aioxmpp.misc.Delay` object. Sorry for the inconvenience.
+
 .. _api-changelog-0.9:
 
 Version 0.9

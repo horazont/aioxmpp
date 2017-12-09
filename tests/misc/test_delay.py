@@ -52,7 +52,7 @@ class TestDelay(unittest.TestCase):
     def test_message_attribute(self):
         self.assertIsInstance(
             aioxmpp.Message.xep0203_delay,
-            xso.Child,
+            xso.ChildList,
         )
         self.assertSetEqual(
             aioxmpp.Message.xep0203_delay._classes,
