@@ -236,7 +236,6 @@ api_permissions:
 ## If you want to use a different method,
 ## comment this line and enable the correct ones.
 ##
-auth_method: anonymous
 
 ##
 ## Store the plain passwords or hashed for SCRAM:
@@ -299,10 +298,9 @@ auth_method: anonymous
 ## ldap_filter: "(objectClass=shadowAccount)"
 
 
-Anonymous login support:
-  auth_method: anonymous
-  anonymous_protocol: sasl_anon
-  allow_multiple_connections: true
+auth_method: anonymous
+anonymous_protocol: sasl_anon
+allow_multiple_connections: true
 
 ## host_config:
 ##   "public.example.org":
@@ -656,7 +654,6 @@ modules:
   mod_time: {}
   mod_vcard: {}
   mod_version: {}
-  mod_caps: {}
 
 ##
 ## Enable modules with custom options in a specific virtual host
