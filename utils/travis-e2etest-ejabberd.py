@@ -37,7 +37,7 @@ ejabberd = subprocess.Popen(
         "-v", "{}:/home/p1/cfg/".format(
             os.path.join(cwd, "utils/ejabberd-cfg")
         ),
-        "ejabberd/ecs",
+        "ejabberd/ecs:{}".format(os.environ["EJABBERD_VERSION"]),
     ],
 )
 
