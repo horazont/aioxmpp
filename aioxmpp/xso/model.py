@@ -2361,6 +2361,15 @@ class XSOParser:
     def __init__(self):
         self._class_map = {}
         self._tag_map = {}
+        self._ctx = Context()
+
+    @property
+    def lang(self):
+        return self._ctx.lang
+
+    @lang.setter
+    def lang(self, value):
+        self._ctx.lang = value
 
     def add_class(self, cls, callback):
         """
@@ -2412,7 +2421,6 @@ class XSOParser:
         del self._class_map[cls]
 
     def __call__(self):
-        ctx = Context()
         while True:
             ev_type, *ev_args = yield
             if ev_type == "text" and not ev_args[0].strip():
@@ -2425,7 +2433,7 @@ class XSOParser:
                 raise UnknownTopLevelTag(
                     "unhandled top-level element",
                     ev_args)
-            cb((yield from cls.parse_events(ev_args, ctx)))
+            cb((yield from cls.parse_events(ev_args, self._ctx)))
 
 
 def drop_handler(ev_args):

@@ -6208,6 +6208,120 @@ class TestXSOParser(XMLTestCase):
             cb.mock_calls
         )
 
+    def test_lang_propagation_into_context(self):
+        class Foo(xso.XSO):
+            TAG = "foo"
+
+            attr = xso.LangAttr()
+
+        results = []
+
+        def catch_result(value):
+            nonlocal results
+            results.append(value)
+
+        def fail_hard(*args):
+            raise AssertionError("this should not be reached")
+
+        parser = xso.XSOParser()
+        parser.add_class(Foo, catch_result)
+        parser.lang = structs.LanguageTag.fromstr("de")
+
+        tree = etree.fromstring("<foo/>")
+        sd = xso.SAXDriver(
+            parser,
+            on_emit=fail_hard
+        )
+        lxml.sax.saxify(tree, sd)
+
+        result, = results
+        self.assertEqual(
+            structs.LanguageTag.fromstr("de"),
+            result.attr
+        )
+
+    def test_lang_propagation_if_changed_later(self):
+        class Foo(xso.XSO):
+            TAG = "foo"
+
+            attr = xso.LangAttr()
+
+        results = []
+
+        def catch_result(value):
+            nonlocal results
+            results.append(value)
+
+        def fail_hard(*args):
+            raise AssertionError("this should not be reached")
+
+        parser = xso.XSOParser()
+        parser.add_class(Foo, catch_result)
+        parser.lang = structs.LanguageTag.fromstr("de")
+
+        tree = etree.fromstring("<foo/>")
+        sd = xso.SAXDriver(
+            parser,
+            on_emit=fail_hard
+        )
+        lxml.sax.saxify(tree, sd)
+
+        result, = results
+        results.clear()
+        self.assertEqual(
+            structs.LanguageTag.fromstr("de"),
+            result.attr
+        )
+
+        parser.lang = structs.LanguageTag.fromstr("en")
+
+        tree = etree.fromstring("<foo/>")
+        sd = xso.SAXDriver(
+            parser,
+            on_emit=fail_hard
+        )
+        lxml.sax.saxify(tree, sd)
+
+        result, = results
+        results.clear()
+        self.assertEqual(
+            structs.LanguageTag.fromstr("en"),
+            result.attr
+        )
+
+    def test_local_lang_still_wins(self):
+        class Foo(xso.XSO):
+            TAG = "foo"
+
+            attr = xso.LangAttr()
+
+        results = []
+
+        def catch_result(value):
+            nonlocal results
+            results.append(value)
+
+        def fail_hard(*args):
+            raise AssertionError("this should not be reached")
+
+        parser = xso.XSOParser()
+        parser.add_class(Foo, catch_result)
+        parser.lang = structs.LanguageTag.fromstr("de")
+
+        tree = etree.fromstring("<foo xml:lang='en'/>")
+        sd = xso.SAXDriver(
+            parser,
+            on_emit=fail_hard
+        )
+        lxml.sax.saxify(tree, sd)
+
+        result, = results
+        results.clear()
+        self.assertEqual(
+            structs.LanguageTag.fromstr("en"),
+            result.attr
+        )
+
 
 class TestContext(unittest.TestCase):
     def setUp(self):
