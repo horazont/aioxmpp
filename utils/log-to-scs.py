@@ -58,7 +58,7 @@ def _parse_stream_bytes(b):
     if not b.strip():
         return
     try:
-        tree = etree.fromstring(b"<root>"+b+b"</root>")
+        tree = etree.fromstring(b"<root xmlns:stream='http://etherx.jabber.org/streams'>"+b+b"</root>")
     except:
         print(b)
         raise
