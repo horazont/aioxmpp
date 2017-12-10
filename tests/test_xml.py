@@ -2021,6 +2021,42 @@ class TestXMPPXMLProcessor(unittest.TestCase):
     #         cm.exception.condition
     #     )
 
+    def test_forwards_xml_lang_to_parser(self):
+        results = []
+
+        def recv(obj):
+            nonlocal results
+            results.append(obj)
+
+        class Foo(xso.XSO):
+            TAG = ("uri:foo", "foo")
+
+            attr = xso.LangAttr()
+
+        self.proc.stanza_parser = xso.XSOParser()
+        self.proc.stanza_parser.add_class(Foo, recv)
+
+        attrs = dict(self.STREAM_HEADER_ATTRS)
+        attrs[namespaces.xml, "lang"] = "en"
+
+        self.proc.startDocument()
+        self.proc.startElementNS(self.STREAM_HEADER_TAG, None,
+                                 attrs)
+
+        self.proc.startElementNS(Foo.TAG, None, {})
+        self.proc.endElementNS(Foo.TAG, None)
+
+        self.assertEqual(1, len(results))
+
+        f = results.pop()
+        self.assertEqual(
+            f.attr,
+            structs.LanguageTag.fromstr("en")
+        )
+
+        self.proc.endElementNS(self.STREAM_HEADER_TAG, None)
+        self.proc.endDocument()
+
     def tearDown(self):
         del self.proc
         del self.parser

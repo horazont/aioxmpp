@@ -808,6 +808,7 @@ class XMPPXMLProcessor:
         self.remote_from = None
         self.remote_to = None
         self.remote_id = None
+        self.remote_lang = None
 
     @property
     def stanza_parser(self):
@@ -826,6 +827,7 @@ class XMPPXMLProcessor:
         if self._state != ProcessorState.CLEAN:
             raise RuntimeError("invalid state: {}".format(self._state))
         self._stanza_parser = value
+        self._stanza_parser.lang = self.remote_lang
 
     def processingInstruction(self, target, foo):
         raise errors.StreamError(
@@ -921,6 +923,16 @@ class XMPPXMLProcessor:
                 (namespaces.streams, "undefined-condition"),
                 "id attribute required in response header"
             )
+
+        try:
+            lang = attributes.pop((namespaces.xml, "lang"))
+        except KeyError:
+            self.remote_lang = None
+        else:
+            self.remote_lang = structs.LanguageTag.fromstr(lang)
+
+        if self._stanza_parser is not None:
+            self._stanza_parser.lang = self.remote_lang
 
         if self.on_stream_header:
             self.on_stream_header()
