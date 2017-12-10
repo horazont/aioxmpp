@@ -1252,9 +1252,11 @@ class LanguageMap(dict):
     instances as keys.
 
     In addition to the interface provided by :class:`dict`, instances of this
-    class also have the following method:
+    class also have the following methods:
 
     .. automethod:: lookup
+
+    .. automethod:: any
     """
 
     def lookup(self, language_ranges):
@@ -1276,3 +1278,19 @@ class LanguageMap(dict):
         keys.sort()
         key = lookup_language(keys, language_ranges)
         return self[key]
+
+    def any(self):
+        """
+        Returns any element from the language map, preferring the :data:`None`
+        key if it is available.
+
+        Guarantees to always return the same element for a map with the same
+        keys, even if the keys are iterated over in a different order.
+        """
+        if not self:
+            raise ValueError("any() on empty map")
+
+        try:
+            return self[None]
+        except KeyError:
+            return self[min(self)]

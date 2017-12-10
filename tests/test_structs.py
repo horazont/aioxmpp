@@ -1422,3 +1422,45 @@ class TestLanguageMap(unittest.TestCase):
             "foobar",
             mapping.lookup([structs.LanguageRange.fromstr("it")])
         )
+
+    def test_any_returns_only_key(self):
+        m = structs.LanguageMap()
+        m[None] = "fnord"
+
+        self.assertEqual(m.any(), "fnord")
+
+        m = structs.LanguageMap()
+        m[structs.LanguageTag.fromstr("de")] = "Test"
+
+        self.assertEqual(m.any(), "Test")
+
+    def test_any_raises_ValueError_on_empty_map(self):
+        m = structs.LanguageMap()
+        with self.assertRaises(ValueError):
+            m.any()
+
+    def test_any_prefers_None(self):
+        m = structs.LanguageMap()
+        m[structs.LanguageTag.fromstr("de")] = "Test"
+        m[None] = "fnord"
+
+        self.assertEqual(m.any(), "fnord")
+
+        m = structs.LanguageMap()
+        m[None] = "fnord"
+        m[structs.LanguageTag.fromstr("de")] = "Test"
+
+        self.assertEqual(m.any(), "fnord")
+
+    def test_any_returns_same_key_for_same_keyset(self):
+        m = structs.LanguageMap()
+        m[structs.LanguageTag.fromstr("de")] = "Test"
+        m[structs.LanguageTag.fromstr("fr")] = "fnord"
+
+        self.assertEqual(m.any(), "Test")
+
+        m = structs.LanguageMap()
+        m[structs.LanguageTag.fromstr("fr")] = "fnord"
+        m[structs.LanguageTag.fromstr("de")] = "Test"
+
+        self.assertEqual(m.any(), "Test")

@@ -162,6 +162,8 @@ Version 0.10
   stanza, :attr:`aioxmpp.Message.xep0203_delay` is now a list instead of a
   single :class:`aioxmpp.misc.Delay` object. Sorry for the inconvenience.
 
+* :meth:`aioxmpp.structs.LanguageMap.any`
+
 .. _api-changelog-0.9:
 
 Version 0.9
