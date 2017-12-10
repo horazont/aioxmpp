@@ -787,6 +787,7 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
                                    message)
 
         if self._state == RoomState.HISTORY and not message.xep0203_delay:
+            # WORKAROUND: prosody#1053; AFFECTS: <= 0.9.12, <= 0.10
             self._service.logger.debug(
                 "%s: received un-delayed message during history replay: "
                 "assuming that server is buggy and replay is over.",
@@ -990,7 +991,7 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
                                    stanza)
 
         if self._state == RoomState.HISTORY:
-            # prosody issue #1053 <https://prosody.im/issues/1053>
+            # WORKAROUND: prosody#1053; AFFECTS: <= 0.9.12, <= 0.10
             self._service.logger.debug(
                 "%s: received presence during history replay: "
                 "assuming that server is buggy and replay is over.",

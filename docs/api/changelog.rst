@@ -8,28 +8,6 @@ Changelog
 Version 0.10
 ============
 
-.. warning::
-
-    When running :mod:`aioxmpp.muc` against a Prosody-hosted MUC, a Prosody
-    version higher than 0.9.12 (for the 0.9 branch) or higher than 0.10.0
-    (for the 0.10 branch) is required, since all earlier versions are affected
-    by `Prosody issue #1053 <https://prosody.im/issues/1053>`_.
-
-    If an affected version of Prosody is used, three things will happen (which
-    all are a symptom of the same issue) until the first non-history message
-    or the first presence update is received:
-
-    * :attr:`aioxmpp.muc.Occupant.uid` will not be useful in any way (but also
-      not harmful, security-wise).
-    * :meth:`aioxmpp.muc.Room.on_message` may receive `member` arguments which
-      are not part of the :attr:`aioxmpp.muc.Room.members` and which may also
-      lack other information (such as bare JIDs).
-    * :attr:`aioxmpp.muc.Room.muc_state` will not reach the
-      :attr:`aioxmpp.muc.RoomState.ACTIVE` state.
-
-    Once the first non-history message or the first presence update is received,
-    the situation resolves itself.
-
 * **Breaking change**: Split :class:`aioxmpp.xso.AbstractType` into
   :class:`aioxmpp.xso.AbstractCDataType` (for which the
   :class:`aioxmpp.xso.AbstractType` was originally intended) and
@@ -142,6 +120,39 @@ Version 0.10
 
   Please see the documentation of the event for some caveats of this `member`
   argument as well as the rationale.
+
+  .. note::
+
+      Prosody ≤ 0.9.12 (for the 0.9 branch) and ≤ 0.10.0 (for the 0.10
+      branch) are affected by `Prosody issue #1053
+      <https://prosody.im/issues/1053>`_.
+
+      This means that by itself, :class:`aioxmpp.muc.Room` cannot detect that
+      history replay is over and will stay in the history replay state forever.
+      However, two workarounds help with that: once the first live message is
+      or the first presence update is received, the :class:`~aioxmpp.muc.Room`
+      will assume a buggy server and transition to
+      :attr:`~aioxmpp.muc.RoomState.ACTIVE` state.
+
+      These workarounds are not perfect; in particular it is possible that the
+      first message workaround is defeated if a client includes a ``<delay/>``
+      into that message.
+
+      Until either a fixed version of Prosody is used or the workarounds take
+      effect, the following issues will be observed:
+
+      * :attr:`aioxmpp.muc.Occupant.uid` will not be useful in any way (but also
+        not harmful, security-wise).
+      * :meth:`aioxmpp.muc.Room.on_message` may receive `member` arguments which
+        are not part of the :attr:`aioxmpp.muc.Room.members` and which may also
+        lack other information (such as bare JIDs).
+      * :attr:`aioxmpp.muc.Room.muc_state` will not reach the
+        :attr:`aioxmpp.muc.RoomState.ACTIVE` state.
+
+      Applications which support e.g. :xep:`85` (Chat State Notifications) may
+      use a chat state notification (for example, active or inactive) to cause
+      a message to be received from the MUC, forcing the transition to
+      :attr:`~aioxmpp.muc.RoomState.ACTIVE` state.
 
 * Introduce :attr:`aioxmpp.im.conversation.AbstractConversationMember.uid`
   attribute which can be used to re-identify entities in conversations across
