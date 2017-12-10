@@ -67,14 +67,15 @@ class TestMessaging(TestCase):
                 type_=aioxmpp.MessageType.CHAT,
 
             )
-            msg_sent.body[None] = "Hello World!"
+            msg_sent.body[aioxmpp.structs.LanguageTag.fromstr("en")] = \
+                "Hello World!"
 
             yield from a.stream.send(msg_sent)
 
             msg_rcvd = yield from fut
 
         self.assertEqual(
-            msg_rcvd.body[None],
+            msg_rcvd.body[aioxmpp.structs.LanguageTag.fromstr("en")],
             "Hello World!"
         )
 

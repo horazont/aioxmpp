@@ -400,11 +400,9 @@ class TestMuc(TestCase):
 
         member, subject = yield from subject_fut
 
-        self.assertDictEqual(
-            subject,
-            {
-                None: "Wytches Brew!",
-            }
+        self.assertEqual(
+            subject.any(),
+            "Wytches Brew!",
         )
 
         self.assertDictEqual(
@@ -442,11 +440,9 @@ class TestMuc(TestCase):
         yield from sent_future
 
         message, = yield from msg_future
-        self.assertDictEqual(
-            message.body,
-            {
-                None: "foo"
-            }
+        self.assertEqual(
+            message.body.any(),
+            "foo",
         )
 
     @blocking_timed
@@ -466,11 +462,9 @@ class TestMuc(TestCase):
         yield from self.firstroom.send_message(msg)
 
         message, member, = yield from msg_future
-        self.assertDictEqual(
-            message.body,
-            {
-                None: "foo"
-            }
+        self.assertEqual(
+            message.body.any(),
+            "foo",
         )
         self.assertEqual(
             message.type_,
@@ -527,9 +521,9 @@ class TestMuc(TestCase):
 
         message, member, *_ = yield from first_msgs.get()
         self.assertIsInstance(message, aioxmpp.Message)
-        self.assertDictEqual(
-            message.body,
-            msg.body,
+        self.assertEqual(
+            message.body.any(),
+            msg.body.any(),
         )
         self.assertEqual(member, firstconv.members[1])
 

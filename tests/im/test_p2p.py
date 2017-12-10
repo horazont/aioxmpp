@@ -710,7 +710,7 @@ class TestE2E(TestCase):
         yield from swev.wait()
 
         self.assertEqual(len(swmsgs), 1)
-        self.assertEqual(swmsgs[0].body[None], "foo")
+        self.assertEqual(swmsgs[0].body.any(), "foo")
         self.assertEqual(len(fwmsgs), 0)
 
         msg.body[None] = "bar"
@@ -718,5 +718,5 @@ class TestE2E(TestCase):
         yield from fwev.wait()
 
         self.assertEqual(len(fwmsgs), 1)
-        self.assertEqual(fwmsgs[0].body[None], "bar")
+        self.assertEqual(fwmsgs[0].body.any(), "bar")
         self.assertEqual(len(swmsgs), 1)

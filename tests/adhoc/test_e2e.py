@@ -138,7 +138,7 @@ class TestAdHocServer(TestCase):
         self.server_svc.register_stateless_command(
             "simple",
             {
-                None: "Simple command",
+                aioxmpp.structs.LanguageTag.fromstr("en"): "Simple command",
                 aioxmpp.structs.LanguageTag.fromstr("de"): "Einfacher Befehl",
             },
             self._trivial_handler,
@@ -165,7 +165,7 @@ class TestAdHocServer(TestCase):
         self.server_svc.register_stateless_command(
             "simple",
             {
-                None: "Simple command",
+                aioxmpp.structs.LanguageTag.fromstr("en"): "Simple command",
                 aioxmpp.structs.LanguageTag.fromstr("de"): "Einfacher Befehl",
             },
             self._trivial_handler,
@@ -188,7 +188,8 @@ class TestAdHocServer(TestCase):
 
         self.assertCountEqual(
             [
-                ("automation", "command-node", None, "Simple command"),
+                ("automation", "command-node",
+                 aioxmpp.structs.LanguageTag.fromstr("en"), "Simple command"),
                 ("automation", "command-node",
                  aioxmpp.structs.LanguageTag.fromstr("de"), "Einfacher Befehl"),
             ],
@@ -204,7 +205,7 @@ class TestAdHocServer(TestCase):
         self.server_svc.register_stateless_command(
             "simple",
             {
-                None: "Simple command",
+                aioxmpp.structs.LanguageTag.fromstr("en"): "Simple command",
                 aioxmpp.structs.LanguageTag.fromstr("de"): "Einfacher Befehl",
             },
             self._trivial_handler,
