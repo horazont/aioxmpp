@@ -1116,6 +1116,20 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
         untouched (except that :meth:`~.StanzaBase.autoset_id` is called) and
         can be used as desired for the message.
 
+        .. warning::
+
+            Using :meth:`send_message_tracked` before :meth:`on_join` has
+            emitted will cause the `member` object in the resulting
+            :meth:`on_message` event to be :data:`None` (the message will be
+            delivered just fine).
+
+            Using :meth:`send_message_tracked` before history replay is over
+            will cause the :meth:`on_message` event to be emitted during
+            history replay, even though everyone else in the MUC will -- of
+            course -- only see the message after the history.
+
+            :meth:`send_message` is not affected by these quirks.
+
         .. seealso::
 
             :meth:`.AbstractConversation.send_message_tracked` for the full
