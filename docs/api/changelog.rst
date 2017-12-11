@@ -175,6 +175,10 @@ Version 0.10
   :class:`~aioxmpp.xso.Text` and :class:`~aioxmpp.xso.ChildText`. See the
   documentation of :class:`~aioxmpp.xso.Attr` for details.
 
+* Treat absent ``@type`` XML attribute on message stanzas as
+  :class:`aioxmpp.MessageType.NORMAL`, as specified in :rfc:`6121`,
+  section 5.2.2.
+
 .. _api-changelog-0.9:
 
 Version 0.9

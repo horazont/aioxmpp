@@ -641,6 +641,7 @@ class Message(StanzaBase):
             accept_unknown=False,
         ),
         default=structs.MessageType.NORMAL,
+        erroneous_as_absent=True,
     )
 
     body = xso.ChildTextMap(Body)

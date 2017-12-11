@@ -20,6 +20,7 @@
 #
 ########################################################################
 import contextlib
+import io
 import itertools
 import unittest
 import unittest.mock
@@ -28,6 +29,7 @@ import aioxmpp.xso as xso
 import aioxmpp.stanza as stanza
 import aioxmpp.structs as structs
 import aioxmpp.errors as errors
+import aioxmpp.xml
 
 from aioxmpp.utils import namespaces
 
@@ -379,6 +381,16 @@ class TestMessage(unittest.TestCase):
             "<message from=<incomplete> to=<incomplete> "
             "id=<incomplete> type=<incomplete>>"
         )
+
+    def test_random_type_is_equal_to_normal(self):
+        buf = io.BytesIO(b"<message xmlns='jabber:client' type='fnord'/>")
+        s = aioxmpp.xml.read_single_xso(buf, stanza.Message)
+        self.assertIs(s.type_, structs.MessageType.NORMAL)
+
+    def test_absent_type_is_normal(self):
+        buf = io.BytesIO(b"<message xmlns='jabber:client'/>")
+        s = aioxmpp.xml.read_single_xso(buf, stanza.Message)
+        self.assertIs(s.type_, structs.MessageType.NORMAL)
 
 
 class TestStatus(unittest.TestCase):
