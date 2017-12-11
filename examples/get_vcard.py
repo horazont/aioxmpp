@@ -70,10 +70,10 @@ class VCard(Example):
             self.remote_jid
         )
 
-        for element in vcard.elements:
-            es = lxml.etree.tostring(element, pretty_print=True,
-                                     encoding="utf-8")
-            print(es.decode("utf-8"))
+
+        es = lxml.etree.tostring(vcard.elements, pretty_print=True,
+                                 encoding="utf-8")
+        print(es.decode("utf-8"))
 
     @asyncio.coroutine
     def run_example(self):

@@ -24,8 +24,29 @@ import aioxmpp.pubsub.xso as pubsub_xso
 
 from aioxmpp.utils import namespaces
 
+from ..stanza import Presence
+
+
 namespaces.xep0084_data = "urn:xmpp:avatar:data"
 namespaces.xep0084_metadata = "urn:xmpp:avatar:metadata"
+
+namespaces.xep0153 = "vcard-temp:x:update"
+
+
+class VCardTempUpdate(xso.XSO):
+    """
+    The vcard temp update note as per :xep:`0153`
+    """
+
+    TAG = (namespaces.xep0153, "x")
+
+    def __init__(self, photo=None):
+        self.photo = photo
+
+    photo = xso.ChildText("photo", type_=xso.String(), default=None)
+
+
+Presence.xep0153_x = xso.Child([VCardTempUpdate])
 
 
 @pubsub_xso.as_payload_class

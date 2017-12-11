@@ -21,6 +21,9 @@
 ########################################################################
 
 import unittest
+import unittest.mock
+
+import lxml.etree
 
 import aioxmpp.xso as xso
 import aioxmpp.vcard.xso as vcard_xso
@@ -51,4 +54,46 @@ class TestVCard(unittest.TestCase):
         self.assertIsInstance(
             vcard_xso.VCard.elements,
             xso.Collector
+        )
+
+    def test_get_photo_data(self):
+        vcard = vcard_xso.VCard()
+        vcard.elements.append(
+            lxml.etree.fromstring("""
+<ns0:PHOTO xmlns:ns0="vcard-temp"><ns0:BINVAL>Zm9vCg==</ns0:BINVAL></ns0:PHOTO>
+            """)
+        )
+        self.assertEqual(vcard.get_photo_data(), b'foo\n')
+
+    def test_set_photo_data(self):
+        vcard = vcard_xso.VCard()
+        vcard.elements.append(
+            lxml.etree.fromstring("""
+<ns0:PHOTO xmlns:ns0="vcard-temp"><ns0:BINVAL>Zm9vCg==</ns0:BINVAL></ns0:PHOTO>
+            """)
+        )
+        vcard.set_photo_data("image/png", b'bar')
+        self.assertEqual(
+            vcard.get_photo_data(),
+            b'bar'
+        )
+
+        vcard.clear_photo_data()
+        vcard.set_photo_data("image/png", b'quux')
+        self.assertEqual(
+            vcard.get_photo_data(),
+            b'quux'
+        )
+
+    def test_clear_photo_data(self):
+        vcard = vcard_xso.VCard()
+        vcard.elements.append(
+            lxml.etree.fromstring("""
+<ns0:PHOTO xmlns:ns0="vcard-temp"><ns0:BINVAL>Zm9vCg==</ns0:BINVAL></ns0:PHOTO>
+            """)
+        )
+        vcard.clear_photo_data()
+        self.assertEqual(
+            vcard.get_photo_data(),
+            None
         )

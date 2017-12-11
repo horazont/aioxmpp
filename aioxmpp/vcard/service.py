@@ -42,7 +42,7 @@ class VCardService(service.Service):
     @asyncio.coroutine
     def get_vcard(self, jid=None):
         """
-        Get the vCard stored for the bare jid `jid`. If `jid` is
+        Get the vCard stored for the jid `jid`. If `jid` is
         :data:`None` get the vCard of the connected entity.
 
         :param jid: the object to retrieve.
@@ -53,8 +53,6 @@ class VCardService(service.Service):
         an empty vCard, since this can be understood to be semantically
         equivalent.
         """
-        if not (jid is None or jid.is_bare):
-            raise ValueError("JID must be None or bare")
 
         iq = aioxmpp.IQ(
             type_=aioxmpp.IQType.GET,

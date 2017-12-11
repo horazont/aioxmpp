@@ -97,10 +97,6 @@ class TestService(unittest.TestCase):
         self.assertEqual(len(arg.payload.elements), 0)
         self.assertEqual(res, unittest.mock.sentinel.result)
 
-    def test_get_vcard_not_bare_raises(self):
-        with self.assertRaises(ValueError):
-            res = run_coroutine(self.s.get_vcard(TEST_JID2))
-
     def test_get_vcard_mask_cancel_error(self):
         with unittest.mock.patch.object(self.cc.stream, "send",
                                         new=CoroutineMock()) as mock_send:
@@ -119,6 +115,13 @@ class TestService(unittest.TestCase):
 
         self.assertIsInstance(res, vcard_xso.VCard)
         self.assertEqual(len(res.elements), 0)
+
+        with self.assertRaises(aioxmpp.XMPPCancelError):
+            with unittest.mock.patch.object(self.cc.stream, "send",
+                                            new=CoroutineMock()) as mock_send:
+                mock_send.side_effect = aioxmpp.XMPPCancelError(
+                    (namespaces.stanzas, "fnord"))
+                res = run_coroutine(self.s.get_vcard(TEST_JID1))
 
     def test_set_vcard(self):
         with unittest.mock.patch.object(self.cc.stream, "send",
