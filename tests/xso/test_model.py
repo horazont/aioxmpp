@@ -838,6 +838,35 @@ class TestXMLStreamClass(unittest.TestCase):
             Cls.xso_error_handler.mock_calls
         )
 
+    def test_ignore_parse_error_with_erroneous_as_absent_text(self):
+        class Cls(xso.XSO):
+            TAG = "foo"
+
+            text = xso.Text(
+                type_=xso.Integer(),
+                erroneous_as_absent=True,
+                default=-1,
+            )
+
+        Cls.xso_error_handler = unittest.mock.MagicMock()
+        Cls.xso_error_handler.return_value = False
+
+        gen = Cls.parse_events((None, "foo", {}), self.ctx)
+        next(gen)
+        gen.send(("text", "foo"))
+        gen.send(("text", "bar"))
+        with self.assertRaises(StopIteration) as ctx:
+            gen.send(("end",))
+
+        obj = ctx.exception.value
+
+        self.assertSequenceEqual(
+            [],
+            Cls.xso_error_handler.mock_calls
+        )
+
+        self.assertEqual(obj.text, -1)
+
     def test_error_handler_on_broken_text_can_suppress(self):
         class Cls(xso.XSO):
             TAG = "foo"
@@ -1070,6 +1099,42 @@ class TestXMLStreamClass(unittest.TestCase):
             (
                 None,
                 "foo", {
+                }
+            ),
+            ctx)
+        next(gen)
+        with self.assertRaises(StopIteration) as exc:
+            gen.send(("end", ))
+        obj = exc.exception.value
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(obj, ctx.__enter__())
+            ],
+            missing.mock_calls
+        )
+
+    def test_call_missing_on_erroneous_attr_with_erroneous_as_absent(self):
+        missing = unittest.mock.MagicMock()
+        missing.return_value = 123
+
+        ctx = unittest.mock.MagicMock()
+
+        class Cls(xso.XSO):
+            TAG = "foo"
+
+            attr = xso.Attr(
+                tag=(None, "attr"),
+                type_=xso.Integer(),
+                erroneous_as_absent=True,
+                missing=missing,
+            )
+
+        gen = Cls.parse_events(
+            (
+                None,
+                "foo", {
+                    (None, "attr"): "xyz",
                 }
             ),
             ctx)
@@ -3277,7 +3342,7 @@ class TestAttr(XMLTestCase):
         instance = make_instance_mock()
 
         prop = xso.Attr("foo", type_=xso.Integer())
-        prop.from_value(instance, "123")
+        self.assertTrue(prop.from_value(instance, "123"))
 
         self.assertDictEqual(
             {
@@ -3305,6 +3370,18 @@ class TestAttr(XMLTestCase):
         prop = xso.Attr("foo")
         with self.assertRaisesRegex(ValueError, "missing attribute foo"):
             prop.handle_missing(instance, ctx)
+
+    def test_erroneous_as_absent_returns_False_from_from_value(self):
+        ctx = xso_model.Context()
+
+        instance = make_instance_mock()
+
+        prop = xso.Attr(
+            "foo",
+            erroneous_as_absent=True,
+            type_=xso.Integer(),
+        )
+        self.assertFalse(prop.from_value(instance, "xyz"))
 
     def test_to_dict(self):
         d = {}
@@ -3505,6 +3582,51 @@ class TestChildText(XMLTestCase):
 
         with self.assertRaises(ValueError):
             drive_from_events(prop.from_events, instance, subtree, self.ctx)
+
+    def test_from_events_with_erroneous_as_absent(self):
+        type_mock = unittest.mock.Mock()
+
+        instance = make_instance_mock()
+
+        prop = xso.ChildText(
+            "body",
+            type_=type_mock,
+            erroneous_as_absent=True,
+            default=unittest.mock.sentinel.default,
+        )
+
+        type_mock.parse.side_effect = ValueError()
+
+        subtree = etree.fromstring("<body>foo</body>")
+        drive_from_events(prop.from_events, instance, subtree, self.ctx)
+
+        type_mock.parse.assert_called_once_with("foo")
+
+        self.assertEqual(
+            prop.__get__(instance, type(instance)),
+            unittest.mock.sentinel.default,
+        )
+
+    def test_from_events_reraises_parse_errors_by_default(self):
+        type_mock = unittest.mock.Mock()
+
+        instance = make_instance_mock()
+
+        prop = xso.ChildText(
+            "body",
+            type_=type_mock,
+        )
+
+        exc = ValueError()
+        type_mock.parse.side_effect = exc
+
+        subtree = etree.fromstring("<body>foo</body>")
+        with self.assertRaises(ValueError) as ctx:
+            drive_from_events(prop.from_events, instance, subtree, self.ctx)
+
+        self.assertIs(ctx.exception, exc)
+
+        type_mock.parse.assert_called_once_with("foo")
 
     def test_child_policy_default(self):
         prop = xso.ChildText("body")

@@ -107,7 +107,7 @@ similar. They are described in detail on the :class:`Attr` class and not
 repeated that detailed on the other classes. Refer to the documentation of the
 :class:`Attr` class in those cases.
 
-.. autoclass:: Attr(name, *[, type_=xso.String()][, validator=None][, validate=ValidateMode.FROM_RECV][, missing=None][, default])
+.. autoclass:: Attr(name, *[, type_=xso.String()][, validator=None][, validate=ValidateMode.FROM_RECV][, missing=None][, default][, erroneous_as_absent=False])
 
 .. autoclass:: LangAttr(*[, validator=None][, validate=ValidateMode.FROM_RECV][, default=None])
 
@@ -117,9 +117,9 @@ repeated that detailed on the other classes. Refer to the documentation of the
 
 .. autoclass:: ChildFlag(tag, *[, text_policy=UnknownTextPolicy.FAIL][, child_policy=UnknownChildPolicy.FAIL][, attr_policy=UnknownAttrPolicy.FAIL])
 
-.. autoclass:: ChildText(tag, *[, child_policy=UnknownChildPolicy.FAIL][, attr_policy=UnknownAttrPolicy.FAIL][, type_=xso.String()][, validator=None][, validate=ValidateMode.FROM_RECV][, default])
+.. autoclass:: ChildText(tag, *[, child_policy=UnknownChildPolicy.FAIL][, attr_policy=UnknownAttrPolicy.FAIL][, type_=xso.String()][, validator=None][, validate=ValidateMode.FROM_RECV][, default][, erroneous_as_absent=False])
 
-.. autoclass:: Text(*[, type_=xso.String()][, validator=None][, validate=ValidateMode.FROM_RECV][, default])
+.. autoclass:: Text(*[, type_=xso.String()][, validator=None][, validate=ValidateMode.FROM_RECV][, default][, erroneous_as_absent=False])
 
 Non-scalar descriptors
 ^^^^^^^^^^^^^^^^^^^^^^

@@ -171,6 +171,10 @@ Version 0.10
 * **Breaking change**: Assignment to :class:`aioxmpp.xso.Collector`
   descriptors is now forbidden.
 
+* New `erroneous_as_absent` argument to :class:`aioxmpp.xso.Attr`,
+  :class:`~aioxmpp.xso.Text` and :class:`~aioxmpp.xso.ChildText`. See the
+  documentation of :class:`~aioxmpp.xso.Attr` for details.
+
 .. _api-changelog-0.9:
 
 Version 0.9

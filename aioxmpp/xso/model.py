@@ -368,9 +368,11 @@ class _PropBase(metaclass=PropBaseMeta):
 class _TypedPropBase(_PropBase):
     def __init__(self, *,
                  type_=xso_types.String(),
+                 erroneous_as_absent=False,
                  **kwargs):
         super().__init__(**kwargs)
         self.type_ = type_
+        self.erroneous_as_absent = erroneous_as_absent
 
     def __set__(self, instance, value):
         if self.default is self.NO_DEFAULT or value != self.default:
@@ -388,8 +390,8 @@ class Text(_TypedPropBase):
     in XMPP to keep that relative order: Elements either have character data
     *or* other elements as children.
 
-    The `type_`, `validator`, `validate` and `default` arguments behave like in
-    :class:`Attr`.
+    The `type_`, `validator`, `validate`, `default` and `erroneous_as_absent`
+    arguments behave like in :class:`Attr`.
 
     .. automethod:: from_value
 
@@ -402,7 +404,14 @@ class Text(_TypedPropBase):
         Convert the given value using the set `type_` and store it into
         `instance`’ attribute.
         """
-        self._set_from_recv(instance, self.type_.parse(value))
+        try:
+            parsed = self.type_.parse(value)
+        except (TypeError, ValueError):
+            if self.erroneous_as_absent:
+                return False
+            raise
+        self._set_from_recv(instance, parsed)
+        return True
 
     def to_sax(self, instance, dest):
         """
@@ -730,6 +739,10 @@ class Attr(Text):
         whether it is required or not). The callable shall return a
         not-:data:`None` value for the attribute to use. If the value is
         :data:`None`, the usual handling of missing attributes takes place.
+    :param erroneous_as_absent: Treat an erroneous value (= the `type_` raises
+        :class:`ValueError` or :class:`TypeError` while parsing) as if the
+        attribute was not present. Note that this is almost never the right
+        thing to do in XMPP.
 
     .. seealso::
 
@@ -861,8 +874,8 @@ class ChildText(_TypedPropBase):
         child element whose text this descriptor represents.
     :type attr_policy: :class:`UnknownAttrPolicy`
 
-    The `type_`, `validate`, `validator` and `default` arguments behave like in
-    :class:`Attr`.
+    The `type_`, `validate`, `validator`, `default` and `erroneous_as_absent`
+    arguments behave like in :class:`Attr`.
 
     `declare_prefix` works as for :class:`ChildTag`.
 
@@ -938,7 +951,14 @@ class ChildText(_TypedPropBase):
                 # end of our element, return
                 break
 
-        self._set_from_recv(instance, self.type_.parse("".join(parts)))
+        joined = "".join(parts)
+        try:
+            parsed = self.type_.parse(joined)
+        except (ValueError, TypeError):
+            if self.erroneous_as_absent:
+                return
+            raise
+        self._set_from_recv(instance, parsed)
 
     def to_sax(self, instance, dest):
         """
@@ -1809,7 +1829,10 @@ class XMLStreamClass(xso_query.Class, abc.ABCMeta):
                                 tag_to_str((ev_args[0], ev_args[1]))
                             )) from None
                 try:
-                    prop.from_value(obj, value)
+                    if not prop.from_value(obj, value):
+                        # assignment failed due to recoverable error, treat as
+                        # absent
+                        attr_map[key] = prop
                 except:
                     prop.mark_incomplete(obj)
                     _mark_attributes_incomplete(attr_map.values(), obj)
