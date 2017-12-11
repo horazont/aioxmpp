@@ -610,17 +610,17 @@ class ChildList(_ChildPropBase):
 class Collector(_PropBase):
     """
     When assigned to a class’ attribute, it collects all children which are not
-    known to any other descriptor into a XML trees. The root node has the tag
+    known to any other descriptor into an XML tree. The root node has the tag
     of the XSO class it pertains to.
 
     The default is fixed to the emtpy root node.
 
     .. verisonchanged:: 0.10
 
-       Before the subtrees where collected in a list. This was changed to an
-       ElementTree to allow using XPath over all collected elements.
-
-       Assignment is now forbidden.
+       Before the subtrees were collected in a list. This was changed to an
+       ElementTree to allow using XPath over all collected elements. Most code
+       should not be affected by this, since the interface is very similar.
+       Assignment is now forbidden. Use ``[:] = `` instead.
 
     .. automethod:: from_events
 
