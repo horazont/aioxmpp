@@ -636,6 +636,16 @@ class TestPresence(unittest.TestCase):
             "id=<incomplete> type=<incomplete>>"
         )
 
+    def test_empty_show_is_equivalent_to_no_show(self):
+        buf = io.BytesIO(b"<presence xmlns='jabber:client'><show/></presence>")
+        s = aioxmpp.xml.read_single_xso(buf, stanza.Presence)
+        self.assertIs(s.show, structs.PresenceShow.NONE)
+
+    def test_absent_show(self):
+        buf = io.BytesIO(b"<presence xmlns='jabber:client'/>")
+        s = aioxmpp.xml.read_single_xso(buf, stanza.Presence)
+        self.assertIs(s.show, structs.PresenceShow.NONE)
+
 
 class TestError(unittest.TestCase):
     def test_declare_ns(self):

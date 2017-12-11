@@ -179,6 +179,13 @@ Version 0.10
   :class:`aioxmpp.MessageType.NORMAL`, as specified in :rfc:`6121`,
   section 5.2.2.
 
+* Treat empty ``<show/>`` XML child on presence stanzas like absent
+  ``<show/>``. This is not legal as per :rfc:`6120`, but apparently there are
+  some broken implementations out there.
+
+  Not having this workaround leads to being unable to receive presence stanzas
+  from those entities, which is rather unfortunate.
+
 .. _api-changelog-0.9:
 
 Version 0.9

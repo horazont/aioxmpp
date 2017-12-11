@@ -788,6 +788,7 @@ class Presence(StanzaBase):
             accept_unknown=False,
         ),
         default=structs.PresenceShow.NONE,
+        erroneous_as_absent=True,
     )
 
     status = xso.ChildTextMap(Status)
