@@ -47,6 +47,7 @@ functionality or provide backwards compatibility.
    rfc3921
    rsm
    shim
+   vcard
 
 
 Less common and helper classes

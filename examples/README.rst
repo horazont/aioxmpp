@@ -137,3 +137,21 @@ operations:
   --set-avatar AVATAR_FILE
                         set the avatar to content of the supplied PNG file.
   --wipe-avatar         set the avatar to no avatar.
+
+`get_vcard.py`
+==============
+
+``get_vcard.py`` gets the vCard for a remote JID.
+
+Additional optional argument:
+
+  --remote-jid REMOTE_JID
+                        the jid of which to retrieve the avatar
+
+The remote JID may also be supplied in the examples config file::
+
+      [vcard]
+      remote_jid=foo@example.com
+
+If the remote JID is not given on the command line and also missing
+from the config file ``get_vcard.py`` will prompt for it.
