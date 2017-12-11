@@ -700,6 +700,8 @@ class Collector(_PropBase):
 
 class Attr(Text):
     """
+    Descriptor which represents an XML attribute.
+
     When assigned to a class’ attribute, it binds that attribute to the XML
     attribute with the given `tag`. `tag` must be a valid input to
     :func:`normalize_tag`.
@@ -710,27 +712,24 @@ class Attr(Text):
     :param type_: A character data type to interpret the XML character data.
     :type type_: :class:`~.xso.AbstractCDataType`
     :param validator: An object which has a :meth:`validate` method. That
-                      method receives a value which was either assigned to the
-                      property (depending on the `validate` argument) or parsed
-                      from XML (after it passed through `type_`).
+        method receives a value which was either assigned to the property
+        (depending on the `validate` argument) or parsed from XML (after it
+        passed through `type_`).
     :param validate: A value from the :class:`ValidateMode` enum, which defines
-                     which values have to pass through the validator. At some
-                     points it makes sense to only validate outgoing values,
-                     but be liberal with incoming values. This defaults to
-                     :attr:`ValidateMode.FROM_RECV`.
+        which values have to pass through the validator. At some points it
+        makes sense to only validate outgoing values, but be liberal with
+        incoming values. This defaults to :attr:`ValidateMode.FROM_RECV`.
     :param default: The value which the attribute has if no value has been
-                    assigned. This must be given to allow the attribute to be
-                    missing. It defaults to a special value. If the attribute
-                    has not been assigned to and `default` has not been set,
-                    accessing the attribute for reading raises
-                    :class:`AttributeError`. An attribute with `default` value
-                    is not emitted in the output.
+        assigned. This must be given to allow the attribute to be missing. It
+        defaults to a special value. If the attribute has not been assigned to
+        and `default` has not been set, accessing the attribute for reading
+        raises :class:`AttributeError`. An attribute with `default` value
+        is not emitted in the output.
     :param missing: A callable which takes a :class:`Context` instance. It is
-                    called whenever the attribute is missing (independent from
-                    the fact whether it is required or not). The callable shall
-                    return a not-:data:`None` value for the attribute to
-                    use. If the value is :data:`None`, the usual handling of
-                    missing attributes takes place.
+        called whenever the attribute is missing (independent from the fact
+        whether it is required or not). The callable shall return a
+        not-:data:`None` value for the attribute to use. If the value is
+        :data:`None`, the usual handling of missing attributes takes place.
 
     .. seealso::
 
@@ -825,11 +824,14 @@ class Attr(Text):
 
 class LangAttr(Attr):
     """
-    The :class:`LangAttr` is identical to :class:`Attr`, except that the
-    `type_`, `tag` and `missing` arguments are already bound. The `tag` is set
-    to the ``(namespaces.xml, "lang")`` value to match ``xml:lang``
-    attributes. `type_` is a :class:`xso.LanguageTag` instance and `missing` is
-    set to :func:`lang_attr`.
+    An attribute representing the ``xml:lang`` attribute, including inheritance
+    semantics.
+
+    This is a subclass of :class:`Attr` which takes care of inheriting the
+    ``xml:lang`` value of the parent. The `tag` is set to the
+    ``(namespaces.xml, "lang")`` value to match ``xml:lang`` attributes.
+    `type_` is a :class:`xso.LanguageTag` instance and `missing` is set to
+    :func:`lang_attr`.
 
     Note that :class:`LangAttr` overrides `default` to be :data:`None` by
     default.
@@ -846,18 +848,29 @@ class LangAttr(Attr):
 
 class ChildText(_TypedPropBase):
     """
+    Represents the character data of a child element.
+
     When assigned to a class’ attribute, it binds that attribute to the XML
     character data of a child element with the given `tag`. `tag` must be a
     valid input to :func:`normalize_tag`.
 
+    :param child_policy: The policy to apply when children are found in the
+        child element whose text this descriptor represents.
+    :type child_policy: :class:`UnknownChildPolicy`
+    :param attr_policy: The policy to apply when attributes are found at the
+        child element whose text this descriptor represents.
+    :type attr_policy: :class:`UnknownAttrPolicy`
+
     The `type_`, `validate`, `validator` and `default` arguments behave like in
     :class:`Attr`.
 
-    `child_policy` is applied when :meth:`from_events` encounters an element in
-    the child element of which it is supposed to extract text. Likewise,
-    `attr_policy` is applied if an attribute is encountered on the element.
-
     `declare_prefix` works as for :class:`ChildTag`.
+
+    `child_policy` and `attr_policy` describe how the parser behaves when an
+    unknown child or attribute (respectively) is encountered on the child
+    element whose text this descriptor represents. See
+    :class:`UnknownChildPolicy` and :class:`UnknownAttrPolicy` for the possible
+    behaviours.
 
     .. automethod:: get_tag_map
 
@@ -953,6 +966,8 @@ class ChildText(_TypedPropBase):
 
 class ChildMap(_ChildPropBase):
     """
+    Represents a subset of the children of an XML element, as map.
+
     The :class:`ChildMap` class works like :class:`ChildList`, but instead of
     storing the child objects in a list, they are stored in a map which
     contains an :class:`~aioxmpp.xso.model.XSOList` of objects for each tag.
@@ -1046,6 +1061,8 @@ class ChildMap(_ChildPropBase):
 
 class ChildLangMap(ChildMap):
     """
+    Represents a subset of the children of an XML element, as map.
+
     The :class:`ChildLangMap` class is a specialized version of the
     :class:`ChildMap`, which uses a `key` function to group the children by
     their XML language tag.
@@ -1064,6 +1081,8 @@ class ChildLangMap(ChildMap):
 
 class ChildTag(_PropBase):
     """
+    Represents a subset of the children of an XML element, as single value.
+
     When assigned to a class’ attribute, this descriptor represents the
     presence or absence of a single child with a tag from a given set of valid
     tags.
@@ -1167,6 +1186,8 @@ class ChildTag(_PropBase):
 
 class ChildFlag(_PropBase):
     """
+    Represents the presence of a specific child element, as a boolean flag.
+
     When used as a :class:`XSO` descriptor, it represents the presence or
     absence of a single child with the given `tag`. The presence or absence is
     represented by the values :data:`True` and :data:`False` respectively.
@@ -1233,7 +1254,8 @@ class ChildFlag(_PropBase):
 
 class ChildValueList(_ChildPropBase):
     """
-    A list of values, generated by child elements.
+    Represents a subset of the child elements as values. The value
+    representation is governed by the `type_` argument.
 
     :param type_: Type describing the subtree to convert to python values.
     :type type_: :class:`~.xso.AbstractElementType`
