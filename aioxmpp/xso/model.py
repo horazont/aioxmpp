@@ -610,9 +610,17 @@ class ChildList(_ChildPropBase):
 class Collector(_PropBase):
     """
     When assigned to a class’ attribute, it collects all children which are not
-    known to any other descriptor into a list of XML subtrees.
+    known to any other descriptor into a XML trees. The root node has the tag
+    of the XSO class it pertains to.
 
-    The default is fixed at an empty list.
+    The default is fixed to the emtpy root node.
+
+    .. verisonchanged:: 0.10
+
+       Before the subtrees where collected in a list. This was changed to an
+       ElementTree to allow using XPath over all collected elements.
+
+       Assignment is now forbidden.
 
     .. automethod:: from_events
 
@@ -630,12 +638,15 @@ class Collector(_PropBase):
                 xso_query.GetSequenceDescriptor,
             )
 
-        return instance._xso_contents.setdefault(self, [])
+        try:
+            return instance._xso_contents[self]
+        except KeyError:
+            res = etree.Element(tag_to_str(instance.TAG))
+            instance._xso_contents[self] = res
+            return res
 
     def _set(self, instance, value):
-        if not isinstance(value, list):
-            raise TypeError("expected list, but found {}".format(type(value)))
-        return super()._set(instance, value)
+        raise AttributeError("Collector attribute cannot be assigned to")
 
     def from_events(self, instance, ev_args, ctx):
         """
@@ -650,16 +661,14 @@ class Collector(_PropBase):
         # the start-ev_args in a lxml.etree.Element.
 
         def make_from_args(ev_args, parent):
-            if parent is not None:
-                el = etree.SubElement(parent,
-                                      tag_to_str((ev_args[0], ev_args[1])))
-            else:
-                el = etree.Element(tag_to_str((ev_args[0], ev_args[1])))
+            el = etree.SubElement(parent,
+                                  tag_to_str((ev_args[0], ev_args[1])))
             for key, value in ev_args[2].items():
                 el.set(tag_to_str(key), value)
             return el
 
-        root_el = make_from_args(ev_args, None)
+        root_el = make_from_args(ev_args,
+                                 self.__get__(instance, type(instance)))
         # create an element stack
         stack = [root_el]
         while stack:
@@ -683,8 +692,6 @@ class Collector(_PropBase):
             else:
                 # not in coverage -- this is more like an assertion
                 raise ValueError(ev_type)
-
-        self.__get__(instance, type(instance)).append(root_el)
 
     def to_sax(self, instance, dest):
         for node in self.__get__(instance, type(instance)):

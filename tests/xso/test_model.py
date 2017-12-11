@@ -3176,21 +3176,18 @@ class TestCollector(XMLTestCase):
                 subtree,
                 result)
 
-    def test_assign_enforces_list(self):
+    def test_assign_raises(self):
         class Cls(xso.XSO):
+            TAG = ("foo", "bar")
             children = xso.Collector()
 
         obj = Cls()
-        with self.assertRaises(TypeError):
+        with self.assertRaises(AttributeError):
             obj.children = 123
-        with self.assertRaises(TypeError):
+        with self.assertRaises(AttributeError):
             obj.children = "foo"
-        l = []
-        obj.children = l
-        self.assertIs(
-            l,
-            obj.children
-        )
+        with self.assertRaises(AttributeError):
+            obj.children = []
 
     def test_to_node(self):
         prop = xso.Collector()

@@ -164,6 +164,13 @@ Version 0.10
 
 * :meth:`aioxmpp.structs.LanguageMap.any`
 
+* *Possibly breaking change*: The type of the value of
+  :class:`aioxmpp.xso.Collector` descriptors was changed from
+  :class:`list` to :class:`lxml.etree.Element`.
+
+* **Breaking change**: Assignment to :class:`aioxmpp.xso.Collector`
+  descriptors is now forbidden.
+
 .. _api-changelog-0.9:
 
 Version 0.9
