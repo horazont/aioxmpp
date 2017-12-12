@@ -33,55 +33,55 @@
 
 import collections.abc
 
-
-PREV = 0
-NEXT = 1
-KEY = 2
-VALUE = 3
+class Link:
+    __slots__ = ("prev", "next_", "key", "value")
 
 
 def _init_linked_list():
-    root = []
-    root[:] = [root, root, None, None]
+    root = Link()
+    root.prev = root
+    root.next_ = root
+    root.key = None
+    root.value = None
     return root
 
 
 def _remove_link(link):
-    link[NEXT][PREV] = link[PREV]
-    link[PREV][NEXT] = link[NEXT]
+    link.next_.prev = link.prev
+    link.prev.next_ = link.next_
     return link
 
 
 def _insert_link(before, link):
-    link[NEXT] = before[NEXT]
-    link[NEXT][PREV] = link
-    link[PREV] = before
-    before[NEXT] = link
+    link.next_ = before.next_
+    link.next_.prev = link
+    link.prev = before
+    before.next_ = link
 
 
 def _length(link):
     # this is used only for testing
-    cur = link[NEXT]
+    cur = link.next_
     i = 0
     while cur is not link:
         i += 1
-        cur = cur[NEXT]
+        cur = cur.next_
     return i
 
 
 def _has_consistent_links(link, link_dict=None):
     # this is used only for testing
-    cur = link[NEXT]
+    cur = link.next_
 
-    if cur[PREV] is not link:
+    if cur.prev is not link:
         return False
 
     while cur is not link:
-        if link_dict is not None and link_dict[cur[KEY]] is not cur:
+        if link_dict is not None and link_dict[cur.key] is not cur:
             return False
-        if cur is not cur[NEXT][PREV]:
+        if cur is not cur.next_.prev:
             return False
-        cur = cur[NEXT]
+        cur = cur.next_
     return True
 
 
@@ -121,8 +121,8 @@ class LRUDict(collections.abc.MutableMapping):
             return
 
         while len(self.__links) > self.__maxsize:
-            link = _remove_link(self.__root[PREV])
-            del self.__links[link[KEY]]
+            link = _remove_link(self.__root.prev)
+            del self.__links[link.key]
 
     @property
     def maxsize(self):
@@ -154,9 +154,11 @@ class LRUDict(collections.abc.MutableMapping):
 
     def __setitem__(self, key, value):
         try:
-            self.__links[key][VALUE] = value
+            self.__links[key].value = value
         except KeyError:
-            link = [None, None, key, value]
+            link = Link()
+            link.key = key
+            link.value = value
             self.__links[key] = link
             _insert_link(self.__root, link)
             self._purge()
@@ -165,7 +167,7 @@ class LRUDict(collections.abc.MutableMapping):
         link = self.__links[key]
         _remove_link(link)
         _insert_link(self.__root, link)
-        return link[VALUE]
+        return link.value
 
     def __delitem__(self, key):
         link = self.__links.pop(key)
