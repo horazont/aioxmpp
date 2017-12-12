@@ -43,7 +43,9 @@ class VCardTempUpdate(xso.XSO):
     def __init__(self, photo=None):
         self.photo = photo
 
-    photo = xso.ChildText("photo", type_=xso.String(), default=None)
+    photo = xso.ChildText((namespaces.xep0153, "photo"),
+                          type_=xso.String(),
+                          default=None)
 
 
 Presence.xep0153_x = xso.Child([VCardTempUpdate])

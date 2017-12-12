@@ -42,6 +42,46 @@ class TestNamespaces(unittest.TestCase):
             namespaces.xep0084_metadata
         )
 
+    def test_xep0153_namespace(self):
+        self.assertEqual(
+            "vcard-temp:x:update",
+            namespaces.xep0153
+        )
+
+
+class TestVCardTempUpdate(unittest.TestCase):
+    def test_is_xso(self):
+        self.assertTrue(issubclass(avatar_xso.VCardTempUpdate, xso.XSO))
+
+    def test_init(self):
+        vcard_update = avatar_xso.VCardTempUpdate()
+        self.assertEqual(vcard_update.photo, None)
+
+        vcard_update = avatar_xso.VCardTempUpdate("foobar")
+        self.assertEqual(vcard_update.photo, "foobar")
+
+    def test_tag(self):
+        self.assertEqual(
+            (namespaces.xep0153, "x"),
+            avatar_xso.VCardTempUpdate.TAG
+        )
+
+    def test_photo(self):
+        self.assertIsInstance(
+            avatar_xso.VCardTempUpdate.photo,
+            xso.ChildText
+        )
+
+        self.assertIsInstance(
+            avatar_xso.VCardTempUpdate.photo.type_,
+            xso.String
+        )
+
+        self.assertEqual(
+            avatar_xso.VCardTempUpdate.photo.tag,
+            (namespaces.xep0153, "photo")
+        )
+
 
 class TestData(unittest.TestCase):
     def test_is_xso(self):
