@@ -34,6 +34,57 @@
 import collections.abc
 
 
+PREV = 0
+NEXT = 1
+KEY = 2
+VALUE = 3
+
+
+def _init_linked_list():
+    root = []
+    root[:] = [root, root, None, None]
+    return root
+
+
+def _remove_link(link):
+    link[NEXT][PREV] = link[PREV]
+    link[PREV][NEXT] = link[NEXT]
+    return link
+
+
+def _insert_link(before, link):
+    link[NEXT] = before[NEXT]
+    link[NEXT][PREV] = link
+    link[PREV] = before
+    before[NEXT] = link
+
+
+def _length(link):
+    # this is used only for testing
+    cur = link[NEXT]
+    i = 0
+    while cur is not link:
+        i += 1
+        cur = cur[NEXT]
+    return i
+
+
+def _has_consistent_links(link, link_dict=None):
+    # this is used only for testing
+    cur = link[NEXT]
+
+    if cur[PREV] is not link:
+        return False
+
+    while cur is not link:
+        if link_dict is not None and link_dict[cur[KEY]] is not cur:
+            return False
+        if cur is not cur[NEXT][PREV]:
+            return False
+        cur = cur[NEXT]
+    return True
+
+
 class LRUDict(collections.abc.MutableMapping):
     """
     Size-restricted dictionary with Least Recently Used expiry policy.
@@ -52,25 +103,26 @@ class LRUDict(collections.abc.MutableMapping):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.__data = {}
-        self.__data_used = {}
-        self.__maxsize = 1
-        self.__ctr = 0
+        self.__links = {}
+        self.__root = _init_linked_list()
 
-    def _purge_old(self, n):
-        keys_in_age_order = sorted(
-            self.__data_used.items(),
-            key=lambda x: x[1]
-        )
-        keys_to_delete = keys_in_age_order[:n]
-        for key, _ in keys_to_delete:
-            del self.__data[key]
-            del self.__data_used[key]
-        keys_to_keep = keys_in_age_order[n:]
-        # avoid the counter becoming large
-        self.__ctr = len(keys_to_keep)
-        for i, (key, _) in enumerate(keys_to_keep):
-            self.__data_used[key] = i
+        self.__maxsize = 1
+
+    def _test_consistency(self):
+        """
+        This method is only used for testing to assert that the operations
+        leave the LRUDict in a valid state.
+        """
+        return (_length(self.__root) == len(self.__links) and
+                _has_consistent_links(self.__root, self.__links))
+
+    def _purge(self):
+        if self.__maxsize is None:
+            return
+
+        while len(self.__links) > self.__maxsize:
+            link = _remove_link(self.__root[PREV])
+            del self.__links[link[KEY]]
 
     @property
     def maxsize(self):
@@ -92,34 +144,33 @@ class LRUDict(collections.abc.MutableMapping):
         if value is not None and value <= 0:
             raise ValueError("maxsize must be positive integer or None")
         self.__maxsize = value
-        if self.__maxsize is not None and len(self.__data) > self.__maxsize:
-            self._purge_old(len(self.__data) - self.__maxsize)
+        self._purge()
 
     def __len__(self):
-        return len(self.__data)
+        return len(self.__links)
 
     def __iter__(self):
-        return iter(self.__data)
+        return iter(self.__links)
 
     def __setitem__(self, key, value):
-        if self.__maxsize is not None and len(self.__data) >= self.__maxsize:
-            self._purge_old(len(self.__data) - (self.__maxsize - 1))
-        self.__data[key] = value
-        self.__data_used[key] = self.__ctr
+        try:
+            self.__links[key][VALUE] = value
+        except KeyError:
+            link = [None, None, key, value]
+            self.__links[key] = link
+            _insert_link(self.__root, link)
+            self._purge()
 
     def __getitem__(self, key):
-        result = self.__data[key]
-        counter = self.__ctr
-        counter += 1
-        self.__ctr = counter
-        self.__data_used[key] = counter
-        return result
+        link = self.__links[key]
+        _remove_link(link)
+        _insert_link(self.__root, link)
+        return link[VALUE]
 
     def __delitem__(self, key):
-        del self.__data[key]
-        del self.__data_used[key]
+        link = self.__links.pop(key)
+        _remove_link(link)
 
     def clear(self):
-        self.__data.clear()
-        self.__data_used.clear()
-        self.__ctr = 0
+        self.__links.clear()
+        self.__root = _init_linked_list()
