@@ -92,6 +92,14 @@ class ChatStateManager:
     :param strategy: the strategy used to decide whether to send
                      notifications (defaults to :class:`DiscoverSupport`)
     :type strategy: a subclass of :class:`ChatStateStrategy`
+
+    .. automethod:: handle
+
+    Methods to pass in protocol level information:
+
+    .. automethod:: no_reply
+
+    .. automethod:: reset
     """
 
     def __init__(self, strategy=None):
@@ -100,24 +108,26 @@ class ChatStateManager:
             strategy = DiscoverSupport()
         self._strategy = strategy
 
-    @property
-    def sending(self):
-        """
-        Returns whether to send chat state notifications.
-        """
-        return self._strategy.sending
-
-    def handle(self, state):
+    def handle(self, state, message=False):
         """
         Handle a state update.
 
         :param state: the new chat state
         :type state: :class:`~aioxmpp.chatstates.ChatState`
 
+        :param message: pass true to indicate that we handle the
+                        `~aioxmpp.chatstates.ChatState.ACTIVE` state
+                        that is implied by sending a content message.
+        :type message: :class:`bool`
+
         :returns: whether a standalone notification must be sent for
-                  this state update.
+                  this state update, respective if a ChatState must
+                  be included with the message.
         """
-        if self._state == state:
+        if message:
+            if state != chatstates_xso.ChatState.ACTIVE:
+                raise ValueError("Only the state ACTIVE can be sent with messages.")
+        elif self._state == state:
             return False
 
         self._state = state
@@ -125,12 +135,13 @@ class ChatStateManager:
 
     def no_reply(self):
         """
-        Handle that the peer did not include a chat state notification.
+        Call this method if the peer did not include a chat state
+        notification.
         """
         self._strategy.no_reply()
 
     def reset(self):
         """
-        Handle a connection reset.
+        Call this method on connection reset.
         """
         self._strategy.reset()

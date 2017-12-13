@@ -55,10 +55,6 @@ class TestStrategies(unittest.TestCase):
 
 class TestChatStateManager(unittest.TestCase):
 
-    def  test_sending(self):
-        manager = ChatStateManager(unittest.mock.sentinel)
-        self.assertIs(manager.sending, unittest.mock.sentinel.sending)
-
     def test_no_reply(self):
         manager = ChatStateManager(unittest.mock.Mock())
         manager.no_reply()
@@ -76,3 +72,14 @@ class TestChatStateManager(unittest.TestCase):
         self.assertIs(manager.handle(ChatState.INACTIVE),
                       unittest.mock.sentinel.sending)
         self.assertIs(manager.handle(ChatState.INACTIVE), False)
+        self.assertIs(manager.handle(ChatState.ACTIVE),
+                      unittest.mock.sentinel.sending)
+        self.assertIs(manager.handle(ChatState.ACTIVE, message=True),
+                      unittest.mock.sentinel.sending)
+
+    def test_handle_message_other_than_active_raises(self):
+        manager = ChatStateManager(unittest.mock.sentinel)
+        for state in ChatState:
+            if state != ChatState.ACTIVE:
+                with self.assertRaises(ValueError):
+                    manager.handle(state, message=True)
