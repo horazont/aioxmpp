@@ -40,6 +40,7 @@ from . import xso as avatar_xso
 
 logger = logging.getLogger(__name__)
 
+
 def normalize_id(id_):
     """
     Normalize a SHA1 sum encoded as hexadecimal number in ASCII.
@@ -511,10 +512,10 @@ class AvatarService(service.Service):
                     self._metadata_cache[full_jid] = metadata
 
                 if (full_jid.bare() == self.client.local_jid.bare() and
-                    full_jid != self.client.local_jid):
+                        full_jid != self.client.local_jid):
                     if (self._vcard_id is None or
-                        stanza.xep0153_x.photo.lower() !=
-                        self._vcard_id.lower()):
+                            stanza.xep0153_x.photo.lower() !=
+                            self._vcard_id.lower()):
                         if self._vcard_rehash_task is not None:
                             self._vcard_rehash_task.cancel()
 
@@ -522,9 +523,11 @@ class AvatarService(service.Service):
                         self._vcard_rehash_task = asyncio.async(
                             self._calculate_vcard_id()
                         )
+
                         def set_new_vcard_id(fut):
                             if not fut.cancelled():
                                 self._vcard_id = fut.result()
+
                         self._vcard_rehash_task.add_done_callback(
                             set_new_vcard_id
                         )
@@ -650,7 +653,8 @@ class AvatarService(service.Service):
                 # here we can know, so we should pass it on
                 photo = vcard.get_photo_data()
                 if photo is not None:
-                    logger.debug("success vCard avatar as fallback for %s", jid)
+                    logger.debug("success vCard avatar as fallback for %s",
+                                 jid)
                     sha1 = hashlib.sha1()
                     sha1.update(photo)
                     metadata = collections.defaultdict(lambda: [])
@@ -747,7 +751,8 @@ class AvatarService(service.Service):
             finally:
                 if self._synchronize_vcard:
                     my_vcard = yield from self._vcard.get_vcard()
-                    my_vcard.set_photo_data("image/png", avatar_set.image_bytes)
+                    my_vcard.set_photo_data("image/png",
+                                            avatar_set.image_bytes)
                     self._vcard_id = avatar_set.png_id
                     yield from self._vcard.set_vcard(my_vcard)
                     yield from self._presence_server.resend_presence()
