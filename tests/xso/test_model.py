@@ -24,6 +24,7 @@ import collections
 import collections.abc
 import contextlib
 import copy
+import enum
 import functools
 import unittest
 import unittest.mock
@@ -4426,6 +4427,43 @@ class TestChildTag(unittest.TestCase):
         with self.assertRaises(ValueError):
             prop.validate_contents(instance)
 
+    def test_tag_enum_parse(self):
+        instance = make_instance_mock()
+        prop = xso.ChildTag(Tags)
+
+        drive_from_events(
+            prop.from_events,
+            instance,
+            etree.fromstring("<bar xmlns='urn:example:tags'/>"),
+            self.ctx
+        )
+
+        self.assertDictEqual(
+            {
+                prop: Tags.BAR,
+            },
+            instance._xso_contents
+        )
+
+    def test_tag_enum_to_sax(self):
+        prop = xso.ChildTag(Tags)
+        instance = make_instance_mock({
+            prop: Tags.FOO
+        })
+        dest = unittest.mock.MagicMock()
+        prop.to_sax(instance, dest)
+        self.assertSequenceEqual(
+            dest.mock_calls,
+            [
+                unittest.mock.call.startElementNS(
+                    ("urn:example:tags", "foo"),
+                    None, {}),
+                unittest.mock.call.endElementNS(
+                    ("urn:example:tags", "foo"),
+                    None),
+            ]
+        )
+
 
 class TestChildFlag(unittest.TestCase):
     def setUp(self):
@@ -4664,6 +4702,41 @@ class TestChildFlag(unittest.TestCase):
                     None),
             ],
             dest.mock_calls)
+
+
+class Tags(enum.Enum):
+    FOO = ("urn:example:tags", "foo")
+    BAR = ("urn:example:tags", "bar")
+    BAZ = ("urn:example:tags", "baz")
+
+
+class FooWithNone(xso.XSO):
+    tag_allows_none = xso.ChildTag(Tags, allow_none=True)
+
+
+class Foo(xso.XSO):
+    tag = xso.ChildTag(Tags)
+
+
+class TestChildTagEnum(unittest.TestCase):
+    def test_tag_enum_usage_normal(self):
+        foo = Foo()
+        foo.tag = Tags.FOO
+        self.assertEqual(foo.tag, Tags.FOO)
+
+        foo.tag = Tags.BAR
+        self.assertEqual(foo.tag, Tags.BAR)
+
+    def test_tag_enum_assign_none_allowed(self):
+        foo = FooWithNone()
+        foo.tag_allows_none = None
+        self.assertIsNone(foo.tag_allows_none)
+
+    def test_tag_enum_assign_none_raises(self):
+        foo = Foo()
+        with self.assertRaises(ValueError):
+            foo.tag = None
+
 
 
 class Testdrop_handler(unittest.TestCase):
@@ -4977,6 +5050,9 @@ class ChildTag(XMLTestCase):
                 "baz"
             ],
             default_ns="uri:bar")
+        self.enum_prop = xso.ChildTag(
+            Tags
+        )
         self.ctx = xso_model.Context()
 
     def test_init(self):
@@ -4993,14 +5069,23 @@ class ChildTag(XMLTestCase):
         self.assertTrue(self.prop.validator.validate(("uri:bar", "foo")))
         self.assertFalse(self.prop.validator.validate(("uri:foo", "foo")))
 
-    def test_type(self):
+    def test_converter(self):
         self.assertEqual(
             (None, "foo"),
-            self.prop.type_.parse("foo")
+            self.prop._converter.parse("foo")
         )
         self.assertEqual(
             "{uri:bar}foo",
-            self.prop.type_.format(("uri:bar", "foo"))
+            self.prop._converter.format(("uri:bar", "foo"))
+        )
+
+        self.assertEqual(
+            Tags.FOO,
+            self.enum_prop._converter.parse("{urn:example:tags}foo")
+        )
+        self.assertEqual(
+            "{urn:example:tags}foo",
+            self.enum_prop._converter.format(Tags.FOO)
         )
 
     def test_from_events(self):

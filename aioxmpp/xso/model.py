@@ -28,6 +28,7 @@ See :mod:`aioxmpp.xso` for documentation.
 import abc
 import collections
 import copy
+import enum
 import logging
 import sys
 import xml.sax.handler
@@ -1107,11 +1108,14 @@ class ChildTag(_PropBase):
     presence or absence of a single child with a tag from a given set of valid
     tags.
 
-    `tags` must be an iterable of valid arguments to :func:`normalize_tag`. If
-    :func:`normalize_tag` returns a false value (such as :data:`None`) as
-    `namespace_uri`, it is replaced with `default_ns` (defaulting to
-    :data:`None`, which makes this sentence a no-op). This allows a benefit to
+    `tags` must be an iterable of valid arguments to
+    :func:`normalize_tag` or an :class:`enum.Enum` whose values are
+    valid arguments to :func:`normalize_tag`. If :func:`normalize_tag`
+    returns a false value (such as :data:`None`) as `namespace_uri`,
+    it is replaced with `default_ns` (defaulting to :data:`None`,
+    which makes this sentence a no-op). This allows a benefit to
     readability if you have many tags which share the same namespace.
+    This is, however, not allowed for tags given as enumeration.
 
     `text_policy`, `child_policy` and `attr_policy` describe the behaviour if
     the child element unexpectedly has text, children or attributes,
@@ -1131,11 +1135,18 @@ class ChildTag(_PropBase):
 
     """
 
-    class ElementTreeTag(xso_types.AbstractCDataType):
-        """
-        Parse an element-tree-format tag to a tuple-format tag. This type
-        operates on strings and should not be used in general.
-        """
+    class ConvertEnum:
+
+        def __init__(self, enum_=None):
+            self._enum = enum_
+
+        def parse(self, v):
+            return self._enum(normalize_tag(v))
+
+        def format(self, v):
+            return tag_to_str(v.value)
+
+    class ConvertTag:
 
         def parse(self, v):
             return normalize_tag(v)
@@ -1150,17 +1161,28 @@ class ChildTag(_PropBase):
                  attr_policy=UnknownAttrPolicy.FAIL,
                  allow_none=False,
                  declare_prefix=False):
-        tags = {
-            (ns or default_ns, localname)
-            for ns, localname in map(normalize_tag, tags)
-        }
-        if allow_none:
-            tags.add(None)
+
+        def normalize_tags(tags):
+            return {
+                (ns or default_ns, localname)
+                for ns, localname in map(normalize_tag, tags)
+            }
+
+        if isinstance(tags, type(enum.Enum)):
+            self._converter = self.ConvertEnum(tags)
+            values = list(tags)
+            tags = normalize_tags([tag.value for tag in tags])
+        else:
+            self._converter = self.ConvertTag()
+            tags = normalize_tags(tags)
+            values = tags
+
         super().__init__(
             default=None if allow_none else _PropBase.NO_DEFAULT,
-            validator=xso_types.RestrictToSet(tags),
+            validator=xso_types.RestrictToSet(values),
             validate=ValidateMode.ALWAYS)
-        self.type_ = self.ElementTreeTag()
+
+        self.child_map = tags
         self.text_policy = text_policy
         self.attr_policy = attr_policy
         self.child_policy = child_policy
@@ -1171,7 +1193,7 @@ class ChildTag(_PropBase):
         return self.default is not _PropBase.NO_DEFAULT
 
     def get_tag_map(self):
-        return self.validator.values
+        return self.child_map
 
     def from_events(self, instance, ev_args, ctx):
         attrs = ev_args[2]
@@ -1189,12 +1211,14 @@ class ChildTag(_PropBase):
                     ev_args)
             elif ev_type == "end":
                 break
-        self._set_from_recv(instance, tag)
+        self._set_from_recv(instance, self._converter.parse(tag))
 
     def to_sax(self, instance, dest):
         value = self.__get__(instance, type(instance))
         if value is None:
             return
+
+        value = normalize_tag(self._converter.format(value))
 
         if self.declare_prefix is not False and value[0]:
             dest.startPrefixMapping(self.declare_prefix, value[0])
