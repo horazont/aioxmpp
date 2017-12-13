@@ -33,12 +33,13 @@
 
 import collections.abc
 
-class Link:
+
+class Node:
     __slots__ = ("prev", "next_", "key", "value")
 
 
 def _init_linked_list():
-    root = Link()
+    root = Node()
     root.prev = root
     root.next_ = root
     root.key = None
@@ -46,38 +47,38 @@ def _init_linked_list():
     return root
 
 
-def _remove_link(link):
-    link.next_.prev = link.prev
-    link.prev.next_ = link.next_
-    return link
+def _remove_node(node):
+    node.next_.prev = node.prev
+    node.prev.next_ = node.next_
+    return node
 
 
-def _insert_link(before, link):
-    link.next_ = before.next_
-    link.next_.prev = link
-    link.prev = before
-    before.next_ = link
+def _insert_node(before, new_node):
+    new_node.next_ = before.next_
+    new_node.next_.prev = new_node
+    new_node.prev = before
+    before.next_ = new_node
 
 
-def _length(link):
+def _length(node):
     # this is used only for testing
-    cur = link.next_
+    cur = node.next_
     i = 0
-    while cur is not link:
+    while cur is not node:
         i += 1
         cur = cur.next_
     return i
 
 
-def _has_consistent_links(link, link_dict=None):
+def _has_consistent_links(node, node_dict=None):
     # this is used only for testing
-    cur = link.next_
+    cur = node.next_
 
-    if cur.prev is not link:
+    if cur.prev is not node:
         return False
 
-    while cur is not link:
-        if link_dict is not None and link_dict[cur.key] is not cur:
+    while cur is not node:
+        if node_dict is not None and node_dict[cur.key] is not cur:
             return False
         if cur is not cur.next_.prev:
             return False
@@ -121,7 +122,7 @@ class LRUDict(collections.abc.MutableMapping):
             return
 
         while len(self.__links) > self.__maxsize:
-            link = _remove_link(self.__root.prev)
+            link = _remove_node(self.__root.prev)
             del self.__links[link.key]
 
     @property
@@ -156,22 +157,22 @@ class LRUDict(collections.abc.MutableMapping):
         try:
             self.__links[key].value = value
         except KeyError:
-            link = Link()
+            link = Node()
             link.key = key
             link.value = value
             self.__links[key] = link
-            _insert_link(self.__root, link)
+            _insert_node(self.__root, link)
             self._purge()
 
     def __getitem__(self, key):
         link = self.__links[key]
-        _remove_link(link)
-        _insert_link(self.__root, link)
+        _remove_node(link)
+        _insert_node(self.__root, link)
         return link.value
 
     def __delitem__(self, key):
         link = self.__links.pop(key)
-        _remove_link(link)
+        _remove_node(link)
 
     def clear(self):
         self.__links.clear()
