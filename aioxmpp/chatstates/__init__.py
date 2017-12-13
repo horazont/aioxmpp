@@ -29,8 +29,8 @@ Notifications <85>`.
 XSOs
 ====
 
-The module registers an attribute ``xep0085_chatstate`` with`
-:class:`aioxmpp.stanza.Message` to represent the chat state
+The module registers an attribute ``xep0085_chatstate`` with
+:class:`aioxmpp.Message` to represent the chat state
 notification tags, it takes values from the following enumeration (or
 :data:`None` if no tag is present):
 

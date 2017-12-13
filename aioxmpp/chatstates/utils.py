@@ -116,13 +116,16 @@ class ChatStateManager:
         :type state: :class:`~aioxmpp.chatstates.ChatState`
 
         :param message: pass true to indicate that we handle the
-                        `~aioxmpp.chatstates.ChatState.ACTIVE` state
-                        that is implied by sending a content message.
+                        :data:`ACTIVE` state that is implied by
+                        sending a content message.
         :type message: :class:`bool`
 
         :returns: whether a standalone notification must be sent for
-                  this state update, respective if a ChatState must
-                  be included with the message.
+                  this state update, respective if a chat state
+                  notification must be included with the message.
+
+        :raises ValueError: if `message` is true and a state other
+                            than :data:`ACTIVE` is passed.
         """
         if message:
             if state != chatstates_xso.ChatState.ACTIVE:

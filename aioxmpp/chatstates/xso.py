@@ -31,6 +31,19 @@ namespaces.xep0085 = "http://jabber.org/protocol/chatstates"
 
 
 class ChatState(enum.Enum):
+    """
+    Enumeration of the chat states defined by :xep:`0085`:
+
+    .. attribute:: ACTIVE
+
+    .. attribute:: COMPOSING
+
+    .. attribute:: PAUSED
+
+    .. attribute:: INACTIVE
+
+    .. attribute:: GONE
+    """
     ACTIVE = (namespaces.xep0085, "active")
     COMPOSING = (namespaces.xep0085, "composing")
     PAUSED = (namespaces.xep0085, "paused")
