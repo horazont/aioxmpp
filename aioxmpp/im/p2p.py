@@ -28,6 +28,7 @@ from .conversation import (
     AbstractConversationMember,
     AbstractConversation,
     AbstractConversationService,
+    ConversationFeature,
 )
 
 from .dispatcher import IMDispatcher, MessageSource
@@ -76,6 +77,15 @@ class Conversation(AbstractConversation):
         self.__members = (
             Member(self._client.local_jid, True),
             Member(peer_jid, False),
+        )
+
+    @property
+    def features(self):
+        return (
+            frozenset([ConversationFeature.SEND_MESSAGE,
+                       ConversationFeature.SEND_MESSAGE_TRACKED,
+                       ConversationFeature.LEAVE]) |
+            super().features
         )
 
     def _handle_message(self, msg, peer, sent, source):

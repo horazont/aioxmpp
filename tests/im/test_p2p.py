@@ -31,6 +31,8 @@ import aioxmpp.im.p2p as p2p
 import aioxmpp.im.service as im_service
 import aioxmpp.im.dispatcher as im_dispatcher
 
+from aioxmpp.im.conversation import ConversationFeature
+
 from aioxmpp.testutils import (
     make_connected_client,
     CoroutineMock,
@@ -68,6 +70,14 @@ class TestConversation(unittest.TestCase):
 
     def tearDown(self):
         del self.cc
+
+    def test_features(self):
+        self.assertCountEqual(
+            self.c.features,
+            [ConversationFeature.SEND_MESSAGE,
+             ConversationFeature.SEND_MESSAGE_TRACKED,
+             ConversationFeature.LEAVE]
+        )
 
     def test_members_contain_both_entities(self):
         members = list(self.c.members)
@@ -706,7 +716,7 @@ class TestE2E(TestCase):
 
         msg = aioxmpp.Message(aioxmpp.MessageType.CHAT)
         msg.body[None] = "foo"
-        yield from c1.send_message(msg)
+        c1.send_message(msg)
         yield from swev.wait()
 
         self.assertEqual(len(swmsgs), 1)
@@ -714,7 +724,7 @@ class TestE2E(TestCase):
         self.assertEqual(len(fwmsgs), 0)
 
         msg.body[None] = "bar"
-        yield from c2.send_message(msg)
+        c2.send_message(msg)
         yield from fwev.wait()
 
         self.assertEqual(len(fwmsgs), 1)
