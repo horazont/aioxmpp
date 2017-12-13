@@ -31,6 +31,7 @@ functionality or provide backwards compatibility.
    blocking
    bookmarks
    carbons
+   chatstates
    disco
    entitycaps
    forms
