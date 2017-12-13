@@ -782,7 +782,6 @@ class TestSubscribeOptions(unittest.TestCase):
             set(pubsub_xso.SubscribeOptions.required.get_tag_map()),
             {
                 (namespaces.xep0060, "required"),
-                None,
             }
         )
         self.assertIs(
