@@ -131,6 +131,7 @@ class ConversationFeature(enum.Enum):
     INVITE_MEDIATED = 'invite-mediated'
     INVITE_UPGRADE = 'invite-upgrade'
     KICK = 'kick'
+    LEAVE = 'leave'
     SEND_MESSAGE = 'send-message'
     SEND_MESSAGE_TRACKED = 'send-message-tracked'
     SET_TOPIC = 'set-topic'
@@ -319,7 +320,7 @@ class AbstractConversation(metaclass=abc.ABCMeta):
        :param source: How the message was acquired
        :type source: :class:`~.MessageSource`
        :param tracker: A message tracker which tracks an outbound message.
-       :type trakcre: :class:`aioxmpp.tracking.MessageTracker`
+       :type tracker: :class:`aioxmpp.tracking.MessageTracker`
 
        This signal is emitted on the following events:
 
@@ -647,7 +648,7 @@ class AbstractConversation(metaclass=abc.ABCMeta):
         method may still raise an :class:`aioxmpp.XMPPCancelError` due for
         other conditions such as ``item-not-found``).
         """
-        return set()
+        return frozenset()
 
     def send_message(self, body):
         """

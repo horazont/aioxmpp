@@ -19,15 +19,10 @@
 # <http://www.gnu.org/licenses/>.
 #
 ########################################################################
-import asyncio
 import unittest
 import unittest.mock
 
 import aioxmpp.im.conversation as conv
-
-from aioxmpp.testutils import (
-    run_coroutine,
-)
 
 
 class DummyConversation(conv.AbstractConversation):
@@ -61,6 +56,7 @@ class TestConversation(unittest.TestCase):
         self.c = DummyConversation(self.c_mock, self.svc, parent=self.parent)
 
     def tearDown(self):
+        del self.c_mock
         del self.c
         del self.parent
         del self.cc
