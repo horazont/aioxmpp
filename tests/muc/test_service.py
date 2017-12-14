@@ -457,7 +457,7 @@ class TestRoom(unittest.TestCase):
                    "on_message", "on_topic_changed",
                    "on_join", "on_presence_changed", "on_nick_changed",
                    "on_muc_role_changed", "on_muc_affiliation_changed",
-                   "on_leave"]:
+                   "on_leave", "on_muc_enter"]:
             cb = getattr(self.base, ev)
             cb.return_value = None
             getattr(self.jmuc, ev).connect(cb)
@@ -775,7 +775,8 @@ class TestRoom(unittest.TestCase):
             [
                 unittest.mock.call.on_muc_suspend(),
                 unittest.mock.call.on_muc_resume(),
-                unittest.mock.call.on_enter(presence, self.jmuc.me)
+                unittest.mock.call.on_muc_enter(presence, self.jmuc.me),
+                unittest.mock.call.on_enter(),
             ]
         )
 
@@ -1374,7 +1375,8 @@ class TestRoom(unittest.TestCase):
             self.assertSequenceEqual(
                 self.base.mock_calls,
                 [
-                    unittest.mock.call.on_enter(presence, first)
+                    unittest.mock.call.on_muc_enter(presence, first),
+                    unittest.mock.call.on_enter(),
                 ]
             )
             self.base.mock_calls.clear()
@@ -1723,7 +1725,8 @@ class TestRoom(unittest.TestCase):
         _, (occupant, ), _ = self.base.on_join.mock_calls[-1]
         self.base.mock_calls.clear()
 
-        self.base.on_enter.assert_called_once_with(pres, self.jmuc.me)
+        self.base.on_muc_enter.assert_called_once_with(pres, self.jmuc.me)
+        self.base.on_enter.assert_called_once_with()
         self.base.mock_calls.clear()
 
         # end of history replay
@@ -1770,8 +1773,9 @@ class TestRoom(unittest.TestCase):
         self.assertSequenceEqual(
             self.base.mock_calls,
             [
-                unittest.mock.call.on_enter(presence,
-                                            self.jmuc.me),
+                unittest.mock.call.on_muc_enter(presence,
+                                                self.jmuc.me),
+                unittest.mock.call.on_enter(),
             ]
         )
         self.base.mock_calls.clear()
@@ -1846,8 +1850,9 @@ class TestRoom(unittest.TestCase):
         self.assertSequenceEqual(
             self.base.mock_calls,
             [
-                unittest.mock.call.on_enter(presence,
-                                            self.jmuc.me),
+                unittest.mock.call.on_muc_enter(presence,
+                                                self.jmuc.me),
+                unittest.mock.call.on_enter(),
             ]
         )
         self.base.mock_calls.clear()
@@ -1908,8 +1913,9 @@ class TestRoom(unittest.TestCase):
         self.assertSequenceEqual(
             self.base.mock_calls,
             [
-                unittest.mock.call.on_enter(presence,
-                                            self.jmuc.me),
+                unittest.mock.call.on_muc_enter(presence,
+                                                self.jmuc.me),
+                unittest.mock.call.on_enter(),
             ]
         )
         self.base.mock_calls.clear()
@@ -2226,7 +2232,7 @@ class TestRoom(unittest.TestCase):
 
         members += [
             occupant
-            for _, (_, occupant, *_), _ in self.base.on_enter.mock_calls
+            for _, (_, occupant, *_), _ in self.base.on_muc_enter.mock_calls
         ]
 
         self.assertSetEqual(
@@ -4253,6 +4259,7 @@ class TestService(unittest.TestCase):
         run_coroutine(asyncio.sleep(0))
 
         listener.on_enter.assert_not_called()
+        listener.on_muc_enter.assert_not_called()
         listener.on_failure.assert_called_once_with(
             future.exception(),
         )
@@ -4268,6 +4275,7 @@ class TestService(unittest.TestCase):
         run_coroutine(asyncio.sleep(0))
 
         listener.on_enter.assert_not_called()
+        listener.on_muc_enter.assert_not_called()
         listener.on_failure.assert_called_once_with(
             future.exception(),
         )
@@ -4689,8 +4697,8 @@ class TestService(unittest.TestCase):
             TEST_MUC_JID.replace(localpart="foo"),
             "thirdwitch")
 
-        room1.on_enter.connect(base.enter1)
-        room2.on_enter.connect(base.enter2)
+        room1.on_muc_enter.connect(base.enter1)
+        room2.on_muc_enter.connect(base.enter2)
 
         room1.on_muc_suspend.connect(base.suspend1)
         room2.on_muc_suspend.connect(base.suspend2)
@@ -4859,8 +4867,8 @@ class TestService(unittest.TestCase):
             "thirdwitch",
             autorejoin=False)
 
-        room1.on_enter.connect(base.enter1)
-        room2.on_enter.connect(base.enter2)
+        room1.on_muc_enter.connect(base.enter1)
+        room2.on_muc_enter.connect(base.enter2)
 
         room1.on_muc_suspend.connect(base.suspend1)
         room2.on_muc_suspend.connect(base.suspend2)

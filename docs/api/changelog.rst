@@ -186,6 +186,21 @@ Version 0.10
   Not having this workaround leads to being unable to receive presence stanzas
   from those entities, which is rather unfortunate.
 
+* **Breaking change**: :meth:`aioxmpp.muc.Room.on_enter` does not receive any
+  arguments anymore to comply with the updated
+  :class:`aioxmpp.im.AbstractConversation` spec. The
+  :meth:`aioxmpp.muc.Room.on_muc_enter` event provides the arguments
+  :meth:`~aioxmpp.muc.Room.on_enter` received before and fires right after
+  :meth:`~aioxmpp.muc.Room.on_enter`.
+
+  As a workaround (if you need the arguments), you can test whether the
+  :meth:`~aioxmpp.muc.Room.on_muc_enter` exists on a
+  :class:`~aioxmpp.muc.Room`. If it does, connect to it, otherwise connect to
+  :meth:`~aioxmpp.muc.Room.on_enter`.
+
+  If you don’t need the arguments, make your :meth:`~aioxmpp.muc.Room.on_enter`
+  handlers accept ``*args``.
+
 .. _api-changelog-0.9:
 
 Version 0.9

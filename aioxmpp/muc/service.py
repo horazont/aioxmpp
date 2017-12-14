@@ -374,12 +374,31 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
 
     .. signal:: on_enter(presence, occupant, **kwargs)
 
-       Emits when the initial room :class:`~.Presence` stanza for the
-       local JID is received. This means that the join to the room is complete;
-       the message history and subject are not transferred yet though.
+        Emits when the initial room :class:`~.Presence` stanza for the
+        local JID is received. This means that the join to the room is complete;
+        the message history and subject are not transferred yet though.
 
-       The `occupant` argument refers to the :class:`Occupant` which will be
-       used to track the local user.
+        .. seealso::
+
+            :meth:`on_muc_enter`
+                is an extended version of this signal which contains additional
+                MUC-specific information.
+
+        .. versionchanged:: 0.10
+
+            The :meth:`on_enter` signal does not receive any arguments anymore
+            to make MUC comply with the :class:`AbstractConversation` spec.
+
+    .. signal:: on_muc_enter(presence, occupant, **kwargs)
+
+        This is an extended version of :meth:`on_enter` which adds MUC-specific
+        arguments.
+
+        :param presence: The initial presence stanza.
+        :param occupant: The :class:`Occupant` which will be used to track the
+            local user.
+
+        .. versionadded:: 0.10
 
     .. signal:: on_message(msg, member, source, **kwargs)
 
@@ -583,6 +602,7 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
     # this occupant state events
     on_muc_suspend = aioxmpp.callbacks.Signal()
     on_muc_resume = aioxmpp.callbacks.Signal()
+    on_muc_enter = aioxmpp.callbacks.Signal()
 
     # other occupant state events
     on_muc_affiliation_changed = aioxmpp.callbacks.Signal()
@@ -957,7 +977,8 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
             self._joined = True
             self._active = True
             self._state = RoomState.HISTORY
-            self.on_enter(stanza, info)
+            self.on_muc_enter(stanza, info)
+            self.on_enter()
             return
 
         existing = self._this_occupant
@@ -1760,7 +1781,7 @@ class MUCClient(aioxmpp.im.conversation.AbstractConversationService,
                 room
             )
         )
-        room.on_enter.connect(
+        room.on_muc_enter.connect(
             self._pending_on_enter,
         )
 

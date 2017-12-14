@@ -55,7 +55,8 @@ class TestConversation(unittest.TestCase):
         self.cc = make_connected_client()
         self.cc.stream.send = CoroutineMock()
         self.cc.local_jid = LOCAL_JID
-        self.svc = unittest.mock.Mock(["client", "_conversation_left"])
+        self.svc = unittest.mock.Mock(["client", "_conversation_left",
+                                       "logger"])
         self.svc.client = self.cc
 
         self.c = p2p.Conversation(self.svc, PEER_JID)

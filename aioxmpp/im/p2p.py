@@ -84,6 +84,8 @@ class Conversation(AbstractConversation):
         else:
             member = self.__members[1]
 
+        self._service.logger.debug("emitting on_message for %s",
+                                   self.__peer_jid)
         self.on_message(msg, member, source)
 
     @property
@@ -152,12 +154,16 @@ class Service(AbstractConversationService, aioxmpp.service.Service):
         )
 
     def _make_conversation(self, peer_jid, spontaneous):
+        self.logger.debug("creating new conversation for %s (spontaneous=%s)",
+                          peer_jid, spontaneous)
         result = Conversation(self, peer_jid, parent=None)
         self._conversationmap[peer_jid] = result
         if spontaneous:
             self.on_spontaneous_conversation(result)
         self.on_conversation_new(result)
         result.on_enter()
+        self.logger.debug("new conversation for %s set up and events emitted",
+                          peer_jid)
         return result
 
     @aioxmpp.service.depfilter(IMDispatcher, "message_filter")
