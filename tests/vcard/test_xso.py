@@ -65,6 +65,23 @@ class TestVCard(unittest.TestCase):
         )
         self.assertEqual(vcard.get_photo_data(), b'foo\n')
 
+    def test_get_photo_mime_type(self):
+        vcard = vcard_xso.VCard()
+        vcard.elements.append(
+            lxml.etree.fromstring("""
+<ns0:PHOTO xmlns:ns0="vcard-temp"><ns0:TYPE>image/png</ns0:TYPE></ns0:PHOTO>
+            """)
+        )
+        self.assertEqual(vcard.get_photo_mime_type(), 'image/png')
+
+        vcard = vcard_xso.VCard()
+        vcard.elements.append(
+            lxml.etree.fromstring("""
+<ns0:PHOTO xmlns:ns0="vcard-temp"></ns0:PHOTO>
+            """)
+        )
+        self.assertEqual(vcard.get_photo_mime_type(), None)
+
     def test_set_photo_data(self):
         vcard = vcard_xso.VCard()
         vcard.elements.append(

@@ -35,7 +35,7 @@ namespaces.xep0153 = "vcard-temp:x:update"
 
 class VCardTempUpdate(xso.XSO):
     """
-    The vcard temp update note as per :xep:`0153`
+    The vcard update notify element as per :xep:`0153`
     """
 
     TAG = (namespaces.xep0153, "x")

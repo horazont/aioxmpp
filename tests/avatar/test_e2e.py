@@ -152,7 +152,7 @@ class TestAvatar(TestCase):
             1
         )
 
-        (info, ), = avatar_info.values()
+        info = avatar_info[0]
 
         test_image_retrieved = yield from info.get_image_bytes()
 

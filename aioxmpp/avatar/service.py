@@ -23,6 +23,7 @@ import asyncio
 import collections
 import hashlib
 import logging
+import warnings
 
 import aioxmpp
 import aioxmpp.callbacks as callbacks
@@ -185,35 +186,45 @@ class AvatarSet:
 
 class AbstractAvatarDescriptor:
     """
-    Description of an avatar source retrieved from pubsub.
+    Description of the properties of and how to retrieve a specific
+    avatar.
 
-    .. autoattribute:: mime_type
+    The following attribues are available for all instances:
+
+    .. autoattribute:: remote_jid
 
     .. autoattribute:: id_
 
     .. autoattribute:: normalized_id
 
-    .. autoattribute:: nbytes
+    .. autoattribute:: can_get_image_bytes_via_xmpp
 
-    .. autoattribute:: remote_jid
+    .. autoattribute:: has_image_data_in_pubsub
+
+    The following attributes may be :data:`None` and are supposed to
+    be used as hints for selection of the avatar to download:
+
+    .. autoattribute:: nbytes
 
     .. autoattribute:: width
 
     .. autoattribute:: height
 
-    .. autoattribute:: has_image_data_in_pubsub
+    .. autoattribute:: mime_type
+
+    If this attribute is not :data:`None` it is an URL that points to
+    the location of the avatar image:
 
     .. autoattribute:: url
 
-    If :attr:`has_image_data_in_pubsub` is true, the image can be
-    retrieved by the following coroutine:
+    The image data belonging to the descriptor can be retrieved by the
+    following coroutine:
 
     .. automethod:: get_image_bytes
     """
 
-    def __init__(self, remote_jid, mime_type, id_, nbytes, width=None,
-                 height=None, url=None, pubsub=None, vcard=None,
-                 image_bytes=None):
+    def __init__(self, remote_jid, id_, *, mime_type=None,
+                 nbytes=None, width=None, height=None, url=None):
         self._remote_jid = remote_jid
         self._mime_type = mime_type
         self._id = id_
@@ -221,9 +232,6 @@ class AbstractAvatarDescriptor:
         self._width = width
         self._height = height
         self._url = url
-        self._pubsub = pubsub
-        self._vcard = vcard
-        self._image_bytes = image_bytes
 
     @asyncio.coroutine
     def get_image_bytes(self):
@@ -231,19 +239,51 @@ class AbstractAvatarDescriptor:
         Try to retrieve the image data corresponding to this avatar
         descriptor.
 
-        This will raise :class:`NotImplementedError` if we are not
-        capable to retrieve the image data. It is guaranteed to not
-        raise :class:`NotImplementedError` if :attr:`image_in_pubsub`
-        is true.
+        :returns: the image contents
+        :rtype: :class:`bytes`
+
+        :raises NotImplementedError: if we do not implement the
+            capability to retrieve the image data of this type. It is
+            guaranteed to not raise :class:`NotImplementedError` if
+            :attr:`can_get_image_bytes_via_xmpp` is true.
+
+        :raises RuntimeError: if the image data described by this
+            descriptor is not at the specified location.
+
+        :raises XMPPCancelError: if trying to retrieve the image data
+            causes an XMPP error.
         """
         raise NotImplementedError
+
+    @property
+    def can_get_image_bytes_via_xmpp(self):
+        """
+        Return whether :meth:`get_image_bytes` raises
+        :class:`NotImplementedError`.
+        """
+        return False
 
     @property
     def has_image_data_in_pubsub(self):
         """
         Whether the image can be retrieved from PubSub.
+
+        .. deprecated:: 0.10
+
+           Use :attr:`can_get_image_bytes_via_xmpp` instead.
+
+           As we support vCard based avatars now the name of this is
+           misleading.
+
+           This attribute will be removed in aioxmpp 1.0
         """
-        raise NotImplementedError
+        warnings.warn(
+            "the has_image_data_in_pubsub attribute is deprecated and will be"
+            "removed in 1.0",
+            DeprecationWarning,
+            stacklevel=1
+        )
+        return self.can_get_image_bytes_via_xmpp
 
     @property
     def remote_jid(self):
@@ -257,7 +297,8 @@ class AbstractAvatarDescriptor:
         """
         The URL where the avatar image data can be found.
 
-        This is :data:`None` if :attr:`has_image_data_in_pubsub` is true.
+        This may be :data:`None` if the avatar is not given as an URL
+        of the image data.
         """
         return self._url
 
@@ -291,17 +332,18 @@ class AbstractAvatarDescriptor:
         """
         The SHA1 of the image encoded as hexadecimal number in ASCII.
 
-        This is the original value returned from pubsub and should be
-        used for any further interaction with pubsub.
+        This is the original value returned from the underlying
+        protocol and should be used for any further interaction with
+        the underlying protocol.
         """
         return self._id
 
     @property
     def normalized_id(self):
         """
-        The SHA1 of the image data decoded to a :class:`bytes` object.
+        The normalized SHA1 of the image data.
 
-        This is supposed to be used for caching.
+        This is supposed to be used for caching and comparison.
         """
         return normalize_id(self._id)
 
@@ -315,8 +357,12 @@ class AbstractAvatarDescriptor:
 
 class PubsubAvatarDescriptor(AbstractAvatarDescriptor):
 
+    def __init__(self, remote_jid, id_, *, pubsub=None, **kwargs):
+        super().__init__(remote_jid, id_, **kwargs)
+        self._pubsub = pubsub
+
     @property
-    def has_image_data_in_pubsub(self):
+    def can_get_image_bytes_via_xmpp(self):
         return True
 
     @asyncio.coroutine
@@ -335,25 +381,22 @@ class PubsubAvatarDescriptor(AbstractAvatarDescriptor):
 
 class HttpAvatarDescriptor(AbstractAvatarDescriptor):
 
-    @property
-    def has_image_data_in_pubsub(self):
-        return False
-
     @asyncio.coroutine
     def get_image_bytes(self):
-        """
-        Try to retrieve the avatar image date.
-
-        May raise NotImplementedError
-        """
         raise NotImplementedError
 
 
 class VCardAvatarDescriptor(AbstractAvatarDescriptor):
 
+    def __init__(self, remote_jid, id_, *, vcard=None, image_bytes=None,
+                 **kwargs):
+        super().__init__(remote_jid, id_, **kwargs)
+        self._vcard = vcard
+        self._image_bytes = image_bytes
+
     @property
-    def has_image_data_in_pubsub(self):
-        return False
+    def can_get_image_bytes_via_xmpp(self):
+        return True
 
     @asyncio.coroutine
     def get_image_bytes(self):
@@ -363,22 +406,25 @@ class VCardAvatarDescriptor(AbstractAvatarDescriptor):
         logger.debug("retrieving vCard %s", self._remote_jid)
         vcard = yield from self._vcard.get_vcard(self._remote_jid)
         photo = vcard.get_photo_data()
-        if photo is not None:
-            logger.debug("returning vCard avatar %s", self._remote_jid)
-            return photo
+        if photo is None:
+            raise RuntimeError("Avatar image is not set")
 
-        raise RuntimeError("Avatar image is not set")
-        # url = item.xpath("/ns0:PHOTO/ns0:EXTVAL/text()",
-        #                  namespaces={"ns0": namespaces.xep0054})
+        logger.debug("returning vCard avatar %s", self._remote_jid)
+        return photo
 
 
 class AvatarService(service.Service):
-    """Access and publish User Avatars (:xep:`84`). Fallback to vCard based
-    avatars (:xep:`153`).
+    """
+    Access and publish User Avatars (:xep:`84`). Fallback to vCard
+    based avatars (:xep:`153`).
 
     This service provides an interface for accessing the avatar of other
     entities in the network, getting notifications on avatar changes and
     publishing an avatar for this entity.
+
+    .. versionchanged:: 0.10
+
+       Support for :xep:`vCard-Based Avatars <153>` was added.
 
     Observing avatars:
 
@@ -419,7 +465,6 @@ class AvatarService(service.Service):
 
     .. autoattribute:: metadata_cache_size
        :annotation: = 200
-
     """
 
     ORDER_AFTER = [
@@ -456,7 +501,7 @@ class AvatarService(service.Service):
         # checking for consistent data after an update.
         self._publish_lock = asyncio.Lock()
         self._synchronize_vcard = False
-        self._vcard_ressource_interference = set()
+        self._vcard_resource_interference = set()
         self._vcard_id = None
         self._vcard_rehash_task = None
 
@@ -467,7 +512,7 @@ class AvatarService(service.Service):
 
         This is mostly a measure to prevent malicious peers from
         exhausting memory by spamming vCard based avatar metadata for
-        different ressources.
+        different resources.
 
         .. versionadded:: 0.10
 
@@ -496,41 +541,45 @@ class AvatarService(service.Service):
     @service.depfilter(aioxmpp.stream.StanzaStream,
                        "service_outbound_presence_filter")
     def _attach_vcard_notify_to_presence(self, stanza):
-        if not self._vcard_ressource_interference:
+        if not self._vcard_resource_interference:
             stanza.xep0153_x = avatar_xso.VCardTempUpdate(self._vcard_id)
         return stanza
 
     def _handle_notify(self, full_jid, stanza):
-        if stanza.xep0153_x is not None:
-            if stanza.xep0153_x.photo is not None:
-                if full_jid not in self._has_pep_avatar:
-                    metadata = self._cook_vcard_notify(full_jid, stanza)
-                    self.on_metadata_changed(
-                        full_jid,
-                        metadata
-                    )
-                    self._metadata_cache[full_jid] = metadata
+        if stanza.xep0153_x is None:
+            return
 
-                if (full_jid.bare() == self.client.local_jid.bare() and
-                        full_jid != self.client.local_jid):
-                    if (self._vcard_id is None or
-                            stanza.xep0153_x.photo.lower() !=
-                            self._vcard_id.lower()):
-                        if self._vcard_rehash_task is not None:
-                            self._vcard_rehash_task.cancel()
+        if stanza.xep0153_x.photo is None:
+            return
 
-                        self._vcard_id = None
-                        self._vcard_rehash_task = asyncio.async(
-                            self._calculate_vcard_id()
-                        )
+        if full_jid not in self._has_pep_avatar:
+            metadata = self._cook_vcard_notify(full_jid, stanza)
+            self._metadata_cache[full_jid] = metadata
+            self.on_metadata_changed(
+                full_jid,
+                metadata
+            )
 
-                        def set_new_vcard_id(fut):
-                            if not fut.cancelled():
-                                self._vcard_id = fut.result()
+        if (full_jid.bare() == self.client.local_jid.bare() and
+                full_jid != self.client.local_jid):
+            if (self._vcard_id is None or
+                    stanza.xep0153_x.photo.lower() !=
+                    self._vcard_id.lower()):
+                if self._vcard_rehash_task is not None:
+                    self._vcard_rehash_task.cancel()
 
-                        self._vcard_rehash_task.add_done_callback(
-                            set_new_vcard_id
-                        )
+                self._vcard_id = None
+                self._vcard_rehash_task = asyncio.async(
+                    self._calculate_vcard_id()
+                )
+
+                def set_new_vcard_id(fut):
+                    if not fut.cancelled():
+                        self._vcard_id = fut.result()
+
+                self._vcard_rehash_task.add_done_callback(
+                    set_new_vcard_id
+                )
 
     @asyncio.coroutine
     def _calculate_vcard_id(self):
@@ -552,10 +601,10 @@ class AvatarService(service.Service):
         if (full_jid.bare() == self.client.local_jid.bare() and
                 full_jid != self.client.local_jid):
             if stanza.xep0153_x is None:
-                self._vcard_ressource_interference.add(full_jid)
+                self._vcard_resource_interference.add(full_jid)
             else:
                 # just to be on the safe side
-                self._vcard_ressource_interference.discard(full_jid)
+                self._vcard_resource_interference.discard(full_jid)
 
         self._handle_notify(full_jid, stanza)
 
@@ -566,18 +615,18 @@ class AvatarService(service.Service):
     @service.depsignal(presence.PresenceClient, "on_unavailable")
     def _handle_on_unavailable(self, full_jid, stanza):
         if full_jid.bare() == self.client.local_jid.bare():
-            self._vcard_ressource_interference.discard(full_jid)
+            self._vcard_resource_interference.discard(full_jid)
 
     def _cook_vcard_notify(self, jid, stanza):
-        result = collections.defaultdict(lambda: [])
+        result = []
         # note: an empty photo element correctly
         # results in an empty avatar metadata list
         if stanza.xep0153_x.photo:
-            result[None].append(
+            result.append(
                 VCardAvatarDescriptor(
                     remote_jid=jid,
-                    mime_type=None,
                     id_=stanza.xep0153_x.photo,
+                    mime_type=None,
                     vcard=self._vcard,
                     nbytes=None,
                 )
@@ -589,13 +638,13 @@ class AvatarService(service.Service):
             for item in items:
                 yield from item.registered_payload.iter_info_nodes()
 
-        result = collections.defaultdict(lambda: [])
+        result = []
         for info_node in iter_metadata_info_nodes(items):
             if info_node.url is not None:
                 descriptor = HttpAvatarDescriptor(
                     remote_jid=jid,
-                    mime_type=info_node.mime_type,
                     id_=info_node.id_,
+                    mime_type=info_node.mime_type,
                     nbytes=info_node.nbytes,
                     width=info_node.width,
                     height=info_node.height,
@@ -604,14 +653,14 @@ class AvatarService(service.Service):
             else:
                 descriptor = PubsubAvatarDescriptor(
                     remote_jid=jid,
-                    mime_type=info_node.mime_type,
                     id_=info_node.id_,
+                    mime_type=info_node.mime_type,
                     nbytes=info_node.nbytes,
                     width=info_node.width,
                     height=info_node.height,
                     pubsub=self._pubsub,
                 )
-            result[info_node.mime_type].append(descriptor)
+            result.append(descriptor)
 
         return result
 
@@ -627,58 +676,29 @@ class AvatarService(service.Service):
         )
 
     @asyncio.coroutine
-    def get_avatar_metadata(self, jid, *, require_fresh=False):
-        """
-        Retrieve a mapping from MIME types to avatar descriptors for `jid`.
-        The MIME type is set to :data:`None` if it is not known.
+    def _get_avatar_metadata_vcard(self, jid):
+        logger.debug("trying vCard avatar as fallback for %s", jid)
+        vcard = yield from self._vcard.get_vcard(jid)
+        photo = vcard.get_photo_data()
+        mime_type = vcard.get_photo_mime_type()
+        if photo is None:
+            return []
 
-        The avatar descriptors are returned as a list of instances of
-        :class:`~aioxmpp.avatar.service.AbstractAvatarDescriptor`.
-        An empty list means that the avatar is unset.
+        logger.debug("success vCard avatar as fallback for %s",
+                     jid)
+        sha1 = hashlib.sha1()
+        sha1.update(photo)
+        return [VCardAvatarDescriptor(
+            remote_jid=jid,
+            id_=sha1.hexdigest(),
+            mime_type=mime_type,
+            nbytes=len(photo),
+            vcard=self._vcard,
+            image_bytes=photo,
+        )]
 
-        If `require_fresh` is true, we will not lookup the avatar
-        metadata from the cache, but make a new pubsub request.
-
-        We mask a :class:`XMPPCancelError` in the case that it is
-        ``feature-not-implemented`` or ``item-not-found`` and return
-        an empty list of avatar descriptors, since this is
-        semantically equivalent to not having an avatar.
-        """
-
-        def try_vcard_fallback():
-            try:
-                logger.debug("trying vCard avatar as fallback for %s", jid)
-                vcard = yield from self._vcard.get_vcard(jid)
-                # XXX: get_photo_data should extract the MIME type as well
-                # here we can know, so we should pass it on
-                photo = vcard.get_photo_data()
-                if photo is not None:
-                    logger.debug("success vCard avatar as fallback for %s",
-                                 jid)
-                    sha1 = hashlib.sha1()
-                    sha1.update(photo)
-                    metadata = collections.defaultdict(lambda: [])
-                    metadata[None] = [VCardAvatarDescriptor(
-                        remote_jid=jid,
-                        mime_type=None,
-                        id_=normalize_id(sha1.hexdigest()),
-                        vcard=self._vcard,
-                        nbytes=len(photo),
-                        image_bytes=photo,
-                    )]
-                    return metadata
-            except aioxmpp.XMPPCancelError:
-                # set the cache to the empty avatar to prevent retries
-                self._metadata_cache[jid] = collections.defaultdict(lambda: [])
-
-            return None
-
-        if jid in self._metadata_cache:
-            if require_fresh:
-                del self._metadata_cache[jid]
-            else:
-                return self._metadata_cache[jid]
-
+    @asyncio.coroutine
+    def _get_avatar_metadata_pep(self, jid):
         try:
             metadata_raw = yield from self._pubsub.get_items(
                 jid,
@@ -691,23 +711,58 @@ class AvatarService(service.Service):
             if e.condition in (
                     (namespaces.stanzas, "feature-not-implemented"),
                     (namespaces.stanzas, "item-not-found")):
-                metadata = collections.defaultdict(lambda: [])
-            else:
-                metadata = yield from try_vcard_fallback()
-                if metadata is None:
-                    raise
+                return []
+            raise
+
+        self._has_pep_avatar.add(jid)
+        return self._cook_metadata(jid, metadata_raw.payload.items)
+
+    @asyncio.coroutine
+    def get_avatar_metadata(self, jid, *, require_fresh=False):
+        """
+        Retrieve a list of avatar descriptors.
+
+        :param jid: the JID for which to retrieve the avatar metadata.
+        :type jid: :class:`aioxmpp.JID`
+        :param require_fresh: if true, do not return results from the
+            avatar metadata chache, but retrieve them again from the server.
+        :type require_fresh: :class:`bool`
+
+        :returns: an iterable of avatar descriptors.
+        :rtype: a :class:`list` of
+            :class:`~aioxmpp.avatar.service.AbstractAvatarDescriptor`
+            instances
+
+        Returning an empty list means that the avatar not set.
+
+        We mask a :class:`XMPPCancelError` in the case that it is
+        ``feature-not-implemented`` or ``item-not-found`` and return
+        an empty list of avatar descriptors, since this is
+        semantically equivalent to not having an avatar.
+        """
+
+        if require_fresh:
+            self._metadata_cache.pop(jid, None)
         else:
-            self._has_pep_avatar.add(jid)
-            metadata = self._cook_metadata(jid, metadata_raw.payload.items)
+            try:
+                return self._metadata_cache[jid]
+            except KeyError:
+                pass
 
-        # try the vcard fallback
-        if not metadata:
-            metadata_fallback = yield from try_vcard_fallback()
-            if metadata_fallback is not None:
-                metadata = metadata_fallback
+        metadata = yield from self._get_avatar_metadata_pep(jid)
 
-        self._metadata_cache[jid] = metadata
-        return metadata
+        # try the vcard fallback, note: we don't try this
+        # if the PEP avatar is disabled!
+        if not metadata and jid not in self._has_pep_avatar:
+            metadata = yield from self._get_avatar_metadata_vcard(jid)
+
+        # if a notify was fired while we waited for the results, then
+        # use the version in the cache, this will mitigate the race
+        # condition because if our version is actually newer we will
+        # get another notify for this version change!
+        if jid not in self._metadata_cache:
+            self._metadata_cache[jid] = metadata
+        return self._metadata_cache[jid]
 
     @asyncio.coroutine
     def subscribe(self, jid):
@@ -719,8 +774,8 @@ class AvatarService(service.Service):
     @aioxmpp.service.depsignal(aioxmpp.stream.StanzaStream,
                                "on_stream_destroyed")
     def handle_stream_destroyed(self, reason):
-        # invalidate the cache?
-        self._vcard_ressource_interference.clear()
+        self._metadata_cache.clear()
+        self._vcard_resource_interference.clear()
         self._has_pep_avatar.clear()
 
     @asyncio.coroutine
@@ -729,14 +784,18 @@ class AvatarService(service.Service):
         Make `avatar_set` the current avatar of the jid associated with this
         connection.
 
+        If :attr:`synchronize_vcard` is true and PEP is available the
+        vCard is only synchronized if the PEP update is successful.
+
         This means publishing the ``image/png`` avatar data and the
         avatar metadata set in pubsub. The `avatar_set` must be an
         instance of :class:`AvatarSet`.
         """
         id_ = avatar_set.png_id
 
+        done = False
         with (yield from self._publish_lock):
-            try:
+            if (yield from self._pep.available()):
                 yield from self._pep.publish(
                     namespaces.xep0084_data,
                     avatar_xso.Data(avatar_set.image_bytes),
@@ -748,33 +807,107 @@ class AvatarService(service.Service):
                     avatar_set.metadata,
                     id_=id_
                 )
-            finally:
-                if self._synchronize_vcard:
-                    my_vcard = yield from self._vcard.get_vcard()
-                    my_vcard.set_photo_data("image/png",
-                                            avatar_set.image_bytes)
-                    self._vcard_id = avatar_set.png_id
-                    yield from self._vcard.set_vcard(my_vcard)
-                    yield from self._presence_server.resend_presence()
+                done = True
+
+            if self._synchronize_vcard:
+                my_vcard = yield from self._vcard.get_vcard()
+                my_vcard.set_photo_data("image/png",
+                                        avatar_set.image_bytes)
+                self._vcard_id = avatar_set.png_id
+                yield from self._vcard.set_vcard(my_vcard)
+                yield from self._presence_server.resend_presence()
+                done = True
+
+        if not done:
+            raise RuntimeError(
+                "failed to publish avatar: no protocol available"
+            )
+
+    @asyncio.coroutine
+    def _disable_vcard_avatar(self):
+        my_vcard = yield from self._vcard.get_vcard()
+        my_vcard.clear_photo_data()
+        self._vcard_id = ""
+        yield from self._vcard.set_vcard(my_vcard)
+        yield from self._presence_server.resend_presence()
+
 
     @asyncio.coroutine
     def disable_avatar(self):
         """
         Temporarily disable the avatar.
 
-        This is done by setting the avatar metadata node empty.
+        If :attr:`synchronize_vcard` is true, the vCard avatar is
+        disabled even if disabling the PEP avatar fails.
+
+        This is done by setting the avatar metadata node empty and if
+        :attr:`synchronize_vcard` is true, downloading the vCard,
+        removing the avatar data and reuploading the vCard.
+
+        :raises RuntimeError: if an exception is raised by the spawned
+            tasks.
         """
 
         with (yield from self._publish_lock):
-            try:
-                yield from self._pep.publish(
+            todo = []
+            if self._synchronize_vcard:
+                todo.append(self._disable_vcard_avatar())
+
+            if (yield from self._pep.available()):
+                todo.append(self._pep.publish(
                     namespaces.xep0084_metadata,
                     avatar_xso.Metadata()
-                )
-            finally:
-                if self._synchronize_vcard:
-                    my_vcard = yield from self._vcard.get_vcard()
-                    my_vcard.clear_photo_data()
-                    self._vcard_id = ""
-                    yield from self._vcard.set_vcard(my_vcard)
-                    yield from self._presence_server.resend_presence()
+                ))
+
+            done, _ = yield from asyncio.wait(todo)
+            exceptions = []
+            for fut in done:
+                if fut.exception() is not None:
+                    exceptions.append(fut.exception())
+                fut.result() # to avoid warnings
+            if exceptions:
+                raise RuntimeError from exceptions[0]
+
+    @asyncio.coroutine
+    def wipe_avatar(self):
+        """
+        Remove all avatar data stored on the server.
+
+        If :attr:`synchronize_vcard` is true, the vCard avatar is
+        disabled even if disabling the PEP avatar fails.
+
+        This is equivalent to :meth:`disable_avatar` for vCard-based
+        avatars, but will also remove the data PubSub node for
+        PEP avatars.
+
+        :raises RuntimeError: if an exception is raised by the spawned
+            tasks.
+        """
+
+        @asyncio.coroutine
+        def _wipe_pep_avatar():
+            yield from self._pep.publish(
+                namespaces.xep0084_metadata,
+                avatar_xso.Metadata()
+            )
+            yield from self._pep.publish(
+                namespaces.xep0084_data,
+                avatar_xso.Data(b'')
+            )
+
+        with (yield from self._publish_lock):
+            todo = []
+            if self._synchronize_vcard:
+                todo.append(self._disable_vcard_avatar())
+
+            if (yield from self._pep.available()):
+                todo.append(_wipe_pep_avatar())
+
+            done, _ = yield from asyncio.wait(todo)
+            exceptions = []
+            for fut in done:
+                if fut.exception() is not None:
+                    exceptions.append(fut.exception())
+                fut.result() # to avoid warnings
+            if exceptions:
+                raise RuntimeError from exceptions[0]

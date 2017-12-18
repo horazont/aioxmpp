@@ -74,14 +74,14 @@ class Avatar(Example):
             self.remote_jid
         )
 
-        for metadatum in metadata["image/png"]:
-            if metadatum.has_image_data_in_pubsub:
+        for metadatum in metadata:
+            if metadatum.can_get_image_bytes_via_xmpp:
                 image = yield from metadatum.get_image_bytes()
                 with open(self.output_file, "wb") as avatar_image:
                     avatar_image.write(image)
                 return
 
-        print("retrieving avatar failed: no avatar in pubsub")
+        print("retrieving avatar failed: no png-avatar in pubsub")
 
     @asyncio.coroutine
     def run_example(self):

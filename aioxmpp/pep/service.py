@@ -137,18 +137,25 @@ class PEPClient(service.Service):
         self._pep_node_claims.pop(node_namespace)
 
     @asyncio.coroutine
-    def _check_for_pep(self):
-        # XXX: should this be done when the stream connects
-        # and we use the cached result later on (i.e. disable
-        # the PEP service if the server does not support PEP)
+    def available(self):
+        """
+        Check whether we have a PEP identity associated with our account.
+        """
         disco_info = yield from self._disco_client.query_info(
             self.client.local_jid.bare()
         )
 
         for item in disco_info.identities.filter(attrs={"category": "pubsub"}):
             if item.type_ == "pep":
-                break
-        else:
+                return True
+        return False
+
+    @asyncio.coroutine
+    def _check_for_pep(self):
+        # XXX: should this be done when the stream connects
+        # and we use the cached result later on (i.e. disable
+        # the PEP service if the server does not support PEP)
+        if not (yield from self.available()):
             raise RuntimeError("server does not support PEP")
 
     @service.depsignal(aioxmpp.PubSubClient, "on_item_published")

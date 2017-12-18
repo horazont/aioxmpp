@@ -186,6 +186,11 @@ Version 0.10
   Not having this workaround leads to being unable to receive presence stanzas
   from those entities, which is rather unfortunate.
 
+* **Breaking change**:
+  :meth:`aioxmpp.AvatarService.get_avatar_metadata`
+  now returns a list instead of a mapping from MIME types to lists of
+  descriptors.
+
 .. _api-changelog-0.9:
 
 Version 0.9

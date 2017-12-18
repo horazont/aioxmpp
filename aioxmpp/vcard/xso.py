@@ -52,6 +52,18 @@ class VCard(xso.XSO):
 
     elements = xso.Collector()
 
+    def get_photo_mime_type(self):
+        """
+        Get the mime type of the photo stored in the vCard.
+
+        :returns: the MIME type of the photo as :class:`str` or :data:`None`.
+        """
+        mime_type = self.elements.xpath("/ns0:vCard/ns0:PHOTO/ns0:TYPE/text()",
+                                        namespaces={"ns0": namespaces.xep0054})
+        if mime_type:
+            return mime_type[0]
+        return None
+
     def get_photo_data(self):
         """
         Get the photo stored in the vCard.
