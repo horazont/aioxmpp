@@ -991,7 +991,7 @@ class TestService(unittest.TestCase):
             self.assertIsInstance(item, pubsub_xso.Item, id_)
             self.assertEqual(item.id_, id_, id_)
             self.assertFalse(item.registered_payload)
-            self.assertFalse(item.unregistered_payload)
+            self.assertSequenceEqual(item.unregistered_payload, [])
 
         self.assertEqual(result, response)
 
