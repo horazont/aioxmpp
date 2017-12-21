@@ -76,7 +76,6 @@ class TestConversation(unittest.TestCase):
         self.assertCountEqual(
             self.c.features,
             [ConversationFeature.SEND_MESSAGE,
-             ConversationFeature.SEND_MESSAGE_TRACKED,
              ConversationFeature.LEAVE]
         )
 

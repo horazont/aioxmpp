@@ -83,7 +83,6 @@ class Conversation(AbstractConversation):
     def features(self):
         return (
             frozenset([ConversationFeature.SEND_MESSAGE,
-                       ConversationFeature.SEND_MESSAGE_TRACKED,
                        ConversationFeature.LEAVE]) |
             super().features
         )
