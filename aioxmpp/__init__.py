@@ -56,6 +56,7 @@ Overview of Services
     aioxmpp.PresenceServer
     aioxmpp.PEPClient
     aioxmpp.RosterClient
+    aioxmpp.VersionServer
 
 Shorthands
 ##########
@@ -128,6 +129,7 @@ from .carbons import CarbonsClient  # NOQA
 from .ping import PingService  # NOQA
 from .pep import PEPClient  # NOQA
 from .bookmarks import BookmarkClient  # NOQA
+from .version import VersionServer  # NOQA
 
 
 def set_strict_mode():

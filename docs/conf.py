@@ -296,4 +296,5 @@ intersphinx_mapping = {
     'http://babel.pocoo.org/en/latest/': None,
     'http://docs.zombofant.net/aiosasl/devel/': None,
     'http://docs.zombofant.net/aioopenssl/devel/': None,
+    'https://distro.readthedocs.org/en/latest/': None,
 }

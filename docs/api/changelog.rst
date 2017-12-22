@@ -204,6 +204,8 @@ Version 0.10
 * :func:`aioxmpp.service.iq_handler` now checks that its payload class is in
   fact registered as IQ payload and raises :class:`ValueError` if not.
 
+* :mod:`aioxmpp.version`
+
 .. _api-changelog-0.9:
 
 Version 0.9

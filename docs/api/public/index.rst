@@ -48,6 +48,7 @@ functionality or provide backwards compatibility.
    rfc3921
    rsm
    shim
+   version
 
 
 Less common and helper classes

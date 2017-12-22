@@ -1,5 +1,5 @@
 ########################################################################
-# File name: server_info.py
+# File name: query_versions.py
 # This file is part of: aioxmpp
 #
 # LICENSE
@@ -27,6 +27,7 @@ import sys
 import aioxmpp
 import aioxmpp.disco
 import aioxmpp.errors
+import aioxmpp.version
 import aioxmpp.xso
 
 from framework import Example, exec_example
@@ -34,29 +35,6 @@ from framework import Example, exec_example
 
 if not hasattr(asyncio, "ensure_future"):
     asyncio.ensure_future = getattr(asyncio, "async")
-
-
-namespace = "jabber:iq:version"
-
-
-@aioxmpp.IQ.as_payload_class
-class Query(aioxmpp.xso.XSO):
-    TAG = (namespace, "query")
-
-    name = aioxmpp.xso.ChildText(
-        (namespace, "name"),
-        default=None,
-    )
-
-    version = aioxmpp.xso.ChildText(
-        (namespace, "version"),
-        default=None,
-    )
-
-    os = aioxmpp.xso.ChildText(
-        (namespace, "os"),
-        default=None,
-    )
 
 
 class SoftwareVersions(Example):
@@ -106,18 +84,6 @@ class SoftwareVersions(Example):
         self.timeout = self.args.timeout
 
     @asyncio.coroutine
-    def query_version(self, stream, target):
-        iq = aioxmpp.IQ(
-            type_=aioxmpp.IQType.GET,
-            payload=Query(),
-            to=target,
-        )
-
-        response = yield from stream.send(iq, timeout=self.timeout)
-
-        return response
-
-    @asyncio.coroutine
     def run_example(self):
         self.stop_event = self.make_sigint_event()
         yield from super().run_example()
@@ -135,7 +101,7 @@ class SoftwareVersions(Example):
         stream = self.client.stream
         for jid in self.jids:
             tasks.append(
-                asyncio.ensure_future(self.query_version(
+                asyncio.ensure_future(aioxmpp.version.query_version(
                     stream,
                     jid,
                 ))
