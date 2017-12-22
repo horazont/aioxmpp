@@ -99,6 +99,10 @@ Dependencies
 
   __ https://github.com/horazont/aioopenssl
 
+* `typing`__ (Python < 3.5 only)
+
+  __ https://pypi.python.org/pypi/typing
+
 Contributing
 ============
 

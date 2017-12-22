@@ -22,6 +22,7 @@
 ########################################################################
 import os.path
 import runpy
+import sys
 
 import setuptools
 from setuptools import setup, find_packages
@@ -44,12 +45,15 @@ install_requires = [
     'pyOpenSSL',
     'pyasn1',
     'pyasn1_modules',
-    'tzlocal~=1.2'
+    'tzlocal~=1.2',
 ]
 
 if tuple(map(int, setuptools.__version__.split("."))) < (6, 0, 0):
     for i, item in enumerate(install_requires):
         install_requires[i] = item.replace("~=", ">=")
+
+if sys.version_info[:3] < (3, 5, 0):
+    install_requires.append("typing")
 
 setup(
     name="aioxmpp",
