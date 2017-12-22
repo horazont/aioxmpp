@@ -29,6 +29,7 @@ import unittest
 import aioxmpp.callbacks as callbacks
 import aioxmpp.service as service
 import aioxmpp.stream
+import aioxmpp.xso
 
 from aioxmpp.testutils import (
     run_coroutine,
@@ -1268,14 +1269,54 @@ class Testadd_handler_spec(unittest.TestCase):
 
 
 class Testiq_handler(unittest.TestCase):
+    @aioxmpp.IQ.as_payload_class
+    class Payload(aioxmpp.xso.XSO):
+        TAG = ("urn:example:test_service:test_iq_handler", "valid-payload")
+
     def setUp(self):
         self.decorator = service.iq_handler(
             unittest.mock.sentinel.type_,
-            unittest.mock.sentinel.payload_cls
+            self.Payload,
         )
 
     def tearDown(self):
         del self.decorator
+
+    def test_rejects_non_registered_payload(self):
+        class SomeXSO(aioxmpp.xso.XSO):
+            TAG = ("urn:example:test_service:test_iq_handler", "invalid-payload")
+
+        with self.assertRaisesRegex(
+                ValueError,
+                r".+ is not a valid IQ payload"):
+            service.iq_handler(
+                unittest.mock.sentinel.type_,
+                SomeXSO,
+            )
+
+    def test_rejects_incomplete_xso_payload(self):
+        class SomeXSO(aioxmpp.xso.XSO):
+            pass
+
+        with self.assertRaisesRegex(
+                ValueError,
+                r".+ is not a valid IQ payload"):
+            service.iq_handler(
+                unittest.mock.sentinel.type_,
+                SomeXSO,
+            )
+
+    def test_rejects_incorrect_xso_payload(self):
+        class SomeOtherXSO(aioxmpp.xso.XSO):
+            TAG = ("urn:example:test_service:test_iq_handler", "valid-payload")
+
+        with self.assertRaisesRegex(
+                ValueError,
+                r".+ is not a valid IQ payload"):
+            service.iq_handler(
+                unittest.mock.sentinel.type_,
+                SomeOtherXSO,
+            )
 
     def test_works_as_decorator(self):
         @asyncio.coroutine
@@ -1307,7 +1348,7 @@ class Testiq_handler(unittest.TestCase):
             service.HandlerSpec(
                 (service._apply_iq_handler,
                  (unittest.mock.sentinel.type_,
-                  unittest.mock.sentinel.payload_cls)),
+                  self.Payload)),
                 is_unique=True,
                 require_deps=(),
             ),
@@ -1327,7 +1368,7 @@ class Testiq_handler(unittest.TestCase):
             service.HandlerSpec(
                 (service._apply_iq_handler,
                  (unittest.mock.sentinel.type_,
-                  unittest.mock.sentinel.payload_cls)),
+                  self.Payload)),
                 is_unique=True,
                 require_deps=(),
             ),
@@ -1356,7 +1397,7 @@ class Testiq_handler(unittest.TestCase):
         self.assertFalse(
             service.is_iq_handler(
                 unittest.mock.sentinel.type_,
-                unittest.mock.sentinel.payload_cls,
+                self.Payload,
                 coro,
             )
         )
@@ -1366,7 +1407,7 @@ class Testiq_handler(unittest.TestCase):
         self.assertTrue(
             service.is_iq_handler(
                 unittest.mock.sentinel.type_,
-                unittest.mock.sentinel.payload_cls,
+                self.Payload,
                 coro,
             )
         )

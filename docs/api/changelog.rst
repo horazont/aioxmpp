@@ -201,6 +201,9 @@ Version 0.10
   If you don’t need the arguments, make your :meth:`~aioxmpp.muc.Room.on_enter`
   handlers accept ``*args``.
 
+* :func:`aioxmpp.service.iq_handler` now checks that its payload class is in
+  fact registered as IQ payload and raises :class:`ValueError` if not.
+
 .. _api-changelog-0.9:
 
 Version 0.9

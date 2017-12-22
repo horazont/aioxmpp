@@ -970,17 +970,36 @@ def iq_handler(type_, payload_cls):
     :type type_: :class:`~.IQType`
     :param payload_cls: Payload XSO class to listen for
     :type payload_cls: :class:`~.XSO` subclass
+    :raises ValueError: if `payload_cls` is not a registered IQ payload
 
     If the decorated function is not a coroutine function, it must return an
     awaitable instead.
 
     .. seealso::
 
-       :meth:`~.StanzaStream.register_iq_request_handler`
-          for more details on the `type_` and `payload_cls` arguments, as well
-          as behaviour expected from the decorated function.
+        :meth:`~.StanzaStream.register_iq_request_handler`
+            for more details on the `type_` and `payload_cls` arguments, as well
+            as behaviour expected from the decorated function.
+        :meth:`aioxmpp.IQ.as_payload_class`
+            for a way to register a XSO as IQ payload
+
+    .. versionchanged:: 0.10
+
+        The decorator now checks if `payload_cls` is a valid, registered IQ
+        payload and raises :class:`ValueError` if not.
 
     """
+
+    if (not hasattr(payload_cls, "TAG") or
+            (aioxmpp.IQ.CHILD_MAP.get(payload_cls.TAG) is not
+             aioxmpp.IQ.payload.xq_descriptor) or
+            payload_cls not in aioxmpp.IQ.payload._classes):
+        raise ValueError(
+            "{!r} is not a valid IQ payload "
+            "(use IQ.as_payload_class decorator)".format(
+                payload_cls,
+            )
+        )
 
     def decorator(f):
         add_handler_spec(
