@@ -625,7 +625,7 @@ class Collector(_PropBase):
 
     The default is fixed to the emtpy root node.
 
-    .. verisonchanged:: 0.10
+    .. versionchanged:: 0.10
 
        Before the subtrees were collected in a list. This was changed to an
        ElementTree to allow using XPath over all collected elements. Most code
