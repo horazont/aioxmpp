@@ -1,5 +1,5 @@
 ########################################################################
-# File name: version.py
+# File name: _version.py
 # This file is part of: aioxmpp
 #
 # LICENSE

@@ -31,7 +31,7 @@ here = os.path.abspath(os.path.dirname(__file__))
 with open(os.path.join(here, "README.rst"), encoding="utf-8") as f:
     long_description = f.read()
 
-version_mod = runpy.run_path("aioxmpp/version.py")
+version_mod = runpy.run_path("aioxmpp/_version.py")
 
 install_requires = [
     'aiosasl>=0.3',  # need 0.2+ for LGPLv3

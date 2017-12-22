@@ -66,7 +66,7 @@ Shorthands
 
 """
 
-from .version import version_info, __version__, version
+from ._version import version_info, __version__, version
 
 #: The imported :mod:`aioxmpp` version as a tuple.
 #:

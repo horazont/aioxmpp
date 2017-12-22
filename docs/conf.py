@@ -74,7 +74,7 @@ master_doc = 'index'
 project = 'aioxmpp'
 copyright = '2014 – 2016, Jonas Wielicki'
 
-version_mod = runpy.run_path("../aioxmpp/version.py")
+version_mod = runpy.run_path("../aioxmpp/_version.py")
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
