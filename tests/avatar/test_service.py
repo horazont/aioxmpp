@@ -474,7 +474,8 @@ class TestAvatarService(unittest.TestCase):
         self.assertEqual(self.s._vcard_id, "")
 
         # XXX: should we test minutely that we get the right metadata
-        mock_handler.assert_called_with(TEST_FROM_OTHER, unittest.mock.ANY)
+        mock_handler.assert_called_with(TEST_FROM_OTHER.bare(),
+                                        unittest.mock.ANY)
 
     def test_handle_on_changed_is_depsignal_handler(self):
         self.assertTrue(aioxmpp.service.is_depsignal_handler(
@@ -563,8 +564,7 @@ class TestAvatarService(unittest.TestCase):
             e.enter_context(unittest.mock.patch.object(self.pep, "publish",
                                                        new=CoroutineMock()))
             e.enter_context(unittest.mock.patch.object(self.presence_server,
-                                                       "resend_presence",
-                                                       new=CoroutineMock()))
+                                                       "resend_presence"))
             e.enter_context(unittest.mock.patch.object(self.vcard, "get_vcard",
                                                        new=CoroutineMock()))
             e.enter_context(unittest.mock.patch.object(self.vcard, "set_vcard",
@@ -623,8 +623,7 @@ class TestAvatarService(unittest.TestCase):
             e.enter_context(unittest.mock.patch.object(self.pep, "publish",
                                                        new=CoroutineMock()))
             e.enter_context(unittest.mock.patch.object(self.presence_server,
-                                                       "resend_presence",
-                                                       new=CoroutineMock()))
+                                                       "resend_presence"))
             e.enter_context(unittest.mock.patch.object(self.vcard, "get_vcard",
                                                        new=CoroutineMock()))
             e.enter_context(unittest.mock.patch.object(self.vcard, "set_vcard",
@@ -714,8 +713,7 @@ class TestAvatarService(unittest.TestCase):
             e.enter_context(unittest.mock.patch.object(self.pep, "publish",
                                                        new=CoroutineMock()))
             e.enter_context(unittest.mock.patch.object(self.presence_server,
-                                                       "resend_presence",
-                                                       new=CoroutineMock()))
+                                                       "resend_presence"))
             e.enter_context(unittest.mock.patch.object(self.vcard, "get_vcard",
                                                        new=CoroutineMock()))
             e.enter_context(unittest.mock.patch.object(self.vcard, "set_vcard",
@@ -766,8 +764,6 @@ class TestAvatarService(unittest.TestCase):
             self.assertTrue(isinstance(data, avatar_xso.Data))
             self.assertEqual(0, len(data.data))
 
-
-
     def test_disable_avatar_synchronize_vcard_pep_raises(self):
         self.s.synchronize_vcard = True
 
@@ -775,8 +771,7 @@ class TestAvatarService(unittest.TestCase):
             e.enter_context(unittest.mock.patch.object(self.pep, "publish",
                                                        new=CoroutineMock()))
             e.enter_context(unittest.mock.patch.object(self.presence_server,
-                                                       "resend_presence",
-                                                       new=CoroutineMock()))
+                                                       "resend_presence"))
             e.enter_context(unittest.mock.patch.object(self.vcard, "get_vcard",
                                                        new=CoroutineMock()))
             e.enter_context(unittest.mock.patch.object(self.vcard, "set_vcard",
@@ -811,7 +806,7 @@ class TestAvatarService(unittest.TestCase):
         self.assertTrue(aioxmpp.service.is_attrsignal_handler(
             avatar_service.AvatarService.avatar_pep,
             "on_item_publish",
-            self.s.handle_pubsub_publish
+            self.s._handle_pubsub_publish
         ))
 
         aset = avatar_service.AvatarSet()
@@ -827,7 +822,7 @@ class TestAvatarService(unittest.TestCase):
         mock_handler = unittest.mock.Mock()
         self.s.on_metadata_changed.connect(mock_handler)
 
-        self.s.handle_pubsub_publish(
+        self.s._handle_pubsub_publish(
             TEST_JID1,
             namespaces.xep0084_metadata,
             item)

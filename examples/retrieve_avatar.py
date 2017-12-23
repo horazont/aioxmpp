@@ -81,7 +81,7 @@ class Avatar(Example):
                     avatar_image.write(image)
                 return
 
-        print("retrieving avatar failed: no png-avatar in pubsub")
+        print("retrieving avatar failed: no avatar available via xmpp")
 
     @asyncio.coroutine
     def run_example(self):

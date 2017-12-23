@@ -1,4 +1,4 @@
-########################################################################
+#######################################################################
 # File name: test_utils.py
 # This file is part of: aioxmpp
 #
@@ -25,6 +25,7 @@ import sys
 import unittest
 import unittest.mock
 
+import aioxmpp.errors as errors
 import aioxmpp.utils as utils
 
 from aioxmpp.testutils import (
@@ -350,3 +351,76 @@ class TestLazyTask(unittest.TestCase):
             unittest.mock.sentinel.a2,
             unittest.mock.sentinel.a3,
         )
+
+
+class Testgather_reraise_multi(unittest.TestCase):
+
+    def test_with_empty_list(self):
+        self.assertEqual(
+            run_coroutine(utils.gather_reraise_multi()),
+            []
+        )
+
+    def test_with_one_successful_task(self):
+        @asyncio.coroutine
+        def foo():
+            return True
+
+        self.assertEqual(
+            run_coroutine(utils.gather_reraise_multi(foo())),
+            [True]
+        )
+
+    def test_with_one_failing_task(self):
+        @asyncio.coroutine
+        def foo():
+            raise RuntimeError
+
+        try:
+            run_coroutine(utils.gather_reraise_multi(foo()))
+        except errors.GatherError as e:
+            self.assertIs(type(e.exceptions[0]), RuntimeError)
+
+
+    def test_with_two_successful_tasks(self):
+        @asyncio.coroutine
+        def foo():
+            return True
+
+        @asyncio.coroutine
+        def bar():
+            return False
+
+        self.assertEqual(
+            run_coroutine(utils.gather_reraise_multi(foo(), bar())),
+            [True, False]
+        )
+
+    def test_with_two_tasks_one_failing(self):
+        @asyncio.coroutine
+        def foo():
+            raise RuntimeError
+
+        @asyncio.coroutine
+        def bar():
+            return False
+
+        try:
+            run_coroutine(utils.gather_reraise_multi(foo(), bar()))
+        except errors.GatherError as e:
+            self.assertIs(type(e.exceptions[0]), RuntimeError)
+
+    def test_with_two_tasks_both_failing(self):
+        @asyncio.coroutine
+        def foo():
+            raise RuntimeError
+
+        @asyncio.coroutine
+        def bar():
+            raise Exception
+
+        try:
+            run_coroutine(utils.gather_reraise_multi(foo(), bar()))
+        except errors.GatherError as e:
+            self.assertIs(type(e.exceptions[0]), RuntimeError)
+            self.assertIs(type(e.exceptions[1]), Exception)
