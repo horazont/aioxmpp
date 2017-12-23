@@ -25,7 +25,7 @@ import types
 
 import lxml.etree as etree
 
-from . import errors
+from aioxmpp import errors
 
 __all__ = [
     "etree",
