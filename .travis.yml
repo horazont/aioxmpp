@@ -30,6 +30,11 @@ matrix:
     env: PROSODY_BRANCH=trunk TEST_MODE=e2e-prosody
   - python: "3.7-dev"
     env: PROSODY_BRANCH=0.10 TEST_MODE=e2e-prosody
+  # the image seems to have disappeared
+  - python: "3.6"
+    env: TEST_MODE=e2e-ejabberd EJABBERD_VERSION=16.12-beta1
+    services:
+    - docker
   # there are some weird issues with avatars here.
   # want to wait for 17.11 in docker before making a fuss
   - python: "3.6"
