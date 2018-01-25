@@ -76,6 +76,8 @@ Other exceptions
 
 .. autoclass:: MultiOSError
 
+.. autoclass:: GatherError
+
 """
 import gettext
 
@@ -274,6 +276,32 @@ class MultiOSError(OSError):
     """
     Describe an error situation which has been caused by the sequential
     occurence of multiple other `exceptions`.
+
+    The `message` shall be descriptive and will be prepended to a concatenation
+    of the error messages of the given `exceptions`.
+    """
+
+    def __init__(self, message, exceptions):
+        flattened_exceptions = []
+        for exc in exceptions:
+            if hasattr(exc, "exceptions"):
+                flattened_exceptions.extend(exc.exceptions)
+            else:
+                flattened_exceptions.append(exc)
+
+        super().__init__(
+            "{}: multiple errors: {}".format(
+                message,
+                ", ".join(map(str, flattened_exceptions))
+            )
+        )
+        self.exceptions = flattened_exceptions
+
+
+class GatherError(RuntimeError):
+    """
+    Describe an error situation which has been caused by the occurence
+    of multiple other `exceptions`.
 
     The `message` shall be descriptive and will be prepended to a concatenation
     of the error messages of the given `exceptions`.

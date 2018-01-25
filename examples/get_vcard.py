@@ -1,5 +1,5 @@
 ########################################################################
-# File name: retrieve_avatar.py
+# File name: get_vcard.py
 # This file is part of: aioxmpp
 #
 # LICENSE
@@ -19,27 +19,24 @@
 # <http://www.gnu.org/licenses/>.
 #
 ########################################################################
+
 import asyncio
-import configparser
+
+import lxml
 
 import aioxmpp
-import aioxmpp.avatar
+import aioxmpp.vcard as vcard
 
 from framework import Example, exec_example
 
 
-class Avatar(Example):
+class VCard(Example):
     def prepare_argparse(self):
         super().prepare_argparse()
 
         # this gives a nicer name in argparse errors
         def jid(s):
             return aioxmpp.JID.fromstr(s)
-
-        self.argparse.add_argument(
-            "output_file",
-            help="the file the retrieved avatar image will be written to."
-        )
 
         self.argparse.add_argument(
             "--remote-jid",
@@ -50,12 +47,11 @@ class Avatar(Example):
     def configure(self):
         super().configure()
 
-        self.output_file = self.args.output_file
         self.remote_jid = self.args.remote_jid
         if self.remote_jid is None:
             try:
                 self.remote_jid = aioxmpp.JID.fromstr(
-                    self.config.get("avatar", "remote_jid")
+                    self.config.get("vcard", "remote_jid")
                 )
             except (configparser.NoSectionError,
                     configparser.NoOptionError):
@@ -65,28 +61,23 @@ class Avatar(Example):
 
     def make_simple_client(self):
         client = super().make_simple_client()
-        self.avatar = client.summon(aioxmpp.avatar.AvatarService)
+        self.vcard = client.summon(aioxmpp.vcard.VCardService)
         return client
 
     @asyncio.coroutine
     def run_simple_example(self):
-        metadata = yield from self.avatar.get_avatar_metadata(
+        vcard = yield from self.vcard.get_vcard(
             self.remote_jid
         )
 
-        for metadatum in metadata:
-            if metadatum.can_get_image_bytes_via_xmpp:
-                image = yield from metadatum.get_image_bytes()
-                with open(self.output_file, "wb") as avatar_image:
-                    avatar_image.write(image)
-                return
 
-        print("retrieving avatar failed: no avatar available via xmpp")
+        es = lxml.etree.tostring(vcard.elements, pretty_print=True,
+                                 encoding="utf-8")
+        print(es.decode("utf-8"))
 
     @asyncio.coroutine
     def run_example(self):
         yield from super().run_example()
 
-
 if __name__ == "__main__":
-    exec_example(Avatar())
+    exec_example(VCard())

@@ -206,6 +206,11 @@ Version 0.10
 
 * :mod:`aioxmpp.version`
 
+* **Breaking change**:
+  :meth:`aioxmpp.AvatarService.get_avatar_metadata`
+  now returns a list instead of a mapping from MIME types to lists of
+  descriptors.
+
 .. _api-changelog-0.9:
 
 Version 0.9

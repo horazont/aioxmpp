@@ -19,7 +19,9 @@
 # <http://www.gnu.org/licenses/>.
 #
 ########################################################################
+import asyncio
 import base64
+import contextlib
 import hashlib
 import unittest
 
@@ -27,8 +29,9 @@ import aioxmpp
 import aioxmpp.errors as errors
 import aioxmpp.avatar.service as avatar_service
 import aioxmpp.avatar.xso as avatar_xso
-import aioxmpp.disco.xso as disco_xso
 import aioxmpp.pubsub.xso as pubsub_xso
+import aioxmpp.vcard
+import aioxmpp.vcard.xso as vcard_xso
 
 from aioxmpp.utils import namespaces
 from aioxmpp.testutils import (
@@ -126,8 +129,10 @@ del sha1
 
 # jids used in the tests
 TEST_FROM = aioxmpp.structs.JID.fromstr("foo@bar.example/baz")
+TEST_FROM_OTHER = aioxmpp.structs.JID.fromstr("foo@bar.example/quux")
 TEST_JID1 = aioxmpp.structs.JID.fromstr("bar@bar.example/baz")
 TEST_JID2 = aioxmpp.structs.JID.fromstr("baz@bar.example/baz")
+TEST_JID3 = aioxmpp.structs.JID.fromstr("baz@bar.example/quux")
 
 
 class TestAvatarSet(unittest.TestCase):
@@ -186,14 +191,18 @@ class TestAvatarSet(unittest.TestCase):
             self.fail("raises on correct redundant information")
 
     def test_png_id_is_normalized(self):
-        aset = avatar_service.AvatarSet()
-        aset.add_avatar_image("image/png",
-                              image_bytes=TEST_IMAGE,
-                              id_=TEST_IMAGE_SHA1.upper())
-        self.assertEqual(
-            aset.metadata.info["image/png"][0].id_,
-            avatar_service.normalize_id(TEST_IMAGE_SHA1),
-        )
+        for transmuted_sha1 in (TEST_IMAGE_SHA1.lower(),
+                                TEST_IMAGE_SHA1.upper()):
+
+            aset = avatar_service.AvatarSet()
+            aset.add_avatar_image("image/png",
+                                  image_bytes=TEST_IMAGE,
+                                  id_=transmuted_sha1)
+
+            self.assertEqual(
+                aset.metadata.info["image/png"][0].id_,
+                avatar_service.normalize_id(TEST_IMAGE_SHA1),
+            )
 
     def test_error_id_missing(self):
         with self.assertRaisesRegex(
@@ -276,6 +285,16 @@ class TestAvatarService(unittest.TestCase):
 
         self.disco_client = aioxmpp.DiscoClient(self.cc)
         self.disco = aioxmpp.DiscoServer(self.cc)
+        self.presence_dispatcher = aioxmpp.dispatcher.SimplePresenceDispatcher(
+            self.cc
+        )
+        self.presence_client = aioxmpp.PresenceClient(self.cc, dependencies={
+            aioxmpp.dispatcher.SimplePresenceDispatcher:
+                self.presence_dispatcher,
+        })
+        self.presence_server = aioxmpp.PresenceServer(self.cc)
+        self.vcard = aioxmpp.vcard.VCardService(self.cc)
+
         self.pubsub = aioxmpp.PubSubClient(self.cc, dependencies={
             aioxmpp.DiscoClient: self.disco_client
         })
@@ -291,7 +310,14 @@ class TestAvatarService(unittest.TestCase):
             aioxmpp.DiscoServer: self.disco,
             aioxmpp.PubSubClient: self.pubsub,
             aioxmpp.PEPClient: self.pep,
+            aioxmpp.PresenceClient: self.presence_client,
+            aioxmpp.PresenceServer: self.presence_server,
+            aioxmpp.vcard.VCardService: self.vcard
         })
+
+        self.pep._check_for_pep = CoroutineMock()
+        self.pep.available = CoroutineMock()
+        self.pep.available.return_value = True
 
         self.cc.mock_calls.clear()
 
@@ -324,6 +350,11 @@ class TestAvatarService(unittest.TestCase):
             aioxmpp.PubSubClient,
         )
 
+    def test_metadata_cache_size(self):
+        self.assertEqual(self.s.metadata_cache_size, 200)
+        self.s.metadata_cache_size = 100
+        self.assertEqual(self.s.metadata_cache_size, 100)
+
     def test_handle_stream_destroyed_is_depsignal_handler(self):
         self.assertTrue(aioxmpp.service.is_depsignal_handler(
             aioxmpp.stream.StanzaStream,
@@ -331,85 +362,177 @@ class TestAvatarService(unittest.TestCase):
             self.s.handle_stream_destroyed
         ))
 
-    def  test_check_for_pep(self):
-        disco_info = disco_xso.InfoQuery()
-        disco_info.identities.append(
-            disco_xso.Identity(type_="pep", category="pubsub")
+    def test_handle_stream_destroyer(self):
+        # for now just check the code can be run without errors,
+        # it is difficult to check this properly, as we do not
+        # know which caches should be wiped a priori
+        self.s.handle_stream_destroyed(unittest.mock.Mock())
+
+    def test_attach_vcard_notify_to_presence_is_depfilter(self):
+        self.assertTrue(aioxmpp.service.is_depfilter_handler(
+            aioxmpp.stream.StanzaStream,
+            "service_outbound_presence_filter",
+            self.s._attach_vcard_notify_to_presence
+        ))
+
+    def test_attach_vcard_notify_to_presence(self):
+        stanza = aioxmpp.Presence()
+        stanza = self.s._attach_vcard_notify_to_presence(stanza)
+        self.assertIsInstance(stanza.xep0153_x,
+                              avatar_xso.VCardTempUpdate)
+        self.assertIsNone(stanza.xep0153_x.photo)
+
+        vcard_id = '1234'
+        self.s._vcard_id = vcard_id
+        stanza = aioxmpp.Presence()
+        stanza = self.s._attach_vcard_notify_to_presence(stanza)
+        self.assertIsInstance(stanza.xep0153_x,
+                              avatar_xso.VCardTempUpdate)
+        self.assertEqual(stanza.xep0153_x.photo, vcard_id)
+
+        self.s._vcard_resource_interference.add(TEST_JID1)
+        stanza = aioxmpp.Presence()
+        stanza = self.s._attach_vcard_notify_to_presence(stanza)
+        self.assertIsNone(stanza.xep0153_x)
+
+    def test_handle_on_available_is_depsignal_handler(self):
+        self.assertTrue(aioxmpp.service.is_depsignal_handler(
+            aioxmpp.PresenceClient,
+            "on_available",
+            self.s._handle_on_available
+        ))
+
+    def test_resource_interference(self):
+        stanza = aioxmpp.Presence()
+
+        self.s._handle_on_available(TEST_FROM_OTHER, stanza)
+        self.assertCountEqual(
+            self.s._vcard_resource_interference,
+            [TEST_FROM_OTHER]
         )
 
-        with unittest.mock.patch.object(self.disco_client, "query_info",
+        stanza = aioxmpp.Presence()
+        self.s._handle_on_unavailable(TEST_FROM_OTHER, stanza)
+        self.assertCountEqual(
+            self.s._vcard_resource_interference,
+            []
+        )
+
+    def test_trigger_rehash(self):
+        mock_handler = unittest.mock.Mock()
+        self.s.on_metadata_changed.connect(mock_handler)
+
+        stanza = aioxmpp.Presence()
+        stanza.xep0153_x = avatar_xso.VCardTempUpdate("1234")
+        self.s._handle_on_available(TEST_FROM_OTHER, stanza)
+
+        first_rehash_task = self.s._vcard_rehash_task
+        self.assertIsNot(first_rehash_task, None)
+
+        # presence with the same hash does not affect the rehash task
+        self.s._vcard_id = "1234"
+        stanza = aioxmpp.Presence()
+        stanza.xep0153_x = avatar_xso.VCardTempUpdate("1234")
+        self.s._handle_on_available(TEST_FROM_OTHER, stanza)
+        self.assertIs(self.s._vcard_rehash_task, first_rehash_task)
+
+        # presence with another hash cancels the task
+        stanza = aioxmpp.Presence()
+        stanza.xep0153_x = avatar_xso.VCardTempUpdate("4321")
+        self.s._handle_on_available(TEST_FROM_OTHER, stanza)
+
+        with unittest.mock.patch.object(self.vcard, "get_vcard",
                                         new=CoroutineMock()):
-            self.disco_client.query_info.return_value = disco_info
+            vcard = vcard_xso.VCard()
+            self.vcard.get_vcard.return_value = vcard
+            vcard.set_photo_data("image/png", TEST_IMAGE)
 
-            # run twice, the second call must not query again but use the
-            # cache
-            run_coroutine(self.s._check_for_pep())
-            run_coroutine(self.s._check_for_pep())
+            loop = asyncio.get_event_loop()
+            with self.assertRaises(asyncio.CancelledError):
+                loop.run_until_complete(first_rehash_task)
+            self.assertTrue(first_rehash_task.cancelled())
 
-            self.assertEqual(1, len(self.disco_client.query_info.mock_calls))
-            self.disco_client.query_info.assert_called_with(TEST_FROM.bare())
-
-        # this should wipe the cache and recheck with disco
-        mock_reason = unittest.mock.Mock()
-        self.s.handle_stream_destroyed(mock_reason)
-
-        with unittest.mock.patch.object(self.disco_client, "query_info",
-                                        new=CoroutineMock()):
-            self.disco_client.query_info.return_value = disco_info
-
-            # run twice, the second call must not query again but use the
-            # cache
-            run_coroutine(self.s._check_for_pep())
-            run_coroutine(self.s._check_for_pep())
-
-            self.assertEqual(1, len(self.disco_client.query_info.mock_calls))
-            self.disco_client.query_info.assert_called_with(TEST_FROM.bare())
-
-    def test_check_for_pep_failure(self):
-
-        with unittest.mock.patch.object(self.disco_client, "query_info",
-                                        new=CoroutineMock()):
-            self.disco_client.query_info.return_value = disco_xso.InfoQuery()
-
-            # run twice, the second call must not query again but use the
-            # cache
-            with self.assertRaises(NotImplementedError):
-                run_coroutine(self.s._check_for_pep())
-
-            with self.assertRaises(NotImplementedError):
-                run_coroutine(self.s._check_for_pep())
-
-            self.assertEqual(
-                1,
-                len(self.disco_client.query_info.mock_calls)
+            loop.run_until_complete(
+                self.s._vcard_rehash_task
             )
 
-            self.disco_client.query_info.assert_called_with(
-                TEST_FROM.bare()
+        self.assertEqual(self.s._vcard_id, TEST_IMAGE_SHA1)
+
+        with unittest.mock.patch.object(self.vcard, "get_vcard",
+                                        new=CoroutineMock()):
+            vcard = vcard_xso.VCard()
+            self.vcard.get_vcard.return_value = vcard
+
+            stanza = aioxmpp.Presence()
+            stanza.xep0153_x = avatar_xso.VCardTempUpdate("9132752")
+            self.s._handle_on_available(TEST_FROM_OTHER, stanza)
+
+            loop.run_until_complete(
+                self.s._vcard_rehash_task
             )
+
+        self.assertEqual(self.s._vcard_id, "")
+
+        # XXX: should we test minutely that we get the right metadata
+        mock_handler.assert_called_with(TEST_FROM_OTHER.bare(),
+                                        unittest.mock.ANY)
+
+    def test_handle_on_changed_is_depsignal_handler(self):
+        self.assertTrue(aioxmpp.service.is_depsignal_handler(
+            aioxmpp.PresenceClient,
+            "on_changed",
+            self.s._handle_on_changed
+        ))
+
+    def test_handle_notify_without_photo_is_noop(self):
+        mock_handler = unittest.mock.Mock()
+        self.s.on_metadata_changed.connect(mock_handler)
+
+        stanza = aioxmpp.Presence()
+        self.s._handle_notify(TEST_JID1, stanza)
+        stanza.xep0153_x = avatar_xso.VCardTempUpdate()
+        self.s._handle_notify(TEST_JID1, stanza)
+
+        self.assertEqual(len(mock_handler.mock_calls), 0)
+
+    def test_handle_on_changed(self):
+        with unittest.mock.patch.object(self.s, "_handle_notify"):
+            self.s._handle_on_changed(unittest.mock.sentinel.jid,
+                                      unittest.mock.sentinel.staza)
+            self.assertSequenceEqual(
+                self.s._handle_notify.mock_calls,
+                [
+                    unittest.mock.call(unittest.mock.sentinel.jid,
+                                       unittest.mock.sentinel.staza)
+                ]
+            )
+
+    def test_handle_on_unavailable_is_depsignal_handler(self):
+        self.assertTrue(aioxmpp.service.is_depsignal_handler(
+            aioxmpp.PresenceClient,
+            "on_unavailable",
+            self.s._handle_on_unavailable
+        ))
 
     def test_publish_avatar_set(self):
         # set the cache to indicate the server has PEP
-        self.s._has_pep = True
 
         avatar_set = avatar_service.AvatarSet()
         avatar_set.add_avatar_image("image/png", image_bytes=TEST_IMAGE)
 
-        with unittest.mock.patch.object(self.pubsub, "publish",
+        with unittest.mock.patch.object(self.pep, "publish",
                                         new=CoroutineMock()):
             run_coroutine(self.s.publish_avatar_set(avatar_set))
 
             self.assertSequenceEqual(
-                self.pubsub.publish.mock_calls,
+                self.pep.publish.mock_calls,
                 [
                     unittest.mock.call(
-                        None,
                         namespaces.xep0084_data,
                         unittest.mock.ANY,
                         id_=avatar_set.png_id
                     ),
                     unittest.mock.call(
-                        None,
                         namespaces.xep0084_metadata,
                         avatar_set.metadata,
                         id_=avatar_set.png_id
@@ -417,42 +540,273 @@ class TestAvatarService(unittest.TestCase):
                 ],
             )
 
-            _, args, _ = self.pubsub.publish.mock_calls[0]
-            data = args[2]
+            _, args, _ = self.pep.publish.mock_calls[0]
+            data = args[1]
             self.assertTrue(isinstance(data, avatar_xso.Data))
             self.assertEqual(data.data, avatar_set.image_bytes)
 
-    def test_disable_avatar(self):
-        # set the cache to indicate the server has PEP
-        self.s._has_pep = True
+    def test_publish_avatar_no_protocol_raises(self):
+        self.pep.available.return_value = False
+        self.s.synchronize_vcard = False
 
-        with unittest.mock.patch.object(self.pubsub, "publish",
+        with self.assertRaises(RuntimeError):
+            run_coroutine(self.s.publish_avatar_set(unittest.mock.Mock()))
+
+    def test_publish_avatar_set_synchronize_vcard(self):
+
+        avatar_set = avatar_service.AvatarSet()
+        avatar_set.add_avatar_image("image/png", image_bytes=TEST_IMAGE)
+        self.assertFalse(self.s.synchronize_vcard)
+        self.s.synchronize_vcard = True
+        self.assertTrue(self.s.synchronize_vcard)
+
+        with contextlib.ExitStack() as e:
+            e.enter_context(unittest.mock.patch.object(self.pep, "publish",
+                                                       new=CoroutineMock()))
+            e.enter_context(unittest.mock.patch.object(self.presence_server,
+                                                       "resend_presence"))
+            e.enter_context(unittest.mock.patch.object(self.vcard, "get_vcard",
+                                                       new=CoroutineMock()))
+            e.enter_context(unittest.mock.patch.object(self.vcard, "set_vcard",
+                                                       new=CoroutineMock()))
+            self.vcard.get_vcard.return_value = unittest.mock.Mock()
+            run_coroutine(self.s.publish_avatar_set(avatar_set))
+
+            self.assertSequenceEqual(
+                self.presence_server.resend_presence.mock_calls,
+                [unittest.mock.call()]
+            )
+
+            self.assertSequenceEqual(
+                self.vcard.get_vcard.mock_calls,
+                [
+                    unittest.mock.call(),
+                    unittest.mock.call().set_photo_data("image/png",
+                                                        TEST_IMAGE),
+                ]
+            )
+
+            self.assertSequenceEqual(
+                self.vcard.set_vcard.mock_calls,
+                [
+                    unittest.mock.call(self.vcard.get_vcard.return_value),
+                ]
+            )
+
+            self.assertSequenceEqual(
+                self.pep.publish.mock_calls,
+                [
+                    unittest.mock.call(
+                        namespaces.xep0084_data,
+                        unittest.mock.ANY,
+                        id_=avatar_set.png_id
+                    ),
+                    unittest.mock.call(
+                        namespaces.xep0084_metadata,
+                        avatar_set.metadata,
+                        id_=avatar_set.png_id
+                    )
+                ],
+            )
+
+            _, args, _ = self.pep.publish.mock_calls[0]
+            data = args[1]
+            self.assertTrue(isinstance(data, avatar_xso.Data))
+            self.assertEqual(data.data, avatar_set.image_bytes)
+
+    def test_publish_avatar_set_synchronize_vcard_pep_raises(self):
+        avatar_set = avatar_service.AvatarSet()
+        avatar_set.add_avatar_image("image/png", image_bytes=TEST_IMAGE)
+        self.s.synchronize_vcard = True
+
+        with contextlib.ExitStack() as e:
+            e.enter_context(unittest.mock.patch.object(self.pep, "publish",
+                                                       new=CoroutineMock()))
+            e.enter_context(unittest.mock.patch.object(self.presence_server,
+                                                       "resend_presence"))
+            e.enter_context(unittest.mock.patch.object(self.vcard, "get_vcard",
+                                                       new=CoroutineMock()))
+            e.enter_context(unittest.mock.patch.object(self.vcard, "set_vcard",
+                                                       new=CoroutineMock()))
+
+            # do not do the vcard operations of pep is available but
+            # fails
+            self.pep.publish.side_effect = RuntimeError
+
+            self.vcard.get_vcard.return_value = unittest.mock.Mock()
+
+            with self.assertRaises(RuntimeError):
+                run_coroutine(self.s.publish_avatar_set(avatar_set))
+
+            self.assertSequenceEqual(
+                self.presence_server.resend_presence.mock_calls,
+                []
+            )
+
+            self.assertSequenceEqual(
+                self.vcard.get_vcard.mock_calls,
+                []
+            )
+
+            self.assertSequenceEqual(
+                self.vcard.set_vcard.mock_calls,
+                []
+            )
+
+    def test_disable_avatar(self):
+        with unittest.mock.patch.object(self.pep, "publish",
                                         new=CoroutineMock()):
             run_coroutine(self.s.disable_avatar())
 
             self.assertSequenceEqual(
-                self.pubsub.publish.mock_calls,
+                self.pep.publish.mock_calls,
                 [
                     unittest.mock.call(
-                        None,
                         namespaces.xep0084_metadata,
                         unittest.mock.ANY,
                     ),
                 ]
             )
 
-            _, args, _ = self.pubsub.publish.mock_calls[0]
-            metadata = args[2]
+            _, args, _ = self.pep.publish.mock_calls[0]
+            metadata = args[1]
 
             self.assertTrue(isinstance(metadata, avatar_xso.Metadata))
             self.assertEqual(0, len(metadata.info))
             self.assertEqual(0, len(metadata.pointer))
 
+    def test_wipe_avatar(self):
+        with unittest.mock.patch.object(self.pep, "publish",
+                                        new=CoroutineMock()):
+            run_coroutine(self.s.wipe_avatar())
+
+            self.assertSequenceEqual(
+                self.pep.publish.mock_calls,
+                [
+                    unittest.mock.call(
+                        namespaces.xep0084_metadata,
+                        unittest.mock.ANY,
+                    ),
+                    unittest.mock.call(
+                        namespaces.xep0084_data,
+                        unittest.mock.ANY,
+                    ),
+                ]
+            )
+
+            _, args, _ = self.pep.publish.mock_calls[0]
+            metadata = args[1]
+
+            self.assertTrue(isinstance(metadata, avatar_xso.Metadata))
+            self.assertEqual(0, len(metadata.info))
+            self.assertEqual(0, len(metadata.pointer))
+
+            _, args, _ = self.pep.publish.mock_calls[1]
+            data = args[1]
+
+            self.assertTrue(isinstance(data, avatar_xso.Data))
+            self.assertEqual(0, len(data.data))
+
+    def test_wipe_avatar_with_vcard(self):
+        self.s.synchronize_vcard = True
+        with contextlib.ExitStack() as e:
+            e.enter_context(unittest.mock.patch.object(self.pep, "publish",
+                                                       new=CoroutineMock()))
+            e.enter_context(unittest.mock.patch.object(self.presence_server,
+                                                       "resend_presence"))
+            e.enter_context(unittest.mock.patch.object(self.vcard, "get_vcard",
+                                                       new=CoroutineMock()))
+            e.enter_context(unittest.mock.patch.object(self.vcard, "set_vcard",
+                                                       new=CoroutineMock()))
+            self.vcard.get_vcard.return_value = unittest.mock.Mock()
+            run_coroutine(self.s.wipe_avatar())
+
+            self.assertSequenceEqual(
+                self.presence_server.resend_presence.mock_calls,
+                [unittest.mock.call()]
+            )
+
+            self.assertSequenceEqual(
+                self.vcard.get_vcard.mock_calls,
+                [unittest.mock.call(),
+                 unittest.mock.call().clear_photo_data()]
+            )
+
+            self.assertSequenceEqual(
+                self.vcard.set_vcard.mock_calls,
+                [unittest.mock.call(unittest.mock.ANY)]
+            )
+
+            self.assertSequenceEqual(
+                self.pep.publish.mock_calls,
+                [
+                    unittest.mock.call(
+                        namespaces.xep0084_metadata,
+                        unittest.mock.ANY,
+                    ),
+                    unittest.mock.call(
+                        namespaces.xep0084_data,
+                        unittest.mock.ANY,
+                    ),
+                ]
+            )
+
+            _, args, _ = self.pep.publish.mock_calls[0]
+            metadata = args[1]
+
+            self.assertTrue(isinstance(metadata, avatar_xso.Metadata))
+            self.assertEqual(0, len(metadata.info))
+            self.assertEqual(0, len(metadata.pointer))
+
+            _, args, _ = self.pep.publish.mock_calls[1]
+            data = args[1]
+
+            self.assertTrue(isinstance(data, avatar_xso.Data))
+            self.assertEqual(0, len(data.data))
+
+    def test_disable_avatar_synchronize_vcard_pep_raises(self):
+        self.s.synchronize_vcard = True
+
+        with contextlib.ExitStack() as e:
+            e.enter_context(unittest.mock.patch.object(self.pep, "publish",
+                                                       new=CoroutineMock()))
+            e.enter_context(unittest.mock.patch.object(self.presence_server,
+                                                       "resend_presence"))
+            e.enter_context(unittest.mock.patch.object(self.vcard, "get_vcard",
+                                                       new=CoroutineMock()))
+            e.enter_context(unittest.mock.patch.object(self.vcard, "set_vcard",
+                                                       new=CoroutineMock()))
+
+            # do not do the vcard operations of pep is available but
+            # fails
+            self.pep.publish.side_effect = RuntimeError
+
+            self.vcard.get_vcard.return_value = unittest.mock.Mock()
+
+            with self.assertRaises(RuntimeError):
+                run_coroutine(self.s.disable_avatar())
+
+            self.assertSequenceEqual(
+                self.presence_server.resend_presence.mock_calls,
+                [unittest.mock.call()]
+            )
+
+            self.assertSequenceEqual(
+                self.vcard.get_vcard.mock_calls,
+                [unittest.mock.call(),
+                 unittest.mock.call().clear_photo_data()]
+            )
+
+            self.assertSequenceEqual(
+                self.vcard.set_vcard.mock_calls,
+                [unittest.mock.call(unittest.mock.ANY)]
+            )
+
     def test_handle_pubsub_publish(self):
         self.assertTrue(aioxmpp.service.is_attrsignal_handler(
             avatar_service.AvatarService.avatar_pep,
             "on_item_publish",
-            self.s.handle_pubsub_publish
+            self.s._handle_pubsub_publish
         ))
 
         aset = avatar_service.AvatarSet()
@@ -468,16 +822,15 @@ class TestAvatarService(unittest.TestCase):
         mock_handler = unittest.mock.Mock()
         self.s.on_metadata_changed.connect(mock_handler)
 
-        self.s.handle_pubsub_publish(
+        self.s._handle_pubsub_publish(
             TEST_JID1,
             namespaces.xep0084_metadata,
             item)
 
         descriptors = self.s._metadata_cache[TEST_JID1]
-        self.assertEqual(len(descriptors), 1)
-        self.assertEqual(len(descriptors["image/png"]), 2)
+        self.assertEqual(len(descriptors), 2)
 
-        png_descr = descriptors["image/png"]
+        png_descr = descriptors
 
         self.assertTrue(isinstance(png_descr[0],
                                    avatar_service.PubsubAvatarDescriptor))
@@ -531,10 +884,9 @@ class TestAvatarService(unittest.TestCase):
                 ]
             )
 
-            self.assertEqual(len(descriptors), 1)
-            self.assertEqual(len(descriptors["image/png"]), 2)
+            self.assertEqual(len(descriptors), 2)
 
-            png_descr = descriptors["image/png"]
+            png_descr = descriptors
 
             self.assertTrue(isinstance(png_descr[0],
                                        avatar_service.PubsubAvatarDescriptor))
@@ -619,16 +971,37 @@ class TestAvatarService(unittest.TestCase):
                 ]
             )
 
-    def test_get_avatar_metadata_mask_xmpp_errors(self):
-        with unittest.mock.patch.object(self.pubsub, "get_items",
-                                        new=CoroutineMock()):
+    def test_get_avatar_metadata_vcard_fallback(self):
+        sha1 = hashlib.sha1(b'')
+        empty_sha1 = sha1.hexdigest()
+
+        with contextlib.ExitStack() as e:
+            e.enter_context(unittest.mock.patch.object(
+                self.pubsub, "get_items",
+                new=CoroutineMock()))
+            e.enter_context(unittest.mock.patch.object(
+                self.vcard, "get_vcard",
+                new=CoroutineMock()))
+            vcard_mock = unittest.mock.Mock()
+            vcard_mock.get_photo_data.return_value = b''
+            self.vcard.get_vcard.return_value = vcard_mock
+
             self.pubsub.get_items.side_effect = errors.XMPPCancelError(
                 (namespaces.stanzas, "feature-not-implemented")
             )
 
             res = run_coroutine(self.s.get_avatar_metadata(TEST_JID1))
 
-            self.assertSequenceEqual(res, [])
+            self.assertEqual(len(res), 1)
+            self.assertIsInstance(res[0],
+                                  avatar_service.VCardAvatarDescriptor)
+            self.assertEqual(res[0]._image_bytes,
+                             b'')
+            self.assertEqual(res[0].id_,
+                             empty_sha1)
+            self.assertEqual(res[0].nbytes,
+                             0)
+
             self.assertSequenceEqual(
                 self.pubsub.get_items.mock_calls,
                 [
@@ -640,20 +1013,67 @@ class TestAvatarService(unittest.TestCase):
                 ]
             )
 
-        with unittest.mock.patch.object(self.pubsub, "get_items",
-                                        new=CoroutineMock()):
+        with contextlib.ExitStack() as e:
+            e.enter_context(unittest.mock.patch.object(
+                self.pubsub, "get_items",
+                new=CoroutineMock()))
+            e.enter_context(unittest.mock.patch.object(
+                self.vcard, "get_vcard",
+                new=CoroutineMock()))
+            vcard_mock = unittest.mock.Mock()
+            vcard_mock.get_photo_data.return_value = b''
+            self.vcard.get_vcard.return_value = vcard_mock
+
             self.pubsub.get_items.side_effect = errors.XMPPCancelError(
                 (namespaces.stanzas, "item-not-found")
             )
 
             res = run_coroutine(self.s.get_avatar_metadata(TEST_JID2))
 
-            self.assertSequenceEqual(res, [])
+            self.assertEqual(len(res), 1)
+            self.assertIsInstance(res[0],
+                                  avatar_service.VCardAvatarDescriptor)
+            self.assertEqual(res[0]._image_bytes,
+                             b'')
+            self.assertEqual(res[0].id_,
+                             empty_sha1)
+            self.assertEqual(res[0].nbytes,
+                             0)
+
             self.assertSequenceEqual(
                 self.pubsub.get_items.mock_calls,
                 [
                     unittest.mock.call(
                         TEST_JID2,
+                        namespaces.xep0084_metadata,
+                        max_items=1
+                    ),
+                ]
+            )
+
+        with contextlib.ExitStack() as e:
+            e.enter_context(unittest.mock.patch.object(
+                self.pubsub, "get_items",
+                new=CoroutineMock()))
+            e.enter_context(unittest.mock.patch.object(
+                self.vcard, "get_vcard",
+                new=CoroutineMock()))
+            vcard_mock = unittest.mock.Mock()
+            vcard_mock.get_photo_data.return_value = None
+            self.vcard.get_vcard.return_value = vcard_mock
+
+            self.pubsub.get_items.side_effect = errors.XMPPCancelError(
+                (namespaces.stanzas, "item-not-found")
+            )
+
+            res = run_coroutine(self.s.get_avatar_metadata(TEST_JID3))
+            self.assertEqual(len(res), 0)
+
+            self.assertSequenceEqual(
+                self.pubsub.get_items.mock_calls,
+                [
+                    unittest.mock.call(
+                        TEST_JID3,
                         namespaces.xep0084_metadata,
                         max_items=1
                     ),
@@ -676,13 +1096,12 @@ class TestAvatarService(unittest.TestCase):
             )
 
 
-
 class TestAvatarDescriptors(unittest.TestCase):
 
     def setUp(self):
         self.cc = make_connected_client()
         self.cc.local_jid = TEST_FROM
-
+        self.vcard = aioxmpp.vcard.VCardService(self.cc)
         self.disco = aioxmpp.DiscoClient(self.cc)
         self.pubsub = aioxmpp.PubSubClient(self.cc, dependencies={
             aioxmpp.DiscoClient: self.disco
@@ -692,13 +1111,14 @@ class TestAvatarDescriptors(unittest.TestCase):
 
     def test_attributes_defined_by_AbstractAvatarDescriptor(self):
         a = avatar_service.AbstractAvatarDescriptor(
-            TEST_JID1, "image/png", TEST_IMAGE_SHA1, len(TEST_IMAGE)
+            TEST_JID1, TEST_IMAGE_SHA1, mime_type="image/png",
+            nbytes=len(TEST_IMAGE)
         )
         with self.assertRaises(NotImplementedError):
             run_coroutine(a.get_image_bytes())
 
-        with self.assertRaises(NotImplementedError):
-            a.has_image_data_in_pubsub
+        self.assertFalse(a.has_image_data_in_pubsub)
+        self.assertFalse(a.can_get_image_bytes_via_xmpp)
 
         self.assertEqual(a.remote_jid, TEST_JID1)
         self.assertEqual(a.mime_type, "image/png")
@@ -710,12 +1130,67 @@ class TestAvatarDescriptors(unittest.TestCase):
         self.assertEqual(a.width, None)
         self.assertEqual(a.height, None)
 
-    def test_get_image_bytes(self):
+    def test_vcard_get_image_bytes(self):
+        descriptor = avatar_service.VCardAvatarDescriptor(
+            TEST_JID1,
+            TEST_IMAGE_SHA1.upper(),
+            nbytes=len(TEST_IMAGE),
+            vcard=self.vcard,
+            image_bytes=TEST_IMAGE,
+        )
+
+        self.assertTrue(descriptor.has_image_data_in_pubsub)
+        self.assertTrue(descriptor.can_get_image_bytes_via_xmpp)
+
+        with unittest.mock.patch.object(self.vcard, "get_vcard",
+                                        new=CoroutineMock()):
+            self.assertEqual(
+                run_coroutine(descriptor.get_image_bytes()),
+                TEST_IMAGE
+            )
+            self.assertSequenceEqual(self.vcard.get_vcard.mock_calls, [])
+
+        descriptor = avatar_service.VCardAvatarDescriptor(
+            TEST_JID1,
+            TEST_IMAGE_SHA1.upper(),
+            nbytes=len(TEST_IMAGE),
+            vcard=self.vcard,
+        )
+
+        with unittest.mock.patch.object(self.vcard, "get_vcard",
+                                        new=CoroutineMock()):
+            vcard_mock = unittest.mock.Mock()
+            vcard_mock.get_photo_data.return_value = TEST_IMAGE
+            self.vcard.get_vcard.return_value = vcard_mock
+            self.assertEqual(
+                run_coroutine(descriptor.get_image_bytes()),
+                TEST_IMAGE
+            )
+
+            vcard_mock.get_photo_data.return_value = None
+            with self.assertRaises(RuntimeError):
+                run_coroutine(descriptor.get_image_bytes())
+
+            self.assertSequenceEqual(
+                self.vcard.get_vcard.mock_calls,
+                [
+                    unittest.mock.call(
+                        TEST_JID1
+                    ),
+                    unittest.mock.call().get_photo_data(),
+                    unittest.mock.call(
+                        TEST_JID1
+                    ),
+                    unittest.mock.call().get_photo_data(),
+                ]
+            )
+
+    def test_pep_get_image_bytes(self):
         descriptor = avatar_service.PubsubAvatarDescriptor(
             TEST_JID1,
-            "image/png",
             TEST_IMAGE_SHA1.upper(),
-            len(TEST_IMAGE),
+            mime_type="image/png",
+            nbytes=len(TEST_IMAGE),
             pubsub=self.pubsub
         )
 
@@ -725,20 +1200,28 @@ class TestAvatarDescriptors(unittest.TestCase):
         items = pubsub_xso.Items(
             namespaces.xep0084_data,
         )
-        item = pubsub_xso.Item(id_=TEST_IMAGE_SHA1)
-        item.registered_payload = avatar_xso.Data(TEST_IMAGE)
-        items.items.append(item)
         pubsub_result = pubsub_xso.Request(items)
 
         with unittest.mock.patch.object(self.pubsub, "get_items_by_id",
                                         new=CoroutineMock()):
             self.pubsub.get_items_by_id.return_value = pubsub_result
+            with self.assertRaises(RuntimeError):
+                res = run_coroutine(descriptor.get_image_bytes())
+
+            item = pubsub_xso.Item(id_=TEST_IMAGE_SHA1)
+            item.registered_payload = avatar_xso.Data(TEST_IMAGE)
+            items.items.append(item)
 
             res = run_coroutine(descriptor.get_image_bytes())
 
             self.assertSequenceEqual(
                 self.pubsub.get_items_by_id.mock_calls,
                 [
+                    unittest.mock.call(
+                        TEST_JID1,
+                        namespaces.xep0084_data,
+                        [TEST_IMAGE_SHA1.upper()],
+                    ),
                     unittest.mock.call(
                         TEST_JID1,
                         namespaces.xep0084_data,
@@ -751,9 +1234,9 @@ class TestAvatarDescriptors(unittest.TestCase):
     def test_HttpAvatarDescriptor(self):
         descriptor = avatar_service.HttpAvatarDescriptor(
             TEST_JID1,
-            "image/png",
             TEST_IMAGE_SHA1.upper(),
-            len(TEST_IMAGE),
+            mime_type="image/png",
+            nbytes=len(TEST_IMAGE),
             url="http://example.com/avatar"
         )
 
