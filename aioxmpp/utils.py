@@ -55,7 +55,7 @@ def background_task(coro, logger):
         except asyncio.CancelledError:
             logger.debug("background task terminated by CM exit: %r",
                          task)
-        except:
+        except:  # NOQA
             logger.error("background task failed: %r",
                          task,
                          exc_info=True)
