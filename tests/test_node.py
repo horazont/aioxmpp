@@ -692,6 +692,280 @@ class Testdiscover_connectors(unittest.TestCase):
             ]
         )
 
+    def test_succeed_if_only_xmpps_client_fails_with_NoNameservers(self):
+        loop = asyncio.get_event_loop()
+
+        def connectors():
+            for i in itertools.count():
+                yield getattr(unittest.mock.sentinel,
+                              "starttls{}".format(i))
+
+        def tls_connectors():
+            for i in itertools.count():
+                yield getattr(unittest.mock.sentinel,
+                              "tls{}".format(i))
+
+        def srv_records():
+            yield [
+                (unittest.mock.sentinel.prio3,
+                 unittest.mock.sentinel.weight3,
+                 (self.hosts[2], unittest.mock.sentinel.port3)),
+                (unittest.mock.sentinel.prio4,
+                 unittest.mock.sentinel.weight4,
+                 (self.hosts[3], unittest.mock.sentinel.port4)),
+            ]
+            yield dns.resolver.NoNameservers()
+
+        def grouped_results():
+            yield 1
+            yield 2
+
+        with contextlib.ExitStack() as stack:
+            STARTTLSConnector = stack.enter_context(
+                unittest.mock.patch("aioxmpp.connector.STARTTLSConnector")
+            )
+            STARTTLSConnector.side_effect = connectors()
+
+            XMPPOverTLSConnector = stack.enter_context(
+                unittest.mock.patch("aioxmpp.connector.XMPPOverTLSConnector")
+            )
+            XMPPOverTLSConnector.side_effect = tls_connectors()
+
+            lookup_srv = stack.enter_context(
+                unittest.mock.patch("aioxmpp.network.lookup_srv",
+                                    new=CoroutineMock()),
+            )
+            lookup_srv.side_effect = srv_records()
+
+            group_and_order = stack.enter_context(unittest.mock.patch(
+                "aioxmpp.network.group_and_order_srv_records"
+            ))
+            group_and_order.return_value = grouped_results()
+
+            result = run_coroutine(
+                node.discover_connectors(
+                    self.domain,
+                    loop=loop,
+                )
+            )
+
+        self.domain.encode.assert_called_once_with("idna")
+
+        for host in self.hosts[2:4]:
+            host.decode.assert_called_once_with("ascii")
+
+        self.assertSequenceEqual(
+            lookup_srv.mock_calls,
+            [
+                unittest.mock.call(
+                    unittest.mock.sentinel.domain,
+                    "xmpp-client",
+                ),
+                unittest.mock.call(
+                    unittest.mock.sentinel.domain,
+                    "xmpps-client",
+                ),
+            ]
+        )
+
+        group_and_order.assert_called_with(
+            [
+                (unittest.mock.sentinel.prio3,
+                 unittest.mock.sentinel.weight3,
+                 (unittest.mock.sentinel.host3, unittest.mock.sentinel.port3,
+                  unittest.mock.sentinel.starttls0)),
+                (unittest.mock.sentinel.prio4,
+                 unittest.mock.sentinel.weight4,
+                 (unittest.mock.sentinel.host4, unittest.mock.sentinel.port4,
+                  unittest.mock.sentinel.starttls1)),
+            ]
+        )
+
+        self.assertSequenceEqual(
+            result,
+            [1, 2],
+        )
+
+    def test_succeed_if_only_xmpp_client_fails_with_NoNameservers(self):
+        loop = asyncio.get_event_loop()
+
+        def connectors():
+            for i in itertools.count():
+                yield getattr(unittest.mock.sentinel,
+                              "starttls{}".format(i))
+
+        def tls_connectors():
+            for i in itertools.count():
+                yield getattr(unittest.mock.sentinel,
+                              "tls{}".format(i))
+
+        def srv_records():
+            yield dns.resolver.NoNameservers()
+            yield [
+                (unittest.mock.sentinel.prio3,
+                 unittest.mock.sentinel.weight3,
+                 (self.hosts[2], unittest.mock.sentinel.port3)),
+                (unittest.mock.sentinel.prio4,
+                 unittest.mock.sentinel.weight4,
+                 (self.hosts[3], unittest.mock.sentinel.port4)),
+            ]
+
+        def grouped_results():
+            yield 1
+            yield 2
+
+        with contextlib.ExitStack() as stack:
+            STARTTLSConnector = stack.enter_context(
+                unittest.mock.patch("aioxmpp.connector.STARTTLSConnector")
+            )
+            STARTTLSConnector.side_effect = connectors()
+
+            XMPPOverTLSConnector = stack.enter_context(
+                unittest.mock.patch("aioxmpp.connector.XMPPOverTLSConnector")
+            )
+            XMPPOverTLSConnector.side_effect = tls_connectors()
+
+            lookup_srv = stack.enter_context(
+                unittest.mock.patch("aioxmpp.network.lookup_srv",
+                                    new=CoroutineMock()),
+            )
+            lookup_srv.side_effect = srv_records()
+
+            group_and_order = stack.enter_context(unittest.mock.patch(
+                "aioxmpp.network.group_and_order_srv_records"
+            ))
+            group_and_order.return_value = grouped_results()
+
+            result = run_coroutine(
+                node.discover_connectors(
+                    self.domain,
+                    loop=loop,
+                )
+            )
+
+        self.domain.encode.assert_called_once_with("idna")
+
+        for host in self.hosts[2:4]:
+            host.decode.assert_called_once_with("ascii")
+
+        self.assertSequenceEqual(
+            lookup_srv.mock_calls,
+            [
+                unittest.mock.call(
+                    unittest.mock.sentinel.domain,
+                    "xmpp-client",
+                ),
+                unittest.mock.call(
+                    unittest.mock.sentinel.domain,
+                    "xmpps-client",
+                ),
+            ]
+        )
+
+        group_and_order.assert_called_with(
+            [
+                (unittest.mock.sentinel.prio3,
+                 unittest.mock.sentinel.weight3,
+                 (unittest.mock.sentinel.host3, unittest.mock.sentinel.port3,
+                  unittest.mock.sentinel.tls0)),
+                (unittest.mock.sentinel.prio4,
+                 unittest.mock.sentinel.weight4,
+                 (unittest.mock.sentinel.host4, unittest.mock.sentinel.port4,
+                  unittest.mock.sentinel.tls1)),
+            ]
+        )
+
+        self.assertSequenceEqual(
+            result,
+            [1, 2],
+        )
+
+    def test_propagate_xmpp_client_NoNameservers_if_both_fail(self):
+        loop = asyncio.get_event_loop()
+
+        to_propagate = dns.resolver.NoNameservers()
+
+        def srv_records():
+            yield to_propagate
+            yield dns.resolver.NoNameservers()
+
+        with contextlib.ExitStack() as stack:
+            lookup_srv = stack.enter_context(
+                unittest.mock.patch("aioxmpp.network.lookup_srv",
+                                    new=CoroutineMock()),
+            )
+            lookup_srv.side_effect = srv_records()
+
+            with self.assertRaises(dns.resolver.NoNameservers) as ctx:
+                run_coroutine(
+                    node.discover_connectors(
+                        self.domain,
+                        loop=loop,
+                    )
+                )
+
+        self.assertIs(ctx.exception,
+                      to_propagate)
+
+        self.domain.encode.assert_called_once_with("idna")
+
+        self.assertSequenceEqual(
+            lookup_srv.mock_calls,
+            [
+                unittest.mock.call(
+                    unittest.mock.sentinel.domain,
+                    "xmpp-client",
+                ),
+                unittest.mock.call(
+                    unittest.mock.sentinel.domain,
+                    "xmpps-client",
+                ),
+            ]
+        )
+
+    def test_propagate_xmpp_client_NoNameservers_if_tls_empty(self):
+        loop = asyncio.get_event_loop()
+
+        to_propagate = dns.resolver.NoNameservers()
+
+        def srv_records():
+            yield to_propagate
+            yield None
+
+        with contextlib.ExitStack() as stack:
+            lookup_srv = stack.enter_context(
+                unittest.mock.patch("aioxmpp.network.lookup_srv",
+                                    new=CoroutineMock()),
+            )
+            lookup_srv.side_effect = srv_records()
+
+            with self.assertRaises(dns.resolver.NoNameservers) as ctx:
+                run_coroutine(
+                    node.discover_connectors(
+                        self.domain,
+                        loop=loop,
+                    )
+                )
+
+        self.assertIs(ctx.exception,
+                      to_propagate)
+
+        self.domain.encode.assert_called_once_with("idna")
+
+        self.assertSequenceEqual(
+            lookup_srv.mock_calls,
+            [
+                unittest.mock.call(
+                    unittest.mock.sentinel.domain,
+                    "xmpp-client",
+                ),
+                unittest.mock.call(
+                    unittest.mock.sentinel.domain,
+                    "xmpps-client",
+                ),
+            ]
+        )
+
 
 class Testconnect_xmlstream(unittest.TestCase):
     def setUp(self):

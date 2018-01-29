@@ -143,6 +143,8 @@ def discover_connectors(
     """
 
     domain_encoded = domain.encode("idna")
+    starttls_srv_failed = False
+    tls_srv_failed = False
 
     try:
         starttls_srv_records = yield from network.lookup_srv(
@@ -150,6 +152,15 @@ def discover_connectors(
             "xmpp-client",
         )
         starttls_srv_disabled = False
+    except dns.resolver.NoNameservers as exc:
+        starttls_srv_records = []
+        starttls_srv_disabled = False
+        starttls_srv_failed = True
+        starttls_srv_exc = exc
+        logger.debug("xmpp-client SRV lookup for domain %s failed "
+                     "(may not be fatal)",
+                     domain_encoded,
+                     exc_info=True)
     except ValueError:
         starttls_srv_records = []
         starttls_srv_disabled = True
@@ -160,9 +171,23 @@ def discover_connectors(
             "xmpps-client",
         )
         tls_srv_disabled = False
+    except dns.resolver.NoNameservers:
+        tls_srv_records = []
+        tls_srv_disabled = False
+        tls_srv_failed = True
+        logger.debug("xmpps-client SRV lookup for domain %s failed "
+                     "(may not be fatal)",
+                     domain_encoded,
+                     exc_info=True)
     except ValueError:
         tls_srv_records = []
         tls_srv_disabled = True
+
+    if starttls_srv_failed and (tls_srv_failed or tls_srv_records is None):
+        # the failure is probably more useful as a diagnostic
+        # if we find a good reason to allow this scenario, we might change it
+        # later.
+        raise starttls_srv_exc
 
     if starttls_srv_disabled and (tls_srv_disabled or tls_srv_records is None):
         raise ValueError(

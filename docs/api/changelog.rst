@@ -211,6 +211,12 @@ Version 0.10
   now returns a list instead of a mapping from MIME types to lists of
   descriptors.
 
+* :func:`aioxmpp.node.discover_connectors` will now continue of only one of the
+  two SRV lookups fails with the DNSPython :class:`dns.resolver.NoNameservers`
+  exception; this case might still indicate a configuration issue (so we log
+  it), but since we actually got a useful result on the other query, we can
+  still continue.
+
 .. _api-changelog-0.9:
 
 Version 0.9
