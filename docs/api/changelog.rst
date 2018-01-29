@@ -217,6 +217,10 @@ Version 0.10
   it), but since we actually got a useful result on the other query, we can
   still continue.
 
+* :func:`aioxmpp.node.discover_connectors` now uses a proper fully-qualified
+  domain name (including the trailing dot) for DNS queries to avoid improper
+  fallback to locally configured search domains.
+
 .. _api-changelog-0.9:
 
 Version 0.9

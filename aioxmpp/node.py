@@ -142,7 +142,7 @@ def discover_connectors(
     .. versionadded:: 0.6
     """
 
-    domain_encoded = domain.encode("idna")
+    domain_encoded = domain.encode("idna") + b"."
     starttls_srv_failed = False
     tls_srv_failed = False
 
