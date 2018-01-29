@@ -25,8 +25,6 @@ import types
 
 import lxml.etree as etree
 
-from aioxmpp import errors
-
 __all__ = [
     "etree",
     "namespaces",
@@ -188,6 +186,9 @@ def gather_reraise_multi(*fut_or_coros, message="gather_reraise_multi"):
        b) only interested in the return values if all futures are
           successful.
     """
+    # this late import is needed for Python 3.4
+    from aioxmpp import errors
+
     todo = [asyncio.async(fut_or_coro) for fut_or_coro in fut_or_coros]
     if not todo:
         return []
