@@ -71,7 +71,9 @@ class Testdiscover_connectors(unittest.TestCase):
             )
 
         self.domain = unittest.mock.Mock(spec=str)
-        self.domain.encode.return_value = unittest.mock.sentinel.domain
+        domain_encoded = unittest.mock.MagicMock(["__add__"])
+        domain_encoded.__add__.return_value = unittest.mock.sentinel.domain
+        self.domain.encode.return_value = domain_encoded
 
     def test_request_SRV_records(self):
         loop = asyncio.get_event_loop()
