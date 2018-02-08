@@ -221,6 +221,9 @@ Version 0.10
   domain name (including the trailing dot) for DNS queries to avoid improper
   fallback to locally configured search domains.
 
+* Ignore presence stanzas from the bare JID of a joined MUC, even if they
+  contain a MUC user tag. A functional MUC should never emit this.
+
 .. _api-changelog-0.9:
 
 Version 0.9

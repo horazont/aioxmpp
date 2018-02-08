@@ -1011,6 +1011,13 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
                                    self._mucjid,
                                    stanza)
 
+        if stanza.from_.is_bare:
+            self._service.logger.debug(
+                "received muc user presence from bare JID %s. ignoring.",
+                stanza.from_,
+            )
+            return
+
         if self._state == RoomState.HISTORY:
             # WORKAROUND: prosody#1053; AFFECTS: <= 0.9.12, <= 0.10
             self._service.logger.debug(

@@ -818,6 +818,25 @@ class TestRoom(unittest.TestCase):
                 ]
             )
 
+    def test__inbound_muc_user_presence_ignored_from_bare_jid(self):
+        presence = aioxmpp.stanza.Presence(
+            type_=aioxmpp.structs.PresenceType.AVAILABLE,
+            from_=TEST_MUC_JID.replace(resource=None)
+        )
+        presence.xep0045_muc_user = muc_xso.UserExt(
+            items=[
+                muc_xso.UserItem(affiliation="member",
+                                 role="participant")
+            ]
+        )
+
+        with unittest.mock.patch("aioxmpp.muc.service.Occupant") as Occupant:
+            self.jmuc._inbound_muc_user_presence(presence)
+
+        Occupant.from_presence.assert_not_called()
+
+        self.base.on_join.assert_not_called()
+
     def test__inbound_muc_user_presence_emits_on_leave_for_unavailable(self):
         presence = aioxmpp.stanza.Presence(
             type_=aioxmpp.structs.PresenceType.AVAILABLE,
