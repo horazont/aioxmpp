@@ -174,7 +174,7 @@ class STARTTLSConnector(BaseConnector):
                 server_hostname=domain,
                 use_starttls=True,
             )
-        except:
+        except:  # NOQA
             stream.abort()
             raise
 
@@ -285,7 +285,6 @@ class XMPPOverTLSConnector(BaseConnector):
         used to configure the TLS connection.
         """
 
-
         features_future = asyncio.Future(loop=loop)
 
         stream = protocol.XMLStream(
@@ -319,7 +318,7 @@ class XMPPOverTLSConnector(BaseConnector):
                 ssl_context_factory=context_factory,
                 use_starttls=False,
             )
-        except:
+        except:  # NOQA
             stream.abort()
             raise
 

@@ -1306,32 +1306,30 @@ def make(
     :param password_provider: Source for the password to authenticate with.
     :type password_provider: :class:`str` or coroutine
     :param pin_store: Enable use of certificate pin store: if it is a
-                      :class:`dict`, a new pin store is created (see `pin_type`
-                      argument) and filled with the data from the dict.
-                      Otherwise, the given pin store is used.
+        :class:`dict`, a new pin store is created (see `pin_type` argument) and
+        filled with the data from the dict. Otherwise, the given pin store is
+        used.
     :type pin_store: :class:`dict` (compatible to
-                     :meth:`~AbstractPinStore.import_from_json`) or
-                     :class:`AbstractPinStore`
+        :meth:`~AbstractPinStore.import_from_json`) or
+        :class:`AbstractPinStore`
     :param pin_type: Type of pin store to use with a dict passed to `pin_store`
-                     (ignored if no dict is passed to `pin_store`).
+        (ignored if no dict is passed to `pin_store`).
     :type pin_type: :class:`PinType`
     :param post_handshake_deferred_failure: Coroutine to call when using pin
-                                            store and the certificate is not in
-                                            the pin store and fails PKI
-                                            verification.
+        store and the certificate is not in the pin store and fails PKI
+        verification.
     :type post_handshake_deferred_failure: coroutine
     :param anonymous: trace token for SASL ANONYMOUS (:rfc:`4505`), enables
-                      ANONYMOUS authentication
+        ANONYMOUS authentication
     :type anonymous: :class:`str` or :data:`False`
-    :param no_verify: *Disable* all certificate verification. Usage is **strongly
-                      discouraged** outside controlled test environments. See
-                      below for alternatives.
+    :param no_verify: *Disable* all certificate verification. Usage is
+        **strongly discouraged** outside controlled test environments. See
+        below for alternatives.
     :type no_verify: :class:`bool`
     :raise RuntimeError: if `anonymous` is a :class:`str` and the version of
-                         :mod:`aiosasl` in use does not provide
-                         :class:`aiosasl.ANONYMOUS`
+        :mod:`aiosasl` in use does not provide :class:`aiosasl.ANONYMOUS`
     :return: A new :class:`SecurityLayer` instance configured as per the
-             arguments.
+        arguments.
 
     `password_provider` must either be a coroutine or a :class:`str`. As a
     coroutine, it is called during authentication with the JID we are trying to
