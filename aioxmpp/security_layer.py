@@ -1106,6 +1106,11 @@ class SecurityLayer(collections.namedtuple(
        connectors (see :mod:`aioxmpp.connector`) will abort the connection if
        TLS (or something equivalent) is not available on the transport.
 
+       .. note::
+
+           Disabling this makes your application vulnerable to STARTTLS
+           stripping attacks.
+
     .. attribute:: sasl_providers
 
        A sequence of :class:`SASLProvider` instances. As SASL providers are
