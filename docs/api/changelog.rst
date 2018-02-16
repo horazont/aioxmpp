@@ -224,6 +224,12 @@ Version 0.10
 * Ignore presence stanzas from the bare JID of a joined MUC, even if they
   contain a MUC user tag. A functional MUC should never emit this.
 
+* We now will always attempt STARTTLS negotiation if
+  :attr:`aioxmpp.security_layer.SecurityLayer.tls_required` is true, even if
+  the server does not advertise a STARTTLS stream feature. This is because we
+  have nothing to lose, and it may mitigate some types of STARTTLS stripping
+  attacks.
+
 .. _api-changelog-0.9:
 
 Version 0.9

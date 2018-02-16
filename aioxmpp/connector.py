@@ -183,31 +183,24 @@ class STARTTLSConnector(BaseConnector):
         try:
             features[nonza.StartTLSFeature]
         except KeyError:
-            if metadata.tls_required:
-                message = (
-                    "STARTTLS not supported by server, but required by client"
-                )
-
-                protocol.send_stream_error_and_close(
-                    stream,
-                    condition=(namespaces.streams, "policy-violation"),
-                    text=message,
-                )
-
-                raise errors.TLSUnavailable(message)
-            else:
+            if not metadata.tls_required:
                 return transport, stream, (yield from features_future)
 
-        response = yield from protocol.send_and_wait_for(
-            stream,
-            [
-                nonza.StartTLS(),
-            ],
-            [
-                nonza.StartTLSFailure,
-                nonza.StartTLSProceed,
-            ]
-        )
+        try:
+            response = yield from protocol.send_and_wait_for(
+                stream,
+                [
+                    nonza.StartTLS(),
+                ],
+                [
+                    nonza.StartTLSFailure,
+                    nonza.StartTLSProceed,
+                ]
+            )
+        except errors.StreamError as exc:
+            raise errors.TLSUnavailable(
+                "STARTTLS not supported by server, but required by client"
+            )
 
         if not isinstance(response, nonza.StartTLSProceed):
             if metadata.tls_required:
