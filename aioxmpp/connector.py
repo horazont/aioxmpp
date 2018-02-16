@@ -148,8 +148,12 @@ class STARTTLSConnector(BaseConnector):
         possible.
 
         :attr:`~.security_layer.SecurityLayer.tls_required` is honoured: if it
-        is true and the server does not offer TLS or TLS negotiation fails,
-        :class:`~.errors.TLSUnavailable` is raised.
+        is true and TLS negotiation fails, :class:`~.errors.TLSUnavailable` is
+        raised. TLS negotiation is always attempted if
+        :attr:`~.security_layer.SecurityLayer.tls_required` is true, even if
+        the server does not advertise a STARTTLS stream feature. This might
+        help to prevent trivial downgrade attacks, and we don’t have anything
+        to lose at this point anymore anyways.
 
         :attr:`~.security_layer.SecurityLayer.ssl_context_factory` and
         :attr:`~.security_layer.SecurityLayer.certificate_verifier_factory` are
