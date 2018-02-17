@@ -1584,12 +1584,17 @@ class TestPasswordSASLProvider(xmltestutils.XMLTestCase):
 
     def _test_provider(self, provider,
                        actions=[], stimulus=None,
-                       tls_transport=None):
+                       tls_transport=False):
+        if tls_transport:
+            tls_transport_mock = unittest.mock.Mock()
+        else:
+            tls_transport_mock = None
+
         return run_coroutine_with_peer(
             provider.execute(self.client_jid,
                              self.features,
                              self.xmlstream,
-                             tls_transport),
+                             tls_transport_mock),
             self.xmlstream.run_test(actions, stimulus=stimulus),
             loop=self.loop
         )
@@ -1696,6 +1701,98 @@ class TestPasswordSASLProvider(xmltestutils.XMLTestCase):
             self.password_provider.mock_calls
         )
 
+    @unittest.skipUnless(hasattr(aiosasl, "SCRAMPLUS"),
+                         "aiosasl does not provide SCRAMPLUS")
+    def test_downgrade_resistance_with_no_sasl_plain(self):
+        self.mechanisms.mechanisms.extend([
+            security_layer.SASLMechanism(name="SCRAM-SHA-1"),
+            security_layer.SASLMechanism(name="PLAIN"),
+        ])
+
+        provider = security_layer.PasswordSASLProvider(
+            self._password_provider_wrapper,
+            no_sasl_plain=True)
+
+        self.assertFalse(self._test_provider(
+            provider,
+            actions=[
+                XMLStreamMock.Mute(),
+                XMLStreamMock.Send(
+                    nonza.SASLAuth(
+                        mechanism="SCRAM-SHA-1",
+                        payload=b"y,,n=foo,r=Zm9vAAAAAAAAAAAAAAAA"),
+                    response=XMLStreamMock.Receive(
+                        nonza.SASLFailure(
+                            condition=(namespaces.sasl, "invalid-mechanism")
+                        ))
+                ),
+                XMLStreamMock.Unmute(),
+            ],
+            tls_transport=True))
+
+    @unittest.skipUnless(hasattr(aiosasl, "SCRAMPLUS"),
+                         "aiosasl does not provide SCRAMPLUS")
+    def test_perform_mechanism_on_match_scramplus(self):
+        # note: we break the exchange after we see what we need to see,
+        # namely, that we negotiate scram plus with channel binding
+
+        self.mechanisms.mechanisms.append(
+            security_layer.SASLMechanism(name="SCRAM-SHA-1-PLUS")
+        )
+
+        provider = security_layer.PasswordSASLProvider(
+            self._password_provider_wrapper)
+
+        self.password_provider.return_value = "foobar"
+
+        self._test_provider(
+            provider,
+            actions=[
+                XMLStreamMock.Mute(),
+                XMLStreamMock.Send(
+                    nonza.SASLAuth(
+                        mechanism="SCRAM-SHA-1-PLUS",
+                        payload=b"p=tls-unique,,n=foo,r=Zm9vAAAAAAAAAAAAAAAA"),
+                    response=XMLStreamMock.Receive(
+                        nonza.SASLFailure(
+                            condition=(namespaces.sasl, "invalid-mechanism")
+                        ))
+                ),
+                XMLStreamMock.Unmute(),
+            ],
+            tls_transport=True)
+
+    def test_scram_does_not_advertise_channel_binding_without_tls(self):
+        # note: we break the exchange after we see what we need to see,
+        # namely, that we advertise n,, as gs2-header, advertising
+        # y,, over a plaintext connection is invalid
+
+        self.mechanisms.mechanisms.extend([
+            security_layer.SASLMechanism(name="SCRAM-SHA-1"),
+        ])
+
+        provider = security_layer.PasswordSASLProvider(
+            self._password_provider_wrapper)
+
+        self.password_provider.return_value = "foobar"
+
+        self._test_provider(
+            provider,
+            actions=[
+                XMLStreamMock.Mute(),
+                XMLStreamMock.Send(
+                    nonza.SASLAuth(
+                        mechanism="SCRAM-SHA-1",
+                        payload=b"n,,n=foo,r=Zm9vAAAAAAAAAAAAAAAA"),
+                    response=XMLStreamMock.Receive(
+                        nonza.SASLFailure(
+                            condition=(namespaces.sasl, "invalid-mechanism")
+                        ))
+                ),
+                XMLStreamMock.Unmute(),
+            ],
+            tls_transport=False)
+
     def test_cycle_through_mechanisms_if_mechanisms_fail(self):
         self.mechanisms.mechanisms.extend([
             security_layer.SASLMechanism(name="SCRAM-SHA-1"),
@@ -1710,6 +1807,10 @@ class TestPasswordSASLProvider(xmltestutils.XMLTestCase):
         plain_payload = (b"\0"+str(self.client_jid.localpart).encode("utf-8")+
                          b"\0"+"foobar".encode("utf-8"))
 
+        gs2_header = b"y,,"
+        if not hasattr(aiosasl, "SCRAMPLUS"):
+            gs2_header = b"n,,"
+
         self.assertTrue(
             self._test_provider(
                 provider,
@@ -1718,7 +1819,8 @@ class TestPasswordSASLProvider(xmltestutils.XMLTestCase):
                     XMLStreamMock.Send(
                         nonza.SASLAuth(
                             mechanism="SCRAM-SHA-1",
-                            payload=b"n,,n=foo,r=Zm9vAAAAAAAAAAAAAAAA"),
+                            payload=gs2_header +
+                                    b"n=foo,r=Zm9vAAAAAAAAAAAAAAAA"),
                         response=XMLStreamMock.Receive(
                             nonza.SASLFailure(
                                 condition=(namespaces.sasl, "invalid-mechanism")
@@ -1806,6 +1908,10 @@ class TestPasswordSASLProvider(xmltestutils.XMLTestCase):
         plain_payload = (b"\0"+str(self.client_jid.localpart).encode("utf-8")+
                          b"\0"+"foobar".encode("utf-8"))
 
+        gs2_header = b"y,,"
+        if not hasattr(aiosasl, "SCRAMPLUS"):
+            gs2_header = b"n,,"
+
         self.assertFalse(
             self._test_provider(
                 provider,
@@ -1814,7 +1920,8 @@ class TestPasswordSASLProvider(xmltestutils.XMLTestCase):
                     XMLStreamMock.Send(
                         nonza.SASLAuth(
                             mechanism="SCRAM-SHA-1",
-                            payload=b"n,,n=foo,r=Zm9vAAAAAAAAAAAAAAAA"),
+                            payload=gs2_header +
+                                    b"n=foo,r=Zm9vAAAAAAAAAAAAAAAA"),
                         response=XMLStreamMock.Receive(
                             nonza.SASLFailure(
                                 condition=(namespaces.sasl,
@@ -2286,10 +2393,12 @@ class Testmake(unittest.TestCase):
 
             result = security_layer.make(
                 unittest.mock.sentinel.password_provider,
+                no_sasl_plain=unittest.mock.sentinel.no_sasl_plain,
             )
 
         PasswordSASLProvider.assert_called_with(
             unittest.mock.sentinel.password_provider,
+            no_sasl_plain=unittest.mock.sentinel.no_sasl_plain,
         )
 
         SecurityLayer.assert_called_with(
@@ -2336,6 +2445,7 @@ class Testmake(unittest.TestCase):
 
         PasswordSASLProvider.assert_called_with(
             unittest.mock.ANY,
+            no_sasl_plain=False,
         )
 
         _, (password_provider, ), _ = PasswordSASLProvider.mock_calls[0]
@@ -2398,6 +2508,7 @@ class Testmake(unittest.TestCase):
             security_layer.make(
                 unittest.mock.sentinel.password_provider,
                 pin_store=pin_data,
+                no_sasl_plain=False,
             )
 
         SecurityLayer.assert_called_with(
@@ -2477,6 +2588,7 @@ class Testmake(unittest.TestCase):
 
         PasswordSASLProvider.assert_called_with(
             unittest.mock.sentinel.password_provider,
+            no_sasl_plain=False,
         )
 
         self.assertSequenceEqual(
@@ -2565,6 +2677,7 @@ class Testmake(unittest.TestCase):
 
         PasswordSASLProvider.assert_called_with(
             unittest.mock.sentinel.password_provider,
+            no_sasl_plain=False,
         )
 
         self.assertSequenceEqual(
@@ -2648,6 +2761,7 @@ class Testmake(unittest.TestCase):
 
         PasswordSASLProvider.assert_called_with(
             unittest.mock.sentinel.password_provider,
+            no_sasl_plain=False,
         )
 
         SecurityLayer.assert_called_with(
@@ -2716,6 +2830,7 @@ class Testmake(unittest.TestCase):
 
         PasswordSASLProvider.assert_called_with(
             unittest.mock.sentinel.password_provider,
+            no_sasl_plain=False,
         )
 
         SecurityLayer.assert_called_with(
@@ -2769,6 +2884,7 @@ class Testmake(unittest.TestCase):
 
         PasswordSASLProvider.assert_called_once_with(
             unittest.mock.sentinel.password_provider,
+            no_sasl_plain=False,
         )
 
         AnonymousSASLProvider.assert_called_once_with(

@@ -121,6 +121,7 @@ import enum
 import functools
 import logging
 import ssl
+import warnings
 
 import pyasn1
 import pyasn1.codec.der.decoder
@@ -130,6 +131,10 @@ import pyasn1_modules.rfc2459
 import OpenSSL.SSL
 
 import aiosasl
+try:
+    import aiosasl.channel_binding_methods
+except ImportError:
+    pass
 
 from . import errors, sasl, nonza, xso, protocol
 from .utils import namespaces
@@ -769,9 +774,9 @@ class SASLProvider:
 
         :param features: Current XMPP stream features
         :type features: :class:`~.nonza.StreamFeatures`
-        :param mechanism_classes: SASL mechanism classes to use
+        :param mechanism_classes: SASL mechanism (classes) to use
         :type mechanism_classes: iterable of :class:`SASLMechanism`
-                                 sub\ *classes*
+                                 sub\ *classes* or instances
         :raises aioxmpp.errors.SASLUnavailable: if the peer does not announce
                                                 SASL support
         :return: the :class:`SASLMechanism` subclass to use and a token
@@ -904,6 +909,8 @@ class PasswordSASLProvider(SASLProvider):
     :param password_provider: A coroutine function returning the password to
                               authenticate with.
     :type password_provider: coroutine function
+    :param no_sasl_plain: disallow SASL PLAIN (:rfc:`4616`) even over TLS connections.
+    :type no_sasl_plain: :class:`bool`
     :param max_auth_attempts: Maximum number of authentication attempts with a
                               single mechansim.
     :type max_auth_attempts: positive :class:`int`
@@ -927,11 +934,12 @@ class PasswordSASLProvider(SASLProvider):
           for the public interface of this class.
     """
 
-    def __init__(self, password_provider, *,
+    def __init__(self, password_provider, *, no_sasl_plain=False,
                  max_auth_attempts=3, **kwargs):
         super().__init__(**kwargs)
         self._password_provider = password_provider
         self._max_auth_attempts = max_auth_attempts
+        self._no_sasl_plain = no_sasl_plain
 
     @asyncio.coroutine
     def execute(self,
@@ -961,21 +969,38 @@ class PasswordSASLProvider(SASLProvider):
             cached_credentials = password
             return client_jid.localpart, password
 
-        classes = [
-            aiosasl.SCRAM
-        ]
-        if tls_transport is not None:
-            classes.append(aiosasl.PLAIN)
+        if tls_transport is None:
+            mechanisms = [
+                aiosasl.SCRAM(credential_provider)
+            ]
+        else:
+            if not hasattr(aiosasl, "SCRAMPLUS"):
+                warnings.warn(
+                    "aiosasl does not support SCRAMPLUS, please upgrade",
+                )
+                mechanisms = [aiosasl.SCRAM(credential_provider)]
+            else:
+                mechanisms = [
+                    aiosasl.SCRAMPLUS(
+                        credential_provider,
+                        aiosasl.channel_binding_methods.TLSUnique(
+                            tls_transport.get_extra_info("ssl_object"),
+                        ),
+                    ),
+                    aiosasl.SCRAM(credential_provider,
+                                  after_scram_plus=True),
+                ]
+            if not self._no_sasl_plain:
+                mechanisms.append(aiosasl.PLAIN(credential_provider))
 
         intf = sasl.SASLXMPPInterface(xmlstream)
-        while classes:
+        while mechanisms:
             # go over all mechanisms available. some errors disable a mechanism
             # (like encryption-required or mechansim-too-weak)
-            mechanism_class, token = self._find_supported(features, classes)
-            if mechanism_class is None:
+            mechanism, token = self._find_supported(features, mechanisms)
+            if mechanism is None:
                 return False
 
-            mechanism = mechanism_class(credential_provider)
             last_auth_error = None
             for nattempt in range(self._max_auth_attempts):
                 try:
@@ -996,7 +1021,7 @@ class PasswordSASLProvider(SASLProvider):
 
             if mechanism_worked:
                 return True
-            classes.remove(mechanism_class)
+            mechanisms.remove(mechanism)
 
         return False
 
@@ -1298,7 +1323,8 @@ def make(
         pin_type=PinType.PUBLIC_KEY,
         post_handshake_deferred_failure=None,
         anonymous=False,
-        no_verify=False):
+        no_verify=False,
+        no_sasl_plain=False):
     """
     Construct a :class:`SecurityLayer`. Depending on the arguments passed,
     different features are enabled or disabled.
@@ -1327,6 +1353,8 @@ def make(
                       discouraged** outside controlled test environments. See
                       below for alternatives.
     :type no_verify: :class:`bool`
+    :param no_sasl_plain: disallow SASL PLAIN (:rfc:`4616`) even over TLS connections.
+    :type no_sasl_plain: :class:`bool`
     :raise RuntimeError: if `anonymous` is a :class:`str` and the version of
                          :mod:`aiosasl` in use does not provide
                          :class:`aiosasl.ANONYMOUS`
@@ -1371,6 +1399,15 @@ def make(
        If you need to handle certificates which cannot be verified using the
        public key infrastructure, consider making use of the `pin_store`
        argument instead.
+
+    .. warning::
+
+       If `no_sasl_plain` is not set to true, there is no protection
+       against down-grade attacks by a TLS MitM on the peer
+       authentication with SCRAM-PLUS capable servers. If it is set to
+       true, servers supporting channel binding will detect downgrade
+       attacks on the use of channel binding and refuse the
+       connection.
 
     `anonymous` may be a string or :data:`False`. If it is not :data:`False`,
     :class:`AnonymousSASLProvider` is used before password based authentication
@@ -1448,6 +1485,7 @@ def make(
         sasl_providers.append(
             PasswordSASLProvider(
                 password_provider,
+                no_sasl_plain=no_sasl_plain
             ),
         )
 
