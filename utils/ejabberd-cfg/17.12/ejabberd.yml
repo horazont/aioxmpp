@@ -110,7 +110,7 @@ listen:
     ## certificate, specify the full path to the
     ## file and uncomment these lines:
     ##
-    certfile: "/home/p1/cfg/ssl.pem"
+    certfile: "/home/ejabberd/config/ssl.pem"
     starttls: true
     ##
     ## To enforce TLS encryption for client connections,

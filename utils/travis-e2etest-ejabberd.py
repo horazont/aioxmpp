@@ -28,16 +28,37 @@ import sys
 
 cwd = os.getcwd()
 
+ejabberd_version = os.environ["EJABBERD_VERSION"]
+if ejabberd_version == "latest":
+    ejabberd_version_numeric = float("inf")
+else:
+    ejabberd_version_numeric = float(ejabberd_version)
+
+if ejabberd_version_numeric >= 18.01:
+    cfg_dir = "/home/ejabberd/conf/"
+elif ejabberd_version_numeric >= 17.12:
+    cfg_dir = "/home/ejabberd/config/"
+else:
+    cfg_dir = "/home/p1/cfg"
+
+print(
+    "using cfg_dir={!r} for ejabberd {:.2f}".format(
+        cfg_dir, ejabberd_version_numeric
+    )
+)
+
 ejabberd = subprocess.Popen(
     [
         "docker",
         "run",
         "-p", "5222:5222",
         "--rm",
-        "-v", "{}:/home/p1/cfg/".format(
-            os.path.join(cwd, "utils/ejabberd-cfg")
+        "--name", "ejabberd",
+        "-v", "{}:{}".format(
+            os.path.join(cwd, "utils/ejabberd-cfg", ejabberd_version),
+            cfg_dir,
         ),
-        "ejabberd/ecs:{}".format(os.environ["EJABBERD_VERSION"]),
+        "ejabberd/ecs:{}".format(ejabberd_version),
     ],
 )
 
@@ -46,11 +67,6 @@ time.sleep(5)
 if ejabberd.poll() is not None:
     print("ejabberd already terminated!", file=sys.stderr)
     sys.exit(10)
-
-container_id = subprocess.check_output([
-    "docker", "ps", "-ql",
-]).decode().strip()
-print("I think the ejabberd container ID is {}".format(container_id))
 
 try:
     subprocess.check_call(
@@ -62,7 +78,7 @@ try:
 finally:
     print("killing ejabberd")
     subprocess.check_call([
-        "docker", "kill", container_id
+        "docker", "kill", "ejabberd"
     ])
     print("waiting for ejabberd to die...")
     ejabberd.wait()
