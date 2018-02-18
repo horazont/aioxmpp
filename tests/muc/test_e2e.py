@@ -403,6 +403,7 @@ class TestMuc(TestCase):
         self.assertEqual(
             subject.any(),
             "Wytches Brew!",
+            subject,
         )
 
         self.assertDictEqual(
