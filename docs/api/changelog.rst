@@ -230,6 +230,10 @@ Version 0.10
   have nothing to lose, and it may mitigate some types of STARTTLS stripping
   attacks.
 
+* Compatibility fixes for ejabberd (cf.
+  `ejabberd#2287 <https://github.com/processone/ejabberd/issues/2287>`_
+  and `ejabberd#2288 <https://github.com/processone/ejabberd/issues/2288>`_).
+
 .. _api-changelog-0.9:
 
 Version 0.9
