@@ -186,7 +186,7 @@ class BlockingClient(service.Service):
 
             if (block_command.from_ is None or
                     block_command.from_ == self.client.local_jid.bare() or
-                    # ejabberd issue #2287
+                    # WORKAROUND: ejabberd#2287
                     block_command.from_ == self.client.local_jid):
                 diff = frozenset(block_command.payload.items)
                 self._blocklist |= diff
@@ -213,7 +213,7 @@ class BlockingClient(service.Service):
 
             if (unblock_command.from_ is None or
                     unblock_command.from_ == self.client.local_jid.bare() or
-                    # ejabberd issue #2287
+                    # WORKAROUND: ejabberd#2287
                     unblock_command.from_ == self.client.local_jid):
                 if not unblock_command.payload.items:
                     diff = frozenset(self._blocklist)
