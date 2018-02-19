@@ -234,6 +234,8 @@ Version 0.10
   `ejabberd#2287 <https://github.com/processone/ejabberd/issues/2287>`_
   and `ejabberd#2288 <https://github.com/processone/ejabberd/issues/2288>`_).
 
+* Harden MUC implementation against incomplete presence stanzas.
+
 .. _api-changelog-0.9:
 
 Version 0.9

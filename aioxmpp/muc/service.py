@@ -134,11 +134,13 @@ class Occupant(aioxmpp.im.conversation.AbstractConversationMember):
 
     .. attribute:: affiliation
 
-       The affiliation of the occupant with the room.
+       The affiliation of the occupant with the room. This may be :data:`None`
+       with faulty MUC implementations.
 
     .. attribute:: role
 
-       The current role of the occupant within the room.
+       The current role of the occupant within the room. This may be
+       :data:`None` with faulty MUC implementations.
 
     """
 
@@ -204,7 +206,10 @@ class Occupant(aioxmpp.im.conversation.AbstractConversationMember):
             item = presence.xep0045_muc_user.items[0]
         except (AttributeError, IndexError):
             affiliation = None
-            role = None
+            if presence.type_ == aioxmpp.structs.PresenceType.UNAVAILABLE:
+                role = "none"  # unavailable must be the "none" role
+            else:
+                role = None
             jid = None
         else:
             affiliation = item.affiliation
@@ -227,11 +232,11 @@ class Occupant(aioxmpp.im.conversation.AbstractConversationMember):
         self.presence_state = other.presence_state
         self.presence_status.clear()
         self.presence_status.update(other.presence_status)
-        self.affiliation = other.affiliation
-        self.role = other.role
+        self.affiliation = other.affiliation or self.affiliation
+        self.role = other.role or self.role
         if self._direct_jid is None and other.direct_jid is not None:
             self._set_uid_from_direct_jid(other.direct_jid)
-        self._direct_jid = other.direct_jid
+        self._direct_jid = other.direct_jid or self._direct_jid
 
     def __repr__(self):
         return "<{}.{} occupantjid={!r} uid={!r} jid={!r}>".format(
@@ -891,15 +896,16 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
         result = (_OccupantDiffClass.UNIMPORTANT, None)
         to_emit = []
 
+        try:
+            reason = stanza.xep0045_muc_user.items[0].reason
+            actor = stanza.xep0045_muc_user.items[0].actor
+        except IndexError:
+            reason = None
+            actor = None
+
         if not info.presence_state.available:
             status_codes = stanza.xep0045_muc_user.status_codes
             mode = LeaveMode.NORMAL
-            try:
-                reason = stanza.xep0045_muc_user.items[0].reason
-                actor = stanza.xep0045_muc_user.items[0].actor
-            except IndexError:
-                reason = None
-                actor = None
 
             if 307 in status_codes:
                 mode = LeaveMode.KICKED
@@ -934,8 +940,8 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
                     existing,
                 ),
                 {
-                    "actor": stanza.xep0045_muc_user.items[0].actor,
-                    "reason": stanza.xep0045_muc_user.items[0].reason,
+                    "actor": actor,
+                    "reason": reason,
                 },
             ))
 
@@ -947,8 +953,8 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
                     existing,
                 ),
                 {
-                    "actor": stanza.xep0045_muc_user.items[0].actor,
-                    "reason": stanza.xep0045_muc_user.items[0].reason,
+                    "actor": actor,
+                    "reason": reason,
                 },
             ))
 

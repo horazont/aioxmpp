@@ -185,6 +185,29 @@ class TestOccupant(unittest.TestCase):
         self.assertIsNone(occ.role)
         self.assertIsNone(occ.direct_jid)
 
+    def test_from_presence_can_deal_with_sparse_presence(self):
+        presence = aioxmpp.stanza.Presence(
+            from_=TEST_MUC_JID.replace(resource="secondwitch"),
+            type_=aioxmpp.structs.PresenceType.UNAVAILABLE,
+            show=aioxmpp.PresenceShow.DND,
+        )
+
+        presence.status[None] = "foo"
+
+        occ = muc_service.Occupant.from_presence(
+            presence,
+            unittest.mock.sentinel.is_self
+        )
+        self.assertIsInstance(occ, muc_service.Occupant)
+
+        self.assertEqual(occ.conversation_jid, presence.from_)
+        self.assertEqual(occ.nick, presence.from_.resource)
+        self.assertDictEqual(occ.presence_status, presence.status)
+        self.assertIsNone(occ.affiliation)
+        self.assertEqual(occ.role, "none")
+        self.assertIsNone(occ.direct_jid)
+        self.assertEqual(occ.is_self, unittest.mock.sentinel.is_self)
+
     def test_from_presence_extracts_what_it_can_get(self):
         presence = aioxmpp.stanza.Presence(
             from_=TEST_MUC_JID.replace(resource="secondwitch"),
@@ -280,6 +303,58 @@ class TestOccupant(unittest.TestCase):
         self.assertEqual(occ.direct_jid, TEST_ENTITY_JID)
 
         self.assertIs(occ.presence_status, old_status_dict)
+
+    def test_update_does_not_copy_None(self):
+        presence = aioxmpp.stanza.Presence(
+            from_=TEST_MUC_JID.replace(resource="secondwitch"),
+        )
+
+        presence.xep0045_muc_user = muc_xso.UserExt(
+            items=[
+                muc_xso.UserItem(
+                    affiliation="owner",
+                    role="moderator",
+                    jid=TEST_ENTITY_JID
+                )
+            ]
+        )
+
+        occ = muc_service.Occupant.from_presence(
+            presence,
+            unittest.mock.sentinel.is_self,
+        )
+
+        presence = aioxmpp.stanza.Presence(
+            from_=TEST_MUC_JID.replace(resource="secondwitch"),
+            type_=aioxmpp.structs.PresenceType.AVAILABLE,
+        )
+
+        old_status_dict = occ.presence_status
+
+        occ.update(muc_service.Occupant.from_presence(
+            presence,
+            unittest.mock.sentinel.is_self,
+        ))
+        self.assertEqual(occ.conversation_jid, presence.from_)
+        self.assertEqual(occ.nick, presence.from_.resource)
+        self.assertDictEqual(occ.presence_status, presence.status)
+        self.assertEqual(occ.affiliation, "owner")
+        self.assertEqual(occ.role, "moderator")
+        self.assertEqual(occ.direct_jid, TEST_ENTITY_JID)
+
+        self.assertIs(occ.presence_status, old_status_dict)
+
+        presence = aioxmpp.stanza.Presence(
+            from_=TEST_MUC_JID.replace(resource="secondwitch"),
+            type_=aioxmpp.structs.PresenceType.UNAVAILABLE,
+        )
+
+        occ.update(muc_service.Occupant.from_presence(
+            presence,
+            unittest.mock.sentinel.is_self,
+        ))
+
+        self.assertEqual(occ.role, "none")
 
     def test_random_uid_without_jid(self):
         presence = aioxmpp.stanza.Presence(
@@ -967,6 +1042,85 @@ class TestRoom(unittest.TestCase):
             self.assertEqual(
                 first.affiliation,
                 "member"
+            )
+
+    def test__inbound_muc_user_presence_handles_itemless_role_change(self):
+        presence = aioxmpp.stanza.Presence(
+            type_=aioxmpp.structs.PresenceType.AVAILABLE,
+            from_=TEST_MUC_JID.replace(resource="firstwitch")
+        )
+        presence.xep0045_muc_user = muc_xso.UserExt(
+            items=[
+                muc_xso.UserItem(affiliation="member",
+                                 role="participant")
+            ]
+        )
+
+        actor = object()
+
+        original_Occupant = muc_service.Occupant
+        with unittest.mock.patch("aioxmpp.muc.service.Occupant") as Occupant:
+            first = original_Occupant.from_presence(
+                presence,
+                False,
+            )
+            Occupant.from_presence.return_value = first
+
+            self.jmuc._inbound_muc_user_presence(presence)
+
+            Occupant.from_presence.assert_called_with(
+                presence,
+                False,
+            )
+
+            self.assertSequenceEqual(
+                self.base.mock_calls,
+                [
+                    unittest.mock.call.on_join(first)
+                ]
+            )
+            self.base.mock_calls.clear()
+
+            # update presence stanza
+            presence.type_ = aioxmpp.structs.PresenceType.UNAVAILABLE
+            presence.xep0045_muc_user.status_codes.clear()
+            del presence.xep0045_muc_user.items[0]
+
+            second = original_Occupant.from_presence(
+                presence,
+                False,
+            )
+            Occupant.from_presence.return_value = second
+            self.jmuc._inbound_muc_user_presence(presence)
+
+            self.assertSequenceEqual(
+                self.base.mock_calls,
+                [
+                    unittest.mock.call.on_muc_role_changed(
+                        presence,
+                        first,
+                        actor=None,
+                        reason=None),
+                    unittest.mock.call.on_muc_affiliation_changed(
+                        presence,
+                        first,
+                        actor=None,
+                        reason=None),
+                    unittest.mock.call.on_leave(
+                        first,
+                        muc_leave_mode=muc_service.LeaveMode.NORMAL,
+                        muc_actor=None,
+                        muc_reason=None)
+                ]
+            )
+
+            self.assertEqual(
+                first.role,
+                "none",
+            )
+            self.assertEqual(
+                first.affiliation,
+                "member",
             )
 
     def test__inbound_muc_user_presence_emits_on_leave_for_ban(self):
