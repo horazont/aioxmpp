@@ -578,7 +578,7 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
     ``"outcast"``) and then :meth:`on_leave` (with :attr:`LeaveMode.BANNED`
     `mode`).
 
-    .. signal:: on_muc_affiliation_changed(member, *, muc_actor=None, muc_reason=None, **kwargs)
+    .. signal:: on_muc_affiliation_changed(member, *, actor=None, reason=None, **kwargs)
 
        Emits when the affiliation of a `member` with the room changes.
 
@@ -588,7 +588,7 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
        There may be `actor` and/or `reason` keyword arguments which provide
        details on who triggered the change in affiliation and for what reason.
 
-    .. signal:: on_muc_role_changed(member, *, muc_actor=None, muc_reason=None, **kwargs)
+    .. signal:: on_muc_role_changed(member, *, actor=None, reason=None, **kwargs)
 
        Emits when the role of an `occupant` in the room changes.
 
