@@ -265,6 +265,15 @@ Version 0.10
 
 * Minor compatibility fixes for :xep:`153` vcard-based avatar support.
 
+* Add a global IM :meth:`aioxmpp.im.service.Conversation.on_message` event. This
+  aggregates message events from all conversations.
+
+  This can be used by applications which want to perform central processing of
+  all IM messages, for example for logging purposes.
+  :class:`aioxmpp.im.service.Conversation` handles the lifecycle of event
+  listeners to the individual conversations, which takes some burden off of the
+  application.
+
 .. _api-changelog-0.9:
 
 Version 0.9

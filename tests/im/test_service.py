@@ -21,6 +21,8 @@
 ########################################################################
 import unittest
 
+import aioxmpp
+
 import aioxmpp.im.service as im_service
 
 from aioxmpp.testutils import (
@@ -63,6 +65,52 @@ class TestConversationService(unittest.TestCase):
             ]
         )
 
+    def test__add_conversation_makes_it_accessible_by_jid(self):
+        conv = unittest.mock.Mock()
+        conv.jid = unittest.mock.sentinel.jid
+        self.s._add_conversation(conv)
+
+        self.assertIs(self.s.get_conversation(conv.jid), conv)
+
+    def test_conversation_not_accessible_after_exit(self):
+        conv = unittest.mock.Mock()
+        conv.jid = unittest.mock.sentinel.jid
+        self.s._add_conversation(conv)
+
+        _, (cb, ), _ = conv.on_exit.mock_calls[-1]
+        cb()
+
+        with self.assertRaises(KeyError):
+            self.s.get_conversation(conv.jid)
+
+    def test_forwards_message_events(self):
+        conv = unittest.mock.Mock(["on_failure", "on_exit", "jid",
+                                   "on_message"])
+        conv.jid = unittest.mock.sentinel.jid
+
+        self.s._add_conversation(conv)
+
+        conv.on_message.connect.assert_called_once_with(
+            unittest.mock.ANY,
+        )
+
+        _, (cb, ), _ = conv.on_message.mock_calls[-1]
+
+        cb(unittest.mock.sentinel.message,
+           unittest.mock.sentinel.member,
+           unittest.mock.sentinel.source,
+           tracker=unittest.mock.sentinel.tracker,
+           foo_bar=unittest.mock.sentinel.foobar)
+
+        self.listener.on_message.assert_called_once_with(
+            conv,
+            unittest.mock.sentinel.message,
+            unittest.mock.sentinel.member,
+            unittest.mock.sentinel.source,
+            tracker=unittest.mock.sentinel.tracker,
+            foo_bar=unittest.mock.sentinel.foobar
+        )
+
     def test_on_conversation_added_sees_added_conversation(self):
         captured_conversations = None
 
@@ -96,6 +144,56 @@ class TestConversationService(unittest.TestCase):
             self.s.conversations,
             [
             ]
+        )
+
+    def test_disconnects_handlers_on_exit(self):
+        conv = unittest.mock.Mock(["on_exit", "on_failure", "on_message",
+                                   "jid"])
+        self.s._add_conversation(conv)
+
+        conv.on_exit.connect.assert_called_once_with(
+            unittest.mock.ANY
+        )
+
+        _, (cb, ), _ = conv.on_exit.mock_calls[-1]
+
+        cb()
+
+        conv.on_exit.disconnect.assert_called_once_with(
+            conv.on_exit.connect(),
+        )
+
+        conv.on_failure.disconnect.assert_called_once_with(
+            conv.on_failure.connect(),
+        )
+
+        conv.on_message.disconnect.assert_called_once_with(
+            conv.on_message.connect(),
+        )
+
+    def test_disconnects_handlers_on_failure(self):
+        conv = unittest.mock.Mock(["on_exit", "on_failure", "on_message",
+                                   "jid"])
+        self.s._add_conversation(conv)
+
+        conv.on_failure.connect.assert_called_once_with(
+            unittest.mock.ANY
+        )
+
+        _, (cb, ), _ = conv.on_failure.mock_calls[-1]
+
+        cb()
+
+        conv.on_exit.disconnect.assert_called_once_with(
+            conv.on_exit.connect(),
+        )
+
+        conv.on_failure.disconnect.assert_called_once_with(
+            conv.on_failure.connect(),
+        )
+
+        conv.on_message.disconnect.assert_called_once_with(
+            conv.on_message.connect(),
         )
 
     def test_removes_added_conversation_on_failure(self):
