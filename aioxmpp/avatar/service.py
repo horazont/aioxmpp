@@ -659,6 +659,12 @@ class AvatarService(service.Service):
             self._vcard_rehash_task.cancel()
 
         self._vcard_id = None
+        # as per XEP immediately resend the presence with empty update
+        # element, as this is not synchronous it might already contaiin
+        # the new hash, but this is okay as well (as it makes the cached
+        # presence stanzas coherent as well).
+        self._presence_server.resend_presence()
+
         self._vcard_rehash_task = asyncio.async(
             self._calculate_vcard_id()
         )

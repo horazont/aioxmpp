@@ -458,8 +458,19 @@ class TestAvatarService(unittest.TestCase):
 
         self.assertEqual(self.s._vcard_id, TEST_IMAGE_SHA1)
 
-        with unittest.mock.patch.object(self.vcard, "get_vcard",
-                                        new=CoroutineMock()):
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(
+                unittest.mock.patch.object(self.vcard, "get_vcard",
+                                           new=CoroutineMock())
+            )
+
+            resend_presence = stack.enter_context(
+                unittest.mock.patch.object(
+                    self.presence_server,
+                    "resend_presence",
+                )
+            )
+
             vcard = vcard_xso.VCard()
             self.vcard.get_vcard.return_value = vcard
 
@@ -470,6 +481,8 @@ class TestAvatarService(unittest.TestCase):
             loop.run_until_complete(
                 self.s._vcard_rehash_task
             )
+
+        resend_presence.assert_called_once_with()
 
         self.assertEqual(self.s._vcard_id, "")
 
