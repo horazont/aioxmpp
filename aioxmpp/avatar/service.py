@@ -673,20 +673,23 @@ class AvatarService(service.Service):
 
     @asyncio.coroutine
     def _calculate_vcard_id(self):
-        logger.debug("updating vcard hash")
+        self.logger.debug("updating vcard hash")
         vcard = yield from self._vcard.get_vcard()
-        logger.debug("%s", vcard)
+        self.logger.debug("got vcard for hash update: %s", vcard)
         photo = vcard.get_photo_data()
 
         # if no photo is set in the vcard, set an empty <photo> element
         # in the update; according to the spec this means the avatar
         # is disabled
         if photo is None:
+            self.logger.debug("no photo in vcard, advertising as such")
             return ""
 
         sha1 = hashlib.sha1()
         sha1.update(photo)
-        return sha1.hexdigest().lower()
+        new_hash = sha1.hexdigest().lower()
+        self.logger.debug("updated hash to %s", new_hash)
+        return new_hash
 
     @service.depsignal(presence.PresenceClient, "on_available")
     def _handle_on_available(self, full_jid, stanza):
