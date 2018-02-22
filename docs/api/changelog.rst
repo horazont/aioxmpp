@@ -239,6 +239,15 @@ Version 0.10
 * Support for escaping additional characters as entities when writing XML, see
   the `additional_escapes` argument to :class:`aioxmpp.xml.XMPPXMLGenerator`.
 
+* Add `cb` argument to :func:`aioxmpp.protocol.send_and_wait_for` to allow to
+  act synchronously on the response. This is needed for transactional things
+  like stream management.
+
+* Fix a race condition where stream management handlers would be installed too
+  late on the XML stream, leading it to be closed with an
+  ``unsupported-stanza-type`` because :mod:`aioxmpp` failed to interpret SM
+  requests.
+
 .. _api-changelog-0.9:
 
 Version 0.9

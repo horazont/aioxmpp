@@ -2068,22 +2068,17 @@ class StanzaStream:
             request_resumption = False
             resumption_timeout = None
 
-        with (yield from self._broker_lock):
-            response = yield from protocol.send_and_wait_for(
-                self._xmlstream,
-                [
-                    nonza.SMEnable(resume=bool(request_resumption),
-                                   max_=resumption_timeout),
-                ],
-                [
-                    nonza.SMEnabled,
-                    nonza.SMFailed
-                ]
-            )
-
+        # sorry for the callback spaghetti code
+        # we have to handle the response synchronously, so we have to use a
+        # callback.
+        # otherwise, it is possible that an SM related nonza (e.g. <r/>) is
+        # received (and attempted to be deserialized) before the handlers are
+        # registered
+        # see tests/test_highlevel.py:TestProtocoltest_sm_bootstrap_race
+        def handle_response(response):
             if isinstance(response, nonza.SMFailed):
-                raise errors.StreamNegotiationFailure(
-                    "Server rejected SM request")
+                # we handle the error down below
+                return
 
             self._sm_outbound_base = 0
             self._sm_inbound_ctr = 0
@@ -2110,6 +2105,24 @@ class StanzaStream:
             self._xmlstream.stanza_parser.add_class(
                 nonza.SMAcknowledgement,
                 self.recv_stanza)
+
+        with (yield from self._broker_lock):
+            response = yield from protocol.send_and_wait_for(
+                self._xmlstream,
+                [
+                    nonza.SMEnable(resume=bool(request_resumption),
+                                   max_=resumption_timeout),
+                ],
+                [
+                    nonza.SMEnabled,
+                    nonza.SMFailed
+                ],
+                cb=handle_response,
+            )
+
+            if isinstance(response, nonza.SMFailed):
+                raise errors.StreamNegotiationFailure(
+                    "Server rejected SM request")
 
     @property
     def sm_enabled(self):
