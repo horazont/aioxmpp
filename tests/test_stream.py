@@ -1811,75 +1811,45 @@ class TestStanzaStream(StanzaStreamTestBase):
         with self.assertRaises(asyncio.QueueEmpty):
             self.sent_stanzas.get_nowait()
 
-    def test_send_iq_and_wait_for_reply(self):
-        iq = make_test_iq()
-        response = iq.make_reply(type_=structs.IQType.RESULT)
-        response.payload = FancyTestIQ()
+    def test_send_iq_and_wait_for_reply_uses_send(self):
+        with contextlib.ExitStack() as stack:
+            send = stack.enter_context(unittest.mock.patch.object(
+                self.stream,
+                "send",
+                new=CoroutineMock()
+            ))
+            send.return_value = unittest.mock.sentinel.result
 
-        task = asyncio.async(
-            self.stream.send_iq_and_wait_for_reply(iq),
-            loop=self.loop)
+            result = run_coroutine(self.stream.send_iq_and_wait_for_reply(
+                unittest.mock.sentinel.iq,
+                timeout=unittest.mock.sentinel.timeout,
+            ))
 
-        self.stream.start(self.xmlstream)
-        run_coroutine(asyncio.sleep(0))
-        self.stream.recv_stanza(response)
-        result = run_coroutine(task)
-        self.assertIs(
-            response.payload,
-            result
+        send.assert_called_once_with(
+            unittest.mock.sentinel.iq,
+            timeout=unittest.mock.sentinel.timeout,
         )
 
-    def test_send_iq_and_wait_for_reply_with_error(self):
-        iq = make_test_iq()
-        response = iq.make_reply(type_=structs.IQType.ERROR)
-        response.error = stanza.Error.from_exception(
-            errors.XMPPCancelError(
-                condition=(namespaces.stanzas, "item-not-found")
-            )
-        )
-
-        task = asyncio.async(
-            self.stream.send_iq_and_wait_for_reply(iq),
-            loop=self.loop)
-
-        self.stream.start(self.xmlstream)
-        run_coroutine(asyncio.sleep(0))
-        self.stream.recv_stanza(response)
-        with self.assertRaises(errors.XMPPCancelError) as ctx:
-            run_coroutine(task)
-        self.assertEqual(
-            (namespaces.stanzas, "item-not-found"),
-            ctx.exception.condition
-        )
-
-    def test_send_iq_and_wait_for_reply_timeout(self):
-        iq = make_test_iq()
-
-        task = asyncio.async(
-            self.stream.send_iq_and_wait_for_reply(
-                iq,
-                timeout=0.01),
-            loop=self.loop)
-
-        self.stream.start(self.xmlstream)
-        run_coroutine(asyncio.sleep(0))
-
-        @asyncio.coroutine
-        def test_task():
-            with self.assertRaises(TimeoutError):
-                yield from task
-
-        run_coroutine(test_task())
+        self.assertEqual(result, unittest.mock.sentinel.result)
 
     def test_send_iq_and_wait_for_reply_emits_deprecation_warning(self):
-        iq = make_test_iq()
+        with contextlib.ExitStack() as stack:
+            send = stack.enter_context(unittest.mock.patch.object(
+                self.stream,
+                "send",
+                new=CoroutineMock()
+            ))
 
-        task = asyncio.async(self.stream.send_iq_and_wait_for_reply(iq))
-        with self.assertWarnsRegex(
-                DeprecationWarning,
-                r"send_iq_and_wait_for_reply is deprecated and will be removed in 1.0"):
-            run_coroutine(asyncio.sleep(0))
-        task.cancel()
+            task = asyncio.async(self.stream.send_iq_and_wait_for_reply(
+                unittest.mock.sentinel.iq
+            ))
+            with self.assertWarnsRegex(
+                    DeprecationWarning,
+                    r"send_iq_and_wait_for_reply is deprecated and will be "
+                    r"removed in 1.0"):
+                run_coroutine(asyncio.sleep(0))
+
+            task.cancel()
 
     def test_flush_incoming(self):
         iqs = [make_test_iq(type_=structs.IQType.RESULT) for i in range(2)]
