@@ -84,12 +84,12 @@ inside the ``async with`` block::
   # None is for "default language"
   msg.body[None] = "Hello World!"
 
-  await stream.send(msg)
+  await client.send(msg)
 
 Relevant documentation:
 
 * :class:`aioxmpp.Message`
-* :meth:`aioxmpp.stream.StanzaStream.send`
+* :meth:`aioxmpp.Client.send`
 
 
 .. note::
@@ -162,7 +162,7 @@ This example can be modified to be an echo bot by implementing the
       reply = msg.make_reply()
       reply.body.update(msg.body)
 
-      client.stream.enqueue(reply)
+      client.enqueue(reply)
 
 .. note::
 
@@ -173,7 +173,7 @@ This example can be modified to be an echo bot by implementing the
   :meth:`~aioxmpp.dispatcher.SimpleStanzaDispatcher.register_callback`.
   Definitely check this out for the semantics of the first two arguments!
 * :class:`aioxmpp.Message`
-* :meth:`~aioxmpp.stream.StanzaStream.enqueue`
+* :meth:`~aioxmpp.Client.enqueue`
 * :meth:`aioxmpp.Client.summon`
 
 
@@ -394,7 +394,7 @@ Relevant documentation:
 * :mod:`aioxmpp.xso`, especially :class:`aioxmpp.xso.XSO` and
   :class:`aioxmpp.xso.ChildText`
 * :meth:`aioxmpp.IQ.as_payload_class`
-* :meth:`aioxmpp.stream.StanzaStream.send`
+* :meth:`aioxmpp.Client.send`
 * also make sure to read the source of, for example, :mod:`aioxmpp.disco.xso`
   for more examples of :class:`~aioxmpp.XSO` subclasses.
 

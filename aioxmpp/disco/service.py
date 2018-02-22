@@ -651,7 +651,7 @@ class DiscoClient(service.Service):
         The `timeout` can be used to restrict the time to wait for a
         response. If the timeout triggers, :class:`TimeoutError` is raised.
 
-        If :meth:`~.StanzaStream.send` raises an
+        If :meth:`~.Client.send` raises an
         exception, all queries which were running simultanously for the same
         target re-raise that exception. The result is not cached though. If a
         new query is sent at a later point for the same target, a new query is
