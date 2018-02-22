@@ -807,7 +807,7 @@ def send_and_wait_for(xmlstream, send, wait_for, timeout=None):
             failure_future.result()
 
         raise TimeoutError()
-    except:
+    except:  # NOQA
         cleanup()
         raise
 

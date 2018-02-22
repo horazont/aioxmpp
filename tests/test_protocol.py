@@ -1844,6 +1844,10 @@ class Testsend_and_wait_for(xmltestutils.XMLTestCase):
         self.loop = asyncio.get_event_loop()
         self.xmlstream = XMLStreamMock(self, loop=self.loop)
 
+    def tearDown(self):
+        del self.xmlstream
+        del self.loop
+
     def _run_test(self, send, wait_for, actions, stimulus=None,
                   timeout=None, **kwargs):
         return run_coroutine(
@@ -1896,7 +1900,7 @@ class Testsend_and_wait_for(xmltestutils.XMLTestCase):
         instance = R()
 
         with self.assertRaisesRegex(AssertionError,
-                                     "no handler registered for"):
+                                    "no handler registered for"):
             self._run_test(
                 [
                     Q(),
@@ -1941,7 +1945,7 @@ class Testsend_and_wait_for(xmltestutils.XMLTestCase):
             )
 
         with self.assertRaisesRegex(AssertionError,
-                                     "no handler registered for"):
+                                    "no handler registered for"):
             run_coroutine(self.xmlstream.run_test(
                 [],
                 stimulus=XMLStreamMock.Receive(instance)
@@ -1962,7 +1966,6 @@ class Testsend_and_wait_for(xmltestutils.XMLTestCase):
             [],
             stimulus=XMLStreamMock.Fail(exc=exc)
         ))
-
 
         with self.assertRaises(ValueError) as ctx:
             self._run_test(
@@ -2009,11 +2012,6 @@ class Testsend_and_wait_for(xmltestutils.XMLTestCase):
             )
 
         self.assertIs(exc, ctx.exception)
-
-
-    def tearDown(self):
-        del self.xmlstream
-        del self.loop
 
 
 class Testreset_stream_and_get_features(xmltestutils.XMLTestCase):

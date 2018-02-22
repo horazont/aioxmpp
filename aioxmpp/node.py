@@ -958,7 +958,7 @@ class Client:
                     self.logger.info("connection error: (%s) %s",
                                      type(exc).__qualname__,
                                      exc)
-                    if     (not self._had_connection and
+                    if (not self._had_connection and
                             self._max_initial_attempts is not None and
                             self._nattempt >= self._max_initial_attempts):
                         self.logger.warning("out of connection attempts")

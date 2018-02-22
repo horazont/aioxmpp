@@ -3772,9 +3772,9 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
                         nonza.SMEnable(resume=True),
                         response=XMLStreamMock.Receive(
                             nonza.SMEnabled(resume=True,
-                                                  id_="foobar",
-                                                  location=("fe80::", 5222),
-                                                  max_=1200)
+                                            id_="foobar",
+                                            location=("fe80::", 5222),
+                                            max_=1200)
                         )
                     )
                 ]
@@ -3987,7 +3987,7 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
                     response=[
                         XMLStreamMock.Receive(
                             nonza.SMEnabled(resume=True,
-                                                  id_="foobar"),
+                                            id_="foobar"),
                         ),
                         XMLStreamMock.Fail(exc)
                     ]
@@ -4050,7 +4050,7 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
                     response=[
                         XMLStreamMock.Receive(
                             nonza.SMEnabled(resume=True,
-                                                  id_="barbaz")
+                                            id_="barbaz")
                         ),
                         XMLStreamMock.Receive(iq)
                     ]
@@ -4416,10 +4416,10 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
             self.xmlstream.run_test([
                 XMLStreamMock.Send(
                     nonza.SMResume(previd="foobar",
-                                         counter=0),
+                                   counter=0),
                     response=XMLStreamMock.Receive(
                         nonza.SMResumed(previd="foobar",
-                                              counter=2)
+                                        counter=2)
                     )
                 ),
                 XMLStreamMock.Send(iqs[2]),
@@ -4492,10 +4492,10 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
             self.xmlstream.run_test([
                 XMLStreamMock.Send(
                     nonza.SMResume(previd="foobar",
-                                         counter=0),
+                                   counter=0),
                     response=XMLStreamMock.Receive(
                         nonza.SMResumed(previd="foobar",
-                                              counter=0)
+                                        counter=0)
                     )
                 ),
                 XMLStreamMock.Send(iqs[2]),
@@ -4567,11 +4567,11 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
             self.xmlstream.run_test([
                 XMLStreamMock.Send(
                     nonza.SMResume(previd="foobar",
-                                         counter=0),
+                                   counter=0),
                     response=[
                         XMLStreamMock.Receive(
                             nonza.SMResumed(previd="foobar",
-                                                  counter=2)
+                                            counter=2)
                         ),
                         XMLStreamMock.Receive(
                             nonza.SMRequest()
@@ -4605,7 +4605,7 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
                 self.xmlstream.run_test([
                     XMLStreamMock.Send(
                         nonza.SMResume(previd="foobar",
-                                             counter=0),
+                                       counter=0),
                         response=XMLStreamMock.Receive(
                             nonza.SMFailed()
                         )
@@ -5210,9 +5210,9 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
                         nonza.SMEnable(resume=True),
                         response=XMLStreamMock.Receive(
                             nonza.SMEnabled(resume=True,
-                                                  id_="foobar",
-                                                  location=("fe80::", 5222),
-                                                  max_=1200)
+                                            id_="foobar",
+                                            location=("fe80::", 5222),
+                                            max_=1200)
                         )
                     )
                 ]
@@ -5260,9 +5260,9 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
                         response=[
                             XMLStreamMock.Receive(
                                 nonza.SMEnabled(resume=True,
-                                                      id_="foobar",
-                                                      location=("fe80::", 5222),
-                                                      max_=1200)
+                                                id_="foobar",
+                                                location=("fe80::", 5222),
+                                                max_=1200)
                             ),
                             XMLStreamMock.Fail(
                                 ConnectionError()
@@ -5819,7 +5819,7 @@ class Testiq_handler(unittest.TestCase):
         # we need to generate a trackback object
         try:
             raise ValueError()
-        except:
+        except:  # NOQA
             info = sys.exc_info()
 
         result = self.cm.__exit__(*info)
@@ -5881,7 +5881,7 @@ class Testmessage_handler(unittest.TestCase):
         # we need to generate a trackback object
         try:
             raise ValueError()
-        except:
+        except:  # NOQA
             info = sys.exc_info()
 
         result = self.cm.__exit__(*info)
@@ -5943,7 +5943,7 @@ class Testpresence_handler(unittest.TestCase):
         # we need to generate a trackback object
         try:
             raise ValueError()
-        except:
+        except:  # NOQA
             info = sys.exc_info()
 
         result = self.cm.__exit__(*info)
