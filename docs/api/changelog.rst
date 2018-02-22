@@ -236,6 +236,9 @@ Version 0.10
 
 * Harden MUC implementation against incomplete presence stanzas.
 
+* Support for escaping additional characters as entities when writing XML, see
+  the `additional_escapes` argument to :class:`aioxmpp.xml.XMPPXMLGenerator`.
+
 .. _api-changelog-0.9:
 
 Version 0.9

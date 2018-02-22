@@ -72,6 +72,12 @@ TEST_TREE = b"""<weatherdata xmlns:xsi="http://www.w3.org/2001/XMLSchema-instanc
 </product></weatherdata>"""
 # end of data extracted from http://api.met.no
 
+TEST_ESCAPING_TREE = (
+    b"<foo bar='with &#10;linebreak'>and also\n"
+    b"text with linebreaks, even DOS-ones\r\n"
+    b"</foo>"
+)
+
 
 class Cls(xso.XSO):
     TAG = ("uri:foo", "bar")
@@ -320,6 +326,39 @@ class TestXMPPXMLGenerator(XMLTestCase):
             self.buf.getvalue()
         )
 
+    def test_text_escaping_additional(self):
+        gen = xml.XMPPXMLGenerator(
+            self.buf,
+            additional_escapes="\r\nf",
+        )
+        gen.startDocument()
+        gen.startElementNS((None, "foo"), None, None)
+        gen.characters("<fo&\r\no>")
+        gen.endElementNS((None, "foo"), None)
+        gen.endDocument()
+
+        self.assertEqual(
+            b'<?xml version="1.0"?>'
+            b"<foo>&lt;&#102;o&amp;&#13;&#10;o&gt;</foo>",
+            self.buf.getvalue()
+        )
+
+    def test_attribute_escaping_additional(self):
+        gen = xml.XMPPXMLGenerator(
+            self.buf,
+            additional_escapes="\r\na",
+        )
+        gen.startDocument()
+        gen.startElementNS((None, "foo"), None, {(None, "foo"): "b\r\nar"})
+        gen.endElementNS((None, "foo"), None)
+        gen.endDocument()
+
+        self.assertEqual(
+            b'<?xml version="1.0"?>'
+            b'<foo foo="b&#13;&#10;&#97;r"/>',
+            self.buf.getvalue()
+        )
+
     def test_interleave_setup_and_teardown_of_namespaces(self):
         gen = xml.XMPPXMLGenerator(self.buf, short_empty_elements=True)
         gen.startDocument()
@@ -355,6 +394,21 @@ class TestXMPPXMLGenerator(XMLTestCase):
         self.assertSubtreeEqual(
             tree,
             tree2)
+
+    def test_additional_escape_full_roundtrip(self):
+        tree = etree.fromstring(TEST_ESCAPING_TREE)
+        gen = xml.XMPPXMLGenerator(self.buf,
+                                   short_empty_elements=True,
+                                   additional_escapes="a\r\n")
+        lxml.sax.saxify(tree, gen)
+
+        tree2 = etree.fromstring(self.buf.getvalue())
+
+        self.assertSubtreeEqual(
+            tree,
+            tree2)
+
+        self.assertNotIn(b"\r", self.buf.getvalue())
 
     def test_reject_processing_instruction(self):
         gen = xml.XMPPXMLGenerator(self.buf)

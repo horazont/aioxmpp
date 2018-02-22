@@ -113,6 +113,9 @@ class XMPPXMLGenerator:
     :param sorted_attributes: Sort the attributes in the output. Note: this
         comes with a performance penalty. See below.
     :type sorted_attributes: :class:`bool`
+    :param additional_escapes: Sequence of characters to escape in CDATA.
+    :type additional_escapes: :class:`~collections.abc.Iterable` of
+        1-codepoint :class:`str` objects.
 
     :class:`XMPPXMLGenerator` works similar to
     :class:`xml.sax.saxutils.XMLGenerator`, but has a few key differences:
@@ -138,6 +141,15 @@ class XMPPXMLGenerator:
     always sorted and always before the normal attributes). The default is not
     to do this, for performance. During testing, however, it is useful to have
     a consistent oder on the attributes.
+
+    All characters in `additional_escapes` are escaped using XML entities. Note
+    that ``<``, ``>`` and ``&`` are always escaped. `additional_escapes` is
+    converted to a dictionary for use with :func:`~xml.sax.saxutils.escape` and
+    :func:`~xml.sax.saxutils.quoteattr`. Passing a dictionary to
+    `additional_escapes` or passing multi-character strings as elements of
+    `additional_escapes` is **not** supported since it may be (ab-)used to
+    create invalid XMPP XML. `additional_escapes` affects both CDATA in XML
+    elements as well as attribute values.
 
     Implementation of the SAX content handler interface (see
     :class:`xml.sax.handler.ContentHandler`):
@@ -184,7 +196,8 @@ class XMPPXMLGenerator:
     """
     def __init__(self, out,
                  short_empty_elements=True,
-                 sorted_attributes=False):
+                 sorted_attributes=False,
+                 additional_escapes=[]):
         self._write = out.write
         if hasattr(out, "flush"):
             self._flush = out.flush
@@ -193,6 +206,11 @@ class XMPPXMLGenerator:
 
         self._short_empty_elements = short_empty_elements
         self._sorted_attributes = sorted_attributes
+
+        self._additional_escapes = {
+            char: "&#{};".format(ord(char))
+            for char in additional_escapes
+        }
 
         # NOTE: when adding state, make sure to handle it in buffer() and to
         # add tests that buffer() handles it correctly
@@ -406,7 +424,10 @@ class XMPPXMLGenerator:
             self._write(attrname.encode("utf-8"))
             self._write(b"=")
             self._write(
-                xml.sax.saxutils.quoteattr(value).encode("utf-8")
+                xml.sax.saxutils.quoteattr(
+                    value,
+                    self._additional_escapes,
+                ).encode("utf-8")
             )
 
         if self._short_empty_elements:
@@ -460,7 +481,10 @@ class XMPPXMLGenerator:
         if not is_valid_cdata_str(chars):
             raise ValueError("control characters are not allowed in "
                              "well-formed XML")
-        self._write(xml.sax.saxutils.escape(chars).encode("utf-8"))
+        self._write(xml.sax.saxutils.escape(
+            chars,
+            self._additional_escapes,
+        ).encode("utf-8"))
 
     def processingInstruction(self, target, data):
         """
