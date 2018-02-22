@@ -1290,26 +1290,37 @@ class Client:
 
         .. versionadded:: 0.8
         """
-        stopped_fut = self.on_stopped.future()
-        failure_fut = self.on_failure.future()
-        established_fut = asyncio.ensure_future(self.established_event.wait())
-        done, pending = yield from asyncio.wait(
-            [
-                established_fut,
-                failure_fut,
-                stopped_fut,
-            ],
-            return_when=asyncio.FIRST_COMPLETED,
-        )
-        if not established_fut.done():
-            established_fut.cancel()
-        if failure_fut.done():
-            if not stopped_fut.done():
-                stopped_fut.cancel()
-            failure_fut.exception()
-            raise ConnectionError("client failed to connect")
-        if stopped_fut.done():
-            raise ConnectionError("client shut down by user request")
+        if not self.running:
+            raise ConnectionError("client is not running")
+
+        if not self.established:
+            self.logger.debug("send(%s): stream not established, waiting",
+                              stanza)
+            # wait for the stream to be established
+            stopped_fut = self.on_stopped.future()
+            failure_fut = self.on_failure.future()
+            established_fut = asyncio.ensure_future(
+                self.established_event.wait()
+            )
+            done, pending = yield from asyncio.wait(
+                [
+                    established_fut,
+                    failure_fut,
+                    stopped_fut,
+                ],
+                return_when=asyncio.FIRST_COMPLETED,
+            )
+            if not established_fut.done():
+                established_fut.cancel()
+            if failure_fut.done():
+                if not stopped_fut.done():
+                    stopped_fut.cancel()
+                failure_fut.exception()
+                raise ConnectionError("client failed to connect")
+            if stopped_fut.done():
+                raise ConnectionError("client shut down by user request")
+
+            self.logger.debug("send(%s): stream established, sending")
 
         return (yield from self.stream._send_immediately(stanza,
                                                          timeout=timeout,

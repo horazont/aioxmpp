@@ -1892,6 +1892,10 @@ class TestClient(xmltestutils.XMLTestCase):
 
     def test_send_blocks_for_established(self):
         with contextlib.ExitStack() as stack:
+            # client needs to be running; fake it here (to avoid interference)
+            self.client._main_task = asyncio.ensure_future(asyncio.sleep(1))
+            stack.callback(self.client._main_task.cancel)
+
             stream_send = stack.enter_context(unittest.mock.patch.object(
                 self.client.stream,
                 "_send_immediately",
@@ -1918,6 +1922,10 @@ class TestClient(xmltestutils.XMLTestCase):
                 timeout=unittest.mock.sentinel.timeout,
                 cb=unittest.mock.sentinel.cb
             )
+
+        # ensure that the "main task" we faked above gets cancelled before the
+        # tearDown runs (which would otherwise try to shut down the stream)
+        run_coroutine(asyncio.sleep(0))
 
     def test_start(self):
         self.assertFalse(self.client.established)
@@ -3591,12 +3599,12 @@ class TestClient(xmltestutils.XMLTestCase):
         self.connect_xmlstream_rec.side_effect = exc
 
         with contextlib.ExitStack() as stack:
+            send_task = asyncio.ensure_future(self.client.send(stanza))
+            # exploiting here that the coroutine will start on the next
+            # schedule; otherwise, client stops too early
             self.client.start()
 
-            send_task = asyncio.ensure_future(self.client.send(stanza))
-
             self.assertTrue(self.client.running)
-            self.assertFalse(self.client.established)
 
             with self.assertRaises(Exception):
                 run_coroutine(self.client.on_failure.future())
@@ -3613,6 +3621,11 @@ class TestClient(xmltestutils.XMLTestCase):
                     ConnectionError,
                     r"client failed to connect"):
                 run_coroutine(send_task)
+
+    def test_send_raises_ConnectionError_if_not_running(self):
+        with self.assertRaisesRegex(ConnectionError,
+                                    "client is not running"):
+            run_coroutine(self.client.send(unittest.mock.sentinel.stanza))
 
     def tearDown(self):
         for patch in self.patches:
@@ -3698,6 +3711,7 @@ class TestPresenceManagedClient(xmltestutils.XMLTestCase):
         ]
 
     def _set_stream_established(self):
+        self.client.established_event.set()
         run_coroutine(self.client.before_stream_established())
         self.client.on_stream_established()
 
