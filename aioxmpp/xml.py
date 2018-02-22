@@ -104,6 +104,16 @@ def is_valid_cdata_str(s):
 
 class XMPPXMLGenerator:
     """
+    Class to generate XMPP-conforming XML bytes.
+
+    :param out: File-like object to which the bytes are written.
+    :param short_empty_elements: Write empty elements as ``<foo/>`` instead of
+        ``<foo></foo>``.
+    :type short_empty_elements: :class:`bool`
+    :param sorted_attributes: Sort the attributes in the output. Note: this
+        comes with a performance penalty. See below.
+    :type sorted_attributes: :class:`bool`
+
     :class:`XMPPXMLGenerator` works similar to
     :class:`xml.sax.saxutils.XMLGenerator`, but has a few key differences:
 
@@ -116,19 +126,18 @@ class XMPPXMLGenerator:
     * It allows explicit flushing
 
     `out` must be a file-like supporting both :meth:`file.write` and
-    :meth:`file.flush`. `encoding` specifies the encoding which is used and
-    **must** be ``utf-8`` for XMPP.
+    :meth:`file.flush`.
 
     If `short_empty_elements` is true, empty elements are rendered as
     ``<foo/>`` instead of ``<foo></foo>``, unless a flush occurs before the
     call to :meth:`endElementNS`, in which case the opening is finished before
     flushing, thus the long form is generated.
 
-    If `sorted_attributes` is :data:`True`, attributes are emitted in the
-    lexical order of their qualified names (except for namespace declarations,
-    which are always sorted and always before the normal attributes). The
-    default is not to do this, for performance. During testing, however, it is
-    useful to have a consistent oder on the attributes.
+    If `sorted_attributes` is true, attributes are emitted in the lexical order
+    of their qualified names (except for namespace declarations, which are
+    always sorted and always before the normal attributes). The default is not
+    to do this, for performance. During testing, however, it is useful to have
+    a consistent oder on the attributes.
 
     Implementation of the SAX content handler interface (see
     :class:`xml.sax.handler.ContentHandler`):
