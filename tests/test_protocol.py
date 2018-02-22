@@ -2013,6 +2013,89 @@ class Testsend_and_wait_for(xmltestutils.XMLTestCase):
 
         self.assertIs(exc, ctx.exception)
 
+    def test_handles_setup_issues_properly(self):
+        class FooException(Exception):
+            pass
+
+        def generate_results():
+            yield
+            yield FooException()
+
+        xmlstream = unittest.mock.Mock(spec=protocol.XMLStream)
+        xmlstream.stanza_parser = unittest.mock.Mock(spec=xso.XSOParser)
+        xmlstream.stanza_parser.add_class.side_effect = generate_results()
+
+        with self.assertRaises(FooException):
+            run_coroutine(
+                protocol.send_and_wait_for(
+                    xmlstream,
+                    [unittest.mock.sentinel.send],
+                    [
+                        unittest.mock.sentinel.c1,
+                        unittest.mock.sentinel.c2,
+                    ]
+                )
+            )
+
+        self.assertSequenceEqual(
+            xmlstream.stanza_parser.mock_calls,
+            [
+                unittest.mock.call.add_class(
+                    unittest.mock.sentinel.c1,
+                    unittest.mock.ANY,
+                ),
+                unittest.mock.call.add_class(
+                    unittest.mock.sentinel.c2,
+                    unittest.mock.ANY,
+                ),
+                unittest.mock.call.remove_class(
+                    unittest.mock.sentinel.c1,
+                ),
+            ]
+        )
+
+    def test_handles_send_issues_properly(self):
+        class FooException(Exception):
+            pass
+
+        xmlstream = unittest.mock.Mock(spec=protocol.XMLStream)
+        xmlstream.stanza_parser = unittest.mock.Mock(spec=xso.XSOParser)
+        xmlstream.send_xso.side_effect = FooException()
+
+        with self.assertRaises(FooException):
+            run_coroutine(
+                protocol.send_and_wait_for(
+                    xmlstream,
+                    [unittest.mock.sentinel.send],
+                    [
+                        unittest.mock.sentinel.c1,
+                        unittest.mock.sentinel.c2,
+                    ]
+                )
+            )
+
+        self.assertSequenceEqual(
+            xmlstream.mock_calls,
+            [
+                unittest.mock.call.error_future(),
+                unittest.mock.call.stanza_parser.add_class(
+                    unittest.mock.sentinel.c1,
+                    unittest.mock.ANY,
+                ),
+                unittest.mock.call.stanza_parser.add_class(
+                    unittest.mock.sentinel.c2,
+                    unittest.mock.ANY,
+                ),
+                unittest.mock.call.send_xso(unittest.mock.sentinel.send),
+                unittest.mock.call.stanza_parser.remove_class(
+                    unittest.mock.sentinel.c2,
+                ),
+                unittest.mock.call.stanza_parser.remove_class(
+                    unittest.mock.sentinel.c1,
+                ),
+            ]
+        )
+
 
 class Testreset_stream_and_get_features(xmltestutils.XMLTestCase):
     def setUp(self):

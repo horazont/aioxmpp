@@ -768,23 +768,23 @@ def send_and_wait_for(xmlstream, send, wait_for, timeout=None):
     fut = asyncio.Future()
     wait_for = list(wait_for)
 
-    def cleanup():
-        for anticipated_cls in wait_for:
-            xmlstream.stanza_parser.remove_class(anticipated_cls)
-
     def receive(obj):
-        nonlocal fut
+        nonlocal fut, stack
         fut.set_result(obj)
-        cleanup()
+        stack.close()
 
     failure_future = xmlstream.error_future()
 
-    for anticipated_cls in wait_for:
-        xmlstream.stanza_parser.add_class(
-            anticipated_cls,
-            receive)
+    with contextlib.ExitStack() as stack:
+        for anticipated_cls in wait_for:
+            xmlstream.stanza_parser.add_class(
+                anticipated_cls,
+                receive)
+            stack.callback(
+                xmlstream.stanza_parser.remove_class,
+                anticipated_cls,
+            )
 
-    try:
         for to_send in send:
             xmlstream.send_xso(to_send)
 
@@ -807,9 +807,6 @@ def send_and_wait_for(xmlstream, send, wait_for, timeout=None):
             failure_future.result()
 
         raise TimeoutError()
-    except:  # NOQA
-        cleanup()
-        raise
 
 
 @asyncio.coroutine
