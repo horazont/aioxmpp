@@ -61,7 +61,7 @@ class SendMessage(Example):
         msg.raw.append(self.args.xml)
 
         print("sending message ...")
-        yield from self.client.stream.send(msg)
+        yield from self.client.send(msg)
         print("message sent!")
 
 
