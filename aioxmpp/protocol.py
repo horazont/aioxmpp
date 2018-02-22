@@ -764,12 +764,16 @@ class XMLStream(asyncio.Protocol):
 
 
 @asyncio.coroutine
-def send_and_wait_for(xmlstream, send, wait_for, timeout=None):
+def send_and_wait_for(xmlstream, send, wait_for,
+                      timeout=None,
+                      cb=None):
     fut = asyncio.Future()
     wait_for = list(wait_for)
 
     def receive(obj):
         nonlocal fut, stack
+        if cb is not None:
+            cb(obj)
         fut.set_result(obj)
         stack.close()
 

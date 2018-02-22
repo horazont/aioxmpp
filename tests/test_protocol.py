@@ -2096,6 +2096,53 @@ class Testsend_and_wait_for(xmltestutils.XMLTestCase):
             ]
         )
 
+    def test_receive_handler_invokes_cb(self):
+        class_added_fut = asyncio.Future()
+        error_future = asyncio.Future()
+
+        def class_added(*args, **kwargs):
+            class_added_fut.set_result(None)
+            return None
+
+        xmlstream = unittest.mock.Mock(spec=protocol.XMLStream)
+        xmlstream.error_future.return_value = error_future
+        xmlstream.stanza_parser = unittest.mock.Mock(spec=xso.XSOParser)
+        xmlstream.stanza_parser.add_class.side_effect = class_added
+        xmlstream._loop = self.loop
+
+        cb_mock = unittest.mock.Mock()
+        cb_mock.return_value = None
+
+        task = asyncio.ensure_future(
+            protocol.send_and_wait_for(
+                xmlstream,
+                [
+                    unittest.mock.sentinel.send,
+                ],
+                [
+                    unittest.mock.sentinel.c1,
+                ],
+                cb=cb_mock
+            )
+        )
+
+        run_coroutine(class_added_fut)
+
+        xmlstream.stanza_parser.add_class.assert_called_once_with(
+            unittest.mock.sentinel.c1,
+            unittest.mock.ANY,
+        )
+
+        _, (_, cb), _ = xmlstream.stanza_parser.add_class.mock_calls[0]
+
+        cb_mock.assert_not_called()
+
+        cb(unittest.mock.sentinel.obj)
+        cb_mock.assert_called_once_with(unittest.mock.sentinel.obj)
+
+        result = run_coroutine(task)
+        self.assertEqual(result, unittest.mock.sentinel.obj)
+
 
 class Testreset_stream_and_get_features(xmltestutils.XMLTestCase):
     def setUp(self):
