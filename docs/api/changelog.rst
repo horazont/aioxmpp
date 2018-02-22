@@ -248,6 +248,13 @@ Version 0.10
   ``unsupported-stanza-type`` because :mod:`aioxmpp` failed to interpret SM
   requests.
 
+* Move :meth:`aioxmpp.stream.StanzaStream.enqueue` and
+  :meth:`aioxmpp.stream.StanzaStream.send` to the client as
+  :meth:`aioxmpp.node.Client.enqueue` and :meth:`aioxmpp.node.Client.send`.
+
+  The old names are deprecated, but aliases are provided until version 1.0.
+
+
 .. _api-changelog-0.9:
 
 Version 0.9

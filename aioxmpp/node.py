@@ -567,6 +567,12 @@ class Client:
        when :attr:`before_stream_established` fires, the information is
        up-to-date.
 
+    Sending stanzas:
+
+    .. automethod:: send
+
+    .. automethod:: enqueue
+
     Configuration of exponential backoff for reconnects:
 
     .. attribute:: backoff_start
@@ -756,6 +762,26 @@ class Client:
         self.stream._xxx_presence_dispatcher = self.summon(
             dispatcher.SimplePresenceDispatcher,
         )
+
+        def send_warner(*args, **kwargs):
+            warnings.warn("send() on StanzaStream is deprecated and will "
+                          "be removed in 1.0. Use send() on the Client "
+                          "instead.",
+                          DeprecationWarning,
+                          stacklevel=1)
+            return self.send(*args, **kwargs)
+
+        self.stream.send = send_warner
+
+        def enqueue_warner(*args, **kwargs):
+            warnings.warn("enqueue() on StanzaStream is deprecated and will "
+                          "be removed in 1.0. Use enqueue() on the Client "
+                          "instead.",
+                          DeprecationWarning,
+                          stacklevel=1)
+            return self.enqueue(*args, **kwargs)
+
+        self.stream.enqueue = enqueue_warner
 
     def _stream_failure(self, exc):
         if self._failure_future.done():
@@ -1131,6 +1157,128 @@ class Client:
         .. versionadded:: 0.8
         """
         return UseConnected(self, presence=presence, **kwargs)
+
+    def enqueue(self, stanza, **kwargs):
+        """
+        Put a `stanza` in the internal transmission queue and return a token to
+        track it.
+
+        :param stanza: Stanza to send
+        :type stanza: :class:`IQ`, :class:`Message` or :class:`Presence`
+        :param kwargs: see :class:`StanzaToken`
+        :return: token which tracks the stanza
+        :rtype: :class:`StanzaToken`
+
+        The `stanza` is enqueued in the active queue for transmission and will
+        be sent on the next opportunity. The relative ordering of stanzas
+        enqueued is always preserved.
+
+        Return a fresh :class:`StanzaToken` instance which traks the progress
+        of the transmission of the `stanza`. The `kwargs` are forwarded to the
+        :class:`StanzaToken` constructor.
+
+        This method calls :meth:`~.stanza.StanzaBase.autoset_id` on the stanza
+        automatically.
+
+        .. seealso::
+
+           :meth:`send`
+              for a more high-level way to send stanzas.
+
+        .. versionchanged:: 0.10
+
+            This method has been moved from
+            :meth:`aioxmpp.stream.StanzaStream.enqueue`.
+        """
+        return self.stream._enqueue(stanza, **kwargs)
+
+    @asyncio.coroutine
+    def send(self, stanza, *, timeout=None, cb=None):
+        """
+        Send a stanza.
+
+        :param stanza: Stanza to send
+        :type stanza: :class:`~.IQ`, :class:`~.Presence` or :class:`~.Message`
+        :param timeout: Maximum time in seconds to wait for an IQ response, or
+                        :data:`None` to disable the timeout.
+        :type timeout: :class:`~numbers.Real` or :data:`None`
+        :param cb: Optional callback which is called synchronously when the
+            reply is received (IQ requests only!)
+        :raise OSError: if the underlying XML stream fails and stream
+                        management is not disabled.
+        :raise aioxmpp.stream.DestructionRequested:
+           if the stream is closed while sending the stanza or waiting for a
+           response.
+        :raise aioxmpp.errors.XMPPError: if an error IQ response is received
+        :raise aioxmpp.errors.ErroneousStanza: if the IQ response could not be
+            parsed
+        :raise ValueError: if `cb` is given and `stanza` is not an IQ request.
+        :return: IQ response :attr:`~.IQ.payload` or :data:`None`
+
+        Send the stanza and wait for it to be sent. If the stanza is an IQ
+        request, the response is awaited and the :attr:`~.IQ.payload` of the
+        response is returned.
+
+        If the stream is currently not ready, this method blocks until the
+        stream is ready to send payload stanzas. Note that this may be before
+        initial presence has been sent. To synchronise with that type of events,
+        use the appropriate signals.
+
+        The `timeout` as well as any of the exception cases referring to a
+        "response" do not apply for IQ response stanzas, message stanzas or
+        presence stanzas sent with this method, as this method only waits for
+        a reply if an IQ *request* stanza is being sent.
+
+        If `stanza` is an IQ request and the response is not received within
+        `timeout` seconds, :class:`TimeoutError` (not
+        :class:`asyncio.TimeoutError`!) is raised.
+
+        If `cb` is given, `stanza` must be an IQ request (otherwise,
+        :class:`ValueError` is raised before the stanza is sent). It must be a
+        callable returning an awaitable. It receives the response stanza as
+        first and only argument. The returned awaitable is awaited by
+        :meth:`send` and the result is returned instead of the original
+        payload. `cb` is called synchronously from the stream handling loop when
+        the response is received, so it can benefit from the strong ordering
+        guarantees given by XMPP XML Streams.
+
+        The `cb` may also return :data:`None`, in which case :meth:`send` will
+        simply return the IQ payload as if `cb` was not given. Since the return
+        value of coroutine functions is awaitable, it is valid and supported to
+        pass a coroutine function as `cb`.
+
+        .. warning::
+
+            Remember that it is an implementation detail of the event loop when
+            a coroutine is scheduled after it awaited an awaitable; this implies
+            that if the caller of :meth:`send` is merely awaiting the
+            :meth:`send` coroutine, the strong ordering guarantees of XMPP XML
+            Streams are lost.
+
+            To regain those, use the `cb` argument.
+
+        .. note::
+
+            For the sake of readability, unless you really need the strong
+            ordering guarantees, avoid the use of the `cb` argument. Avoid
+            using a coroutine function unless you really need to.
+
+        .. versionchanged:: 0.10
+
+            * This method now waits until the stream is ready to send stanza¸
+              payloads.
+            * This method was moved from
+              :meth:`aioxmpp.stream.StanzaStream.send`.
+
+        .. versionchanged:: 0.9
+
+            The `cb` argument was added.
+
+        .. versionadded:: 0.8
+        """
+        return (yield from self.stream._send_immediately(stanza,
+                                                         timeout=timeout,
+                                                         cb=cb))
 
 
 class PresenceManagedClient(Client):

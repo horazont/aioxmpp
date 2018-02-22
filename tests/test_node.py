@@ -1787,6 +1787,68 @@ class TestClient(xmltestutils.XMLTestCase):
         with self.assertRaises(AttributeError):
             client.local_jid = structs.JID.fromstr("bar@bar.example/baz")
 
+    def test_monkeypatches_send_and_warns_on_use(self):
+        client = node.Client(
+            self.test_jid,
+            self.security_layer,
+            negotiation_timeout=timedelta(seconds=30)
+        )
+
+        with contextlib.ExitStack() as stack:
+            client_send = stack.enter_context(unittest.mock.patch.object(
+                client,
+                "send",
+                new=CoroutineMock()
+            ))
+
+            with self.assertWarnsRegex(
+                    DeprecationWarning,
+                    r"send\(\) on StanzaStream is deprecated and "
+                    r"will be removed in 1\.0. Use send\(\) on the Client "
+                    r"instead."):
+                run_coroutine(client.stream.send(
+                    unittest.mock.sentinel.foo,
+                    unittest.mock.sentinel.bar,
+                    fnord=unittest.mock.sentinel.foo,
+                ))
+
+            client_send.assert_called_once_with(
+                unittest.mock.sentinel.foo,
+                unittest.mock.sentinel.bar,
+                fnord=unittest.mock.sentinel.foo,
+            )
+
+    def test_monkeypatches_enqueue_and_warns_on_use(self):
+        client = node.Client(
+            self.test_jid,
+            self.security_layer,
+            negotiation_timeout=timedelta(seconds=30)
+        )
+
+        with contextlib.ExitStack() as stack:
+            client_enqueue = stack.enter_context(unittest.mock.patch.object(
+                client,
+                "enqueue",
+                new=CoroutineMock()
+            ))
+
+            with self.assertWarnsRegex(
+                    DeprecationWarning,
+                    r"enqueue\(\) on StanzaStream is deprecated and "
+                    r"will be removed in 1\.0. Use enqueue\(\) on the Client "
+                    r"instead."):
+                run_coroutine(client.stream.enqueue(
+                    unittest.mock.sentinel.foo,
+                    unittest.mock.sentinel.bar,
+                    fnord=unittest.mock.sentinel.foo,
+                ))
+
+            client_enqueue.assert_called_once_with(
+                unittest.mock.sentinel.foo,
+                unittest.mock.sentinel.bar,
+                fnord=unittest.mock.sentinel.foo,
+            )
+
     def test_start(self):
         self.assertFalse(self.client.established)
         run_coroutine(asyncio.sleep(0))

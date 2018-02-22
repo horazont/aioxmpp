@@ -427,6 +427,16 @@ class StanzaStream:
 
     Sending stanzas:
 
+    .. deprecated:: 0.10
+
+        Sending stanzas directly on the stream is deprecated. The methods
+        have been moved to the client:
+
+        .. autosummary::
+
+            aioxmpp.Client.send
+            aioxmpp.Client.enqueue
+
     .. automethod:: send
 
     .. automethod:: enqueue
@@ -866,7 +876,7 @@ class StanzaStream:
         else:
             response = request.make_reply(type_=structs.IQType.RESULT)
             response.payload = payload
-        self.enqueue(response)
+        self._enqueue(response)
 
     def _process_incoming_iq(self, stanza_obj):
         """
@@ -914,7 +924,7 @@ class StanzaStream:
                     condition=(namespaces.stanzas,
                                "service-unavailable"),
                 )
-                self.enqueue(response)
+                self._enqueue(response)
                 return
 
             try:
@@ -1013,13 +1023,13 @@ class StanzaStream:
                 namespaces.stanzas,
                 "service-unavailable")
             ))
-            self.enqueue(reply)
+            self._enqueue(reply)
         elif isinstance(exc, stanza.PayloadParsingError):
             reply = stanza_obj.make_error(error=stanza.Error(condition=(
                 namespaces.stanzas,
                 "bad-request")
             ))
-            self.enqueue(reply)
+            self._enqueue(reply)
 
     def _process_incoming(self, xmlstream, queue_entry):
         """
@@ -1952,33 +1962,7 @@ class StanzaStream:
     def recv_erroneous_stanza(self, partial_obj, exc):
         self._incoming_queue.put_nowait((partial_obj, exc))
 
-    def enqueue(self, stanza, **kwargs):
-        """
-        Put a `stanza` in the internal transmission queue and return a token to
-        track it.
-
-        :param stanza: Stanza to send
-        :type stanza: :class:`IQ`, :class:`Message` or :class:`Presence`
-        :param kwargs: see :class:`StanzaToken`
-        :return: token which tracks the stanza
-        :rtype: :class:`StanzaToken`
-
-        The `stanza` is enqueued in the active queue for transmission and will
-        be sent on the next opportunity. The relative ordering of stanzas
-        enqueued is always preserved.
-
-        Return a fresh :class:`StanzaToken` instance which traks the progress
-        of the transmission of the `stanza`. The `kwargs` are forwarded to the
-        :class:`StanzaToken` constructor.
-
-        This method calls :meth:`~.stanza.StanzaBase.autoset_id` on the stanza
-        automatically.
-
-        .. seealso::
-
-           :meth:`send`
-              for a more high-level way to send stanzas.
-        """
+    def _enqueue(self, stanza, **kwargs):
         if self._closed:
             raise self._xmlstream_exception
 
@@ -1990,7 +1974,19 @@ class StanzaStream:
                            stanza, token)
         return token
 
-    enqueue_stanza = enqueue
+    enqueue_stanza = _enqueue
+
+    def enqueue(self, stanza, **kwargs):
+        """
+        Deprecated alias of :meth:`aioxmpp.Client.enqueue`.
+
+        This is only available on streams owned by a :class:`aioxmpp.Client`.
+
+        .. deprecated:: 0.10
+        """
+        raise NotImplementedError(
+            "only available on streams owned by a Client"
+        )
 
     @property
     def running(self):
@@ -2448,79 +2444,16 @@ class StanzaStream:
             DeprecationWarning,
             stacklevel=1,
         )
-        yield from self.enqueue(stanza)
+        yield from self._enqueue(stanza)
 
     @asyncio.coroutine
-    def send(self, stanza, *, timeout=None, cb=None):
+    def _send_immediately(self, stanza, *, timeout=None, cb=None):
         """
-        Send a stanza.
+        Send a stanza without waiting for the stream to be ready to send
+        stanzas.
 
-        :param stanza: Stanza to send
-        :type stanza: :class:`~.IQ`, :class:`~.Presence` or :class:`~.Message`
-        :param timeout: Maximum time in seconds to wait for an IQ response, or
-                        :data:`None` to disable the timeout.
-        :type timeout: :class:`~numbers.Real` or :data:`None`
-        :param cb: Optional callback which is called synchronously when the
-            reply is received (IQ requests only!)
-        :raise OSError: if the underlying XML stream fails and stream
-                        management is not disabled.
-        :raise aioxmpp.stream.DestructionRequested:
-           if the stream is closed while sending the stanza or waiting for a
-           response.
-        :raise aioxmpp.errors.XMPPError: if an error IQ response is received
-        :raise aioxmpp.errors.ErroneousStanza: if the IQ response could not be
-            parsed
-        :raise ValueError: if `cb` is given and `stanza` is not an IQ request.
-        :return: IQ response :attr:`~.IQ.payload` or :data:`None`
-
-        Send the stanza and wait for it to be sent. If the stanza is an IQ
-        request, the response is awaited and the :attr:`~.IQ.payload` of the
-        response is returned.
-
-        The `timeout` as well as any of the exception cases referring to a
-        "response" do not apply for IQ response stanzas, message stanzas or
-        presence stanzas sent with this method, as this method only waits for
-        a reply if an IQ *request* stanza is being sent.
-
-        If `stanza` is an IQ request and the response is not received within
-        `timeout` seconds, :class:`TimeoutError` (not
-        :class:`asyncio.TimeoutError`!) is raised.
-
-        If `cb` is given, `stanza` must be an IQ request (otherwise,
-        :class:`ValueError` is raised before the stanza is sent). It must be a
-        callable returning an awaitable. It receives the response stanza as
-        first and only argument. The returned awaitable is awaited by
-        :meth:`send` and the result is returned instead of the original
-        payload. `cb` is called synchronously from the stream handling loop when
-        the response is received, so it can benefit from the strong ordering
-        guarantees given by XMPP XML Streams.
-
-        The `cb` may also return :data:`None`, in which case :meth:`send` will
-        simply return the IQ payload as if `cb` was not given. Since the return
-        value of coroutine functions is awaitable, it is valid and supported to
-        pass a coroutine function as `cb`.
-
-        .. warning::
-
-            Remember that it is an implementation detail of the event loop when
-            a coroutine is scheduled after it awaited an awaitable; this implies
-            that if the caller of :meth:`send` is merely awaiting the
-            :meth:`send` coroutine, the strong ordering guarantees of XMPP XML
-            Streams are lost.
-
-            To regain those, use the `cb` argument.
-
-        .. note::
-
-            For the sake of readability, unless you really need the strong
-            ordering guarantees, avoid the use of the `cb` argument. Avoid
-            using a coroutine function unless you really need to.
-
-        .. versionchanged:: 0.9
-
-            The `cb` argument was added.
-
-        .. versionadded:: 0.8
+        This is only useful from within :class:`aioxmpp.node.Client` before
+        the stream is fully established.
         """
         stanza.autoset_id()
         self._logger.debug("sending %r and waiting for it to be sent",
@@ -2531,7 +2464,7 @@ class StanzaStream:
                 raise ValueError(
                     "cb not supported with non-IQ non-request stanzas"
                 )
-            yield from self.enqueue(stanza)
+            yield from self._enqueue(stanza)
             return
 
         # we use the long way with a custom listener instead of a future here
@@ -2603,7 +2536,7 @@ class StanzaStream:
         )
 
         try:
-            yield from self.enqueue(stanza)
+            yield from self._enqueue(stanza)
         except Exception:
             listener.cancel()
             raise
@@ -2619,6 +2552,17 @@ class StanzaStream:
             except asyncio.TimeoutError:
                 raise TimeoutError
         return reply
+
+    @asyncio.coroutine
+    def send(self, stanza, timeout=None, *, cb=None):
+        """
+        Deprecated alias of :meth:`aioxmpp.Client.send`.
+
+        This is only available on streams owned by a :class:`aioxmpp.Client`.
+
+        .. deprecated:: 0.10
+        """
+        raise NotImplementedError("only available on streams owned by a Client")
 
 
 @contextlib.contextmanager
