@@ -54,6 +54,7 @@ from aioxmpp.testutils import (
     XMLStreamMock,
     run_coroutine_with_peer,
     make_connected_client,
+    make_listener,
     CoroutineMock,
 )
 
@@ -1651,6 +1652,7 @@ class TestClient(xmltestutils.XMLTestCase):
         self.suspended_rec.return_value = None
         self.destroyed_rec = unittest.mock.MagicMock()
         self.destroyed_rec.return_value = None
+
         self.security_layer = object()
 
         self.loop = asyncio.get_event_loop()
@@ -1672,10 +1674,11 @@ class TestClient(xmltestutils.XMLTestCase):
             self.security_layer,
             max_initial_attempts=None,
             loop=self.loop)
-        self.client.on_failure.connect(self.failure_rec)
-        self.client.on_stream_destroyed.connect(self.destroyed_rec)
-        self.client.on_stream_established.connect(self.established_rec)
-        self.client.on_stream_suspended.connect(self.suspended_rec)
+        self.listener = make_listener(self.client)
+        self.failure_rec = self.listener.on_failure
+        self.destroyed_rec = self.listener.on_stream_destroyed
+        self.established_rec = self.listener.on_stream_established
+        self.suspended_rec = self.listener.on_stream_suspended
 
         # some XMLStreamMock test case parts
         self.sm_negotiation_exchange = [
@@ -1784,6 +1787,8 @@ class TestClient(xmltestutils.XMLTestCase):
             aioxmpp.dispatcher.SimplePresenceDispatcher,
         )
 
+        self.assertIsInstance(client.established_event, asyncio.Event)
+
         with self.assertRaises(AttributeError):
             client.local_jid = structs.JID.fromstr("bar@bar.example/baz")
 
@@ -1847,6 +1852,71 @@ class TestClient(xmltestutils.XMLTestCase):
                 unittest.mock.sentinel.foo,
                 unittest.mock.sentinel.bar,
                 fnord=unittest.mock.sentinel.foo,
+            )
+
+    def test_enqueue_raises_ConnectionError_if_not_valid(self):
+        with contextlib.ExitStack() as stack:
+            stream_enqueue = stack.enter_context(unittest.mock.patch.object(
+                self.client.stream,
+                "_enqueue",
+            ))
+
+            with self.assertRaisesRegex(ConnectionError,
+                                        r"stream is not ready"):
+                self.client.enqueue(unittest.mock.sentinel.stanza)
+
+            stream_enqueue.assert_not_called()
+
+    def test_enqueue_forwards_if_established(self):
+        with contextlib.ExitStack() as stack:
+            stream_enqueue = stack.enter_context(unittest.mock.patch.object(
+                self.client.stream,
+                "_enqueue",
+            ))
+            stream_enqueue.return_value = unittest.mock.sentinel.result
+
+            self.client.established_event.set()
+
+            result = self.client.enqueue(unittest.mock.sentinel.stanza,
+                                         foo=unittest.mock.sentinel.kw1,
+                                         bar=unittest.mock.sentinel.kw2)
+            stream_enqueue.assert_called_once_with(
+                unittest.mock.sentinel.stanza,
+                foo=unittest.mock.sentinel.kw1,
+                bar=unittest.mock.sentinel.kw2
+            )
+            self.assertEqual(
+                result,
+                unittest.mock.sentinel.result,
+            )
+
+    def test_send_blocks_for_established(self):
+        with contextlib.ExitStack() as stack:
+            stream_send = stack.enter_context(unittest.mock.patch.object(
+                self.client.stream,
+                "_send_immediately",
+                new=CoroutineMock()
+            ))
+            stream_send.return_value = unittest.mock.sentinel.result
+
+            send_task = asyncio.ensure_future(
+                self.client.send(unittest.mock.sentinel.stanza,
+                                 timeout=unittest.mock.sentinel.timeout,
+                                 cb=unittest.mock.sentinel.cb)
+            )
+
+            run_coroutine(asyncio.sleep(0.1))
+
+            stream_send.assert_not_called()
+
+            self.client.established_event.set()
+
+            result = run_coroutine(send_task)
+            self.assertEqual(result, unittest.mock.sentinel.result)
+            stream_send.assert_called_once_with(
+                unittest.mock.sentinel.stanza,
+                timeout=unittest.mock.sentinel.timeout,
+                cb=unittest.mock.sentinel.cb
             )
 
     def test_start(self):
@@ -1966,7 +2036,8 @@ class TestClient(xmltestutils.XMLTestCase):
 
         @asyncio.coroutine
         def stimulus():
-            self.client.stream.enqueue(iq)
+            yield from self.client.established_event.wait()
+            yield from self.client.stream.enqueue(iq)
 
         run_coroutine_with_peer(
             stimulus(),
@@ -2042,7 +2113,8 @@ class TestClient(xmltestutils.XMLTestCase):
 
         @asyncio.coroutine
         def stimulus():
-            self.client.stream.enqueue(iq)
+            yield from self.client.established_event.wait()
+            yield from self.client.stream.enqueue(iq)
 
         run_coroutine_with_peer(
             stimulus(),
@@ -2126,7 +2198,8 @@ class TestClient(xmltestutils.XMLTestCase):
 
         @asyncio.coroutine
         def stimulus():
-            self.client.stream.enqueue(iq)
+            yield from self.client.established_event.wait()
+            yield from self.client.stream.enqueue(iq)
 
         run_coroutine_with_peer(
             stimulus(),
@@ -2196,7 +2269,8 @@ class TestClient(xmltestutils.XMLTestCase):
 
         @asyncio.coroutine
         def stimulus():
-            self.client.stream.enqueue(iq)
+            yield from self.client.established_event.wait()
+            yield from self.client.stream.enqueue(iq)
 
         run_coroutine_with_peer(
             stimulus(),
@@ -3422,6 +3496,7 @@ class TestClient(xmltestutils.XMLTestCase):
     def test_call_before_stream_established(self):
         @asyncio.coroutine
         def coro():
+            self.assertTrue(self.client.established_event.is_set())
             iq = stanza.IQ(
                 type_=structs.IQType.SET,
             )
@@ -3470,6 +3545,74 @@ class TestClient(xmltestutils.XMLTestCase):
         )
 
         self.assertEqual(result, UseConnected())
+
+    def test_send_aborts_with_ConnectionError_if_stopped_while_waiting(self):
+        with contextlib.ExitStack() as stack:
+            self.client.start()
+
+            send_task = asyncio.ensure_future(self.client.send(stanza))
+
+            run_coroutine(self.xmlstream.run_test(
+                [
+                    XMLStreamMock.Send(
+                        stanza.IQ(
+                            payload=rfc6120.Bind(
+                                resource=self.test_jid.resource),
+                            type_=structs.IQType.SET,
+                            id_="autoset"),
+                    )
+                ]
+            ))
+            self.assertTrue(self.client.running)
+            self.assertFalse(self.client.established)
+
+            self.assertFalse(send_task.done())
+
+            self.client.stop()
+
+            run_coroutine(self.xmlstream.run_test([
+                XMLStreamMock.Close()
+            ]))
+
+            self.assertFalse(self.client.running)
+            self.listener.on_stopped.assert_called_once_with()
+
+            run_coroutine(asyncio.sleep(0))
+
+            self.assertTrue(send_task.done())
+
+            with self.assertRaisesRegex(
+                    ConnectionError,
+                    r"client shut down by user request"):
+                run_coroutine(send_task)
+
+    def test_send_raises_ConnectionError_on_failure(self):
+        exc = aiosasl.AuthenticationFailure("not-authorized")
+        self.connect_xmlstream_rec.side_effect = exc
+
+        with contextlib.ExitStack() as stack:
+            self.client.start()
+
+            send_task = asyncio.ensure_future(self.client.send(stanza))
+
+            self.assertTrue(self.client.running)
+            self.assertFalse(self.client.established)
+
+            with self.assertRaises(Exception):
+                run_coroutine(self.client.on_failure.future())
+
+            self.assertFalse(self.client.running)
+
+            self.listener.on_failure.assert_called_once_with(unittest.mock.ANY)
+
+            run_coroutine(asyncio.sleep(0))
+
+            self.assertTrue(send_task.done())
+
+            with self.assertRaisesRegex(
+                    ConnectionError,
+                    r"client failed to connect"):
+                run_coroutine(send_task)
 
     def tearDown(self):
         for patch in self.patches:

@@ -250,10 +250,15 @@ Version 0.10
 
 * Move :meth:`aioxmpp.stream.StanzaStream.enqueue` and
   :meth:`aioxmpp.stream.StanzaStream.send` to the client as
-  :meth:`aioxmpp.node.Client.enqueue` and :meth:`aioxmpp.node.Client.send`.
+  :meth:`aioxmpp.Client.enqueue` and :meth:`aioxmpp.Client.send`.
 
   The old names are deprecated, but aliases are provided until version 1.0.
 
+* :meth:`aioxmpp.Client.enqueue` now raises :class:`ConnectionError` if the
+  stream of the client is not :attr:`aioxmpp.Client.established` yet.
+
+* :meth:`aioxmpp.Client.send` now blocks until the stream of the client is
+  :attr:`aioxmpp.Client.established`.
 
 .. _api-changelog-0.9:
 

@@ -550,6 +550,15 @@ class Client:
 
     .. autoattribute:: established
 
+    .. attribute:: established_event
+
+        An :class:`asyncio.Event` which indicates that the stream is
+        established. A stream is valid after resource binding and before it has
+        been destroyed.
+
+        While this event is cleared, :meth:`enqueue` fails with
+        :class:`ConnectionError` and :meth:`send` blocks.
+
     .. autoattribute:: local_jid
 
     .. attribute:: stream
@@ -717,7 +726,6 @@ class Client:
 
         self._backoff_time = None
 
-        self._established = False
         self._is_suspended = False
 
         # track whether the connection succeeded *at least once*
@@ -734,6 +742,7 @@ class Client:
         self.backoff_factor = 1.2
         self.backoff_cap = timedelta(seconds=60)
         self.override_peer = list(override_peer)
+        self.established_event = asyncio.Event()
         self._max_initial_attempts = max_initial_attempts
         self._resumption_timeout = None
 
@@ -803,8 +812,8 @@ class Client:
                 self.on_stream_suspended(reason)
             self._is_suspended = True
 
-        if self._established:
-            self._established = False
+        if self.established_event.is_set():
+            self.established_event.clear()
             self.on_stream_destroyed()
 
     def _on_main_done(self, task):
@@ -832,7 +841,7 @@ class Client:
         self.logger.debug(
             "remote server announces support for legacy sessions"
         )
-        yield from self.stream.send(
+        yield from self.stream._send_immediately(
             stanza.IQ(type_=structs.IQType.SET,
                       payload=rfc3921.Session())
         )
@@ -886,7 +895,7 @@ class Client:
         else:
             yield from self._negotiate_legacy_session()
 
-        self._established = True
+        self.established_event.set()
 
         yield from self.before_stream_established()
 
@@ -899,7 +908,7 @@ class Client:
         iq = stanza.IQ(type_=structs.IQType.SET)
         iq.payload = rfc6120.Bind(resource=self._local_jid.resource)
         try:
-            result = yield from self.stream.send(iq)
+            result = yield from self.stream._send_immediately(iq)
         except errors.XMPPError as exc:
             raise errors.StreamNegotiationFailure(
                 "Resource binding failed: {}".format(exc)
@@ -1107,7 +1116,7 @@ class Client:
         true if the stream is currently established (as defined in
         :attr:`on_stream_established`) and false otherwise.
         """
-        return self._established
+        return self.established_event.is_set()
 
     @property
     def resumption_timeout(self):
@@ -1166,6 +1175,8 @@ class Client:
         :param stanza: Stanza to send
         :type stanza: :class:`IQ`, :class:`Message` or :class:`Presence`
         :param kwargs: see :class:`StanzaToken`
+        :raises ConnectionError: if the stream is not :attr:`established`
+            yet.
         :return: token which tracks the stanza
         :rtype: :class:`StanzaToken`
 
@@ -1190,6 +1201,9 @@ class Client:
             This method has been moved from
             :meth:`aioxmpp.stream.StanzaStream.enqueue`.
         """
+        if not self.established_event.is_set():
+            raise ConnectionError("stream is not ready")
+
         return self.stream._enqueue(stanza, **kwargs)
 
     @asyncio.coroutine
@@ -1205,7 +1219,7 @@ class Client:
         :param cb: Optional callback which is called synchronously when the
             reply is received (IQ requests only!)
         :raise OSError: if the underlying XML stream fails and stream
-                        management is not disabled.
+            management is not disabled.
         :raise aioxmpp.stream.DestructionRequested:
            if the stream is closed while sending the stanza or waiting for a
            response.
@@ -1276,6 +1290,27 @@ class Client:
 
         .. versionadded:: 0.8
         """
+        stopped_fut = self.on_stopped.future()
+        failure_fut = self.on_failure.future()
+        established_fut = asyncio.ensure_future(self.established_event.wait())
+        done, pending = yield from asyncio.wait(
+            [
+                established_fut,
+                failure_fut,
+                stopped_fut,
+            ],
+            return_when=asyncio.FIRST_COMPLETED,
+        )
+        if not established_fut.done():
+            established_fut.cancel()
+        if failure_fut.done():
+            if not stopped_fut.done():
+                stopped_fut.cancel()
+            failure_fut.exception()
+            raise ConnectionError("client failed to connect")
+        if stopped_fut.done():
+            raise ConnectionError("client shut down by user request")
+
         return (yield from self.stream._send_immediately(stanza,
                                                          timeout=timeout,
                                                          cb=cb))
