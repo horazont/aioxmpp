@@ -965,7 +965,7 @@ class TestDiscoClient(unittest.TestCase):
         node = "foobar"
         response = disco_xso.InfoQuery()
 
-        self.cc.stream.send.return_value = response
+        self.cc.send.return_value = response
 
         result = run_coroutine(
             self.s.send_and_decode_info_query(to, node)
@@ -975,10 +975,10 @@ class TestDiscoClient(unittest.TestCase):
 
         self.assertEqual(
             1,
-            len(self.cc.stream.send.mock_calls)
+            len(self.cc.send.mock_calls)
         )
 
-        call, = self.cc.stream.send.mock_calls
+        call, = self.cc.send.mock_calls
         # call[1] are args
         request_iq, = call[1]
 
@@ -1449,7 +1449,7 @@ class TestDiscoClient(unittest.TestCase):
         to = structs.JID.fromstr("user@foo.example/res1")
         response = disco_xso.ItemsQuery()
 
-        self.cc.stream.send.return_value = response
+        self.cc.send.return_value = response
 
         result = run_coroutine(
             self.s.query_items(to)
@@ -1458,10 +1458,10 @@ class TestDiscoClient(unittest.TestCase):
         self.assertIs(result, response)
         self.assertEqual(
             1,
-            len(self.cc.stream.send.mock_calls)
+            len(self.cc.send.mock_calls)
         )
 
-        call, = self.cc.stream.send.mock_calls
+        call, = self.cc.send.mock_calls
         # call[1] are args
         request_iq, = call[1]
 
@@ -1481,7 +1481,7 @@ class TestDiscoClient(unittest.TestCase):
         to = structs.JID.fromstr("user@foo.example/res1")
         response = disco_xso.ItemsQuery()
 
-        self.cc.stream.send.return_value = response
+        self.cc.send.return_value = response
 
         with self.assertRaises(TypeError):
             self.s.query_items(to, "foobar")
@@ -1493,10 +1493,10 @@ class TestDiscoClient(unittest.TestCase):
         self.assertIs(result, response)
         self.assertEqual(
             1,
-            len(self.cc.stream.send.mock_calls)
+            len(self.cc.send.mock_calls)
         )
 
-        call, = self.cc.stream.send.mock_calls
+        call, = self.cc.send.mock_calls
         # call[1] are args
         request_iq, = call[1]
 
@@ -1516,7 +1516,7 @@ class TestDiscoClient(unittest.TestCase):
         to = structs.JID.fromstr("user@foo.example/res1")
         response = disco_xso.ItemsQuery()
 
-        self.cc.stream.send.return_value = response
+        self.cc.send.return_value = response
 
         with self.assertRaises(TypeError):
             self.s.query_items(to, "foobar")
@@ -1533,7 +1533,7 @@ class TestDiscoClient(unittest.TestCase):
 
         self.assertEqual(
             1,
-            len(self.cc.stream.send.mock_calls)
+            len(self.cc.send.mock_calls)
         )
 
     def test_query_items_reraises_and_aliases_exception(self):
@@ -1553,7 +1553,7 @@ class TestDiscoClient(unittest.TestCase):
                 raise ConnectionError()
 
         with unittest.mock.patch.object(
-                self.cc.stream,
+                self.cc,
                 "send",
                 new=mock):
 
@@ -1573,7 +1573,7 @@ class TestDiscoClient(unittest.TestCase):
     def test_query_info_reraises_but_does_not_cache_exception(self):
         to = structs.JID.fromstr("user@foo.example/res1")
 
-        self.cc.stream.send.side_effect = \
+        self.cc.send.side_effect = \
             errors.XMPPCancelError(
                 condition=(namespaces.stanzas, "feature-not-implemented"),
             )
@@ -1583,7 +1583,7 @@ class TestDiscoClient(unittest.TestCase):
                 self.s.query_items(to, node="foobar")
             )
 
-        self.cc.stream.send.side_effect = \
+        self.cc.send.side_effect = \
             ConnectionError()
 
         with self.assertRaises(ConnectionError):
@@ -1595,7 +1595,7 @@ class TestDiscoClient(unittest.TestCase):
         to = structs.JID.fromstr("user@foo.example/res1")
 
         response1 = disco_xso.ItemsQuery()
-        self.cc.stream.send.return_value = response1
+        self.cc.send.return_value = response1
 
         with self.assertRaises(TypeError):
             self.s.query_items(to, "foobar")
@@ -1605,7 +1605,7 @@ class TestDiscoClient(unittest.TestCase):
         )
 
         response2 = disco_xso.ItemsQuery()
-        self.cc.stream.send.return_value = response2
+        self.cc.send.return_value = response2
 
         result2 = run_coroutine(
             self.s.query_items(to, node="foobar", require_fresh=True)
@@ -1616,14 +1616,14 @@ class TestDiscoClient(unittest.TestCase):
 
         self.assertEqual(
             2,
-            len(self.cc.stream.send.mock_calls)
+            len(self.cc.send.mock_calls)
         )
 
     def test_query_items_cache_clears_on_disconnect(self):
         to = structs.JID.fromstr("user@foo.example/res1")
 
         response1 = disco_xso.ItemsQuery()
-        self.cc.stream.send.return_value = response1
+        self.cc.send.return_value = response1
 
         with self.assertRaises(TypeError):
             self.s.query_items(to, "foobar")
@@ -1635,7 +1635,7 @@ class TestDiscoClient(unittest.TestCase):
         self.cc.on_stream_destroyed()
 
         response2 = disco_xso.ItemsQuery()
-        self.cc.stream.send.return_value = response2
+        self.cc.send.return_value = response2
 
         result2 = run_coroutine(
             self.s.query_items(to, node="foobar")
@@ -1646,15 +1646,15 @@ class TestDiscoClient(unittest.TestCase):
 
         self.assertEqual(
             2,
-            len(self.cc.stream.send.mock_calls)
+            len(self.cc.send.mock_calls)
         )
 
     def test_query_items_timeout(self):
         to = structs.JID.fromstr("user@foo.example/res1")
         response = disco_xso.ItemsQuery()
 
-        self.cc.stream.send.delay = 1
-        self.cc.stream.send.return_value = response
+        self.cc.send.delay = 1
+        self.cc.send.return_value = response
 
         with self.assertRaises(TimeoutError):
             result = run_coroutine(
@@ -1665,14 +1665,14 @@ class TestDiscoClient(unittest.TestCase):
             [
                 unittest.mock.call(unittest.mock.ANY),
             ],
-            self.cc.stream.send.mock_calls
+            self.cc.send.mock_calls
         )
 
     def test_query_items_deduplicate_requests(self):
         to = structs.JID.fromstr("user@foo.example/res1")
         response = disco_xso.ItemsQuery()
 
-        self.cc.stream.send.return_value = response
+        self.cc.send.return_value = response
 
         result = run_coroutine(
             asyncio.gather(
@@ -1688,15 +1688,15 @@ class TestDiscoClient(unittest.TestCase):
             [
                 unittest.mock.call(unittest.mock.ANY),
             ],
-            self.cc.stream.send.mock_calls
+            self.cc.send.mock_calls
         )
 
     def test_query_items_transparent_deduplication_when_cancelled(self):
         to = structs.JID.fromstr("user@foo.example/res1")
         response = disco_xso.ItemsQuery()
 
-        self.cc.stream.send.return_value = response
-        self.cc.stream.send.delay = 0.1
+        self.cc.send.return_value = response
+        self.cc.send.delay = 0.1
 
         q1 = asyncio.async(self.s.query_items(to))
         q2 = asyncio.async(self.s.query_items(to))
@@ -1714,7 +1714,7 @@ class TestDiscoClient(unittest.TestCase):
                 unittest.mock.call(unittest.mock.ANY),
                 unittest.mock.call(unittest.mock.ANY),
             ],
-            self.cc.stream.send.mock_calls
+            self.cc.send.mock_calls
         )
 
     def test_set_info_cache(self):
@@ -1728,7 +1728,7 @@ class TestDiscoClient(unittest.TestCase):
         )
 
         other_response = disco_xso.InfoQuery()
-        self.cc.stream.send.return_value = \
+        self.cc.send.return_value = \
             other_response
 
         result = run_coroutine(self.s.query_info(to, node=None))

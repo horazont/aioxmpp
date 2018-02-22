@@ -55,7 +55,7 @@ class TestConversation(unittest.TestCase):
         self.listener = unittest.mock.Mock()
 
         self.cc = make_connected_client()
-        self.cc.stream.send = CoroutineMock()
+        self.cc.send = CoroutineMock()
         self.cc.local_jid = LOCAL_JID
         self.svc = unittest.mock.Mock(["client", "_conversation_left",
                                        "logger"])
@@ -128,7 +128,7 @@ class TestConversation(unittest.TestCase):
         msg = unittest.mock.Mock()
         token = self.c.send_message(msg)
 
-        self.cc.stream.enqueue.assert_called_once_with(msg)
+        self.cc.enqueue.assert_called_once_with(msg)
         self.assertEqual(msg.to, PEER_JID)
 
         self.listener.on_message.assert_called_once_with(
@@ -137,7 +137,7 @@ class TestConversation(unittest.TestCase):
             im_dispatcher.MessageSource.STREAM,
         )
 
-        self.assertEqual(token, self.cc.stream.enqueue())
+        self.assertEqual(token, self.cc.enqueue())
 
     def test_inbound_message_dispatched_to_event(self):
         msg = unittest.mock.sentinel.message
@@ -177,8 +177,8 @@ class TestConversation(unittest.TestCase):
 class TestService(unittest.TestCase):
     def setUp(self):
         self.cc = make_connected_client()
-        self.cc.stream.send = CoroutineMock()
-        self.cc.stream.send.side_effect = AssertionError("not configured")
+        self.cc.send = CoroutineMock()
+        self.cc.send.side_effect = AssertionError("not configured")
         self.cc.local_jid = LOCAL_JID
         deps = {
             im_service.ConversationService: im_service.ConversationService(

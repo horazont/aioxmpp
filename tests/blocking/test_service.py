@@ -127,7 +127,7 @@ class TestBlockingClient(unittest.TestCase):
 
             stack.enter_context(
                 unittest.mock.patch.object(
-                    self.cc.stream, "send",
+                    self.cc, "send",
                     new=CoroutineMock()
                 )
             )
@@ -140,7 +140,7 @@ class TestBlockingClient(unittest.TestCase):
             BLOCKLIST = [TEST_JID1, TEST_JID2]
             blocklist = blocking_xso.BlockList()
             blocklist.items[:] = BLOCKLIST
-            self.cc.stream.send.return_value = blocklist
+            self.cc.send.return_value = blocklist
 
             run_coroutine(self.s._get_initial_blocklist())
 
@@ -149,8 +149,8 @@ class TestBlockingClient(unittest.TestCase):
                 BLOCKLIST
             )
 
-            self.assertEqual(len(self.cc.stream.send.mock_calls), 1)
-            (_, (arg,), _), = self.cc.stream.send.mock_calls
+            self.assertEqual(len(self.cc.send.mock_calls), 1)
+            (_, (arg,), _), = self.cc.send.mock_calls
             self.assertIsInstance(arg, aioxmpp.IQ)
             self.assertEqual(arg.type_, aioxmpp.IQType.GET)
             self.assertIsInstance(arg.payload, blocking_xso.BlockList)
@@ -184,7 +184,7 @@ class TestBlockingClient(unittest.TestCase):
 
             stack.enter_context(
                 unittest.mock.patch.object(
-                    self.cc.stream, "send",
+                    self.cc, "send",
                     new=CoroutineMock()
                 )
             )
@@ -196,8 +196,8 @@ class TestBlockingClient(unittest.TestCase):
                 [unittest.mock.call()]
             )
 
-            self.assertEqual(len(self.cc.stream.send.mock_calls), 1)
-            (_, (arg,), _), = self.cc.stream.send.mock_calls
+            self.assertEqual(len(self.cc.send.mock_calls), 1)
+            (_, (arg,), _), = self.cc.send.mock_calls
 
             self.assertIsInstance(arg, aioxmpp.IQ)
             self.assertEqual(arg.type_, aioxmpp.IQType.SET)
@@ -218,7 +218,7 @@ class TestBlockingClient(unittest.TestCase):
 
             stack.enter_context(
                 unittest.mock.patch.object(
-                    self.cc.stream, "send",
+                    self.cc, "send",
                     new=CoroutineMock()
                 )
             )
@@ -230,7 +230,7 @@ class TestBlockingClient(unittest.TestCase):
                 [unittest.mock.call()]
             )
 
-            self.assertSequenceEqual(self.cc.stream.send.mock_calls, [])
+            self.assertSequenceEqual(self.cc.send.mock_calls, [])
 
     def test_unblock_jids(self):
         with contextlib.ExitStack() as stack:
@@ -243,7 +243,7 @@ class TestBlockingClient(unittest.TestCase):
 
             stack.enter_context(
                 unittest.mock.patch.object(
-                    self.cc.stream, "send",
+                    self.cc, "send",
                     new=CoroutineMock()
                 )
             )
@@ -255,8 +255,8 @@ class TestBlockingClient(unittest.TestCase):
                 [unittest.mock.call()]
             )
 
-            self.assertEqual(len(self.cc.stream.send.mock_calls), 1)
-            (_, (arg,), _), = self.cc.stream.send.mock_calls
+            self.assertEqual(len(self.cc.send.mock_calls), 1)
+            (_, (arg,), _), = self.cc.send.mock_calls
 
             self.assertIsInstance(arg, aioxmpp.IQ)
             self.assertEqual(arg.type_, aioxmpp.IQType.SET)
@@ -277,7 +277,7 @@ class TestBlockingClient(unittest.TestCase):
 
             stack.enter_context(
                 unittest.mock.patch.object(
-                    self.cc.stream, "send",
+                    self.cc, "send",
                     new=CoroutineMock()
                 )
             )
@@ -289,7 +289,7 @@ class TestBlockingClient(unittest.TestCase):
                 [unittest.mock.call()]
             )
 
-            self.assertSequenceEqual(self.cc.stream.send.mock_calls, [])
+            self.assertSequenceEqual(self.cc.send.mock_calls, [])
 
     def test_unblock_all(self):
         with contextlib.ExitStack() as stack:
@@ -302,7 +302,7 @@ class TestBlockingClient(unittest.TestCase):
 
             stack.enter_context(
                 unittest.mock.patch.object(
-                    self.cc.stream, "send",
+                    self.cc, "send",
                     new=CoroutineMock()
                 )
             )

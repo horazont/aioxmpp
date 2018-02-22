@@ -1102,7 +1102,7 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
         # TL;DR: we want to help entities to discover that a message is related
         # to a MUC.
         msg.xep0045_muc_user = muc_xso.UserExt()
-        result = self.service.client.stream.enqueue(msg)
+        result = self.service.client.enqueue(msg)
         return result
 
     def _tracker_closed(self, tracker):
@@ -1241,7 +1241,7 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
             type_=aioxmpp.PresenceType.AVAILABLE,
             to=self._mucjid.replace(resource=new_nick),
         )
-        yield from self._service.client.stream.send(
+        yield from self._service.client.send(
             stanza
         )
 
@@ -1313,9 +1313,7 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
             ]
         )
 
-        yield from self.service.client.stream.send(
-            iq
-        )
+        yield from self.service.client.send(iq)
 
     @asyncio.coroutine
     def ban(self, member, reason=None, *, request_kick=True):
@@ -1381,7 +1379,7 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
         )
         msg.subject.update(new_topic)
 
-        yield from self.service.client.stream.send(msg)
+        yield from self.service.client.send(msg)
 
     @asyncio.coroutine
     def leave(self):
@@ -1400,7 +1398,7 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
             type_=aioxmpp.structs.PresenceType.UNAVAILABLE,
             to=self._mucjid
         )
-        yield from self.service.client.stream.send(presence)
+        yield from self.service.client.send(presence)
 
         yield from fut
 
@@ -1445,7 +1443,7 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
 
         msg.xep0004_data.append(data)
 
-        yield from self.service.client.stream.send(msg)
+        yield from self.service.client.send(msg)
 
 
 def _connect_to_signal(signal, func):
@@ -1522,7 +1520,7 @@ class MUCClient(aioxmpp.im.conversation.AbstractConversationService,
         presence.xep0045_muc = muc_xso.GenericExt()
         presence.xep0045_muc.password = password
         presence.xep0045_muc.history = history
-        self.client.stream.enqueue(presence)
+        self.client.enqueue(presence)
 
     @aioxmpp.service.depsignal(aioxmpp.Client, "on_stream_established")
     def _stream_established(self):
@@ -1598,7 +1596,7 @@ class MUCClient(aioxmpp.im.conversation.AbstractConversationService,
                 type_=aioxmpp.structs.PresenceType.UNAVAILABLE,
             )
             unjoin.xep0045_muc = muc_xso.GenericExt()
-            self.client.stream.enqueue(unjoin)
+            self.client.enqueue(unjoin)
 
     def _pending_on_enter(self, presence, occupant, **kwargs):
         mucjid = presence.from_.bare()
@@ -1870,9 +1868,7 @@ class MUCClient(aioxmpp.im.conversation.AbstractConversationService,
             ]
         )
 
-        yield from self.client.stream.send(
-            iq
-        )
+        yield from self.client.send(iq)
 
     @asyncio.coroutine
     def get_room_config(self, mucjid):
@@ -1901,9 +1897,7 @@ class MUCClient(aioxmpp.im.conversation.AbstractConversationService,
             payload=muc_xso.OwnerQuery(),
         )
 
-        return (yield from self.client.stream.send(
-            iq
-        )).form
+        return (yield from self.client.send(iq)).form
 
     @asyncio.coroutine
     def set_room_config(self, mucjid, data):
@@ -1938,6 +1932,4 @@ class MUCClient(aioxmpp.im.conversation.AbstractConversationService,
             payload=muc_xso.OwnerQuery(form=data),
         )
 
-        yield from self.client.stream.send(
-            iq,
-        )
+        yield from self.client.send(iq)

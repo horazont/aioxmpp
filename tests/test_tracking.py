@@ -726,17 +726,17 @@ class TestBasicTrackingService(unittest.TestCase):
 
             result = self.s.send_tracked(msg, tracker)
 
-            self.cc.stream.enqueue.assert_called_once_with(
+            self.cc.enqueue.assert_called_once_with(
                 msg,
             )
 
             attach_tracker.assert_called_once_with(
                 msg,
                 tracker,
-                self.cc.stream.enqueue(),
+                self.cc.enqueue(),
             )
 
             self.assertEqual(
                 result,
-                self.cc.stream.enqueue(),
+                self.cc.enqueue(),
             )

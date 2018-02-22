@@ -166,6 +166,7 @@ class ConnectedClientMock(unittest.mock.Mock):
             "stop",
             "set_presence",
             "local_jid",
+            "enqueue",
         ])
 
         self.established = True
@@ -183,8 +184,13 @@ class ConnectedClientMock(unittest.mock.Mock):
         self.stream.service_outbound_message_filter = FilterMock()
         self.stream.service_outbound_presence_filter = FilterMock()
         self.stream.on_stream_destroyed = callbacks.AdHocSignal()
-        self.stream.send_iq_and_wait_for_reply = CoroutineMock()
-        self.stream.send = CoroutineMock()
+        self.stream.send_iq_and_wait_for_reply.side_effect = \
+            AssertionError("use of deprecated function")
+        self.stream.send.side_effect = \
+            AssertionError("use of deprecated function")
+        self.stream.enqueue.side_effect = \
+            AssertionError("use of deprecated function")
+        self.send = CoroutineMock()
         self.stream.enqueue_stanza = self.stream.enqueue
         self.mock_services = {}
 

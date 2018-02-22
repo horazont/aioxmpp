@@ -129,11 +129,11 @@ class TestCarbonsClient(unittest.TestCase):
 
             check_for_feature.assert_called_once_with()
 
-            self.cc.stream.send.assert_called_once_with(
+            self.cc.send.assert_called_once_with(
                 unittest.mock.ANY,
             )
 
-            _, (iq,), _ = self.cc.stream.send.mock_calls[0]
+            _, (iq,), _ = self.cc.send.mock_calls[0]
 
             self.assertIsInstance(iq, aioxmpp.IQ)
             self.assertEqual(iq.type_, aioxmpp.IQType.SET)
@@ -153,7 +153,7 @@ class TestCarbonsClient(unittest.TestCase):
 
             check_for_feature.assert_called_once_with()
 
-            self.cc.stream.send.assert_not_called()
+            self.cc.send.assert_not_called()
 
     def test_disable_checks_for_feature_and_sends_iq(self):
         with contextlib.ExitStack() as stack:
@@ -167,11 +167,11 @@ class TestCarbonsClient(unittest.TestCase):
 
             check_for_feature.assert_called_once_with()
 
-            self.cc.stream.send.assert_called_once_with(
+            self.cc.send.assert_called_once_with(
                 unittest.mock.ANY,
             )
 
-            _, (iq,), _ = self.cc.stream.send.mock_calls[0]
+            _, (iq,), _ = self.cc.send.mock_calls[0]
 
             self.assertIsInstance(iq, aioxmpp.IQ)
             self.assertEqual(iq.type_, aioxmpp.IQType.SET)
@@ -191,4 +191,4 @@ class TestCarbonsClient(unittest.TestCase):
 
             check_for_feature.assert_called_once_with()
 
-            self.cc.stream.send.assert_not_called()
+            self.cc.send.assert_not_called()

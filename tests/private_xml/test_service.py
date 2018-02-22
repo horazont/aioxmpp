@@ -60,7 +60,7 @@ class TestService(unittest.TestCase):
     def test_get_private_xml(self):
         payload = FakePayload()
 
-        with unittest.mock.patch.object(self.cc.stream, "send",
+        with unittest.mock.patch.object(self.cc, "send",
                                         new=CoroutineMock()) as mock_send:
             mock_send.return_value = unittest.mock.sentinel.result
             res = run_coroutine(self.s.get_private_xml(payload))
@@ -81,7 +81,7 @@ class TestService(unittest.TestCase):
     def test_set_private_xml(self):
         payload = FakePayload()
 
-        with unittest.mock.patch.object(self.cc.stream, "send",
+        with unittest.mock.patch.object(self.cc, "send",
                                         new=CoroutineMock()) as mock_send:
             run_coroutine(self.s.set_private_xml(payload))
 

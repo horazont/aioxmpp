@@ -2045,7 +2045,7 @@ class TestClient(xmltestutils.XMLTestCase):
         @asyncio.coroutine
         def stimulus():
             yield from self.client.established_event.wait()
-            yield from self.client.stream.enqueue(iq)
+            yield from self.client.enqueue(iq)
 
         run_coroutine_with_peer(
             stimulus(),
@@ -2122,7 +2122,7 @@ class TestClient(xmltestutils.XMLTestCase):
         @asyncio.coroutine
         def stimulus():
             yield from self.client.established_event.wait()
-            yield from self.client.stream.enqueue(iq)
+            yield from self.client.enqueue(iq)
 
         run_coroutine_with_peer(
             stimulus(),
@@ -2207,7 +2207,7 @@ class TestClient(xmltestutils.XMLTestCase):
         @asyncio.coroutine
         def stimulus():
             yield from self.client.established_event.wait()
-            yield from self.client.stream.enqueue(iq)
+            yield from self.client.enqueue(iq)
 
         run_coroutine_with_peer(
             stimulus(),
@@ -2278,7 +2278,7 @@ class TestClient(xmltestutils.XMLTestCase):
         @asyncio.coroutine
         def stimulus():
             yield from self.client.established_event.wait()
-            yield from self.client.stream.enqueue(iq)
+            yield from self.client.enqueue(iq)
 
         run_coroutine_with_peer(
             stimulus(),
@@ -3508,7 +3508,7 @@ class TestClient(xmltestutils.XMLTestCase):
             iq = stanza.IQ(
                 type_=structs.IQType.SET,
             )
-            yield from self.client.stream.send(iq)
+            yield from self.client.send(iq)
 
         self.client.before_stream_established.connect(coro)
 
@@ -3935,12 +3935,18 @@ class TestPresenceManagedClient(xmltestutils.XMLTestCase):
         expected.status.update(status_texts)
 
         base = unittest.mock.Mock()
-        base.stream.send = CoroutineMock()
+        base.send = CoroutineMock()
+
+        def start_side_effect():
+            # fake client to be running
+            self.client._main_task = asyncio.ensure_future(asyncio.sleep(10))
+            stack.callback(self.client._main_task.cancel)
+
         with contextlib.ExitStack() as stack:
             stack.enter_context(unittest.mock.patch.object(
                 self.client,
-                "stream",
-                new=base.stream
+                "send",
+                new=base.send
             ))
 
             stack.enter_context(unittest.mock.patch.object(
@@ -3948,6 +3954,7 @@ class TestPresenceManagedClient(xmltestutils.XMLTestCase):
                 "start",
                 new=base.start
             ))
+            base.start.side_effect = start_side_effect
 
             self.client.set_presence(
                 structs.PresenceState(
@@ -3958,11 +3965,14 @@ class TestPresenceManagedClient(xmltestutils.XMLTestCase):
 
             self._set_stream_established()
 
+        # make fake main task die
+        run_coroutine(asyncio.sleep(0))
+
         self.assertSequenceEqual(
             base.mock_calls,
             [
                 unittest.mock.call.start(),
-                unittest.mock.call.stream.send(unittest.mock.ANY)
+                unittest.mock.call.send(unittest.mock.ANY)
             ]
         )
 
@@ -3984,12 +3994,18 @@ class TestPresenceManagedClient(xmltestutils.XMLTestCase):
         expected.status[None] = "foobar"
 
         base = unittest.mock.Mock()
-        base.stream.send = CoroutineMock()
+        base.send = CoroutineMock()
+
+        def start_side_effect():
+            # fake client to be running
+            self.client._main_task = asyncio.ensure_future(asyncio.sleep(10))
+            stack.callback(self.client._main_task.cancel)
+
         with contextlib.ExitStack() as stack:
             stack.enter_context(unittest.mock.patch.object(
                 self.client,
-                "stream",
-                new=base.stream
+                "send",
+                new=base.send
             ))
 
             stack.enter_context(unittest.mock.patch.object(
@@ -3997,6 +4013,7 @@ class TestPresenceManagedClient(xmltestutils.XMLTestCase):
                 "start",
                 new=base.start
             ))
+            base.start.side_effect = start_side_effect
 
             self.client.set_presence(
                 structs.PresenceState(
@@ -4007,11 +4024,14 @@ class TestPresenceManagedClient(xmltestutils.XMLTestCase):
 
             self._set_stream_established()
 
+        # make fake main task die
+        run_coroutine(asyncio.sleep(0))
+
         self.assertSequenceEqual(
             base.mock_calls,
             [
                 unittest.mock.call.start(),
-                unittest.mock.call.stream.send(unittest.mock.ANY)
+                unittest.mock.call.send(unittest.mock.ANY)
             ]
         )
 
@@ -4033,12 +4053,18 @@ class TestPresenceManagedClient(xmltestutils.XMLTestCase):
         expected.status[None] = "foobar"
 
         base = unittest.mock.Mock()
-        base.stream.send = CoroutineMock()
+        base.send = CoroutineMock()
+
+        def start_side_effect():
+            # fake client to be running
+            self.client._main_task = asyncio.ensure_future(asyncio.sleep(10))
+            stack.callback(self.client._main_task.cancel)
+
         with contextlib.ExitStack() as stack:
             stack.enter_context(unittest.mock.patch.object(
                 self.client,
-                "stream",
-                new=base.stream
+                "send",
+                new=base.send
             ))
 
             stack.enter_context(unittest.mock.patch.object(
@@ -4046,6 +4072,7 @@ class TestPresenceManagedClient(xmltestutils.XMLTestCase):
                 "start",
                 new=base.start
             ))
+            base.start.side_effect = start_side_effect
 
             server = self.client.summon(aioxmpp.PresenceServer)
 
@@ -4058,11 +4085,14 @@ class TestPresenceManagedClient(xmltestutils.XMLTestCase):
 
             self._set_stream_established()
 
+        # ensure that fake main task dies
+        run_coroutine(asyncio.sleep(0))
+
         self.assertSequenceEqual(
             base.mock_calls,
             [
                 unittest.mock.call.start(),
-                unittest.mock.call.stream.send(
+                unittest.mock.call.send(
                     unittest.mock.ANY
                 )
             ]

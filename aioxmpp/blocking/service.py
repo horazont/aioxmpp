@@ -111,7 +111,7 @@ class BlockingClient(service.Service):
                     type_=aioxmpp.IQType.GET,
                     payload=blocking_xso.BlockList(),
                 )
-                result = yield from self.client.stream.send(iq)
+                result = yield from self.client.send(iq)
                 self._blocklist = frozenset(result.items)
             self.on_initial_blocklist_received(self._blocklist)
 
@@ -138,7 +138,7 @@ class BlockingClient(service.Service):
             type_=aioxmpp.IQType.SET,
             payload=cmd,
         )
-        yield from self.client.stream.send(iq)
+        yield from self.client.send(iq)
 
     @asyncio.coroutine
     def unblock_jids(self, jids_to_unblock):
@@ -156,7 +156,7 @@ class BlockingClient(service.Service):
             type_=aioxmpp.IQType.SET,
             payload=cmd,
         )
-        yield from self.client.stream.send(iq)
+        yield from self.client.send(iq)
 
     @asyncio.coroutine
     def unblock_all(self):
@@ -170,7 +170,7 @@ class BlockingClient(service.Service):
             type_=aioxmpp.IQType.SET,
             payload=cmd,
         )
-        yield from self.client.stream.send(iq)
+        yield from self.client.send(iq)
 
     @service.iq_handler(aioxmpp.IQType.SET, blocking_xso.BlockCommand)
     @asyncio.coroutine

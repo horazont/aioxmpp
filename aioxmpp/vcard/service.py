@@ -61,7 +61,7 @@ class VCardService(service.Service):
         )
 
         try:
-            return (yield from self.client.stream.send(iq))
+            return (yield from self.client.send(iq))
         except aioxmpp.XMPPCancelError as e:
             if e.condition in (
                     (namespaces.stanzas, "feature-not-implemented"),
@@ -92,4 +92,4 @@ class VCardService(service.Service):
             type_=aioxmpp.IQType.SET,
             payload=vcard,
         )
-        yield from self.client.stream.send(iq)
+        yield from self.client.send(iq)

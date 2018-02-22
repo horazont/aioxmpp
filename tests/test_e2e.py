@@ -70,7 +70,7 @@ class TestMessaging(TestCase):
             msg_sent.body[aioxmpp.structs.LanguageTag.fromstr("en")] = \
                 "Hello World!"
 
-            yield from a.stream.send(msg_sent)
+            yield from a.send(msg_sent)
 
             msg_rcvd = yield from fut
 
@@ -93,7 +93,7 @@ class TestMisc(TestCase):
         )
 
         with self.assertRaises(aioxmpp.errors.XMPPCancelError):
-            yield from c.stream.send(iq)
+            yield from c.send(iq)
 
     @blocking_timed
     @asyncio.coroutine
@@ -107,7 +107,7 @@ class TestMisc(TestCase):
         )
 
         with self.assertRaises(aioxmpp.errors.XMPPCancelError):
-            yield from c.stream.send(iq)
+            yield from c.send(iq)
 
     @blocking_timed
     @asyncio.coroutine
@@ -121,8 +121,8 @@ class TestMisc(TestCase):
         msg.body[None] = "foo\u0000"
 
         with self.assertRaisesRegex(ValueError, "not allowed"):
-            yield from c.stream.send(msg)
+            yield from c.send(msg)
 
         msg.body[None] = "foo"
 
-        yield from c.stream.send(msg)
+        yield from c.send(msg)

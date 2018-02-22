@@ -519,7 +519,7 @@ class TestRoom(unittest.TestCase):
 
         self.base = unittest.mock.Mock()
         self.base.service.logger = unittest.mock.Mock(name="logger")
-        self.base.service.client.stream.send = \
+        self.base.service.client.send = \
             CoroutineMock()
         self.base.service.dependencies = {}
         self.base.service.dependencies[
@@ -2142,7 +2142,7 @@ class TestRoom(unittest.TestCase):
         new_role = "participant"
 
         with unittest.mock.patch.object(
-                self.base.service.client.stream,
+                self.base.service.client,
                 "send",
                 new=CoroutineMock()) as send_iq:
             send_iq.return_value = None
@@ -2197,7 +2197,7 @@ class TestRoom(unittest.TestCase):
 
     def test_muc_set_role_rejects_None_nick(self):
         with unittest.mock.patch.object(
-                self.base.service.client.stream,
+                self.base.service.client,
                 "send",
                 new=CoroutineMock()) as send_iq:
             send_iq.return_value = None
@@ -2214,7 +2214,7 @@ class TestRoom(unittest.TestCase):
 
     def test_muc_set_role_rejects_None_role(self):
         with unittest.mock.patch.object(
-                self.base.service.client.stream,
+                self.base.service.client,
                 "send",
                 new=CoroutineMock()) as send_iq:
             send_iq.return_value = None
@@ -2231,7 +2231,7 @@ class TestRoom(unittest.TestCase):
 
     def test_muc_set_role_fails(self):
         with unittest.mock.patch.object(
-                self.base.service.client.stream,
+                self.base.service.client,
                 "send",
                 new=CoroutineMock()) as send_iq:
             send_iq.return_value = None
@@ -2248,7 +2248,7 @@ class TestRoom(unittest.TestCase):
 
     def test_set_nick(self):
         with unittest.mock.patch.object(
-                self.base.service.client.stream,
+                self.base.service.client,
                 "send",
                 new=CoroutineMock()) as send_stanza:
             send_stanza.return_value = None
@@ -2298,7 +2298,7 @@ class TestRoom(unittest.TestCase):
 
         result = run_coroutine(self.jmuc.set_topic(d))
 
-        _, (stanza,), _ = self.base.service.client.stream.\
+        _, (stanza,), _ = self.base.service.client.\
             send.mock_calls[-1]
 
         self.assertIsInstance(
@@ -2325,7 +2325,7 @@ class TestRoom(unittest.TestCase):
         run_coroutine(asyncio.sleep(0))
         self.assertFalse(fut.done(), fut.done() and fut.result())
 
-        _, (stanza,), _ = self.base.service.client.stream.\
+        _, (stanza,), _ = self.base.service.client.\
             send.mock_calls[-1]
 
         self.assertIsInstance(
@@ -2419,12 +2419,12 @@ class TestRoom(unittest.TestCase):
         run_coroutine(self.jmuc.muc_request_voice())
 
         self.assertEqual(
-            len(self.base.service.client.stream.send.mock_calls),
+            len(self.base.service.client.send.mock_calls),
             1,
         )
 
         _, (msg, ), _ = \
-            self.base.service.client.stream.send.mock_calls[0]
+            self.base.service.client.send.mock_calls[0]
 
         self.assertIsInstance(
             msg,
@@ -2511,13 +2511,13 @@ class TestRoom(unittest.TestCase):
 
         token = self.jmuc.send_message(msg)
 
-        self.base.service.client.stream.enqueue.assert_called_once_with(
+        self.base.service.client.enqueue.assert_called_once_with(
             unittest.mock.ANY,
         )
 
-        _, (msg, ), _ = self.base.service.client.stream.enqueue.mock_calls[0]
+        _, (msg, ), _ = self.base.service.client.enqueue.mock_calls[0]
 
-        self.assertEqual(token, self.base.service.client.stream.enqueue())
+        self.assertEqual(token, self.base.service.client.enqueue())
 
         self.assertIsInstance(
             msg,
@@ -2569,11 +2569,11 @@ class TestRoom(unittest.TestCase):
 
         self.jmuc.send_message(msg)
 
-        self.base.service.client.stream.enqueue.assert_called_once_with(
+        self.base.service.client.enqueue.assert_called_once_with(
             unittest.mock.ANY,
         )
 
-        _, (msg, ), _ = self.base.service.client.stream.enqueue.mock_calls[0]
+        _, (msg, ), _ = self.base.service.client.enqueue.mock_calls[0]
 
         reply = msg.make_reply()
         reply.body.update(msg.body)
@@ -4218,7 +4218,7 @@ class TestService(unittest.TestCase):
         self.assertTrue(room.muc_autorejoin)
         self.assertIsNone(room.muc_password)
 
-        _, (stanza,), _ = self.cc.stream.enqueue.mock_calls[-1]
+        _, (stanza,), _ = self.cc.enqueue.mock_calls[-1]
         self.assertIsInstance(
             stanza,
             aioxmpp.stanza.Presence
@@ -4263,7 +4263,7 @@ class TestService(unittest.TestCase):
             room
         )
 
-        _, (stanza,), _ = self.cc.stream.enqueue.mock_calls[-1]
+        _, (stanza,), _ = self.cc.enqueue.mock_calls[-1]
         self.assertIsInstance(
             stanza,
             aioxmpp.stanza.Presence
@@ -4303,7 +4303,7 @@ class TestService(unittest.TestCase):
         self.assertFalse(room.muc_autorejoin)
         self.assertEqual(room.muc_password, "foobar")
 
-        _, (stanza,), _ = self.cc.stream.enqueue.mock_calls[-1]
+        _, (stanza,), _ = self.cc.enqueue.mock_calls[-1]
         self.assertIsInstance(
             stanza,
             aioxmpp.stanza.Presence
@@ -4343,7 +4343,7 @@ class TestService(unittest.TestCase):
             room
         )
 
-        _, (stanza,), _ = self.cc.stream.enqueue.mock_calls[-1]
+        _, (stanza,), _ = self.cc.enqueue.mock_calls[-1]
         self.assertIsInstance(
             stanza,
             aioxmpp.stanza.Presence
@@ -4458,7 +4458,7 @@ class TestService(unittest.TestCase):
         room, future = self.s.join(TEST_MUC_JID, "thirdwitch")
         listener = make_listener(room)
 
-        self.cc.stream.enqueue.mock_calls.clear()
+        self.cc.enqueue.mock_calls.clear()
 
         future.cancel()
 
@@ -4467,7 +4467,7 @@ class TestService(unittest.TestCase):
         with self.assertRaises(KeyError):
             self.s.get_muc(TEST_MUC_JID)
 
-        _, (stanza,), _ = self.cc.stream.enqueue.mock_calls[-1]
+        _, (stanza,), _ = self.cc.enqueue.mock_calls[-1]
         self.assertIsInstance(
             stanza,
             aioxmpp.stanza.Presence
@@ -4821,7 +4821,7 @@ class TestService(unittest.TestCase):
         )
 
         self.assertSequenceEqual(
-            self.cc.stream.enqueue.mock_calls,
+            self.cc.enqueue.mock_calls,
             []
         )
 
@@ -4829,7 +4829,7 @@ class TestService(unittest.TestCase):
 
         run_coroutine(asyncio.sleep(0))
 
-        _, (stanza,), _ = self.cc.stream.enqueue.mock_calls[-1]
+        _, (stanza,), _ = self.cc.enqueue.mock_calls[-1]
         self.assertIsInstance(
             stanza,
             aioxmpp.stanza.Presence
@@ -4923,7 +4923,7 @@ class TestService(unittest.TestCase):
             ]
         )
         base.mock_calls.clear()
-        self.cc.stream.enqueue.mock_calls.clear()
+        self.cc.enqueue.mock_calls.clear()
 
         self.cc.on_stream_established()
         run_coroutine(asyncio.sleep(0))
@@ -4939,13 +4939,13 @@ class TestService(unittest.TestCase):
             return result
 
         self.assertEqual(
-            len(self.cc.stream.enqueue.mock_calls),
+            len(self.cc.enqueue.mock_calls),
             2,
         )
 
         self.assertSetEqual(
             extract(
-                self.cc.stream.enqueue.mock_calls,
+                self.cc.enqueue.mock_calls,
                 lambda stanza: (stanza.to.bare(),)
             ),
             {
@@ -4956,7 +4956,7 @@ class TestService(unittest.TestCase):
 
         self.assertSetEqual(
             extract(
-                self.cc.stream.enqueue.mock_calls,
+                self.cc.enqueue.mock_calls,
                 lambda stanza: (stanza.to.bare(),
                                 stanza.xep0045_muc.history.since)
             ),
@@ -5096,13 +5096,13 @@ class TestService(unittest.TestCase):
             ]
         )
         base.mock_calls.clear()
-        self.cc.stream.enqueue.mock_calls.clear()
+        self.cc.enqueue.mock_calls.clear()
 
         self.cc.on_stream_established()
         run_coroutine(asyncio.sleep(0))
 
         self.assertEqual(
-            len(self.cc.stream.enqueue.mock_calls),
+            len(self.cc.enqueue.mock_calls),
             0,
         )
 
@@ -5219,7 +5219,7 @@ class TestService(unittest.TestCase):
         new_affiliation = "owner"
 
         with unittest.mock.patch.object(
-                self.cc.stream,
+                self.cc,
                 "send",
                 new=CoroutineMock()) as send_iq:
             send_iq.return_value = None
@@ -5276,7 +5276,7 @@ class TestService(unittest.TestCase):
 
     def test_set_affiliation_rejects_None_affiliation(self):
         with unittest.mock.patch.object(
-                self.cc.stream,
+                self.cc,
                 "send",
                 new=CoroutineMock()) as send_iq:
             send_iq.return_value = None
@@ -5294,7 +5294,7 @@ class TestService(unittest.TestCase):
 
     def test_set_affiliation_rejects_None_jid(self):
         with unittest.mock.patch.object(
-                self.cc.stream,
+                self.cc,
                 "send",
                 new=CoroutineMock()) as send_iq:
             send_iq.return_value = None
@@ -5312,7 +5312,7 @@ class TestService(unittest.TestCase):
 
     def test_set_affiliation_rejects_None_mucjid(self):
         with unittest.mock.patch.object(
-                self.cc.stream,
+                self.cc,
                 "send",
                 new=CoroutineMock()) as send_iq:
             send_iq.return_value = None
@@ -5330,7 +5330,7 @@ class TestService(unittest.TestCase):
 
     def test_set_affiliation_rejects_full_mucjid(self):
         with unittest.mock.patch.object(
-                self.cc.stream,
+                self.cc,
                 "send",
                 new=CoroutineMock()) as send_iq:
             send_iq.return_value = None
@@ -5348,7 +5348,7 @@ class TestService(unittest.TestCase):
 
     def test_set_affiliation_fails(self):
         with unittest.mock.patch.object(
-                self.cc.stream,
+                self.cc,
                 "send",
                 new=CoroutineMock()) as send_iq:
             send_iq.return_value = None
@@ -5369,7 +5369,7 @@ class TestService(unittest.TestCase):
         reply.form = unittest.mock.sentinel.form
 
         with unittest.mock.patch.object(
-                self.cc.stream,
+                self.cc,
                 "send",
                 new=CoroutineMock()) as send_iq:
             send_iq.return_value = reply
@@ -5413,7 +5413,7 @@ class TestService(unittest.TestCase):
 
     def test_get_room_config_rejects_full_mucjid(self):
         with unittest.mock.patch.object(
-                self.cc.stream,
+                self.cc,
                 "send",
                 new=CoroutineMock()) as send_iq:
             with self.assertRaisesRegex(ValueError,
@@ -5428,7 +5428,7 @@ class TestService(unittest.TestCase):
         data = unittest.mock.sentinel.data
 
         with unittest.mock.patch.object(
-                self.cc.stream,
+                self.cc,
                 "send",
                 new=CoroutineMock()) as send_iq:
             send_iq.return_value = None

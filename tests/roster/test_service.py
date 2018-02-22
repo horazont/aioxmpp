@@ -237,11 +237,11 @@ class TestService(unittest.TestCase):
             ver="foobar"
         )
 
-        self.cc.stream.send.return_value = response
+        self.cc.send.return_value = response
 
         run_coroutine(self.cc.before_stream_established())
 
-        self.cc.stream.send.reset_mock()
+        self.cc.send.reset_mock()
 
         self.listener = make_listener(self.s)
 
@@ -442,12 +442,12 @@ class TestService(unittest.TestCase):
             ver="foobar"
         )
 
-        self.cc.stream.send.return_value = response
+        self.cc.send.return_value = response
 
         run_coroutine(self.cc.before_stream_established())
         self.assertSequenceEqual(
             [
-                unittest.mock.call.stream.send(
+                unittest.mock.call.send(
                     unittest.mock.ANY,
                     timeout=self.cc.negotiation_timeout.total_seconds()
                 )
@@ -479,8 +479,8 @@ class TestService(unittest.TestCase):
 
         self.s.on_initial_roster_received.connect(cb_impl)
 
-        self.cc.stream.send.return_value = response
-        self.cc.stream.send.delay = 0.05
+        self.cc.send.return_value = response
+        self.cc.send.delay = 0.05
 
         task = asyncio.async(self.cc.before_stream_established())
 
@@ -518,7 +518,7 @@ class TestService(unittest.TestCase):
             ver="foobar"
         )
 
-        self.cc.stream.send.return_value = response
+        self.cc.send.return_value = response
 
         run_coroutine(self.cc.before_stream_established())
 
@@ -553,7 +553,7 @@ class TestService(unittest.TestCase):
         mock.return_value = False
         self.s.on_entry_added.connect(mock)
 
-        self.cc.stream.send.return_value = response
+        self.cc.send.return_value = response
 
         run_coroutine(self.cc.before_stream_established())
 
@@ -580,7 +580,7 @@ class TestService(unittest.TestCase):
             ver="foobar"
         )
 
-        self.cc.stream.send.return_value = response
+        self.cc.send.return_value = response
 
         run_coroutine(self.cc.before_stream_established())
 
@@ -603,7 +603,7 @@ class TestService(unittest.TestCase):
             ver="foobar"
         )
 
-        self.cc.stream.send.return_value = response
+        self.cc.send.return_value = response
 
         run_coroutine(self.cc.before_stream_established())
 
@@ -638,7 +638,7 @@ class TestService(unittest.TestCase):
             ver="foobar"
         )
 
-        self.cc.stream.send.return_value = response
+        self.cc.send.return_value = response
 
         run_coroutine(self.cc.before_stream_established())
 
@@ -671,7 +671,7 @@ class TestService(unittest.TestCase):
             ver="foobar"
         )
 
-        self.cc.stream.send.return_value = response
+        self.cc.send.return_value = response
 
         run_coroutine(self.cc.before_stream_established())
 
@@ -714,7 +714,7 @@ class TestService(unittest.TestCase):
             else:
                 fut.set_result(None)
 
-        self.cc.stream.send.return_value = response
+        self.cc.send.return_value = response
 
         self.s.on_entry_removed.connect(handler)
 
@@ -846,7 +846,7 @@ class TestService(unittest.TestCase):
 
         old_item = self.s.items[self.user1]
 
-        self.cc.stream.send.return_value = response
+        self.cc.send.return_value = response
 
         cb = unittest.mock.Mock()
         with self.s.on_entry_removed.context_connect(cb):
@@ -1090,11 +1090,11 @@ class TestService(unittest.TestCase):
     def test_do_not_send_versioned_request_if_not_supported_by_server(self):
         response = roster_xso.Query()
 
-        self.cc.stream.send.return_value = response
+        self.cc.send.return_value = response
 
         run_coroutine(self.cc.before_stream_established())
 
-        call, = self.cc.stream.send.mock_calls
+        call, = self.cc.send.mock_calls
         _, call_args, call_kwargs = call
 
         iq_request, = call_args
@@ -1110,11 +1110,11 @@ class TestService(unittest.TestCase):
 
         response = roster_xso.Query()
 
-        self.cc.stream.send.return_value = response
+        self.cc.send.return_value = response
 
         run_coroutine(self.cc.before_stream_established())
 
-        call, = self.cc.stream.send.mock_calls
+        call, = self.cc.send.mock_calls
         _, call_args, call_kwargs = call
 
         iq_request, = call_args
@@ -1126,7 +1126,7 @@ class TestService(unittest.TestCase):
     def test_process_none_response_to_versioned_request(self):
         self.cc.stream_features[...] = roster_xso.RosterVersioningFeature()
 
-        self.cc.stream.send.return_value = None
+        self.cc.send.return_value = None
 
         cb = unittest.mock.Mock()
         cb.return_value = True
@@ -1135,7 +1135,7 @@ class TestService(unittest.TestCase):
 
         run_coroutine(self.cc.before_stream_established())
 
-        call, = self.cc.stream.send.mock_calls
+        call, = self.cc.send.mock_calls
         _, call_args, call_kwargs = call
 
         iq_request, = call_args
@@ -1336,7 +1336,7 @@ class TestService(unittest.TestCase):
         )
 
     def test_set_entry_name(self):
-        self.cc.stream.send.return_value = None
+        self.cc.send.return_value = None
 
         run_coroutine(
             self.s.set_entry(
@@ -1350,10 +1350,10 @@ class TestService(unittest.TestCase):
             [
                 unittest.mock.call(unittest.mock.ANY, timeout=10)
             ],
-            self.cc.stream.send.mock_calls
+            self.cc.send.mock_calls
         )
 
-        call, = self.cc.stream.send.mock_calls
+        call, = self.cc.send.mock_calls
         _, call_args, _ = call
 
         request_iq, = call_args
@@ -1389,7 +1389,7 @@ class TestService(unittest.TestCase):
         self.assertIsNone(item.ask)
 
     def test_set_entry_groups(self):
-        self.cc.stream.send.return_value = None
+        self.cc.send.return_value = None
 
         run_coroutine(
             self.s.set_entry(
@@ -1404,10 +1404,10 @@ class TestService(unittest.TestCase):
             [
                 unittest.mock.call(unittest.mock.ANY, timeout=10)
             ],
-            self.cc.stream.send.mock_calls
+            self.cc.send.mock_calls
         )
 
-        call, = self.cc.stream.send.mock_calls
+        call, = self.cc.send.mock_calls
         _, call_args, _ = call
 
         request_iq, = call_args
@@ -1443,7 +1443,7 @@ class TestService(unittest.TestCase):
         self.assertIsNone(item.ask)
 
     def test_remove_entry(self):
-        self.cc.stream.send.return_value = None
+        self.cc.send.return_value = None
 
         run_coroutine(
             self.s.remove_entry(
@@ -1456,10 +1456,10 @@ class TestService(unittest.TestCase):
             [
                 unittest.mock.call(unittest.mock.ANY, timeout=10)
             ],
-            self.cc.stream.send.mock_calls
+            self.cc.send.mock_calls
         )
 
-        call, = self.cc.stream.send.mock_calls
+        call, = self.cc.send.mock_calls
         _, call_args, _ = call
 
         request_iq, = call_args
@@ -1554,13 +1554,13 @@ class TestService(unittest.TestCase):
         self.s.approve(TEST_JID)
 
         self.assertSequenceEqual(
-            self.cc.stream.enqueue.mock_calls,
+            self.cc.enqueue.mock_calls,
             [
                 unittest.mock.call(unittest.mock.ANY),
             ]
         )
 
-        call, = self.cc.stream.enqueue.mock_calls
+        call, = self.cc.enqueue.mock_calls
         _, call_args, _ = call
 
         st, = call_args
@@ -1572,13 +1572,13 @@ class TestService(unittest.TestCase):
         self.s.subscribe(TEST_JID)
 
         self.assertSequenceEqual(
-            self.cc.stream.enqueue.mock_calls,
+            self.cc.enqueue.mock_calls,
             [
                 unittest.mock.call(unittest.mock.ANY),
             ]
         )
 
-        call, = self.cc.stream.enqueue.mock_calls
+        call, = self.cc.enqueue.mock_calls
         _, call_args, _ = call
 
         st, = call_args
@@ -1590,13 +1590,13 @@ class TestService(unittest.TestCase):
         self.s.unsubscribe(TEST_JID)
 
         self.assertSequenceEqual(
-            self.cc.stream.enqueue.mock_calls,
+            self.cc.enqueue.mock_calls,
             [
                 unittest.mock.call(unittest.mock.ANY),
             ]
         )
 
-        call, = self.cc.stream.enqueue.mock_calls
+        call, = self.cc.enqueue.mock_calls
         _, call_args, _ = call
 
         st, = call_args
@@ -1645,8 +1645,8 @@ class TestService(unittest.TestCase):
             yield from asyncio.sleep(0)
             return initial
 
-        self.cc.stream.send = unittest.mock.Mock()
-        self.cc.stream.send.side_effect = send
+        self.cc.send = unittest.mock.Mock()
+        self.cc.send.side_effect = send
 
         initial_roster = asyncio.async(self.cc.before_stream_established())
 

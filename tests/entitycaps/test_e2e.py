@@ -76,7 +76,7 @@ class TestEntityCapabilities(TestCase):
             type_=aioxmpp.PresenceType.AVAILABLE,
             to=self.sink.local_jid,
         )
-        yield from self.source.stream.send(presence)
+        yield from self.source.send(presence)
 
         presence = yield from fut
 
@@ -179,7 +179,7 @@ class TestEntityCapabilities(TestCase):
             "sha-1",
         )
 
-        yield from self.source.stream.send(presence)
+        yield from self.source.send(presence)
 
         yield from fut
 
@@ -264,7 +264,7 @@ class TestEntityCapabilities(TestCase):
         presence.xep0390_caps = caps.xso.Caps390()
         presence.xep0390_caps.digests["sha-256"] = info_hash
 
-        yield from self.source.stream.send(presence)
+        yield from self.source.send(presence)
 
         yield from fut
 

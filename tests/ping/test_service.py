@@ -61,13 +61,13 @@ class TestService(unittest.TestCase):
         )
 
     def test_ping_sends_ping(self):
-        self.cc.stream.send.return_value = ping_xso.Ping()
+        self.cc.send.return_value = ping_xso.Ping()
 
         run_coroutine(self.s.ping(TEST_PEER))
 
-        self.cc.stream.send.assert_called_once_with(unittest.mock.ANY)
+        self.cc.send.assert_called_once_with(unittest.mock.ANY)
 
-        _, (iq, ), _ = self.cc.stream.send.mock_calls[0]
+        _, (iq, ), _ = self.cc.send.mock_calls[0]
 
         self.assertIsInstance(
             iq,
@@ -93,7 +93,7 @@ class TestService(unittest.TestCase):
         class FooException(Exception):
             pass
 
-        self.cc.stream.send.side_effect = FooException()
+        self.cc.send.side_effect = FooException()
 
         with self.assertRaises(FooException):
             run_coroutine(self.s.ping(TEST_PEER))
@@ -103,7 +103,7 @@ class TestService(unittest.TestCase):
             ("condition_ns", "condition_name"),
         )
         exc.TYPE = unittest.mock.sentinel.type_
-        self.cc.stream.send.side_effect = exc
+        self.cc.send.side_effect = exc
 
         with self.assertRaises(aioxmpp.errors.XMPPError) as ctx:
             run_coroutine(self.s.ping(TEST_PEER))

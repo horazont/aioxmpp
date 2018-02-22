@@ -599,7 +599,7 @@ class DiscoClient(service.Service):
         request_iq = stanza.IQ(to=jid, type_=structs.IQType.GET)
         request_iq.payload = disco_xso.InfoQuery(node=node)
 
-        response = yield from self.client.stream.send(
+        response = yield from self.client.send(
             request_iq
         )
 
@@ -747,7 +747,7 @@ class DiscoClient(service.Service):
         request_iq.payload = disco_xso.ItemsQuery(node=node)
 
         request = asyncio.async(
-            self.client.stream.send(request_iq)
+            self.client.send(request_iq)
         )
 
         self._items_pending[key] = request

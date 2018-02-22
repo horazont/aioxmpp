@@ -79,4 +79,4 @@ class PingService(aioxmpp.service.Service):
             payload=ping_xso.Ping()
         )
 
-        yield from self.client.stream.send(iq)
+        yield from self.client.send(iq)

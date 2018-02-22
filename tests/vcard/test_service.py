@@ -60,7 +60,7 @@ class TestService(unittest.TestCase):
         ))
 
     def test_get_vcard_own(self):
-        with unittest.mock.patch.object(self.cc.stream, "send",
+        with unittest.mock.patch.object(self.cc, "send",
                                         new=CoroutineMock()) as mock_send:
             mock_send.return_value = unittest.mock.sentinel.result
             res = run_coroutine(self.s.get_vcard())
@@ -79,7 +79,7 @@ class TestService(unittest.TestCase):
         self.assertEqual(res, unittest.mock.sentinel.result)
 
     def test_get_vcard_other(self):
-        with unittest.mock.patch.object(self.cc.stream, "send",
+        with unittest.mock.patch.object(self.cc, "send",
                                         new=CoroutineMock()) as mock_send:
             mock_send.return_value = unittest.mock.sentinel.result
             res = run_coroutine(self.s.get_vcard(TEST_JID1))
@@ -98,7 +98,7 @@ class TestService(unittest.TestCase):
         self.assertEqual(res, unittest.mock.sentinel.result)
 
     def test_get_vcard_mask_cancel_error(self):
-        with unittest.mock.patch.object(self.cc.stream, "send",
+        with unittest.mock.patch.object(self.cc, "send",
                                         new=CoroutineMock()) as mock_send:
             mock_send.side_effect = aioxmpp.XMPPCancelError(
                 (namespaces.stanzas, "feature-not-implemented"))
@@ -107,7 +107,7 @@ class TestService(unittest.TestCase):
         self.assertIsInstance(res, vcard_xso.VCard)
         self.assertEqual(len(res.elements), 0)
 
-        with unittest.mock.patch.object(self.cc.stream, "send",
+        with unittest.mock.patch.object(self.cc, "send",
                                         new=CoroutineMock()) as mock_send:
             mock_send.side_effect = aioxmpp.XMPPCancelError(
                 (namespaces.stanzas, "item-not-found"))
@@ -117,14 +117,14 @@ class TestService(unittest.TestCase):
         self.assertEqual(len(res.elements), 0)
 
         with self.assertRaises(aioxmpp.XMPPCancelError):
-            with unittest.mock.patch.object(self.cc.stream, "send",
+            with unittest.mock.patch.object(self.cc, "send",
                                             new=CoroutineMock()) as mock_send:
                 mock_send.side_effect = aioxmpp.XMPPCancelError(
                     (namespaces.stanzas, "fnord"))
                 res = run_coroutine(self.s.get_vcard(TEST_JID1))
 
     def test_set_vcard(self):
-        with unittest.mock.patch.object(self.cc.stream, "send",
+        with unittest.mock.patch.object(self.cc, "send",
                                         new=CoroutineMock()) as mock_send:
             vcard = vcard_xso.VCard()
             run_coroutine(self.s.set_vcard(vcard))

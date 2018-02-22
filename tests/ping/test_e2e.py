@@ -100,6 +100,6 @@ class TestPing(TestCase):
             payload=aioxmpp.ping.Ping(),
         )
 
-        resp = yield from self.unimplemented.stream.send(req)
+        resp = yield from self.unimplemented.send(req)
 
         self.assertIsInstance(resp, aioxmpp.ping.Ping)

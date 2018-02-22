@@ -112,7 +112,7 @@ class Conversation(AbstractConversation):
     def send_message(self, msg):
         msg.to = self.__peer_jid
         self.on_message(msg, self.me, MessageSource.STREAM)
-        return self._client.stream.enqueue(msg)
+        return self._client.enqueue(msg)
 
     @asyncio.coroutine
     def send_message_tracked(self, msg):

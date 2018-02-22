@@ -975,6 +975,8 @@ class Testmake_connected_client(unittest.TestCase):
         self.assertTrue(hasattr(cc, "start"))
         self.assertTrue(hasattr(cc, "stop"))
         self.assertTrue(hasattr(cc, "established"))
+        self.assertTrue(hasattr(cc, "send"))
+        self.assertTrue(hasattr(cc, "enqueue"))
 
         self.assertIs(cc.established, True)
 
@@ -996,9 +998,7 @@ class Testmake_connected_client(unittest.TestCase):
         self.assertTrue(hasattr(cc.stream, "register_message_callback"))
         self.assertTrue(hasattr(cc.stream, "register_iq_response_callback"))
         self.assertTrue(hasattr(cc.stream, "register_presence_callback"))
-        self.assertIsInstance(cc.stream.send_iq_and_wait_for_reply,
-                              CoroutineMock)
-        self.assertIsInstance(cc.stream.send, CoroutineMock)
+        self.assertIsInstance(cc.send, CoroutineMock)
 
         self.assertIsInstance(cc.stream_features, nonza.StreamFeatures)
 

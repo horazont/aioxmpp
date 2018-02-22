@@ -296,9 +296,7 @@ class PresenceServer(aioxmpp.service.Service):
         if not self._state.available:
             return True
 
-        yield from self.client.stream.send(
-            self.make_stanza()
-        )
+        yield from self.client.send(self.make_stanza())
 
         return True
 
@@ -432,6 +430,4 @@ class PresenceServer(aioxmpp.service.Service):
         """
 
         if self.client.established:
-            return self.client.stream.enqueue(
-                self.make_stanza()
-            )
+            return self.client.enqueue(self.make_stanza())

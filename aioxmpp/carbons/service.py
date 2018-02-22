@@ -87,7 +87,7 @@ class CarbonsClient(aioxmpp.service.Service):
             payload=carbons_xso.Enable()
         )
 
-        yield from self.client.stream.send(iq)
+        yield from self.client.send(iq)
 
     @asyncio.coroutine
     def disable(self):
@@ -106,4 +106,4 @@ class CarbonsClient(aioxmpp.service.Service):
             payload=carbons_xso.Disable()
         )
 
-        yield from self.client.stream.send(iq)
+        yield from self.client.send(iq)

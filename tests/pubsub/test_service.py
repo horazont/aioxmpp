@@ -442,16 +442,16 @@ class TestService(unittest.TestCase):
             subid="bar",
             subscription="subscribed",
         )
-        self.cc.stream.send.return_value = response
+        self.cc.send.return_value = response
 
         run_coroutine(self.s.subscribe(TEST_TO, node="foo"))
 
         self.assertEqual(
             1,
-            len(self.cc.stream.send.mock_calls)
+            len(self.cc.send.mock_calls)
         )
 
-        call, = self.cc.stream.send.mock_calls
+        call, = self.cc.send.mock_calls
         request_iq, = call[1]
 
         self.assertIsInstance(request_iq, aioxmpp.stanza.IQ)
@@ -474,7 +474,7 @@ class TestService(unittest.TestCase):
             subid="bar",
             subscription="subscribed",
         )
-        self.cc.stream.send.return_value = response
+        self.cc.send.return_value = response
 
         run_coroutine(self.s.subscribe(
             TEST_TO,
@@ -484,10 +484,10 @@ class TestService(unittest.TestCase):
 
         self.assertEqual(
             1,
-            len(self.cc.stream.send.mock_calls)
+            len(self.cc.send.mock_calls)
         )
 
-        call, = self.cc.stream.send.mock_calls
+        call, = self.cc.send.mock_calls
         request_iq, = call[1]
 
         self.assertIsInstance(request_iq, aioxmpp.stanza.IQ)
@@ -511,7 +511,7 @@ class TestService(unittest.TestCase):
             subid="bar",
             subscription="subscribed",
         )
-        self.cc.stream.send.return_value = response
+        self.cc.send.return_value = response
 
         data = unittest.mock.Mock()
 
@@ -524,10 +524,10 @@ class TestService(unittest.TestCase):
 
         self.assertEqual(
             1,
-            len(self.cc.stream.send.mock_calls)
+            len(self.cc.send.mock_calls)
         )
 
-        call, = self.cc.stream.send.mock_calls
+        call, = self.cc.send.mock_calls
         request_iq, = call[1]
 
         self.assertIsInstance(request_iq, aioxmpp.stanza.IQ)
@@ -551,7 +551,7 @@ class TestService(unittest.TestCase):
     def test_subscribe_returns_full_response(self):
         response = pubsub_xso.Request()
         response.payload = unittest.mock.Mock()
-        self.cc.stream.send.return_value = response
+        self.cc.send.return_value = response
 
         result = run_coroutine(self.s.subscribe(
             TEST_TO,
@@ -567,7 +567,7 @@ class TestService(unittest.TestCase):
     def test_unsubscribe(self):
         response = pubsub_xso.Request()
         response.payload = unittest.mock.Mock()
-        self.cc.stream.send.return_value = response
+        self.cc.send.return_value = response
 
         run_coroutine(self.s.unsubscribe(
             TEST_TO,
@@ -576,10 +576,10 @@ class TestService(unittest.TestCase):
 
         self.assertEqual(
             1,
-            len(self.cc.stream.send.mock_calls)
+            len(self.cc.send.mock_calls)
         )
 
-        call, = self.cc.stream.send.mock_calls
+        call, = self.cc.send.mock_calls
         request_iq, = call[1]
 
         self.assertIsInstance(request_iq, aioxmpp.stanza.IQ)
@@ -597,7 +597,7 @@ class TestService(unittest.TestCase):
     def test_unsubscribe_with_subscription_jid(self):
         response = pubsub_xso.Request()
         response.payload = unittest.mock.Mock()
-        self.cc.stream.send.return_value = response
+        self.cc.send.return_value = response
 
         run_coroutine(self.s.unsubscribe(
             TEST_TO,
@@ -607,10 +607,10 @@ class TestService(unittest.TestCase):
 
         self.assertEqual(
             1,
-            len(self.cc.stream.send.mock_calls)
+            len(self.cc.send.mock_calls)
         )
 
-        call, = self.cc.stream.send.mock_calls
+        call, = self.cc.send.mock_calls
         request_iq, = call[1]
 
         self.assertIsInstance(request_iq, aioxmpp.stanza.IQ)
@@ -628,7 +628,7 @@ class TestService(unittest.TestCase):
     def test_unsubscribe_with_subid(self):
         response = pubsub_xso.Request()
         response.payload = unittest.mock.Mock()
-        self.cc.stream.send.return_value = response
+        self.cc.send.return_value = response
 
         run_coroutine(self.s.unsubscribe(
             TEST_TO,
@@ -638,10 +638,10 @@ class TestService(unittest.TestCase):
 
         self.assertEqual(
             1,
-            len(self.cc.stream.send.mock_calls)
+            len(self.cc.send.mock_calls)
         )
 
-        call, = self.cc.stream.send.mock_calls
+        call, = self.cc.send.mock_calls
         request_iq, = call[1]
 
         self.assertIsInstance(request_iq, aioxmpp.stanza.IQ)
@@ -658,7 +658,7 @@ class TestService(unittest.TestCase):
     def test_get_subscription_config(self):
         response = pubsub_xso.Request()
         response.options = unittest.mock.Mock()
-        self.cc.stream.send.return_value = response
+        self.cc.send.return_value = response
 
         result = run_coroutine(self.s.get_subscription_config(
             TEST_TO,
@@ -667,10 +667,10 @@ class TestService(unittest.TestCase):
 
         self.assertEqual(
             1,
-            len(self.cc.stream.send.mock_calls)
+            len(self.cc.send.mock_calls)
         )
 
-        call, = self.cc.stream.send.mock_calls
+        call, = self.cc.send.mock_calls
         request_iq, = call[1]
 
         self.assertIsInstance(request_iq, aioxmpp.stanza.IQ)
@@ -690,7 +690,7 @@ class TestService(unittest.TestCase):
     def test_get_subscription_config_with_subid(self):
         response = pubsub_xso.Request()
         response.options = unittest.mock.Mock()
-        self.cc.stream.send.return_value = response
+        self.cc.send.return_value = response
 
         result = run_coroutine(self.s.get_subscription_config(
             TEST_TO,
@@ -700,10 +700,10 @@ class TestService(unittest.TestCase):
 
         self.assertEqual(
             1,
-            len(self.cc.stream.send.mock_calls)
+            len(self.cc.send.mock_calls)
         )
 
-        call, = self.cc.stream.send.mock_calls
+        call, = self.cc.send.mock_calls
         request_iq, = call[1]
 
         self.assertIsInstance(request_iq, aioxmpp.stanza.IQ)
@@ -723,7 +723,7 @@ class TestService(unittest.TestCase):
     def test_get_subscription_config_with_subscription_jid(self):
         response = pubsub_xso.Request()
         response.options = unittest.mock.Mock()
-        self.cc.stream.send.return_value = response
+        self.cc.send.return_value = response
 
         result = run_coroutine(self.s.get_subscription_config(
             TEST_TO,
@@ -734,10 +734,10 @@ class TestService(unittest.TestCase):
 
         self.assertEqual(
             1,
-            len(self.cc.stream.send.mock_calls)
+            len(self.cc.send.mock_calls)
         )
 
-        call, = self.cc.stream.send.mock_calls
+        call, = self.cc.send.mock_calls
         request_iq, = call[1]
 
         self.assertIsInstance(request_iq, aioxmpp.stanza.IQ)
@@ -758,7 +758,7 @@ class TestService(unittest.TestCase):
     def test_set_subscription_config(self):
         response = pubsub_xso.Request()
         response.options = unittest.mock.Mock()
-        self.cc.stream.send.return_value = response
+        self.cc.send.return_value = response
 
         data = unittest.mock.Mock()
 
@@ -770,10 +770,10 @@ class TestService(unittest.TestCase):
 
         self.assertEqual(
             1,
-            len(self.cc.stream.send.mock_calls)
+            len(self.cc.send.mock_calls)
         )
 
-        call, = self.cc.stream.send.mock_calls
+        call, = self.cc.send.mock_calls
         request_iq, = call[1]
 
         self.assertIsInstance(request_iq, aioxmpp.stanza.IQ)
@@ -792,7 +792,7 @@ class TestService(unittest.TestCase):
     def test_set_subscription_config_with_subid(self):
         response = pubsub_xso.Request()
         response.options = unittest.mock.Mock()
-        self.cc.stream.send.return_value = response
+        self.cc.send.return_value = response
 
         data = unittest.mock.Mock()
 
@@ -805,10 +805,10 @@ class TestService(unittest.TestCase):
 
         self.assertEqual(
             1,
-            len(self.cc.stream.send.mock_calls)
+            len(self.cc.send.mock_calls)
         )
 
-        call, = self.cc.stream.send.mock_calls
+        call, = self.cc.send.mock_calls
         request_iq, = call[1]
 
         self.assertIsInstance(request_iq, aioxmpp.stanza.IQ)
@@ -827,7 +827,7 @@ class TestService(unittest.TestCase):
     def test_set_subscription_config_with_subscription_jid_and_subid(self):
         response = pubsub_xso.Request()
         response.options = unittest.mock.Mock()
-        self.cc.stream.send.return_value = response
+        self.cc.send.return_value = response
 
         data = unittest.mock.Mock()
 
@@ -841,10 +841,10 @@ class TestService(unittest.TestCase):
 
         self.assertEqual(
             1,
-            len(self.cc.stream.send.mock_calls)
+            len(self.cc.send.mock_calls)
         )
 
-        call, = self.cc.stream.send.mock_calls
+        call, = self.cc.send.mock_calls
         request_iq, = call[1]
 
         self.assertIsInstance(request_iq, aioxmpp.stanza.IQ)
@@ -864,7 +864,7 @@ class TestService(unittest.TestCase):
     def test_get_default_config(self):
         response = pubsub_xso.Request()
         response.payload = unittest.mock.Mock()
-        self.cc.stream.send.return_value = response
+        self.cc.send.return_value = response
 
         result = run_coroutine(self.s.get_default_config(
             TEST_TO,
@@ -873,10 +873,10 @@ class TestService(unittest.TestCase):
 
         self.assertEqual(
             1,
-            len(self.cc.stream.send.mock_calls)
+            len(self.cc.send.mock_calls)
         )
 
-        call, = self.cc.stream.send.mock_calls
+        call, = self.cc.send.mock_calls
         request_iq, = call[1]
 
         self.assertIsInstance(request_iq, aioxmpp.stanza.IQ)
@@ -893,7 +893,7 @@ class TestService(unittest.TestCase):
     def test_get_items(self):
         response = pubsub_xso.Request()
         response.payload = unittest.mock.Mock()
-        self.cc.stream.send.return_value = response
+        self.cc.send.return_value = response
 
         result = run_coroutine(self.s.get_items(
             TEST_TO,
@@ -902,10 +902,10 @@ class TestService(unittest.TestCase):
 
         self.assertEqual(
             1,
-            len(self.cc.stream.send.mock_calls)
+            len(self.cc.send.mock_calls)
         )
 
-        call, = self.cc.stream.send.mock_calls
+        call, = self.cc.send.mock_calls
         request_iq, = call[1]
 
         self.assertIsInstance(request_iq, aioxmpp.stanza.IQ)
@@ -923,7 +923,7 @@ class TestService(unittest.TestCase):
     def test_get_items_max_items(self):
         response = pubsub_xso.Request()
         response.payload = unittest.mock.Mock()
-        self.cc.stream.send.return_value = response
+        self.cc.send.return_value = response
 
         result = run_coroutine(self.s.get_items(
             TEST_TO,
@@ -933,10 +933,10 @@ class TestService(unittest.TestCase):
 
         self.assertEqual(
             1,
-            len(self.cc.stream.send.mock_calls)
+            len(self.cc.send.mock_calls)
         )
 
-        call, = self.cc.stream.send.mock_calls
+        call, = self.cc.send.mock_calls
         request_iq, = call[1]
 
         self.assertIsInstance(request_iq, aioxmpp.stanza.IQ)
@@ -954,7 +954,7 @@ class TestService(unittest.TestCase):
     def test_get_items_by_id(self):
         response = pubsub_xso.Request()
         response.payload = unittest.mock.Mock()
-        self.cc.stream.send.return_value = response
+        self.cc.send.return_value = response
 
         ids = [
             "abc",
@@ -970,10 +970,10 @@ class TestService(unittest.TestCase):
 
         self.assertEqual(
             1,
-            len(self.cc.stream.send.mock_calls)
+            len(self.cc.send.mock_calls)
         )
 
-        call, = self.cc.stream.send.mock_calls
+        call, = self.cc.send.mock_calls
         request_iq, = call[1]
 
         self.assertIsInstance(request_iq, aioxmpp.stanza.IQ)
@@ -998,7 +998,7 @@ class TestService(unittest.TestCase):
     def test_get_items_by_id_rejects_empty_iterable(self):
         response = pubsub_xso.Request()
         response.payload = unittest.mock.Mock()
-        self.cc.stream.send.return_value = response
+        self.cc.send.return_value = response
 
         ids = []
 
@@ -1011,14 +1011,14 @@ class TestService(unittest.TestCase):
 
         self.assertEqual(
             0,
-            len(self.cc.stream.send.mock_calls)
+            len(self.cc.send.mock_calls)
         )
 
     def test_get_subscriptions(self):
         response = pubsub_xso.Request()
         response.payload = unittest.mock.Mock()
 
-        self.cc.stream.send.return_value = response
+        self.cc.send.return_value = response
 
         result = run_coroutine(self.s.get_subscriptions(
             TEST_TO,
@@ -1029,11 +1029,11 @@ class TestService(unittest.TestCase):
 
         self.assertEqual(
             1,
-            len(self.cc.stream.send.mock_calls)
+            len(self.cc.send.mock_calls)
         )
 
         _, (request_iq, ), _ = \
-            self.cc.stream.send.mock_calls[0]
+            self.cc.send.mock_calls[0]
 
         self.assertIsInstance(request_iq, aioxmpp.stanza.IQ)
         self.assertEqual(request_iq.type_, aioxmpp.structs.IQType.GET)
@@ -1048,7 +1048,7 @@ class TestService(unittest.TestCase):
         response = pubsub_xso.Request()
         response.payload = unittest.mock.Mock()
 
-        self.cc.stream.send.return_value = response
+        self.cc.send.return_value = response
 
         result = run_coroutine(self.s.get_subscriptions(
             TEST_TO,
@@ -1058,11 +1058,11 @@ class TestService(unittest.TestCase):
 
         self.assertEqual(
             1,
-            len(self.cc.stream.send.mock_calls)
+            len(self.cc.send.mock_calls)
         )
 
         _, (request_iq, ), _ = \
-            self.cc.stream.send.mock_calls[0]
+            self.cc.send.mock_calls[0]
 
         self.assertIsInstance(request_iq, aioxmpp.stanza.IQ)
         self.assertEqual(request_iq.type_, aioxmpp.structs.IQType.GET)
@@ -1079,7 +1079,7 @@ class TestService(unittest.TestCase):
         response = pubsub_xso.Request()
         response.payload = pubsub_xso.Publish()
 
-        self.cc.stream.send.return_value = response
+        self.cc.send.return_value = response
 
         result = run_coroutine(self.s.publish(
             TEST_TO,
@@ -1090,11 +1090,11 @@ class TestService(unittest.TestCase):
 
         self.assertEqual(
             1,
-            len(self.cc.stream.send.mock_calls)
+            len(self.cc.send.mock_calls)
         )
 
         _, (request_iq, ), _ = \
-            self.cc.stream.send.mock_calls[0]
+            self.cc.send.mock_calls[0]
 
         self.assertIsInstance(request_iq, aioxmpp.stanza.IQ)
         self.assertEqual(request_iq.type_, aioxmpp.structs.IQType.SET)
@@ -1120,7 +1120,7 @@ class TestService(unittest.TestCase):
         response.payload.item = pubsub_xso.Item()
         response.payload.item.id_ = "some-other-id"
 
-        self.cc.stream.send.return_value = response
+        self.cc.send.return_value = response
 
         result = run_coroutine(self.s.publish(
             TEST_TO,
@@ -1131,11 +1131,11 @@ class TestService(unittest.TestCase):
 
         self.assertEqual(
             1,
-            len(self.cc.stream.send.mock_calls)
+            len(self.cc.send.mock_calls)
         )
 
         _, (request_iq, ), _ = \
-            self.cc.stream.send.mock_calls[0]
+            self.cc.send.mock_calls[0]
 
         self.assertIsInstance(request_iq, aioxmpp.stanza.IQ)
         self.assertEqual(request_iq.type_, aioxmpp.structs.IQType.SET)
@@ -1161,7 +1161,7 @@ class TestService(unittest.TestCase):
         response.payload.item = pubsub_xso.Item()
         response.payload.item.id_ = "generated-id"
 
-        self.cc.stream.send.return_value = response
+        self.cc.send.return_value = response
 
         result = run_coroutine(self.s.publish(
             TEST_TO,
@@ -1171,11 +1171,11 @@ class TestService(unittest.TestCase):
 
         self.assertEqual(
             1,
-            len(self.cc.stream.send.mock_calls)
+            len(self.cc.send.mock_calls)
         )
 
         _, (request_iq, ), _ = \
-            self.cc.stream.send.mock_calls[0]
+            self.cc.send.mock_calls[0]
 
         self.assertIsInstance(request_iq, aioxmpp.stanza.IQ)
         self.assertEqual(request_iq.type_, aioxmpp.structs.IQType.SET)
@@ -1197,7 +1197,7 @@ class TestService(unittest.TestCase):
         response = pubsub_xso.Request()
         response.payload = pubsub_xso.Publish()
 
-        self.cc.stream.send.return_value = response
+        self.cc.send.return_value = response
 
         result = run_coroutine(self.s.publish(
             TEST_TO,
@@ -1207,11 +1207,11 @@ class TestService(unittest.TestCase):
 
         self.assertEqual(
             1,
-            len(self.cc.stream.send.mock_calls)
+            len(self.cc.send.mock_calls)
         )
 
         _, (request_iq, ), _ = \
-            self.cc.stream.send.mock_calls[0]
+            self.cc.send.mock_calls[0]
 
         self.assertIsInstance(request_iq, aioxmpp.stanza.IQ)
         self.assertEqual(request_iq.type_, aioxmpp.structs.IQType.SET)
@@ -1227,7 +1227,7 @@ class TestService(unittest.TestCase):
 
     def test_publish_without_id_without_response(self):
         payload = SomePayload()
-        self.cc.stream.send.return_value = None
+        self.cc.send.return_value = None
 
         result = run_coroutine(self.s.publish(
             TEST_TO,
@@ -1237,11 +1237,11 @@ class TestService(unittest.TestCase):
 
         self.assertEqual(
             1,
-            len(self.cc.stream.send.mock_calls)
+            len(self.cc.send.mock_calls)
         )
 
         _, (request_iq, ), _ = \
-            self.cc.stream.send.mock_calls[0]
+            self.cc.send.mock_calls[0]
 
         self.assertIsInstance(request_iq, aioxmpp.stanza.IQ)
         self.assertEqual(request_iq.type_, aioxmpp.structs.IQType.SET)
@@ -1261,7 +1261,7 @@ class TestService(unittest.TestCase):
         response = pubsub_xso.Request()
         response.payload = pubsub_xso.Publish()
 
-        self.cc.stream.send.return_value = response
+        self.cc.send.return_value = response
 
         result = run_coroutine(self.s.publish(
             TEST_TO,
@@ -1272,11 +1272,11 @@ class TestService(unittest.TestCase):
 
         self.assertEqual(
             1,
-            len(self.cc.stream.send.mock_calls)
+            len(self.cc.send.mock_calls)
         )
 
         _, (request_iq, ), _ = \
-            self.cc.stream.send.mock_calls[0]
+            self.cc.send.mock_calls[0]
 
         self.assertIsInstance(request_iq, aioxmpp.stanza.IQ)
         self.assertEqual(request_iq.type_, aioxmpp.structs.IQType.SET)
@@ -1297,7 +1297,7 @@ class TestService(unittest.TestCase):
         response.payload = pubsub_xso.Publish()
         response.payload.item = pubsub_xso.Item()
         response.payload.item.id_ = "some-other-id"
-        self.cc.stream.send.return_value = response
+        self.cc.send.return_value = response
 
         result = run_coroutine(self.s.publish(
             None,
@@ -1307,11 +1307,11 @@ class TestService(unittest.TestCase):
 
         self.assertEqual(
             1,
-            len(self.cc.stream.send.mock_calls)
+            len(self.cc.send.mock_calls)
         )
 
         _, (request_iq, ), _ = \
-            self.cc.stream.send.mock_calls[0]
+            self.cc.send.mock_calls[0]
 
         self.assertIsInstance(request_iq, aioxmpp.stanza.IQ)
         self.assertEqual(request_iq.type_, aioxmpp.structs.IQType.SET)
@@ -1351,7 +1351,7 @@ class TestService(unittest.TestCase):
         )
 
     def test_retract(self):
-        self.cc.stream.send.return_value = None
+        self.cc.send.return_value = None
 
         run_coroutine(self.s.retract(
             TEST_TO,
@@ -1361,11 +1361,11 @@ class TestService(unittest.TestCase):
 
         self.assertEqual(
             1,
-            len(self.cc.stream.send.mock_calls)
+            len(self.cc.send.mock_calls)
         )
 
         _, (request_iq, ), _ = \
-            self.cc.stream.send.mock_calls[0]
+            self.cc.send.mock_calls[0]
 
         self.assertIsInstance(request_iq, aioxmpp.stanza.IQ)
         self.assertEqual(request_iq.type_, aioxmpp.structs.IQType.SET)
@@ -1382,7 +1382,7 @@ class TestService(unittest.TestCase):
         self.assertIs(item.id_, "some-id")
 
     def test_retract_with_notify(self):
-        self.cc.stream.send.return_value = None
+        self.cc.send.return_value = None
 
         run_coroutine(self.s.retract(
             TEST_TO,
@@ -1393,11 +1393,11 @@ class TestService(unittest.TestCase):
 
         self.assertEqual(
             1,
-            len(self.cc.stream.send.mock_calls)
+            len(self.cc.send.mock_calls)
         )
 
         _, (request_iq, ), _ = \
-            self.cc.stream.send.mock_calls[0]
+            self.cc.send.mock_calls[0]
 
         self.assertIsInstance(request_iq, aioxmpp.stanza.IQ)
         self.assertEqual(request_iq.type_, aioxmpp.structs.IQType.SET)
@@ -1440,7 +1440,7 @@ class TestService(unittest.TestCase):
         response = pubsub_xso.Request()
         response.payload = pubsub_xso.Create()
 
-        self.cc.stream.send.return_value = response
+        self.cc.send.return_value = response
 
         result = run_coroutine(self.s.create(
             TEST_TO,
@@ -1449,11 +1449,11 @@ class TestService(unittest.TestCase):
 
         self.assertEqual(
             1,
-            len(self.cc.stream.send.mock_calls)
+            len(self.cc.send.mock_calls)
         )
 
         _, (request_iq, ), _ = \
-            self.cc.stream.send.mock_calls[0]
+            self.cc.send.mock_calls[0]
 
         self.assertIsInstance(request_iq, aioxmpp.stanza.IQ)
         self.assertEqual(request_iq.type_, aioxmpp.structs.IQType.SET)
@@ -1469,7 +1469,7 @@ class TestService(unittest.TestCase):
     def test_create_with_node_copes_with_empty_reply(self):
         response = None
 
-        self.cc.stream.send.return_value = response
+        self.cc.send.return_value = response
 
         result = run_coroutine(self.s.create(
             TEST_TO,
@@ -1478,11 +1478,11 @@ class TestService(unittest.TestCase):
 
         self.assertEqual(
             1,
-            len(self.cc.stream.send.mock_calls)
+            len(self.cc.send.mock_calls)
         )
 
         _, (request_iq, ), _ = \
-            self.cc.stream.send.mock_calls[0]
+            self.cc.send.mock_calls[0]
 
         self.assertIsInstance(request_iq, aioxmpp.stanza.IQ)
         self.assertEqual(request_iq.type_, aioxmpp.structs.IQType.SET)
@@ -1500,7 +1500,7 @@ class TestService(unittest.TestCase):
         response.payload = pubsub_xso.Create()
         response.payload.node = "autogen-id"
 
-        self.cc.stream.send.return_value = response
+        self.cc.send.return_value = response
 
         result = run_coroutine(self.s.create(
             TEST_TO,
@@ -1508,11 +1508,11 @@ class TestService(unittest.TestCase):
 
         self.assertEqual(
             1,
-            len(self.cc.stream.send.mock_calls)
+            len(self.cc.send.mock_calls)
         )
 
         _, (request_iq, ), _ = \
-            self.cc.stream.send.mock_calls[0]
+            self.cc.send.mock_calls[0]
 
         self.assertIsInstance(request_iq, aioxmpp.stanza.IQ)
         self.assertEqual(request_iq.type_, aioxmpp.structs.IQType.SET)
@@ -1560,7 +1560,7 @@ class TestService(unittest.TestCase):
         )
 
     def test_delete_without_redirect_uri(self):
-        self.cc.stream.send.return_value = None
+        self.cc.send.return_value = None
 
         run_coroutine(
             self.s.delete(TEST_TO, "node"),
@@ -1568,11 +1568,11 @@ class TestService(unittest.TestCase):
 
         self.assertEqual(
             1,
-            len(self.cc.stream.send.mock_calls)
+            len(self.cc.send.mock_calls)
         )
 
         _, (request_iq, ), _ = \
-            self.cc.stream.send.mock_calls[0]
+            self.cc.send.mock_calls[0]
 
         self.assertIsInstance(request_iq, aioxmpp.stanza.IQ)
         self.assertEqual(request_iq.type_, aioxmpp.structs.IQType.SET)
@@ -1585,7 +1585,7 @@ class TestService(unittest.TestCase):
         self.assertIsNone(payload.redirect_uri)
 
     def test_delete_with_redirect_uri(self):
-        self.cc.stream.send.return_value = None
+        self.cc.send.return_value = None
 
         run_coroutine(
             self.s.delete(TEST_TO, "node", redirect_uri="fnord"),
@@ -1593,11 +1593,11 @@ class TestService(unittest.TestCase):
 
         self.assertEqual(
             1,
-            len(self.cc.stream.send.mock_calls)
+            len(self.cc.send.mock_calls)
         )
 
         _, (request_iq, ), _ = \
-            self.cc.stream.send.mock_calls[0]
+            self.cc.send.mock_calls[0]
 
         self.assertIsInstance(request_iq, aioxmpp.stanza.IQ)
         self.assertEqual(request_iq.type_, aioxmpp.structs.IQType.SET)
@@ -1614,7 +1614,7 @@ class TestService(unittest.TestCase):
             pubsub_xso.OwnerAffiliations(node="fnord")
         )
 
-        self.cc.stream.send.return_value = response
+        self.cc.send.return_value = response
 
         result = run_coroutine(
             self.s.get_node_affiliations(TEST_TO, "node"),
@@ -1622,11 +1622,11 @@ class TestService(unittest.TestCase):
 
         self.assertEqual(
             1,
-            len(self.cc.stream.send.mock_calls)
+            len(self.cc.send.mock_calls)
         )
 
         _, (request_iq, ), _ = \
-            self.cc.stream.send.mock_calls[0]
+            self.cc.send.mock_calls[0]
 
         self.assertIsInstance(request_iq, aioxmpp.stanza.IQ)
         self.assertEqual(request_iq.type_, aioxmpp.structs.IQType.GET)
@@ -1645,7 +1645,7 @@ class TestService(unittest.TestCase):
             pubsub_xso.OwnerSubscriptions(node="fnord")
         )
 
-        self.cc.stream.send.return_value = response
+        self.cc.send.return_value = response
 
         result = run_coroutine(
             self.s.get_node_subscriptions(TEST_TO, "node"),
@@ -1653,11 +1653,11 @@ class TestService(unittest.TestCase):
 
         self.assertEqual(
             1,
-            len(self.cc.stream.send.mock_calls)
+            len(self.cc.send.mock_calls)
         )
 
         _, (request_iq, ), _ = \
-            self.cc.stream.send.mock_calls[0]
+            self.cc.send.mock_calls[0]
 
         self.assertIsInstance(request_iq, aioxmpp.stanza.IQ)
         self.assertEqual(request_iq.type_, aioxmpp.structs.IQType.GET)
@@ -1678,7 +1678,7 @@ class TestService(unittest.TestCase):
             (TEST_JID3, "none"),
         ]
 
-        self.cc.stream.send.return_value = None
+        self.cc.send.return_value = None
 
         run_coroutine(
             self.s.change_node_affiliations(
@@ -1690,11 +1690,11 @@ class TestService(unittest.TestCase):
 
         self.assertEqual(
             1,
-            len(self.cc.stream.send.mock_calls)
+            len(self.cc.send.mock_calls)
         )
 
         _, (request_iq, ), _ = \
-            self.cc.stream.send.mock_calls[0]
+            self.cc.send.mock_calls[0]
 
         self.assertIsInstance(request_iq, aioxmpp.stanza.IQ)
         self.assertEqual(request_iq.type_, aioxmpp.structs.IQType.SET)
@@ -1720,7 +1720,7 @@ class TestService(unittest.TestCase):
             (TEST_JID3, "none"),
         ]
 
-        self.cc.stream.send.return_value = None
+        self.cc.send.return_value = None
 
         run_coroutine(
             self.s.change_node_subscriptions(
@@ -1732,11 +1732,11 @@ class TestService(unittest.TestCase):
 
         self.assertEqual(
             1,
-            len(self.cc.stream.send.mock_calls)
+            len(self.cc.send.mock_calls)
         )
 
         _, (request_iq, ), _ = \
-            self.cc.stream.send.mock_calls[0]
+            self.cc.send.mock_calls[0]
 
         self.assertIsInstance(request_iq, aioxmpp.stanza.IQ)
         self.assertEqual(request_iq.type_, aioxmpp.structs.IQType.SET)
@@ -1756,7 +1756,7 @@ class TestService(unittest.TestCase):
         )
 
     def test_purge(self):
-        self.cc.stream.send.return_value = None
+        self.cc.send.return_value = None
 
         run_coroutine(
             self.s.purge(
@@ -1767,11 +1767,11 @@ class TestService(unittest.TestCase):
 
         self.assertEqual(
             1,
-            len(self.cc.stream.send.mock_calls)
+            len(self.cc.send.mock_calls)
         )
 
         _, (request_iq, ), _ = \
-            self.cc.stream.send.mock_calls[0]
+            self.cc.send.mock_calls[0]
 
         self.assertIsInstance(request_iq, aioxmpp.stanza.IQ)
         self.assertEqual(request_iq.type_, aioxmpp.structs.IQType.SET)

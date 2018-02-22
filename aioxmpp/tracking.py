@@ -427,7 +427,7 @@ class BasicTrackingService(aioxmpp.service.Service):
               can be used if the stanza cannot be sent (e.g. because it is a
               carbon-copy) or has already been sent.
         """
-        token = self.client.stream.enqueue(stanza)
+        token = self.client.enqueue(stanza)
         self.attach_tracker(stanza, tracker, token)
         return token
 
