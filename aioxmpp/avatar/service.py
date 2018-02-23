@@ -592,8 +592,13 @@ class AvatarService(service.Service):
     @service.depfilter(aioxmpp.stream.StanzaStream,
                        "service_outbound_presence_filter")
     def _attach_vcard_notify_to_presence(self, stanza):
-        if self._advertise_vcard and not self._vcard_resource_interference:
-            stanza.xep0153_x = avatar_xso.VCardTempUpdate(self._vcard_id)
+        if self._advertise_vcard:
+            if self._vcard_resource_interference:
+                # do not advertise the hash if there is resource interference
+                stanza.xep0153_x = avatar_xso.VCardTempUpdate()
+            else:
+                stanza.xep0153_x = avatar_xso.VCardTempUpdate(self._vcard_id)
+
         return stanza
 
     def _update_metadata(self, cache_jid, metadata):
