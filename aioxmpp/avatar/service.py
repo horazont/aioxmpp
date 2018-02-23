@@ -619,15 +619,16 @@ class AvatarService(service.Service):
     def _handle_notify(self, full_jid, stanza):
         # handle resource interference as per XEP-153 business rules,
         # we go along with this tracking even if vcard advertisement
-        # is off – but note that we might encounter a "stuck" state,
-        # where the other guy thinks we are an obstruction to sending,
-        # but in fact are not!
+        # is off
         if (full_jid.bare() == self.client.local_jid.bare() and
                 full_jid != self.client.local_jid):
             if stanza.xep0153_x is None:
                 self._vcard_resource_interference.add(full_jid)
             else:
-                self._vcard_resource_interference.discard(full_jid)
+                if self._vcard_resource_interference:
+                    self._vcard_resource_interference.discard(full_jid)
+                    if not self._vcard_resource_interference:
+                        self._vcard_id = None
 
         # otherwise ignore stanzas without xep0153_x payload, or
         # no photo tag.
@@ -713,7 +714,10 @@ class AvatarService(service.Service):
     @service.depsignal(presence.PresenceClient, "on_unavailable")
     def _handle_on_unavailable(self, full_jid, stanza):
         if full_jid.bare() == self.client.local_jid.bare():
-            self._vcard_resource_interference.discard(full_jid)
+            if self._vcard_resource_interference:
+                self._vcard_resource_interference.discard(full_jid)
+                if not self._vcard_resource_interference:
+                    self._start_rehash_task()
 
         # correctly handle MUC avatars
         if stanza.xep0045_muc_user is not None:
