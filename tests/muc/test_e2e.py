@@ -558,3 +558,46 @@ class TestMuc(TestCase):
         self.assertEqual(occupant.nick, "oldhag")
         self.assertEqual(old_nick, "firstwitch")
         self.assertEqual(new_nick, occupant.nick)
+
+    @skip_with_quirk(Quirk.MUC_NO_333)
+    @blocking_timed
+    @asyncio.coroutine
+    def test_kick_due_to_error(self):
+        exit_fut = asyncio.Future()
+        leave_fut = asyncio.Future()
+
+        def onexit(muc_leave_mode, muc_reason=None, **kwargs):
+            nonlocal exit_fut
+            exit_fut.set_result((muc_leave_mode, muc_reason))
+            return True
+
+        def onleave(occupant, muc_leave_mode, muc_reason=None, **kwargs):
+            nonlocal leave_fut
+            leave_fut.set_result((occupant, muc_leave_mode, muc_reason))
+            return True
+
+        self.secondroom.on_exit.connect(onexit)
+        self.firstroom.on_leave.connect(onleave)
+
+        error_presence = aioxmpp.Presence(
+            type_=aioxmpp.PresenceType.ERROR,
+            to=self.secondroom.me.conversation_jid,
+        )
+        error_presence.status.update({None: "Client exited"})
+        yield from self.secondwitch.send(
+            error_presence,
+        )
+
+        mode, reason = yield from exit_fut
+
+        self.assertEqual(
+            mode,
+            aioxmpp.muc.LeaveMode.ERROR,
+        )
+
+        occupant, mode, reason = yield from leave_fut
+
+        self.assertEqual(
+            mode,
+            aioxmpp.muc.LeaveMode.ERROR,
+        )

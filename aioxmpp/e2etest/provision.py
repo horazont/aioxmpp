@@ -66,6 +66,8 @@ class Quirk(enum.Enum):
         "https://zombofant.net/xmlns/aioxmpp/e2etest/quirks#muc-id-rewrite"
     NO_ADHOC_PING = \
         "https://zombofant.net/xmlns/aioxmpp/e2etest/quirks#no-adhoc-ping"
+    MUC_NO_333 = \
+        "https://zombofant.net/xmlns/aioxmpp/e2etest/quirks#muc-no-333"
 
 
 def fix_quirk_str(s):

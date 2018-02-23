@@ -72,7 +72,7 @@ try:
     subprocess.check_call(
         ["python3",
          "-m", "aioxmpp.e2etest",
-         "--e2etest-config=.travis-e2etest.ini",
+         "--e2etest-config=utils/ejabberd-cfg/e2etest.ini",
          "tests"]
     )
 finally:
