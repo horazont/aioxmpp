@@ -89,6 +89,17 @@ class LeaveMode(Enum):
     .. attribute:: BANNED
 
        The user was banned from the room.
+
+    .. attribute:: ERROR
+
+        The user was removed due to an error when communicating with the client
+        or the users server.
+
+        Not all servers support this. If not supported by the server, one will
+        typically see a :attr:`KICKED` status code with an appropriate
+        :attr:`~.Presence.status` message.
+
+        .. versionadded:: 0.10
     """
 
     DISCONNECTED = -2
@@ -98,6 +109,7 @@ class LeaveMode(Enum):
     AFFILIATION_CHANGE = 3
     MODERATION_CHANGE = 4
     BANNED = 5
+    ERROR = 6
 
 
 class _OccupantDiffClass(Enum):
@@ -907,7 +919,9 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
             status_codes = stanza.xep0045_muc_user.status_codes
             mode = LeaveMode.NORMAL
 
-            if 307 in status_codes:
+            if 333 in status_codes:
+                mode = LeaveMode.ERROR
+            elif 307 in status_codes:
                 mode = LeaveMode.KICKED
             elif 301 in status_codes:
                 mode = LeaveMode.BANNED

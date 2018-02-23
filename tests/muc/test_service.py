@@ -1044,6 +1044,82 @@ class TestRoom(unittest.TestCase):
                 "member"
             )
 
+    def test__inbound_muc_user_presence_emits_on_leave_for_error_kick(self):
+        presence = aioxmpp.stanza.Presence(
+            type_=aioxmpp.structs.PresenceType.AVAILABLE,
+            from_=TEST_MUC_JID.replace(resource="firstwitch")
+        )
+        presence.xep0045_muc_user = muc_xso.UserExt(
+            items=[
+                muc_xso.UserItem(affiliation="member",
+                                 role="participant")
+            ]
+        )
+
+        actor = object()
+
+        original_Occupant = muc_service.Occupant
+        with unittest.mock.patch("aioxmpp.muc.service.Occupant") as Occupant:
+            first = original_Occupant.from_presence(
+                presence,
+                False,
+            )
+            Occupant.from_presence.return_value = first
+
+            self.jmuc._inbound_muc_user_presence(presence)
+
+            Occupant.from_presence.assert_called_with(
+                presence,
+                False,
+            )
+
+            self.assertSequenceEqual(
+                self.base.mock_calls,
+                [
+                    unittest.mock.call.on_join(first)
+                ]
+            )
+            self.base.mock_calls.clear()
+
+            # update presence stanza
+            presence.type_ = aioxmpp.structs.PresenceType.UNAVAILABLE
+            presence.xep0045_muc_user.status_codes.update({307, 333})
+            presence.xep0045_muc_user.items[0].reason = "Error"
+            presence.xep0045_muc_user.items[0].role = "none"
+            presence.xep0045_muc_user.items[0].actor = actor
+
+            second = original_Occupant.from_presence(
+                presence,
+                False,
+            )
+            Occupant.from_presence.return_value = second
+            self.jmuc._inbound_muc_user_presence(presence)
+
+            self.assertSequenceEqual(
+                self.base.mock_calls,
+                [
+                    unittest.mock.call.on_muc_role_changed(
+                        presence,
+                        first,
+                        actor=actor,
+                        reason="Error"),
+                    unittest.mock.call.on_leave(
+                        first,
+                        muc_leave_mode=muc_service.LeaveMode.ERROR,
+                        muc_actor=actor,
+                        muc_reason="Error")
+                ]
+            )
+
+            self.assertEqual(
+                first.role,
+                "none"
+            )
+            self.assertEqual(
+                first.affiliation,
+                "member"
+            )
+
     def test__inbound_muc_user_presence_handles_itemless_role_change(self):
         presence = aioxmpp.stanza.Presence(
             type_=aioxmpp.structs.PresenceType.AVAILABLE,

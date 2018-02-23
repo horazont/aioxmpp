@@ -260,6 +260,9 @@ Version 0.10
 * :meth:`aioxmpp.Client.send` now blocks until the stream of the client is
   :attr:`aioxmpp.Client.established`.
 
+* Support for the new :xep:`45` 1.30 status code for kicks due to errors.
+  See :attr:`aioxmpp.muc.LeaveMode.ERROR`.
+
 .. _api-changelog-0.9:
 
 Version 0.9
