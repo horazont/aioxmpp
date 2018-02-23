@@ -1,5 +1,5 @@
 ########################################################################
-# File name: __init__.py
+# File name: oob.py
 # This file is part of: aioxmpp
 #
 # LICENSE
@@ -19,34 +19,21 @@
 # <http://www.gnu.org/licenses/>.
 #
 ########################################################################
-"""
-:mod:`~aioxmpp.misc` -- Miscellaneous XSOs
-##########################################
+import aioxmpp.xso as xso
 
-This subpackage bundles XSO definitions for several XEPs. They do not get their
-own subpackage because they often only define one or two XSOs without any logic
-involved. The XSOs are often intended for re-use by other protocols.
+from ..stanza import Message
 
+from aioxmpp.utils import namespaces
 
-Delayed Delivery (:xep:`203`)
-=============================
-
-.. autoclass:: Delay()
-
-.. attribute:: aioxmpp.Message.xep0203_delay
-
-   A :class:`Delay` instance which indicates that the message has been
-   delivered with delay.
+namespaces.xep0066_oob_x = "jabber:x:oob"
 
 
-Stanza Forwarding (:xep:`297`)
-==============================
+class OOBExtension(xso.XSO):
+    TAG = namespaces.xep0066_oob_x, "x"
 
-.. autoclass:: Forwarded()
+    url = xso.ChildText(
+        (namespaces.xep0066_oob_x, "url")
+    )
 
 
-"""
-
-from .delay import Delay  # NOQA
-from .forwarding import Forwarded  # NOQA
-from .oob import OOBExtension  # NOQA
+Message.xep0066_oob = xso.Child([OOBExtension])

@@ -279,6 +279,9 @@ Version 0.10
   :class:`aioxmpp.muc.Occupant` object is created. See the
   :meth:`~aioxmpp.muc.Room.on_message` docs for details.
 
+* Support for some parts of the :xep:`60` schema. No support for actually
+  sending or receiving files via the :xep:`60` IQ.
+
 .. _api-changelog-0.9:
 
 Version 0.9
