@@ -393,7 +393,8 @@ class TestAvatarService(unittest.TestCase):
         self.s._vcard_resource_interference.add(TEST_JID1)
         stanza = aioxmpp.Presence()
         stanza = self.s._attach_vcard_notify_to_presence(stanza)
-        self.assertIsNone(stanza.xep0153_x)
+        self.assertIsNotNone(stanza.xep0153_x)
+        self.assertIsNone(stanza.xep0153_x.photo)
 
     def test_handle_on_available_is_depsignal_handler(self):
         self.assertTrue(aioxmpp.service.is_depsignal_handler(
