@@ -442,12 +442,11 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
           See :meth:`send_message_tracked` for details and caveats on the
           tracking implementation.
 
-        When **history replay** happens, the `member` argument is always not
-        :data:`None`. However, since joins and leaves are not part of the
-        history, it is not always possible to reason about the identity of the
-        sender of a history message. To avoid possible spoofing attacks, the
-        following caveats apply to the :class:`~.Occupant` objects handed as
-        `member` during history replay:
+        When **history replay** happens, since joins and leaves are not part of
+        the history, it is not always possible to reason about the identity of
+        the sender of a history message. To avoid possible spoofing attacks,
+        the following caveats apply to the :class:`~.Occupant` objects handed
+        as `member` during history replay:
 
         * Two identical :class:`~.Occupant` objects are only used *iff* the
           nickname *and* the actual address of the entity are equal. This
@@ -458,7 +457,7 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
           match, the current :class:`~.Occupant` object for the respective
           occupant is used.
         * :class:`~.Occupant` objects which are created for history replay are
-          never part of :attr:`members`. They are only use to convey the
+          never part of :attr:`members`. They are only used to convey the
           information passed in the messages from the history replay, which
           would otherwise be inaccessible.
 
@@ -866,6 +865,9 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
                                         role=role)
                     if jid is not None:
                         self._history_replay_occupants[jid] = occupant
+            elif occupant is None:
+                occupant = Occupant(message.from_, False,
+                                    presence_state=aioxmpp.PresenceState())
 
         if not message.body and message.subject:
             self._subject = aioxmpp.structs.LanguageMap(message.subject)

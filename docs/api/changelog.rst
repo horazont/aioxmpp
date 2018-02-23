@@ -274,6 +274,11 @@ Version 0.10
   listeners to the individual conversations, which takes some burden off of the
   application.
 
+* :meth:`aioxmpp.muc.Room.on_message` now always has a non-:data:`None` `member`
+  argument. If a message is received from an unknown occupant JID, a temporary
+  :class:`aioxmpp.muc.Occupant` object is created. See the
+  :meth:`~aioxmpp.muc.Room.on_message` docs for details.
+
 .. _api-changelog-0.9:
 
 Version 0.9

@@ -1834,7 +1834,7 @@ class TestRoom(unittest.TestCase):
             self.base.mock_calls,
             [
                 unittest.mock.call.on_topic_changed(
-                    None,
+                    unittest.mock.ANY,
                     msg.subject,
                     muc_nick=msg.from_.resource,
                 )
@@ -1909,7 +1909,7 @@ class TestRoom(unittest.TestCase):
 
         self.base.on_message.assert_called_once_with(
             msg,
-            None,
+            unittest.mock.ANY,
             unittest.mock.sentinel.source,
             tracker=None,
         )
@@ -2003,6 +2003,62 @@ class TestRoom(unittest.TestCase):
             unittest.mock.sentinel.source,
             tracker=None,
         )
+
+    def test_invent_temporary_member_for_message_from_non_occupant(self):
+        pres = aioxmpp.stanza.Presence(
+            from_=TEST_MUC_JID.replace(resource="firstwitch"),
+        )
+        pres.xep0045_muc_user = muc_xso.UserExt(status_codes={})
+
+        self.jmuc._inbound_muc_user_presence(pres)
+
+        pres = aioxmpp.stanza.Presence(
+            from_=TEST_MUC_JID.replace(resource="secondwitch"),
+        )
+        pres.xep0045_muc_user = muc_xso.UserExt(status_codes={110})
+
+        self.jmuc._inbound_muc_user_presence(pres)
+
+        self.base.on_muc_enter.assert_called_once_with(pres, self.jmuc.me)
+        self.base.on_enter.assert_called_once_with()
+        self.base.mock_calls.clear()
+
+        # end of history replay
+        self.jmuc._handle_message(self.msg_end_of_history,
+                                  self.msg_end_of_history.from_,
+                                  False,
+                                  im_dispatcher.MessageSource.STREAM)
+
+        msg = aioxmpp.stanza.Message(
+            from_=TEST_MUC_JID.replace(resource="interloper"),
+            type_=aioxmpp.structs.MessageType.GROUPCHAT,
+        )
+        msg.body[None] = "foo"
+
+        self.jmuc._handle_message(
+            msg,
+            msg.from_,
+            False,
+            unittest.mock.sentinel.source,
+        )
+
+        self.base.on_message.assert_called_once_with(
+            msg,
+            unittest.mock.ANY,
+            unittest.mock.sentinel.source,
+            tracker=None,
+        )
+
+        _, (_, occupant, *_), _ = self.base.on_message.mock_calls[0]
+
+        self.assertIsInstance(occupant, muc_service.Occupant)
+        self.assertEqual(occupant.nick, "interloper")
+        self.assertIsNone(occupant.direct_jid)
+        self.assertFalse(occupant.is_self)
+        self.assertEqual(occupant.presence_state,
+                         aioxmpp.structs.PresenceState(available=False))
+
+        self.assertNotIn(occupant, self.jmuc.members)
 
     def test__inbound_muc_user_presence_emits_on_enter_and_on_exit(self):
         presence = aioxmpp.stanza.Presence(
@@ -2933,7 +2989,7 @@ class TestRoom(unittest.TestCase):
 
         self.base.on_message.assert_called_once_with(
             reflected,
-            None,
+            unittest.mock.ANY,
             im_dispatcher.MessageSource.STREAM,
             tracker=None,
         )
