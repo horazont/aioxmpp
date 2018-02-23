@@ -530,6 +530,7 @@ class AvatarService(service.Service):
         self._advertise_vcard = True
         self._vcard_resource_interference = set()
         self._vcard_id = None
+        self._vcard_rehashing_for = None
         self._vcard_rehash_task = None
 
     @property
@@ -652,13 +653,23 @@ class AvatarService(service.Service):
         # trigger the download of the vCard and calculation of the
         # vCard avatar hash, if some other resource of our bare jid
         # reported a hash distinct from ours!
+        # don't do this if there is a non-compliant resource, we don't
+        # send the hash in that case anyway
         if (full_jid.bare() == self.client.local_jid.bare() and
                 full_jid != self.client.local_jid and
-                self._advertise_vcard):
+                self._advertise_vcard and
+                not self._vcard_resource_interference):
             if (self._vcard_id is None or
                     stanza.xep0153_x.photo.lower() !=
                     self._vcard_id.lower()):
-                self._start_rehash_task()
+
+                # do not rehash if we alread have a rehash task that
+                # was triggered by an update with the same hash
+                if (self._vcard_rehashing_for is None or
+                        self._vcard_rehashing_for !=
+                            stanza.xep0153_x.photo.lower()):
+                    self._vcard_rehashing_for = stanza.xep0153_x.photo.lower()
+                    self._start_rehash_task()
 
     def _start_rehash_task(self):
         if self._vcard_rehash_task is not None:
@@ -676,6 +687,7 @@ class AvatarService(service.Service):
         )
 
         def set_new_vcard_id(fut):
+            self._vcard_rehashing_for = None
             if not fut.cancelled():
                 self._vcard_id = fut.result()
 
