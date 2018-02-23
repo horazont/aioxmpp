@@ -345,6 +345,10 @@ class AbstractConversation(metaclass=abc.ABCMeta):
        Often, you don’t need to distinguish between carbon-copied and
        non-carbon-copied messages.
 
+       `member` is always not :data:`None`, but the `member` may not actually
+       be part of the :attr:`members`. This can be the case in some protocols
+       for system messages.
+
        All messages which are not handled otherwise (and for example dispatched
        as :meth:`on_state_changed` signals) are dispatched to this event. This
        may include messages not understood and/or which carry no textual
