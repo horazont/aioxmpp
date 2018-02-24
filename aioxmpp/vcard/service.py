@@ -1,5 +1,5 @@
 ########################################################################
-# File name: xso.py
+# File name: service.py
 # This file is part of: aioxmpp
 #
 # LICENSE
