@@ -263,6 +263,8 @@ Version 0.10
 * Support for the new :xep:`45` 1.30 status code for kicks due to errors.
   See :attr:`aioxmpp.muc.LeaveMode.ERROR`.
 
+* Minor compatibility fixes for :xep:`153` vcard-based avatar support.
+
 .. _api-changelog-0.9:
 
 Version 0.9
