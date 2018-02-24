@@ -28,6 +28,14 @@ own subpackage because they often only define one or two XSOs without any logic
 involved. The XSOs are often intended for re-use by other protocols.
 
 
+Out of Band Data (:xep:`66`)
+============================
+
+.. autoclass:: OOBExtension
+
+.. attribute:: aioxmpp.Message.xep0066_oob
+
+
 Delayed Delivery (:xep:`203`)
 =============================
 
