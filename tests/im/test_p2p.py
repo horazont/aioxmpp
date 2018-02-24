@@ -565,6 +565,64 @@ class TestService(unittest.TestCase):
                 im_dispatcher.MessageSource.STREAM,
             )
 
+    def test_forward_chat_even_without_body_to_existing(self):
+        msg = aioxmpp.Message(
+            type_=aioxmpp.MessageType.CHAT,
+            from_=PEER_JID.replace(resource="foo"),
+        )
+        msg.body[None] = "foo"
+
+        conv = self.s.get_conversation(PEER_JID.bare())
+
+        with contextlib.ExitStack() as stack:
+            _handle_message = stack.enter_context(unittest.mock.patch.object(
+                conv,
+                "_handle_message",
+            ))
+
+            self.assertIsNone(self.s._filter_message(
+                msg,
+                msg.from_,
+                False,
+                im_dispatcher.MessageSource.STREAM,
+            ))
+
+        _handle_message.assert_called_once_with(
+            msg,
+            msg.from_,
+            False,
+            im_dispatcher.MessageSource.STREAM,
+        )
+
+    def test_forward_normal_even_without_body_to_existing(self):
+        msg = aioxmpp.Message(
+            type_=aioxmpp.MessageType.NORMAL,
+            from_=PEER_JID.replace(resource="foo"),
+        )
+        msg.body[None] = "foo"
+
+        conv = self.s.get_conversation(PEER_JID.bare())
+
+        with contextlib.ExitStack() as stack:
+            _handle_message = stack.enter_context(unittest.mock.patch.object(
+                conv,
+                "_handle_message",
+            ))
+
+            self.assertIsNone(self.s._filter_message(
+                msg,
+                msg.from_,
+                False,
+                im_dispatcher.MessageSource.STREAM,
+            ))
+
+        _handle_message.assert_called_once_with(
+            msg,
+            msg.from_,
+            False,
+            im_dispatcher.MessageSource.STREAM,
+        )
+
     def test_no_autocreate_conversation_from_recvd_groupchat_with_body(self):
         msg = aioxmpp.Message(
             type_=aioxmpp.MessageType.GROUPCHAT,

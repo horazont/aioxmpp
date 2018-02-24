@@ -291,6 +291,16 @@ Version 0.10
   :attr:`aioxmpp.im.conversation.AbstractConversation.on_message` event is
   emitted from :class:`aioxmpp.im.p2p.Conversation` objects.
 
+* Ensure that all
+  :attr:`aioxmpp.MessageType.CHAT`/:attr:`~aioxmpp.MessageType.CHAT` messages
+  are forwarded to the respective :class:`aioxmpp.im.p2p.Conversation` if it
+  exists.
+
+  (Previously, only messages with a non-empty :attr:`aioxmpp.Message.body`
+  would be forwarded.)
+
+  This is needed for e.g. Chat Markers.
+
 .. _api-changelog-0.9:
 
 Version 0.9

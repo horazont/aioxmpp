@@ -186,16 +186,16 @@ class Service(AbstractConversationService, aioxmpp.service.Service):
             except KeyError:
                 existing = None
 
-        if ((msg.type_ == aioxmpp.MessageType.CHAT or
-             msg.type_ == aioxmpp.MessageType.NORMAL) and
+        if (existing is None and
+                (msg.type_ == aioxmpp.MessageType.CHAT or
+                 msg.type_ == aioxmpp.MessageType.NORMAL) and
                 msg.body):
+            conversation_jid = peer.bare()
+            if msg.xep0045_muc_user is not None:
+                conversation_jid = peer
+            existing = self._make_conversation(conversation_jid, True)
 
-            if existing is None:
-                conversation_jid = peer.bare()
-                if msg.xep0045_muc_user is not None:
-                    conversation_jid = peer
-                existing = self._make_conversation(conversation_jid, True)
-
+        if existing is not None:
             existing._handle_message(msg, peer, sent, source)
             return None
 
