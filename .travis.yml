@@ -28,12 +28,24 @@ matrix:
   - python: "3.6"
     env: PROSODY_BRANCH=trunk TEST_MODE=e2e-prosody
   - python: "3.6"
+    env: METRONOME_VERSION=master TEST_MODE=e2e-metronome
+    addons:
+      apt:
+        packages:
+        - libevent-dev
+  - python: "3.6"
     env: TEST_MODE=coverage
   allow_failures:
   - python: "3.6"
     env: PROSODY_BRANCH=trunk TEST_MODE=e2e-prosody
   - python: "3.7-dev"
     env: PROSODY_BRANCH=0.10 TEST_MODE=e2e-prosody
+  - python: "3.6"
+    env: METRONOME_VERSION=master TEST_MODE=e2e-metronome
+    addons:
+      apt:
+        packages:
+        - libevent-dev
   - python: "3.6"
     env: TEST_MODE=e2e-ejabberd EJABBERD_VERSION=latest
     services:
@@ -42,12 +54,14 @@ matrix:
 before_install:
 - export PATH=$PATH:$PWD/lua_install/bin
 - if [[ "x$TEST_MODE" = 'xe2e-prosody' ]]; then ./utils/install-prosody.sh; fi
+- if [[ "x$TEST_MODE" = 'xe2e-metronome' ]]; then ./utils/install-metronome.sh; fi
 - if [[ "x$TEST_MODE" = 'xe2e-ejabberd' ]]; then ./utils/prepare-ejabberd.sh; fi
 install:
 - pip install nose coveralls
 - pip install .
 script:
 - if [[ "x$TEST_MODE" = 'xe2e-prosody' ]]; then ./utils/travis-e2etest-prosody.py; fi
+- if [[ "x$TEST_MODE" = 'xe2e-metronome' ]]; then ./utils/travis-e2etest-metronome.py; fi
 - if [[ "x$TEST_MODE" = 'xe2e-ejabberd' ]]; then ./utils/travis-e2etest-ejabberd.py; fi
 - if [[ "x$TEST_MODE" = 'xcoverage' ]]; then nosetests --with-cover --cover-package aioxmpp tests; fi
 after_success:
