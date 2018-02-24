@@ -53,8 +53,21 @@ Stanza Forwarding (:xep:`297`)
 .. autoclass:: Forwarded()
 
 
+Chat Markers (:xep:`333`)
+=========================
+
+.. autoclass:: ReceivedMarker
+
+.. autoclass:: DisplayedMarker
+
+.. autoclass:: AcknowledgedMarker
+
+.. attribute:: aioxmpp.Message.xep0333_marker
+
+
 """
 
 from .delay import Delay  # NOQA
 from .forwarding import Forwarded  # NOQA
 from .oob import OOBExtension  # NOQA
+from .markers import ReceivedMarker, DisplayedMarker, AcknowledgedMarker  # NOQA

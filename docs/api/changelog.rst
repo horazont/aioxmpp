@@ -282,6 +282,8 @@ Version 0.10
 * Support for some parts of the :xep:`60` schema. No support for actually
   sending or receiving files via the :xep:`60` IQ.
 
+* Support for the :xep:`333` schema.
+
 .. _api-changelog-0.9:
 
 Version 0.9
