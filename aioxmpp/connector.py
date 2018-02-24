@@ -49,6 +49,7 @@ Specific connectors
 
 import abc
 import asyncio
+import logging
 
 import aioxmpp.errors as errors
 import aioxmpp.nonza as nonza
@@ -167,6 +168,12 @@ class STARTTLSConnector(BaseConnector):
             features_future=features_future,
             base_logger=base_logger,
         )
+        if base_logger is not None:
+            logger = base_logger.getChild(type(self).__name__)
+        else:
+            logger = logging.getLogger(".".join([
+                __name__, type(self).__qualname__,
+            ]))
 
         try:
             transport, _ = yield from ssl_transport.create_starttls_connection(
@@ -189,6 +196,9 @@ class STARTTLSConnector(BaseConnector):
         except KeyError:
             if not metadata.tls_required:
                 return transport, stream, (yield from features_future)
+            logger.debug(
+                "attempting STARTTLS despite not announced since it is"
+                " required")
 
         try:
             response = yield from protocol.send_and_wait_for(

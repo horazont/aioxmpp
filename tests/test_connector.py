@@ -21,6 +21,7 @@
 ########################################################################
 import asyncio
 import contextlib
+import logging
 import unittest
 import unittest.mock
 
@@ -64,6 +65,8 @@ class TestSTARTTLSConnector(unittest.TestCase):
         features_future.set_result(
             features
         )
+
+        base_logger = unittest.mock.Mock(spec=logging.Logger)
 
         base = unittest.mock.Mock()
         base.protocol.starttls = CoroutineMock()
@@ -139,7 +142,7 @@ class TestSTARTTLSConnector(unittest.TestCase):
                 unittest.mock.sentinel.host,
                 unittest.mock.sentinel.port,
                 unittest.mock.sentinel.timeout,
-                base_logger=unittest.mock.sentinel.base_logger,
+                base_logger=base_logger,
             ))
 
         self.assertSequenceEqual(
@@ -151,7 +154,7 @@ class TestSTARTTLSConnector(unittest.TestCase):
                 unittest.mock.call.XMLStream(
                     to=unittest.mock.sentinel.domain,
                     features_future=features_future,
-                    base_logger=unittest.mock.sentinel.base_logger,
+                    base_logger=base_logger,
                 ),
                 unittest.mock.call.create_starttls_connection(
                     unittest.mock.sentinel.loop,
@@ -388,7 +391,6 @@ class TestSTARTTLSConnector(unittest.TestCase):
                 unittest.mock.sentinel.host,
                 unittest.mock.sentinel.port,
                 unittest.mock.sentinel.timeout,
-                base_logger=unittest.mock.sentinel.base_logger,
             ))
 
         self.assertSequenceEqual(
@@ -400,7 +402,7 @@ class TestSTARTTLSConnector(unittest.TestCase):
                 unittest.mock.call.XMLStream(
                     to=unittest.mock.sentinel.domain,
                     features_future=features_future,
-                    base_logger=unittest.mock.sentinel.base_logger,
+                    base_logger=None,
                 ),
                 unittest.mock.call.create_starttls_connection(
                     unittest.mock.sentinel.loop,
