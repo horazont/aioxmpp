@@ -284,6 +284,9 @@ Version 0.10
 
 * Support for the :xep:`333` schema.
 
+* Fix a bug where monkey-patched :class:`aioxmpp.xso.ChildFlag` descriptors
+  would not be picked up by the XSO handling code.
+
 .. _api-changelog-0.9:
 
 Version 0.9

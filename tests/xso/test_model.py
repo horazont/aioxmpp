@@ -1750,6 +1750,38 @@ class TestXMLStreamClass(unittest.TestCase):
             "method"
         ))
 
+    def test_setattr_ChildFlag(self):
+        class Foo(metaclass=xso_model.XMLStreamClass):
+            pass
+
+        Foo.child = xso.ChildFlag(("urn:test", "test"))
+
+        self.assertIn(
+            Foo.child.xq_descriptor,
+            Foo.CHILD_PROPS
+        )
+        self.assertIn(
+            ("urn:test", "test"),
+            Foo.CHILD_MAP
+        )
+        self.assertIs(
+            Foo.child.xq_descriptor,
+            Foo.CHILD_MAP["urn:test", "test"]
+        )
+
+    def test_setattr_ChildFlag_rejects_ambiguous(self):
+        class Bar(metaclass=xso_model.XMLStreamClass):
+            TAG = (None, "bar")
+
+        class Foo(metaclass=xso_model.XMLStreamClass):
+            child = xso.Child([Bar])
+
+        with self.assertRaisesRegex(TypeError,
+                                    "ambiguous Child properties"):
+            Foo.tag = xso.ChildFlag(
+                (None, "bar")
+            )
+
     def test_parse_events_does_not_call_init_but_validate_and_new(self):
         class Cls(metaclass=xso_model.XMLStreamClass):
             TAG = "foo"

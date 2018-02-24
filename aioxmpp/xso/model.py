@@ -1285,6 +1285,7 @@ class ChildFlag(_PropBase):
 
     def to_sax(self, instance, dest):
         value = self.__get__(instance, type(instance))
+        print(instance, value)
         if not value:
             return
 
@@ -1711,7 +1712,8 @@ class XMLStreamClass(xso_query.Class, abc.ABCMeta):
                 if text_property is not None:
                     raise TypeError("multiple Text properties on XSO class")
                 text_property = obj
-            elif isinstance(obj, (_ChildPropBase, ChildText, ChildTag, ChildFlag)):
+            elif isinstance(obj, (_ChildPropBase, ChildText, ChildTag,
+                                  ChildFlag)):
                 for key in obj.get_tag_map():
                     if key in child_map:
                         raise TypeError("ambiguous Child properties: {} and {}"
@@ -1785,7 +1787,8 @@ class XMLStreamClass(xso_query.Class, abc.ABCMeta):
                 raise TypeError("multiple Text properties on XSO class")
             super().__setattr__("TEXT_PROPERTY", value)
 
-        elif isinstance(value, (_ChildPropBase, ChildText, ChildTag)):
+        elif isinstance(value, (_ChildPropBase, ChildText, ChildTag,
+                                ChildFlag)):
             updates = {}
             for key in value.get_tag_map():
                 if key in cls.CHILD_MAP:
