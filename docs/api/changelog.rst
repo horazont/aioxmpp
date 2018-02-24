@@ -287,6 +287,10 @@ Version 0.10
 * Fix a bug where monkey-patched :class:`aioxmpp.xso.ChildFlag` descriptors
   would not be picked up by the XSO handling code.
 
+* Make sure that the message ID is set before the
+  :attr:`aioxmpp.im.conversation.AbstractConversation.on_message` event is
+  emitted from :class:`aioxmpp.im.p2p.Conversation` objects.
+
 .. _api-changelog-0.9:
 
 Version 0.9

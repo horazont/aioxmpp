@@ -110,6 +110,7 @@ class Conversation(AbstractConversation):
         return self.__members[0]
 
     def send_message(self, msg):
+        msg.autoset_id()
         msg.to = self.__peer_jid
         self.on_message(msg, self.me, MessageSource.STREAM)
         return self._client.enqueue(msg)

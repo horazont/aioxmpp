@@ -139,6 +139,23 @@ class TestConversation(unittest.TestCase):
 
         self.assertEqual(token, self.cc.enqueue())
 
+    def test_send_message_sets_id_first_and_emits_event_afterwards(self):
+        msg = unittest.mock.Mock()
+        calls = None
+
+        def message_handler(message, *_):
+            nonlocal calls
+            calls = list(msg.mock_calls)
+            return True
+
+        self.c.on_message.connect(message_handler)
+        self.c.send_message(msg)
+
+        self.assertIn(
+            unittest.mock.call.autoset_id(),
+            calls,
+        )
+
     def test_inbound_message_dispatched_to_event(self):
         msg = unittest.mock.sentinel.message
         self.c._handle_message(
