@@ -103,7 +103,13 @@ class BlockingClient(service.Service):
     @service.depsignal(aioxmpp.Client, "before_stream_established")
     @asyncio.coroutine
     def _get_initial_blocklist(self):
-        yield from self._check_for_blocking()
+        try:
+            yield from self._check_for_blocking()
+        except RuntimeError:
+            self.logger.info(
+                "server does not support block lists, skipping initial fetch"
+            )
+            return True
 
         if self._blocklist is None:
             with (yield from self._lock):
@@ -114,6 +120,8 @@ class BlockingClient(service.Service):
                 result = yield from self.client.send(iq)
                 self._blocklist = frozenset(result.items)
             self.on_initial_blocklist_received(self._blocklist)
+
+        return True
 
     @property
     def blocklist(self):
