@@ -264,9 +264,10 @@ class TestIMDispatcher(unittest.TestCase):
                 self.carbons,
                 "enable",
                 new=CoroutineMock()) as enable:
-            run_coroutine(self.s.enable_carbons())
+            result = run_coroutine(self.s.enable_carbons())
 
         enable.assert_called_once_with()
+        self.assertTrue(result)
 
     def test_enable_carbons_does_not_swallow_random_exception(self):
         class FooException(Exception):

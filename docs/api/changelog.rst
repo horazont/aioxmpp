@@ -301,6 +301,10 @@ Version 0.10
 
   This is needed for e.g. Chat Markers.
 
+* Ensure that Message Carbons are
+  re-:meth:`aioxmpp.carbons.CarbonsClient.enable`\ -d after failed stream
+  resumption. Thanks, Ge0rG.
+
 .. _api-changelog-0.9:
 
 Version 0.9
