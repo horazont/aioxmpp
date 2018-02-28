@@ -167,6 +167,26 @@ class TestMuc(TestCase):
 
         yield from asyncio.sleep(0.2)
 
+        if thirdroom.muc_state != aioxmpp.muc.RoomState.ACTIVE:
+            logging.warning(
+                "this seems to be a broken server implementation. MUC is in"
+                " history state after join seems to be over. Maybe it doesn’t"
+                " send <subject/>? Trying to send a message to bust this..."
+            )
+
+            message_fut = asyncio.Future()
+
+            def onmessage(*args, **kwargs):
+                nonlocal message_fut
+                message_fut.set_result(None)
+                return True
+
+            thirdroom.on_message.connect(onmessage)
+
+            self.firstroom.send_message(msg)
+
+            yield from message_fut
+
         self.assertEqual(thirdroom.muc_state,
                          aioxmpp.muc.RoomState.ACTIVE)
 
