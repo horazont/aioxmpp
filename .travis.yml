@@ -8,7 +8,7 @@ python:
 - "3.6"
 - "3.7-dev"
 env:
-- PROSODY_BRANCH=0.10 TEST_MODE=e2e-prosody
+- TEST_MODE=e2e-prosody PROSODY_BRANCH=0.10
 matrix:
   include:
   - python: "3.6"
@@ -24,11 +24,11 @@ matrix:
     services:
     - docker
   - python: "3.6"
-    env: PROSODY_BRANCH=0.9 TEST_MODE=e2e-prosody
+    env: TEST_MODE=e2e-prosody PROSODY_BRANCH=0.9
   - python: "3.6"
-    env: PROSODY_BRANCH=trunk TEST_MODE=e2e-prosody
+    env: TEST_MODE=e2e-prosody PROSODY_BRANCH=trunk
   - python: "3.6"
-    env: METRONOME_VERSION=master TEST_MODE=e2e-metronome
+    env: TEST_MODE=e2e-metronome METRONOME_VERSION=master
     addons:
       apt:
         packages:
@@ -37,11 +37,11 @@ matrix:
     env: TEST_MODE=coverage
   allow_failures:
   - python: "3.6"
-    env: PROSODY_BRANCH=trunk TEST_MODE=e2e-prosody
+    env: TEST_MODE=e2e-prosody PROSODY_BRANCH=trunk
   - python: "3.7-dev"
-    env: PROSODY_BRANCH=0.10 TEST_MODE=e2e-prosody
+    env: TEST_MODE=e2e-prosody PROSODY_BRANCH=0.10
   - python: "3.6"
-    env: METRONOME_VERSION=master TEST_MODE=e2e-metronome
+    env: TEST_MODE=e2e-metronome METRONOME_VERSION=master
     addons:
       apt:
         packages:
