@@ -2935,6 +2935,56 @@ class TestRoom(unittest.TestCase):
 
         self.base.on_message.assert_not_called()
 
+    def test_tracker_matches_on_relanguaged_from(self):
+        presence = aioxmpp.stanza.Presence(
+            type_=aioxmpp.structs.PresenceType.AVAILABLE,
+            from_=TEST_MUC_JID.replace(resource="thirdwitch")
+        )
+        presence.xep0045_muc_user = muc_xso.UserExt(
+            items=[
+                muc_xso.UserItem(affiliation="member",
+                                 role="participant"),
+            ],
+            status_codes={110},
+        )
+
+        self.jmuc._inbound_muc_user_presence(presence)
+
+        msg = aioxmpp.Message(aioxmpp.MessageType.NORMAL)
+        msg.body.update({None: "some text"})
+
+        _, tracker = self.jmuc.send_message_tracked(msg)
+
+        self.base.on_message.reset_mock()
+
+        self.assertEqual(
+            tracker.state,
+            aioxmpp.tracking.MessageState.IN_TRANSIT,
+        )
+
+        reflected = aioxmpp.Message(
+            type_=aioxmpp.MessageType.GROUPCHAT,
+            from_=self.jmuc.me.conversation_jid,
+            id_="#notmyid",
+        )
+        reflected.body[aioxmpp.structs.LanguageTag.fromstr("de")] = "some text"
+
+        self.jmuc._handle_message(
+            reflected,
+            reflected.from_,
+            False,
+            im_dispatcher.MessageSource.STREAM,
+        )
+
+        self.assertEqual(
+            tracker.state,
+            aioxmpp.tracking.MessageState.DELIVERED_TO_RECIPIENT,
+        )
+
+        self.assertEqual(tracker.response, reflected)
+
+        self.base.on_message.assert_not_called()
+
     def test_tracker_does_not_match_for_different_from(self):
         presence = aioxmpp.stanza.Presence(
             type_=aioxmpp.structs.PresenceType.AVAILABLE,

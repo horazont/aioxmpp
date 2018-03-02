@@ -781,17 +781,30 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
             if (self._this_occupant is not None and
                     message.from_ == self._this_occupant.conversation_jid):
                 key = _extract_one_pair(message.body)
+                self._service.logger.debug("trying to match by body: %r",
+                                           key)
                 try:
                     trackers = self._tracking_by_body[key]
                 except KeyError:
-                    trackers = None
+                    alt_key = (None, key[1])
+                    try:
+                        trackers = self._tracking_by_body[alt_key]
+                    except KeyError:
+                        trackers = None
+                else:
+                    self._service.logger.debug("found tracker by body")
             else:
+                self._service.logger.debug(
+                    "can’t match by body because of sender mismatch"
+                )
                 trackers = None
 
             if not trackers:
                 tracker = None
             else:
                 tracker = trackers[0]
+        else:
+            self._service.logger.debug("found tracker by ID")
 
         if tracker is None:
             return False
