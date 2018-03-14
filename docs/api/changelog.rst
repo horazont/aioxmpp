@@ -305,6 +305,10 @@ Version 0.10
   re-:meth:`aioxmpp.carbons.CarbonsClient.enable`\ -d after failed stream
   resumption. Thanks, Ge0rG.
 
+* Fix :rfc:`6121` violation: the default of the ``@subscription`` attriubte of
+  roster items is ``"none"``. :mod:`aioxmpp` treated an absent attribute as
+  fatal.
+
 .. _api-changelog-0.9:
 
 Version 0.9

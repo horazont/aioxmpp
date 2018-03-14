@@ -132,6 +132,7 @@ class Item(xso.XSO):
             "remove",
         }),
         validate=xso.ValidateMode.ALWAYS,
+        default="none",
     )
 
     groups = xso.ChildList([Group])

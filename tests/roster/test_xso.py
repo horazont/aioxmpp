@@ -164,6 +164,10 @@ class TestItem(unittest.TestCase):
             xso.ValidateMode.ALWAYS,
             roster_xso.Item.subscription.validate
         )
+        self.assertEqual(
+            roster_xso.Item.subscription.default,
+            "none",
+        )
         self.assertSetEqual(
             {
                 "none",
