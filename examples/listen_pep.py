@@ -39,7 +39,8 @@ class ListenPEP(Example):
         self.argparse.add_argument(
             "--namespace",
             dest="namespaces",
-            nargs="*",
+            default=[],
+            action="append",
             metavar="PEP-NAMESPACE",
             help="PEP namespace to listen for (omit the +notify!). May be "
             "given multiple times."
