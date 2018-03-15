@@ -40,6 +40,7 @@ class ListenPEP(Example):
             "--namespace",
             dest="namespaces",
             nargs="*",
+            metavar="PEP-NAMESPACE",
             help="PEP namespace to listen for (omit the +notify!). May be "
             "given multiple times."
         )
@@ -48,10 +49,10 @@ class ListenPEP(Example):
         super().configure()
         self.pep_namespaces = self.args.namespaces
 
-    def _on_item_published(self, ns, jid, node, item, message=None):
+    def _on_item_published(self, jid, node, item, message=None):
         buf = io.BytesIO()
-        aioxmpp.xml.write_single_xso(message, buf)
-        print(buf.getvalue().decode("utf-8"))
+        aioxmpp.xml.write_single_xso(item, buf)
+        print(jid, node, buf.getvalue().decode("utf-8"))
 
     def make_simple_client(self):
         client = super().make_simple_client()
@@ -64,12 +65,7 @@ class ListenPEP(Example):
                 ns,
                 notify=True,
             )
-            claim.on_item_publish.connect(
-                functools.partial(
-                    self._on_item_published,
-                    ns,
-                )
-            )
+            claim.on_item_publish.connect(self._on_item_published)
             self.claims.append(claim)
 
         return client
