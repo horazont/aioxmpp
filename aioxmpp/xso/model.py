@@ -1285,7 +1285,6 @@ class ChildFlag(_PropBase):
 
     def to_sax(self, instance, dest):
         value = self.__get__(instance, type(instance))
-        print(instance, value)
         if not value:
             return
 
