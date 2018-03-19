@@ -315,6 +315,9 @@ Version 0.10
   setting. Thanks to Travis Burtrum for providing a test setup for hunting this
   down.
 
+* Set ALPN to ``xmpp-client`` by default. This is useful for :xep:`368`
+  deployments.
+
 .. _api-changelog-0.9:
 
 Version 0.9
