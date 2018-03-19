@@ -483,7 +483,7 @@ class TransportMock(InteractivityMock,
             logging.info("got this: %r", data)
             self._tester.assertEqual(
                 expected_data[:len(data)],
-                data,
+                bytes(data),
                 "mismatch of expected and written data"+self._previously()
             )
         self._rxd.append(data)
