@@ -196,7 +196,8 @@ class XMLStream(asyncio.Protocol):
 
     `features_future` must be a :class:`asyncio.Future` instance; the XML
     stream will set the first :class:`~aioxmpp.nonza.StreamFeatures` node
-    it receives as the result of the future.
+    it receives as the result of the future. The future will also receive any
+    pre-stream-features exception.
 
     `sorted_attributes` is mainly for unittesting purposes; this is an argument
     to the :class:`~aioxmpp.xml.XMPPXMLGenerator` and slows down the XML
@@ -348,6 +349,8 @@ class XMLStream(asyncio.Protocol):
             if not fut.done():
                 fut.set_exception(exc)
         self._error_futures.clear()
+        if self._features_future:
+            self._features_future.set_exception(exc)
 
         if task.cancelled():
             # this happens if connection_lost happens before we enter closing

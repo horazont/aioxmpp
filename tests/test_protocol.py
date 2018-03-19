@@ -1220,10 +1220,89 @@ class TestXMLStream(unittest.TestCase):
             args[0][0].condition
         )
 
+    def test_on_closing_fires_on_invalid_xml(self):
+        fun = unittest.mock.MagicMock()
+        fun.return_value = True
+
+        t, p = self._make_stream(to=TEST_PEER)
+        p.on_closing.connect(fun)
+        run_coroutine(
+            t.run_test(
+                [
+                    TransportMock.Write(
+                        STREAM_HEADER,
+                        response=[
+                            TransportMock.Receive(
+                                # I’m so sad I have to write this test case
+                                "HTTP/1.1 400 Bad Request\r\nServer: nginx"
+                            )
+                        ]),
+                    TransportMock.Write(
+                        STREAM_ERROR_TEMPLATE_WITH_TEXT.format(
+                            condition="bad-format",
+                            text=(
+                                "&lt;unknown&gt;:1:4: not well-formed "
+                                "(invalid token)"
+                            )
+                        ).encode("utf-8")
+                    ),
+                    TransportMock.Write(
+                        b"</stream:stream>"
+                    ),
+                    TransportMock.WriteEof(),
+                    TransportMock.Close(),
+                ],
+                partial=True
+            )
+        )
+
+        fun.assert_called_once_with(
+            unittest.mock.ANY,
+        )
+
+        _, (exc,), _ = fun.mock_calls[0]
+        self.assertIsInstance(
+            exc,
+            errors.StreamError,
+        )
+        self.assertEqual(
+            exc.condition,
+            (namespaces.streams, "bad-format")
+        )
+
     def test_fail_triggers_error_futures(self):
         t, p = self._make_stream(to=TEST_PEER)
 
         fut = p.error_future()
+
+        run_coroutine(t.run_test([
+            TransportMock.Write(
+                STREAM_HEADER,
+                response=[
+                    TransportMock.Receive(
+                        self._make_peer_header(version=(1, 0)) +
+                        self._make_stream_error("policy-violation") +
+                        self._make_eos()),
+                    TransportMock.ReceiveEof()
+                ]),
+            TransportMock.Write(b"</stream:stream>"),
+            TransportMock.WriteEof(),
+            TransportMock.Close()
+        ]))
+
+        self.assertTrue(fut.done())
+
+        exc = fut.exception()
+
+        self.assertIsInstance(exc, errors.StreamError)
+        self.assertEqual(
+            (namespaces.streams, "policy-violation"),
+            exc.condition
+        )
+
+    def test_fail_propagates_to_features_future(self):
+        fut = asyncio.Future()
+        t, p = self._make_stream(to=TEST_PEER, features_future=fut)
 
         run_coroutine(t.run_test([
             TransportMock.Write(

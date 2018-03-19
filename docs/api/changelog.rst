@@ -309,6 +309,12 @@ Version 0.10
   roster items is ``"none"``. :mod:`aioxmpp` treated an absent attribute as
   fatal.
 
+* Pass pre-stream-features exception down to stream feature listeners. This
+  fixes hangs on errors before the stream features are received. This can
+  happen with misconfigured SRV records or lack of ALPN support in a :xep:`368`
+  setting. Thanks to Travis Burtrum for providing a test setup for hunting this
+  down.
+
 .. _api-changelog-0.9:
 
 Version 0.9
