@@ -1129,11 +1129,14 @@ def default_ssl_context():
 
     The context has SSLv2 and SSLv3 disabled, and supports TLS 1.0+ (depending
     on the version of the SSL library).
+
+    Tries to negotiate an XMPP c2s connection via ALPN (:rfc:`7301`).
     """
 
     ctx = OpenSSL.SSL.Context(OpenSSL.SSL.SSLv23_METHOD)
     ctx.set_options(OpenSSL.SSL.OP_NO_SSLv2 | OpenSSL.SSL.OP_NO_SSLv3)
     ctx.set_verify(OpenSSL.SSL.VERIFY_PEER, default_verify_callback)
+    ctx.set_alpn_protos([b'xmpp-client'])
     return ctx
 
 
