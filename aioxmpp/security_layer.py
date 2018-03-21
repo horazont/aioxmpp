@@ -1136,8 +1136,6 @@ def default_ssl_context():
     ctx = OpenSSL.SSL.Context(OpenSSL.SSL.SSLv23_METHOD)
     ctx.set_options(OpenSSL.SSL.OP_NO_SSLv2 | OpenSSL.SSL.OP_NO_SSLv3)
     ctx.set_verify(OpenSSL.SSL.VERIFY_PEER, default_verify_callback)
-    if hasattr(ctx, "set_alpn_protos"):
-        ctx.set_alpn_protos([b'xmpp-client'])
     return ctx
 
 

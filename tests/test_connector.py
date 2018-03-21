@@ -28,7 +28,6 @@ import unittest.mock
 import aioxmpp.connector as connector
 import aioxmpp.errors as errors
 import aioxmpp.nonza as nonza
-import aioxmpp.security_layer as security_layer
 
 from aioxmpp.utils import namespaces
 
@@ -189,7 +188,8 @@ class TestSTARTTLSConnector(unittest.TestCase):
                 ),
                 unittest.mock.call.protocol.starttls(
                     ssl_context=unittest.mock.sentinel.ssl_context,
-                    post_handshake_callback=base.certificate_verifier.post_handshake,
+                    post_handshake_callback=
+                        base.certificate_verifier.post_handshake,
                 ),
                 unittest.mock.call.reset_stream_and_get_features(
                     base.protocol,
@@ -437,7 +437,8 @@ class TestSTARTTLSConnector(unittest.TestCase):
                 ),
                 unittest.mock.call.protocol.starttls(
                     ssl_context=unittest.mock.sentinel.ssl_context,
-                    post_handshake_callback=base.certificate_verifier.post_handshake,
+                    post_handshake_callback=
+                        base.certificate_verifier.post_handshake,
                 ),
                 unittest.mock.call.reset_stream_and_get_features(
                     base.protocol,
@@ -1116,8 +1117,11 @@ class TestXMPPOverTLSConnector(unittest.TestCase):
         base.certificate_verifier.pre_handshake = CoroutineMock()
         base.metadata.certificate_verifier_factory.return_value = \
             base.certificate_verifier
-        base.metadata.ssl_context_factory.return_value = \
-            unittest.mock.sentinel.ssl_context
+
+        base._context_factory_factory.return_value = \
+            unittest.mock.sentinel.ssl_context_factory
+
+        base_logger = unittest.mock.Mock(spec=logging.Logger)
 
         with contextlib.ExitStack() as stack:
             stack.enter_context(
@@ -1141,6 +1145,14 @@ class TestXMPPOverTLSConnector(unittest.TestCase):
                 )
             )
 
+            stack.enter_context(
+                unittest.mock.patch.object(
+                    self.c,
+                    "_context_factory_factory",
+                    new=base._context_factory_factory,
+                )
+            )
+
             result = run_coroutine(self.c.connect(
                 unittest.mock.sentinel.loop,
                 base.metadata,
@@ -1148,8 +1160,13 @@ class TestXMPPOverTLSConnector(unittest.TestCase):
                 unittest.mock.sentinel.host,
                 unittest.mock.sentinel.port,
                 unittest.mock.sentinel.timeout,
-                base_logger=unittest.mock.sentinel.base_logger,
+                base_logger=base_logger,
             ))
+
+        self.assertSequenceEqual(
+            base_logger.mock_calls,
+            [unittest.mock.call.getChild('XMPPOverTLSConnector')]
+        )
 
         self.assertSequenceEqual(
             base.mock_calls,
@@ -1160,7 +1177,7 @@ class TestXMPPOverTLSConnector(unittest.TestCase):
                 unittest.mock.call.XMLStream(
                     to=unittest.mock.sentinel.domain,
                     features_future=features_future,
-                    base_logger=unittest.mock.sentinel.base_logger,
+                    base_logger=base_logger,
                 ),
                 unittest.mock.call.metadata.certificate_verifier_factory(),
                 unittest.mock.call.certificate_verifier.pre_handshake(
@@ -1168,6 +1185,11 @@ class TestXMPPOverTLSConnector(unittest.TestCase):
                     unittest.mock.sentinel.host,
                     unittest.mock.sentinel.port,
                     base.metadata,
+                ),
+                unittest.mock.call._context_factory_factory(
+                    base_logger.getChild.return_value,
+                    base.metadata,
+                    base.certificate_verifier
                 ),
                 unittest.mock.call.create_starttls_connection(
                     unittest.mock.sentinel.loop,
@@ -1177,34 +1199,11 @@ class TestXMPPOverTLSConnector(unittest.TestCase):
                     peer_hostname=unittest.mock.sentinel.host,
                     server_hostname=unittest.mock.sentinel.domain,
                     post_handshake_callback=
-                    base.certificate_verifier.post_handshake,
+                        base.certificate_verifier.post_handshake,
                     ssl_context_factory=unittest.mock.ANY,
                     use_starttls=False,
                 ),
             ]
-        )
-
-        _, _, kwargs = base.mock_calls[-1]
-        factory = kwargs.pop("ssl_context_factory")
-
-        base.mock_calls.clear()
-
-        ssl_context = factory(unittest.mock.sentinel.passed_transport)
-
-        self.assertSequenceEqual(
-            base.mock_calls,
-            [
-                unittest.mock.call.metadata.ssl_context_factory(),
-                unittest.mock.call.certificate_verifier.setup_context(
-                    unittest.mock.sentinel.ssl_context,
-                    unittest.mock.sentinel.passed_transport,
-                )
-            ]
-        )
-
-        self.assertEqual(
-            ssl_context,
-            unittest.mock.sentinel.ssl_context
         )
 
         self.assertEqual(
@@ -1214,6 +1213,106 @@ class TestXMPPOverTLSConnector(unittest.TestCase):
                 base.protocol,
                 unittest.mock.sentinel.features,
             )
+        )
+
+    def test_context_factory(self):
+        base = unittest.mock.Mock()
+
+        ssl_context_factory = self.c._context_factory_factory(
+            unittest.mock.sentinel.logger,
+            base.metadata,
+            base.certificate_verifier,
+        )
+
+        ssl_context = ssl_context_factory(
+            unittest.mock.sentinel.passed_transport)
+
+        self.assertSequenceEqual(
+            base.mock_calls,
+            [
+                unittest.mock.call.metadata.ssl_context_factory(),
+                unittest.mock.call.metadata.
+                    ssl_context_factory().set_alpn_protos([b"xmpp-client"]),
+                unittest.mock.call.certificate_verifier.setup_context(
+                    ssl_context,
+                    unittest.mock.sentinel.passed_transport,
+                ),
+            ]
+        )
+
+        self.assertEqual(
+            ssl_context,
+            base.metadata.ssl_context_factory()
+        )
+
+    def test_context_factory_warns_if_set_alpn_protos_is_not_defined(self):
+        base_logger = unittest.mock.Mock(spec=logging.Logger)
+        base = unittest.mock.Mock()
+        del base.metadata.ssl_context_factory.return_value.set_alpn_protos
+
+        context_factory = self.c._context_factory_factory(
+            base_logger,
+            base.metadata,
+            base.certificate_verifier,
+        )
+
+        ssl_context = context_factory(unittest.mock.sentinel.passed_transport)
+
+        self.assertSequenceEqual(
+            base.mock_calls,
+            [
+                unittest.mock.call.metadata.ssl_context_factory(),
+                unittest.mock.call.certificate_verifier.setup_context(
+                    ssl_context,
+                    unittest.mock.sentinel.passed_transport,
+                ),
+            ]
+        )
+
+        self.assertSequenceEqual(
+            base_logger.mock_calls,
+            [
+                unittest.mock.call.warning(
+                    "OpenSSL.SSL.Context lacks set_alpn_protos - "
+                    "please update pyOpenSSL to a recent version"
+                ),
+            ]
+        )
+
+    def test_context_factory_warns_if_set_alpn_protos_raises(self):
+        base_logger = unittest.mock.Mock(spec=logging.Logger)
+        base = unittest.mock.Mock()
+        base.metadata.ssl_context_factory.return_value.set_alpn_protos.\
+            side_effect = NotImplementedError
+
+        context_factory = self.c._context_factory_factory(
+            base_logger,
+            base.metadata,
+            base.certificate_verifier,
+        )
+
+        ssl_context = context_factory(unittest.mock.sentinel.passed_transport)
+
+        self.assertSequenceEqual(
+            base.mock_calls,
+            [
+                unittest.mock.call.metadata.ssl_context_factory(),
+                unittest.mock.call.metadata.
+                    ssl_context_factory().set_alpn_protos([b"xmpp-client"]),
+                unittest.mock.call.certificate_verifier.setup_context(
+                    ssl_context,
+                    unittest.mock.sentinel.passed_transport,
+                ),
+            ]
+        )
+
+        self.assertSequenceEqual(
+            base_logger.mock_calls,
+            [
+                unittest.mock.call.warning(
+                    "the underlying OpenSSL library does not support ALPN"
+                ),
+            ]
         )
 
     def test_abort_XMLStream_whin_connect_raises(self):
@@ -1301,7 +1400,7 @@ class TestXMPPOverTLSConnector(unittest.TestCase):
                     peer_hostname=unittest.mock.sentinel.host,
                     server_hostname=unittest.mock.sentinel.domain,
                     post_handshake_callback=
-                    base.certificate_verifier.post_handshake,
+                        base.certificate_verifier.post_handshake,
                     ssl_context_factory=unittest.mock.ANY,
                     use_starttls=False,
                 ),

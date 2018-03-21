@@ -2186,6 +2186,25 @@ class TestSTARTTLSProvider(unittest.TestCase):
         )
 
 
+class Test_default_ssl_context(unittest.TestCase):
+
+    def test_default_ssl_context(self):
+        with unittest.mock.patch.object(OpenSSL.SSL, "Context") as ctxt:
+            security_layer.default_ssl_context()
+
+        self.assertCountEqual(
+            ctxt.mock_calls,
+            [
+                unittest.mock.call(OpenSSL.SSL.SSLv23_METHOD),
+                unittest.mock.call().set_options(
+                    OpenSSL.SSL.OP_NO_SSLv2 | OpenSSL.SSL.OP_NO_SSLv3),
+                unittest.mock.call().set_verify(
+                    OpenSSL.SSL.VERIFY_PEER,
+                    security_layer.default_verify_callback),
+            ]
+        )
+
+
 class Testsecurity_layer(unittest.TestCase):
     def test_sanity_checks_on_providers(self):
         with self.assertRaises(AttributeError):
