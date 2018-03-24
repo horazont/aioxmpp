@@ -318,6 +318,8 @@ Version 0.10
 * Set ALPN to ``xmpp-client`` by default. This is useful for :xep:`368`
   deployments.
 
+* Fix handling of SRV records with equal priority, weight, hostname and port.
+
 .. _api-changelog-0.9:
 
 Version 0.9

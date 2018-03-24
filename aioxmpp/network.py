@@ -401,7 +401,7 @@ def group_and_order_srv_records(all_records, rng=None):
     """
     rng = rng or random
 
-    all_records.sort()
+    all_records.sort(key=lambda x: x[:2])
 
     for priority, records in itertools.groupby(
             all_records,

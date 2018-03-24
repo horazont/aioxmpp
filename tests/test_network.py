@@ -1351,6 +1351,19 @@ class Testgroup_and_order_srv_records(unittest.TestCase):
             0.51,
             host_chances[3][3])
 
+    def test_equal_prio_weight_and_uncomparable_object(self):
+        o1, o2, = object(), object()
+
+        records = [
+            (0, 0, o1),
+            (0, 0, o2),
+        ]
+
+        self.assertSequenceEqual(
+            [o1, o2],
+            list(network.group_and_order_srv_records(records))
+        )
+
 
 class Testfind_xmpp_host_addr(unittest.TestCase):
     def test_returns_items_if_available(self):
