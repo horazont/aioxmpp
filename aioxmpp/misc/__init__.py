@@ -64,6 +64,14 @@ Chat Markers (:xep:`333`)
 
 .. attribute:: aioxmpp.Message.xep0333_marker
 
+Pre-Authenticated Roster Subcription (:xep:`379`)
+=================================================
+
+.. autoclass:: Preauth
+
+.. attribute:: aioxmpp.Presence.xep0379_preauth
+
+   The pre-auth element associate with a subscription request.
 
 """
 
@@ -71,3 +79,4 @@ from .delay import Delay  # NOQA
 from .forwarding import Forwarded  # NOQA
 from .oob import OOBExtension  # NOQA
 from .markers import ReceivedMarker, DisplayedMarker, AcknowledgedMarker  # NOQA
+from .pars import Preauth  # NOQA

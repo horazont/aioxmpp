@@ -320,6 +320,9 @@ Version 0.10
 
 * Fix handling of SRV records with equal priority, weight, hostname and port.
 
+* :mod:`aioxmpp.misc` provides XSO definitions for the :xep:`379`
+  ``preauth`` element.
+
 .. _api-changelog-0.9:
 
 Version 0.9
