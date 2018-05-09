@@ -1020,7 +1020,7 @@ class Client:
         if self.running:
             raise RuntimeError("client already running")
 
-        self._main_task = asyncio.async(
+        self._main_task = asyncio.ensure_future(
             self._main(),
             loop=self._loop
         )

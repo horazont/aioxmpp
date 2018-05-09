@@ -63,7 +63,7 @@ def background_task(coro, logger):
                             task,
                             result)
 
-    task = asyncio.async(coro)
+    task = asyncio.ensure_future(coro)
     task.add_done_callback(log_result)
     try:
         yield
@@ -129,7 +129,7 @@ class LazyTask(asyncio.Future):
 
     def __start_task(self):
         if self.__task is None:
-            self.__task = asyncio.async(
+            self.__task = asyncio.ensure_future(
                 self.__coroutine_function(*self.__args)
             )
             self.__task.add_done_callback(self.__task_done)
@@ -154,7 +154,7 @@ class LazyTask(asyncio.Future):
 def gather_reraise_multi(*fut_or_coros, message="gather_reraise_multi"):
     """
     Wrap all the arguments `fut_or_coros` in futures with
-    :func:`asyncio.async` and wait until all of them are finish or
+    :func:`asyncio.ensure_future` and wait until all of them are finish or
     fail.
 
     :param fut_or_coros: the futures or coroutines to wait for
@@ -189,7 +189,7 @@ def gather_reraise_multi(*fut_or_coros, message="gather_reraise_multi"):
     # this late import is needed for Python 3.4
     from aioxmpp import errors
 
-    todo = [asyncio.async(fut_or_coro) for fut_or_coro in fut_or_coros]
+    todo = [asyncio.ensure_future(fut_or_coro) for fut_or_coro in fut_or_coros]
     if not todo:
         return []
 

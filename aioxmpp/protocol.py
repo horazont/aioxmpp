@@ -302,7 +302,7 @@ class XMLStream(asyncio.Protocol):
         self._transport_closing = False
         self._footer_timeout_future = None
 
-        self._closing_future = asyncio.async(
+        self._closing_future = asyncio.ensure_future(
             self._smachine.wait_for(
                 State.CLOSING
             ),
@@ -364,7 +364,7 @@ class XMLStream(asyncio.Protocol):
             return
         task.result()
 
-        self._footer_timeout_future = asyncio.async(
+        self._footer_timeout_future = asyncio.ensure_future(
             self._stream_footer_timeout(),
             loop=self._loop
         )

@@ -72,8 +72,8 @@ def run_coroutine_with_peer(
         loop=None):
     loop = loop or asyncio.get_event_loop()
 
-    local_future = asyncio.async(coroutine, loop=loop)
-    remote_future = asyncio.async(peer_coroutine, loop=loop)
+    local_future = asyncio.ensure_future(coroutine, loop=loop)
+    remote_future = asyncio.ensure_future(peer_coroutine, loop=loop)
 
     done, pending = loop.run_until_complete(
         asyncio.wait(

@@ -236,7 +236,7 @@ class TestCache(unittest.TestCase):
                 fut,
             )
 
-            task = asyncio.async(
+            task = asyncio.ensure_future(
                 self.c.lookup(unittest.mock.sentinel.key)
             )
             run_coroutine(asyncio.sleep(0))
@@ -298,7 +298,7 @@ class TestCache(unittest.TestCase):
             base.Future.return_value = fut1
             self.c.create_query_future(unittest.mock.sentinel.key)
 
-            task = asyncio.async(
+            task = asyncio.ensure_future(
                 self.c.lookup(unittest.mock.sentinel.key)
             )
             run_coroutine(asyncio.sleep(0))
@@ -353,7 +353,7 @@ class TestCache(unittest.TestCase):
                 fut,
             )
 
-            task = asyncio.async(
+            task = asyncio.ensure_future(
                 self.c.lookup(unittest.mock.sentinel.key)
             )
             run_coroutine(asyncio.sleep(0))
@@ -384,7 +384,7 @@ class TestCache(unittest.TestCase):
             ))
 
             async = stack.enter_context(unittest.mock.patch(
-                "asyncio.async"
+                "asyncio.ensure_future"
             ))
 
             self.c.add_cache_entry(
@@ -421,7 +421,7 @@ class TestCache(unittest.TestCase):
             ))
 
             async = stack.enter_context(unittest.mock.patch(
-                "asyncio.async"
+                "asyncio.ensure_future"
             ))
 
             self.c.add_cache_entry(
@@ -464,7 +464,7 @@ class TestCache(unittest.TestCase):
             ))
 
             async = stack.enter_context(unittest.mock.patch(
-                "asyncio.async"
+                "asyncio.ensure_future"
             ))
 
             self.c.add_cache_entry(

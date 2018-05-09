@@ -358,7 +358,7 @@ class AdHocSignal(AbstractAdHocSignal):
        connect time.
 
        When the signal is emitted, the coroutine is spawned using
-       :func:`asyncio.async` in the given `loop`, with the arguments passed to
+       :func:`asyncio.ensure_future` in the given `loop`, with the arguments passed to
        the signal.
 
        A strong reference is held to the coroutine.
@@ -438,7 +438,7 @@ class AdHocSignal(AbstractAdHocSignal):
                 raise TypeError("must be coroutine, got {!r}".format(f))
 
             def wrapper(args, kwargs):
-                task = asyncio.async(f(*args, **kwargs), loop=loop)
+                task = asyncio.ensure_future(f(*args, **kwargs), loop=loop)
                 task.add_done_callback(
                     functools.partial(
                         log_spawned,

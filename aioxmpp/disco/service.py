@@ -674,7 +674,7 @@ class DiscoClient(service.Service):
                 except asyncio.CancelledError:
                     pass
 
-        request = asyncio.async(
+        request = asyncio.ensure_future(
             self.send_and_decode_info_query(jid, node)
         )
         request.add_done_callback(
@@ -746,7 +746,7 @@ class DiscoClient(service.Service):
         request_iq = stanza.IQ(to=jid, type_=structs.IQType.GET)
         request_iq.payload = disco_xso.ItemsQuery(node=node)
 
-        request = asyncio.async(
+        request = asyncio.ensure_future(
             self.client.send(request_iq)
         )
 

@@ -467,7 +467,7 @@ class Provisioner(metaclass=abc.ABCMeta):
 
         futures = []
         for cm in self._accounts_to_dispose:
-            futures.append(asyncio.async(cm.__aexit__(None, None, None)))
+            futures.append(asyncio.ensure_future(cm.__aexit__(None, None, None)))
         self._accounts_to_dispose.clear()
 
         self._logger.debug("waiting for %d accounts to shut down",

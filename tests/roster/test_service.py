@@ -482,7 +482,7 @@ class TestService(unittest.TestCase):
         self.cc.send.return_value = response
         self.cc.send.delay = 0.05
 
-        task = asyncio.async(self.cc.before_stream_established())
+        task = asyncio.ensure_future(self.cc.before_stream_established())
 
         run_coroutine(asyncio.sleep(0.01))
 
@@ -1638,7 +1638,7 @@ class TestService(unittest.TestCase):
         @asyncio.coroutine
         def send(iq, timeout=None):
             # this is brutal, but a sure way to provoke the race
-            asyncio.async(self.s.handle_roster_push(push))
+            asyncio.ensure_future(self.s.handle_roster_push(push))
             # give the roster push a chance to act
             # (we cannot yield from the handle_roster_push() here: in the fixed
             # version that would be a deadlock)
@@ -1648,7 +1648,7 @@ class TestService(unittest.TestCase):
         self.cc.send = unittest.mock.Mock()
         self.cc.send.side_effect = send
 
-        initial_roster = asyncio.async(self.cc.before_stream_established())
+        initial_roster = asyncio.ensure_future(self.cc.before_stream_established())
 
         run_coroutine(initial_roster)
 

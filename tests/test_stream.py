@@ -1840,7 +1840,7 @@ class TestStanzaStream(StanzaStreamTestBase):
                 new=CoroutineMock()
             ))
 
-            task = asyncio.async(self.stream.send_iq_and_wait_for_reply(
+            task = asyncio.ensure_future(self.stream.send_iq_and_wait_for_reply(
                 unittest.mock.sentinel.iq
             ))
             with self.assertWarnsRegex(
@@ -2898,7 +2898,7 @@ class TestStanzaStream(StanzaStreamTestBase):
     def test_send_and_wait_for_sent_emits_deprecation_warning(self):
         iq = make_test_iq()
 
-        task = asyncio.async(self.stream.send_and_wait_for_sent(iq))
+        task = asyncio.ensure_future(self.stream.send_and_wait_for_sent(iq))
         with self.assertWarnsRegex(
                 DeprecationWarning,
                 r"send_and_wait_for_sent is deprecated and will be removed in 1.0"):
@@ -3002,7 +3002,7 @@ class TestStanzaStream(StanzaStreamTestBase):
                 new=base.iq_response_map,
             ))
 
-            task = asyncio.async(self.stream._send_immediately(iq))
+            task = asyncio.ensure_future(self.stream._send_immediately(iq))
             run_coroutine(asyncio.sleep(0.01))
 
             self.assertFalse(task.done())
@@ -3049,7 +3049,7 @@ class TestStanzaStream(StanzaStreamTestBase):
                 new=base.iq_response_map,
             ))
 
-            task = asyncio.async(self.stream._send_immediately(iq))
+            task = asyncio.ensure_future(self.stream._send_immediately(iq))
             run_coroutine(asyncio.sleep(0.01))
 
             self.assertFalse(task.done())
@@ -3102,7 +3102,7 @@ class TestStanzaStream(StanzaStreamTestBase):
                 new=base.iq_response_map,
             ))
 
-            task = asyncio.async(self.stream._send_immediately(iq))
+            task = asyncio.ensure_future(self.stream._send_immediately(iq))
             run_coroutine(asyncio.sleep(0.01))
 
             self.assertFalse(task.done())
@@ -3144,7 +3144,7 @@ class TestStanzaStream(StanzaStreamTestBase):
                 new=base._enqueue
             ))
 
-            task = asyncio.async(self.stream._send_immediately(
+            task = asyncio.ensure_future(self.stream._send_immediately(
                 iq,
                 timeout=0.001))
             run_coroutine(asyncio.sleep(0.01))
@@ -3178,7 +3178,7 @@ class TestStanzaStream(StanzaStreamTestBase):
                 new=base.iq_response_map,
             ))
 
-            task = asyncio.async(self.stream._send_immediately(
+            task = asyncio.ensure_future(self.stream._send_immediately(
                 iq,
                 timeout=0.001))
             run_coroutine(asyncio.sleep(0.01))
@@ -3225,7 +3225,7 @@ class TestStanzaStream(StanzaStreamTestBase):
                 new=base.iq_response_map,
             ))
 
-            task = asyncio.async(self.stream._send_immediately(iq))
+            task = asyncio.ensure_future(self.stream._send_immediately(iq))
             run_coroutine(asyncio.sleep(0.01))
 
             self.assertFalse(task.done())
@@ -3267,7 +3267,7 @@ class TestStanzaStream(StanzaStreamTestBase):
                 new=base.iq_response_map,
             ))
 
-            task = asyncio.async(self.stream._send_immediately(iq))
+            task = asyncio.ensure_future(self.stream._send_immediately(iq))
             run_coroutine(asyncio.sleep(0.01))
 
             self.assertFalse(task.done())
@@ -3491,7 +3491,7 @@ class TestStanzaStream(StanzaStreamTestBase):
 
         self.stream.start(self.xmlstream)
 
-        task = asyncio.async(self.stream._send_immediately(iq, cb=cb))
+        task = asyncio.ensure_future(self.stream._send_immediately(iq, cb=cb))
 
         run_coroutine(self.sent_stanzas.get())
         self.assertFalse(task.done())
@@ -3529,7 +3529,7 @@ class TestStanzaStream(StanzaStreamTestBase):
 
         self.stream.start(self.xmlstream)
 
-        task = asyncio.async(self.stream._send_immediately(iq, cb=cb))
+        task = asyncio.ensure_future(self.stream._send_immediately(iq, cb=cb))
 
         run_coroutine(self.sent_stanzas.get())
         self.assertFalse(task.done())
@@ -3563,7 +3563,7 @@ class TestStanzaStream(StanzaStreamTestBase):
 
         self.stream.start(self.xmlstream)
 
-        task = asyncio.async(self.stream._send_immediately(iq, cb=cb))
+        task = asyncio.ensure_future(self.stream._send_immediately(iq, cb=cb))
 
         run_coroutine(self.sent_stanzas.get())
         self.assertFalse(task.done())
@@ -3590,7 +3590,7 @@ class TestStanzaStream(StanzaStreamTestBase):
 
         self.stream.start(self.xmlstream)
 
-        task = asyncio.async(self.stream._send_immediately(iq, cb=cb))
+        task = asyncio.ensure_future(self.stream._send_immediately(iq, cb=cb))
 
         run_coroutine(self.sent_stanzas.get())
         self.assertFalse(task.done())
@@ -3623,7 +3623,7 @@ class TestStanzaStream(StanzaStreamTestBase):
 
         self.stream.start(self.xmlstream)
 
-        task = asyncio.async(self.stream._send_immediately(iq, cb=cb))
+        task = asyncio.ensure_future(self.stream._send_immediately(iq, cb=cb))
 
         run_coroutine(self.sent_stanzas.get())
         self.assertFalse(task.done())
@@ -4018,7 +4018,7 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
 
         @asyncio.coroutine
         def starter():
-            sm_start_future = asyncio.async(self.stream.start_sm())
+            sm_start_future = asyncio.ensure_future(self.stream.start_sm())
             self.stream._enqueue(iq_sent)
 
         self.stream.start(self.xmlstream)
@@ -5371,7 +5371,7 @@ class TestStanzaToken(unittest.TestCase):
         )
 
     def test__set_state_still_idempotent_with_await(self):
-        task = asyncio.async(self.token.__await__())
+        task = asyncio.ensure_future(self.token.__await__())
         run_coroutine(asyncio.sleep(0.01))
         self.assertFalse(task.done())
 
@@ -5387,7 +5387,7 @@ class TestStanzaToken(unittest.TestCase):
     @unittest.skipUnless(CAN_AWAIT_STANZA_TOKEN,
                          "requires Python 3.5+")
     def test_await_returns_on_SENT_WITHOUT_SM(self):
-        task = asyncio.async(self.token.__await__())
+        task = asyncio.ensure_future(self.token.__await__())
         run_coroutine(asyncio.sleep(0.01))
         self.assertFalse(task.done())
 
@@ -5398,7 +5398,7 @@ class TestStanzaToken(unittest.TestCase):
     @unittest.skipUnless(CAN_AWAIT_STANZA_TOKEN,
                          "requires Python 3.5+")
     def test_await_returns_on_ACKED(self):
-        task = asyncio.async(self.token.__await__())
+        task = asyncio.ensure_future(self.token.__await__())
         run_coroutine(asyncio.sleep(0.01))
         self.assertFalse(task.done())
 
@@ -5410,7 +5410,7 @@ class TestStanzaToken(unittest.TestCase):
                          "requires Python 3.5+")
     def test_await_returns_on_ACKED_plainly_even_with_exception(
             self):
-        task = asyncio.async(self.token.__await__())
+        task = asyncio.ensure_future(self.token.__await__())
         run_coroutine(asyncio.sleep(0.01))
         self.assertFalse(task.done())
 
@@ -5421,7 +5421,7 @@ class TestStanzaToken(unittest.TestCase):
     @unittest.skipUnless(CAN_AWAIT_STANZA_TOKEN,
                          "requires Python 3.5+")
     def test_await_waits_while_SENT(self):
-        task = asyncio.async(self.token.__await__())
+        task = asyncio.ensure_future(self.token.__await__())
         run_coroutine(asyncio.sleep(0.01))
         self.assertFalse(task.done())
 
@@ -5437,7 +5437,7 @@ class TestStanzaToken(unittest.TestCase):
     @unittest.skipUnless(CAN_AWAIT_STANZA_TOKEN,
                          "requires Python 3.5+")
     def test_await_raises_ConnectionError_on_DISCONNECTED(self):
-        task = asyncio.async(self.token.__await__())
+        task = asyncio.ensure_future(self.token.__await__())
         run_coroutine(asyncio.sleep(0.01))
         self.assertFalse(task.done())
 
@@ -5451,7 +5451,7 @@ class TestStanzaToken(unittest.TestCase):
     @unittest.skipUnless(CAN_AWAIT_STANZA_TOKEN,
                          "requires Python 3.5+")
     def test_await_raises_RuntimeError_on_DROPPED(self):
-        task = asyncio.async(self.token.__await__())
+        task = asyncio.ensure_future(self.token.__await__())
         run_coroutine(asyncio.sleep(0.01))
         self.assertFalse(task.done())
 
@@ -5465,7 +5465,7 @@ class TestStanzaToken(unittest.TestCase):
     @unittest.skipUnless(CAN_AWAIT_STANZA_TOKEN,
                          "requires Python 3.5+")
     def test_await_raises_RuntimeError_on_ABORTED(self):
-        task = asyncio.async(self.token.__await__())
+        task = asyncio.ensure_future(self.token.__await__())
         run_coroutine(asyncio.sleep(0.01))
         self.assertFalse(task.done())
 
@@ -5479,7 +5479,7 @@ class TestStanzaToken(unittest.TestCase):
     @unittest.skipUnless(CAN_AWAIT_STANZA_TOKEN,
                          "requires Python 3.5+")
     def test_await_aborts_if_cancelled(self):
-        task = asyncio.async(self.token.__await__())
+        task = asyncio.ensure_future(self.token.__await__())
         run_coroutine(asyncio.sleep(0.01))
         self.assertFalse(task.done())
 
@@ -5496,7 +5496,7 @@ class TestStanzaToken(unittest.TestCase):
     @unittest.skipUnless(CAN_AWAIT_STANZA_TOKEN,
                          "requires Python 3.5+")
     def test_await_raises_ValueError_on_failed(self):
-        task = asyncio.async(self.token.__await__())
+        task = asyncio.ensure_future(self.token.__await__())
         run_coroutine(asyncio.sleep(0.01))
         self.assertFalse(task.done())
 
@@ -5510,7 +5510,7 @@ class TestStanzaToken(unittest.TestCase):
     @unittest.skipUnless(CAN_AWAIT_STANZA_TOKEN,
                          "requires Python 3.5+")
     def test_await_reraises_exception_from_failed(self):
-        task = asyncio.async(self.token.__await__())
+        task = asyncio.ensure_future(self.token.__await__())
         run_coroutine(asyncio.sleep(0.01))
         self.assertFalse(task.done())
 
@@ -5526,7 +5526,7 @@ class TestStanzaToken(unittest.TestCase):
     @unittest.skipUnless(CAN_AWAIT_STANZA_TOKEN,
                          "requires Python 3.5+")
     def test_next_await_raises_usual_abort_error_after_cancel(self):
-        task = asyncio.async(self.token.__await__())
+        task = asyncio.ensure_future(self.token.__await__())
         run_coroutine(asyncio.sleep(0.01))
         self.assertFalse(task.done())
 
@@ -5547,7 +5547,7 @@ class TestStanzaToken(unittest.TestCase):
     @unittest.skipUnless(CAN_AWAIT_STANZA_TOKEN,
                          "requires Python 3.5+")
     def test_await_does_not_abort_if_already_inflight(self):
-        task = asyncio.async(self.token.__await__())
+        task = asyncio.ensure_future(self.token.__await__())
         run_coroutine(asyncio.sleep(0.01))
         self.assertFalse(task.done())
 

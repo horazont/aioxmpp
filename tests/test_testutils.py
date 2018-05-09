@@ -887,7 +887,7 @@ class TestXMLStreamMock(XMLTestCase):
         fun = unittest.mock.MagicMock()
         fun.return_value = None
 
-        ec_future = asyncio.async(self.xmlstream.error_future())
+        ec_future = asyncio.ensure_future(self.xmlstream.error_future())
 
         self.xmlstream.on_closing.connect(fun)
 
@@ -921,7 +921,7 @@ class TestXMLStreamMock(XMLTestCase):
             ))
 
     def test_close_and_wait(self):
-        task = asyncio.async(self.xmlstream.close_and_wait())
+        task = asyncio.ensure_future(self.xmlstream.close_and_wait())
 
         run_coroutine(self.xmlstream.run_test(
             [

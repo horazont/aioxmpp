@@ -4163,7 +4163,7 @@ class TestUseConnected(unittest.TestCase):
         del self.cm
 
     def test_aenter_listens_to_on_stream_established_to_detect_success(self):
-        task = asyncio.async(self.cm.__aenter__())
+        task = asyncio.ensure_future(self.cm.__aenter__())
         run_coroutine(asyncio.sleep(0.1))
 
         self.assertFalse(task.done(), task)
@@ -4173,7 +4173,7 @@ class TestUseConnected(unittest.TestCase):
         self.assertEqual(run_coroutine(task), self.client.stream)
 
     def test_aenter_listens_to_on_failure_to_detect_failure(self):
-        task = asyncio.async(self.cm.__aenter__())
+        task = asyncio.ensure_future(self.cm.__aenter__())
         run_coroutine(asyncio.sleep(0.1))
 
         self.assertFalse(task.done(), task)
@@ -4188,7 +4188,7 @@ class TestUseConnected(unittest.TestCase):
         self.assertIs(ctx.exception, exc)
 
     def test_aenter_calls_start_if_client_not_running(self):
-        task = asyncio.async(self.cm.__aenter__())
+        task = asyncio.ensure_future(self.cm.__aenter__())
         run_coroutine(asyncio.sleep(0.1))
 
         self.client.start.assert_called_once_with()
@@ -4199,7 +4199,7 @@ class TestUseConnected(unittest.TestCase):
     def test_aenter_does_not_call_start_but_waits_if_not_established(self):
         self.client.running = True
 
-        task = asyncio.async(self.cm.__aenter__())
+        task = asyncio.ensure_future(self.cm.__aenter__())
         run_coroutine(asyncio.sleep(0.1))
 
         self.client.start.assert_not_called()
@@ -4233,7 +4233,7 @@ class TestUseConnected(unittest.TestCase):
         self.client.stop.assert_called_once_with()
 
     def test_aenter_does_not_set_presence_by_default(self):
-        task = asyncio.async(self.cm.__aenter__())
+        task = asyncio.ensure_future(self.cm.__aenter__())
         run_coroutine(asyncio.sleep(0.1))
 
         self.presence_server.set_presence.assert_not_called()
@@ -4249,7 +4249,7 @@ class TestUseConnected(unittest.TestCase):
             presence=p,
         )
 
-        task = asyncio.async(self.cm.__aenter__())
+        task = asyncio.ensure_future(self.cm.__aenter__())
         run_coroutine(asyncio.sleep(0.1))
 
         self.presence_server.set_presence.assert_called_once_with(p)
@@ -4268,7 +4268,7 @@ class TestUseConnected(unittest.TestCase):
             presence=p,
         )
 
-        task = asyncio.async(self.cm.__aenter__())
+        task = asyncio.ensure_future(self.cm.__aenter__())
         run_coroutine(asyncio.sleep(0.1))
 
         self.presence_server.set_presence.assert_called_once_with(p)
@@ -4279,7 +4279,7 @@ class TestUseConnected(unittest.TestCase):
         self.client.established = True
         self.client.running = True
 
-        task = asyncio.async(self.cm.__aexit__(None, None, None))
+        task = asyncio.ensure_future(self.cm.__aexit__(None, None, None))
         run_coroutine(asyncio.sleep(0.01))
 
         self.assertFalse(task.done(), task)
@@ -4293,7 +4293,7 @@ class TestUseConnected(unittest.TestCase):
         self.client.established = True
         self.client.running = True
 
-        task = asyncio.async(self.cm.__aexit__(None, None, None))
+        task = asyncio.ensure_future(self.cm.__aexit__(None, None, None))
         run_coroutine(asyncio.sleep(0.01))
 
         self.assertFalse(task.done(), task)

@@ -1391,7 +1391,7 @@ class TestXMLStream(unittest.TestCase):
             protocol.State.OPEN
         )
 
-        fut = asyncio.async(p.close_and_wait())
+        fut = asyncio.ensure_future(p.close_and_wait())
 
         run_coroutine(t.run_test(
             [
@@ -1454,7 +1454,7 @@ class TestXMLStream(unittest.TestCase):
             protocol.State.OPEN
         )
 
-        fut = asyncio.async(p.close_and_wait())
+        fut = asyncio.ensure_future(p.close_and_wait())
 
         run_coroutine(t.run_test(
             [
@@ -1830,7 +1830,7 @@ class TestXMLStream(unittest.TestCase):
 
     def test_future_for_closing_state_is_disposed_of_in_connection_lost(
             self):
-        with unittest.mock.patch("asyncio.async") as async_:
+        with unittest.mock.patch("asyncio.ensure_future") as async_:
             t, p = self._make_stream(to=TEST_PEER)
 
         run_coroutine(t.run_test(

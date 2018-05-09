@@ -535,7 +535,7 @@ class TestSTARTTLSConnector(unittest.TestCase):
 
             stack.enter_context(
                 unittest.mock.patch(
-                    "asyncio.async",
+                    "asyncio.ensure_future",
                     new=base.async_,
                 )
             )
@@ -667,7 +667,7 @@ class TestSTARTTLSConnector(unittest.TestCase):
 
             stack.enter_context(
                 unittest.mock.patch(
-                    "asyncio.async",
+                    "asyncio.ensure_future",
                     new=base.async_,
                 )
             )
@@ -892,7 +892,7 @@ class TestSTARTTLSConnector(unittest.TestCase):
 
             stack.enter_context(
                 unittest.mock.patch(
-                    "asyncio.async",
+                    "asyncio.ensure_future",
                     new=base.async_,
                 )
             )
@@ -1021,7 +1021,7 @@ class TestSTARTTLSConnector(unittest.TestCase):
 
             stack.enter_context(
                 unittest.mock.patch(
-                    "asyncio.async",
+                    "asyncio.ensure_future",
                     new=base.async_,
                 )
             )

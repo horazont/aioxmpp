@@ -63,14 +63,14 @@ class Testbackground_task(unittest.TestCase):
         del self.coro
 
     def test_enter_starts_coroutine(self):
-        with unittest.mock.patch("asyncio.async") as async_:
+        with unittest.mock.patch("asyncio.ensure_future") as async_:
             self.cm.__enter__()
 
         async_.assert_called_with(self.started_coro)
         self.assertFalse(async_().cancel.mock_calls)
 
     def test_exit_cancels_coroutine(self):
-        with unittest.mock.patch("asyncio.async") as async_:
+        with unittest.mock.patch("asyncio.ensure_future") as async_:
             self.cm.__enter__()
             self.cm.__exit__(None, None, None)
 
@@ -82,7 +82,7 @@ class Testbackground_task(unittest.TestCase):
         except:
             exc_info = sys.exc_info()
 
-        with unittest.mock.patch("asyncio.async") as async_:
+        with unittest.mock.patch("asyncio.ensure_future") as async_:
             self.cm.__enter__()
             result = self.cm.__exit__(*exc_info)
 
@@ -291,7 +291,7 @@ class TestLazyTask(unittest.TestCase):
 
         fut = utils.LazyTask(self.coro)
 
-        result = run_coroutine(asyncio.async(fut))
+        result = run_coroutine(asyncio.ensure_future(fut))
 
         self.assertEqual(result, unittest.mock.sentinel.result)
 
@@ -300,7 +300,7 @@ class TestLazyTask(unittest.TestCase):
 
         fut = utils.LazyTask(self.coro)
 
-        result2 = run_coroutine(asyncio.async(fut))
+        result2 = run_coroutine(asyncio.ensure_future(fut))
         result1 = run_coroutine(fut)
 
         self.assertEqual(result1, result2)
@@ -312,7 +312,7 @@ class TestLazyTask(unittest.TestCase):
         fut = utils.LazyTask(self.coro)
         cb = unittest.mock.Mock(["__call__"])
 
-        with unittest.mock.patch("asyncio.async") as async_:
+        with unittest.mock.patch("asyncio.ensure_future") as async_:
             fut.add_done_callback(cb)
             async_.assert_called_once_with(unittest.mock.ANY)
 

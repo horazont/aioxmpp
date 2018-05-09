@@ -1263,10 +1263,10 @@ class TestDiscoClient(unittest.TestCase):
                 "send_and_decode_info_query",
                 new=mock):
 
-            task1 = asyncio.async(
+            task1 = asyncio.ensure_future(
                 self.s.query_info(to, node="foobar")
             )
-            task2 = asyncio.async(
+            task2 = asyncio.ensure_future(
                 self.s.query_info(to, node="foobar")
             )
 
@@ -1426,8 +1426,8 @@ class TestDiscoClient(unittest.TestCase):
             send_and_decode.return_value = response
             send_and_decode.delay = 0.1
 
-            q1 = asyncio.async(self.s.query_info(to))
-            q2 = asyncio.async(self.s.query_info(to))
+            q1 = asyncio.ensure_future(self.s.query_info(to))
+            q2 = asyncio.ensure_future(self.s.query_info(to))
 
             run_coroutine(asyncio.sleep(0.05))
 
@@ -1557,10 +1557,10 @@ class TestDiscoClient(unittest.TestCase):
                 "send",
                 new=mock):
 
-            task1 = asyncio.async(
+            task1 = asyncio.ensure_future(
                 self.s.query_info(to, node="foobar")
             )
-            task2 = asyncio.async(
+            task2 = asyncio.ensure_future(
                 self.s.query_info(to, node="foobar")
             )
 
@@ -1698,8 +1698,8 @@ class TestDiscoClient(unittest.TestCase):
         self.cc.send.return_value = response
         self.cc.send.delay = 0.1
 
-        q1 = asyncio.async(self.s.query_items(to))
-        q2 = asyncio.async(self.s.query_items(to))
+        q1 = asyncio.ensure_future(self.s.query_items(to))
+        q2 = asyncio.ensure_future(self.s.query_items(to))
 
         run_coroutine(asyncio.sleep(0.05))
 
@@ -1747,7 +1747,7 @@ class TestDiscoClient(unittest.TestCase):
             fut
         )
 
-        request = asyncio.async(
+        request = asyncio.ensure_future(
             self.s.query_info(to)
         )
 
@@ -1771,7 +1771,7 @@ class TestDiscoClient(unittest.TestCase):
             fut
         )
 
-        request = asyncio.async(
+        request = asyncio.ensure_future(
             self.s.query_info(to)
         )
 

@@ -2453,7 +2453,7 @@ class TestRoom(unittest.TestCase):
         self.assertFalse(stanza.body)
 
     def test_leave(self):
-        fut = asyncio.async(self.jmuc.leave())
+        fut = asyncio.ensure_future(self.jmuc.leave())
         run_coroutine(asyncio.sleep(0))
         self.assertFalse(fut.done(), fut.done() and fut.result())
 

@@ -682,7 +682,7 @@ class AvatarService(service.Service):
         # presence stanzas coherent as well).
         self._presence_server.resend_presence()
 
-        self._vcard_rehash_task = asyncio.async(
+        self._vcard_rehash_task = asyncio.ensure_future(
             self._calculate_vcard_id()
         )
 
