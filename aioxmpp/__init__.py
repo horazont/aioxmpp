@@ -89,6 +89,12 @@ version_info = version_info
 #:    :ref:`api-stability`
 __version__ = __version__
 
+import asyncio
+#: Adds fallback if asyncio version does not provide an ensure_future function.
+#:
+if not hasattr(asyncio, "ensure_future"):
+    asyncio.ensure_future = getattr(asyncio, "async")
+
 # XXX: ^ this is a hack to make Sphinx find the docs. We could also be using
 # .. data instead of .. autodata, but that has the downside that the actual
 # version number isn’t printed in the docs (without additional maintenance
