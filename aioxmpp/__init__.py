@@ -66,7 +66,6 @@ Shorthands
    Alias of :func:`aioxmpp.security_layer.make`.
 
 """
-
 from ._version import version_info, __version__, version
 
 #: The imported :mod:`aioxmpp` version as a tuple.
@@ -94,9 +93,8 @@ __version__ = __version__
 # version number isn’t printed in the docs (without additional maintenance
 # cost).
 
-import asyncio
-#: Adds fallback if asyncio version does not provide an ensure_future function.
-#:
+import asyncio # NOQA
+# Adds fallback if asyncio version does not provide an ensure_future function.
 if not hasattr(asyncio, "ensure_future"):
     asyncio.ensure_future = getattr(asyncio, "async")
 
