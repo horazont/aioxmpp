@@ -647,7 +647,6 @@ class AbstractSignal(metaclass=abc.ABCMeta):
         self._instances = weakref.WeakKeyDictionary()
 
     @abc.abstractclassmethod
-    @classmethod
     def make_adhoc_signal(cls):
         pass
 
