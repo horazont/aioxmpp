@@ -88,7 +88,7 @@ class TestOrderedStateMachine(unittest.TestCase):
     def test_wait_for_at_least(self):
         state_tasks = {
             state: asyncio.ensure_future(self.osm.wait_for_at_least(state),
-                                 loop=self.loop)
+                                         loop=self.loop)
             for state in States
         }
 
@@ -108,7 +108,7 @@ class TestOrderedStateMachine(unittest.TestCase):
     def test_wait_for_at_least_checks_current_state(self):
         state_tasks = {
             state: asyncio.ensure_future(self.osm.wait_for_at_least(state),
-                                 loop=self.loop)
+                                         loop=self.loop)
             for state in States
         }
 
@@ -126,7 +126,7 @@ class TestOrderedStateMachine(unittest.TestCase):
     def test_wait_for_at_least_can_be_cancelled(self):
         state_tasks = {
             state: asyncio.ensure_future(self.osm.wait_for_at_least(state),
-                                 loop=self.loop)
+                                         loop=self.loop)
             for state in States
         }
 
@@ -152,7 +152,7 @@ class TestOrderedStateMachine(unittest.TestCase):
     def test_wait_for(self):
         state_tasks = {
             state: asyncio.ensure_future(self.osm.wait_for(state),
-                                 loop=self.loop)
+                                         loop=self.loop)
             for state in States
         }
 
@@ -181,7 +181,7 @@ class TestOrderedStateMachine(unittest.TestCase):
     def test_wait_for_checks_immediately(self):
         state_tasks = {
             state: asyncio.ensure_future(self.osm.wait_for(state),
-                                 loop=self.loop)
+                                         loop=self.loop)
             for state in States
         }
 

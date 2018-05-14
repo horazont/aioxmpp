@@ -114,7 +114,7 @@ def log_spawned(logger, fut):
         result = fut.result()
     except asyncio.CancelledError:
         logger.debug("spawned task was cancelled")
-    except:
+    except:  # NOQA
         logger.warning("spawned task raised exception", exc_info=True)
     else:
         if result is not None:
@@ -358,8 +358,8 @@ class AdHocSignal(AbstractAdHocSignal):
        connect time.
 
        When the signal is emitted, the coroutine is spawned using
-       :func:`asyncio.ensure_future` in the given `loop`, with the arguments passed to
-       the signal.
+       :func:`asyncio.ensure_future` in the given `loop`, with the arguments
+       passed to the signal.
 
        A strong reference is held to the coroutine.
 
@@ -647,6 +647,7 @@ class AbstractSignal(metaclass=abc.ABCMeta):
         self._instances = weakref.WeakKeyDictionary()
 
     @abc.abstractclassmethod
+    @classmethod
     def make_adhoc_signal(cls):
         pass
 

@@ -332,7 +332,7 @@ class StanzaToken:
         When a stanza is aborted, it will reside in the active queue of the
         stream, not will be sent and instead discarded silently.
         """
-        if     (self._state != StanzaState.ACTIVE and
+        if (self._state != StanzaState.ACTIVE and
                 self._state != StanzaState.ABORTED):
             raise RuntimeError("cannot abort stanza (already sent)")
         self._set_state(StanzaState.ABORTED)
@@ -1771,7 +1771,8 @@ class StanzaStream:
             self.on_stream_established()
             self._established = True
 
-        self._task = asyncio.ensure_future(self._run(xmlstream), loop=self._loop)
+        self._task = asyncio.ensure_future(self._run(xmlstream),
+                                           loop=self._loop)
         self._task.add_done_callback(self._done_handler)
         self._logger.debug("broker task started as %r", self._task)
 
@@ -1883,9 +1884,9 @@ class StanzaStream:
     def _run(self, xmlstream):
         self._xmlstream = xmlstream
         active_fut = asyncio.ensure_future(self._active_queue.get(),
-                                   loop=self._loop)
+                                           loop=self._loop)
         incoming_fut = asyncio.ensure_future(self._incoming_queue.get(),
-                                     loop=self._loop)
+                                             loop=self._loop)
 
         try:
             while True:
@@ -2298,7 +2299,7 @@ class StanzaStream:
                 xmlstream,
                 [
                     nonza.SMResume(previd=self.sm_id,
-                                         counter=self._sm_inbound_ctr)
+                                   counter=self._sm_inbound_ctr)
                 ],
                 [
                     nonza.SMResumed,
@@ -2316,7 +2317,7 @@ class StanzaStream:
                     "Server rejected SM resumption")
 
             self._resume_sm(response.counter)
-        except:
+        except:  # NOQA
             self._start_rollback(xmlstream)
             raise
         self._start_commit(xmlstream)

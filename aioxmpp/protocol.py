@@ -551,7 +551,7 @@ class XMLStream(asyncio.Protocol):
         Calling :meth:`close` while the stream is closing or closed is a
         no-op.
         """
-        if     (self._smachine.state == State.CLOSING or
+        if (self._smachine.state == State.CLOSING or
                 self._smachine.state == State.CLOSED):
             return
         self._writer.close()
@@ -650,7 +650,7 @@ class XMLStream(asyncio.Protocol):
         if self._smachine.state == State.READY:
             self._smachine.state = State.CLOSED
             return
-        if     (self._smachine.state != State.CLOSING and
+        if (self._smachine.state != State.CLOSING and
                 self._transport.can_write_eof()):
             self._transport.write_eof()
         self._close_transport()
@@ -856,7 +856,7 @@ def reset_stream_and_get_features(xmlstream, timeout=None):
             failure_future.result()
 
         raise TimeoutError()
-    except:
+    except:  # NOQA
         cleanup()
         raise
 

@@ -697,7 +697,7 @@ class DiscoClient(service.Service):
                     raise TimeoutError()
             else:
                 result = yield from request
-        except:
+        except:  # NOQA
             if request.done():
                 try:
                     pending = self._info_pending[key]
@@ -761,7 +761,7 @@ class DiscoClient(service.Service):
                     raise TimeoutError()
             else:
                 result = yield from request
-        except:
+        except:  # NOQA
             if request.done():
                 try:
                     pending = self._items_pending[key]

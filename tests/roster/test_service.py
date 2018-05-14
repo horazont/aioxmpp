@@ -1648,7 +1648,9 @@ class TestService(unittest.TestCase):
         self.cc.send = unittest.mock.Mock()
         self.cc.send.side_effect = send
 
-        initial_roster = asyncio.ensure_future(self.cc.before_stream_established())
+        initial_roster = asyncio.ensure_future(
+            self.cc.before_stream_established()
+        )
 
         run_coroutine(initial_roster)
 

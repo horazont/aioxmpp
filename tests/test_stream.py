@@ -3717,7 +3717,7 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
                 nonza.SMEnable(resume=True),
                 response=XMLStreamMock.Receive(
                     nonza.SMEnabled(resume=True,
-                                          id_="foobar")
+                                    id_="foobar")
                 )
             )
         ]

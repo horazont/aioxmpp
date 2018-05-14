@@ -494,7 +494,6 @@ class EntityCapsService(aioxmpp.service.Service):
         if self._push_hashset(node, new_hashset):
             self.on_ver_changed()
 
-
     # declare those at the bottom so that on_ver_changed gets emitted when the
     # service is instantiated
     _xep115_feature = disco.register_feature(namespaces.xep0115_caps)
@@ -512,7 +511,7 @@ def writeback(path, captured_events):
             generator.startDocument()
             aioxmpp.xso.events_to_sax(captured_events, generator)
             generator.endDocument()
-        except:
+        except:  # NOQA
             os.unlink(tmpf.name)
             raise
         os.replace(tmpf.name, str(path))

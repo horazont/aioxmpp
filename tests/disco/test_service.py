@@ -250,7 +250,7 @@ class TestNode(unittest.TestCase):
         cb.mock_calls.clear()
 
         with self.assertRaisesRegex(ValueError,
-                                   "identity already claimed"):
+                                    "identity already claimed"):
             n.register_identity("client", "pc")
 
         self.assertFalse(cb.mock_calls)
@@ -1845,12 +1845,11 @@ class Testmount_as_node(unittest.TestCase):
         self.disco_server.unmount_node.assert_not_called()
         try:
             raise Exception()
-        except:
+        except:  # NOQA
             cm.__exit__(*sys.exc_info())
         self.disco_server.unmount_node.assert_called_once_with(
             unittest.mock.sentinel.mountpoint,
         )
-
 
 
 class TestRegisteredFeature(unittest.TestCase):
@@ -2069,7 +2068,7 @@ class Testregister_feature(unittest.TestCase):
         self.disco_server.unregister_feature.assert_not_called()
         try:
             raise Exception()
-        except:
+        except:  # NOQA
             cm.__exit__(*sys.exc_info())
         self.disco_server.unregister_feature.assert_called_once_with(
             unittest.mock.sentinel.feature,
