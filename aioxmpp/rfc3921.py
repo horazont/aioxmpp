@@ -32,8 +32,6 @@ This module was introduced to ensure compatibility with legacy XMPP servers
 
 """
 
-
-
 from . import stanza, nonza, xso
 
 from .utils import namespaces
@@ -69,3 +67,7 @@ class SessionFeature(xso.XSO):
     UNKNOWN_ATTR_POLICY = xso.UnknownAttrPolicy.DROP
 
     TAG = (namespaces.rfc3921_session, "session")
+
+    optional = xso.ChildFlag(
+        (namespaces.rfc3921_session, "optional")
+    )
