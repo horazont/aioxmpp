@@ -323,6 +323,10 @@ Version 0.10
 * :mod:`aioxmpp.misc` provides XSO definitions for the :xep:`379`
   ``preauth`` element.
 
+* :mod:`tracking` now allows some state transitions out of the
+  :attr:`aioxmpp.tracking.MessageState.ERROR` state. See the documentation there
+  for details.
+
 .. _api-changelog-0.9:
 
 Version 0.9
