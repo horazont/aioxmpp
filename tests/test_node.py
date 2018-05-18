@@ -2818,6 +2818,27 @@ class TestClient(xmltestutils.XMLTestCase):
 
         run_coroutine(asyncio.sleep(0))
 
+    def test_do_not_negotiate_legacy_session_if_optional(self):
+        feature = rfc3921.SessionFeature()
+        feature.optional = True
+        self.features[...] = feature
+
+        iqreq = stanza.IQ(type_=structs.IQType.SET)
+        iqreq.payload = rfc3921.Session()
+        iqreq.id_ = "autoset"
+
+        iqresp = stanza.IQ(type_=structs.IQType.RESULT)
+        iqresp.id_ = "autoset"
+
+        self.client.start()
+        run_coroutine(self.xmlstream.run_test(
+            self.resource_binding,
+        ))
+
+        run_coroutine(asyncio.sleep(0))
+
+        self.assertTrue(self.client.established)
+
     def test_negotiate_legacy_session_after_stream_management(self):
         self.features[...] = rfc3921.SessionFeature()
         self.features[...] = nonza.StreamManagementFeature()

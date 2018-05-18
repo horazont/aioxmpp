@@ -323,6 +323,15 @@ Version 0.10
 * :mod:`aioxmpp.misc` provides XSO definitions for the :xep:`379`
   ``preauth`` element.
 
+* Support for ``<optional/>`` element in :rfc:`3921` ``<session/>`` negotiation
+  feature; the feature is not needed with modern servers, but since legacy
+  clients require it, they still announce it. The feature introduces a new
+  round-trip for no gain. An `rfc-draft by Dave Cridland
+  <https://tools.ietf.org/html/draft-cridland-xmpp-session-01>`_ standardises
+  the ``<optional/>`` element which allows a server to tell the client that it
+  doesn’t require the session negotiation step. :mod:`aioxmpp` now understands
+  this and will skip that step, saving a round-trip with most modern servers.
+
 .. _api-changelog-0.9:
 
 Version 0.9
