@@ -98,6 +98,14 @@ class TestDeliveryReceiptsService(unittest.TestCase):
         t = self.s.attach_tracker(self.msg, self.t)
         self.assertIs(t, self.t)
 
+    def test_attach_tracker_creates_new_tracker_if_none_passed(self):
+        with unittest.mock.patch(
+                "aioxmpp.tracking.MessageTracker") as MessageTracker:
+            t = self.s.attach_tracker(self.msg)
+
+        MessageTracker.assert_called_once_with()
+        self.assertEqual(t, MessageTracker())
+
     def test_set_tracker_state_to_DTR_on_ack_for_full_match(self):
         self.msg.to = self.msg.to.replace(resource="foo")
         self.s.attach_tracker(self.msg, self.t)

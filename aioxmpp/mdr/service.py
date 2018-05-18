@@ -59,7 +59,7 @@ class DeliveryReceiptsService(aioxmpp.service.Service):
 
         return stanza
 
-    def attach_tracker(self, stanza, tracker):
+    def attach_tracker(self, stanza, tracker=None):
         """
         Return a new tracker or modify one to track the stanza.
 
@@ -79,6 +79,9 @@ class DeliveryReceiptsService(aioxmpp.service.Service):
            See the :ref:`api-tracking-memory`.
 
         """
+        if tracker is None:
+            tracker = aioxmpp.tracking.MessageTracker()
+
         stanza.xep0184_request_receipt = True
         stanza.autoset_id()
         self._bare_jid_maps[stanza.to, stanza.id_] = tracker
