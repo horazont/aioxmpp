@@ -45,6 +45,7 @@ class TestDeliveryReceiptsService(unittest.TestCase):
             aioxmpp.DiscoServer: self.disco_svr,
         })
         self.msg = unittest.mock.Mock(spec=aioxmpp.Message)
+        self.msg.xep0184_received = None
         self.msg.xep0184_request_receipt = False
         self.msg.to = TEST_TO
         self.msg.id_ = "foo"
@@ -97,6 +98,21 @@ class TestDeliveryReceiptsService(unittest.TestCase):
     def test_attach_tracker_returns_passed_tracker(self):
         t = self.s.attach_tracker(self.msg, self.t)
         self.assertIs(t, self.t)
+
+    def test_attach_tracker_rejects_receipts(self):
+        self.msg.xep0184_received = mdr_xso.Received("foo")
+        with self.assertRaisesRegex(
+                ValueError,
+                r"requesting delivery receipts for delivery receipts is not "
+                r"allowed"):
+            self.s.attach_tracker(self.msg, self.t)
+
+    def test_attach_tracker_rejects_errors(self):
+        self.msg.type_ = aioxmpp.MessageType.ERROR
+        with self.assertRaisesRegex(
+                ValueError,
+                r"requesting delivery receipts for errors is not supported"):
+            self.s.attach_tracker(self.msg, self.t)
 
     def test_attach_tracker_creates_new_tracker_if_none_passed(self):
         with unittest.mock.patch(

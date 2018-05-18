@@ -67,6 +67,9 @@ class DeliveryReceiptsService(aioxmpp.service.Service):
         :type stanza: :class:`aioxmpp.Message`
         :param tracker: Existing tracker to attach to.
         :type tracker: :class:`.tracking.MessageTracker`
+        :raises ValueError: if the stanza is of type
+            :attr:`~aioxmpp.MessageType.ERROR`
+        :raises ValueError: if the stanza contains a delivery receipt
         :return: The message tracker for the stanza.
         :rtype: :class:`.tracking.MessageTracker`
 
@@ -79,6 +82,16 @@ class DeliveryReceiptsService(aioxmpp.service.Service):
            See the :ref:`api-tracking-memory`.
 
         """
+        if stanza.xep0184_received is not None:
+            raise ValueError(
+                "requesting delivery receipts for delivery receipts is not "
+                "allowed"
+            )
+        if stanza.type_ == aioxmpp.MessageType.ERROR:
+            raise ValueError(
+                "requesting delivery receipts for errors is not supported"
+            )
+
         if tracker is None:
             tracker = aioxmpp.tracking.MessageTracker()
 
