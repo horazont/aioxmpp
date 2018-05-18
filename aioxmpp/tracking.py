@@ -390,6 +390,11 @@ class BasicTrackingService(aioxmpp.service.Service):
         self._trackers.pop(key, None)
 
     def _stanza_sent(self, tracker, token, fut):
+        # FIXME: look into whether this is correct, and if it is, document why:
+        #
+        # - CancelledError does not lead to ABORTED
+        # - why it makes sense to channel all *other* exceptions into
+        #   ABORTED state
         try:
             fut.result()
         except asyncio.CancelledError:
