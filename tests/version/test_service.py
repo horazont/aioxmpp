@@ -28,6 +28,8 @@ import aioxmpp.version.service as version_svc
 import aioxmpp.version.xso as version_xso
 import aioxmpp.service
 
+from aioxmpp.utils import namespaces
+
 from aioxmpp.testutils import (
     make_connected_client,
     run_coroutine,
@@ -117,8 +119,8 @@ class TestVersionServer(unittest.TestCase):
         del self.s.os
         self.assertIsNone(self.s.os)
 
-    def test_name_attribute(self):
-        self.assertEqual(self.s.name, "aioxmpp")
+    def test_name_attribute_init_to_None(self):
+        self.assertIsNone(self.s.name)
 
     def test_name_attribute_can_be_set_and_stringifies(self):
         self.s.name = unittest.mock.sentinel.name
@@ -128,8 +130,8 @@ class TestVersionServer(unittest.TestCase):
         del self.s.name
         self.assertIsNone(self.s.name)
 
-    def test_version_attribute(self):
-        self.assertEqual(self.s.version, aioxmpp.__version__)
+    def test_version_attribute_init_to_None(self):
+        self.assertIsNone(self.s.version)
 
     def test_version_attribute_can_be_set_and_stringifies(self):
         self.s.version = unittest.mock.sentinel.version
@@ -175,6 +177,48 @@ class TestVersionServer(unittest.TestCase):
         self.assertEqual(
             result.version,
             self.s.version,
+        )
+
+    def test_handler_returns_unspecified_for_None_version(self):
+        self.s.os = unittest.mock.sentinel.os
+        self.s.name = unittest.mock.sentinel.name
+        self.s.version = None
+
+        result = run_coroutine(
+            self.s.handle_query(unittest.mock.sentinel.request)
+        )
+
+        self.assertIsInstance(
+            result,
+            version_xso.Query,
+        )
+
+        self.assertEqual(
+            result.os,
+            self.s.os,
+        )
+
+        self.assertEqual(
+            result.name,
+            self.s.name,
+        )
+
+        self.assertEqual(
+            result.version,
+            "unspecified",
+        )
+
+    def test_handler_raises_service_unavailable_if_name_is_unset(self):
+        del self.s.name
+        self.s.version = "foo"
+        self.s.os = "bar"
+
+        with self.assertRaises(aioxmpp.errors.XMPPCancelError) as ctx:
+            run_coroutine(self.s.handle_query(unittest.mock.sentinel.request))
+
+        self.assertEqual(
+            ctx.exception.condition,
+            (namespaces.stanzas, "service-unavailable")
         )
 
 

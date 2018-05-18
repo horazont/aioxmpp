@@ -26,6 +26,8 @@ import aioxmpp
 import aioxmpp.disco
 import aioxmpp.service
 
+from aioxmpp.utils import namespaces
+
 from . import xso as version_xso
 
 
@@ -55,13 +57,18 @@ class VersionServer(aioxmpp.service.Service):
         :func:`~.version.query_version`
             for a function to obtain another entities software version.
 
+    .. note::
+
+        By default, this service does not reply to version queries. The
+        :attr:`name` attribute needs to be set first.
+
     The response can be configured with the following attributes:
 
     .. autoattribute:: name
-        :annotation: = "aioxmpp"
+        :annotation: = None
 
     .. autoattribute:: version
-        :annotation: = aioxmpp.__version__
+        :annotation: = None
 
     .. autoattribute:: os
         :annotation: = distro.name() or platform.system()
@@ -85,8 +92,8 @@ class VersionServer(aioxmpp.service.Service):
         else:
             self._os = distro.name()
 
-        self._name = "aioxmpp"
-        self._version = aioxmpp.__version__
+        self._name = None
+        self._version = None
 
     @property
     def os(self) -> typing.Optional[str]:
@@ -117,10 +124,10 @@ class VersionServer(aioxmpp.service.Service):
         """
         The software name of this entity.
 
-        Defaults to ``"aioxmpp"``.
+        Defaults to :data:`None`.
 
-        This attribute can be set to :data:`None` or deleted to prevent
-        inclusion of the name element in the reply.
+        If this attribute is :data:`None`, version requests are not answered
+        but fail with a ``service-unavailable`` error.
         """
         return self._name
 
@@ -140,10 +147,11 @@ class VersionServer(aioxmpp.service.Service):
         """
         The software version of this entity.
 
-        Defaults to :data:`aioxmpp.__version__`.
+        Defaults to :data:`None`.
 
-        This attribute can be set to :data:`None` or deleted to prevent
-        inclusion of the version element in the reply.
+        If this attribute is :data:`None` or the empty string, the version will
+        be shown as ``"unspecified"`` to other entities. This can be used to
+        avoid disclosing the specific version of the software.
         """
         return self._version
 
@@ -162,10 +170,15 @@ class VersionServer(aioxmpp.service.Service):
                                 version_xso.Query)
     @asyncio.coroutine
     def handle_query(self, iq: aioxmpp.IQ) -> version_xso.Query:
+        if self._name is None:
+            raise aioxmpp.errors.XMPPCancelError(
+                (namespaces.stanzas, "service-unavailable")
+            )
+
         result = version_xso.Query()
         result.name = self._name
         result.os = self._os
-        result.version = self._version
+        result.version = self._version or "unspecified"
         return result
 
 

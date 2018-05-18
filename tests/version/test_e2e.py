@@ -52,8 +52,24 @@ class TestVersion(TestCase):
 
     @blocking_timed
     @asyncio.coroutine
-    def test_version_query_against_aioxmpp(self):
+    def test_version_query_returns_service_unavailable_if_unconfigured(self):
         b_version = self.b.summon(aioxmpp.version.VersionServer)
+
+        with self.assertRaises(aioxmpp.errors.XMPPCancelError) as ctx:
+            yield from aioxmpp.version.query_version(
+                self.a.stream,
+                self.b.local_jid,
+            )
+
+        self.assertEqual(ctx.exception.condition,
+                         (namespaces.stanzas, "service-unavailable"))
+
+    @blocking_timed
+    @asyncio.coroutine
+    def test_version_query_with_results(self):
+        b_version = self.b.summon(aioxmpp.version.VersionServer)
+        b_version.name = "aioxmpp"
+        b_version.version = aioxmpp.__version__
 
         result = yield from aioxmpp.version.query_version(
             self.a.stream,
