@@ -327,6 +327,8 @@ Version 0.10
   :attr:`aioxmpp.tracking.MessageState.ERROR` state. See the documentation there
   for details.
 
+* :mod:`aioxmpp.mdr`
+
 .. _api-changelog-0.9:
 
 Version 0.9
