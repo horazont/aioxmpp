@@ -111,4 +111,14 @@ class TestSessionFeature(unittest.TestCase):
             xso.UnknownAttrPolicy.DROP
         )
 
+    def test_optional(self):
+        self.assertIsInstance(
+            rfc3921.SessionFeature.optional,
+            xso.ChildFlag
+        )
+        self.assertEqual(
+            rfc3921.SessionFeature.optional.tag,
+            (namespaces.rfc3921_session, "optional")
+        )
+
 # foo

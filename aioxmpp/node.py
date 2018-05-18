@@ -889,11 +889,16 @@ class Client:
             self.logger.debug("stream management started")
 
         try:
-            features[rfc3921.SessionFeature]
+            session_feature = features[rfc3921.SessionFeature]
         except KeyError:
             pass  # yay
         else:
-            yield from self._negotiate_legacy_session()
+            if not session_feature.optional:
+                yield from self._negotiate_legacy_session()
+            else:
+                self.logger.debug(
+                    "skipping optional legacy session negotiation"
+                )
 
         self.established_event.set()
 
