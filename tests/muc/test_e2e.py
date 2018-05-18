@@ -40,6 +40,7 @@ from aioxmpp.e2etest import (
 
 
 class TestMuc(TestCase):
+    @skip_with_quirk(Quirk.BROKEN_MUC)
     @require_feature(namespaces.xep0045_muc)
     @blocking
     @asyncio.coroutine
