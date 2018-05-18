@@ -33,6 +33,7 @@ from aioxmpp.testutils import (
 )
 
 
+TEST_FROM = aioxmpp.JID.fromstr("juliet@capulet.example/balcony")
 TEST_TO = aioxmpp.JID.fromstr("romeo@montague.example")
 
 
@@ -211,3 +212,69 @@ class TestDeliveryReceiptsService(unittest.TestCase):
             self.t.state,
             aioxmpp.tracking.MessageState.IN_TRANSIT,
         )
+
+
+class Testcompose_receipt(unittest.TestCase):
+    def setUp(self):
+        self.msg = aioxmpp.Message(
+            type_=aioxmpp.MessageType.CHAT,
+            from_=TEST_FROM,
+            to=TEST_TO,
+        )
+        self.msg.body[None] = "foo"
+        self.msg.xep0184_request_receipt = True
+        self.msg.autoset_id()
+
+    def test_sends_to_bare_jid(self):
+        msg = mdr_service.compose_receipt(self.msg)
+        self.assertEqual(
+            msg.to,
+            self.msg.from_.bare()
+        )
+
+    def test_preserves_type(self):
+        msg = mdr_service.compose_receipt(self.msg)
+        self.assertEqual(msg.type_, self.msg.type_)
+
+    def test_raises_on_error(self):
+        with self.assertRaisesRegex(
+                ValueError,
+                r"receipts cannot be generated for error messages"):
+            mdr_service.compose_receipt(
+                aioxmpp.Message(
+                    type_=aioxmpp.MessageType.ERROR
+                )
+            )
+
+    def test_raises_on_receipt(self):
+        self.msg.xep0184_received = mdr_xso.Received("foo")
+
+        with self.assertRaisesRegex(
+                ValueError,
+                r"receipts cannot be generated for receipts"):
+            mdr_service.compose_receipt(self.msg)
+
+    def test_if_id_is_unset(self):
+        self.msg.id_ = None
+
+        with self.assertRaisesRegex(
+                ValueError,
+                r"receipts cannot be generated for id-less messages"):
+            mdr_service.compose_receipt(self.msg)
+
+    def test_receipt_refers_to_message_id(self):
+        msg = mdr_service.compose_receipt(self.msg)
+
+        self.assertIsInstance(
+            msg.xep0184_received,
+            mdr_xso.Received,
+        )
+
+        self.assertEqual(
+            msg.xep0184_received.message_id,
+            self.msg.id_,
+        )
+
+    def test_strips_body(self):
+        msg = mdr_service.compose_receipt(self.msg)
+        self.assertFalse(msg.body)

@@ -99,3 +99,29 @@ class DeliveryReceiptsService(aioxmpp.service.Service):
         stanza.autoset_id()
         self._bare_jid_maps[stanza.to, stanza.id_] = tracker
         return tracker
+
+
+def compose_receipt(message):
+    """
+    Compose a :xep:`184` delivery receipt for a :class:`~aioxmpp.Message`.
+
+    :param message: The message to compose the receipt for.
+    :type message: :class:`~aioxmpp.Message`
+    :raises ValueError: if the input message is of type
+        :attr:`~aioxmpp.MessageType.ERROR`
+    :raises ValueError: if the input message is a message receipt itself
+    :return: A message which serves as a receipt for the input message.
+    :rtype: :class:`~aioxmpp.Message`
+    """
+
+    if message.type_ == aioxmpp.MessageType.ERROR:
+        raise ValueError("receipts cannot be generated for error messages")
+    if message.xep0184_received:
+        raise ValueError("receipts cannot be generated for receipts")
+    if message.id_ is None:
+        raise ValueError("receipts cannot be generated for id-less messages")
+
+    reply = message.make_reply()
+    reply.to = reply.to.bare()
+    reply.xep0184_received = xso.Received(message.id_)
+    return reply
