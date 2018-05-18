@@ -121,6 +121,27 @@ class TestDeliveryReceiptsService(unittest.TestCase):
             aioxmpp.tracking.MessageState.DELIVERED_TO_RECIPIENT,
         )
 
+    def test_handle_state_exception_from_tracker(self):
+        self.msg.to = self.msg.to.replace(resource="foo")
+        self.s.attach_tracker(self.msg, self.t)
+
+        ack = aioxmpp.Message(
+            type_=aioxmpp.MessageType.CHAT,
+            from_=TEST_TO.replace(resource="foo")
+        )
+        ack.xep0184_received = mdr_xso.Received(self.msg.id_)
+
+        self.t._set_state(aioxmpp.tracking.MessageState.SEEN_BY_RECIPIENT)
+
+        self.assertIsNone(
+            self.s._inbound_message_filter(ack)
+        )
+
+        self.assertEqual(
+            self.t.state,
+            aioxmpp.tracking.MessageState.SEEN_BY_RECIPIENT,
+        )
+
     def test_do_not_modify_tracker_state_on_id_mismatch(self):
         self.msg.to = self.msg.to.replace(resource="foo")
         self.s.attach_tracker(self.msg, self.t)

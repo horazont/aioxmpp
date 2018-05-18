@@ -46,9 +46,15 @@ class DeliveryReceiptsService(aioxmpp.service.Service):
                     "received unexpected/late/dup <receipt/>. dropping."
                 )
             else:
-                tracker._set_state(
-                    aioxmpp.tracking.MessageState.DELIVERED_TO_RECIPIENT
-                )
+                try:
+                    tracker._set_state(
+                        aioxmpp.tracking.MessageState.DELIVERED_TO_RECIPIENT
+                    )
+                except ValueError as exc:
+                    self.logger.debug(
+                        "failed to update tracker after receipt: %s",
+                        exc,
+                    )
             return None
 
         return stanza
