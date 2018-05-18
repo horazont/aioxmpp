@@ -23,9 +23,20 @@ import aioxmpp.disco
 import aioxmpp.service
 import aioxmpp.tracking
 
+from . import xso
+
 
 class DeliveryReceiptsService(aioxmpp.service.Service):
-    ORDER_AFTER = [aioxmpp.DiscoServer]
+    """
+    :term:`Tracking Service` which tracks :xep:`184` replies.
+
+    To send a tracked message, use the :meth:`attach_tracker` method before
+    sending.
+
+    .. automethod:: attach_tracker
+    """
+
+    ORDER_AFTER = [aioxmpp.disco.DiscoServer]
 
     disco_feature = aioxmpp.disco.register_feature("urn:xmpp:receipts")
 
