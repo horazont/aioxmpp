@@ -102,6 +102,15 @@ class MessageState(Enum):
     are used to inform using code about the delivery state of a message. See
     :class:`MessageTracker` for details.
 
+    .. versionchanged:: 0.10
+
+        The :attr:`ERROR` state is no longer final. Tracking implementations
+        may now trump an error state with another state in some cases.
+
+        An example would be :xep:`184` message delivery receipts which can
+        for sure attest an :attr:`DELIVERED_TO_RECIPIENT` state. This is more
+        useful than an error reply.
+
     .. attribute:: ABORTED
 
        The message has been aborted or dropped in the :class:`~.StanzaStream`
@@ -113,7 +122,9 @@ class MessageState(Enum):
 
        An error reply stanza has been received for the stanza which was sent.
 
-       This is, in most cases, a final state.
+       This is, in most cases, a final state, but transitions to
+       :attr:`DELIVERED_TO_RECIPIENT` and :attr:`SEEN_BY_RECIPIENT` are
+       allowed.
 
     .. attribute:: IN_TRANSIT
 
@@ -317,9 +328,12 @@ class MessageTracker:
             raise RuntimeError("message tracker is closed")
 
         # reject some transitions as documented
-        if     (self._state == MessageState.ABORTED or
-                self._state == MessageState.ERROR or
+        if (self._state == MessageState.ABORTED or
                 new_state == MessageState.IN_TRANSIT or
+                (self._state == MessageState.ERROR and
+                 new_state == MessageState.DELIVERED_TO_SERVER) or
+                (self._state == MessageState.ERROR and
+                 new_state == MessageState.ABORTED) or
                 (self._state == MessageState.DELIVERED_TO_RECIPIENT and
                  new_state == MessageState.DELIVERED_TO_SERVER) or
                 (self._state == MessageState.SEEN_BY_RECIPIENT and
@@ -390,6 +404,11 @@ class BasicTrackingService(aioxmpp.service.Service):
         self._trackers.pop(key, None)
 
     def _stanza_sent(self, tracker, token, fut):
+        # FIXME: look into whether this is correct, and if it is, document why:
+        #
+        # - CancelledError does not lead to ABORTED
+        # - why it makes sense to channel all *other* exceptions into
+        #   ABORTED state
         try:
             fut.result()
         except asyncio.CancelledError:

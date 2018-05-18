@@ -134,6 +134,7 @@ from .ping import PingService  # NOQA
 from .pep import PEPClient  # NOQA
 from .bookmarks import BookmarkClient  # NOQA
 from .version import VersionServer  # NOQA
+from .mdr import DeliveryReceiptsService  # NOQA
 
 
 def set_strict_mode():

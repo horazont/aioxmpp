@@ -332,6 +332,12 @@ Version 0.10
   doesn’t require the session negotiation step. :mod:`aioxmpp` now understands
   this and will skip that step, saving a round-trip with most modern servers.
 
+* :mod:`tracking` now allows some state transitions out of the
+  :attr:`aioxmpp.tracking.MessageState.ERROR` state. See the documentation there
+  for details.
+
+* :mod:`aioxmpp.mdr`
+
 .. _api-changelog-0.9:
 
 Version 0.9

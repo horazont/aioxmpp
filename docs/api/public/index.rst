@@ -37,6 +37,7 @@ functionality or provide backwards compatibility.
    forms
    hashes
    im
+   mdr
    muc
    ping
    presence

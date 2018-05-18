@@ -138,7 +138,7 @@ class TestMessageTracker(unittest.TestCase):
                 unittest.mock.sentinel.response,
             )
 
-    def test__set_state_rejects_transitions_from_error(self):
+    def test__set_state_rejects_transitions_from_error_to_in_transit(self):
         self.t._set_state(
             tracking.MessageState.ERROR,
             unittest.mock.sentinel.response,
@@ -146,20 +146,86 @@ class TestMessageTracker(unittest.TestCase):
         self.listener.on_state_changed.reset_mock()
         self.listener.on_state_changed.return_value = None
 
-        for state in tracking.MessageState:
-            with self.assertRaisesRegex(
-                    ValueError,
-                    "transition from .* to .*not allowed"):
-                self.t._set_state(state)
-            self.listener.on_state_changed.assert_not_called()
-            self.assertEqual(
-                self.t.state,
-                tracking.MessageState.ERROR,
-            )
-            self.assertEqual(
-                self.t.response,
-                unittest.mock.sentinel.response,
-            )
+        with self.assertRaisesRegex(
+                ValueError,
+                "transition from .* to .*not allowed"):
+            self.t._set_state(tracking.MessageState.IN_TRANSIT)
+
+        self.listener.on_state_changed.assert_not_called()
+        self.assertEqual(
+            self.t.state,
+            tracking.MessageState.ERROR,
+        )
+        self.assertEqual(
+            self.t.response,
+            unittest.mock.sentinel.response,
+        )
+
+    def test__set_state_rejects_transitions_from_error_to_aborted(self):
+        self.t._set_state(
+            tracking.MessageState.ERROR,
+            unittest.mock.sentinel.response,
+        )
+        self.listener.on_state_changed.reset_mock()
+        self.listener.on_state_changed.return_value = None
+
+        with self.assertRaisesRegex(
+                ValueError,
+                "transition from .* to .*not allowed"):
+            self.t._set_state(tracking.MessageState.ABORTED)
+
+        self.listener.on_state_changed.assert_not_called()
+        self.assertEqual(
+            self.t.state,
+            tracking.MessageState.ERROR,
+        )
+        self.assertEqual(
+            self.t.response,
+            unittest.mock.sentinel.response,
+        )
+
+    def test__set_state_rejects_transitions_from_error_to_delivered_to_server(
+            self):
+        self.t._set_state(
+            tracking.MessageState.ERROR,
+            unittest.mock.sentinel.response,
+        )
+        self.listener.on_state_changed.reset_mock()
+        self.listener.on_state_changed.return_value = None
+
+        with self.assertRaisesRegex(
+                ValueError,
+                "transition from .* to .*not allowed"):
+            self.t._set_state(tracking.MessageState.DELIVERED_TO_SERVER)
+
+        self.listener.on_state_changed.assert_not_called()
+        self.assertEqual(
+            self.t.state,
+            tracking.MessageState.ERROR,
+        )
+        self.assertEqual(
+            self.t.response,
+            unittest.mock.sentinel.response,
+        )
+
+    def test__set_state_allows_transition_from_error_to_delivered_to_recipient(
+            self):
+        self.t._set_state(
+            tracking.MessageState.ERROR,
+            unittest.mock.sentinel.response,
+        )
+        self.listener.on_state_changed.reset_mock()
+        self.listener.on_state_changed.return_value = None
+
+        self.t._set_state(
+            tracking.MessageState.DELIVERED_TO_RECIPIENT,
+            unittest.mock.sentinel.response,
+        )
+
+        self.listener.on_state_changed.assert_called_once_with(
+            tracking.MessageState.DELIVERED_TO_RECIPIENT,
+            unittest.mock.sentinel.response,
+        )
 
     def test__set_state_rejects_transitions_to_in_transit(self):
         for state in tracking.MessageState:

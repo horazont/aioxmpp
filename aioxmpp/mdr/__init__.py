@@ -19,3 +19,32 @@
 # <http://www.gnu.org/licenses/>.
 #
 ########################################################################
+"""
+:mod:`~aioxmpp.mdr` --- Message Delivery Reciepts (:xep:`184`)
+##############################################################
+
+This module provides a :mod:`aioxmpp.tracking` service which tracks :xep:`184`
+replies to messages and accordinly updates attached
+:class:`~aioxmpp.tracking.MessageTracker` objects.
+
+.. versionadded:: 0.10
+
+To make use of receipt tracking, :meth:`~aioxmpp.Client.summon` the
+:class:`~aioxmpp.DeliveryReceiptsService` on your :class:`aioxmpp.Client` and
+use the :meth:`~.DeliveryReceiptsService.attach_tracker` method.
+
+To send delivery receipts, the :func:`aioxmpp.mdr.compose_receipt` helper
+function is provided.
+
+.. currentmodule:: aioxmpp
+
+.. autoclass:: DeliveryReceiptsService
+
+.. currentmodule:: aioxmpp.mdr
+
+.. autofunction:: compose_receipt
+"""
+from .service import (  # NOQA
+    DeliveryReceiptsService,
+    compose_receipt,
+)
