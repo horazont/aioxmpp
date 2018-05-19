@@ -28,6 +28,7 @@ import collections
 import contextlib
 import functools
 import logging
+import time
 import unittest
 import unittest.mock
 
@@ -40,9 +41,23 @@ import aioxmpp.nonza as nonza
 from aioxmpp.utils import etree
 
 
+GLOBAL_TIMEOUT_FACTOR = 1.0
+
+_monotonic_info = time.get_clock_info("monotonic")
+GLOBAL_TIMEOUT_FACTOR *= max(_monotonic_info.resolution, 0.0015) / 0.0015
+
+
+logging.getLogger(__name__).debug("using GLOBAL_TIMEOUT_FACTOR = %.3f",
+                                  GLOBAL_TIMEOUT_FACTOR)
+
+
+def get_timeout(base):
+    return base * GLOBAL_TIMEOUT_FACTOR
+
+
 # FIXME: find a way to detect Travis CI and use 2.0 there, 1.0 otherwise.
 # 1.0 is sufficient normally, but on Travis we sometimes get spurious failures.
-DEFAULT_TIMEOUT = 2.0
+DEFAULT_TIMEOUT = get_timeout(2.0)
 
 
 def make_protocol_mock():
