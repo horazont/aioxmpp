@@ -514,4 +514,4 @@ def writeback(path, captured_events):
         except:  # NOQA
             os.unlink(tmpf.name)
             raise
-        os.replace(tmpf.name, str(path))
+    os.replace(tmpf.name, str(path))
