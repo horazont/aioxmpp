@@ -48,7 +48,7 @@ install_requires = [
     'tzlocal~=1.2',
 ]
 
-if tuple(map(int, setuptools.__version__.split("."))) < (6, 0, 0):
+if tuple(map(int, setuptools.__version__.split(".")[:3])) < (6, 0, 0):
     for i, item in enumerate(install_requires):
         install_requires[i] = item.replace("~=", ">=")
 
