@@ -675,7 +675,7 @@ class TestXMLStreamMock(XMLTestCase):
         with self.assertRaisesRegex(
                 AssertionError,
                 r"unexpected send_xso\(<tests.test_testutils.TestXMLStreamMock"
-                r".setUp.<locals>.Cls object at 0x[a-f0-9]+>\)"):
+                r".setUp.<locals>.Cls object at 0x[a-fA-F0-9]+>\)"):
             run_coroutine(self.xmlstream.run_test(
                 [
                 ],
