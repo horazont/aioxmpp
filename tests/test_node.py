@@ -56,6 +56,7 @@ from aioxmpp.testutils import (
     make_connected_client,
     make_listener,
     CoroutineMock,
+    get_timeout,
 )
 
 
@@ -2370,6 +2371,8 @@ class TestClient(xmltestutils.XMLTestCase):
         )
 
     def test_exponential_backoff_on_os_error(self):
+        base_timeout = get_timeout(0.01)
+
         call = unittest.mock.call(
             self.test_jid,
             self.security_layer,
@@ -2380,9 +2383,9 @@ class TestClient(xmltestutils.XMLTestCase):
 
         exc = OSError()
         self.connect_xmlstream_rec.side_effect = exc
-        self.client.backoff_start = timedelta(seconds=0.01)
+        self.client.backoff_start = timedelta(seconds=base_timeout)
         self.client.backoff_factor = 2
-        self.client.backoff_cap = timedelta(seconds=0.1)
+        self.client.backoff_cap = timedelta(seconds=base_timeout * 10)
         self.client.start()
         run_coroutine(asyncio.sleep(0))
         self.assertTrue(self.client.running)
@@ -2393,42 +2396,42 @@ class TestClient(xmltestutils.XMLTestCase):
             self.connect_xmlstream_rec.mock_calls
         )
 
-        run_coroutine(asyncio.sleep(0.01))
+        run_coroutine(asyncio.sleep(base_timeout * 1.5))
 
         self.assertSequenceEqual(
             [call]*2,
             self.connect_xmlstream_rec.mock_calls
         )
 
-        run_coroutine(asyncio.sleep(0.02))
+        run_coroutine(asyncio.sleep(base_timeout * 2))
 
         self.assertSequenceEqual(
             [call]*3,
             self.connect_xmlstream_rec.mock_calls
         )
 
-        run_coroutine(asyncio.sleep(0.04))
+        run_coroutine(asyncio.sleep(base_timeout * 4))
 
         self.assertSequenceEqual(
             [call]*4,
             self.connect_xmlstream_rec.mock_calls
         )
 
-        run_coroutine(asyncio.sleep(0.08))
+        run_coroutine(asyncio.sleep(base_timeout * 8))
 
         self.assertSequenceEqual(
             [call]*5,
             self.connect_xmlstream_rec.mock_calls
         )
 
-        run_coroutine(asyncio.sleep(0.1))
+        run_coroutine(asyncio.sleep(base_timeout * 10))
 
         self.assertSequenceEqual(
             [call]*6,
             self.connect_xmlstream_rec.mock_calls
         )
 
-        run_coroutine(asyncio.sleep(0.1))
+        run_coroutine(asyncio.sleep(base_timeout * 10))
 
         self.assertSequenceEqual(
             [call]*7,
@@ -2445,6 +2448,8 @@ class TestClient(xmltestutils.XMLTestCase):
         run_coroutine(asyncio.sleep(0))
 
     def test_abort_after_max_initial_attempts(self):
+        base_timeout = get_timeout(0.01)
+
         self.client = node.Client(
             self.test_jid,
             self.security_layer,
@@ -2465,9 +2470,9 @@ class TestClient(xmltestutils.XMLTestCase):
 
         exc = OSError()
         self.connect_xmlstream_rec.side_effect = exc
-        self.client.backoff_start = timedelta(seconds=0.01)
+        self.client.backoff_start = timedelta(seconds=base_timeout)
         self.client.backoff_factor = 2
-        self.client.backoff_cap = timedelta(seconds=0.1)
+        self.client.backoff_cap = timedelta(seconds=base_timeout * 10)
         self.client.start()
         run_coroutine(asyncio.sleep(0))
         self.assertTrue(self.client.running)
@@ -2478,19 +2483,21 @@ class TestClient(xmltestutils.XMLTestCase):
             self.connect_xmlstream_rec.mock_calls
         )
 
-        run_coroutine(asyncio.sleep(0.01))
+        run_coroutine(asyncio.sleep(base_timeout * 1.5))
 
         self.assertSequenceEqual(
             [call]*2,
             self.connect_xmlstream_rec.mock_calls
         )
 
-        run_coroutine(asyncio.sleep(0.02))
+        run_coroutine(asyncio.sleep(base_timeout * 2))
 
         self.failure_rec.assert_called_once_with(exc)
         self.assertFalse(self.client.running)
 
     def test_exponential_backoff_on_no_nameservers(self):
+        base_timeout = get_timeout(0.01)
+
         call = unittest.mock.call(
             self.test_jid,
             self.security_layer,
@@ -2501,9 +2508,9 @@ class TestClient(xmltestutils.XMLTestCase):
 
         exc = dns.resolver.NoNameservers()
         self.connect_xmlstream_rec.side_effect = exc
-        self.client.backoff_start = timedelta(seconds=0.01)
+        self.client.backoff_start = timedelta(seconds=base_timeout)
         self.client.backoff_factor = 2
-        self.client.backoff_cap = timedelta(seconds=0.1)
+        self.client.backoff_cap = timedelta(seconds=base_timeout * 10)
         self.client.start()
         run_coroutine(asyncio.sleep(0))
         self.assertTrue(self.client.running)
@@ -2514,42 +2521,42 @@ class TestClient(xmltestutils.XMLTestCase):
             self.connect_xmlstream_rec.mock_calls
         )
 
-        run_coroutine(asyncio.sleep(0.01))
+        run_coroutine(asyncio.sleep(base_timeout * 1.5))
 
         self.assertSequenceEqual(
             [call]*2,
             self.connect_xmlstream_rec.mock_calls
         )
 
-        run_coroutine(asyncio.sleep(0.02))
+        run_coroutine(asyncio.sleep(base_timeout * 2))
 
         self.assertSequenceEqual(
             [call]*3,
             self.connect_xmlstream_rec.mock_calls
         )
 
-        run_coroutine(asyncio.sleep(0.04))
+        run_coroutine(asyncio.sleep(base_timeout * 4))
 
         self.assertSequenceEqual(
             [call]*4,
             self.connect_xmlstream_rec.mock_calls
         )
 
-        run_coroutine(asyncio.sleep(0.08))
+        run_coroutine(asyncio.sleep(base_timeout * 8))
 
         self.assertSequenceEqual(
             [call]*5,
             self.connect_xmlstream_rec.mock_calls
         )
 
-        run_coroutine(asyncio.sleep(0.1))
+        run_coroutine(asyncio.sleep(base_timeout * 10))
 
         self.assertSequenceEqual(
             [call]*6,
             self.connect_xmlstream_rec.mock_calls
         )
 
-        run_coroutine(asyncio.sleep(0.1))
+        run_coroutine(asyncio.sleep(base_timeout * 10))
 
         self.assertSequenceEqual(
             [call]*7,
@@ -2566,6 +2573,8 @@ class TestClient(xmltestutils.XMLTestCase):
         run_coroutine(asyncio.sleep(0))
 
     def test_exponential_backoff_on_SSL_error(self):
+        base_timeout = get_timeout(0.01)
+
         call = unittest.mock.call(
             self.test_jid,
             self.security_layer,
@@ -2576,9 +2585,9 @@ class TestClient(xmltestutils.XMLTestCase):
 
         exc = OpenSSL.SSL.Error
         self.connect_xmlstream_rec.side_effect = exc
-        self.client.backoff_start = timedelta(seconds=0.01)
+        self.client.backoff_start = timedelta(seconds=base_timeout)
         self.client.backoff_factor = 2
-        self.client.backoff_cap = timedelta(seconds=0.1)
+        self.client.backoff_cap = timedelta(seconds=base_timeout * 10)
         self.client.start()
         run_coroutine(asyncio.sleep(0))
         self.assertTrue(self.client.running)
@@ -2589,42 +2598,42 @@ class TestClient(xmltestutils.XMLTestCase):
             self.connect_xmlstream_rec.mock_calls
         )
 
-        run_coroutine(asyncio.sleep(0.01))
+        run_coroutine(asyncio.sleep(base_timeout * 1.5))
 
         self.assertSequenceEqual(
             [call]*2,
             self.connect_xmlstream_rec.mock_calls
         )
 
-        run_coroutine(asyncio.sleep(0.02))
+        run_coroutine(asyncio.sleep(base_timeout * 2))
 
         self.assertSequenceEqual(
             [call]*3,
             self.connect_xmlstream_rec.mock_calls
         )
 
-        run_coroutine(asyncio.sleep(0.04))
+        run_coroutine(asyncio.sleep(base_timeout * 4))
 
         self.assertSequenceEqual(
             [call]*4,
             self.connect_xmlstream_rec.mock_calls
         )
 
-        run_coroutine(asyncio.sleep(0.08))
+        run_coroutine(asyncio.sleep(base_timeout * 8))
 
         self.assertSequenceEqual(
             [call]*5,
             self.connect_xmlstream_rec.mock_calls
         )
 
-        run_coroutine(asyncio.sleep(0.1))
+        run_coroutine(asyncio.sleep(base_timeout * 10))
 
         self.assertSequenceEqual(
             [call]*6,
             self.connect_xmlstream_rec.mock_calls
         )
 
-        run_coroutine(asyncio.sleep(0.1))
+        run_coroutine(asyncio.sleep(base_timeout * 10))
 
         self.assertSequenceEqual(
             [call]*7,
