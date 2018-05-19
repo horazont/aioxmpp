@@ -75,50 +75,42 @@ from . import errors, structs, xso
 from .utils import namespaces
 
 
-_NAME_START_CHAR = (
-    set([
-        ":",
-        "_",
-    ]) |
-    set(chr(ch) for ch in range(ord("a"), ord("z")+1)) |
-    set(chr(ch) for ch in range(ord("A"), ord("Z")+1)) |
-    set(chr(ch) for ch in range(0xc0, 0xd7)) |
-    set(chr(ch) for ch in range(0xd8, 0xf7)) |
-    set(chr(ch) for ch in range(0xf8, 0x300)) |
-    set(chr(ch) for ch in range(0x370, 0x37e)) |
-    set(chr(ch) for ch in range(0x37f, 0x2000)) |
-    set(chr(ch) for ch in range(0x200c, 0x200e)) |
-    set(chr(ch) for ch in range(0x2070, 0x2190)) |
-    set(chr(ch) for ch in range(0x2c00, 0x2ff0)) |
-    set(chr(ch) for ch in range(0x3001, 0xd800)) |
-    set(chr(ch) for ch in range(0xf900, 0xfdd0)) |
-    set(chr(ch) for ch in range(0xfdf0, 0xfffe)) |
-    set(chr(ch) for ch in range(0x10000, 0xf0000))
-)
+_NAME_START_CHAR = [
+    [ord(":"), ord("_")],
+    range(ord("a"), ord("z")+1),
+    range(ord("A"), ord("Z")+1),
+    range(0xc0, 0xd7),
+    range(0xd8, 0xf7),
+    range(0xf8, 0x300),
+    range(0x370, 0x37e),
+    range(0x37f, 0x2000),
+    range(0x200c, 0x200e),
+    range(0x2070, 0x2190),
+    range(0x2c00, 0x2ff0),
+    range(0x3001, 0xd800),
+    range(0xf900, 0xfdd0),
+    range(0xfdf0, 0xfffe),
+    range(0x10000, 0xf0000),
+]
 
-_NAME_CHAR = (
-    _NAME_START_CHAR |
-    set(["-", ".", "\u00b7"]) |
-    set(chr(ch) for ch in range(ord("0"), ord("9")+1)) |
-    set(chr(ch) for ch in range(0x0300, 0x0370)) |
-    set(chr(ch) for ch in range(0x203f, 0x2041))
-)
+_NAME_CHAR = _NAME_START_CHAR + [
+    [ord("-"), ord("."), 0xb7],
+    range(ord("0"), ord("9")+1),
+    range(0x0300, 0x0370),
+    range(0x203f, 0x2041),
+]
+_NAME_CHAR.sort(key=lambda x: x[0])
 
 
 def xmlValidateNameValue_str(s):
     if not s:
         return False
-    if s[0] not in _NAME_START_CHAR:
+    ch = ord(s[0])
+    if not any(ch in range_ for range_ in _NAME_START_CHAR):
         return False
     return all(
-        ch in _NAME_START_CHAR
-        or ch == "\x2d"
-        or ch == "\x2e"
-        or ch == "\xb7"
-        or "0" <= ch <= "9"
-        or "\u0300" <= ch < "\u0370"
-        or "\u203f" <= ch < "\u2041"
-        for ch in s
+        any(ch in range_ for range_ in _NAME_CHAR)
+        for ch in map(ord, s)
     )
 
 
