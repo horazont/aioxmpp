@@ -80,6 +80,7 @@ import asyncio
 import contextlib
 import functools
 import logging
+import time
 import warnings
 
 from datetime import datetime, timedelta
@@ -1051,8 +1052,8 @@ class StanzaStream:
             if self._next_ping_event_type == PingEventType.TIMEOUT:
                 self._logger.debug("resetting ping timeout")
                 self._next_ping_event_type = PingEventType.SEND_OPPORTUNISTIC
-                self._next_ping_event_at = (datetime.utcnow() +
-                                            self.ping_interval)
+                self._next_ping_event_at = (time.monotonic() +
+                                            self.ping_interval.total_seconds())
             return
         elif isinstance(stanza_obj, nonza.SMRequest):
             self._logger.debug("received SM request: %r", stanza_obj)
@@ -1186,7 +1187,10 @@ class StanzaStream:
         if self._next_ping_event_type != PingEventType.TIMEOUT:
             return
         self._next_ping_event_type = PingEventType.SEND_OPPORTUNISTIC
-        self._next_ping_event_at = datetime.utcnow() + self.ping_interval
+        self._next_ping_event_at = (
+            time.monotonic() +
+            self.ping_interval.total_seconds()
+        )
 
     def _send_ping(self, xmlstream):
         """
@@ -1221,7 +1225,9 @@ class StanzaStream:
 
         if self._next_ping_event_type != PingEventType.TIMEOUT:
             self._logger.debug("configuring ping timeout")
-            self._next_ping_event_at = datetime.utcnow() + self.ping_interval
+            self._next_ping_event_at = (
+                time.monotonic() + self.ping_interval.total_seconds()
+            )
             self._next_ping_event_type = PingEventType.TIMEOUT
 
     def _process_ping_event(self, xmlstream):
@@ -1230,7 +1236,8 @@ class StanzaStream:
         """
         if self._next_ping_event_type == PingEventType.SEND_OPPORTUNISTIC:
             self._logger.debug("ping: opportunistic interval started")
-            self._next_ping_event_at += self.ping_opportunistic_interval
+            self._next_ping_event_at += \
+                self.ping_opportunistic_interval.total_seconds()
             self._next_ping_event_type = PingEventType.SEND_NOW
             # ping send opportunistic is always true for sm
             if not self._sm_enabled:
@@ -1776,7 +1783,9 @@ class StanzaStream:
         self._task.add_done_callback(self._done_handler)
         self._logger.debug("broker task started as %r", self._task)
 
-        self._next_ping_event_at = datetime.utcnow() + self.ping_interval
+        self._next_ping_event_at = (
+            time.monotonic() + self.ping_interval.total_seconds()
+        )
         self._next_ping_event_type = PingEventType.SEND_OPPORTUNISTIC
         self._ping_send_opportunistic = self._sm_enabled
 
@@ -1890,9 +1899,9 @@ class StanzaStream:
 
         try:
             while True:
-                timeout = self._next_ping_event_at - datetime.utcnow()
-                if timeout.total_seconds() < 0:
-                    timeout = timedelta()
+                timeout = self._next_ping_event_at - time.monotonic()
+                if timeout < 0:
+                    timeout = 0
 
                 done, pending = yield from asyncio.wait(
                     [
@@ -1900,7 +1909,7 @@ class StanzaStream:
                         incoming_fut,
                     ],
                     return_when=asyncio.FIRST_COMPLETED,
-                    timeout=timeout.total_seconds())
+                    timeout=timeout)
 
                 with (yield from self._broker_lock):
                     if active_fut in done:
@@ -1916,8 +1925,8 @@ class StanzaStream:
                             self._incoming_queue.get(),
                             loop=self._loop)
 
-                    timeout = self._next_ping_event_at - datetime.utcnow()
-                    if timeout.total_seconds() <= 0:
+                    timeout = self._next_ping_event_at - time.monotonic()
+                    if timeout <= 0:
                         self._process_ping_event(xmlstream)
 
         finally:
