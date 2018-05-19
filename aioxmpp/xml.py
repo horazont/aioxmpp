@@ -75,20 +75,51 @@ from . import errors, structs, xso
 from .utils import namespaces
 
 
-# this is more portable *and* we don’t need libxml-dev anymore.
-libxml2 = ctypes.cdll.LoadLibrary(
-    ctypes.util.find_library("xml2"),
+_NAME_START_CHAR = (
+    set([
+        ":",
+        "_",
+    ]) |
+    set(chr(ch) for ch in range(ord("a"), ord("z")+1)) |
+    set(chr(ch) for ch in range(ord("A"), ord("Z")+1)) |
+    set(chr(ch) for ch in range(0xc0, 0xd7)) |
+    set(chr(ch) for ch in range(0xd8, 0xf7)) |
+    set(chr(ch) for ch in range(0xf8, 0x300)) |
+    set(chr(ch) for ch in range(0x370, 0x37e)) |
+    set(chr(ch) for ch in range(0x37f, 0x2000)) |
+    set(chr(ch) for ch in range(0x200c, 0x200e)) |
+    set(chr(ch) for ch in range(0x2070, 0x2190)) |
+    set(chr(ch) for ch in range(0x2c00, 0x2ff0)) |
+    set(chr(ch) for ch in range(0x3001, 0xd800)) |
+    set(chr(ch) for ch in range(0xf900, 0xfdd0)) |
+    set(chr(ch) for ch in range(0xfdf0, 0xfffe)) |
+    set(chr(ch) for ch in range(0x10000, 0xf0000))
+)
+
+_NAME_CHAR = (
+    _NAME_START_CHAR |
+    set(["-", ".", "\u00b7"]) |
+    set(chr(ch) for ch in range(ord("0"), ord("9")+1)) |
+    set(chr(ch) for ch in range(0x0300, 0x0370)) |
+    set(chr(ch) for ch in range(0x203f, 0x2041))
 )
 
 
 def xmlValidateNameValue_str(s):
-    return bool(xmlValidateNameValue_buf(s.encode("utf-8")))
-
-
-def xmlValidateNameValue_buf(b):
-    if b"\0" in b:
+    if not s:
         return False
-    return bool(libxml2.xmlValidateNameValue(b))
+    if s[0] not in _NAME_START_CHAR:
+        return False
+    return all(
+        ch in _NAME_START_CHAR
+        or ch == "\x2d"
+        or ch == "\x2e"
+        or ch == "\xb7"
+        or "0" <= ch <= "9"
+        or "\u0300" <= ch < "\u0370"
+        or "\u203f" <= ch < "\u2041"
+        for ch in s
+    )
 
 
 def is_valid_cdata_str(s):
