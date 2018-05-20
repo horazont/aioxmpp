@@ -36,7 +36,8 @@ from aioxmpp.testutils import (
     TransportMock,
     run_coroutine,
     XMLStreamMock,
-    run_coroutine_with_peer
+    run_coroutine_with_peer,
+    get_timeout,
 )
 from aioxmpp import xmltestutils
 
@@ -1427,6 +1428,7 @@ class TestXMLStream(unittest.TestCase):
         self.assertIsNone(fut.result())
 
     def test_close_and_wait_timeout(self):
+        base_timeout = get_timeout(0.1)
         t, p = self._make_stream(to=TEST_PEER)
 
         self.assertEqual(
@@ -1434,7 +1436,7 @@ class TestXMLStream(unittest.TestCase):
             p.shutdown_timeout
         )
 
-        p.shutdown_timeout = 0.1
+        p.shutdown_timeout = base_timeout
 
         run_coroutine(t.run_test(
             [
@@ -1471,11 +1473,11 @@ class TestXMLStream(unittest.TestCase):
 
         self.assertFalse(fut.done())
 
-        run_coroutine(asyncio.sleep(0.08))
+        run_coroutine(asyncio.sleep(base_timeout * 0.8))
 
         self.assertFalse(fut.done())
 
-        run_coroutine(asyncio.sleep(0.03))
+        run_coroutine(asyncio.sleep(base_timeout * 0.3 + base_timeout / 2))
 
         self.assertEqual(
             p.state,

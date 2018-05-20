@@ -1957,13 +1957,13 @@ class Testwriteback(unittest.TestCase):
                     base.XMPPXMLGenerator()
                 ),
                 unittest.mock.call.XMPPXMLGenerator().endDocument(),
+                unittest.mock.call.NamedTemporaryFile().__exit__(
+                    None, None, None
+                ),
                 unittest.mock._Call(("p.__str__", (), {})),
                 unittest.mock.call.replace(
                     base.NamedTemporaryFile().__enter__().name,
                     str(base.p),
-                ),
-                unittest.mock.call.NamedTemporaryFile().__exit__(
-                    None, None, None
                 ),
             ]
         )

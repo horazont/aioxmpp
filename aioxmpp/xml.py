@@ -75,20 +75,43 @@ from . import errors, structs, xso
 from .utils import namespaces
 
 
-# this is more portable *and* we don’t need libxml-dev anymore.
-libxml2 = ctypes.cdll.LoadLibrary(
-    ctypes.util.find_library("xml2"),
-)
+_NAME_START_CHAR = [
+    [ord(":"), ord("_")],
+    range(ord("a"), ord("z")+1),
+    range(ord("A"), ord("Z")+1),
+    range(0xc0, 0xd7),
+    range(0xd8, 0xf7),
+    range(0xf8, 0x300),
+    range(0x370, 0x37e),
+    range(0x37f, 0x2000),
+    range(0x200c, 0x200e),
+    range(0x2070, 0x2190),
+    range(0x2c00, 0x2ff0),
+    range(0x3001, 0xd800),
+    range(0xf900, 0xfdd0),
+    range(0xfdf0, 0xfffe),
+    range(0x10000, 0xf0000),
+]
+
+_NAME_CHAR = _NAME_START_CHAR + [
+    [ord("-"), ord("."), 0xb7],
+    range(ord("0"), ord("9")+1),
+    range(0x0300, 0x0370),
+    range(0x203f, 0x2041),
+]
+_NAME_CHAR.sort(key=lambda x: x[0])
 
 
 def xmlValidateNameValue_str(s):
-    return bool(xmlValidateNameValue_buf(s.encode("utf-8")))
-
-
-def xmlValidateNameValue_buf(b):
-    if b"\0" in b:
+    if not s:
         return False
-    return bool(libxml2.xmlValidateNameValue(b))
+    ch = ord(s[0])
+    if not any(ch in range_ for range_ in _NAME_START_CHAR):
+        return False
+    return all(
+        any(ch in range_ for range_ in _NAME_CHAR)
+        for ch in map(ord, s)
+    )
 
 
 def is_valid_cdata_str(s):

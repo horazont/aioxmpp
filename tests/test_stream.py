@@ -27,6 +27,7 @@ import time
 import unittest
 import warnings
 import sys
+import time
 
 import aioxmpp
 import aioxmpp.ping as ping
@@ -48,7 +49,8 @@ from aioxmpp.testutils import (
     run_coroutine,
     run_coroutine_with_peer,
     XMLStreamMock,
-    CoroutineMock
+    CoroutineMock,
+    get_timeout,
 )
 from aioxmpp import xmltestutils
 
@@ -1696,11 +1698,14 @@ class TestStanzaStream(StanzaStreamTestBase):
         self.assertIsNone(caught_exc)
 
     def test_nonsm_ping(self):
-        self.stream.ping_interval = timedelta(seconds=0.01)
-        self.stream.ping_opportunistic_interval = timedelta(seconds=0.01)
+        base_timeout = get_timeout(0.01)
 
+        self.stream.ping_interval = timedelta(seconds=base_timeout)
+        self.stream.ping_opportunistic_interval = timedelta(
+            seconds=base_timeout
+        )
         self.stream.start(self.xmlstream)
-        run_coroutine(asyncio.sleep(0.02))
+        run_coroutine(asyncio.sleep(base_timeout * 2.5))
 
         request = self.sent_stanzas.get_nowait()
         self.assertIsInstance(
@@ -1717,21 +1722,25 @@ class TestStanzaStream(StanzaStreamTestBase):
         )
 
     def test_nonsm_ping_timeout(self):
+        base_timeout = get_timeout(0.01)
         exc = None
 
         def failure_handler(_exc):
             nonlocal exc
             exc = _exc
 
-        self.stream.ping_interval = timedelta(seconds=0.01)
-        self.stream.ping_opportunistic_interval = timedelta(seconds=0.01)
+        self.stream.ping_interval = timedelta(seconds=base_timeout)
+        self.stream.ping_opportunistic_interval = timedelta(
+            seconds=base_timeout
+        )
         self.stream.on_failure.connect(failure_handler)
 
         self.stream.start(self.xmlstream)
-        run_coroutine(asyncio.sleep(0.02))
+        run_coroutine(asyncio.sleep(base_timeout*2.5))
 
         self.sent_stanzas.get_nowait()
-        run_coroutine(asyncio.sleep(0.011))
+
+        run_coroutine(asyncio.sleep(base_timeout))
 
         self.assertIsInstance(
             exc,
@@ -2834,19 +2843,27 @@ class TestStanzaStream(StanzaStreamTestBase):
         self.assertTrue(self.stream.running)
 
     def test_task_crash_leads_to_closing_of_xmlstream(self):
-        self.stream.ping_interval = timedelta(seconds=0.01)
-        self.stream.ping_opportunistic_interval = timedelta(seconds=0.01)
+        base_timeout = get_timeout(0.01)
+
+        self.stream.ping_interval = timedelta(
+            seconds=base_timeout
+        )
+        self.stream.ping_opportunistic_interval = timedelta(
+            seconds=base_timeout
+        )
 
         self.stream.start(self.xmlstream)
-        run_coroutine(asyncio.sleep(0.02))
+        run_coroutine(asyncio.sleep(base_timeout * 2.5))
 
         self.sent_stanzas.get_nowait()
-        run_coroutine(asyncio.sleep(0.011))
+        run_coroutine(asyncio.sleep(base_timeout))
 
         self.assertFalse(self.stream.running)
         self.xmlstream.close.assert_called_with()
 
     def test_done_handler_can_deal_with_exception_from_abort(self):
+        base_timeout = get_timeout(0.01)
+
         class FooException(Exception):
             pass
 
@@ -2856,16 +2873,20 @@ class TestStanzaStream(StanzaStreamTestBase):
             nonlocal exc
             exc = _exc
 
-        self.stream.ping_interval = timedelta(seconds=0.01)
-        self.stream.ping_opportunistic_interval = timedelta(seconds=0.01)
+        self.stream.ping_interval = timedelta(
+            seconds=base_timeout
+        )
+        self.stream.ping_opportunistic_interval = timedelta(
+            seconds=base_timeout
+        )
         self.stream.on_failure.connect(failure_handler)
 
         self.stream.start(self.xmlstream)
         self.xmlstream.close.side_effect = FooException()
-        run_coroutine(asyncio.sleep(0.02))
+        run_coroutine(asyncio.sleep(base_timeout * 2.5))
 
         self.sent_stanzas.get_nowait()
-        run_coroutine(asyncio.sleep(0.011))
+        run_coroutine(asyncio.sleep(base_timeout))
 
         self.assertIsInstance(
             exc,
