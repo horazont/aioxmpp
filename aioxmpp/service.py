@@ -706,17 +706,17 @@ class Service(metaclass=Meta):
     """
 
     def __init__(self, client, *, logger_base=None, dependencies={}):
-        super().__init__()
-        self.__context = contextlib.ExitStack()
-        self.__client = client
-        self.__dependencies = dependencies
-
         if logger_base is None:
             self.logger = logging.getLogger(".".join([
                 type(self).__module__, type(self).__qualname__
             ]))
         else:
             self.logger = self.derive_logger(logger_base)
+
+        super().__init__()
+        self.__context = contextlib.ExitStack()
+        self.__client = client
+        self.__dependencies = dependencies
 
         for item in self.SERVICE_HANDLERS:
             if isinstance(item, Descriptor):
