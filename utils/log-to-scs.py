@@ -49,12 +49,15 @@ JID_LINE = re.compile(
 
 
 def _parse_stream_bytes(b):
+    FOOTER = b"</stream:stream>"
     b = ast.literal_eval(b)
     # stream header, ignore
     if b.startswith(b"<?xml"):
         return
-    if b.startswith(b"</stream:stream>"):
+    if b.startswith(FOOTER):
         return
+    if b.endswith(FOOTER):
+        b = b[:-len(FOOTER)]
     if not b.strip():
         return
     try:
