@@ -351,8 +351,14 @@ class BoundSingleValueField(BoundField):
 
     def render(self, **kwargs):
         result = super().render(**kwargs)
+
+        try:
+            value = self._value
+        except AttributeError:
+            value = self._field.default()
+
         result.values[:] = [
-            self.field.type_.format(self._value)
+            self.field.type_.format(value)
         ]
 
         return result

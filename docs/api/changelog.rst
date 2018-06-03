@@ -345,6 +345,9 @@ Version 0.10
   ``FORM_TYPE``) when instantiating a form with
   :meth:`aioxmpp.forms.Form.from_xso`.
 
+* Fix an issue which prevented single-valued form fields from being rendered
+  into XSOs if no value had been set (but a default was given).
+
 .. _api-changelog-0.9:
 
 Version 0.9

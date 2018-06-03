@@ -585,6 +585,48 @@ class TestBoundSingleValueField(unittest.TestCase):
             [],
         )
 
+    def test_render_defaults_to_backing_field(self):
+        self.field.FIELD_TYPE = forms_xso.FieldType.TEXT_SINGLE
+        self.field.var = "some var"
+        self.field.type_.format.return_value = "formatted value"
+
+        with contextlib.ExitStack() as stack:
+            render = stack.enter_context(unittest.mock.patch.object(
+                fields.BoundField,
+                "render"
+            ))
+            render.return_value = forms_xso.Field()
+
+            default = stack.enter_context(unittest.mock.patch.object(
+                self.field,
+                "default",
+            ))
+            default.return_value = unittest.mock.sentinel.defaulted
+
+            field_xso = self.bf.render(
+                use_local_metadata=unittest.mock.sentinel.flag
+            )
+
+        render.assert_called_once_with(
+            use_local_metadata=unittest.mock.sentinel.flag,
+        )
+
+        default.assert_called_once_with()
+
+        self.field.type_.format.assert_called_with(
+            unittest.mock.sentinel.defaulted,
+        )
+
+        self.assertSequenceEqual(
+            field_xso.values,
+            ["formatted value"]
+        )
+
+        self.assertSequenceEqual(
+            field_xso.options,
+            [],
+        )
+
 
 class TestBoundMultiValueField(unittest.TestCase):
     def setUp(self):
