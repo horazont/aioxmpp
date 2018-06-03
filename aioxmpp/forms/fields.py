@@ -253,7 +253,7 @@ class BoundField(metaclass=abc.ABCMeta):
 
         This method is must be overriden and is thus marked abstract. However,
         when called from a subclass, it creates the :class:`~.Field` instance
-        and initialies its :attr:`~.Field.var`, :attr:`~.Field.type_`,
+        and initialises its :attr:`~.Field.var`, :attr:`~.Field.type_`,
         :attr:`~.Field.desc`, :attr:`~.Field.required` and
         :attr:`~.Field.label` attributes and returns the result. Subclasses are
         supposed to override this method, call the base implementation through

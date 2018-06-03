@@ -609,11 +609,11 @@ class Data(AbstractItem):
     def validate(self):
         super().validate()
 
-        if     (self.type_ != DataType.RESULT and
+        if (self.type_ != DataType.RESULT and
                 (self.reported is not None or self.items)):
             raise ValueError("report in non-result")
 
-        if     (self.type_ == DataType.RESULT and
+        if (self.type_ == DataType.RESULT and
                 (self.reported is not None or self.items)):
             self._validate_result()
 

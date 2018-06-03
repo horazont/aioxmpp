@@ -268,7 +268,7 @@ class FormClass(DescriptorClass):
 
         my_form_type = getattr(self, "FORM_TYPE", None)
 
-        if     (xso.type_ != forms_xso.DataType.FORM and
+        if (xso.type_ != forms_xso.DataType.FORM and
                 xso.type_ != forms_xso.DataType.SUBMIT):
             raise ValueError("unexpected form type: {!r}".format(
                 xso.type_
@@ -277,9 +277,9 @@ class FormClass(DescriptorClass):
         f = self()
         for field in xso.fields:
             if field.var == "FORM_TYPE":
-                if    (my_form_type is not None and
-                       field.type_ == forms_xso.FieldType.HIDDEN and
-                       field.values):
+                if (my_form_type is not None and
+                        field.type_ == forms_xso.FieldType.HIDDEN and
+                        field.values):
                     if my_form_type != field.values[0]:
                         raise ValueError(
                             "mismatching FORM_TYPE ({!r} != {!r})".format(
