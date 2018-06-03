@@ -437,6 +437,14 @@ class Form(metaclass=FormClass):
         except AttributeError:
             layout = list(self.DESCRIPTORS)
 
+        my_form_type = getattr(self, "FORM_TYPE", None)
+        if my_form_type is not None:
+            field_xso = forms_xso.Field()
+            field_xso.var = "FORM_TYPE"
+            field_xso.type_ = forms_xso.FieldType.HIDDEN
+            field_xso.values[:] = [my_form_type]
+            data.fields.append(field_xso)
+
         for item in layout:
             if isinstance(item, str):
                 field_xso = forms_xso.Field()

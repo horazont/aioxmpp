@@ -348,6 +348,9 @@ Version 0.10
 * Fix an issue which prevented single-valued form fields from being rendered
   into XSOs if no value had been set (but a default was given).
 
+* Ensure that forms with :attr:`aioxmpp.forms.Form.FORM_TYPE` attribute render
+  a proper :xep:`68` ``FORM_TYPE`` field.
+
 .. _api-changelog-0.9:
 
 Version 0.9
