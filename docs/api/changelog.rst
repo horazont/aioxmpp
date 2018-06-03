@@ -351,6 +351,13 @@ Version 0.10
 * Ensure that forms with :attr:`aioxmpp.forms.Form.FORM_TYPE` attribute render
   a proper :xep:`68` ``FORM_TYPE`` field.
 
+* Allow unset field type in data forms. This may seem weird, but unfortunately
+  it is widespread practice. In some data form types, omitting the field type
+  is common (including it is merely a MAY in the XEP), and even in the most
+  strict case it is only a SHOULD.
+
+  Relying on the field type to be present is thus a non-starter.
+
 .. _api-changelog-0.9:
 
 Version 0.9

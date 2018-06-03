@@ -327,7 +327,7 @@ class TestField(unittest.TestCase):
         self.assertIsNone(forms_xso.Field.type_.validator)
         self.assertEqual(
             forms_xso.Field.type_.default,
-            forms_xso.FieldType.TEXT_SINGLE,
+            None
         )
 
     def test_label_attr(self):
@@ -391,6 +391,17 @@ class TestField(unittest.TestCase):
 
             f.validate()
 
+    def test_accept_options_for_None(self):
+        option = forms_xso.Option()
+        option.value = "foobar"
+
+        f = forms_xso.Field()
+        f.type_ = None
+        f.var = "foobar"
+        f.options["foo"] = "bar"
+
+        f.validate()
+
     def test_reject_multiple_values_for_non_multi_fields(self):
         types = set(forms_xso.FieldType)
         types.discard(forms_xso.FieldType.LIST_MULTI)
@@ -427,6 +438,15 @@ class TestField(unittest.TestCase):
             f.values.append(value)
 
             f.validate()
+
+    def test_accept_multiple_values_for_None(self):
+        f = forms_xso.Field()
+        f.type_ = None
+        f.var = "foobar"
+        f.values.append(forms_xso.Value())
+        f.values.append(forms_xso.Value())
+
+        f.validate()
 
     def test_reject_duplicate_option_values(self):
         f = forms_xso.Field()
