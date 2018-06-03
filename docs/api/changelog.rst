@@ -338,6 +338,9 @@ Version 0.10
 
 * :mod:`aioxmpp.mdr`
 
+* Fix a bug in :meth:`aioxmpp.JID.fromstr` which would incorrectly parse and
+  then reject some valid JIDs.
+
 .. _api-changelog-0.9:
 
 Version 0.9

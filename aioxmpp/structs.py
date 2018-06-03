@@ -757,14 +757,14 @@ class JID(collections.namedtuple("JID", ["localpart", "domain", "resource"])):
         Obtain a :class:`JID` object by parsing a JID from the given string
         `s`.
         """
-        localpart, sep, domain = s.partition("@")
+        nodedomain, sep, resource = s.partition("/")
+        if not sep:
+            resource = None
+
+        localpart, sep, domain = nodedomain.partition("@")
         if not sep:
             domain = localpart
             localpart = None
-
-        domain, sep, resource = domain.partition("/")
-        if not sep:
-            resource = None
         return cls(localpart, domain, resource, strict=strict)
 
 

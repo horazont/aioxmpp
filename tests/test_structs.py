@@ -525,6 +525,12 @@ class TestJID(unittest.TestCase):
             structs.JID.fromstr("ix.test")
         )
 
+    def test_fromstr_domain_with_funny_resource(self):
+        self.assertEqual(
+            structs.JID(None, "example.test", "foo@bar"),
+            structs.JID.fromstr("example.test/foo@bar")
+        )
+
     def test_fromstr_domain_nonstrict(self):
         self.assertEqual(
             structs.JID("\U0001f601", "\U0001f601example.test", "\U0001f601",
