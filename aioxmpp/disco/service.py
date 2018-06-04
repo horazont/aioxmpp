@@ -515,6 +515,8 @@ class DiscoClient(service.Service):
     .. autoattribute:: items_cache_size
        :annotation: = 100
 
+    .. automethod:: flush_cache
+
     Usage example, assuming that you have a :class:`.node.Client` `client`::
 
       import aioxmpp.disco as disco
@@ -593,6 +595,17 @@ class DiscoClient(service.Service):
         except Exception:
             return
         self.on_info_result(jid, node, result)
+
+    def flush_cache(self):
+        """
+        Clear the cache.
+
+        This clears the internal cache in a way which lets existing queries
+        continue, but the next query for each target will behave as if
+        `require_fresh` had been set to true.
+        """
+        self._info_pending.clear()
+        self._items_pending.clear()
 
     @asyncio.coroutine
     def send_and_decode_info_query(self, jid, node):

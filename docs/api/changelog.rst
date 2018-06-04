@@ -341,6 +341,8 @@ Version 0.10
 * Fix a bug in :meth:`aioxmpp.JID.fromstr` which would incorrectly parse and
   then reject some valid JIDs.
 
+* Add :meth:`aioxmpp.DiscoClient.flush_cache`.
+
 .. _api-changelog-0.9:
 
 Version 0.9

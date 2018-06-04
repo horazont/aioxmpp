@@ -1329,6 +1329,38 @@ class TestDiscoClient(unittest.TestCase):
             len(send_and_decode.mock_calls)
         )
 
+    def test_flush_cache_clears_info_cache(self):
+        to = structs.JID.fromstr("user@foo.example/res1")
+
+        with unittest.mock.patch.object(
+                self.s,
+                "send_and_decode_info_query",
+                new=CoroutineMock()) as send_and_decode:
+            response1 = {}
+
+            send_and_decode.return_value = response1
+
+            result1 = run_coroutine(
+                self.s.query_info(to, node="foobar")
+            )
+
+            self.s.flush_cache()
+
+            response2 = {}
+            send_and_decode.return_value = response2
+
+            result2 = run_coroutine(
+                self.s.query_info(to, node="foobar")
+            )
+
+        self.assertIs(result1, response1)
+        self.assertIs(result2, response2)
+
+        self.assertEqual(
+            2,
+            len(send_and_decode.mock_calls)
+        )
+
     def test_query_info_cache_clears_on_disconnect(self):
         to = structs.JID.fromstr("user@foo.example/res1")
 
@@ -1609,6 +1641,36 @@ class TestDiscoClient(unittest.TestCase):
 
         result2 = run_coroutine(
             self.s.query_items(to, node="foobar", require_fresh=True)
+        )
+
+        self.assertIs(result1, response1)
+        self.assertIs(result2, response2)
+
+        self.assertEqual(
+            2,
+            len(self.cc.send.mock_calls)
+        )
+
+    def test_flush_cache_clears_items_cache(self):
+        to = structs.JID.fromstr("user@foo.example/res1")
+
+        response1 = disco_xso.ItemsQuery()
+        self.cc.send.return_value = response1
+
+        with self.assertRaises(TypeError):
+            self.s.query_items(to, "foobar")
+
+        result1 = run_coroutine(
+            self.s.query_items(to, node="foobar")
+        )
+
+        response2 = disco_xso.ItemsQuery()
+        self.cc.send.return_value = response2
+
+        self.s.flush_cache()
+
+        result2 = run_coroutine(
+            self.s.query_items(to, node="foobar")
         )
 
         self.assertIs(result1, response1)
