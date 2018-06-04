@@ -360,6 +360,12 @@ Version 0.10
 
 * :class:`aioxmpp.muc.InfoForm`
 
+* :class:`aioxmpp.muc.VoiceRequestForm`
+
+* Support for answering requests for voice/role change in MUCs (cf.
+  `XEP-0045 §8.6 Approving Voice Requests <https://xmpp.org/extensions/xep-0045.html#voiceapprove>`_). See
+  :meth:`aioxmpp.muc.Room.on_muc_role_request` for details.
+
 .. _api-changelog-0.9:
 
 Version 0.9

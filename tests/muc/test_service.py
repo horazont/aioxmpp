@@ -4185,6 +4185,61 @@ class TestRoom(unittest.TestCase):
         self.assertEqual(self.jmuc.muc_state,
                          muc_service.RoomState.ACTIVE)
 
+    def test__handle_voice_request_forwards_to_event(self):
+        form = unittest.mock.sentinel.form
+
+        self.jmuc._handle_role_request(form)
+
+        self.listener.on_muc_role_request.assert_called_once_with(
+            form,
+            unittest.mock.ANY,
+        )
+
+    def test__handle_voice_request_passes_future_and_emits_reply_on_future(
+            self):
+        form = unittest.mock.sentinel.form
+        reply_form = aioxmpp.forms.Data(aioxmpp.forms.DataType.SUBMIT)
+
+        exc = None
+
+        def handler(form, fut):
+            nonlocal exc
+            try:
+                self.assertFalse(fut.done())
+                fut.set_result(reply_form)
+            except Exception as cexc:
+                exc = cexc
+
+        self.jmuc.on_muc_role_request.connect(handler)
+
+        self.jmuc._handle_role_request(form)
+
+        self.listener.on_muc_role_request.assert_called_once_with(
+            form,
+            unittest.mock.ANY,
+        )
+
+        if exc is not None:
+            raise exc
+
+        run_coroutine(asyncio.sleep(0))
+
+        _, (_, fut), _ = self.listener.on_muc_role_request.mock_calls[0]
+
+        self.base.service.client.enqueue.assert_called_once_with(
+            unittest.mock.ANY,
+        )
+
+        _, (msg,), _ = self.base.service.client.enqueue.mock_calls[0]
+
+        self.assertIsInstance(msg, aioxmpp.Message)
+        self.assertEqual(msg.type_, aioxmpp.MessageType.NORMAL)
+        self.assertFalse(msg.body)
+        self.assertEqual(msg.to, self.jmuc.jid)
+        self.assertTrue(msg.xep0004_data)
+
+        self.assertCountEqual(msg.xep0004_data, [reply_form])
+
 
 class TestService(unittest.TestCase):
     def test_is_service(self):
@@ -4841,6 +4896,263 @@ class TestService(unittest.TestCase):
             unittest.mock.sentinel.sent,
             unittest.mock.sentinel.source,
         )
+
+    def test_forward_voice_requests_to_joined_mucs(self):
+        room, future = self.s.join(TEST_MUC_JID, "thirdwitch")
+
+        def mkpresence(nick, is_self=False):
+            presence = aioxmpp.stanza.Presence(
+                from_=TEST_MUC_JID.replace(resource=nick)
+            )
+            presence.xep0045_muc_user = muc_xso.UserExt(
+                status_codes={110} if is_self else set()
+            )
+            return presence
+
+        occupant_presences = [
+            mkpresence(nick, is_self=(nick == "thirdwitch"))
+            for nick in [
+                "firstwitch",
+                "secondwitch",
+                "thirdwitch",
+            ]
+        ]
+
+        msg = aioxmpp.stanza.Message(
+            from_=TEST_MUC_JID.bare(),
+            type_=aioxmpp.structs.MessageType.NORMAL,
+        )
+
+        form = muc_xso.VoiceRequestForm()
+        form.roomnick.value = "secondwitch"
+        form.role.options = {
+            "participant": "participant",
+        }
+        form.role.value = "participant"
+
+        data_xso = form.render_request()
+
+        msg.xep0004_data.append(data_xso)
+
+        with contextlib.ExitStack() as stack:
+            _handle_role_request = stack.enter_context(
+                unittest.mock.patch.object(
+                    room,
+                    "_handle_role_request",
+                )
+            )
+
+            from_xso = stack.enter_context(unittest.mock.patch.object(
+                muc_xso.VoiceRequestForm,
+                "from_xso",
+            ))
+            from_xso.return_value = unittest.mock.sentinel.form_obj
+
+            for presence in occupant_presences:
+                self.s._handle_presence(
+                    presence,
+                    presence.from_,
+                    False,
+                )
+
+            self.assertIsNone(
+                self.s._handle_message(
+                    msg,
+                    msg.from_,
+                    False,
+                    unittest.mock.sentinel.source,
+                )
+            )
+
+        from_xso.assert_called_once_with(
+            data_xso,
+        )
+
+        _handle_role_request.assert_called_once_with(
+            unittest.mock.sentinel.form_obj,
+        )
+
+    def test_does_not_forward_voice_requests_from_users(self):
+        room, future = self.s.join(TEST_MUC_JID, "thirdwitch")
+
+        def mkpresence(nick, is_self=False):
+            presence = aioxmpp.stanza.Presence(
+                from_=TEST_MUC_JID.replace(resource=nick)
+            )
+            presence.xep0045_muc_user = muc_xso.UserExt(
+                status_codes={110} if is_self else set()
+            )
+            return presence
+
+        occupant_presences = [
+            mkpresence(nick, is_self=(nick == "thirdwitch"))
+            for nick in [
+                "firstwitch",
+                "secondwitch",
+                "thirdwitch",
+            ]
+        ]
+
+        msg = aioxmpp.stanza.Message(
+            from_=TEST_MUC_JID.replace(resource="firstwitch"),
+            type_=aioxmpp.structs.MessageType.NORMAL,
+        )
+
+        form = muc_xso.VoiceRequestForm()
+        form.roomnick.value = "secondwitch"
+        form.role.options = {
+            "participant": "participant",
+        }
+        form.role.value = "participant"
+
+        msg.xep0004_data.append(form.render_request())
+
+        with contextlib.ExitStack() as stack:
+            _handle_role_request = stack.enter_context(
+                unittest.mock.patch.object(
+                    room,
+                    "_handle_role_request",
+                )
+            )
+
+            for presence in occupant_presences:
+                self.s._handle_presence(
+                    presence,
+                    presence.from_,
+                    False,
+                )
+
+            self.assertIs(
+                self.s._handle_message(
+                    msg,
+                    msg.from_,
+                    False,
+                    unittest.mock.sentinel.source,
+                ),
+                msg
+            )
+
+        _handle_role_request.assert_not_called()
+
+    def test_does_not_forward_sent_voice_request(self):
+        room, future = self.s.join(TEST_MUC_JID, "thirdwitch")
+
+        def mkpresence(nick, is_self=False):
+            presence = aioxmpp.stanza.Presence(
+                from_=TEST_MUC_JID.replace(resource=nick)
+            )
+            presence.xep0045_muc_user = muc_xso.UserExt(
+                status_codes={110} if is_self else set()
+            )
+            return presence
+
+        occupant_presences = [
+            mkpresence(nick, is_self=(nick == "thirdwitch"))
+            for nick in [
+                "firstwitch",
+                "secondwitch",
+                "thirdwitch",
+            ]
+        ]
+
+        msg = aioxmpp.stanza.Message(
+            from_=TEST_MUC_JID.replace(resource="firstwitch"),
+            type_=aioxmpp.structs.MessageType.NORMAL,
+        )
+
+        form = muc_xso.VoiceRequestForm()
+        form.roomnick.value = "secondwitch"
+        form.role.options = {
+            "participant": "participant",
+        }
+        form.role.value = "participant"
+
+        msg.xep0004_data.append(form.render_request())
+
+        with contextlib.ExitStack() as stack:
+            _handle_role_request = stack.enter_context(
+                unittest.mock.patch.object(
+                    room,
+                    "_handle_role_request",
+                )
+            )
+
+            for presence in occupant_presences:
+                self.s._handle_presence(
+                    presence,
+                    presence.from_,
+                    False,
+                )
+
+            self.assertIs(
+                self.s._handle_message(
+                    msg,
+                    msg.from_,
+                    True,
+                    unittest.mock.sentinel.source,
+                ),
+                msg
+            )
+
+        _handle_role_request.assert_not_called()
+
+    def test_does_not_forward_unrelated_data_forms(self):
+        room, future = self.s.join(TEST_MUC_JID, "thirdwitch")
+
+        def mkpresence(nick, is_self=False):
+            presence = aioxmpp.stanza.Presence(
+                from_=TEST_MUC_JID.replace(resource=nick)
+            )
+            presence.xep0045_muc_user = muc_xso.UserExt(
+                status_codes={110} if is_self else set()
+            )
+            return presence
+
+        occupant_presences = [
+            mkpresence(nick, is_self=(nick == "thirdwitch"))
+            for nick in [
+                "firstwitch",
+                "secondwitch",
+                "thirdwitch",
+            ]
+        ]
+
+        msg = aioxmpp.stanza.Message(
+            from_=TEST_MUC_JID.replace(resource="firstwitch"),
+            type_=aioxmpp.structs.MessageType.NORMAL,
+        )
+
+        class RandomForm(aioxmpp.forms.Form):
+            FORM_TYPE = "foo"
+
+        msg.xep0004_data.append(RandomForm().render_request())
+
+        with contextlib.ExitStack() as stack:
+            _handle_role_request = stack.enter_context(
+                unittest.mock.patch.object(
+                    room,
+                    "_handle_role_request",
+                )
+            )
+
+            for presence in occupant_presences:
+                self.s._handle_presence(
+                    presence,
+                    presence.from_,
+                    False,
+                )
+
+            self.assertIs(
+                self.s._handle_message(
+                    msg,
+                    msg.from_,
+                    False,
+                    unittest.mock.sentinel.source,
+                ),
+                msg,
+            )
+
+        _handle_role_request.assert_not_called()
 
     def test_tags_chat_messages_from_joined_mucs(self):
         room, future = self.s.join(TEST_MUC_JID, "thirdwitch")

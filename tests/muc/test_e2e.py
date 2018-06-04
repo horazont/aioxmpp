@@ -22,6 +22,7 @@
 import asyncio
 import functools
 import logging
+import unittest
 
 import aioxmpp.muc
 import aioxmpp.im.p2p
@@ -622,3 +623,60 @@ class TestMuc(TestCase):
             mode,
             aioxmpp.muc.LeaveMode.ERROR,
         )
+
+    @blocking_timed
+    @asyncio.coroutine
+    def test_voice_request_handling(self):
+        info = yield from self.firstwitch.summon(
+            aioxmpp.DiscoClient
+        ).query_info(
+            self.firstroom.jid
+        )
+
+        if aioxmpp.muc.xso.VoiceRequestForm.FORM_TYPE not in info.features:
+            raise unittest.SkipTest(
+                "voice request not supported"
+            )
+
+        role_future = asyncio.Future()
+        request_future = asyncio.Future()
+
+        def secondwitch_role_changed(presence, member, *,
+                                     actor=None, reason=None,
+                                     **kwargs):
+            print("role changed")
+            role_future.set_result((presence, member, actor, reason))
+
+        def firstwitch_role_request(form, submission_future):
+            request_future.set_result(form)
+            form.request_allow.value = True
+            submission_future.set_result(form.render_reply())
+
+        self.secondroom.on_muc_role_changed.connect(secondwitch_role_changed)
+        self.firstroom.on_muc_role_request.connect(firstwitch_role_request)
+
+        firstmuc = self.firstwitch.summon(aioxmpp.MUCClient)
+
+        form = aioxmpp.muc.xso.ConfigurationForm.from_xso(
+            (yield from firstmuc.get_room_config(self.firstroom.jid))
+        )
+        form.moderatedroom.value = True
+        yield from firstmuc.set_room_config(self.firstroom.jid,
+                                            form.render_reply())
+
+        # ensure that secondwitch has no voice
+        yield from self.firstroom.muc_set_role("secondwitch", "visitor")
+
+        # wait until demotion has passed
+        _, member, _, _ = yield from role_future
+        self.assertEqual(member.role, "visitor")
+
+        role_future = asyncio.Future()
+
+        yield from self.secondroom.muc_request_voice()
+
+        yield from request_future
+
+        _, member, _, _ = yield from role_future
+        self.assertEqual(member.role, "participant")
+        self.assertEqual(self.secondroom.me.role, "participant")

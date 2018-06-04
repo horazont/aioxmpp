@@ -542,3 +542,27 @@ class InfoForm(aioxmpp.forms.Form):
         var='muc#roominfo_subjectmod',
         label='The room subject can be modified by participants'
     )
+
+
+class VoiceRequestForm(aioxmpp.forms.Form):
+    FORM_TYPE = 'http://jabber.org/protocol/muc#request'
+
+    role = aioxmpp.forms.ListSingle(
+        var='muc#role',
+        label='Requested role'
+    )
+
+    jid = aioxmpp.forms.JIDSingle(
+        var='muc#jid',
+        label='User ID'
+    )
+
+    roomnick = aioxmpp.forms.TextSingle(
+        var='muc#roomnick',
+        label='Room Nickname'
+    )
+
+    request_allow = aioxmpp.forms.Boolean(
+        var='muc#request_allow',
+        label='Whether to grant voice'
+    )

@@ -575,6 +575,28 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
 
         Note that on a rejoin, all presence is re-emitted.
 
+    .. signal:: on_muc_role_request(form, submission_future)
+
+        Emits when an unprivileged occupant requests a role change and the
+        MUC service wants this occupant to approve or deny it.
+
+        :param form: The approval form as presented by the service.
+        :type form: :class:`~.VoiceRequestForm`
+        :param submission_future: A future to which the form to submit must
+            be sent.
+        :type submission_future: :class:`asyncio.Future`
+
+        To decide on a role change request, a handler of this signal must
+        fill in the form and set the form as a result of the
+        `submission_future`.
+
+        Once the result is set, the reply is sent by the MUC service
+        automatically.
+
+        It is required for signal handlers to check whether the
+        `submission_future` is already done before processing the form (as it
+        is possible that multiple handlers are connected to this signal).
+
     .. signal:: on_exit(*, muc_leave_mode=None, muc_actor=None, muc_reason=None, **kwargs)
 
         Emits when the unavailable :class:`~.Presence` stanza for the
@@ -623,6 +645,9 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
     # other occupant state events
     on_muc_affiliation_changed = aioxmpp.callbacks.Signal()
     on_muc_role_changed = aioxmpp.callbacks.Signal()
+
+    # approval requests
+    on_muc_role_request = aioxmpp.callbacks.Signal()
 
     def __init__(self, service, mucjid):
         super().__init__(service)
@@ -1103,6 +1128,20 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
                           muc_actor=actor,
                           muc_reason=reason)
             del self._occupant_info[existing.conversation_jid]
+
+    def _handle_role_request(self, form):
+        def submit(fut):
+            data_xso = fut.result()
+            msg = aioxmpp.Message(
+                to=self.jid,
+                type_=aioxmpp.MessageType.NORMAL,
+            )
+            msg.xep0004_data.append(data_xso)
+            self._service.client.enqueue(msg)
+
+        fut = asyncio.Future()
+        fut.add_done_callback(submit)
+        self.on_muc_role_request(form, fut)
 
     def send_message(self, msg):
         """
@@ -1689,6 +1728,15 @@ class MUCClient(aioxmpp.im.conversation.AbstractConversationService,
             muc = self._joined_mucs[mucjid]
         except KeyError:
             return message
+
+        if (message.type_ == aioxmpp.MessageType.NORMAL and not sent and
+                peer == mucjid):
+            for form in message.xep0004_data:
+                if form.get_form_type() != muc_xso.VoiceRequestForm.FORM_TYPE:
+                    continue
+                form_obj = muc_xso.VoiceRequestForm.from_xso(form)
+                muc._handle_role_request(form_obj)
+                return None
 
         if message.type_ != aioxmpp.MessageType.GROUPCHAT:
             if muc is not None:

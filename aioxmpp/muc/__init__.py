@@ -74,6 +74,9 @@ Forms
 .. autoclass:: InfoForm
     :members:
 
+.. autoclass:: VoiceRequestForm
+    :members:
+
 .. currentmodule:: aioxmpp.muc.xso
 
 XSOs
@@ -127,5 +130,6 @@ from . import xso  # NOQA
 from .xso import (  # NOQA
     ConfigurationForm,
     InfoForm,
+    VoiceRequestForm,
 )
 Service = MUCClient  # NOQA
