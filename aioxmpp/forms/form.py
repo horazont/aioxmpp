@@ -241,8 +241,6 @@ class FormClass(DescriptorClass):
         :type xso: :class:`~.Data`
         :raises ValueError: if the ``FORM_TYPE`` mismatches
         :raises ValueError: if field types mismatch
-        :raises ValueError: if the :attr:`~.Data.type_` does not indicate a
-                            form
         :return: newly created instance of this class
 
         The fields from the given `xso` are matched against the fields on the
@@ -267,12 +265,6 @@ class FormClass(DescriptorClass):
         """
 
         my_form_type = getattr(self, "FORM_TYPE", None)
-
-        if (xso.type_ != forms_xso.DataType.FORM and
-                xso.type_ != forms_xso.DataType.SUBMIT):
-            raise ValueError("unexpected form type: {!r}".format(
-                xso.type_
-            ))
 
         f = self()
         for field in xso.fields:

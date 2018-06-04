@@ -435,10 +435,12 @@ class TestForm(unittest.TestCase):
                 "mismatching FORM_TYPE"):
             F.from_xso(tree)
 
-    def test_from_xso_checks_data_type(self):
-        reject = [
-            forms_xso.DataType.RESULT,
+    def test_form_xso_allows_all_data_types(self):
+        allow = [
             forms_xso.DataType.CANCEL,
+            forms_xso.DataType.FORM,
+            forms_xso.DataType.SUBMIT,
+            forms_xso.DataType.RESULT,
         ]
 
         class F(form.Form):
@@ -446,15 +448,7 @@ class TestForm(unittest.TestCase):
 
         for t in forms_xso.DataType:
             tree = forms_xso.Data(type_=t)
-
-            if t in reject:
-                with self.assertRaisesRegex(
-                        ValueError,
-                        r"unexpected form type",
-                        msg="for {}".format(t)):
-                    F.from_xso(tree)
-            else:
-                F.from_xso(tree)
+            F.from_xso(tree)
 
     def test_from_xso_single_field(self):
         class F(form.Form):

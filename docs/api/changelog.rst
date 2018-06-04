@@ -341,6 +341,10 @@ Version 0.10
 * Fix a bug in :meth:`aioxmpp.JID.fromstr` which would incorrectly parse and
   then reject some valid JIDs.
 
+* Remove restriction on data form types (not to be confused with
+  ``FORM_TYPE``) when instantiating a form with
+  :meth:`aioxmpp.forms.Form.from_xso`.
+
 .. _api-changelog-0.9:
 
 Version 0.9
