@@ -468,6 +468,26 @@ class TestForm(unittest.TestCase):
             "value",
         )
 
+    def test_from_xso_handles_missing_type_(self):
+        class F(form.Form):
+            field = fields.ListSingle(
+                "foobar",
+            )
+
+        tree = forms_xso.Data(type_=forms_xso.DataType.FORM)
+        tree.fields.append(
+            forms_xso.Field(type_=None,
+                            values=["value"],
+                            var="foobar")
+        )
+
+        f = F.from_xso(tree)
+        self.assertIsInstance(f, F)
+        self.assertEqual(
+            f.field.value,
+            "value",
+        )
+
     def test_copies_have_independent_descriptor_data(self):
         class F(form.Form):
             field = fields.TextSingle(

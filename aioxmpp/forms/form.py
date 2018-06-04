@@ -289,7 +289,8 @@ class FormClass(DescriptorClass):
             except KeyError:
                 continue
 
-            if not field.type_.allow_upcast(descriptor.FIELD_TYPE):
+            if (field.type_ is not None and not
+                    field.type_.allow_upcast(descriptor.FIELD_TYPE)):
                 raise ValueError(
                     "mismatching type ({!r} != {!r}) on field var={!r}".format(
                         field.type_,
