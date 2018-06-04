@@ -491,3 +491,54 @@ class ConfigurationForm(aioxmpp.forms.Form):
         var='muc#roomconfig_whois',
         label='Affiliations that May Discover Real JIDs of Occupants'
     )
+
+
+class InfoForm(aioxmpp.forms.Form):
+    FORM_TYPE = 'http://jabber.org/protocol/muc#roominfo'
+
+    maxhistoryfetch = aioxmpp.forms.TextSingle(
+        var='muc#maxhistoryfetch',
+        label='Maximum Number of History Messages Returned by Room'
+    )
+
+    contactjid = aioxmpp.forms.JIDMulti(
+        var='muc#roominfo_contactjid',
+        label='Contact Addresses (normally, room owner or owners)'
+    )
+
+    description = aioxmpp.forms.TextSingle(
+        var='muc#roominfo_description',
+        label='Short Description of Room'
+    )
+
+    lang = aioxmpp.forms.TextSingle(
+        var='muc#roominfo_lang',
+        label='Natural Language for Room Discussions'
+    )
+
+    ldapgroup = aioxmpp.forms.TextSingle(
+        var='muc#roominfo_ldapgroup',
+        label='An associated LDAP group that defines room membership; this '
+        'should be an LDAP Distinguished Name according to an '
+        'implementation-specific or deployment-specific definition of a group.'
+    )
+
+    logs = aioxmpp.forms.TextSingle(
+        var='muc#roominfo_logs',
+        label='URL for Archived Discussion Logs'
+    )
+
+    occupants = aioxmpp.forms.TextSingle(
+        var='muc#roominfo_occupants',
+        label='Current Number of Occupants in Room'
+    )
+
+    subject = aioxmpp.forms.TextSingle(
+        var='muc#roominfo_subject',
+        label='Current Discussion Topic'
+    )
+
+    subjectmod = aioxmpp.forms.Boolean(
+        var='muc#roominfo_subjectmod',
+        label='The room subject can be modified by participants'
+    )

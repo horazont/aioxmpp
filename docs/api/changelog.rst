@@ -358,6 +358,8 @@ Version 0.10
 
   Relying on the field type to be present is thus a non-starter.
 
+* :class:`aioxmpp.muc.InfoForm`
+
 .. _api-changelog-0.9:
 
 Version 0.9
