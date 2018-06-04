@@ -357,6 +357,9 @@ class BoundSingleValueField(BoundField):
         except AttributeError:
             value = self._field.default()
 
+        if value is None:
+            return result
+
         result.values[:] = [
             self.field.type_.format(value)
         ]
