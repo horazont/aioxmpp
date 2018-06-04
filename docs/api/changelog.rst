@@ -341,6 +341,8 @@ Version 0.10
 * Fix a bug in :meth:`aioxmpp.JID.fromstr` which would incorrectly parse and
   then reject some valid JIDs.
 
+* Add :meth:`aioxmpp.disco.Node.set_identity_names`
+
 .. _api-changelog-0.9:
 
 Version 0.9

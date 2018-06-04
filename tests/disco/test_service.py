@@ -288,6 +288,60 @@ class TestNode(unittest.TestCase):
             set(n.iter_identities(unittest.mock.sentinel.stanza))
         )
 
+    def test_set_identity_names_updates_text_and_emits_cb(self):
+        n = disco_service.Node()
+
+        n.register_identity(
+            "client", "pc",
+            names={
+                structs.LanguageTag.fromstr("en"): "default identity",
+                structs.LanguageTag.fromstr("de"): "Standardidentität",
+            }
+        )
+
+        cb = unittest.mock.Mock()
+        n.on_info_changed.connect(cb)
+
+        n.set_identity_names(
+            "client", "pc",
+            names={
+                structs.LanguageTag.fromstr("en"): "test identity",
+                structs.LanguageTag.fromstr("de"): "Testidentität",
+            }
+        )
+
+        cb.assert_called_with()
+
+        self.assertSetEqual(
+            {
+                ("client", "pc",
+                 structs.LanguageTag.fromstr("en"), "test identity"),
+                ("client", "pc",
+                 structs.LanguageTag.fromstr("de"), "Testidentität"),
+            },
+            set(n.iter_identities(unittest.mock.sentinel.stanza))
+        )
+
+    def test_set_identity_names_rejects_if_identity_not_registered(self):
+        n = disco_service.Node()
+
+        cb = unittest.mock.Mock()
+        n.on_info_changed.connect(cb)
+
+        with self.assertRaisesRegex(
+                ValueError,
+                r"identity not registered"):
+
+            n.set_identity_names(
+                "client", "pc",
+                names={
+                    structs.LanguageTag.fromstr("en"): "test identity",
+                    structs.LanguageTag.fromstr("de"): "Testidentität",
+                }
+            )
+
+        cb.assert_not_called()
+
     def test_unregister_identity_prohibits_removal_of_last_identity(self):
         n = disco_service.Node()
 
