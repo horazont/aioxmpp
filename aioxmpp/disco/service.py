@@ -383,7 +383,7 @@ class DiscoServer(service.Service, Node):
 
        Upon construction, the :class:`DiscoServer` adds a default identity with
        category ``"client"`` and type ``"bot"`` to the root
-       :class:`.disco.Node`. This is to comply with :xep:`30`, which specifies
+       :class:`~.disco.Node`. This is to comply with :xep:`30`, which specifies
        that at least one identity must always be returned. Otherwise, the
        service would be forced to send a malformed response or reply with
        ``<feature-not-implemented/>``.
@@ -473,7 +473,7 @@ class DiscoServer(service.Service, Node):
         .. seealso::
 
            :meth:`mount_node`
-              for a way for mounting :class:`Node` instances.
+              for a way for mounting :class:`~.disco.Node` instances.
 
         """
         del self._node_mounts[mountpoint]
