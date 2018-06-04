@@ -188,6 +188,17 @@ class Executor(Qt.QDialog):
                     widget.setText(field.values[0])
                 layout.addRow(label, widget)
 
+            elif field.type_ in {aioxmpp.forms.FieldType.TEXT_PRIVATE}:
+                label = Qt.QLabel(field.label)
+                widget = Qt.QLineEdit()
+                widget.setEchoMode(Qt.QLineEdit.Password)
+                widget.setInputMethodHints(Qt.Qt.ImhHiddenText |
+                                           Qt.Qt.ImhNoPredictiveText |
+                                           Qt.Qt.ImhNoAutoUppercase)
+                if field.values:
+                    widget.setText(field.values[0])
+                layout.addRow(label, widget)
+
             elif field.type_ in {aioxmpp.forms.FieldType.TEXT_MULTI,
                                  aioxmpp.forms.FieldType.JID_MULTI}:
                 label = Qt.QLabel(field.label)
@@ -225,13 +236,14 @@ class Executor(Qt.QDialog):
                 field.values[:] = selected
 
             elif field.type_ in {aioxmpp.forms.FieldType.JID_SINGLE,
-                                 aioxmpp.forms.FieldType.TEXT_SINGLE}:
+                                 aioxmpp.forms.FieldType.TEXT_SINGLE,
+                                 aioxmpp.forms.FieldType.TEXT_PRIVATE}:
                 # widget is line edit
                 field.values[:] = [widget.text()]
 
             elif field.type_ in {aioxmpp.forms.FieldType.JID_MULTI,
                                  aioxmpp.forms.FieldType.TEXT_MULTI}:
-                field.values[:] = widget.text().split("\n")
+                field.values[:] = widget.toPlainText().split("\n")
 
     def _action(self, type_):
         self._fill_form()
