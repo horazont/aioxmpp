@@ -371,6 +371,13 @@ Version 0.10
 
 * :class:`aioxmpp.muc.StatusCode`
 
+* The signals :meth:`aioxmpp.muc.Room.on_muc_enter`,
+  :meth:`~aioxmpp.muc.Room.on_exit`,
+  :meth:`~aioxmpp.muc.Room.on_leave`, :meth:`~aioxmpp.muc.Room.on_join`,
+  :meth:`~aioxmpp.muc.Room.on_muc_role_changed`, and
+  :meth:`~aioxmpp.muc.Room.on_muc_affiliation_changed` now receive the set of
+  status codes which was included in the triggering stanza as keyword argument.
+
 .. _api-changelog-0.9:
 
 Version 0.9

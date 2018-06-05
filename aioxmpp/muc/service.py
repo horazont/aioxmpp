@@ -406,7 +406,7 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
             The :meth:`on_enter` signal does not receive any arguments anymore
             to make MUC comply with the :class:`AbstractConversation` spec.
 
-    .. signal:: on_muc_enter(presence, occupant, **kwargs)
+    .. signal:: on_muc_enter(presence, occupant, *, muc_status_codes=set(), **kwargs)
 
         This is an extended version of :meth:`on_enter` which adds MUC-specific
         arguments.
@@ -414,6 +414,10 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
         :param presence: The initial presence stanza.
         :param occupant: The :class:`Occupant` which will be used to track the
             local user.
+        :param muc_status_codes: The set of status codes received in the
+            initial join.
+        :type muc_status_codes: :class:`~.abc.Set` of :class:`int` or
+            :class:`~.StatusCode`
 
         .. versionadded:: 0.10
 
@@ -486,7 +490,7 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
             :meth:`.AbstractConversation.on_presence_changed` for the full
             specification.
 
-    .. signal:: on_nick_changed(member, old_nick, new_nick, **kwargs)
+    .. signal:: on_nick_changed(member, old_nick, new_nick, *, muc_status_codes=set(), **kwargs)
 
         The nickname of an occupant has changed
 
@@ -496,6 +500,10 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
         :type old_nick: :class:`str` or :data:`None`
         :param new_nick: The new nickname of the member.
         :type new_nick: :class:`str`
+        :param muc_status_codes: The set of status codes received in the leave
+            notification.
+        :type muc_status_codes: :class:`~.abc.Set` of :class:`int` or
+            :class:`~.StatusCode`
 
         The new nickname is already set in the `member` object. Both `old_nick`
         and `new_nick` are not :data:`None`.
@@ -504,6 +512,10 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
 
             :meth:`.AbstractConversation.on_nick_changed` for the full
             specification.
+
+        .. versionchanged:: 0.10
+
+            The `muc_status_codes` argument was added.
 
     .. signal:: on_topic_changed(member, new_topic, *, muc_nick=None, **kwargs)
 
@@ -552,9 +564,17 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
         :type muc_actor: :class:`~.xso.UserActor`
         :param muc_reason: The reason for the cause, as given by the actor.
         :type muc_reason: :class:`str`
+        :param muc_status_codes: The set of status codes received in the leave
+            notification.
+        :type muc_status_codes: :class:`~.abc.Set` of :class:`int` or
+            :class:`~.StatusCode`
 
         When this signal is called, the `member` has already been removed from
         the :attr:`members`.
+
+        .. versionchanged:: 0.10
+
+            The `muc_status_codes` argument was added.
 
     .. signal:: on_muc_suspend()
 
@@ -597,7 +617,7 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
         `submission_future` is already done before processing the form (as it
         is possible that multiple handlers are connected to this signal).
 
-    .. signal:: on_exit(*, muc_leave_mode=None, muc_actor=None, muc_reason=None, **kwargs)
+    .. signal:: on_exit(*, muc_leave_mode=None, muc_actor=None, muc_reason=None, muc_status_codes=set(), **kwargs)
 
         Emits when the unavailable :class:`~.Presence` stanza for the
         local JID is received.
@@ -608,6 +628,20 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
         :type muc_actor: :class:`~.xso.UserActor`
         :param muc_reason: The reason for the cause, as given by the actor.
         :type muc_reason: :class:`str`
+        :param muc_status_codes: The set of status codes received in the leave
+            notification.
+        :type muc_status_codes: :class:`~.abc.Set` of :class:`int` or
+            :class:`~.StatusCode`
+
+        .. note::
+
+            The keyword arguments `muc_actor`, `muc_reason` and
+            `muc_status_codes` are not always given. Be sure to default them
+            accordingly.
+
+        .. versionchanged:: 0.10
+
+            The `muc_status_codes` argument was added.
 
     The following signals inform users about state changes related to **other**
     occupants in the chat room. Note that different events may fire for the
@@ -616,25 +650,49 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
     ``"outcast"``) and then :meth:`on_leave` (with :attr:`LeaveMode.BANNED`
     `mode`).
 
-    .. signal:: on_muc_affiliation_changed(member, *, actor=None, reason=None, **kwargs)
+    .. signal:: on_muc_affiliation_changed(member, *, actor=None, reason=None, status_codes=set(), **kwargs)
 
-       Emits when the affiliation of a `member` with the room changes.
+        Emits when the affiliation of a `member` with the room changes.
 
-       `occupant` is the :class:`Occupant` instance tracking the occupant whose
-       affiliation changed.
+        :param occupant: The member of the room.
+        :type occupant: :class:`Occupant`
+        :param actor: The actor object if available.
+        :type actor: :class:`~.xso.UserActor`
+        :param reason: The reason for the change, as given by the actor.
+        :type reason: :class:`str`
+        :param status_codes: The set of status codes received in the change
+            notification.
+        :type status_codes: :class:`~.abc.Set` of :class:`int` or
+            :class:`~.StatusCode`
 
-       There may be `actor` and/or `reason` keyword arguments which provide
-       details on who triggered the change in affiliation and for what reason.
+        `occupant` is the :class:`Occupant` instance tracking the occupant whose
+        affiliation changed.
 
-    .. signal:: on_muc_role_changed(member, *, actor=None, reason=None, **kwargs)
+        .. versionchanged:: 0.10
 
-       Emits when the role of an `occupant` in the room changes.
+            The `status_codes` argument was added.
 
-       `occupant` is the :class:`Occupant` instance tracking the occupant whose
-       role changed.
+    .. signal:: on_muc_role_changed(member, *, actor=None, reason=None, status_codes=set(), , **kwargs)
 
-       There may be `actor` and/or `reason` keyword arguments which provide
-       details on who triggered the change in role and for what reason.
+        Emits when the role of an `occupant` in the room changes.
+
+        :param occupant: The member of the room.
+        :type occupant: :class:`Occupant`
+        :param actor: The actor object if available.
+        :type actor: :class:`~.xso.UserActor`
+        :param reason: The reason for the change, as given by the actor.
+        :type reason: :class:`str`
+        :param status_codes: The set of status codes received in the change
+            notification.
+        :type status_codes: :class:`~.abc.Set` of :class:`int` or
+            :class:`~.StatusCode`
+
+        `occupant` is the :class:`Occupant` instance tracking the occupant whose
+        role changed.
+
+        .. versionchanged:: 0.10
+
+            The `status_codes` argument was added.
 
     """
     # this occupant state events
@@ -998,6 +1056,7 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
                 {
                     "actor": actor,
                     "reason": reason,
+                    "status_codes": stanza.xep0045_muc_user.status_codes,
                 },
             ))
 
@@ -1011,6 +1070,7 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
                 {
                     "actor": actor,
                     "reason": reason,
+                    "status_codes": stanza.xep0045_muc_user.status_codes,
                 },
             ))
 
@@ -1039,7 +1099,12 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
             self._joined = True
             self._active = True
             self._state = RoomState.HISTORY
-            self.on_muc_enter(stanza, info)
+            self.on_muc_enter(
+                stanza, info,
+                muc_status_codes=frozenset(
+                    stanza.xep0045_muc_user.status_codes
+                )
+            )
             self.on_enter()
             return
 
@@ -1064,7 +1129,8 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
             existing.update(info)
             self.on_exit(muc_leave_mode=mode,
                          muc_actor=actor,
-                         muc_reason=reason)
+                         muc_reason=reason,
+                         muc_status_codes=stanza.xep0045_muc_user.status_codes)
             self._joined = False
             self._active = False
 
@@ -1128,7 +1194,8 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
             self.on_leave(existing,
                           muc_leave_mode=mode,
                           muc_actor=actor,
-                          muc_reason=reason)
+                          muc_reason=reason,
+                          muc_status_codes=stanza.xep0045_muc_user.status_codes)
             del self._occupant_info[existing.conversation_jid]
 
     def _handle_role_request(self, form):

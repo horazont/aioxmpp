@@ -737,7 +737,7 @@ class TestRoom(unittest.TestCase):
             self.base.mock_calls,
             [
                 unittest.mock.call.on_exit(
-                    muc_leave_mode=muc_service.LeaveMode.DISCONNECTED
+                    muc_leave_mode=muc_service.LeaveMode.DISCONNECTED,
                 ),
             ]
         )
@@ -850,7 +850,10 @@ class TestRoom(unittest.TestCase):
             [
                 unittest.mock.call.on_muc_suspend(),
                 unittest.mock.call.on_muc_resume(),
-                unittest.mock.call.on_muc_enter(presence, self.jmuc.me),
+                unittest.mock.call.on_muc_enter(
+                    presence, self.jmuc.me,
+                    muc_status_codes={110},
+                ),
                 unittest.mock.call.on_enter(),
             ]
         )
@@ -964,7 +967,9 @@ class TestRoom(unittest.TestCase):
                         first,
                         muc_leave_mode=muc_service.LeaveMode.NORMAL,
                         muc_actor=None,
-                        muc_reason=None)
+                        muc_reason=None,
+                        muc_status_codes=set(),
+                    )
                 ]
             )
 
@@ -1026,12 +1031,16 @@ class TestRoom(unittest.TestCase):
                         presence,
                         first,
                         actor=actor,
-                        reason="Avaunt, you cullion!"),
+                        reason="Avaunt, you cullion!",
+                        status_codes={307},
+                    ),
                     unittest.mock.call.on_leave(
                         first,
                         muc_leave_mode=muc_service.LeaveMode.KICKED,
                         muc_actor=actor,
-                        muc_reason="Avaunt, you cullion!")
+                        muc_reason="Avaunt, you cullion!",
+                        muc_status_codes={307},
+                    )
                 ]
             )
 
@@ -1102,12 +1111,16 @@ class TestRoom(unittest.TestCase):
                         presence,
                         first,
                         actor=actor,
-                        reason="Error"),
+                        reason="Error",
+                        status_codes={307, 333},
+                    ),
                     unittest.mock.call.on_leave(
                         first,
                         muc_leave_mode=muc_service.LeaveMode.ERROR,
                         muc_actor=actor,
-                        muc_reason="Error")
+                        muc_reason="Error",
+                        muc_status_codes={307, 333},
+                    )
                 ]
             )
 
@@ -1176,17 +1189,23 @@ class TestRoom(unittest.TestCase):
                         presence,
                         first,
                         actor=None,
-                        reason=None),
+                        reason=None,
+                        status_codes=set(),
+                    ),
                     unittest.mock.call.on_muc_affiliation_changed(
                         presence,
                         first,
                         actor=None,
-                        reason=None),
+                        reason=None,
+                        status_codes=set(),
+                    ),
                     unittest.mock.call.on_leave(
                         first,
                         muc_leave_mode=muc_service.LeaveMode.NORMAL,
                         muc_actor=None,
-                        muc_reason=None)
+                        muc_reason=None,
+                        muc_status_codes=set(),
+                    )
                 ]
             )
 
@@ -1255,18 +1274,22 @@ class TestRoom(unittest.TestCase):
                         first,
                         actor=actor,
                         reason="Treason",
+                        status_codes={301},
                     ),
                     unittest.mock.call.on_muc_affiliation_changed(
                         presence,
                         first,
                         actor=actor,
-                        reason="Treason"
+                        reason="Treason",
+                        status_codes={301},
                     ),
                     unittest.mock.call.on_leave(
                         first,
                         muc_leave_mode=muc_service.LeaveMode.BANNED,
                         muc_actor=actor,
-                        muc_reason="Treason")
+                        muc_reason="Treason",
+                        muc_status_codes={301},
+                    )
                 ]
             )
             self.assertEqual(
@@ -1325,18 +1348,22 @@ class TestRoom(unittest.TestCase):
                         first,
                         actor=actor,
                         reason="foo",
+                        status_codes={321},
                     ),
                     unittest.mock.call.on_muc_affiliation_changed(
                         presence,
                         first,
                         actor=actor,
-                        reason="foo"
+                        reason="foo",
+                        status_codes={321},
                     ),
                     unittest.mock.call.on_leave(
                         first,
                         muc_leave_mode=muc_service.LeaveMode.AFFILIATION_CHANGE,
                         muc_actor=actor,
-                        muc_reason="foo")
+                        muc_reason="foo",
+                        muc_status_codes={321},
+                    )
                 ]
             )
             self.assertEqual(
@@ -1399,12 +1426,15 @@ class TestRoom(unittest.TestCase):
                         first,
                         actor=actor,
                         reason="foo",
+                        status_codes={322},
                     ),
                     unittest.mock.call.on_leave(
                         first,
                         muc_leave_mode=muc_service.LeaveMode.MODERATION_CHANGE,
                         muc_actor=actor,
-                        muc_reason="foo")
+                        muc_reason="foo",
+                        muc_status_codes={322},
+                    )
                 ]
             )
             self.assertEqual(
@@ -1458,7 +1488,9 @@ class TestRoom(unittest.TestCase):
                         first,
                         muc_leave_mode=muc_service.LeaveMode.SYSTEM_SHUTDOWN,
                         muc_actor=None,
-                        muc_reason="foo")
+                        muc_reason="foo",
+                        muc_status_codes={332},
+                    )
                 ]
             )
             self.assertEqual(
@@ -1624,7 +1656,10 @@ class TestRoom(unittest.TestCase):
             self.assertSequenceEqual(
                 self.base.mock_calls,
                 [
-                    unittest.mock.call.on_muc_enter(presence, first),
+                    unittest.mock.call.on_muc_enter(
+                        presence, first,
+                        muc_status_codes={110},
+                    ),
                     unittest.mock.call.on_enter(),
                 ]
             )
@@ -1730,11 +1765,15 @@ class TestRoom(unittest.TestCase):
                     unittest.mock.call.on_muc_role_changed(
                         presence, first,
                         actor=None,
-                        reason="foobar"),
+                        reason="foobar",
+                        status_codes=set(),
+                    ),
                     unittest.mock.call.on_muc_affiliation_changed(
                         presence, first,
                         actor=None,
-                        reason="foobar"),
+                        reason="foobar",
+                        status_codes=set(),
+                    ),
                 ]
             )
 
@@ -1974,7 +2013,11 @@ class TestRoom(unittest.TestCase):
         _, (occupant, ), _ = self.base.on_join.mock_calls[-1]
         self.base.mock_calls.clear()
 
-        self.base.on_muc_enter.assert_called_once_with(pres, self.jmuc.me)
+        self.base.on_muc_enter.assert_called_once_with(
+            pres,
+            self.jmuc.me,
+            muc_status_codes=unittest.mock.ANY,
+        )
         self.base.on_enter.assert_called_once_with()
         self.base.mock_calls.clear()
 
@@ -2019,7 +2062,11 @@ class TestRoom(unittest.TestCase):
 
         self.jmuc._inbound_muc_user_presence(pres)
 
-        self.base.on_muc_enter.assert_called_once_with(pres, self.jmuc.me)
+        self.base.on_muc_enter.assert_called_once_with(
+            pres,
+            self.jmuc.me,
+            muc_status_codes=unittest.mock.ANY,
+        )
         self.base.on_enter.assert_called_once_with()
         self.base.mock_calls.clear()
 
@@ -2078,8 +2125,11 @@ class TestRoom(unittest.TestCase):
         self.assertSequenceEqual(
             self.base.mock_calls,
             [
-                unittest.mock.call.on_muc_enter(presence,
-                                                self.jmuc.me),
+                unittest.mock.call.on_muc_enter(
+                    presence,
+                    self.jmuc.me,
+                    muc_status_codes={110},
+                ),
                 unittest.mock.call.on_enter(),
             ]
         )
@@ -2119,7 +2169,8 @@ class TestRoom(unittest.TestCase):
                 unittest.mock.call.on_exit(
                     muc_leave_mode=muc_service.LeaveMode.NORMAL,
                     muc_actor=None,
-                    muc_reason=None
+                    muc_reason=None,
+                    muc_status_codes={110}
                 )
             ]
         )
@@ -2136,6 +2187,37 @@ class TestRoom(unittest.TestCase):
             self.jmuc.me.is_self
         )
         self.assertFalse(self.jmuc.muc_active)
+
+    def test_on_muc_enter_forwards_status_codes(self):
+        presence = aioxmpp.stanza.Presence(
+            type_=aioxmpp.structs.PresenceType.AVAILABLE,
+            from_=TEST_MUC_JID.replace(resource="thirdwitch")
+        )
+        presence.xep0045_muc_user = muc_xso.UserExt(
+            status_codes={110, 1234, 375},
+            items=[
+                muc_xso.UserItem(affiliation="member",
+                                 role="none"),
+            ]
+        )
+
+        self.jmuc._inbound_muc_user_presence(presence)
+
+        self.assertSequenceEqual(
+            self.base.mock_calls,
+            [
+                unittest.mock.call.on_muc_enter(
+                    presence,
+                    self.jmuc.me,
+                    muc_status_codes={
+                        110,
+                        375,
+                        1234,
+                    }
+                ),
+                unittest.mock.call.on_enter(),
+            ]
+        )
 
     def test_detect_self_presence_from_jid_if_status_is_missing(self):
         presence = aioxmpp.stanza.Presence(
@@ -2155,8 +2237,11 @@ class TestRoom(unittest.TestCase):
         self.assertSequenceEqual(
             self.base.mock_calls,
             [
-                unittest.mock.call.on_muc_enter(presence,
-                                                self.jmuc.me),
+                unittest.mock.call.on_muc_enter(
+                    presence,
+                    self.jmuc.me,
+                    muc_status_codes={110},
+                ),
                 unittest.mock.call.on_enter(),
             ]
         )
@@ -2182,7 +2267,8 @@ class TestRoom(unittest.TestCase):
                 unittest.mock.call.on_exit(
                     muc_leave_mode=muc_service.LeaveMode.KICKED,
                     muc_actor=None,
-                    muc_reason=None
+                    muc_reason=None,
+                    muc_status_codes={307},
                 )
             ]
         )
@@ -2218,8 +2304,11 @@ class TestRoom(unittest.TestCase):
         self.assertSequenceEqual(
             self.base.mock_calls,
             [
-                unittest.mock.call.on_muc_enter(presence,
-                                                self.jmuc.me),
+                unittest.mock.call.on_muc_enter(
+                    presence,
+                    self.jmuc.me,
+                    muc_status_codes={110},
+                ),
                 unittest.mock.call.on_enter(),
             ]
         )
@@ -5412,7 +5501,8 @@ class TestService(unittest.TestCase):
             base.mock_calls,
             [
                 unittest.mock.call.enter1(unittest.mock.ANY,
-                                          unittest.mock.ANY),
+                                          unittest.mock.ANY,
+                                          muc_status_codes=unittest.mock.ANY),
                 unittest.mock.call.suspend1(),
             ]
         )
@@ -5507,9 +5597,11 @@ class TestService(unittest.TestCase):
             base.mock_calls,
             [
                 unittest.mock.call.enter1(unittest.mock.ANY,
-                                          unittest.mock.ANY),
+                                          unittest.mock.ANY,
+                                          muc_status_codes=unittest.mock.ANY),
                 unittest.mock.call.enter2(unittest.mock.ANY,
-                                          unittest.mock.ANY),
+                                          unittest.mock.ANY,
+                                          muc_status_codes=unittest.mock.ANY),
             ]
         )
 
@@ -5583,7 +5675,8 @@ class TestService(unittest.TestCase):
             base.mock_calls,
             [
                 unittest.mock.call.enter1(unittest.mock.ANY,
-                                          unittest.mock.ANY),
+                                          unittest.mock.ANY,
+                                          muc_status_codes=unittest.mock.ANY),
                 unittest.mock.call.exit1(
                     muc_leave_mode=muc_service.LeaveMode.DISCONNECTED
                 ),
