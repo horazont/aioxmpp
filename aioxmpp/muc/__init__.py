@@ -77,10 +77,12 @@ Forms
 .. autoclass:: VoiceRequestForm
     :members:
 
-.. currentmodule:: aioxmpp.muc.xso
-
 XSOs
 ====
+
+.. autoclass:: StatusCode
+
+.. currentmodule:: aioxmpp.muc.xso
 
 Generic namespace
 -----------------
@@ -131,5 +133,6 @@ from .xso import (  # NOQA
     ConfigurationForm,
     InfoForm,
     VoiceRequestForm,
+    StatusCode,
 )
 Service = MUCClient  # NOQA

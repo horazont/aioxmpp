@@ -369,6 +369,8 @@ Version 0.10
 * Support for unwrapped unknown values in :class:`aioxmpp.xso.EnumCDataType`.
   This can be used with :class:`enum.IntEnum` for fun and profit.
 
+* :class:`aioxmpp.muc.StatusCode`
+
 .. _api-changelog-0.9:
 
 Version 0.9
