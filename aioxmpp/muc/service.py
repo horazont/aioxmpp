@@ -937,7 +937,8 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
 
     def _diff_presence(self, stanza, info, existing):
         if (not info.presence_state.available and
-                303 in stanza.xep0045_muc_user.status_codes):
+                muc_xso.StatusCode.NICKNAME_CHANGE in
+                stanza.xep0045_muc_user.status_codes):
             return (
                 _OccupantDiffClass.NICK_CHANGED,
                 (
@@ -959,17 +960,18 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
             status_codes = stanza.xep0045_muc_user.status_codes
             mode = LeaveMode.NORMAL
 
-            if 333 in status_codes:
+            if muc_xso.StatusCode.REMOVED_ERROR in status_codes:
                 mode = LeaveMode.ERROR
-            elif 307 in status_codes:
+            elif muc_xso.StatusCode.REMOVED_KICKED in status_codes:
                 mode = LeaveMode.KICKED
-            elif 301 in status_codes:
+            elif muc_xso.StatusCode.REMOVED_BANNED in status_codes:
                 mode = LeaveMode.BANNED
-            elif 321 in status_codes:
+            elif muc_xso.StatusCode.REMOVED_AFFILIATION_CHANGE in status_codes:
                 mode = LeaveMode.AFFILIATION_CHANGE
-            elif 322 in status_codes:
+            elif (muc_xso.StatusCode.REMOVED_NONMEMBER_IN_MEMBERS_ONLY
+                  in status_codes):
                 mode = LeaveMode.MODERATION_CHANGE
-            elif 332 in status_codes:
+            elif muc_xso.StatusCode.REMOVED_SERVICE_SHUTDOWN in status_codes:
                 mode = LeaveMode.SYSTEM_SHUTDOWN
 
             result = (
@@ -1087,7 +1089,7 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
             )
             self._enter_active_state()
 
-        if (110 in stanza.xep0045_muc_user.status_codes or
+        if (muc_xso.StatusCode.SELF in stanza.xep0045_muc_user.status_codes or
                 (self._this_occupant is not None and
                  self._this_occupant.conversation_jid == stanza.from_)):
             self._service.logger.debug("%s: is self-presence",
