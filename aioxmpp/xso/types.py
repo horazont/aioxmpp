@@ -695,7 +695,11 @@ class EnumCDataType(AbstractCDataType):
     :param accept_unknown: If true, :class:`Unknown` instances are passed
                            through :meth:`coerce` and can thus be assigned to
                            descriptors using this type.
-    :type allow_unknown: :class:`bool`
+    :type accept_unknown: :class:`bool`
+    :param pass_unknown: If true, unknown values are accepted unmodified (both
+        on the receiving and on the sending side). It is useful for some
+        :class:`enum.IntEnum` use cases.
+    :type pass_unknown: :class:`bool`
 
     A descriptor using this type will accept elements from the given
     `enum_class` as values. Upon serialisiation, the :attr:`value` of the
@@ -740,6 +744,14 @@ class EnumCDataType(AbstractCDataType):
     that a user will *accidentally* assign an unspecified value to a descriptor
     using this type with `accept_unknown`.
 
+    `pass_unknown` requires `allow_unknown` and `accept_unknown`. When set to
+    true, values which are not a member of `enum_class` are used without
+    modification (but they are validated against the `nested_type`). This
+    applies to both the sending and the receiving side. The intended use case
+    is with :class:`enum.IntEnum` classes. If a :class:`Unknown` value is
+    passed, it is unwrapped and treated as if the original value had been
+    passed.
+
     Example::
 
       class SomeEnum(enum.Enum):
@@ -757,13 +769,23 @@ class EnumCDataType(AbstractCDataType):
                   xso.Integer()
               ),
           )
+
+    .. versionchanged:: 0.10
+
+        Support for `pass_unknown` was added.
     """
 
     def __init__(self, enum_class, nested_type=String(), *,
                  allow_coerce=False,
                  deprecate_coerce=False,
                  allow_unknown=True,
-                 accept_unknown=True):
+                 accept_unknown=True,
+                 pass_unknown=False):
+        if pass_unknown and (not allow_unknown or not accept_unknown):
+            raise ValueError(
+                "pass_unknown requires allow_unknown and accept_unknown"
+            )
+
         super().__init__()
         self.nested_type = nested_type
         self.enum_class = enum_class
@@ -771,10 +793,13 @@ class EnumCDataType(AbstractCDataType):
         self.deprecate_coerce = deprecate_coerce
         self.accept_unknown = accept_unknown
         self.allow_unknown = allow_unknown
+        self.pass_unknown = pass_unknown
 
     def coerce(self, value):
-        if self.accept_unknown and isinstance(value, Unknown):
+        if (not self.pass_unknown and self.accept_unknown and
+                isinstance(value, Unknown)):
             return value
+
         if self.allow_coerce:
             if self.deprecate_coerce:
                 if isinstance(value, self.enum_class):
@@ -787,9 +812,22 @@ class EnumCDataType(AbstractCDataType):
                     DeprecationWarning,
                     stacklevel=stacklevel,
                 )
-            return self.enum_class(value)
+
+            value = self.nested_type.coerce(value)
+            try:
+                return self.enum_class(value)
+            except ValueError:
+                if self.pass_unknown:
+                    return value
+                raise
+
         if isinstance(value, self.enum_class):
             return value
+
+        if self.pass_unknown:
+            value = self.nested_type.coerce(value)
+            return value
+
         raise TypeError("not a valid {} value: {!r}".format(
             self.enum_class,
             value,
@@ -800,11 +838,15 @@ class EnumCDataType(AbstractCDataType):
         try:
             return self.enum_class(parsed)
         except ValueError:
+            if self.pass_unknown:
+                return parsed
             if self.allow_unknown:
                 return Unknown(parsed)
             raise
 
     def format(self, v):
+        if self.pass_unknown and not isinstance(v, self.enum_class):
+            return self.nested_type.format(v)
         return self.nested_type.format(v.value)
 
 
