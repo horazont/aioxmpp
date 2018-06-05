@@ -73,12 +73,25 @@ class TestMuc(TestCase):
         logging.debug("thirdwitch is %s", self.thirdwitch.local_jid)
 
         # make firstwitch and secondwitch join
-        self.firstroom, fut = self.firstwitch.summon(
-            aioxmpp.MUCClient
-        ).join(
+        firstmuc = self.firstwitch.summon(aioxmpp.MUCClient)
+        self.firstroom, fut = firstmuc.join(
             self.mucjid,
             "firstwitch",
         )
+
+        # configure room to be open (this also alleviates any locking)
+        try:
+            form = aioxmpp.muc.xso.ConfigurationForm.from_xso(
+                (yield from firstmuc.get_room_config(self.firstroom.jid))
+            )
+            form.membersonly.value = False
+            yield from firstmuc.set_room_config(self.firstroom.jid,
+                                                form.render_reply())
+        except aioxmpp.errors.XMPPError:
+            logging.warning(
+                "failed to configure room for the tests",
+                exc_info=True,
+            )
 
         # we want firstwitch to join first so that we have a deterministic
         # owner of the muc
