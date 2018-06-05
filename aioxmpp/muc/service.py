@@ -389,7 +389,7 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
        arbitrary keyword arguments for forward compatibility. For details see
        the documentation on :class:`~.AbstractConversation`.
 
-    .. signal:: on_enter(presence, occupant, **kwargs)
+    .. signal:: on_enter(**kwargs)
 
         Emits when the initial room :class:`~.Presence` stanza for the
         local JID is received. This means that the join to the room is complete;
