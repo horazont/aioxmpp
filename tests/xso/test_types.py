@@ -30,7 +30,7 @@ import unittest
 import unittest.mock
 import warnings
 
-from enum import Enum
+from enum import Enum, IntEnum
 
 import pytz
 
@@ -1158,6 +1158,11 @@ class TestEnumCDataType(unittest.TestCase):
         Y = 2
         Z = 3
 
+    class SomeIntEnum(IntEnum):
+        X = 1
+        Y = 2
+        Z = 3
+
     def test_is_cdata_type(self):
         self.assertTrue(issubclass(
             xso.EnumCDataType,
@@ -1277,21 +1282,30 @@ class TestEnumCDataType(unittest.TestCase):
 
     def test_try_to_coerce_if_allow_coerce_is_set(self):
         enum_class = unittest.mock.Mock()
-        e = xso.EnumCDataType(
+        enum_class.return_value = unittest.mock.sentinel.wrapped
+        nested_t = xso.Integer()
+        t = xso.EnumCDataType(
             enum_class,
+            nested_t,
             allow_coerce=True,
         )
 
-        with warnings.catch_warnings() as w:
-            result = e.coerce(unittest.mock.sentinel.value)
+        with contextlib.ExitStack() as stack:
+            w = stack.enter_context(warnings.catch_warnings())
+            coerce = stack.enter_context(
+                unittest.mock.patch.object(nested_t, "coerce")
+            )
+
+            coerce.return_value = unittest.mock.sentinel.coerced
+            result = t.coerce(unittest.mock.sentinel.value)
 
         enum_class.assert_called_with(
-            unittest.mock.sentinel.value,
+            unittest.mock.sentinel.coerced,
         )
 
         self.assertEqual(
             result,
-            enum_class(),
+            unittest.mock.sentinel.wrapped,
         )
 
         self.assertFalse(w)
@@ -1301,10 +1315,10 @@ class TestEnumCDataType(unittest.TestCase):
 
         enum_class = unittest.mock.Mock()
         enum_class.side_effect = exc
-        e = xso.EnumCDataType(enum_class, allow_coerce=True)
+        e = xso.EnumCDataType(enum_class, xso.Integer(), allow_coerce=True)
 
         with self.assertRaises(ValueError) as ctx:
-            e.coerce(unittest.mock.sentinel.value)
+            e.coerce(1234)
 
         self.assertIs(ctx.exception, exc)
 
@@ -1312,6 +1326,7 @@ class TestEnumCDataType(unittest.TestCase):
         enum_class = self.SomeEnum
         e = xso.EnumCDataType(
             enum_class,
+            xso.Integer(),
             allow_coerce=True,
             deprecate_coerce=True,
         )
@@ -1340,6 +1355,7 @@ class TestEnumCDataType(unittest.TestCase):
         enum_class = self.SomeEnum
         e = xso.EnumCDataType(
             enum_class,
+            xso.Integer(),
             allow_coerce=True,
             deprecate_coerce=unittest.mock.sentinel.stacklevel,
         )
@@ -1368,6 +1384,7 @@ class TestEnumCDataType(unittest.TestCase):
         enum_class = self.SomeEnum
         e = xso.EnumCDataType(
             enum_class,
+            xso.Integer(),
             allow_coerce=True,
             deprecate_coerce=True,
         )
@@ -1449,6 +1466,123 @@ class TestEnumCDataType(unittest.TestCase):
             e.format(xso.Unknown(10)),
             "10",
         )
+
+    def test_reject_pass_unknown_without_allow_unknown(self):
+        enum_class = self.SomeEnum
+
+        with self.assertRaisesRegex(
+                ValueError,
+                r"pass_unknown requires allow_unknown and accept_unknown"):
+            xso.EnumCDataType(
+                enum_class,
+                xso.Integer(),
+                allow_unknown=False,
+                pass_unknown=True,
+            )
+
+    def test_reject_pass_unknown_without_accept_unknown(self):
+        enum_class = self.SomeEnum
+
+        with self.assertRaisesRegex(
+                ValueError,
+                r"pass_unknown requires allow_unknown and accept_unknown"):
+            xso.EnumCDataType(
+                enum_class,
+                xso.Integer(),
+                allow_unknown=False,
+                pass_unknown=True,
+            )
+
+    def test_coerce_passes_non_members_with_pass_unknown(self):
+        t = xso.EnumCDataType(
+            self.SomeIntEnum,
+            xso.Integer(),
+            pass_unknown=True,
+        )
+
+        v = t.coerce(10)
+        self.assertFalse(isinstance(v, IntEnum))
+
+    def test_coerce_passes_value_to_nested_type_coerce_with_pass_unknown(self):
+        nested_t = xso.Integer()
+        t = xso.EnumCDataType(
+            self.SomeIntEnum,
+            nested_t,
+            pass_unknown=True,
+        )
+
+        with unittest.mock.patch.object(nested_t, "coerce") as coerce:
+            coerce.return_value = unittest.mock.sentinel.coerced
+
+            v = t.coerce(unittest.mock.sentinel.value)
+
+        self.assertEqual(v, unittest.mock.sentinel.coerced)
+
+    def test_coerce_converts_to_enum_members_if_allow_coerce_is_set(self):
+        nested_t = xso.Integer()
+        t = xso.EnumCDataType(
+            self.SomeIntEnum,
+            nested_t,
+            allow_coerce=True,
+            pass_unknown=True,
+        )
+
+        with unittest.mock.patch.object(nested_t, "coerce") as coerce:
+            coerce.return_value = 2
+
+            v = t.coerce(unittest.mock.sentinel.value)
+
+        self.assertEqual(v, 2)
+        self.assertIsInstance(v, self.SomeIntEnum)
+
+    def test_coerce_does_not_convert_to_enum_members_if_allow_coerce_unset(self):  # NOQA
+        nested_t = xso.Integer()
+        t = xso.EnumCDataType(
+            self.SomeIntEnum,
+            nested_t,
+            allow_coerce=False,
+            pass_unknown=True,
+        )
+
+        with unittest.mock.patch.object(nested_t, "coerce") as coerce:
+            coerce.return_value = 2
+
+            v = t.coerce(unittest.mock.sentinel.value)
+
+        self.assertEqual(v, 2)
+        self.assertFalse(isinstance(v, self.SomeIntEnum))
+
+    def test_coerce_passes_non_members_with_pass_unknown_and_allow_coerce(self):
+        t = xso.EnumCDataType(
+            self.SomeIntEnum,
+            xso.Integer(),
+            allow_coerce=True,
+            pass_unknown=True,
+        )
+
+        v = t.coerce(10)
+        self.assertFalse(isinstance(v, IntEnum))
+
+    def test_parse_passes_unwrapped_value_if_pass_unknown(self):
+        t = xso.EnumCDataType(
+            self.SomeIntEnum,
+            xso.Integer(),
+            pass_unknown=True,
+        )
+
+        v = t.parse("10")
+        self.assertEqual(v, 10)
+        self.assertFalse(isinstance(v, xso.Unknown))
+
+    def test_format_works_with_unwrapped_unknowns_if_pass_unknown(self):
+        t = xso.EnumCDataType(
+            self.SomeIntEnum,
+            xso.Integer(),
+            pass_unknown=True,
+        )
+
+        v = t.format(10)
+        self.assertEqual(v, "10")
 
 
 class TestEnumElementType(unittest.TestCase):

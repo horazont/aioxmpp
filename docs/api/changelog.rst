@@ -366,6 +366,9 @@ Version 0.10
   `XEP-0045 §8.6 Approving Voice Requests <https://xmpp.org/extensions/xep-0045.html#voiceapprove>`_). See
   :meth:`aioxmpp.muc.Room.on_muc_role_request` for details.
 
+* Support for unwrapped unknown values in :class:`aioxmpp.xso.EnumCDataType`.
+  This can be used with :class:`enum.IntEnum` for fun and profit.
+
 .. _api-changelog-0.9:
 
 Version 0.9
