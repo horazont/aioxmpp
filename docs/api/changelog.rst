@@ -343,6 +343,8 @@ Version 0.10
 
 * Add :meth:`aioxmpp.DiscoClient.flush_cache`.
 
+* Add :meth:`aioxmpp.disco.Node.set_identity_names`
+
 .. _api-changelog-0.9:
 
 Version 0.9

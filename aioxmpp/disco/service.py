@@ -54,6 +54,8 @@ class Node(object):
 
     .. automethod:: register_identity
 
+    .. automethod:: set_identity_names
+
     .. automethod:: unregister_identity
 
     To access the declared features and identities, use:
@@ -214,6 +216,26 @@ class Node(object):
         key = category, type_
         if key in self._identities:
             raise ValueError("identity already claimed: {!r}".format(key))
+        self._identities[key] = names
+        self.on_info_changed()
+
+    def set_identity_names(self, category, type_, names={}):
+        """
+        Update the names of an identity.
+
+        :param category: The category of the identity to update.
+        :type category: :class:`str`
+        :param type_: The type of the identity to update.
+        :type type_: :class:`str`
+        :param names: The new internationalised names to set for the identity.
+        :type names: :class:`~.abc.Mapping` from
+            :class:`.structs.LanguageTag` to :class:`str`
+        :raises ValueError: if no identity with the given category and type
+            is currently registered.
+        """
+        key = category, type_
+        if key not in self._identities:
+            raise ValueError("identity not registered: {!r}".format(key))
         self._identities[key] = names
         self.on_info_changed()
 
@@ -383,7 +405,7 @@ class DiscoServer(service.Service, Node):
 
        Upon construction, the :class:`DiscoServer` adds a default identity with
        category ``"client"`` and type ``"bot"`` to the root
-       :class:`.disco.Node`. This is to comply with :xep:`30`, which specifies
+       :class:`~.disco.Node`. This is to comply with :xep:`30`, which specifies
        that at least one identity must always be returned. Otherwise, the
        service would be forced to send a malformed response or reply with
        ``<feature-not-implemented/>``.
@@ -473,7 +495,7 @@ class DiscoServer(service.Service, Node):
         .. seealso::
 
            :meth:`mount_node`
-              for a way for mounting :class:`Node` instances.
+              for a way for mounting :class:`~.disco.Node` instances.
 
         """
         del self._node_mounts[mountpoint]
