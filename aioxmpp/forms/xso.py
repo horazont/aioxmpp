@@ -389,7 +389,7 @@ class Field(xso.XSO):
         type_=xso.EnumCDataType(
             FieldType,
         ),
-        default=FieldType.TEXT_SINGLE,
+        default=None,
     )
 
     label = xso.Attr(
@@ -420,11 +420,12 @@ class Field(xso.XSO):
         if self.type_ != FieldType.FIXED and not self.var:
             raise ValueError("missing attribute var")
 
-        if not self.type_.has_options and self.options:
-            raise ValueError("unexpected option on non-list field")
+        if self.type_ is not None:
+            if not self.type_.has_options and self.options:
+                raise ValueError("unexpected option on non-list field")
 
-        if not self.type_.is_multivalued and len(self.values) > 1:
-            raise ValueError("too many values on non-multi field")
+            if not self.type_.is_multivalued and len(self.values) > 1:
+                raise ValueError("too many values on non-multi field")
 
         values_list = [opt for opt in self.options.values()]
         values_set = set(values_list)
@@ -609,11 +610,11 @@ class Data(AbstractItem):
     def validate(self):
         super().validate()
 
-        if     (self.type_ != DataType.RESULT and
+        if (self.type_ != DataType.RESULT and
                 (self.reported is not None or self.items)):
             raise ValueError("report in non-result")
 
-        if     (self.type_ == DataType.RESULT and
+        if (self.type_ == DataType.RESULT and
                 (self.reported is not None or self.items)):
             self._validate_result()
 

@@ -292,7 +292,7 @@ Version 0.10
   emitted from :class:`aioxmpp.im.p2p.Conversation` objects.
 
 * Ensure that all
-  :attr:`aioxmpp.MessageType.CHAT`/:attr:`~aioxmpp.MessageType.CHAT` messages
+  :attr:`aioxmpp.MessageType.CHAT`/:attr:`~aioxmpp.MessageType.NORMAL` messages
   are forwarded to the respective :class:`aioxmpp.im.p2p.Conversation` if it
   exists.
 
@@ -305,7 +305,7 @@ Version 0.10
   re-:meth:`aioxmpp.carbons.CarbonsClient.enable`\ -d after failed stream
   resumption. Thanks, Ge0rG.
 
-* Fix :rfc:`6121` violation: the default of the ``@subscription`` attriubte of
+* Fix :rfc:`6121` violation: the default of the ``@subscription`` attribute of
   roster items is ``"none"``. :mod:`aioxmpp` treated an absent attribute as
   fatal.
 
@@ -332,7 +332,7 @@ Version 0.10
   doesn’t require the session negotiation step. :mod:`aioxmpp` now understands
   this and will skip that step, saving a round-trip with most modern servers.
 
-* :mod:`tracking` now allows some state transitions out of the
+* :mod:`aioxmpp.tracking` now allows some state transitions out of the
   :attr:`aioxmpp.tracking.MessageState.ERROR` state. See the documentation there
   for details.
 
@@ -344,6 +344,23 @@ Version 0.10
 * Add :meth:`aioxmpp.DiscoClient.flush_cache`.
 
 * Add :meth:`aioxmpp.disco.Node.set_identity_names`
+
+* Remove restriction on data form types (not to be confused with
+  ``FORM_TYPE``) when instantiating a form with
+  :meth:`aioxmpp.forms.Form.from_xso`.
+
+* Fix an issue which prevented single-valued form fields from being rendered
+  into XSOs if no value had been set (but a default was given).
+
+* Ensure that forms with :attr:`aioxmpp.forms.Form.FORM_TYPE` attribute render
+  a proper :xep:`68` ``FORM_TYPE`` field.
+
+* Allow unset field type in data forms. This may seem weird, but unfortunately
+  it is widespread practice. In some data form types, omitting the field type
+  is common (including it is merely a MAY in the XEP), and even in the most
+  strict case it is only a SHOULD.
+
+  Relying on the field type to be present is thus a non-starter.
 
 .. _api-changelog-0.9:
 

@@ -241,8 +241,6 @@ class FormClass(DescriptorClass):
         :type xso: :class:`~.Data`
         :raises ValueError: if the ``FORM_TYPE`` mismatches
         :raises ValueError: if field types mismatch
-        :raises ValueError: if the :attr:`~.Data.type_` does not indicate a
-                            form
         :return: newly created instance of this class
 
         The fields from the given `xso` are matched against the fields on the
@@ -268,18 +266,12 @@ class FormClass(DescriptorClass):
 
         my_form_type = getattr(self, "FORM_TYPE", None)
 
-        if     (xso.type_ != forms_xso.DataType.FORM and
-                xso.type_ != forms_xso.DataType.SUBMIT):
-            raise ValueError("unexpected form type: {!r}".format(
-                xso.type_
-            ))
-
         f = self()
         for field in xso.fields:
             if field.var == "FORM_TYPE":
-                if    (my_form_type is not None and
-                       field.type_ == forms_xso.FieldType.HIDDEN and
-                       field.values):
+                if (my_form_type is not None and
+                        field.type_ == forms_xso.FieldType.HIDDEN and
+                        field.values):
                     if my_form_type != field.values[0]:
                         raise ValueError(
                             "mismatching FORM_TYPE ({!r} != {!r})".format(
@@ -297,7 +289,8 @@ class FormClass(DescriptorClass):
             except KeyError:
                 continue
 
-            if not field.type_.allow_upcast(descriptor.FIELD_TYPE):
+            if (field.type_ is not None and not
+                    field.type_.allow_upcast(descriptor.FIELD_TYPE)):
                 raise ValueError(
                     "mismatching type ({!r} != {!r}) on field var={!r}".format(
                         field.type_,
@@ -444,6 +437,14 @@ class Form(metaclass=FormClass):
             layout = self.LAYOUT
         except AttributeError:
             layout = list(self.DESCRIPTORS)
+
+        my_form_type = getattr(self, "FORM_TYPE", None)
+        if my_form_type is not None:
+            field_xso = forms_xso.Field()
+            field_xso.var = "FORM_TYPE"
+            field_xso.type_ = forms_xso.FieldType.HIDDEN
+            field_xso.values[:] = [my_form_type]
+            data.fields.append(field_xso)
 
         for item in layout:
             if isinstance(item, str):

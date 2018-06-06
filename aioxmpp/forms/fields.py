@@ -253,7 +253,7 @@ class BoundField(metaclass=abc.ABCMeta):
 
         This method is must be overriden and is thus marked abstract. However,
         when called from a subclass, it creates the :class:`~.Field` instance
-        and initialies its :attr:`~.Field.var`, :attr:`~.Field.type_`,
+        and initialises its :attr:`~.Field.var`, :attr:`~.Field.type_`,
         :attr:`~.Field.desc`, :attr:`~.Field.required` and
         :attr:`~.Field.label` attributes and returns the result. Subclasses are
         supposed to override this method, call the base implementation through
@@ -351,8 +351,17 @@ class BoundSingleValueField(BoundField):
 
     def render(self, **kwargs):
         result = super().render(**kwargs)
+
+        try:
+            value = self._value
+        except AttributeError:
+            value = self._field.default()
+
+        if value is None:
+            return result
+
         result.values[:] = [
-            self.field.type_.format(self._value)
+            self.field.type_.format(value)
         ]
 
         return result
