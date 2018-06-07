@@ -253,7 +253,7 @@ class XMLStream(asyncio.Protocol):
 
     Signals:
 
-    .. signal:: on_closing
+    .. signal:: on_closing(reason)
 
        A :class:`~aioxmpp.callbacks.Signal` which fires when the underlying
        transport of the stream reports an error or when a stream error is
@@ -398,7 +398,7 @@ class XMLStream(asyncio.Protocol):
         self.close()
 
     def _require_connection(self, accept_partial=False):
-        if     (self._smachine.state == State.OPEN or
+        if (self._smachine.state == State.OPEN or
                 (accept_partial and
                  self._smachine.state == State.STREAM_HEADER_SENT)):
             return
@@ -459,7 +459,7 @@ class XMLStream(asyncio.Protocol):
         try:
             self._parser.feed(blob)
         except sax.SAXParseException as exc:
-            if     (exc.getException().args[0].startswith(
+            if (exc.getException().args[0].startswith(
                     pyexpat.errors.XML_ERROR_UNDEFINED_ENTITY)):
                 # this will raise an appropriate stream error
                 xml.XMPPLexicalHandler.startEntity("foo")
