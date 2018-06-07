@@ -783,11 +783,36 @@ class AbstractConversation(metaclass=abc.ABCMeta):
         raise self._not_implemented_error("banning members")
 
     @asyncio.coroutine
-    def invite(self, jid, *,
-               preferred_mode=InviteMode.DIRECT,
+    def invite(self, address, text=None, *,
+               mode=InviteMode.DIRECT,
                allow_upgrade=False):
         """
         Invite another entity to the conversation.
+
+        :param address: The address of the entity to invite.
+        :type address: :class:`aioxmpp.JID`
+        :param text: A reason/accompanying text for the invitation.
+        :param mode: The invitation mode to use.
+        :type mode: :class:`~.im.InviteMode`
+        :param allow_upgrade: Whether to allow creating a new conversation to
+            satisfy the invitation.
+        :type allow_upgrade: :class:`bool`
+        :raises NotImplementedError: if the requested `mode` is not supported
+        :raises ValueError: if `allow_upgrade` is false, but a new conversation
+            is required.
+        :return: The stanza token for the invitation and the possibly new
+            conversation object
+        :rtype: tuple of :class:`~.StanzaToken` and
+            :class:`~.AbstractConversation`
+
+        .. note::
+
+            Even though this is a coroutine, it returns a stanza token. The
+            coroutine-ness may be needed to generate the invitation in the
+            first place. Sending the actual invitation is done non-blockingly
+            and the stanza token for that is returned. To wait until the
+            invitation has been sent, unpack the stanza token from the result
+            and await it.
 
         Return the new conversation object to use. In many cases, this will
         simply be the current conversation object, but in some cases (e.g. when
@@ -800,8 +825,7 @@ class AbstractConversation(metaclass=abc.ABCMeta):
         Additional features:
 
         :attr:`~.ConversationFeature.INVITE_DIRECT`
-           If `preferred_mode` is :attr:`~.im.InviteMode.DIRECT`, a direct
-           invitation will be used.
+           Support for :attr:`~.im.InviteMode.DIRECT` mode.
 
         :attr:`~.ConversationFeature.INVITE_DIRECT_CONFIGURE`
            If a direct invitation is used, the conversation will be configured
@@ -810,8 +834,7 @@ class AbstractConversation(metaclass=abc.ABCMeta):
            error is re-raised and the invitation not sent.
 
         :attr:`~.ConversationFeature.INVITE_MEDIATED`
-           If `preferred_mode` is :attr:`~.im.InviteMode.MEDIATED`, a mediated
-           invitation will be used.
+           Support for :attr:`~.im.InviteMode.MEDIATED` mode.
 
         :attr:`~.ConversationFeature.INVITE_UPGRADE`
            If `allow_upgrade` is :data:`True`, an upgrade will be performed and
