@@ -3668,6 +3668,56 @@ class TestStanzaStream(StanzaStreamTestBase):
             request.type_
         )
 
+    def test_round_trip_time_settable_while_not_started(self):
+        value = timedelta(0.2)
+        self.assertNotEqual(self.stream.round_trip_time, value)
+        self.stream.round_trip_time = value
+
+        self.assertEqual(self.stream.round_trip_time, value)
+
+    def test_soft_timeout_settable_while_not_started(self):
+        value = timedelta(0.2)
+        self.assertNotEqual(self.stream.soft_timeout, value)
+        self.stream.soft_timeout = value
+
+        self.assertEqual(self.stream.soft_timeout, value)
+
+    def test_round_trip_time_and_soft_timeout_configure_xmlstream(self):
+        self.stream.round_trip_time = timedelta(0.2)
+        self.stream.soft_timeout = timedelta(0.5)
+
+        self.stream.start(self.xmlstream)
+
+        run_coroutine(asyncio.sleep(0))
+
+        self.assertEqual(
+            self.xmlstream.deadtime_soft_limit,
+            timedelta(0.5),
+        )
+
+        self.assertEqual(
+            self.xmlstream.deadtime_hard_limit,
+            timedelta(0.7),
+        )
+
+    def test_round_trip_time_and_soft_timeout_configure_xmlstream_after_start(self):  # NOQA
+        self.stream.start(self.xmlstream)
+
+        run_coroutine(asyncio.sleep(0))
+
+        self.stream.round_trip_time = timedelta(0.2)
+        self.stream.soft_timeout = timedelta(0.5)
+
+        self.assertEqual(
+            self.xmlstream.deadtime_soft_limit,
+            timedelta(0.5),
+        )
+
+        self.assertEqual(
+            self.xmlstream.deadtime_hard_limit,
+            timedelta(0.7),
+        )
+
 
 class TestStanzaStreamSM(StanzaStreamTestBase):
     def setUp(self):

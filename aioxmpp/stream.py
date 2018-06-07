@@ -44,12 +44,13 @@ The :class:`StanzaStream` relies on the :class:`XMLStream` dead time aliveness
 monitoring (see also :attr:`~.XMLStream.deadtime_soft_limit`) to detect a
 broken stream.
 
-It connects to the :meth:`~.XMLStream.on_deadtime_soft_limit_tripped` and emits
-a stanza which forces the server to reply. This prevents the hard limit to be
-reached -- as long as the stream is still alive.
-
-The :class:`XMLStream` aborts itself when the hard limit is reached. In that
-case, normal connection interruption procedures will take place.
+The limits can be configured with the two attributes
+:attr:`~.StanzaStream.soft_timeout` and :attr:`~.StanzaStream.round_trip_time`.
+When :attr:`~.StanzaStream.soft_timeout` elapses after the last bit of data
+received from the server, the :class:`StanzaStream` issues a ping. The server
+then has one :attr:`~.StanzaStream.round_trip_time` worth of time to answer.
+If this does not happen, the :class:`XMLStream` will be terminated by the
+aliveness monitor and normal handling of a broken connection takes over.
 
 .. _aioxmpp.stream.General Information.Filters:
 
@@ -509,6 +510,13 @@ class StanzaStream:
 
     .. automethod:: flush_incoming
 
+    Timeout configuration (see
+    :ref:`aioxmpp.stream.General Information.Timeouts`):
+
+    .. autoattribute:: round_trip_time
+
+    .. autoattribute:: soft_timeout
+
     Sending stanzas:
 
     .. deprecated:: 0.10
@@ -764,6 +772,10 @@ class StanzaStream:
         self._logger = base_logger.getChild("StanzaStream")
         self._task = None
 
+        self._xmlstream = None
+        self._soft_timeout = timedelta(minutes=1)
+        self._round_trip_time = timedelta(minutes=1)
+
         self._xxx_message_dispatcher = None
         self._xxx_presence_dispatcher = None
 
@@ -816,6 +828,45 @@ class StanzaStream:
     @local_jid.setter
     def local_jid(self, value):
         self._local_jid = value
+
+    @property
+    def round_trip_time(self):
+        """
+        The maximum expected round-trip time as :class:`datetime.timedelta`.
+
+        This is used to configure the maximum time between asking the server to
+        send something and receiving something from the server in stream
+        aliveness checks.
+
+        This does **not** affect IQ requests or other stanzas.
+
+        If set to :data:`None`, no application-level timeouts are used at all.
+        This is not recommended since TCP timeouts are generally not sufficient
+        for interactive applications.
+        """
+        return self._round_trip_time
+
+    @round_trip_time.setter
+    def round_trip_time(self, value):
+        self._round_trip_time = value
+        self._update_xmlstream_limits()
+
+    @property
+    def soft_timeout(self):
+        """
+        Soft timeout after which the server will be asked to send something
+        if nothing has been received.
+
+        If set to :data:`None`, no application-level timeouts are used at all.
+        This is not recommended since TCP timeouts are generally not sufficient
+        for interactive applications.
+        """
+        return self._soft_timeout
+
+    @soft_timeout.setter
+    def soft_timeout(self, value):
+        self._soft_timeout = value
+        self._update_xmlstream_limits()
 
     def _coerce_enum(self, value, enum_class):
         if not isinstance(value, enum_class):
@@ -1748,6 +1799,18 @@ class StanzaStream:
             self._xmlstream_soft_limit_token
         )
 
+    def _update_xmlstream_limits(self):
+        if self._xmlstream is None:
+            return
+
+        self._xmlstream.deadtime_soft_limit = self._soft_timeout
+        if (self._soft_timeout is not None and
+                self._round_trip_time is not None):
+            self._xmlstream.deadtime_hard_limit = \
+                self._soft_timeout + self._round_trip_time
+        else:
+            self._xmlstream.deadtime_hard_limit = None
+
     def _start_commit(self, xmlstream):
         if not self._established:
             self.on_stream_established()
@@ -1861,6 +1924,7 @@ class StanzaStream:
     @asyncio.coroutine
     def _run(self, xmlstream):
         self._xmlstream = xmlstream
+        self._update_xmlstream_limits()
         active_fut = asyncio.ensure_future(self._active_queue.get(),
                                            loop=self._loop)
         incoming_fut = asyncio.ensure_future(self._incoming_queue.get(),

@@ -94,9 +94,9 @@ class TestProtocol(unittest.TestCase):
             to=TEST_PEER,
             sorted_attributes=True,
             features_future=fut)
-        p.deadtime_soft_limit = timedelta(seconds=0.25)
         t = TransportMock(self, p)
         s = aioxmpp.stream.StanzaStream(TEST_FROM.bare())
+        s.soft_timeout = timedelta(seconds=0.25)
 
         run_coroutine(t.run_test(
             [
@@ -212,9 +212,9 @@ class TestProtocol(unittest.TestCase):
             to=TEST_PEER,
             sorted_attributes=True,
             features_future=fut)
-        p.deadtime_soft_limit = timedelta(seconds=0.25)
         t = TransportMock(self, p)
         s = aioxmpp.stream.StanzaStream(TEST_FROM.bare())
+        s.soft_timeout = timedelta(seconds=0.25)
 
         run_coroutine(t.run_test(
             [
@@ -297,9 +297,9 @@ class TestProtocol(unittest.TestCase):
             to=TEST_PEER,
             sorted_attributes=True,
             features_future=fut)
-        p.deadtime_soft_limit = timedelta(seconds=0.25)
         t = TransportMock(self, p)
         s = aioxmpp.stream.StanzaStream(TEST_FROM.bare())
+        s.soft_timeout = timedelta(seconds=0.25)
 
         run_coroutine(t.run_test(
             [
@@ -530,9 +530,10 @@ class TestProtocol(unittest.TestCase):
             to=TEST_PEER,
             sorted_attributes=True,
             features_future=fut)
-        p.deadtime_hard_limit = timedelta(seconds=0.25)
         t = TransportMock(self, p)
         s = aioxmpp.stream.StanzaStream(TEST_FROM.bare())
+        s.soft_timeout = timedelta(seconds=0.1)
+        s.round_trip_time = timedelta(seconds=0.1)
 
         failure_fut = s.on_failure.future()
 
@@ -555,10 +556,32 @@ class TestProtocol(unittest.TestCase):
 
         s.start(p)
 
+        IQ_bak = aioxmpp.IQ
+
+        def fake_iq_constructor(*args, **kwargs):
+            iq = IQ_bak(*args, **kwargs)
+            iq.id_ = "ping"
+            return iq
+
+        with unittest.mock.patch("aioxmpp.stanza.IQ") as IQ:
+            IQ.side_effect = fake_iq_constructor
+
+            run_coroutine(
+                t.run_test(
+                    [
+                        TransportMock.Write(
+                            b'<iq id="ping" type="get">'
+                            b'<ping xmlns="urn:xmpp:ping"/></iq>'
+                        ),
+                    ],
+                    partial=True
+                )
+            )
+
         run_coroutine(
             t.run_test(
                 [
-                    TransportMock.Abort()
+                    TransportMock.Abort(),
                 ],
             )
         )

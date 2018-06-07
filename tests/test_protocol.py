@@ -2275,7 +2275,7 @@ class TestXMLStream(unittest.TestCase):
         self.assertTrue(fut.done())
 
         self.assertIsInstance(fut.exception(), ConnectionError)
-        self.assertIn(str(fut.exception()), "timeout")
+        self.assertIn("timeout", str(fut.exception()))
 
     def test__deadtime_hard_limit_triggered_does_nothing_bad_if_invoked_after_closing(self):  # NOQA
         t, p = self._make_stream(to=TEST_PEER)
@@ -2379,7 +2379,7 @@ class TestXMLStream(unittest.TestCase):
         self.assertTrue(fut.done())
 
         self.assertIsInstance(fut.exception(), ConnectionError)
-        self.assertIn(str(fut.exception()), "timeout")
+        self.assertIn("timeout", str(fut.exception()))
 
     def test_data_received_notifies_monitor(self):
         t, p = self._make_stream(to=TEST_PEER)
