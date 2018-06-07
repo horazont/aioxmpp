@@ -141,6 +141,11 @@ Owner namespace
 
 .. autoclass:: DestroyRequest
 
+:xep:`249` Direct Invitations
+-----------------------------
+
+.. autoclass:: DirectInvite
+
 """
 from .service import MUCClient, Occupant, Room, LeaveMode, RoomState  # NOQA
 from . import xso  # NOQA

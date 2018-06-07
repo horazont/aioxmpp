@@ -63,6 +63,12 @@ class TestNamespaces(unittest.TestCase):
             "http://jabber.org/protocol/muc#owner"
         )
 
+    def test_direct_invite_namespace(self):
+        self.assertEqual(
+            utils.namespaces.xep0249_conference,
+            "jabber:x:conference"
+        )
+
 
 class TestHistory(unittest.TestCase):
     def test_is_xso(self):
@@ -1155,3 +1161,131 @@ class TestOwnerQuery(unittest.TestCase):
             oq.destroy,
             unittest.mock.sentinel.destroy,
         )
+
+
+class TestDirectInvite(unittest.TestCase):
+    def test_is_xso(self):
+        self.assertTrue(issubclass(
+            muc_xso.DirectInvite,
+            xso.XSO,
+        ))
+
+    def test_tag(self):
+        self.assertEqual(
+            muc_xso.DirectInvite.TAG,
+            (utils.namespaces.xep0249_conference, "x")
+        )
+
+    def test_jid(self):
+        self.assertIsInstance(
+            muc_xso.DirectInvite.jid,
+            xso.Attr,
+        )
+        self.assertEqual(
+            muc_xso.DirectInvite.jid.tag,
+            (None, "jid")
+        )
+        self.assertIsInstance(
+            muc_xso.DirectInvite.jid.type_,
+            xso.JID,
+        )
+        self.assertIs(
+            muc_xso.DirectInvite.jid.default,
+            xso.NO_DEFAULT,
+        )
+
+    def test_password(self):
+        self.assertIsInstance(
+            muc_xso.DirectInvite.password,
+            xso.Attr,
+        )
+        self.assertEqual(
+            muc_xso.DirectInvite.password.tag,
+            (None, "password")
+        )
+        self.assertIs(
+            muc_xso.DirectInvite.password.default,
+            None
+        )
+
+    def test_reason(self):
+        self.assertIsInstance(
+            muc_xso.DirectInvite.reason,
+            xso.Attr,
+        )
+        self.assertEqual(
+            muc_xso.DirectInvite.reason.tag,
+            (None, "reason")
+        )
+        self.assertIs(
+            muc_xso.DirectInvite.reason.default,
+            None
+        )
+
+    def test_continue(self):
+        self.assertIsInstance(
+            muc_xso.DirectInvite.continue_,
+            xso.Attr,
+        )
+        self.assertEqual(
+            muc_xso.DirectInvite.continue_.tag,
+            (None, "continue")
+        )
+        self.assertIsInstance(
+            muc_xso.DirectInvite.continue_.type_,
+            xso.Bool,
+        )
+        self.assertIs(
+            muc_xso.DirectInvite.continue_.default,
+            False,
+        )
+
+    def test_thread(self):
+        self.assertIsInstance(
+            muc_xso.DirectInvite.thread,
+            xso.Attr,
+        )
+        self.assertEqual(
+            muc_xso.DirectInvite.thread.tag,
+            (None, "thread")
+        )
+        self.assertIs(
+            muc_xso.DirectInvite.thread.default,
+            None
+        )
+
+    def test_message_attribute(self):
+        self.assertIsInstance(
+            aioxmpp.Message.xep0249_direct_invite,
+            xso.Child,
+        )
+        self.assertCountEqual(
+            aioxmpp.Message.xep0249_direct_invite._classes,
+            [muc_xso.DirectInvite],
+        )
+
+    def test_init_requires_jid(self):
+        with self.assertRaisesRegex(TypeError, "required"):
+            muc_xso.DirectInvite()
+
+    def test_init_default(self):
+        di = muc_xso.DirectInvite(TEST_JID)
+        self.assertEqual(di.jid, TEST_JID)
+        self.assertIsNone(di.reason)
+        self.assertIsNone(di.password)
+        self.assertFalse(di.continue_)
+        self.assertIsNone(di.thread)
+
+    def test_init_full(self):
+        di = muc_xso.DirectInvite(
+            TEST_JID,
+            reason="some reason",
+            password="the password",
+            continue_=True,
+            thread="xyz",
+        )
+        self.assertEqual(di.jid, TEST_JID)
+        self.assertEqual(di.reason, "some reason")
+        self.assertEqual(di.password, "the password")
+        self.assertTrue(di.continue_)
+        self.assertEqual(di.thread, "xyz")

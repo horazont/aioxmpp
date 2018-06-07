@@ -31,6 +31,7 @@ namespaces.xep0045_muc = "http://jabber.org/protocol/muc"
 namespaces.xep0045_muc_user = "http://jabber.org/protocol/muc#user"
 namespaces.xep0045_muc_admin = "http://jabber.org/protocol/muc#admin"
 namespaces.xep0045_muc_owner = "http://jabber.org/protocol/muc#owner"
+namespaces.xep0249_conference = "jabber:x:conference"
 
 
 class History(xso.XSO):
@@ -377,6 +378,58 @@ class OwnerQuery(xso.XSO):
         super().__init__()
         self.form = form
         self.destroy = destroy
+
+
+class DirectInvite(xso.XSO):
+    TAG = namespaces.xep0249_conference, "x"
+
+    # JEP-0045 v1.19 §6.7 allowed a mediated(!) invitation to contain a
+    # (what is now) DirectInvite payload where the reason is included as
+    # text (and not as attribute).
+    #
+    # Some servers still emit this for compatibility. We ignore that.
+    _ = xso.Text(default=None)
+
+    jid = xso.Attr(
+        "jid",
+        type_=xso.JID(),
+    )
+
+    reason = xso.Attr(
+        "reason",
+        default=None,
+    )
+
+    password = xso.Attr(
+        "password",
+        default=None,
+    )
+
+    continue_ = xso.Attr(
+        "continue",
+        type_=xso.Bool(),
+        default=False,
+    )
+
+    thread = xso.Attr(
+        "thread",
+        default=None,
+    )
+
+    def __init__(self, jid, *,
+                 reason=None,
+                 password=None,
+                 continue_=False,
+                 thread=None):
+        super().__init__()
+        self.jid = jid
+        self.reason = reason
+        self.password = password
+        self.continue_ = continue_
+        self.thread = thread
+
+
+aioxmpp.Message.xep0249_direct_invite = xso.Child([DirectInvite])
 
 
 class ConfigurationForm(aioxmpp.forms.Form):
