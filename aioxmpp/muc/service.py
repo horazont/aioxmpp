@@ -27,6 +27,7 @@ from datetime import datetime, timedelta
 from enum import Enum
 
 import aioxmpp.callbacks
+import aioxmpp.disco
 import aioxmpp.forms
 import aioxmpp.service
 import aioxmpp.stanza
@@ -36,6 +37,8 @@ import aioxmpp.im.conversation
 import aioxmpp.im.dispatcher
 import aioxmpp.im.p2p
 import aioxmpp.im.service
+
+from aioxmpp.utils import namespaces
 
 from . import xso as muc_xso
 
@@ -827,6 +830,8 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
             aioxmpp.im.conversation.ConversationFeature.SEND_MESSAGE_TRACKED,
             aioxmpp.im.conversation.ConversationFeature.SET_TOPIC,
             aioxmpp.im.conversation.ConversationFeature.SET_NICK,
+            aioxmpp.im.conversation.ConversationFeature.INVITE,
+            aioxmpp.im.conversation.ConversationFeature.INVITE_DIRECT,
         }
 
     def _enter_active_state(self):
@@ -1582,6 +1587,35 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
 
         yield from self.service.client.send(msg)
 
+    @asyncio.coroutine
+    def invite(self, address, text=None, *,
+               mode=aioxmpp.im.InviteMode.DIRECT,
+               allow_upgrade=False):
+        if mode == aioxmpp.im.InviteMode.DIRECT:
+            msg = aioxmpp.Message(
+                type_=aioxmpp.MessageType.NORMAL,
+                to=address.bare(),
+            )
+            msg.xep0249_direct_invite = muc_xso.DirectInvite(
+                self.jid,
+                reason=text,
+            )
+
+            return self.service.client.enqueue(msg), self
+        if mode == aioxmpp.im.InviteMode.MEDIATED:
+            invite = muc_xso.Invite()
+            invite.to = address
+            invite.reason = text
+
+            msg = aioxmpp.Message(
+                type_=aioxmpp.MessageType.NORMAL,
+                to=self.jid,
+            )
+            msg.xep0045_muc_user = muc_xso.UserExt()
+            msg.xep0045_muc_user.invites.append(invite)
+
+            return self.service.client.enqueue(msg), self
+
 
 def _connect_to_signal(signal, func):
     return signal, signal.connect(func)
@@ -1617,6 +1651,55 @@ class MUCClient(aioxmpp.im.conversation.AbstractConversationService,
 
     .. automethod:: set_room_config
 
+    Global events:
+
+    .. signal:: on_muc_invitation(stanza, muc_address, inviter_address, mode, *, password=None, reason=None, **kwargs)
+
+        Emits when a MUC invitation has been received.
+
+        .. versionadded:: 0.10
+
+        :param stanza: The stanza containing the invitation.
+        :type stanza: :class:`aioxmpp.Message`
+        :param muc_address: The address of the MUC to which the invitation
+            points.
+        :type muc_address: :class:`aioxmpp.JID`
+        :param inviter_address: The address of the inviter.
+        :type inviter_address: :class:`aioxmpp.JID` or :data:`None`
+        :param mode: The type of the invitation.
+        :type mode: :class:`.im.InviteMode`
+        :param password: Password for the MUC.
+        :type password: :class:`str` or :data:`None`
+        :param reason: Text accompanying the invitation.
+        :type reason: :class:`str` or :data:`None`
+
+        The format of the `inviter_address` depends on the `mode`:
+
+        :attr:`~.im.InviteMode.DIRECT`
+            For direct invitations, the `inviter_address` is the full or bare
+            JID of the entity which sent the invitation. Usually, this will
+            be a full JID of a users client.
+
+        :attr:`~.im.InviteMode.MEDIATED`
+            For mediated invitations, the `inviter_address` is either the
+            occupant JID of the inviting occupant or the real bare or full JID
+            of the occupant (:xep:`45` leaves it up to the service to decide).
+            May also be :data:`None`.
+
+        .. warning::
+
+            Neither invitation type is perfect and has issues. Mediated invites
+            can easily be spoofed by MUCs (both their intent and the inviter
+            address) and might be used by spam rooms to trick users into
+            joining. Direct invites may not reach the recipient due to local
+            policy, but they allow proper sender attribution.
+
+            `inviter_address` values which are not an occupant JID should not
+            be trusted for mediated invites!
+
+            How to deal with this is a policy decision which :mod:`aioxmpp`
+            can not make for your application.
+
     .. versionchanged:: 0.8
 
        This class was formerly known as :class:`aioxmpp.muc.Service`. It
@@ -1639,11 +1722,18 @@ class MUCClient(aioxmpp.im.conversation.AbstractConversationService,
         aioxmpp.im.dispatcher.IMDispatcher,
         aioxmpp.im.service.ConversationService,
         aioxmpp.tracking.BasicTrackingService,
+        aioxmpp.DiscoServer,
     ]
 
     ORDER_BEFORE = [
         aioxmpp.im.p2p.Service,
     ]
+
+    on_muc_invitation = aioxmpp.callbacks.Signal()
+
+    direct_invite_feature = aioxmpp.disco.register_feature(
+        namespaces.xep0249_conference,
+    )
 
     def __init__(self, client, **kwargs):
         super().__init__(client, **kwargs)
@@ -1788,6 +1878,54 @@ class MUCClient(aioxmpp.im.conversation.AbstractConversationService,
         aioxmpp.im.dispatcher.IMDispatcher,
         "message_filter")
     def _handle_message(self, message, peer, sent, source):
+        if message.xep0045_muc_user and message.xep0045_muc_user.invites:
+            if sent:
+                return None
+
+            invite = message.xep0045_muc_user.invites[0]
+            if invite.to:
+                # outbound mediated invite -- we should never be receiving this
+                # with sent=False
+                self.logger.debug(
+                    "received outbound mediated invite?! dropping"
+                )
+                return None
+
+            # mediated invitation
+            self.on_muc_invitation(
+                message,
+                message.from_.bare(),
+                invite.from_,
+                aioxmpp.im.InviteMode.MEDIATED,
+                password=invite.password,
+                reason=invite.reason,
+            )
+            return None
+
+        if message.xep0249_direct_invite:
+            if sent:
+                return None
+
+            invite = message.xep0249_direct_invite
+            try:
+                jid = invite.jid
+            except AttributeError:
+                self.logger.debug(
+                    "received direct invitation without destination JID; "
+                    "dropping",
+                )
+                return None
+
+            self.on_muc_invitation(
+                message,
+                jid,
+                message.from_,
+                aioxmpp.im.InviteMode.DIRECT,
+                password=invite.password,
+                reason=invite.reason,
+            )
+            return None
+
         if (source == aioxmpp.im.dispatcher.MessageSource.CARBONS
                 and message.xep0045_muc_user):
             return None

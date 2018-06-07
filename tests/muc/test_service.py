@@ -3578,7 +3578,7 @@ class TestRoom(unittest.TestCase):
     def test_features(self):
         Feature = im_conversation.ConversationFeature
 
-        self.assertSetEqual(
+        self.assertLessEqual(
             {
                 Feature.SET_NICK,
                 Feature.SET_TOPIC,
@@ -4329,6 +4329,86 @@ class TestRoom(unittest.TestCase):
 
         self.assertCountEqual(msg.xep0004_data, [reply_form])
 
+    def test_expose_invite_features(self):
+        self.assertIn(
+            im_conversation.ConversationFeature.INVITE,
+            self.jmuc.features,
+        )
+
+        self.assertIn(
+            im_conversation.ConversationFeature.INVITE_DIRECT,
+            self.jmuc.features,
+        )
+
+    def test_direct_invite(self):
+        self.base.service.client.enqueue.return_value = \
+            unittest.mock.sentinel.token
+
+        result = run_coroutine(
+            self.jmuc.invite(
+                TEST_ENTITY_JID,
+                mode=im_conversation.InviteMode.DIRECT,
+                text="some text",
+            )
+        )
+
+        self.assertEqual(
+            result,
+            (unittest.mock.sentinel.token, self.jmuc),
+        )
+
+        self.base.service.client.enqueue.assert_called_once_with(
+            unittest.mock.ANY,
+        )
+
+        _, (msg, ), _ = self.base.service.client.enqueue.mock_calls[-1]
+
+        self.assertIsInstance(msg, aioxmpp.Message)
+        self.assertEqual(msg.to, TEST_ENTITY_JID.bare())
+        self.assertEqual(msg.type_, aioxmpp.MessageType.NORMAL)
+        self.assertIsInstance(msg.xep0249_direct_invite, muc_xso.DirectInvite)
+        self.assertEqual(
+            msg.xep0249_direct_invite.jid,
+            self.jmuc.jid,
+        )
+        self.assertEqual(
+            msg.xep0249_direct_invite.reason,
+            "some text",
+        )
+
+    def test_mediated_invite(self):
+        self.base.service.client.enqueue.return_value = \
+            unittest.mock.sentinel.token
+
+        result = run_coroutine(
+            self.jmuc.invite(
+                TEST_ENTITY_JID,
+                mode=im_conversation.InviteMode.MEDIATED,
+                text="some text",
+            )
+        )
+
+        self.assertEqual(
+            result,
+            (unittest.mock.sentinel.token, self.jmuc),
+        )
+
+        self.base.service.client.enqueue.assert_called_once_with(
+            unittest.mock.ANY,
+        )
+
+        _, (msg, ), _ = self.base.service.client.enqueue.mock_calls[-1]
+
+        self.assertIsInstance(msg, aioxmpp.Message)
+        self.assertEqual(msg.to, self.jmuc.jid)
+        self.assertEqual(msg.type_, aioxmpp.MessageType.NORMAL)
+        self.assertIsInstance(msg.xep0045_muc_user, muc_xso.UserExt)
+
+        invite, = msg.xep0045_muc_user.invites
+
+        self.assertEqual(invite.to, TEST_ENTITY_JID)
+        self.assertEqual(invite.reason, "some text")
+
 
 class TestService(unittest.TestCase):
     def test_is_service(self):
@@ -4352,12 +4432,20 @@ class TestService(unittest.TestCase):
         self.tracking_service = unittest.mock.Mock(
             spec=aioxmpp.tracking.BasicTrackingService
         )
+        self.disco_server_service = unittest.mock.Mock(
+            spec=aioxmpp.DiscoServer
+        )
         self.s = muc_service.MUCClient(self.cc, dependencies={
             im_dispatcher.IMDispatcher: self.im_dispatcher,
             im_service.ConversationService: self.im_service,
             aioxmpp.tracking.BasicTrackingService: self.tracking_service,
+            aioxmpp.DiscoServer: self.disco_server_service,
         })
         self.listener = make_listener(self.s)
+
+    def tearDown(self):
+        del self.s
+        del self.cc
 
     def test_depends_on_IMDispatcher(self):
         self.assertIn(
@@ -6054,6 +6142,339 @@ class TestService(unittest.TestCase):
             iq.payload.destroy,
         )
 
-    def tearDow(self):
-        del self.s
-        del self.cc
+    def test_emit_on_muc_invitation_on_mediated_invite(self):
+        message = aioxmpp.Message(
+            type_=aioxmpp.MessageType.NORMAL,
+            from_=TEST_MUC_JID,
+        )
+
+        invite = muc_xso.Invite()
+        invite.from_ = aioxmpp.JID.fromstr("crone1@shakespeare.lit/desktop")
+        invite.reason = "Hey Hecate, this is the place for all good witches!"
+        invite.password = "cauldronburn"
+
+        message.xep0045_muc_user = muc_xso.UserExt()
+        message.xep0045_muc_user.invites.append(invite)
+
+        self.assertIsNone(
+            self.s._handle_message(
+                message,
+                message.from_,
+                False,
+                im_dispatcher.MessageSource.STREAM,
+            ),
+            None,
+        )
+
+        self.listener.on_muc_invitation.assert_called_once_with(
+            message,
+            TEST_MUC_JID,
+            invite.from_,
+            im_conversation.InviteMode.MEDIATED,
+            password="cauldronburn",
+            reason="Hey Hecate, this is the place for all good witches!",
+        )
+
+    def test_emit_on_muc_invitation_on_mediated_invite_from_carbons(self):
+        message = aioxmpp.Message(
+            type_=aioxmpp.MessageType.NORMAL,
+            from_=TEST_MUC_JID,
+        )
+
+        invite = muc_xso.Invite()
+        invite.from_ = aioxmpp.JID.fromstr("crone1@shakespeare.lit/desktop")
+        invite.reason = "Hey Hecate, this is the place for all good witches!"
+        invite.password = "cauldronburn"
+
+        message.xep0045_muc_user = muc_xso.UserExt()
+        message.xep0045_muc_user.invites.append(invite)
+
+        self.assertIsNone(
+            self.s._handle_message(
+                message,
+                message.from_,
+                False,
+                im_dispatcher.MessageSource.CARBONS,
+            ),
+            None,
+        )
+
+        self.listener.on_muc_invitation.assert_called_once_with(
+            message,
+            TEST_MUC_JID,
+            invite.from_,
+            im_conversation.InviteMode.MEDIATED,
+            password="cauldronburn",
+            reason="Hey Hecate, this is the place for all good witches!",
+        )
+
+    def test_emit_on_muc_invitation_on_mediated_without_from(self):
+        message = aioxmpp.Message(
+            type_=aioxmpp.MessageType.NORMAL,
+            from_=TEST_MUC_JID,
+        )
+
+        invite = muc_xso.Invite()
+        invite.reason = "Hey Hecate, this is the place for all good witches!"
+        invite.password = "cauldronburn"
+
+        message.xep0045_muc_user = muc_xso.UserExt()
+        message.xep0045_muc_user.invites.append(invite)
+
+        self.assertIsNone(
+            self.s._handle_message(
+                message,
+                message.from_,
+                False,
+                im_dispatcher.MessageSource.STREAM,
+            ),
+            None
+        )
+
+        self.listener.on_muc_invitation.assert_called_once_with(
+            message,
+            TEST_MUC_JID,
+            None,
+            im_conversation.InviteMode.MEDIATED,
+            password="cauldronburn",
+            reason="Hey Hecate, this is the place for all good witches!",
+        )
+
+    def test_on_muc_invitation_degrades_nicely_with_fewer_info(self):
+        message = aioxmpp.Message(
+            type_=aioxmpp.MessageType.NORMAL,
+            from_=TEST_MUC_JID,
+        )
+
+        invite = muc_xso.Invite()
+
+        message.xep0045_muc_user = muc_xso.UserExt()
+        message.xep0045_muc_user.invites.append(invite)
+
+        self.assertIsNone(
+            self.s._handle_message(
+                message,
+                message.from_,
+                False,
+                im_dispatcher.MessageSource.STREAM,
+            ),
+            None
+        )
+
+        self.listener.on_muc_invitation.assert_called_once_with(
+            message,
+            TEST_MUC_JID,
+            None,
+            im_conversation.InviteMode.MEDIATED,
+            password=None,
+            reason=None,
+        )
+
+    def test_announces_support_for_direct_invites(self):
+        self.assertIsInstance(
+            muc_service.MUCClient.direct_invite_feature,
+            aioxmpp.disco.register_feature,
+        )
+        self.assertEqual(
+            muc_service.MUCClient.direct_invite_feature.feature,
+            "jabber:x:conference"
+        )
+
+        self.assertIsInstance(
+            self.s.direct_invite_feature,
+            aioxmpp.disco.service.RegisteredFeature,
+        )
+        self.assertEqual(
+            self.s.direct_invite_feature.feature,
+            "jabber:x:conference"
+        )
+        self.assertTrue(
+            self.s.direct_invite_feature.enabled,
+        )
+
+    def test_emit_on_muc_invitation_on_direct_invite(self):
+        message = aioxmpp.Message(
+            type_=aioxmpp.MessageType.NORMAL,
+            from_=aioxmpp.JID.fromstr("crone1@shakespeare.lit/desktop"),
+        )
+
+        message.xep0249_direct_invite = muc_xso.DirectInvite(TEST_MUC_JID)
+        message.xep0249_direct_invite.password = "cauldronburn"
+        message.xep0249_direct_invite.reason = \
+            "Hey Hecate, this is the place for all good witches!"
+
+        self.assertIsNone(
+            self.s._handle_message(
+                message,
+                message.from_,
+                False,
+                im_dispatcher.MessageSource.STREAM,
+            ),
+            None,
+        )
+
+        self.listener.on_muc_invitation.assert_called_once_with(
+            message,
+            TEST_MUC_JID,
+            message.from_,
+            im_conversation.InviteMode.DIRECT,
+            password="cauldronburn",
+            reason="Hey Hecate, this is the place for all good witches!",
+        )
+
+    def test_handles_missing_jid_on_direct_invite(self):
+        message = aioxmpp.Message(
+            type_=aioxmpp.MessageType.NORMAL,
+            from_=aioxmpp.JID.fromstr("crone1@shakespeare.lit/desktop"),
+        )
+
+        # we can’t use init here because we need to trick the required JID
+        # argument
+        message.xep0249_direct_invite = \
+            muc_xso.DirectInvite.__new__(muc_xso.DirectInvite)
+        message.xep0249_direct_invite.password = "cauldronburn"
+        message.xep0249_direct_invite.reason = \
+            "Hey Hecate, this is the place for all good witches!"
+
+        self.assertIsNone(
+            self.s._handle_message(
+                message,
+                message.from_,
+                False,
+                im_dispatcher.MessageSource.STREAM,
+            ),
+            None,
+        )
+
+        self.listener.on_muc_invitation.assert_not_called()
+
+    def test_emit_on_muc_invitation_on_carbon_copied_direct_invite(self):
+        message = aioxmpp.Message(
+            type_=aioxmpp.MessageType.NORMAL,
+            from_=aioxmpp.JID.fromstr("crone1@shakespeare.lit/desktop"),
+        )
+
+        message.xep0249_direct_invite = muc_xso.DirectInvite(TEST_MUC_JID)
+        message.xep0249_direct_invite.password = "cauldronburn"
+        message.xep0249_direct_invite.reason = \
+            "Hey Hecate, this is the place for all good witches!"
+
+        self.assertIsNone(
+            self.s._handle_message(
+                message,
+                message.from_,
+                False,
+                im_dispatcher.MessageSource.CARBONS,
+            ),
+            None,
+        )
+
+        self.listener.on_muc_invitation.assert_called_once_with(
+            message,
+            TEST_MUC_JID,
+            message.from_,
+            im_conversation.InviteMode.DIRECT,
+            password="cauldronburn",
+            reason="Hey Hecate, this is the place for all good witches!",
+        )
+
+    def test_on_muc_invitation_not_emitted_for_direct_sent(self):
+        message = aioxmpp.Message(
+            type_=aioxmpp.MessageType.NORMAL,
+            from_=aioxmpp.JID.fromstr("crone1@shakespeare.lit/desktop"),
+        )
+
+        message.xep0249_direct_invite = muc_xso.DirectInvite(TEST_MUC_JID)
+        message.xep0249_direct_invite.password = "cauldronburn"
+        message.xep0249_direct_invite.reason = \
+            "Hey Hecate, this is the place for all good witches!"
+
+        self.assertIsNone(
+            self.s._handle_message(
+                message,
+                message.from_,
+                True,
+                im_dispatcher.MessageSource.STREAM,
+            ),
+            None,
+        )
+
+        self.listener.on_muc_invitation.assert_not_called()
+
+    def test_on_muc_invitation_not_emitted_for_mediated_sent(self):
+        message = aioxmpp.Message(
+            type_=aioxmpp.MessageType.NORMAL,
+            from_=TEST_MUC_JID,
+        )
+
+        invite = muc_xso.Invite()
+        invite.from_ = TEST_ENTITY_JID
+        invite.reason = "Hey Hecate, this is the place for all good witches!"
+        invite.password = "cauldronburn"
+
+        message.xep0045_muc_user = muc_xso.UserExt()
+        message.xep0045_muc_user.invites.append(invite)
+
+        self.assertIsNone(
+            self.s._handle_message(
+                message,
+                message.from_,
+                True,
+                im_dispatcher.MessageSource.STREAM,
+            ),
+            None
+        )
+
+        self.listener.on_muc_invitation.assert_not_called()
+
+    def test_on_muc_invitation_not_emitted_for_outbound_mediated(self):
+        message = aioxmpp.Message(
+            type_=aioxmpp.MessageType.NORMAL,
+            from_=TEST_MUC_JID,
+        )
+
+        invite = muc_xso.Invite()
+        invite.to = TEST_ENTITY_JID
+        invite.reason = "Hey Hecate, this is the place for all good witches!"
+        invite.password = "cauldronburn"
+
+        message.xep0045_muc_user = muc_xso.UserExt()
+        message.xep0045_muc_user.invites.append(invite)
+
+        self.assertIsNone(
+            self.s._handle_message(
+                message,
+                message.from_,
+                False,
+                im_dispatcher.MessageSource.STREAM,
+            ),
+            None
+        )
+
+        self.listener.on_muc_invitation.assert_not_called()
+
+    def test_on_muc_invitation_not_emitted_for_outbound_mediated_sent(self):
+        message = aioxmpp.Message(
+            type_=aioxmpp.MessageType.NORMAL,
+            from_=TEST_MUC_JID,
+        )
+
+        invite = muc_xso.Invite()
+        invite.to = TEST_ENTITY_JID
+        invite.reason = "Hey Hecate, this is the place for all good witches!"
+        invite.password = "cauldronburn"
+
+        message.xep0045_muc_user = muc_xso.UserExt()
+        message.xep0045_muc_user.invites.append(invite)
+
+        self.assertIsNone(
+            self.s._handle_message(
+                message,
+                message.from_,
+                True,
+                im_dispatcher.MessageSource.STREAM,
+            ),
+            None
+        )
+
+        self.listener.on_muc_invitation.assert_not_called()

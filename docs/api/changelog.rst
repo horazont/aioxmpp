@@ -353,7 +353,7 @@ Version 0.10
   into XSOs if no value had been set (but a default was given).
 
 * Ensure that forms with :attr:`aioxmpp.forms.Form.FORM_TYPE` attribute render
-  a proper :xep:`68` ``FORM_TYPE`` field.
+  a proper :xep:`68`muc ``FORM_TYPE`` field.
 
 * Allow unset field type in data forms. This may seem weird, but unfortunately
   it is widespread practice. In some data form types, omitting the field type
@@ -381,6 +381,10 @@ Version 0.10
   :meth:`~aioxmpp.muc.Room.on_muc_role_changed`, and
   :meth:`~aioxmpp.muc.Room.on_muc_affiliation_changed` now receive the set of
   status codes which was included in the triggering stanza as keyword argument.
+
+* Update :meth:`aioxmpp.im.conversation.AbstractConversation.invite` interface.
+
+* :meth:`aioxmpp.MUCClient.on_muc_invitation`
 
 .. _api-changelog-0.9:
 
