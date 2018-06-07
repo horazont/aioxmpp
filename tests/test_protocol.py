@@ -549,8 +549,10 @@ class TestXMLStream(unittest.TestCase):
     def setUp(self):
         self.maxDiff = None
         self.loop = asyncio.get_event_loop()
+        self.monitor = unittest.mock.Mock(spec=protocol.AlivenessMonitor)
 
     def tearDown(self):
+        del self.monitor
         self.loop.set_exception_handler(
             type(self.loop).default_exception_handler
         )
@@ -574,12 +576,26 @@ class TestXMLStream(unittest.TestCase):
     def _make_stream(self, *args,
                      features_future=None,
                      with_starttls=False,
+                     monitor_mock=True,
                      **kwargs):
         if features_future is None:
             features_future = asyncio.Future()
-        p = XMLStream(*args, sorted_attributes=True,
-                      features_future=features_future,
-                      **kwargs)
+
+        with contextlib.ExitStack() as stack:
+            if monitor_mock:
+                AlivenessMonitor = stack.enter_context(
+                    unittest.mock.patch("aioxmpp.protocol.AlivenessMonitor")
+                )
+                AlivenessMonitor.return_value = self.monitor
+            else:
+                AlivenessMonitor = None
+
+            p = XMLStream(*args, sorted_attributes=True,
+                          features_future=features_future,
+                          **kwargs)
+
+        if monitor_mock:
+            AlivenessMonitor.assert_called_once_with(self.loop)
         t = TransportMock(self, p, with_starttls=with_starttls)
         return t, p
 
@@ -2169,6 +2185,201 @@ class TestXMLStream(unittest.TestCase):
 
         with p.mute():
             pass
+
+    def test_forwards_deadtime_attributes(self):
+        _, p = self._make_stream(to=TEST_PEER)
+
+        self.assertEqual(p.deadtime_soft_limit,
+                         self.monitor.deadtime_soft_limit)
+        self.assertEqual(p.deadtime_hard_limit,
+                         self.monitor.deadtime_hard_limit)
+
+        p.deadtime_hard_limit = unittest.mock.sentinel.hard
+        p.deadtime_soft_limit = unittest.mock.sentinel.soft
+
+        self.assertEqual(p.deadtime_soft_limit,
+                         self.monitor.deadtime_soft_limit)
+        self.assertEqual(p.deadtime_hard_limit,
+                         self.monitor.deadtime_hard_limit)
+
+        self.assertEqual(self.monitor.deadtime_soft_limit,
+                         unittest.mock.sentinel.soft)
+        self.assertEqual(self.monitor.deadtime_hard_limit,
+                         unittest.mock.sentinel.hard)
+
+    def test_registers_with_hard_limit_event_on_construction(self):
+        _, p = self._make_stream(to=TEST_PEER)
+
+        self.monitor.on_deadtime_hard_limit_tripped.connect.assert_called_once_with(
+            p._deadtime_hard_limit_triggered
+        )
+
+    def test_registers_with_soft_limit_event_on_construction(self):
+        _, p = self._make_stream(to=TEST_PEER)
+
+        self.monitor.on_deadtime_soft_limit_tripped.connect.assert_called_once_with(
+            p.on_deadtime_soft_limit_tripped
+        )
+
+    def test__deadtime_hard_limit_triggered_aborts_stream(self):
+        t, p = self._make_stream(to=TEST_PEER)
+
+        run_coroutine(t.run_test(
+            [
+                TransportMock.Write(
+                    STREAM_HEADER,
+                    response=[
+                        TransportMock.Receive(
+                            self._make_peer_header(version=(1, 0))
+                        ),
+                    ]),
+            ],
+            partial=True
+        ))
+
+        p._deadtime_hard_limit_triggered()
+
+        run_coroutine(t.run_test(
+            [
+                TransportMock.Abort(),
+            ],
+        ))
+
+    def test__deadtime_hard_limit_triggered_generates_proper_error(self):
+        t, p = self._make_stream(to=TEST_PEER)
+
+        run_coroutine(t.run_test(
+            [
+                TransportMock.Write(
+                    STREAM_HEADER,
+                    response=[
+                        TransportMock.Receive(
+                            self._make_peer_header(version=(1, 0))
+                        ),
+                    ]),
+            ],
+            partial=True
+        ))
+
+        fut = p.error_future()
+        self.assertFalse(fut.done())
+
+        p._deadtime_hard_limit_triggered()
+
+        run_coroutine(t.run_test(
+            [
+                TransportMock.Abort(),
+            ]
+        ))
+
+        self.assertTrue(fut.done())
+
+        self.assertIsInstance(fut.exception(), ConnectionError)
+        self.assertIn(str(fut.exception()), "timeout")
+
+    def test__deadtime_hard_limit_triggered_does_nothing_bad_if_invoked_after_closing(self):  # NOQA
+        t, p = self._make_stream(to=TEST_PEER)
+
+        run_coroutine(t.run_test(
+            [
+                TransportMock.Write(
+                    STREAM_HEADER,
+                    response=[
+                        TransportMock.Receive(
+                            self._make_peer_header(version=(1, 0))
+                        ),
+                        TransportMock.Close(),
+                    ]),
+            ],
+        ))
+
+        p._deadtime_hard_limit_triggered()
+
+    def test_closure_clears_monitor_timeouts(self):
+        t, p = self._make_stream(to=TEST_PEER)
+
+        run_coroutine(t.run_test(
+            [
+                TransportMock.Write(
+                    STREAM_HEADER,
+                    response=[
+                        TransportMock.Receive(
+                            self._make_peer_header(version=(1, 0))
+                        ),
+                        TransportMock.Close(),
+                    ]),
+            ],
+        ))
+
+        self.assertIsNone(self.monitor.deadtime_hard_limit)
+        self.assertIsNone(self.monitor.deadtime_soft_limit)
+
+    def test_timeout_actually_works(self):
+        dt = get_timeout(timedelta(seconds=0.1))
+        t, p = self._make_stream(to=TEST_PEER, monitor_mock=False)
+
+        p.deadtime_hard_limit = dt
+
+        fut = p.error_future()
+
+        run_coroutine(t.run_test(
+            [
+                TransportMock.Write(
+                    STREAM_HEADER,
+                    response=[
+                        TransportMock.Receive(
+                            self._make_peer_header(version=(1, 0))
+                        ),
+                    ]),
+            ],
+            partial=True,
+        ))
+
+        self.assertFalse(fut.done())
+
+        run_coroutine(asyncio.sleep((dt * 1.1).total_seconds()))
+
+        run_coroutine(t.run_test(
+            [
+                TransportMock.Abort(),
+            ],
+        ))
+
+        self.assertTrue(fut.done())
+        self.assertIsNotNone(fut.exception())
+        self.assertIn("timeout", str(fut.exception()))
+
+    def test_timeout_propagates_to_features_future(self):
+        fut = asyncio.Future()
+        t, p = self._make_stream(to=TEST_PEER, features_future=fut)
+
+        run_coroutine(t.run_test(
+            [
+                TransportMock.Write(
+                    STREAM_HEADER,
+                    response=[
+                        TransportMock.Receive(
+                            self._make_peer_header(version=(1, 0))
+                        ),
+                    ]),
+            ],
+            partial=True
+        ))
+
+        self.assertFalse(fut.done())
+
+        p._deadtime_hard_limit_triggered()
+
+        run_coroutine(t.run_test(
+            [
+                TransportMock.Abort(),
+            ]
+        ))
+
+        self.assertTrue(fut.done())
+
+        self.assertIsInstance(fut.exception(), ConnectionError)
+        self.assertIn(str(fut.exception()), "timeout")
 
 
 class Testsend_and_wait_for(xmltestutils.XMLTestCase):
