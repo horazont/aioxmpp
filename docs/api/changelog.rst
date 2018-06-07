@@ -386,6 +386,14 @@ Version 0.10
 
 * :meth:`aioxmpp.MUCClient.on_muc_invitation`
 
+* **Breaking change**: Replaced the
+  :attr:`aioxmpp.stream.StanzaStream.ping_interval` and
+  :attr:`~aioxmpp.stream.StanzaStream.ping_opportunistic_interval` attributes
+  with a new ping implementation.
+
+  It is described in the :ref:`aioxmpp.stream.General Information.Timeouts`
+  section in :mod:`aioxmpp.stream`.
+
 .. _api-changelog-0.9:
 
 Version 0.9
