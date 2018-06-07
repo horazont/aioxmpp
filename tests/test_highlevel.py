@@ -94,6 +94,7 @@ class TestProtocol(unittest.TestCase):
             to=TEST_PEER,
             sorted_attributes=True,
             features_future=fut)
+        p.deadtime_soft_limit = timedelta(seconds=0.25)
         t = TransportMock(self, p)
         s = aioxmpp.stream.StanzaStream(TEST_FROM.bare())
 
@@ -119,9 +120,6 @@ class TestProtocol(unittest.TestCase):
         self.assertEqual(p.state, aioxmpp.protocol.State.OPEN)
 
         self.assertTrue(fut.done())
-
-        s.ping_interval = timedelta(seconds=0.25)
-        s.ping_opportunistic_interval = timedelta(seconds=0.25)
 
         s.start(p)
         run_coroutine_with_peer(
@@ -214,6 +212,7 @@ class TestProtocol(unittest.TestCase):
             to=TEST_PEER,
             sorted_attributes=True,
             features_future=fut)
+        p.deadtime_soft_limit = timedelta(seconds=0.25)
         t = TransportMock(self, p)
         s = aioxmpp.stream.StanzaStream(TEST_FROM.bare())
 
@@ -239,9 +238,6 @@ class TestProtocol(unittest.TestCase):
         self.assertEqual(p.state, aioxmpp.protocol.State.OPEN)
 
         self.assertTrue(fut.done())
-
-        s.ping_interval = timedelta(seconds=0.25)
-        s.ping_opportunistic_interval = timedelta(seconds=0.25)
 
         s.start(p)
         run_coroutine_with_peer(
@@ -301,6 +297,7 @@ class TestProtocol(unittest.TestCase):
             to=TEST_PEER,
             sorted_attributes=True,
             features_future=fut)
+        p.deadtime_soft_limit = timedelta(seconds=0.25)
         t = TransportMock(self, p)
         s = aioxmpp.stream.StanzaStream(TEST_FROM.bare())
 
@@ -326,9 +323,6 @@ class TestProtocol(unittest.TestCase):
         self.assertEqual(p.state, aioxmpp.protocol.State.OPEN)
 
         self.assertTrue(fut.done())
-
-        s.ping_interval = timedelta(seconds=0.25)
-        s.ping_opportunistic_interval = timedelta(seconds=0.25)
 
         s.start(p)
         run_coroutine_with_peer(
@@ -524,3 +518,55 @@ class TestProtocol(unittest.TestCase):
         )
 
         s.stop()
+
+    def test_hard_deadtime_kills_stream(self):
+        import aioxmpp.protocol
+        import aioxmpp.stream
+
+        version = (1, 0)
+
+        fut = asyncio.Future()
+        p = aioxmpp.protocol.XMLStream(
+            to=TEST_PEER,
+            sorted_attributes=True,
+            features_future=fut)
+        p.deadtime_hard_limit = timedelta(seconds=0.25)
+        t = TransportMock(self, p)
+        s = aioxmpp.stream.StanzaStream(TEST_FROM.bare())
+
+        failure_fut = s.on_failure.future()
+
+        run_coroutine(t.run_test(
+            [
+                TransportMock.Write(
+                    STREAM_HEADER,
+                    response=[
+                        TransportMock.Receive(
+                            PEER_STREAM_HEADER_TEMPLATE.format(
+                                minor=version[1],
+                                major=version[0]).encode("utf-8")),
+                    ]
+                ),
+            ],
+            partial=True
+        ))
+
+        self.assertEqual(p.state, aioxmpp.protocol.State.OPEN)
+
+        s.start(p)
+
+        run_coroutine(
+            t.run_test(
+                [
+                    TransportMock.Abort()
+                ],
+            )
+        )
+
+        run_coroutine(asyncio.sleep(0))
+
+        self.assertFalse(s.running)
+
+        self.assertTrue(failure_fut.done())
+        self.assertIsInstance(failure_fut.exception(), ConnectionError)
+        self.assertIn("timeout", str(failure_fut.exception()))

@@ -647,7 +647,9 @@ class XMLStream(asyncio.Protocol):
     def _deadtime_hard_limit_triggered(self):
         if self._transport is not None:
             self._transport.abort()
-        self._exception = self._exception or ConnectionError("timeout")
+        self._exception = self._exception or ConnectionError(
+            "connection timeout (dead time hard limit exceeded)"
+        )
 
     def connection_made(self, transport):
         if self._smachine.state != State.READY:

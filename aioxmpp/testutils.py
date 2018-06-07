@@ -632,6 +632,7 @@ class XMLStreamMock(InteractivityMock):
                                    response)
 
     on_closing = callbacks.Signal()
+    on_deadtime_soft_limit_tripped = callbacks.Signal()
 
     def __init__(self, tester, *, loop=None):
         super().__init__(tester, loop=loop)

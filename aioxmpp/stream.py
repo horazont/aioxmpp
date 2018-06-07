@@ -35,6 +35,22 @@ possible.
 General information
 ===================
 
+.. _aioxmpp.stream.General Information.Timeouts:
+
+Timeouts / Stream Aliveness checks
+----------------------------------
+
+The :class:`StanzaStream` relies on the :class:`XMLStream` dead time aliveness
+monitoring (see also :attr:`~.XMLStream.deadtime_soft_limit`) to detect a
+broken stream.
+
+It connects to the :meth:`~.XMLStream.on_deadtime_soft_limit_tripped` and emits
+a stanza which forces the server to reply. This prevents the hard limit to be
+reached -- as long as the stream is still alive.
+
+The :class:`XMLStream` aborts itself when the hard limit is reached. In that
+case, normal connection interruption procedures will take place.
+
 .. _aioxmpp.stream.General Information.Filters:
 
 Stanza Filters
@@ -1176,6 +1192,10 @@ class StanzaStream:
                 break
             self._send_stanza(xmlstream, token)
 
+        if self._sm_enabled:
+            self._logger.debug("sending SM req")
+            xmlstream.send_xso(nonza.SMRequest())
+
     def register_iq_response_callback(self, from_, id_, cb):
         """
         Register a callback function `cb` to be called when a IQ stanza with
@@ -1663,10 +1683,38 @@ class StanzaStream:
             from_,
         )
 
+    def _xmlstream_soft_limit_tripped(self, xmlstream):
+        self._logger.debug(
+            "XMLStream has reached dead-time soft limit, sending ping"
+        )
+
+        if self._sm_enabled:
+            req = nonza.SMRequest()
+            xmlstream.send_xso(req)
+        else:
+            iq = stanza.IQ(
+                type_=structs.IQType.GET,
+                payload=ping.Ping()
+            )
+            iq.autoset_id()
+            self.register_iq_response_callback(
+                None,
+                iq.id_,
+                # we don’t care, just wanna make sure that this doesn’t fail
+                lambda stanza: None,
+            )
+            self._enqueue(iq)
+
     def _start_prepare(self, xmlstream, receiver):
         self._xmlstream_failure_token = xmlstream.on_closing.connect(
             self._xmlstream_failed
         )
+
+        self._xmlstream_soft_limit_token = \
+            xmlstream.on_deadtime_soft_limit_tripped.connect(
+                functools.partial(self._xmlstream_soft_limit_tripped,
+                                  xmlstream)
+            )
 
         xmlstream.stanza_parser.add_class(stanza.IQ, receiver)
         xmlstream.stanza_parser.add_class(stanza.Message, receiver)
@@ -1695,6 +1743,9 @@ class StanzaStream:
 
         xmlstream.on_closing.disconnect(
             self._xmlstream_failure_token
+        )
+        xmlstream.on_deadtime_soft_limit_tripped.disconnect(
+            self._xmlstream_soft_limit_token
         )
 
     def _start_commit(self, xmlstream):

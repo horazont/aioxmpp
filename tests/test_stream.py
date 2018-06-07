@@ -100,6 +100,7 @@ def make_mocked_streams(loop):
     xmlstream = unittest.mock.Mock(["stanza_parser", "close"])
     xmlstream.send_xso = _on_send_xso
     xmlstream.on_closing = callbacks.AdHocSignal()
+    xmlstream.on_deadtime_soft_limit_tripped = callbacks.AdHocSignal()
     xmlstream.close_and_wait = CoroutineMock()
     stanzastream = stream.StanzaStream(
         TEST_FROM.bare(),
@@ -2740,27 +2741,21 @@ class TestStanzaStream(StanzaStreamTestBase):
         self.assertTrue(self.stream.running)
 
     def test_task_crash_leads_to_closing_of_xmlstream(self):
-        base_timeout = get_timeout(0.01)
-
-        self.stream.ping_interval = timedelta(
-            seconds=base_timeout
-        )
-        self.stream.ping_opportunistic_interval = timedelta(
-            seconds=base_timeout
-        )
-
         self.stream.start(self.xmlstream)
-        run_coroutine(asyncio.sleep(base_timeout * 2.5))
 
-        self.sent_stanzas.get_nowait()
-        run_coroutine(asyncio.sleep(base_timeout))
+        with unittest.mock.patch.object(
+                self.stream, "_process_outgoing") as _process_outgoing:
+            _process_outgoing.side_effect = ConnectionError("something dire")
 
-        self.assertFalse(self.stream.running)
+            self.stream._enqueue(make_test_iq())
+
+            run_coroutine(asyncio.sleep(0))
+
+            self.assertFalse(self.stream.running)
+
         self.xmlstream.close.assert_called_with()
 
     def test_done_handler_can_deal_with_exception_from_abort(self):
-        base_timeout = get_timeout(0.01)
-
         class FooException(Exception):
             pass
 
@@ -2770,20 +2765,20 @@ class TestStanzaStream(StanzaStreamTestBase):
             nonlocal exc
             exc = _exc
 
-        self.stream.ping_interval = timedelta(
-            seconds=base_timeout
-        )
-        self.stream.ping_opportunistic_interval = timedelta(
-            seconds=base_timeout
-        )
         self.stream.on_failure.connect(failure_handler)
 
         self.stream.start(self.xmlstream)
         self.xmlstream.close.side_effect = FooException()
-        run_coroutine(asyncio.sleep(base_timeout * 2.5))
 
-        self.sent_stanzas.get_nowait()
-        run_coroutine(asyncio.sleep(base_timeout))
+        with unittest.mock.patch.object(
+                self.stream, "_process_outgoing") as _process_outgoing:
+            _process_outgoing.side_effect = ConnectionError("something dire")
+
+            self.stream._enqueue(make_test_iq())
+
+            run_coroutine(asyncio.sleep(0))
+
+            self.assertFalse(self.stream.running)
 
         self.assertIsInstance(
             exc,
@@ -3623,6 +3618,55 @@ class TestStanzaStream(StanzaStreamTestBase):
         )
 
         self.assertEqual(result, handler())
+
+    def test_start_connects_to_soft_limit_signal(self):
+        with unittest.mock.patch.object(
+                self.xmlstream,
+                "on_deadtime_soft_limit_tripped") as signal:
+            signal.connect.return_value = \
+                unittest.mock.sentinel.token
+
+            self.stream.start(self.xmlstream)
+
+            signal.connect.assert_called_once_with(unittest.mock.ANY)
+            signal.disconnect.assert_not_called()
+            signal.reset_mock()
+
+            run_coroutine(asyncio.sleep(0))
+            self.assertTrue(self.stream.running)
+
+            self.stream.stop()
+
+            run_coroutine(asyncio.sleep(0))
+
+            signal.connect.assert_not_called()
+            signal.disconnect.assert_called_once_with(
+                unittest.mock.sentinel.token
+            )
+
+    def test_emits_nonsm_ping_on_softlimit_signal(self):
+        self.stream.start(self.xmlstream)
+
+        run_coroutine(asyncio.sleep(0))
+        self.assertTrue(self.stream.running)
+
+        self.xmlstream.on_deadtime_soft_limit_tripped()
+
+        run_coroutine(asyncio.sleep(0))
+
+        request = self.sent_stanzas.get_nowait()
+        self.assertIsInstance(
+            request,
+            stanza.IQ
+        )
+        self.assertIsInstance(
+            request.payload,
+            ping.Ping,
+        )
+        self.assertEqual(
+            structs.IQType.GET,
+            request.type_
+        )
 
 
 class TestStanzaStreamSM(StanzaStreamTestBase):
@@ -5076,6 +5120,22 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
         xmlstream.stanza_parser.add_class(nonza.SMRequest, cb)
         xmlstream.stanza_parser.add_class(
             nonza.SMAcknowledgement, cb)
+
+    def test_emits_sm_ping_on_softlimit_signal(self):
+        self.stream.start(self.xmlstream)
+        run_coroutine_with_peer(
+            self.stream.start_sm(),
+            self.xmlstream.run_test(self.successful_sm)
+        )
+
+        # the next would raise if anything had been sent before
+        run_coroutine(self.xmlstream.run_test([]))
+
+        self.xmlstream.on_deadtime_soft_limit_tripped()
+
+        run_coroutine(self.xmlstream.run_test([
+            XMLStreamMock.Send(nonza.SMRequest())
+        ]))
 
     def tearDown(self):
         run_coroutine(self.xmlstream.run_test([]))
