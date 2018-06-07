@@ -30,6 +30,101 @@ handles stream liveness and stream management.
 It provides ways to track stanzas on their way to the remote, as far as that is
 possible.
 
+.. _aioxmpp.stream.General Information:
+
+General information
+===================
+
+.. _aioxmpp.stream.General Information.Filters:
+
+Stanza Filters
+--------------
+
+Stanza filters allow to hook into the stanza sending/reception pipeline
+after/before the application sees the stanza.
+
+Inbound stanza filters
+~~~~~~~~~~~~~~~~~~~~~~
+
+Inbound stanza filters allow to hook into the stanza processing by replacing,
+modifying or otherwise processing stanza contents *before* the usual handlers
+for that stanza are invoked. With inbound stanza filters, there are no
+restrictions as to what processing may take place on a stanza, as no one but
+the stream may have references to its contents.
+
+.. warning::
+
+    Raising an exception from within a stanza filter kills the stream.
+
+Note that if a filter function drops an incoming stanza (by returning
+:data:`None`), it **must** ensure that the client still behaves RFC
+compliant. The inbound stanza filters are found here:
+
+* :attr:`~.StanzaStream.service_inbound_message_filter`
+* :attr:`~.StanzaStream.service_inbound_presence_filter`
+* :attr:`~.StanzaStream.app_inbound_message_filter`
+* :attr:`~.StanzaStream.app_inbound_presence_filter`
+
+Outbound stanza filters
+~~~~~~~~~~~~~~~~~~~~~~~
+
+Outbound stanza filters work similar to inbound stanza filters, but due to
+their location in the processing chain and possible interactions with senders
+of stanzas, there are some things to consider:
+
+* Per convention, a outbound stanza filter **must not** modify any child
+  elements which are already present in the stanza when it receives the
+  stanza.
+
+  It may however add new child elements or remove existing child elements,
+  as well as copying and *then* modifying existing child elements.
+
+* If the stanza filter replaces the stanza, it is responsible for making
+  sure that the new stanza has appropriate
+  :attr:`~.stanza.StanzaBase.from_`, :attr:`~.stanza.StanzaBase.to` and
+  :attr:`~.stanza.StanzaBase.id` values. There are no checks to enforce
+  this, because errorr handling at this point is peculiar. The stanzas will
+  be sent as-is.
+
+* Similar to inbound filters, it is the responsibility of the filters that
+  if stanzas are dropped, the client still behaves RFC-compliant.
+
+Now that you have been warned, here are the attributes for accessing the
+outbound filter chains. These otherwise work exactly like their inbound
+counterparts, but service filters run *after* application filters on
+outbound processing.
+
+* :attr:`~.StanzaStream.service_outbound_message_filter`
+* :attr:`~.StanzaStream.service_outbound_presence_filter`
+* :attr:`~.StanzaStream.app_outbound_message_filter`
+* :attr:`~.StanzaStream.app_outbound_presence_filter`
+
+When to use stanza filters?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+In general, applications will rarely need them. However, services may make
+profitable use of them, and it is a convenient way for them to inspect or
+modify incoming or outgoing stanzas before any normally registered handler
+processes them.
+
+In general, whenever you do something which *supplements* the use of the stanza
+with respect to the RFC but does not fulfill the orignial intent of the stanza,
+it is advisable to use a filter instead of a callback on the actual stanza.
+
+Vice versa, if you were to develop a service which manages presence
+subscriptions, it would be more correct to use
+:meth:`register_presence_callback`; this prevents other services which try
+to do the same from conflicting with you. You would then provide callbacks
+to the application to let it learn about presence subscriptions.
+
+Stanza Stream class
+===================
+
+This section features the complete documentation of the (rather important and
+complex) :class:`StanzaStream`. Some more general information has been moved to
+the previous section (:ref:`aioxmpp.stream.General Information`) to make it
+easier to read and find.
+
 .. autoclass:: StanzaStream
 
 Context managers
@@ -480,20 +575,8 @@ class StanzaStream:
 
     .. automethod:: unregister_iq_response
 
-    Inbound stanza filters allow to hook into the stanza processing by
-    replacing, modifying or otherwise processing stanza contents *before* the
-    above callbacks are invoked. With inbound stanza filters, there are no
-    restrictions as to what processing may take place on a stanza, as no one
-    but the stream may have references to its contents. See below for a
-    guideline on when to use stanza filters.
-
-    .. warning::
-
-       Raising an exception from within a stanza filter kills the stream.
-
-    Note that if a filter function drops an incoming stanza (by returning
-    :data:`None`), it **must** ensure that the client still behaves RFC
-    compliant.
+    Inbound Stanza Filters (see
+    :ref:`aioxmpp.stream.General Information.Filters`):
 
     .. attribute:: app_inbound_presence_filter
 
@@ -523,31 +606,8 @@ class StanzaStream:
        This is the analogon of :attr:`service_inbound_presence_filter` for
        :attr:`app_inbound_message_filter`.
 
-    Outbound stanza filters work similar to inbound stanza filters, but due to
-    their location in the processing chain and possible interactions with
-    senders of stanzas, there are some things to consider:
-
-    * Per convention, a outbound stanza filter **must not** modify any child
-      elements which are already present in the stanza when it receives the
-      stanza.
-
-      It may however add new child elements or remove existing child elements,
-      as well as copying and *then* modifying existing child elements.
-
-    * If the stanza filter replaces the stanza, it is responsible for making
-      sure that the new stanza has appropriate
-      :attr:`~.stanza.StanzaBase.from_`, :attr:`~.stanza.StanzaBase.to` and
-      :attr:`~.stanza.StanzaBase.id` values. There are no checks to enforce
-      this, because errorr handling at this point is peculiar. The stanzas will
-      be sent as-is.
-
-    * Similar to inbound filters, it is the responsibility of the filters that
-      if stanzas are dropped, the client still behaves RFC-compliant.
-
-    Now that you have been warned, here are the attributes for accessing the
-    outbound filter chains. These otherwise work exactly like their inbound
-    counterparts, but service filters run *after* application filters on
-    outbound processing.
+    Outbound Stanza Filters (see
+    :ref:`aioxmpp.stream.General Information.Filters`):
 
     .. attribute:: app_outbound_presence_filter
 
@@ -581,24 +641,6 @@ class StanzaStream:
 
        Before using this attribute, make sure that you have read the notes
        above.
-
-    When to use stanza filters? In general, applications will rarely need
-    them. However, services may make profitable use of them, and it is a
-    convenient way for them to inspect incoming or outgoing stanzas without
-    having to take up the registration slots (remember that
-    :meth:`register_message_callback` et. al. only allow *one* callback per
-    designator).
-
-    In general, whenever you do something which *supplements* the use of the
-    stanza with respect to the RFC but does not fulfill the orignial intent of
-    the stanza, it is advisable to use a filter instead of a callback on the
-    actual stanza.
-
-    Vice versa, if you were to develop a service which manages presence
-    subscriptions, it would be more correct to use
-    :meth:`register_presence_callback`; this prevents other services which try
-    to do the same from conflicting with you. You would then provide callbacks
-    to the application to let it learn about presence subscriptions.
 
     Using stream management:
 
