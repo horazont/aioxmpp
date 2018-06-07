@@ -97,7 +97,7 @@ def make_mocked_streams(loop):
         sent_stanzas.put_nowait(obj)
 
     sent_stanzas = asyncio.Queue()
-    xmlstream = unittest.mock.Mock()
+    xmlstream = unittest.mock.Mock(["stanza_parser", "close"])
     xmlstream.send_xso = _on_send_xso
     xmlstream.on_closing = callbacks.AdHocSignal()
     xmlstream.close_and_wait = CoroutineMock()
