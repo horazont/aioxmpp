@@ -475,37 +475,9 @@ class StanzaStream:
 
        The `local_jid` argument was added.
 
-    The stanza stream takes care of ensuring stream liveness. For that, pings
-    are sent in a periodic interval. If stream management is enabled, stream
-    management ack requests are used as pings, otherwise :xep:`0199` pings are
-    used.
+    .. versionchanged:: 0.10
 
-    The general idea of pinging is, to save computing power, to send pings only
-    when other stanzas are also about to be sent, if possible. The time window
-    for waiting for other stanzas is defined by
-    :attr:`ping_opportunistic_interval`. The general time which the
-    :class:`StanzaStream` waits between the reception of the previous ping and
-    contemplating the sending of the next ping is controlled by
-    :attr:`ping_interval`. See the attributes descriptions for details:
-
-    .. attribute:: ping_interval = timedelta(seconds=15)
-
-       A :class:`datetime.timedelta` instance which controls the time between a
-       ping response and starting the next ping. When this time elapses,
-       opportunistic mode is engaged for the time defined by
-       :attr:`ping_opportunistic_interval`.
-
-    .. attribute:: ping_opportunistic_interval = timedelta(seconds=15)
-
-       This is the time interval after :attr:`ping_interval`. During that
-       interval, :class:`StanzaStream` waits for other stanzas to be sent. If a
-       stanza gets send during that interval, the ping is fired. Otherwise, the
-       ping is fired after the interval.
-
-    After a ping has been sent, the response must arrive in a time of
-    :attr:`ping_interval` for the stream to be considered alive. If the
-    response fails to arrive within that interval, the stream fails (see
-    :attr:`on_failure`).
+        Ping handling was reworked.
 
     Starting/Stopping the stream:
 
@@ -791,17 +763,10 @@ class StanzaStream:
         # stream is destroyed
         self._iq_request_tasks = []
 
-        self._ping_send_opportunistic = False
-        self._next_ping_event_at = None
-        self._next_ping_event_type = None
-
         self._xmlstream_exception = None
 
         self._established = False
         self._closed = False
-
-        self.ping_interval = timedelta(seconds=15)
-        self.ping_opportunistic_interval = timedelta(seconds=15)
 
         self._sm_enabled = False
 
@@ -1090,12 +1055,6 @@ class StanzaStream:
                 self._logger.warning("received SM ack, but SM not enabled")
                 return
             self.sm_ack(stanza_obj.counter)
-
-            if self._next_ping_event_type == PingEventType.TIMEOUT:
-                self._logger.debug("resetting ping timeout")
-                self._next_ping_event_type = PingEventType.SEND_OPPORTUNISTIC
-                self._next_ping_event_at = (time.monotonic() +
-                                            self.ping_interval.total_seconds())
             return
         elif isinstance(stanza_obj, nonza.SMRequest):
             self._logger.debug("received SM request: %r", stanza_obj)
@@ -1216,83 +1175,6 @@ class StanzaStream:
             except asyncio.QueueEmpty:
                 break
             self._send_stanza(xmlstream, token)
-
-        self._send_ping(xmlstream)
-
-    def _recv_pong(self, stanza):
-        """
-        Process the reception of a XEP-0199 ping reply.
-        """
-
-        if not self.running:
-            return
-        if self._next_ping_event_type != PingEventType.TIMEOUT:
-            return
-        self._next_ping_event_type = PingEventType.SEND_OPPORTUNISTIC
-        self._next_ping_event_at = (
-            time.monotonic() +
-            self.ping_interval.total_seconds()
-        )
-
-    def _send_ping(self, xmlstream):
-        """
-        Opportunistically send a ping over the given `xmlstream`.
-
-        If stream management is enabled, an SM request is always sent,
-        independent of the current ping state. Otherwise, a XEP-0199 ping is
-        sent if and only if we are currently in the opportunistic ping interval
-        (see :attr:`ping_opportunistic_interval`).
-
-        If a ping is sent, and we are currently not waiting for a pong to be
-        received, the ping timeout is configured.
-        """
-        if not self._ping_send_opportunistic:
-            return
-
-        if self._sm_enabled:
-            self._logger.debug("sending SM req")
-            xmlstream.send_xso(nonza.SMRequest())
-        else:
-            request = stanza.IQ(type_=structs.IQType.GET)
-            request.payload = ping.Ping()
-            request.autoset_id()
-            self.register_iq_response_callback(
-                None,
-                request.id_,
-                self._recv_pong
-            )
-            self._logger.debug("sending XEP-0199 ping: %r", request)
-            xmlstream.send_xso(request)
-            self._ping_send_opportunistic = False
-
-        if self._next_ping_event_type != PingEventType.TIMEOUT:
-            self._logger.debug("configuring ping timeout")
-            self._next_ping_event_at = (
-                time.monotonic() + self.ping_interval.total_seconds()
-            )
-            self._next_ping_event_type = PingEventType.TIMEOUT
-
-    def _process_ping_event(self, xmlstream):
-        """
-        Process a ping timed event on the current `xmlstream`.
-        """
-        if self._next_ping_event_type == PingEventType.SEND_OPPORTUNISTIC:
-            self._logger.debug("ping: opportunistic interval started")
-            self._next_ping_event_at += \
-                self.ping_opportunistic_interval.total_seconds()
-            self._next_ping_event_type = PingEventType.SEND_NOW
-            # ping send opportunistic is always true for sm
-            if not self._sm_enabled:
-                self._ping_send_opportunistic = True
-        elif self._next_ping_event_type == PingEventType.SEND_NOW:
-            self._logger.debug("ping: requiring ping to be sent now")
-            self._send_ping(xmlstream)
-        elif self._next_ping_event_type == PingEventType.TIMEOUT:
-            self._logger.warning("ping: response timeout tripped")
-            raise ConnectionError("ping timeout")
-        else:
-            raise RuntimeError("unknown ping event type: {!r}".format(
-                self._next_ping_event_type))
 
     def register_iq_response_callback(self, from_, id_, cb):
         """
@@ -1825,19 +1707,13 @@ class StanzaStream:
         self._task.add_done_callback(self._done_handler)
         self._logger.debug("broker task started as %r", self._task)
 
-        self._next_ping_event_at = (
-            time.monotonic() + self.ping_interval.total_seconds()
-        )
-        self._next_ping_event_type = PingEventType.SEND_OPPORTUNISTIC
-        self._ping_send_opportunistic = self._sm_enabled
-
     def start(self, xmlstream):
         """
         Start or resume the stanza stream on the given
         :class:`aioxmpp.protocol.XMLStream` `xmlstream`.
 
         This starts the main broker task, registers stanza classes at the
-        `xmlstream` and reconfigures the ping state.
+        `xmlstream` .
         """
 
         if self.running:
@@ -1941,10 +1817,7 @@ class StanzaStream:
 
         try:
             while True:
-                timeout = self._next_ping_event_at - time.monotonic()
-                if timeout < 0:
-                    timeout = 0
-
+                timeout = None
                 done, pending = yield from asyncio.wait(
                     [
                         active_fut,
@@ -1966,10 +1839,6 @@ class StanzaStream:
                         incoming_fut = asyncio.ensure_future(
                             self._incoming_queue.get(),
                             loop=self._loop)
-
-                    timeout = self._next_ping_event_at - time.monotonic()
-                    if timeout <= 0:
-                        self._process_ping_event(xmlstream)
 
         finally:
             # make sure we rescue any stanzas which possibly have already been
@@ -2136,7 +2005,6 @@ class StanzaStream:
             self._sm_resumable = response.resume
             self._sm_max = response.max_
             self._sm_location = response.location
-            self._ping_send_opportunistic = True
 
             self._logger.info("SM started: resumable=%s, stream id=%r",
                               self._sm_resumable,
