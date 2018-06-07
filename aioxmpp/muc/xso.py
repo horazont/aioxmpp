@@ -170,6 +170,11 @@ class Invite(xso.XSO):
         default=None
     )
 
+    password = xso.ChildText(
+        (namespaces.xep0045_muc_user, "password"),
+        default=None
+    )
+
 
 class ActorBase(xso.XSO):
     jid = xso.Attr(

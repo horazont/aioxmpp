@@ -465,6 +465,19 @@ class TestInvite(unittest.TestCase):
             muc_xso.Invite.reason.default
         )
 
+    def test_password(self):
+        self.assertIsInstance(
+            muc_xso.Invite.password,
+            xso.ChildText
+        )
+        self.assertEqual(
+            muc_xso.Invite.password.tag,
+            (utils.namespaces.xep0045_muc_user, "password")
+        )
+        self.assertIsNone(
+            muc_xso.Invite.password.default
+        )
+
 
 class TestActorBase(unittest.TestCase):
     def test_is_xso(self):
