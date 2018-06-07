@@ -3489,7 +3489,7 @@ class TestRoom(unittest.TestCase):
     def test_features(self):
         Feature = im_conversation.ConversationFeature
 
-        self.assertSetEqual(
+        self.assertLessEqual(
             {
                 Feature.SET_NICK,
                 Feature.SET_TOPIC,
@@ -4184,6 +4184,86 @@ class TestRoom(unittest.TestCase):
 
         self.assertEqual(self.jmuc.muc_state,
                          muc_service.RoomState.ACTIVE)
+
+    def test_expose_invite_features(self):
+        self.assertIn(
+            im_conversation.ConversationFeature.INVITE,
+            self.jmuc.features,
+        )
+
+        self.assertIn(
+            im_conversation.ConversationFeature.INVITE_DIRECT,
+            self.jmuc.features,
+        )
+
+    def test_direct_invite(self):
+        self.base.service.client.enqueue.return_value = \
+            unittest.mock.sentinel.token
+
+        result = run_coroutine(
+            self.jmuc.invite(
+                TEST_ENTITY_JID,
+                mode=im_conversation.InviteMode.DIRECT,
+                text="some text",
+            )
+        )
+
+        self.assertEqual(
+            result,
+            (unittest.mock.sentinel.token, self.jmuc),
+        )
+
+        self.base.service.client.enqueue.assert_called_once_with(
+            unittest.mock.ANY,
+        )
+
+        _, (msg, ), _ = self.base.service.client.enqueue.mock_calls[-1]
+
+        self.assertIsInstance(msg, aioxmpp.Message)
+        self.assertEqual(msg.to, TEST_ENTITY_JID.bare())
+        self.assertEqual(msg.type_, aioxmpp.MessageType.NORMAL)
+        self.assertIsInstance(msg.xep0249_direct_invite, muc_xso.DirectInvite)
+        self.assertEqual(
+            msg.xep0249_direct_invite.jid,
+            self.jmuc.jid,
+        )
+        self.assertEqual(
+            msg.xep0249_direct_invite.reason,
+            "some text",
+        )
+
+    def test_mediated_invite(self):
+        self.base.service.client.enqueue.return_value = \
+            unittest.mock.sentinel.token
+
+        result = run_coroutine(
+            self.jmuc.invite(
+                TEST_ENTITY_JID,
+                mode=im_conversation.InviteMode.MEDIATED,
+                text="some text",
+            )
+        )
+
+        self.assertEqual(
+            result,
+            (unittest.mock.sentinel.token, self.jmuc),
+        )
+
+        self.base.service.client.enqueue.assert_called_once_with(
+            unittest.mock.ANY,
+        )
+
+        _, (msg, ), _ = self.base.service.client.enqueue.mock_calls[-1]
+
+        self.assertIsInstance(msg, aioxmpp.Message)
+        self.assertEqual(msg.to, self.jmuc.jid)
+        self.assertEqual(msg.type_, aioxmpp.MessageType.NORMAL)
+        self.assertIsInstance(msg.xep0045_muc_user, muc_xso.UserExt)
+
+        invite, = msg.xep0045_muc_user.invites
+
+        self.assertEqual(invite.to, TEST_ENTITY_JID)
+        self.assertEqual(invite.reason, "some text")
 
 
 class TestService(unittest.TestCase):

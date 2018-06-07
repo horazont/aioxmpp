@@ -747,6 +747,8 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
             aioxmpp.im.conversation.ConversationFeature.SEND_MESSAGE_TRACKED,
             aioxmpp.im.conversation.ConversationFeature.SET_TOPIC,
             aioxmpp.im.conversation.ConversationFeature.SET_NICK,
+            aioxmpp.im.conversation.ConversationFeature.INVITE,
+            aioxmpp.im.conversation.ConversationFeature.INVITE_DIRECT,
         }
 
     def _enter_active_state(self):
@@ -1476,6 +1478,35 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
         msg.xep0004_data.append(data)
 
         yield from self.service.client.send(msg)
+
+    @asyncio.coroutine
+    def invite(self, address, text=None, *,
+               mode=aioxmpp.im.InviteMode.DIRECT,
+               allow_upgrade=False):
+        if mode == aioxmpp.im.InviteMode.DIRECT:
+            msg = aioxmpp.Message(
+                type_=aioxmpp.MessageType.NORMAL,
+                to=address.bare(),
+            )
+            msg.xep0249_direct_invite = muc_xso.DirectInvite(
+                self.jid,
+                reason=text,
+            )
+
+            return self.service.client.enqueue(msg), self
+        if mode == aioxmpp.im.InviteMode.MEDIATED:
+            invite = muc_xso.Invite()
+            invite.to = address
+            invite.reason = text
+
+            msg = aioxmpp.Message(
+                type_=aioxmpp.MessageType.NORMAL,
+                to=self.jid,
+            )
+            msg.xep0045_muc_user = muc_xso.UserExt()
+            msg.xep0045_muc_user.invites.append(invite)
+
+            return self.service.client.enqueue(msg), self
 
 
 def _connect_to_signal(signal, func):

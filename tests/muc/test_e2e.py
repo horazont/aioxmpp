@@ -24,6 +24,7 @@ import functools
 import logging
 
 import aioxmpp.muc
+import aioxmpp.im
 import aioxmpp.im.p2p
 import aioxmpp.im.service
 
@@ -622,3 +623,63 @@ class TestMuc(TestCase):
             mode,
             aioxmpp.muc.LeaveMode.ERROR,
         )
+
+    @blocking_timed
+    @asyncio.coroutine
+    def test_direct_invitation(self):
+        thirdmuc = self.thirdwitch.summon(aioxmpp.MUCClient)
+
+        invite_fut = asyncio.Future()
+
+        def on_invite(message, muc_address, inviter_address, mode, **kwargs):
+            invite_fut.set_result(
+                (message, muc_address, inviter_address, mode, kwargs)
+            )
+            return True
+
+        thirdmuc.on_muc_invitation.connect(on_invite)
+
+        token, _ = yield from self.firstroom.invite(
+            self.thirdwitch.local_jid,
+            text="some invitation text",
+            mode=aioxmpp.im.InviteMode.DIRECT,
+        )
+
+        yield from token
+
+        message, muc_address, inviter_address, mode, kwargs = \
+            yield from invite_fut
+
+        self.assertEqual(kwargs["reason"], "some invitation text")
+        self.assertEqual(muc_address, self.firstroom.jid)
+        self.assertEqual(mode, aioxmpp.im.InviteMode.DIRECT)
+
+    @blocking_timed
+    @asyncio.coroutine
+    def test_mediated_invitation(self):
+        thirdmuc = self.thirdwitch.summon(aioxmpp.MUCClient)
+
+        invite_fut = asyncio.Future()
+
+        def on_invite(message, muc_address, inviter_address, mode, **kwargs):
+            invite_fut.set_result(
+                (message, muc_address, inviter_address, mode, kwargs)
+            )
+            return True
+
+        thirdmuc.on_muc_invitation.connect(on_invite)
+
+        token, _ = yield from self.firstroom.invite(
+            self.thirdwitch.local_jid,
+            text="some invitation text",
+            mode=aioxmpp.im.InviteMode.MEDIATED,
+        )
+
+        yield from token
+
+        message, muc_address, inviter_address, mode, kwargs = \
+            yield from invite_fut
+
+        self.assertEqual(kwargs["reason"], "some invitation text")
+        self.assertEqual(muc_address, self.firstroom.jid)
+        self.assertEqual(mode, aioxmpp.im.InviteMode.MEDIATED)
