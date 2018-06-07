@@ -76,6 +76,29 @@ Forms
 XSOs
 ====
 
+Attributes added to existing XSOs
+---------------------------------
+
+.. attribute:: aioxmpp.Message.xep0045_muc
+
+    A :class:`GenericExt` object or :data:`None`.
+
+.. attribute:: aioxmpp.Message.xep0045_muc_user
+
+    A :class:`UserExt` object or :data:`None`.
+
+.. attribute:: aioxmpp.Presence.xep0045_muc
+
+    A :class:`GenericExt` object or :data:`None`.
+
+.. attribute:: aioxmpp.Presence.xep0045_muc_user
+
+    A :class:`UserExt` object or :data:`None`.
+
+.. attribute:: aioxmpp.Message.xep0249_direct_invite
+
+    A :class:`DirectInvite` object or :data:`None`.
+
 Generic namespace
 -----------------
 
