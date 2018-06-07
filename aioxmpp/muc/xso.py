@@ -19,6 +19,8 @@
 # <http://www.gnu.org/licenses/>.
 #
 ########################################################################
+import enum
+
 import aioxmpp.forms
 import aioxmpp.stanza
 import aioxmpp.stringprep
@@ -31,6 +33,139 @@ namespaces.xep0045_muc = "http://jabber.org/protocol/muc"
 namespaces.xep0045_muc_user = "http://jabber.org/protocol/muc#user"
 namespaces.xep0045_muc_admin = "http://jabber.org/protocol/muc#admin"
 namespaces.xep0045_muc_owner = "http://jabber.org/protocol/muc#owner"
+
+
+class StatusCode(enum.IntEnum):
+    """
+    This integer enumeration (see :class:`enum.IntEnum`) is used for the
+    status codes defined in :xep:`45`.
+
+    Note that members of this enumeration are equal to their respective integer
+    values, making it ideal for backward- and forward-compatible code and a
+    replacement for magic numbers.
+
+    .. versionadded:: 0.10
+
+        Before version 0.10, this enum did not exist and the numeric codes
+        were used bare. Since this is an :class:`~enum.IntEnum`, it is possible
+        to use the named enum members and their numeric codes interchangably.
+
+    .. attribute:: NON_ANONYMOUS
+        :annotation: = 100
+
+        Included when entering a room where every user can see every users
+        real JID.
+
+    .. attribute:: AFFILIATION_CHANGE
+        :annotation: = 101
+
+        Included in out-of-band messages informing about affiliation changes.
+
+    .. attribute:: SHOWING_UNAVAILABLE
+        :annotation: = 102
+
+        Inform occupants that room now shows unavailable members.
+
+    .. attribute:: NOT_SHOWING_UNAVAILABLE
+        :annotation: = 103
+
+        Inform occupants that room now does not show unavailable members.
+
+    .. attribute:: CONFIG_NON_PRIVACY_RELATED
+        :annotation: = 104
+
+        Inform occupants that a non-privacy related configuration change has
+        occured.
+
+    .. attribute:: SELF
+        :annotation: = 110
+
+        Inform that the stanza refers to the addressee themselves.
+
+    .. attribute:: CONFIG_ROOM_LOGGING
+        :annotation: = 170
+
+        Inform that the room is now logged.
+
+    .. attribute:: CONFIG_NO_ROOM_LOGGING
+        :annotation: = 171
+
+        Inform that the room is not logged anymore.
+
+    .. attribute:: CONFIG_NON_ANONYMOUS
+        :annotation: = 172
+
+        Inform that the room is now not anonymous.
+
+    .. attribute:: CONFIG_SEMI_ANONYMOUS
+        :annotation: = 173
+
+        Inform that the room is now semi-anonymous.
+
+    .. attribute:: CREATED
+        :annotation: = 201
+
+        Inform that the room was created during the join operation.
+
+    .. attribute:: REMOVED_BANNED
+        :annotation: = 301
+
+        Inform that the user was banned from the room.
+
+    .. attribute:: NICKNAME_CHANGE
+        :annotation: = 303
+
+        Inform about new nickname.
+
+    .. attribute:: REMOVED_KICKED
+        :annotation: = 307
+
+        Inform that the occupant was kicked.
+
+    .. attribute:: REMOVED_AFFILIATION_CHANGE
+        :annotation: = 321
+
+        Inform that the occupant was removed from the room due to a change in
+        affiliation.
+
+    .. attribute:: REMOVED_NONMEMBER_IN_MEMBERS_ONLY
+        :annotation: = 322
+
+        Inform that the occupant was removed from the room because the room was
+        changed to members-only and the occupant was not a member.
+
+    .. attribute:: REMOVED_SERVICE_SHUTDOWN
+        :annotation: = 332
+
+        Inform that the occupant is being removed because the MUC service is
+        being shut down.
+
+    .. attribute:: REMOVED_ERROR
+        :annotation: = 333
+
+        Inform that the occupant is being removed because there was an error
+        while communicating with them or their server.
+
+    """
+
+    NON_ANONYMOUS = 100
+    AFFILIATION_CHANGE = 101
+    SHOWING_UNAVAILABLE = 102
+    NOT_SHOWING_UNAVAILABLE = 103
+    CONFIG_NON_PRIVACY_RELATED = 104
+    SELF = 110
+    CONFIG_ROOM_LOGGING = 170
+    CONFIG_NO_ROOM_LOGGING = 171
+    CONFIG_NON_ANONYMOUS = 172
+    CONFIG_SEMI_ANONYMOUS = 173
+    CREATED = 201
+    REMOVED_BANNED = 301
+    NICKNAME_CHANGE = 303
+    REMOVED_KICKED = 307
+    REMOVED_AFFILIATION_CHANGE = 321
+    REMOVED_NONMEMBER_IN_MEMBERS_ONLY = 322
+    REMOVED_SERVICE_SHUTDOWN = 332
+    REMOVED_ERROR = 333
 
 
 class History(xso.XSO):
@@ -94,7 +229,12 @@ class Status(xso.XSO):
 
     code = xso.Attr(
         "code",
-        type_=xso.Integer()
+        type_=xso.EnumCDataType(
+            StatusCode,
+            xso.Integer(),
+            allow_coerce=True,
+            pass_unknown=True,
+        )
     )
 
     def __init__(self, code):
@@ -490,4 +630,79 @@ class ConfigurationForm(aioxmpp.forms.Form):
     whois = aioxmpp.forms.ListSingle(
         var='muc#roomconfig_whois',
         label='Affiliations that May Discover Real JIDs of Occupants'
+    )
+
+
+class InfoForm(aioxmpp.forms.Form):
+    FORM_TYPE = 'http://jabber.org/protocol/muc#roominfo'
+
+    maxhistoryfetch = aioxmpp.forms.TextSingle(
+        var='muc#maxhistoryfetch',
+        label='Maximum Number of History Messages Returned by Room'
+    )
+
+    contactjid = aioxmpp.forms.JIDMulti(
+        var='muc#roominfo_contactjid',
+        label='Contact Addresses (normally, room owner or owners)'
+    )
+
+    description = aioxmpp.forms.TextSingle(
+        var='muc#roominfo_description',
+        label='Short Description of Room'
+    )
+
+    lang = aioxmpp.forms.TextSingle(
+        var='muc#roominfo_lang',
+        label='Natural Language for Room Discussions'
+    )
+
+    ldapgroup = aioxmpp.forms.TextSingle(
+        var='muc#roominfo_ldapgroup',
+        label='An associated LDAP group that defines room membership; this '
+        'should be an LDAP Distinguished Name according to an '
+        'implementation-specific or deployment-specific definition of a group.'
+    )
+
+    logs = aioxmpp.forms.TextSingle(
+        var='muc#roominfo_logs',
+        label='URL for Archived Discussion Logs'
+    )
+
+    occupants = aioxmpp.forms.TextSingle(
+        var='muc#roominfo_occupants',
+        label='Current Number of Occupants in Room'
+    )
+
+    subject = aioxmpp.forms.TextSingle(
+        var='muc#roominfo_subject',
+        label='Current Discussion Topic'
+    )
+
+    subjectmod = aioxmpp.forms.Boolean(
+        var='muc#roominfo_subjectmod',
+        label='The room subject can be modified by participants'
+    )
+
+
+class VoiceRequestForm(aioxmpp.forms.Form):
+    FORM_TYPE = 'http://jabber.org/protocol/muc#request'
+
+    role = aioxmpp.forms.ListSingle(
+        var='muc#role',
+        label='Requested role'
+    )
+
+    jid = aioxmpp.forms.JIDSingle(
+        var='muc#jid',
+        label='User ID'
+    )
+
+    roomnick = aioxmpp.forms.TextSingle(
+        var='muc#roomnick',
+        label='Room Nickname'
+    )
+
+    request_allow = aioxmpp.forms.Boolean(
+        var='muc#request_allow',
+        label='Whether to grant voice'
     )

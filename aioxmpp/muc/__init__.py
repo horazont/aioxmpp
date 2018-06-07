@@ -71,10 +71,18 @@ Forms
 .. autoclass:: ConfigurationForm
    :members:
 
-.. currentmodule:: aioxmpp.muc.xso
+.. autoclass:: InfoForm
+    :members:
+
+.. autoclass:: VoiceRequestForm
+    :members:
 
 XSOs
 ====
+
+.. autoclass:: StatusCode
+
+.. currentmodule:: aioxmpp.muc.xso
 
 Generic namespace
 -----------------
@@ -122,6 +130,9 @@ Owner namespace
 from .service import MUCClient, Occupant, Room, LeaveMode, RoomState  # NOQA
 from . import xso  # NOQA
 from .xso import (  # NOQA
-    ConfigurationForm
+    ConfigurationForm,
+    InfoForm,
+    VoiceRequestForm,
+    StatusCode,
 )
 Service = MUCClient  # NOQA

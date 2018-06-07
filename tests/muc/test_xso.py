@@ -19,6 +19,8 @@
 # <http://www.gnu.org/licenses/>.
 #
 ########################################################################
+import enum
+import io
 import unittest
 import unittest.mock
 
@@ -30,6 +32,7 @@ import aioxmpp.stanza as stanza
 import aioxmpp.structs
 import aioxmpp.stringprep
 import aioxmpp.utils as utils
+import aioxmpp.xml
 import aioxmpp.xso as xso
 
 
@@ -61,6 +64,28 @@ class TestNamespaces(unittest.TestCase):
         self.assertEqual(
             utils.namespaces.xep0045_muc_owner,
             "http://jabber.org/protocol/muc#owner"
+        )
+
+
+class TestStatusCode(unittest.TestCase):
+    def test_is_int_enum(self):
+        self.assertTrue(issubclass(
+            muc_xso.StatusCode,
+            enum.IntEnum,
+        ))
+
+    def test_operates_correctly_with_sets(self):
+        self.assertEqual(
+            muc_xso.StatusCode.AFFILIATION_CHANGE,
+            101,
+        )
+        self.assertSetEqual(
+            {muc_xso.StatusCode.AFFILIATION_CHANGE},
+            {101}
+        )
+        self.assertSetEqual(
+            {muc_xso.StatusCode.AFFILIATION_CHANGE},
+            {101, muc_xso.StatusCode.AFFILIATION_CHANGE}
         )
 
 
@@ -262,16 +287,97 @@ class TestStatus(unittest.TestCase):
         )
         self.assertIsInstance(
             muc_xso.Status.code.type_,
-            xso.Integer
+            xso.EnumCDataType
         )
+        self.assertIsInstance(
+            muc_xso.Status.code.type_.nested_type,
+            xso.Integer,
+        )
+        self.assertEqual(
+            muc_xso.Status.code.type_.enum_class,
+            muc_xso.StatusCode
+        )
+        self.assertTrue(muc_xso.Status.code.type_.allow_coerce)
+        self.assertFalse(muc_xso.Status.code.type_.deprecate_coerce)
+        self.assertTrue(muc_xso.Status.code.type_.pass_unknown)
         self.assertEqual(
             muc_xso.Status.code.default,
             xso.NO_DEFAULT
         )
 
     def test_init(self):
-        item = muc_xso.Status(200)
-        self.assertEqual(item.code, 200)
+        item = muc_xso.Status(muc_xso.StatusCode.CONFIG_SEMI_ANONYMOUS)
+        self.assertEqual(item.code, 173)
+        self.assertEqual(item.code, muc_xso.StatusCode.CONFIG_SEMI_ANONYMOUS)
+
+    def test_can_deserialise_arbitrary_integer(self):
+        src = io.BytesIO(
+            b"<status xmlns='http://jabber.org/protocol/muc#user' code='1234'/>"
+        )
+        item = aioxmpp.xml.read_single_xso(
+            src,
+            muc_xso.Status,
+        )
+
+        self.assertEqual(
+            item.code,
+            1234,
+        )
+
+    def test_prefers_enum_if_possible(self):
+        src = io.BytesIO(
+            b"<status xmlns='http://jabber.org/protocol/muc#user' code='101'/>"
+        )
+        item = aioxmpp.xml.read_single_xso(
+            src,
+            muc_xso.Status,
+        )
+
+        self.assertIsInstance(
+            item.code,
+            muc_xso.StatusCode,
+        )
+
+    def test_can_serialise_arbitrary_integer(self):
+        buf = io.BytesIO()
+        aioxmpp.xml.write_single_xso(
+            muc_xso.Status(1234),
+            buf,
+        )
+        buf.seek(0, io.SEEK_SET)
+
+        item = aioxmpp.xml.read_single_xso(
+            buf,
+            muc_xso.Status,
+        )
+
+        self.assertEqual(
+            item.code,
+            1234,
+        )
+
+    def test_coerces_if_possible(self):
+        item = muc_xso.Status(201)
+        self.assertIsInstance(item.code, muc_xso.StatusCode)
+        self.assertEqual(item.code, 201)
+
+    def test_can_serialise_enum_member(self):
+        buf = io.BytesIO()
+        aioxmpp.xml.write_single_xso(
+            muc_xso.Status(muc_xso.StatusCode.CREATED),
+            buf,
+        )
+        buf.seek(0, io.SEEK_SET)
+
+        item = aioxmpp.xml.read_single_xso(
+            buf,
+            muc_xso.Status,
+        )
+
+        self.assertEqual(
+            item.code,
+            muc_xso.StatusCode.CREATED,
+        )
 
 
 class TestStatusCodeList(unittest.TestCase):

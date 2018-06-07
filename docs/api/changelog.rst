@@ -362,6 +362,26 @@ Version 0.10
 
   Relying on the field type to be present is thus a non-starter.
 
+* :class:`aioxmpp.muc.InfoForm`
+
+* :class:`aioxmpp.muc.VoiceRequestForm`
+
+* Support for answering requests for voice/role change in MUCs (cf.
+  `XEP-0045 §8.6 Approving Voice Requests <https://xmpp.org/extensions/xep-0045.html#voiceapprove>`_). See
+  :meth:`aioxmpp.muc.Room.on_muc_role_request` for details.
+
+* Support for unwrapped unknown values in :class:`aioxmpp.xso.EnumCDataType`.
+  This can be used with :class:`enum.IntEnum` for fun and profit.
+
+* :class:`aioxmpp.muc.StatusCode`
+
+* The signals :meth:`aioxmpp.muc.Room.on_muc_enter`,
+  :meth:`~aioxmpp.muc.Room.on_exit`,
+  :meth:`~aioxmpp.muc.Room.on_leave`, :meth:`~aioxmpp.muc.Room.on_join`,
+  :meth:`~aioxmpp.muc.Room.on_muc_role_changed`, and
+  :meth:`~aioxmpp.muc.Room.on_muc_affiliation_changed` now receive the set of
+  status codes which was included in the triggering stanza as keyword argument.
+
 .. _api-changelog-0.9:
 
 Version 0.9
