@@ -364,6 +364,8 @@ Version 0.10
 
 * Update :meth:`aioxmpp.im.conversation.AbstractConversation.invite` interface.
 
+* :meth:`aioxmpp.MUCClient.on_muc_invitation`
+
 .. _api-changelog-0.9:
 
 Version 0.9

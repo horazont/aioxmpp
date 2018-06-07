@@ -119,6 +119,7 @@ From XMPP Extension Proposals (XEPs)
 * :xep:`199` (XMPP Ping), used for aliveness-checks if Stream Management is not
   avaliable and :mod:`aioxmpp.ping`
 * :xep:`203` (Delayed Delivery), see :mod:`aioxmpp.misc`
+* :xep:`249` (Direct MUC Invitations), see :mod:`aioxmpp.muc`
 * :xep:`297` (Stanza Forwarding), see :mod:`aioxmpp.misc`
 * :xep:`280` (Message Carbons), see :mod:`aioxmpp.carbons`
 * :xep:`300` (Use of Cryptographic Hash Functions in XMPP),
