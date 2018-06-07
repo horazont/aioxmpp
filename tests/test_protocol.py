@@ -2381,6 +2381,17 @@ class TestXMLStream(unittest.TestCase):
         self.assertIsInstance(fut.exception(), ConnectionError)
         self.assertIn(str(fut.exception()), "timeout")
 
+    def test_data_received_notifies_monitor(self):
+        t, p = self._make_stream(to=TEST_PEER)
+
+        self.monitor.notify_received.assert_not_called()
+
+        with unittest.mock.patch.object(p, "_rx_feed") as _rx_feed:
+            # patch _rx_feed away to avoid it to do something sensible with it
+            p.data_received(unittest.mock.sentinel.something)
+
+        self.monitor.notify_received.assert_called_once_with()
+
 
 class Testsend_and_wait_for(xmltestutils.XMLTestCase):
     def setUp(self):

@@ -679,6 +679,7 @@ class XMLStream(asyncio.Protocol):
 
     def data_received(self, blob):
         self._logger.debug("RECV %r", blob)
+        self._monitor.notify_received()
         try:
             self._rx_feed(blob)
         except errors.StreamError as exc:
