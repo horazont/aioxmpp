@@ -116,7 +116,8 @@ from .structs import (  # NOQA
     ErrorType,
 )
 from .security_layer import make as make_security_layer  # NOQA
-from .node import Client, PresenceManagedClient  # NOQA
+from .node import Client, PresenceManagedClient, discover_connectors  # NOQA
+from .protocol import send_and_wait_for
 
 # services
 from .presence import PresenceClient, PresenceServer  # NOQA
