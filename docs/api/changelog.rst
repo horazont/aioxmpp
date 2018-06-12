@@ -386,6 +386,8 @@ Version 0.10
 
 * :meth:`aioxmpp.MUCClient.on_muc_invitation`
 
+* :class:`aioxmpp.PEPClient` now depends on :class:`aioxmpp.EntityCapsService`
+
 .. _api-changelog-0.9:
 
 Version 0.9

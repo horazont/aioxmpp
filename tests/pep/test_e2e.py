@@ -48,9 +48,7 @@ class TestPEP(TestCase):
     def setUp(self):
         self.client = yield from self.provisioner.get_connected_client(
             services=[
-                aioxmpp.EntityCapsService,
                 aioxmpp.PresenceServer,
-                aioxmpp.PubSubClient,
                 aioxmpp.pep.PEPClient
             ]
         )
@@ -99,9 +97,7 @@ class Test_register_pep_node_Descriptor(TestCase):
     def setUp(self):
         self.client = yield from self.provisioner.get_connected_client(
             services=[
-                aioxmpp.EntityCapsService,
                 aioxmpp.PresenceServer,
-                aioxmpp.PubSubClient,
                 aioxmpp.pep.PEPClient,
                 ExampleService,
             ]
