@@ -394,6 +394,16 @@ Version 0.10
   It is described in the :ref:`aioxmpp.stream.General Information.Timeouts`
   section in :mod:`aioxmpp.stream`.
 
+* *Possibly breaking change*: :meth:`aioxmpp.connector.BaseConnector.connect`
+  implementations are expected to set the
+  :attr:`aioxmpp.protocol.XMLStream.deadtime_hard_limit` to the
+  value of their `negotiation_timeout` argument and use this mechanism to handle
+  any stream-level timeouts.
+
+* *Deprecation*: The `negotiation_timeout` argument for
+  :func:`aioxmpp.security_layer.negotiate_sasl` has been deprecated in favour
+  of :class:`aioxmpp.protocol.XMLStream`\ -level handling of timeouts.
+
 .. _api-changelog-0.9:
 
 Version 0.9

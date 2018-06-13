@@ -1164,6 +1164,15 @@ def negotiate_sasl(transport, xmlstream,
     stream after successful SASL authentication.
 
     .. versionadded:: 0.6
+
+    .. deprecated:: 0.10
+
+        The `negotiation_timeout` argument is ignored. The timeout is
+        controlled using the :attr:`~.XMLStream.deadtime_hard_limit` timeout
+        of the stream.
+
+        The argument will be removed in version 1.0. To prepare for this, please
+        pass `jid` and `features` as keyword arguments.
     """
 
     if not transport.get_extra_info("sslcontext"):
@@ -1180,8 +1189,8 @@ def negotiate_sasl(transport, xmlstream,
 
         if result:
             features = yield from protocol.reset_stream_and_get_features(
-                xmlstream,
-                timeout=negotiation_timeout)
+                xmlstream
+            )
             break
     else:
         if last_auth_error:

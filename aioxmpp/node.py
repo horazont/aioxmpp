@@ -271,9 +271,9 @@ def _try_options(options, exceptions,
                 transport,
                 xmlstream,
                 metadata.sasl_providers,
-                negotiation_timeout,
-                jid,
-                features,
+                negotiation_timeout=None,
+                jid=jid,
+                features=features,
             )
         except errors.SASLUnavailable as exc:
             protocol.send_stream_error_and_close(
