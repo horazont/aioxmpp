@@ -1695,15 +1695,10 @@ class TestXMLStream(unittest.TestCase):
         self.assertIsNone(fut.result())
 
     def test_close_and_wait_timeout(self):
-        base_timeout = get_timeout(0.1)
-        t, p = self._make_stream(to=TEST_PEER)
+        base_timeout = get_timeout(timedelta(seconds=0.1))
+        t, p = self._make_stream(to=TEST_PEER, monitor_mock=False)
 
-        self.assertEqual(
-            15,
-            p.shutdown_timeout
-        )
-
-        p.shutdown_timeout = base_timeout
+        p.deadtime_hard_limit = base_timeout
 
         run_coroutine(t.run_test(
             [
@@ -1740,11 +1735,13 @@ class TestXMLStream(unittest.TestCase):
 
         self.assertFalse(fut.done())
 
-        run_coroutine(asyncio.sleep(base_timeout * 0.8))
+        run_coroutine(asyncio.sleep((base_timeout * 0.8).total_seconds()))
 
         self.assertFalse(fut.done())
 
-        run_coroutine(asyncio.sleep(base_timeout * 0.3 + base_timeout / 2))
+        run_coroutine(asyncio.sleep(
+            (base_timeout * 0.3 + base_timeout / 2).total_seconds()
+        ))
 
         self.assertEqual(
             p.state,
@@ -1756,14 +1753,14 @@ class TestXMLStream(unittest.TestCase):
 
         run_coroutine(t.run_test(
             [
-                TransportMock.Close(
+                TransportMock.Abort(
                     response=[
                         TransportMock.Receive(
                             self._make_eos(),
                         ),
                         TransportMock.ReceiveEof(),
                     ]
-                ),
+                )
             ]
         ))
 

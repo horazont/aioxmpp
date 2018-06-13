@@ -458,7 +458,6 @@ class XMLStream(asyncio.Protocol):
         self._error_futures = []
         self._smachine = statemachine.OrderedStateMachine(State.READY)
         self._transport_closing = False
-        self._footer_timeout_future = None
         self._monitor = AlivenessMonitor(self._loop)
         self._monitor.on_deadtime_hard_limit_tripped.connect(
             self._deadtime_hard_limit_triggered
@@ -518,45 +517,10 @@ class XMLStream(asyncio.Protocol):
             self._features_future.set_exception(exc)
 
         if task.cancelled():
-            # this happens if connection_lost happens before we enter closing
-            # state. causes are: stream abortion, connection reset by peer etc.
-            # no need to wait for a timeout in that case
             return
         if task.exception() is not None:
-            # this happens if we skip over the CLOSING state, which implies
-            # that the stream footer has been seen; no reason to worry about
-            # the timeout in that case.
             return
         task.result()
-
-        self._footer_timeout_future = asyncio.ensure_future(
-            self._stream_footer_timeout(),
-            loop=self._loop
-        )
-
-        def fetch_result_and_ignore_cancel(fut):
-            try:
-                fut.result()
-            except asyncio.CancelledError:
-                pass
-
-        self._footer_timeout_future.add_done_callback(
-            fetch_result_and_ignore_cancel,
-        )
-
-    @asyncio.coroutine
-    def _stream_footer_timeout(self):
-        self._logger.debug(
-            "waiting for at most %s seconds for peer stream footer",
-            self.shutdown_timeout
-        )
-        yield from asyncio.sleep(self.shutdown_timeout)
-        if self._smachine.state >= State.CLOSING_STREAM_FOOTER_RECEIVED:
-            # state already reached, stop
-            return
-        self._logger.info("timeout while waiting for stream footer")
-        self._close_transport()
-        self._smachine.state = State.CLOSING_STREAM_FOOTER_RECEIVED
 
     def _fail(self, err):
         self._exception = err
@@ -645,6 +609,11 @@ class XMLStream(asyncio.Protocol):
             )
 
     def _deadtime_hard_limit_triggered(self):
+        self._logger.debug("dead time hard limit exceeded")
+        # pretend full shut-down handshake has happened
+        if self._smachine.state != State.CLOSED:
+            self._smachine.state = State.CLOSING_STREAM_FOOTER_RECEIVED
+        self._transport_closing = True
         if self._transport is not None:
             self._transport.abort()
         self._exception = self._exception or ConnectionError(
@@ -676,8 +645,6 @@ class XMLStream(asyncio.Protocol):
         self._monitor.deadtime_hard_limit = None
         self._monitor.deadtime_soft_limit = None
         self._closing_future.cancel()
-        if self._footer_timeout_future is not None:
-            self._footer_timeout_future.cancel()
 
     def data_received(self, blob):
         self._logger.debug("RECV %r", blob)
