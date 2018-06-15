@@ -25,23 +25,121 @@ import asyncio
 import aioxmpp
 import logging
 
+from aioxmpp.service import Service
 from . import xso
 
 
 logger = logging.getLogger(__name__)
 
 
-class RegistrationService:
+@asyncio.coroutine
+def get_registration_fields(xmlstream,
+                            timeout=60,
+                            ):
+    """
+    A query is sent to the server to obtain the fields that need to be
+    filled to register with the server.
+
+    :param xmlstream: Specifies the stream connected to the server where
+                      the account will be created.
+    :type xmlstream: :class:`aioxmpp.protocol.XMLStream`
+
+    :param timeout: Maximum time in seconds to wait for an IQ response, or
+                    :data:`None` to disable the timeout.
+    :type timeout: :class:`~numbers.Real` or :data:`None`
+
+    :return: :attr:`list`
+    """
+
+    iq = aioxmpp.IQ(
+        to=aioxmpp.JID.fromstr(xmlstream._to),
+        type_=aioxmpp.IQType.GET,
+        payload=xso.Query()
+    )
+    iq.autoset_id()
+
+    reply = yield from aioxmpp.protocol.send_and_wait_for(xmlstream,
+                                                          [iq],
+                                                          [aioxmpp.IQ],
+                                                          timeout=timeout)
+    return reply.payload
+
+
+@asyncio.coroutine
+def register(query_xso,
+             xmlstream,
+             timeout=60,
+             ):
+    """
+    Create a new account on the server.
+
+    :param query_xso: XSO with the information needed for the registration.
+    :type query_xso: :class:`xso.Query`
+
+    :param xmlstream: Specifies the stream connected to the server where
+                      the account will be created.
+    :type xmlstream: :class:`aioxmpp.protocol.XMLStream`
+
+    :param timeout: Maximum time in seconds to wait for an IQ response, or
+                    :data:`None` to disable the timeout.
+    :type timeout: :class:`~numbers.Real` or :data:`None`
+    """
+    iq = aioxmpp.IQ(
+        to=aioxmpp.JID.fromstr(xmlstream._to),
+        type_=aioxmpp.IQType.SET,
+        payload=query_xso
+    )
+    iq.autoset_id()
+
+    yield from aioxmpp.protocol.send_and_wait_for(xmlstream,
+                                                  [iq],
+                                                  [aioxmpp.IQ],
+                                                  timeout=timeout)
+
+
+def get_used_fields(payload):
+    """
+    Get a list containing the names of the fields that are used in the
+    xso.Query.
+
+    :param payload: Query object o be
+    :type payload: :class:`xso.Query`
+    :return: :attr:`list`
+    """
+    return [a for a in dir(payload)
+            if isinstance(getattr(payload, a), str) and
+            not a.startswith('__')]
+
+
+def get_query_xso(username, password, aux_fields=None):
+    """
+    Get an xso.Query object with the info provided in he parameters.
+
+    :param username: Username of the query
+    :type username: :class:`str`
+    :param password: Password of the query.
+    :type password: :class:`str`
+    :param aux_fields: Auxiliary fields in case additional info is needed.
+    :type aux_fields: :class:`dict`
+    :return: :class:`xso.Query`
+    """
+    query = xso.Query()
+    query.username = username
+    query.password = password
+
+    if aux_fields is not None:
+        for key, value in aux_fields.items():
+            setattr(query, key, value)
+
+    return query
+
+
+class RegistrationService(Service):
     """
     Service implementing XMPP In-Band Registration(:xep:`0077`).
 
-    This service implements the response to XMPP Pings and provides a method
-    to send pings.
-
-    This class doesn't inherit from the Service class because here are methods
-    that can't have a connected client in order to run. For example, a new
-    account should sent the needed stanza without being authenticated,
-    otherwise it would make no sense.
+    This 'service' implements the possibility for an entity to register with a
+    XMPP server, cancel an existing registration, or change a password.
 
     .. automethod:: get_client_info
 
@@ -56,69 +154,54 @@ class RegistrationService:
     """
 
     @asyncio.coroutine
-    def get_client_info(self, client):
+    def get_client_info(self):
         """
-        A query is sent to the server o obtain the client's data stored at the
+        A query is sent to the server to obtain the client's data stored at the
         server.
 
-        :param client: Client from which the query is sent.
-        :type client: :class:`aioxmpp.Client`
-
-        :return: IQ response :attr:`~.IQ.payload` or :data:`None`
+        :return: :class:`xso.Query`
         """
         iq = aioxmpp.IQ(
-            to=client.local_jid.bare().replace(localpart=None),
+            to=self.client.local_jid.bare().replace(localpart=None),
             type_=aioxmpp.IQType.GET,
             payload=xso.Query()
         )
 
-        return (yield from client.send(iq))
+        reply = (yield from self.client.send(iq))
+        return reply
 
     @asyncio.coroutine
     def change_pass(self,
-                    client,
                     new_pass,
-                    aux_fields=None):
+                    old_pass=None):
         """
         Change the client password for 'new_pass'.
-
-        :param client: Client who wants to change the password.
-        :type client: :class:`aioxmpp.Client`
 
         :param new_pass: New password of the client.
         :type new_pass: :class:`str`
 
-        :param aux_fields: Auxiliary fields in case additional info is needed.
-        :type aux_fields: :class:`dict`
+        :param old_pass: Old password of the client.
+        :type old_pass: :class:`str`
 
-        :return:`None`
-
-        If the query fails for whatever reason, it will raise an exception
-        from inside client.send(iq).
         """
         iq = aioxmpp.IQ(
-            to=client.local_jid.bare().replace(localpart=None),
+            to=self.client.local_jid.bare().replace(localpart=None),
             type_=aioxmpp.IQType.SET,
             payload=xso.Query()
         )
 
-        iq.payload.username = client.local_jid.localpart
+        iq.payload.username = self.client.local_jid.localpart
         iq.payload.password = new_pass
 
-        if aux_fields is not None:
-            for key, value in aux_fields.items():
-                setattr(iq.payload, key, value)
-        yield from client.send(iq)
+        if old_pass:
+            iq.payload.old_password = old_pass
+
+        yield from self.client.send(iq)
 
     @asyncio.coroutine
-    def cancel_registration(self, client):
+    def cancel_registration(self):
         """
         Cancels the currents client's account with the server.
-
-        :param client: Client who wants to cancel.
-        :type client: :class:`aioxmpp.Client`
-
-        :return:`None`
 
         Even if the cancelation is succesful, this method will raise an
         exception due to he account no longer exists for the server, so the
@@ -127,127 +210,10 @@ class RegistrationService:
         try/except statement.
         """
         iq = aioxmpp.IQ(
-            to=client.local_jid.bare().replace(localpart=None),
+            to=self.client.local_jid.bare().replace(localpart=None),
             type_=aioxmpp.IQType.SET,
             payload=xso.Query()
         )
 
         iq.payload.remove = True
-        yield from client.send(iq)
-
-    @staticmethod
-    @asyncio.coroutine
-    def connect_and_send(iq, loop, metadata, peer_jid, timeout):
-        options = list((
-            yield from aioxmpp.discover_connectors(
-                peer_jid.domain, loop=loop
-            )
-        ))
-        for host, port, conn in options:
-            transport, xmlstream, features = yield from conn.connect(
-                loop,
-                metadata,
-                peer_jid.domain,
-                host,
-                port,
-                timeout,
-                base_logger=logger
-            )
-            reply = yield from aioxmpp.send_and_wait_for(
-                xmlstream, [iq], [aioxmpp.IQ]
-            )
-        return reply
-
-    @asyncio.coroutine
-    def get_registration_fields(self,
-                                peer_jid,
-                                timeout=60,
-                                no_verify=True
-                                ):
-        """
-        A query is sent to the server to obtain the fields that need to be
-        filled to register with the server.
-
-        :param peer_jid: Server where he query will be sent.
-        :type peer_jid: :class:`aioxmpp.JID`
-
-        :param timeout: Maximum time in seconds to wait for an IQ response, or
-                        :data:`None` to disable the timeout.
-        :type timeout: :class:`~numbers.Real` or :data:`None`
-
-        :param no_verify: Specifies whether the server's TLS is verified.
-        :type no_verify: :class:`aioxmpp.JID`
-
-        :return: :attr:`list`
-        """
-        iq = aioxmpp.IQ(
-            to=peer_jid.bare().replace(localpart=None),
-            type_=aioxmpp.IQType.GET,
-            payload=xso.Query()
-        )
-        iq.autoset_id()
-
-        loop = asyncio.get_event_loop()
-        metadata = aioxmpp.make_security_layer('', no_verify=no_verify)
-
-        try:
-            reply = yield from self.connect_and_send(iq, loop, metadata, peer_jid, timeout)
-
-            return [a for a in dir(reply.payload)
-                    if isinstance(getattr(reply.payload, a), str) and
-                    not a.startswith('__')]
-        except Exception as exc:
-            raise exc
-
-    @asyncio.coroutine
-    def register(self,
-                 jid,
-                 password,
-                 aux_fields=None,
-                 timeout=60,
-                 no_verify=True
-                 ):
-        """
-        Create a new account on the server.
-
-        :param jid: Server where he account will be created wih the username
-                    of the account.
-        :type jid: :class:`aioxmpp.JID`
-
-        :param password: Password of the new account.
-        :type password: :class:`str`
-
-        :param aux_fields: Auxiliary fields in case additional info is needed.
-        :type aux_fields: :class:`dict`
-
-        :param timeout: Maximum time in seconds to wait for an IQ response, or
-                        :data:`None` to disable the timeout.
-        :type timeout: :class:`~numbers.Real` or :data:`None`
-
-        :param no_verify: Specifies whether the server's TLS is verified.
-        :type no_verify: :class:`aioxmpp.JID`
-
-        :return: :attr:`list`
-        """
-        iq = aioxmpp.IQ(
-            to=jid.bare().replace(localpart=None),
-            type_=aioxmpp.IQType.SET,
-            payload=xso.Query()
-        )
-        iq.autoset_id()
-
-        iq.payload.username = jid.localpart
-        iq.payload.password = password
-
-        if aux_fields is not None:
-            for key, value in aux_fields.items():
-                setattr(iq.payload, key, value)
-
-        loop = asyncio.get_event_loop()
-        metadata = aioxmpp.make_security_layer(password, no_verify=no_verify)
-
-        try:
-            reply = yield from self.connect_and_send(iq, loop, metadata, jid, timeout)
-            return reply
-        except Exception as exc:
-            raise exc
+        yield from self.client.send(iq)

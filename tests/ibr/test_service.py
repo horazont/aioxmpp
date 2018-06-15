@@ -30,6 +30,7 @@ import aioxmpp.ibr.xso as ibr_xso
 from aioxmpp.testutils import (
     make_connected_client,
     run_coroutine,
+    CoroutineMock
 )
 
 
@@ -40,18 +41,15 @@ class TestService(unittest.TestCase):
 
     def setUp(self):
         self.cc = make_connected_client()
-        self.s = ibr_service.RegistrationService()
+        self.s = ibr_service.RegistrationService(self.cc)
 
     def test_ibr_get_client_info(self):
-        iq = aioxmpp.IQ(
-            type_=aioxmpp.IQType.GET,
-            payload=ibr_xso.Query()
-        )
-        iq.payload.username = TEST_PEER.localpart
-        self.cc.send.return_value = iq
+        query = ibr_xso.Query()
+        query.username = TEST_PEER.localpart
+        self.cc.send.return_value = query
         self.cc.local_jid = TEST_PEER
 
-        res = run_coroutine(self.s.get_client_info(self.cc))
+        res = run_coroutine(self.s.get_client_info())
 
         self.cc.send.assert_called_once_with(unittest.mock.ANY)
 
@@ -79,32 +77,21 @@ class TestService(unittest.TestCase):
 
         self.assertIsInstance(
             res,
-            aioxmpp.IQ,
-        )
-
-        self.assertEqual(
-            res.type_,
-            aioxmpp.IQType.GET,
-        )
-
-        self.assertIsInstance(
-            res.payload,
             ibr_xso.Query,
         )
 
         self.assertEqual(
-            res.payload.username,
+            res.username,
             TEST_PEER.localpart,
         )
 
     def test_ibr_change_pass(self):
-        self.cc.send.return_value = None
         self.cc.local_jid = TEST_PEER
         new_pass = "aaa"
-        aux_fields = {"nick": "romeo's lover"}
+        old_pass = "bbb"
 
         run_coroutine(
-            self.s.change_pass(self.cc, new_pass, aux_fields=aux_fields)
+            self.s.change_pass(new_pass, old_pass)
         )
 
         self.cc.send.assert_called_once_with(unittest.mock.ANY)
@@ -141,18 +128,15 @@ class TestService(unittest.TestCase):
             new_pass,
         )
 
-        if aux_fields is not None:
-            for key, value in aux_fields.items():
-                self.assertEqual(
-                    getattr(iq.payload, key),
-                    value,
-                )
+        self.assertEqual(
+            iq.payload.old_password,
+            old_pass,
+        )
 
     def test_ibr_cancel_registration(self):
-        self.cc.send.return_value = None
         self.cc.local_jid = TEST_PEER
 
-        run_coroutine(self.s.cancel_registration(self.cc))
+        run_coroutine(self.s.cancel_registration())
 
         self.cc.send.assert_called_once_with(unittest.mock.ANY)
 
@@ -185,55 +169,57 @@ class TestService(unittest.TestCase):
 
     def test_ibr_get_registration_fields(self):
         with unittest.mock.patch(
-                'aioxmpp.ibr.RegistrationService.connect_and_send'
+                'aioxmpp.protocol.send_and_wait_for',
+                new=CoroutineMock()
         ) as mock1:
-            mock1.return_value = self.auxiliar2()
-            res = run_coroutine(self.s.get_registration_fields(TEST_PEER))
+            iq = aioxmpp.IQ(
+                type_=aioxmpp.IQType.GET,
+                payload=ibr_xso.Query()
+            )
+            iq.payload.username = ''
+            mock1.return_value = iq
+            stream = aioxmpp.protocol.XMLStream(
+                to=TEST_PEER.domain,
+                features_future=asyncio.Future()
+            )
+            res = run_coroutine(aioxmpp.ibr.get_registration_fields(stream))
 
-            _, (iq, *_), _ = mock1.mock_calls[0]
+            _, (_, iq, *_), _ = mock1.mock_calls[0]
+
+            iq = iq[0]
 
             self.assertIsInstance(
                 iq,
                 aioxmpp.IQ,
             )
 
-            self.assertEqual(
-                iq.to,
-                TEST_PEER.bare().replace(localpart=None),
-            )
-
-            self.assertEqual(
-                iq.type_,
-                aioxmpp.IQType.GET,
-            )
-
             self.assertIsInstance(
-                iq.payload,
+                res,
                 ibr_xso.Query,
             )
 
-            self.assertIsInstance(
-                res,
-                list,
-            )
-
             self.assertEqual(
-                res,
-                ['username'],
+                res.username,
+                '',
             )
 
     def test_ibr_register(self):
         password = "aaa"
         aux_fields = {"nick": "romeo's lover"}
         with unittest.mock.patch(
-                'aioxmpp.ibr.RegistrationService.connect_and_send'
+                'aioxmpp.protocol.send_and_wait_for',
+                new=CoroutineMock()
         ) as mock1:
-            mock1.return_value = self.auxiliar3()
-            res = run_coroutine(
-                self.s.register(TEST_PEER, password, aux_fields)
+            stream = aioxmpp.protocol.XMLStream(
+                to=TEST_PEER.domain,
+                features_future=asyncio.Future()
             )
+            query = aioxmpp.ibr.get_query_xso(TEST_PEER.localpart, "aaa", aux_fields)
+            run_coroutine(aioxmpp.ibr.register(query, stream))
 
-            _, (iq, *_), _ = mock1.mock_calls[0]
+            _, (_, iq, *_), _ = mock1.mock_calls[0]
+
+            iq = iq[0]
 
             self.assertIsInstance(
                 iq,
@@ -271,36 +257,6 @@ class TestService(unittest.TestCase):
                         getattr(iq.payload, key),
                         value,
                     )
-
-            self.assertIsInstance(
-                res,
-                aioxmpp.IQ,
-            )
-
-            self.assertEqual(
-                res.type_,
-                aioxmpp.IQType.RESULT,
-            )
-
-    @asyncio.coroutine
-    def auxiliar1(self):
-        return 1, 1, 1
-
-    @asyncio.coroutine
-    def auxiliar2(self):
-        iq = aioxmpp.IQ(
-            type_=aioxmpp.IQType.GET,
-            payload=ibr_xso.Query()
-        )
-        iq.payload.username = ''
-        return iq
-
-    @asyncio.coroutine
-    def auxiliar3(self):
-        iq = aioxmpp.IQ(
-            type_=aioxmpp.IQType.RESULT,
-        )
-        return iq
 
 
 if __name__ == '__main__':

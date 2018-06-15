@@ -1136,6 +1136,57 @@ class Testconnect_xmlstream(unittest.TestCase):
             )
         )
 
+    def test_connect_without_sasl_provider(self):
+        NCONNECTORS = 4
+
+        base = unittest.mock.Mock()
+        jid = unittest.mock.Mock()
+
+        for i in range(NCONNECTORS):
+            connect = CoroutineMock()
+            connect.side_effect = OSError()
+            getattr(base, "c{}".format(i)).connect = connect
+
+        base.c2.connect.side_effect = None
+        base.c2.connect.return_value = (
+            unittest.mock.sentinel.transport,
+            unittest.mock.sentinel.protocol,
+            unittest.mock.sentinel.features,
+        )
+
+        self.discover_connectors.return_value = [
+            (getattr(unittest.mock.sentinel, "h{}".format(i)),
+             getattr(unittest.mock.sentinel, "p{}".format(i)),
+             getattr(base, "c{}".format(i)))
+            for i in range(NCONNECTORS)
+        ]
+        base.metadata.sasl_providers = []
+        result = run_coroutine(node.connect_xmlstream(
+            jid,
+            base.metadata,
+            negotiation_timeout=unittest.mock.sentinel.timeout,
+            loop=unittest.mock.sentinel.loop,
+        ))
+
+        jid.domain.encode.assert_not_called()
+
+        self.discover_connectors.assert_called_with(
+            jid.domain,
+            loop=unittest.mock.sentinel.loop,
+            logger=node.logger,
+        )
+
+        self.negotiate_sasl.assert_not_called()
+
+        self.assertEqual(
+            result,
+            (
+                unittest.mock.sentinel.transport,
+                unittest.mock.sentinel.protocol,
+                unittest.mock.sentinel.features,
+            )
+        )
+
     def test_try_next_on_generic_SASL_problem(self):
         NCONNECTORS = 4
 

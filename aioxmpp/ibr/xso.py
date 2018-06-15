@@ -84,6 +84,11 @@ class Query(xso.XSO):
         default=None,
     )
 
+    instructions = xso.ChildText(
+        (namespaces.xep0077_in_band, "instructions"),
+        default=None,
+    )
+
     nick = xso.ChildText(
         (namespaces.xep0077_in_band, "nick"),
         default=None,
@@ -91,6 +96,11 @@ class Query(xso.XSO):
 
     password = xso.ChildText(
         (namespaces.xep0077_in_band, "password"),
+        default=None,
+    )
+
+    old_password = xso.ChildText(
+        (namespaces.xep0077_in_band, "old_password"),
         default=None,
     )
 

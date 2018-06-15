@@ -386,6 +386,8 @@ Version 0.10
 
 * :meth:`aioxmpp.MUCClient.on_muc_invitation`
 
+* :mod:`aioxmpp.ibr` -- by `Sergio Alemany <https://github.com/Gersiete>`_
+
 .. _api-changelog-0.9:
 
 Version 0.9

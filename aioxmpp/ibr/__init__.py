@@ -20,5 +20,6 @@
 #
 ########################################################################
 
-from .service import RegistrationService
+from .service import RegistrationService, get_registration_fields, register
+from .service import get_query_xso, get_used_fields
 from .xso import Query

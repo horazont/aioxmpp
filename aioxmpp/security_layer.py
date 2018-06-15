@@ -1448,8 +1448,7 @@ def make(
         sasl_providers.append(
             AnonymousSASLProvider(anonymous)
         )
-
-    if password_provider is not None or anonymous is False:
+    if password_provider is not None:
         sasl_providers.append(
             PasswordSASLProvider(
                 password_provider,
