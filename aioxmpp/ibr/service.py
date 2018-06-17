@@ -21,10 +21,8 @@
 ########################################################################
 
 import asyncio
-
 import aioxmpp
 import logging
-
 from aioxmpp.service import Service
 from . import xso
 
