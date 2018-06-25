@@ -2866,7 +2866,7 @@ class Testmake(unittest.TestCase):
             SecurityLayer(),
         )
 
-    def test__not_anonymous_without_password_provider(self):
+    def test_not_anonymous_without_password_provider(self):
         with contextlib.ExitStack() as stack:
             SecurityLayer = stack.enter_context(
                 unittest.mock.patch(

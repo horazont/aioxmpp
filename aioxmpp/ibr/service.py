@@ -64,8 +64,8 @@ def get_registration_fields(xmlstream,
 
 
 @asyncio.coroutine
-def register(query_xso,
-             xmlstream,
+def register(xmlstream,
+             query_xso,
              timeout=60,
              ):
     """
@@ -104,33 +104,11 @@ def get_used_fields(payload):
     :type payload: :class:`xso.Query`
     :return: :attr:`list`
     """
-    return [a for a in dir(payload)
-            if isinstance(getattr(payload, a), str) and
-            not a.startswith('__')]
-
-
-def get_query_xso(username, password, aux_fields=None):
-    """
-    Get an xso.Query object with the info provided in he parameters.
-
-    :param username: Username of the query
-    :type username: :class:`str`
-    :param password: Password of the query.
-    :type password: :class:`str`
-    :param aux_fields: Auxiliary fields in case additional info is needed.
-    :type aux_fields: :class:`dict`
-    :return: :class:`xso.Query`
-    """
-    query = xso.Query()
-    query.username = username
-    query.password = password
-
-    if aux_fields is not None:
-        for key, value in aux_fields.items():
-            setattr(query, key, value)
-
-    return query
-
+    return [
+        tag
+        for tag, descriptor in payload.CHILD_MAP.items()
+        if descriptor.__get__(payload, type(payload)) is not None
+    ]
 
 class RegistrationService(Service):
     """
@@ -170,8 +148,7 @@ class RegistrationService(Service):
 
     @asyncio.coroutine
     def change_pass(self,
-                    new_pass,
-                    old_pass=None):
+                    new_pass):
         """
         Change the client password for 'new_pass'.
 
@@ -190,9 +167,6 @@ class RegistrationService(Service):
 
         iq.payload.username = self.client.local_jid.localpart
         iq.payload.password = new_pass
-
-        if old_pass:
-            iq.payload.old_password = old_pass
 
         yield from self.client.send(iq)
 

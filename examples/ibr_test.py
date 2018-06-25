@@ -34,7 +34,7 @@ async def register(jid, password):
     _, stream, features = await aioxmpp.node.connect_xmlstream(jid, metadata)
 
     query = ibr.get_query_xso(jid.localpart, password)
-    await ibr.register(query, stream)
+    await ibr.register(stream, query)
     print("Registered")
 
 

@@ -99,11 +99,6 @@ class Query(xso.XSO):
         default=None,
     )
 
-    old_password = xso.ChildText(
-        (namespaces.xep0077_in_band, "old_password"),
-        default=None,
-    )
-
     name = xso.ChildText(
         (namespaces.xep0077_in_band, "name"),
         default=None,
@@ -181,3 +176,28 @@ class Query(xso.XSO):
     remove = xso.ChildFlag(
         (namespaces.xep0077_in_band, "remove")
     )
+
+
+def get_query_xso(username, password, aux_fields=None):
+    """
+    Get an xso.Query object with the info provided in he parameters.
+
+    :param username: Username of the query
+    :type username: :class:`str`
+    :param password: Password of the query.
+    :type password: :class:`str`
+    :param aux_fields: Auxiliary fields in case additional info is needed.
+    :type aux_fields: :class:`dict`
+    :return: :class:`xso.Query`
+    """
+    query = Query()
+    query.username = username
+    query.password = password
+
+    if aux_fields is not None:
+        for key, value in aux_fields.items():
+            setattr(query, key, value)
+
+    return query
+
+

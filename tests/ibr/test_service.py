@@ -88,10 +88,9 @@ class TestService(unittest.TestCase):
     def test_ibr_change_pass(self):
         self.cc.local_jid = TEST_PEER
         new_pass = "aaa"
-        old_pass = "bbb"
 
         run_coroutine(
-            self.s.change_pass(new_pass, old_pass)
+            self.s.change_pass(new_pass)
         )
 
         self.cc.send.assert_called_once_with(unittest.mock.ANY)
@@ -126,11 +125,6 @@ class TestService(unittest.TestCase):
         self.assertEqual(
             iq.payload.password,
             new_pass,
-        )
-
-        self.assertEqual(
-            iq.payload.old_password,
-            old_pass,
         )
 
     def test_ibr_cancel_registration(self):
@@ -172,12 +166,12 @@ class TestService(unittest.TestCase):
                 'aioxmpp.protocol.send_and_wait_for',
                 new=CoroutineMock()
         ) as mock1:
-            iq = aioxmpp.IQ(
+            iq_res = aioxmpp.IQ(
                 type_=aioxmpp.IQType.GET,
                 payload=ibr_xso.Query()
             )
-            iq.payload.username = ''
-            mock1.return_value = iq
+            iq_res.payload.username = ''
+            mock1.return_value = iq_res
             stream = aioxmpp.protocol.XMLStream(
                 to=TEST_PEER.domain,
                 features_future=asyncio.Future()
@@ -191,6 +185,11 @@ class TestService(unittest.TestCase):
             self.assertIsInstance(
                 iq,
                 aioxmpp.IQ,
+            )
+
+            self.assertIs(
+                iq_res.payload,
+                res,
             )
 
             self.assertIsInstance(
@@ -215,7 +214,7 @@ class TestService(unittest.TestCase):
                 features_future=asyncio.Future()
             )
             query = aioxmpp.ibr.get_query_xso(TEST_PEER.localpart, "aaa", aux_fields)
-            run_coroutine(aioxmpp.ibr.register(query, stream))
+            run_coroutine(aioxmpp.ibr.register(stream, query))
 
             _, (_, iq, *_), _ = mock1.mock_calls[0]
 

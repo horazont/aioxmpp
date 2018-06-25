@@ -265,31 +265,34 @@ def _try_options(options, exceptions,
             jid.domain,
             conn,
         )
-        if metadata.sasl_providers:
-            try:
-                features = yield from security_layer.negotiate_sasl(
-                    transport,
-                    xmlstream,
-                    metadata.sasl_providers,
-                    negotiation_timeout,
-                    jid,
-                    features,
-                )
-            except errors.SASLUnavailable as exc:
-                protocol.send_stream_error_and_close(
-                    xmlstream,
-                    condition=(namespaces.streams, "policy-violation"),
-                    text=str(exc),
-                )
-                exceptions.append(exc)
-                continue
-            except Exception as exc:
-                protocol.send_stream_error_and_close(
-                    xmlstream,
-                    condition=(namespaces.streams, "undefined-condition"),
-                    text=str(exc),
-                )
-                raise
+
+        if not metadata.sasl_providers:
+            return transport, xmlstream, features
+
+        try:
+            features = yield from security_layer.negotiate_sasl(
+                transport,
+                xmlstream,
+                metadata.sasl_providers,
+                negotiation_timeout,
+                jid,
+                features,
+            )
+        except errors.SASLUnavailable as exc:
+            protocol.send_stream_error_and_close(
+                xmlstream,
+                condition=(namespaces.streams, "policy-violation"),
+                text=str(exc),
+            )
+            exceptions.append(exc)
+            continue
+        except Exception as exc:
+            protocol.send_stream_error_and_close(
+                xmlstream,
+                condition=(namespaces.streams, "undefined-condition"),
+                text=str(exc),
+            )
+            raise
 
         return transport, xmlstream, features
 
