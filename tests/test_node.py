@@ -1106,9 +1106,9 @@ class Testconnect_xmlstream(unittest.TestCase):
             unittest.mock.sentinel.transport,
             unittest.mock.sentinel.protocol,
             base.metadata.sasl_providers,
-            unittest.mock.sentinel.timeout,
-            jid,
-            unittest.mock.sentinel.features,
+            negotiation_timeout=None,
+            jid=jid,
+            features=unittest.mock.sentinel.features,
         )
 
         self.assertSequenceEqual(
@@ -1197,17 +1197,17 @@ class Testconnect_xmlstream(unittest.TestCase):
                     unittest.mock.sentinel.t1,
                     unittest.mock.sentinel.p1,
                     base.metadata.sasl_providers,
-                    60.,
-                    jid,
-                    unittest.mock.sentinel.f1,
+                    negotiation_timeout=None,
+                    jid=jid,
+                    features=unittest.mock.sentinel.f1,
                 ),
                 unittest.mock.call(
                     unittest.mock.sentinel.t2,
                     unittest.mock.sentinel.p2,
                     base.metadata.sasl_providers,
-                    60.,
-                    jid,
-                    unittest.mock.sentinel.f2,
+                    negotiation_timeout=None,
+                    jid=jid,
+                    features=unittest.mock.sentinel.f2,
                 ),
             ]
         )
@@ -1313,9 +1313,9 @@ class Testconnect_xmlstream(unittest.TestCase):
                     unittest.mock.sentinel.t1,
                     unittest.mock.sentinel.p1,
                     base.metadata.sasl_providers,
-                    60.,
-                    jid,
-                    unittest.mock.sentinel.f1,
+                    negotiation_timeout=None,
+                    jid=jid,
+                    features=unittest.mock.sentinel.f1,
                 ),
             ]
         )

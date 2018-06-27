@@ -134,6 +134,12 @@ class TestSTARTTLSConnector(unittest.TestCase):
                 )
             )
 
+            timedelta = stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.connector.timedelta",
+                )
+            )
+
             result = run_coroutine(self.c.connect(
                 unittest.mock.sentinel.loop,
                 base.metadata,
@@ -207,6 +213,15 @@ class TestSTARTTLSConnector(unittest.TestCase):
             )
         )
 
+        timedelta.assert_called_once_with(
+            seconds=unittest.mock.sentinel.timeout
+        )
+
+        self.assertEqual(
+            base.protocol.deadtime_hard_limit,
+            timedelta(),
+        )
+
     def test_abort_xmlstream_if_connect_fails(self):
         captured_features_future = None
 
@@ -263,6 +278,12 @@ class TestSTARTTLSConnector(unittest.TestCase):
                 unittest.mock.patch(
                     "aioxmpp.protocol.reset_stream_and_get_features",
                     new=base.reset_stream_and_get_features,
+                )
+            )
+
+            stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.connector.timedelta",
                 )
             )
 
@@ -381,6 +402,12 @@ class TestSTARTTLSConnector(unittest.TestCase):
                 unittest.mock.patch(
                     "aioxmpp.protocol.reset_stream_and_get_features",
                     new=base.reset_stream_and_get_features,
+                )
+            )
+
+            stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.connector.timedelta",
                 )
             )
 
@@ -540,6 +567,12 @@ class TestSTARTTLSConnector(unittest.TestCase):
                 )
             )
 
+            stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.connector.timedelta",
+                )
+            )
+
             with self.assertRaisesRegex(errors.TLSUnavailable, error_message):
                 run_coroutine(self.c.connect(
                     unittest.mock.sentinel.loop,
@@ -672,6 +705,12 @@ class TestSTARTTLSConnector(unittest.TestCase):
                 )
             )
 
+            stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.connector.timedelta",
+                )
+            )
+
             with self.assertRaisesRegex(errors.TLSUnavailable, error_message):
                 run_coroutine(self.c.connect(
                     unittest.mock.sentinel.loop,
@@ -768,6 +807,12 @@ class TestSTARTTLSConnector(unittest.TestCase):
                 unittest.mock.patch(
                     "aioxmpp.protocol.send_stream_error_and_close",
                     new=base.send_stream_error_and_close,
+                )
+            )
+
+            stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.connector.timedelta",
                 )
             )
 
@@ -894,6 +939,12 @@ class TestSTARTTLSConnector(unittest.TestCase):
                 unittest.mock.patch(
                     "asyncio.ensure_future",
                     new=base.async_,
+                )
+            )
+
+            stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.connector.timedelta",
                 )
             )
 
@@ -1026,6 +1077,12 @@ class TestSTARTTLSConnector(unittest.TestCase):
                 )
             )
 
+            stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.connector.timedelta",
+                )
+            )
+
             result = run_coroutine(self.c.connect(
                 unittest.mock.sentinel.loop,
                 base.metadata,
@@ -1153,6 +1210,12 @@ class TestXMPPOverTLSConnector(unittest.TestCase):
                 )
             )
 
+            timedelta = stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.connector.timedelta",
+                )
+            )
+
             result = run_coroutine(self.c.connect(
                 unittest.mock.sentinel.loop,
                 base.metadata,
@@ -1213,6 +1276,15 @@ class TestXMPPOverTLSConnector(unittest.TestCase):
                 base.protocol,
                 unittest.mock.sentinel.features,
             )
+        )
+
+        timedelta.assert_called_once_with(
+            seconds=unittest.mock.sentinel.timeout
+        )
+
+        self.assertEqual(
+            base.protocol.deadtime_hard_limit,
+            timedelta(),
         )
 
     def test_context_factory(self):
@@ -1361,6 +1433,12 @@ class TestXMPPOverTLSConnector(unittest.TestCase):
                 unittest.mock.patch(
                     "aioxmpp.protocol.XMLStream",
                     new=base.XMLStream,
+                )
+            )
+
+            stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.connector.timedelta",
                 )
             )
 

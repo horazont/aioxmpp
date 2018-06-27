@@ -56,6 +56,7 @@ import contextlib
 import functools
 import inspect
 import logging
+import time
 
 from enum import Enum
 
@@ -186,6 +187,146 @@ class DebugWrapper:
             self._muted = False
 
 
+class AlivenessMonitor:
+    """
+    Monitors aliveness of a data stream.
+
+    .. versionadded:: 0.10
+
+    :param loop: The event loop to operate the checks in.
+    :type loop: :class:`asyncio.BaseEventLoop`
+
+    This is generic in the stream with which it is used. Currently, it is only
+    used with :class:`~.XMLStream`.
+
+    .. signal:: on_deadtime_soft_limit_tripped()
+
+        Emits when the :attr:`deadtime_soft_limit` expires.
+
+    .. signal:: on_deadtime_hard_limit_tripped()
+
+        Emits when the :attr:`deadtime_hard_limit` expires.
+
+    .. automethod:: notify_received
+
+    .. autoattribute:: deadtime_soft_limit
+        :annotation: = None
+
+    .. autoattribute:: deadtime_hard_limit
+        :annotation: = None
+
+    """
+
+    on_deadtime_soft_limit_tripped = callbacks.Signal()
+    on_deadtime_hard_limit_tripped = callbacks.Signal()
+
+    def __init__(self, loop):
+        super().__init__()
+        self._loop = loop
+        self._soft_limit = None
+        self._soft_limit_timer = None
+        self._soft_limit_tripped = False
+        self._hard_limit = None
+        self._hard_limit_timer = None
+        self._hard_limit_tripped = False
+        self._reset_trips()
+
+    def _trip_soft_limit(self):
+        if self._soft_limit_tripped:
+            return
+        self._soft_limit_tripped = True
+        self.on_deadtime_soft_limit_tripped()
+
+    def _trip_hard_limit(self):
+        if self._hard_limit_tripped:
+            return
+        self._hard_limit_tripped = True
+        self.on_deadtime_hard_limit_tripped()
+
+    def _retrigger_timers(self):
+        now = time.monotonic()
+
+        if self._soft_limit_timer is not None:
+            self._soft_limit_timer.cancel()
+            self._soft_limit_timer = None
+
+        if self._soft_limit is not None:
+            self._soft_limit_timer = self._loop.call_later(
+                self._soft_limit.total_seconds() - (now - self._last_rx),
+                self._trip_soft_limit
+            )
+
+        if self._hard_limit_timer is not None:
+            self._hard_limit_timer.cancel()
+            self._hard_limit_timer = None
+
+        if self._hard_limit is not None:
+            self._hard_limit_timer = self._loop.call_later(
+                self._hard_limit.total_seconds() - (now - self._last_rx),
+                self._trip_hard_limit
+            )
+
+    def _reset_trips(self):
+        self._soft_limit_tripped = False
+        self._hard_limit_tripped = False
+        self._last_rx = time.monotonic()
+
+    def notify_received(self):
+        """
+        Inform the aliveness check that something was received.
+
+        Resets the internal soft/hard limit timers.
+        """
+        self._reset_trips()
+        self._retrigger_timers()
+
+    @property
+    def deadtime_soft_limit(self):
+        """
+        Soft limit for the timespan in which no data is received in the stream.
+
+        When the last data reception was longer than this limit ago,
+        :meth:`on_deadtime_soft_limit_tripped` emits once.
+
+        Changing this makes the monitor re-check its limits immidately. Setting
+        this to :data:`None` disables the soft limit check.
+
+        Note that setting this to a value greater than
+        :attr:`deadtime_hard_limit` means that the hard limit will fire first.
+        """
+        return self._soft_limit
+
+    @deadtime_soft_limit.setter
+    def deadtime_soft_limit(self, value):
+        if self._soft_limit_timer is not None:
+            self._soft_limit_timer.cancel()
+        self._soft_limit = value
+        self._retrigger_timers()
+
+    @property
+    def deadtime_hard_limit(self):
+        """
+        Hard limit for the timespan in which no data is received in the stream.
+
+        When the last data reception was longer than this limit ago,
+        :meth:`on_deadtime_hard_limit_tripped` emits once.
+
+        Changing this makes the monitor re-check its limits immidately. Setting
+        this to :data:`None` disables the hard limit check.
+
+        Note that setting this to a value less than
+        :attr:`deadtime_soft_limit` means that the hard limit will fire first.
+        """
+        return self._hard_limit
+
+    @deadtime_hard_limit.setter
+    def deadtime_hard_limit(self, value):
+        if self._hard_limit_timer is not None:
+            self._hard_limit_timer.cancel()
+        self._hard_limit = value
+        self._retrigger_timers()
+
+
 class XMLStream(asyncio.Protocol):
     """
     XML stream implementation. This is an streaming :class:`asyncio.Protocol`
@@ -251,9 +392,15 @@ class XMLStream(asyncio.Protocol):
 
     .. automethod:: mute
 
+    Monitoring stream aliveness:
+
+    .. autoattribute:: deadtime_soft_limit
+
+    .. autoattribute:: deadtime_hard_limit
+
     Signals:
 
-    .. signal:: on_closing
+    .. signal:: on_closing(reason)
 
        A :class:`~aioxmpp.callbacks.Signal` which fires when the underlying
        transport of the stream reports an error or when a stream error is
@@ -273,6 +420,15 @@ class XMLStream(asyncio.Protocol):
        will be able to deal with unhandled top level stanzas correctly at this
        point (by ignoring them).
 
+    .. signal:: on_deadtime_soft_limit_tripped
+
+        Emits when the soft limit dead time has been exceeded.
+
+        See :attr:`deadtime_soft_limit` for general information on the timeout
+        handling.
+
+        .. versionadded:: 0.10
+
     Timeouts:
 
     .. attribute:: shutdown_timeout
@@ -283,6 +439,8 @@ class XMLStream(asyncio.Protocol):
     """
 
     on_closing = callbacks.Signal()
+    on_deadtime_soft_limit_tripped = callbacks.Signal()
+
     shutdown_timeout = 15
 
     def __init__(self, to,
@@ -300,7 +458,13 @@ class XMLStream(asyncio.Protocol):
         self._error_futures = []
         self._smachine = statemachine.OrderedStateMachine(State.READY)
         self._transport_closing = False
-        self._footer_timeout_future = None
+        self._monitor = AlivenessMonitor(self._loop)
+        self._monitor.on_deadtime_hard_limit_tripped.connect(
+            self._deadtime_hard_limit_triggered
+        )
+        self._monitor.on_deadtime_soft_limit_tripped.connect(
+            self.on_deadtime_soft_limit_tripped
+        )
 
         self._closing_future = asyncio.ensure_future(
             self._smachine.wait_for(
@@ -353,52 +517,17 @@ class XMLStream(asyncio.Protocol):
             self._features_future.set_exception(exc)
 
         if task.cancelled():
-            # this happens if connection_lost happens before we enter closing
-            # state. causes are: stream abortion, connection reset by peer etc.
-            # no need to wait for a timeout in that case
             return
         if task.exception() is not None:
-            # this happens if we skip over the CLOSING state, which implies
-            # that the stream footer has been seen; no reason to worry about
-            # the timeout in that case.
             return
         task.result()
-
-        self._footer_timeout_future = asyncio.ensure_future(
-            self._stream_footer_timeout(),
-            loop=self._loop
-        )
-
-        def fetch_result_and_ignore_cancel(fut):
-            try:
-                fut.result()
-            except asyncio.CancelledError:
-                pass
-
-        self._footer_timeout_future.add_done_callback(
-            fetch_result_and_ignore_cancel,
-        )
-
-    @asyncio.coroutine
-    def _stream_footer_timeout(self):
-        self._logger.debug(
-            "waiting for at most %s seconds for peer stream footer",
-            self.shutdown_timeout
-        )
-        yield from asyncio.sleep(self.shutdown_timeout)
-        if self._smachine.state >= State.CLOSING_STREAM_FOOTER_RECEIVED:
-            # state already reached, stop
-            return
-        self._logger.info("timeout while waiting for stream footer")
-        self._close_transport()
-        self._smachine.state = State.CLOSING_STREAM_FOOTER_RECEIVED
 
     def _fail(self, err):
         self._exception = err
         self.close()
 
     def _require_connection(self, accept_partial=False):
-        if     (self._smachine.state == State.OPEN or
+        if (self._smachine.state == State.OPEN or
                 (accept_partial and
                  self._smachine.state == State.STREAM_HEADER_SENT)):
             return
@@ -459,7 +588,7 @@ class XMLStream(asyncio.Protocol):
         try:
             self._parser.feed(blob)
         except sax.SAXParseException as exc:
-            if     (exc.getException().args[0].startswith(
+            if (exc.getException().args[0].startswith(
                     pyexpat.errors.XML_ERROR_UNDEFINED_ENTITY)):
                 # this will raise an appropriate stream error
                 xml.XMPPLexicalHandler.startEntity("foo")
@@ -478,6 +607,18 @@ class XMLStream(asyncio.Protocol):
                 text="Internal error while parsing XML. Client logs have more"
                      " details."
             )
+
+    def _deadtime_hard_limit_triggered(self):
+        self._logger.debug("dead time hard limit exceeded")
+        # pretend full shut-down handshake has happened
+        if self._smachine.state != State.CLOSED:
+            self._smachine.state = State.CLOSING_STREAM_FOOTER_RECEIVED
+        self._transport_closing = True
+        if self._transport is not None:
+            self._transport.abort()
+        self._exception = self._exception or ConnectionError(
+            "connection timeout (dead time hard limit exceeded)"
+        )
 
     def connection_made(self, transport):
         if self._smachine.state != State.READY:
@@ -501,12 +642,13 @@ class XMLStream(asyncio.Protocol):
         self._kill_state()
         self._writer = None
         self._transport = None
+        self._monitor.deadtime_hard_limit = None
+        self._monitor.deadtime_soft_limit = None
         self._closing_future.cancel()
-        if self._footer_timeout_future is not None:
-            self._footer_timeout_future.cancel()
 
     def data_received(self, blob):
         self._logger.debug("RECV %r", blob)
+        self._monitor.notify_received()
         try:
             self._rx_feed(blob)
         except errors.StreamError as exc:
@@ -764,6 +906,55 @@ class XMLStream(asyncio.Protocol):
         else:
             with self._debug_wrapper.mute():
                 yield
+
+    @property
+    def deadtime_soft_limit(self):
+        """
+        This is part of the timeout handling of :class:`XMLStream` objects. The
+        timeout handling works like this:
+
+        * There exist two timers, *soft* and *hard* limit.
+        * Reception of *any* data resets both timers.
+        * When the *soft* limit timer is triggered, the
+          :meth:`on_deadtime_soft_limit_tripped` signal is emitted. Nothing
+          else happens. The user is expected to do something which would cause
+          the server to send data to prevent the *hard* limit from tripping.
+        * When the *hard* limit timer is triggered, the stream is considered
+          dead and it is aborted and closed with an appropriate
+          :class:`ConnectionError`.
+
+        This attribute controls the timeout for the *soft* limit timer, as
+        :class:`datetime.timedelta`. The default is :data:`None`, which
+        disables the timer altogether.
+
+        .. versionadded:: 0.10
+        """
+        return self._monitor.deadtime_soft_limit
+
+    @deadtime_soft_limit.setter
+    def deadtime_soft_limit(self, value):
+        self._monitor.deadtime_soft_limit = value
+
+    @property
+    def deadtime_hard_limit(self):
+        """
+        This is part of the timeout handling of :class:`XMLStream` objects.
+        See :attr:`deadtime_soft_limit` for details.
+
+        This attribute controls the timeout for the *hard* limit timer, as
+        :class:`datetime.timedelta`. The default is :data:`None`, which
+        disables the timer altogether.
+
+        Setting the *hard* limit timer to :data:`None` means that the
+        :class:`XMLStream` will never timeout by itself.
+
+        .. versionadded:: 0.10
+        """
+        return self._monitor.deadtime_hard_limit
+
+    @deadtime_hard_limit.setter
+    def deadtime_hard_limit(self, value):
+        self._monitor.deadtime_hard_limit = value
 
 
 @asyncio.coroutine

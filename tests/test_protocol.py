@@ -26,6 +26,8 @@ import logging
 import unittest
 import unittest.mock
 
+from datetime import timedelta
+
 import aioxmpp.stanza as stanza
 import aioxmpp.structs as structs
 import aioxmpp.xso as xso
@@ -38,6 +40,7 @@ from aioxmpp.testutils import (
     XMLStreamMock,
     run_coroutine_with_peer,
     get_timeout,
+    make_listener,
 )
 from aioxmpp import xmltestutils
 
@@ -294,12 +297,262 @@ class TestDebugWrapper(unittest.TestCase):
         )
 
 
+class TestAlivenessMonitor(unittest.TestCase):
+    def setUp(self):
+        self.loop = asyncio.get_event_loop()
+        self.am = protocol.AlivenessMonitor(self.loop)
+        self.listener = make_listener(self.am)
+
+    def tearDown(self):
+        del self.am
+        del self.loop
+
+    def test_defaults(self):
+        self.assertIsNone(self.am.deadtime_soft_limit)
+        self.assertIsNone(self.am.deadtime_hard_limit)
+
+    def test_soft_limit_settable(self):
+        self.am.deadtime_soft_limit = timedelta(seconds=1)
+
+        self.assertEqual(self.am.deadtime_soft_limit, timedelta(seconds=1))
+
+    def test_hard_limit_is_settable(self):
+        self.am.deadtime_hard_limit = timedelta(seconds=1)
+
+        self.assertEqual(self.am.deadtime_hard_limit, timedelta(seconds=1))
+
+    def test_soft_limit_trips(self):
+        dt = get_timeout(timedelta(seconds=0.1))
+
+        self.am.deadtime_soft_limit = dt
+        self.am.notify_received()
+
+        run_coroutine(asyncio.sleep((dt * 0.9).total_seconds()))
+
+        self.listener.on_deadtime_soft_limit_tripped.assert_not_called()
+
+        run_coroutine(asyncio.sleep((dt * 0.2).total_seconds()))
+
+        self.listener.on_deadtime_soft_limit_tripped.assert_called_once_with()
+
+    def test_notify_received_resets_soft_limit_timer(self):
+        dt = get_timeout(timedelta(seconds=0.1))
+
+        self.am.deadtime_soft_limit = dt
+        self.am.notify_received()
+
+        run_coroutine(asyncio.sleep((dt * 0.9).total_seconds()))
+
+        self.listener.on_deadtime_soft_limit_tripped.assert_not_called()
+        self.am.notify_received()
+
+        run_coroutine(asyncio.sleep((dt * 0.9).total_seconds()))
+
+        self.listener.on_deadtime_soft_limit_tripped.assert_not_called()
+
+    def test_changing_soft_limit_recaluclates_timer(self):
+        dt = get_timeout(timedelta(seconds=0.1))
+
+        self.am.deadtime_soft_limit = dt
+        self.am.notify_received()
+
+        run_coroutine(asyncio.sleep((dt * 0.9).total_seconds()))
+
+        self.listener.on_deadtime_soft_limit_tripped.assert_not_called()
+
+        self.am.deadtime_soft_limit = dt*1.5
+
+        run_coroutine(asyncio.sleep((dt * 0.5).total_seconds()))
+
+        self.listener.on_deadtime_soft_limit_tripped.assert_not_called()
+
+        run_coroutine(asyncio.sleep((dt * 0.2).total_seconds()))
+
+        self.listener.on_deadtime_soft_limit_tripped.assert_called_once_with()
+
+    def test_soft_timer_fires_even_without_any_reception(self):
+        dt = get_timeout(timedelta(seconds=0.1))
+
+        self.am.deadtime_soft_limit = dt
+
+        run_coroutine(asyncio.sleep((dt * 0.9).total_seconds()))
+
+        self.listener.on_deadtime_soft_limit_tripped.assert_not_called()
+
+        run_coroutine(asyncio.sleep((dt * 0.2).total_seconds()))
+
+        self.listener.on_deadtime_soft_limit_tripped.assert_called_once_with()
+
+    def test_hard_limit_trips(self):
+        dt = get_timeout(timedelta(seconds=0.1))
+
+        self.am.deadtime_hard_limit = dt
+        self.am.notify_received()
+
+        run_coroutine(asyncio.sleep((dt * 0.9).total_seconds()))
+
+        self.listener.on_deadtime_hard_limit_tripped.assert_not_called()
+
+        run_coroutine(asyncio.sleep((dt * 0.2).total_seconds()))
+
+        self.listener.on_deadtime_hard_limit_tripped.assert_called_once_with()
+
+    def test_notify_received_resets_hard_limit_timer(self):
+        dt = get_timeout(timedelta(seconds=0.1))
+
+        self.am.deadtime_hard_limit = dt
+        self.am.notify_received()
+
+        run_coroutine(asyncio.sleep((dt * 0.9).total_seconds()))
+
+        self.listener.on_deadtime_hard_limit_tripped.assert_not_called()
+        self.am.notify_received()
+
+        run_coroutine(asyncio.sleep((dt * 0.9).total_seconds()))
+
+        self.listener.on_deadtime_hard_limit_tripped.assert_not_called()
+
+    def test_changing_hard_limit_recaluclates_timer(self):
+        dt = get_timeout(timedelta(seconds=0.1))
+
+        self.am.deadtime_hard_limit = dt
+        self.am.notify_received()
+
+        run_coroutine(asyncio.sleep((dt * 0.9).total_seconds()))
+
+        self.listener.on_deadtime_hard_limit_tripped.assert_not_called()
+
+        self.am.deadtime_hard_limit = dt*1.5
+
+        run_coroutine(asyncio.sleep((dt * 0.5).total_seconds()))
+
+        self.listener.on_deadtime_hard_limit_tripped.assert_not_called()
+
+        run_coroutine(asyncio.sleep((dt * 0.2).total_seconds()))
+
+        self.listener.on_deadtime_hard_limit_tripped.assert_called_once_with()
+
+    def test_hard_timer_fires_even_without_any_reception(self):
+        dt = get_timeout(timedelta(seconds=0.1))
+
+        self.am.deadtime_hard_limit = dt
+
+        run_coroutine(asyncio.sleep((dt * 0.9).total_seconds()))
+
+        self.listener.on_deadtime_hard_limit_tripped.assert_not_called()
+
+        run_coroutine(asyncio.sleep((dt * 0.2).total_seconds()))
+
+        self.listener.on_deadtime_hard_limit_tripped.assert_called_once_with()
+
+    def test_both_trip(self):
+        dt = get_timeout(timedelta(seconds=0.1))
+
+        self.am.deadtime_soft_limit = dt
+        self.am.deadtime_hard_limit = dt * 1.5
+        self.am.notify_received()
+
+        run_coroutine(asyncio.sleep((dt * 0.9).total_seconds()))
+
+        self.listener.on_deadtime_soft_limit_tripped.assert_not_called()
+        self.listener.on_deadtime_hard_limit_tripped.assert_not_called()
+
+        run_coroutine(asyncio.sleep((dt * 0.2).total_seconds()))
+
+        self.listener.on_deadtime_soft_limit_tripped.assert_called_once_with()
+        self.listener.on_deadtime_hard_limit_tripped.assert_not_called()
+
+        run_coroutine(asyncio.sleep((dt * 0.4).total_seconds()))
+
+        self.listener.on_deadtime_soft_limit_tripped.assert_called_once_with()
+        self.listener.on_deadtime_hard_limit_tripped.assert_called_once_with()
+
+    def test_changing_soft_limit_may_emit_limit_immediately(self):
+        dt = get_timeout(timedelta(seconds=0.1))
+
+        self.am.notify_received()
+
+        run_coroutine(asyncio.sleep((dt*1.1).total_seconds()))
+
+        self.listener.on_deadtime_soft_limit_tripped.assert_not_called()
+        self.am.deadtime_soft_limit = dt
+
+        run_coroutine(asyncio.sleep(0))
+        self.listener.on_deadtime_soft_limit_tripped.assert_called_once_with()
+
+    def test_changing_soft_limit_does_not_reemit_hard_limit(self):
+        dt = get_timeout(timedelta(seconds=0.1))
+
+        self.am.deadtime_hard_limit = dt
+        self.am.notify_received()
+
+        run_coroutine(asyncio.sleep((dt*1.1).total_seconds()))
+
+        self.listener.on_deadtime_soft_limit_tripped.assert_not_called()
+        self.listener.on_deadtime_hard_limit_tripped.assert_called_once_with()
+
+        self.am.deadtime_soft_limit = dt * 1.5
+
+        run_coroutine(asyncio.sleep(0))
+        self.listener.on_deadtime_soft_limit_tripped.assert_not_called()
+        self.listener.on_deadtime_hard_limit_tripped.assert_called_once_with()
+
+    def test_changing_hard_limit_does_not_reemit_soft_limit(self):
+        dt = get_timeout(timedelta(seconds=0.1))
+
+        self.am.deadtime_soft_limit = dt
+        self.am.notify_received()
+
+        run_coroutine(asyncio.sleep((dt*1.1).total_seconds()))
+
+        self.listener.on_deadtime_hard_limit_tripped.assert_not_called()
+        self.listener.on_deadtime_soft_limit_tripped.assert_called_once_with()
+
+        self.am.deadtime_hard_limit = dt * 1.5
+
+        run_coroutine(asyncio.sleep(0))
+        self.listener.on_deadtime_hard_limit_tripped.assert_not_called()
+        self.listener.on_deadtime_soft_limit_tripped.assert_called_once_with()
+
+    def test_soft_limit_can_reemit_after_reception(self):
+        dt = get_timeout(timedelta(seconds=0.1))
+
+        self.am.deadtime_soft_limit = dt
+        self.am.notify_received()
+
+        run_coroutine(asyncio.sleep((dt*1.1).total_seconds()))
+
+        self.listener.on_deadtime_soft_limit_tripped.assert_called_once_with()
+        self.am.notify_received()
+        self.listener.on_deadtime_soft_limit_tripped.reset_mock()
+
+        run_coroutine(asyncio.sleep((dt*1.1).total_seconds()))
+        self.listener.on_deadtime_soft_limit_tripped.assert_called_once_with()
+
+    def test_hard_limit_can_reemit_after_reception(self):
+        dt = get_timeout(timedelta(seconds=0.1))
+
+        self.am.deadtime_hard_limit = dt
+        self.am.notify_received()
+
+        run_coroutine(asyncio.sleep((dt*1.1).total_seconds()))
+
+        self.listener.on_deadtime_hard_limit_tripped.assert_called_once_with()
+        self.am.notify_received()
+        self.listener.on_deadtime_hard_limit_tripped.reset_mock()
+
+        run_coroutine(asyncio.sleep((dt*1.1).total_seconds()))
+        self.listener.on_deadtime_hard_limit_tripped.assert_called_once_with()
+
+
 class TestXMLStream(unittest.TestCase):
     def setUp(self):
         self.maxDiff = None
         self.loop = asyncio.get_event_loop()
+        self.monitor = unittest.mock.Mock(spec=protocol.AlivenessMonitor)
 
     def tearDown(self):
+        del self.monitor
         self.loop.set_exception_handler(
             type(self.loop).default_exception_handler
         )
@@ -323,12 +576,26 @@ class TestXMLStream(unittest.TestCase):
     def _make_stream(self, *args,
                      features_future=None,
                      with_starttls=False,
+                     monitor_mock=True,
                      **kwargs):
         if features_future is None:
             features_future = asyncio.Future()
-        p = XMLStream(*args, sorted_attributes=True,
-                      features_future=features_future,
-                      **kwargs)
+
+        with contextlib.ExitStack() as stack:
+            if monitor_mock:
+                AlivenessMonitor = stack.enter_context(
+                    unittest.mock.patch("aioxmpp.protocol.AlivenessMonitor")
+                )
+                AlivenessMonitor.return_value = self.monitor
+            else:
+                AlivenessMonitor = None
+
+            p = XMLStream(*args, sorted_attributes=True,
+                          features_future=features_future,
+                          **kwargs)
+
+        if monitor_mock:
+            AlivenessMonitor.assert_called_once_with(self.loop)
         t = TransportMock(self, p, with_starttls=with_starttls)
         return t, p
 
@@ -1428,15 +1695,10 @@ class TestXMLStream(unittest.TestCase):
         self.assertIsNone(fut.result())
 
     def test_close_and_wait_timeout(self):
-        base_timeout = get_timeout(0.1)
-        t, p = self._make_stream(to=TEST_PEER)
+        base_timeout = get_timeout(timedelta(seconds=0.1))
+        t, p = self._make_stream(to=TEST_PEER, monitor_mock=False)
 
-        self.assertEqual(
-            15,
-            p.shutdown_timeout
-        )
-
-        p.shutdown_timeout = base_timeout
+        p.deadtime_hard_limit = base_timeout
 
         run_coroutine(t.run_test(
             [
@@ -1473,11 +1735,13 @@ class TestXMLStream(unittest.TestCase):
 
         self.assertFalse(fut.done())
 
-        run_coroutine(asyncio.sleep(base_timeout * 0.8))
+        run_coroutine(asyncio.sleep((base_timeout * 0.8).total_seconds()))
 
         self.assertFalse(fut.done())
 
-        run_coroutine(asyncio.sleep(base_timeout * 0.3 + base_timeout / 2))
+        run_coroutine(asyncio.sleep(
+            (base_timeout * 0.3 + base_timeout / 2).total_seconds()
+        ))
 
         self.assertEqual(
             p.state,
@@ -1489,14 +1753,14 @@ class TestXMLStream(unittest.TestCase):
 
         run_coroutine(t.run_test(
             [
-                TransportMock.Close(
+                TransportMock.Abort(
                     response=[
                         TransportMock.Receive(
                             self._make_eos(),
                         ),
                         TransportMock.ReceiveEof(),
                     ]
-                ),
+                )
             ]
         ))
 
@@ -1918,6 +2182,212 @@ class TestXMLStream(unittest.TestCase):
 
         with p.mute():
             pass
+
+    def test_forwards_deadtime_attributes(self):
+        _, p = self._make_stream(to=TEST_PEER)
+
+        self.assertEqual(p.deadtime_soft_limit,
+                         self.monitor.deadtime_soft_limit)
+        self.assertEqual(p.deadtime_hard_limit,
+                         self.monitor.deadtime_hard_limit)
+
+        p.deadtime_hard_limit = unittest.mock.sentinel.hard
+        p.deadtime_soft_limit = unittest.mock.sentinel.soft
+
+        self.assertEqual(p.deadtime_soft_limit,
+                         self.monitor.deadtime_soft_limit)
+        self.assertEqual(p.deadtime_hard_limit,
+                         self.monitor.deadtime_hard_limit)
+
+        self.assertEqual(self.monitor.deadtime_soft_limit,
+                         unittest.mock.sentinel.soft)
+        self.assertEqual(self.monitor.deadtime_hard_limit,
+                         unittest.mock.sentinel.hard)
+
+    def test_registers_with_hard_limit_event_on_construction(self):
+        _, p = self._make_stream(to=TEST_PEER)
+
+        self.monitor.on_deadtime_hard_limit_tripped.connect.assert_called_once_with(
+            p._deadtime_hard_limit_triggered
+        )
+
+    def test_registers_with_soft_limit_event_on_construction(self):
+        _, p = self._make_stream(to=TEST_PEER)
+
+        self.monitor.on_deadtime_soft_limit_tripped.connect.assert_called_once_with(
+            p.on_deadtime_soft_limit_tripped
+        )
+
+    def test__deadtime_hard_limit_triggered_aborts_stream(self):
+        t, p = self._make_stream(to=TEST_PEER)
+
+        run_coroutine(t.run_test(
+            [
+                TransportMock.Write(
+                    STREAM_HEADER,
+                    response=[
+                        TransportMock.Receive(
+                            self._make_peer_header(version=(1, 0))
+                        ),
+                    ]),
+            ],
+            partial=True
+        ))
+
+        p._deadtime_hard_limit_triggered()
+
+        run_coroutine(t.run_test(
+            [
+                TransportMock.Abort(),
+            ],
+        ))
+
+    def test__deadtime_hard_limit_triggered_generates_proper_error(self):
+        t, p = self._make_stream(to=TEST_PEER)
+
+        run_coroutine(t.run_test(
+            [
+                TransportMock.Write(
+                    STREAM_HEADER,
+                    response=[
+                        TransportMock.Receive(
+                            self._make_peer_header(version=(1, 0))
+                        ),
+                    ]),
+            ],
+            partial=True
+        ))
+
+        fut = p.error_future()
+        self.assertFalse(fut.done())
+
+        p._deadtime_hard_limit_triggered()
+
+        run_coroutine(t.run_test(
+            [
+                TransportMock.Abort(),
+            ]
+        ))
+
+        self.assertTrue(fut.done())
+
+        self.assertIsInstance(fut.exception(), ConnectionError)
+        self.assertIn("timeout", str(fut.exception()))
+
+    def test__deadtime_hard_limit_triggered_does_nothing_bad_if_invoked_after_closing(self):  # NOQA
+        t, p = self._make_stream(to=TEST_PEER)
+
+        run_coroutine(t.run_test(
+            [
+                TransportMock.Write(
+                    STREAM_HEADER,
+                    response=[
+                        TransportMock.Receive(
+                            self._make_peer_header(version=(1, 0))
+                        ),
+                        TransportMock.Close(),
+                    ]),
+            ],
+        ))
+
+        p._deadtime_hard_limit_triggered()
+
+    def test_closure_clears_monitor_timeouts(self):
+        t, p = self._make_stream(to=TEST_PEER)
+
+        run_coroutine(t.run_test(
+            [
+                TransportMock.Write(
+                    STREAM_HEADER,
+                    response=[
+                        TransportMock.Receive(
+                            self._make_peer_header(version=(1, 0))
+                        ),
+                        TransportMock.Close(),
+                    ]),
+            ],
+        ))
+
+        self.assertIsNone(self.monitor.deadtime_hard_limit)
+        self.assertIsNone(self.monitor.deadtime_soft_limit)
+
+    def test_timeout_actually_works(self):
+        dt = get_timeout(timedelta(seconds=0.1))
+        t, p = self._make_stream(to=TEST_PEER, monitor_mock=False)
+
+        p.deadtime_hard_limit = dt
+
+        fut = p.error_future()
+
+        run_coroutine(t.run_test(
+            [
+                TransportMock.Write(
+                    STREAM_HEADER,
+                    response=[
+                        TransportMock.Receive(
+                            self._make_peer_header(version=(1, 0))
+                        ),
+                    ]),
+            ],
+            partial=True,
+        ))
+
+        self.assertFalse(fut.done())
+
+        run_coroutine(asyncio.sleep((dt * 1.1).total_seconds()))
+
+        run_coroutine(t.run_test(
+            [
+                TransportMock.Abort(),
+            ],
+        ))
+
+        self.assertTrue(fut.done())
+        self.assertIsNotNone(fut.exception())
+        self.assertIn("timeout", str(fut.exception()))
+
+    def test_timeout_propagates_to_features_future(self):
+        fut = asyncio.Future()
+        t, p = self._make_stream(to=TEST_PEER, features_future=fut)
+
+        run_coroutine(t.run_test(
+            [
+                TransportMock.Write(
+                    STREAM_HEADER,
+                    response=[
+                        TransportMock.Receive(
+                            self._make_peer_header(version=(1, 0))
+                        ),
+                    ]),
+            ],
+            partial=True
+        ))
+
+        self.assertFalse(fut.done())
+
+        p._deadtime_hard_limit_triggered()
+
+        run_coroutine(t.run_test(
+            [
+                TransportMock.Abort(),
+            ]
+        ))
+
+        self.assertTrue(fut.done())
+
+        self.assertIsInstance(fut.exception(), ConnectionError)
+        self.assertIn("timeout", str(fut.exception()))
+
+    def test_data_received_notifies_monitor(self):
+        t, p = self._make_stream(to=TEST_PEER)
+
+        self.monitor.notify_received.assert_not_called()
+
+        with unittest.mock.patch.object(p, "_rx_feed") as _rx_feed:
+            # patch _rx_feed away to avoid it to do something sensible with it
+            p.data_received(unittest.mock.sentinel.something)
+
+        self.monitor.notify_received.assert_called_once_with()
 
 
 class Testsend_and_wait_for(xmltestutils.XMLTestCase):

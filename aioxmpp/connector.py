@@ -51,6 +51,8 @@ import abc
 import asyncio
 import logging
 
+from datetime import timedelta
+
 import aioxmpp.errors as errors
 import aioxmpp.nonza as nonza
 import aioxmpp.protocol as protocol
@@ -102,7 +104,10 @@ class BaseConnector(metaclass=abc.ABCMeta):
         to use.
 
         `negotiation_timeout` must be the maximum time in seconds to wait for
-        the server to reply in each negotiation step.
+        the server to reply in each negotiation step. The `negotiation_timeout`
+        is used as value for
+        :attr:`~aioxmpp.protocol.XMLStream.deadtime_hard_limit` in the returned
+        stream.
 
         Return a triple consisting of the :class:`asyncio.Transport`, the
         :class:`.protocol.XMLStream` and the
@@ -113,6 +118,11 @@ class BaseConnector(metaclass=abc.ABCMeta):
         value for ``"ssl_object"``.
 
         `base_logger` is passed to :class:`aioxmpp.protocol.XMLStream`.
+
+        .. versionchanged:: 0.10
+
+            Assignment of
+            :attr:`~aioxmpp.protocol.XMLStream.deadtime_hard_limit` was added.
         """
 
 
@@ -159,6 +169,11 @@ class STARTTLSConnector(BaseConnector):
         :attr:`~.security_layer.SecurityLayer.ssl_context_factory` and
         :attr:`~.security_layer.SecurityLayer.certificate_verifier_factory` are
         used to configure the TLS connection.
+
+        .. versionchanged:: 0.10
+
+            The `negotiation_timeout` is set as
+            :attr:`~.XMLStream.deadtime_hard_limit` on the returned XML stream.
         """
 
         features_future = asyncio.Future(loop=loop)
@@ -188,6 +203,8 @@ class STARTTLSConnector(BaseConnector):
         except:  # NOQA
             stream.abort()
             raise
+
+        stream.deadtime_hard_limit = timedelta(seconds=negotiation_timeout)
 
         features = yield from features_future
 
@@ -311,6 +328,11 @@ class XMPPOverTLSConnector(BaseConnector):
         :attr:`~.security_layer.SecurityLayer.ssl_context_factory` and
         :attr:`~.security_layer.SecurityLayer.certificate_verifier_factory` are
         used to configure the TLS connection.
+
+        .. versionchanged:: 0.10
+
+            The `negotiation_timeout` is set as
+            :attr:`~.XMLStream.deadtime_hard_limit` on the returned XML stream.
         """
 
         features_future = asyncio.Future(loop=loop)
@@ -354,5 +376,7 @@ class XMPPOverTLSConnector(BaseConnector):
         except:  # NOQA
             stream.abort()
             raise
+
+        stream.deadtime_hard_limit = timedelta(seconds=negotiation_timeout)
 
         return transport, stream, (yield from features_future)

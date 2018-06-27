@@ -30,6 +30,118 @@ handles stream liveness and stream management.
 It provides ways to track stanzas on their way to the remote, as far as that is
 possible.
 
+.. _aioxmpp.stream.General Information:
+
+General information
+===================
+
+.. _aioxmpp.stream.General Information.Timeouts:
+
+Timeouts / Stream Aliveness checks
+----------------------------------
+
+The :class:`StanzaStream` relies on the :class:`XMLStream` dead time aliveness
+monitoring (see also :attr:`~.XMLStream.deadtime_soft_limit`) to detect a
+broken stream.
+
+The limits can be configured with the two attributes
+:attr:`~.StanzaStream.soft_timeout` and :attr:`~.StanzaStream.round_trip_time`.
+When :attr:`~.StanzaStream.soft_timeout` elapses after the last bit of data
+received from the server, the :class:`StanzaStream` issues a ping. The server
+then has one :attr:`~.StanzaStream.round_trip_time` worth of time to answer.
+If this does not happen, the :class:`XMLStream` will be terminated by the
+aliveness monitor and normal handling of a broken connection takes over.
+
+.. _aioxmpp.stream.General Information.Filters:
+
+Stanza Filters
+--------------
+
+Stanza filters allow to hook into the stanza sending/reception pipeline
+after/before the application sees the stanza.
+
+Inbound stanza filters
+~~~~~~~~~~~~~~~~~~~~~~
+
+Inbound stanza filters allow to hook into the stanza processing by replacing,
+modifying or otherwise processing stanza contents *before* the usual handlers
+for that stanza are invoked. With inbound stanza filters, there are no
+restrictions as to what processing may take place on a stanza, as no one but
+the stream may have references to its contents.
+
+.. warning::
+
+    Raising an exception from within a stanza filter kills the stream.
+
+Note that if a filter function drops an incoming stanza (by returning
+:data:`None`), it **must** ensure that the client still behaves RFC
+compliant. The inbound stanza filters are found here:
+
+* :attr:`~.StanzaStream.service_inbound_message_filter`
+* :attr:`~.StanzaStream.service_inbound_presence_filter`
+* :attr:`~.StanzaStream.app_inbound_message_filter`
+* :attr:`~.StanzaStream.app_inbound_presence_filter`
+
+Outbound stanza filters
+~~~~~~~~~~~~~~~~~~~~~~~
+
+Outbound stanza filters work similar to inbound stanza filters, but due to
+their location in the processing chain and possible interactions with senders
+of stanzas, there are some things to consider:
+
+* Per convention, a outbound stanza filter **must not** modify any child
+  elements which are already present in the stanza when it receives the
+  stanza.
+
+  It may however add new child elements or remove existing child elements,
+  as well as copying and *then* modifying existing child elements.
+
+* If the stanza filter replaces the stanza, it is responsible for making
+  sure that the new stanza has appropriate
+  :attr:`~.stanza.StanzaBase.from_`, :attr:`~.stanza.StanzaBase.to` and
+  :attr:`~.stanza.StanzaBase.id` values. There are no checks to enforce
+  this, because errorr handling at this point is peculiar. The stanzas will
+  be sent as-is.
+
+* Similar to inbound filters, it is the responsibility of the filters that
+  if stanzas are dropped, the client still behaves RFC-compliant.
+
+Now that you have been warned, here are the attributes for accessing the
+outbound filter chains. These otherwise work exactly like their inbound
+counterparts, but service filters run *after* application filters on
+outbound processing.
+
+* :attr:`~.StanzaStream.service_outbound_message_filter`
+* :attr:`~.StanzaStream.service_outbound_presence_filter`
+* :attr:`~.StanzaStream.app_outbound_message_filter`
+* :attr:`~.StanzaStream.app_outbound_presence_filter`
+
+When to use stanza filters?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+In general, applications will rarely need them. However, services may make
+profitable use of them, and it is a convenient way for them to inspect or
+modify incoming or outgoing stanzas before any normally registered handler
+processes them.
+
+In general, whenever you do something which *supplements* the use of the stanza
+with respect to the RFC but does not fulfill the orignial intent of the stanza,
+it is advisable to use a filter instead of a callback on the actual stanza.
+
+Vice versa, if you were to develop a service which manages presence
+subscriptions, it would be more correct to use
+:meth:`register_presence_callback`; this prevents other services which try
+to do the same from conflicting with you. You would then provide callbacks
+to the application to let it learn about presence subscriptions.
+
+Stanza Stream class
+===================
+
+This section features the complete documentation of the (rather important and
+complex) :class:`StanzaStream`. Some more general information has been moved to
+the previous section (:ref:`aioxmpp.stream.General Information`) to make it
+easier to read and find.
+
 .. autoclass:: StanzaStream
 
 Context managers
@@ -380,37 +492,9 @@ class StanzaStream:
 
        The `local_jid` argument was added.
 
-    The stanza stream takes care of ensuring stream liveness. For that, pings
-    are sent in a periodic interval. If stream management is enabled, stream
-    management ack requests are used as pings, otherwise :xep:`0199` pings are
-    used.
+    .. versionchanged:: 0.10
 
-    The general idea of pinging is, to save computing power, to send pings only
-    when other stanzas are also about to be sent, if possible. The time window
-    for waiting for other stanzas is defined by
-    :attr:`ping_opportunistic_interval`. The general time which the
-    :class:`StanzaStream` waits between the reception of the previous ping and
-    contemplating the sending of the next ping is controlled by
-    :attr:`ping_interval`. See the attributes descriptions for details:
-
-    .. attribute:: ping_interval = timedelta(seconds=15)
-
-       A :class:`datetime.timedelta` instance which controls the time between a
-       ping response and starting the next ping. When this time elapses,
-       opportunistic mode is engaged for the time defined by
-       :attr:`ping_opportunistic_interval`.
-
-    .. attribute:: ping_opportunistic_interval = timedelta(seconds=15)
-
-       This is the time interval after :attr:`ping_interval`. During that
-       interval, :class:`StanzaStream` waits for other stanzas to be sent. If a
-       stanza gets send during that interval, the ping is fired. Otherwise, the
-       ping is fired after the interval.
-
-    After a ping has been sent, the response must arrive in a time of
-    :attr:`ping_interval` for the stream to be considered alive. If the
-    response fails to arrive within that interval, the stream fails (see
-    :attr:`on_failure`).
+        Ping handling was reworked.
 
     Starting/Stopping the stream:
 
@@ -425,6 +509,13 @@ class StanzaStream:
     .. autoattribute:: running
 
     .. automethod:: flush_incoming
+
+    Timeout configuration (see
+    :ref:`aioxmpp.stream.General Information.Timeouts`):
+
+    .. autoattribute:: round_trip_time
+
+    .. autoattribute:: soft_timeout
 
     Sending stanzas:
 
@@ -480,20 +571,8 @@ class StanzaStream:
 
     .. automethod:: unregister_iq_response
 
-    Inbound stanza filters allow to hook into the stanza processing by
-    replacing, modifying or otherwise processing stanza contents *before* the
-    above callbacks are invoked. With inbound stanza filters, there are no
-    restrictions as to what processing may take place on a stanza, as no one
-    but the stream may have references to its contents. See below for a
-    guideline on when to use stanza filters.
-
-    .. warning::
-
-       Raising an exception from within a stanza filter kills the stream.
-
-    Note that if a filter function drops an incoming stanza (by returning
-    :data:`None`), it **must** ensure that the client still behaves RFC
-    compliant.
+    Inbound Stanza Filters (see
+    :ref:`aioxmpp.stream.General Information.Filters`):
 
     .. attribute:: app_inbound_presence_filter
 
@@ -523,31 +602,8 @@ class StanzaStream:
        This is the analogon of :attr:`service_inbound_presence_filter` for
        :attr:`app_inbound_message_filter`.
 
-    Outbound stanza filters work similar to inbound stanza filters, but due to
-    their location in the processing chain and possible interactions with
-    senders of stanzas, there are some things to consider:
-
-    * Per convention, a outbound stanza filter **must not** modify any child
-      elements which are already present in the stanza when it receives the
-      stanza.
-
-      It may however add new child elements or remove existing child elements,
-      as well as copying and *then* modifying existing child elements.
-
-    * If the stanza filter replaces the stanza, it is responsible for making
-      sure that the new stanza has appropriate
-      :attr:`~.stanza.StanzaBase.from_`, :attr:`~.stanza.StanzaBase.to` and
-      :attr:`~.stanza.StanzaBase.id` values. There are no checks to enforce
-      this, because errorr handling at this point is peculiar. The stanzas will
-      be sent as-is.
-
-    * Similar to inbound filters, it is the responsibility of the filters that
-      if stanzas are dropped, the client still behaves RFC-compliant.
-
-    Now that you have been warned, here are the attributes for accessing the
-    outbound filter chains. These otherwise work exactly like their inbound
-    counterparts, but service filters run *after* application filters on
-    outbound processing.
+    Outbound Stanza Filters (see
+    :ref:`aioxmpp.stream.General Information.Filters`):
 
     .. attribute:: app_outbound_presence_filter
 
@@ -581,24 +637,6 @@ class StanzaStream:
 
        Before using this attribute, make sure that you have read the notes
        above.
-
-    When to use stanza filters? In general, applications will rarely need
-    them. However, services may make profitable use of them, and it is a
-    convenient way for them to inspect incoming or outgoing stanzas without
-    having to take up the registration slots (remember that
-    :meth:`register_message_callback` et. al. only allow *one* callback per
-    designator).
-
-    In general, whenever you do something which *supplements* the use of the
-    stanza with respect to the RFC but does not fulfill the orignial intent of
-    the stanza, it is advisable to use a filter instead of a callback on the
-    actual stanza.
-
-    Vice versa, if you were to develop a service which manages presence
-    subscriptions, it would be more correct to use
-    :meth:`register_presence_callback`; this prevents other services which try
-    to do the same from conflicting with you. You would then provide callbacks
-    to the application to let it learn about presence subscriptions.
 
     Using stream management:
 
@@ -734,6 +772,10 @@ class StanzaStream:
         self._logger = base_logger.getChild("StanzaStream")
         self._task = None
 
+        self._xmlstream = None
+        self._soft_timeout = timedelta(minutes=1)
+        self._round_trip_time = timedelta(minutes=1)
+
         self._xxx_message_dispatcher = None
         self._xxx_presence_dispatcher = None
 
@@ -749,17 +791,10 @@ class StanzaStream:
         # stream is destroyed
         self._iq_request_tasks = []
 
-        self._ping_send_opportunistic = False
-        self._next_ping_event_at = None
-        self._next_ping_event_type = None
-
         self._xmlstream_exception = None
 
         self._established = False
         self._closed = False
-
-        self.ping_interval = timedelta(seconds=15)
-        self.ping_opportunistic_interval = timedelta(seconds=15)
 
         self._sm_enabled = False
 
@@ -793,6 +828,45 @@ class StanzaStream:
     @local_jid.setter
     def local_jid(self, value):
         self._local_jid = value
+
+    @property
+    def round_trip_time(self):
+        """
+        The maximum expected round-trip time as :class:`datetime.timedelta`.
+
+        This is used to configure the maximum time between asking the server to
+        send something and receiving something from the server in stream
+        aliveness checks.
+
+        This does **not** affect IQ requests or other stanzas.
+
+        If set to :data:`None`, no application-level timeouts are used at all.
+        This is not recommended since TCP timeouts are generally not sufficient
+        for interactive applications.
+        """
+        return self._round_trip_time
+
+    @round_trip_time.setter
+    def round_trip_time(self, value):
+        self._round_trip_time = value
+        self._update_xmlstream_limits()
+
+    @property
+    def soft_timeout(self):
+        """
+        Soft timeout after which the server will be asked to send something
+        if nothing has been received.
+
+        If set to :data:`None`, no application-level timeouts are used at all.
+        This is not recommended since TCP timeouts are generally not sufficient
+        for interactive applications.
+        """
+        return self._soft_timeout
+
+    @soft_timeout.setter
+    def soft_timeout(self, value):
+        self._soft_timeout = value
+        self._update_xmlstream_limits()
 
     def _coerce_enum(self, value, enum_class):
         if not isinstance(value, enum_class):
@@ -1048,12 +1122,6 @@ class StanzaStream:
                 self._logger.warning("received SM ack, but SM not enabled")
                 return
             self.sm_ack(stanza_obj.counter)
-
-            if self._next_ping_event_type == PingEventType.TIMEOUT:
-                self._logger.debug("resetting ping timeout")
-                self._next_ping_event_type = PingEventType.SEND_OPPORTUNISTIC
-                self._next_ping_event_at = (time.monotonic() +
-                                            self.ping_interval.total_seconds())
             return
         elif isinstance(stanza_obj, nonza.SMRequest):
             self._logger.debug("received SM request: %r", stanza_obj)
@@ -1175,82 +1243,9 @@ class StanzaStream:
                 break
             self._send_stanza(xmlstream, token)
 
-        self._send_ping(xmlstream)
-
-    def _recv_pong(self, stanza):
-        """
-        Process the reception of a XEP-0199 ping reply.
-        """
-
-        if not self.running:
-            return
-        if self._next_ping_event_type != PingEventType.TIMEOUT:
-            return
-        self._next_ping_event_type = PingEventType.SEND_OPPORTUNISTIC
-        self._next_ping_event_at = (
-            time.monotonic() +
-            self.ping_interval.total_seconds()
-        )
-
-    def _send_ping(self, xmlstream):
-        """
-        Opportunistically send a ping over the given `xmlstream`.
-
-        If stream management is enabled, an SM request is always sent,
-        independent of the current ping state. Otherwise, a XEP-0199 ping is
-        sent if and only if we are currently in the opportunistic ping interval
-        (see :attr:`ping_opportunistic_interval`).
-
-        If a ping is sent, and we are currently not waiting for a pong to be
-        received, the ping timeout is configured.
-        """
-        if not self._ping_send_opportunistic:
-            return
-
         if self._sm_enabled:
             self._logger.debug("sending SM req")
             xmlstream.send_xso(nonza.SMRequest())
-        else:
-            request = stanza.IQ(type_=structs.IQType.GET)
-            request.payload = ping.Ping()
-            request.autoset_id()
-            self.register_iq_response_callback(
-                None,
-                request.id_,
-                self._recv_pong
-            )
-            self._logger.debug("sending XEP-0199 ping: %r", request)
-            xmlstream.send_xso(request)
-            self._ping_send_opportunistic = False
-
-        if self._next_ping_event_type != PingEventType.TIMEOUT:
-            self._logger.debug("configuring ping timeout")
-            self._next_ping_event_at = (
-                time.monotonic() + self.ping_interval.total_seconds()
-            )
-            self._next_ping_event_type = PingEventType.TIMEOUT
-
-    def _process_ping_event(self, xmlstream):
-        """
-        Process a ping timed event on the current `xmlstream`.
-        """
-        if self._next_ping_event_type == PingEventType.SEND_OPPORTUNISTIC:
-            self._logger.debug("ping: opportunistic interval started")
-            self._next_ping_event_at += \
-                self.ping_opportunistic_interval.total_seconds()
-            self._next_ping_event_type = PingEventType.SEND_NOW
-            # ping send opportunistic is always true for sm
-            if not self._sm_enabled:
-                self._ping_send_opportunistic = True
-        elif self._next_ping_event_type == PingEventType.SEND_NOW:
-            self._logger.debug("ping: requiring ping to be sent now")
-            self._send_ping(xmlstream)
-        elif self._next_ping_event_type == PingEventType.TIMEOUT:
-            self._logger.warning("ping: response timeout tripped")
-            raise ConnectionError("ping timeout")
-        else:
-            raise RuntimeError("unknown ping event type: {!r}".format(
-                self._next_ping_event_type))
 
     def register_iq_response_callback(self, from_, id_, cb):
         """
@@ -1739,10 +1734,38 @@ class StanzaStream:
             from_,
         )
 
+    def _xmlstream_soft_limit_tripped(self, xmlstream):
+        self._logger.debug(
+            "XMLStream has reached dead-time soft limit, sending ping"
+        )
+
+        if self._sm_enabled:
+            req = nonza.SMRequest()
+            xmlstream.send_xso(req)
+        else:
+            iq = stanza.IQ(
+                type_=structs.IQType.GET,
+                payload=ping.Ping()
+            )
+            iq.autoset_id()
+            self.register_iq_response_callback(
+                None,
+                iq.id_,
+                # we don’t care, just wanna make sure that this doesn’t fail
+                lambda stanza: None,
+            )
+            self._enqueue(iq)
+
     def _start_prepare(self, xmlstream, receiver):
         self._xmlstream_failure_token = xmlstream.on_closing.connect(
             self._xmlstream_failed
         )
+
+        self._xmlstream_soft_limit_token = \
+            xmlstream.on_deadtime_soft_limit_tripped.connect(
+                functools.partial(self._xmlstream_soft_limit_tripped,
+                                  xmlstream)
+            )
 
         xmlstream.stanza_parser.add_class(stanza.IQ, receiver)
         xmlstream.stanza_parser.add_class(stanza.Message, receiver)
@@ -1772,6 +1795,21 @@ class StanzaStream:
         xmlstream.on_closing.disconnect(
             self._xmlstream_failure_token
         )
+        xmlstream.on_deadtime_soft_limit_tripped.disconnect(
+            self._xmlstream_soft_limit_token
+        )
+
+    def _update_xmlstream_limits(self):
+        if self._xmlstream is None:
+            return
+
+        self._xmlstream.deadtime_soft_limit = self._soft_timeout
+        if (self._soft_timeout is not None and
+                self._round_trip_time is not None):
+            self._xmlstream.deadtime_hard_limit = \
+                self._soft_timeout + self._round_trip_time
+        else:
+            self._xmlstream.deadtime_hard_limit = None
 
     def _start_commit(self, xmlstream):
         if not self._established:
@@ -1783,19 +1821,13 @@ class StanzaStream:
         self._task.add_done_callback(self._done_handler)
         self._logger.debug("broker task started as %r", self._task)
 
-        self._next_ping_event_at = (
-            time.monotonic() + self.ping_interval.total_seconds()
-        )
-        self._next_ping_event_type = PingEventType.SEND_OPPORTUNISTIC
-        self._ping_send_opportunistic = self._sm_enabled
-
     def start(self, xmlstream):
         """
         Start or resume the stanza stream on the given
         :class:`aioxmpp.protocol.XMLStream` `xmlstream`.
 
         This starts the main broker task, registers stanza classes at the
-        `xmlstream` and reconfigures the ping state.
+        `xmlstream` .
         """
 
         if self.running:
@@ -1892,6 +1924,7 @@ class StanzaStream:
     @asyncio.coroutine
     def _run(self, xmlstream):
         self._xmlstream = xmlstream
+        self._update_xmlstream_limits()
         active_fut = asyncio.ensure_future(self._active_queue.get(),
                                            loop=self._loop)
         incoming_fut = asyncio.ensure_future(self._incoming_queue.get(),
@@ -1899,10 +1932,7 @@ class StanzaStream:
 
         try:
             while True:
-                timeout = self._next_ping_event_at - time.monotonic()
-                if timeout < 0:
-                    timeout = 0
-
+                timeout = None
                 done, pending = yield from asyncio.wait(
                     [
                         active_fut,
@@ -1924,10 +1954,6 @@ class StanzaStream:
                         incoming_fut = asyncio.ensure_future(
                             self._incoming_queue.get(),
                             loop=self._loop)
-
-                    timeout = self._next_ping_event_at - time.monotonic()
-                    if timeout <= 0:
-                        self._process_ping_event(xmlstream)
 
         finally:
             # make sure we rescue any stanzas which possibly have already been
@@ -2094,7 +2120,6 @@ class StanzaStream:
             self._sm_resumable = response.resume
             self._sm_max = response.max_
             self._sm_location = response.location
-            self._ping_send_opportunistic = True
 
             self._logger.info("SM started: resumable=%s, stream id=%r",
                               self._sm_resumable,
