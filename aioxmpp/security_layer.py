@@ -981,7 +981,7 @@ class PasswordSASLProvider(SASLProvider):
                 try:
                     mechanism_worked = yield from self._execute(
                         intf, mechanism, token)
-                except aiosasl.AuthenticationFailure as err:
+                except (ValueError, aiosasl.AuthenticationFailure) as err:
                     if password_signalled_abort:
                         # immediately re-raise
                         raise
@@ -1183,6 +1183,10 @@ def negotiate_sasl(transport, xmlstream,
         try:
             result = yield from sasl_provider.execute(
                 jid, features, xmlstream, transport)
+        except ValueError as err:
+            raise errors.StreamNegotiationFailure(
+                "invalid credentials: {}".format(err)
+            ) from err
         except aiosasl.AuthenticationFailure as err:
             last_auth_error = err
             continue

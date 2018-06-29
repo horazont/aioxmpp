@@ -406,6 +406,9 @@ Version 0.10
   :func:`aioxmpp.security_layer.negotiate_sasl` has been deprecated in favour
   of :class:`aioxmpp.protocol.XMLStream`\ -level handling of timeouts.
 
+* Handle :class:`ValueError` raised by :mod:`aiosasl` when the credentials are
+  malformed.
+
 .. _api-changelog-0.9:
 
 Version 0.9

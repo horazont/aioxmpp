@@ -1759,7 +1759,7 @@ class TestPasswordSASLProvider(xmltestutils.XMLTestCase):
 
         self.password_provider.return_value = "foobar"
 
-        plain_payload = (b"\0"+str(self.client_jid.localpart).encode("utf-8")+
+        plain_payload = (b"\0"+str(self.client_jid.localpart).encode("utf-8") +
                          b"\0"+"foobar".encode("utf-8"))
 
         with self.assertRaises(aiosasl.AuthenticationFailure):
@@ -1790,6 +1790,40 @@ class TestPasswordSASLProvider(xmltestutils.XMLTestCase):
                 unittest.mock.call(self.client_jid.bare(), 2),
             ],
             self.password_provider.mock_calls
+        )
+
+    def test_re_query_for_credentials_on_value_error(self):
+        self.mechanisms.mechanisms.extend([
+            security_layer.SASLMechanism(name="PLAIN")
+        ])
+
+        provider = security_layer.PasswordSASLProvider(
+            self._password_provider_wrapper,
+            max_auth_attempts=3)
+
+        self.password_provider.return_value = "foobar"
+
+        with contextlib.ExitStack() as stack:
+            authenticate = stack.enter_context(unittest.mock.patch.object(
+                aiosasl.PLAIN,
+                "authenticate",
+            ))
+            authenticate.side_effect = ValueError
+            stack.enter_context(self.assertRaises(ValueError))
+
+            self._test_provider(
+                provider,
+                actions=[],
+                tls_transport=True
+            )
+
+        self.assertSequenceEqual(
+            authenticate.mock_calls,
+            [
+                unittest.mock.call(unittest.mock.ANY, unittest.mock.ANY),
+                unittest.mock.call(unittest.mock.ANY, unittest.mock.ANY),
+                unittest.mock.call(unittest.mock.ANY, unittest.mock.ANY),
+            ]
         )
 
     def test_fail_if_out_of_mechanisms(self):
@@ -2115,6 +2149,41 @@ class Testnegotiate_sasl(xmltestutils.XMLTestCase):
             self.features,
             self.xmlstream,
             self.transport)
+
+    def test_wrap_ValueError_in_StreamNegotiationFailure(self):
+        exc = ValueError("invalid codepoint")
+
+        sasl_provider1 = unittest.mock.Mock()
+        sasl_provider1.execute = CoroutineMock()
+        sasl_provider1.execute.side_effect = exc
+
+        sasl_provider2 = unittest.mock.Mock()
+        sasl_provider2.execute = CoroutineMock()
+        sasl_provider2.execute.return_value = False
+
+        with self.assertRaises(errors.StreamNegotiationFailure) as ctx:
+            self._test_provider(
+                security_layer.negotiate_sasl(
+                    self.transport,
+                    self.xmlstream,
+                    [sasl_provider1,
+                     sasl_provider2],
+                    negotiation_timeout=1.0,
+                    jid=self.client_jid,
+                    features=self.features),
+                [
+                ]
+            )
+
+        self.assertIs(ctx.exception.__cause__, exc)
+
+        sasl_provider1.execute.assert_called_once_with(
+            self.client_jid,
+            self.features,
+            self.xmlstream,
+            self.transport)
+
+        sasl_provider2.execute.assert_not_called()
 
     def test_swallow_auth_error_if_auth_succeeds_with_different_mech(self):
         exc = aiosasl.AuthenticationFailure("credentials-expired")
