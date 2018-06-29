@@ -513,6 +513,41 @@ class TestOccupant(unittest.TestCase):
         self.assertEqual(old_uid, occ.uid)
 
 
+class TestServiceMember(unittest.TestCase):
+    def setUp(self):
+        self.mucjid = TEST_MUC_JID
+        self.sm = muc_service.ServiceMember(self.mucjid)
+
+    def test_defaults_for_Occupant_attributes(self):
+        self.assertEqual(
+            self.sm.presence_state,
+            aioxmpp.structs.PresenceState(False),
+        )
+
+        self.assertDictEqual(
+            self.sm.presence_status,
+            {}
+        )
+
+        self.assertIsInstance(
+            self.sm.presence_status,
+            aioxmpp.structs.LanguageMap,
+        )
+
+        self.assertIs(self.sm.affiliation, None)
+        self.assertIs(self.sm.role, None)
+
+        self.assertEqual(self.sm.direct_jid, self.mucjid)
+        self.assertEqual(self.sm.conversation_jid, self.mucjid)
+
+        self.assertIsNone(self.sm.nick)
+
+        self.assertEqual(self.sm.uid,
+                         b"xmpp:" + str(self.mucjid).encode("utf-8"))
+
+        self.assertFalse(self.sm.is_self)
+
+
 class TestRoom(unittest.TestCase):
     def setUp(self):
         self.mucjid = TEST_MUC_JID
