@@ -408,6 +408,10 @@ Version 0.10
 
 * :attr:`aioxmpp.im.conversation.AbstractConversation.service_member`
 
+* :class:`aioxmpp.muc.Room` now has a :attr:`aioxmpp.muc.Room.service_member`
+  which is used for messages from the bare MUC JID. Such messages are used by
+  some implementations for service-originated messages.
+
 .. _api-changelog-0.9:
 
 Version 0.9

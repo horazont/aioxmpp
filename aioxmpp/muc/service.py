@@ -1018,9 +1018,14 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
                 self._this_occupant._conversation_jid == message.from_):
             occupant = self._this_occupant
         else:
-            occupant = self._occupant_info.get(message.from_, None)
+            if message.from_.resource is None:
+                occupant = self._service_member
+            else:
+                occupant = self._occupant_info.get(message.from_, None)
 
-            if self._state == RoomState.HISTORY and not sent:
+            if (self._state == RoomState.HISTORY and
+                    not sent and
+                    message.from_.resource is not None):
                 if (message.xep0045_muc_user and
                         message.xep0045_muc_user.items):
                     item = message.xep0045_muc_user.items[0]
