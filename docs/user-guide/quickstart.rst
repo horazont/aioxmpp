@@ -319,106 +319,57 @@ Relevant documentation:
 * :class:`aioxmpp.PresenceClient`
 * :class:`aioxmpp.callbacks.AdHocSignal`
 
-.. _ug-quickstart-send-iq:
+React to a XEP-0092 Software Version IQ request
+===============================================
 
-Send a custom IQ payload
-========================
+This time, we want to stay online for 30 seconds and serve :xep:`92` software
+version requests. The format for those is already defined in
+:mod:`aioxmpp.version`, so we can re-use that. Before we go into how to use
+that, we will briefly show what such a format definition looks like:
 
-As mentioned earlier, IQs are a bit more complex. IQ payloads are more or less
-strictly defined, which gives :mod:`aioxmpp` the opportunity to take the load of
-data validation off your back. This also means that you need to tell
-:mod:`aioxmpp` what format you expect.
+.. code:: python
 
-We will take :xep:`92` (Software Version) as an example. First we need to define
-the IQ payload. You would generally do that in a module you import in your
-application::
-
-  import aioxmpp
-  import aioxmpp.xso as xso
-
-  namespace = "jabber:iq:version"
-
-  @aioxmpp.IQ.as_payload_class
-  class Query(xso.XSO):
-      TAG = (namespace, "query")
-
-      name = xso.ChildText(
-          (namespace, "name"),
-          default=None,
-      )
-
-      version = xso.ChildText(
-          (namespace, "version"),
-          default=None,
-      )
-
-      os = xso.ChildText(
-          (namespace, "os"),
-          default=None,
-      )
-
-:class:`~aioxmpp.xso.XSO` is a base class for any element occurring in an XMPP
-XML stream. Using declarative-style descriptors, we describe the children we
-expect on the :xep:`92` query. There are of course other descriptors, for
-example for attributes, lists of children declared as classes, even
-dictionaries. See the relevant documentation below for details.
-
-With that declaration, we can construct and send a :xep:`92` IQ like this (we
-are now back inside the ``async with`` block)::
-
-  iq = aioxmpp.IQ(
-      type_=aioxmpp.IQType.GET,
-      payload=Query(),
-      to=peer_jid,
-  )
-
-  print("sending query to {}".format(peer_jid))
-  reply = await stream.send(iq)
-  print("got response!")
-
-If the peer complies with the protocol, `reply` is an instance of our freshly
-baked :class:`Query`! The attributes will contain the response from the peer, we
-could print them like this::
-
-  print("name: {!r}".format(reply.name))
-  print("version: {!r}".format(reply.version))
-  print("os: {!r}".format(reply.os))
-
-(Note that we passed ``default=None`` to the :class:`aioxmpp.xso.ChildText`
-descriptor objects above; otherwise, accessing a descriptor representing
-something which was not sent by the peer would result in a
-:class:`AttributeError`, just like any other not-set attribute).
-
-Relevant documentation:
-
-* :mod:`aioxmpp.xso`, especially :class:`aioxmpp.xso.XSO` and
-  :class:`aioxmpp.xso.ChildText`
-* :meth:`aioxmpp.IQ.as_payload_class`
-* :meth:`aioxmpp.Client.send`
-* also make sure to read the source of, for example, :mod:`aioxmpp.disco.xso`
-  for more examples of :class:`~aioxmpp.XSO` subclasses.
-
-.. note::
-
-   In general, before considering sending an IQ manually, you should check out
-   the :ref:`api-xep-modules` section of the API to see whether there is a
-   module handling the XEP or RFC for you.
-
-.. note::
-
-   The example in this section can also be found in the `aioxmpp repository,
-   at examples/quickstart_query_server_version.py
-   <https://github.com/horazont/aioxmpp/blob/devel/examples/quickstart_query_server_version.py>`_.
+    namespaces.xep0092_version = "jabber:iq:version"
 
 
-React to an IQ request
-======================
+    @aioxmpp.IQ.as_payload_class
+    class Query(xso.XSO):
+        TAG = namespaces.xep0092_version, "query"
 
-We build on the previous section. This time, we want to stay online for 30
-seconds and serve software version requests.
+        version = xso.ChildText(
+            (namespaces.xep0092_version, "version"),
+            default=None,
+        )
 
-To do this, we register a coroutine to handle IQ requests (before the ``async
-with``)::
+        name = xso.ChildText(
+            (namespaces.xep0092_version, "name"),
+            default=None,
+        )
+
+        os = xso.ChildText(
+            (namespaces.xep0092_version, "os"),
+            default=None,
+        )
+
+
+The XML element is defined declarative-style as class. The ``TAG`` attribute
+defines the fully qualified name of the XML element to match, in this case,
+it is the ``query`` element in the ``jabber:iq:version`` namespace.
+
+The other attributes are XSO properties (see :mod:`aioxmpp.xso`). In this case,
+all properties are :class:`aioxmpp.xso.ChildText` properties. Each of those
+maps to the text content of a child element, again identified by their
+respective fully qualified names. The ``name`` attribute for example maps to the
+text of the ``name`` child in the ``jabber:iq:version`` namespace.
+
+You do not need to include this code in your application, because it’s already
+there in aioxmpp. You can import it using
+``from aioxmpp.version.xso import Query``.
+
+Now to reply to version requests, we register a coroutine to handle IQ requests
+(before the ``async with``)::
+
+  from aioxmpp.version.xso import Query
 
   async def handler(iq):
       print("software version request from {!r}".format(iq.from_))
@@ -453,6 +404,13 @@ Relevant documentation:
 
 * :meth:`aioxmpp.stream.StanzaStream.register_iq_request_handler`
 * :meth:`aioxmpp.IQ.as_payload_class`
+* :class:`aioxmpp.version.xso.Query`
+
+.. note::
+
+    In general, you should check whether aioxmpp implements a feature already.
+    In this case, :xep:`92` is implemented by :mod:`aioxmpp.version`. Check
+    that module out for a more user-friendly way to handle things.
 
 
 Next steps
