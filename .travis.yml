@@ -20,7 +20,7 @@ matrix:
     services:
     - docker
   - python: "3.6"
-    env: TEST_MODE=e2e-ejabberd EJABBERD_VERSION=17.12
+    env: TEST_MODE=e2e-ejabberd EJABBERD_VERSION=18.03
     services:
     - docker
   - python: "3.6"
