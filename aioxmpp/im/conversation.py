@@ -544,6 +544,8 @@ class AbstractConversation(metaclass=abc.ABCMeta):
 
     .. autoattribute:: me
 
+    .. autoattribute:: service_member
+
     Methods:
 
     .. note::
@@ -623,6 +625,21 @@ class AbstractConversation(metaclass=abc.ABCMeta):
     def jid(self):
         """
         The address of the conversation.
+        """
+
+    @property
+    def service_member(self):
+        """
+        The member representing the service on which the conversation is hosted,
+        if available.
+
+        This is never included in :attr:`members`. It may be used as member
+        argument in events to make it clear that the message originates from
+        the service and not an unknown occupant.
+
+        This may be :data:`None`.
+
+        .. versionadded:: 0.10
         """
 
     @property
