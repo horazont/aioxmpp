@@ -65,6 +65,8 @@ Inside rooms, there are occupants:
 
 .. autoclass:: Occupant
 
+.. autoclass:: ServiceMember
+
 Forms
 =====
 
@@ -155,7 +157,14 @@ Owner namespace
 .. autoclass:: DirectInvite
 
 """
-from .service import MUCClient, Occupant, Room, LeaveMode, RoomState  # NOQA
+from .service import (  # NOQA
+    MUCClient,
+    Occupant,
+    Room,
+    LeaveMode,
+    RoomState,
+    ServiceMember,
+)
 from . import xso  # NOQA
 from .xso import (  # NOQA
     ConfigurationForm,

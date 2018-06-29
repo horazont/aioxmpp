@@ -309,6 +309,16 @@ class AbstractConversation(metaclass=abc.ABCMeta):
 
     Signals:
 
+    .. note::
+
+        The `member` argument common to many signals is never :data:`None` and
+        alwyas an instance of a subclass of
+        :class:`~.AbstractConversationMember`. However, the `member` may not be
+        part of the :attr:`members` of the conversation. For example, it may be
+        the :attr:`service_member` object which is never part of
+        :attr:`members`. Other cases where a non-member is passed as `member`
+        may exist depending on the conversation subclass.
+
     .. signal:: on_message(msg, member, source, tracker=None, **kwargs)
 
        A message occured in the conversation.
@@ -344,10 +354,6 @@ class AbstractConversation(metaclass=abc.ABCMeta):
 
        Often, you don’t need to distinguish between carbon-copied and
        non-carbon-copied messages.
-
-       `member` is always not :data:`None`, but the `member` may not actually
-       be part of the :attr:`members`. This can be the case in some protocols
-       for system messages.
 
        All messages which are not handled otherwise (and for example dispatched
        as :meth:`on_state_changed` signals) are dispatched to this event. This
@@ -544,6 +550,8 @@ class AbstractConversation(metaclass=abc.ABCMeta):
 
     .. autoattribute:: me
 
+    .. autoattribute:: service_member
+
     Methods:
 
     .. note::
@@ -623,6 +631,21 @@ class AbstractConversation(metaclass=abc.ABCMeta):
     def jid(self):
         """
         The address of the conversation.
+        """
+
+    @property
+    def service_member(self):
+        """
+        The member representing the service on which the conversation is hosted,
+        if available.
+
+        This is never included in :attr:`members`. It may be used as member
+        argument in events to make it clear that the message originates from
+        the service and not an unknown occupant.
+
+        This may be :data:`None`.
+
+        .. versionadded:: 0.10
         """
 
     @property

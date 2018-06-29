@@ -297,6 +297,64 @@ class RoomState(Enum):
     DISCONNECTED = 3
 
 
+class ServiceMember(aioxmpp.im.conversation.AbstractConversationMember):
+    """
+    A :class:`~aioxmpp.im.conversation.AbstractConversationMember` which
+    represents a MUC service.
+
+    .. versionadded:: 0.10
+
+    Objects of this instance are used for the :attr:`Room.service_member`
+    property of rooms.
+
+    Aside from the mandatory conversation member attributes, the following
+    attributes for compatibility with :class:`Occupant` are provided:
+
+    .. autoattribute:: nick
+
+    .. attribute:: presence_state
+        :annotation: aioxmpp.structs.PresenceState(False)
+
+        The presence state of the service. Always unavailable.
+
+    .. attribute:: presence_status
+        :annotation: {}
+
+        The presence status of the service as :class:`~.LanguageMap`. Always
+        empty.
+
+    .. attribute:: affiliation
+        :annotation: None
+
+        The affiliation of the service. Always :data:`None`.
+
+    .. attribute:: role
+        :annotation: None
+
+        The role of the service. Always :data:`None`.
+    """
+
+    def __init__(self, muc_address):
+        super().__init__(muc_address, False)
+        self.presence_state = aioxmpp.structs.PresenceState(False)
+        self.presence_status = aioxmpp.structs.LanguageMap()
+        self.affiliation = None
+        self.role = None
+        self._uid = b"xmpp:" + str(muc_address).encode("utf-8")
+
+    @property
+    def direct_jid(self):
+        return self.conversation_jid
+
+    @property
+    def nick(self):
+        return None
+
+    @property
+    def uid(self) -> bytes:
+        return self._uid
+
+
 class Room(aioxmpp.im.conversation.AbstractConversation):
     """
     :term:`Conversation` representing a single :xep:`45` Multi-User Chat.
@@ -323,6 +381,8 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
     .. autoattribute:: me
 
     .. autoattribute:: members
+
+    .. autoattribute:: service_member
 
     These properties are specific to MUC:
 
@@ -724,6 +784,7 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
         self._tracking_by_body = {}
         self._state = RoomState.JOIN_PRESENCE
         self._history_replay_occupants = {}
+        self._service_member = ServiceMember(mucjid)
         self.muc_autorejoin = False
         self.muc_password = None
 
@@ -813,6 +874,23 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
             items = []
         items += list(self._occupant_info.values())
         return items
+
+    @property
+    def service_member(self):
+        """
+        A :class:`ServiceMember` object which represents the MUC service itself.
+
+        This is used when messages from the MUC service are received.
+
+        .. seealso::
+
+            :attr:`~aioxmpp.im.conversation.AbstractConversation.service_member`
+                For more documentation on the semantics of
+                :attr:`~.service_member`.
+
+        .. versionadded:: 0.10
+        """
+        return self._service_member
 
     @property
     def features(self):
@@ -940,9 +1018,14 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
                 self._this_occupant._conversation_jid == message.from_):
             occupant = self._this_occupant
         else:
-            occupant = self._occupant_info.get(message.from_, None)
+            if message.from_.resource is None:
+                occupant = self._service_member
+            else:
+                occupant = self._occupant_info.get(message.from_, None)
 
-            if self._state == RoomState.HISTORY and not sent:
+            if (self._state == RoomState.HISTORY and
+                    not sent and
+                    message.from_.resource is not None):
                 if (message.xep0045_muc_user and
                         message.xep0045_muc_user.items):
                     item = message.xep0045_muc_user.items[0]
