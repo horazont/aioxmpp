@@ -1144,6 +1144,49 @@ class TestAvatarDescriptors(unittest.TestCase):
         self.assertEqual(a.width, None)
         self.assertEqual(a.height, None)
 
+    def test_avatar_descriptor_equality(self):
+        vcard_descriptor = avatar_service.VCardAvatarDescriptor(
+            TEST_JID1,
+            TEST_IMAGE_SHA1.upper(),
+            nbytes=len(TEST_IMAGE),
+            vcard=self.vcard,
+            image_bytes=TEST_IMAGE,
+        )
+
+        pep_descriptor = avatar_service.PubsubAvatarDescriptor(
+            TEST_JID1,
+            TEST_IMAGE_SHA1.upper(),
+            mime_type="image/png",
+            nbytes=len(TEST_IMAGE),
+            pubsub=self.pubsub
+        )
+
+        pep2_descriptor = avatar_service.PubsubAvatarDescriptor(
+            TEST_JID2,
+            TEST_IMAGE_SHA1.upper(),
+            mime_type="image/png",
+            nbytes=len(TEST_IMAGE),
+            pubsub=self.pubsub
+        )
+
+        url_descriptor = avatar_service.HttpAvatarDescriptor(
+            TEST_JID1,
+            TEST_IMAGE_SHA1.upper(),
+            mime_type="image/png",
+            nbytes=len(TEST_IMAGE),
+            url="http://example.com/avatar"
+        )
+
+        self.assertEqual(pep_descriptor, pep_descriptor)
+        self.assertEqual(pep2_descriptor, pep2_descriptor)
+        self.assertEqual(url_descriptor, url_descriptor)
+        self.assertEqual(vcard_descriptor, vcard_descriptor)
+        self.assertNotEqual(pep_descriptor, pep2_descriptor)
+        self.assertNotEqual(pep_descriptor, url_descriptor)
+        self.assertNotEqual(pep_descriptor, vcard_descriptor)
+        self.assertNotEqual(url_descriptor, vcard_descriptor)
+
+
     def test_vcard_get_image_bytes(self):
         descriptor = avatar_service.VCardAvatarDescriptor(
             TEST_JID1,

@@ -371,7 +371,7 @@ class PubsubAvatarDescriptor(AbstractAvatarDescriptor):
         self._pubsub = pubsub
 
     def __eq__(self, other):
-        return (isinstance(other, PubSubAvatarDescriptor) and
+        return (isinstance(other, PubsubAvatarDescriptor) and
                 super().__eq__(other))
 
     @property
