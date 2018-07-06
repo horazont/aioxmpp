@@ -415,6 +415,11 @@ Version 0.10
   which is used for messages from the bare MUC JID. Such messages are used by
   some implementations for service-originated messages.
 
+* **Minor breaking change**: :attr:`aioxmpp.muc.Occupant.direct_jid`
+  is now always a bare jid. This implies that the resource part of a
+  jid passed in by a muc member item now is always ignored.  Passing a
+  full jid to the constructor now raises a :class:`ValueError`.
+
 .. _api-changelog-0.9:
 
 Version 0.9

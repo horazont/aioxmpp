@@ -102,7 +102,7 @@ class TestOccupant(unittest.TestCase):
             presence_status=status,
             affiliation="admin",
             role="moderator",
-            jid=TEST_ENTITY_JID
+            jid=TEST_ENTITY_JID.bare()
         )
 
         self.assertEqual(
@@ -138,13 +138,29 @@ class TestOccupant(unittest.TestCase):
 
         self.assertEqual(
             occ.direct_jid,
-            TEST_ENTITY_JID
+            TEST_ENTITY_JID.bare()
         )
 
         self.assertEqual(
             occ.is_self,
             unittest.mock.sentinel.is_self,
         )
+
+    def test_init_full_jid_raises_ValueError(self):
+        with self.assertRaisesRegex(ValueError,
+                                    r"^the jid argument must be a bare JID$"):
+            muc_service.Occupant(
+                TEST_MUC_JID.replace(resource="firstwitch"),
+                unittest.mock.sentinel.is_self,
+                presence_state=aioxmpp.structs.PresenceState(
+                    available=True,
+                    show=aioxmpp.PresenceShow.AWAY,
+                ),
+                affiliation="admin",
+                role="moderator",
+                jid=TEST_ENTITY_JID
+            )
+
 
     def test_from_presence_can_deal_with_sparse_presence(self):
         presence = aioxmpp.stanza.Presence(
@@ -208,6 +224,32 @@ class TestOccupant(unittest.TestCase):
         self.assertIsNone(occ.direct_jid)
         self.assertEqual(occ.is_self, unittest.mock.sentinel.is_self)
 
+    def test_from_presence_strips_direct_jid_resource(self):
+        presence = aioxmpp.stanza.Presence(
+            from_=TEST_MUC_JID.replace(resource="secondwitch"),
+            type_=aioxmpp.structs.PresenceType.AVAILABLE,
+            show=aioxmpp.PresenceShow.DND,
+        )
+
+        presence.status[None] = "foo"
+
+        presence.xep0045_muc_user = muc_xso.UserExt(
+            items=[
+                muc_xso.UserItem(
+                    affiliation="owner",
+                    role="moderator",
+                    jid=TEST_ENTITY_JID
+                )
+            ]
+        )
+
+        occ = muc_service.Occupant.from_presence(
+            presence,
+            unittest.mock.sentinel.is_self
+        )
+
+        self.assertTrue(occ.direct_jid.is_bare)
+
     def test_from_presence_extracts_what_it_can_get(self):
         presence = aioxmpp.stanza.Presence(
             from_=TEST_MUC_JID.replace(resource="secondwitch"),
@@ -238,7 +280,7 @@ class TestOccupant(unittest.TestCase):
         self.assertDictEqual(occ.presence_status, presence.status)
         self.assertEqual(occ.affiliation, "owner")
         self.assertEqual(occ.role, "moderator")
-        self.assertEqual(occ.direct_jid, TEST_ENTITY_JID)
+        self.assertEqual(occ.direct_jid, TEST_ENTITY_JID.bare())
         self.assertEqual(occ.is_self, unittest.mock.sentinel.is_self)
 
     def test_update_raises_for_different_occupantjids(self):
@@ -300,7 +342,7 @@ class TestOccupant(unittest.TestCase):
         self.assertDictEqual(occ.presence_status, presence.status)
         self.assertEqual(occ.affiliation, "owner")
         self.assertEqual(occ.role, "moderator")
-        self.assertEqual(occ.direct_jid, TEST_ENTITY_JID)
+        self.assertEqual(occ.direct_jid, TEST_ENTITY_JID.bare())
 
         self.assertIs(occ.presence_status, old_status_dict)
 
@@ -340,7 +382,7 @@ class TestOccupant(unittest.TestCase):
         self.assertDictEqual(occ.presence_status, presence.status)
         self.assertEqual(occ.affiliation, "owner")
         self.assertEqual(occ.role, "moderator")
-        self.assertEqual(occ.direct_jid, TEST_ENTITY_JID)
+        self.assertEqual(occ.direct_jid, TEST_ENTITY_JID.bare())
 
         self.assertIs(occ.presence_status, old_status_dict)
 
@@ -489,7 +531,7 @@ class TestOccupant(unittest.TestCase):
                 muc_xso.UserItem(
                     affiliation="owner",
                     role="moderator",
-                    jid=TEST_ENTITY_JID
+                    jid=TEST_ENTITY_JID.bare()
                 )
             ]
         )
@@ -3993,7 +4035,7 @@ class TestRoom(unittest.TestCase):
 
         self.assertIsNotNone(occupant)
         self.assertEqual(occupant.nick, "firstwitch")
-        self.assertEqual(occupant.direct_jid, TEST_ENTITY_JID)
+        self.assertEqual(occupant.direct_jid, TEST_ENTITY_JID.bare())
 
     def test_require_jid_match_to_reuse_current_occupants_object(self):
         presence = aioxmpp.stanza.Presence(
@@ -4063,7 +4105,7 @@ class TestRoom(unittest.TestCase):
         self.assertEqual(occupant.nick, "firstwitch")
         self.assertEqual(
             occupant.direct_jid,
-            TEST_ENTITY_JID.replace(localpart="mallory")
+            TEST_ENTITY_JID.replace(localpart="mallory").bare()
         )
 
     def test_re_use_actual_occupant_if_jid_matches(self):

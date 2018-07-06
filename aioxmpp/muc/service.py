@@ -178,6 +178,9 @@ class Occupant(aioxmpp.im.conversation.AbstractConversationMember):
         else:
             self._set_uid_from_direct_jid(self._direct_jid)
 
+            if not self._direct_jid.is_bare:
+                raise ValueError("the jid argument must be a bare JID")
+
     def _set_uid_from_direct_jid(self, jid):
         self._uid = b"xmpp:" + str(jid.bare()).encode("utf-8")
 
@@ -229,7 +232,7 @@ class Occupant(aioxmpp.im.conversation.AbstractConversationMember):
         else:
             affiliation = item.affiliation
             role = item.role
-            jid = item.jid
+            jid = item.bare_jid
 
         return cls(
             occupantjid=presence.from_,
@@ -1029,7 +1032,7 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
                 if (message.xep0045_muc_user and
                         message.xep0045_muc_user.items):
                     item = message.xep0045_muc_user.items[0]
-                    jid = item.jid or None
+                    jid = item.bare_jid
                     affiliation = item.affiliation or None
                     role = item.role or None
                 else:

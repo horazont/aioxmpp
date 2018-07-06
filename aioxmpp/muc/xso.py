@@ -384,6 +384,21 @@ class ItemBase(xso.XSO):
         self.role = role
         self.reason = reason
 
+    @property
+    def bare_jid(self):
+        """
+        Return the bare jid of the item or :data:`None` if no JID is
+        given.
+
+        Use this to access the jid unless you really want to know the
+        resource. Usually the information given by the resource is
+        meaningless (the resource is randomly picked by the server).
+        """
+        if self.jid:
+            return self.jid.bare()
+        else:
+            return None
+
 
 class UserActor(ActorBase):
     TAG = (namespaces.xep0045_muc_user, "actor")
