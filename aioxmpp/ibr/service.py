@@ -162,11 +162,8 @@ class RegistrationService(Service):
         iq = aioxmpp.IQ(
             to=self.client.local_jid.bare().replace(localpart=None),
             type_=aioxmpp.IQType.SET,
-            payload=xso.Query()
+            payload=xso.Query(self.client.local_jid.localpart, new_pass)
         )
-
-        iq.payload.username = self.client.local_jid.localpart
-        iq.payload.password = new_pass
 
         yield from self.client.send(iq)
 

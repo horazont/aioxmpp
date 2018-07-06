@@ -178,26 +178,21 @@ class Query(xso.XSO):
     )
 
 
-def get_query_xso(username, password, aux_fields=None):
-    """
-    Get an xso.Query object with the info provided in he parameters.
+    def __init__(self, username=None, password=None, aux_fields=None):
+        """
+        Get an xso.Query object with the info provided in he parameters.
 
-    :param username: Username of the query
-    :type username: :class:`str`
-    :param password: Password of the query.
-    :type password: :class:`str`
-    :param aux_fields: Auxiliary fields in case additional info is needed.
-    :type aux_fields: :class:`dict`
-    :return: :class:`xso.Query`
-    """
-    query = Query()
-    query.username = username
-    query.password = password
+        :param username: Username of the query
+        :type username: :class:`str`
+        :param password: Password of the query.
+        :type password: :class:`str`
+        :param aux_fields: Auxiliary fields in case additional info is needed.
+        :type aux_fields: :class:`dict`
+        :return: :class:`xso.Query`
+        """
+        self.username = username
+        self.password = password
 
-    if aux_fields is not None:
-        for key, value in aux_fields.items():
-            setattr(query, key, value)
-
-    return query
-
-
+        if aux_fields is not None:
+            for key, value in aux_fields.items():
+                setattr(self, key, value)

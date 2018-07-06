@@ -33,7 +33,7 @@ async def register(jid, password):
     metadata = aioxmpp.make_security_layer(None, no_verify=True)
     _, stream, features = await aioxmpp.node.connect_xmlstream(jid, metadata)
 
-    query = ibr.get_query_xso(jid.localpart, password)
+    query = ibr.Query(jid.localpart, password)
     await ibr.register(stream, query)
     print("Registered")
 
@@ -82,6 +82,6 @@ if __name__ == "__main__":
     loop.run_until_complete(change_password(local_jid, password, "aaa"))
 
     try:
-        loop.run_until_complete(cancel(local_jid, password))
+        loop.run_until_complete(cancel(local_jid, "aaa"))
     except:
         pass

@@ -172,10 +172,8 @@ class TestService(unittest.TestCase):
             )
             iq_res.payload.username = ''
             mock1.return_value = iq_res
-            stream = aioxmpp.protocol.XMLStream(
-                to=TEST_PEER.domain,
-                features_future=asyncio.Future()
-            )
+            stream = unittest.mock.Mock(spec=aioxmpp.protocol.XMLStream)
+            stream._to = TEST_PEER.domain
             res = run_coroutine(aioxmpp.ibr.get_registration_fields(stream))
 
             _, (_, iq, *_), _ = mock1.mock_calls[0]
@@ -209,11 +207,9 @@ class TestService(unittest.TestCase):
                 'aioxmpp.protocol.send_and_wait_for',
                 new=CoroutineMock()
         ) as mock1:
-            stream = aioxmpp.protocol.XMLStream(
-                to=TEST_PEER.domain,
-                features_future=asyncio.Future()
-            )
-            query = aioxmpp.ibr.get_query_xso(TEST_PEER.localpart, "aaa", aux_fields)
+            stream = unittest.mock.Mock(spec=aioxmpp.protocol.XMLStream)
+            stream._to = TEST_PEER.domain
+            query = aioxmpp.ibr.Query(TEST_PEER.localpart, "aaa", aux_fields)
             run_coroutine(aioxmpp.ibr.register(stream, query))
 
             _, (_, iq, *_), _ = mock1.mock_calls[0]
