@@ -11,7 +11,7 @@ import aioxmpp.ibr as ibr
 
 
 async def get_fields(jid):
-    metadata = aioxmpp.make_security_layer(None, no_verify=True)
+    metadata = aioxmpp.make_security_layer(None)
     _, stream, features = await aioxmpp.node.connect_xmlstream(jid, metadata)
     reply = await ibr.get_registration_fields(stream)
     print(ibr.get_used_fields(reply))
@@ -20,7 +20,7 @@ async def get_fields(jid):
 async def get_info(jid, password):
     client = aioxmpp.PresenceManagedClient(
         jid,
-        aioxmpp.make_security_layer(password, no_verify=True)
+        aioxmpp.make_security_layer(password)
     )
 
     async with client.connected() as stream:
@@ -30,7 +30,7 @@ async def get_info(jid, password):
 
 
 async def register(jid, password):
-    metadata = aioxmpp.make_security_layer(None, no_verify=True)
+    metadata = aioxmpp.make_security_layer(None)
     _, stream, features = await aioxmpp.node.connect_xmlstream(jid, metadata)
 
     query = ibr.Query(jid.localpart, password)
@@ -41,7 +41,7 @@ async def register(jid, password):
 async def change_password(jid, old_password, new_password):
     client = aioxmpp.PresenceManagedClient(
         jid,
-        aioxmpp.make_security_layer(old_password, no_verify=True)
+        aioxmpp.make_security_layer(old_password)
     )
 
     async with client.connected() as stream:
@@ -54,7 +54,7 @@ async def change_password(jid, old_password, new_password):
 async def cancel(jid, password):
     client = aioxmpp.PresenceManagedClient(
         jid,
-        aioxmpp.make_security_layer(password, no_verify=True)
+        aioxmpp.make_security_layer(password)
     )
 
     async with client.connected() as stream:
