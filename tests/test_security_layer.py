@@ -2935,6 +2935,58 @@ class Testmake(unittest.TestCase):
             SecurityLayer(),
         )
 
+    def test_not_anonymous_without_password_provider(self):
+        with contextlib.ExitStack() as stack:
+            SecurityLayer = stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.security_layer.SecurityLayer"
+                )
+            )
+
+            PasswordSASLProvider = stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.security_layer.PasswordSASLProvider"
+                )
+            )
+
+            AnonymousSASLProvider = stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.security_layer.AnonymousSASLProvider"
+                )
+            )
+
+            PKIXCertificateVerifier = stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.security_layer.PKIXCertificateVerifier"
+                )
+            )
+
+            default_ssl_context = stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.security_layer.default_ssl_context"
+                )
+            )
+
+            result = security_layer.make(
+                None
+            )
+
+        PasswordSASLProvider.assert_not_called()
+
+        AnonymousSASLProvider.assert_not_called()
+
+        SecurityLayer.assert_called_with(
+            default_ssl_context,
+            PKIXCertificateVerifier,
+            True,
+            ()
+        )
+
+        self.assertEqual(
+            result,
+            SecurityLayer(),
+        )
+
     def test_anonymous_with_empty_string(self):
         with contextlib.ExitStack() as stack:
             SecurityLayer = stack.enter_context(

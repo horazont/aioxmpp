@@ -266,6 +266,9 @@ def _try_options(options, exceptions,
             conn,
         )
 
+        if not metadata.sasl_providers:
+            return transport, xmlstream, features
+
         try:
             features = yield from security_layer.negotiate_sasl(
                 transport,

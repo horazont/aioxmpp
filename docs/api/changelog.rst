@@ -420,6 +420,8 @@ Version 0.10
   jid passed in by a muc member item now is always ignored.  Passing a
   full jid to the constructor now raises a :class:`ValueError`.
 
+* :mod:`aioxmpp.ibr` -- by `Sergio Alemany <https://github.com/Gersiete>`_
+
 .. _api-changelog-0.9:
 
 Version 0.9
