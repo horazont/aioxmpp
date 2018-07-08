@@ -422,6 +422,8 @@ Version 0.10
 
 * :mod:`aioxmpp.ibr` -- by `Sergio Alemany <https://github.com/Gersiete>`_
 
+* :mod:`aioxmpp.httpupload`
+
 .. _api-changelog-0.9:
 
 Version 0.9
