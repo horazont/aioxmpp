@@ -152,6 +152,8 @@ VirtualHost "localhost"
 Component "muc.localhost" "muc"
 Component "pubsub.localhost" "pubsub"
 default_unowned_affiliation = "owner"
+Component "upload.localhost" "http_upload"
+http_upload_path = "/tmp"
 
 
 ------ Components ------
