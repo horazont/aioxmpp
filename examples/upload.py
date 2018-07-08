@@ -38,6 +38,30 @@ from aioxmpp.utils import namespaces
 from framework import Example, exec_example
 
 
+@aiohttp.streamer
+def file_sender(writer, file_, size, show_progress):
+    try:
+        pos = file_.tell()
+    except (OSError, AttributeError):
+        pos = 0
+
+    while True:
+        data = file_.read(4096)
+        if not data:
+            return
+
+        pos += len(data)
+
+        if show_progress:
+            print(
+                "\r{:>3.0f}%".format((pos / size) * 100),
+                flush=True,
+                end="",
+            )
+
+        yield from writer.write(data)
+
+
 class Upload(Example):
     VALID_MIME_RE = re.compile(r"^\w+/\w+$")
     DEFAULT_MIME_TYPE = "application/octet-stream"
@@ -73,6 +97,23 @@ class Upload(Example):
             "(will attempt to auto-detect if omitted)"
         )
 
+        mutex = self.argparse.add_mutually_exclusive_group()
+
+        mutex.add_argument(
+            "--quiet",
+            dest="progress",
+            action="store_false",
+            default=os.isatty(sys.stdout.fileno()),
+            help="Do not print progress",
+        )
+
+        mutex.add_argument(
+            "--progress",
+            dest="progress",
+            action="store_true",
+            help="Print progress",
+        )
+
         self.argparse.add_argument(
             "file",
             default=None,
@@ -97,6 +138,7 @@ class Upload(Example):
         self.file_name = pathlib.Path(self.file.name).name
         self.file_size = os.fstat(self.file.fileno()).st_size
         self.file_type = self.args.mime_type
+        self.show_progress = self.args.progress
 
         if not self.file_type:
             try:
@@ -118,12 +160,15 @@ class Upload(Example):
 
     async def upload(self, url, headers):
         headers["Content-Type"] = self.file_type
+        headers["Content-Length"] = str(self.file_size)
         headers["User-Agent"] = "aioxmpp/{}".format(aioxmpp.__version__)
 
         async with aiohttp.ClientSession() as session:
             async with session.put(
                     url,
-                    data=self.file,
+                    data=file_sender(file_=self.file,
+                                     size=self.file_size,
+                                     show_progress=self.show_progress),
                     headers=headers) as response:
                 if response.status not in (200, 201):
                     print(
