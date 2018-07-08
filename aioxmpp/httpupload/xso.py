@@ -25,7 +25,7 @@ class Request(aioxmpp.xso.XSO):
     .. attribute:: size
         :annotation: : int
 
-        The size of the file in bytes. This must be accurate and must also
+        The size of the file in bytes. This must be accurate and MUST also
         be used as ``Content-Length`` header in the PUT request.
 
     .. attribute:: content_type
