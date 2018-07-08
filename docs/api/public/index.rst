@@ -36,6 +36,7 @@ functionality or provide backwards compatibility.
    entitycaps
    forms
    hashes
+   httpupload
    im
    mdr
    muc
