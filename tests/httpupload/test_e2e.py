@@ -24,17 +24,14 @@ class TestE2E(aioxmpp.e2etest.TestCase):
     @blocking_timed
     def test_upload(self):
         logging.debug("using %s", self.target)
-        request = aioxmpp.IQ(
-            to=self.target,
-            type_=aioxmpp.IQType.GET,
-            payload=aioxmpp.httpupload.Request(
-                "filename.jpg",
-                1024,
-                "image/jpg",
-            )
-        )
 
-        slot = yield from self.client.send(request)
+        slot = yield from aioxmpp.httpupload.request_slot(
+            self.client,
+            self.target,
+            "filename.jpg",
+            1024,
+            "image/jpg",
+        )
 
         self.assertIsInstance(slot, aioxmpp.httpupload.xso.Slot)
         self.assertTrue(slot.get.url)

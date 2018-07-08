@@ -25,6 +25,8 @@ Example use::
         filename
     )
 
+.. autofunction:: request_slot
+
 .. autoclass:: Request
 
 .. module:: aioxmpp.httpupload.xso
@@ -37,4 +39,45 @@ Example use::
 
 .. autoclass:: Put()
 """
+import asyncio
+
+from ..structs import JID, IQType
+from ..stanza import IQ
 from .xso import Request
+
+
+@asyncio.coroutine
+def request_slot(client,
+                 service: JID,
+                 filename: str,
+                 size: int,
+                 content_type: str):
+    """
+    Request an HTTP upload slot.
+
+    :param client: The client to request the slot with.
+    :type client: :class:`aioxmpp.Client`
+    :param service: Address of the HTTP upload service.
+    :type service: :class:`~aioxmpp.JID`
+    :param filename: Name of the file (without path), may be used by the server
+        to generate the URL.
+    :type filename: :class:`str`
+    :param size: Size of the file in bytes
+    :type size: :class:`int`
+    :param content_type: The MIME type of the file
+    :type content_type: :class:`str`
+    :return: The assigned upload slot.
+    :rtype: :class:`.xso.Slot`
+
+    Sends a :xep:`363` slot request to the XMPP service to obtain HTTP
+    PUT and GET URLs for a file upload.
+
+    The upload slot is returned as a :class:`~.xso.Slot` object.
+    """
+
+    payload = Request(filename, size, content_type)
+    return (yield from client.send(IQ(
+        type_=IQType.GET,
+        to=service,
+        payload=payload
+    )))
