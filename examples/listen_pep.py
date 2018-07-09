@@ -1,5 +1,5 @@
 ########################################################################
-# File name: presence_info.py
+# File name: listen_pep.py
 # This file is part of: aioxmpp
 #
 # LICENSE
