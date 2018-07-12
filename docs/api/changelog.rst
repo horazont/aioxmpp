@@ -424,6 +424,8 @@ Version 0.10
 
 * :mod:`aioxmpp.httpupload`
 
+* :class:`aioxmpp.xso.XSOEnumMixin`
+
 .. _api-changelog-0.9:
 
 Version 0.9

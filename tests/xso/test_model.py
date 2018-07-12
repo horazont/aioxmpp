@@ -6937,3 +6937,142 @@ class Test_CollectorContentHandlerFilter(unittest.TestCase):
         self.r.skippedEntity.assert_called_once_with(
             unittest.mock.sentinel.name
         )
+
+
+class TestXSOEnumMixin(unittest.TestCase):
+    def test_is_not_an_enum(self):
+        self.assertFalse(issubclass(xso_model.XSOEnumMixin,
+                                    enum.Enum))
+
+    def setUp(self):
+        tag = namespaces.stanzas, "bad-request"
+
+        class FakeEnum:
+            def __init__(self):
+                super().__init__()
+                self.name = "BAD_REQUEST"
+                self.value = tag
+
+        class Mixed(xso_model.XSOEnumMixin, FakeEnum):
+            pass
+
+        self.Mixed = Mixed
+        self.m = self.Mixed(*tag)
+
+    def test_create_name(self):
+        self.assertEqual(
+            self.m._create_name(),
+            "BadRequest",
+        )
+
+    def test_create_class(self):
+        with contextlib.ExitStack() as stack:
+            XMLStreamClass = stack.enter_context(unittest.mock.patch(
+                "aioxmpp.xso.model.XMLStreamClass"
+            ))
+
+            _create_name = stack.enter_context(unittest.mock.patch.object(
+                self.m, "_create_name",
+            ))
+            _create_name.return_value = unittest.mock.sentinel.name
+
+            stack.enter_context(unittest.mock.patch.object(
+                self.m,
+                "value",
+                new=unittest.mock.sentinel.value,
+            ))
+
+            c = self.m._create_class()
+
+        _create_name.assert_called_once_with()
+
+        XMLStreamClass.assert_called_once_with(
+            unittest.mock.sentinel.name,
+            (xso_model.XSO,),
+            unittest.mock.ANY,
+        )
+
+        _, (_, _, namespace), _ = XMLStreamClass.mock_calls[-1]
+
+        self.assertEqual(
+            namespace["__qualname__"],
+            "{}.BAD_REQUEST.xso_class".format(
+                type(self.m).__qualname__,
+            )
+        )
+
+        self.assertEqual(
+            namespace["TAG"],
+            unittest.mock.sentinel.value,
+        )
+
+        self.assertIs(
+            namespace["enum_member"],
+            self.m,
+        )
+
+    def test_creates_and_assigns_class(self):
+        with unittest.mock.patch.object(
+                xso_model.XSOEnumMixin,
+                "_create_class") as _create_class:
+            _create_class.return_value = unittest.mock.sentinel.xso_class
+
+            m = self.Mixed(namespaces.stanzas, "bad-request")
+
+        _create_class.assert_called_once_with()
+
+        self.assertEqual(
+            m.xso_class,
+            unittest.mock.sentinel.xso_class,
+        )
+
+    def test_mixes_well_with_enum(self):
+        class Mixed(xso_model.XSOEnumMixin, enum.Enum):
+            BAD_REQUEST = (namespaces.stanzas, "bad-request")
+            UNDEFINED_CONDITION = (namespaces.stanzas, "undefined-condition")
+
+        self.assertTrue(issubclass(Mixed.BAD_REQUEST.xso_class,
+                                   xso_model.XSO))
+
+        self.assertEqual(
+            Mixed.BAD_REQUEST.xso_class.__name__,
+            "BadRequest",
+        )
+
+        self.assertEqual(
+            Mixed.BAD_REQUEST.xso_class.__qualname__,
+            "{}.BAD_REQUEST.xso_class".format(Mixed.__qualname__),
+        )
+
+        self.assertIs(
+            Mixed.BAD_REQUEST.xso_class().enum_member,
+            Mixed.BAD_REQUEST,
+        )
+
+        self.assertTrue(issubclass(Mixed.UNDEFINED_CONDITION.xso_class,
+                                   xso_model.XSO))
+
+        self.assertEqual(
+            Mixed.UNDEFINED_CONDITION.xso_class.__name__,
+            "UndefinedCondition",
+        )
+
+        self.assertEqual(
+            Mixed.UNDEFINED_CONDITION.xso_class.__qualname__,
+            "{}.UNDEFINED_CONDITION.xso_class".format(Mixed.__qualname__),
+        )
+
+        self.assertIs(
+            Mixed.UNDEFINED_CONDITION.xso_class().enum_member,
+            Mixed.UNDEFINED_CONDITION,
+        )
+
+    def test_mixes_well_with_the_compatibility_mixin(self):
+        class Mixed(xso_model.XSOEnumMixin, structs.CompatibilityMixin,
+                    enum.Enum):
+            BAD_REQUEST = (namespaces.stanzas, "bad-request")
+
+        self.assertEqual(
+            Mixed.BAD_REQUEST,
+            Mixed.BAD_REQUEST.value,
+        )
