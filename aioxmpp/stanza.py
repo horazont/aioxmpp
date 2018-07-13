@@ -181,7 +181,7 @@ class Error(xso.XSO):
     An XMPP stanza error. The keyword arguments can be used to initialize the
     attributes of the :class:`Error`.
 
-    :param condition: The error condition
+    :param condition: The error condition as enumeration member or XSO.
     :type condition: :class:`aioxmpp.ErrorCondition` or :class:`aioxmpp.xso.XSO`
     :param type_: The type of the error
     :type type_: :class:`aioxmpp.ErrorType`
@@ -234,7 +234,8 @@ class Error(xso.XSO):
 
           The use of the aforementioned tuple values is deprecated and will
           lead to :exc:`TypeError` and/or :exc:`ValueError` being raised when
-          they are written to this attribute.
+          they are written to this attribute. See the changelog for notes on
+          the transition.
 
     .. attribute:: condition_obj
 

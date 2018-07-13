@@ -232,6 +232,12 @@ class StreamErrorCondition(structs.CompatibilityMixin,
                            xso.XSOEnumMixin,
                            enum.Enum):
     """
+    Enumeration to represent a :rfc:`6120` stream  error condition. Please
+    see :rfc:`6120`, section 4.9.3, for the semantics of the individual
+    conditions.
+
+    .. versionadded:: 0.10
+
     .. attribute:: BAD_FORMAT
         :annotation: = (namespaces.streams, "bad-format")
 
@@ -362,8 +368,9 @@ class XMPPError(StanzaError):
     """
     Exception representing an error defined in the XMPP protocol.
 
-    :param condition: The :rfc:`6120` defined error condition.
-    :type condition: :class:`aioxmpp.ErrorCondition`
+    :param condition: The :rfc:`6120` defined error condition as enumeration
+        member or :class:`aioxmpp.xso.XSO`
+    :type condition: :class:`aioxmpp.ErrorCondition` or :class:`aioxmpp.xso.XSO`
     :param text: Optional human-readable text explaining the error
     :type text: :class:`str`
     :param application_defined_condition: Object describing the error in more
@@ -382,7 +389,7 @@ class XMPPError(StanzaError):
     .. deprecated:: 0.10
 
         Starting with aioxmpp 1.0, namespace-localpart tuples will not be
-        accepted anymore.
+        accepted anymore. See the changelog for notes on the transition.
 
     .. attribute:: condition_obj
 

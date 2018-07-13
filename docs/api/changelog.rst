@@ -426,6 +426,64 @@ Version 0.10
 
 * :class:`aioxmpp.xso.XSOEnumMixin`
 
+* **Considerably breaking change**: Converted stanza and stream error conditions
+  to enumerations based on :class:`aioxmpp.xso.XSOEnumMixin`.
+
+  This is similar to the transition in the 0.7 release. The following
+  attributes, methods and constructors now expect enumeration members instead
+  of tuples:
+
+  * :class:`aioxmpp.stanza.Error`, the `condition` argument
+  * :attr:`aioxmpp.stanza.Error.condition`
+  * :attr:`aioxmpp.nonza.StreamError.condition`
+  * :class:`aioxmpp.errors.XMPPError` (and its subclasses), the `condition`
+    argument
+  * :attr:`aioxmpp.errors.XMPPError.condition`
+
+  To simplify the transition, the enumerations will compare equal to the
+  equivalent tuples until the release of 1.0.
+
+  The affected code locations can be found with the
+  ``utils/find-v0.10-type-transition.sh`` script. It finds all tuples which
+  form error conditions. In addition, :class:`DeprecationWarning` type warnings
+  are emitted in the following cases:
+
+  * Enumeration member compared to tuple
+  * Tuple assigned to attribute or passed to method where an enumeration member
+    is expected
+
+  To make those warnings fatal, use the following code at the start of your
+  application::
+
+        import warnings
+        warnings.filterwarnings(
+            # make the warnings fatal
+            "error",
+            # match only deprecation warnings
+            category=DeprecationWarning,
+            # match only warnings concerning the ErrorCondition and
+            # StreamErrorCondition enumerations
+            message=".+(Stream)?ErrorCondition",
+        )
+
+* The original and complete XSO of the error condition is now available on
+  :attr:`aioxmpp.stanza.Error.condition_obj`. This allows to access additional
+  data in error conditions, such as in the case of the
+  :attr:`aioxmpp.ErrorCondition.GONE` error.
+
+  The same holds for :attr:`aioxmpp.errors.XMPPError.condition_obj`.
+
+* The constructors of :class:`aioxmpp.stanza.Error` and
+  :class:`aioxmpp.errors.XMPPError` (and subclasses) now accept either a
+  member of the :class:`aioxmpp.ErrorCondition` enumeration or an instance of
+  the respective XSO. This allows to attach additional data to error conditions
+  which support this, such as the :attr:`aioxmpp.ErrorCondition.GONE` error.
+
+* :attr:`aioxmpp.errors.XMPPError.application_defined_condition` is now attached
+  to :attr:`aioxmpp.stanza.Error.application_condition` when
+  :meth:`aioxmpp.stanza.Error.from_exception` is used.
+
+
 .. _api-changelog-0.9:
 
 Version 0.9
