@@ -94,8 +94,8 @@ class CompatibilityMixin:
             return True
         if self.value == other:
             warnings.warn(
-                "as of aioxmpp 1.0, enums will not compare equal to their "
-                "values",
+                "as of aioxmpp 1.0, {} members will not compare equal to their "
+                "values".format(type(self).__name__),
                 DeprecationWarning,
                 stacklevel=2,
             )
