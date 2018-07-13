@@ -424,6 +424,8 @@ Version 0.10
 
 * :mod:`aioxmpp.httpupload`
 
+* Fix exception when attempting to leave a :class:`aioxmpp.im.p2p.Conversation`.
+
 .. _api-changelog-0.9:
 
 Version 0.9

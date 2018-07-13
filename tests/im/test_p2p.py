@@ -321,7 +321,7 @@ class TestService(unittest.TestCase):
             Conversation.side_effect = generate_mocks()
 
             c1 = self.s.get_conversation(PEER_JID)
-            c1.peer_jid = PEER_JID
+            c1.jid = PEER_JID
             self.s._conversation_left(c1)
             c2 = self.s.get_conversation(PEER_JID)
 
@@ -340,7 +340,7 @@ class TestService(unittest.TestCase):
 
             c1 = self.s.get_conversation(PEER_JID)
             self.listener.on_conversation_new.assert_called_once_with(c1)
-            c1.peer_jid = PEER_JID
+            c1.jid = PEER_JID
             self.s._conversation_left(c1)
             c2 = self.s.get_conversation(PEER_JID)
             self.listener.on_conversation_new.assert_called_with(c2)
@@ -805,3 +805,12 @@ class TestE2E(TestCase):
         self.assertEqual(len(fwmsgs), 1)
         self.assertEqual(fwmsgs[0].body.any(), "bar")
         self.assertEqual(len(swmsgs), 1)
+
+    @blocking_timed
+    @asyncio.coroutine
+    def test_leave(self):
+        c1 = self.firstwitch.summon(p2p.Service).get_conversation(
+            self.secondwitch.local_jid.bare()
+        )
+
+        yield from c1.leave()
