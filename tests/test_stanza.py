@@ -20,6 +20,7 @@
 #
 ########################################################################
 import contextlib
+import enum
 import io
 import itertools
 import unittest
@@ -689,6 +690,120 @@ class TestError(unittest.TestCase):
             structs.ErrorType,
         )
 
+    def test_condition_obj_attr(self):
+        self.assertIsInstance(
+            stanza.Error.condition_obj,
+            xso.Child,
+        )
+        self.assertCountEqual(
+            [
+                member.xso_class
+                for member in errors.ErrorCondition
+            ],
+            stanza.Error.condition_obj._classes,
+        )
+        self.assertTrue(stanza.Error.condition_obj.required)
+
+    def test_initialises_with_undefined_condition(self):
+        e = stanza.Error()
+        self.assertIsInstance(
+            e.condition_obj,
+            errors.ErrorCondition.UNDEFINED_CONDITION.xso_class,
+        )
+
+    @unittest.skipIf(aioxmpp.version_info >= (1, 0, 0),
+                     "does not apply to this version of aioxmpp")
+    def test_init_works_with_tuple(self):
+        with self.assertWarnsRegex(
+                DeprecationWarning,
+                r"as of aioxmpp 1\.0, error conditions must be members of the "
+                r"aioxmpp\.ErrorCondition enumeration") as ctx:
+            e = stanza.Error(
+                errors.ErrorCondition.REMOTE_SERVER_NOT_FOUND.value
+            )
+
+        self.assertEqual(
+            e.condition,
+            errors.ErrorCondition.REMOTE_SERVER_NOT_FOUND,
+        )
+
+        self.assertTrue(ctx.filename.endswith("test_stanza.py"))
+
+    def test_init_works_with_xso(self):
+        condition_obj = errors.ErrorCondition.GONE.to_xso()
+        condition_obj.new_address = "foo"
+
+        e = stanza.Error(
+            condition_obj
+        )
+
+        self.assertIs(e.condition_obj, condition_obj)
+
+    def test_condition_reflects_enum_member_of_object_after_init(self):
+        e = stanza.Error()
+
+        self.assertEqual(
+            errors.ErrorCondition.UNDEFINED_CONDITION,
+            e.condition,
+        )
+
+    def test_condition_reflects_enum_member_of_object_after_change(self):
+        e = stanza.Error()
+        e.condition_obj = errors.ErrorCondition.BAD_REQUEST.xso_class()
+
+        self.assertEqual(
+            errors.ErrorCondition.BAD_REQUEST,
+            e.condition,
+        )
+
+    def test_setting_condition_replaces_object(self):
+        e = stanza.Error()
+        e.condition = errors.ErrorCondition.UNDEFINED_CONDITION
+
+        self.assertEqual(
+            e.condition,
+            errors.ErrorCondition.UNDEFINED_CONDITION
+        )
+
+        self.assertIsInstance(
+            e.condition_obj,
+            errors.ErrorCondition.UNDEFINED_CONDITION.xso_class,
+        )
+
+    def test_setting_condition_keeps_object_if_condition_matches(self):
+        e = stanza.Error()
+        old = e.condition_obj
+        e.condition = errors.ErrorCondition.UNDEFINED_CONDITION
+        self.assertIs(e.condition_obj, old)
+
+    @unittest.skipIf(aioxmpp.version_info >= (1, 0, 0),
+                     "does not apply to this version of aioxmpp")
+    def test_accepts_tuple_instead_of_enum_for_condition_and_warns(self):
+        e = stanza.Error()
+        with self.assertWarnsRegex(
+                DeprecationWarning,
+                r"as of aioxmpp 1\.0, error conditions must be members of the "
+                r"aioxmpp\.ErrorCondition enumeration") as ctx:
+            e.condition = errors.ErrorCondition.BAD_REQUEST.value
+
+        self.assertEqual(
+            errors.ErrorCondition.BAD_REQUEST,
+            e.condition,
+        )
+
+        self.assertIsInstance(
+            e.condition_obj,
+            errors.ErrorCondition.BAD_REQUEST.xso_class,
+        )
+
+        self.assertTrue(ctx.filename.endswith("test_stanza.py"))
+
+    def test_rejects_xso_for_condition(self):
+        e = stanza.Error()
+
+        with self.assertRaises(ValueError):
+            e.condition = errors.ErrorCondition.BAD_REQUEST.to_xso()
+
     def test_application_condition_attr(self):
         self.assertIsInstance(
             stanza.Error.application_condition,
@@ -697,7 +812,7 @@ class TestError(unittest.TestCase):
 
     def test_from_exception(self):
         exc = errors.XMPPWaitError(
-            condition=(namespaces.stanzas, "item-not-found"),
+            condition=errors.ErrorCondition.ITEM_NOT_FOUND,
             text="foobar"
         )
         obj = stanza.Error.from_exception(exc)
@@ -706,7 +821,7 @@ class TestError(unittest.TestCase):
             obj.type_
         )
         self.assertEqual(
-            (namespaces.stanzas, "item-not-found"),
+            errors.ErrorCondition.ITEM_NOT_FOUND,
             obj.condition
         )
         self.assertEqual(
@@ -723,8 +838,8 @@ class TestError(unittest.TestCase):
             structs.ErrorType.CONTINUE: errors.XMPPContinueError,
         }
         conditions = [
-            (namespaces.stanzas, "bad-request"),
-            (namespaces.stanzas, "undefined-condition"),
+            errors.ErrorCondition.BAD_REQUEST,
+            errors.ErrorCondition.UNDEFINED_CONDITION,
         ]
         texts = [
             "foo",
@@ -749,6 +864,10 @@ class TestError(unittest.TestCase):
             self.assertEqual(
                 condition,
                 exc.condition
+            )
+            self.assertIs(
+                exc.condition_obj,
+                obj.condition_obj,
             )
             self.assertEqual(
                 text,
@@ -827,6 +946,25 @@ class TestError(unittest.TestCase):
             [
                 unittest.mock.call.to_exception(obj.type_)
             ]
+        )
+
+    def test_from_exception_with_application_condition(self):
+        @stanza.Error.as_application_condition
+        class Foo(xso.XSO):
+            TAG = ("uri:foo", "test_from_exception_with_application_condition")
+
+        obj = Foo()
+
+        exc = errors.XMPPAuthError(
+            errors.ErrorCondition.NOT_AUTHORIZED,
+            application_defined_condition=obj
+        )
+
+        err = stanza.Error.from_exception(exc)
+
+        self.assertIs(
+            err.application_condition,
+            obj,
         )
 
     def test_repr(self):

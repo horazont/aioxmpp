@@ -28,6 +28,8 @@ Exception classes mapping to XMPP stream errors
 
 .. autoclass:: StreamError
 
+.. autoclass:: StreamErrorCondition
+
 Exception classes mapping to XMPP stanza errors
 ===============================================
 
@@ -36,6 +38,8 @@ Exception classes mapping to XMPP stanza errors
 .. autoclass:: XMPPError
 
 .. currentmodule:: aioxmpp
+
+.. autoclass:: ErrorCondition
 
 .. autoclass:: XMPPAuthError
 
@@ -79,16 +83,20 @@ Other exceptions
 .. autoclass:: GatherError
 
 """
+import enum
 import gettext
+import warnings
 
 from . import xso, i18n, structs
+
+from .utils import namespaces
 
 
 def format_error_text(
         condition,
         text=None,
         application_defined_condition=None):
-    error_tag = xso.tag_to_str(condition)
+    error_tag = xso.tag_to_str(condition.value)
     if application_defined_condition is not None:
         error_tag += "/{}".format(
             xso.tag_to_str(application_defined_condition.TAG)
@@ -98,10 +106,250 @@ def format_error_text(
     return error_tag
 
 
+class ErrorCondition(structs.CompatibilityMixin, xso.XSOEnumMixin, enum.Enum):
+    """
+    Enumeration to represent a :rfc:`6120` stanza error condition. Please
+    see :rfc:`6120`, section 8.3.3, for the semantics of the individual
+    conditions.
+
+    .. versionadded:: 0.10
+
+    .. attribute:: BAD_REQUEST
+        :annotation: = namespaces.stanzas, "bad-request"
+
+    .. attribute:: CONFLICT
+        :annotation: = namespaces.stanzas, "conflict"
+
+    .. attribute:: FEATURE_NOT_IMPLEMENTED
+        :annotation: = namespaces.stanzas, "feature-not-implemented"
+
+    .. attribute:: FORBIDDEN
+        :annotation: = namespaces.stanzas, "forbidden"
+
+    .. attribute:: GONE
+        :annotation: = namespaces.stanzas, "gone"
+
+        .. attribute:: xso_class
+
+            .. attribute:: new_address
+
+                The text content of the ``<gone/>`` element represtenting the
+                URI at which the entity can now be found.
+
+                May be :data:`None` if there is no such URI.
+
+    .. attribute:: INTERNAL_SERVER_ERROR
+        :annotation: = namespaces.stanzas, "internal-server-error"
+
+    .. attribute:: ITEM_NOT_FOUND
+        :annotation: = namespaces.stanzas, "item-not-found"
+
+    .. attribute:: JID_MALFORMED
+        :annotation: = namespaces.stanzas, "jid-malformed"
+
+    .. attribute:: NOT_ACCEPTABLE
+        :annotation: = namespaces.stanzas, "not-acceptable"
+
+    .. attribute:: NOT_ALLOWED
+        :annotation: = namespaces.stanzas, "not-allowed"
+
+    .. attribute:: NOT_AUTHORIZED
+        :annotation: = namespaces.stanzas, "not-authorized"
+
+    .. attribute:: POLICY_VIOLATION
+        :annotation: = namespaces.stanzas, "policy-violation"
+
+    .. attribute:: RECIPIENT_UNAVAILABLE
+        :annotation: = namespaces.stanzas, "recipient-unavailable"
+
+    .. attribute:: REDIRECT
+        :annotation: = namespaces.stanzas, "redirect"
+
+        .. attribute:: xso_class
+
+            .. attribute:: new_address
+
+                The text content of the ``<redirect/>`` element represtenting
+                the URI at which the entity can currently be found.
+
+                May be :data:`None` if there is no such URI.
+
+    .. attribute:: REGISTRATION_REQUIRED
+        :annotation: = namespaces.stanzas, "registration-required"
+
+    .. attribute:: REMOTE_SERVER_NOT_FOUND
+        :annotation: = namespaces.stanzas, "remote-server-not-found"
+
+    .. attribute:: REMOTE_SERVER_TIMEOUT
+        :annotation: = namespaces.stanzas, "remote-server-timeout"
+
+    .. attribute:: RESOURCE_CONSTRAINT
+        :annotation: = namespaces.stanzas, "resource-constraint"
+
+    .. attribute:: SERVICE_UNAVAILABLE
+        :annotation: = namespaces.stanzas, "service-unavailable"
+
+    .. attribute:: SUBSCRIPTION_REQUIRED
+        :annotation: = namespaces.stanzas, "subscription-required"
+
+    .. attribute:: UNDEFINED_CONDITION
+        :annotation: = namespaces.stanzas, "undefined-condition"
+
+    .. attribute:: UNEXPECTED_REQUEST
+        :annotation: = namespaces.stanzas, "unexpected-request"
+
+    """
+
+    BAD_REQUEST = (namespaces.stanzas, "bad-request")
+    CONFLICT = (namespaces.stanzas, "conflict")
+    FEATURE_NOT_IMPLEMENTED = (namespaces.stanzas, "feature-not-implemented")
+    FORBIDDEN = (namespaces.stanzas, "forbidden")
+    GONE = (namespaces.stanzas, "gone")
+    INTERNAL_SERVER_ERROR = (namespaces.stanzas, "internal-server-error")
+    ITEM_NOT_FOUND = (namespaces.stanzas, "item-not-found")
+    JID_MALFORMED = (namespaces.stanzas, "jid-malformed")
+    NOT_ACCEPTABLE = (namespaces.stanzas, "not-acceptable")
+    NOT_ALLOWED = (namespaces.stanzas, "not-allowed")
+    NOT_AUTHORIZED = (namespaces.stanzas, "not-authorized")
+    POLICY_VIOLATION = (namespaces.stanzas, "policy-violation")
+    RECIPIENT_UNAVAILABLE = (namespaces.stanzas, "recipient-unavailable")
+    REDIRECT = (namespaces.stanzas, "redirect")
+    REGISTRATION_REQUIRED = (namespaces.stanzas, "registration-required")
+    REMOTE_SERVER_NOT_FOUND = (namespaces.stanzas, "remote-server-not-found")
+    REMOTE_SERVER_TIMEOUT = (namespaces.stanzas, "remote-server-timeout")
+    RESOURCE_CONSTRAINT = (namespaces.stanzas, "resource-constraint")
+    SERVICE_UNAVAILABLE = (namespaces.stanzas, "service-unavailable")
+    SUBSCRIPTION_REQUIRED = (namespaces.stanzas, "subscription-required")
+    UNDEFINED_CONDITION = (namespaces.stanzas, "undefined-condition")
+    UNEXPECTED_REQUEST = (namespaces.stanzas, "unexpected-request")
+
+
+ErrorCondition.GONE.xso_class.new_address = xso.Text()
+ErrorCondition.REDIRECT.xso_class.new_address = xso.Text()
+
+
+class StreamErrorCondition(structs.CompatibilityMixin,
+                           xso.XSOEnumMixin,
+                           enum.Enum):
+    """
+    .. attribute:: BAD_FORMAT
+        :annotation: = (namespaces.streams, "bad-format")
+
+    .. attribute:: BAD_NAMESPACE_PREFIX
+        :annotation: = (namespaces.streams, "bad-namespace-prefix")
+
+    .. attribute:: CONFLICT
+        :annotation: = (namespaces.streams, "conflict")
+
+    .. attribute:: CONNECTION_TIMEOUT
+        :annotation: = (namespaces.streams, "connection-timeout")
+
+    .. attribute:: HOST_GONE
+        :annotation: = (namespaces.streams, "host-gone")
+
+    .. attribute:: HOST_UNKNOWN
+        :annotation: = (namespaces.streams, "host-unknown")
+
+    .. attribute:: IMPROPER_ADDRESSING
+        :annotation: = (namespaces.streams, "improper-addressing")
+
+    .. attribute:: INTERNAL_SERVER_ERROR
+        :annotation: = (namespaces.streams, "internal-server-error")
+
+    .. attribute:: INVALID_FROM
+        :annotation: = (namespaces.streams, "invalid-from")
+
+    .. attribute:: INVALID_NAMESPACE
+        :annotation: = (namespaces.streams, "invalid-namespace")
+
+    .. attribute:: INVALID_XML
+        :annotation: = (namespaces.streams, "invalid-xml")
+
+    .. attribute:: NOT_AUTHORIZED
+        :annotation: = (namespaces.streams, "not-authorized")
+
+    .. attribute:: NOT_WELL_FORMED
+        :annotation: = (namespaces.streams, "not-well-formed")
+
+    .. attribute:: POLICY_VIOLATION
+        :annotation: = (namespaces.streams, "policy-violation")
+
+    .. attribute:: REMOTE_CONNECTION_FAILED
+        :annotation: = (namespaces.streams, "remote-connection-failed")
+
+    .. attribute:: RESET
+        :annotation: = (namespaces.streams, "reset")
+
+    .. attribute:: RESOURCE_CONSTRAINT
+        :annotation: = (namespaces.streams, "resource-constraint")
+
+    .. attribute:: RESTRICTED_XML
+        :annotation: = (namespaces.streams, "restricted-xml")
+
+    .. attribute:: SEE_OTHER_HOST
+        :annotation: = (namespaces.streams, "see-other-host")
+
+    .. attribute:: SYSTEM_SHUTDOWN
+        :annotation: = (namespaces.streams, "system-shutdown")
+
+    .. attribute:: UNDEFINED_CONDITION
+        :annotation: = (namespaces.streams, "undefined-condition")
+
+    .. attribute:: UNSUPPORTED_ENCODING
+        :annotation: = (namespaces.streams, "unsupported-encoding")
+
+    .. attribute:: UNSUPPORTED_FEATURE
+        :annotation: = (namespaces.streams, "unsupported-feature")
+
+    .. attribute:: UNSUPPORTED_STANZA_TYPE
+        :annotation: = (namespaces.streams, "unsupported-stanza-type")
+
+    .. attribute:: UNSUPPORTED_VERSION
+        :annotation: = (namespaces.streams, "unsupported-version")
+
+    """
+
+    BAD_FORMAT = (namespaces.streams, "bad-format")
+    BAD_NAMESPACE_PREFIX = (namespaces.streams, "bad-namespace-prefix")
+    CONFLICT = (namespaces.streams, "conflict")
+    CONNECTION_TIMEOUT = (namespaces.streams, "connection-timeout")
+    HOST_GONE = (namespaces.streams, "host-gone")
+    HOST_UNKNOWN = (namespaces.streams, "host-unknown")
+    IMPROPER_ADDRESSING = (namespaces.streams, "improper-addressing")
+    INTERNAL_SERVER_ERROR = (namespaces.streams, "internal-server-error")
+    INVALID_FROM = (namespaces.streams, "invalid-from")
+    INVALID_NAMESPACE = (namespaces.streams, "invalid-namespace")
+    INVALID_XML = (namespaces.streams, "invalid-xml")
+    NOT_AUTHORIZED = (namespaces.streams, "not-authorized")
+    NOT_WELL_FORMED = (namespaces.streams, "not-well-formed")
+    POLICY_VIOLATION = (namespaces.streams, "policy-violation")
+    REMOTE_CONNECTION_FAILED = (namespaces.streams, "remote-connection-failed")
+    RESET = (namespaces.streams, "reset")
+    RESOURCE_CONSTRAINT = (namespaces.streams, "resource-constraint")
+    RESTRICTED_XML = (namespaces.streams, "restricted-xml")
+    SEE_OTHER_HOST = (namespaces.streams, "see-other-host")
+    SYSTEM_SHUTDOWN = (namespaces.streams, "system-shutdown")
+    UNDEFINED_CONDITION = (namespaces.streams, "undefined-condition")
+    UNSUPPORTED_ENCODING = (namespaces.streams, "unsupported-encoding")
+    UNSUPPORTED_FEATURE = (namespaces.streams, "unsupported-feature")
+    UNSUPPORTED_STANZA_TYPE = (namespaces.streams, "unsupported-stanza-type")
+    UNSUPPORTED_VERSION = (namespaces.streams, "unsupported-version")
+
+
 class StreamError(ConnectionError):
     def __init__(self, condition, text=None):
+        if not isinstance(condition, StreamErrorCondition):
+            condition = StreamErrorCondition(condition)
+            warnings.warn(
+                "as of aioxmpp 1.0, stream error conditions must be members of "
+                "the aioxmpp.errors.StreamErrorCondition enumeration",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+
         super().__init__("stream error: {}".format(
-            format_error_text(condition, text)))
+            format_error_text(condition, text))
+        )
         self.condition = condition
         self.text = text
 
@@ -112,6 +360,49 @@ class StanzaError(Exception):
 
 class XMPPError(StanzaError):
     """
+    Exception representing an error defined in the XMPP protocol.
+
+    :param condition: The :rfc:`6120` defined error condition.
+    :type condition: :class:`aioxmpp.ErrorCondition`
+    :param text: Optional human-readable text explaining the error
+    :type text: :class:`str`
+    :param application_defined_condition: Object describing the error in more
+        detail
+    :type application_defined_condition: :class:`aioxmpp.xso.XSO`
+
+    .. versionchanged:: 0.10
+
+        As of 0.10, `condition` should either be a
+        :class:`aioxmpp.ErrorCondition` enumeration member or an XSO
+        representing one of the error conditions.
+
+        For compatibility, namespace-localpart tuples indicating the tag of
+        the defined error condition are still accepted.
+
+    .. deprecated:: 0.10
+
+        Starting with aioxmpp 1.0, namespace-localpart tuples will not be
+        accepted anymore.
+
+    .. attribute:: condition_obj
+
+        The :class:`aioxmpp.XSO` which represents the error condition.
+
+        .. versionadded:: 0.10
+
+    .. autoattribute:: condition
+
+    .. attribute:: text
+
+        Optional human-readable text describing the error further.
+
+        This is :data:`None` if the text is omitted.
+
+    .. attribute:: application_defined_condition
+
+        Optional :class:`aioxmpp.XSO` which further defines the error
+        condition.
+
     Relevant subclasses:
 
     .. autosummary::
@@ -130,13 +421,31 @@ class XMPPError(StanzaError):
                  condition,
                  text=None,
                  application_defined_condition=None):
+        if not isinstance(condition, (ErrorCondition, xso.XSO)):
+            condition = ErrorCondition(condition)
+            warnings.warn(
+                "as of aioxmpp 1.0, error conditions must be members of the "
+                "aioxmpp.ErrorCondition enumeration",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+
         super().__init__(format_error_text(
-            condition,
+            condition.enum_member,
             text=text,
             application_defined_condition=application_defined_condition))
-        self.condition = condition
+        self.condition_obj = condition.to_xso()
         self.text = text
         self.application_defined_condition = application_defined_condition
+
+    @property
+    def condition(self):
+        """
+        :class:`aioxmpp.ErrorCondition` enumeration member representing the
+        error condition.
+        """
+
+        return self.condition_obj.enum_member
 
 
 class XMPPWarning(XMPPError, UserWarning):

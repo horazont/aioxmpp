@@ -104,6 +104,7 @@ from .errors import ( # NOQA
     XMPPContinueError,
     XMPPModifyError,
     XMPPWaitError,
+    ErrorCondition,
 )
 from .stanza import Presence, IQ, Message  # NOQA
 from .structs import (  # NOQA
