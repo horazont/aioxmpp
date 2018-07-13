@@ -20,6 +20,17 @@
 #
 ########################################################################
 from aioxmpp.e2etest import (  # NOQA
-    setup_package,
+    setup_package as e2etest_setup_package,
     teardown_package,
 )
+
+import warnings
+
+
+def setup_package():
+    e2etest_setup_package()
+    warnings.filterwarnings(
+        "error",
+        message=".+(Stream)?ErrorCondition",
+        category=DeprecationWarning,
+    )
