@@ -887,7 +887,7 @@ class XMPPXMLProcessor:
 
     def processingInstruction(self, target, foo):
         raise errors.StreamError(
-            (namespaces.streams, "restricted-xml"),
+            errors.StreamErrorCondition.RESTRICTED_XML,
             "processing instructions are not allowed in XMPP"
         )
 
@@ -943,7 +943,7 @@ class XMPPXMLProcessor:
 
         if name != (namespaces.xmlstream, "stream"):
             raise errors.StreamError(
-                (namespaces.streams, "invalid-namespace"),
+                errors.StreamErrorCondition.INVALID_NAMESPACE,
                 "stream has invalid namespace or localname"
             )
 
@@ -954,7 +954,7 @@ class XMPPXMLProcessor:
             )
         except ValueError as exc:
             raise errors.StreamError(
-                (namespaces.streams, "unsupported-version"),
+                errors.StreamErrorCondition.UNSUPPORTED_VERSION,
                 str(exc)
             )
 
@@ -969,14 +969,14 @@ class XMPPXMLProcessor:
             )
         except KeyError:
             raise errors.StreamError(
-                (namespaces.streams, "undefined-condition"),
+                errors.StreamErrorCondition.UNDEFINED_CONDITION,
                 "from attribute required in response header"
             )
         try:
             self.remote_id = attributes.pop((None, "id"))
         except KeyError:
             raise errors.StreamError(
-                (namespaces.streams, "undefined-condition"),
+                errors.StreamErrorCondition.UNDEFINED_CONDITION,
                 "id attribute required in response header"
             )
 
@@ -1048,14 +1048,14 @@ class XMPPLexicalHandler:
     @classmethod
     def comment(cls, data):
         raise errors.StreamError(
-            (namespaces.streams, "restricted-xml"),
+            errors.StreamErrorCondition.RESTRICTED_XML,
             "comments are not allowed in XMPP"
         )
 
     @classmethod
     def startDTD(cls, name, publicId, systemId):
         raise errors.StreamError(
-            (namespaces.streams, "restricted-xml"),
+            errors.StreamErrorCondition.RESTRICTED_XML,
             "DTD declarations are not allowed in XMPP"
         )
 
@@ -1075,7 +1075,7 @@ class XMPPLexicalHandler:
     def startEntity(cls, name):
         if name not in cls.PREDEFINED_ENTITIES:
             raise errors.StreamError(
-                (namespaces.streams, "restricted-xml"),
+                errors.StreamErrorCondition.RESTRICTED_XML,
                 "non-predefined entities are not allowed in XMPP"
             )
 

@@ -28,6 +28,7 @@ import random
 # from datetime import timedelta
 
 import aioxmpp.disco
+import aioxmpp.errors
 import aioxmpp.disco.xso as disco_xso
 import aioxmpp.service
 import aioxmpp.structs
@@ -262,7 +263,7 @@ class AdHocServer(aioxmpp.service.Service, aioxmpp.disco.Node):
             info = self._commands[stanza.payload.node]
         except KeyError:
             raise aioxmpp.errors.XMPPCancelError(
-                (namespaces.stanzas, "item-not-found"),
+                aioxmpp.errors.ErrorCondition.ITEM_NOT_FOUND,
                 text="no such command: {!r}".format(
                     stanza.payload.node
                 )
@@ -270,7 +271,7 @@ class AdHocServer(aioxmpp.service.Service, aioxmpp.disco.Node):
 
         if not info.is_allowed_for(stanza.from_):
             raise aioxmpp.errors.XMPPCancelError(
-                (namespaces.stanzas, "forbidden"),
+                aioxmpp.errors.ErrorCondition.FORBIDDEN,
             )
 
         return (yield from info.handler(stanza))

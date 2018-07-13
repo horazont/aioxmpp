@@ -328,7 +328,7 @@ class TestMessage(unittest.TestCase):
 
     def test_make_error(self):
         e = stanza.Error(
-            condition=(namespaces.stanzas, "feature-not-implemented")
+            condition=errors.ErrorCondition.FEATURE_NOT_IMPLEMENTED
         )
         s = stanza.Message(
             from_=TEST_FROM,
@@ -559,7 +559,7 @@ class TestPresence(unittest.TestCase):
 
     def test_make_error(self):
         e = stanza.Error(
-            condition=(namespaces.stanzas, "gone")
+            condition=errors.ErrorCondition.GONE
         )
         s = stanza.Presence(
             from_=TEST_FROM,
@@ -879,7 +879,7 @@ class TestError(unittest.TestCase):
 
         obj = stanza.Error(
             type_=structs.ErrorType.CONTINUE,
-            condition=(namespaces.stanzas, "undefined-condition")
+            condition=errors.ErrorCondition.UNDEFINED_CONDITION
         )
         obj.application_condition = cond
         cond.to_exception.return_value = Exception()
@@ -901,7 +901,7 @@ class TestError(unittest.TestCase):
 
         obj = stanza.Error(
             type_=structs.ErrorType.CONTINUE,
-            condition=(namespaces.stanzas, "undefined-condition")
+            condition=errors.ErrorCondition.UNDEFINED_CONDITION
         )
         obj.application_condition = cond
 
@@ -929,7 +929,7 @@ class TestError(unittest.TestCase):
 
         obj = stanza.Error(
             type_=structs.ErrorType.CONTINUE,
-            condition=(namespaces.stanzas, "undefined-condition")
+            condition=errors.ErrorCondition.UNDEFINED_CONDITION
         )
         obj.application_condition = cond
         cond.to_exception.return_value = object()
@@ -975,8 +975,7 @@ class TestError(unittest.TestCase):
         )
         obj = stanza.Error(
             type_=structs.ErrorType.MODIFY,
-            condition=(namespaces.stanzas,
-                       "bad-request"),
+            condition=errors.ErrorCondition.BAD_REQUEST,
             text="foobar"
         )
         self.assertEqual(
@@ -1124,7 +1123,7 @@ class TestIQ(unittest.TestCase):
 
     def test_make_error(self):
         e = stanza.Error(
-            condition=(namespaces.stanzas, "bad-request")
+            condition=errors.ErrorCondition.BAD_REQUEST
         )
         s = stanza.IQ(from_=TEST_FROM,
                       to=TEST_TO,

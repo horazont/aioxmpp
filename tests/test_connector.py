@@ -615,7 +615,7 @@ class TestSTARTTLSConnector(unittest.TestCase):
                 ),
                 unittest.mock.call.send_stream_error_and_close(
                     base.protocol,
-                    condition=(namespaces.streams, "policy-violation"),
+                    condition=errors.StreamErrorCondition.POLICY_VIOLATION,
                     text=error_message,
                 )
             ]
@@ -649,7 +649,7 @@ class TestSTARTTLSConnector(unittest.TestCase):
         base.Future.return_value = features_future
         base.send_and_wait_for = CoroutineMock()
         base.send_and_wait_for.side_effect = errors.StreamError(
-            condition=(namespaces.streams, "unsupported-stanza-type"),
+            condition=errors.StreamErrorCondition.UNSUPPORTED_STANZA_TYPE,
         )
 
         error_message = (
@@ -990,7 +990,7 @@ class TestSTARTTLSConnector(unittest.TestCase):
                 ),
                 unittest.mock.call.send_stream_error_and_close(
                     base.protocol,
-                    condition=(namespaces.streams, "policy-violation"),
+                    condition=errors.StreamErrorCondition.POLICY_VIOLATION,
                     text=error_message,
                 )
             ]

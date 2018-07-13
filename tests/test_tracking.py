@@ -425,7 +425,7 @@ class TestBasicTrackingService(unittest.TestCase):
 
         error = msg.make_error(aioxmpp.stanza.Error.from_exception(
             aioxmpp.XMPPCancelError(
-                (namespaces.stanzas, "feature-not-implemented")
+                aioxmpp.ErrorCondition.FEATURE_NOT_IMPLEMENTED
             )
         ))
 
@@ -455,7 +455,7 @@ class TestBasicTrackingService(unittest.TestCase):
 
         error = msg.make_error(aioxmpp.stanza.Error.from_exception(
             aioxmpp.XMPPCancelError(
-                (namespaces.stanzas, "feature-not-implemented")
+                aioxmpp.ErrorCondition.FEATURE_NOT_IMPLEMENTED
             )
         ))
         error.from_ = error.from_.bare()
@@ -486,7 +486,7 @@ class TestBasicTrackingService(unittest.TestCase):
 
         error = msg.make_error(aioxmpp.stanza.Error.from_exception(
             aioxmpp.XMPPCancelError(
-                (namespaces.stanzas, "feature-not-implemented")
+                aioxmpp.ErrorCondition.FEATURE_NOT_IMPLEMENTED
             )
         ))
         error.id_ = "fnord"
@@ -656,7 +656,7 @@ class TestBasicTrackingService(unittest.TestCase):
 
         error = msg.make_error(aioxmpp.stanza.Error.from_exception(
             aioxmpp.XMPPCancelError(
-                (namespaces.stanzas, "feature-not-implemented")
+                aioxmpp.ErrorCondition.FEATURE_NOT_IMPLEMENTED
             )
         ))
 
@@ -687,7 +687,7 @@ class TestBasicTrackingService(unittest.TestCase):
 
         error = msg.make_error(aioxmpp.stanza.Error.from_exception(
             aioxmpp.XMPPCancelError(
-                (namespaces.stanzas, "feature-not-implemented")
+                aioxmpp.ErrorCondition.FEATURE_NOT_IMPLEMENTED
             )
         ))
 
@@ -742,7 +742,7 @@ class TestBasicTrackingService(unittest.TestCase):
 
         error = msg.make_error(aioxmpp.stanza.Error.from_exception(
             aioxmpp.XMPPCancelError(
-                (namespaces.stanzas, "feature-not-implemented")
+                aioxmpp.ErrorCondition.FEATURE_NOT_IMPLEMENTED
             )
         ))
 
@@ -765,7 +765,7 @@ class TestBasicTrackingService(unittest.TestCase):
 
         error = msg.make_error(aioxmpp.stanza.Error.from_exception(
             aioxmpp.XMPPCancelError(
-                (namespaces.stanzas, "feature-not-implemented")
+                aioxmpp.ErrorCondition.FEATURE_NOT_IMPLEMENTED
             )
         ))
 

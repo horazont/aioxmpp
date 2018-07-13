@@ -27,6 +27,7 @@ import uuid
 
 from datetime import datetime, timedelta
 
+import aioxmpp
 import aioxmpp.callbacks
 import aioxmpp.errors
 import aioxmpp.forms
@@ -2607,7 +2608,7 @@ class TestRoom(unittest.TestCase):
                 new=CoroutineMock()) as send_iq:
             send_iq.return_value = None
             send_iq.side_effect = aioxmpp.errors.XMPPCancelError(
-                condition=(utils.namespaces.stanzas, "forbidden")
+                condition=aioxmpp.ErrorCondition.FORBIDDEN
             )
 
             with self.assertRaises(aioxmpp.errors.XMPPCancelError):
@@ -6270,7 +6271,7 @@ class TestService(unittest.TestCase):
                 new=CoroutineMock()) as send_iq:
             send_iq.return_value = None
             send_iq.side_effect = aioxmpp.errors.XMPPCancelError(
-                condition=(utils.namespaces.stanzas, "forbidden")
+                condition=aioxmpp.ErrorCondition.FORBIDDEN
             )
 
             with self.assertRaises(aioxmpp.errors.XMPPCancelError):

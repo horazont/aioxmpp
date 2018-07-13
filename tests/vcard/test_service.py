@@ -101,7 +101,8 @@ class TestService(unittest.TestCase):
         with unittest.mock.patch.object(self.cc, "send",
                                         new=CoroutineMock()) as mock_send:
             mock_send.side_effect = aioxmpp.XMPPCancelError(
-                (namespaces.stanzas, "feature-not-implemented"))
+                aioxmpp.ErrorCondition.FEATURE_NOT_IMPLEMENTED
+            )
             res = run_coroutine(self.s.get_vcard(TEST_JID1))
 
         self.assertIsInstance(res, vcard_xso.VCard)
@@ -110,7 +111,8 @@ class TestService(unittest.TestCase):
         with unittest.mock.patch.object(self.cc, "send",
                                         new=CoroutineMock()) as mock_send:
             mock_send.side_effect = aioxmpp.XMPPCancelError(
-                (namespaces.stanzas, "item-not-found"))
+                aioxmpp.ErrorCondition.ITEM_NOT_FOUND
+            )
             res = run_coroutine(self.s.get_vcard(TEST_JID1))
 
         self.assertIsInstance(res, vcard_xso.VCard)
@@ -120,7 +122,8 @@ class TestService(unittest.TestCase):
             with unittest.mock.patch.object(self.cc, "send",
                                             new=CoroutineMock()) as mock_send:
                 mock_send.side_effect = aioxmpp.XMPPCancelError(
-                    (namespaces.stanzas, "fnord"))
+                    aioxmpp.ErrorCondition.REMOTE_SERVER_NOT_FOUND
+                )
                 res = run_coroutine(self.s.get_vcard(TEST_JID1))
 
     def test_set_vcard(self):

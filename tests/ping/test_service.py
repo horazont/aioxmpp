@@ -100,7 +100,7 @@ class TestService(unittest.TestCase):
 
     def test_ping_reraises_XMPPErrors(self):
         exc = aioxmpp.errors.XMPPError(
-            ("condition_ns", "condition_name"),
+            aioxmpp.ErrorCondition.NOT_AUTHORIZED,
         )
         exc.TYPE = unittest.mock.sentinel.type_
         self.cc.send.side_effect = exc

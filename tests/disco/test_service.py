@@ -742,7 +742,7 @@ class TestDiscoServer(unittest.TestCase):
             run_coroutine(self.s.handle_info_request(self.request_iq))
 
         self.assertEqual(
-            (namespaces.stanzas, "item-not-found"),
+            errors.ErrorCondition.ITEM_NOT_FOUND,
             ctx.exception.condition
         )
 
@@ -1307,7 +1307,7 @@ class TestDiscoClient(unittest.TestCase):
             ncall += 1
             if ncall == 1:
                 raise errors.XMPPCancelError(
-                    condition=(namespaces.stanzas, "feature-not-implemented"),
+                    condition=errors.ErrorCondition.FEATURE_NOT_IMPLEMENTED
                 )
             else:
                 raise ConnectionError()
@@ -1338,7 +1338,7 @@ class TestDiscoClient(unittest.TestCase):
                 "send_and_decode_info_query",
                 new=CoroutineMock()) as send_and_decode:
             send_and_decode.side_effect = errors.XMPPCancelError(
-                condition=(namespaces.stanzas, "feature-not-implemented"),
+                condition=errors.ErrorCondition.FEATURE_NOT_IMPLEMENTED
             )
 
             with self.assertRaises(errors.XMPPCancelError):
@@ -1633,7 +1633,7 @@ class TestDiscoClient(unittest.TestCase):
             ncall += 1
             if ncall == 1:
                 raise errors.XMPPCancelError(
-                    condition=(namespaces.stanzas, "feature-not-implemented"),
+                    condition=errors.ErrorCondition.FEATURE_NOT_IMPLEMENTED
                 )
             else:
                 raise ConnectionError()
@@ -1661,7 +1661,7 @@ class TestDiscoClient(unittest.TestCase):
 
         self.cc.send.side_effect = \
             errors.XMPPCancelError(
-                condition=(namespaces.stanzas, "feature-not-implemented"),
+                condition=errors.ErrorCondition.FEATURE_NOT_IMPLEMENTED,
             )
 
         with self.assertRaises(errors.XMPPCancelError):

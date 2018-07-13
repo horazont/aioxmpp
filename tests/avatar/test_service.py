@@ -1001,7 +1001,7 @@ class TestAvatarService(unittest.TestCase):
             self.vcard.get_vcard.return_value = vcard_mock
 
             self.pubsub.get_items.side_effect = errors.XMPPCancelError(
-                (namespaces.stanzas, "feature-not-implemented")
+                errors.ErrorCondition.FEATURE_NOT_IMPLEMENTED
             )
 
             res = run_coroutine(self.s.get_avatar_metadata(TEST_JID1))
@@ -1039,7 +1039,7 @@ class TestAvatarService(unittest.TestCase):
             self.vcard.get_vcard.return_value = vcard_mock
 
             self.pubsub.get_items.side_effect = errors.XMPPCancelError(
-                (namespaces.stanzas, "item-not-found")
+                errors.ErrorCondition.ITEM_NOT_FOUND
             )
 
             res = run_coroutine(self.s.get_avatar_metadata(TEST_JID2))
@@ -1077,7 +1077,7 @@ class TestAvatarService(unittest.TestCase):
             self.vcard.get_vcard.return_value = vcard_mock
 
             self.pubsub.get_items.side_effect = errors.XMPPCancelError(
-                (namespaces.stanzas, "item-not-found")
+                errors.ErrorCondition.ITEM_NOT_FOUND
             )
 
             res = run_coroutine(self.s.get_avatar_metadata(TEST_JID3))

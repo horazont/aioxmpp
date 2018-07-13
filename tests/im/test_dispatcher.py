@@ -299,7 +299,7 @@ class TestIMDispatcher(unittest.TestCase):
                 "enable",
                 new=CoroutineMock()) as enable:
             enable.side_effect = aioxmpp.errors.XMPPError(
-                (namespaces.stanzas, "foo")
+                aioxmpp.ErrorCondition.REMOTE_SERVER_NOT_FOUND
             )
             run_coroutine(self.s.enable_carbons())
 

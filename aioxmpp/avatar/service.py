@@ -823,8 +823,8 @@ class AvatarService(service.Service):
             # transparently map feature-not-implemented and
             # item-not-found to be equivalent unset avatar
             if e.condition in (
-                    (namespaces.stanzas, "feature-not-implemented"),
-                    (namespaces.stanzas, "item-not-found")):
+                    aioxmpp.ErrorCondition.FEATURE_NOT_IMPLEMENTED,
+                    aioxmpp.ErrorCondition.ITEM_NOT_FOUND):
                 return []
             raise
 

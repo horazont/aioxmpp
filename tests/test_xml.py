@@ -1627,7 +1627,7 @@ class TestXMPPXMLProcessor(unittest.TestCase):
         with self.assertRaises(errors.StreamError) as cm:
             self.proc.processingInstruction("foo", "bar")
         self.assertEqual(
-            (namespaces.streams, "restricted-xml"),
+            errors.StreamErrorCondition.RESTRICTED_XML,
             cm.exception.condition
         )
 
@@ -1680,14 +1680,14 @@ class TestXMPPXMLProcessor(unittest.TestCase):
         with self.assertRaises(errors.StreamError) as cm:
             self.proc.startElementNS((None, "foo"), None, {})
         self.assertEqual(
-            (namespaces.streams, "invalid-namespace"),
+            errors.StreamErrorCondition.INVALID_NAMESPACE,
             cm.exception.condition
         )
 
         with self.assertRaises(errors.StreamError) as cm:
             self.proc.startElementNS((namespaces.xmlstream, "bar"), None, {})
         self.assertEqual(
-            (namespaces.streams, "invalid-namespace"),
+            errors.StreamErrorCondition.INVALID_NAMESPACE,
             cm.exception.condition
         )
 
@@ -1699,7 +1699,7 @@ class TestXMPPXMLProcessor(unittest.TestCase):
         with self.assertRaises(errors.StreamError) as cm:
             self.proc.startElementNS(self.STREAM_HEADER_TAG, None, attrs)
         self.assertEqual(
-            (namespaces.streams, "undefined-condition"),
+            errors.StreamErrorCondition.UNDEFINED_CONDITION,
             cm.exception.condition
         )
 
@@ -1721,7 +1721,7 @@ class TestXMPPXMLProcessor(unittest.TestCase):
         with self.assertRaises(errors.StreamError) as cm:
             self.proc.startElementNS(self.STREAM_HEADER_TAG, None, attrs)
         self.assertEqual(
-            (namespaces.streams, "undefined-condition"),
+            errors.StreamErrorCondition.UNDEFINED_CONDITION,
             cm.exception.condition
         )
 
@@ -1733,7 +1733,7 @@ class TestXMPPXMLProcessor(unittest.TestCase):
     #     with self.assertRaises(errors.StreamError) as cm:
     #         self.proc.startElementNS(self.STREAM_HEADER_TAG, None, attrs)
     #     self.assertEqual(
-    #         (namespaces.streams, "unsupported-version"),
+    #         errors.StreamErrorCondition.UNSUPPORTED_VERSION,
     #         cm.exception.condition
     #     )
     #     self.assertEqual(
@@ -1760,7 +1760,7 @@ class TestXMPPXMLProcessor(unittest.TestCase):
         with self.assertRaises(errors.StreamError) as cm:
             self.proc.startElementNS(self.STREAM_HEADER_TAG, None, attrs)
         self.assertEqual(
-            (namespaces.streams, "unsupported-version"),
+            errors.StreamErrorCondition.UNSUPPORTED_VERSION,
             cm.exception.condition
         )
 
@@ -2135,7 +2135,7 @@ class TestXMPPXMLProcessor(unittest.TestCase):
     #     with self.assertRaises(errors.StreamError) as cm:
     #         self.proc.startElementNS((None, "foo"), None, {})
     #     self.assertEqual(
-    #         (namespaces.streams, "policy-violation"),
+    #         errors.StreamErrorCondition.POLICY_VIOLATION,
     #         cm.exception.condition
     #     )
 
@@ -2224,7 +2224,7 @@ class TestXMPPLexicalHandler(unittest.TestCase):
         with self.assertRaises(errors.StreamError) as cm:
             self.proc.comment("foobar")
         self.assertEqual(
-            (namespaces.streams, "restricted-xml"),
+            errors.StreamErrorCondition.RESTRICTED_XML,
             cm.exception.condition
         )
         self.proc.endCDATA()
@@ -2233,7 +2233,7 @@ class TestXMPPLexicalHandler(unittest.TestCase):
         with self.assertRaises(errors.StreamError) as cm:
             self.proc.startDTD("foo", "bar", "baz")
         self.assertEqual(
-            (namespaces.streams, "restricted-xml"),
+            errors.StreamErrorCondition.RESTRICTED_XML,
             cm.exception.condition
         )
         self.proc.endDTD()
@@ -2242,7 +2242,7 @@ class TestXMPPLexicalHandler(unittest.TestCase):
         with self.assertRaises(errors.StreamError) as cm:
             self.proc.startEntity("foo")
         self.assertEqual(
-            (namespaces.streams, "restricted-xml"),
+            errors.StreamErrorCondition.RESTRICTED_XML,
             cm.exception.condition
         )
         self.proc.endEntity("foo")

@@ -1,3 +1,4 @@
+
 ########################################################################
 # File name: test_node.py
 # This file is part of: aioxmpp
@@ -1265,7 +1266,7 @@ class Testconnect_xmlstream(unittest.TestCase):
 
         self.send_stream_error.assert_called_with(
             unittest.mock.sentinel.p1,
-            condition=(namespaces.streams, "policy-violation"),
+            condition=errors.StreamErrorCondition.POLICY_VIOLATION,
             text=str(exc)
         )
 
@@ -1353,7 +1354,7 @@ class Testconnect_xmlstream(unittest.TestCase):
 
         self.send_stream_error.assert_called_with(
             unittest.mock.sentinel.p1,
-            condition=(namespaces.streams, "undefined-condition"),
+            condition=errors.StreamErrorCondition.UNDEFINED_CONDITION,
             text=str(exc)
         )
 
@@ -1596,10 +1597,10 @@ class Testconnect_xmlstream(unittest.TestCase):
         excs = [
             OSError(),
             errors.TLSUnavailable(
-                (namespaces.streams, "policy-violation"),
+                errors.StreamErrorCondition.POLICY_VIOLATION,
             ),
             errors.TLSFailure(
-                (namespaces.streams, "policy-violation"),
+                errors.StreamErrorCondition.POLICY_VIOLATION,
             ),
         ]
 
@@ -2732,7 +2733,7 @@ class TestClient(xmltestutils.XMLTestCase):
         run_coroutine(asyncio.sleep(0))
 
         exc = errors.StreamError(
-            condition=(namespaces.streams, "conflict")
+            condition=errors.StreamErrorCondition.CONFLICT
         )
         # stream would have been terminated normally, so we stop it manually
         # here
@@ -3288,8 +3289,7 @@ class TestClient(xmltestutils.XMLTestCase):
                 response=XMLStreamMock.Receive(
                     stanza.IQ(
                         error=stanza.Error(
-                            condition=(namespaces.stanzas,
-                                       "resource-constraint"),
+                            condition=aioxmpp.ErrorCondition.RESOURCE_CONSTRAINT,
                             text="too many resources",
                             type_=structs.ErrorType.CANCEL,
                         ),
