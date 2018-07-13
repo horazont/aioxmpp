@@ -2696,6 +2696,10 @@ class XSOEnumMixin:
     strings. Each enumeration member is equipped with an :attr:`xso_class`
     attribute at definition time.
 
+    .. automethod:: to_xso
+
+    .. autoattribute:: enum_member
+
     .. attribute:: xso_class
 
         A :class:`aioxmpp.xso.XSO` *subclass* which has the enumeration members
@@ -2705,10 +2709,19 @@ class XSOEnumMixin:
         The class does not have any XSO descriptors assigned. They can be added
         after class definition.
 
-        The :attr:`xso_class.member_enum` attribute is set to the enum member
-        to which this class belongs. This means that for any XSO instance for
-        any of the enum member classes, the enumeration member can be obtained
-        by accessing the :attr:`member_enum` attribute.
+        .. attribute:: enum_member
+
+            The enumeration member to which the :attr:`xso_class` belongs.
+
+            This allows to use XSOs and enumeration members more exchangably;
+            see :attr:`enum_member` for details.
+
+        .. method:: to_xso
+
+            Return the XSO itself.
+
+            This allows to use XSOs and enumeration members more exchangably;
+            see :meth:`to_xso` for details.
 
     Example usage::
 
@@ -2749,6 +2762,9 @@ class XSOEnumMixin:
         return "".join(map(str.title, self.name.split("_")))
 
     def _create_class(self):
+        def to_xso(self):
+            return self
+
         return XMLStreamClass(
             self._create_name(),
             (XSO,),
@@ -2759,5 +2775,35 @@ class XSOEnumMixin:
                     self.name,
                 ),
                 "enum_member": self,
+                "to_xso": to_xso,
             },
         )
+
+    @property
+    def enum_member(self):
+        """
+        The object (enum member) itself.
+
+        This property exists to make it easier to use the XSO objects and the
+        enumeration members exchangably. The XSO objects also have the
+        :attr:`enum_member` property to obtain the enumeration member to which
+        they belong. Code which is only interested in the enumeration member
+        can thus access the :attr:`enum_member` attribute to "coerce" both
+        (enumeration members and instances of their XSO classes) into
+        enumeration members.
+        """
+        return self
+
+    def to_xso(self):
+        """
+        A new instance of the :attr:`xso_class`.
+
+        This method exists to make it easier to use the XSO objects and the
+        enumeration members exchangably. The XSO objects also have the
+        :meth:`to_xso` method which just returns the XSO unmodified.
+
+        Code which needs an XSO, but does not care about the data, can thus use
+        the :meth:`to_xso` method to "coerce" either (enumeration members and
+        instances of their XSO classes) into XSOs.
+        """
+        return self.xso_class()

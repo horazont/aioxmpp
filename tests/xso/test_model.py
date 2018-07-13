@@ -7026,6 +7026,46 @@ class TestXSOEnumMixin(unittest.TestCase):
             unittest.mock.sentinel.xso_class,
         )
 
+    def test_to_xso_creates_instance(self):
+        with unittest.mock.patch.object(self.m, "xso_class") as class_:
+            class_.return_value = unittest.mock.sentinel.instance
+
+            result = self.m.to_xso()
+
+        class_.assert_called_once_with()
+
+        self.assertEqual(
+            result,
+            unittest.mock.sentinel.instance,
+        )
+
+    def test_to_xso_creates_new_instance_each_time(self):
+        with unittest.mock.patch.object(self.m, "xso_class") as class_:
+            class_.return_value = unittest.mock.sentinel.instance1
+
+            result = self.m.to_xso()
+
+            class_.assert_called_once_with()
+            class_.reset_mock()
+
+            class_.return_value = unittest.mock.sentinel.instance2
+
+            result = self.m.to_xso()
+
+        class_.assert_called_once_with()
+
+        self.assertEqual(
+            result,
+            unittest.mock.sentinel.instance2,
+        )
+
+    def test_enum_member_refers_to_itself(self):
+        self.assertIs(self.m, self.m.enum_member)
+
+    def test_xso_to_xso_returns_object(self):
+        x = self.m.to_xso()
+        self.assertIs(x, x.to_xso())
+
     def test_mixes_well_with_enum(self):
         class Mixed(xso_model.XSOEnumMixin, enum.Enum):
             BAD_REQUEST = (namespaces.stanzas, "bad-request")
@@ -7049,6 +7089,13 @@ class TestXSOEnumMixin(unittest.TestCase):
             Mixed.BAD_REQUEST,
         )
 
+        instance = Mixed.BAD_REQUEST.xso_class()
+
+        self.assertIs(
+            instance,
+            instance.to_xso()
+        )
+
         self.assertTrue(issubclass(Mixed.UNDEFINED_CONDITION.xso_class,
                                    xso_model.XSO))
 
@@ -7065,6 +7112,13 @@ class TestXSOEnumMixin(unittest.TestCase):
         self.assertIs(
             Mixed.UNDEFINED_CONDITION.xso_class().enum_member,
             Mixed.UNDEFINED_CONDITION,
+        )
+
+        instance = Mixed.UNDEFINED_CONDITION.xso_class()
+
+        self.assertIs(
+            instance,
+            instance.to_xso()
         )
 
     def test_mixes_well_with_the_compatibility_mixin(self):
