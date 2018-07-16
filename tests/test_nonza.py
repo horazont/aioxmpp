@@ -1194,7 +1194,7 @@ class TestSMFailed(unittest.TestCase):
     def test_default_init(self):
         obj = nonza.SMFailed()
         self.assertEqual(
-            errors.ErrorCondition.ITEM_NOT_FOUND,
+            errors.ErrorCondition.UNDEFINED_CONDITION,
             obj.condition.enum_member
         )
 

@@ -762,7 +762,7 @@ class SMFailed(SMXSO):
     )
 
     def __init__(self,
-                 condition=errors.ErrorCondition.ITEM_NOT_FOUND,
+                 condition=errors.ErrorCondition.UNDEFINED_CONDITION,
                  **kwargs):
         super().__init__(**kwargs)
         self.condition = condition.to_xso()
