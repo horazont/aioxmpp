@@ -2713,15 +2713,15 @@ class XSOEnumMixin:
 
             The enumeration member to which the :attr:`xso_class` belongs.
 
-            This allows to use XSOs and enumeration members more exchangably;
-            see :attr:`enum_member` for details.
+            This allows to use XSOs and enumeration members more
+            interchangeably; see :attr:`enum_member` for details.
 
         .. method:: to_xso
 
             Return the XSO itself.
 
-            This allows to use XSOs and enumeration members more exchangably;
-            see :meth:`to_xso` for details.
+            This allows to use XSOs and enumeration members more
+            interchangeably; see :meth:`to_xso` for details.
 
     Example usage::
 
@@ -2785,7 +2785,7 @@ class XSOEnumMixin:
         The object (enum member) itself.
 
         This property exists to make it easier to use the XSO objects and the
-        enumeration members exchangably. The XSO objects also have the
+        enumeration members interchangeably. The XSO objects also have the
         :attr:`enum_member` property to obtain the enumeration member to which
         they belong. Code which is only interested in the enumeration member
         can thus access the :attr:`enum_member` attribute to "coerce" both
@@ -2799,7 +2799,7 @@ class XSOEnumMixin:
         A new instance of the :attr:`xso_class`.
 
         This method exists to make it easier to use the XSO objects and the
-        enumeration members exchangably. The XSO objects also have the
+        enumeration members interchangeably. The XSO objects also have the
         :meth:`to_xso` method which just returns the XSO unmodified.
 
         Code which needs an XSO, but does not care about the data, can thus use
