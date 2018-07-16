@@ -241,7 +241,7 @@ class STARTTLSConnector(BaseConnector):
 
                 protocol.send_stream_error_and_close(
                     stream,
-                    condition=(namespaces.streams, "policy-violation"),
+                    condition=errors.StreamErrorCondition.POLICY_VIOLATION,
                     text=message,
                 )
 

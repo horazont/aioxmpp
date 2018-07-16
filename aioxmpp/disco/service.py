@@ -449,7 +449,7 @@ class DiscoServer(service.Service, Node):
             node = self._node_mounts[request.node]
         except KeyError:
             raise errors.XMPPModifyError(
-                condition=(namespaces.stanzas, "item-not-found")
+                condition=errors.ErrorCondition.ITEM_NOT_FOUND
             )
 
         response = node.as_info_xso(iq)
@@ -457,7 +457,7 @@ class DiscoServer(service.Service, Node):
 
         if not response.identities:
             raise errors.XMPPModifyError(
-                condition=(namespaces.stanzas, "item-not-found"),
+                condition=errors.ErrorCondition.ITEM_NOT_FOUND,
             )
 
         return response
@@ -473,7 +473,7 @@ class DiscoServer(service.Service, Node):
             node = self._node_mounts[request.node]
         except KeyError:
             raise errors.XMPPModifyError(
-                condition=(namespaces.stanzas, "item-not-found")
+                condition=errors.ErrorCondition.ITEM_NOT_FOUND
             )
 
         response = disco_xso.ItemsQuery()

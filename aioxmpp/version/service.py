@@ -24,6 +24,7 @@ import typing
 
 import aioxmpp
 import aioxmpp.disco
+import aioxmpp.errors
 import aioxmpp.service
 
 from aioxmpp.utils import namespaces
@@ -172,7 +173,7 @@ class VersionServer(aioxmpp.service.Service):
     def handle_query(self, iq: aioxmpp.IQ) -> version_xso.Query:
         if self._name is None:
             raise aioxmpp.errors.XMPPCancelError(
-                (namespaces.stanzas, "service-unavailable")
+                aioxmpp.errors.ErrorCondition.SERVICE_UNAVAILABLE,
             )
 
         result = version_xso.Query()

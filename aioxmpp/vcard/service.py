@@ -64,8 +64,8 @@ class VCardService(service.Service):
             return (yield from self.client.send(iq))
         except aioxmpp.XMPPCancelError as e:
             if e.condition in (
-                    (namespaces.stanzas, "feature-not-implemented"),
-                    (namespaces.stanzas, "item-not-found")):
+                    aioxmpp.ErrorCondition.FEATURE_NOT_IMPLEMENTED,
+                    aioxmpp.ErrorCondition.ITEM_NOT_FOUND):
                 return vcard_xso.VCard()
             else:
                 raise

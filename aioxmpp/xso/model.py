@@ -2684,3 +2684,126 @@ class _CollectorContentHandlerFilter(xml.sax.handler.ContentHandler):
 
     def skippedEntity(self, name):
         self.__receiver.skippedEntity(name)
+
+
+class XSOEnumMixin:
+    """
+    Mix-in to create enumerations of XSOs.
+
+    .. versionadded:: 0.10
+
+    The enumeration member values must be pairs of ``namespace``, ``localpart``
+    strings. Each enumeration member is equipped with an :attr:`xso_class`
+    attribute at definition time.
+
+    .. automethod:: to_xso
+
+    .. autoattribute:: enum_member
+
+    .. attribute:: xso_class
+
+        A :class:`aioxmpp.xso.XSO` *subclass* which has the enumeration members
+        value as :attr:`~.XSO.TAG`. So the subclass matches elements which have
+        the qualified tag in the enumeration member value.
+
+        The class does not have any XSO descriptors assigned. They can be added
+        after class definition.
+
+        .. attribute:: enum_member
+
+            The enumeration member to which the :attr:`xso_class` belongs.
+
+            This allows to use XSOs and enumeration members more
+            interchangeably; see :attr:`enum_member` for details.
+
+        .. method:: to_xso
+
+            Return the XSO itself.
+
+            This allows to use XSOs and enumeration members more
+            interchangeably; see :meth:`to_xso` for details.
+
+    Example usage::
+
+        class TagEnum(aioxmpp.xso.XSOEnumMixin, enum.Enum):
+            X = ("uri:foo", "x")
+            Y = ("uri:foo", "y")
+
+        TagEnum.X.xso_class.enabled = aioxmpp.xso.Attr(
+            "enabled",
+            type_=aioxmpp.xso.Bool()
+        )
+
+    The :class:`TagEnum` members then have a :attr:`xso_class` attribute which
+    is a *subclass* of :class:`~aioxmpp.xso.XSO` (**not** an instance of a
+    subclass of :class:`~aioxmpp.xso.XSO`).
+
+    The :attr:`xso_class` for :attr:`TagEnum.X` also supports the ``enabled``
+    attribute (due to it being monkey-patched onto it), while the
+    :attr:`xso_class` for :attr:`TagEnum.Y` does not. Thus, monkey-patching
+    can be used to customize the individual XSO classes of the members.
+
+    To use such an enum on a descriptor, the following syntax can be used::
+
+        class Element(aioxmpp.xso.XSO):
+            TAG = ("uri:foo", "parent")
+
+            child = aioxmpp.xso.Child([
+                member.xso_class
+                for member in TagEnum
+            ])
+    """
+
+    def __init__(self, namespace, localname):
+        super().__init__()
+        self.xso_class = self._create_class()
+
+    def _create_name(self):
+        return "".join(map(str.title, self.name.split("_")))
+
+    def _create_class(self):
+        def to_xso(self):
+            return self
+
+        return XMLStreamClass(
+            self._create_name(),
+            (XSO,),
+            {
+                "TAG": self.value,
+                "__qualname__": "{}.{}.xso_class".format(
+                    type(self).__qualname__,
+                    self.name,
+                ),
+                "enum_member": self,
+                "to_xso": to_xso,
+            },
+        )
+
+    @property
+    def enum_member(self):
+        """
+        The object (enum member) itself.
+
+        This property exists to make it easier to use the XSO objects and the
+        enumeration members interchangeably. The XSO objects also have the
+        :attr:`enum_member` property to obtain the enumeration member to which
+        they belong. Code which is only interested in the enumeration member
+        can thus access the :attr:`enum_member` attribute to "coerce" both
+        (enumeration members and instances of their XSO classes) into
+        enumeration members.
+        """
+        return self
+
+    def to_xso(self):
+        """
+        A new instance of the :attr:`xso_class`.
+
+        This method exists to make it easier to use the XSO objects and the
+        enumeration members interchangeably. The XSO objects also have the
+        :meth:`to_xso` method which just returns the XSO unmodified.
+
+        Code which needs an XSO, but does not care about the data, can thus use
+        the :meth:`to_xso` method to "coerce" either (enumeration members and
+        instances of their XSO classes) into XSOs.
+        """
+        return self.xso_class()

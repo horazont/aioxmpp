@@ -213,12 +213,12 @@ class TestVersionServer(unittest.TestCase):
         self.s.version = "foo"
         self.s.os = "bar"
 
-        with self.assertRaises(aioxmpp.errors.XMPPCancelError) as ctx:
+        with self.assertRaises(aioxmpp.XMPPCancelError) as ctx:
             run_coroutine(self.s.handle_query(unittest.mock.sentinel.request))
 
         self.assertEqual(
             ctx.exception.condition,
-            (namespaces.stanzas, "service-unavailable")
+            aioxmpp.ErrorCondition.SERVICE_UNAVAILABLE
         )
 
 

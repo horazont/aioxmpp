@@ -548,7 +548,7 @@ class XMLStream(asyncio.Protocol):
                 return
 
             raise errors.StreamError(
-                condition=(namespaces.streams, "unsupported-stanza-type"),
+                condition=errors.StreamErrorCondition.UNSUPPORTED_STANZA_TYPE,
                 text="unsupported stanza: {}".format(
                     xso.tag_to_str((exc.ev_args[0], exc.ev_args[1]))
                 )) from None
@@ -559,8 +559,9 @@ class XMLStream(asyncio.Protocol):
     def _rx_stream_header(self):
         if self._processor.remote_version != (1, 0):
             raise errors.StreamError(
-                (namespaces.streams, "unsupported-version"),
-                text="unsupported version")
+                errors.StreamErrorCondition.UNSUPPORTED_VERSION,
+                text="unsupported version"
+            )
         self._smachine.state = State.OPEN
 
     def _rx_stream_error(self, err):
@@ -593,7 +594,7 @@ class XMLStream(asyncio.Protocol):
                 # this will raise an appropriate stream error
                 xml.XMPPLexicalHandler.startEntity("foo")
             raise errors.StreamError(
-                condition=(namespaces.streams, "bad-format"),
+                condition=errors.StreamErrorCondition.BAD_FORMAT,
                 text=str(exc)
             )
         except errors.StreamError as exc:
@@ -603,7 +604,7 @@ class XMLStream(asyncio.Protocol):
                 "unexpected exception while parsing stanza"
                 " bubbled up through parser. stream so ded.")
             raise errors.StreamError(
-                condition=(namespaces.streams, "internal-server-error"),
+                condition=errors.StreamErrorCondition.INTERNAL_SERVER_ERROR,
                 text="Internal error while parsing XML. Client logs have more"
                      " details."
             )

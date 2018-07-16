@@ -325,7 +325,7 @@ class TestService(unittest.TestCase):
             run_coroutine(self.s.handle_roster_push(iq))
 
         self.assertEqual(
-            (namespaces.stanzas, "forbidden"),
+            errors.ErrorCondition.FORBIDDEN,
             ctx.exception.condition
         )
 
@@ -349,7 +349,7 @@ class TestService(unittest.TestCase):
             run_coroutine(self.s.handle_roster_push(iq))
 
         self.assertEqual(
-            (namespaces.stanzas, "forbidden"),
+            errors.ErrorCondition.FORBIDDEN,
             ctx.exception.condition
         )
 

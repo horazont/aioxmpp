@@ -1402,10 +1402,12 @@ class TestXMLStream(unittest.TestCase):
             TransportMock.WriteEof(),
             TransportMock.Close()
         ]))
+
         with self.assertRaises(errors.StreamError) as ctx:
             p.reset()
+
         self.assertEqual(
-            (namespaces.streams, "undefined-condition"),
+            errors.StreamErrorCondition.UNDEFINED_CONDITION,
             ctx.exception.condition
         )
 
@@ -1484,7 +1486,7 @@ class TestXMLStream(unittest.TestCase):
         args = fun.call_args
         self.assertIsInstance(args[0][0], errors.StreamError)
         self.assertEqual(
-            (namespaces.streams, "policy-violation"),
+            errors.StreamErrorCondition.POLICY_VIOLATION,
             args[0][0].condition
         )
 
@@ -1535,7 +1537,7 @@ class TestXMLStream(unittest.TestCase):
         )
         self.assertEqual(
             exc.condition,
-            (namespaces.streams, "bad-format")
+            errors.StreamErrorCondition.BAD_FORMAT
         )
 
     def test_fail_triggers_error_futures(self):
@@ -1564,7 +1566,7 @@ class TestXMLStream(unittest.TestCase):
 
         self.assertIsInstance(exc, errors.StreamError)
         self.assertEqual(
-            (namespaces.streams, "policy-violation"),
+            errors.StreamErrorCondition.POLICY_VIOLATION,
             exc.condition
         )
 
@@ -1593,7 +1595,7 @@ class TestXMLStream(unittest.TestCase):
 
         self.assertIsInstance(exc, errors.StreamError)
         self.assertEqual(
-            (namespaces.streams, "policy-violation"),
+            errors.StreamErrorCondition.POLICY_VIOLATION,
             exc.condition
         )
 
@@ -2808,14 +2810,14 @@ class Testsend_stream_error_and_close(xmltestutils.XMLTestCase):
     def test_sends_and_closes(self):
         protocol.send_stream_error_and_close(
             self.xmlstream,
-            condition=(namespaces.streams, "connection-timeout"),
+            errors.StreamErrorCondition.CONNECTION_TIMEOUT,
             text="foobar",
             custom_condition=("uri:foo", "bar"))
 
         run_coroutine(self.xmlstream.run_test([
             XMLStreamMock.Send(
                 nonza.StreamError(
-                    condition=(namespaces.streams, "connection-timeout"),
+                    condition=errors.StreamErrorCondition.CONNECTION_TIMEOUT,
                     text="foobar")
             ),
             XMLStreamMock.Close()

@@ -26,6 +26,7 @@ import unittest.mock
 
 from datetime import timedelta
 
+import aioxmpp
 import aioxmpp.service
 
 import aioxmpp.adhoc.service as adhoc_service
@@ -489,7 +490,7 @@ class TestAdHocServer(unittest.TestCase):
 
         self.assertEqual(
             ctx.exception.condition,
-            (namespaces.stanzas, "item-not-found"),
+            aioxmpp.ErrorCondition.ITEM_NOT_FOUND,
         )
 
         self.assertRegex(
@@ -526,7 +527,7 @@ class TestAdHocServer(unittest.TestCase):
 
         self.assertEqual(
             ctx.exception.condition,
-            (namespaces.stanzas, "forbidden"),
+            aioxmpp.ErrorCondition.FORBIDDEN,
         )
 
         handler.assert_not_called()
@@ -930,7 +931,7 @@ class TestClientSession(unittest.TestCase):
         self.send_iq_and_wait_for_reply.mock_calls.clear()
 
         exc = aioxmpp.errors.XMPPModifyError(
-            (namespaces.stanzas, "bad-request"),
+            aioxmpp.ErrorCondition.BAD_REQUEST,
             text="Bad Session",
             application_defined_condition=adhoc_xso.BadSessionID(),
         )
@@ -961,7 +962,7 @@ class TestClientSession(unittest.TestCase):
         self.send_iq_and_wait_for_reply.mock_calls.clear()
 
         exc = aioxmpp.errors.XMPPCancelError(
-            (namespaces.stanzas, "not-allowed"),
+            aioxmpp.ErrorCondition.NOT_ALLOWED,
             text="Session Expired",
             application_defined_condition=adhoc_xso.SessionExpired(),
         )
@@ -992,7 +993,7 @@ class TestClientSession(unittest.TestCase):
         self.send_iq_and_wait_for_reply.mock_calls.clear()
 
         exc = aioxmpp.errors.XMPPCancelError(
-            (namespaces.stanzas, "feature-not-implemented"),
+            aioxmpp.ErrorCondition.FEATURE_NOT_IMPLEMENTED,
         )
         self.send_iq_and_wait_for_reply.side_effect = exc
 
@@ -1019,7 +1020,7 @@ class TestClientSession(unittest.TestCase):
         self.send_iq_and_wait_for_reply.mock_calls.clear()
 
         exc = aioxmpp.errors.XMPPModifyError(
-            (namespaces.stanzas, "bad-request"),
+            aioxmpp.ErrorCondition.BAD_REQUEST,
         )
         self.send_iq_and_wait_for_reply.side_effect = exc
 

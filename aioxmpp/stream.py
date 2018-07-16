@@ -944,7 +944,7 @@ class StanzaStream:
         except Exception:
             response = request.make_reply(type_=structs.IQType.ERROR)
             response.error = stanza.Error(
-                condition=(namespaces.stanzas, "undefined-condition"),
+                condition=errors.ErrorCondition.UNDEFINED_CONDITION,
                 type_=structs.ErrorType.CANCEL,
             )
             self._logger.exception("IQ request coroutine failed")
@@ -996,8 +996,7 @@ class StanzaStream:
                 )
                 response = stanza_obj.make_reply(type_=structs.IQType.ERROR)
                 response.error = stanza.Error(
-                    condition=(namespaces.stanzas,
-                               "service-unavailable"),
+                    condition=errors.ErrorCondition.SERVICE_UNAVAILABLE,
                 )
                 self._enqueue(response)
                 return
@@ -1094,15 +1093,13 @@ class StanzaStream:
                     except KeyError:
                         pass
         elif isinstance(exc, stanza.UnknownIQPayload):
-            reply = stanza_obj.make_error(error=stanza.Error(condition=(
-                namespaces.stanzas,
-                "service-unavailable")
+            reply = stanza_obj.make_error(error=stanza.Error(
+                condition=errors.ErrorCondition.SERVICE_UNAVAILABLE
             ))
             self._enqueue(reply)
         elif isinstance(exc, stanza.PayloadParsingError):
-            reply = stanza_obj.make_error(error=stanza.Error(condition=(
-                namespaces.stanzas,
-                "bad-request")
+            reply = stanza_obj.make_error(error=stanza.Error(
+                condition=errors.ErrorCondition.BAD_REQUEST
             ))
             self._enqueue(reply)
 

@@ -281,7 +281,7 @@ def _try_options(options, exceptions,
         except errors.SASLUnavailable as exc:
             protocol.send_stream_error_and_close(
                 xmlstream,
-                condition=(namespaces.streams, "policy-violation"),
+                condition=errors.StreamErrorCondition.POLICY_VIOLATION,
                 text=str(exc),
             )
             exceptions.append(exc)
@@ -289,7 +289,7 @@ def _try_options(options, exceptions,
         except Exception as exc:
             protocol.send_stream_error_and_close(
                 xmlstream,
-                condition=(namespaces.streams, "undefined-condition"),
+                condition=errors.StreamErrorCondition.UNDEFINED_CONDITION,
                 text=str(exc),
             )
             raise
@@ -988,7 +988,7 @@ class Client:
                 try:
                     yield from self._main_impl()
                 except errors.StreamError as err:
-                    if err.condition == (namespaces.streams, "conflict"):
+                    if err.condition == errors.StreamErrorCondition.CONFLICT:
                         self.logger.debug("conflict!")
                         raise
                 except (errors.StreamNegotiationFailure,

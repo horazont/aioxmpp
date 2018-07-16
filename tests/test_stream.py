@@ -230,7 +230,7 @@ class TestStanzaStream(StanzaStreamTestBase):
         iq.payload = None
         iq.error = stanza.Error(
             type_=structs.ErrorType.MODIFY,
-            condition=(namespaces.stanzas, "bad-request"),
+            condition=errors.ErrorCondition.BAD_REQUEST,
         )
 
         fut = asyncio.Future()
@@ -245,7 +245,7 @@ class TestStanzaStream(StanzaStreamTestBase):
         with self.assertRaises(errors.XMPPModifyError) as cm:
             run_coroutine(fut)
         self.assertEqual(
-            (namespaces.stanzas, "bad-request"),
+            errors.ErrorCondition.BAD_REQUEST,
             cm.exception.condition
         )
 
@@ -636,7 +636,7 @@ class TestStanzaStream(StanzaStreamTestBase):
             response_got.type_
         )
         self.assertEqual(
-            (namespaces.stanzas, "service-unavailable"),
+            errors.ErrorCondition.SERVICE_UNAVAILABLE,
             response_got.error.condition
         )
 
@@ -665,7 +665,7 @@ class TestStanzaStream(StanzaStreamTestBase):
             response_got.type_
         )
         self.assertEqual(
-            (namespaces.stanzas, "undefined-condition"),
+            errors.ErrorCondition.UNDEFINED_CONDITION,
             response_got.error.condition
         )
 
@@ -693,7 +693,7 @@ class TestStanzaStream(StanzaStreamTestBase):
             response_got.type_
         )
         self.assertEqual(
-            (namespaces.stanzas, "undefined-condition"),
+            errors.ErrorCondition.UNDEFINED_CONDITION,
             response_got.error.condition
         )
 
@@ -708,7 +708,7 @@ class TestStanzaStream(StanzaStreamTestBase):
         @asyncio.coroutine
         def handle_request(stanza):
             raise errors.XMPPWaitError(
-                condition=(namespaces.stanzas, "gone"),
+                errors.ErrorCondition.GONE,
                 text="foobarbaz",
             )
 
@@ -725,7 +725,7 @@ class TestStanzaStream(StanzaStreamTestBase):
             response_got.type_
         )
         self.assertEqual(
-            (namespaces.stanzas, "gone"),
+            errors.ErrorCondition.GONE,
             response_got.error.condition
         )
         self.assertEqual(
@@ -743,7 +743,7 @@ class TestStanzaStream(StanzaStreamTestBase):
 
         def handle_request(stanza):
             raise errors.XMPPWaitError(
-                condition=(namespaces.stanzas, "gone"),
+                errors.ErrorCondition.GONE,
                 text="foobarbaz",
             )
 
@@ -760,7 +760,7 @@ class TestStanzaStream(StanzaStreamTestBase):
             response_got.type_
         )
         self.assertEqual(
-            (namespaces.stanzas, "gone"),
+            errors.ErrorCondition.GONE,
             response_got.error.condition
         )
         self.assertEqual(
@@ -2285,7 +2285,7 @@ class TestStanzaStream(StanzaStreamTestBase):
         )
         self.assertEqual(
             obj.error.condition,
-            (namespaces.stanzas, "bad-request")
+            errors.ErrorCondition.BAD_REQUEST
         )
 
     def test_do_not_respond_to_PayloadParsingError_at_error_iq(self):
@@ -2353,7 +2353,7 @@ class TestStanzaStream(StanzaStreamTestBase):
         )
         self.assertEqual(
             obj.error.condition,
-            (namespaces.stanzas, "bad-request")
+            errors.ErrorCondition.BAD_REQUEST
         )
 
     def test_do_not_respond_to_PayloadParsingError_at_error_message(self):
@@ -2409,7 +2409,7 @@ class TestStanzaStream(StanzaStreamTestBase):
         )
         self.assertEqual(
             obj.error.condition,
-            (namespaces.stanzas, "bad-request")
+            errors.ErrorCondition.BAD_REQUEST
         )
 
     def test_do_not_respond_to_PayloadParsingError_at_error_presence(self):
@@ -2464,7 +2464,7 @@ class TestStanzaStream(StanzaStreamTestBase):
         )
         self.assertEqual(
             obj.error.condition,
-            (namespaces.stanzas, "service-unavailable")
+            errors.ErrorCondition.SERVICE_UNAVAILABLE
         )
 
     def test_ignore_UnknownIQPayload_at_error_iq(self):
@@ -2992,7 +2992,7 @@ class TestStanzaStream(StanzaStreamTestBase):
         iq.autoset_id()
         reply = iq.make_reply(type_=structs.IQType.ERROR)
         reply.error = stanza.Error(
-            condition=(namespaces.stanzas, "remote-server-not-found"),
+            condition=errors.ErrorCondition.REMOTE_SERVER_NOT_FOUND,
             text="foo",
         )
 
@@ -3040,7 +3040,7 @@ class TestStanzaStream(StanzaStreamTestBase):
                 run_coroutine(task)
 
             self.assertEqual(ctx.exception.condition,
-                             (namespaces.stanzas, "remote-server-not-found"))
+                             errors.ErrorCondition.REMOTE_SERVER_NOT_FOUND)
             self.assertEqual(ctx.exception.text, "foo")
 
     def test_send_timeout_affects_iq_reply(self):
@@ -4023,7 +4023,7 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
         iq = make_test_iq()
         error_iq = iq.make_reply(type_=structs.IQType.ERROR)
         error_iq.error = stanza.Error(
-            condition=(namespaces.stanzas, "service-unavailable")
+            errors.ErrorCondition.SERVICE_UNAVAILABLE
         )
 
         iq_sent = make_test_iq()
@@ -4282,7 +4282,7 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
         ]
         for err_iq in error_iqs:
             err_iq.error = stanza.Error(
-                condition=(namespaces.stanzas, "service-unavailable")
+                errors.ErrorCondition.SERVICE_UNAVAILABLE
             )
 
         self.stream.start(self.xmlstream)
@@ -4326,7 +4326,7 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
         ]
         for err_iq in error_iqs:
             err_iq.error = stanza.Error(
-                condition=(namespaces.stanzas, "service-unavailable")
+                errors.ErrorCondition.SERVICE_UNAVAILABLE
             )
 
         self.stream.start(self.xmlstream)

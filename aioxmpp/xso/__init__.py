@@ -188,6 +188,10 @@ data. It also provides a class method for late registration of child classes.
 
 .. currentmodule:: aioxmpp.xso
 
+To create an enumeration of XSO classes, the following mixin can be used:
+
+.. autoclass:: XSOEnumMixin
+
 Functions, enumerations and exceptions
 --------------------------------------
 
@@ -538,6 +542,7 @@ from .model import (  # NOQA
     XSOParser,
     SAXDriver,
     XSO,
+    XSOEnumMixin,
     CapturingXSO,
     lang_attr,
     capture_events,

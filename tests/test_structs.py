@@ -73,8 +73,8 @@ class TestCompatibilityMixin(unittest.TestCase):
     def _test_eq_with_warning(self, v1, v2):
         with self.assertWarnsRegex(
                 DeprecationWarning,
-                "as of aioxmpp 1.0, enums will not compare equal to their "
-                "values") as ctx:
+                r"as of aioxmpp 1.0, SomeEnum members will not compare equal to"
+                r" their values") as ctx:
             self.assertTrue(v1 == v2)
 
         self.assertIn(
@@ -84,8 +84,8 @@ class TestCompatibilityMixin(unittest.TestCase):
 
         with self.assertWarnsRegex(
                 DeprecationWarning,
-                "as of aioxmpp 1.0, enums will not compare equal to their "
-                "values") as ctx:
+                r"as of aioxmpp 1.0, SomeEnum members will not compare equal to"
+                r" their values") as ctx:
             self.assertFalse(v1 != v2)
 
         self.assertIn(
