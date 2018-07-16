@@ -342,6 +342,9 @@ class StreamErrorCondition(structs.CompatibilityMixin,
     UNSUPPORTED_VERSION = (namespaces.streams, "unsupported-version")
 
 
+StreamErrorCondition.SEE_OTHER_HOST.xso_class.new_address = xso.Text()
+
+
 class StreamError(ConnectionError):
     def __init__(self, condition, text=None):
         if not isinstance(condition, StreamErrorCondition):
