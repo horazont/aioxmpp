@@ -149,7 +149,7 @@ Change log
 
 The `change log`_ is included in the `official documentation`_.
 
-.. _change log: https://docs.zombofant.net/aioxmpp/devel/api/changelog.html
-.. _official documentation: https://docs.zombofant.net/aioxmpp/devel/
-.. _quick start: https://docs.zombofant.net/aioxmpp/devel/user-guide/quickstart.html
-.. _API reference: https://docs.zombofant.net/aioxmpp/devel/api/index.html
+.. _change log: https://docs.zombofant.net/aioxmpp/0.10/api/changelog.html
+.. _official documentation: https://docs.zombofant.net/aioxmpp/0.10/
+.. _quick start: https://docs.zombofant.net/aioxmpp/0.10/user-guide/quickstart.html
+.. _API reference: https://docs.zombofant.net/aioxmpp/0.10/api/index.html
