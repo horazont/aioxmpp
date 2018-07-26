@@ -106,6 +106,7 @@ From XMPP Extension Proposals (XEPs)
   commands to other entities)
 * :xep:`59` (Result Set Management), see :mod:`aioxmpp.rsm`
 * :xep:`60` (Publish-Subscribe), see :mod:`aioxmpp.pubsub`
+* :xep:`66` (Out-of-Band Data), schema-only, see :mod:`aioxmpp.misc`
 * :xep:`68` (Field Standardisation for Data Forms), see :mod:`aioxmpp.forms`
 * :xep:`77` (In-Band Registration), see :mod:`aioxmpp.ibr`
 * :xep:`82` (XMPP Date and Time Profiles), via :class:`aioxmpp.xso.DateTime` and others
@@ -125,7 +126,11 @@ From XMPP Extension Proposals (XEPs)
 * :xep:`280` (Message Carbons), see :mod:`aioxmpp.carbons`
 * :xep:`300` (Use of Cryptographic Hash Functions in XMPP),
   see :mod:`aioxmpp.hashes`
+* :xep:`333` (Chat Markers), schema-only, see :mod:`aioxmpp.misc`
+* :xep:`363` (HTTP Upload), see :mod:`aioxmpp.httpupload`
 * :xep:`368` (SRV records for XMPP over TLS)
+* :xep:`379` (Pre-Authenticared Roster Subscription), schema-only, see
+  :mod:`aioxmpp.misc`
 * :xep:`390` (Entity Capabilities 2.0), see :mod:`aioxmpp.entitycaps`
 
 
