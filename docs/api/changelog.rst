@@ -8,115 +8,78 @@ Changelog
 Version 0.10
 ============
 
-* **Breaking change**: Split :class:`aioxmpp.xso.AbstractType` into
-  :class:`aioxmpp.xso.AbstractCDataType` (for which the
-  :class:`aioxmpp.xso.AbstractType` was originally intended) and
-  :class:`aioxmpp.xso.AbstractElementType` (which it has become through organic
-  growth). This split serves the maintainability of the code and offers
-  opportunities for better error detection.
+New XEP implementations
+-----------------------
 
-* **Breaking change**: :meth:`aioxmpp.BookmarkService.get_bookmarks`
-  now returns a list instead of a :class:`aioxmpp.bookmarks.Storage`
-  and :meth:`aioxmpp.BookmarkService.set_bookmarks` now accepts a
-  list. The list returned by the get method and its elements *must
-  not* be modified.
+* :mod:`aioxmpp.version` (:xep:`92`): Support for publishing the software
+  version of the client and accessing version information of other entities.
 
-* *Deprecation*: The above split also caused a split of
-  :class:`aioxmpp.xso.EnumType` into :class:`aioxmpp.xso.EnumCDataType` and
-  :class:`aioxmpp.xso.EnumElementType`. :func:`aioxmpp.xso.EnumType` is now a
-  function which transparently creates the correct class. Use of that function
-  is deprecated and you should upgrade your code to use one of the two named
-  classes explicitly.
+* :mod:`aioxmpp.mdr` (:xep:`184`): A tracking implementation (see
+  :mod:`aioxmpp.tracking`) which uses :xep:`184` Message Delivery Receipts.
 
-* Make :mod:`aioopenssl` a mandatory dependency.
+* :mod:`aioxmpp.ibr` (:xep:`77`): Support for registering new accounts,
+  changing the password and deleting an account (via the non-data-form flow).
+  Contributed by `Sergio Alemany <https://github.com/Gersiete>`_.
 
-* Replace :mod:`orderedset` with :mod:`sortedcollections`.
+* :mod:`aioxmpp.httpupload` (:xep:`363`): Support for requesting an upload slot
+  (the actual uploading via HTTP is out of scope for this project, but look at
+  the ``upload.py`` example which uses :mod:`aiohttp`).
 
-* Make :meth:`aioxmpp.muc.Room.send_message_tracked` a normal method instead
-  of a coroutine (it was never intended to be a coroutine).
+* :mod:`aioxmpp.misc` gained support for:
 
-* Emit :meth:`aioxmpp.im.conversation.AbstractConversation.on_message` for
-  MUC messages sent via :meth:`~aioxmpp.muc.Room.send_message_tracked`.
+  * parts of the :xep:`66` schema
+  * the :xep:`333` schema
+  * the ``<preauth/>`` element of :xep:`379`
 
-* Add ``tracker`` argument to
-  :meth:`aioxmpp.im.conversation.AbstractConversation.on_message`. It carries
-  a :class:`aioxmpp.tracking.MessageTracker` for sent messages (including
-  those sent by other resources of the account in the same conversation).
+New major features
+------------------
 
-* Fix (harmless) traceback in logs which could occur when using
-  :meth:`aioxmpp.muc.Room.send_message_tracked`.
+* *Improved timeout handling*: Before 0.10, there was an extremely simple
+  timeout logic: the :class:`aioxmpp.stream.StanzaStream` would send a ping of
+  some kind and expect a reply to that ping back within a certain timeframe. If
+  no reply *to that ping* was received within that timeframe, the stream would
+  be considered dead and it would be aborted.
 
-* Fix :func:`aioxmpp.service.is_depsignal_handler` and
-  :func:`~aioxmpp.service.is_attrsignal_handler` when used with ``defer=True``.
+  The new timeout handling does not require that *a reply* is received; instead,
+  the stream is considered live as long as data is coming in, irrespective of
+  the latency. Only if no data has been received for a configurable time (
+  :attr:`aioxmpp.streams.StanzaStream.soft_timeout`), a ping is sent. New data
+  has to be received within :attr:`aioxmpp.streams.StanzaStream.round_trip_time`
+  after the ping has been sent (but it does not need to necessarily be a reply
+  to that ping).
 
-* You can now register custom bookmark classes with
-  :func:`aioxmpp.bookmarks.as_bookmark_class`. The bookmark classes
-  must subclass the ABC :class:`aioxmpp.bookmarks.Bookmark`.
+* *Strict Ordering of Stanzas*: It is now possible to make use of the ordering
+  guarantee on XMPP XML streams for IQ handling. For this to work, normal
+  functions returning an awaitable are used instead of coroutines. This is
+  needed to prevent any possible ambiguity as to when coroutines handling IQ
+  requests are scheduled with respect to other IQ handler coroutines and other
+  stanza processing.
 
-* Implement :func:`aioxmpp.callbacks.first_signal`.
+  The following changes make this possible:
 
-* Support for passing a function returning an awaitable as callback to
-  :meth:`aioxmpp.stream.StanzaStream.register_iq_request_coro`. In contrast
-  to coroutines, a callback function can exploit the strong ordering guarantee
-  of the XMPP XML Stream.
+  * Support for passing a function returning an awaitable as callback to
+    :meth:`aioxmpp.stream.StanzaStream.register_iq_request_coro`. In contrast
+    to coroutines, a callback function can exploit the strong ordering guarantee
+    of the XMPP XML Stream.
 
-* Support for passing a callback function to
-  :meth:`aioxmpp.stream.StanzaStream.send` which is invoked on responses to an
-  IQ request sent through :meth:`~aioxmpp.stream.StanzaStream.send`. In contrast
-  to awaiting the result of :meth:`~aioxmpp.stream.StanzaStream.send`, the
-  callback can exploit the strong ordering guarantee of the XMPP XML Stream.
+  * Support for passing a callback function to
+    :meth:`aioxmpp.stream.StanzaStream.send` which is invoked on responses to an
+    IQ request sent through :meth:`~aioxmpp.stream.StanzaStream.send`. In
+    contrast to awaiting the result of
+    :meth:`~aioxmpp.stream.StanzaStream.send`, the callback can exploit the
+    strong ordering guarantee of the XMPP XML Stream.
 
-* *Deprecation*: The name
-  :meth:`aioxmpp.stream.StanzaStream.register_iq_request_coro` is deprecated
-  in favour of :meth:`~aioxmpp.stream.StanzaStream.register_iq_request_handler`.
-  The old alias persists, but will be removed with the release of 1.0. Using
-  the old alias emits a warning.
+  * The :func:`aioxmpp.service.iq_handler` decorator function now allows normal
+    functions to be decorated (in addition to coroutine functions).
 
-  Likewise, :meth:`~aioxmpp.stream.StanzaStream.unregister_iq_request_coro` was
-  renamed to :meth:`~aioxmpp.stream.StanzaStream.unregister_iq_request_handler`.
+  * Add `cb` argument to :func:`aioxmpp.protocol.send_and_wait_for` to allow to
+    act synchronously on the response. This is needed for transactional things
+    like stream management.
 
-* The :func:`aioxmpp.service.iq_handler` decorator function now allows normal
-  functions to be decorated (in addition to coroutine functions).
-
-* Specify :meth:`aioxmpp.im.conversation.AbstractConversation.on_enter` and
-  :meth:`~aioxmpp.im.conversation.AbstractConversation.on_failure` events and
-  implement emission of those for the existing conversation implementations.
-
-* Specify that :term:`Conversation Services <Conversation Service>` must
-  provide a non-coroutine method to start a conversation. Asynchronous parts
-  have to happen in the background. To await the completion of the
-  initialisation of the conversation, use
-  :func:`aioxmpp.callbacks.first_signal` as described in
-  :meth:`aioxmpp.im.conversation.AbstractConversation.on_enter`.
-
-* Make :meth:`aioxmpp.im.p2p.Service.get_conversation` a normal method.
-
-* *Possibly breaking change*: :meth:`aioxmpp.muc.Room.send_message` is not a
-  coroutine anymore, but it returns an awaitable; this means that in most
-  cases, this should not break.
-
-  :meth:`~aioxmpp.muc.Room.send_message` was a coroutine by accident; it should
-  never have been that, according to the specification in
-  :meth:`aioxmpp.im.conversation.AbstractConversation.send_message`.
-
-* Fixed duplicate emission of
-  :meth:`~aioxmpp.im.conversation.AbstractConversation.on_message` events
-  for untracked (sent through :meth:`aioxmpp.muc.Room.send_message`) MUC
-  messages.
-
-* Re-read the nameserver config if :class:`dns.resolver.NoNameservers` is
-  raised during a query using the thread-local global resolver (the default).
-
-  The resolver config is only reloaded up to once for each query; any further
-  errors are treated as authoritative / related to the zone.
-
-* Add :meth:`aioxmpp.protocol.XMLStream.mute` context manager to suppress debug
-  logging of stream contents.
-
-* Exclude authentication information sent during SASL.
-
-* The :meth:`aioxmpp.muc.Room.on_message` events fired during :xep:`45` history
-  replay now always have a non-:data:`None` `member` argument.
+* *Consistent Member Argument for*
+  :meth:`~aioxmpp.im.conversation.AbstractConversation.on_message`:
+  The :meth:`aioxmpp.muc.Room.on_message` now always have a non-:data:`None`
+  `member` argument.
 
   Please see the documentation of the event for some caveats of this `member`
   argument as well as the rationale.
@@ -154,281 +117,105 @@ Version 0.10
       a message to be received from the MUC, forcing the transition to
       :attr:`~aioxmpp.muc.RoomState.ACTIVE` state.
 
-* Introduce :attr:`aioxmpp.im.conversation.AbstractConversationMember.uid`
-  attribute which can be used to re-identify entities in conversations across
-  reboots and rejoins.
-
-* **Breaking change**: Since multiple ``<delay/>`` elements can occur in a
-  stanza, :attr:`aioxmpp.Message.xep0203_delay` is now a list instead of a
-  single :class:`aioxmpp.misc.Delay` object. Sorry for the inconvenience.
-
-* :meth:`aioxmpp.structs.LanguageMap.any`
-
-* *Possibly breaking change*: The type of the value of
-  :class:`aioxmpp.xso.Collector` descriptors was changed from
-  :class:`list` to :class:`lxml.etree.Element`.
-
-* **Breaking change**: Assignment to :class:`aioxmpp.xso.Collector`
-  descriptors is now forbidden.
-
-* New `erroneous_as_absent` argument to :class:`aioxmpp.xso.Attr`,
-  :class:`~aioxmpp.xso.Text` and :class:`~aioxmpp.xso.ChildText`. See the
-  documentation of :class:`~aioxmpp.xso.Attr` for details.
-
-* Treat absent ``@type`` XML attribute on message stanzas as
-  :class:`aioxmpp.MessageType.NORMAL`, as specified in :rfc:`6121`,
-  section 5.2.2.
-
-* Treat empty ``<show/>`` XML child on presence stanzas like absent
-  ``<show/>``. This is not legal as per :rfc:`6120`, but apparently there are
-  some broken implementations out there.
-
-  Not having this workaround leads to being unable to receive presence stanzas
-  from those entities, which is rather unfortunate.
-
-* **Breaking change**: :meth:`aioxmpp.muc.Room.on_enter` does not receive any
-  arguments anymore to comply with the updated
-  :class:`aioxmpp.im.AbstractConversation` spec. The
-  :meth:`aioxmpp.muc.Room.on_muc_enter` event provides the arguments
-  :meth:`~aioxmpp.muc.Room.on_enter` received before and fires right after
-  :meth:`~aioxmpp.muc.Room.on_enter`.
-
-  As a workaround (if you need the arguments), you can test whether the
-  :meth:`~aioxmpp.muc.Room.on_muc_enter` exists on a
-  :class:`~aioxmpp.muc.Room`. If it does, connect to it, otherwise connect to
-  :meth:`~aioxmpp.muc.Room.on_enter`.
-
-  If you don’t need the arguments, make your :meth:`~aioxmpp.muc.Room.on_enter`
-  handlers accept ``*args``.
-
-* :func:`aioxmpp.service.iq_handler` now checks that its payload class is in
-  fact registered as IQ payload and raises :class:`ValueError` if not.
-
-* :mod:`aioxmpp.version`
-
-* **Breaking change**:
-  :meth:`aioxmpp.AvatarService.get_avatar_metadata`
-  now returns a list instead of a mapping from MIME types to lists of
-  descriptors.
-
-* :func:`aioxmpp.node.discover_connectors` will now continue of only one of the
-  two SRV lookups fails with the DNSPython :class:`dns.resolver.NoNameservers`
-  exception; this case might still indicate a configuration issue (so we log
-  it), but since we actually got a useful result on the other query, we can
-  still continue.
-
-* :func:`aioxmpp.node.discover_connectors` now uses a proper fully-qualified
-  domain name (including the trailing dot) for DNS queries to avoid improper
-  fallback to locally configured search domains.
-
-* Ignore presence stanzas from the bare JID of a joined MUC, even if they
-  contain a MUC user tag. A functional MUC should never emit this.
-
-* We now will always attempt STARTTLS negotiation if
-  :attr:`aioxmpp.security_layer.SecurityLayer.tls_required` is true, even if
-  the server does not advertise a STARTTLS stream feature. This is because we
-  have nothing to lose, and it may mitigate some types of STARTTLS stripping
-  attacks.
-
-* Compatibility fixes for ejabberd (cf.
-  `ejabberd#2287 <https://github.com/processone/ejabberd/issues/2287>`_
-  and `ejabberd#2288 <https://github.com/processone/ejabberd/issues/2288>`_).
-
-* Harden MUC implementation against incomplete presence stanzas.
-
-* Support for escaping additional characters as entities when writing XML, see
-  the `additional_escapes` argument to :class:`aioxmpp.xml.XMPPXMLGenerator`.
-
-* Add `cb` argument to :func:`aioxmpp.protocol.send_and_wait_for` to allow to
-  act synchronously on the response. This is needed for transactional things
-  like stream management.
-
-* Fix a race condition where stream management handlers would be installed too
-  late on the XML stream, leading it to be closed with an
-  ``unsupported-stanza-type`` because :mod:`aioxmpp` failed to interpret SM
-  requests.
-
-* Move :meth:`aioxmpp.stream.StanzaStream.enqueue` and
-  :meth:`aioxmpp.stream.StanzaStream.send` to the client as
-  :meth:`aioxmpp.Client.enqueue` and :meth:`aioxmpp.Client.send`.
-
-  The old names are deprecated, but aliases are provided until version 1.0.
-
-* :meth:`aioxmpp.Client.enqueue` now raises :class:`ConnectionError` if the
-  stream of the client is not :attr:`aioxmpp.Client.established` yet.
-
-* :meth:`aioxmpp.Client.send` now blocks until the stream of the client is
-  :attr:`aioxmpp.Client.established`.
-
-* Support for the new :xep:`45` 1.30 status code for kicks due to errors.
-  See :attr:`aioxmpp.muc.LeaveMode.ERROR`.
-
-* Minor compatibility fixes for :xep:`153` vcard-based avatar support.
-
-* Add a global IM :meth:`aioxmpp.im.service.Conversation.on_message` event. This
-  aggregates message events from all conversations.
-
-  This can be used by applications which want to perform central processing of
-  all IM messages, for example for logging purposes.
-  :class:`aioxmpp.im.service.Conversation` handles the lifecycle of event
-  listeners to the individual conversations, which takes some burden off of the
-  application.
-
-* :meth:`aioxmpp.muc.Room.on_message` now always has a non-:data:`None` `member`
-  argument. If a message is received from an unknown occupant JID, a temporary
-  :class:`aioxmpp.muc.Occupant` object is created. See the
-  :meth:`~aioxmpp.muc.Room.on_message` docs for details.
-
-* Support for some parts of the :xep:`60` schema. No support for actually
-  sending or receiving files via the :xep:`60` IQ.
-
-* Support for the :xep:`333` schema.
-
-* Fix a bug where monkey-patched :class:`aioxmpp.xso.ChildFlag` descriptors
-  would not be picked up by the XSO handling code.
-
-* Make sure that the message ID is set before the
-  :attr:`aioxmpp.im.conversation.AbstractConversation.on_message` event is
-  emitted from :class:`aioxmpp.im.p2p.Conversation` objects.
-
-* Ensure that all
-  :attr:`aioxmpp.MessageType.CHAT`/:attr:`~aioxmpp.MessageType.NORMAL` messages
-  are forwarded to the respective :class:`aioxmpp.im.p2p.Conversation` if it
-  exists.
-
-  (Previously, only messages with a non-empty :attr:`aioxmpp.Message.body`
-  would be forwarded.)
-
-  This is needed for e.g. Chat Markers.
-
-* Ensure that Message Carbons are
-  re-:meth:`aioxmpp.carbons.CarbonsClient.enable`\ -d after failed stream
-  resumption. Thanks, Ge0rG.
-
-* Fix :rfc:`6121` violation: the default of the ``@subscription`` attribute of
-  roster items is ``"none"``. :mod:`aioxmpp` treated an absent attribute as
-  fatal.
-
-* Pass pre-stream-features exception down to stream feature listeners. This
-  fixes hangs on errors before the stream features are received. This can
-  happen with misconfigured SRV records or lack of ALPN support in a :xep:`368`
-  setting. Thanks to Travis Burtrum for providing a test setup for hunting this
-  down.
-
-* Set ALPN to ``xmpp-client`` by default. This is useful for :xep:`368`
-  deployments.
-
-* Fix handling of SRV records with equal priority, weight, hostname and port.
-
-* :mod:`aioxmpp.misc` provides XSO definitions for the :xep:`379`
-  ``preauth`` element.
-
-* Support for ``<optional/>`` element in :rfc:`3921` ``<session/>`` negotiation
-  feature; the feature is not needed with modern servers, but since legacy
-  clients require it, they still announce it. The feature introduces a new
-  round-trip for no gain. An `rfc-draft by Dave Cridland
-  <https://tools.ietf.org/html/draft-cridland-xmpp-session-01>`_ standardises
-  the ``<optional/>`` element which allows a server to tell the client that it
-  doesn’t require the session negotiation step. :mod:`aioxmpp` now understands
-  this and will skip that step, saving a round-trip with most modern servers.
-
-* :mod:`aioxmpp.tracking` now allows some state transitions out of the
-  :attr:`aioxmpp.tracking.MessageState.ERROR` state. See the documentation there
-  for details.
-
-* :mod:`aioxmpp.mdr`
-
-* Fix a bug in :meth:`aioxmpp.JID.fromstr` which would incorrectly parse and
-  then reject some valid JIDs.
-
-* Add :meth:`aioxmpp.DiscoClient.flush_cache`.
-
-* Add :meth:`aioxmpp.disco.Node.set_identity_names`
-
-* Remove restriction on data form types (not to be confused with
-  ``FORM_TYPE``) when instantiating a form with
-  :meth:`aioxmpp.forms.Form.from_xso`.
-
-* Fix an issue which prevented single-valued form fields from being rendered
-  into XSOs if no value had been set (but a default was given).
-
-* Ensure that forms with :attr:`aioxmpp.forms.Form.FORM_TYPE` attribute render
-  a proper :xep:`68`muc ``FORM_TYPE`` field.
-
-* Allow unset field type in data forms. This may seem weird, but unfortunately
-  it is widespread practice. In some data form types, omitting the field type
-  is common (including it is merely a MAY in the XEP), and even in the most
-  strict case it is only a SHOULD.
-
-  Relying on the field type to be present is thus a non-starter.
-
-* :class:`aioxmpp.muc.InfoForm`
-
-* :class:`aioxmpp.muc.VoiceRequestForm`
-
-* Support for answering requests for voice/role change in MUCs (cf.
-  `XEP-0045 §8.6 Approving Voice Requests <https://xmpp.org/extensions/xep-0045.html#voiceapprove>`_). See
-  :meth:`aioxmpp.muc.Room.on_muc_role_request` for details.
-
-* Support for unwrapped unknown values in :class:`aioxmpp.xso.EnumCDataType`.
-  This can be used with :class:`enum.IntEnum` for fun and profit.
-
-* :class:`aioxmpp.muc.StatusCode`
-
-* The signals :meth:`aioxmpp.muc.Room.on_muc_enter`,
-  :meth:`~aioxmpp.muc.Room.on_exit`,
-  :meth:`~aioxmpp.muc.Room.on_leave`, :meth:`~aioxmpp.muc.Room.on_join`,
-  :meth:`~aioxmpp.muc.Room.on_muc_role_changed`, and
-  :meth:`~aioxmpp.muc.Room.on_muc_affiliation_changed` now receive the set of
-  status codes which was included in the triggering stanza as keyword argument.
-
-* Update :meth:`aioxmpp.im.conversation.AbstractConversation.invite` interface.
-
-* :meth:`aioxmpp.MUCClient.on_muc_invitation`
-
-* :class:`aioxmpp.PEPClient` now depends on :class:`aioxmpp.EntityCapsService`
-
-* **Breaking change**: Replaced the
-  :attr:`aioxmpp.stream.StanzaStream.ping_interval` and
-  :attr:`~aioxmpp.stream.StanzaStream.ping_opportunistic_interval` attributes
-  with a new ping implementation.
-
-  It is described in the :ref:`aioxmpp.stream.General Information.Timeouts`
-  section in :mod:`aioxmpp.stream`.
-
-* *Possibly breaking change*: :meth:`aioxmpp.connector.BaseConnector.connect`
-  implementations are expected to set the
-  :attr:`aioxmpp.protocol.XMLStream.deadtime_hard_limit` to the
-  value of their `negotiation_timeout` argument and use this mechanism to handle
-  any stream-level timeouts.
-
-* *Deprecation*: The `negotiation_timeout` argument for
-  :func:`aioxmpp.security_layer.negotiate_sasl` has been deprecated in favour
-  of :class:`aioxmpp.protocol.XMLStream`\ -level handling of timeouts.
-
-* Handle :class:`ValueError` raised by :mod:`aiosasl` when the credentials are
-  malformed.
-
-* :attr:`aioxmpp.im.conversation.AbstractConversation.service_member`
-
-* :class:`aioxmpp.muc.Room` now has a :attr:`aioxmpp.muc.Room.service_member`
-  which is used for messages from the bare MUC JID. Such messages are used by
-  some implementations for service-originated messages.
-
-* **Minor breaking change**: :attr:`aioxmpp.muc.Occupant.direct_jid`
-  is now always a bare jid. This implies that the resource part of a
-  jid passed in by a muc member item now is always ignored.  Passing a
-  full jid to the constructor now raises a :class:`ValueError`.
-
-* :mod:`aioxmpp.ibr` -- by `Sergio Alemany <https://github.com/Gersiete>`_
-
-* :mod:`aioxmpp.httpupload`
-
-* Fix exception when attempting to leave a :class:`aioxmpp.im.p2p.Conversation`.
-
-* :class:`aioxmpp.xso.XSOEnumMixin`
-
-* **Considerably breaking change**: Converted stanza and stream error conditions
+  This comes together with the new :attr:`aioxmpp.muc.Room.muc_state` attribute
+  which indicates the current local state of the room. See
+  :class:`aioxmpp.muc.RoomState`.
+
+* *Recognizability of Occupants across Rejoins/Reboots*: The
+  :attr:`aioxmpp.im.conversation.AbstractConversationMember.uid`
+  attribute holds a (reasonably) unique string indentifying the occupant. If
+  the :attr:`~aioxmpp.im.conversation.AbstractConversationMember.uid` of two
+  member objects compares equal, an application can be reasonably sure that
+  the two members refer to the same identity. If the UIDs of two members are
+  *not* equal, the application can be *sure* that the two members do not have
+  the same identity. This can be used for permission checks e.g. in the context
+  of Last Message Correction or similar applications.
+
+* *Improved handling of pre-connection stanzas*:
+  The API for sending stanzas now lives at the :class:`aioxmpp.Client` as
+  :meth:`aioxmpp.Client.send` and :meth:`aioxmpp.Client.enqueue`. In addition,
+  :meth:`~aioxmpp.Client.send`\ -ing a stanza will block until the client has
+  a valid stream. Attempting to :meth:`~aioxmpp.Client.enqueue` a stanza while
+  the client does not have a valid stream raises a :class:`ConnectionError`.
+
+  A valid stream is either an actually connected stream or a suspended stream
+  with support for :xep:`198` resumption.
+
+  This prevents attempting to send stanzas over a stream which is not ready
+  yet. In the worst case, this can cause various errors if the stanza is then
+  effectively sent before resource binding has taken place.
+
+* *Invitations*: :mod:`aioxmpp.muc` now supports sending invitations (via
+  :meth:`aioxmpp.muc.Room.invite`) and receiving invitations (via
+  :meth:`aioxmpp.MUCClient.on_muc_invitation`). The interface for
+  :meth:`aioxmpp.im.conversation.AbstractConversation.invite` has been reworked.
+
+* *Service Members*:
+  :class:`aioxmpp.im.conversation.AbstractConversation`\ s can now have a
+  :class:`aioxmpp.im.conversation.AbstractConversationMember` representing the
+  conversation service itself inside that conversation (see
+  :term:`Service Member`).
+
+  The primary use is to represent messages originating from a :xep:`45` room
+  itself (on the protocol level, those messages have the bare JID of the room
+  as :attr:`~aioxmpp.Message.from`).
+
+  The service member of each conversation (if it is defined), is never contained
+  in the :attr:`aioxmpp.im.conversation.AbstractConversation.members` and
+  available at
+  :attr:`~aioxmpp.im.conversation.AbstractConversation.service_member`.
+
+* *Better Child Element Enumerations*:
+  The :class:`aioxmpp.xso.XSOEnumMixin` is a mixin which can be used with
+  :class:`enum.Enum` to create an enumeration where each enumeration member has
+  its own XSO *class*.
+
+  This is useful for e.g. error conditions where a defined set of children
+  exists, but :class:`aioxmpp.xso.ChildTag` with an enumeration isn’t
+  appropriate because the child XSOs may have additional data. Refer to the
+  docs for more details.
+
+* *Error Condition Data*:
+  The representation of XMPP error conditions on the XSO level has been
+  reworked. This is to support error conditions which have a data payload
+  (most importantly :attr:`aioxmpp.ErrorCondition.GONE`).
+
+  The entire error condition XSO is now available on both
+  :class:`aioxmpp.errors.XMPPError` (as
+  :attr:`~aioxmpp.errors.XMPPError.condition_obj`) exceptions and
+  :class:`aioxmpp.stanza.Error` payloads (as
+  :attr:`~aioxmpp.stanza.Error.condition_obj`).
+
+  For this change, the following subchanges are relevant:
+
+  * The constructors of :class:`aioxmpp.stanza.Error` and
+    :class:`aioxmpp.errors.XMPPError` (and subclasses) now accept either a
+    member of the :class:`aioxmpp.ErrorCondition` enumeration or an instance of
+    the respective XSO. This allows to attach additional data to error
+    conditions which support this, such as the
+    :attr:`aioxmpp.ErrorCondition.GONE` error.
+
+  * :attr:`aioxmpp.errors.XMPPError.application_defined_condition` is now
+    attached to :attr:`aioxmpp.stanza.Error.application_condition` when
+    :meth:`aioxmpp.stanza.Error.from_exception` is used.
+
+  Please see the breaking changes below for how to handle the transition from
+  namespace-name tuples to enumeration members.
+
+New examples
+------------
+
+* ``upload.py``: uses :class:`aioxmpp.httpupload` and :class:`aiohttp` to upload
+  any file to an HTTP service offered by the XMPP server, if the server
+  supports the feature.
+
+* ``register.py``: Register an account at an XMPP server which offers classic
+  :xep:`77` In-Band Registration.
+
+Breaking changes
+----------------
+
+* Converted stanza and stream error conditions
   to enumerations based on :class:`aioxmpp.xso.XSOEnumMixin`.
 
   This is similar to the transition in the 0.7 release. The following
@@ -468,22 +255,348 @@ Version 0.10
             message=".+(Stream)?ErrorCondition",
         )
 
-* The original and complete XSO of the error condition is now available on
-  :attr:`aioxmpp.stanza.Error.condition_obj`. This allows to access additional
-  data in error conditions, such as in the case of the
-  :attr:`aioxmpp.ErrorCondition.GONE` error.
+* Split :class:`aioxmpp.xso.AbstractType` into
+  :class:`aioxmpp.xso.AbstractCDataType` (for which the
+  :class:`aioxmpp.xso.AbstractType` was originally intended) and
+  :class:`aioxmpp.xso.AbstractElementType` (which it has become through organic
+  growth). This split serves the maintainability of the code and offers
+  opportunities for better error detection.
 
-  The same holds for :attr:`aioxmpp.errors.XMPPError.condition_obj`.
+* :meth:`aioxmpp.BookmarkService.get_bookmarks`
+  now returns a list instead of a :class:`aioxmpp.bookmarks.Storage`
+  and :meth:`aioxmpp.BookmarkService.set_bookmarks` now accepts a
+  list. The list returned by the get method and its elements *must
+  not* be modified.
 
-* The constructors of :class:`aioxmpp.stanza.Error` and
-  :class:`aioxmpp.errors.XMPPError` (and subclasses) now accept either a
-  member of the :class:`aioxmpp.ErrorCondition` enumeration or an instance of
-  the respective XSO. This allows to attach additional data to error conditions
-  which support this, such as the :attr:`aioxmpp.ErrorCondition.GONE` error.
+* Make :meth:`aioxmpp.muc.Room.send_message_tracked` a normal method instead
+  of a coroutine (it was never intended to be a coroutine).
 
-* :attr:`aioxmpp.errors.XMPPError.application_defined_condition` is now attached
-  to :attr:`aioxmpp.stanza.Error.application_condition` when
-  :meth:`aioxmpp.stanza.Error.from_exception` is used.
+* Specify :meth:`aioxmpp.im.conversation.AbstractConversation.on_enter` and
+  :meth:`~aioxmpp.im.conversation.AbstractConversation.on_failure` events and
+  implement emission of those for the existing conversation implementations.
+
+* Specify that :term:`Conversation Services <Conversation Service>` must
+  provide a non-coroutine method to start a conversation. Asynchronous parts
+  have to happen in the background. To await the completion of the
+  initialisation of the conversation, use
+  :func:`aioxmpp.callbacks.first_signal` as described in
+  :meth:`aioxmpp.im.conversation.AbstractConversation.on_enter`.
+
+* Make :meth:`aioxmpp.im.p2p.Service.get_conversation` a normal method.
+
+* :meth:`aioxmpp.muc.Room.send_message` is not a
+  coroutine anymore, but it returns an awaitable; this means that in most
+  cases, this should not break.
+
+  :meth:`~aioxmpp.muc.Room.send_message` was a coroutine by accident; it should
+  never have been that, according to the specification in
+  :meth:`aioxmpp.im.conversation.AbstractConversation.send_message`.
+
+* Since multiple ``<delay/>`` elements can occur in a
+  stanza, :attr:`aioxmpp.Message.xep0203_delay` is now a list instead of a
+  single :class:`aioxmpp.misc.Delay` object. Sorry for the inconvenience.
+
+* The type of the value of
+  :class:`aioxmpp.xso.Collector` descriptors was changed from
+  :class:`list` to :class:`lxml.etree.Element`.
+
+* Assignment to :class:`aioxmpp.xso.Collector` descriptors is now forbidden.
+  Instead, you should use ``some_xso.collector_attr[:] = items`` or a similar
+  syntax.
+
+* :meth:`aioxmpp.muc.Room.on_enter` does not receive any
+  arguments anymore to comply with the updated
+  :class:`aioxmpp.im.AbstractConversation` spec. The
+  :meth:`aioxmpp.muc.Room.on_muc_enter` event provides the arguments
+  :meth:`~aioxmpp.muc.Room.on_enter` received before and fires right after
+  :meth:`~aioxmpp.muc.Room.on_enter`.
+
+  As a workaround (if you need the arguments), you can test whether the
+  :meth:`~aioxmpp.muc.Room.on_muc_enter` exists on a
+  :class:`~aioxmpp.muc.Room`. If it does, connect to it, otherwise connect to
+  :meth:`~aioxmpp.muc.Room.on_enter`.
+
+  If you don’t need the arguments, make your :meth:`~aioxmpp.muc.Room.on_enter`
+  handlers accept ``*args``.
+
+* :meth:`aioxmpp.AvatarService.get_avatar_metadata`
+  now returns a list instead of a mapping from MIME types to lists of
+  descriptors.
+
+* Replaced the
+  :attr:`aioxmpp.stream.StanzaStream.ping_interval` and
+  :attr:`~aioxmpp.stream.StanzaStream.ping_opportunistic_interval` attributes
+  with a new ping implementation.
+
+  It is described in the :ref:`aioxmpp.stream.General Information.Timeouts`
+  section in :mod:`aioxmpp.stream`.
+
+* :meth:`aioxmpp.connector.BaseConnector.connect`
+  implementations are expected to set the
+  :attr:`aioxmpp.protocol.XMLStream.deadtime_hard_limit` to the
+  value of their `negotiation_timeout` argument and use this mechanism to handle
+  any stream-level timeouts.
+
+* :attr:`aioxmpp.muc.Occupant.direct_jid`
+  is now always a bare jid. This implies that the resource part of a
+  jid passed in by a muc member item now is always ignored.  Passing a
+  full jid to the constructor now raises a :class:`ValueError`.
+
+Minor features and bug fixes
+----------------------------
+
+* Make :mod:`aioopenssl` a mandatory dependency.
+
+* Replace :mod:`orderedset` with :mod:`sortedcollections`.
+
+* Emit :meth:`aioxmpp.im.conversation.AbstractConversation.on_message` for
+  MUC messages sent via :meth:`~aioxmpp.muc.Room.send_message_tracked`.
+
+* Add ``tracker`` argument to
+  :meth:`aioxmpp.im.conversation.AbstractConversation.on_message`. It carries
+  a :class:`aioxmpp.tracking.MessageTracker` for sent messages (including
+  those sent by other resources of the account in the same conversation).
+
+* Fix (harmless) traceback in logs which could occur when using
+  :meth:`aioxmpp.muc.Room.send_message_tracked`.
+
+* Fix :func:`aioxmpp.service.is_depsignal_handler` and
+  :func:`~aioxmpp.service.is_attrsignal_handler` when used with ``defer=True``.
+
+* You can now register custom bookmark classes with
+  :func:`aioxmpp.bookmarks.as_bookmark_class`. The bookmark classes
+  must subclass the ABC :class:`aioxmpp.bookmarks.Bookmark`.
+
+* Implement :func:`aioxmpp.callbacks.first_signal`.
+
+* Fixed duplicate emission of
+  :meth:`~aioxmpp.im.conversation.AbstractConversation.on_message` events
+  for untracked (sent through :meth:`aioxmpp.muc.Room.send_message`) MUC
+  messages.
+
+* Re-read the nameserver config if :class:`dns.resolver.NoNameservers` is
+  raised during a query using the thread-local global resolver (the default).
+
+  The resolver config is only reloaded up to once for each query; any further
+  errors are treated as authoritative / related to the zone.
+
+* Add :meth:`aioxmpp.protocol.XMLStream.mute` context manager to suppress debug
+  logging of stream contents.
+
+* Exclude authentication information sent during SASL.
+
+* The new :meth:`aioxmpp.structs.LanguageMap.any` method allows to obtain an
+  arbitrary element from the language map.
+
+* New `erroneous_as_absent` argument to :class:`aioxmpp.xso.Attr`,
+  :class:`~aioxmpp.xso.Text` and :class:`~aioxmpp.xso.ChildText`. See the
+  documentation of :class:`~aioxmpp.xso.Attr` for details.
+
+* Treat absent ``@type`` XML attribute on message stanzas as
+  :class:`aioxmpp.MessageType.NORMAL`, as specified in :rfc:`6121`,
+  section 5.2.2.
+
+* Treat empty ``<show/>`` XML child on presence stanzas like absent
+  ``<show/>``. This is not legal as per :rfc:`6120`, but apparently there are
+  some broken implementations out there.
+
+  Not having this workaround leads to being unable to receive presence stanzas
+  from those entities, which is rather unfortunate.
+
+* :func:`aioxmpp.service.iq_handler` now checks that its payload class is in
+  fact registered as IQ payload and raises :class:`ValueError` if not.
+
+* :func:`aioxmpp.node.discover_connectors` will now continue of only one of the
+  two SRV lookups fails with the DNSPython :class:`dns.resolver.NoNameservers`
+  exception; this case might still indicate a configuration issue (so we log
+  it), but since we actually got a useful result on the other query, we can
+  still continue.
+
+* :func:`aioxmpp.node.discover_connectors` now uses a proper fully-qualified
+  domain name (including the trailing dot) for DNS queries to avoid improper
+  fallback to locally configured search domains.
+
+* Ignore presence stanzas from the bare JID of a joined MUC, even if they
+  contain a MUC user tag. A functional MUC should never emit this.
+
+* We now will always attempt STARTTLS negotiation if
+  :attr:`aioxmpp.security_layer.SecurityLayer.tls_required` is true, even if
+  the server does not advertise a STARTTLS stream feature. This is because we
+  have nothing to lose, and it may mitigate some types of STARTTLS stripping
+  attacks.
+
+* Compatibility fixes for ejabberd (cf.
+  `ejabberd#2287 <https://github.com/processone/ejabberd/issues/2287>`_
+  and `ejabberd#2288 <https://github.com/processone/ejabberd/issues/2288>`_).
+
+* Harden MUC implementation against incomplete presence stanzas.
+
+* Fix a race condition where stream management handlers would be installed too
+  late on the XML stream, leading it to be closed with an
+  ``unsupported-stanza-type`` because :mod:`aioxmpp` failed to interpret SM
+  requests.
+
+* Support for escaping additional characters as entities when writing XML, see
+  the `additional_escapes` argument to :class:`aioxmpp.xml.XMPPXMLGenerator`.
+
+* Support for the new :xep:`45` 1.30 status code for kicks due to errors.
+  See :attr:`aioxmpp.muc.LeaveMode.ERROR`.
+
+* Minor compatibility fixes for :xep:`153` vcard-based avatar support.
+
+* Add a global IM :meth:`aioxmpp.im.service.Conversation.on_message` event. This
+  aggregates message events from all conversations.
+
+  This can be used by applications which want to perform central processing of
+  all IM messages, for example for logging purposes.
+  :class:`aioxmpp.im.service.Conversation` handles the lifecycle of event
+  listeners to the individual conversations, which takes some burden off of the
+  application.
+
+* Fix a bug where monkey-patched :class:`aioxmpp.xso.ChildFlag` descriptors
+  would not be picked up by the XSO handling code.
+
+* Make sure that the message ID is set before the
+  :attr:`aioxmpp.im.conversation.AbstractConversation.on_message` event is
+  emitted from :class:`aioxmpp.im.p2p.Conversation` objects.
+
+* Ensure that all
+  :attr:`aioxmpp.MessageType.CHAT`/:attr:`~aioxmpp.MessageType.NORMAL` messages
+  are forwarded to the respective :class:`aioxmpp.im.p2p.Conversation` if it
+  exists.
+
+  (Previously, only messages with a non-empty :attr:`aioxmpp.Message.body`
+  would be forwarded.)
+
+  This is needed for e.g. Chat Markers.
+
+* Ensure that Message Carbons are
+  re-:meth:`aioxmpp.carbons.CarbonsClient.enable`\ -d after failed stream
+  resumption. Thanks, Ge0rG.
+
+* Fix :rfc:`6121` violation: the default of the ``@subscription`` attribute of
+  roster items is ``"none"``. :mod:`aioxmpp` treated an absent attribute as
+  fatal.
+
+* Pass pre-stream-features exception down to stream feature listeners. This
+  fixes hangs on errors before the stream features are received. This can
+  happen with misconfigured SRV records or lack of ALPN support in a :xep:`368`
+  setting. Thanks to Travis Burtrum for providing a test setup for hunting this
+  down.
+
+* Set ALPN to ``xmpp-client`` by default. This is useful for :xep:`368`
+  deployments.
+
+* Fix handling of SRV records with equal priority, weight, hostname and port.
+
+* Support for ``<optional/>`` element in :rfc:`3921` ``<session/>`` negotiation
+  feature; the feature is not needed with modern servers, but since legacy
+  clients require it, they still announce it. The feature introduces a new
+  round-trip for no gain. An `rfc-draft by Dave Cridland
+  <https://tools.ietf.org/html/draft-cridland-xmpp-session-01>`_ standardises
+  the ``<optional/>`` element which allows a server to tell the client that it
+  doesn’t require the session negotiation step. :mod:`aioxmpp` now understands
+  this and will skip that step, saving a round-trip with most modern servers.
+
+* :mod:`aioxmpp.tracking` now allows some state transitions out of the
+  :attr:`aioxmpp.tracking.MessageState.ERROR` state. See the documentation there
+  for details.
+
+* Fix a bug in :meth:`aioxmpp.JID.fromstr` which would incorrectly parse and
+  then reject some valid JIDs.
+
+* Add :meth:`aioxmpp.DiscoClient.flush_cache` allowing to flush the cached
+  entries.
+
+* Add :meth:`aioxmpp.disco.Node.set_identity_names`. This is much more
+  convenient than adding a dummy identity, removing the existing identity,
+  re-adding the identity with new names and then removing the dummy identity.
+
+* Remove restriction on data form types (not to be confused with
+  ``FORM_TYPE``) when instantiating a form with
+  :meth:`aioxmpp.forms.Form.from_xso`.
+
+* Fix an issue which prevented single-valued form fields from being rendered
+  into XSOs if no value had been set (but a default was given).
+
+* Ensure that forms with :attr:`aioxmpp.forms.Form.FORM_TYPE` attribute render
+  a proper :xep:`68`muc ``FORM_TYPE`` field.
+
+* Allow unset field type in data forms. This may seem weird, but unfortunately
+  it is widespread practice. In some data form types, omitting the field type
+  is common (including it is merely a MAY in the XEP), and even in the most
+  strict case it is only a SHOULD.
+
+  Relying on the field type to be present is thus a non-starter.
+
+* Some data form classes were added:
+
+    * :class:`aioxmpp.muc.InfoForm`
+    * :class:`aioxmpp.muc.VoiceRequestForm`
+
+* Support for answering requests for voice/role change in MUCs (cf.
+  `XEP-0045 §8.6 Approving Voice Requests <https://xmpp.org/extensions/xep-0045.html#voiceapprove>`_). See
+  :meth:`aioxmpp.muc.Room.on_muc_role_request` for details.
+
+* Support for unwrapped unknown values in :class:`aioxmpp.xso.EnumCDataType`.
+  This can be used with :class:`enum.IntEnum` for fun and profit.
+
+* The status codes for :mod:`aioxmpp.muc` events are now an enumeration (see
+  :class:`aioxmpp.muc.StatusCode`). The status codes are now also available
+  on the following events: :meth:`aioxmpp.muc.Room.on_muc_enter`,
+  :meth:`~aioxmpp.muc.Room.on_exit`,
+  :meth:`~aioxmpp.muc.Room.on_leave`, :meth:`~aioxmpp.muc.Room.on_join`,
+  :meth:`~aioxmpp.muc.Room.on_muc_role_changed`, and
+  :meth:`~aioxmpp.muc.Room.on_muc_affiliation_changed`.
+
+* The :meth:`aioxmpp.im.conversation.AbstractConversation.invite` was
+  overhauled and improved.
+
+* :class:`aioxmpp.PEPClient` now depends on :class:`aioxmpp.EntityCapsService`.
+  This prevents a common mistake of loading :class:`~aioxmpp.PEPClient` without
+  :class:`~aioxmpp.EntityCapsService`, which prevents PEP auto-subscription
+  from working.
+
+* Handle :class:`ValueError` raised by :mod:`aiosasl` when the credentials are
+  malformed.
+
+* Fix exception when attempting to leave a :class:`aioxmpp.im.p2p.Conversation`.
+
+Deprecations
+------------
+
+* The above split of :class:`aioxmpp.xso.AbstractType` also caused a split of
+  :class:`aioxmpp.xso.EnumType` into :class:`aioxmpp.xso.EnumCDataType` and
+  :class:`aioxmpp.xso.EnumElementType`. :func:`aioxmpp.xso.EnumType` is now a
+  function which transparently creates the correct class. Use of that function
+  is deprecated and you should upgrade your code to use one of the two named
+  classes explicitly.
+
+* The name :meth:`aioxmpp.stream.StanzaStream.register_iq_request_coro` is
+  deprecated in favour of
+  :meth:`~aioxmpp.stream.StanzaStream.register_iq_request_handler`.
+  The old alias persists, but will be removed with the release of 1.0. Using
+  the old alias emits a warning.
+
+  Likewise, :meth:`~aioxmpp.stream.StanzaStream.unregister_iq_request_coro` was
+  renamed to :meth:`~aioxmpp.stream.StanzaStream.unregister_iq_request_handler`.
+
+* :meth:`aioxmpp.stream.StanzaStream.enqueue` and
+  :meth:`aioxmpp.stream.StanzaStream.send` were moved to the client as
+  :meth:`aioxmpp.Client.enqueue` and :meth:`aioxmpp.Client.send`.
+
+  The old names are deprecated, but aliases are provided until version 1.0.
+
+* The `negotiation_timeout` argument for
+  :func:`aioxmpp.security_layer.negotiate_sasl` has been deprecated in favour
+  of :class:`aioxmpp.protocol.XMLStream`\ -level handling of timeouts.
+
+  This means that the respective timeouts need to be configured on the XML
+  stream if they are to be used (the normal connection setup takes care of
+  that).
+
+* The use of namespace-name tuples for error conditions has been deprecated
+  (see the breaking changes).
 
 .. _api-changelog-0.9:
 
