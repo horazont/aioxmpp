@@ -52,6 +52,9 @@ in the glossary and are linked.
 :term:`Conversation Implementation`
    A :term:`Service` which provides means to create and manage specific
    :class:`~.AbstractConversation` subclasses.
+:term:`Service Member`
+   A :term:`Conversation Member` which represents the service over which the
+   conversation is run inside the conversation.
 
 .. module:: aioxmpp.im.p2p
 

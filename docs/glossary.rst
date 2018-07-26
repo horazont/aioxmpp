@@ -25,6 +25,23 @@ This section defines terms used throughout the :mod:`aioxmpp` documentation.
      :class:`aioxmpp.Client` with additional functionality. Typically, a
      service implements a part of one or more :term:`XEPs <XEP>`.
 
+   Service Member
+     A :term:`Conversation Member` representing the service over which the
+     conversation is run. For example, some :xep:`45` multi-user chat
+     service implementations send messages to all occupants as a service user.
+     Those messages appear in :mod:`aioxmpp.muc` as coming from the service
+     member.
+
+     Relevant entities:
+
+     * :attr:`aioxmpp.im.conversation.AbstractConversation.service_member`
+
+        * :attr:`aioxmpp.muc.Room.service_member`
+
+     * :class:`aioxmpp.im.conversation.AbstractConversationMember`
+
+        * :attr:`aioxmpp.muc.ServiceMember`
+
    XEP
    XMPP Extension Proposal
      An XMPP Extension Proposal (or XEP) is a document which extends the basic
