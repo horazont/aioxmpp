@@ -3,6 +3,11 @@
 Changelog
 #########
 
+.. _api-cahngelog-0.11:
+
+Version 0.11
+============
+
 .. _api-changelog-0.10:
 
 Version 0.10
