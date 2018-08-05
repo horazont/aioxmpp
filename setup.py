@@ -77,5 +77,5 @@ setup(
     ],
     keywords="asyncio xmpp library",
     install_requires=install_requires,
-    packages=find_packages(exclude=["tests*"])
+    packages=find_packages(exclude=["tests*", "benchmarks*"])
 )
