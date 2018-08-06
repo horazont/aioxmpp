@@ -93,15 +93,37 @@ def load_definition(infile):
     return defn
 
 
+def simplify_text(s):
+    return " ".join(s.split())
+
+
 def generate_class(defn, outfile, strip_prefix):
+    def prep_field_name(name):
+        name = sanitize_field_name(name)
+        if name.startswith(strip_prefix):
+            name = name[len(strip_prefix):]
+        return name
+
+    field_data = [
+        (prep_field_name(field.var), field)
+        for field in defn.fields
+    ]
+
     print("class Form(aioxmpp.forms.Form):", file=outfile)
+    print("    \"\"\"")
+    print("    Declaration of the form with type ``{}``".format(defn.name))
+    print()
+    for field_name, _ in field_data:
+        print("    .. autoattribute:: {}".format(
+            field_name
+        ))
+        print()
+    print("    \"\"\"")
+    print()
     print("    FORM_TYPE = {!r}".format(defn.name), file=outfile)
     print(file=outfile)
 
-    for field in defn.fields:
-        field_name = sanitize_field_name(field.var)
-        if field_name.startswith(strip_prefix):
-            field_name = field_name[len(strip_prefix):]
+    for field_name, field in field_data:
         fqcn = get_field_fqcn(CLASS_MAP[field.type_])
 
         print(
@@ -121,15 +143,15 @@ def generate_class(defn, outfile, strip_prefix):
         if field.label:
             print(
                 "        label={label!r}".format(
-                    label=field.label,
+                    label=simplify_text(field.label),
                 ),
                 file=outfile,
             )
 
         if field.desc:
             print(
-                "        desc={label!r}".format(
-                    desc=field.desc,
+                "        desc={desc!r}".format(
+                    desc=simplify_text(field.desc),
                 ),
                 file=outfile,
             )
