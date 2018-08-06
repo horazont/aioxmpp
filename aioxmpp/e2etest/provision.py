@@ -229,6 +229,64 @@ def discover_server_features(disco, peer, recurse_into_items=True,
     return all_features
 
 
+@asyncio.coroutine
+def discover_server_identities(disco, peer, recurse_into_items=True):
+    """
+    Use :xep:`30` service discovery to discover identities provided by the
+    server.
+
+    :param disco: Service discovery client which can query the `peer` server.
+    :type disco: :class:`aioxmpp.DiscoClient`
+    :param peer: The JID of the server to query
+    :type peer: :class:`~aioxmpp.JID`
+    :param recurse_into_items: If set to true, the :xep:`30` items exposed by
+                               the server will also be queried for their
+                               identities. Only one level of recursion is
+                               performed.
+    :return: A mapping which maps :xep:`30` (category, type) tuples to the
+        JIDs at which the identity is provided.
+
+    This uses :xep:`30` service discovery to obtain a set of identities offered
+    at `peer`. The set of identities is returned as a mapping which maps the
+    ``(category, type)`` tuples of the identities to the JID at which they were
+    discovered.
+
+    If `recurse_into_items` is true, a :xep:`30` items query is run against
+    `peer`. For each JID discovered that way, :func:`discover_server_identities`
+    is re-invoked (with `recurse_into_items` set to false). The resulting
+    mappings are merged with the mapping obtained from querying the identities
+    of `peer` (existing entries are *not* overriden -- so `peer` takes
+    precedence).
+    """
+
+    server_info = yield from disco.query_info(peer)
+
+    all_identities = {
+        (identity.category, identity.type_): [peer]
+        for identity in server_info.identities
+    }
+
+    if recurse_into_items:
+        server_items = yield from disco.query_items(peer)
+        identities_list = yield from asyncio.gather(
+            *(
+                discover_server_identities(
+                    disco,
+                    item.jid,
+                    recurse_into_items=False,
+                )
+                for item in server_items.items
+                if item.jid is not None and item.node is None
+            )
+        )
+
+        for identities in identities_list:
+            for identity, providers in identities.items():
+                all_identities.setdefault(identity, []).extend(providers)
+
+    return all_identities
+
+
 class Provisioner(metaclass=abc.ABCMeta):
     """
     Base class for provisioners.
@@ -249,6 +307,8 @@ class Provisioner(metaclass=abc.ABCMeta):
 
     .. automethod:: get_feature_provider
 
+    .. automethod:: get_identity_provider
+
     .. automethod:: has_quirk
 
     These methods can be used by provisioners to perform plumbing tasks, such
@@ -268,6 +328,7 @@ class Provisioner(metaclass=abc.ABCMeta):
         super().__init__()
         self._accounts_to_dispose = []
         self._featuremap = {}
+        self._identitymap = {}
         self._account_info = None
         self._logger = logger
         self.__counter = 0
@@ -368,6 +429,9 @@ class Provisioner(metaclass=abc.ABCMeta):
         if not providers:
             return None
         return next(iter(providers))
+
+    def get_identity_provider(self, category, type_):
+        return next(iter(self._identitymap.get((category, type_), [])))
 
     def get_feature_subset_provider(self, feature_nses, required_subset):
         required_subset = set(required_subset)
@@ -562,6 +626,13 @@ class AnonymousProvisioner(Provisioner):
                 disco,
                 self.__domain,
                 blockmap=self.__blockmap,
+            ))
+        )
+
+        self._identitymap.update(
+            (yield from discover_server_identities(
+                disco,
+                self.__domain,
             ))
         )
 
