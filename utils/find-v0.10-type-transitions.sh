@@ -1,0 +1,4 @@
+#!/bin/bash
+ARGS="--python"
+ag $ARGS 'namespaces\.stanzas,\s*"(bad-request|conflict|feature-not-implemented|forbidden|gone|internal-server-error|item-not-found|jid-malformed|not-acceptable|not-allowed|not-authorized|policy-violation|recipient-unavailable|redirect|registration-required|remote-server-not-found|remote-server-timeout|resource-constraint|service-unavailable|subscription-required|undefined-condition|unexpected-request)"'
+ag $ARGS 'namespaces\.streams,\s*"(bad-format|bad-namespace-prefix|conflict|connection-timeout|host-gone|host-unknown|improper-addressing|internal-server-error|invalid-from|invalid-namespace|invalid-xml|not-authorized|not-well-formed|policy-violation|remote-connection-failed|reset|resource-constraint|restricted-xml|see-other-host|system-shutdown|undefined-condition|unsupported-encoding|unsupported-feature|unsupported-stanza-type|unsupported-version)"'
