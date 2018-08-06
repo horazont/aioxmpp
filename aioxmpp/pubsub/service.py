@@ -76,8 +76,10 @@ class PubSubClient(aioxmpp.service.Service):
           delete
           get_nodes
           get_node_affiliations
+          get_node_config
           get_node_subscriptions
           purge
+          set_node_config
 
     Meta-information about the service:
 
@@ -127,9 +129,13 @@ class PubSubClient(aioxmpp.service.Service):
 
     .. automethod:: get_node_affiliations
 
+    .. automethod:: get_node_config
+
     .. automethod:: get_node_subscriptions
 
     .. automethod:: purge
+
+    .. automethod:: set_node_config
 
     Receiving notifications:
 
@@ -502,6 +508,61 @@ class PubSubClient(aioxmpp.service.Service):
 
         response = yield from self.client.send(iq)
         return response.payload.data
+
+    @asyncio.coroutine
+    def get_node_config(self, jid, node=None):
+        """
+        Request the configuration of a node.
+
+        :param jid: Address of the PubSub service.
+        :type jid: :class:`aioxmpp.JID`
+        :param node: Name of the PubSub node to query.
+        :type node: :class:`str`
+        :raises aioxmpp.errors.XMPPError: as returned by the service
+        :return: The configuration of the node.
+        :rtype: :class:`~.forms.Data`
+
+        On success, the :class:`~.forms.Data` form is returned.
+
+        If an error occurs, the corresponding :class:`~.errors.XMPPError` is
+        raised.
+        """
+
+        iq = aioxmpp.stanza.IQ(to=jid, type_=aioxmpp.structs.IQType.GET)
+        iq.payload = pubsub_xso.OwnerRequest(
+            pubsub_xso.OwnerConfigure(node=node)
+        )
+
+        response = yield from self.client.send(iq)
+        return response.payload.data
+
+    @asyncio.coroutine
+    def set_node_config(self, jid, config, node=None):
+        """
+        Update the configuration of a node.
+
+        :param jid: Address of the PubSub service.
+        :type jid: :class:`aioxmpp.JID`
+        :param config: Configuration form
+        :type config: :class:`aioxmpp.forms.Data`
+        :param node: Name of the PubSub node to query.
+        :type node: :class:`str`
+        :raises aioxmpp.errors.XMPPError: as returned by the service
+        :return: The configuration of the node.
+        :rtype: :class:`~.forms.Data`
+
+        .. seealso::
+
+            :class:`aioxmpp.pubsub.NodeConfigForm`
+        """
+
+        iq = aioxmpp.stanza.IQ(to=jid, type_=aioxmpp.structs.IQType.SET)
+        iq.payload = pubsub_xso.OwnerRequest(
+            pubsub_xso.OwnerConfigure(node=node)
+        )
+        iq.payload.payload.data = config
+
+        yield from self.client.send(iq)
 
     @asyncio.coroutine
     def get_items(self, jid, node, *, max_items=None):

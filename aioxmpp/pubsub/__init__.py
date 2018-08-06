@@ -183,7 +183,16 @@ below:
 .. autoclass:: Unsupported()
 
 
+Forms
+-----
+
+.. currentmodule:: aioxmpp.pubsub
+
+.. autoclass:: NodeConfigForm
+
+
 """
 
 from .service import PubSubClient  # NOQA
+from .xso import NodeConfigForm
 Service = PubSubClient

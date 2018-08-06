@@ -15,6 +15,10 @@ Version 0.11
   (Note that it already has been possible that *one* label was absent (i.e.
   :data:`None`). This just allows more than one label to be absent.)
 
+* :meth:`aioxmpp.PubSubClient.get_node_config`,
+  :meth:`aioxmpp.PubSubClient.set_node_config`,
+  :class:`aioxmpp.pubsub.NodeConfigForm`
+
 .. _api-changelog-0.10:
 
 Version 0.10

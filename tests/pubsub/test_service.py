@@ -23,6 +23,7 @@ import contextlib
 import unittest
 
 import aioxmpp.disco
+import aioxmpp.forms
 import aioxmpp.service
 import aioxmpp.stanza
 import aioxmpp.structs
@@ -889,6 +890,56 @@ class TestService(unittest.TestCase):
         self.assertEqual(request.payload.node, "foo")
 
         self.assertEqual(result, response.payload.data)
+
+    def test_get_node_config(self):
+        response = pubsub_xso.OwnerRequest(
+            pubsub_xso.OwnerConfigure()
+        )
+        response.payload.data = unittest.mock.sentinel.form
+
+        self.cc.send.return_value = response
+
+        result = run_coroutine(self.s.get_node_config(
+            TEST_TO,
+            node="some_node",
+        ))
+
+        self.cc.send.assert_called_once_with(unittest.mock.ANY)
+
+        _, (iq, ), _ = self.cc.send.mock_calls[0]
+
+        self.assertIsInstance(iq, aioxmpp.IQ)
+        self.assertEqual(iq.to, TEST_TO)
+        self.assertEqual(iq.type_, aioxmpp.IQType.GET)
+        self.assertIsInstance(iq.payload, pubsub_xso.OwnerRequest)
+
+        self.assertIsInstance(iq.payload.payload, pubsub_xso.OwnerConfigure)
+        self.assertEqual(iq.payload.payload.node, "some_node")
+        self.assertIsNone(iq.payload.payload.data)
+
+        self.assertIs(result, unittest.mock.sentinel.form)
+
+    def test_set_node_config(self):
+        config = unittest.mock.Mock(spec=aioxmpp.forms.Data)
+
+        run_coroutine(self.s.set_node_config(
+            TEST_TO,
+            config,
+            node="some_node",
+        ))
+
+        self.cc.send.assert_called_once_with(unittest.mock.ANY)
+
+        _, (iq, ), _ = self.cc.send.mock_calls[0]
+
+        self.assertIsInstance(iq, aioxmpp.IQ)
+        self.assertEqual(iq.to, TEST_TO)
+        self.assertEqual(iq.type_, aioxmpp.IQType.SET)
+        self.assertIsInstance(iq.payload, pubsub_xso.OwnerRequest)
+
+        self.assertIsInstance(iq.payload.payload, pubsub_xso.OwnerConfigure)
+        self.assertEqual(iq.payload.payload.node, "some_node")
+        self.assertIs(iq.payload.payload.data, config)
 
     def test_get_items(self):
         response = pubsub_xso.Request()

@@ -73,6 +73,10 @@ class TestOwnerUseCases(TestCase):
 
         yield from self.pubsub.create(self.peer, self.node)
 
+    @blocking
+    def tearDown(self):
+        yield from self.pubsub.delete(self.peer, self.node)
+
     def _require_features(self, features):
         features = set(features)
         if features & self.peer_features != features:
@@ -111,7 +115,3 @@ class TestOwnerUseCases(TestCase):
             self.node,
         )
         self.assertEqual(len(items.payload.items), 0)
-
-    @blocking
-    def tearDown(self):
-        yield from self.pubsub.delete(self.peer, self.node)

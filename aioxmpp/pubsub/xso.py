@@ -1281,3 +1281,255 @@ Feature.__docstring___ = \
 
        Notification of subscription state changes is supported.
     """
+
+
+class NodeConfigForm(aioxmpp.forms.Form):
+    """
+    Declaration of the form with type
+    ``http://jabber.org/protocol/pubsub#node_config``
+
+    .. autoattribute:: access_model
+
+    .. autoattribute:: body_xslt
+
+    .. autoattribute:: children_association_policy
+
+    .. autoattribute:: children_association_whitelist
+
+    .. autoattribute:: children
+
+    .. autoattribute:: children_max
+
+    .. autoattribute:: collection
+
+    .. autoattribute:: contact
+
+    .. autoattribute:: dataform_xslt
+
+    .. autoattribute:: deliver_notifications
+
+    .. autoattribute:: deliver_payloads
+
+    .. autoattribute:: description
+
+    .. autoattribute:: item_expire
+
+    .. autoattribute:: itemreply
+
+    .. autoattribute:: language
+
+    .. autoattribute:: max_items
+
+    .. autoattribute:: max_payload_size
+
+    .. autoattribute:: node_type
+
+    .. autoattribute:: notification_type
+
+    .. autoattribute:: notify_config
+
+    .. autoattribute:: notify_delete
+
+    .. autoattribute:: notify_retract
+
+    .. autoattribute:: notify_sub
+
+    .. autoattribute:: persist_items
+
+    .. autoattribute:: presence_based_delivery
+
+    .. autoattribute:: publish_model
+
+    .. autoattribute:: purge_offline
+
+    .. autoattribute:: roster_groups_allowed
+
+    .. autoattribute:: send_last_published_item
+
+    .. autoattribute:: tempsub
+
+    .. autoattribute:: subscribe
+
+    .. autoattribute:: title
+
+    .. autoattribute:: type
+
+    """
+
+    FORM_TYPE = 'http://jabber.org/protocol/pubsub#node_config'
+
+    access_model = aioxmpp.forms.ListSingle(
+        var='pubsub#access_model',
+        label='Who may subscribe and retrieve items'
+    )
+
+    body_xslt = aioxmpp.forms.TextSingle(
+        var='pubsub#body_xslt',
+        label='The URL of an XSL transformation which can be applied to '
+        'payloads in order to generate an appropriate message body element.'
+    )
+
+    children_association_policy = aioxmpp.forms.ListSingle(
+        var='pubsub#children_association_policy',
+        label='Who may associate leaf nodes with a collection'
+    )
+
+    children_association_whitelist = aioxmpp.forms.JIDMulti(
+        var='pubsub#children_association_whitelist',
+        label='The list of JIDs that may associate leaf nodes with a collection'
+    )
+
+    children = aioxmpp.forms.TextMulti(
+        var='pubsub#children',
+        label='The child nodes (leaf or collection) associated with a '
+        'collection'
+    )
+
+    children_max = aioxmpp.forms.TextSingle(
+        var='pubsub#children_max',
+        label='The maximum number of child nodes that can be associated with a '
+        'collection'
+    )
+
+    collection = aioxmpp.forms.TextMulti(
+        var='pubsub#collection',
+        label='The collection(s) with which a node is affiliated'
+    )
+
+    contact = aioxmpp.forms.JIDMulti(
+        var='pubsub#contact',
+        label='The JIDs of those to contact with questions'
+    )
+
+    dataform_xslt = aioxmpp.forms.TextSingle(
+        var='pubsub#dataform_xslt',
+        label='The URL of an XSL transformation which can be applied to the '
+        'payload format in order to generate a valid Data Forms result that '
+        'the client could display using a generic Data Forms rendering engine'
+    )
+
+    deliver_notifications = aioxmpp.forms.Boolean(
+        var='pubsub#deliver_notifications',
+        label='Whether to deliver event notifications'
+    )
+
+    deliver_payloads = aioxmpp.forms.Boolean(
+        var='pubsub#deliver_payloads',
+        label='Whether to deliver payloads with event notifications; applies '
+        'only to leaf nodes'
+    )
+
+    description = aioxmpp.forms.TextSingle(
+        var='pubsub#description',
+        label='A description of the node'
+    )
+
+    item_expire = aioxmpp.forms.TextSingle(
+        var='pubsub#item_expire',
+        label='Number of seconds after which to automatically purge items'
+    )
+
+    itemreply = aioxmpp.forms.ListSingle(
+        var='pubsub#itemreply',
+        label='Whether owners or publisher should receive replies to items'
+    )
+
+    language = aioxmpp.forms.ListSingle(
+        var='pubsub#language',
+        label='The default language of the node'
+    )
+
+    max_items = aioxmpp.forms.TextSingle(
+        var='pubsub#max_items',
+        label='The maximum number of items to persist'
+    )
+
+    max_payload_size = aioxmpp.forms.TextSingle(
+        var='pubsub#max_payload_size',
+        label='The maximum payload size in bytes'
+    )
+
+    node_type = aioxmpp.forms.ListSingle(
+        var='pubsub#node_type',
+        label='Whether the node is a leaf (default) or a collection'
+    )
+
+    notification_type = aioxmpp.forms.ListSingle(
+        var='pubsub#notification_type',
+        label='Specify the delivery style for notifications'
+    )
+
+    notify_config = aioxmpp.forms.Boolean(
+        var='pubsub#notify_config',
+        label='Whether to notify subscribers when the node configuration '
+        'changes'
+    )
+
+    notify_delete = aioxmpp.forms.Boolean(
+        var='pubsub#notify_delete',
+        label='Whether to notify subscribers when the node is deleted'
+    )
+
+    notify_retract = aioxmpp.forms.Boolean(
+        var='pubsub#notify_retract',
+        label='Whether to notify subscribers when items are removed from the '
+        'node'
+    )
+
+    notify_sub = aioxmpp.forms.Boolean(
+        var='pubsub#notify_sub',
+        label='Whether to notify owners about new subscribers and unsubscribes'
+    )
+
+    persist_items = aioxmpp.forms.Boolean(
+        var='pubsub#persist_items',
+        label='Whether to persist items to storage'
+    )
+
+    presence_based_delivery = aioxmpp.forms.Boolean(
+        var='pubsub#presence_based_delivery',
+        label='Whether to deliver notifications to available users only'
+    )
+
+    publish_model = aioxmpp.forms.ListSingle(
+        var='pubsub#publish_model',
+        label='The publisher model'
+    )
+
+    purge_offline = aioxmpp.forms.Boolean(
+        var='pubsub#purge_offline',
+        label='Whether to purge all items when the relevant publisher goes '
+        'offline'
+    )
+
+    roster_groups_allowed = aioxmpp.forms.ListMulti(
+        var='pubsub#roster_groups_allowed',
+        label='The roster group(s) allowed to subscribe and retrieve items'
+    )
+
+    send_last_published_item = aioxmpp.forms.ListSingle(
+        var='pubsub#send_last_published_item',
+        label='When to send the last published item'
+    )
+
+    tempsub = aioxmpp.forms.Boolean(
+        var='pubsub#tempsub',
+        label='Whether to make all subscriptions temporary, based on '
+        'subscriber presence'
+    )
+
+    subscribe = aioxmpp.forms.Boolean(
+        var='pubsub#subscribe',
+        label='Whether to allow subscriptions'
+    )
+
+    title = aioxmpp.forms.TextSingle(
+        var='pubsub#title',
+        label='A friendly name for the node'
+    )
+
+    type = aioxmpp.forms.TextSingle(
+        var='pubsub#type',
+        label='The type of node data, usually specified by the namespace of '
+        'the payload (if any)'
+    )
