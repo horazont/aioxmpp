@@ -286,6 +286,14 @@ class Options(xso.XSO):
         self.subid = subid
 
 
+class PublishOptions(xso.XSO):
+    TAG = (namespaces.xep0060, "publish-options")
+
+    data = xso.Child([
+        aioxmpp.forms.Data,
+    ])
+
+
 class Publish(xso.XSO):
     TAG = (namespaces.xep0060, "publish")
 
@@ -495,6 +503,10 @@ class Request(xso.XSO):
 
     configure = xso.Child([
         Configure,
+    ])
+
+    publish_options = xso.Child([
+        PublishOptions,
     ])
 
     def __init__(self, payload=None):
@@ -768,6 +780,10 @@ class OwnerConfigure(xso.XSO):
     data = xso.Child([
         aioxmpp.forms.Data,
     ])
+
+    def __init__(self, node=None):
+        super().__init__()
+        self.node = node
 
 
 class OwnerDefault(xso.XSO):

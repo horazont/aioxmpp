@@ -19,6 +19,10 @@ Version 0.11
   :meth:`aioxmpp.PubSubClient.set_node_config`,
   :class:`aioxmpp.pubsub.NodeConfigForm`
 
+* :meth:`aioxmpp.PubSubClient.publish` now supports an optional
+  ``publish_options`` argument to define preconditions which must be valid
+  before publishing.
+
 .. _api-changelog-0.10:
 
 Version 0.10

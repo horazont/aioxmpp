@@ -1163,6 +1163,90 @@ class TestService(unittest.TestCase):
 
         self.assertEqual(result, "some-id")
 
+    def test_publish_with_id_and_options(self):
+        payload = SomePayload()
+        publish_options = unittest.mock.Mock(spec=aioxmpp.forms.Data)
+
+        response = pubsub_xso.Request()
+        response.payload = pubsub_xso.Publish()
+
+        self.cc.send.return_value = response
+
+        with contextlib.ExitStack() as stack:
+            get_features = stack.enter_context(
+                unittest.mock.patch.object(self.s, "get_features",
+                                           new=CoroutineMock())
+            )
+            get_features.return_value = {
+                pubsub_xso.Feature.PUBLISH_OPTIONS
+            }
+
+            result = run_coroutine(self.s.publish(
+                TEST_TO,
+                "foo",
+                payload,
+                id_="some-id",
+                publish_options=publish_options,
+            ))
+
+        self.assertEqual(
+            1,
+            len(self.cc.send.mock_calls)
+        )
+
+        _, (request_iq, ), _ = \
+            self.cc.send.mock_calls[0]
+
+        self.assertIsInstance(request_iq, aioxmpp.stanza.IQ)
+        self.assertEqual(request_iq.type_, aioxmpp.structs.IQType.SET)
+        self.assertEqual(request_iq.to, TEST_TO)
+        self.assertIsInstance(request_iq.payload, pubsub_xso.Request)
+
+        request = request_iq.payload
+        self.assertIsInstance(request.payload, pubsub_xso.Publish)
+        self.assertEqual(request.payload.node, "foo")
+        self.assertIsInstance(request.payload.item, pubsub_xso.Item)
+
+        self.assertIsInstance(request.publish_options,
+                              pubsub_xso.PublishOptions)
+        self.assertIs(request.publish_options.data, publish_options)
+
+        item = request.payload.item
+        self.assertIs(item.registered_payload, payload)
+        self.assertEqual(item.id_, "some-id")
+
+        self.assertEqual(result, "some-id")
+
+    def test_publish_with_options_raises_RuntimeError_if_not_supported(self):
+        payload = SomePayload()
+        publish_options = unittest.mock.Mock(spec=aioxmpp.forms.Data)
+
+        response = pubsub_xso.Request()
+        response.payload = pubsub_xso.Publish()
+
+        self.cc.send.return_value = response
+
+        with contextlib.ExitStack() as stack:
+            get_features = stack.enter_context(
+                unittest.mock.patch.object(self.s, "get_features",
+                                           new=CoroutineMock())
+            )
+            get_features.return_value = set()
+
+            with self.assertRaisesRegex(
+                    RuntimeError,
+                    "publish-options given, but not supported by server"):
+                run_coroutine(self.s.publish(
+                    TEST_TO,
+                    "foo",
+                    payload,
+                    id_="some-id",
+                    publish_options=publish_options,
+                ))
+
+        self.cc.send.assert_not_called()
+        get_features.assert_called_once_with(TEST_TO)
+
     def test_publish_with_returned_id(self):
         payload = SomePayload()
 
