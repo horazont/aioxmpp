@@ -23,6 +23,9 @@ Version 0.11
   ``publish_options`` argument to define preconditions which must be valid
   before publishing.
 
+* :meth:`aioxmpp.PEPClient.publish` now supports setting the `access_model` via
+  a `publish_options` precondition.
+
 .. _api-changelog-0.10:
 
 Version 0.10

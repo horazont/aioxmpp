@@ -20,6 +20,7 @@
 #
 ########################################################################
 import asyncio
+import unittest
 
 import aioxmpp.pep
 import aioxmpp.xso as xso
@@ -28,6 +29,7 @@ import aioxmpp.pubsub.xso as pubsub_xso
 from aioxmpp.e2etest import (
     blocking,
     blocking_timed,
+    require_identity,
     TestCase
 )
 
@@ -42,16 +44,29 @@ EXAMPLE_TEXT = "Though this be madness, yet there is method in't"
 
 
 class TestPEP(TestCase):
-
+    @require_identity("pubsub", "pep")
     @blocking
     @asyncio.coroutine
-    def setUp(self):
+    def setUp(self, _):
         self.client = yield from self.provisioner.get_connected_client(
             services=[
                 aioxmpp.PresenceServer,
                 aioxmpp.pep.PEPClient
             ]
         )
+        self._pep = self.client.summon(aioxmpp.pep.PEPClient)
+        self._pubsub = self.client.summon(aioxmpp.PubSubClient)
+
+    @asyncio.coroutine
+    def _require_pep_features(self, features):
+        pep_features = yield from self._pubsub.get_features(
+            self.client.local_jid.bare()
+        )
+
+        if features & pep_features != features:
+            raise unittest.SkipTest("missing required PEP features: {}".format(
+                features - pep_features
+            ))
 
     @blocking_timed
     @asyncio.coroutine
@@ -62,20 +77,78 @@ class TestPEP(TestCase):
             done.set_result((jid, node, item))
 
         presence = self.client.summon(aioxmpp.PresenceServer)
-        p = self.client.summon(aioxmpp.pep.PEPClient)
-        claim = p.claim_pep_node("urn:example:payload", notify=True)
+        claim = self._pep.claim_pep_node("urn:example:payload", notify=True)
         claim.on_item_publish.connect(handler)
         # this is necessary, otherwise the +notify feature will not be
         # sent to the server.
         yield from presence.resend_presence()
         payload = ExamplePayload()
         payload.data = EXAMPLE_TEXT
-        yield from p.publish("urn:example:payload", payload)
+        yield from self._pep.publish("urn:example:payload", payload)
         jid, node, item = yield from done
         self.assertEqual(jid, self.client.local_jid.bare())
         self.assertEqual(node, "urn:example:payload")
         self.assertEqual(item.registered_payload.data, EXAMPLE_TEXT)
         claim.close()
+
+    @blocking_timed
+    @asyncio.coroutine
+    def test_publish_with_whitelist_access_model(self):
+        yield from self._require_pep_features({
+            aioxmpp.pubsub.xso.Feature.PUBLISH_OPTIONS
+        })
+
+        payload = ExamplePayload()
+        payload.data = EXAMPLE_TEXT
+
+        yield from self._pep.publish("urn:example:payload", payload,
+                                     access_model="whitelist")
+
+        config_form_raw = yield from self._pubsub.get_node_config(
+            self.client.local_jid.bare(),
+            node="urn:example:payload",
+        )
+
+        config_form = pubsub_xso.NodeConfigForm.from_xso(config_form_raw)
+        self.assertEqual(config_form.access_model.value, "whitelist")
+
+    @blocking_timed
+    @asyncio.coroutine
+    def test_publish_passes_with_subsequent_equal_access_models(self):
+        yield from self._require_pep_features({
+            aioxmpp.pubsub.xso.Feature.PUBLISH_OPTIONS
+        })
+
+        payload = ExamplePayload()
+        payload.data = EXAMPLE_TEXT
+
+        yield from self._pep.publish("urn:example:payload", payload,
+                                     access_model="whitelist")
+
+        yield from self._pep.publish("urn:example:payload", payload,
+                                     access_model="whitelist")
+
+    @blocking_timed
+    @asyncio.coroutine
+    def test_publish_fails_with_subsequent_conflicting_access_models(self):
+        yield from self._require_pep_features({
+            aioxmpp.pubsub.xso.Feature.PUBLISH_OPTIONS
+        })
+
+        payload = ExamplePayload()
+        payload.data = EXAMPLE_TEXT
+
+        yield from self._pep.publish("urn:example:payload", payload,
+                                     access_model="whitelist")
+
+        with self.assertRaises(aioxmpp.errors.XMPPError) as exc:
+            yield from self._pep.publish("urn:example:payload", payload,
+                                         access_model="presence")
+
+        self.assertEqual(
+            exc.exception.condition,
+            aioxmpp.errors.ErrorCondition.CONFLICT,
+        )
 
 
 class ExampleService(aioxmpp.service.Service):
