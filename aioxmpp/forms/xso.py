@@ -427,7 +427,7 @@ class Field(xso.XSO):
             if not self.type_.is_multivalued and len(self.values) > 1:
                 raise ValueError("too many values on non-multi field")
 
-        values_list = [opt for opt in self.options.values()]
+        values_list = [opt for opt in self.options.values() if opt is not None]
         values_set = set(values_list)
 
         if len(values_list) != len(values_set):

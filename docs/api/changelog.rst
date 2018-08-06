@@ -8,6 +8,13 @@ Changelog
 Version 0.11
 ============
 
+* :aioxmpp:`aioxmpp.forms` will not complain anymore if multiple ``<option/>``
+  elements in a list-single/list-multi are lacking a label. It is recommended
+  that you default the label to the option value in such a case.
+
+  (Note that it already has been possible that *one* label was absent (i.e.
+  :data:`None`). This just allows more than one label to be absent.)
+
 .. _api-changelog-0.10:
 
 Version 0.10
