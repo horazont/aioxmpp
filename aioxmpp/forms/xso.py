@@ -431,7 +431,9 @@ class Field(xso.XSO):
         values_set = set(values_list)
 
         if len(values_list) != len(values_set):
-            raise ValueError("duplicate option value")
+            raise ValueError("duplicate option label in {}".format(
+                values_list
+            ))
 
 
 class AbstractItem(xso.XSO):
