@@ -21,8 +21,11 @@
 ########################################################################
 import asyncio
 
+import aioxmpp
 import aioxmpp.stream
 import aioxmpp.xso
+
+from aioxmpp.testutils import get_timeout
 
 from aioxmpp.e2etest import (
     blocking_timed,
@@ -102,6 +105,28 @@ class TestMisc(TestCase):
 
         iq = aioxmpp.IQ(
             to=None,
+            type_=aioxmpp.IQType.GET,
+            payload=MadeUpIQPayload()
+        )
+
+        with self.assertRaises(aioxmpp.errors.XMPPCancelError):
+            yield from c.send(iq)
+
+    @blocking_timed
+    @asyncio.coroutine
+    def test_handle_id_less_IQ_request_gracefully(self):
+        c = yield from self.provisioner.get_connected_client()
+
+        # let’s get even more brutal here
+        c.stream._xmlstream.data_received(
+            "<iq type='get' to='{}'/>".format(c.local_jid).encode('utf-8')
+        )
+
+        # now we send a simple IQ which shows us that the stream survived this
+        # attack
+
+        iq = aioxmpp.IQ(
+            to=c.local_jid.bare(),
             type_=aioxmpp.IQType.GET,
             payload=MadeUpIQPayload()
         )
