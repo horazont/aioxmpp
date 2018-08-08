@@ -974,6 +974,10 @@ class IQ(StanzaBase):
             self.id_
         except AttributeError:
             raise ValueError("IQ requires ID") from None
+
+        if self.type_ == structs.IQType.ERROR and self.error is None:
+            raise ValueError("IQ with type='error' requires error payload")
+
         super().validate()
 
     def validate(self):

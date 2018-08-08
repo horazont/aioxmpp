@@ -114,6 +114,37 @@ class TestMisc(TestCase):
 
     @blocking_timed
     @asyncio.coroutine
+    def test_handle_malformed_iq_error_gracefully(self):
+        c = yield from self.provisioner.get_connected_client()
+
+        @asyncio.coroutine
+        def handler(iq):
+            # this is awful, but does the trick
+            c.stream._xmlstream.data_received(
+                "<iq type='error' from='{}' to='{}' id='{}'/>".format(
+                    c.local_jid,
+                    c.local_jid,
+                    iq.id_,
+                )
+            )
+
+        c.stream.register_iq_request_handler(
+            aioxmpp.IQType.GET,
+            MadeUpIQPayload,
+            handler,
+        )
+
+        iq = aioxmpp.IQ(
+            to=c.local_jid,
+            type_=aioxmpp.IQType.GET,
+            payload=MadeUpIQPayload()
+        )
+
+        with self.assertRaises(aioxmpp.errors.ErroneousStanza):
+            yield from c.stream.send(iq)
+
+    @blocking_timed
+    @asyncio.coroutine
     def test_handle_id_less_IQ_request_gracefully(self):
         c = yield from self.provisioner.get_connected_client()
 
