@@ -969,12 +969,23 @@ class IQ(StanzaBase):
         self.payload = payload
         self.error = error
 
-    def validate(self):
+    def _validate(self):
         try:
             self.id_
         except AttributeError:
             raise ValueError("IQ requires ID") from None
         super().validate()
+
+    def validate(self):
+        try:
+            self._validate()
+        except Exception as exc:
+            raise StanzaError(
+                "invalid IQ stanza",
+                self,
+                None,
+                None,
+            )
 
     def make_reply(self, type_):
         if not self.type_.is_request:

@@ -1204,12 +1204,12 @@ class TestIQ(unittest.TestCase):
             "error=None data=None>"
         )
 
-    def test_validate_requires_id(self):
+    def test__validate_requires_id(self):
         iq = stanza.IQ(structs.IQType.GET)
         with self.assertRaisesRegex(
                 ValueError,
                 "IQ requires ID"):
-            iq.validate()
+            iq._validate()
 
     def test_as_payload_class(self):
         @stanza.IQ.as_payload_class
@@ -1221,6 +1221,17 @@ class TestIQ(unittest.TestCase):
             stanza.IQ.CHILD_MAP[Foo.TAG],
             stanza.IQ.payload.xq_descriptor
         )
+
+    def test_validate_wraps_exceptions_from__validate(self):
+        class FooException(Exception):
+            pass
+
+        iq = stanza.IQ(structs.IQType.GET)
+
+        with self.assertRaisesRegex(
+                stanza.StanzaError,
+                r"invalid IQ stanza"):
+            iq.validate()
 
 
 class Testmake_application_error(unittest.TestCase):
