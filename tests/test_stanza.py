@@ -1222,6 +1222,15 @@ class TestIQ(unittest.TestCase):
             stanza.IQ.payload.xq_descriptor
         )
 
+    def test__validate_rejects_error_without_error(self):
+        iq = stanza.IQ(structs.IQType.ERROR)
+        iq.autoset_id()
+
+        with self.assertRaisesRegex(
+                ValueError,
+                r"IQ with type='error' requires error payload"):
+            iq._validate()
+
     def test_validate_wraps_exceptions_from__validate(self):
         class FooException(Exception):
             pass

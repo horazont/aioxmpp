@@ -54,6 +54,8 @@ New XEP implementations
   * the :xep:`333` schema
   * the ``<preauth/>`` element of :xep:`379`
 
+* Be robust against invalid IQ stanzas.
+
 New major features
 ------------------
 
