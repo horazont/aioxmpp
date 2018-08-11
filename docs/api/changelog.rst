@@ -600,6 +600,14 @@ Deprecations
 * The use of namespace-name tuples for error conditions has been deprecated
   (see the breaking changes).
 
+Version 0.10.1
+--------------
+
+* Fix handling of IQ stanzas without ID and IQ stanzas of type
+  :attr:`aioxmpp.IQType.ERROR` without error payload.
+
+  Both are now treated like any other unparseable stanza.
+
 .. _api-changelog-0.9:
 
 Version 0.9
