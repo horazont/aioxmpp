@@ -169,6 +169,9 @@ def extract_python_dict_from_x509(x509):
             if dNSName is None:
                 continue
 
+            if hasattr(dNSName, "isValue") and not dNSName.isValue:
+                continue
+
             result.setdefault("subjectAltName", []).append(
                 ("DNS", str(dNSName))
             )
@@ -978,7 +981,7 @@ class PasswordSASLProvider(SASLProvider):
                 try:
                     mechanism_worked = yield from self._execute(
                         intf, mechanism, token)
-                except aiosasl.AuthenticationFailure as err:
+                except (ValueError, aiosasl.AuthenticationFailure) as err:
                     if password_signalled_abort:
                         # immediately re-raise
                         raise
@@ -1103,6 +1106,11 @@ class SecurityLayer(collections.namedtuple(
        connectors (see :mod:`aioxmpp.connector`) will abort the connection if
        TLS (or something equivalent) is not available on the transport.
 
+       .. note::
+
+           Disabling this makes your application vulnerable to STARTTLS
+           stripping attacks.
+
     .. attribute:: sasl_providers
 
        A sequence of :class:`SASLProvider` instances. As SASL providers are
@@ -1121,6 +1129,8 @@ def default_ssl_context():
 
     The context has SSLv2 and SSLv3 disabled, and supports TLS 1.0+ (depending
     on the version of the SSL library).
+
+    Tries to negotiate an XMPP c2s connection via ALPN (:rfc:`7301`).
     """
 
     ctx = OpenSSL.SSL.Context(OpenSSL.SSL.SSLv23_METHOD)
@@ -1154,6 +1164,15 @@ def negotiate_sasl(transport, xmlstream,
     stream after successful SASL authentication.
 
     .. versionadded:: 0.6
+
+    .. deprecated:: 0.10
+
+        The `negotiation_timeout` argument is ignored. The timeout is
+        controlled using the :attr:`~.XMLStream.deadtime_hard_limit` timeout
+        of the stream.
+
+        The argument will be removed in version 1.0. To prepare for this, please
+        pass `jid` and `features` as keyword arguments.
     """
 
     if not transport.get_extra_info("sslcontext"):
@@ -1164,14 +1183,18 @@ def negotiate_sasl(transport, xmlstream,
         try:
             result = yield from sasl_provider.execute(
                 jid, features, xmlstream, transport)
+        except ValueError as err:
+            raise errors.StreamNegotiationFailure(
+                "invalid credentials: {}".format(err)
+            ) from err
         except aiosasl.AuthenticationFailure as err:
             last_auth_error = err
             continue
 
         if result:
             features = yield from protocol.reset_stream_and_get_features(
-                xmlstream,
-                timeout=negotiation_timeout)
+                xmlstream
+            )
             break
     else:
         if last_auth_error:
@@ -1303,32 +1326,30 @@ def make(
     :param password_provider: Source for the password to authenticate with.
     :type password_provider: :class:`str` or coroutine
     :param pin_store: Enable use of certificate pin store: if it is a
-                      :class:`dict`, a new pin store is created (see `pin_type`
-                      argument) and filled with the data from the dict.
-                      Otherwise, the given pin store is used.
+        :class:`dict`, a new pin store is created (see `pin_type` argument) and
+        filled with the data from the dict. Otherwise, the given pin store is
+        used.
     :type pin_store: :class:`dict` (compatible to
-                     :meth:`~AbstractPinStore.import_from_json`) or
-                     :class:`AbstractPinStore`
+        :meth:`~AbstractPinStore.import_from_json`) or
+        :class:`AbstractPinStore`
     :param pin_type: Type of pin store to use with a dict passed to `pin_store`
-                     (ignored if no dict is passed to `pin_store`).
+        (ignored if no dict is passed to `pin_store`).
     :type pin_type: :class:`PinType`
     :param post_handshake_deferred_failure: Coroutine to call when using pin
-                                            store and the certificate is not in
-                                            the pin store and fails PKI
-                                            verification.
+        store and the certificate is not in the pin store and fails PKI
+        verification.
     :type post_handshake_deferred_failure: coroutine
     :param anonymous: trace token for SASL ANONYMOUS (:rfc:`4505`), enables
-                      ANONYMOUS authentication
+        ANONYMOUS authentication
     :type anonymous: :class:`str` or :data:`False`
-    :param no_verify: *Disable* all certificate verification. Usage is **strongly
-                      discouraged** outside controlled test environments. See
-                      below for alternatives.
+    :param no_verify: *Disable* all certificate verification. Usage is
+        **strongly discouraged** outside controlled test environments. See
+        below for alternatives.
     :type no_verify: :class:`bool`
     :raise RuntimeError: if `anonymous` is a :class:`str` and the version of
-                         :mod:`aiosasl` in use does not provide
-                         :class:`aiosasl.ANONYMOUS`
+        :mod:`aiosasl` in use does not provide :class:`aiosasl.ANONYMOUS`
     :return: A new :class:`SecurityLayer` instance configured as per the
-             arguments.
+        arguments.
 
     `password_provider` must either be a coroutine or a :class:`str`. As a
     coroutine, it is called during authentication with the JID we are trying to
@@ -1441,7 +1462,7 @@ def make(
             AnonymousSASLProvider(anonymous)
         )
 
-    if password_provider is not None or anonymous is False:
+    if password_provider is not None:
         sasl_providers.append(
             PasswordSASLProvider(
                 password_provider,

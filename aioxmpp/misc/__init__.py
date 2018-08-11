@@ -28,6 +28,14 @@ own subpackage because they often only define one or two XSOs without any logic
 involved. The XSOs are often intended for re-use by other protocols.
 
 
+Out of Band Data (:xep:`66`)
+============================
+
+.. autoclass:: OOBExtension
+
+.. attribute:: aioxmpp.Message.xep0066_oob
+
+
 Delayed Delivery (:xep:`203`)
 =============================
 
@@ -45,7 +53,30 @@ Stanza Forwarding (:xep:`297`)
 .. autoclass:: Forwarded()
 
 
+Chat Markers (:xep:`333`)
+=========================
+
+.. autoclass:: ReceivedMarker
+
+.. autoclass:: DisplayedMarker
+
+.. autoclass:: AcknowledgedMarker
+
+.. attribute:: aioxmpp.Message.xep0333_marker
+
+Pre-Authenticated Roster Subcription (:xep:`379`)
+=================================================
+
+.. autoclass:: Preauth
+
+.. attribute:: aioxmpp.Presence.xep0379_preauth
+
+   The pre-auth element associate with a subscription request.
+
 """
 
 from .delay import Delay  # NOQA
 from .forwarding import Forwarded  # NOQA
+from .oob import OOBExtension  # NOQA
+from .markers import ReceivedMarker, DisplayedMarker, AcknowledgedMarker  # NOQA
+from .pars import Preauth  # NOQA

@@ -96,6 +96,7 @@ class TestProtocol(unittest.TestCase):
             features_future=fut)
         t = TransportMock(self, p)
         s = aioxmpp.stream.StanzaStream(TEST_FROM.bare())
+        s.soft_timeout = timedelta(seconds=0.25)
 
         run_coroutine(t.run_test(
             [
@@ -119,9 +120,6 @@ class TestProtocol(unittest.TestCase):
         self.assertEqual(p.state, aioxmpp.protocol.State.OPEN)
 
         self.assertTrue(fut.done())
-
-        s.ping_interval = timedelta(seconds=0.25)
-        s.ping_opportunistic_interval = timedelta(seconds=0.25)
 
         s.start(p)
         run_coroutine_with_peer(
@@ -203,7 +201,7 @@ class TestProtocol(unittest.TestCase):
             )
         )
 
-    def test_sm_works_correctly_with_entirely_broken_stanza(self):
+    def test_sm_bootstrap_race(self):
         import aioxmpp.protocol
         import aioxmpp.stream
 
@@ -216,6 +214,7 @@ class TestProtocol(unittest.TestCase):
             features_future=fut)
         t = TransportMock(self, p)
         s = aioxmpp.stream.StanzaStream(TEST_FROM.bare())
+        s.soft_timeout = timedelta(seconds=0.25)
 
         run_coroutine(t.run_test(
             [
@@ -240,8 +239,90 @@ class TestProtocol(unittest.TestCase):
 
         self.assertTrue(fut.done())
 
-        s.ping_interval = timedelta(seconds=0.25)
-        s.ping_opportunistic_interval = timedelta(seconds=0.25)
+        s.start(p)
+        run_coroutine_with_peer(
+            s.start_sm(),
+            t.run_test(
+                [
+                    TransportMock.Write(
+                        b'<enable xmlns="urn:xmpp:sm:3" resume="true"/>',
+                        response=[
+                            TransportMock.Receive(
+                                b'<enabled xmlns="urn:xmpp:sm:3" '
+                                b'resume="true" id="foo"/>'
+                                b'<r xmlns="urn:xmpp:sm:3"/>'
+                            )
+                        ]
+                    )
+                ],
+                partial=True
+            )
+        )
+
+        self.assertTrue(s.sm_enabled)
+        self.assertEqual(s.sm_id, "foo")
+        self.assertTrue(s.sm_resumable)
+
+        run_coroutine(
+            t.run_test(
+                [
+                    TransportMock.Write(
+                        b'<a xmlns="urn:xmpp:sm:3" h="0"/>'
+                        b'<r xmlns="urn:xmpp:sm:3"/>',
+                        response=[
+                            TransportMock.Receive(
+                                b'<a xmlns="urn:xmpp:sm:3" h="0"/>',
+                            ),
+                            TransportMock.Receive(
+                                b'<r xmlns="urn:xmpp:sm:3"/>',
+                            )
+                        ]
+                    ),
+                    TransportMock.Write(
+                        b'<a xmlns="urn:xmpp:sm:3" h="0"/>'
+                    )
+                ],
+                partial=True
+            )
+        )
+
+    def test_sm_works_correctly_with_entirely_broken_stanza(self):
+        import aioxmpp.protocol
+        import aioxmpp.stream
+
+        version = (1, 0)
+
+        fut = asyncio.Future()
+        p = aioxmpp.protocol.XMLStream(
+            to=TEST_PEER,
+            sorted_attributes=True,
+            features_future=fut)
+        t = TransportMock(self, p)
+        s = aioxmpp.stream.StanzaStream(TEST_FROM.bare())
+        s.soft_timeout = timedelta(seconds=0.25)
+
+        run_coroutine(t.run_test(
+            [
+                TransportMock.Write(
+                    STREAM_HEADER,
+                    response=[
+                        TransportMock.Receive(
+                            PEER_STREAM_HEADER_TEMPLATE.format(
+                                minor=version[1],
+                                major=version[0]).encode("utf-8")),
+                        TransportMock.Receive(
+                            b"<stream:features><sm xmlns='urn:xmpp:sm:3'/>"
+                            b"</stream:features>"
+                        )
+                    ]
+                ),
+            ],
+            partial=True
+        ))
+
+        self.assertEqual(p.state, aioxmpp.protocol.State.OPEN)
+
+        self.assertTrue(fut.done())
 
         s.start(p)
         run_coroutine_with_peer(
@@ -437,3 +518,78 @@ class TestProtocol(unittest.TestCase):
         )
 
         s.stop()
+
+    def test_hard_deadtime_kills_stream(self):
+        import aioxmpp.protocol
+        import aioxmpp.stream
+
+        version = (1, 0)
+
+        fut = asyncio.Future()
+        p = aioxmpp.protocol.XMLStream(
+            to=TEST_PEER,
+            sorted_attributes=True,
+            features_future=fut)
+        t = TransportMock(self, p)
+        s = aioxmpp.stream.StanzaStream(TEST_FROM.bare())
+        s.soft_timeout = timedelta(seconds=0.1)
+        s.round_trip_time = timedelta(seconds=0.1)
+
+        failure_fut = s.on_failure.future()
+
+        run_coroutine(t.run_test(
+            [
+                TransportMock.Write(
+                    STREAM_HEADER,
+                    response=[
+                        TransportMock.Receive(
+                            PEER_STREAM_HEADER_TEMPLATE.format(
+                                minor=version[1],
+                                major=version[0]).encode("utf-8")),
+                    ]
+                ),
+            ],
+            partial=True
+        ))
+
+        self.assertEqual(p.state, aioxmpp.protocol.State.OPEN)
+
+        s.start(p)
+
+        IQ_bak = aioxmpp.IQ
+
+        def fake_iq_constructor(*args, **kwargs):
+            iq = IQ_bak(*args, **kwargs)
+            iq.id_ = "ping"
+            return iq
+
+        with unittest.mock.patch("aioxmpp.stanza.IQ") as IQ:
+            IQ.side_effect = fake_iq_constructor
+
+            run_coroutine(
+                t.run_test(
+                    [
+                        TransportMock.Write(
+                            b'<iq id="ping" type="get">'
+                            b'<ping xmlns="urn:xmpp:ping"/></iq>'
+                        ),
+                    ],
+                    partial=True
+                )
+            )
+
+        run_coroutine(
+            t.run_test(
+                [
+                    TransportMock.Abort(),
+                ],
+            )
+        )
+
+        run_coroutine(asyncio.sleep(0))
+
+        self.assertFalse(s.running)
+
+        self.assertTrue(failure_fut.done())
+        self.assertIsInstance(failure_fut.exception(), ConnectionError)
+        self.assertIn("timeout", str(failure_fut.exception()))

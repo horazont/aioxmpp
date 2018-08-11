@@ -1644,6 +1644,7 @@ class TestPasswordSASLProvider(xmltestutils.XMLTestCase):
             self._test_provider(
                 provider,
                 actions=[
+                    XMLStreamMock.Mute(),
                     XMLStreamMock.Send(
                         nonza.SASLAuth(mechanism="PLAIN",
                                        payload=payload),
@@ -1653,7 +1654,8 @@ class TestPasswordSASLProvider(xmltestutils.XMLTestCase):
                                            "malformed-request")
                             )
                         )
-                    )
+                    ),
+                    XMLStreamMock.Unmute(),
                 ],
                 tls_transport=True)
 
@@ -1674,13 +1676,15 @@ class TestPasswordSASLProvider(xmltestutils.XMLTestCase):
             self._test_provider(
                 provider,
                 actions=[
+                    XMLStreamMock.Mute(),
                     XMLStreamMock.Send(
                         nonza.SASLAuth(
                             mechanism="PLAIN",
                             payload=payload),
                         response=XMLStreamMock.Receive(
                             nonza.SASLSuccess())
-                    )
+                    ),
+                    XMLStreamMock.Unmute(),
                 ],
                 tls_transport=True)
         )
@@ -1710,6 +1714,7 @@ class TestPasswordSASLProvider(xmltestutils.XMLTestCase):
             self._test_provider(
                 provider,
                 actions=[
+                    XMLStreamMock.Mute(),
                     XMLStreamMock.Send(
                         nonza.SASLAuth(
                             mechanism="SCRAM-SHA-1",
@@ -1719,6 +1724,8 @@ class TestPasswordSASLProvider(xmltestutils.XMLTestCase):
                                 condition=(namespaces.sasl, "invalid-mechanism")
                             ))
                     ),
+                    XMLStreamMock.Unmute(),
+                    XMLStreamMock.Mute(),
                     XMLStreamMock.Send(
                         nonza.SASLAuth(
                             mechanism="PLAIN",
@@ -1727,6 +1734,7 @@ class TestPasswordSASLProvider(xmltestutils.XMLTestCase):
                             nonza.SASLSuccess()
                         )
                     ),
+                    XMLStreamMock.Unmute(),
                 ],
                 tls_transport=True)
         )
@@ -1751,13 +1759,14 @@ class TestPasswordSASLProvider(xmltestutils.XMLTestCase):
 
         self.password_provider.return_value = "foobar"
 
-        plain_payload = (b"\0"+str(self.client_jid.localpart).encode("utf-8")+
+        plain_payload = (b"\0"+str(self.client_jid.localpart).encode("utf-8") +
                          b"\0"+"foobar".encode("utf-8"))
 
         with self.assertRaises(aiosasl.AuthenticationFailure):
             self._test_provider(
                 provider,
                 actions=[
+                    XMLStreamMock.Mute(),
                     XMLStreamMock.Send(
                         nonza.SASLAuth(
                             mechanism="PLAIN",
@@ -1768,6 +1777,7 @@ class TestPasswordSASLProvider(xmltestutils.XMLTestCase):
                             )
                         )
                     ),
+                    XMLStreamMock.Unmute(),
                 ]*3,
                 tls_transport=True)
 
@@ -1780,6 +1790,40 @@ class TestPasswordSASLProvider(xmltestutils.XMLTestCase):
                 unittest.mock.call(self.client_jid.bare(), 2),
             ],
             self.password_provider.mock_calls
+        )
+
+    def test_re_query_for_credentials_on_value_error(self):
+        self.mechanisms.mechanisms.extend([
+            security_layer.SASLMechanism(name="PLAIN")
+        ])
+
+        provider = security_layer.PasswordSASLProvider(
+            self._password_provider_wrapper,
+            max_auth_attempts=3)
+
+        self.password_provider.return_value = "foobar"
+
+        with contextlib.ExitStack() as stack:
+            authenticate = stack.enter_context(unittest.mock.patch.object(
+                aiosasl.PLAIN,
+                "authenticate",
+            ))
+            authenticate.side_effect = ValueError
+            stack.enter_context(self.assertRaises(ValueError))
+
+            self._test_provider(
+                provider,
+                actions=[],
+                tls_transport=True
+            )
+
+        self.assertSequenceEqual(
+            authenticate.mock_calls,
+            [
+                unittest.mock.call(unittest.mock.ANY, unittest.mock.ANY),
+                unittest.mock.call(unittest.mock.ANY, unittest.mock.ANY),
+                unittest.mock.call(unittest.mock.ANY, unittest.mock.ANY),
+            ]
         )
 
     def test_fail_if_out_of_mechanisms(self):
@@ -1800,6 +1844,7 @@ class TestPasswordSASLProvider(xmltestutils.XMLTestCase):
             self._test_provider(
                 provider,
                 actions=[
+                    XMLStreamMock.Mute(),
                     XMLStreamMock.Send(
                         nonza.SASLAuth(
                             mechanism="SCRAM-SHA-1",
@@ -1811,6 +1856,8 @@ class TestPasswordSASLProvider(xmltestutils.XMLTestCase):
                             )
                         )
                     ),
+                    XMLStreamMock.Unmute(),
+                    XMLStreamMock.Mute(),
                     XMLStreamMock.Send(
                         nonza.SASLAuth(mechanism="PLAIN",
                                        payload=plain_payload),
@@ -1820,7 +1867,8 @@ class TestPasswordSASLProvider(xmltestutils.XMLTestCase):
                                            "mechanism-too-weak")
                             )
                         )
-                    )
+                    ),
+                    XMLStreamMock.Unmute(),
                 ],
                 tls_transport=True
             )
@@ -2102,6 +2150,41 @@ class Testnegotiate_sasl(xmltestutils.XMLTestCase):
             self.xmlstream,
             self.transport)
 
+    def test_wrap_ValueError_in_StreamNegotiationFailure(self):
+        exc = ValueError("invalid codepoint")
+
+        sasl_provider1 = unittest.mock.Mock()
+        sasl_provider1.execute = CoroutineMock()
+        sasl_provider1.execute.side_effect = exc
+
+        sasl_provider2 = unittest.mock.Mock()
+        sasl_provider2.execute = CoroutineMock()
+        sasl_provider2.execute.return_value = False
+
+        with self.assertRaises(errors.StreamNegotiationFailure) as ctx:
+            self._test_provider(
+                security_layer.negotiate_sasl(
+                    self.transport,
+                    self.xmlstream,
+                    [sasl_provider1,
+                     sasl_provider2],
+                    negotiation_timeout=1.0,
+                    jid=self.client_jid,
+                    features=self.features),
+                [
+                ]
+            )
+
+        self.assertIs(ctx.exception.__cause__, exc)
+
+        sasl_provider1.execute.assert_called_once_with(
+            self.client_jid,
+            self.features,
+            self.xmlstream,
+            self.transport)
+
+        sasl_provider2.execute.assert_not_called()
+
     def test_swallow_auth_error_if_auth_succeeds_with_different_mech(self):
         exc = aiosasl.AuthenticationFailure("credentials-expired")
 
@@ -2169,6 +2252,25 @@ class TestSTARTTLSProvider(unittest.TestCase):
         self.assertEqual(
             obj.tls_required,
             unittest.mock.sentinel.tls_required,
+        )
+
+
+class Test_default_ssl_context(unittest.TestCase):
+
+    def test_default_ssl_context(self):
+        with unittest.mock.patch.object(OpenSSL.SSL, "Context") as ctxt:
+            security_layer.default_ssl_context()
+
+        self.assertCountEqual(
+            ctxt.mock_calls,
+            [
+                unittest.mock.call(OpenSSL.SSL.SSLv23_METHOD),
+                unittest.mock.call().set_options(
+                    OpenSSL.SSL.OP_NO_SSLv2 | OpenSSL.SSL.OP_NO_SSLv3),
+                unittest.mock.call().set_verify(
+                    OpenSSL.SSL.VERIFY_PEER,
+                    security_layer.default_verify_callback),
+            ]
         )
 
 
@@ -2826,6 +2928,58 @@ class Testmake(unittest.TestCase):
             (
                 AnonymousSASLProvider(),
             )
+        )
+
+        self.assertEqual(
+            result,
+            SecurityLayer(),
+        )
+
+    def test_not_anonymous_without_password_provider(self):
+        with contextlib.ExitStack() as stack:
+            SecurityLayer = stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.security_layer.SecurityLayer"
+                )
+            )
+
+            PasswordSASLProvider = stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.security_layer.PasswordSASLProvider"
+                )
+            )
+
+            AnonymousSASLProvider = stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.security_layer.AnonymousSASLProvider"
+                )
+            )
+
+            PKIXCertificateVerifier = stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.security_layer.PKIXCertificateVerifier"
+                )
+            )
+
+            default_ssl_context = stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.security_layer.default_ssl_context"
+                )
+            )
+
+            result = security_layer.make(
+                None
+            )
+
+        PasswordSASLProvider.assert_not_called()
+
+        AnonymousSASLProvider.assert_not_called()
+
+        SecurityLayer.assert_called_with(
+            default_ssl_context,
+            PKIXCertificateVerifier,
+            True,
+            ()
         )
 
         self.assertEqual(

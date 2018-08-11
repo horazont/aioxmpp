@@ -78,7 +78,7 @@ class CarbonsClient(aioxmpp.service.Service):
         :raises RuntimeError: if the server does not support message carbons.
         :raises aioxmpp.XMPPError: if the server responded with an error to the
                                    request.
-        :raises: as specified in :meth:`aioxmpp.stream.StanzaStream.send`
+        :raises: as specified in :meth:`aioxmpp.Client.send`
         """
         yield from self._check_for_feature()
 
@@ -87,7 +87,7 @@ class CarbonsClient(aioxmpp.service.Service):
             payload=carbons_xso.Enable()
         )
 
-        yield from self.client.stream.send(iq)
+        yield from self.client.send(iq)
 
     @asyncio.coroutine
     def disable(self):
@@ -97,7 +97,7 @@ class CarbonsClient(aioxmpp.service.Service):
         :raises RuntimeError: if the server does not support message carbons.
         :raises aioxmpp.XMPPError: if the server responded with an error to the
                                    request.
-        :raises: as specified in :meth:`aioxmpp.stream.StanzaStream.send`
+        :raises: as specified in :meth:`aioxmpp.Client.send`
         """
         yield from self._check_for_feature()
 
@@ -106,4 +106,4 @@ class CarbonsClient(aioxmpp.service.Service):
             payload=carbons_xso.Disable()
         )
 
-        yield from self.client.stream.send(iq)
+        yield from self.client.send(iq)

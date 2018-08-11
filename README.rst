@@ -59,17 +59,20 @@ in the `official documentation`_ and `open GitHub issues tagged as enhancement
 <https://github.com/horazont/aioxmpp/issues?q=is%3Aissue+is%3Aopen+label%3Aenhancement>`_
 for things which are planned and read on below on how to contribute.
 
+Documentation
+=============
+
+The ``aioxmpp`` API is thoroughly documented using Sphinx. Check out the `official documentation`_ for a `quick start`_ and the `API reference`_.
+
 Dependencies
 ============
 
 * Python ≥ 3.4 (or Python = 3.3 with tulip and enum34)
 * DNSPython
 * lxml
-* `orderedset`__
+* `sortedcollections`__
 
-  (Note that ``ordered_set`` does not work!)
-
-  __ https://pypi.python.org/pypi/orderedset
+  __ https://pypi.python.org/pypi/sortedcollections
 
 * `tzlocal`__ (for i18n support)
 
@@ -92,9 +95,13 @@ Dependencies
 
   __ https://pypi.python.org/pypi/multidict
 
-* `aioopenssl`__ (optional, for now)
+* `aioopenssl`__
 
   __ https://github.com/horazont/aioopenssl
+
+* `typing`__ (Python < 3.5 only)
+
+  __ https://pypi.python.org/pypi/typing
 
 Contributing
 ============
@@ -142,5 +149,7 @@ Change log
 
 The `change log`_ is included in the `official documentation`_.
 
-.. _change log: https://docs.zombofant.net/aioxmpp/devel/api/changelog.html
-.. _official documentation: https://docs.zombofant.net/aioxmpp/0.9/
+.. _change log: https://docs.zombofant.net/aioxmpp/0.10/api/changelog.html
+.. _official documentation: https://docs.zombofant.net/aioxmpp/0.10/
+.. _quick start: https://docs.zombofant.net/aioxmpp/0.10/user-guide/quickstart.html
+.. _API reference: https://docs.zombofant.net/aioxmpp/0.10/api/index.html

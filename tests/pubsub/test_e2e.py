@@ -103,12 +103,14 @@ class TestOwnerUseCases(TestCase):
 
         self.assertEqual(len(items.payload.items), 1)
         yield from self.pubsub.purge(self.peer, self.node)
-        items = yield from self.pubsub.get_items_by_id(
+
+        # using get items instead of get_items_by_id to work around ejabberd
+        # #2288
+        items = yield from self.pubsub.get_items(
             self.peer,
             self.node,
-            [id_]
         )
-        self.assertFalse(items.payload.items)
+        self.assertEqual(len(items.payload.items), 0)
 
     @blocking
     def tearDown(self):

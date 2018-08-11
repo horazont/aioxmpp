@@ -21,8 +21,11 @@
 ########################################################################
 import asyncio
 
+import aioxmpp
 import aioxmpp.stream
 import aioxmpp.xso
+
+from aioxmpp.testutils import get_timeout
 
 from aioxmpp.e2etest import (
     blocking_timed,
@@ -67,14 +70,15 @@ class TestMessaging(TestCase):
                 type_=aioxmpp.MessageType.CHAT,
 
             )
-            msg_sent.body[None] = "Hello World!"
+            msg_sent.body[aioxmpp.structs.LanguageTag.fromstr("en")] = \
+                "Hello World!"
 
-            yield from a.stream.send(msg_sent)
+            yield from a.send(msg_sent)
 
             msg_rcvd = yield from fut
 
         self.assertEqual(
-            msg_rcvd.body[None],
+            msg_rcvd.body[aioxmpp.structs.LanguageTag.fromstr("en")],
             "Hello World!"
         )
 
@@ -92,7 +96,7 @@ class TestMisc(TestCase):
         )
 
         with self.assertRaises(aioxmpp.errors.XMPPCancelError):
-            yield from c.stream.send(iq)
+            yield from c.send(iq)
 
     @blocking_timed
     @asyncio.coroutine
@@ -106,7 +110,60 @@ class TestMisc(TestCase):
         )
 
         with self.assertRaises(aioxmpp.errors.XMPPCancelError):
+            yield from c.send(iq)
+
+    @blocking_timed
+    @asyncio.coroutine
+    def test_handle_malformed_iq_error_gracefully(self):
+        c = yield from self.provisioner.get_connected_client()
+
+        @asyncio.coroutine
+        def handler(iq):
+            # this is awful, but does the trick
+            c.stream._xmlstream.data_received(
+                "<iq type='error' from='{}' to='{}' id='{}'/>".format(
+                    c.local_jid,
+                    c.local_jid,
+                    iq.id_,
+                )
+            )
+
+        c.stream.register_iq_request_handler(
+            aioxmpp.IQType.GET,
+            MadeUpIQPayload,
+            handler,
+        )
+
+        iq = aioxmpp.IQ(
+            to=c.local_jid,
+            type_=aioxmpp.IQType.GET,
+            payload=MadeUpIQPayload()
+        )
+
+        with self.assertRaises(aioxmpp.errors.ErroneousStanza):
             yield from c.stream.send(iq)
+
+    @blocking_timed
+    @asyncio.coroutine
+    def test_handle_id_less_IQ_request_gracefully(self):
+        c = yield from self.provisioner.get_connected_client()
+
+        # let’s get even more brutal here
+        c.stream._xmlstream.data_received(
+            "<iq type='get' to='{}'/>".format(c.local_jid).encode('utf-8')
+        )
+
+        # now we send a simple IQ which shows us that the stream survived this
+        # attack
+
+        iq = aioxmpp.IQ(
+            to=c.local_jid.bare(),
+            type_=aioxmpp.IQType.GET,
+            payload=MadeUpIQPayload()
+        )
+
+        with self.assertRaises(aioxmpp.errors.XMPPCancelError):
+            yield from c.send(iq)
 
     @blocking_timed
     @asyncio.coroutine
@@ -120,8 +177,8 @@ class TestMisc(TestCase):
         msg.body[None] = "foo\u0000"
 
         with self.assertRaisesRegex(ValueError, "not allowed"):
-            yield from c.stream.send(msg)
+            yield from c.send(msg)
 
         msg.body[None] = "foo"
 
-        yield from c.stream.send(msg)
+        yield from c.send(msg)

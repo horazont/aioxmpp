@@ -82,37 +82,13 @@ Exceptions
 import base64
 import enum
 import random
+import warnings
 
 from . import xso, errors, structs
 
 from .utils import namespaces
 
 RANDOM_ID_BYTES = 120 // 8
-
-STANZA_ERROR_TAGS = (
-    "bad-request",
-    "conflict",
-    "feature-not-implemented",
-    "forbidden",
-    "gone",
-    "internal-server-error",
-    "item-not-found",
-    "jid-malformed",
-    "not-acceptable",
-    "not-allowed",
-    "not-authorized",
-    "policy-violation",
-    "recipient-unavailable",
-    "redirect",
-    "registration-required",
-    "remote-server-not-found",
-    "remote-server-timeout",
-    "resource-constraint",
-    "service-unavailable",
-    "subscription-required",
-    "undefined-condition",
-    "unexpected-request",
-)
 
 
 def _safe_format_attr(obj, attr_name):
@@ -205,6 +181,13 @@ class Error(xso.XSO):
     An XMPP stanza error. The keyword arguments can be used to initialize the
     attributes of the :class:`Error`.
 
+    :param condition: The error condition as enumeration member or XSO.
+    :type condition: :class:`aioxmpp.ErrorCondition` or :class:`aioxmpp.xso.XSO`
+    :param type_: The type of the error
+    :type type_: :class:`aioxmpp.ErrorType`
+    :param text: The optional error text
+    :type text: :class:`str` or :data:`None`
+
     .. attribute:: type_
 
        The type attribute of the stanza. The allowed values are enumerated in
@@ -234,6 +217,33 @@ class Error(xso.XSO):
        The standard defined condition which triggered the error. Possible
        values can be determined by looking at the RFC or the source.
 
+       This is a member of the :class:`aioxmpp.ErrorCondition` enumeration.
+
+       .. versionchanged:: 0.10
+
+          Starting with 0.10, the enumeration :class:`aioxmpp.ErrorCondition` is
+          used. Before, tuples equal to the tags of the child elements were
+          used (e.g. ``(namespaces.stanzas, "bad-request")``).
+
+          As of 0.10, setting the tuple equivalents is still supported.
+          However, reading from the attribute always returns the corresponding
+          enumeration members (which still compare equal to their tuple
+          equivalents).
+
+       .. deprecated:: 0.10
+
+          The use of the aforementioned tuple values is deprecated and will
+          lead to :exc:`TypeError` and/or :exc:`ValueError` being raised when
+          they are written to this attribute. See the changelog for notes on
+          the transition.
+
+    .. attribute:: condition_obj
+
+        An XSO object representing the child element representing the
+        :rfc:`6120` defined error condition.
+
+        .. versionadded:: 0.10
+
     .. attribute:: text
 
        The descriptive error text which is part of the error stanza, if any
@@ -246,12 +256,18 @@ class Error(xso.XSO):
 
     .. attribute:: application_condition
 
-       A :class:`.xso.XSO.Child` which can be used to register support for
-       application-specific errors.
+       Optional child :class:`~aioxmpp.xso.XSO` which describes the error
+       condition in more application specific detail.
 
     To register a class as application condition, use:
 
     .. automethod:: as_application_condition
+
+    Conversion to and from exceptions is supported with the following methods:
+
+    .. automethod:: to_exception
+
+    .. automethod:: from_exception
 
     """
 
@@ -273,7 +289,7 @@ class Error(xso.XSO):
 
     type_ = xso.Attr(
         tag="type",
-        type_=xso.EnumType(
+        type_=xso.EnumCDataType(
             structs.ErrorType,
             allow_coerce=True,
             deprecate_coerce=True,
@@ -287,39 +303,97 @@ class Error(xso.XSO):
         declare_prefix=None
     )
 
-    condition = xso.ChildTag(
-        tags=STANZA_ERROR_TAGS,
-        default_ns="urn:ietf:params:xml:ns:xmpp-stanzas",
-        allow_none=False,
-        declare_prefix=None,
+    condition_obj = xso.Child(
+        [member.xso_class for member in errors.ErrorCondition],
+        required=True,
     )
 
     application_condition = xso.Child([], required=False)
 
     def __init__(self,
-                 condition=(namespaces.stanzas, "undefined-condition"),
+                 condition=errors.ErrorCondition.UNDEFINED_CONDITION,
                  type_=structs.ErrorType.CANCEL,
                  text=None):
         super().__init__()
-        self.condition = condition
+        if not isinstance(condition, (errors.ErrorCondition, xso.XSO)):
+            condition = errors.ErrorCondition(condition)
+            warnings.warn(
+                "as of aioxmpp 1.0, error conditions must be members of the "
+                "aioxmpp.ErrorCondition enumeration",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+
+        self.condition_obj = condition.to_xso()
         self.type_ = type_
         self.text = text
 
+    @property
+    def condition(self):
+        return self.condition_obj.enum_member
+
+    @condition.setter
+    def condition(self, value):
+        if not isinstance(value, errors.ErrorCondition):
+            value = errors.ErrorCondition(value)
+            warnings.warn(
+                "as of aioxmpp 1.0, error conditions must be members of the "
+                "aioxmpp.ErrorCondition enumeration",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+
+        if self.condition == value:
+            return
+
+        self.condition_obj = value.xso_class()
+
     @classmethod
     def from_exception(cls, exc):
-        return cls(
+        """
+        Construct a new :class:`Error` payload from the attributes of the
+        exception.
+
+        :param exc: The exception to convert
+        :type exc: :class:`aioxmpp.errors.XMPPError`
+        :result: Newly constructed error payload
+        :rtype: :class:`Error`
+
+        .. versionchanged:: 0.10
+
+            The :attr:`aioxmpp.XMPPError.application_defined_condition` is now
+            taken over into the result.
+        """
+        result = cls(
             condition=exc.condition,
             type_=exc.TYPE,
             text=exc.text
         )
+        result.application_condition = exc.application_defined_condition
+        return result
 
     def to_exception(self):
+        """
+        Convert the error payload to a :class:`~aioxmpp.errors.XMPPError`
+        subclass.
+
+        :result: Newly constructed exception
+        :rtype: :class:`aioxmpp.errors.XMPPError`
+
+        The exact type of the result depends on the :attr:`type_` (see
+        :class:`~aioxmpp.errors.XMPPError` about the existing subclasses).
+
+        The :attr:`condition_obj`, :attr:`text` and
+        :attr:`application_condition` are transferred to the respective
+        attributes of the :class:`~aioxmpp.errors.XMPPError`.
+        """
         if hasattr(self.application_condition, "to_exception"):
             result = self.application_condition.to_exception(self.type_)
             if isinstance(result, Exception):
                 return result
+
         return self.EXCEPTION_CLS_MAP[self.type_](
-            condition=self.condition,
+            condition=self.condition_obj,
             text=self.text,
             application_defined_condition=self.application_condition,
         )
@@ -347,7 +421,7 @@ class Error(xso.XSO):
             payload = " text={!r}".format(self.text)
 
         return "<{} type={!r}{}>".format(
-            self.condition[1],
+            self.condition.value[1],
             self.type_,
             payload)
 
@@ -630,7 +704,7 @@ class Message(StanzaBase):
     id_ = xso.Attr(tag="id", default=None)
     type_ = xso.Attr(
         tag="type",
-        type_=xso.EnumType(
+        type_=xso.EnumCDataType(
             structs.MessageType,
             allow_coerce=True,
             deprecate_coerce=True,
@@ -641,6 +715,7 @@ class Message(StanzaBase):
             accept_unknown=False,
         ),
         default=structs.MessageType.NORMAL,
+        erroneous_as_absent=True,
     )
 
     body = xso.ChildTextMap(Body)
@@ -764,7 +839,7 @@ class Presence(StanzaBase):
     id_ = xso.Attr(tag="id", default=None)
     type_ = xso.Attr(
         tag="type",
-        type_=xso.EnumType(
+        type_=xso.EnumCDataType(
             structs.PresenceType,
             allow_coerce=True,
             deprecate_coerce=True,
@@ -779,7 +854,7 @@ class Presence(StanzaBase):
 
     show = xso.ChildText(
         tag=(namespaces.client, "show"),
-        type_=xso.EnumType(
+        type_=xso.EnumCDataType(
             structs.PresenceShow,
             allow_coerce=True,
             deprecate_coerce=True,
@@ -787,6 +862,7 @@ class Presence(StanzaBase):
             accept_unknown=False,
         ),
         default=structs.PresenceShow.NONE,
+        erroneous_as_absent=True,
     )
 
     status = xso.ChildTextMap(Status)
@@ -874,7 +950,7 @@ class IQ(StanzaBase):
     id_ = xso.Attr(tag="id")
     type_ = xso.Attr(
         tag="type",
-        type_=xso.EnumType(
+        type_=xso.EnumCDataType(
             structs.IQType,
             allow_coerce=True,
             deprecate_coerce=True,
@@ -893,12 +969,27 @@ class IQ(StanzaBase):
         self.payload = payload
         self.error = error
 
-    def validate(self):
+    def _validate(self):
         try:
             self.id_
         except AttributeError:
             raise ValueError("IQ requires ID") from None
+
+        if self.type_ == structs.IQType.ERROR and self.error is None:
+            raise ValueError("IQ with type='error' requires error payload")
+
         super().validate()
+
+    def validate(self):
+        try:
+            self._validate()
+        except Exception as exc:
+            raise StanzaError(
+                "invalid IQ stanza",
+                self,
+                None,
+                None,
+            )
 
     def make_reply(self, type_):
         if not self.type_.is_request:

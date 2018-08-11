@@ -706,17 +706,17 @@ class Service(metaclass=Meta):
     """
 
     def __init__(self, client, *, logger_base=None, dependencies={}):
-        super().__init__()
-        self.__context = contextlib.ExitStack()
-        self.__client = client
-        self.__dependencies = dependencies
-
         if logger_base is None:
             self.logger = logging.getLogger(".".join([
                 type(self).__module__, type(self).__qualname__
             ]))
         else:
             self.logger = self.derive_logger(logger_base)
+
+        super().__init__()
+        self.__context = contextlib.ExitStack()
+        self.__client = client
+        self.__dependencies = dependencies
 
         for item in self.SERVICE_HANDLERS:
             if isinstance(item, Descriptor):
@@ -927,6 +927,12 @@ def _apply_connect_depsignal(instance, stream, func, dependency, signal_name,
     if mode is None:
         return signal.context_connect(func)
     else:
+        try:
+            mode_func, args = mode
+        except TypeError:
+            pass
+        else:
+            mode = mode_func(*args)
         return signal.context_connect(func, mode)
 
 
@@ -946,30 +952,56 @@ def _apply_connect_attrsignal(instance, stream, func, descriptor, signal_name,
     if mode is None:
         return signal.context_connect(func)
     else:
+        try:
+            mode_func, args = mode
+        except TypeError:
+            pass
+        else:
+            mode = mode_func(*args)
         return signal.context_connect(func, mode)
 
 
 def iq_handler(type_, payload_cls):
     """
-    Register the decorated coroutine function as IQ request handler.
+    Register the decorated function or coroutine function as IQ request
+    handler.
 
     :param type_: IQ type to listen for
     :type type_: :class:`~.IQType`
     :param payload_cls: Payload XSO class to listen for
     :type payload_cls: :class:`~.XSO` subclass
-    :raise TypeError: if the decorated object is not a coroutine function
+    :raises ValueError: if `payload_cls` is not a registered IQ payload
+
+    If the decorated function is not a coroutine function, it must return an
+    awaitable instead.
 
     .. seealso::
 
-       :meth:`~.StanzaStream.register_iq_request_coro`
-          for more details on the `type_` and `payload_cls` arguments
+        :meth:`~.StanzaStream.register_iq_request_handler`
+            for more details on the `type_` and `payload_cls` arguments, as well
+            as behaviour expected from the decorated function.
+        :meth:`aioxmpp.IQ.as_payload_class`
+            for a way to register a XSO as IQ payload
+
+    .. versionchanged:: 0.10
+
+        The decorator now checks if `payload_cls` is a valid, registered IQ
+        payload and raises :class:`ValueError` if not.
 
     """
 
-    def decorator(f):
-        if not asyncio.iscoroutinefunction(f):
-            raise TypeError("a coroutine function is required")
+    if (not hasattr(payload_cls, "TAG") or
+            (aioxmpp.IQ.CHILD_MAP.get(payload_cls.TAG) is not
+             aioxmpp.IQ.payload.xq_descriptor) or
+            payload_cls not in aioxmpp.IQ.payload._classes):
+        raise ValueError(
+            "{!r} is not a valid IQ payload "
+            "(use IQ.as_payload_class decorator)".format(
+                payload_cls,
+            )
+        )
 
+    def decorator(f):
         add_handler_spec(
             f,
             HandlerSpec(
@@ -1124,14 +1156,14 @@ def _signal_connect_mode(signal, f, defer):
     else:
         if asyncio.iscoroutinefunction(f):
             if defer:
-                mode = aioxmpp.callbacks.AdHocSignal.SPAWN_WITH_LOOP(None)
+                mode = aioxmpp.callbacks.AdHocSignal.SPAWN_WITH_LOOP, (None,)
             else:
                 raise TypeError(
                     "cannot use coroutine function with this signal"
                     " without defer"
                 )
         elif defer:
-            mode = aioxmpp.callbacks.AdHocSignal.ASYNC_WITH_LOOP(None)
+            mode = aioxmpp.callbacks.AdHocSignal.ASYNC_WITH_LOOP, (None,)
         else:
             mode = aioxmpp.callbacks.AdHocSignal.STRONG
 

@@ -21,6 +21,7 @@
 ########################################################################
 import asyncio
 
+import aioxmpp
 import aioxmpp.adhoc
 
 from aioxmpp.utils import namespaces
@@ -138,7 +139,7 @@ class TestAdHocServer(TestCase):
         self.server_svc.register_stateless_command(
             "simple",
             {
-                None: "Simple command",
+                aioxmpp.structs.LanguageTag.fromstr("en"): "Simple command",
                 aioxmpp.structs.LanguageTag.fromstr("de"): "Einfacher Befehl",
             },
             self._trivial_handler,
@@ -165,7 +166,7 @@ class TestAdHocServer(TestCase):
         self.server_svc.register_stateless_command(
             "simple",
             {
-                None: "Simple command",
+                aioxmpp.structs.LanguageTag.fromstr("en"): "Simple command",
                 aioxmpp.structs.LanguageTag.fromstr("de"): "Einfacher Befehl",
             },
             self._trivial_handler,
@@ -188,7 +189,8 @@ class TestAdHocServer(TestCase):
 
         self.assertCountEqual(
             [
-                ("automation", "command-node", None, "Simple command"),
+                ("automation", "command-node",
+                 aioxmpp.structs.LanguageTag.fromstr("en"), "Simple command"),
                 ("automation", "command-node",
                  aioxmpp.structs.LanguageTag.fromstr("de"), "Einfacher Befehl"),
             ],
@@ -204,7 +206,7 @@ class TestAdHocServer(TestCase):
         self.server_svc.register_stateless_command(
             "simple",
             {
-                None: "Simple command",
+                aioxmpp.structs.LanguageTag.fromstr("en"): "Simple command",
                 aioxmpp.structs.LanguageTag.fromstr("de"): "Einfacher Befehl",
             },
             self._trivial_handler,
@@ -227,7 +229,7 @@ class TestAdHocServer(TestCase):
     @blocking_timed
     @asyncio.coroutine
     def test_properly_fail_for_unknown_command(self):
-        with self.assertRaises(aioxmpp.errors.XMPPCancelError) as ctx:
+        with self.assertRaises(aioxmpp.XMPPCancelError) as ctx:
             session = yield from self.client_svc.execute(
                 self.server.local_jid,
                 "simple",
@@ -235,5 +237,5 @@ class TestAdHocServer(TestCase):
 
         self.assertEqual(
             ctx.exception.condition,
-            (namespaces.stanzas, "item-not-found")
+            aioxmpp.ErrorCondition.ITEM_NOT_FOUND
         )

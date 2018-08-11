@@ -19,6 +19,8 @@
 # <http://www.gnu.org/licenses/>.
 #
 ########################################################################
+import enum
+import io
 import unittest
 import unittest.mock
 
@@ -30,6 +32,7 @@ import aioxmpp.stanza as stanza
 import aioxmpp.structs
 import aioxmpp.stringprep
 import aioxmpp.utils as utils
+import aioxmpp.xml
 import aioxmpp.xso as xso
 
 
@@ -61,6 +64,34 @@ class TestNamespaces(unittest.TestCase):
         self.assertEqual(
             utils.namespaces.xep0045_muc_owner,
             "http://jabber.org/protocol/muc#owner"
+        )
+
+    def test_direct_invite_namespace(self):
+        self.assertEqual(
+            utils.namespaces.xep0249_conference,
+            "jabber:x:conference"
+        )
+
+
+class TestStatusCode(unittest.TestCase):
+    def test_is_int_enum(self):
+        self.assertTrue(issubclass(
+            muc_xso.StatusCode,
+            enum.IntEnum,
+        ))
+
+    def test_operates_correctly_with_sets(self):
+        self.assertEqual(
+            muc_xso.StatusCode.AFFILIATION_CHANGE,
+            101,
+        )
+        self.assertSetEqual(
+            {muc_xso.StatusCode.AFFILIATION_CHANGE},
+            {101}
+        )
+        self.assertSetEqual(
+            {muc_xso.StatusCode.AFFILIATION_CHANGE},
+            {101, muc_xso.StatusCode.AFFILIATION_CHANGE}
         )
 
 
@@ -262,49 +293,133 @@ class TestStatus(unittest.TestCase):
         )
         self.assertIsInstance(
             muc_xso.Status.code.type_,
-            xso.Integer
+            xso.EnumCDataType
         )
+        self.assertIsInstance(
+            muc_xso.Status.code.type_.nested_type,
+            xso.Integer,
+        )
+        self.assertEqual(
+            muc_xso.Status.code.type_.enum_class,
+            muc_xso.StatusCode
+        )
+        self.assertTrue(muc_xso.Status.code.type_.allow_coerce)
+        self.assertFalse(muc_xso.Status.code.type_.deprecate_coerce)
+        self.assertTrue(muc_xso.Status.code.type_.pass_unknown)
         self.assertEqual(
             muc_xso.Status.code.default,
             xso.NO_DEFAULT
         )
 
     def test_init(self):
-        item = muc_xso.Status(200)
-        self.assertEqual(item.code, 200)
+        item = muc_xso.Status(muc_xso.StatusCode.CONFIG_SEMI_ANONYMOUS)
+        self.assertEqual(item.code, 173)
+        self.assertEqual(item.code, muc_xso.StatusCode.CONFIG_SEMI_ANONYMOUS)
+
+    def test_can_deserialise_arbitrary_integer(self):
+        src = io.BytesIO(
+            b"<status xmlns='http://jabber.org/protocol/muc#user' code='1234'/>"
+        )
+        item = aioxmpp.xml.read_single_xso(
+            src,
+            muc_xso.Status,
+        )
+
+        self.assertEqual(
+            item.code,
+            1234,
+        )
+
+    def test_prefers_enum_if_possible(self):
+        src = io.BytesIO(
+            b"<status xmlns='http://jabber.org/protocol/muc#user' code='101'/>"
+        )
+        item = aioxmpp.xml.read_single_xso(
+            src,
+            muc_xso.Status,
+        )
+
+        self.assertIsInstance(
+            item.code,
+            muc_xso.StatusCode,
+        )
+
+    def test_can_serialise_arbitrary_integer(self):
+        buf = io.BytesIO()
+        aioxmpp.xml.write_single_xso(
+            muc_xso.Status(1234),
+            buf,
+        )
+        buf.seek(0, io.SEEK_SET)
+
+        item = aioxmpp.xml.read_single_xso(
+            buf,
+            muc_xso.Status,
+        )
+
+        self.assertEqual(
+            item.code,
+            1234,
+        )
+
+    def test_coerces_if_possible(self):
+        item = muc_xso.Status(201)
+        self.assertIsInstance(item.code, muc_xso.StatusCode)
+        self.assertEqual(item.code, 201)
+
+    def test_can_serialise_enum_member(self):
+        buf = io.BytesIO()
+        aioxmpp.xml.write_single_xso(
+            muc_xso.Status(muc_xso.StatusCode.CREATED),
+            buf,
+        )
+        buf.seek(0, io.SEEK_SET)
+
+        item = aioxmpp.xml.read_single_xso(
+            buf,
+            muc_xso.Status,
+        )
+
+        self.assertEqual(
+            item.code,
+            muc_xso.StatusCode.CREATED,
+        )
 
 
 class TestStatusCodeList(unittest.TestCase):
-    def test_is_abstract_type(self):
+    def test_is_element_type(self):
         self.assertTrue(issubclass(
             muc_xso.StatusCodeList,
-            xso.AbstractType
+            xso.AbstractElementType
         ))
 
     def setUp(self):
         self.type_ = muc_xso.StatusCodeList()
 
-    def test_parse(self):
+    def tearDown(self):
+        del self.type_
+
+    def test_unpack(self):
         item = muc_xso.Status(123)
 
         self.assertEqual(
-            self.type_.parse(item),
+            self.type_.unpack(item),
             123
         )
 
-    def test_format(self):
-        item = self.type_.format(123)
+    def test_pack(self):
+        item = self.type_.pack(123)
         self.assertIsInstance(
             item,
             muc_xso.Status
         )
         self.assertEqual(item.code, 123)
 
-    def test_get_formatted_type(self):
-        self.assertIs(self.type_.get_formatted_type(), muc_xso.Status)
-
-    def tearDown(self):
-        del self.type_
+    def test_get_xso_types(self):
+        self.assertCountEqual(
+            self.type_.get_xso_types(),
+            [muc_xso.Status]
+        )
 
 
 class TestDestroyNotification(unittest.TestCase):
@@ -460,6 +575,19 @@ class TestInvite(unittest.TestCase):
         )
         self.assertIsNone(
             muc_xso.Invite.reason.default
+        )
+
+    def test_password(self):
+        self.assertIsInstance(
+            muc_xso.Invite.password,
+            xso.ChildText
+        )
+        self.assertEqual(
+            muc_xso.Invite.password.tag,
+            (utils.namespaces.xep0045_muc_user, "password")
+        )
+        self.assertIsNone(
+            muc_xso.Invite.password.default
         )
 
 
@@ -1139,3 +1267,131 @@ class TestOwnerQuery(unittest.TestCase):
             oq.destroy,
             unittest.mock.sentinel.destroy,
         )
+
+
+class TestDirectInvite(unittest.TestCase):
+    def test_is_xso(self):
+        self.assertTrue(issubclass(
+            muc_xso.DirectInvite,
+            xso.XSO,
+        ))
+
+    def test_tag(self):
+        self.assertEqual(
+            muc_xso.DirectInvite.TAG,
+            (utils.namespaces.xep0249_conference, "x")
+        )
+
+    def test_jid(self):
+        self.assertIsInstance(
+            muc_xso.DirectInvite.jid,
+            xso.Attr,
+        )
+        self.assertEqual(
+            muc_xso.DirectInvite.jid.tag,
+            (None, "jid")
+        )
+        self.assertIsInstance(
+            muc_xso.DirectInvite.jid.type_,
+            xso.JID,
+        )
+        self.assertIs(
+            muc_xso.DirectInvite.jid.default,
+            xso.NO_DEFAULT,
+        )
+
+    def test_password(self):
+        self.assertIsInstance(
+            muc_xso.DirectInvite.password,
+            xso.Attr,
+        )
+        self.assertEqual(
+            muc_xso.DirectInvite.password.tag,
+            (None, "password")
+        )
+        self.assertIs(
+            muc_xso.DirectInvite.password.default,
+            None
+        )
+
+    def test_reason(self):
+        self.assertIsInstance(
+            muc_xso.DirectInvite.reason,
+            xso.Attr,
+        )
+        self.assertEqual(
+            muc_xso.DirectInvite.reason.tag,
+            (None, "reason")
+        )
+        self.assertIs(
+            muc_xso.DirectInvite.reason.default,
+            None
+        )
+
+    def test_continue(self):
+        self.assertIsInstance(
+            muc_xso.DirectInvite.continue_,
+            xso.Attr,
+        )
+        self.assertEqual(
+            muc_xso.DirectInvite.continue_.tag,
+            (None, "continue")
+        )
+        self.assertIsInstance(
+            muc_xso.DirectInvite.continue_.type_,
+            xso.Bool,
+        )
+        self.assertIs(
+            muc_xso.DirectInvite.continue_.default,
+            False,
+        )
+
+    def test_thread(self):
+        self.assertIsInstance(
+            muc_xso.DirectInvite.thread,
+            xso.Attr,
+        )
+        self.assertEqual(
+            muc_xso.DirectInvite.thread.tag,
+            (None, "thread")
+        )
+        self.assertIs(
+            muc_xso.DirectInvite.thread.default,
+            None
+        )
+
+    def test_message_attribute(self):
+        self.assertIsInstance(
+            aioxmpp.Message.xep0249_direct_invite,
+            xso.Child,
+        )
+        self.assertCountEqual(
+            aioxmpp.Message.xep0249_direct_invite._classes,
+            [muc_xso.DirectInvite],
+        )
+
+    def test_init_requires_jid(self):
+        with self.assertRaisesRegex(TypeError, "required"):
+            muc_xso.DirectInvite()
+
+    def test_init_default(self):
+        di = muc_xso.DirectInvite(TEST_JID)
+        self.assertEqual(di.jid, TEST_JID)
+        self.assertIsNone(di.reason)
+        self.assertIsNone(di.password)
+        self.assertFalse(di.continue_)
+        self.assertIsNone(di.thread)
+
+    def test_init_full(self):
+        di = muc_xso.DirectInvite(
+            TEST_JID,
+            reason="some reason",
+            password="the password",
+            continue_=True,
+            thread="xyz",
+        )
+        self.assertEqual(di.jid, TEST_JID)
+        self.assertEqual(di.reason, "some reason")
+        self.assertEqual(di.password, "the password")
+        self.assertTrue(di.continue_)
+        self.assertEqual(di.thread, "xyz")

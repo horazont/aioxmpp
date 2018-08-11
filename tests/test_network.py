@@ -503,6 +503,57 @@ class Testrepeated_query(unittest.TestCase):
             self.answer,
         )
 
+    def test_reconfigure_resolver_after_first_NoNameservers(self):
+        def reconfigure():
+            self.tlr.set_flags(None)
+            self.tlr.define_actions([
+                (
+                    (
+                        "xn--4ca0bs.example.com",
+                        dns.rdatatype.A,
+                        dns.rdataclass.IN,
+                        False,
+                        (dns.flags.RD | dns.flags.AD),
+                    ),
+                    self.answer,
+                )
+            ])
+
+        self.base.reconfigure_resolver.side_effect = reconfigure
+
+        self.tlr.define_actions([
+            (
+                (
+                    "xn--4ca0bs.example.com",
+                    dns.rdatatype.A,
+                    dns.rdataclass.IN,
+                    False,
+                    (dns.flags.RD | dns.flags.AD),
+                ),
+                dns.resolver.NoNameservers(),
+            )
+        ])
+
+        with self.tlr:
+            result = run_coroutine(network.repeated_query(
+                "äöü.example.com".encode("idna"),
+                dns.rdatatype.A,
+            ))
+
+        self.assertSequenceEqual(
+            self.base.mock_calls,
+            [
+                unittest.mock.call.get_resolver(),
+                unittest.mock.call.reconfigure_resolver(),
+                unittest.mock.call.get_resolver(),
+            ]
+        )
+
+        self.assertIs(
+            result,
+            self.answer,
+        )
+
     def test_use_tcp_after_second_timeout(self):
         def reconfigure():
             self.tlr.set_flags(None)
@@ -773,6 +824,17 @@ class Testrepeated_query(unittest.TestCase):
                 ),
                 dns.resolver.NoNameservers(),
             ),
+            # need NoNameservers once more since reconfig will happen inbetween
+            (
+                (
+                    "xn--4ca0bs.example.com",
+                    dns.rdatatype.A,
+                    dns.rdataclass.IN,
+                    False,
+                    (dns.flags.RD | dns.flags.AD),
+                ),
+                dns.resolver.NoNameservers(),
+            ),
             (
                 (
                     "xn--4ca0bs.example.com",
@@ -807,6 +869,17 @@ class Testrepeated_query(unittest.TestCase):
                 ),
                 dns.resolver.NoNameservers(),
             ),
+            # need NoNameservers once more since reconfig will happen inbetween
+            (
+                (
+                    "xn--4ca0bs.example.com",
+                    dns.rdatatype.A,
+                    dns.rdataclass.IN,
+                    False,
+                    (dns.flags.RD | dns.flags.AD),
+                ),
+                dns.resolver.NoNameservers(),
+            ),
             (
                 (
                     "xn--4ca0bs.example.com",
@@ -831,6 +904,17 @@ class Testrepeated_query(unittest.TestCase):
 
     def test_treat_NXDOMAIN_as_succeeded_query_in_validation_query(self):
         self.tlr.define_actions([
+            (
+                (
+                    "xn--4ca0bs.example.com",
+                    dns.rdatatype.A,
+                    dns.rdataclass.IN,
+                    False,
+                    (dns.flags.RD | dns.flags.AD),
+                ),
+                dns.resolver.NoNameservers(),
+            ),
+            # need NoNameservers once more since reconfig will happen inbetween
             (
                 (
                     "xn--4ca0bs.example.com",
@@ -934,6 +1018,17 @@ class Testrepeated_query(unittest.TestCase):
                 ),
                 dns.resolver.NoNameservers(),
             ),
+            # need NoNameservers once more since reconfig will happen inbetween
+            (
+                (
+                    "xn--4ca0bs.example.com",
+                    dns.rdatatype.A,
+                    dns.rdataclass.IN,
+                    False,
+                    (dns.flags.RD | dns.flags.AD),
+                ),
+                dns.resolver.NoNameservers(),
+            ),
             (
                 (
                     "xn--4ca0bs.example.com",
@@ -988,8 +1083,8 @@ class Testlookup_srv(unittest.TestCase):
                 resolver=unittest.mock.sentinel.resolver,
             )),
             [
-                (0, 1, ("xmpp.foo.test", 5222)),
-                (2, 1, ("xmpp.bar.test", 5222)),
+                (0, 1, (b"xmpp.foo.test", 5222)),
+                (2, 1, (b"xmpp.bar.test", 5222)),
             ]
         )
 
@@ -1255,6 +1350,19 @@ class Testgroup_and_order_srv_records(unittest.TestCase):
         self.assertEqual(
             0.51,
             host_chances[3][3])
+
+    def test_equal_prio_weight_and_uncomparable_object(self):
+        o1, o2, = object(), object()
+
+        records = [
+            (0, 0, o1),
+            (0, 0, o2),
+        ]
+
+        self.assertSequenceEqual(
+            [o1, o2],
+            list(network.group_and_order_srv_records(records))
+        )
 
 
 class Testfind_xmpp_host_addr(unittest.TestCase):

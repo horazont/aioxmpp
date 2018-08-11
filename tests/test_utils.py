@@ -25,6 +25,7 @@ import sys
 import unittest
 import unittest.mock
 
+import aioxmpp.errors as errors
 import aioxmpp.utils as utils
 
 from aioxmpp.testutils import (
@@ -62,14 +63,14 @@ class Testbackground_task(unittest.TestCase):
         del self.coro
 
     def test_enter_starts_coroutine(self):
-        with unittest.mock.patch("asyncio.async") as async_:
+        with unittest.mock.patch("asyncio.ensure_future") as async_:
             self.cm.__enter__()
 
         async_.assert_called_with(self.started_coro)
         self.assertFalse(async_().cancel.mock_calls)
 
     def test_exit_cancels_coroutine(self):
-        with unittest.mock.patch("asyncio.async") as async_:
+        with unittest.mock.patch("asyncio.ensure_future") as async_:
             self.cm.__enter__()
             self.cm.__exit__(None, None, None)
 
@@ -81,7 +82,7 @@ class Testbackground_task(unittest.TestCase):
         except:
             exc_info = sys.exc_info()
 
-        with unittest.mock.patch("asyncio.async") as async_:
+        with unittest.mock.patch("asyncio.ensure_future") as async_:
             self.cm.__enter__()
             result = self.cm.__exit__(*exc_info)
 
@@ -290,7 +291,7 @@ class TestLazyTask(unittest.TestCase):
 
         fut = utils.LazyTask(self.coro)
 
-        result = run_coroutine(asyncio.async(fut))
+        result = run_coroutine(asyncio.ensure_future(fut))
 
         self.assertEqual(result, unittest.mock.sentinel.result)
 
@@ -299,7 +300,7 @@ class TestLazyTask(unittest.TestCase):
 
         fut = utils.LazyTask(self.coro)
 
-        result2 = run_coroutine(asyncio.async(fut))
+        result2 = run_coroutine(asyncio.ensure_future(fut))
         result1 = run_coroutine(fut)
 
         self.assertEqual(result1, result2)
@@ -311,7 +312,7 @@ class TestLazyTask(unittest.TestCase):
         fut = utils.LazyTask(self.coro)
         cb = unittest.mock.Mock(["__call__"])
 
-        with unittest.mock.patch("asyncio.async") as async_:
+        with unittest.mock.patch("asyncio.ensure_future") as async_:
             fut.add_done_callback(cb)
             async_.assert_called_once_with(unittest.mock.ANY)
 
@@ -350,3 +351,76 @@ class TestLazyTask(unittest.TestCase):
             unittest.mock.sentinel.a2,
             unittest.mock.sentinel.a3,
         )
+
+
+class Testgather_reraise_multi(unittest.TestCase):
+
+    def test_with_empty_list(self):
+        self.assertEqual(
+            run_coroutine(utils.gather_reraise_multi()),
+            []
+        )
+
+    def test_with_one_successful_task(self):
+        @asyncio.coroutine
+        def foo():
+            return True
+
+        self.assertEqual(
+            run_coroutine(utils.gather_reraise_multi(foo())),
+            [True]
+        )
+
+    def test_with_one_failing_task(self):
+        @asyncio.coroutine
+        def foo():
+            raise RuntimeError
+
+        try:
+            run_coroutine(utils.gather_reraise_multi(foo()))
+        except errors.GatherError as e:
+            self.assertIs(type(e.exceptions[0]), RuntimeError)
+
+
+    def test_with_two_successful_tasks(self):
+        @asyncio.coroutine
+        def foo():
+            return True
+
+        @asyncio.coroutine
+        def bar():
+            return False
+
+        self.assertEqual(
+            run_coroutine(utils.gather_reraise_multi(foo(), bar())),
+            [True, False]
+        )
+
+    def test_with_two_tasks_one_failing(self):
+        @asyncio.coroutine
+        def foo():
+            raise RuntimeError
+
+        @asyncio.coroutine
+        def bar():
+            return False
+
+        try:
+            run_coroutine(utils.gather_reraise_multi(foo(), bar()))
+        except errors.GatherError as e:
+            self.assertIs(type(e.exceptions[0]), RuntimeError)
+
+    def test_with_two_tasks_both_failing(self):
+        @asyncio.coroutine
+        def foo():
+            raise RuntimeError
+
+        @asyncio.coroutine
+        def bar():
+            raise Exception
+
+        try:
+            run_coroutine(utils.gather_reraise_multi(foo(), bar()))
+        except errors.GatherError as e:
+            self.assertIs(type(e.exceptions[0]), RuntimeError)
+            self.assertIs(type(e.exceptions[1]), Exception)

@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 ########################################################################
-# File name: travis-e2etest.py
+# File name: travis-e2etest-prosody.py
 # This file is part of: aioxmpp
 #
 # LICENSE
@@ -26,6 +26,8 @@ import os
 import time
 import sys
 
+prosody_branch = os.environ["PROSODY_BRANCH"]
+
 prosody = subprocess.Popen(
     [
         "./prosody",
@@ -41,10 +43,14 @@ if prosody.poll() is not None:
 
 try:
     subprocess.check_call(
-        ["python3",
-         "-m", "aioxmpp.e2etest",
-         "--e2etest-config=.travis-e2etest.ini",
-         "tests"]
+        [
+            "python3",
+            "-m", "aioxmpp.e2etest",
+            "--e2etest-config=utils/prosody-cfg/{}/e2etest.ini".format(
+                prosody_branch,
+            ),
+            "tests"
+        ]
     )
 finally:
     prosody.kill()

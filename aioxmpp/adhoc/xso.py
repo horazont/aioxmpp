@@ -76,7 +76,7 @@ class Note(xso.XSO):
 
     type_ = xso.Attr(
         "type",
-        type_=xso.EnumType(
+        type_=xso.EnumCDataType(
             NoteType,
         ),
         default=NoteType.INFO,
@@ -105,7 +105,7 @@ class Actions(xso.XSO):
 
     execute = xso.Attr(
         "execute",
-        type_=xso.EnumType(ActionType),
+        type_=xso.EnumCDataType(ActionType),
         validator=xso.RestrictToSet({
             ActionType.NEXT,
             ActionType.PREV,
@@ -147,13 +147,13 @@ class Command(xso.XSO):
 
     action = xso.Attr(
         "action",
-        type_=xso.EnumType(ActionType),
+        type_=xso.EnumCDataType(ActionType),
         default=ActionType.EXECUTE,
     )
 
     status = xso.Attr(
         "status",
-        type_=xso.EnumType(CommandStatus),
+        type_=xso.EnumCDataType(CommandStatus),
         default=None,
     )
 

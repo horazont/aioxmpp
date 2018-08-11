@@ -94,7 +94,7 @@ class TestTaskPool(unittest.TestCase):
         with contextlib.ExitStack() as stack:
             async_ = stack.enter_context(
                 unittest.mock.patch(
-                    "asyncio.async"
+                    "asyncio.ensure_future"
                 )
             )
 
@@ -123,7 +123,7 @@ class TestTaskPool(unittest.TestCase):
         with contextlib.ExitStack() as stack:
             async_ = stack.enter_context(
                 unittest.mock.patch(
-                    "asyncio.async"
+                    "asyncio.ensure_future"
                 )
             )
 

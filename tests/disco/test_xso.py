@@ -226,28 +226,33 @@ class TestFeature(unittest.TestCase):
 
 
 class TestFeatureSet(unittest.TestCase):
-    def test_is_abstract_type(self):
+    def test_is_element_type(self):
         self.assertTrue(issubclass(
             disco_xso.FeatureSet,
-            xso.AbstractType
+            xso.AbstractElementType
         ))
 
     def setUp(self):
         self.type_ = disco_xso.FeatureSet()
 
-    def test_get_formatted_type(self):
-        self.assertIs(self.type_.get_formatted_type(),
-                      disco_xso.Feature)
+    def tearDown(self):
+        del self.type_
 
-    def test_parse(self):
+    def test_get_xso_types(self):
+        self.assertCountEqual(
+            self.type_.get_xso_types(),
+            [disco_xso.Feature]
+        )
+
+    def test_unpack(self):
         item = disco_xso.Feature(var="foobar")
         self.assertEqual(
             "foobar",
-            self.type_.parse(item)
+            self.type_.unpack(item)
         )
 
-    def test_format(self):
-        item = self.type_.format("foobar")
+    def test_pack(self):
+        item = self.type_.pack("foobar")
         self.assertIsInstance(
             item,
             disco_xso.Feature
@@ -256,9 +261,6 @@ class TestFeatureSet(unittest.TestCase):
             item.var,
             "foobar"
         )
-
-    def tearDown(self):
-        del self.type_
 
 
 class TestInfoQuery(unittest.TestCase):

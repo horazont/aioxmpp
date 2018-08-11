@@ -66,6 +66,10 @@ class Quirk(enum.Enum):
         "https://zombofant.net/xmlns/aioxmpp/e2etest/quirks#muc-id-rewrite"
     NO_ADHOC_PING = \
         "https://zombofant.net/xmlns/aioxmpp/e2etest/quirks#no-adhoc-ping"
+    MUC_NO_333 = \
+        "https://zombofant.net/xmlns/aioxmpp/e2etest/quirks#muc-no-333"
+    BROKEN_MUC = \
+        "https://zombofant.net/xmlns/aioxmpp/e2etest/quirks#broken-muc"
 
 
 def fix_quirk_str(s):
@@ -465,7 +469,10 @@ class Provisioner(metaclass=abc.ABCMeta):
 
         futures = []
         for cm in self._accounts_to_dispose:
-            futures.append(asyncio.async(cm.__aexit__(None, None, None)))
+            futures.append(asyncio.ensure_future(
+                cm.__aexit__(None, None, None)
+            ))
+
         self._accounts_to_dispose.clear()
 
         self._logger.debug("waiting for %d accounts to shut down",

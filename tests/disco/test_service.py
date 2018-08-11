@@ -250,7 +250,7 @@ class TestNode(unittest.TestCase):
         cb.mock_calls.clear()
 
         with self.assertRaisesRegex(ValueError,
-                                   "identity already claimed"):
+                                    "identity already claimed"):
             n.register_identity("client", "pc")
 
         self.assertFalse(cb.mock_calls)
@@ -287,6 +287,60 @@ class TestNode(unittest.TestCase):
             },
             set(n.iter_identities(unittest.mock.sentinel.stanza))
         )
+
+    def test_set_identity_names_updates_text_and_emits_cb(self):
+        n = disco_service.Node()
+
+        n.register_identity(
+            "client", "pc",
+            names={
+                structs.LanguageTag.fromstr("en"): "default identity",
+                structs.LanguageTag.fromstr("de"): "Standardidentität",
+            }
+        )
+
+        cb = unittest.mock.Mock()
+        n.on_info_changed.connect(cb)
+
+        n.set_identity_names(
+            "client", "pc",
+            names={
+                structs.LanguageTag.fromstr("en"): "test identity",
+                structs.LanguageTag.fromstr("de"): "Testidentität",
+            }
+        )
+
+        cb.assert_called_with()
+
+        self.assertSetEqual(
+            {
+                ("client", "pc",
+                 structs.LanguageTag.fromstr("en"), "test identity"),
+                ("client", "pc",
+                 structs.LanguageTag.fromstr("de"), "Testidentität"),
+            },
+            set(n.iter_identities(unittest.mock.sentinel.stanza))
+        )
+
+    def test_set_identity_names_rejects_if_identity_not_registered(self):
+        n = disco_service.Node()
+
+        cb = unittest.mock.Mock()
+        n.on_info_changed.connect(cb)
+
+        with self.assertRaisesRegex(
+                ValueError,
+                r"identity not registered"):
+
+            n.set_identity_names(
+                "client", "pc",
+                names={
+                    structs.LanguageTag.fromstr("en"): "test identity",
+                    structs.LanguageTag.fromstr("de"): "Testidentität",
+                }
+            )
+
+        cb.assert_not_called()
 
     def test_unregister_identity_prohibits_removal_of_last_identity(self):
         n = disco_service.Node()
@@ -614,12 +668,12 @@ class TestDiscoServer(unittest.TestCase):
 
         self.assertCountEqual(
             [
-                unittest.mock.call.stream.register_iq_request_coro(
+                unittest.mock.call.stream.register_iq_request_handler(
                     structs.IQType.GET,
                     disco_xso.InfoQuery,
                     s.handle_info_request
                 ),
-                unittest.mock.call.stream.register_iq_request_coro(
+                unittest.mock.call.stream.register_iq_request_handler(
                     structs.IQType.GET,
                     disco_xso.ItemsQuery,
                     s.handle_items_request
@@ -632,11 +686,11 @@ class TestDiscoServer(unittest.TestCase):
         run_coroutine(self.s.shutdown())
         self.assertCountEqual(
             [
-                unittest.mock.call.stream.unregister_iq_request_coro(
+                unittest.mock.call.stream.unregister_iq_request_handler(
                     structs.IQType.GET,
                     disco_xso.InfoQuery
                 ),
-                unittest.mock.call.stream.unregister_iq_request_coro(
+                unittest.mock.call.stream.unregister_iq_request_handler(
                     structs.IQType.GET,
                     disco_xso.ItemsQuery
                 ),
@@ -688,7 +742,7 @@ class TestDiscoServer(unittest.TestCase):
             run_coroutine(self.s.handle_info_request(self.request_iq))
 
         self.assertEqual(
-            (namespaces.stanzas, "item-not-found"),
+            errors.ErrorCondition.ITEM_NOT_FOUND,
             ctx.exception.condition
         )
 
@@ -965,7 +1019,7 @@ class TestDiscoClient(unittest.TestCase):
         node = "foobar"
         response = disco_xso.InfoQuery()
 
-        self.cc.stream.send.return_value = response
+        self.cc.send.return_value = response
 
         result = run_coroutine(
             self.s.send_and_decode_info_query(to, node)
@@ -975,10 +1029,10 @@ class TestDiscoClient(unittest.TestCase):
 
         self.assertEqual(
             1,
-            len(self.cc.stream.send.mock_calls)
+            len(self.cc.send.mock_calls)
         )
 
-        call, = self.cc.stream.send.mock_calls
+        call, = self.cc.send.mock_calls
         # call[1] are args
         request_iq, = call[1]
 
@@ -1253,7 +1307,7 @@ class TestDiscoClient(unittest.TestCase):
             ncall += 1
             if ncall == 1:
                 raise errors.XMPPCancelError(
-                    condition=(namespaces.stanzas, "feature-not-implemented"),
+                    condition=errors.ErrorCondition.FEATURE_NOT_IMPLEMENTED
                 )
             else:
                 raise ConnectionError()
@@ -1263,10 +1317,10 @@ class TestDiscoClient(unittest.TestCase):
                 "send_and_decode_info_query",
                 new=mock):
 
-            task1 = asyncio.async(
+            task1 = asyncio.ensure_future(
                 self.s.query_info(to, node="foobar")
             )
-            task2 = asyncio.async(
+            task2 = asyncio.ensure_future(
                 self.s.query_info(to, node="foobar")
             )
 
@@ -1284,7 +1338,7 @@ class TestDiscoClient(unittest.TestCase):
                 "send_and_decode_info_query",
                 new=CoroutineMock()) as send_and_decode:
             send_and_decode.side_effect = errors.XMPPCancelError(
-                condition=(namespaces.stanzas, "feature-not-implemented"),
+                condition=errors.ErrorCondition.FEATURE_NOT_IMPLEMENTED
             )
 
             with self.assertRaises(errors.XMPPCancelError):
@@ -1319,6 +1373,38 @@ class TestDiscoClient(unittest.TestCase):
 
             result2 = run_coroutine(
                 self.s.query_info(to, node="foobar", require_fresh=True)
+            )
+
+        self.assertIs(result1, response1)
+        self.assertIs(result2, response2)
+
+        self.assertEqual(
+            2,
+            len(send_and_decode.mock_calls)
+        )
+
+    def test_flush_cache_clears_info_cache(self):
+        to = structs.JID.fromstr("user@foo.example/res1")
+
+        with unittest.mock.patch.object(
+                self.s,
+                "send_and_decode_info_query",
+                new=CoroutineMock()) as send_and_decode:
+            response1 = {}
+
+            send_and_decode.return_value = response1
+
+            result1 = run_coroutine(
+                self.s.query_info(to, node="foobar")
+            )
+
+            self.s.flush_cache()
+
+            response2 = {}
+            send_and_decode.return_value = response2
+
+            result2 = run_coroutine(
+                self.s.query_info(to, node="foobar")
             )
 
         self.assertIs(result1, response1)
@@ -1426,8 +1512,8 @@ class TestDiscoClient(unittest.TestCase):
             send_and_decode.return_value = response
             send_and_decode.delay = 0.1
 
-            q1 = asyncio.async(self.s.query_info(to))
-            q2 = asyncio.async(self.s.query_info(to))
+            q1 = asyncio.ensure_future(self.s.query_info(to))
+            q2 = asyncio.ensure_future(self.s.query_info(to))
 
             run_coroutine(asyncio.sleep(0.05))
 
@@ -1449,7 +1535,7 @@ class TestDiscoClient(unittest.TestCase):
         to = structs.JID.fromstr("user@foo.example/res1")
         response = disco_xso.ItemsQuery()
 
-        self.cc.stream.send.return_value = response
+        self.cc.send.return_value = response
 
         result = run_coroutine(
             self.s.query_items(to)
@@ -1458,10 +1544,10 @@ class TestDiscoClient(unittest.TestCase):
         self.assertIs(result, response)
         self.assertEqual(
             1,
-            len(self.cc.stream.send.mock_calls)
+            len(self.cc.send.mock_calls)
         )
 
-        call, = self.cc.stream.send.mock_calls
+        call, = self.cc.send.mock_calls
         # call[1] are args
         request_iq, = call[1]
 
@@ -1481,7 +1567,7 @@ class TestDiscoClient(unittest.TestCase):
         to = structs.JID.fromstr("user@foo.example/res1")
         response = disco_xso.ItemsQuery()
 
-        self.cc.stream.send.return_value = response
+        self.cc.send.return_value = response
 
         with self.assertRaises(TypeError):
             self.s.query_items(to, "foobar")
@@ -1493,10 +1579,10 @@ class TestDiscoClient(unittest.TestCase):
         self.assertIs(result, response)
         self.assertEqual(
             1,
-            len(self.cc.stream.send.mock_calls)
+            len(self.cc.send.mock_calls)
         )
 
-        call, = self.cc.stream.send.mock_calls
+        call, = self.cc.send.mock_calls
         # call[1] are args
         request_iq, = call[1]
 
@@ -1516,7 +1602,7 @@ class TestDiscoClient(unittest.TestCase):
         to = structs.JID.fromstr("user@foo.example/res1")
         response = disco_xso.ItemsQuery()
 
-        self.cc.stream.send.return_value = response
+        self.cc.send.return_value = response
 
         with self.assertRaises(TypeError):
             self.s.query_items(to, "foobar")
@@ -1533,7 +1619,7 @@ class TestDiscoClient(unittest.TestCase):
 
         self.assertEqual(
             1,
-            len(self.cc.stream.send.mock_calls)
+            len(self.cc.send.mock_calls)
         )
 
     def test_query_items_reraises_and_aliases_exception(self):
@@ -1547,20 +1633,20 @@ class TestDiscoClient(unittest.TestCase):
             ncall += 1
             if ncall == 1:
                 raise errors.XMPPCancelError(
-                    condition=(namespaces.stanzas, "feature-not-implemented"),
+                    condition=errors.ErrorCondition.FEATURE_NOT_IMPLEMENTED
                 )
             else:
                 raise ConnectionError()
 
         with unittest.mock.patch.object(
-                self.cc.stream,
+                self.cc,
                 "send",
                 new=mock):
 
-            task1 = asyncio.async(
+            task1 = asyncio.ensure_future(
                 self.s.query_info(to, node="foobar")
             )
-            task2 = asyncio.async(
+            task2 = asyncio.ensure_future(
                 self.s.query_info(to, node="foobar")
             )
 
@@ -1573,9 +1659,9 @@ class TestDiscoClient(unittest.TestCase):
     def test_query_info_reraises_but_does_not_cache_exception(self):
         to = structs.JID.fromstr("user@foo.example/res1")
 
-        self.cc.stream.send.side_effect = \
+        self.cc.send.side_effect = \
             errors.XMPPCancelError(
-                condition=(namespaces.stanzas, "feature-not-implemented"),
+                condition=errors.ErrorCondition.FEATURE_NOT_IMPLEMENTED,
             )
 
         with self.assertRaises(errors.XMPPCancelError):
@@ -1583,7 +1669,7 @@ class TestDiscoClient(unittest.TestCase):
                 self.s.query_items(to, node="foobar")
             )
 
-        self.cc.stream.send.side_effect = \
+        self.cc.send.side_effect = \
             ConnectionError()
 
         with self.assertRaises(ConnectionError):
@@ -1595,7 +1681,7 @@ class TestDiscoClient(unittest.TestCase):
         to = structs.JID.fromstr("user@foo.example/res1")
 
         response1 = disco_xso.ItemsQuery()
-        self.cc.stream.send.return_value = response1
+        self.cc.send.return_value = response1
 
         with self.assertRaises(TypeError):
             self.s.query_items(to, "foobar")
@@ -1605,7 +1691,7 @@ class TestDiscoClient(unittest.TestCase):
         )
 
         response2 = disco_xso.ItemsQuery()
-        self.cc.stream.send.return_value = response2
+        self.cc.send.return_value = response2
 
         result2 = run_coroutine(
             self.s.query_items(to, node="foobar", require_fresh=True)
@@ -1616,14 +1702,44 @@ class TestDiscoClient(unittest.TestCase):
 
         self.assertEqual(
             2,
-            len(self.cc.stream.send.mock_calls)
+            len(self.cc.send.mock_calls)
+        )
+
+    def test_flush_cache_clears_items_cache(self):
+        to = structs.JID.fromstr("user@foo.example/res1")
+
+        response1 = disco_xso.ItemsQuery()
+        self.cc.send.return_value = response1
+
+        with self.assertRaises(TypeError):
+            self.s.query_items(to, "foobar")
+
+        result1 = run_coroutine(
+            self.s.query_items(to, node="foobar")
+        )
+
+        response2 = disco_xso.ItemsQuery()
+        self.cc.send.return_value = response2
+
+        self.s.flush_cache()
+
+        result2 = run_coroutine(
+            self.s.query_items(to, node="foobar")
+        )
+
+        self.assertIs(result1, response1)
+        self.assertIs(result2, response2)
+
+        self.assertEqual(
+            2,
+            len(self.cc.send.mock_calls)
         )
 
     def test_query_items_cache_clears_on_disconnect(self):
         to = structs.JID.fromstr("user@foo.example/res1")
 
         response1 = disco_xso.ItemsQuery()
-        self.cc.stream.send.return_value = response1
+        self.cc.send.return_value = response1
 
         with self.assertRaises(TypeError):
             self.s.query_items(to, "foobar")
@@ -1635,7 +1751,7 @@ class TestDiscoClient(unittest.TestCase):
         self.cc.on_stream_destroyed()
 
         response2 = disco_xso.ItemsQuery()
-        self.cc.stream.send.return_value = response2
+        self.cc.send.return_value = response2
 
         result2 = run_coroutine(
             self.s.query_items(to, node="foobar")
@@ -1646,15 +1762,15 @@ class TestDiscoClient(unittest.TestCase):
 
         self.assertEqual(
             2,
-            len(self.cc.stream.send.mock_calls)
+            len(self.cc.send.mock_calls)
         )
 
     def test_query_items_timeout(self):
         to = structs.JID.fromstr("user@foo.example/res1")
         response = disco_xso.ItemsQuery()
 
-        self.cc.stream.send.delay = 1
-        self.cc.stream.send.return_value = response
+        self.cc.send.delay = 1
+        self.cc.send.return_value = response
 
         with self.assertRaises(TimeoutError):
             result = run_coroutine(
@@ -1665,14 +1781,14 @@ class TestDiscoClient(unittest.TestCase):
             [
                 unittest.mock.call(unittest.mock.ANY),
             ],
-            self.cc.stream.send.mock_calls
+            self.cc.send.mock_calls
         )
 
     def test_query_items_deduplicate_requests(self):
         to = structs.JID.fromstr("user@foo.example/res1")
         response = disco_xso.ItemsQuery()
 
-        self.cc.stream.send.return_value = response
+        self.cc.send.return_value = response
 
         result = run_coroutine(
             asyncio.gather(
@@ -1688,18 +1804,18 @@ class TestDiscoClient(unittest.TestCase):
             [
                 unittest.mock.call(unittest.mock.ANY),
             ],
-            self.cc.stream.send.mock_calls
+            self.cc.send.mock_calls
         )
 
     def test_query_items_transparent_deduplication_when_cancelled(self):
         to = structs.JID.fromstr("user@foo.example/res1")
         response = disco_xso.ItemsQuery()
 
-        self.cc.stream.send.return_value = response
-        self.cc.stream.send.delay = 0.1
+        self.cc.send.return_value = response
+        self.cc.send.delay = 0.1
 
-        q1 = asyncio.async(self.s.query_items(to))
-        q2 = asyncio.async(self.s.query_items(to))
+        q1 = asyncio.ensure_future(self.s.query_items(to))
+        q2 = asyncio.ensure_future(self.s.query_items(to))
 
         run_coroutine(asyncio.sleep(0.05))
 
@@ -1714,7 +1830,7 @@ class TestDiscoClient(unittest.TestCase):
                 unittest.mock.call(unittest.mock.ANY),
                 unittest.mock.call(unittest.mock.ANY),
             ],
-            self.cc.stream.send.mock_calls
+            self.cc.send.mock_calls
         )
 
     def test_set_info_cache(self):
@@ -1728,7 +1844,7 @@ class TestDiscoClient(unittest.TestCase):
         )
 
         other_response = disco_xso.InfoQuery()
-        self.cc.stream.send.return_value = \
+        self.cc.send.return_value = \
             other_response
 
         result = run_coroutine(self.s.query_info(to, node=None))
@@ -1747,7 +1863,7 @@ class TestDiscoClient(unittest.TestCase):
             fut
         )
 
-        request = asyncio.async(
+        request = asyncio.ensure_future(
             self.s.query_info(to)
         )
 
@@ -1771,7 +1887,7 @@ class TestDiscoClient(unittest.TestCase):
             fut
         )
 
-        request = asyncio.async(
+        request = asyncio.ensure_future(
             self.s.query_info(to)
         )
 
@@ -1845,12 +1961,11 @@ class Testmount_as_node(unittest.TestCase):
         self.disco_server.unmount_node.assert_not_called()
         try:
             raise Exception()
-        except:
+        except:  # NOQA
             cm.__exit__(*sys.exc_info())
         self.disco_server.unmount_node.assert_called_once_with(
             unittest.mock.sentinel.mountpoint,
         )
-
 
 
 class TestRegisteredFeature(unittest.TestCase):
@@ -2069,7 +2184,7 @@ class Testregister_feature(unittest.TestCase):
         self.disco_server.unregister_feature.assert_not_called()
         try:
             raise Exception()
-        except:
+        except:  # NOQA
             cm.__exit__(*sys.exc_info())
         self.disco_server.unregister_feature.assert_called_once_with(
             unittest.mock.sentinel.feature,

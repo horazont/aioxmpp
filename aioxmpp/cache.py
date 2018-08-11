@@ -1,3 +1,24 @@
+########################################################################
+# File name: cache.py
+# This file is part of: aioxmpp
+#
+# LICENSE
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Lesser General Public License as
+# published by the Free Software Foundation, either version 3 of the
+# License, or (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# Lesser General Public License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public
+# License along with this program.  If not, see
+# <http://www.gnu.org/licenses/>.
+#
+########################################################################
 """
 :mod:`~aioxmpp.cache` --- Utilities for implementing caches
 ###########################################################
@@ -11,6 +32,58 @@
 """
 
 import collections.abc
+
+
+class Node:
+    __slots__ = ("prev", "next_", "key", "value")
+
+
+def _init_linked_list():
+    root = Node()
+    root.prev = root
+    root.next_ = root
+    root.key = None
+    root.value = None
+    return root
+
+
+def _remove_node(node):
+    node.next_.prev = node.prev
+    node.prev.next_ = node.next_
+    return node
+
+
+def _insert_node(before, new_node):
+    new_node.next_ = before.next_
+    new_node.next_.prev = new_node
+    new_node.prev = before
+    before.next_ = new_node
+
+
+def _length(node):
+    # this is used only for testing
+    cur = node.next_
+    i = 0
+    while cur is not node:
+        i += 1
+        cur = cur.next_
+    return i
+
+
+def _has_consistent_links(node, node_dict=None):
+    # this is used only for testing
+    cur = node.next_
+
+    if cur.prev is not node:
+        return False
+
+    while cur is not node:
+        if node_dict is not None and node_dict[cur.key] is not cur:
+            return False
+        if cur is not cur.next_.prev:
+            return False
+        cur = cur.next_
+    return True
 
 
 class LRUDict(collections.abc.MutableMapping):
@@ -31,25 +104,26 @@ class LRUDict(collections.abc.MutableMapping):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.__data = {}
-        self.__data_used = {}
-        self.__maxsize = 1
-        self.__ctr = 0
+        self.__links = {}
+        self.__root = _init_linked_list()
 
-    def _purge_old(self, n):
-        keys_in_age_order = sorted(
-            self.__data_used.items(),
-            key=lambda x: x[1]
-        )
-        keys_to_delete = keys_in_age_order[:n]
-        for key, _ in keys_to_delete:
-            del self.__data[key]
-            del self.__data_used[key]
-        keys_to_keep = keys_in_age_order[n:]
-        # avoid the counter becoming large
-        self.__ctr = len(keys_to_keep)
-        for i, (key, _) in enumerate(keys_to_keep):
-            self.__data_used[key] = i
+        self.__maxsize = 1
+
+    def _test_consistency(self):
+        """
+        This method is only used for testing to assert that the operations
+        leave the LRUDict in a valid state.
+        """
+        return (_length(self.__root) == len(self.__links) and
+                _has_consistent_links(self.__root, self.__links))
+
+    def _purge(self):
+        if self.__maxsize is None:
+            return
+
+        while len(self.__links) > self.__maxsize:
+            link = _remove_node(self.__root.prev)
+            del self.__links[link.key]
 
     @property
     def maxsize(self):
@@ -71,29 +145,35 @@ class LRUDict(collections.abc.MutableMapping):
         if value is not None and value <= 0:
             raise ValueError("maxsize must be positive integer or None")
         self.__maxsize = value
-        if self.__maxsize is not None and len(self.__data) > self.__maxsize:
-            self._purge_old(len(self.__data) - self.__maxsize)
+        self._purge()
 
     def __len__(self):
-        return len(self.__data)
+        return len(self.__links)
 
     def __iter__(self):
-        return iter(self.__data)
+        return iter(self.__links)
 
     def __setitem__(self, key, value):
-        if self.__maxsize is not None and len(self.__data) >= self.__maxsize:
-            self._purge_old(len(self.__data) - (self.__maxsize-1))
-        self.__data[key] = value
-        self.__data_used[key] = self.__ctr
+        try:
+            self.__links[key].value = value
+        except KeyError:
+            link = Node()
+            link.key = key
+            link.value = value
+            self.__links[key] = link
+            _insert_node(self.__root, link)
+            self._purge()
 
     def __getitem__(self, key):
-        result = self.__data[key]
-        counter = self.__ctr
-        counter += 1
-        self.__ctr = counter
-        self.__data_used[key] = counter
-        return result
+        link = self.__links[key]
+        _remove_node(link)
+        _insert_node(self.__root, link)
+        return link.value
 
     def __delitem__(self, key):
-        del self.__data[key]
-        del self.__data_used[key]
+        link = self.__links.pop(key)
+        _remove_node(link)
+
+    def clear(self):
+        self.__links.clear()
+        self.__root = _init_linked_list()

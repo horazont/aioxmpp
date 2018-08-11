@@ -131,6 +131,7 @@ class ConversationFeature(enum.Enum):
     INVITE_MEDIATED = 'invite-mediated'
     INVITE_UPGRADE = 'invite-upgrade'
     KICK = 'kick'
+    LEAVE = 'leave'
     SEND_MESSAGE = 'send-message'
     SEND_MESSAGE_TRACKED = 'send-message-tracked'
     SET_TOPIC = 'set-topic'
@@ -214,6 +215,22 @@ class ConversationState(enum.Enum):
 
 
 class AbstractConversationMember(metaclass=abc.ABCMeta):
+    """
+    Represent a member in a :class:`~.AbstractConversation`.
+
+    While all :term:`implementations <Conversation Implementation>` will have
+    their own additional attributes, the following attributes must exist on
+    all subclasses:
+
+    .. autoattribute:: conversation_jid
+
+    .. autoattribute:: direct_jid
+
+    .. autoattribute:: is_self
+
+    .. autoattribute:: uid
+    """
+
     def __init__(self,
                  conversation_jid,
                  is_self):
@@ -223,6 +240,13 @@ class AbstractConversationMember(metaclass=abc.ABCMeta):
 
     @property
     def direct_jid(self):
+        """
+        If available, this is the :class:`~aioxmpp.JID` address of the member
+        for direct contact, outside of the conversation. It is independent of
+        the conversation itself.
+
+        If not available, this attribute reads as :data:`None`.
+        """
         return None
 
     @property
@@ -235,7 +259,25 @@ class AbstractConversationMember(metaclass=abc.ABCMeta):
 
     @property
     def is_self(self):
+        """
+        True if the member refers to ourselves in the conversation, false
+        otherwise.
+        """
         return self._is_self
+
+    @abc.abstractproperty
+    def uid(self) -> bytes:
+        """
+        This is a unique ID for the occupant. It can be used across sessions
+        and restarts to assert equality between occupants. It is guaranteed
+        to be equal if and only if the entity is the same (up to a uncertainty
+        caused by the limited length of the unique ID, somewhere in the order
+        of ``2**(-120)``).
+
+        The identifier is always a :class:`bytes` and **must** be treated as
+        opaque by users. The only guarantee which is given is that its length
+        will be less than 4096 bytes.
+        """
 
 
 class AbstractConversation(metaclass=abc.ABCMeta):
@@ -267,7 +309,17 @@ class AbstractConversation(metaclass=abc.ABCMeta):
 
     Signals:
 
-    .. signal:: on_message(msg, member, source, **kwargs)
+    .. note::
+
+        The `member` argument common to many signals is never :data:`None` and
+        alwyas an instance of a subclass of
+        :class:`~.AbstractConversationMember`. However, the `member` may not be
+        part of the :attr:`members` of the conversation. For example, it may be
+        the :attr:`service_member` object which is never part of
+        :attr:`members`. Other cases where a non-member is passed as `member`
+        may exist depending on the conversation subclass.
+
+    .. signal:: on_message(msg, member, source, tracker=None, **kwargs)
 
        A message occured in the conversation.
 
@@ -277,6 +329,8 @@ class AbstractConversation(metaclass=abc.ABCMeta):
        :type member: :class:`.AbstractConversationMember`
        :param source: How the message was acquired
        :type source: :class:`~.MessageSource`
+       :param tracker: A message tracker which tracks an outbound message.
+       :type tracker: :class:`aioxmpp.tracking.MessageTracker`
 
        This signal is emitted on the following events:
 
@@ -305,6 +359,13 @@ class AbstractConversation(metaclass=abc.ABCMeta):
        as :meth:`on_state_changed` signals) are dispatched to this event. This
        may include messages not understood and/or which carry no textual
        payload.
+
+       `tracker` is set only for messages sent by the local member. If a
+       message is sent from the client without tracking, `tracker` is
+       :data:`None`; otherwise, the `tracker` is always set, even for messages
+       sent by other clients. It depends on the conversation implementation as
+       well as timing in which state a tracker is at the time the event is
+       emitted.
 
     .. signal:: on_state_changed(member, new_state, msg, **kwargs)
 
@@ -377,6 +438,80 @@ class AbstractConversation(metaclass=abc.ABCMeta):
         :param new_topic: The new topic of the conversation.
         :type new_topic: :class:`.LanguageMap`
 
+    .. signal:: on_uid_changed(member, old_uid, **kwargs)
+
+        This rare signal notifies that the
+        :attr:`~.AbstractConversationMember.uid` of a member has changed.
+
+        :param member: The member object for which the UID has changed.
+        :type member: :class:`~.AbstractConversationMember`
+        :param old_uid: The old UID of the member.
+        :type old_uid: :class:`bytes`
+
+        The new uid is already available at the members
+        :attr:`~.AbstractConversationMember.uid` attribute.
+
+        This signal can only fire for multi-user conversations where the
+        visibility of identifying information changes. In many cases, it will
+        be irrelevant for the application, but for some use-cases it might be
+        important to be able to re-write historical messages to use the new
+        uid.
+
+    .. signal:: on_enter()
+
+        The conversation was entered.
+
+        This event is emitted up to once for a :class:`AbstractConversation`.
+
+        One of :meth:`on_enter` and :meth:`on_failure` is emitted exactly
+        once for each :class:`AbstractConversation` instance.
+
+        .. seealso::
+
+            :func:`aioxmpp.callbacks.first_signal` can be used nicely to await
+            the completion of entering a conversation::
+
+                conv = ... # let this be your conversation
+                await first_signal(conv.on_enter, conv.on_failure)
+                # await first_signal() will either return None (success) or
+                # raise the exception passed to :meth:`on_failure`.
+
+        .. note::
+
+            This and :meth:`on_failure` are the only signals which **must not**
+            receive keyword arguments, so that they continue to work with
+            :attr:`.AdHocSignal.AUTO_FUTURE` and
+            :func:`~.callbacks.first_signal`.
+
+        .. versionadded:: 0.10
+
+    .. signal:: on_failure(exc)
+
+        The conversation could not be entered.
+
+        :param exc: The exception which caused the operation to fail.
+        :type exc: :class:`Exception`
+
+        Often, `exc` will be a :class:`aioxmpp.errors.XMPPError` indicating
+        an error emitted from an involved server, such as permission problems,
+        conflicts or non-existant peers.
+
+        This signal can only be emitted instead of :meth:`on_enter` and not
+        after the room has been entered. If the conversation is terminated
+        due to a remote cause at a later point, :meth:`on_exit` is used.
+
+        One of :meth:`on_enter` and :meth:`on_failure` is emitted exactly
+        once for each :class:`AbstractConversation` instance.
+
+        .. note::
+
+            This and :meth:`on_failure` are the only signals which **must not**
+            receive keyword arguments, so that they continue to work with
+            :attr:`.AdHocSignal.AUTO_FUTURE` and
+            :func:`~.callbacks.first_signal`.
+
+        .. versionadded:: 0.10
+
     .. signal:: on_join(member, **kwargs)
 
        A new member has joined the conversation.
@@ -415,6 +550,8 @@ class AbstractConversation(metaclass=abc.ABCMeta):
 
     .. autoattribute:: me
 
+    .. autoattribute:: service_member
+
     Methods:
 
     .. note::
@@ -452,6 +589,11 @@ class AbstractConversation(metaclass=abc.ABCMeta):
     on_join = aioxmpp.callbacks.Signal()
     on_leave = aioxmpp.callbacks.Signal()
     on_exit = aioxmpp.callbacks.Signal()
+    on_failed = aioxmpp.callbacks.Signal()
+    on_nick_changed = aioxmpp.callbacks.Signal()
+    on_enter = aioxmpp.callbacks.Signal()
+    on_failure = aioxmpp.callbacks.Signal()
+    on_topic_changed = aioxmpp.callbacks.Signal()
 
     def __init__(self, service, parent=None, **kwargs):
         super().__init__(**kwargs)
@@ -492,6 +634,21 @@ class AbstractConversation(metaclass=abc.ABCMeta):
         """
 
     @property
+    def service_member(self):
+        """
+        The member representing the service on which the conversation is hosted,
+        if available.
+
+        This is never included in :attr:`members`. It may be used as member
+        argument in events to make it clear that the message originates from
+        the service and not an unknown occupant.
+
+        This may be :data:`None`.
+
+        .. versionadded:: 0.10
+        """
+
+    @property
     def features(self):
         """
         A set of features supported by this :term:`Conversation`.
@@ -518,7 +675,7 @@ class AbstractConversation(metaclass=abc.ABCMeta):
         method may still raise an :class:`aioxmpp.XMPPCancelError` due for
         other conditions such as ``item-not-found``).
         """
-        return set()
+        return frozenset()
 
     def send_message(self, body):
         """
@@ -550,7 +707,7 @@ class AbstractConversation(metaclass=abc.ABCMeta):
            details.
 
         """
-        token, tracker = yield from self.send_message_tracked(body)
+        token, tracker = self.send_message_tracked(body)
         tracker.cancel()
         return token
 
@@ -649,11 +806,36 @@ class AbstractConversation(metaclass=abc.ABCMeta):
         raise self._not_implemented_error("banning members")
 
     @asyncio.coroutine
-    def invite(self, jid, *,
-               preferred_mode=InviteMode.DIRECT,
+    def invite(self, address, text=None, *,
+               mode=InviteMode.DIRECT,
                allow_upgrade=False):
         """
         Invite another entity to the conversation.
+
+        :param address: The address of the entity to invite.
+        :type address: :class:`aioxmpp.JID`
+        :param text: A reason/accompanying text for the invitation.
+        :param mode: The invitation mode to use.
+        :type mode: :class:`~.im.InviteMode`
+        :param allow_upgrade: Whether to allow creating a new conversation to
+            satisfy the invitation.
+        :type allow_upgrade: :class:`bool`
+        :raises NotImplementedError: if the requested `mode` is not supported
+        :raises ValueError: if `allow_upgrade` is false, but a new conversation
+            is required.
+        :return: The stanza token for the invitation and the possibly new
+            conversation object
+        :rtype: tuple of :class:`~.StanzaToken` and
+            :class:`~.AbstractConversation`
+
+        .. note::
+
+            Even though this is a coroutine, it returns a stanza token. The
+            coroutine-ness may be needed to generate the invitation in the
+            first place. Sending the actual invitation is done non-blockingly
+            and the stanza token for that is returned. To wait until the
+            invitation has been sent, unpack the stanza token from the result
+            and await it.
 
         Return the new conversation object to use. In many cases, this will
         simply be the current conversation object, but in some cases (e.g. when
@@ -666,8 +848,7 @@ class AbstractConversation(metaclass=abc.ABCMeta):
         Additional features:
 
         :attr:`~.ConversationFeature.INVITE_DIRECT`
-           If `preferred_mode` is :attr:`~.im.InviteMode.DIRECT`, a direct
-           invitation will be used.
+           Support for :attr:`~.im.InviteMode.DIRECT` mode.
 
         :attr:`~.ConversationFeature.INVITE_DIRECT_CONFIGURE`
            If a direct invitation is used, the conversation will be configured
@@ -676,8 +857,7 @@ class AbstractConversation(metaclass=abc.ABCMeta):
            error is re-raised and the invitation not sent.
 
         :attr:`~.ConversationFeature.INVITE_MEDIATED`
-           If `preferred_mode` is :attr:`~.im.InviteMode.MEDIATED`, a mediated
-           invitation will be used.
+           Support for :attr:`~.im.InviteMode.MEDIATED` mode.
 
         :attr:`~.ConversationFeature.INVITE_UPGRADE`
            If `allow_upgrade` is :data:`True`, an upgrade will be performed and
@@ -760,5 +940,53 @@ class AbstractConversation(metaclass=abc.ABCMeta):
 
 
 class AbstractConversationService(metaclass=abc.ABCMeta):
+    """
+    Abstract base class for
+    :term:`Conversation Services <Conversation Service>`.
+
+    Useful implementations:
+
+    .. autosummary::
+
+        aioxmpp.im.p2p.Service
+        aioxmpp.muc.MUCClient
+
+    In general, conversation services should provide a method (*not* a coroutine
+    method) to start a conversation using the service. That method should return
+    the fresh :class:`~.AbstractConversation` object immediately and start
+    possibly needed background tasks to actually initiate the conversation. The
+    caller should use the :meth:`~.AbstractConversation.on_enter` and
+    :meth:`~.AbstractConversation.on_failure` signals to be notified of the
+    result of the join operation.
+
+    Signals:
+
+    .. signal:: on_conversation_new(conversation)
+
+        Fires when a new conversation is created in the service.
+
+        :param conversation: The new conversation.
+        :type conversation: :class:`AbstractConversation`
+
+        .. seealso::
+
+            :meth:`.ConversationService.on_conversation_added`
+                is a signal shared among all :term:`Conversation
+                Implementations <Conversation Implementation>` which gets
+                emitted whenever a new conversation is added. If you need all
+                conversations, that is the signal to listen for.
+
+    .. signal:: on_spontaneous_conversation(conversation)
+
+        Like :meth:`on_conversation_new`, but is only emitted for conversations
+        which are created without local interaction.
+
+        :param conversation: The new conversation.
+        :type conversation: :class:`AbstractConversation`
+
+        .. versionadded:: 0.10
+
+    """
+
     on_conversation_new = aioxmpp.callbacks.Signal()
-    on_conversation_left = aioxmpp.callbacks.Signal()
+    on_spontaneous_conversation = aioxmpp.callbacks.Signal()

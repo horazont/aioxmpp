@@ -435,10 +435,12 @@ class TestForm(unittest.TestCase):
                 "mismatching FORM_TYPE"):
             F.from_xso(tree)
 
-    def test_from_xso_checks_data_type(self):
-        reject = [
-            forms_xso.DataType.RESULT,
+    def test_form_xso_allows_all_data_types(self):
+        allow = [
             forms_xso.DataType.CANCEL,
+            forms_xso.DataType.FORM,
+            forms_xso.DataType.SUBMIT,
+            forms_xso.DataType.RESULT,
         ]
 
         class F(form.Form):
@@ -446,15 +448,7 @@ class TestForm(unittest.TestCase):
 
         for t in forms_xso.DataType:
             tree = forms_xso.Data(type_=t)
-
-            if t in reject:
-                with self.assertRaisesRegex(
-                        ValueError,
-                        r"unexpected form type",
-                        msg="for {}".format(t)):
-                    F.from_xso(tree)
-            else:
-                F.from_xso(tree)
+            F.from_xso(tree)
 
     def test_from_xso_single_field(self):
         class F(form.Form):
@@ -465,6 +459,26 @@ class TestForm(unittest.TestCase):
         tree = forms_xso.Data(type_=forms_xso.DataType.FORM)
         tree.fields.append(
             forms_xso.Field(values=["value"], var="foobar")
+        )
+
+        f = F.from_xso(tree)
+        self.assertIsInstance(f, F)
+        self.assertEqual(
+            f.field.value,
+            "value",
+        )
+
+    def test_from_xso_handles_missing_type_(self):
+        class F(form.Form):
+            field = fields.ListSingle(
+                "foobar",
+            )
+
+        tree = forms_xso.Data(type_=forms_xso.DataType.FORM)
+        tree.fields.append(
+            forms_xso.Field(type_=None,
+                            values=["value"],
+                            var="foobar")
         )
 
         f = F.from_xso(tree)
@@ -761,6 +775,91 @@ class TestForm(unittest.TestCase):
             jid_field.label
         )
 
+    def test_render_reply_emits_FORM_TYPE(self):
+        data = forms_xso.Data(type_=forms_xso.DataType.FORM)
+
+        data.fields.append(
+            forms_xso.Field(
+                var="FORM_TYPE",
+                type_=forms_xso.FieldType.HIDDEN,
+                values=["some-uri"],
+            )
+        )
+
+        data.fields.append(
+            forms_xso.Field(
+                type_=forms_xso.FieldType.FIXED,
+                values=["This is some heading."],
+            )
+        )
+
+        data.fields.append(
+            forms_xso.Field(
+                var="jid",
+                type_=forms_xso.FieldType.JID_SINGLE,
+                values=[],
+                desc="some description",
+            )
+        )
+
+        class F(form.Form):
+            FORM_TYPE = "some-uri"
+
+            jid = fields.JIDSingle(
+                var="jid",
+                label="Foobar"
+            )
+
+            other = fields.TextSingle(
+                var="foo",
+            )
+
+        f = F.from_xso(data)
+        f.jid.value = aioxmpp.JID.fromstr("foo@bar.baz")
+
+        result = f.render_reply()
+        self.assertIsInstance(result, forms_xso.Data)
+        self.assertEqual(
+            result.type_,
+            forms_xso.DataType.SUBMIT,
+        )
+        self.assertEqual(
+            len(result.fields),
+            3
+        )
+
+        self.assertIs(
+            data.fields[0],
+            result.fields[0]
+        )
+        self.assertIs(
+            data.fields[1],
+            result.fields[1],
+        )
+
+        self.assertIsNot(
+            data.fields[2],
+            result.fields[2],
+        )
+
+        jid_field = result.fields[2]
+        self.assertSequenceEqual(
+            jid_field.values,
+            ["foo@bar.baz"]
+        )
+        self.assertEqual(
+            jid_field.desc,
+            "some description",
+        )
+        self.assertIsNone(
+            jid_field.label
+        )
+
+        self.assertEqual(
+            data.get_form_type(),
+            F.FORM_TYPE,
+        )
+
     def test_render_request(self):
         class F(form.Form):
             jid = fields.JIDSingle(
@@ -840,6 +939,33 @@ class TestForm(unittest.TestCase):
         self.assertSequenceEqual(
             other_field.values,
             ["some_text"],
+        )
+
+    def test_render_request_includes_FORM_TYPE(self):
+        class F(form.Form):
+            FORM_TYPE = "some-uri"
+
+            jid = fields.JIDSingle(
+                var="jid",
+                required=True,
+                desc="Enter a valid JID here",
+                label="Your JID",
+            )
+
+            something_else = fields.TextSingle(
+                var="other",
+                label="Something else",
+            )
+
+        f = F()
+        f.jid.value = aioxmpp.JID.fromstr("foo@bar.baz")
+        f.something_else.value = "some_text"
+
+        data = f.render_request()
+
+        self.assertEqual(
+            data.get_form_type(),
+            f.FORM_TYPE,
         )
 
     def test_render_request_with_layout(self):

@@ -435,7 +435,7 @@ class RosterClient(aioxmpp.service.Service):
         if stored_item.name != xso_item.name:
             to_call.append(self.on_entry_name_changed)
 
-        if     (stored_item.subscription != xso_item.subscription or
+        if (stored_item.subscription != xso_item.subscription or
                 stored_item.approved != xso_item.approved or
                 stored_item.ask != xso_item.ask):
             to_call.append(self.on_entry_subscription_state_changed)
@@ -475,7 +475,7 @@ class RosterClient(aioxmpp.service.Service):
     @asyncio.coroutine
     def handle_roster_push(self, iq):
         if iq.from_ and iq.from_ != self.client.local_jid.bare():
-            raise errors.XMPPAuthError((namespaces.stanzas, "forbidden"))
+            raise errors.XMPPAuthError(errors.ErrorCondition.FORBIDDEN)
 
         request = iq.payload
 
@@ -542,7 +542,7 @@ class RosterClient(aioxmpp.service.Service):
                              self.version)
                 iq.payload.ver = self.version
 
-            response = yield from self.client.stream.send(
+            response = yield from self.client.send(
                 iq,
                 timeout=self.client.negotiation_timeout.total_seconds()
             )
@@ -659,7 +659,7 @@ class RosterClient(aioxmpp.service.Service):
                 for group_name in post_groups
             ])
 
-        yield from self.client.stream.send(
+        yield from self.client.send(
             stanza.IQ(
                 structs.IQType.SET,
                 payload=roster_xso.Query(items=[
@@ -683,7 +683,7 @@ class RosterClient(aioxmpp.service.Service):
         server replies with an error and also any kind of connection error if
         the connection gets fatally terminated while waiting for a response.
         """
-        yield from self.client.stream.send(
+        yield from self.client.send(
             stanza.IQ(
                 structs.IQType.SET,
                 payload=roster_xso.Query(items=[
@@ -700,6 +700,8 @@ class RosterClient(aioxmpp.service.Service):
         """
         (Pre-)approve a subscription request from `peer_jid`.
 
+        :param peer_jid: The peer to (pre-)approve.
+
         This sends a ``"subscribed"`` presence to the peer; if the peer has
         previously asked for a subscription, this will seal the deal and create
         the subscription.
@@ -707,8 +709,13 @@ class RosterClient(aioxmpp.service.Service):
         If the peer has not requested a subscription (yet), it is marked as
         pre-approved by the server. A future subscription request by the peer
         will then be confirmed by the server automatically.
+
+        .. note::
+
+            Pre-approval is an OPTIONAL feature in :rfc:`6121`. It is announced
+            as a stream feature.
         """
-        self.client.stream.enqueue(
+        self.client.enqueue(
             stanza.Presence(type_=structs.PresenceType.SUBSCRIBED,
                             to=peer_jid)
         )
@@ -722,7 +729,7 @@ class RosterClient(aioxmpp.service.Service):
         confirm at all. Use :meth:`on_subscribed` to get notified when a peer
         accepted a subscription request.
         """
-        self.client.stream.enqueue(
+        self.client.enqueue(
             stanza.Presence(type_=structs.PresenceType.SUBSCRIBE,
                             to=peer_jid)
         )
@@ -731,7 +738,7 @@ class RosterClient(aioxmpp.service.Service):
         """
         Unsubscribe from the presence of the given `peer_jid`.
         """
-        self.client.stream.enqueue(
+        self.client.enqueue(
             stanza.Presence(type_=structs.PresenceType.UNSUBSCRIBE,
                             to=peer_jid)
         )

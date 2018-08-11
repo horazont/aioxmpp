@@ -197,6 +197,4 @@ class TaskPool:
         # ensure the implicit group is included
         __groups = set(__groups) | {()}
 
-
-
-        return asyncio.async(__coro_fun(*args, **kwargs))
+        return asyncio.ensure_future(__coro_fun(*args, **kwargs))

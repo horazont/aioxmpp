@@ -21,11 +21,13 @@
 ########################################################################
 import asyncio
 import functools
+import uuid
 
 from datetime import datetime, timedelta
 from enum import Enum
 
 import aioxmpp.callbacks
+import aioxmpp.disco
 import aioxmpp.forms
 import aioxmpp.service
 import aioxmpp.stanza
@@ -35,6 +37,8 @@ import aioxmpp.im.conversation
 import aioxmpp.im.dispatcher
 import aioxmpp.im.p2p
 import aioxmpp.im.service
+
+from aioxmpp.utils import namespaces
 
 from . import xso as muc_xso
 
@@ -88,6 +92,17 @@ class LeaveMode(Enum):
     .. attribute:: BANNED
 
        The user was banned from the room.
+
+    .. attribute:: ERROR
+
+        The user was removed due to an error when communicating with the client
+        or the users server.
+
+        Not all servers support this. If not supported by the server, one will
+        typically see a :attr:`KICKED` status code with an appropriate
+        :attr:`~.Presence.status` message.
+
+        .. versionadded:: 0.10
     """
 
     DISCONNECTED = -2
@@ -97,6 +112,7 @@ class LeaveMode(Enum):
     AFFILIATION_CHANGE = 3
     MODERATION_CHANGE = 4
     BANNED = 5
+    ERROR = 6
 
 
 class _OccupantDiffClass(Enum):
@@ -109,9 +125,16 @@ class Occupant(aioxmpp.im.conversation.AbstractConversationMember):
     """
     A tracking object to track a single occupant in a :class:`Room`.
 
+    .. seealso::
+
+        :class:`~.AbstractConversationMember`
+            for additional notes on some of the pre-defined attributes.
+
     .. autoattribute:: direct_jid
 
     .. autoattribute:: conversation_jid
+
+    .. autoattribute:: uid
 
     .. autoattribute:: nick
 
@@ -126,11 +149,13 @@ class Occupant(aioxmpp.im.conversation.AbstractConversationMember):
 
     .. attribute:: affiliation
 
-       The affiliation of the occupant with the room.
+       The affiliation of the occupant with the room. This may be :data:`None`
+       with faulty MUC implementations.
 
     .. attribute:: role
 
-       The current role of the occupant within the room.
+       The current role of the occupant within the room. This may be
+       :data:`None` with faulty MUC implementations.
 
     """
 
@@ -148,6 +173,16 @@ class Occupant(aioxmpp.im.conversation.AbstractConversationMember):
         self.affiliation = affiliation
         self.role = role
         self._direct_jid = jid
+        if jid is None:
+            self._uid = b"urn:uuid:" + uuid.uuid4().bytes
+        else:
+            self._set_uid_from_direct_jid(self._direct_jid)
+
+            if not self._direct_jid.is_bare:
+                raise ValueError("the jid argument must be a bare JID")
+
+    def _set_uid_from_direct_jid(self, jid):
+        self._uid = b"xmpp:" + str(jid.bare()).encode("utf-8")
 
     @property
     def direct_jid(self):
@@ -166,18 +201,38 @@ class Occupant(aioxmpp.im.conversation.AbstractConversationMember):
         """
         return self.conversation_jid.resource
 
+    @property
+    def uid(self):
+        """
+        This is either a random identifier if the real JID of the occupant is
+        not known, or an identifier derived from the real JID of the occupant.
+
+        Note that as per the semantics of the :attr:`uid`, users **must** treat
+        it as opaque.
+
+        .. seealso::
+
+            :class:`~aioxmpp.im.conversation.AbstractConversationMember.uid`
+                Documentation of the attribute on the base class, with
+                additional information on semantics.
+        """
+        return self._uid
+
     @classmethod
     def from_presence(cls, presence, is_self):
         try:
             item = presence.xep0045_muc_user.items[0]
         except (AttributeError, IndexError):
             affiliation = None
-            role = None
+            if presence.type_ == aioxmpp.structs.PresenceType.UNAVAILABLE:
+                role = "none"  # unavailable must be the "none" role
+            else:
+                role = None
             jid = None
         else:
             affiliation = item.affiliation
             role = item.role
-            jid = item.jid
+            jid = item.bare_jid
 
         return cls(
             occupantjid=presence.from_,
@@ -195,9 +250,112 @@ class Occupant(aioxmpp.im.conversation.AbstractConversationMember):
         self.presence_state = other.presence_state
         self.presence_status.clear()
         self.presence_status.update(other.presence_status)
-        self.affiliation = other.affiliation
-        self.role = other.role
-        self._direct_jid = other.direct_jid
+        self.affiliation = other.affiliation or self.affiliation
+        self.role = other.role or self.role
+        if self._direct_jid is None and other.direct_jid is not None:
+            self._set_uid_from_direct_jid(other.direct_jid)
+        self._direct_jid = other.direct_jid or self._direct_jid
+
+    def __repr__(self):
+        return "<{}.{} occupantjid={!r} uid={!r} jid={!r}>".format(
+            type(self).__module__,
+            type(self).__qualname__,
+            self._conversation_jid,
+            self._uid,
+            self._direct_jid,
+        )
+
+
+class RoomState(Enum):
+    """
+    Enumeration which describes the state a :class:`~.muc.Room` is in.
+
+    .. attribute:: JOIN_PRESENCE
+
+        The room is in the process of being joined and the presence state
+        transfer is going on.
+
+    .. attribute:: HISTORY
+
+        Presence state transfer has happened, but the room subject has not
+        been received yet. This is where history replay messages are
+        received.
+
+        When entering this state, :attr:`~.muc.Room.muc_active` becomes true.
+
+    .. attribute:: ACTIVE
+
+        The join has completed, including history replay and receiving the
+        subject.
+
+    .. attribute:: DISCONNECTED
+
+        The MUC is suspended or disconnected. If the MUC is disconnected,
+        :attr:`~.muc.Room.muc_joined` will be false, too.
+    """
+
+    JOIN_PRESENCE = 0
+    HISTORY = 1
+    ACTIVE = 2
+    DISCONNECTED = 3
+
+
+class ServiceMember(aioxmpp.im.conversation.AbstractConversationMember):
+    """
+    A :class:`~aioxmpp.im.conversation.AbstractConversationMember` which
+    represents a MUC service.
+
+    .. versionadded:: 0.10
+
+    Objects of this instance are used for the :attr:`Room.service_member`
+    property of rooms.
+
+    Aside from the mandatory conversation member attributes, the following
+    attributes for compatibility with :class:`Occupant` are provided:
+
+    .. autoattribute:: nick
+
+    .. attribute:: presence_state
+        :annotation: aioxmpp.structs.PresenceState(False)
+
+        The presence state of the service. Always unavailable.
+
+    .. attribute:: presence_status
+        :annotation: {}
+
+        The presence status of the service as :class:`~.LanguageMap`. Always
+        empty.
+
+    .. attribute:: affiliation
+        :annotation: None
+
+        The affiliation of the service. Always :data:`None`.
+
+    .. attribute:: role
+        :annotation: None
+
+        The role of the service. Always :data:`None`.
+    """
+
+    def __init__(self, muc_address):
+        super().__init__(muc_address, False)
+        self.presence_state = aioxmpp.structs.PresenceState(False)
+        self.presence_status = aioxmpp.structs.LanguageMap()
+        self.affiliation = None
+        self.role = None
+        self._uid = b"xmpp:" + str(muc_address).encode("utf-8")
+
+    @property
+    def direct_jid(self):
+        return self.conversation_jid
+
+    @property
+    def nick(self):
+        return None
+
+    @property
+    def uid(self) -> bytes:
+        return self._uid
 
 
 class Room(aioxmpp.im.conversation.AbstractConversation):
@@ -227,11 +385,15 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
 
     .. autoattribute:: members
 
+    .. autoattribute:: service_member
+
     These properties are specific to MUC:
 
     .. autoattribute:: muc_active
 
     .. autoattribute:: muc_joined
+
+    .. autoattribute:: muc_state
 
     .. autoattribute:: muc_subject
 
@@ -293,14 +455,37 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
        arbitrary keyword arguments for forward compatibility. For details see
        the documentation on :class:`~.AbstractConversation`.
 
-    .. signal:: on_enter(presence, occupant, **kwargs)
+    .. signal:: on_enter(**kwargs)
 
-       Emits when the initial room :class:`~.Presence` stanza for the
-       local JID is received. This means that the join to the room is complete;
-       the message history and subject are not transferred yet though.
+        Emits when the initial room :class:`~.Presence` stanza for the
+        local JID is received. This means that the join to the room is complete;
+        the message history and subject are not transferred yet though.
 
-       The `occupant` argument refers to the :class:`Occupant` which will be
-       used to track the local user.
+        .. seealso::
+
+            :meth:`on_muc_enter`
+                is an extended version of this signal which contains additional
+                MUC-specific information.
+
+        .. versionchanged:: 0.10
+
+            The :meth:`on_enter` signal does not receive any arguments anymore
+            to make MUC comply with the :class:`AbstractConversation` spec.
+
+    .. signal:: on_muc_enter(presence, occupant, *, muc_status_codes=set(), **kwargs)
+
+        This is an extended version of :meth:`on_enter` which adds MUC-specific
+        arguments.
+
+        :param presence: The initial presence stanza.
+        :param occupant: The :class:`Occupant` which will be used to track the
+            local user.
+        :param muc_status_codes: The set of status codes received in the
+            initial join.
+        :type muc_status_codes: :class:`~.abc.Set` of :class:`int` or
+            :class:`~.StatusCode`
+
+        .. versionadded:: 0.10
 
     .. signal:: on_message(msg, member, source, **kwargs)
 
@@ -309,7 +494,7 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
         :param msg: Message which was received.
         :type msg: :class:`aioxmpp.Message`
         :param member: The member object of the sender.
-        :type member: :class:`.AbstractConversationMember`
+        :type member: :class:`.Occupant`
         :param source: How the message was acquired
         :type source: :class:`~.MessageSource`
 
@@ -326,6 +511,25 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
 
           See :meth:`send_message_tracked` for details and caveats on the
           tracking implementation.
+
+        When **history replay** happens, since joins and leaves are not part of
+        the history, it is not always possible to reason about the identity of
+        the sender of a history message. To avoid possible spoofing attacks,
+        the following caveats apply to the :class:`~.Occupant` objects handed
+        as `member` during history replay:
+
+        * Two identical :class:`~.Occupant` objects are only used *iff* the
+          nickname *and* the actual address of the entity are equal. This
+          implies that unless this client has the permission to see JIDs of
+          occupants of the MUC, all :class:`~.Occupant` objects during history
+          replay will be different instances.
+        * If the nickname and the actual address of a message from history
+          match, the current :class:`~.Occupant` object for the respective
+          occupant is used.
+        * :class:`~.Occupant` objects which are created for history replay are
+          never part of :attr:`members`. They are only used to convey the
+          information passed in the messages from the history replay, which
+          would otherwise be inaccessible.
 
         .. seealso::
 
@@ -352,7 +556,7 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
             :meth:`.AbstractConversation.on_presence_changed` for the full
             specification.
 
-    .. signal:: on_nick_changed(member, old_nick, new_nick, **kwargs)
+    .. signal:: on_nick_changed(member, old_nick, new_nick, *, muc_status_codes=set(), **kwargs)
 
         The nickname of an occupant has changed
 
@@ -362,6 +566,10 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
         :type old_nick: :class:`str` or :data:`None`
         :param new_nick: The new nickname of the member.
         :type new_nick: :class:`str`
+        :param muc_status_codes: The set of status codes received in the leave
+            notification.
+        :type muc_status_codes: :class:`~.abc.Set` of :class:`int` or
+            :class:`~.StatusCode`
 
         The new nickname is already set in the `member` object. Both `old_nick`
         and `new_nick` are not :data:`None`.
@@ -370,6 +578,10 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
 
             :meth:`.AbstractConversation.on_nick_changed` for the full
             specification.
+
+        .. versionchanged:: 0.10
+
+            The `muc_status_codes` argument was added.
 
     .. signal:: on_topic_changed(member, new_topic, *, muc_nick=None, **kwargs)
 
@@ -418,9 +630,17 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
         :type muc_actor: :class:`~.xso.UserActor`
         :param muc_reason: The reason for the cause, as given by the actor.
         :type muc_reason: :class:`str`
+        :param muc_status_codes: The set of status codes received in the leave
+            notification.
+        :type muc_status_codes: :class:`~.abc.Set` of :class:`int` or
+            :class:`~.StatusCode`
 
         When this signal is called, the `member` has already been removed from
         the :attr:`members`.
+
+        .. versionchanged:: 0.10
+
+            The `muc_status_codes` argument was added.
 
     .. signal:: on_muc_suspend()
 
@@ -441,7 +661,29 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
 
         Note that on a rejoin, all presence is re-emitted.
 
-    .. signal:: on_exit(*, muc_leave_mode=None, muc_actor=None, muc_reason=None, **kwargs)
+    .. signal:: on_muc_role_request(form, submission_future)
+
+        Emits when an unprivileged occupant requests a role change and the
+        MUC service wants this occupant to approve or deny it.
+
+        :param form: The approval form as presented by the service.
+        :type form: :class:`~.VoiceRequestForm`
+        :param submission_future: A future to which the form to submit must
+            be sent.
+        :type submission_future: :class:`asyncio.Future`
+
+        To decide on a role change request, a handler of this signal must
+        fill in the form and set the form as a result of the
+        `submission_future`.
+
+        Once the result is set, the reply is sent by the MUC service
+        automatically.
+
+        It is required for signal handlers to check whether the
+        `submission_future` is already done before processing the form (as it
+        is possible that multiple handlers are connected to this signal).
+
+    .. signal:: on_exit(*, muc_leave_mode=None, muc_actor=None, muc_reason=None, muc_status_codes=set(), **kwargs)
 
         Emits when the unavailable :class:`~.Presence` stanza for the
         local JID is received.
@@ -452,6 +694,20 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
         :type muc_actor: :class:`~.xso.UserActor`
         :param muc_reason: The reason for the cause, as given by the actor.
         :type muc_reason: :class:`str`
+        :param muc_status_codes: The set of status codes received in the leave
+            notification.
+        :type muc_status_codes: :class:`~.abc.Set` of :class:`int` or
+            :class:`~.StatusCode`
+
+        .. note::
+
+            The keyword arguments `muc_actor`, `muc_reason` and
+            `muc_status_codes` are not always given. Be sure to default them
+            accordingly.
+
+        .. versionchanged:: 0.10
+
+            The `muc_status_codes` argument was added.
 
     The following signals inform users about state changes related to **other**
     occupants in the chat room. Note that different events may fire for the
@@ -460,46 +716,62 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
     ``"outcast"``) and then :meth:`on_leave` (with :attr:`LeaveMode.BANNED`
     `mode`).
 
-    .. signal:: on_muc_affiliation_changed(member, *, muc_actor=None, muc_reason=None, **kwargs)
+    .. signal:: on_muc_affiliation_changed(member, *, actor=None, reason=None, status_codes=set(), **kwargs)
 
-       Emits when the affiliation of a `member` with the room changes.
+        Emits when the affiliation of a `member` with the room changes.
 
-       `occupant` is the :class:`Occupant` instance tracking the occupant whose
-       affiliation changed.
+        :param occupant: The member of the room.
+        :type occupant: :class:`Occupant`
+        :param actor: The actor object if available.
+        :type actor: :class:`~.xso.UserActor`
+        :param reason: The reason for the change, as given by the actor.
+        :type reason: :class:`str`
+        :param status_codes: The set of status codes received in the change
+            notification.
+        :type status_codes: :class:`~.abc.Set` of :class:`int` or
+            :class:`~.StatusCode`
 
-       There may be `actor` and/or `reason` keyword arguments which provide
-       details on who triggered the change in affiliation and for what reason.
+        `occupant` is the :class:`Occupant` instance tracking the occupant whose
+        affiliation changed.
 
-    .. signal:: on_muc_role_changed(member, *, muc_actor=None, muc_reason=None, **kwargs)
+        .. versionchanged:: 0.10
 
-       Emits when the role of an `occupant` in the room changes.
+            The `status_codes` argument was added.
 
-       `occupant` is the :class:`Occupant` instance tracking the occupant whose
-       role changed.
+    .. signal:: on_muc_role_changed(member, *, actor=None, reason=None, status_codes=set(), , **kwargs)
 
-       There may be `actor` and/or `reason` keyword arguments which provide
-       details on who triggered the change in role and for what reason.
+        Emits when the role of an `occupant` in the room changes.
+
+        :param occupant: The member of the room.
+        :type occupant: :class:`Occupant`
+        :param actor: The actor object if available.
+        :type actor: :class:`~.xso.UserActor`
+        :param reason: The reason for the change, as given by the actor.
+        :type reason: :class:`str`
+        :param status_codes: The set of status codes received in the change
+            notification.
+        :type status_codes: :class:`~.abc.Set` of :class:`int` or
+            :class:`~.StatusCode`
+
+        `occupant` is the :class:`Occupant` instance tracking the occupant whose
+        role changed.
+
+        .. versionchanged:: 0.10
+
+            The `status_codes` argument was added.
 
     """
-
-    on_message = aioxmpp.callbacks.Signal()
-
     # this occupant state events
-    on_enter = aioxmpp.callbacks.Signal()
     on_muc_suspend = aioxmpp.callbacks.Signal()
     on_muc_resume = aioxmpp.callbacks.Signal()
-    on_exit = aioxmpp.callbacks.Signal()
+    on_muc_enter = aioxmpp.callbacks.Signal()
 
     # other occupant state events
-    on_join = aioxmpp.callbacks.Signal()
-    on_leave = aioxmpp.callbacks.Signal()
-    on_presence_changed = aioxmpp.callbacks.Signal()
     on_muc_affiliation_changed = aioxmpp.callbacks.Signal()
-    on_nick_changed = aioxmpp.callbacks.Signal()
     on_muc_role_changed = aioxmpp.callbacks.Signal()
 
-    # room state events
-    on_topic_changed = aioxmpp.callbacks.Signal()
+    # approval requests
+    on_muc_role_request = aioxmpp.callbacks.Signal()
 
     def __init__(self, service, mucjid):
         super().__init__(service)
@@ -513,12 +785,26 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
         self._tracking_by_id = {}
         self._tracking_metadata = {}
         self._tracking_by_body = {}
+        self._state = RoomState.JOIN_PRESENCE
+        self._history_replay_occupants = {}
+        self._service_member = ServiceMember(mucjid)
         self.muc_autorejoin = False
         self.muc_password = None
 
     @property
     def service(self):
         return self._service
+
+    @property
+    def muc_state(self):
+        """
+        The state the MUC is in. This is one of the
+        :class:`~.muc.RoomState` enumeration values. See there for
+        documentation on the meaning.
+
+        This state is more detailed than :attr:`muc_active`.
+        """
+        return self._state
 
     @property
     def muc_active(self):
@@ -593,6 +879,23 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
         return items
 
     @property
+    def service_member(self):
+        """
+        A :class:`ServiceMember` object which represents the MUC service itself.
+
+        This is used when messages from the MUC service are received.
+
+        .. seealso::
+
+            :attr:`~aioxmpp.im.conversation.AbstractConversation.service_member`
+                For more documentation on the semantics of
+                :attr:`~.service_member`.
+
+        .. versionadded:: 0.10
+        """
+        return self._service_member
+
+    @property
     def features(self):
         """
         The set of features supported by this MUC. This may vary depending on
@@ -608,11 +911,19 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
             aioxmpp.im.conversation.ConversationFeature.SEND_MESSAGE_TRACKED,
             aioxmpp.im.conversation.ConversationFeature.SET_TOPIC,
             aioxmpp.im.conversation.ConversationFeature.SET_NICK,
+            aioxmpp.im.conversation.ConversationFeature.INVITE,
+            aioxmpp.im.conversation.ConversationFeature.INVITE_DIRECT,
         }
+
+    def _enter_active_state(self):
+        self._state = RoomState.ACTIVE
+        self._history_replay_occupants.clear()
 
     def _suspend(self):
         self.on_muc_suspend()
         self._active = False
+        self._state = RoomState.DISCONNECTED
+        self._history_replay_occupants.clear()
 
     def _disconnect(self):
         if not self._joined:
@@ -622,11 +933,14 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
         )
         self._joined = False
         self._active = False
+        self._state = RoomState.DISCONNECTED
+        self._history_replay_occupants.clear()
 
     def _resume(self):
         self._this_occupant = None
         self._occupant_info = {}
         self._active = False
+        self._state = RoomState.JOIN_PRESENCE
         self.on_muc_resume()
 
     def _match_tracker(self, message):
@@ -636,17 +950,30 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
             if (self._this_occupant is not None and
                     message.from_ == self._this_occupant.conversation_jid):
                 key = _extract_one_pair(message.body)
+                self._service.logger.debug("trying to match by body: %r",
+                                           key)
                 try:
                     trackers = self._tracking_by_body[key]
                 except KeyError:
-                    trackers = None
+                    alt_key = (None, key[1])
+                    try:
+                        trackers = self._tracking_by_body[alt_key]
+                    except KeyError:
+                        trackers = None
+                else:
+                    self._service.logger.debug("found tracker by body")
             else:
+                self._service.logger.debug(
+                    "can’t match by body because of sender mismatch"
+                )
                 trackers = None
 
             if not trackers:
                 tracker = None
             else:
                 tracker = trackers[0]
+        else:
+            self._service.logger.debug("found tracker by ID")
 
         if tracker is None:
             return False
@@ -677,6 +1004,15 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
                                    self._mucjid,
                                    message)
 
+        if self._state == RoomState.HISTORY and not message.xep0203_delay:
+            # WORKAROUND: prosody#1053; AFFECTS: <= 0.9.12, <= 0.10
+            self._service.logger.debug(
+                "%s: received un-delayed message during history replay: "
+                "assuming that server is buggy and replay is over.",
+                self._mucjid,
+            )
+            self._enter_active_state()
+
         if not sent:
             if self._match_tracker(message):
                 return
@@ -685,7 +1021,40 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
                 self._this_occupant._conversation_jid == message.from_):
             occupant = self._this_occupant
         else:
-            occupant = self._occupant_info.get(message.from_, None)
+            if message.from_.resource is None:
+                occupant = self._service_member
+            else:
+                occupant = self._occupant_info.get(message.from_, None)
+
+            if (self._state == RoomState.HISTORY and
+                    not sent and
+                    message.from_.resource is not None):
+                if (message.xep0045_muc_user and
+                        message.xep0045_muc_user.items):
+                    item = message.xep0045_muc_user.items[0]
+                    jid = item.bare_jid
+                    affiliation = item.affiliation or None
+                    role = item.role or None
+                else:
+                    jid = None
+                    affiliation = None
+                    role = None
+
+                occupant = self._history_replay_occupants.get(jid, occupant)
+
+                if (not occupant or
+                        occupant.direct_jid is None or
+                        occupant.direct_jid != jid):
+                    occupant = Occupant(message.from_, False,
+                                        presence_state=aioxmpp.PresenceState(),
+                                        jid=jid,
+                                        affiliation=affiliation,
+                                        role=role)
+                    if jid is not None:
+                        self._history_replay_occupants[jid] = occupant
+            elif occupant is None:
+                occupant = Occupant(message.from_, False,
+                                    presence_state=aioxmpp.PresenceState())
 
         if not message.body and message.subject:
             self._subject = aioxmpp.structs.LanguageMap(message.subject)
@@ -697,16 +1066,28 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
                 muc_nick=message.from_.resource,
             )
 
+            self._enter_active_state()
+
         elif message.body:
+            if occupant is not None and occupant == self._this_occupant:
+                tracker = aioxmpp.tracking.MessageTracker()
+                tracker._set_state(
+                    aioxmpp.tracking.MessageState.DELIVERED_TO_RECIPIENT
+                )
+                tracker.close()
+            else:
+                tracker = None
             self.on_message(
                 message,
                 occupant,
                 source,
+                tracker=tracker,
             )
 
     def _diff_presence(self, stanza, info, existing):
         if (not info.presence_state.available and
-                303 in stanza.xep0045_muc_user.status_codes):
+                muc_xso.StatusCode.NICKNAME_CHANGE in
+                stanza.xep0045_muc_user.status_codes):
             return (
                 _OccupantDiffClass.NICK_CHANGED,
                 (
@@ -717,25 +1098,29 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
         result = (_OccupantDiffClass.UNIMPORTANT, None)
         to_emit = []
 
+        try:
+            reason = stanza.xep0045_muc_user.items[0].reason
+            actor = stanza.xep0045_muc_user.items[0].actor
+        except IndexError:
+            reason = None
+            actor = None
+
         if not info.presence_state.available:
             status_codes = stanza.xep0045_muc_user.status_codes
             mode = LeaveMode.NORMAL
-            try:
-                reason = stanza.xep0045_muc_user.items[0].reason
-                actor = stanza.xep0045_muc_user.items[0].actor
-            except IndexError:
-                reason = None
-                actor = None
 
-            if 307 in status_codes:
+            if muc_xso.StatusCode.REMOVED_ERROR in status_codes:
+                mode = LeaveMode.ERROR
+            elif muc_xso.StatusCode.REMOVED_KICKED in status_codes:
                 mode = LeaveMode.KICKED
-            elif 301 in status_codes:
+            elif muc_xso.StatusCode.REMOVED_BANNED in status_codes:
                 mode = LeaveMode.BANNED
-            elif 321 in status_codes:
+            elif muc_xso.StatusCode.REMOVED_AFFILIATION_CHANGE in status_codes:
                 mode = LeaveMode.AFFILIATION_CHANGE
-            elif 322 in status_codes:
+            elif (muc_xso.StatusCode.REMOVED_NONMEMBER_IN_MEMBERS_ONLY
+                  in status_codes):
                 mode = LeaveMode.MODERATION_CHANGE
-            elif 332 in status_codes:
+            elif muc_xso.StatusCode.REMOVED_SERVICE_SHUTDOWN in status_codes:
                 mode = LeaveMode.SYSTEM_SHUTDOWN
 
             result = (
@@ -746,7 +1131,7 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
                     reason,
                 )
             )
-        elif   (existing.presence_state != info.presence_state or
+        elif (existing.presence_state != info.presence_state or
                 existing.presence_status != info.presence_status):
             to_emit.append((self.on_presence_changed,
                             (existing, None, stanza),
@@ -760,8 +1145,9 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
                     existing,
                 ),
                 {
-                    "actor": stanza.xep0045_muc_user.items[0].actor,
-                    "reason": stanza.xep0045_muc_user.items[0].reason,
+                    "actor": actor,
+                    "reason": reason,
+                    "status_codes": stanza.xep0045_muc_user.status_codes,
                 },
             ))
 
@@ -773,8 +1159,9 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
                     existing,
                 ),
                 {
-                    "actor": stanza.xep0045_muc_user.items[0].actor,
-                    "reason": stanza.xep0045_muc_user.items[0].reason,
+                    "actor": actor,
+                    "reason": reason,
+                    "status_codes": stanza.xep0045_muc_user.status_codes,
                 },
             ))
 
@@ -802,7 +1189,14 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
             self._this_occupant = info
             self._joined = True
             self._active = True
-            self.on_enter(stanza, info)
+            self._state = RoomState.HISTORY
+            self.on_muc_enter(
+                stanza, info,
+                muc_status_codes=frozenset(
+                    stanza.xep0045_muc_user.status_codes
+                )
+            )
+            self.on_enter()
             return
 
         existing = self._this_occupant
@@ -826,7 +1220,8 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
             existing.update(info)
             self.on_exit(muc_leave_mode=mode,
                          muc_actor=actor,
-                         muc_reason=reason)
+                         muc_reason=reason,
+                         muc_status_codes=stanza.xep0045_muc_user.status_codes)
             self._joined = False
             self._active = False
 
@@ -835,7 +1230,23 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
                                    self._mucjid,
                                    stanza)
 
-        if (110 in stanza.xep0045_muc_user.status_codes or
+        if stanza.from_.is_bare:
+            self._service.logger.debug(
+                "received muc user presence from bare JID %s. ignoring.",
+                stanza.from_,
+            )
+            return
+
+        if self._state == RoomState.HISTORY:
+            # WORKAROUND: prosody#1053; AFFECTS: <= 0.9.12, <= 0.10
+            self._service.logger.debug(
+                "%s: received presence during history replay: "
+                "assuming that server is buggy and replay is over.",
+                self._mucjid,
+            )
+            self._enter_active_state()
+
+        if (muc_xso.StatusCode.SELF in stanza.xep0045_muc_user.status_codes or
                 (self._this_occupant is not None and
                  self._this_occupant.conversation_jid == stanza.from_)):
             self._service.logger.debug("%s: is self-presence",
@@ -874,16 +1285,32 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
             self.on_leave(existing,
                           muc_leave_mode=mode,
                           muc_actor=actor,
-                          muc_reason=reason)
+                          muc_reason=reason,
+                          muc_status_codes=stanza.xep0045_muc_user.status_codes)
             del self._occupant_info[existing.conversation_jid]
 
-    @asyncio.coroutine
+    def _handle_role_request(self, form):
+        def submit(fut):
+            data_xso = fut.result()
+            msg = aioxmpp.Message(
+                to=self.jid,
+                type_=aioxmpp.MessageType.NORMAL,
+            )
+            msg.xep0004_data.append(data_xso)
+            self._service.client.enqueue(msg)
+
+        fut = asyncio.Future()
+        fut.add_done_callback(submit)
+        self.on_muc_role_request(form, fut)
+
     def send_message(self, msg):
         """
         Send a message to the MUC.
 
         :param msg: The message to send.
         :type msg: :class:`aioxmpp.Message`
+        :return: The stanza token of the message.
+        :rtype: :class:`~aioxmpp.stream.StanzaToken`
 
         There is no need to set the address attributes or the type of the
         message correctly; those will be overridden by this method to conform
@@ -903,12 +1330,8 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
         # TL;DR: we want to help entities to discover that a message is related
         # to a MUC.
         msg.xep0045_muc_user = muc_xso.UserExt()
-        yield from self.service.client.stream.send(msg)
-        self.on_message(
-            msg,
-            self._this_occupant,
-            aioxmpp.im.dispatcher.MessageSource.STREAM
-        )
+        result = self.service.client.enqueue(msg)
+        return result
 
     def _tracker_closed(self, tracker):
         try:
@@ -918,7 +1341,6 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
         self._tracking_by_id.pop(id_key, None)
         self._tracking_by_body.pop(body_key, None)
 
-    @asyncio.coroutine
     def send_message_tracked(self, msg):
         """
         Send a message to the MUC with tracking.
@@ -955,6 +1377,20 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
         to the requirements of a message to the MUC. Other attributes are left
         untouched (except that :meth:`~.StanzaBase.autoset_id` is called) and
         can be used as desired for the message.
+
+        .. warning::
+
+            Using :meth:`send_message_tracked` before :meth:`on_join` has
+            emitted will cause the `member` object in the resulting
+            :meth:`on_message` event to be :data:`None` (the message will be
+            delivered just fine).
+
+            Using :meth:`send_message_tracked` before history replay is over
+            will cause the :meth:`on_message` event to be emitted during
+            history replay, even though everyone else in the MUC will -- of
+            course -- only see the message after the history.
+
+            :meth:`send_message` is not affected by these quirks.
 
         .. seealso::
 
@@ -1000,7 +1436,13 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
             self._tracker_closed,
             tracker,
         ))
-        token = yield from tracking_svc.send_tracked(msg, tracker)
+        token = tracking_svc.send_tracked(msg, tracker)
+        self.on_message(
+            msg,
+            self._this_occupant,
+            aioxmpp.im.dispatcher.MessageSource.STREAM,
+            tracker=tracker,
+        )
         return token, tracker
 
     @asyncio.coroutine
@@ -1027,7 +1469,7 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
             type_=aioxmpp.PresenceType.AVAILABLE,
             to=self._mucjid.replace(resource=new_nick),
         )
-        yield from self._service.client.stream.send(
+        yield from self._service.client.send(
             stanza
         )
 
@@ -1099,9 +1541,7 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
             ]
         )
 
-        yield from self.service.client.stream.send(
-            iq
-        )
+        yield from self.service.client.send(iq)
 
     @asyncio.coroutine
     def ban(self, member, reason=None, *, request_kick=True):
@@ -1167,7 +1607,7 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
         )
         msg.subject.update(new_topic)
 
-        yield from self.service.client.stream.send(msg)
+        yield from self.service.client.send(msg)
 
     @asyncio.coroutine
     def leave(self):
@@ -1186,7 +1626,7 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
             type_=aioxmpp.structs.PresenceType.UNAVAILABLE,
             to=self._mucjid
         )
-        yield from self.service.client.stream.send(presence)
+        yield from self.service.client.send(presence)
 
         yield from fut
 
@@ -1231,16 +1671,51 @@ class Room(aioxmpp.im.conversation.AbstractConversation):
 
         msg.xep0004_data.append(data)
 
-        yield from self.service.client.stream.send(msg)
+        yield from self.service.client.send(msg)
+
+    @asyncio.coroutine
+    def invite(self, address, text=None, *,
+               mode=aioxmpp.im.InviteMode.DIRECT,
+               allow_upgrade=False):
+        if mode == aioxmpp.im.InviteMode.DIRECT:
+            msg = aioxmpp.Message(
+                type_=aioxmpp.MessageType.NORMAL,
+                to=address.bare(),
+            )
+            msg.xep0249_direct_invite = muc_xso.DirectInvite(
+                self.jid,
+                reason=text,
+            )
+
+            return self.service.client.enqueue(msg), self
+        if mode == aioxmpp.im.InviteMode.MEDIATED:
+            invite = muc_xso.Invite()
+            invite.to = address
+            invite.reason = text
+
+            msg = aioxmpp.Message(
+                type_=aioxmpp.MessageType.NORMAL,
+                to=self.jid,
+            )
+            msg.xep0045_muc_user = muc_xso.UserExt()
+            msg.xep0045_muc_user.invites.append(invite)
+
+            return self.service.client.enqueue(msg), self
 
 
 def _connect_to_signal(signal, func):
     return signal, signal.connect(func)
 
 
-class MUCClient(aioxmpp.service.Service):
+class MUCClient(aioxmpp.im.conversation.AbstractConversationService,
+                aioxmpp.service.Service):
     """
     :term:`Conversation Implementation` for Multi-User Chats (:xep:`45`).
+
+    .. seealso::
+
+        :class:`~.AbstractConversationService`
+            for useful common signals
 
     This service provides access to Multi-User Chats using the
     conversation interface defined by :mod:`aioxmpp.im`.
@@ -1262,6 +1737,55 @@ class MUCClient(aioxmpp.service.Service):
 
     .. automethod:: set_room_config
 
+    Global events:
+
+    .. signal:: on_muc_invitation(stanza, muc_address, inviter_address, mode, *, password=None, reason=None, **kwargs)
+
+        Emits when a MUC invitation has been received.
+
+        .. versionadded:: 0.10
+
+        :param stanza: The stanza containing the invitation.
+        :type stanza: :class:`aioxmpp.Message`
+        :param muc_address: The address of the MUC to which the invitation
+            points.
+        :type muc_address: :class:`aioxmpp.JID`
+        :param inviter_address: The address of the inviter.
+        :type inviter_address: :class:`aioxmpp.JID` or :data:`None`
+        :param mode: The type of the invitation.
+        :type mode: :class:`.im.InviteMode`
+        :param password: Password for the MUC.
+        :type password: :class:`str` or :data:`None`
+        :param reason: Text accompanying the invitation.
+        :type reason: :class:`str` or :data:`None`
+
+        The format of the `inviter_address` depends on the `mode`:
+
+        :attr:`~.im.InviteMode.DIRECT`
+            For direct invitations, the `inviter_address` is the full or bare
+            JID of the entity which sent the invitation. Usually, this will
+            be a full JID of a users client.
+
+        :attr:`~.im.InviteMode.MEDIATED`
+            For mediated invitations, the `inviter_address` is either the
+            occupant JID of the inviting occupant or the real bare or full JID
+            of the occupant (:xep:`45` leaves it up to the service to decide).
+            May also be :data:`None`.
+
+        .. warning::
+
+            Neither invitation type is perfect and has issues. Mediated invites
+            can easily be spoofed by MUCs (both their intent and the inviter
+            address) and might be used by spam rooms to trick users into
+            joining. Direct invites may not reach the recipient due to local
+            policy, but they allow proper sender attribution.
+
+            `inviter_address` values which are not an occupant JID should not
+            be trusted for mediated invites!
+
+            How to deal with this is a policy decision which :mod:`aioxmpp`
+            can not make for your application.
+
     .. versionchanged:: 0.8
 
        This class was formerly known as :class:`aioxmpp.muc.Service`. It
@@ -1273,17 +1797,29 @@ class MUCClient(aioxmpp.service.Service):
         This class was completely remodeled in 0.9 to conform with the
         :class:`aioxmpp.im` interface.
 
+    .. versionchanged:: 0.10
+
+        This class now conforms to the :class:`~.AbstractConversationService`
+        interface.
+
     """
 
     ORDER_AFTER = [
         aioxmpp.im.dispatcher.IMDispatcher,
         aioxmpp.im.service.ConversationService,
         aioxmpp.tracking.BasicTrackingService,
+        aioxmpp.DiscoServer,
     ]
 
     ORDER_BEFORE = [
         aioxmpp.im.p2p.Service,
     ]
+
+    on_muc_invitation = aioxmpp.callbacks.Signal()
+
+    direct_invite_feature = aioxmpp.disco.register_feature(
+        namespaces.xep0249_conference,
+    )
 
     def __init__(self, client, **kwargs):
         super().__init__(client, **kwargs)
@@ -1297,7 +1833,7 @@ class MUCClient(aioxmpp.service.Service):
         presence.xep0045_muc = muc_xso.GenericExt()
         presence.xep0045_muc.password = password
         presence.xep0045_muc.history = history
-        self.client.stream.enqueue(presence)
+        self.client.enqueue(presence)
 
     @aioxmpp.service.depsignal(aioxmpp.Client, "on_stream_established")
     def _stream_established(self):
@@ -1357,7 +1893,12 @@ class MUCClient(aioxmpp.service.Service):
                           self._pending_mucs,
                           self._joined_mucs)
 
-    def _pending_join_done(self, mucjid, fut):
+    def _pending_join_done(self, mucjid, room, fut):
+        try:
+            fut.result()
+        except Exception as exc:
+            room.on_failure(exc)
+
         if fut.cancelled():
             try:
                 del self._pending_mucs[mucjid]
@@ -1368,7 +1909,7 @@ class MUCClient(aioxmpp.service.Service):
                 type_=aioxmpp.structs.PresenceType.UNAVAILABLE,
             )
             unjoin.xep0045_muc = muc_xso.GenericExt()
-            self.client.stream.enqueue(unjoin)
+            self.client.enqueue(unjoin)
 
     def _pending_on_enter(self, presence, occupant, **kwargs):
         mucjid = presence.from_.bare()
@@ -1395,7 +1936,7 @@ class MUCClient(aioxmpp.service.Service):
                 return
         muc._inbound_muc_user_presence(stanza)
 
-    def _inbound_muc_presence(self, stanza):
+    def _inbound_presence_error(self, stanza):
         mucjid = stanza.from_.bare()
         try:
             pending, fut, *_ = self._pending_mucs.pop(mucjid)
@@ -1414,8 +1955,8 @@ class MUCClient(aioxmpp.service.Service):
         if stanza.xep0045_muc_user is not None:
             self._inbound_muc_user_presence(stanza)
             return None
-        if stanza.xep0045_muc is not None:
-            self._inbound_muc_presence(stanza)
+        if stanza.type_ == aioxmpp.structs.PresenceType.ERROR:
+            self._inbound_presence_error(stanza)
             return None
         return stanza
 
@@ -1423,6 +1964,54 @@ class MUCClient(aioxmpp.service.Service):
         aioxmpp.im.dispatcher.IMDispatcher,
         "message_filter")
     def _handle_message(self, message, peer, sent, source):
+        if message.xep0045_muc_user and message.xep0045_muc_user.invites:
+            if sent:
+                return None
+
+            invite = message.xep0045_muc_user.invites[0]
+            if invite.to:
+                # outbound mediated invite -- we should never be receiving this
+                # with sent=False
+                self.logger.debug(
+                    "received outbound mediated invite?! dropping"
+                )
+                return None
+
+            # mediated invitation
+            self.on_muc_invitation(
+                message,
+                message.from_.bare(),
+                invite.from_,
+                aioxmpp.im.InviteMode.MEDIATED,
+                password=invite.password,
+                reason=invite.reason,
+            )
+            return None
+
+        if message.xep0249_direct_invite:
+            if sent:
+                return None
+
+            invite = message.xep0249_direct_invite
+            try:
+                jid = invite.jid
+            except AttributeError:
+                self.logger.debug(
+                    "received direct invitation without destination JID; "
+                    "dropping",
+                )
+                return None
+
+            self.on_muc_invitation(
+                message,
+                jid,
+                message.from_,
+                aioxmpp.im.InviteMode.DIRECT,
+                password=invite.password,
+                reason=invite.reason,
+            )
+            return None
+
         if (source == aioxmpp.im.dispatcher.MessageSource.CARBONS
                 and message.xep0045_muc_user):
             return None
@@ -1432,6 +2021,15 @@ class MUCClient(aioxmpp.service.Service):
             muc = self._joined_mucs[mucjid]
         except KeyError:
             return message
+
+        if (message.type_ == aioxmpp.MessageType.NORMAL and not sent and
+                peer == mucjid):
+            for form in message.xep0004_data:
+                if form.get_form_type() != muc_xso.VoiceRequestForm.FORM_TYPE:
+                    continue
+                form_obj = muc_xso.VoiceRequestForm.from_xso(form)
+                muc._handle_role_request(form_obj)
+                return None
 
         if message.type_ != aioxmpp.MessageType.GROUPCHAT:
             if muc is not None:
@@ -1499,7 +2097,8 @@ class MUCClient(aioxmpp.service.Service):
         signal is emitted immediately with the new :class:`Room`.
 
         It is recommended to attach the desired signals to the :class:`Room`
-        before yielding next (e.g. in a non-deferred event handler to the :meth:`~.ConversationService.on_conversation_added` signal), to avoid
+        before yielding next (e.g. in a non-deferred event handler to the
+        :meth:`~.ConversationService.on_conversation_added` signal), to avoid
         races with the server. It is guaranteed that no signals are emitted
         before the next yield, and thus, it is safe to attach the signals right
         after :meth:`join` returned. (This is also the reason why :meth:`join`
@@ -1563,20 +2162,22 @@ class MUCClient(aioxmpp.service.Service):
                 room
             )
         )
-        room.on_enter.connect(
+        room.on_muc_enter.connect(
             self._pending_on_enter,
         )
 
         fut = asyncio.Future()
         fut.add_done_callback(functools.partial(
             self._pending_join_done,
-            mucjid
+            mucjid,
+            room,
         ))
         self._pending_mucs[mucjid] = room, fut, nick, history
 
         if self.client.established:
             self._send_join_presence(mucjid, history, nick, password)
 
+        self.on_conversation_new(room)
         self.dependencies[
             aioxmpp.im.service.ConversationService
         ]._add_conversation(room)
@@ -1637,9 +2238,7 @@ class MUCClient(aioxmpp.service.Service):
             ]
         )
 
-        yield from self.client.stream.send(
-            iq
-        )
+        yield from self.client.send(iq)
 
     @asyncio.coroutine
     def get_room_config(self, mucjid):
@@ -1668,9 +2267,7 @@ class MUCClient(aioxmpp.service.Service):
             payload=muc_xso.OwnerQuery(),
         )
 
-        return (yield from self.client.stream.send(
-            iq
-        )).form
+        return (yield from self.client.send(iq)).form
 
     @asyncio.coroutine
     def set_room_config(self, mucjid, data):
@@ -1705,6 +2302,4 @@ class MUCClient(aioxmpp.service.Service):
             payload=muc_xso.OwnerQuery(form=data),
         )
 
-        yield from self.client.stream.send(
-            iq,
-        )
+        yield from self.client.send(iq)

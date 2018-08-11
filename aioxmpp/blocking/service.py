@@ -103,7 +103,13 @@ class BlockingClient(service.Service):
     @service.depsignal(aioxmpp.Client, "before_stream_established")
     @asyncio.coroutine
     def _get_initial_blocklist(self):
-        yield from self._check_for_blocking()
+        try:
+            yield from self._check_for_blocking()
+        except RuntimeError:
+            self.logger.info(
+                "server does not support block lists, skipping initial fetch"
+            )
+            return True
 
         if self._blocklist is None:
             with (yield from self._lock):
@@ -111,9 +117,11 @@ class BlockingClient(service.Service):
                     type_=aioxmpp.IQType.GET,
                     payload=blocking_xso.BlockList(),
                 )
-                result = yield from self.client.stream.send(iq)
+                result = yield from self.client.send(iq)
                 self._blocklist = frozenset(result.items)
             self.on_initial_blocklist_received(self._blocklist)
+
+        return True
 
     @property
     def blocklist(self):
@@ -138,7 +146,7 @@ class BlockingClient(service.Service):
             type_=aioxmpp.IQType.SET,
             payload=cmd,
         )
-        yield from self.client.stream.send(iq)
+        yield from self.client.send(iq)
 
     @asyncio.coroutine
     def unblock_jids(self, jids_to_unblock):
@@ -156,7 +164,7 @@ class BlockingClient(service.Service):
             type_=aioxmpp.IQType.SET,
             payload=cmd,
         )
-        yield from self.client.stream.send(iq)
+        yield from self.client.send(iq)
 
     @asyncio.coroutine
     def unblock_all(self):
@@ -170,7 +178,7 @@ class BlockingClient(service.Service):
             type_=aioxmpp.IQType.SET,
             payload=cmd,
         )
-        yield from self.client.stream.send(iq)
+        yield from self.client.send(iq)
 
     @service.iq_handler(aioxmpp.IQType.SET, blocking_xso.BlockCommand)
     @asyncio.coroutine
@@ -185,9 +193,16 @@ class BlockingClient(service.Service):
                 return
 
             if (block_command.from_ is None or
-                    block_command.from_ == self.client.local_jid.bare()):
+                    block_command.from_ == self.client.local_jid.bare() or
+                    # WORKAROUND: ejabberd#2287
+                    block_command.from_ == self.client.local_jid):
                 diff = frozenset(block_command.payload.items)
                 self._blocklist |= diff
+            else:
+                self.logger.debug(
+                    "received block push from unauthorized JID: %s",
+                    block_command.from_,
+                )
 
         if diff:
             self.on_jids_blocked(diff)
@@ -205,13 +220,20 @@ class BlockingClient(service.Service):
                 return
 
             if (unblock_command.from_ is None or
-                    unblock_command.from_ == self.client.local_jid.bare()):
+                    unblock_command.from_ == self.client.local_jid.bare() or
+                    # WORKAROUND: ejabberd#2287
+                    unblock_command.from_ == self.client.local_jid):
                 if not unblock_command.payload.items:
                     diff = frozenset(self._blocklist)
                     self._blocklist = frozenset()
                 else:
                     diff = frozenset(unblock_command.payload.items)
                     self._blocklist -= diff
+            else:
+                self.logger.debug(
+                    "received unblock push from unauthorized JID: %s",
+                    unblock_command.from_,
+                )
         if diff:
             self.on_jids_unblocked(diff)
 

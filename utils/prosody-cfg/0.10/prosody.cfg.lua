@@ -68,7 +68,7 @@ modules_enabled = {
 		--"watchregistrations"; -- Alert admins of registrations
 		--"motd"; -- Send a message to users when they log in
 		--"legacyauth"; -- Legacy authentication. Only used by some old clients and bots.
-		"pep_plus";
+		"pep";
 }
 
 -- These modules are auto-loaded, but should you want
@@ -152,6 +152,8 @@ VirtualHost "localhost"
 Component "muc.localhost" "muc"
 Component "pubsub.localhost" "pubsub"
 default_unowned_affiliation = "owner"
+Component "upload.localhost" "http_upload"
+http_upload_path = "/tmp"
 
 
 ------ Components ------

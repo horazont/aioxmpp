@@ -49,6 +49,9 @@ Specific connectors
 
 import abc
 import asyncio
+import logging
+
+from datetime import timedelta
 
 import aioxmpp.errors as errors
 import aioxmpp.nonza as nonza
@@ -101,7 +104,10 @@ class BaseConnector(metaclass=abc.ABCMeta):
         to use.
 
         `negotiation_timeout` must be the maximum time in seconds to wait for
-        the server to reply in each negotiation step.
+        the server to reply in each negotiation step. The `negotiation_timeout`
+        is used as value for
+        :attr:`~aioxmpp.protocol.XMLStream.deadtime_hard_limit` in the returned
+        stream.
 
         Return a triple consisting of the :class:`asyncio.Transport`, the
         :class:`.protocol.XMLStream` and the
@@ -112,6 +118,11 @@ class BaseConnector(metaclass=abc.ABCMeta):
         value for ``"ssl_object"``.
 
         `base_logger` is passed to :class:`aioxmpp.protocol.XMLStream`.
+
+        .. versionchanged:: 0.10
+
+            Assignment of
+            :attr:`~aioxmpp.protocol.XMLStream.deadtime_hard_limit` was added.
         """
 
 
@@ -131,7 +142,7 @@ class STARTTLSConnector(BaseConnector):
         return False
 
     @asyncio.coroutine
-    def connect(self, loop, metadata, domain, host, port,
+    def connect(self, loop, metadata, domain: str, host, port,
                 negotiation_timeout, base_logger=None):
         """
         .. seealso::
@@ -148,12 +159,21 @@ class STARTTLSConnector(BaseConnector):
         possible.
 
         :attr:`~.security_layer.SecurityLayer.tls_required` is honoured: if it
-        is true and the server does not offer TLS or TLS negotiation fails,
-        :class:`~.errors.TLSUnavailable` is raised.
+        is true and TLS negotiation fails, :class:`~.errors.TLSUnavailable` is
+        raised. TLS negotiation is always attempted if
+        :attr:`~.security_layer.SecurityLayer.tls_required` is true, even if
+        the server does not advertise a STARTTLS stream feature. This might
+        help to prevent trivial downgrade attacks, and we don’t have anything
+        to lose at this point anymore anyways.
 
         :attr:`~.security_layer.SecurityLayer.ssl_context_factory` and
         :attr:`~.security_layer.SecurityLayer.certificate_verifier_factory` are
         used to configure the TLS connection.
+
+        .. versionchanged:: 0.10
+
+            The `negotiation_timeout` is set as
+            :attr:`~.XMLStream.deadtime_hard_limit` on the returned XML stream.
         """
 
         features_future = asyncio.Future(loop=loop)
@@ -163,6 +183,12 @@ class STARTTLSConnector(BaseConnector):
             features_future=features_future,
             base_logger=base_logger,
         )
+        if base_logger is not None:
+            logger = base_logger.getChild(type(self).__name__)
+        else:
+            logger = logging.getLogger(".".join([
+                __name__, type(self).__qualname__,
+            ]))
 
         try:
             transport, _ = yield from ssl_transport.create_starttls_connection(
@@ -174,40 +200,38 @@ class STARTTLSConnector(BaseConnector):
                 server_hostname=domain,
                 use_starttls=True,
             )
-        except:
+        except:  # NOQA
             stream.abort()
             raise
+
+        stream.deadtime_hard_limit = timedelta(seconds=negotiation_timeout)
 
         features = yield from features_future
 
         try:
             features[nonza.StartTLSFeature]
         except KeyError:
-            if metadata.tls_required:
-                message = (
-                    "STARTTLS not supported by server, but required by client"
-                )
-
-                protocol.send_stream_error_and_close(
-                    stream,
-                    condition=(namespaces.streams, "policy-violation"),
-                    text=message,
-                )
-
-                raise errors.TLSUnavailable(message)
-            else:
+            if not metadata.tls_required:
                 return transport, stream, (yield from features_future)
+            logger.debug(
+                "attempting STARTTLS despite not announced since it is"
+                " required")
 
-        response = yield from protocol.send_and_wait_for(
-            stream,
-            [
-                nonza.StartTLS(),
-            ],
-            [
-                nonza.StartTLSFailure,
-                nonza.StartTLSProceed,
-            ]
-        )
+        try:
+            response = yield from protocol.send_and_wait_for(
+                stream,
+                [
+                    nonza.StartTLS(),
+                ],
+                [
+                    nonza.StartTLSFailure,
+                    nonza.StartTLSProceed,
+                ]
+            )
+        except errors.StreamError as exc:
+            raise errors.TLSUnavailable(
+                "STARTTLS not supported by server, but required by client"
+            )
 
         if not isinstance(response, nonza.StartTLSProceed):
             if metadata.tls_required:
@@ -217,7 +241,7 @@ class STARTTLSConnector(BaseConnector):
 
                 protocol.send_stream_error_and_close(
                     stream,
-                    condition=(namespaces.streams, "policy-violation"),
+                    condition=errors.StreamErrorCondition.POLICY_VIOLATION,
                     text=message,
                 )
 
@@ -263,6 +287,27 @@ class XMPPOverTLSConnector(BaseConnector):
     def tls_supported(self):
         return True
 
+    def _context_factory_factory(self, logger, metadata, verifier):
+        def context_factory(transport):
+            ssl_context = metadata.ssl_context_factory()
+
+            if hasattr(ssl_context, "set_alpn_protos"):
+                try:
+                    ssl_context.set_alpn_protos([b'xmpp-client'])
+                except NotImplementedError:
+                    logger.warning(
+                        "the underlying OpenSSL library does not support ALPN"
+                    )
+            else:
+                logger.warning(
+                    "OpenSSL.SSL.Context lacks set_alpn_protos - "
+                    "please update pyOpenSSL to a recent version"
+                )
+
+            verifier.setup_context(ssl_context, transport)
+            return ssl_context
+        return context_factory
+
     @asyncio.coroutine
     def connect(self, loop, metadata, domain, host, port,
                 negotiation_timeout, base_logger=None):
@@ -283,8 +328,12 @@ class XMPPOverTLSConnector(BaseConnector):
         :attr:`~.security_layer.SecurityLayer.ssl_context_factory` and
         :attr:`~.security_layer.SecurityLayer.certificate_verifier_factory` are
         used to configure the TLS connection.
-        """
 
+        .. versionchanged:: 0.10
+
+            The `negotiation_timeout` is set as
+            :attr:`~.XMLStream.deadtime_hard_limit` on the returned XML stream.
+        """
 
         features_future = asyncio.Future(loop=loop)
 
@@ -294,6 +343,13 @@ class XMPPOverTLSConnector(BaseConnector):
             base_logger=base_logger,
         )
 
+        if base_logger is not None:
+            logger = base_logger.getChild(type(self).__name__)
+        else:
+            logger = logging.getLogger(".".join([
+                __name__, type(self).__qualname__,
+            ]))
+
         verifier = metadata.certificate_verifier_factory()
         yield from verifier.pre_handshake(
             domain,
@@ -302,10 +358,8 @@ class XMPPOverTLSConnector(BaseConnector):
             metadata,
         )
 
-        def context_factory(transport):
-            ssl_context = metadata.ssl_context_factory()
-            verifier.setup_context(ssl_context, transport)
-            return ssl_context
+        context_factory = self._context_factory_factory(logger, metadata,
+                                                        verifier)
 
         try:
             transport, _ = yield from ssl_transport.create_starttls_connection(
@@ -319,8 +373,10 @@ class XMPPOverTLSConnector(BaseConnector):
                 ssl_context_factory=context_factory,
                 use_starttls=False,
             )
-        except:
+        except:  # NOQA
             stream.abort()
             raise
+
+        stream.deadtime_hard_limit = timedelta(seconds=negotiation_timeout)
 
         return transport, stream, (yield from features_future)

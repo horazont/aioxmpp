@@ -86,6 +86,7 @@ Stream management related XSOs
 
 """
 import itertools
+import warnings
 
 from . import xso, errors, stanza
 
@@ -114,46 +115,48 @@ class StreamError(xso.XSO):
         tag=(namespaces.streams, "text"),
         attr_policy=xso.UnknownAttrPolicy.DROP,
         default=None,
-        declare_prefix=None)
-    condition = xso.ChildTag(
-        tags=[
-            "bad-format",
-            "bad-namespace-prefix",
-            "conflict",
-            "connection-timeout",
-            "host-gone",
-            "host-unknown",
-            "improper-addressing",
-            "internal-server-error",
-            "invalid-from",
-            "invalid-namespace",
-            "invalid-xml",
-            "not-authorized",
-            "not-well-formed",
-            "policy-violation",
-            "remote-connection-failed",
-            "reset",
-            "resource-constraint",
-            "restricted-xml",
-            "see-other-host",
-            "system-shutdown",
-            "undefined-condition",
-            "unsupported-encoding",
-            "unsupported-feature",
-            "unsupported-stanza-type",
-            "unsupported-version",
-        ],
-        default_ns=namespaces.streams,
-        allow_none=False,
-        declare_prefix=None,
+        declare_prefix=None
+    )
+
+    condition_obj = xso.Child(
+        [member.xso_class for member in errors.StreamErrorCondition],
+        required=True,
     )
 
     def __init__(self,
-                 condition=(namespaces.streams, "undefined-condition"),
+                 condition=errors.StreamErrorCondition.UNDEFINED_CONDITION,
                  text=None):
         super().__init__()
-        self.condition = condition
+        if not isinstance(condition, errors.StreamErrorCondition):
+            condition = errors.StreamErrorCondition(condition)
+            warnings.warn(
+                "as of aioxmpp 1.0, stream error conditions must be members "
+                "of the aioxmpp.errors.StreamErrorCondition enumeration",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+
+        self.condition_obj = condition.xso_class()
         self.text = text
+
+    @property
+    def condition(self):
+        return self.condition_obj.enum_member
+
+    @condition.setter
+    def condition(self, value):
+        if not isinstance(value, errors.StreamErrorCondition):
+            value = errors.StreamErrorCondition(value)
+            warnings.warn(
+                "as of aioxmpp 1.0, stream error conditions must be members "
+                "of the aioxmpp.errors.StreamErrorCondition enumeration",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+
+        if self.condition == value:
+            return
+        self.condition_obj = value.xso_class()
 
     @classmethod
     def from_exception(cls, exc):
@@ -165,7 +168,8 @@ class StreamError(xso.XSO):
     def to_exception(self):
         return errors.StreamError(
             condition=self.condition,
-            text=self.text)
+            text=self.text
+        )
 
 
 class StreamFeatures(xso.XSO):
@@ -752,19 +756,16 @@ class SMFailed(SMXSO):
     """
     TAG = (namespaces.stream_management, "failed")
 
-    condition = xso.ChildTag(
-        tags=stanza.STANZA_ERROR_TAGS,
-        default_ns=namespaces.stanzas,
-        allow_none=False,
-        declare_prefix=None,
+    condition = xso.Child(
+        [member.xso_class for member in errors.ErrorCondition],
+        required=True,
     )
 
     def __init__(self,
-                 condition=(namespaces.stanzas, "undefined-condition"),
+                 condition=errors.ErrorCondition.UNDEFINED_CONDITION,
                  **kwargs):
         super().__init__(**kwargs)
-        if condition is not None:
-            self.condition = condition
+        self.condition = condition.to_xso()
 
     def __repr__(self):
         return "<{}.{} condition={!r} at 0x{:x}>".format(

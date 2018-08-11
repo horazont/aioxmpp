@@ -24,7 +24,7 @@
 ########################################################
 
 This subpackage deals with **X**\ ML **S**\ tream **O**\ bjects. XSOs can be
-stanzas, but in general anything which is sent after the XML stream header.
+stanzas, but in general any XML.
 
 The facilities in this subpackage are supposed to help developers of XEP
 plugins, as well as the main development of :mod:`aioxmpp`. The subpackage
@@ -107,7 +107,7 @@ similar. They are described in detail on the :class:`Attr` class and not
 repeated that detailed on the other classes. Refer to the documentation of the
 :class:`Attr` class in those cases.
 
-.. autoclass:: Attr(name, *[, type_=xso.String()][, validator=None][, validate=ValidateMode.FROM_RECV][, missing=None][, default])
+.. autoclass:: Attr(name, *[, type_=xso.String()][, validator=None][, validate=ValidateMode.FROM_RECV][, missing=None][, default][, erroneous_as_absent=False])
 
 .. autoclass:: LangAttr(*[, validator=None][, validate=ValidateMode.FROM_RECV][, default=None])
 
@@ -117,9 +117,9 @@ repeated that detailed on the other classes. Refer to the documentation of the
 
 .. autoclass:: ChildFlag(tag, *[, text_policy=UnknownTextPolicy.FAIL][, child_policy=UnknownChildPolicy.FAIL][, attr_policy=UnknownAttrPolicy.FAIL])
 
-.. autoclass:: ChildText(tag, *[, child_policy=UnknownChildPolicy.FAIL][, attr_policy=UnknownAttrPolicy.FAIL][, type_=xso.String()][, validator=None][, validate=ValidateMode.FROM_RECV][, default])
+.. autoclass:: ChildText(tag, *[, child_policy=UnknownChildPolicy.FAIL][, attr_policy=UnknownAttrPolicy.FAIL][, type_=xso.String()][, validator=None][, validate=ValidateMode.FROM_RECV][, default][, erroneous_as_absent=False])
 
-.. autoclass:: Text(*[, type_=xso.String()][, validator=None][, validate=ValidateMode.FROM_RECV][, default])
+.. autoclass:: Text(*[, type_=xso.String()][, validator=None][, validate=ValidateMode.FROM_RECV][, default][, erroneous_as_absent=False])
 
 Non-scalar descriptors
 ^^^^^^^^^^^^^^^^^^^^^^
@@ -188,6 +188,10 @@ data. It also provides a class method for late registration of child classes.
 
 .. currentmodule:: aioxmpp.xso
 
+To create an enumeration of XSO classes, the following mixin can be used:
+
+.. autoclass:: XSOEnumMixin
+
 Functions, enumerations and exceptions
 --------------------------------------
 
@@ -237,20 +241,13 @@ Types and validators from :mod:`~aioxmpp.xso.types`
 This module provides classes whose objects can be used as types and validators
 in :mod:`~aioxmpp.xso.model`.
 
-Types
------
+Character Data types
+--------------------
 
-Types are used to convert strings obtained from XML character data or attribute
-contents to python types. They are valid values for `type_` arguments e.g. for
-:class:`~aioxmpp.xso.Attr`.
-
-The basic type interface
-^^^^^^^^^^^^^^^^^^^^^^^^
-
-.. autoclass:: AbstractType
-
-Attribute and text types
-^^^^^^^^^^^^^^^^^^^^^^^^
+These types describe character data, i.e. text in XML. Thus, they can be used
+with :class:`Attr`, :class:`Text` and similar descriptors. They are used to
+deserialise XML character data to python values, such as integers or dates and
+vice versa. These types inherit from :class:`AbstractCDataType`.
 
 .. autoclass:: String
 
@@ -274,14 +271,30 @@ Attribute and text types
 
 .. autoclass:: LanguageTag
 
-.. autoclass:: EnumType
+.. autoclass:: EnumCDataType(enum_class, nested_type=xso.String(), *, allow_coerce=False, deprecate_coerce=False, allow_unknown=True, accept_unknown=True)
+
+.. autofunction:: EnumType(enum_class[, nested_type], *, allow_coerce=False, deprecate_coerce=False, allow_unknown=True, accept_unknown=True)
 
 .. autoclass:: Unknown
 
-Child list and map types
-^^^^^^^^^^^^^^^^^^^^^^^^
+Element types
+-------------
+
+These types describe structured XML data, i.e. subtrees. Thus, they can be used
+with the :class:`ChildValueList` and :class:`ChildValueMap` family of
+descriptors (which represent XSOs as python values). These types inherit from
+:class:`AbstractElementType`.
+
+.. autoclass:: EnumElementType
 
 .. autoclass:: TextChildMap
+
+Defining custom types
+---------------------
+
+.. autoclass:: AbstractCDataType
+
+.. autoclass:: AbstractElementType
 
 Validators
 ----------
@@ -478,7 +491,8 @@ def normalize_tag(tag):
 
 from .types import (  # NOQA
     Unknown,
-    AbstractType,
+    AbstractCDataType,
+    AbstractElementType,
     String,
     Integer,
     Float,
@@ -493,6 +507,8 @@ from .types import (  # NOQA
     LanguageTag,
     TextChildMap,
     EnumType,
+    EnumCDataType,
+    EnumElementType,
     AbstractValidator,
     RestrictToSet,
     Nmtoken,
@@ -526,6 +542,7 @@ from .model import (  # NOQA
     XSOParser,
     SAXDriver,
     XSO,
+    XSOEnumMixin,
     CapturingXSO,
     lang_attr,
     capture_events,

@@ -94,8 +94,8 @@ class CompatibilityMixin:
             return True
         if self.value == other:
             warnings.warn(
-                "as of aioxmpp 1.0, enums will not compare equal to their "
-                "values",
+                "as of aioxmpp 1.0, {} members will not compare equal to their "
+                "values".format(type(self).__name__),
                 DeprecationWarning,
                 stacklevel=2,
             )
@@ -757,14 +757,14 @@ class JID(collections.namedtuple("JID", ["localpart", "domain", "resource"])):
         Obtain a :class:`JID` object by parsing a JID from the given string
         `s`.
         """
-        localpart, sep, domain = s.partition("@")
+        nodedomain, sep, resource = s.partition("/")
+        if not sep:
+            resource = None
+
+        localpart, sep, domain = nodedomain.partition("@")
         if not sep:
             domain = localpart
             localpart = None
-
-        domain, sep, resource = domain.partition("/")
-        if not sep:
-            resource = None
         return cls(localpart, domain, resource, strict=strict)
 
 
@@ -1252,9 +1252,11 @@ class LanguageMap(dict):
     instances as keys.
 
     In addition to the interface provided by :class:`dict`, instances of this
-    class also have the following method:
+    class also have the following methods:
 
     .. automethod:: lookup
+
+    .. automethod:: any
     """
 
     def lookup(self, language_ranges):
@@ -1276,3 +1278,19 @@ class LanguageMap(dict):
         keys.sort()
         key = lookup_language(keys, language_ranges)
         return self[key]
+
+    def any(self):
+        """
+        Returns any element from the language map, preferring the :data:`None`
+        key if it is available.
+
+        Guarantees to always return the same element for a map with the same
+        keys, even if the keys are iterated over in a different order.
+        """
+        if not self:
+            raise ValueError("any() on empty map")
+
+        try:
+            return self[None]
+        except KeyError:
+            return self[min(self)]

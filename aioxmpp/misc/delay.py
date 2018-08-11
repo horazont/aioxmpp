@@ -71,4 +71,4 @@ class Delay(xso.XSO):
     )
 
 
-Message.xep0203_delay = xso.Child([Delay])
+Message.xep0203_delay = xso.ChildList([Delay])

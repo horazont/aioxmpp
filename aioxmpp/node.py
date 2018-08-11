@@ -103,7 +103,10 @@ def lookup_addresses(loop, jid):
 
 
 @asyncio.coroutine
-def discover_connectors(domain, loop=None, logger=logger):
+def discover_connectors(
+        domain: str,
+        loop=None,
+        logger=logger):
     """
     Discover all connection options for a domain, in descending order of
     preference.
@@ -139,25 +142,52 @@ def discover_connectors(domain, loop=None, logger=logger):
     .. versionadded:: 0.6
     """
 
+    domain_encoded = domain.encode("idna") + b"."
+    starttls_srv_failed = False
+    tls_srv_failed = False
+
     try:
         starttls_srv_records = yield from network.lookup_srv(
-            domain,
+            domain_encoded,
             "xmpp-client",
         )
         starttls_srv_disabled = False
+    except dns.resolver.NoNameservers as exc:
+        starttls_srv_records = []
+        starttls_srv_disabled = False
+        starttls_srv_failed = True
+        starttls_srv_exc = exc
+        logger.debug("xmpp-client SRV lookup for domain %s failed "
+                     "(may not be fatal)",
+                     domain_encoded,
+                     exc_info=True)
     except ValueError:
         starttls_srv_records = []
         starttls_srv_disabled = True
 
     try:
         tls_srv_records = yield from network.lookup_srv(
-            domain,
+            domain_encoded,
             "xmpps-client",
         )
         tls_srv_disabled = False
+    except dns.resolver.NoNameservers:
+        tls_srv_records = []
+        tls_srv_disabled = False
+        tls_srv_failed = True
+        logger.debug("xmpps-client SRV lookup for domain %s failed "
+                     "(may not be fatal)",
+                     domain_encoded,
+                     exc_info=True)
     except ValueError:
         tls_srv_records = []
         tls_srv_disabled = True
+
+    if starttls_srv_failed and (tls_srv_failed or tls_srv_records is None):
+        # the failure is probably more useful as a diagnostic
+        # if we find a good reason to allow this scenario, we might change it
+        # later.
+        raise starttls_srv_exc
 
     if starttls_srv_disabled and (tls_srv_disabled or tls_srv_records is None):
         raise ValueError(
@@ -178,12 +208,14 @@ def discover_connectors(domain, loop=None, logger=logger):
     tls_srv_records = tls_srv_records or []
 
     srv_records = [
-        (prio, weight, (host, port, connector.STARTTLSConnector()))
+        (prio, weight, (host.decode("ascii"), port,
+                        connector.STARTTLSConnector()))
         for prio, weight, (host, port) in starttls_srv_records
     ]
 
     srv_records.extend(
-        (prio, weight, (host, port, connector.XMPPOverTLSConnector()))
+        (prio, weight, (host.decode("ascii"), port,
+                        connector.XMPPOverTLSConnector()))
         for prio, weight, (host, port) in tls_srv_records
     )
 
@@ -234,19 +266,22 @@ def _try_options(options, exceptions,
             conn,
         )
 
+        if not metadata.sasl_providers:
+            return transport, xmlstream, features
+
         try:
             features = yield from security_layer.negotiate_sasl(
                 transport,
                 xmlstream,
                 metadata.sasl_providers,
-                negotiation_timeout,
-                jid,
-                features,
+                negotiation_timeout=None,
+                jid=jid,
+                features=features,
             )
         except errors.SASLUnavailable as exc:
             protocol.send_stream_error_and_close(
                 xmlstream,
-                condition=(namespaces.streams, "policy-violation"),
+                condition=errors.StreamErrorCondition.POLICY_VIOLATION,
                 text=str(exc),
             )
             exceptions.append(exc)
@@ -254,7 +289,7 @@ def _try_options(options, exceptions,
         except Exception as exc:
             protocol.send_stream_error_and_close(
                 xmlstream,
-                condition=(namespaces.streams, "undefined-condition"),
+                condition=errors.StreamErrorCondition.UNDEFINED_CONDITION,
                 text=str(exc),
             )
             raise
@@ -341,8 +376,6 @@ def connect_xmlstream(
     """
     loop = asyncio.get_event_loop() if loop is None else loop
 
-    domain = jid.domain.encode("idna")
-
     options = list(override_peer)
 
     exceptions = []
@@ -356,7 +389,7 @@ def connect_xmlstream(
         return result
 
     options = list((yield from discover_connectors(
-        domain,
+        jid.domain,
         loop=loop,
         logger=logger,
     )))
@@ -520,6 +553,15 @@ class Client:
 
     .. autoattribute:: established
 
+    .. attribute:: established_event
+
+        An :class:`asyncio.Event` which indicates that the stream is
+        established. A stream is valid after resource binding and before it has
+        been destroyed.
+
+        While this event is cleared, :meth:`enqueue` fails with
+        :class:`ConnectionError` and :meth:`send` blocks.
+
     .. autoattribute:: local_jid
 
     .. attribute:: stream
@@ -536,6 +578,12 @@ class Client:
        transparent re-negotiation, that information may be obsolete. However,
        when :attr:`before_stream_established` fires, the information is
        up-to-date.
+
+    Sending stanzas:
+
+    .. automethod:: send
+
+    .. automethod:: enqueue
 
     Configuration of exponential backoff for reconnects:
 
@@ -681,7 +729,6 @@ class Client:
 
         self._backoff_time = None
 
-        self._established = False
         self._is_suspended = False
 
         # track whether the connection succeeded *at least once*
@@ -698,6 +745,7 @@ class Client:
         self.backoff_factor = 1.2
         self.backoff_cap = timedelta(seconds=60)
         self.override_peer = list(override_peer)
+        self.established_event = asyncio.Event()
         self._max_initial_attempts = max_initial_attempts
         self._resumption_timeout = None
 
@@ -727,6 +775,26 @@ class Client:
             dispatcher.SimplePresenceDispatcher,
         )
 
+        def send_warner(*args, **kwargs):
+            warnings.warn("send() on StanzaStream is deprecated and will "
+                          "be removed in 1.0. Use send() on the Client "
+                          "instead.",
+                          DeprecationWarning,
+                          stacklevel=1)
+            return self.send(*args, **kwargs)
+
+        self.stream.send = send_warner
+
+        def enqueue_warner(*args, **kwargs):
+            warnings.warn("enqueue() on StanzaStream is deprecated and will "
+                          "be removed in 1.0. Use enqueue() on the Client "
+                          "instead.",
+                          DeprecationWarning,
+                          stacklevel=1)
+            return self.enqueue(*args, **kwargs)
+
+        self.stream.enqueue = enqueue_warner
+
     def _stream_failure(self, exc):
         if self._failure_future.done():
             self.logger.warning(
@@ -747,8 +815,8 @@ class Client:
                 self.on_stream_suspended(reason)
             self._is_suspended = True
 
-        if self._established:
-            self._established = False
+        if self.established_event.is_set():
+            self.established_event.clear()
             self.on_stream_destroyed()
 
     def _on_main_done(self, task):
@@ -776,7 +844,7 @@ class Client:
         self.logger.debug(
             "remote server announces support for legacy sessions"
         )
-        yield from self.stream.send(
+        yield from self.stream._send_immediately(
             stanza.IQ(type_=structs.IQType.SET,
                       payload=rfc3921.Session())
         )
@@ -824,13 +892,18 @@ class Client:
             self.logger.debug("stream management started")
 
         try:
-            features[rfc3921.SessionFeature]
+            session_feature = features[rfc3921.SessionFeature]
         except KeyError:
             pass  # yay
         else:
-            yield from self._negotiate_legacy_session()
+            if not session_feature.optional:
+                yield from self._negotiate_legacy_session()
+            else:
+                self.logger.debug(
+                    "skipping optional legacy session negotiation"
+                )
 
-        self._established = True
+        self.established_event.set()
 
         yield from self.before_stream_established()
 
@@ -843,7 +916,7 @@ class Client:
         iq = stanza.IQ(type_=structs.IQType.SET)
         iq.payload = rfc6120.Bind(resource=self._local_jid.resource)
         try:
-            result = yield from self.stream.send(iq)
+            result = yield from self.stream._send_immediately(iq)
         except errors.XMPPError as exc:
             raise errors.StreamNegotiationFailure(
                 "Resource binding failed: {}".format(exc)
@@ -915,7 +988,7 @@ class Client:
                 try:
                     yield from self._main_impl()
                 except errors.StreamError as err:
-                    if err.condition == (namespaces.streams, "conflict"):
+                    if err.condition == errors.StreamErrorCondition.CONFLICT:
                         self.logger.debug("conflict!")
                         raise
                 except (errors.StreamNegotiationFailure,
@@ -928,7 +1001,7 @@ class Client:
                     self.logger.info("connection error: (%s) %s",
                                      type(exc).__qualname__,
                                      exc)
-                    if     (not self._had_connection and
+                    if (not self._had_connection and
                             self._max_initial_attempts is not None and
                             self._nattempt >= self._max_initial_attempts):
                         self.logger.warning("out of connection attempts")
@@ -955,7 +1028,7 @@ class Client:
         if self.running:
             raise RuntimeError("client already running")
 
-        self._main_task = asyncio.async(
+        self._main_task = asyncio.ensure_future(
             self._main(),
             loop=self._loop
         )
@@ -1051,7 +1124,7 @@ class Client:
         true if the stream is currently established (as defined in
         :attr:`on_stream_established`) and false otherwise.
         """
-        return self._established
+        return self.established_event.is_set()
 
     @property
     def resumption_timeout(self):
@@ -1101,6 +1174,165 @@ class Client:
         .. versionadded:: 0.8
         """
         return UseConnected(self, presence=presence, **kwargs)
+
+    def enqueue(self, stanza, **kwargs):
+        """
+        Put a `stanza` in the internal transmission queue and return a token to
+        track it.
+
+        :param stanza: Stanza to send
+        :type stanza: :class:`IQ`, :class:`Message` or :class:`Presence`
+        :param kwargs: see :class:`StanzaToken`
+        :raises ConnectionError: if the stream is not :attr:`established`
+            yet.
+        :return: token which tracks the stanza
+        :rtype: :class:`StanzaToken`
+
+        The `stanza` is enqueued in the active queue for transmission and will
+        be sent on the next opportunity. The relative ordering of stanzas
+        enqueued is always preserved.
+
+        Return a fresh :class:`StanzaToken` instance which traks the progress
+        of the transmission of the `stanza`. The `kwargs` are forwarded to the
+        :class:`StanzaToken` constructor.
+
+        This method calls :meth:`~.stanza.StanzaBase.autoset_id` on the stanza
+        automatically.
+
+        .. seealso::
+
+           :meth:`send`
+              for a more high-level way to send stanzas.
+
+        .. versionchanged:: 0.10
+
+            This method has been moved from
+            :meth:`aioxmpp.stream.StanzaStream.enqueue`.
+        """
+        if not self.established_event.is_set():
+            raise ConnectionError("stream is not ready")
+
+        return self.stream._enqueue(stanza, **kwargs)
+
+    @asyncio.coroutine
+    def send(self, stanza, *, timeout=None, cb=None):
+        """
+        Send a stanza.
+
+        :param stanza: Stanza to send
+        :type stanza: :class:`~.IQ`, :class:`~.Presence` or :class:`~.Message`
+        :param timeout: Maximum time in seconds to wait for an IQ response, or
+                        :data:`None` to disable the timeout.
+        :type timeout: :class:`~numbers.Real` or :data:`None`
+        :param cb: Optional callback which is called synchronously when the
+            reply is received (IQ requests only!)
+        :raise OSError: if the underlying XML stream fails and stream
+            management is not disabled.
+        :raise aioxmpp.stream.DestructionRequested:
+           if the stream is closed while sending the stanza or waiting for a
+           response.
+        :raise aioxmpp.errors.XMPPError: if an error IQ response is received
+        :raise aioxmpp.errors.ErroneousStanza: if the IQ response could not be
+            parsed
+        :raise ValueError: if `cb` is given and `stanza` is not an IQ request.
+        :return: IQ response :attr:`~.IQ.payload` or :data:`None`
+
+        Send the stanza and wait for it to be sent. If the stanza is an IQ
+        request, the response is awaited and the :attr:`~.IQ.payload` of the
+        response is returned.
+
+        If the stream is currently not ready, this method blocks until the
+        stream is ready to send payload stanzas. Note that this may be before
+        initial presence has been sent. To synchronise with that type of events,
+        use the appropriate signals.
+
+        The `timeout` as well as any of the exception cases referring to a
+        "response" do not apply for IQ response stanzas, message stanzas or
+        presence stanzas sent with this method, as this method only waits for
+        a reply if an IQ *request* stanza is being sent.
+
+        If `stanza` is an IQ request and the response is not received within
+        `timeout` seconds, :class:`TimeoutError` (not
+        :class:`asyncio.TimeoutError`!) is raised.
+
+        If `cb` is given, `stanza` must be an IQ request (otherwise,
+        :class:`ValueError` is raised before the stanza is sent). It must be a
+        callable returning an awaitable. It receives the response stanza as
+        first and only argument. The returned awaitable is awaited by
+        :meth:`send` and the result is returned instead of the original
+        payload. `cb` is called synchronously from the stream handling loop when
+        the response is received, so it can benefit from the strong ordering
+        guarantees given by XMPP XML Streams.
+
+        The `cb` may also return :data:`None`, in which case :meth:`send` will
+        simply return the IQ payload as if `cb` was not given. Since the return
+        value of coroutine functions is awaitable, it is valid and supported to
+        pass a coroutine function as `cb`.
+
+        .. warning::
+
+            Remember that it is an implementation detail of the event loop when
+            a coroutine is scheduled after it awaited an awaitable; this implies
+            that if the caller of :meth:`send` is merely awaiting the
+            :meth:`send` coroutine, the strong ordering guarantees of XMPP XML
+            Streams are lost.
+
+            To regain those, use the `cb` argument.
+
+        .. note::
+
+            For the sake of readability, unless you really need the strong
+            ordering guarantees, avoid the use of the `cb` argument. Avoid
+            using a coroutine function unless you really need to.
+
+        .. versionchanged:: 0.10
+
+            * This method now waits until the stream is ready to send stanza¸
+              payloads.
+            * This method was moved from
+              :meth:`aioxmpp.stream.StanzaStream.send`.
+
+        .. versionchanged:: 0.9
+
+            The `cb` argument was added.
+
+        .. versionadded:: 0.8
+        """
+        if not self.running:
+            raise ConnectionError("client is not running")
+
+        if not self.established:
+            self.logger.debug("send(%s): stream not established, waiting",
+                              stanza)
+            # wait for the stream to be established
+            stopped_fut = self.on_stopped.future()
+            failure_fut = self.on_failure.future()
+            established_fut = asyncio.ensure_future(
+                self.established_event.wait()
+            )
+            done, pending = yield from asyncio.wait(
+                [
+                    established_fut,
+                    failure_fut,
+                    stopped_fut,
+                ],
+                return_when=asyncio.FIRST_COMPLETED,
+            )
+            if not established_fut.done():
+                established_fut.cancel()
+            if failure_fut.done():
+                if not stopped_fut.done():
+                    stopped_fut.cancel()
+                failure_fut.exception()
+                raise ConnectionError("client failed to connect")
+            if stopped_fut.done():
+                raise ConnectionError("client shut down by user request")
+
+            self.logger.debug("send(%s): stream established, sending")
+
+        return (yield from self.stream._send_immediately(stanza,
+                                                         timeout=timeout,
+                                                         cb=cb))
 
 
 class PresenceManagedClient(Client):

@@ -56,6 +56,7 @@ Overview of Services
     aioxmpp.PresenceServer
     aioxmpp.PEPClient
     aioxmpp.RosterClient
+    aioxmpp.VersionServer
 
 Shorthands
 ##########
@@ -65,8 +66,7 @@ Shorthands
    Alias of :func:`aioxmpp.security_layer.make`.
 
 """
-
-from .version import version_info, __version__, version
+from ._version import version_info, __version__, version
 
 #: The imported :mod:`aioxmpp` version as a tuple.
 #:
@@ -93,12 +93,18 @@ __version__ = __version__
 # version number isn’t printed in the docs (without additional maintenance
 # cost).
 
+import asyncio # NOQA
+# Adds fallback if asyncio version does not provide an ensure_future function.
+if not hasattr(asyncio, "ensure_future"):
+    asyncio.ensure_future = getattr(asyncio, "async")
+
 from .errors import ( # NOQA
     XMPPAuthError,
     XMPPCancelError,
     XMPPContinueError,
     XMPPModifyError,
     XMPPWaitError,
+    ErrorCondition,
 )
 from .stanza import Presence, IQ, Message  # NOQA
 from .structs import (  # NOQA
@@ -128,6 +134,10 @@ from .carbons import CarbonsClient  # NOQA
 from .ping import PingService  # NOQA
 from .pep import PEPClient  # NOQA
 from .bookmarks import BookmarkClient  # NOQA
+from .version import VersionServer  # NOQA
+from .mdr import DeliveryReceiptsService  # NOQA
+
+from . import httpupload
 
 
 def set_strict_mode():

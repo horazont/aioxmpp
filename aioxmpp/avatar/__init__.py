@@ -62,6 +62,29 @@ Helpers
 
 .. autofunction:: normalize_id
 
+How to work with avatar descriptors
+===================================
+
+.. currentmodule:: aioxmpp.avatar.service
+
+One you have retrieved the avatar descriptor list, the correct way to
+handle it in the application:
+
+1. Select the avatar you prefer based on the
+   :attr:`~AbstractAvatarDescriptor.can_get_image_bytes_via_xmpp`, and
+   metadata information (:attr:`~AbstractAvatarDescriptor.mime_type`,
+   :attr:`~AbstractAvatarDescriptor.width`,
+   :attr:`~AbstractAvatarDescriptor.height`,
+   :attr:`~AbstractAvatarDescriptor.nbytes`). If you cache avatar
+   images it might be a good choice to choose an avatar image you
+   already have cached based on
+   :attr:`~AbstractAvatarDescriptor.normalized_id`.
+
+2. If :attr:`~AbstractAvatarDescriptor.can_get_image_bytes_via_xmpp`
+   is true, try to retrieve the image by
+   :attr:`~AbstractAvatarDescriptor.get_image_bytes()`; if it is false
+   try to retrieve the object at the URL
+   :attr:`~AbstractAvatarDescriptor.url`.
 """
 
 from .service import (AvatarSet, AvatarService,  # NOQA

@@ -1,3 +1,3 @@
 #!/bin/bash -x
 set -euo pipefail
-docker pull jprjr/ejabberd
+docker pull ejabberd/ecs:$EJABBERD_VERSION

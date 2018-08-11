@@ -71,29 +71,29 @@ class TestHash(unittest.TestCase):
 
 
 class TestHashType(unittest.TestCase):
-    def test_is_abstract_type(self):
+    def test_is_element_type(self):
         self.assertTrue(issubclass(
             hashes.HashType,
-            aioxmpp.xso.AbstractType,
+            aioxmpp.xso.AbstractElementType,
         ))
 
-    def test_formatted_type_is_Hash(self):
-        self.assertIs(
-            hashes.HashType.get_formatted_type(),
-            hashes.Hash,
+    def test_get_xso_types(self):
+        self.assertCountEqual(
+            hashes.HashType.get_xso_types(),
+            [hashes.Hash],
         )
 
-    def test_format(self):
+    def test_pack(self):
         t = hashes.HashType()
-        h = t.format(("sha-1", b"foobar"))
+        h = t.pack(("sha-1", b"foobar"))
         self.assertIsInstance(h, hashes.Hash)
         self.assertEqual(h.algo, "sha-1")
         self.assertEqual(h.digest, b"foobar")
 
-    def test_parse(self):
+    def test_unpack(self):
         t = hashes.HashType()
         h = hashes.Hash("fnord", b"baz")
-        pair = t.parse(h)
+        pair = t.unpack(h)
         self.assertSequenceEqual(
             pair,
             (

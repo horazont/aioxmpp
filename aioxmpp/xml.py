@@ -75,20 +75,43 @@ from . import errors, structs, xso
 from .utils import namespaces
 
 
-# this is more portable *and* we don’t need libxml-dev anymore.
-libxml2 = ctypes.cdll.LoadLibrary(
-    ctypes.util.find_library("xml2"),
-)
+_NAME_START_CHAR = [
+    [ord(":"), ord("_")],
+    range(ord("a"), ord("z")+1),
+    range(ord("A"), ord("Z")+1),
+    range(0xc0, 0xd7),
+    range(0xd8, 0xf7),
+    range(0xf8, 0x300),
+    range(0x370, 0x37e),
+    range(0x37f, 0x2000),
+    range(0x200c, 0x200e),
+    range(0x2070, 0x2190),
+    range(0x2c00, 0x2ff0),
+    range(0x3001, 0xd800),
+    range(0xf900, 0xfdd0),
+    range(0xfdf0, 0xfffe),
+    range(0x10000, 0xf0000),
+]
+
+_NAME_CHAR = _NAME_START_CHAR + [
+    [ord("-"), ord("."), 0xb7],
+    range(ord("0"), ord("9")+1),
+    range(0x0300, 0x0370),
+    range(0x203f, 0x2041),
+]
+_NAME_CHAR.sort(key=lambda x: x[0])
 
 
 def xmlValidateNameValue_str(s):
-    return bool(xmlValidateNameValue_buf(s.encode("utf-8")))
-
-
-def xmlValidateNameValue_buf(b):
-    if b"\0" in b:
+    if not s:
         return False
-    return bool(libxml2.xmlValidateNameValue(b))
+    ch = ord(s[0])
+    if not any(ch in range_ for range_ in _NAME_START_CHAR):
+        return False
+    return all(
+        any(ch in range_ for range_ in _NAME_CHAR)
+        for ch in map(ord, s)
+    )
 
 
 def is_valid_cdata_str(s):
@@ -104,6 +127,19 @@ def is_valid_cdata_str(s):
 
 class XMPPXMLGenerator:
     """
+    Class to generate XMPP-conforming XML bytes.
+
+    :param out: File-like object to which the bytes are written.
+    :param short_empty_elements: Write empty elements as ``<foo/>`` instead of
+        ``<foo></foo>``.
+    :type short_empty_elements: :class:`bool`
+    :param sorted_attributes: Sort the attributes in the output. Note: this
+        comes with a performance penalty. See below.
+    :type sorted_attributes: :class:`bool`
+    :param additional_escapes: Sequence of characters to escape in CDATA.
+    :type additional_escapes: :class:`~collections.abc.Iterable` of
+        1-codepoint :class:`str` objects.
+
     :class:`XMPPXMLGenerator` works similar to
     :class:`xml.sax.saxutils.XMLGenerator`, but has a few key differences:
 
@@ -116,19 +152,27 @@ class XMPPXMLGenerator:
     * It allows explicit flushing
 
     `out` must be a file-like supporting both :meth:`file.write` and
-    :meth:`file.flush`. `encoding` specifies the encoding which is used and
-    **must** be ``utf-8`` for XMPP.
+    :meth:`file.flush`.
 
     If `short_empty_elements` is true, empty elements are rendered as
     ``<foo/>`` instead of ``<foo></foo>``, unless a flush occurs before the
     call to :meth:`endElementNS`, in which case the opening is finished before
     flushing, thus the long form is generated.
 
-    If `sorted_attributes` is :data:`True`, attributes are emitted in the
-    lexical order of their qualified names (except for namespace declarations,
-    which are always sorted and always before the normal attributes). The
-    default is not to do this, for performance. During testing, however, it is
-    useful to have a consistent oder on the attributes.
+    If `sorted_attributes` is true, attributes are emitted in the lexical order
+    of their qualified names (except for namespace declarations, which are
+    always sorted and always before the normal attributes). The default is not
+    to do this, for performance. During testing, however, it is useful to have
+    a consistent oder on the attributes.
+
+    All characters in `additional_escapes` are escaped using XML entities. Note
+    that ``<``, ``>`` and ``&`` are always escaped. `additional_escapes` is
+    converted to a dictionary for use with :func:`~xml.sax.saxutils.escape` and
+    :func:`~xml.sax.saxutils.quoteattr`. Passing a dictionary to
+    `additional_escapes` or passing multi-character strings as elements of
+    `additional_escapes` is **not** supported since it may be (ab-)used to
+    create invalid XMPP XML. `additional_escapes` affects both CDATA in XML
+    elements as well as attribute values.
 
     Implementation of the SAX content handler interface (see
     :class:`xml.sax.handler.ContentHandler`):
@@ -175,7 +219,8 @@ class XMPPXMLGenerator:
     """
     def __init__(self, out,
                  short_empty_elements=True,
-                 sorted_attributes=False):
+                 sorted_attributes=False,
+                 additional_escapes=[]):
         self._write = out.write
         if hasattr(out, "flush"):
             self._flush = out.flush
@@ -184,6 +229,11 @@ class XMPPXMLGenerator:
 
         self._short_empty_elements = short_empty_elements
         self._sorted_attributes = sorted_attributes
+
+        self._additional_escapes = {
+            char: "&#{};".format(ord(char))
+            for char in additional_escapes
+        }
 
         # NOTE: when adding state, make sure to handle it in buffer() and to
         # add tests that buffer() handles it correctly
@@ -312,7 +362,7 @@ class XMPPXMLGenerator:
         can use any namespace you like at any time. If you use a namespace
         whose URI has not been associated with a prefix yet, a free prefix will
         automatically be chosen. To avoid unneccessary performance penalties,
-        do not use prefixes of the form ``"{:d}".format(n)``, for any
+        do not use prefixes of the form ``"ns{:d}".format(n)``, for any
         non-negative number of `n`.
 
         It is however required to call :meth:`endPrefixMapping` after a
@@ -397,7 +447,10 @@ class XMPPXMLGenerator:
             self._write(attrname.encode("utf-8"))
             self._write(b"=")
             self._write(
-                xml.sax.saxutils.quoteattr(value).encode("utf-8")
+                xml.sax.saxutils.quoteattr(
+                    value,
+                    self._additional_escapes,
+                ).encode("utf-8")
             )
 
         if self._short_empty_elements:
@@ -451,7 +504,10 @@ class XMPPXMLGenerator:
         if not is_valid_cdata_str(chars):
             raise ValueError("control characters are not allowed in "
                              "well-formed XML")
-        self._write(xml.sax.saxutils.escape(chars).encode("utf-8"))
+        self._write(xml.sax.saxutils.escape(
+            chars,
+            self._additional_escapes,
+        ).encode("utf-8"))
 
     def processingInstruction(self, target, data):
         """
@@ -808,6 +864,7 @@ class XMPPXMLProcessor:
         self.remote_from = None
         self.remote_to = None
         self.remote_id = None
+        self.remote_lang = None
 
     @property
     def stanza_parser(self):
@@ -826,10 +883,11 @@ class XMPPXMLProcessor:
         if self._state != ProcessorState.CLEAN:
             raise RuntimeError("invalid state: {}".format(self._state))
         self._stanza_parser = value
+        self._stanza_parser.lang = self.remote_lang
 
     def processingInstruction(self, target, foo):
         raise errors.StreamError(
-            (namespaces.streams, "restricted-xml"),
+            errors.StreamErrorCondition.RESTRICTED_XML,
             "processing instructions are not allowed in XMPP"
         )
 
@@ -885,7 +943,7 @@ class XMPPXMLProcessor:
 
         if name != (namespaces.xmlstream, "stream"):
             raise errors.StreamError(
-                (namespaces.streams, "invalid-namespace"),
+                errors.StreamErrorCondition.INVALID_NAMESPACE,
                 "stream has invalid namespace or localname"
             )
 
@@ -896,7 +954,7 @@ class XMPPXMLProcessor:
             )
         except ValueError as exc:
             raise errors.StreamError(
-                (namespaces.streams, "unsupported-version"),
+                errors.StreamErrorCondition.UNSUPPORTED_VERSION,
                 str(exc)
             )
 
@@ -911,16 +969,26 @@ class XMPPXMLProcessor:
             )
         except KeyError:
             raise errors.StreamError(
-                (namespaces.streams, "undefined-condition"),
+                errors.StreamErrorCondition.UNDEFINED_CONDITION,
                 "from attribute required in response header"
             )
         try:
             self.remote_id = attributes.pop((None, "id"))
         except KeyError:
             raise errors.StreamError(
-                (namespaces.streams, "undefined-condition"),
+                errors.StreamErrorCondition.UNDEFINED_CONDITION,
                 "id attribute required in response header"
             )
+
+        try:
+            lang = attributes.pop((namespaces.xml, "lang"))
+        except KeyError:
+            self.remote_lang = None
+        else:
+            self.remote_lang = structs.LanguageTag.fromstr(lang)
+
+        if self._stanza_parser is not None:
+            self._stanza_parser.lang = self.remote_lang
 
         if self.on_stream_header:
             self.on_stream_header()
@@ -980,14 +1048,14 @@ class XMPPLexicalHandler:
     @classmethod
     def comment(cls, data):
         raise errors.StreamError(
-            (namespaces.streams, "restricted-xml"),
+            errors.StreamErrorCondition.RESTRICTED_XML,
             "comments are not allowed in XMPP"
         )
 
     @classmethod
     def startDTD(cls, name, publicId, systemId):
         raise errors.StreamError(
-            (namespaces.streams, "restricted-xml"),
+            errors.StreamErrorCondition.RESTRICTED_XML,
             "DTD declarations are not allowed in XMPP"
         )
 
@@ -1007,7 +1075,7 @@ class XMPPLexicalHandler:
     def startEntity(cls, name):
         if name not in cls.PREDEFINED_ENTITIES:
             raise errors.StreamError(
-                (namespaces.streams, "restricted-xml"),
+                errors.StreamErrorCondition.RESTRICTED_XML,
                 "non-predefined entities are not allowed in XMPP"
             )
 

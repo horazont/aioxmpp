@@ -25,8 +25,10 @@ utilities themselves are tested, which is meta, but cool.
 """
 import asyncio
 import collections
+import contextlib
 import functools
 import logging
+import time
 import unittest
 import unittest.mock
 
@@ -39,9 +41,23 @@ import aioxmpp.nonza as nonza
 from aioxmpp.utils import etree
 
 
+GLOBAL_TIMEOUT_FACTOR = 1.0
+
+_monotonic_info = time.get_clock_info("monotonic")
+GLOBAL_TIMEOUT_FACTOR *= max(_monotonic_info.resolution, 0.0015) / 0.0015
+
+
+logging.getLogger(__name__).debug("using GLOBAL_TIMEOUT_FACTOR = %.3f",
+                                  GLOBAL_TIMEOUT_FACTOR)
+
+
+def get_timeout(base):
+    return base * GLOBAL_TIMEOUT_FACTOR
+
+
 # FIXME: find a way to detect Travis CI and use 2.0 there, 1.0 otherwise.
 # 1.0 is sufficient normally, but on Travis we sometimes get spurious failures.
-DEFAULT_TIMEOUT = 2.0
+DEFAULT_TIMEOUT = get_timeout(2.0)
 
 
 def make_protocol_mock():
@@ -71,8 +87,8 @@ def run_coroutine_with_peer(
         loop=None):
     loop = loop or asyncio.get_event_loop()
 
-    local_future = asyncio.async(coroutine, loop=loop)
-    remote_future = asyncio.async(peer_coroutine, loop=loop)
+    local_future = asyncio.ensure_future(coroutine, loop=loop)
+    remote_future = asyncio.ensure_future(peer_coroutine, loop=loop)
 
     done, pending = loop.run_until_complete(
         asyncio.wait(
@@ -118,15 +134,21 @@ def make_listener(instance):
 
     The children are named exactly like the signals.
     """
-    result = unittest.mock.Mock()
-    for name, obj in type(instance).__dict__.items():
-        if not isinstance(obj, callbacks.Signal):
+    result = unittest.mock.Mock([])
+    names = {
+        name
+        for type_ in type(instance).__mro__
+        for name in type_.__dict__
+    }
+    for name in names:
+        signal = getattr(instance, name)
+        if not isinstance(signal, callbacks.AdHocSignal):
             continue
-        cb = getattr(result, name)
+        cb = unittest.mock.Mock()
+        setattr(result, name, cb)
         cb.return_value = None
-        getattr(instance, name).connect(cb)
+        signal.connect(cb)
     return result
-
 
 
 class FilterMock(unittest.mock.Mock):
@@ -159,6 +181,7 @@ class ConnectedClientMock(unittest.mock.Mock):
             "stop",
             "set_presence",
             "local_jid",
+            "enqueue",
         ])
 
         self.established = True
@@ -176,8 +199,13 @@ class ConnectedClientMock(unittest.mock.Mock):
         self.stream.service_outbound_message_filter = FilterMock()
         self.stream.service_outbound_presence_filter = FilterMock()
         self.stream.on_stream_destroyed = callbacks.AdHocSignal()
-        self.stream.send_iq_and_wait_for_reply = CoroutineMock()
-        self.stream.send = CoroutineMock()
+        self.stream.send_iq_and_wait_for_reply.side_effect = \
+            AssertionError("use of deprecated function")
+        self.stream.send.side_effect = \
+            AssertionError("use of deprecated function")
+        self.stream.enqueue.side_effect = \
+            AssertionError("use of deprecated function")
+        self.send = CoroutineMock()
         self.stream.enqueue_stanza = self.stream.enqueue
         self.mock_services = {}
 
@@ -470,7 +498,7 @@ class TransportMock(InteractivityMock,
             logging.info("got this: %r", data)
             self._tester.assertEqual(
                 expected_data[:len(data)],
-                data,
+                bytes(data),
                 "mismatch of expected and written data"+self._previously()
             )
         self._rxd.append(data)
@@ -586,6 +614,14 @@ class XMLStreamMock(InteractivityMock):
         def __new__(cls, *, response=None):
             return super().__new__(cls, response)
 
+    class Mute(collections.namedtuple("Mute", ["response"])):
+        def __new__(cls, *, response=None):
+            return super().__new__(cls, response)
+
+    class Unmute(collections.namedtuple("Unmute", ["response"])):
+        def __new__(cls, *, response=None):
+            return super().__new__(cls, response)
+
     class STARTTLS(collections.namedtuple("STARTTLS", [
             "ssl_context", "post_handshake_callback", "response"])):
         def __new__(cls, ssl_context, post_handshake_callback,
@@ -596,6 +632,7 @@ class XMLStreamMock(InteractivityMock):
                                    response)
 
     on_closing = callbacks.Signal()
+    on_deadtime_soft_limit_tripped = callbacks.Signal()
 
     def __init__(self, tester, *, loop=None):
         super().__init__(tester, loop=loop)
@@ -644,6 +681,10 @@ class XMLStreamMock(InteractivityMock):
                     yield from self._starttls(*args)
                 elif action == "abort":
                     yield from self._abort(*args)
+                elif action == "mute":
+                    yield from self._mute(*args)
+                elif action == "unmute":
+                    yield from self._unmute(*args)
                 else:
                     assert False
 
@@ -678,6 +719,14 @@ class XMLStreamMock(InteractivityMock):
     @asyncio.coroutine
     def _reset(self):
         self._basic("reset", self.Reset)
+
+    @asyncio.coroutine
+    def _mute(self):
+        self._basic("mute", self.Mute)
+
+    @asyncio.coroutine
+    def _unmute(self):
+        self._basic("unmute", self.Unmute)
 
     @asyncio.coroutine
     def _abort(self):
@@ -771,6 +820,14 @@ class XMLStreamMock(InteractivityMock):
             yield from fut
         except Exception:
             pass
+
+    @contextlib.contextmanager
+    def mute(self):
+        self._queue.put_nowait(("mute",))
+        try:
+            yield
+        finally:
+            self._queue.put_nowait(("unmute",))
 
     def can_starttls(self):
         return self.can_starttls_value

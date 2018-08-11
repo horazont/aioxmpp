@@ -32,6 +32,17 @@ class PEPClient(service.Service):
     """
     :class:`PEPClient` simplifies working with PEP services.
 
+    .. versionchanged:: 0.10
+
+        Before version 0.10, this service did not depend on
+        :class:`aioxmpp.EntityCapsService`. This was surprising to users because
+        the PEP relies on the functionality provided by the protocols
+        implemented by :class:`~aioxmpp.EntityCapsService` to provide key
+        features. With the release 0.10, :class:`~aioxmpp.EntityCapsService` is
+        a dependency of this service. For backward compatibility, your
+        application should still :meth:`aioxmpp.Client.summon` the
+        :class:`~aioxmpp.EntityCapsService` explicitly.
+
     Compared to :class:`~aioxmpp.PubSubClient` it supports automatic
     checking for server support, a stream-lined API. It is intended to
     make PEP things easy. If you need more fine-grained control or do
@@ -59,6 +70,7 @@ class PEPClient(service.Service):
         aioxmpp.DiscoClient,
         aioxmpp.DiscoServer,
         aioxmpp.PubSubClient,
+        aioxmpp.EntityCapsService,
     ]
 
     def __init__(self, client, **kwargs):
@@ -137,18 +149,25 @@ class PEPClient(service.Service):
         self._pep_node_claims.pop(node_namespace)
 
     @asyncio.coroutine
-    def _check_for_pep(self):
-        # XXX: should this be done when the stream connects
-        # and we use the cached result later on (i.e. disable
-        # the PEP service if the server does not support PEP)
+    def available(self):
+        """
+        Check whether we have a PEP identity associated with our account.
+        """
         disco_info = yield from self._disco_client.query_info(
             self.client.local_jid.bare()
         )
 
         for item in disco_info.identities.filter(attrs={"category": "pubsub"}):
             if item.type_ == "pep":
-                break
-        else:
+                return True
+        return False
+
+    @asyncio.coroutine
+    def _check_for_pep(self):
+        # XXX: should this be done when the stream connects
+        # and we use the cached result later on (i.e. disable
+        # the PEP service if the server does not support PEP)
+        if not (yield from self.available()):
             raise RuntimeError("server does not support PEP")
 
     @service.depsignal(aioxmpp.PubSubClient, "on_item_published")

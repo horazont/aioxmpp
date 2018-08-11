@@ -22,6 +22,7 @@
 ########################################################################
 import os.path
 import runpy
+import sys
 
 import setuptools
 from setuptools import setup, find_packages
@@ -31,7 +32,7 @@ here = os.path.abspath(os.path.dirname(__file__))
 with open(os.path.join(here, "README.rst"), encoding="utf-8") as f:
     long_description = f.read()
 
-version_mod = runpy.run_path("aioxmpp/version.py")
+version_mod = runpy.run_path("aioxmpp/_version.py")
 
 install_requires = [
     'aiosasl>=0.3',  # need 0.2+ for LGPLv3
@@ -39,17 +40,20 @@ install_requires = [
     'babel~=2.3',
     'dnspython~=1.0',
     'lxml~=3.6',
-    'multidict~=2.0',
-    'orderedset>=1.2',
+    'multidict<5,>=2.0',
+    'sortedcollections>=0.5',
     'pyOpenSSL',
     'pyasn1',
     'pyasn1_modules',
-    'tzlocal~=1.2'
+    'tzlocal~=1.2',
 ]
 
-if tuple(map(int, setuptools.__version__.split("."))) < (6, 0, 0):
+if tuple(map(int, setuptools.__version__.split(".")[:3])) < (6, 0, 0):
     for i, item in enumerate(install_requires):
         install_requires[i] = item.replace("~=", ">=")
+
+if sys.version_info[:3] < (3, 5, 0):
+    install_requires.append("typing")
 
 setup(
     name="aioxmpp",
@@ -73,5 +77,5 @@ setup(
     ],
     keywords="asyncio xmpp library",
     install_requires=install_requires,
-    packages=find_packages(exclude=["tests*"])
+    packages=find_packages(exclude=["tests*", "benchmarks*"])
 )

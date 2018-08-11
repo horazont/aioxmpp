@@ -69,6 +69,12 @@ class TestPEPClient(unittest.TestCase):
     def test_is_service(self):
         self.assertTrue(issubclass(pep.PEPClient, aioxmpp.service.Service))
 
+    def test_depends_on_entity_caps(self):
+        self.assertLess(
+            aioxmpp.EntityCapsService,
+            pep.PEPClient,
+        )
+
     def test_check_for_pep(self):
         disco_info = disco_xso.InfoQuery()
         disco_info.identities.append(

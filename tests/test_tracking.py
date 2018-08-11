@@ -138,7 +138,7 @@ class TestMessageTracker(unittest.TestCase):
                 unittest.mock.sentinel.response,
             )
 
-    def test__set_state_rejects_transitions_from_error(self):
+    def test__set_state_rejects_transitions_from_error_to_in_transit(self):
         self.t._set_state(
             tracking.MessageState.ERROR,
             unittest.mock.sentinel.response,
@@ -146,20 +146,86 @@ class TestMessageTracker(unittest.TestCase):
         self.listener.on_state_changed.reset_mock()
         self.listener.on_state_changed.return_value = None
 
-        for state in tracking.MessageState:
-            with self.assertRaisesRegex(
-                    ValueError,
-                    "transition from .* to .*not allowed"):
-                self.t._set_state(state)
-            self.listener.on_state_changed.assert_not_called()
-            self.assertEqual(
-                self.t.state,
-                tracking.MessageState.ERROR,
-            )
-            self.assertEqual(
-                self.t.response,
-                unittest.mock.sentinel.response,
-            )
+        with self.assertRaisesRegex(
+                ValueError,
+                "transition from .* to .*not allowed"):
+            self.t._set_state(tracking.MessageState.IN_TRANSIT)
+
+        self.listener.on_state_changed.assert_not_called()
+        self.assertEqual(
+            self.t.state,
+            tracking.MessageState.ERROR,
+        )
+        self.assertEqual(
+            self.t.response,
+            unittest.mock.sentinel.response,
+        )
+
+    def test__set_state_rejects_transitions_from_error_to_aborted(self):
+        self.t._set_state(
+            tracking.MessageState.ERROR,
+            unittest.mock.sentinel.response,
+        )
+        self.listener.on_state_changed.reset_mock()
+        self.listener.on_state_changed.return_value = None
+
+        with self.assertRaisesRegex(
+                ValueError,
+                "transition from .* to .*not allowed"):
+            self.t._set_state(tracking.MessageState.ABORTED)
+
+        self.listener.on_state_changed.assert_not_called()
+        self.assertEqual(
+            self.t.state,
+            tracking.MessageState.ERROR,
+        )
+        self.assertEqual(
+            self.t.response,
+            unittest.mock.sentinel.response,
+        )
+
+    def test__set_state_rejects_transitions_from_error_to_delivered_to_server(
+            self):
+        self.t._set_state(
+            tracking.MessageState.ERROR,
+            unittest.mock.sentinel.response,
+        )
+        self.listener.on_state_changed.reset_mock()
+        self.listener.on_state_changed.return_value = None
+
+        with self.assertRaisesRegex(
+                ValueError,
+                "transition from .* to .*not allowed"):
+            self.t._set_state(tracking.MessageState.DELIVERED_TO_SERVER)
+
+        self.listener.on_state_changed.assert_not_called()
+        self.assertEqual(
+            self.t.state,
+            tracking.MessageState.ERROR,
+        )
+        self.assertEqual(
+            self.t.response,
+            unittest.mock.sentinel.response,
+        )
+
+    def test__set_state_allows_transition_from_error_to_delivered_to_recipient(
+            self):
+        self.t._set_state(
+            tracking.MessageState.ERROR,
+            unittest.mock.sentinel.response,
+        )
+        self.listener.on_state_changed.reset_mock()
+        self.listener.on_state_changed.return_value = None
+
+        self.t._set_state(
+            tracking.MessageState.DELIVERED_TO_RECIPIENT,
+            unittest.mock.sentinel.response,
+        )
+
+        self.listener.on_state_changed.assert_called_once_with(
+            tracking.MessageState.DELIVERED_TO_RECIPIENT,
+            unittest.mock.sentinel.response,
+        )
 
     def test__set_state_rejects_transitions_to_in_transit(self):
         for state in tracking.MessageState:
@@ -359,7 +425,7 @@ class TestBasicTrackingService(unittest.TestCase):
 
         error = msg.make_error(aioxmpp.stanza.Error.from_exception(
             aioxmpp.XMPPCancelError(
-                (namespaces.stanzas, "feature-not-implemented")
+                aioxmpp.ErrorCondition.FEATURE_NOT_IMPLEMENTED
             )
         ))
 
@@ -389,7 +455,7 @@ class TestBasicTrackingService(unittest.TestCase):
 
         error = msg.make_error(aioxmpp.stanza.Error.from_exception(
             aioxmpp.XMPPCancelError(
-                (namespaces.stanzas, "feature-not-implemented")
+                aioxmpp.ErrorCondition.FEATURE_NOT_IMPLEMENTED
             )
         ))
         error.from_ = error.from_.bare()
@@ -420,7 +486,7 @@ class TestBasicTrackingService(unittest.TestCase):
 
         error = msg.make_error(aioxmpp.stanza.Error.from_exception(
             aioxmpp.XMPPCancelError(
-                (namespaces.stanzas, "feature-not-implemented")
+                aioxmpp.ErrorCondition.FEATURE_NOT_IMPLEMENTED
             )
         ))
         error.id_ = "fnord"
@@ -519,6 +585,34 @@ class TestBasicTrackingService(unittest.TestCase):
             tracking.MessageState.ABORTED,
         )
 
+    def test_attach_tracker_handler_does_not_raise_exception_if_state_already_set(self):
+        tracker = tracking.MessageTracker()
+        msg = aioxmpp.Message(
+            type_=aioxmpp.MessageType.CHAT,
+            from_=TEST_LOCAL,
+            to=TEST_PEER,
+        )
+        token = unittest.mock.Mock()
+        self.assertIs(
+            self.s.attach_tracker(msg, tracker, token),
+            tracker
+        )
+
+        token.future.add_done_callback.assert_called_once_with(
+            unittest.mock.ANY,
+        )
+
+        _, (cb, ), _ = token.future.add_done_callback.mock_calls[0]
+
+        tracker._set_state(tracking.MessageState.DELIVERED_TO_RECIPIENT)
+
+        cb(token.future)
+
+        self.assertEqual(
+            tracker.state,
+            tracking.MessageState.DELIVERED_TO_RECIPIENT,
+        )
+
     def test_attach_tracker_ignores_cancelled_stanza_token(self):
         tracker = tracking.MessageTracker()
         msg = aioxmpp.Message(
@@ -562,7 +656,7 @@ class TestBasicTrackingService(unittest.TestCase):
 
         error = msg.make_error(aioxmpp.stanza.Error.from_exception(
             aioxmpp.XMPPCancelError(
-                (namespaces.stanzas, "feature-not-implemented")
+                aioxmpp.ErrorCondition.FEATURE_NOT_IMPLEMENTED
             )
         ))
 
@@ -593,7 +687,7 @@ class TestBasicTrackingService(unittest.TestCase):
 
         error = msg.make_error(aioxmpp.stanza.Error.from_exception(
             aioxmpp.XMPPCancelError(
-                (namespaces.stanzas, "feature-not-implemented")
+                aioxmpp.ErrorCondition.FEATURE_NOT_IMPLEMENTED
             )
         ))
 
@@ -648,7 +742,7 @@ class TestBasicTrackingService(unittest.TestCase):
 
         error = msg.make_error(aioxmpp.stanza.Error.from_exception(
             aioxmpp.XMPPCancelError(
-                (namespaces.stanzas, "feature-not-implemented")
+                aioxmpp.ErrorCondition.FEATURE_NOT_IMPLEMENTED
             )
         ))
 
@@ -671,7 +765,7 @@ class TestBasicTrackingService(unittest.TestCase):
 
         error = msg.make_error(aioxmpp.stanza.Error.from_exception(
             aioxmpp.XMPPCancelError(
-                (namespaces.stanzas, "feature-not-implemented")
+                aioxmpp.ErrorCondition.FEATURE_NOT_IMPLEMENTED
             )
         ))
 
@@ -698,17 +792,17 @@ class TestBasicTrackingService(unittest.TestCase):
 
             result = self.s.send_tracked(msg, tracker)
 
-            self.cc.stream.enqueue.assert_called_once_with(
+            self.cc.enqueue.assert_called_once_with(
                 msg,
             )
 
             attach_tracker.assert_called_once_with(
                 msg,
                 tracker,
-                self.cc.stream.enqueue(),
+                self.cc.enqueue(),
             )
 
             self.assertEqual(
                 result,
-                self.cc.stream.enqueue(),
+                self.cc.enqueue(),
             )

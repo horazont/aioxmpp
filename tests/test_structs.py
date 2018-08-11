@@ -73,8 +73,8 @@ class TestCompatibilityMixin(unittest.TestCase):
     def _test_eq_with_warning(self, v1, v2):
         with self.assertWarnsRegex(
                 DeprecationWarning,
-                "as of aioxmpp 1.0, enums will not compare equal to their "
-                "values") as ctx:
+                r"as of aioxmpp 1.0, SomeEnum members will not compare equal to"
+                r" their values") as ctx:
             self.assertTrue(v1 == v2)
 
         self.assertIn(
@@ -84,8 +84,8 @@ class TestCompatibilityMixin(unittest.TestCase):
 
         with self.assertWarnsRegex(
                 DeprecationWarning,
-                "as of aioxmpp 1.0, enums will not compare equal to their "
-                "values") as ctx:
+                r"as of aioxmpp 1.0, SomeEnum members will not compare equal to"
+                r" their values") as ctx:
             self.assertFalse(v1 != v2)
 
         self.assertIn(
@@ -523,6 +523,12 @@ class TestJID(unittest.TestCase):
         self.assertEqual(
             structs.JID(None, "IX.test", None),
             structs.JID.fromstr("ix.test")
+        )
+
+    def test_fromstr_domain_with_funny_resource(self):
+        self.assertEqual(
+            structs.JID(None, "example.test", "foo@bar"),
+            structs.JID.fromstr("example.test/foo@bar")
         )
 
     def test_fromstr_domain_nonstrict(self):
@@ -1422,3 +1428,45 @@ class TestLanguageMap(unittest.TestCase):
             "foobar",
             mapping.lookup([structs.LanguageRange.fromstr("it")])
         )
+
+    def test_any_returns_only_key(self):
+        m = structs.LanguageMap()
+        m[None] = "fnord"
+
+        self.assertEqual(m.any(), "fnord")
+
+        m = structs.LanguageMap()
+        m[structs.LanguageTag.fromstr("de")] = "Test"
+
+        self.assertEqual(m.any(), "Test")
+
+    def test_any_raises_ValueError_on_empty_map(self):
+        m = structs.LanguageMap()
+        with self.assertRaises(ValueError):
+            m.any()
+
+    def test_any_prefers_None(self):
+        m = structs.LanguageMap()
+        m[structs.LanguageTag.fromstr("de")] = "Test"
+        m[None] = "fnord"
+
+        self.assertEqual(m.any(), "fnord")
+
+        m = structs.LanguageMap()
+        m[None] = "fnord"
+        m[structs.LanguageTag.fromstr("de")] = "Test"
+
+        self.assertEqual(m.any(), "fnord")
+
+    def test_any_returns_same_key_for_same_keyset(self):
+        m = structs.LanguageMap()
+        m[structs.LanguageTag.fromstr("de")] = "Test"
+        m[structs.LanguageTag.fromstr("fr")] = "fnord"
+
+        self.assertEqual(m.any(), "Test")
+
+        m = structs.LanguageMap()
+        m[structs.LanguageTag.fromstr("fr")] = "fnord"
+        m[structs.LanguageTag.fromstr("de")] = "Test"
+
+        self.assertEqual(m.any(), "Test")

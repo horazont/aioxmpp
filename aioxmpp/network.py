@@ -260,6 +260,11 @@ def repeated_query(qname, rdtype,
         except (dns.resolver.NoAnswer, dns.resolver.NXDOMAIN):
             return None
         except (dns.resolver.NoNameservers):
+            # make sure we have the correct config
+            if use_tlr and i == 0:
+                reconfigure_resolver()
+                resolver = get_resolver()
+                continue
             resolver.set_flags(dns.flags.RD | dns.flags.AD | dns.flags.CD)
             try:
                 yield from loop.run_in_executor(
@@ -287,7 +292,11 @@ def repeated_query(qname, rdtype,
 
 
 @asyncio.coroutine
-def lookup_srv(domain, service, transport="tcp", **kwargs):
+def lookup_srv(
+        domain: bytes,
+        service: str,
+        transport: str="tcp",
+        **kwargs):
     """
     Query the DNS for SRV records describing how the given `service` over the
     given `transport` is implemented for the given `domain`. `domain` must be
@@ -336,7 +345,7 @@ def lookup_srv(domain, service, transport="tcp", **kwargs):
             )
 
         items[i] = (prio, weight, (
-            host.rstrip(".").encode("ascii").decode("IDNA"),
+            host.rstrip(".").encode("ascii"),
             port))
 
     return items
@@ -392,7 +401,7 @@ def group_and_order_srv_records(all_records, rng=None):
     """
     rng = rng or random
 
-    all_records.sort()
+    all_records.sort(key=lambda x: x[:2])
 
     for priority, records in itertools.groupby(
             all_records,

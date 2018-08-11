@@ -253,7 +253,7 @@ class BoundField(metaclass=abc.ABCMeta):
 
         This method is must be overriden and is thus marked abstract. However,
         when called from a subclass, it creates the :class:`~.Field` instance
-        and initialies its :attr:`~.Field.var`, :attr:`~.Field.type_`,
+        and initialises its :attr:`~.Field.var`, :attr:`~.Field.type_`,
         :attr:`~.Field.desc`, :attr:`~.Field.required` and
         :attr:`~.Field.label` attributes and returns the result. Subclasses are
         supposed to override this method, call the base implementation through
@@ -315,9 +315,9 @@ class BoundSingleValueField(BoundField):
         is accessed for reading, the :meth:`default` of the field is invoked
         and the result is set and returned as value.
 
-        Only values which pass through :meth:`~.AbstractType.coerce` of the
-        :attr:`~.AbstractField.type_` of the field can be set. To revert the
-        :attr:`value` to its default, use the ``del`` operator.
+        Only values which pass through :meth:`~.AbstractCDataType.coerce` of
+        the :attr:`~.AbstractField.type_` of the field can be set. To
+        revert the :attr:`value` to its default, use the ``del`` operator.
         """
         try:
             return self._value
@@ -351,8 +351,17 @@ class BoundSingleValueField(BoundField):
 
     def render(self, **kwargs):
         result = super().render(**kwargs)
+
+        try:
+            value = self._value
+        except AttributeError:
+            value = self._field.default()
+
+        if value is None:
+            return result
+
         result.values[:] = [
-            self.field.type_.format(self._value)
+            self.field.type_.format(value)
         ]
 
         return result
@@ -379,7 +388,7 @@ class BoundMultiValueField(BoundField):
         iterable is then evaluated into a tuple and stored at the bound field.
 
         Whenever values are written to this attribute, they are passed through
-        the :meth:`~.AbstractType.coerce` method of the
+        the :meth:`~.AbstractCDataType.coerce` method of the
         :attr:`~.AbstractField.type_` of the field. To revert the
         :attr:`value` to its default, use the ``del`` operator.
         """
@@ -457,7 +466,7 @@ class BoundOptionsField(BoundField):
         pairs is used.
 
         When writing the attribute, the keys are checked against the
-        :meth:`~.AbstractType.coerce` method of the
+        :meth:`~.AbstractCDataType.coerce` method of the
         :attr:`~.AbstractField.type_` of the field. To make the :attr:`options`
         attribute identical to the :attr:`~.AbstractField.options` attribute,
         use the ``del`` operator.
@@ -692,7 +701,7 @@ class AbstractField(AbstractDescriptor):
                 represent.
     :type var: :class:`str`
     :param type_: The type of the data, defaults to :class:`~.xso.String`.
-    :type type_: :class:`~.xso.AbstractType`
+    :type type_: :class:`~.xso.AbstractCDataType`
     :param required: Flag to indicate that the field is required.
     :type required: :class:`bool`
     :param desc: Description text for the field, e.g. for tool-tips.
@@ -762,8 +771,8 @@ class AbstractField(AbstractDescriptor):
     @property
     def type_(self):
         """
-        :class:`.AbstractType` instance used to parse, validate and format the
-        value(s) of this field.
+        :class:`.AbstractCDataType` instance used to parse, validate and
+        format the value(s) of this field.
 
         The type of a field cannot be changed after its initialisation.
         """
@@ -1065,15 +1074,15 @@ class AbstractChoiceField(AbstractField):
     Abstract base class to implement field descriptor classes using options.
 
     :param type_: Type used for the option keys.
-    :type type_: :class:`~.xso.AbstractType`
+    :type type_: :class:`~.xso.AbstractCDataType`
     :param options: A sequence of key-value pairs or a mapping object
                     representing the options available.
     :type options: sequence of pairs or mapping
 
     The keys of the `options` mapping (or the first elements in the pairs in
     the sequence of pairs) must be compatible with `type_`, in the sense that
-    must pass through :meth:`~.xso.AbstractType.coerce` (this is enforced when
-    the field is instantiated).
+    must pass through :meth:`~.xso.AbstractCDataType.coerce` (this is enforced
+    when the field is instantiated).
 
     Fields using this base class:
 

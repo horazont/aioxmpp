@@ -394,7 +394,7 @@ class TestItem(unittest.TestCase):
         i = pubsub_xso.Item()
         self.assertIsNone(i.id_)
         self.assertFalse(i.registered_payload)
-        self.assertFalse(i.unregistered_payload)
+        self.assertSequenceEqual(i.unregistered_payload, [])
 
         i = pubsub_xso.Item("foo")
         self.assertEqual(i.id_, "foo")
@@ -782,7 +782,6 @@ class TestSubscribeOptions(unittest.TestCase):
             set(pubsub_xso.SubscribeOptions.required.get_tag_map()),
             {
                 (namespaces.xep0060, "required"),
-                None,
             }
         )
         self.assertIs(

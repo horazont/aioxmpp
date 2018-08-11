@@ -21,6 +21,7 @@
 ########################################################################
 import unittest
 
+import aioxmpp
 import aioxmpp.errors as errors
 import aioxmpp.nonza as nonza
 import aioxmpp.xso as xso
@@ -35,14 +36,117 @@ class TestStreamError(unittest.TestCase):
             {}
         )
 
+    def test_condition_obj_attr(self):
+        self.assertIsInstance(
+            nonza.StreamError.condition_obj,
+            xso.Child,
+        )
+        self.assertCountEqual(
+            [
+                member.xso_class
+                for member in errors.StreamErrorCondition
+            ],
+            nonza.StreamError.condition_obj._classes,
+        )
+        self.assertTrue(nonza.StreamError.condition_obj.required)
+
+    def test_initialises_with_undefined_condition(self):
+        e = nonza.StreamError()
+        self.assertIsInstance(
+            e.condition_obj,
+            errors.StreamErrorCondition.UNDEFINED_CONDITION.xso_class,
+        )
+
+    @unittest.skipIf(aioxmpp.version_info >= (1, 0, 0),
+                     "does not apply to this version of aioxmpp")
+    def test_init_works_with_tuple_and_warns(self):
+        with self.assertWarnsRegex(
+                DeprecationWarning,
+                r"as of aioxmpp 1\.0, stream error conditions must be members "
+                r"of the aioxmpp\.errors\.StreamErrorCondition "
+                r"enumeration") as ctx:
+            e = nonza.StreamError(
+                errors.StreamErrorCondition.INTERNAL_SERVER_ERROR.value
+            )
+
+        self.assertEqual(
+            e.condition,
+            errors.StreamErrorCondition.INTERNAL_SERVER_ERROR,
+        )
+
+        self.assertTrue(ctx.filename.endswith("test_nonza.py"))
+
+    def test_condition_reflects_enum_member_of_object_after_init(self):
+        e = nonza.StreamError()
+
+        self.assertEqual(
+            errors.StreamErrorCondition.UNDEFINED_CONDITION,
+            e.condition,
+        )
+
+    def test_condition_reflects_enum_member_of_object_after_change(self):
+        e = nonza.StreamError()
+        e.condition_obj = errors.StreamErrorCondition.HOST_GONE.xso_class()
+
+        self.assertEqual(
+            errors.StreamErrorCondition.HOST_GONE,
+            e.condition,
+        )
+
+    def test_setting_condition_replaces_object(self):
+        e = nonza.StreamError()
+        e.condition = errors.StreamErrorCondition.UNDEFINED_CONDITION
+
+        self.assertEqual(
+            e.condition,
+            errors.StreamErrorCondition.UNDEFINED_CONDITION
+        )
+
+        self.assertIsInstance(
+            e.condition_obj,
+            errors.StreamErrorCondition.UNDEFINED_CONDITION.xso_class,
+        )
+
+    def test_setting_condition_keeps_object_if_condition_matches(self):
+        e = nonza.StreamError()
+        old = e.condition_obj
+        e.condition = errors.StreamErrorCondition.UNDEFINED_CONDITION
+        self.assertIs(e.condition_obj, old)
+
+    @unittest.skipIf(aioxmpp.version_info >= (1, 0, 0),
+                     "does not apply to this version of aioxmpp")
+    def test_accepts_tuple_instead_of_enum_for_condition_and_warns(self):
+        e = nonza.StreamError()
+        with self.assertWarnsRegex(
+                DeprecationWarning,
+                r"as of aioxmpp 1\.0, stream error conditions must be members "
+                r"of the aioxmpp\.errors\.StreamErrorCondition "
+                r"enumeration") as ctx:
+            e.condition = errors.StreamErrorCondition.HOST_GONE.value
+
+        self.assertEqual(
+            errors.StreamErrorCondition.HOST_GONE,
+            e.condition,
+        )
+
+        self.assertIsInstance(
+            e.condition_obj,
+            errors.StreamErrorCondition.HOST_GONE.xso_class,
+        )
+
+        self.assertTrue(ctx.filename.endswith("test_nonza.py"))
+
     def test_from_exception(self):
         obj = nonza.StreamError.from_exception(errors.StreamError(
-            (namespaces.streams, "undefined-condition"),
-            text="foobar"))
+            errors.StreamErrorCondition.UNDEFINED_CONDITION,
+            text="foobar"
+        ))
+
         self.assertEqual(
-            (namespaces.streams, "undefined-condition"),
+            errors.StreamErrorCondition.UNDEFINED_CONDITION,
             obj.condition
         )
+
         self.assertEqual(
             "foobar",
             obj.text
@@ -50,17 +154,21 @@ class TestStreamError(unittest.TestCase):
 
     def test_to_exception(self):
         obj = nonza.StreamError()
-        obj.condition = (namespaces.streams, "restricted-xml")
+        obj.condition = errors.StreamErrorCondition.RESTRICTED_XML
         obj.text = "foobar"
 
         exc = obj.to_exception()
+
         self.assertIsInstance(
             exc,
-            errors.StreamError)
+            errors.StreamError
+        )
+
         self.assertEqual(
-            (namespaces.streams, "restricted-xml"),
+            errors.StreamErrorCondition.RESTRICTED_XML,
             exc.condition
         )
+
         self.assertEqual(
             "foobar",
             exc.text
@@ -68,21 +176,25 @@ class TestStreamError(unittest.TestCase):
 
     def test_default_init(self):
         obj = nonza.StreamError()
+
         self.assertEqual(
-            (namespaces.streams, "undefined-condition"),
+            errors.StreamErrorCondition.UNDEFINED_CONDITION,
             obj.condition
         )
+
         self.assertIsNone(obj.text)
 
     def test_init(self):
         obj = nonza.StreamError(
-            condition=(namespaces.streams, "reset"),
+            condition=errors.StreamErrorCondition.RESET,
             text="foobar"
         )
+
         self.assertEqual(
-            (namespaces.streams, "reset"),
+            errors.StreamErrorCondition.RESET,
             obj.condition
         )
+
         self.assertEqual(
             "foobar",
             obj.text
@@ -1068,18 +1180,29 @@ class TestSMFailed(unittest.TestCase):
             (namespaces.stream_management, "failed")
         )
 
+    def test_condition(self):
+        self.assertIsInstance(
+            nonza.SMFailed.condition,
+            xso.Child,
+        )
+        self.assertCountEqual(
+            [member.xso_class for member in errors.ErrorCondition],
+            nonza.SMFailed.condition._classes,
+        )
+        self.assertTrue(nonza.SMFailed.condition.required)
+
     def test_default_init(self):
         obj = nonza.SMFailed()
         self.assertEqual(
-            (namespaces.stanzas, "undefined-condition"),
-            obj.condition
+            errors.ErrorCondition.UNDEFINED_CONDITION,
+            obj.condition.enum_member
         )
 
     def test_init(self):
         obj = nonza.SMFailed(
-            condition=(namespaces.stanzas, "item-not-found")
+            condition=errors.ErrorCondition.ITEM_NOT_FOUND
         )
         self.assertEqual(
-            (namespaces.stanzas, "item-not-found"),
-            obj.condition
+            errors.ErrorCondition.ITEM_NOT_FOUND,
+            obj.condition.enum_member
         )

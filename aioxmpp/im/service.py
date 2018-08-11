@@ -51,7 +51,17 @@ class ConversationService(aioxmpp.service.Service):
           there is none. You should use the
           :meth:`.AbstractConversation.on_exit` event of the `conversation`.
 
+    .. signal:: on_message(conversation,
+                           *args, **kwargs)
+
+        Emits whenever any active conversation emits its
+        :meth:`~.im.Conversation.on_message` event. The arguments are forwarded
+        1:1, with the :class:`~.im.AbstractConversation` instance pre-pended to
+        the argument list.
+
     .. autoattribute:: conversations
+
+    .. automethod:: get_conversation
 
     For :term:`Conversation Implementations <Conversation Implementation>`, the
     following methods are intended; they should not be used by applications.
@@ -61,10 +71,12 @@ class ConversationService(aioxmpp.service.Service):
     """
 
     on_conversation_added = aioxmpp.callbacks.Signal()
+    on_message = aioxmpp.callbacks.Signal()
 
     def __init__(self, client, **kwargs):
         super().__init__(client, **kwargs)
-        self._conversations = []
+        self._conversation_meta = {}
+        self._conversation_map = {}
 
     @property
     def conversations(self):
@@ -72,10 +84,17 @@ class ConversationService(aioxmpp.service.Service):
         Return an iterable of conversations in which the local client is
         participating.
         """
-        return self._conversations
+        return self._conversation_meta.keys()
+
+    def _remove_conversation(self, conv):
+        del self._conversation_map[conv.jid]
+        tokens, = self._conversation_meta.pop(conv)
+        for signal, token in tokens:
+            signal.disconnect(token)
 
     def _handle_conversation_exit(self, conv, *args, **kwargs):
-        self._conversations.remove(conv)
+        self._remove_conversation(conv)
+        return False
 
     def _add_conversation(self, conversation):
         """
@@ -93,11 +112,32 @@ class ConversationService(aioxmpp.service.Service):
         from the list automatically. There is no need to remove a conversation
         from the list explicitly.
         """
-        self.on_conversation_added(conversation)
-        conversation.on_exit.connect(
-            functools.partial(
-                self._handle_conversation_exit,
-                conversation
-            ),
+        handler = functools.partial(
+            self._handle_conversation_exit,
+            conversation
         )
-        self._conversations.append(conversation)
+        tokens = []
+
+        def linked_token(signal, handler):
+            return signal, signal.connect(handler)
+
+        tokens.append(linked_token(conversation.on_exit, handler))
+        tokens.append(linked_token(conversation.on_failure, handler))
+        tokens.append(linked_token(conversation.on_message, functools.partial(
+            self.on_message,
+            conversation,
+        )))
+
+        self._conversation_meta[conversation] = (
+            tokens,
+        )
+        self._conversation_map[conversation.jid] = conversation
+        self.on_conversation_added(conversation)
+
+    def get_conversation(self, conversation_address):
+        """
+        Return the :class:`.im.AbstractConversation` for a given JID.
+
+        :raises KeyError: if there is currently no matching conversation
+        """
+        return self._conversation_map[conversation_address]

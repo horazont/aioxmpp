@@ -31,11 +31,14 @@ functionality or provide backwards compatibility.
    blocking
    bookmarks
    carbons
+   chatstates
    disco
    entitycaps
    forms
    hashes
+   httpupload
    im
+   mdr
    muc
    ping
    presence
@@ -47,6 +50,8 @@ functionality or provide backwards compatibility.
    rfc3921
    rsm
    shim
+   vcard
+   version
 
 
 Less common and helper classes

@@ -429,8 +429,8 @@ class TestPresenceClient(unittest.TestCase):
 class TestPresenceServer(unittest.TestCase):
     def setUp(self):
         self.cc = make_connected_client()
-        self.cc.stream.send = CoroutineMock()
-        self.cc.stream.send.return_value = None
+        self.cc.send = CoroutineMock()
+        self.cc.send.return_value = None
         self.s = presence_service.PresenceServer(self.cc)
 
     def tearDown(self):
@@ -444,7 +444,7 @@ class TestPresenceServer(unittest.TestCase):
 
         run_coroutine(self.cc.before_stream_established())
 
-        self.cc.stream.send.assert_not_called()
+        self.cc.send.assert_not_called()
 
     def test_before_stream_established_handler_returns_true_for_unav(self):
         self.assertTrue(
@@ -548,7 +548,7 @@ class TestPresenceServer(unittest.TestCase):
             make_stanza.return_value = unittest.mock.sentinel.presence
             run_coroutine(self.cc.before_stream_established())
 
-        self.cc.stream.send.assert_called_with(
+        self.cc.send.assert_called_with(
             unittest.mock.sentinel.presence,
         )
 
@@ -567,13 +567,13 @@ class TestPresenceServer(unittest.TestCase):
                 status="foo",
             )
 
-        self.cc.stream.enqueue.assert_called_with(
+        self.cc.enqueue.assert_called_with(
             unittest.mock.sentinel.presence
         )
 
         self.assertEqual(
             result,
-            self.cc.stream.enqueue()
+            self.cc.enqueue()
         )
 
     def test_make_stanza_converts_state_to_stanza(self):
@@ -716,7 +716,7 @@ class TestPresenceServer(unittest.TestCase):
             priority=new_priority,
         )
 
-        self.cc.stream.enqueue.assert_not_called()
+        self.cc.enqueue.assert_not_called()
 
     def test_resend_presence_broadcasts_if_established(self):
         self.cc.established = True
@@ -726,11 +726,11 @@ class TestPresenceServer(unittest.TestCase):
 
             result = self.s.resend_presence()
 
-        self.cc.stream.enqueue.assert_called_with(
+        self.cc.enqueue.assert_called_with(
             unittest.mock.sentinel.presence
         )
 
         self.assertEqual(
             result,
-            self.cc.stream.enqueue(),
+            self.cc.enqueue(),
         )

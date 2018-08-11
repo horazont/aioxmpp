@@ -350,9 +350,7 @@ class PubSubClient(aioxmpp.service.Service):
             )
             iq.payload.options.data = config
 
-        response = yield from self.client.stream.send(
-            iq
-        )
+        response = yield from self.client.send(iq)
         return response
 
     @asyncio.coroutine
@@ -389,9 +387,7 @@ class PubSubClient(aioxmpp.service.Service):
             pubsub_xso.Unsubscribe(subscription_jid, node=node, subid=subid)
         )
 
-        yield from self.client.stream.send(
-            iq
-        )
+        yield from self.client.send(iq)
 
     @asyncio.coroutine
     def get_subscription_config(self, jid, node=None, *,
@@ -433,9 +429,7 @@ class PubSubClient(aioxmpp.service.Service):
             subid=subid,
         )
 
-        response = yield from self.client.stream.send(
-            iq
-        )
+        response = yield from self.client.send(iq)
         return response.options.data
 
     @asyncio.coroutine
@@ -480,9 +474,7 @@ class PubSubClient(aioxmpp.service.Service):
         )
         iq.payload.options.data = data
 
-        yield from self.client.stream.send(
-            iq
-        )
+        yield from self.client.send(iq)
 
     @asyncio.coroutine
     def get_default_config(self, jid, node=None):
@@ -508,7 +500,7 @@ class PubSubClient(aioxmpp.service.Service):
             pubsub_xso.Default(node=node)
         )
 
-        response = yield from self.client.stream.send(iq)
+        response = yield from self.client.send(iq)
         return response.payload.data
 
     @asyncio.coroutine
@@ -539,7 +531,7 @@ class PubSubClient(aioxmpp.service.Service):
             pubsub_xso.Items(node, max_items=max_items)
         )
 
-        return (yield from self.client.stream.send(iq))
+        return (yield from self.client.send(iq))
 
     @asyncio.coroutine
     def get_items_by_id(self, jid, node, ids):
@@ -578,7 +570,7 @@ class PubSubClient(aioxmpp.service.Service):
         if not iq.payload.payload.items:
             raise ValueError("ids must not be empty")
 
-        return (yield from self.client.stream.send(iq))
+        return (yield from self.client.send(iq))
 
     @asyncio.coroutine
     def get_subscriptions(self, jid, node=None):
@@ -602,7 +594,7 @@ class PubSubClient(aioxmpp.service.Service):
             pubsub_xso.Subscriptions(node=node)
         )
 
-        response = yield from self.client.stream.send(iq)
+        response = yield from self.client.send(iq)
         return response.payload
 
     @asyncio.coroutine
@@ -648,7 +640,7 @@ class PubSubClient(aioxmpp.service.Service):
             publish
         )
 
-        response = yield from self.client.stream.send(iq)
+        response = yield from self.client.send(iq)
 
         if response is not None and response.payload.item is not None:
             return response.payload.item.id_ or id_
@@ -704,7 +696,7 @@ class PubSubClient(aioxmpp.service.Service):
             retract
         )
 
-        yield from self.client.stream.send(iq)
+        yield from self.client.send(iq)
 
     @asyncio.coroutine
     def create(self, jid, node=None):
@@ -734,7 +726,7 @@ class PubSubClient(aioxmpp.service.Service):
             payload=pubsub_xso.Request(create)
         )
 
-        response = yield from self.client.stream.send(iq)
+        response = yield from self.client.send(iq)
 
         if response is not None and response.payload.node is not None:
             return response.payload.node
@@ -771,7 +763,7 @@ class PubSubClient(aioxmpp.service.Service):
             )
         )
 
-        yield from self.client.stream.send(iq)
+        yield from self.client.send(iq)
 
     @asyncio.coroutine
     def get_nodes(self, jid, node=None):
@@ -840,7 +832,7 @@ class PubSubClient(aioxmpp.service.Service):
             )
         )
 
-        return (yield from self.client.stream.send(iq))
+        return (yield from self.client.send(iq))
 
     @asyncio.coroutine
     def get_node_subscriptions(self, jid, node):
@@ -867,7 +859,7 @@ class PubSubClient(aioxmpp.service.Service):
             )
         )
 
-        return (yield from self.client.stream.send(iq))
+        return (yield from self.client.send(iq))
 
     @asyncio.coroutine
     def change_node_affiliations(self, jid, node, affiliations_to_set):
@@ -904,7 +896,7 @@ class PubSubClient(aioxmpp.service.Service):
             )
         )
 
-        yield from self.client.stream.send(iq)
+        yield from self.client.send(iq)
 
     @asyncio.coroutine
     def change_node_subscriptions(self, jid, node, subscriptions_to_set):
@@ -942,7 +934,7 @@ class PubSubClient(aioxmpp.service.Service):
             )
         )
 
-        yield from self.client.stream.send(iq)
+        yield from self.client.send(iq)
 
     @asyncio.coroutine
     def purge(self, jid, node):
@@ -966,4 +958,4 @@ class PubSubClient(aioxmpp.service.Service):
             )
         )
 
-        yield from self.client.stream.send(iq)
+        yield from self.client.send(iq)

@@ -57,11 +57,15 @@ The service returns :class:`Room` objects which are used to track joined MUCs:
 
 .. autoclass:: Room
 
+.. autoclass:: RoomState
+
 .. autoclass:: LeaveMode
 
 Inside rooms, there are occupants:
 
 .. autoclass:: Occupant
+
+.. autoclass:: ServiceMember
 
 Forms
 =====
@@ -69,10 +73,41 @@ Forms
 .. autoclass:: ConfigurationForm
    :members:
 
-.. currentmodule:: aioxmpp.muc.xso
+.. autoclass:: InfoForm
+    :members:
+
+.. autoclass:: VoiceRequestForm
+    :members:
 
 XSOs
 ====
+
+.. autoclass:: StatusCode
+
+.. currentmodule:: aioxmpp.muc.xso
+
+Attributes added to existing XSOs
+---------------------------------
+
+.. attribute:: aioxmpp.Message.xep0045_muc
+
+    A :class:`GenericExt` object or :data:`None`.
+
+.. attribute:: aioxmpp.Message.xep0045_muc_user
+
+    A :class:`UserExt` object or :data:`None`.
+
+.. attribute:: aioxmpp.Presence.xep0045_muc
+
+    A :class:`GenericExt` object or :data:`None`.
+
+.. attribute:: aioxmpp.Presence.xep0045_muc_user
+
+    A :class:`UserExt` object or :data:`None`.
+
+.. attribute:: aioxmpp.Message.xep0249_direct_invite
+
+    A :class:`DirectInvite` object or :data:`None`.
 
 Generic namespace
 -----------------
@@ -116,10 +151,25 @@ Owner namespace
 
 .. autoclass:: DestroyRequest
 
+:xep:`249` Direct Invitations
+-----------------------------
+
+.. autoclass:: DirectInvite
+
 """
-from .service import MUCClient, Occupant, Room, LeaveMode  # NOQA
+from .service import (  # NOQA
+    MUCClient,
+    Occupant,
+    Room,
+    LeaveMode,
+    RoomState,
+    ServiceMember,
+)
 from . import xso  # NOQA
 from .xso import (  # NOQA
-    ConfigurationForm
+    ConfigurationForm,
+    InfoForm,
+    VoiceRequestForm,
+    StatusCode,
 )
 Service = MUCClient  # NOQA

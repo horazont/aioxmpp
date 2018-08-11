@@ -22,6 +22,7 @@
 import collections
 import contextlib
 import io
+import itertools
 import unittest
 import unittest.mock
 
@@ -72,6 +73,12 @@ TEST_TREE = b"""<weatherdata xmlns:xsi="http://www.w3.org/2001/XMLSchema-instanc
 </product></weatherdata>"""
 # end of data extracted from http://api.met.no
 
+TEST_ESCAPING_TREE = (
+    b"<foo bar='with &#10;linebreak'>and also\n"
+    b"text with linebreaks, even DOS-ones\r\n"
+    b"</foo>"
+)
+
 
 class Cls(xso.XSO):
     TAG = ("uri:foo", "bar")
@@ -80,6 +87,35 @@ class Cls(xso.XSO):
 
 
 class TestxmlValidateNameValue_str(unittest.TestCase):
+    NAME_START_CHAR = (
+        set([
+            ":",
+            "_",
+        ]) |
+        set(chr(ch) for ch in range(ord("a"), ord("z")+1)) |
+        set(chr(ch) for ch in range(ord("A"), ord("Z")+1)) |
+        set(chr(ch) for ch in range(0xc0, 0xd7)) |
+        set(chr(ch) for ch in range(0xd8, 0xf7)) |
+        set(chr(ch) for ch in range(0xf8, 0x300)) |
+        set(chr(ch) for ch in range(0x370, 0x37e)) |
+        set(chr(ch) for ch in range(0x37f, 0x2000)) |
+        set(chr(ch) for ch in range(0x200c, 0x200e)) |
+        set(chr(ch) for ch in range(0x2070, 0x2190)) |
+        set(chr(ch) for ch in range(0x2c00, 0x2ff0)) |
+        set(chr(ch) for ch in range(0x3001, 0xd800)) |
+        set(chr(ch) for ch in range(0xf900, 0xfdd0)) |
+        set(chr(ch) for ch in range(0xfdf0, 0xfffe)) |
+        set(chr(ch) for ch in range(0x10000, 0xf0000))
+    )
+
+    NAME_CHAR = (
+        NAME_START_CHAR |
+        set(["-", ".", "\u00b7"]) |
+        set(chr(ch) for ch in range(ord("0"), ord("9")+1)) |
+        set(chr(ch) for ch in range(0x0300, 0x0370)) |
+        set(chr(ch) for ch in range(0x203f, 0x2041))
+    )
+
     def test_foo(self):
         self.assertTrue(xml.xmlValidateNameValue_str("foo"))
 
@@ -88,6 +124,40 @@ class TestxmlValidateNameValue_str(unittest.TestCase):
 
     def test_less_than(self):
         self.assertFalse(xml.xmlValidateNameValue_str("foo<"))
+
+    def test_zero_length(self):
+        self.assertFalse(xml.xmlValidateNameValue_str(""))
+
+    def test_exhaustive_singlechar(self):
+        range_iter = itertools.chain(
+            # exclude surrogates
+            range(0, 0xd800),
+            range(0xe000, 0xf0000)
+        )
+
+        for cp in range_iter:
+            s = chr(cp)
+            self.assertEqual(
+                xml.xmlValidateNameValue_str(s),
+                s in self.NAME_START_CHAR,
+                hex(cp)
+            )
+
+    def test_dualchar_additional(self):
+        # we only test a low range here for speed and because the upper range
+        # is identical
+        range_iter = itertools.chain(
+            range(0, 0xd800),
+        )
+
+        for cp in range_iter:
+            ch = chr(cp)
+            s = "x" + ch
+            self.assertEqual(
+                xml.xmlValidateNameValue_str(s),
+                ch in self.NAME_CHAR,
+                hex(cp)
+            )
 
 
 class TestXMPPXMLGenerator(XMLTestCase):
@@ -320,6 +390,39 @@ class TestXMPPXMLGenerator(XMLTestCase):
             self.buf.getvalue()
         )
 
+    def test_text_escaping_additional(self):
+        gen = xml.XMPPXMLGenerator(
+            self.buf,
+            additional_escapes="\r\nf",
+        )
+        gen.startDocument()
+        gen.startElementNS((None, "foo"), None, None)
+        gen.characters("<fo&\r\no>")
+        gen.endElementNS((None, "foo"), None)
+        gen.endDocument()
+
+        self.assertEqual(
+            b'<?xml version="1.0"?>'
+            b"<foo>&lt;&#102;o&amp;&#13;&#10;o&gt;</foo>",
+            self.buf.getvalue()
+        )
+
+    def test_attribute_escaping_additional(self):
+        gen = xml.XMPPXMLGenerator(
+            self.buf,
+            additional_escapes="\r\na",
+        )
+        gen.startDocument()
+        gen.startElementNS((None, "foo"), None, {(None, "foo"): "b\r\nar"})
+        gen.endElementNS((None, "foo"), None)
+        gen.endDocument()
+
+        self.assertEqual(
+            b'<?xml version="1.0"?>'
+            b'<foo foo="b&#13;&#10;&#97;r"/>',
+            self.buf.getvalue()
+        )
+
     def test_interleave_setup_and_teardown_of_namespaces(self):
         gen = xml.XMPPXMLGenerator(self.buf, short_empty_elements=True)
         gen.startDocument()
@@ -355,6 +458,21 @@ class TestXMPPXMLGenerator(XMLTestCase):
         self.assertSubtreeEqual(
             tree,
             tree2)
+
+    def test_additional_escape_full_roundtrip(self):
+        tree = etree.fromstring(TEST_ESCAPING_TREE)
+        gen = xml.XMPPXMLGenerator(self.buf,
+                                   short_empty_elements=True,
+                                   additional_escapes="a\r\n")
+        lxml.sax.saxify(tree, gen)
+
+        tree2 = etree.fromstring(self.buf.getvalue())
+
+        self.assertSubtreeEqual(
+            tree,
+            tree2)
+
+        self.assertNotIn(b"\r", self.buf.getvalue())
 
     def test_reject_processing_instruction(self):
         gen = xml.XMPPXMLGenerator(self.buf)
@@ -1509,7 +1627,7 @@ class TestXMPPXMLProcessor(unittest.TestCase):
         with self.assertRaises(errors.StreamError) as cm:
             self.proc.processingInstruction("foo", "bar")
         self.assertEqual(
-            (namespaces.streams, "restricted-xml"),
+            errors.StreamErrorCondition.RESTRICTED_XML,
             cm.exception.condition
         )
 
@@ -1562,14 +1680,14 @@ class TestXMPPXMLProcessor(unittest.TestCase):
         with self.assertRaises(errors.StreamError) as cm:
             self.proc.startElementNS((None, "foo"), None, {})
         self.assertEqual(
-            (namespaces.streams, "invalid-namespace"),
+            errors.StreamErrorCondition.INVALID_NAMESPACE,
             cm.exception.condition
         )
 
         with self.assertRaises(errors.StreamError) as cm:
             self.proc.startElementNS((namespaces.xmlstream, "bar"), None, {})
         self.assertEqual(
-            (namespaces.streams, "invalid-namespace"),
+            errors.StreamErrorCondition.INVALID_NAMESPACE,
             cm.exception.condition
         )
 
@@ -1581,7 +1699,7 @@ class TestXMPPXMLProcessor(unittest.TestCase):
         with self.assertRaises(errors.StreamError) as cm:
             self.proc.startElementNS(self.STREAM_HEADER_TAG, None, attrs)
         self.assertEqual(
-            (namespaces.streams, "undefined-condition"),
+            errors.StreamErrorCondition.UNDEFINED_CONDITION,
             cm.exception.condition
         )
 
@@ -1603,7 +1721,7 @@ class TestXMPPXMLProcessor(unittest.TestCase):
         with self.assertRaises(errors.StreamError) as cm:
             self.proc.startElementNS(self.STREAM_HEADER_TAG, None, attrs)
         self.assertEqual(
-            (namespaces.streams, "undefined-condition"),
+            errors.StreamErrorCondition.UNDEFINED_CONDITION,
             cm.exception.condition
         )
 
@@ -1615,7 +1733,7 @@ class TestXMPPXMLProcessor(unittest.TestCase):
     #     with self.assertRaises(errors.StreamError) as cm:
     #         self.proc.startElementNS(self.STREAM_HEADER_TAG, None, attrs)
     #     self.assertEqual(
-    #         (namespaces.streams, "unsupported-version"),
+    #         errors.StreamErrorCondition.UNSUPPORTED_VERSION,
     #         cm.exception.condition
     #     )
     #     self.assertEqual(
@@ -1642,7 +1760,7 @@ class TestXMPPXMLProcessor(unittest.TestCase):
         with self.assertRaises(errors.StreamError) as cm:
             self.proc.startElementNS(self.STREAM_HEADER_TAG, None, attrs)
         self.assertEqual(
-            (namespaces.streams, "unsupported-version"),
+            errors.StreamErrorCondition.UNSUPPORTED_VERSION,
             cm.exception.condition
         )
 
@@ -2017,9 +2135,45 @@ class TestXMPPXMLProcessor(unittest.TestCase):
     #     with self.assertRaises(errors.StreamError) as cm:
     #         self.proc.startElementNS((None, "foo"), None, {})
     #     self.assertEqual(
-    #         (namespaces.streams, "policy-violation"),
+    #         errors.StreamErrorCondition.POLICY_VIOLATION,
     #         cm.exception.condition
     #     )
+
+    def test_forwards_xml_lang_to_parser(self):
+        results = []
+
+        def recv(obj):
+            nonlocal results
+            results.append(obj)
+
+        class Foo(xso.XSO):
+            TAG = ("uri:foo", "foo")
+
+            attr = xso.LangAttr()
+
+        self.proc.stanza_parser = xso.XSOParser()
+        self.proc.stanza_parser.add_class(Foo, recv)
+
+        attrs = dict(self.STREAM_HEADER_ATTRS)
+        attrs[namespaces.xml, "lang"] = "en"
+
+        self.proc.startDocument()
+        self.proc.startElementNS(self.STREAM_HEADER_TAG, None,
+                                 attrs)
+
+        self.proc.startElementNS(Foo.TAG, None, {})
+        self.proc.endElementNS(Foo.TAG, None)
+
+        self.assertEqual(1, len(results))
+
+        f = results.pop()
+        self.assertEqual(
+            f.attr,
+            structs.LanguageTag.fromstr("en")
+        )
+
+        self.proc.endElementNS(self.STREAM_HEADER_TAG, None)
+        self.proc.endDocument()
 
     def tearDown(self):
         del self.proc
@@ -2070,7 +2224,7 @@ class TestXMPPLexicalHandler(unittest.TestCase):
         with self.assertRaises(errors.StreamError) as cm:
             self.proc.comment("foobar")
         self.assertEqual(
-            (namespaces.streams, "restricted-xml"),
+            errors.StreamErrorCondition.RESTRICTED_XML,
             cm.exception.condition
         )
         self.proc.endCDATA()
@@ -2079,7 +2233,7 @@ class TestXMPPLexicalHandler(unittest.TestCase):
         with self.assertRaises(errors.StreamError) as cm:
             self.proc.startDTD("foo", "bar", "baz")
         self.assertEqual(
-            (namespaces.streams, "restricted-xml"),
+            errors.StreamErrorCondition.RESTRICTED_XML,
             cm.exception.condition
         )
         self.proc.endDTD()
@@ -2088,7 +2242,7 @@ class TestXMPPLexicalHandler(unittest.TestCase):
         with self.assertRaises(errors.StreamError) as cm:
             self.proc.startEntity("foo")
         self.assertEqual(
-            (namespaces.streams, "restricted-xml"),
+            errors.StreamErrorCondition.RESTRICTED_XML,
             cm.exception.condition
         )
         self.proc.endEntity("foo")

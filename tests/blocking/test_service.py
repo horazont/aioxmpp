@@ -127,7 +127,7 @@ class TestBlockingClient(unittest.TestCase):
 
             stack.enter_context(
                 unittest.mock.patch.object(
-                    self.cc.stream, "send",
+                    self.cc, "send",
                     new=CoroutineMock()
                 )
             )
@@ -140,17 +140,17 @@ class TestBlockingClient(unittest.TestCase):
             BLOCKLIST = [TEST_JID1, TEST_JID2]
             blocklist = blocking_xso.BlockList()
             blocklist.items[:] = BLOCKLIST
-            self.cc.stream.send.return_value = blocklist
+            self.cc.send.return_value = blocklist
 
-            run_coroutine(self.s._get_initial_blocklist())
+            result = run_coroutine(self.s._get_initial_blocklist())
 
             self.assertCountEqual(
                 self.s._blocklist,
                 BLOCKLIST
             )
 
-            self.assertEqual(len(self.cc.stream.send.mock_calls), 1)
-            (_, (arg,), _), = self.cc.stream.send.mock_calls
+            self.assertEqual(len(self.cc.send.mock_calls), 1)
+            (_, (arg,), _), = self.cc.send.mock_calls
             self.assertIsInstance(arg, aioxmpp.IQ)
             self.assertEqual(arg.type_, aioxmpp.IQType.GET)
             self.assertIsInstance(arg.payload, blocking_xso.BlockList)
@@ -173,6 +173,44 @@ class TestBlockingClient(unittest.TestCase):
                 ]
             )
 
+        self.assertTrue(result)  # so that coroutine doesn’t get disconnected
+
+    def test_get_initial_blocklist_handles_exception(self):
+        with contextlib.ExitStack() as stack:
+            _check_for_blocking = stack.enter_context(
+                unittest.mock.patch.object(
+                    self.s, "_check_for_blocking",
+                    new=CoroutineMock()
+                )
+            )
+            _check_for_blocking.side_effect = RuntimeError()
+
+            stack.enter_context(
+                unittest.mock.patch.object(
+                    self.cc, "send",
+                    new=CoroutineMock()
+                )
+            )
+
+            handle_initial_blocklist_mock = unittest.mock.Mock()
+            self.s.on_initial_blocklist_received.connect(
+                handle_initial_blocklist_mock
+            )
+
+            BLOCKLIST = [TEST_JID1, TEST_JID2]
+            blocklist = blocking_xso.BlockList()
+            blocklist.items[:] = BLOCKLIST
+            self.cc.send.return_value = blocklist
+
+            result = run_coroutine(self.s._get_initial_blocklist())
+
+            self.assertIsNone(self.s._blocklist)
+
+            self.cc.send.assert_not_called()
+            self.s._check_for_blocking.assert_called_once_with()
+
+        self.assertTrue(result)  # so that coroutine doesn’t get disconnected
+
     def test_block_jids(self):
         with contextlib.ExitStack() as stack:
             stack.enter_context(
@@ -184,7 +222,7 @@ class TestBlockingClient(unittest.TestCase):
 
             stack.enter_context(
                 unittest.mock.patch.object(
-                    self.cc.stream, "send",
+                    self.cc, "send",
                     new=CoroutineMock()
                 )
             )
@@ -196,8 +234,8 @@ class TestBlockingClient(unittest.TestCase):
                 [unittest.mock.call()]
             )
 
-            self.assertEqual(len(self.cc.stream.send.mock_calls), 1)
-            (_, (arg,), _), = self.cc.stream.send.mock_calls
+            self.assertEqual(len(self.cc.send.mock_calls), 1)
+            (_, (arg,), _), = self.cc.send.mock_calls
 
             self.assertIsInstance(arg, aioxmpp.IQ)
             self.assertEqual(arg.type_, aioxmpp.IQType.SET)
@@ -218,7 +256,7 @@ class TestBlockingClient(unittest.TestCase):
 
             stack.enter_context(
                 unittest.mock.patch.object(
-                    self.cc.stream, "send",
+                    self.cc, "send",
                     new=CoroutineMock()
                 )
             )
@@ -230,7 +268,7 @@ class TestBlockingClient(unittest.TestCase):
                 [unittest.mock.call()]
             )
 
-            self.assertSequenceEqual(self.cc.stream.send.mock_calls, [])
+            self.assertSequenceEqual(self.cc.send.mock_calls, [])
 
     def test_unblock_jids(self):
         with contextlib.ExitStack() as stack:
@@ -243,7 +281,7 @@ class TestBlockingClient(unittest.TestCase):
 
             stack.enter_context(
                 unittest.mock.patch.object(
-                    self.cc.stream, "send",
+                    self.cc, "send",
                     new=CoroutineMock()
                 )
             )
@@ -255,8 +293,8 @@ class TestBlockingClient(unittest.TestCase):
                 [unittest.mock.call()]
             )
 
-            self.assertEqual(len(self.cc.stream.send.mock_calls), 1)
-            (_, (arg,), _), = self.cc.stream.send.mock_calls
+            self.assertEqual(len(self.cc.send.mock_calls), 1)
+            (_, (arg,), _), = self.cc.send.mock_calls
 
             self.assertIsInstance(arg, aioxmpp.IQ)
             self.assertEqual(arg.type_, aioxmpp.IQType.SET)
@@ -277,7 +315,7 @@ class TestBlockingClient(unittest.TestCase):
 
             stack.enter_context(
                 unittest.mock.patch.object(
-                    self.cc.stream, "send",
+                    self.cc, "send",
                     new=CoroutineMock()
                 )
             )
@@ -289,7 +327,7 @@ class TestBlockingClient(unittest.TestCase):
                 [unittest.mock.call()]
             )
 
-            self.assertSequenceEqual(self.cc.stream.send.mock_calls, [])
+            self.assertSequenceEqual(self.cc.send.mock_calls, [])
 
     def test_unblock_all(self):
         with contextlib.ExitStack() as stack:
@@ -302,7 +340,7 @@ class TestBlockingClient(unittest.TestCase):
 
             stack.enter_context(
                 unittest.mock.patch.object(
-                    self.cc.stream, "send",
+                    self.cc, "send",
                     new=CoroutineMock()
                 )
             )

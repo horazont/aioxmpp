@@ -28,13 +28,14 @@ See :mod:`aioxmpp.xso` for documentation.
 import abc
 import collections
 import copy
+import enum
 import logging
 import sys
 import xml.sax.handler
 
 import lxml.sax
 
-import orderedset  # get it from PyPI
+import sortedcollections
 
 import multidict  # get it from PyPI
 
@@ -368,9 +369,11 @@ class _PropBase(metaclass=PropBaseMeta):
 class _TypedPropBase(_PropBase):
     def __init__(self, *,
                  type_=xso_types.String(),
+                 erroneous_as_absent=False,
                  **kwargs):
         super().__init__(**kwargs)
         self.type_ = type_
+        self.erroneous_as_absent = erroneous_as_absent
 
     def __set__(self, instance, value):
         if self.default is self.NO_DEFAULT or value != self.default:
@@ -388,8 +391,8 @@ class Text(_TypedPropBase):
     in XMPP to keep that relative order: Elements either have character data
     *or* other elements as children.
 
-    The `type_`, `validator`, `validate` and `default` arguments behave like in
-    :class:`Attr`.
+    The `type_`, `validator`, `validate`, `default` and `erroneous_as_absent`
+    arguments behave like in :class:`Attr`.
 
     .. automethod:: from_value
 
@@ -402,7 +405,14 @@ class Text(_TypedPropBase):
         Convert the given value using the set `type_` and store it into
         `instance`’ attribute.
         """
-        self._set_from_recv(instance, self.type_.parse(value))
+        try:
+            parsed = self.type_.parse(value)
+        except (TypeError, ValueError):
+            if self.erroneous_as_absent:
+                return False
+            raise
+        self._set_from_recv(instance, parsed)
+        return True
 
     def to_sax(self, instance, dest):
         """
@@ -610,9 +620,17 @@ class ChildList(_ChildPropBase):
 class Collector(_PropBase):
     """
     When assigned to a class’ attribute, it collects all children which are not
-    known to any other descriptor into a list of XML subtrees.
+    known to any other descriptor into an XML tree. The root node has the tag
+    of the XSO class it pertains to.
 
-    The default is fixed at an empty list.
+    The default is fixed to the emtpy root node.
+
+    .. versionchanged:: 0.10
+
+       Before the subtrees were collected in a list. This was changed to an
+       ElementTree to allow using XPath over all collected elements. Most code
+       should not be affected by this, since the interface is very similar.
+       Assignment is now forbidden. Use ``[:] = `` instead.
 
     .. automethod:: from_events
 
@@ -630,12 +648,15 @@ class Collector(_PropBase):
                 xso_query.GetSequenceDescriptor,
             )
 
-        return instance._xso_contents.setdefault(self, [])
+        try:
+            return instance._xso_contents[self]
+        except KeyError:
+            res = etree.Element(tag_to_str(instance.TAG))
+            instance._xso_contents[self] = res
+            return res
 
     def _set(self, instance, value):
-        if not isinstance(value, list):
-            raise TypeError("expected list, but found {}".format(type(value)))
-        return super()._set(instance, value)
+        raise AttributeError("Collector attribute cannot be assigned to")
 
     def from_events(self, instance, ev_args, ctx):
         """
@@ -650,16 +671,14 @@ class Collector(_PropBase):
         # the start-ev_args in a lxml.etree.Element.
 
         def make_from_args(ev_args, parent):
-            if parent is not None:
-                el = etree.SubElement(parent,
-                                      tag_to_str((ev_args[0], ev_args[1])))
-            else:
-                el = etree.Element(tag_to_str((ev_args[0], ev_args[1])))
+            el = etree.SubElement(parent,
+                                  tag_to_str((ev_args[0], ev_args[1])))
             for key, value in ev_args[2].items():
                 el.set(tag_to_str(key), value)
             return el
 
-        root_el = make_from_args(ev_args, None)
+        root_el = make_from_args(ev_args,
+                                 self.__get__(instance, type(instance)))
         # create an element stack
         stack = [root_el]
         while stack:
@@ -684,8 +703,6 @@ class Collector(_PropBase):
                 # not in coverage -- this is more like an assertion
                 raise ValueError(ev_type)
 
-        self.__get__(instance, type(instance)).append(root_el)
-
     def to_sax(self, instance, dest):
         for node in self.__get__(instance, type(instance)):
             lxml.sax.saxify(node, _CollectorContentHandlerFilter(dest))
@@ -693,6 +710,8 @@ class Collector(_PropBase):
 
 class Attr(Text):
     """
+    Descriptor which represents an XML attribute.
+
     When assigned to a class’ attribute, it binds that attribute to the XML
     attribute with the given `tag`. `tag` must be a valid input to
     :func:`normalize_tag`.
@@ -700,31 +719,31 @@ class Attr(Text):
     The following arguments occur at several of the descriptor classes, and are
     all available at :class:`Attr`.
 
-    :param type_: An object which fulfills the type interface proposed by
-                  :class:`~.xso.AbstractType`. Usually, this is defaulted
-                  to a :class:`~aioxmpp.xso.String` instance.
+    :param type_: A character data type to interpret the XML character data.
+    :type type_: :class:`~.xso.AbstractCDataType`
     :param validator: An object which has a :meth:`validate` method. That
-                      method receives a value which was either assigned to the
-                      property (depending on the `validate` argument) or parsed
-                      from XML (after it passed through `type_`).
+        method receives a value which was either assigned to the property
+        (depending on the `validate` argument) or parsed from XML (after it
+        passed through `type_`).
     :param validate: A value from the :class:`ValidateMode` enum, which defines
-                     which values have to pass through the validator. At some
-                     points it makes sense to only validate outgoing values,
-                     but be liberal with incoming values. This defaults to
-                     :attr:`ValidateMode.FROM_RECV`.
+        which values have to pass through the validator. At some points it
+        makes sense to only validate outgoing values, but be liberal with
+        incoming values. This defaults to :attr:`ValidateMode.FROM_RECV`.
     :param default: The value which the attribute has if no value has been
-                    assigned. This must be given to allow the attribute to be
-                    missing. It defaults to a special value. If the attribute
-                    has not been assigned to and `default` has not been set,
-                    accessing the attribute for reading raises
-                    :class:`AttributeError`. An attribute with `default` value
-                    is not emitted in the output.
+        assigned. This must be given to allow the attribute to be missing. It
+        defaults to a special value. If the attribute has not been assigned to
+        and `default` has not been set, accessing the attribute for reading
+        raises :class:`AttributeError`. An attribute with `default` value
+        is not emitted in the output.
     :param missing: A callable which takes a :class:`Context` instance. It is
-                    called whenever the attribute is missing (independent from
-                    the fact whether it is required or not). The callable shall
-                    return a not-:data:`None` value for the attribute to
-                    use. If the value is :data:`None`, the usual handling of
-                    missing attributes takes place.
+        called whenever the attribute is missing (independent from the fact
+        whether it is required or not). The callable shall return a
+        not-:data:`None` value for the attribute to use. If the value is
+        :data:`None`, the usual handling of missing attributes takes place.
+    :param erroneous_as_absent: Treat an erroneous value (= the `type_` raises
+        :class:`ValueError` or :class:`TypeError` while parsing) as if the
+        attribute was not present. Note that this is almost never the right
+        thing to do in XMPP.
 
     .. seealso::
 
@@ -819,11 +838,14 @@ class Attr(Text):
 
 class LangAttr(Attr):
     """
-    The :class:`LangAttr` is identical to :class:`Attr`, except that the
-    `type_`, `tag` and `missing` arguments are already bound. The `tag` is set
-    to the ``(namespaces.xml, "lang")`` value to match ``xml:lang``
-    attributes. `type_` is a :class:`xso.LanguageTag` instance and `missing` is
-    set to :func:`lang_attr`.
+    An attribute representing the ``xml:lang`` attribute, including inheritance
+    semantics.
+
+    This is a subclass of :class:`Attr` which takes care of inheriting the
+    ``xml:lang`` value of the parent. The `tag` is set to the
+    ``(namespaces.xml, "lang")`` value to match ``xml:lang`` attributes.
+    `type_` is a :class:`xso.LanguageTag` instance and `missing` is set to
+    :func:`lang_attr`.
 
     Note that :class:`LangAttr` overrides `default` to be :data:`None` by
     default.
@@ -840,18 +862,29 @@ class LangAttr(Attr):
 
 class ChildText(_TypedPropBase):
     """
+    Represents the character data of a child element.
+
     When assigned to a class’ attribute, it binds that attribute to the XML
     character data of a child element with the given `tag`. `tag` must be a
     valid input to :func:`normalize_tag`.
 
-    The `type_`, `validate`, `validator` and `default` arguments behave like in
-    :class:`Attr`.
+    :param child_policy: The policy to apply when children are found in the
+        child element whose text this descriptor represents.
+    :type child_policy: :class:`UnknownChildPolicy`
+    :param attr_policy: The policy to apply when attributes are found at the
+        child element whose text this descriptor represents.
+    :type attr_policy: :class:`UnknownAttrPolicy`
 
-    `child_policy` is applied when :meth:`from_events` encounters an element in
-    the child element of which it is supposed to extract text. Likewise,
-    `attr_policy` is applied if an attribute is encountered on the element.
+    The `type_`, `validate`, `validator`, `default` and `erroneous_as_absent`
+    arguments behave like in :class:`Attr`.
 
     `declare_prefix` works as for :class:`ChildTag`.
+
+    `child_policy` and `attr_policy` describe how the parser behaves when an
+    unknown child or attribute (respectively) is encountered on the child
+    element whose text this descriptor represents. See
+    :class:`UnknownChildPolicy` and :class:`UnknownAttrPolicy` for the possible
+    behaviours.
 
     .. automethod:: get_tag_map
 
@@ -919,7 +952,14 @@ class ChildText(_TypedPropBase):
                 # end of our element, return
                 break
 
-        self._set_from_recv(instance, self.type_.parse("".join(parts)))
+        joined = "".join(parts)
+        try:
+            parsed = self.type_.parse(joined)
+        except (ValueError, TypeError):
+            if self.erroneous_as_absent:
+                return
+            raise
+        self._set_from_recv(instance, parsed)
 
     def to_sax(self, instance, dest):
         """
@@ -947,6 +987,8 @@ class ChildText(_TypedPropBase):
 
 class ChildMap(_ChildPropBase):
     """
+    Represents a subset of the children of an XML element, as map.
+
     The :class:`ChildMap` class works like :class:`ChildList`, but instead of
     storing the child objects in a list, they are stored in a map which
     contains an :class:`~aioxmpp.xso.model.XSOList` of objects for each tag.
@@ -1040,6 +1082,8 @@ class ChildMap(_ChildPropBase):
 
 class ChildLangMap(ChildMap):
     """
+    Represents a subset of the children of an XML element, as map.
+
     The :class:`ChildLangMap` class is a specialized version of the
     :class:`ChildMap`, which uses a `key` function to group the children by
     their XML language tag.
@@ -1058,15 +1102,20 @@ class ChildLangMap(ChildMap):
 
 class ChildTag(_PropBase):
     """
+    Represents a subset of the children of an XML element, as single value.
+
     When assigned to a class’ attribute, this descriptor represents the
     presence or absence of a single child with a tag from a given set of valid
     tags.
 
-    `tags` must be an iterable of valid arguments to :func:`normalize_tag`. If
-    :func:`normalize_tag` returns a false value (such as :data:`None`) as
-    `namespace_uri`, it is replaced with `default_ns` (defaulting to
-    :data:`None`, which makes this sentence a no-op). This allows a benefit to
+    `tags` must be an iterable of valid arguments to
+    :func:`normalize_tag` or an :class:`enum.Enum` whose values are
+    valid arguments to :func:`normalize_tag`. If :func:`normalize_tag`
+    returns a false value (such as :data:`None`) as `namespace_uri`,
+    it is replaced with `default_ns` (defaulting to :data:`None`,
+    which makes this sentence a no-op). This allows a benefit to
     readability if you have many tags which share the same namespace.
+    This is, however, not allowed for tags given as enumeration.
 
     `text_policy`, `child_policy` and `attr_policy` describe the behaviour if
     the child element unexpectedly has text, children or attributes,
@@ -1086,11 +1135,18 @@ class ChildTag(_PropBase):
 
     """
 
-    class ElementTreeTag(xso_types.AbstractType):
-        """
-        Parse an element-tree-format tag to a tuple-format tag. This type
-        operates on strings and should not be used in general.
-        """
+    class ConvertEnum:
+
+        def __init__(self, enum_=None):
+            self._enum = enum_
+
+        def parse(self, v):
+            return self._enum(normalize_tag(v))
+
+        def format(self, v):
+            return tag_to_str(v.value)
+
+    class ConvertTag:
 
         def parse(self, v):
             return normalize_tag(v)
@@ -1105,17 +1161,28 @@ class ChildTag(_PropBase):
                  attr_policy=UnknownAttrPolicy.FAIL,
                  allow_none=False,
                  declare_prefix=False):
-        tags = {
-            (ns or default_ns, localname)
-            for ns, localname in map(normalize_tag, tags)
-        }
-        if allow_none:
-            tags.add(None)
+
+        def normalize_tags(tags):
+            return {
+                (ns or default_ns, localname)
+                for ns, localname in map(normalize_tag, tags)
+            }
+
+        if isinstance(tags, type(enum.Enum)):
+            self._converter = self.ConvertEnum(tags)
+            values = list(tags)
+            tags = normalize_tags([tag.value for tag in tags])
+        else:
+            self._converter = self.ConvertTag()
+            tags = normalize_tags(tags)
+            values = tags
+
         super().__init__(
             default=None if allow_none else _PropBase.NO_DEFAULT,
-            validator=xso_types.RestrictToSet(tags),
+            validator=xso_types.RestrictToSet(values),
             validate=ValidateMode.ALWAYS)
-        self.type_ = self.ElementTreeTag()
+
+        self.child_map = tags
         self.text_policy = text_policy
         self.attr_policy = attr_policy
         self.child_policy = child_policy
@@ -1126,7 +1193,7 @@ class ChildTag(_PropBase):
         return self.default is not _PropBase.NO_DEFAULT
 
     def get_tag_map(self):
-        return self.validator.values
+        return self.child_map
 
     def from_events(self, instance, ev_args, ctx):
         attrs = ev_args[2]
@@ -1144,12 +1211,14 @@ class ChildTag(_PropBase):
                     ev_args)
             elif ev_type == "end":
                 break
-        self._set_from_recv(instance, tag)
+        self._set_from_recv(instance, self._converter.parse(tag))
 
     def to_sax(self, instance, dest):
         value = self.__get__(instance, type(instance))
         if value is None:
             return
+
+        value = normalize_tag(self._converter.format(value))
 
         if self.declare_prefix is not False and value[0]:
             dest.startPrefixMapping(self.declare_prefix, value[0])
@@ -1161,6 +1230,8 @@ class ChildTag(_PropBase):
 
 class ChildFlag(_PropBase):
     """
+    Represents the presence of a specific child element, as a boolean flag.
+
     When used as a :class:`XSO` descriptor, it represents the presence or
     absence of a single child with the given `tag`. The presence or absence is
     represented by the values :data:`True` and :data:`False` respectively.
@@ -1227,21 +1298,18 @@ class ChildFlag(_PropBase):
 
 class ChildValueList(_ChildPropBase):
     """
-    A list of values, generated by child tags.
+    Represents a subset of the child elements as values. The value
+    representation is governed by the `type_` argument.
 
-    This descriptor requires a single argument, the :class:`.xso.AbstractType`
-    which implements the packing/unpacking of the native python values to
-    XSOs.
+    :param type_: Type describing the subtree to convert to python values.
+    :type type_: :class:`~.xso.AbstractElementType`
+    :param container_type: Type of the container to use.
+    :type container_type: Subclass of :class:`~collections.abc.MutableSequence`
+        or :class:`~collections.abc.MutableSet`
 
-    The `type_` must return a :class:`.xso.XSO` subclass from
-    :meth:`.xso.AbstractType.get_formatted_type`. The
-    :meth:`~.xso.AbstractType.parse` method receives the XSO as parsed from the
-    events and is expected to return a non-XSO object. The
-    :meth:`~.xso.AbstractType.format` method is called to prepare the values in
-    the list for serialisation. It must return instances of
-    :meth:`~.xso.AbstractType.get_formatted_type`, holding the value passed to
-    :meth:`~.xso.AbstractType.format`. The XSO is then serialised as child of
-    the object this descriptor is applied to.
+    This descriptor parses the XSO classes advertised by the `type_` (via
+    :meth:`~.AbstractElementType.get_xso_types`) and exposes the unpacked
+    values in a container.
 
     The optional `container_type` argument must, if given, be a callable which
     returns a mutable container supporting either :meth:`add` or :meth:`append`
@@ -1252,7 +1320,7 @@ class ChildValueList(_ChildPropBase):
     """
 
     def __init__(self, type_, *, container_type=list):
-        super().__init__([type_.get_formatted_type()])
+        super().__init__(type_.get_xso_types())
         self.type_ = type_
         self.container_type = container_type
         try:
@@ -1281,24 +1349,30 @@ class ChildValueList(_ChildPropBase):
 
     def from_events(self, instance, ev_args, ctx):
         obj = yield from self._process(instance, ev_args, ctx)
-        value = self.type_.parse(obj)
+        value = self.type_.unpack(obj)
         self._add(self.__get__(instance, type(instance)), value)
 
     def to_sax(self, instance, dest):
         for value in self.__get__(instance, type(instance)):
-            self.type_.format(value).unparse_to_sax(dest)
+            self.type_.pack(value).unparse_to_sax(dest)
 
 
 class ChildValueMap(_ChildPropBase):
     """
     A mapping of keys to values, generated by child tags.
 
+    :param type_: Type describing the subtree to convert to pairs of key and
+        value.
+    :type type_: :class:`~.xso.AbstractElementType`
+    :param mapping_type: Type of the mapping to use.
+    :type mapping_type: Subclass of :class:`~collections.abc.MutableMapping`
+
     This works very similar to :class:`ChildValueList`, but instead of a
     mutable sequence, the value of the descriptor is a mutable mapping.
 
     The `type_` must return key-value pairs from
-    :meth:`.xso.AbstractType.parse` and must accept such key-value pairs in
-    :meth:`.xso.AbstractType.format`.
+    :meth:`.xso.AbstractElementType.unpack` and must accept such key-value
+    pairs in :meth:`.xso.AbstractElementType.pack`.
 
     The optional `mapping_type` argument must, if given, be a callable which
     returns a :class:`collections.abc.MutableMapping` supporting the keys and
@@ -1315,7 +1389,7 @@ class ChildValueMap(_ChildPropBase):
     """
 
     def __init__(self, type_, *, mapping_type=dict):
-        super().__init__([type_.get_formatted_type()])
+        super().__init__(type_.get_xso_types())
         self.type_ = type_
         self.mapping_type = mapping_type
 
@@ -1340,11 +1414,11 @@ class ChildValueMap(_ChildPropBase):
 
     def to_sax(self, instance, dest):
         for item in self.__get__(instance, type(instance)).items():
-            self.type_.format(item).unparse_to_sax(dest)
+            self.type_.pack(item).unparse_to_sax(dest)
 
     def from_events(self, instance, ev_args, ctx):
         obj = yield from self._process(instance, ev_args, ctx)
-        key, value = self.type_.parse(obj)
+        key, value = self.type_.unpack(obj)
         self.__get__(instance, type(instance))[key] = value
 
 
@@ -1352,22 +1426,20 @@ class ChildValueMultiMap(_ChildPropBase):
     """
     A mapping of keys to lists of values, representing child tags.
 
-    This is very similar to :class:`ChildValueMultiMap`, but it uses a
+    :param type_: Type describing the subtree to convert to pairs of key and
+        value.
+    :type type_: :class:`~.xso.AbstractElementType`
+
+    This is very similar to :class:`ChildValueMap`, but it uses a
     :class:`multidict.MultiDict` as storage. Interface-compatible classes can
     be substituted by passing them to `mapping_type`. Candidate for that are
     :class:`multidict.CIMultiDict`.
-
-    The `type_` must return key-value pairs from
-    :meth:`.xso.AbstractType.parse` and must accept such key-value pairs in
-    :meth:`.xso.AbstractType.format`. Each key-value pair consists of the
-    respective dictionary key and a value from the list of values belonging to
-    that dictionary key.
 
     .. versionadded:: 0.6
     """
 
     def __init__(self, type_, *, mapping_type=multidict.MultiDict):
-        super().__init__([type_.get_formatted_type()])
+        super().__init__(type_.get_xso_types())
         self.type_ = type_
         self.mapping_type = mapping_type
 
@@ -1392,11 +1464,11 @@ class ChildValueMultiMap(_ChildPropBase):
 
     def to_sax(self, instance, dest):
         for key, value in self.__get__(instance, type(instance)).items():
-            self.type_.format((key, value)).unparse_to_sax(dest)
+            self.type_.pack((key, value)).unparse_to_sax(dest)
 
     def from_events(self, instance, ev_args, ctx):
         obj = yield from self._process(instance, ev_args, ctx)
-        key, value = self.type_.parse(obj)
+        key, value = self.type_.unpack(obj)
         self.__get__(instance, type(instance)).add(key, value)
 
 
@@ -1589,7 +1661,7 @@ class XMLStreamClass(xso_query.Class, abc.ABCMeta):
     def __new__(mcls, name, bases, namespace, protect=True):
         text_property = None
         child_map = {}
-        child_props = orderedset.OrderedSet()
+        child_props = sortedcollections.OrderedSet()
         attr_map = {}
         collector_property = None
 
@@ -1639,7 +1711,8 @@ class XMLStreamClass(xso_query.Class, abc.ABCMeta):
                 if text_property is not None:
                     raise TypeError("multiple Text properties on XSO class")
                 text_property = obj
-            elif isinstance(obj, (_ChildPropBase, ChildText, ChildTag, ChildFlag)):
+            elif isinstance(obj, (_ChildPropBase, ChildText, ChildTag,
+                                  ChildFlag)):
                 for key in obj.get_tag_map():
                     if key in child_map:
                         raise TypeError("ambiguous Child properties: {} and {}"
@@ -1713,7 +1786,8 @@ class XMLStreamClass(xso_query.Class, abc.ABCMeta):
                 raise TypeError("multiple Text properties on XSO class")
             super().__setattr__("TEXT_PROPERTY", value)
 
-        elif isinstance(value, (_ChildPropBase, ChildText, ChildTag)):
+        elif isinstance(value, (_ChildPropBase, ChildText, ChildTag,
+                                ChildFlag)):
             updates = {}
             for key in value.get_tag_map():
                 if key in cls.CHILD_MAP:
@@ -1781,7 +1855,10 @@ class XMLStreamClass(xso_query.Class, abc.ABCMeta):
                                 tag_to_str((ev_args[0], ev_args[1]))
                             )) from None
                 try:
-                    prop.from_value(obj, value)
+                    if not prop.from_value(obj, value):
+                        # assignment failed due to recoverable error, treat as
+                        # absent
+                        attr_map[key] = prop
                 except:
                     prop.mark_incomplete(obj)
                     _mark_attributes_incomplete(attr_map.values(), obj)
@@ -2362,6 +2439,15 @@ class XSOParser:
     def __init__(self):
         self._class_map = {}
         self._tag_map = {}
+        self._ctx = Context()
+
+    @property
+    def lang(self):
+        return self._ctx.lang
+
+    @lang.setter
+    def lang(self, value):
+        self._ctx.lang = value
 
     def add_class(self, cls, callback):
         """
@@ -2413,7 +2499,6 @@ class XSOParser:
         del self._class_map[cls]
 
     def __call__(self):
-        ctx = Context()
         while True:
             ev_type, *ev_args = yield
             if ev_type == "text" and not ev_args[0].strip():
@@ -2426,7 +2511,7 @@ class XSOParser:
                 raise UnknownTopLevelTag(
                     "unhandled top-level element",
                     ev_args)
-            cb((yield from cls.parse_events(ev_args, ctx)))
+            cb((yield from cls.parse_events(ev_args, self._ctx)))
 
 
 def drop_handler(ev_args):
@@ -2599,3 +2684,126 @@ class _CollectorContentHandlerFilter(xml.sax.handler.ContentHandler):
 
     def skippedEntity(self, name):
         self.__receiver.skippedEntity(name)
+
+
+class XSOEnumMixin:
+    """
+    Mix-in to create enumerations of XSOs.
+
+    .. versionadded:: 0.10
+
+    The enumeration member values must be pairs of ``namespace``, ``localpart``
+    strings. Each enumeration member is equipped with an :attr:`xso_class`
+    attribute at definition time.
+
+    .. automethod:: to_xso
+
+    .. autoattribute:: enum_member
+
+    .. attribute:: xso_class
+
+        A :class:`aioxmpp.xso.XSO` *subclass* which has the enumeration members
+        value as :attr:`~.XSO.TAG`. So the subclass matches elements which have
+        the qualified tag in the enumeration member value.
+
+        The class does not have any XSO descriptors assigned. They can be added
+        after class definition.
+
+        .. attribute:: enum_member
+
+            The enumeration member to which the :attr:`xso_class` belongs.
+
+            This allows to use XSOs and enumeration members more
+            interchangeably; see :attr:`enum_member` for details.
+
+        .. method:: to_xso
+
+            Return the XSO itself.
+
+            This allows to use XSOs and enumeration members more
+            interchangeably; see :meth:`to_xso` for details.
+
+    Example usage::
+
+        class TagEnum(aioxmpp.xso.XSOEnumMixin, enum.Enum):
+            X = ("uri:foo", "x")
+            Y = ("uri:foo", "y")
+
+        TagEnum.X.xso_class.enabled = aioxmpp.xso.Attr(
+            "enabled",
+            type_=aioxmpp.xso.Bool()
+        )
+
+    The :class:`TagEnum` members then have a :attr:`xso_class` attribute which
+    is a *subclass* of :class:`~aioxmpp.xso.XSO` (**not** an instance of a
+    subclass of :class:`~aioxmpp.xso.XSO`).
+
+    The :attr:`xso_class` for :attr:`TagEnum.X` also supports the ``enabled``
+    attribute (due to it being monkey-patched onto it), while the
+    :attr:`xso_class` for :attr:`TagEnum.Y` does not. Thus, monkey-patching
+    can be used to customize the individual XSO classes of the members.
+
+    To use such an enum on a descriptor, the following syntax can be used::
+
+        class Element(aioxmpp.xso.XSO):
+            TAG = ("uri:foo", "parent")
+
+            child = aioxmpp.xso.Child([
+                member.xso_class
+                for member in TagEnum
+            ])
+    """
+
+    def __init__(self, namespace, localname):
+        super().__init__()
+        self.xso_class = self._create_class()
+
+    def _create_name(self):
+        return "".join(map(str.title, self.name.split("_")))
+
+    def _create_class(self):
+        def to_xso(self):
+            return self
+
+        return XMLStreamClass(
+            self._create_name(),
+            (XSO,),
+            {
+                "TAG": self.value,
+                "__qualname__": "{}.{}.xso_class".format(
+                    type(self).__qualname__,
+                    self.name,
+                ),
+                "enum_member": self,
+                "to_xso": to_xso,
+            },
+        )
+
+    @property
+    def enum_member(self):
+        """
+        The object (enum member) itself.
+
+        This property exists to make it easier to use the XSO objects and the
+        enumeration members interchangeably. The XSO objects also have the
+        :attr:`enum_member` property to obtain the enumeration member to which
+        they belong. Code which is only interested in the enumeration member
+        can thus access the :attr:`enum_member` attribute to "coerce" both
+        (enumeration members and instances of their XSO classes) into
+        enumeration members.
+        """
+        return self
+
+    def to_xso(self):
+        """
+        A new instance of the :attr:`xso_class`.
+
+        This method exists to make it easier to use the XSO objects and the
+        enumeration members interchangeably. The XSO objects also have the
+        :meth:`to_xso` method which just returns the XSO unmodified.
+
+        Code which needs an XSO, but does not care about the data, can thus use
+        the :meth:`to_xso` method to "coerce" either (enumeration members and
+        instances of their XSO classes) into XSOs.
+        """
+        return self.xso_class()

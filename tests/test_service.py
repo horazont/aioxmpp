@@ -29,6 +29,7 @@ import unittest
 import aioxmpp.callbacks as callbacks
 import aioxmpp.service as service
 import aioxmpp.stream
+import aioxmpp.xso
 
 from aioxmpp.testutils import (
     run_coroutine,
@@ -1038,6 +1039,42 @@ class Test_apply_connect_depsignal(unittest.TestCase):
             dependency.signal_name.context_connect(),
         )
 
+    def test_runs_mode_if_tuple(self):
+        instance = unittest.mock.MagicMock()
+        dependency = unittest.mock.Mock()
+        instance.dependencies.__getitem__.return_value = dependency
+        mode_mock = unittest.mock.Mock()
+
+        result = service._apply_connect_depsignal(
+            instance,
+            unittest.mock.sentinel.stream,
+            unittest.mock.sentinel.func,
+            unittest.mock.sentinel.dependency,
+            "signal_name",
+            (mode_mock, ("a", "b")),
+        )
+
+        instance.dependencies.__getitem__.assert_called_with(
+            unittest.mock.sentinel.dependency,
+        )
+
+        mode_mock.assert_called_once_with("a", "b")
+
+        self.assertSequenceEqual(
+            dependency.mock_calls,
+            [
+                unittest.mock.call.signal_name.context_connect(
+                    unittest.mock.sentinel.func,
+                    mode_mock(),
+                )
+            ]
+        )
+
+        self.assertEqual(
+            result,
+            dependency.signal_name.context_connect(),
+        )
+
 
 class Test_apply_connect_depfilter(unittest.TestCase):
     def test_uses_dependencies(self):
@@ -1151,6 +1188,34 @@ class Test_apply_connect_attrsignal(unittest.TestCase):
             descriptor().signal_name.context_connect(),
         )
 
+    def test_runs_mode_if_tuple(self):
+        mode_func = unittest.mock.Mock()
+        descriptor = unittest.mock.PropertyMock()
+
+        result = service._apply_connect_attrsignal(
+            unittest.mock.sentinel.instance,
+            unittest.mock.sentinel.stream,
+            unittest.mock.sentinel.func,
+            descriptor,
+            "signal_name",
+            (mode_func, (1, "foo")),
+        )
+
+        descriptor.assert_called_once_with()
+
+        mode_func.assert_called_once_with(1, "foo")
+
+        descriptor().signal_name.context_connect\
+            .assert_called_once_with(
+                unittest.mock.sentinel.func,
+                mode_func(),
+            )
+
+        self.assertEqual(
+            result,
+            descriptor().signal_name.context_connect(),
+        )
+
 
 class Testadd_handler_spec(unittest.TestCase):
     def test_adds_magic_attribute(self):
@@ -1204,14 +1269,54 @@ class Testadd_handler_spec(unittest.TestCase):
 
 
 class Testiq_handler(unittest.TestCase):
+    @aioxmpp.IQ.as_payload_class
+    class Payload(aioxmpp.xso.XSO):
+        TAG = ("urn:example:test_service:test_iq_handler", "valid-payload")
+
     def setUp(self):
         self.decorator = service.iq_handler(
             unittest.mock.sentinel.type_,
-            unittest.mock.sentinel.payload_cls
+            self.Payload,
         )
 
     def tearDown(self):
         del self.decorator
+
+    def test_rejects_non_registered_payload(self):
+        class SomeXSO(aioxmpp.xso.XSO):
+            TAG = ("urn:example:test_service:test_iq_handler", "invalid-payload")
+
+        with self.assertRaisesRegex(
+                ValueError,
+                r".+ is not a valid IQ payload"):
+            service.iq_handler(
+                unittest.mock.sentinel.type_,
+                SomeXSO,
+            )
+
+    def test_rejects_incomplete_xso_payload(self):
+        class SomeXSO(aioxmpp.xso.XSO):
+            pass
+
+        with self.assertRaisesRegex(
+                ValueError,
+                r".+ is not a valid IQ payload"):
+            service.iq_handler(
+                unittest.mock.sentinel.type_,
+                SomeXSO,
+            )
+
+    def test_rejects_incorrect_xso_payload(self):
+        class SomeOtherXSO(aioxmpp.xso.XSO):
+            TAG = ("urn:example:test_service:test_iq_handler", "valid-payload")
+
+        with self.assertRaisesRegex(
+                ValueError,
+                r".+ is not a valid IQ payload"):
+            service.iq_handler(
+                unittest.mock.sentinel.type_,
+                SomeOtherXSO,
+            )
 
     def test_works_as_decorator(self):
         @asyncio.coroutine
@@ -1243,7 +1348,7 @@ class Testiq_handler(unittest.TestCase):
             service.HandlerSpec(
                 (service._apply_iq_handler,
                  (unittest.mock.sentinel.type_,
-                  unittest.mock.sentinel.payload_cls)),
+                  self.Payload)),
                 is_unique=True,
                 require_deps=(),
             ),
@@ -1263,7 +1368,7 @@ class Testiq_handler(unittest.TestCase):
             service.HandlerSpec(
                 (service._apply_iq_handler,
                  (unittest.mock.sentinel.type_,
-                  unittest.mock.sentinel.payload_cls)),
+                  self.Payload)),
                 is_unique=True,
                 require_deps=(),
             ),
@@ -1275,19 +1380,14 @@ class Testiq_handler(unittest.TestCase):
             coro._aioxmpp_service_handlers,
         )
 
-    def test_requires_coroutine(self):
+    def test_accepts_normal_function(self):
         with unittest.mock.patch(
                 "asyncio.iscoroutinefunction") as iscoroutinefunction:
             iscoroutinefunction.return_value = False
 
-            with self.assertRaisesRegex(
-                    TypeError,
-                    "a coroutine function is required"):
-                self.decorator(unittest.mock.sentinel.coro)
+            self.decorator(unittest.mock.sentinel.coro)
 
-        iscoroutinefunction.assert_called_with(
-            unittest.mock.sentinel.coro,
-        )
+        iscoroutinefunction.assert_not_called()
 
     def test_works_with_is_iq_handler(self):
         @asyncio.coroutine
@@ -1297,7 +1397,7 @@ class Testiq_handler(unittest.TestCase):
         self.assertFalse(
             service.is_iq_handler(
                 unittest.mock.sentinel.type_,
-                unittest.mock.sentinel.payload_cls,
+                self.Payload,
                 coro,
             )
         )
@@ -1307,7 +1407,7 @@ class Testiq_handler(unittest.TestCase):
         self.assertTrue(
             service.is_iq_handler(
                 unittest.mock.sentinel.type_,
-                unittest.mock.sentinel.payload_cls,
+                self.Payload,
                 coro,
             )
         )
@@ -1718,9 +1818,7 @@ class Testdepsignal(unittest.TestCase):
                 unittest.mock.sentinel.async_with_loop
             self.decorator(cb)
 
-        ASYNC_WITH_LOOP.assert_called_with(
-            None,
-        )
+        ASYNC_WITH_LOOP.assert_not_called()
 
         self.assertIn(
             service.HandlerSpec(
@@ -1729,7 +1827,7 @@ class Testdepsignal(unittest.TestCase):
                     (
                         self.S1,
                         "signal",
-                        unittest.mock.sentinel.async_with_loop,
+                        (ASYNC_WITH_LOOP, (None,)),
                     )
                 ),
                 is_unique=True,
@@ -1798,9 +1896,7 @@ class Testdepsignal(unittest.TestCase):
                 unittest.mock.sentinel.spawn_with_loop
             self.decorator(coro)
 
-        SPAWN_WITH_LOOP.assert_called_with(
-            None,
-        )
+        SPAWN_WITH_LOOP.assert_not_called()
 
         self.assertIn(
             service.HandlerSpec(
@@ -1809,7 +1905,7 @@ class Testdepsignal(unittest.TestCase):
                     (
                         self.S1,
                         "signal",
-                        unittest.mock.sentinel.spawn_with_loop,
+                        (SPAWN_WITH_LOOP, (None,))
                     )
                 ),
                 is_unique=True,
@@ -2075,9 +2171,7 @@ class Testattrsignal(unittest.TestCase):
                 unittest.mock.sentinel.async_with_loop
             self.decorator(cb)
 
-        ASYNC_WITH_LOOP.assert_called_with(
-            None,
-        )
+        ASYNC_WITH_LOOP.assert_not_called()
 
         self.assertIn(
             service.HandlerSpec(
@@ -2086,7 +2180,7 @@ class Testattrsignal(unittest.TestCase):
                     (
                         self.descriptor,
                         "signal",
-                        unittest.mock.sentinel.async_with_loop,
+                        (ASYNC_WITH_LOOP, (None,))
                     )
                 ),
                 is_unique=True,
@@ -2155,9 +2249,7 @@ class Testattrsignal(unittest.TestCase):
                 unittest.mock.sentinel.spawn_with_loop
             self.decorator(coro)
 
-        SPAWN_WITH_LOOP.assert_called_with(
-            None,
-        )
+        SPAWN_WITH_LOOP.assert_not_called()
 
         self.assertIn(
             service.HandlerSpec(
@@ -2166,7 +2258,7 @@ class Testattrsignal(unittest.TestCase):
                     (
                         self.descriptor,
                         "signal",
-                        unittest.mock.sentinel.spawn_with_loop,
+                        (SPAWN_WITH_LOOP, (None,))
                     )
                 ),
                 is_unique=True,
@@ -2519,7 +2611,7 @@ class Testis_depsignal_handler(unittest.TestCase):
                         (
                             self.S1,
                             "signal",
-                            unittest.mock.sentinel.async_with_loop,
+                            (unittest.mock.sentinel.async_with_loop, (None,))
                         ),
                     ),
                     require_deps=(self.S1,)
@@ -2535,7 +2627,7 @@ class Testis_depsignal_handler(unittest.TestCase):
                         (
                             self.S1,
                             "signal",
-                            unittest.mock.sentinel.spawn_with_loop,
+                            (unittest.mock.sentinel.spawn_with_loop, (None,))
                         ),
                     ),
                     require_deps=(self.S1,)
@@ -2564,18 +2656,18 @@ class Testis_depsignal_handler(unittest.TestCase):
                 SPAWN_WITH_LOOP = stack.enter_context(
                     unittest.mock.patch.object(
                         callbacks.AdHocSignal,
-                        "SPAWN_WITH_LOOP")
+                        "SPAWN_WITH_LOOP",
+                        new=unittest.mock.sentinel.spawn_with_loop)
                 )
-                SPAWN_WITH_LOOP.return_value = \
-                    unittest.mock.sentinel.spawn_with_loop
+
 
                 ASYNC_WITH_LOOP = stack.enter_context(
                     unittest.mock.patch.object(
                         callbacks.AdHocSignal,
-                        "ASYNC_WITH_LOOP")
+                        "ASYNC_WITH_LOOP",
+                        new=unittest.mock.sentinel.async_with_loop)
                 )
-                ASYNC_WITH_LOOP.return_value = \
-                    unittest.mock.sentinel.async_with_loop
+
 
                 obj._aioxmpp_service_handlers = [
                     spec,
@@ -2605,6 +2697,41 @@ class Testis_depsignal_handler(unittest.TestCase):
                 self.S1,
                 "signal",
                 m,
+                defer=True,
+            )
+        )
+
+    def test_works_for_deferred_coroutinefunctions(self):
+        class Cls:
+            signal = aioxmpp.callbacks.Signal()
+
+        @service.depsignal(Cls, "signal", defer=True)
+        @asyncio.coroutine
+        def coro():
+            pass
+
+        self.assertTrue(
+            service.is_depsignal_handler(
+                Cls,
+                "signal",
+                coro,
+                defer=True,
+            )
+        )
+
+    def test_works_for_deferred_functions(self):
+        class Cls:
+            signal = aioxmpp.callbacks.Signal()
+
+        @service.depsignal(Cls, "signal", defer=True)
+        def func():
+            pass
+
+        self.assertTrue(
+            service.is_depsignal_handler(
+                Cls,
+                "signal",
+                func,
                 defer=True,
             )
         )
@@ -2732,7 +2859,7 @@ class Testis_attrsignal_handler(unittest.TestCase):
                         (
                             self.descriptor,
                             "signal",
-                            unittest.mock.sentinel.async_with_loop,
+                            (unittest.mock.sentinel.async_with_loop, (None,))
                         ),
                     ),
                     require_deps=()
@@ -2748,7 +2875,7 @@ class Testis_attrsignal_handler(unittest.TestCase):
                         (
                             self.descriptor,
                             "signal",
-                            unittest.mock.sentinel.spawn_with_loop,
+                            (unittest.mock.sentinel.spawn_with_loop, (None,))
                         ),
                     ),
                     require_deps=()
@@ -2777,18 +2904,16 @@ class Testis_attrsignal_handler(unittest.TestCase):
                 SPAWN_WITH_LOOP = stack.enter_context(
                     unittest.mock.patch.object(
                         callbacks.AdHocSignal,
-                        "SPAWN_WITH_LOOP")
+                        "SPAWN_WITH_LOOP",
+                        new=unittest.mock.sentinel.spawn_with_loop)
                 )
-                SPAWN_WITH_LOOP.return_value = \
-                    unittest.mock.sentinel.spawn_with_loop
 
                 ASYNC_WITH_LOOP = stack.enter_context(
                     unittest.mock.patch.object(
                         callbacks.AdHocSignal,
-                        "ASYNC_WITH_LOOP")
+                        "ASYNC_WITH_LOOP",
+                        new=unittest.mock.sentinel.async_with_loop)
                 )
-                ASYNC_WITH_LOOP.return_value = \
-                    unittest.mock.sentinel.async_with_loop
 
                 obj._aioxmpp_service_handlers = [
                     spec,
@@ -2818,6 +2943,35 @@ class Testis_attrsignal_handler(unittest.TestCase):
                 self.descriptor,
                 "signal",
                 m,
+                defer=True,
+            )
+        )
+
+    def test_works_for_deferred_coroutinefunctions(self):
+        @service.attrsignal(self.descriptor, "signal", defer=True)
+        @asyncio.coroutine
+        def coro():
+            pass
+
+        self.assertTrue(
+            service.is_attrsignal_handler(
+                self.descriptor,
+                "signal",
+                coro,
+                defer=True,
+            )
+        )
+
+    def test_works_for_deferred_functions(self):
+        @service.attrsignal(self.descriptor, "signal", defer=True)
+        def func():
+            pass
+
+        self.assertTrue(
+            service.is_attrsignal_handler(
+                self.descriptor,
+                "signal",
+                func,
                 defer=True,
             )
         )

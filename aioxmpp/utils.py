@@ -53,7 +53,7 @@ def background_task(coro, logger):
         except asyncio.CancelledError:
             logger.debug("background task terminated by CM exit: %r",
                          task)
-        except:
+        except:  # NOQA
             logger.error("background task failed: %r",
                          task,
                          exc_info=True)
@@ -63,7 +63,7 @@ def background_task(coro, logger):
                             task,
                             result)
 
-    task = asyncio.async(coro)
+    task = asyncio.ensure_future(coro)
     task.add_done_callback(log_result)
     try:
         yield
@@ -129,7 +129,7 @@ class LazyTask(asyncio.Future):
 
     def __start_task(self):
         if self.__task is None:
-            self.__task = asyncio.async(
+            self.__task = asyncio.ensure_future(
                 self.__coroutine_function(*self.__args)
             )
             self.__task.add_done_callback(self.__task_done)
@@ -148,3 +148,59 @@ class LazyTask(asyncio.Future):
         def __await__(self):
             self.__start_task()
             return super().__await__()
+
+
+@asyncio.coroutine
+def gather_reraise_multi(*fut_or_coros, message="gather_reraise_multi"):
+    """
+    Wrap all the arguments `fut_or_coros` in futures with
+    :func:`asyncio.ensure_future` and wait until all of them are finish or
+    fail.
+
+    :param fut_or_coros: the futures or coroutines to wait for
+    :type fut_or_coros: future or coroutine
+    :param message: the message included with the raised
+        :class:`aioxmpp.errrors.GatherError` in the case of failure.
+    :type message: :class:`str`
+    :returns: the list of the results of the arguments.
+    :raises aioxmpp.errors.GatherError: if any of the futures or
+        coroutines fail.
+
+    If an exception was raised, reraise all exceptions wrapped in a
+    :class:`aioxmpp.errors.GatherError` with the message set to
+    `message`.
+
+    .. note::
+
+       This is similar to the standard function
+       :func:`asyncio.gather`, but avoids the in-band signalling of
+       raised exceptions as return values, by raising exceptions bundled
+       as a :class:`aioxmpp.errors.GatherError`.
+
+    .. note::
+
+       Use this function only if you are either
+
+       a) not interested in the return values, or
+
+       b) only interested in the return values if all futures are
+          successful.
+    """
+    # this late import is needed for Python 3.4
+    from aioxmpp import errors
+
+    todo = [asyncio.ensure_future(fut_or_coro) for fut_or_coro in fut_or_coros]
+    if not todo:
+        return []
+
+    yield from asyncio.wait(todo)
+    results = []
+    exceptions = []
+    for fut in todo:
+        if fut.exception() is not None:
+            exceptions.append(fut.exception())
+        else:
+            results.append(fut.result())
+    if exceptions:
+        raise errors.GatherError(message, exceptions)
+    return results

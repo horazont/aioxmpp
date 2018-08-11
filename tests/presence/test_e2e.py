@@ -73,7 +73,7 @@ class TestPresence(TestCase):
         svc.on_available.connect(on_available)
         svc.on_changed.connect(on_changed)
 
-        yield from self.a.stream.send(pres)
+        yield from self.a.send(pres)
 
         stanza = yield from bare_fut
         self.assertIsInstance(stanza, aioxmpp.Presence)
@@ -89,7 +89,7 @@ class TestPresence(TestCase):
         self.assertFalse(changed_fut.done())
 
         pres.show = aioxmpp.PresenceShow.DND
-        yield from self.a.stream.send(pres)
+        yield from self.a.send(pres)
 
         full_jid, stanza = yield from changed_fut
         self.assertIsInstance(stanza, aioxmpp.Presence)
@@ -120,7 +120,7 @@ class TestPresence(TestCase):
 
         svc.on_bare_available.connect(on_bare_available)
 
-        yield from self.a.stream.send(pres)
+        yield from self.a.send(pres)
 
         yield from bare_fut
 

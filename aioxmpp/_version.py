@@ -1,5 +1,5 @@
 ########################################################################
-# File name: version.py
+# File name: _version.py
 # This file is part of: aioxmpp
 #
 # LICENSE
@@ -20,7 +20,7 @@
 #
 ########################################################################
 
-version_info = (0, 9, 0, None)
+version_info = (0, 10, 1, None)
 
 __version__ = ".".join(map(str, version_info[:3])) + ("-"+version_info[3] if
                                                       version_info[3] else "")

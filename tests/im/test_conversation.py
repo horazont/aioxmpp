@@ -19,15 +19,10 @@
 # <http://www.gnu.org/licenses/>.
 #
 ########################################################################
-import asyncio
 import unittest
 import unittest.mock
 
 import aioxmpp.im.conversation as conv
-
-from aioxmpp.testutils import (
-    run_coroutine,
-)
 
 
 class DummyConversation(conv.AbstractConversation):
@@ -47,7 +42,6 @@ class DummyConversation(conv.AbstractConversation):
     def jid(self):
         pass
 
-    @asyncio.coroutine
     def send_message_tracked(self, *args, **kwargs):
         return self.__mock.send_message_tracked(*args, **kwargs)
 
@@ -62,6 +56,7 @@ class TestConversation(unittest.TestCase):
         self.c = DummyConversation(self.c_mock, self.svc, parent=self.parent)
 
     def tearDown(self):
+        del self.c_mock
         del self.c
         del self.parent
         del self.cc
@@ -94,7 +89,7 @@ class TestConversation(unittest.TestCase):
 
         self.c_mock.send_message_tracked.return_value = token, tracker
 
-        result = run_coroutine(self.c.send_message(unittest.mock.sentinel.body))
+        result = self.c.send_message(unittest.mock.sentinel.body)
         self.c_mock.send_message_tracked.assert_called_once_with(
             unittest.mock.sentinel.body,
         )

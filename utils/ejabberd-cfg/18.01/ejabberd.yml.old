@@ -84,7 +84,7 @@ listen:
     ## certificate, specify the full path to the
     ## file and uncomment this line:
     ##
-    certfile: "/etc/ejabberd/ssl.pem"
+    certfile: "/home/p1/cfg/ssl.pem"
     starttls: true
     max_stanza_size: 65536
     access: c2s

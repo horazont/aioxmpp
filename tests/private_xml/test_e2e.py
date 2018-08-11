@@ -67,7 +67,7 @@ class TestPrivateXMLStorage(TestCase):
             payload=query,
         )
 
-        yield from self.client.stream.send(iq)
+        yield from self.client.send(iq)
 
         query.unregistered_payload[0].clear()
 
@@ -76,7 +76,7 @@ class TestPrivateXMLStorage(TestCase):
             payload=query,
         )
 
-        retrieved = yield from self.client.stream.send(iq)
+        retrieved = yield from self.client.send(iq)
 
         self.assertEqual(len(retrieved.unregistered_payload), 1)
         self.assertEqual(

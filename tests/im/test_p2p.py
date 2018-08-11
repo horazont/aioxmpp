@@ -31,10 +31,13 @@ import aioxmpp.im.p2p as p2p
 import aioxmpp.im.service as im_service
 import aioxmpp.im.dispatcher as im_dispatcher
 
+from aioxmpp.im.conversation import ConversationFeature
+
 from aioxmpp.testutils import (
     make_connected_client,
     CoroutineMock,
     run_coroutine,
+    make_listener,
 )
 
 from aioxmpp.e2etest import (
@@ -52,9 +55,10 @@ class TestConversation(unittest.TestCase):
         self.listener = unittest.mock.Mock()
 
         self.cc = make_connected_client()
-        self.cc.stream.send = CoroutineMock()
+        self.cc.send = CoroutineMock()
         self.cc.local_jid = LOCAL_JID
-        self.svc = unittest.mock.Mock(["client", "_conversation_left"])
+        self.svc = unittest.mock.Mock(["client", "_conversation_left",
+                                       "logger"])
         self.svc.client = self.cc
 
         self.c = p2p.Conversation(self.svc, PEER_JID)
@@ -67,6 +71,13 @@ class TestConversation(unittest.TestCase):
 
     def tearDown(self):
         del self.cc
+
+    def test_features(self):
+        self.assertCountEqual(
+            self.c.features,
+            [ConversationFeature.SEND_MESSAGE,
+             ConversationFeature.LEAVE]
+        )
 
     def test_members_contain_both_entities(self):
         members = list(self.c.members)
@@ -94,12 +105,30 @@ class TestConversation(unittest.TestCase):
         self.assertTrue(
             self.c.me.is_self
         )
+        self.assertEqual(
+            b"xmpp:" + str(self.c.me.direct_jid.bare()).encode("utf-8"),
+            self.c.me.uid,
+        )
+
+    def test_other(self):
+        self.assertIsNot(self.c.members[1], self.c.me)
+        self.assertEqual(
+            self.c.members[1].direct_jid,
+            PEER_JID,
+        )
+        self.assertFalse(
+            self.c.members[1].is_self,
+        )
+        self.assertEqual(
+            b"xmpp:" + str(PEER_JID).encode("utf-8"),
+            self.c.members[1].uid,
+        )
 
     def test_send_message_stamps_to_and_enqueues(self):
         msg = unittest.mock.Mock()
         token = self.c.send_message(msg)
 
-        self.cc.stream.enqueue.assert_called_once_with(msg)
+        self.cc.enqueue.assert_called_once_with(msg)
         self.assertEqual(msg.to, PEER_JID)
 
         self.listener.on_message.assert_called_once_with(
@@ -108,7 +137,24 @@ class TestConversation(unittest.TestCase):
             im_dispatcher.MessageSource.STREAM,
         )
 
-        self.assertEqual(token, self.cc.stream.enqueue())
+        self.assertEqual(token, self.cc.enqueue())
+
+    def test_send_message_sets_id_first_and_emits_event_afterwards(self):
+        msg = unittest.mock.Mock()
+        calls = None
+
+        def message_handler(message, *_):
+            nonlocal calls
+            calls = list(msg.mock_calls)
+            return True
+
+        self.c.on_message.connect(message_handler)
+        self.c.send_message(msg)
+
+        self.assertIn(
+            unittest.mock.call.autoset_id(),
+            calls,
+        )
 
     def test_inbound_message_dispatched_to_event(self):
         msg = unittest.mock.sentinel.message
@@ -148,8 +194,8 @@ class TestConversation(unittest.TestCase):
 class TestService(unittest.TestCase):
     def setUp(self):
         self.cc = make_connected_client()
-        self.cc.stream.send = CoroutineMock()
-        self.cc.stream.send.side_effect = AssertionError("not configured")
+        self.cc.send = CoroutineMock()
+        self.cc.send.side_effect = AssertionError("not configured")
         self.cc.local_jid = LOCAL_JID
         deps = {
             im_service.ConversationService: im_service.ConversationService(
@@ -163,16 +209,11 @@ class TestService(unittest.TestCase):
         self.svc.client = self.cc
         self.s = p2p.Service(self.cc, dependencies=deps)
 
-        self.listener = unittest.mock.Mock()
-
-        for ev in ["on_conversation_new", "on_conversation_left"]:
-            listener = getattr(self.listener, ev)
-            signal = getattr(self.s, ev)
-            listener.return_value = None
-            signal.connect(listener)
+        self.listener = make_listener(self.s)
 
         for ev in ["on_conversation_added"]:
-            listener = getattr(self.listener, ev)
+            listener = unittest.mock.Mock()
+            setattr(self.listener, ev, listener)
             signal = getattr(deps[im_service.ConversationService], ev)
             listener.return_value = None
             signal.connect(listener)
@@ -198,7 +239,7 @@ class TestService(unittest.TestCase):
                 "aioxmpp.im.p2p.Conversation"
             ))
 
-            c = run_coroutine(self.s.get_conversation(PEER_JID))
+            c = self.s.get_conversation(PEER_JID)
 
         self.cc.stream.register_message_callback.assert_not_called()
 
@@ -219,9 +260,37 @@ class TestService(unittest.TestCase):
                 "aioxmpp.im.p2p.Conversation"
             ))
 
-            c = run_coroutine(self.s.get_conversation(PEER_JID))
+            c = self.s.get_conversation(PEER_JID)
 
         self.listener.on_conversation_added.assert_called_once_with(c)
+
+    def test_conversation_emits_on_enter_right_after_added(self):
+        def cb(conv):
+            conv.on_enter.assert_not_called()
+
+        self.s.dependencies[
+            im_service.ConversationService
+        ].on_conversation_added.connect(cb)
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(unittest.mock.patch(
+                "aioxmpp.im.p2p.Conversation"
+            ))
+
+            c = self.s.get_conversation(PEER_JID)
+
+        self.listener.on_conversation_added.assert_called_once_with(c)
+
+        c.on_enter.assert_called_once_with()
+
+    def test_get_conversation_does_not_emit_spontaneous_event(self):
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(unittest.mock.patch(
+                "aioxmpp.im.p2p.Conversation"
+            ))
+
+            self.s.get_conversation(PEER_JID)
+
+        self.listener.on_spontaneous_conversation.assert_not_called()
 
     def test_get_conversation_deduplicates(self):
         with contextlib.ExitStack() as stack:
@@ -229,8 +298,8 @@ class TestService(unittest.TestCase):
                 "aioxmpp.im.p2p.Conversation"
             ))
 
-            c1 = run_coroutine(self.s.get_conversation(PEER_JID))
-            c2 = run_coroutine(self.s.get_conversation(PEER_JID))
+            c1 = self.s.get_conversation(PEER_JID)
+            c2 = self.s.get_conversation(PEER_JID)
 
         Conversation.assert_called_once_with(
             self.s,
@@ -251,10 +320,10 @@ class TestService(unittest.TestCase):
             ))
             Conversation.side_effect = generate_mocks()
 
-            c1 = run_coroutine(self.s.get_conversation(PEER_JID))
-            c1.peer_jid = PEER_JID
+            c1 = self.s.get_conversation(PEER_JID)
+            c1.jid = PEER_JID
             self.s._conversation_left(c1)
-            c2 = run_coroutine(self.s.get_conversation(PEER_JID))
+            c2 = self.s.get_conversation(PEER_JID)
 
         self.assertIsNot(c1, c2)
 
@@ -269,12 +338,11 @@ class TestService(unittest.TestCase):
             ))
             Conversation.side_effect = generate_mocks()
 
-            c1 = run_coroutine(self.s.get_conversation(PEER_JID))
+            c1 = self.s.get_conversation(PEER_JID)
             self.listener.on_conversation_new.assert_called_once_with(c1)
-            c1.peer_jid = PEER_JID
+            c1.jid = PEER_JID
             self.s._conversation_left(c1)
-            self.listener.on_conversation_left.assert_called_once_with(c1)
-            c2 = run_coroutine(self.s.get_conversation(PEER_JID))
+            c2 = self.s.get_conversation(PEER_JID)
             self.listener.on_conversation_new.assert_called_with(c2)
 
         self.assertIsNot(c1, c2)
@@ -324,7 +392,7 @@ class TestService(unittest.TestCase):
                 parent=None
             )
 
-            c = run_coroutine(self.s.get_conversation(PEER_JID))
+            c = self.s.get_conversation(PEER_JID)
             Conversation.assert_called_once_with(
                 self.s,
                 msg.from_.bare(),
@@ -334,6 +402,10 @@ class TestService(unittest.TestCase):
             self.assertEqual(c, Conversation())
 
             self.listener.on_conversation_new.assert_called_once_with(
+                Conversation()
+            )
+
+            self.listener.on_spontaneous_conversation.assert_called_once_with(
                 Conversation()
             )
 
@@ -368,9 +440,9 @@ class TestService(unittest.TestCase):
                 parent=None
             )
 
-            c = run_coroutine(self.s.get_conversation(
+            c = self.s.get_conversation(
                 PEER_JID.replace(localpart="fnord")
-            ))
+            )
             Conversation.assert_called_once_with(
                 self.s,
                 PEER_JID.replace(localpart="fnord"),
@@ -380,6 +452,10 @@ class TestService(unittest.TestCase):
             self.assertEqual(c, Conversation())
 
             self.listener.on_conversation_new.assert_called_once_with(
+                Conversation()
+            )
+
+            self.listener.on_spontaneous_conversation.assert_called_once_with(
                 Conversation()
             )
 
@@ -415,9 +491,9 @@ class TestService(unittest.TestCase):
                 parent=None
             )
 
-            c = run_coroutine(self.s.get_conversation(
+            c = self.s.get_conversation(
                 PEER_JID.replace(localpart="fnord", resource="foo")
-            ))
+            )
             Conversation.assert_called_once_with(
                 self.s,
                 PEER_JID.replace(localpart="fnord", resource="foo"),
@@ -427,6 +503,10 @@ class TestService(unittest.TestCase):
             self.assertEqual(c, Conversation())
 
             self.listener.on_conversation_new.assert_called_once_with(
+                Conversation()
+            )
+
+            self.listener.on_spontaneous_conversation.assert_called_once_with(
                 Conversation()
             )
 
@@ -461,7 +541,7 @@ class TestService(unittest.TestCase):
                 parent=None
             )
 
-            c = run_coroutine(self.s.get_conversation(PEER_JID))
+            c = self.s.get_conversation(PEER_JID)
             Conversation.assert_called_once_with(
                 self.s,
                 msg.from_.bare(),
@@ -474,12 +554,74 @@ class TestService(unittest.TestCase):
                 Conversation()
             )
 
+            self.listener.on_spontaneous_conversation.assert_called_once_with(
+                Conversation()
+            )
+
             Conversation()._handle_message.assert_called_once_with(
                 msg,
                 msg.from_,
                 False,
                 im_dispatcher.MessageSource.STREAM,
             )
+
+    def test_forward_chat_even_without_body_to_existing(self):
+        msg = aioxmpp.Message(
+            type_=aioxmpp.MessageType.CHAT,
+            from_=PEER_JID.replace(resource="foo"),
+        )
+        msg.body[None] = "foo"
+
+        conv = self.s.get_conversation(PEER_JID.bare())
+
+        with contextlib.ExitStack() as stack:
+            _handle_message = stack.enter_context(unittest.mock.patch.object(
+                conv,
+                "_handle_message",
+            ))
+
+            self.assertIsNone(self.s._filter_message(
+                msg,
+                msg.from_,
+                False,
+                im_dispatcher.MessageSource.STREAM,
+            ))
+
+        _handle_message.assert_called_once_with(
+            msg,
+            msg.from_,
+            False,
+            im_dispatcher.MessageSource.STREAM,
+        )
+
+    def test_forward_normal_even_without_body_to_existing(self):
+        msg = aioxmpp.Message(
+            type_=aioxmpp.MessageType.NORMAL,
+            from_=PEER_JID.replace(resource="foo"),
+        )
+        msg.body[None] = "foo"
+
+        conv = self.s.get_conversation(PEER_JID.bare())
+
+        with contextlib.ExitStack() as stack:
+            _handle_message = stack.enter_context(unittest.mock.patch.object(
+                conv,
+                "_handle_message",
+            ))
+
+            self.assertIsNone(self.s._filter_message(
+                msg,
+                msg.from_,
+                False,
+                im_dispatcher.MessageSource.STREAM,
+            ))
+
+        _handle_message.assert_called_once_with(
+            msg,
+            msg.from_,
+            False,
+            im_dispatcher.MessageSource.STREAM,
+        )
 
     def test_no_autocreate_conversation_from_recvd_groupchat_with_body(self):
         msg = aioxmpp.Message(
@@ -618,11 +760,11 @@ class TestE2E(TestCase):
     @blocking_timed
     @asyncio.coroutine
     def test_converse_with_preexisting(self):
-        c1 = yield from self.firstwitch.summon(p2p.Service).get_conversation(
+        c1 = self.firstwitch.summon(p2p.Service).get_conversation(
             self.secondwitch.local_jid.bare()
         )
 
-        c2 = yield from self.secondwitch.summon(p2p.Service).get_conversation(
+        c2 = self.secondwitch.summon(p2p.Service).get_conversation(
             self.firstwitch.local_jid.bare()
         )
 
@@ -649,17 +791,26 @@ class TestE2E(TestCase):
 
         msg = aioxmpp.Message(aioxmpp.MessageType.CHAT)
         msg.body[None] = "foo"
-        yield from c1.send_message(msg)
+        c1.send_message(msg)
         yield from swev.wait()
 
         self.assertEqual(len(swmsgs), 1)
-        self.assertEqual(swmsgs[0].body[None], "foo")
+        self.assertEqual(swmsgs[0].body.any(), "foo")
         self.assertEqual(len(fwmsgs), 0)
 
         msg.body[None] = "bar"
-        yield from c2.send_message(msg)
+        c2.send_message(msg)
         yield from fwev.wait()
 
         self.assertEqual(len(fwmsgs), 1)
-        self.assertEqual(fwmsgs[0].body[None], "bar")
+        self.assertEqual(fwmsgs[0].body.any(), "bar")
         self.assertEqual(len(swmsgs), 1)
+
+    @blocking_timed
+    @asyncio.coroutine
+    def test_leave(self):
+        c1 = self.firstwitch.summon(p2p.Service).get_conversation(
+            self.secondwitch.local_jid.bare()
+        )
+
+        yield from c1.leave()

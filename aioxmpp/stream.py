@@ -30,6 +30,118 @@ handles stream liveness and stream management.
 It provides ways to track stanzas on their way to the remote, as far as that is
 possible.
 
+.. _aioxmpp.stream.General Information:
+
+General information
+===================
+
+.. _aioxmpp.stream.General Information.Timeouts:
+
+Timeouts / Stream Aliveness checks
+----------------------------------
+
+The :class:`StanzaStream` relies on the :class:`XMLStream` dead time aliveness
+monitoring (see also :attr:`~.XMLStream.deadtime_soft_limit`) to detect a
+broken stream.
+
+The limits can be configured with the two attributes
+:attr:`~.StanzaStream.soft_timeout` and :attr:`~.StanzaStream.round_trip_time`.
+When :attr:`~.StanzaStream.soft_timeout` elapses after the last bit of data
+received from the server, the :class:`StanzaStream` issues a ping. The server
+then has one :attr:`~.StanzaStream.round_trip_time` worth of time to answer.
+If this does not happen, the :class:`XMLStream` will be terminated by the
+aliveness monitor and normal handling of a broken connection takes over.
+
+.. _aioxmpp.stream.General Information.Filters:
+
+Stanza Filters
+--------------
+
+Stanza filters allow to hook into the stanza sending/reception pipeline
+after/before the application sees the stanza.
+
+Inbound stanza filters
+~~~~~~~~~~~~~~~~~~~~~~
+
+Inbound stanza filters allow to hook into the stanza processing by replacing,
+modifying or otherwise processing stanza contents *before* the usual handlers
+for that stanza are invoked. With inbound stanza filters, there are no
+restrictions as to what processing may take place on a stanza, as no one but
+the stream may have references to its contents.
+
+.. warning::
+
+    Raising an exception from within a stanza filter kills the stream.
+
+Note that if a filter function drops an incoming stanza (by returning
+:data:`None`), it **must** ensure that the client still behaves RFC
+compliant. The inbound stanza filters are found here:
+
+* :attr:`~.StanzaStream.service_inbound_message_filter`
+* :attr:`~.StanzaStream.service_inbound_presence_filter`
+* :attr:`~.StanzaStream.app_inbound_message_filter`
+* :attr:`~.StanzaStream.app_inbound_presence_filter`
+
+Outbound stanza filters
+~~~~~~~~~~~~~~~~~~~~~~~
+
+Outbound stanza filters work similar to inbound stanza filters, but due to
+their location in the processing chain and possible interactions with senders
+of stanzas, there are some things to consider:
+
+* Per convention, a outbound stanza filter **must not** modify any child
+  elements which are already present in the stanza when it receives the
+  stanza.
+
+  It may however add new child elements or remove existing child elements,
+  as well as copying and *then* modifying existing child elements.
+
+* If the stanza filter replaces the stanza, it is responsible for making
+  sure that the new stanza has appropriate
+  :attr:`~.stanza.StanzaBase.from_`, :attr:`~.stanza.StanzaBase.to` and
+  :attr:`~.stanza.StanzaBase.id` values. There are no checks to enforce
+  this, because errorr handling at this point is peculiar. The stanzas will
+  be sent as-is.
+
+* Similar to inbound filters, it is the responsibility of the filters that
+  if stanzas are dropped, the client still behaves RFC-compliant.
+
+Now that you have been warned, here are the attributes for accessing the
+outbound filter chains. These otherwise work exactly like their inbound
+counterparts, but service filters run *after* application filters on
+outbound processing.
+
+* :attr:`~.StanzaStream.service_outbound_message_filter`
+* :attr:`~.StanzaStream.service_outbound_presence_filter`
+* :attr:`~.StanzaStream.app_outbound_message_filter`
+* :attr:`~.StanzaStream.app_outbound_presence_filter`
+
+When to use stanza filters?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+In general, applications will rarely need them. However, services may make
+profitable use of them, and it is a convenient way for them to inspect or
+modify incoming or outgoing stanzas before any normally registered handler
+processes them.
+
+In general, whenever you do something which *supplements* the use of the stanza
+with respect to the RFC but does not fulfill the orignial intent of the stanza,
+it is advisable to use a filter instead of a callback on the actual stanza.
+
+Vice versa, if you were to develop a service which manages presence
+subscriptions, it would be more correct to use
+:meth:`register_presence_callback`; this prevents other services which try
+to do the same from conflicting with you. You would then provide callbacks
+to the application to let it learn about presence subscriptions.
+
+Stanza Stream class
+===================
+
+This section features the complete documentation of the (rather important and
+complex) :class:`StanzaStream`. Some more general information has been moved to
+the previous section (:ref:`aioxmpp.stream.General Information`) to make it
+easier to read and find.
+
 .. autoclass:: StanzaStream
 
 Context managers
@@ -80,6 +192,7 @@ import asyncio
 import contextlib
 import functools
 import logging
+import time
 import warnings
 
 from datetime import datetime, timedelta
@@ -332,7 +445,7 @@ class StanzaToken:
         When a stanza is aborted, it will reside in the active queue of the
         stream, not will be sent and instead discarded silently.
         """
-        if     (self._state != StanzaState.ACTIVE and
+        if (self._state != StanzaState.ACTIVE and
                 self._state != StanzaState.ABORTED):
             raise RuntimeError("cannot abort stanza (already sent)")
         self._set_state(StanzaState.ABORTED)
@@ -379,37 +492,9 @@ class StanzaStream:
 
        The `local_jid` argument was added.
 
-    The stanza stream takes care of ensuring stream liveness. For that, pings
-    are sent in a periodic interval. If stream management is enabled, stream
-    management ack requests are used as pings, otherwise :xep:`0199` pings are
-    used.
+    .. versionchanged:: 0.10
 
-    The general idea of pinging is, to save computing power, to send pings only
-    when other stanzas are also about to be sent, if possible. The time window
-    for waiting for other stanzas is defined by
-    :attr:`ping_opportunistic_interval`. The general time which the
-    :class:`StanzaStream` waits between the reception of the previous ping and
-    contemplating the sending of the next ping is controlled by
-    :attr:`ping_interval`. See the attributes descriptions for details:
-
-    .. attribute:: ping_interval = timedelta(seconds=15)
-
-       A :class:`datetime.timedelta` instance which controls the time between a
-       ping response and starting the next ping. When this time elapses,
-       opportunistic mode is engaged for the time defined by
-       :attr:`ping_opportunistic_interval`.
-
-    .. attribute:: ping_opportunistic_interval = timedelta(seconds=15)
-
-       This is the time interval after :attr:`ping_interval`. During that
-       interval, :class:`StanzaStream` waits for other stanzas to be sent. If a
-       stanza gets send during that interval, the ping is fired. Otherwise, the
-       ping is fired after the interval.
-
-    After a ping has been sent, the response must arrive in a time of
-    :attr:`ping_interval` for the stream to be considered alive. If the
-    response fails to arrive within that interval, the stream fails (see
-    :attr:`on_failure`).
+        Ping handling was reworked.
 
     Starting/Stopping the stream:
 
@@ -425,7 +510,24 @@ class StanzaStream:
 
     .. automethod:: flush_incoming
 
+    Timeout configuration (see
+    :ref:`aioxmpp.stream.General Information.Timeouts`):
+
+    .. autoattribute:: round_trip_time
+
+    .. autoattribute:: soft_timeout
+
     Sending stanzas:
+
+    .. deprecated:: 0.10
+
+        Sending stanzas directly on the stream is deprecated. The methods
+        have been moved to the client:
+
+        .. autosummary::
+
+            aioxmpp.Client.send
+            aioxmpp.Client.enqueue
 
     .. automethod:: send
 
@@ -445,6 +547,20 @@ class StanzaStream:
 
     Receiving stanzas:
 
+    .. automethod:: register_iq_request_handler
+
+    .. automethod:: unregister_iq_request_handler
+
+    .. automethod:: register_message_callback
+
+    .. automethod:: unregister_message_callback
+
+    .. automethod:: register_presence_callback
+
+    .. automethod:: unregister_presence_callback
+
+    Rarely used registries / deprecated aliases:
+
     .. automethod:: register_iq_request_coro
 
     .. automethod:: unregister_iq_request_coro
@@ -455,28 +571,8 @@ class StanzaStream:
 
     .. automethod:: unregister_iq_response
 
-    .. automethod:: register_message_callback
-
-    .. automethod:: unregister_message_callback
-
-    .. automethod:: register_presence_callback
-
-    .. automethod:: unregister_presence_callback
-
-    Inbound stanza filters allow to hook into the stanza processing by
-    replacing, modifying or otherwise processing stanza contents *before* the
-    above callbacks are invoked. With inbound stanza filters, there are no
-    restrictions as to what processing may take place on a stanza, as no one
-    but the stream may have references to its contents. See below for a
-    guideline on when to use stanza filters.
-
-    .. warning::
-
-       Raising an exception from within a stanza filter kills the stream.
-
-    Note that if a filter function drops an incoming stanza (by returning
-    :data:`None`), it **must** ensure that the client still behaves RFC
-    compliant.
+    Inbound Stanza Filters (see
+    :ref:`aioxmpp.stream.General Information.Filters`):
 
     .. attribute:: app_inbound_presence_filter
 
@@ -506,31 +602,8 @@ class StanzaStream:
        This is the analogon of :attr:`service_inbound_presence_filter` for
        :attr:`app_inbound_message_filter`.
 
-    Outbound stanza filters work similar to inbound stanza filters, but due to
-    their location in the processing chain and possible interactions with
-    senders of stanzas, there are some things to consider:
-
-    * Per convention, a outbound stanza filter **must not** modify any child
-      elements which are already present in the stanza when it receives the
-      stanza.
-
-      It may however add new child elements or remove existing child elements,
-      as well as copying and *then* modifying existing child elements.
-
-    * If the stanza filter replaces the stanza, it is responsible for making
-      sure that the new stanza has appropriate
-      :attr:`~.stanza.StanzaBase.from_`, :attr:`~.stanza.StanzaBase.to` and
-      :attr:`~.stanza.StanzaBase.id` values. There are no checks to enforce
-      this, because errorr handling at this point is peculiar. The stanzas will
-      be sent as-is.
-
-    * Similar to inbound filters, it is the responsibility of the filters that
-      if stanzas are dropped, the client still behaves RFC-compliant.
-
-    Now that you have been warned, here are the attributes for accessing the
-    outbound filter chains. These otherwise work exactly like their inbound
-    counterparts, but service filters run *after* application filters on
-    outbound processing.
+    Outbound Stanza Filters (see
+    :ref:`aioxmpp.stream.General Information.Filters`):
 
     .. attribute:: app_outbound_presence_filter
 
@@ -564,24 +637,6 @@ class StanzaStream:
 
        Before using this attribute, make sure that you have read the notes
        above.
-
-    When to use stanza filters? In general, applications will rarely need
-    them. However, services may make profitable use of them, and it is a
-    convenient way for them to inspect incoming or outgoing stanzas without
-    having to take up the registration slots (remember that
-    :meth:`register_message_callback` et. al. only allow *one* callback per
-    designator).
-
-    In general, whenever you do something which *supplements* the use of the
-    stanza with respect to the RFC but does not fulfill the orignial intent of
-    the stanza, it is advisable to use a filter instead of a callback on the
-    actual stanza.
-
-    Vice versa, if you were to develop a service which manages presence
-    subscriptions, it would be more correct to use
-    :meth:`register_presence_callback`; this prevents other services which try
-    to do the same from conflicting with you. You would then provide callbacks
-    to the application to let it learn about presence subscriptions.
 
     Using stream management:
 
@@ -717,6 +772,10 @@ class StanzaStream:
         self._logger = base_logger.getChild("StanzaStream")
         self._task = None
 
+        self._xmlstream = None
+        self._soft_timeout = timedelta(minutes=1)
+        self._round_trip_time = timedelta(minutes=1)
+
         self._xxx_message_dispatcher = None
         self._xxx_presence_dispatcher = None
 
@@ -732,17 +791,10 @@ class StanzaStream:
         # stream is destroyed
         self._iq_request_tasks = []
 
-        self._ping_send_opportunistic = False
-        self._next_ping_event_at = None
-        self._next_ping_event_type = None
-
         self._xmlstream_exception = None
 
         self._established = False
         self._closed = False
-
-        self.ping_interval = timedelta(seconds=15)
-        self.ping_opportunistic_interval = timedelta(seconds=15)
 
         self._sm_enabled = False
 
@@ -776,6 +828,45 @@ class StanzaStream:
     @local_jid.setter
     def local_jid(self, value):
         self._local_jid = value
+
+    @property
+    def round_trip_time(self):
+        """
+        The maximum expected round-trip time as :class:`datetime.timedelta`.
+
+        This is used to configure the maximum time between asking the server to
+        send something and receiving something from the server in stream
+        aliveness checks.
+
+        This does **not** affect IQ requests or other stanzas.
+
+        If set to :data:`None`, no application-level timeouts are used at all.
+        This is not recommended since TCP timeouts are generally not sufficient
+        for interactive applications.
+        """
+        return self._round_trip_time
+
+    @round_trip_time.setter
+    def round_trip_time(self, value):
+        self._round_trip_time = value
+        self._update_xmlstream_limits()
+
+    @property
+    def soft_timeout(self):
+        """
+        Soft timeout after which the server will be asked to send something
+        if nothing has been received.
+
+        If set to :data:`None`, no application-level timeouts are used at all.
+        This is not recommended since TCP timeouts are generally not sufficient
+        for interactive applications.
+        """
+        return self._soft_timeout
+
+    @soft_timeout.setter
+    def soft_timeout(self, value):
+        self._soft_timeout = value
+        self._update_xmlstream_limits()
 
     def _coerce_enum(self, value, enum_class):
         if not isinstance(value, enum_class):
@@ -853,14 +944,14 @@ class StanzaStream:
         except Exception:
             response = request.make_reply(type_=structs.IQType.ERROR)
             response.error = stanza.Error(
-                condition=(namespaces.stanzas, "undefined-condition"),
+                condition=errors.ErrorCondition.UNDEFINED_CONDITION,
                 type_=structs.ErrorType.CANCEL,
             )
             self._logger.exception("IQ request coroutine failed")
         else:
             response = request.make_reply(type_=structs.IQType.RESULT)
             response.payload = payload
-        self.enqueue(response)
+        self._enqueue(response)
 
     def _process_incoming_iq(self, stanza_obj):
         """
@@ -905,13 +996,18 @@ class StanzaStream:
                 )
                 response = stanza_obj.make_reply(type_=structs.IQType.ERROR)
                 response.error = stanza.Error(
-                    condition=(namespaces.stanzas,
-                               "service-unavailable"),
+                    condition=errors.ErrorCondition.SERVICE_UNAVAILABLE,
                 )
-                self.enqueue(response)
+                self._enqueue(response)
                 return
 
-            task = asyncio.async(coro(stanza_obj))
+            try:
+                awaitable = coro(stanza_obj)
+            except Exception as exc:
+                awaitable = asyncio.Future()
+                awaitable.set_exception(exc)
+
+            task = asyncio.ensure_future(awaitable)
             task.add_done_callback(
                 functools.partial(
                     self._iq_request_coro_done,
@@ -923,7 +1019,7 @@ class StanzaStream:
         """
         Process an incoming message stanza `stanza_obj`.
         """
-        self._logger.debug("incoming messgage: %r", stanza_obj)
+        self._logger.debug("incoming message: %r", stanza_obj)
 
         stanza_obj = self.service_inbound_message_filter.filter(stanza_obj)
         if stanza_obj is None:
@@ -997,17 +1093,15 @@ class StanzaStream:
                     except KeyError:
                         pass
         elif isinstance(exc, stanza.UnknownIQPayload):
-            reply = stanza_obj.make_error(error=stanza.Error(condition=(
-                namespaces.stanzas,
-                "service-unavailable")
+            reply = stanza_obj.make_error(error=stanza.Error(
+                condition=errors.ErrorCondition.SERVICE_UNAVAILABLE
             ))
-            self.enqueue(reply)
+            self._enqueue(reply)
         elif isinstance(exc, stanza.PayloadParsingError):
-            reply = stanza_obj.make_error(error=stanza.Error(condition=(
-                namespaces.stanzas,
-                "bad-request")
+            reply = stanza_obj.make_error(error=stanza.Error(
+                condition=errors.ErrorCondition.BAD_REQUEST
             ))
-            self.enqueue(reply)
+            self._enqueue(reply)
 
     def _process_incoming(self, xmlstream, queue_entry):
         """
@@ -1025,12 +1119,6 @@ class StanzaStream:
                 self._logger.warning("received SM ack, but SM not enabled")
                 return
             self.sm_ack(stanza_obj.counter)
-
-            if self._next_ping_event_type == PingEventType.TIMEOUT:
-                self._logger.debug("resetting ping timeout")
-                self._next_ping_event_type = PingEventType.SEND_OPPORTUNISTIC
-                self._next_ping_event_at = (datetime.utcnow() +
-                                            self.ping_interval)
             return
         elif isinstance(stanza_obj, nonza.SMRequest):
             self._logger.debug("received SM request: %r", stanza_obj)
@@ -1152,76 +1240,9 @@ class StanzaStream:
                 break
             self._send_stanza(xmlstream, token)
 
-        self._send_ping(xmlstream)
-
-    def _recv_pong(self, stanza):
-        """
-        Process the reception of a XEP-0199 ping reply.
-        """
-
-        if not self.running:
-            return
-        if self._next_ping_event_type != PingEventType.TIMEOUT:
-            return
-        self._next_ping_event_type = PingEventType.SEND_OPPORTUNISTIC
-        self._next_ping_event_at = datetime.utcnow() + self.ping_interval
-
-    def _send_ping(self, xmlstream):
-        """
-        Opportunistically send a ping over the given `xmlstream`.
-
-        If stream management is enabled, an SM request is always sent,
-        independent of the current ping state. Otherwise, a XEP-0199 ping is
-        sent if and only if we are currently in the opportunistic ping interval
-        (see :attr:`ping_opportunistic_interval`).
-
-        If a ping is sent, and we are currently not waiting for a pong to be
-        received, the ping timeout is configured.
-        """
-        if not self._ping_send_opportunistic:
-            return
-
         if self._sm_enabled:
             self._logger.debug("sending SM req")
             xmlstream.send_xso(nonza.SMRequest())
-        else:
-            request = stanza.IQ(type_=structs.IQType.GET)
-            request.payload = ping.Ping()
-            request.autoset_id()
-            self.register_iq_response_callback(
-                None,
-                request.id_,
-                self._recv_pong
-            )
-            self._logger.debug("sending XEP-0199 ping: %r", request)
-            xmlstream.send_xso(request)
-            self._ping_send_opportunistic = False
-
-        if self._next_ping_event_type != PingEventType.TIMEOUT:
-            self._logger.debug("configuring ping timeout")
-            self._next_ping_event_at = datetime.utcnow() + self.ping_interval
-            self._next_ping_event_type = PingEventType.TIMEOUT
-
-    def _process_ping_event(self, xmlstream):
-        """
-        Process a ping timed event on the current `xmlstream`.
-        """
-        if self._next_ping_event_type == PingEventType.SEND_OPPORTUNISTIC:
-            self._logger.debug("ping: opportunistic interval started")
-            self._next_ping_event_at += self.ping_opportunistic_interval
-            self._next_ping_event_type = PingEventType.SEND_NOW
-            # ping send opportunistic is always true for sm
-            if not self._sm_enabled:
-                self._ping_send_opportunistic = True
-        elif self._next_ping_event_type == PingEventType.SEND_NOW:
-            self._logger.debug("ping: requiring ping to be sent now")
-            self._send_ping(xmlstream)
-        elif self._next_ping_event_type == PingEventType.TIMEOUT:
-            self._logger.warning("ping: response timeout tripped")
-            raise ConnectionError("ping timeout")
-        else:
-            raise RuntimeError("unknown ping event type: {!r}".format(
-                self._next_ping_event_type))
 
     def register_iq_response_callback(self, from_, id_, cb):
         """
@@ -1318,31 +1339,50 @@ class StanzaStream:
 
     def register_iq_request_coro(self, type_, payload_cls, coro):
         """
-        Register a coroutine to run when an IQ request is received.
+        Alias of :meth:`register_iq_request_handler`.
+
+        .. deprecated:: 0.10
+
+            This alias will be removed in version 1.0.
+        """
+        warnings.warn(
+            "register_iq_request_coro is a deprecated alias to "
+            "register_iq_request_handler and will be removed in aioxmpp 1.0",
+            DeprecationWarning,
+            stacklevel=2)
+        return self.register_iq_request_handler(type_, payload_cls, coro)
+
+    def register_iq_request_handler(self, type_, payload_cls, cb):
+        """
+        Register a coroutine function or a function returning an awaitable to
+        run when an IQ request is received.
 
         :param type_: IQ type to react to (must be a request type).
         :type type_: :class:`~aioxmpp.IQType`
-        :param payload_cls: Payload class to react to (subclass of :class:`~xso.XSO`)
+        :param payload_cls: Payload class to react to (subclass of
+            :class:`~xso.XSO`)
         :type payload_cls: :class:`~.XMLStreamClass`
-        :param coro: Coroutine to run
+        :param cb: Function or coroutine function to invoke
         :raises ValueError: if there is already a coroutine registered for this
-                            targe
+                            target
         :raises ValueError: if `type_` is not a request IQ type
         :raises ValueError: if `type_` is not a valid
                             :class:`~.IQType` (and cannot be cast to a
                             :class:`~.IQType`)
 
-        The coroutine `coro` will be spawned whenever an IQ stanza with the
-        given `type_` and payload being an instance of the `payload_cls` is
-        received. The coroutine must return a valid value for the
-        :attr:`.IQ.payload` attribute. The value will be set as the
-        payload attribute value of an IQ response (with type
-        :attr:`~.IQType.RESULT`) which is generated and sent by the stream.
+        The callback `cb` will be called whenever an IQ stanza with the given
+        `type_` and payload being an instance of the `payload_cls` is received.
 
-        If the coroutine raises an exception, it will be converted to a
-        :class:`~.stanza.Error` object. That error object is then used as
-        payload for an IQ response (with type :attr:`~.IQType.ERROR`) which is
-        generated and sent by the stream.
+        The callback must either be a coroutine function or otherwise return an
+        awaitable. The awaitable must evaluate to a valid value for the
+        :attr:`.IQ.payload` attribute. That value will be set as the payload
+        attribute value of an IQ response (with type :attr:`~.IQType.RESULT`)
+        which is generated and sent by the stream.
+
+        If the awaitable or the function raises an exception, it will be
+        converted to a :class:`~.stanza.Error` object. That error object is
+        then used as payload for an IQ response (with type
+        :attr:`~.IQType.ERROR`) which is generated and sent by the stream.
 
         If the exception is a subclass of :class:`aioxmpp.errors.XMPPError`, it
         is converted to an :class:`~.stanza.Error` instance directly.
@@ -1353,6 +1393,28 @@ class StanzaStream:
         :meth:`~.IQ.as_payload_class`. Otherwise, the payload will
         not be recognised by the stream parser and the IQ is automatically
         responded to with a ``feature-not-implemented`` error.
+
+        .. warning::
+
+            When using a coroutine function for `cb`, there is no guarantee
+            that concurrent IQ handlers and other coroutines will execute in
+            any defined order. This implies that the strong ordering guarantees
+            normally provided by XMPP XML Streams are lost when using coroutine
+            functions for `cb`. For this reason, the use of non-coroutine
+            functions is allowed.
+
+        .. note::
+
+            Using a non-coroutine function for `cb` will generally lead to
+            less readable code. For the sake of readability, it is recommended
+            prefer coroutine functions.
+
+        .. versionchanged:: 0.10
+
+            Accepts an awaitable as last argument in addition to coroutine
+            functions.
+
+            Renamed from :meth:`register_iq_request_coro`.
 
         .. versionadded:: 0.6
 
@@ -1386,19 +1448,29 @@ class StanzaStream:
         if key in self._iq_request_map:
             raise ValueError("only one listener is allowed per tag")
 
-        self._iq_request_map[key] = coro
+        self._iq_request_map[key] = cb
         self._logger.debug(
             "iq request coroutine registered: type=%r, payload=%r",
             type_, payload_cls)
 
     def unregister_iq_request_coro(self, type_, payload_cls):
+        warnings.warn(
+            "unregister_iq_request_coro is a deprecated alias to "
+            "unregister_iq_request_handler and will be removed in aioxmpp 1.0",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.unregister_iq_request_handler(type_, payload_cls)
+
+    def unregister_iq_request_handler(self, type_, payload_cls):
         """
         Unregister a coroutine previously registered with
-        :meth:`register_iq_request_coro`.
+        :meth:`register_iq_request_handler`.
 
         :param type_: IQ type to react to (must be a request type).
         :type type_: :class:`~structs.IQType`
-        :param payload_cls: Payload class to react to (subclass of :class:`~xso.XSO`)
+        :param payload_cls: Payload class to react to (subclass of
+            :class:`~xso.XSO`)
         :type payload_cls: :class:`~.XMLStreamClass`
         :raises KeyError: if no coroutine has been registered for the given
                           ``(type_, payload_cls)`` pair
@@ -1408,6 +1480,10 @@ class StanzaStream:
 
         The match is solely made using the `type_` and `payload_cls` arguments,
         which have the same meaning as in :meth:`register_iq_request_coro`.
+
+        .. versionchanged:: 0.10
+
+            Renamed from :meth:`unregister_iq_request_coro`.
 
         .. versionchanged:: 0.7
 
@@ -1655,10 +1731,38 @@ class StanzaStream:
             from_,
         )
 
+    def _xmlstream_soft_limit_tripped(self, xmlstream):
+        self._logger.debug(
+            "XMLStream has reached dead-time soft limit, sending ping"
+        )
+
+        if self._sm_enabled:
+            req = nonza.SMRequest()
+            xmlstream.send_xso(req)
+        else:
+            iq = stanza.IQ(
+                type_=structs.IQType.GET,
+                payload=ping.Ping()
+            )
+            iq.autoset_id()
+            self.register_iq_response_callback(
+                None,
+                iq.id_,
+                # we don’t care, just wanna make sure that this doesn’t fail
+                lambda stanza: None,
+            )
+            self._enqueue(iq)
+
     def _start_prepare(self, xmlstream, receiver):
         self._xmlstream_failure_token = xmlstream.on_closing.connect(
             self._xmlstream_failed
         )
+
+        self._xmlstream_soft_limit_token = \
+            xmlstream.on_deadtime_soft_limit_tripped.connect(
+                functools.partial(self._xmlstream_soft_limit_tripped,
+                                  xmlstream)
+            )
 
         xmlstream.stanza_parser.add_class(stanza.IQ, receiver)
         xmlstream.stanza_parser.add_class(stanza.Message, receiver)
@@ -1688,19 +1792,31 @@ class StanzaStream:
         xmlstream.on_closing.disconnect(
             self._xmlstream_failure_token
         )
+        xmlstream.on_deadtime_soft_limit_tripped.disconnect(
+            self._xmlstream_soft_limit_token
+        )
+
+    def _update_xmlstream_limits(self):
+        if self._xmlstream is None:
+            return
+
+        self._xmlstream.deadtime_soft_limit = self._soft_timeout
+        if (self._soft_timeout is not None and
+                self._round_trip_time is not None):
+            self._xmlstream.deadtime_hard_limit = \
+                self._soft_timeout + self._round_trip_time
+        else:
+            self._xmlstream.deadtime_hard_limit = None
 
     def _start_commit(self, xmlstream):
         if not self._established:
             self.on_stream_established()
             self._established = True
 
-        self._task = asyncio.async(self._run(xmlstream), loop=self._loop)
+        self._task = asyncio.ensure_future(self._run(xmlstream),
+                                           loop=self._loop)
         self._task.add_done_callback(self._done_handler)
         self._logger.debug("broker task started as %r", self._task)
-
-        self._next_ping_event_at = datetime.utcnow() + self.ping_interval
-        self._next_ping_event_type = PingEventType.SEND_OPPORTUNISTIC
-        self._ping_send_opportunistic = self._sm_enabled
 
     def start(self, xmlstream):
         """
@@ -1708,7 +1824,7 @@ class StanzaStream:
         :class:`aioxmpp.protocol.XMLStream` `xmlstream`.
 
         This starts the main broker task, registers stanza classes at the
-        `xmlstream` and reconfigures the ping state.
+        `xmlstream` .
         """
 
         if self.running:
@@ -1805,42 +1921,36 @@ class StanzaStream:
     @asyncio.coroutine
     def _run(self, xmlstream):
         self._xmlstream = xmlstream
-        active_fut = asyncio.async(self._active_queue.get(),
-                                   loop=self._loop)
-        incoming_fut = asyncio.async(self._incoming_queue.get(),
-                                     loop=self._loop)
+        self._update_xmlstream_limits()
+        active_fut = asyncio.ensure_future(self._active_queue.get(),
+                                           loop=self._loop)
+        incoming_fut = asyncio.ensure_future(self._incoming_queue.get(),
+                                             loop=self._loop)
 
         try:
             while True:
-                timeout = self._next_ping_event_at - datetime.utcnow()
-                if timeout.total_seconds() < 0:
-                    timeout = timedelta()
-
+                timeout = None
                 done, pending = yield from asyncio.wait(
                     [
                         active_fut,
                         incoming_fut,
                     ],
                     return_when=asyncio.FIRST_COMPLETED,
-                    timeout=timeout.total_seconds())
+                    timeout=timeout)
 
                 with (yield from self._broker_lock):
                     if active_fut in done:
                         self._process_outgoing(xmlstream, active_fut.result())
-                        active_fut = asyncio.async(
+                        active_fut = asyncio.ensure_future(
                             self._active_queue.get(),
                             loop=self._loop)
 
                     if incoming_fut in done:
                         self._process_incoming(xmlstream,
                                                incoming_fut.result())
-                        incoming_fut = asyncio.async(
+                        incoming_fut = asyncio.ensure_future(
                             self._incoming_queue.get(),
                             loop=self._loop)
-
-                    timeout = self._next_ping_event_at - datetime.utcnow()
-                    if timeout.total_seconds() <= 0:
-                        self._process_ping_event(xmlstream)
 
         finally:
             # make sure we rescue any stanzas which possibly have already been
@@ -1885,33 +1995,7 @@ class StanzaStream:
     def recv_erroneous_stanza(self, partial_obj, exc):
         self._incoming_queue.put_nowait((partial_obj, exc))
 
-    def enqueue(self, stanza, **kwargs):
-        """
-        Put a `stanza` in the internal transmission queue and return a token to
-        track it.
-
-        :param stanza: Stanza to send
-        :type stanza: :class:`IQ`, :class:`Message` or :class:`Presence`
-        :param kwargs: see :class:`StanzaToken`
-        :return: token which tracks the stanza
-        :rtype: :class:`StanzaToken`
-
-        The `stanza` is enqueued in the active queue for transmission and will
-        be sent on the next opportunity. The relative ordering of stanzas
-        enqueued is always preserved.
-
-        Return a fresh :class:`StanzaToken` instance which traks the progress
-        of the transmission of the `stanza`. The `kwargs` are forwarded to the
-        :class:`StanzaToken` constructor.
-
-        This method calls :meth:`~.stanza.StanzaBase.autoset_id` on the stanza
-        automatically.
-
-        .. seealso::
-
-           :meth:`send`
-              for a more high-level way to send stanzas.
-        """
+    def _enqueue(self, stanza, **kwargs):
         if self._closed:
             raise self._xmlstream_exception
 
@@ -1923,7 +2007,19 @@ class StanzaStream:
                            stanza, token)
         return token
 
-    enqueue_stanza = enqueue
+    enqueue_stanza = _enqueue
+
+    def enqueue(self, stanza, **kwargs):
+        """
+        Deprecated alias of :meth:`aioxmpp.Client.enqueue`.
+
+        This is only available on streams owned by a :class:`aioxmpp.Client`.
+
+        .. deprecated:: 0.10
+        """
+        raise NotImplementedError(
+            "only available on streams owned by a Client"
+        )
 
     @property
     def running(self):
@@ -2001,22 +2097,17 @@ class StanzaStream:
             request_resumption = False
             resumption_timeout = None
 
-        with (yield from self._broker_lock):
-            response = yield from protocol.send_and_wait_for(
-                self._xmlstream,
-                [
-                    nonza.SMEnable(resume=bool(request_resumption),
-                                   max_=resumption_timeout),
-                ],
-                [
-                    nonza.SMEnabled,
-                    nonza.SMFailed
-                ]
-            )
-
+        # sorry for the callback spaghetti code
+        # we have to handle the response synchronously, so we have to use a
+        # callback.
+        # otherwise, it is possible that an SM related nonza (e.g. <r/>) is
+        # received (and attempted to be deserialized) before the handlers are
+        # registered
+        # see tests/test_highlevel.py:TestProtocoltest_sm_bootstrap_race
+        def handle_response(response):
             if isinstance(response, nonza.SMFailed):
-                raise errors.StreamNegotiationFailure(
-                    "Server rejected SM request")
+                # we handle the error down below
+                return
 
             self._sm_outbound_base = 0
             self._sm_inbound_ctr = 0
@@ -2026,7 +2117,6 @@ class StanzaStream:
             self._sm_resumable = response.resume
             self._sm_max = response.max_
             self._sm_location = response.location
-            self._ping_send_opportunistic = True
 
             self._logger.info("SM started: resumable=%s, stream id=%r",
                               self._sm_resumable,
@@ -2043,6 +2133,24 @@ class StanzaStream:
             self._xmlstream.stanza_parser.add_class(
                 nonza.SMAcknowledgement,
                 self.recv_stanza)
+
+        with (yield from self._broker_lock):
+            response = yield from protocol.send_and_wait_for(
+                self._xmlstream,
+                [
+                    nonza.SMEnable(resume=bool(request_resumption),
+                                   max_=resumption_timeout),
+                ],
+                [
+                    nonza.SMEnabled,
+                    nonza.SMFailed
+                ],
+                cb=handle_response,
+            )
+
+            if isinstance(response, nonza.SMFailed):
+                raise errors.StreamNegotiationFailure(
+                    "Server rejected SM request")
 
     @property
     def sm_enabled(self):
@@ -2222,7 +2330,7 @@ class StanzaStream:
                 xmlstream,
                 [
                     nonza.SMResume(previd=self.sm_id,
-                                         counter=self._sm_inbound_ctr)
+                                   counter=self._sm_inbound_ctr)
                 ],
                 [
                     nonza.SMResumed,
@@ -2240,7 +2348,7 @@ class StanzaStream:
                     "Server rejected SM resumption")
 
             self._resume_sm(response.counter)
-        except:
+        except:  # NOQA
             self._start_rollback(xmlstream)
             raise
         self._start_commit(xmlstream)
@@ -2368,71 +2476,101 @@ class StanzaStream:
             DeprecationWarning,
             stacklevel=1,
         )
-        yield from self.enqueue(stanza)
+        yield from self._enqueue(stanza)
 
     @asyncio.coroutine
-    def send(self, stanza, *, timeout=None):
+    def _send_immediately(self, stanza, *, timeout=None, cb=None):
         """
-        Send a stanza.
+        Send a stanza without waiting for the stream to be ready to send
+        stanzas.
 
-        :param stanza: Stanza to send
-        :type stanza: :class:`~.IQ`, :class:`~.Presence` or :class:`~.Message`
-        :param timeout: Maximum time in seconds to wait for an IQ response, or
-                        :data:`None` to disable the timeout.
-        :type timeout: :class:`~numbers.Real` or :data:`None`
-        :raise OSError: if the underlying XML stream fails and stream
-                        management is not disabled.
-        :raise aioxmpp.stream.DestructionRequested:
-           if the stream is closed while sending the stanza or waiting for a
-           response.
-        :raise aioxmpp.errors.XMPPError: if an error IQ response is received
-        :raise aioxmpp.errors.ErroneousStanza: if the IQ response could not be
-                                               parsed
-        :return: IQ response :attr:`~.IQ.payload` or :data:`None`
-
-        Send the stanza and wait for it to be sent. If the stanza is an IQ
-        request, the response is awaited and the :attr:`~.IQ.payload` of the
-        response is returned.
-
-        The `timeout` as well as any of the exception cases referring to a
-        "response" do not apply for IQ response stanzas, message stanzas or
-        presence stanzas sent with this method, as this method only waits for
-        a reply if an IQ *request* stanza is being sent.
-
-        If `stanza` is an IQ request and the response is not received within
-        `timeout` seconds, :class:`TimeoutError` (not
-        :class:`asyncio.TimeoutError`!) is raised.
-
-        .. warning::
-
-           Setting a timeout is recommended for IQ requests. If the IQ is sent
-           directly to the clients server for processing (i.e. if the
-           :attr:`~.IQ.to` attribute is :data:`None`), malformed responses
-           are discarded instead of raising :class:`.errors.ErroneusStanza`.
-           This is due to limitations in the :mod:`aioxmpp.xso` code, which are
-           to be fixed at some point.
-
-        .. versionadded:: 0.8
+        This is only useful from within :class:`aioxmpp.node.Client` before
+        the stream is fully established.
         """
         stanza.autoset_id()
         self._logger.debug("sending %r and waiting for it to be sent",
                            stanza)
 
         if not isinstance(stanza, stanza_.IQ) or stanza.type_.is_response:
-            yield from self.enqueue(stanza)
+            if cb is not None:
+                raise ValueError(
+                    "cb not supported with non-IQ non-request stanzas"
+                )
+            yield from self._enqueue(stanza)
             return
 
+        # we use the long way with a custom listener instead of a future here
+        # to ensure that the callback is called synchronously from within the
+        # queue handling loop.
+        # we need that to ensure that the strong ordering guarantees reach the
+        # `cb` function.
+
         fut = asyncio.Future()
-        self.register_iq_response_future(
-            stanza.to,
-            stanza.id_,
-            fut,
+
+        def nested_cb(task):
+            """
+            This callback is used to handle awaitables returned by the `cb`.
+            """
+            nonlocal fut
+            if task.exception() is None:
+                fut.set_result(task.result())
+            else:
+                fut.set_exception(task.exception())
+
+        def handler_ok(stanza):
+            """
+            This handler is invoked synchronously by
+            :meth:`_process_incoming_iq` (via
+            :class:`aioxmpp.callbacks.TagDispatcher`) for response stanzas
+            (including error stanzas).
+            """
+            nonlocal fut
+            if fut.cancelled():
+                return
+
+            if cb is not None:
+                try:
+                    nested_fut = cb(stanza)
+                except Exception as exc:
+                    fut.set_exception(exc)
+                else:
+                    if nested_fut is not None:
+                        nested_fut.add_done_callback(nested_cb)
+                        return
+
+            # we can’t even use StanzaErrorAwareListener because we want to
+            # forward error stanzas to the cb too...
+            if stanza.type_.is_error:
+                fut.set_exception(stanza.error.to_exception())
+            else:
+                fut.set_result(stanza.payload)
+
+        def handler_error(exc):
+            """
+            This handler is invoked synchronously by
+            :meth:`_process_incoming_iq` (via
+            :class:`aioxmpp.callbacks.TagDispatcher`) for response errors (
+            such as parsing errors, connection errors, etc.).
+            """
+            nonlocal fut
+            if fut.cancelled():
+                return
+            fut.set_exception(exc)
+
+        listener = callbacks.OneshotTagListener(
+            handler_ok,
+            handler_error,
+        )
+
+        self._iq_response_map.add_listener(
+            (stanza.to, stanza.id_),
+            listener,
         )
 
         try:
-            yield from self.enqueue(stanza)
-        except:
-            fut.cancel()
+            yield from self._enqueue(stanza)
+        except Exception:
+            listener.cancel()
             raise
 
         if not timeout:
@@ -2445,8 +2583,18 @@ class StanzaStream:
                 )
             except asyncio.TimeoutError:
                 raise TimeoutError
+        return reply
 
-        return reply.payload
+    @asyncio.coroutine
+    def send(self, stanza, timeout=None, *, cb=None):
+        """
+        Deprecated alias of :meth:`aioxmpp.Client.send`.
+
+        This is only available on streams owned by a :class:`aioxmpp.Client`.
+
+        .. deprecated:: 0.10
+        """
+        raise NotImplementedError("only available on streams owned by a Client")
 
 
 @contextlib.contextmanager
@@ -2471,7 +2619,7 @@ def iq_handler(stream, type_, payload_cls, coro):
     .. versionadded:: 0.8
     """
 
-    stream.register_iq_request_coro(
+    stream.register_iq_request_handler(
         type_,
         payload_cls,
         coro,
@@ -2479,7 +2627,7 @@ def iq_handler(stream, type_, payload_cls, coro):
     try:
         yield
     finally:
-        stream.unregister_iq_request_coro(type_, payload_cls)
+        stream.unregister_iq_request_handler(type_, payload_cls)
 
 
 @contextlib.contextmanager

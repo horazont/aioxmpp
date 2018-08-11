@@ -20,6 +20,8 @@
 #
 ########################################################################
 import contextlib
+import enum
+import io
 import itertools
 import unittest
 import unittest.mock
@@ -28,6 +30,7 @@ import aioxmpp.xso as xso
 import aioxmpp.stanza as stanza
 import aioxmpp.structs as structs
 import aioxmpp.errors as errors
+import aioxmpp.xml
 
 from aioxmpp.utils import namespaces
 
@@ -241,7 +244,7 @@ class TestMessage(unittest.TestCase):
         )
         self.assertIsInstance(
             stanza.Message.type_.type_,
-            xso.EnumType,
+            xso.EnumCDataType,
         )
         self.assertIs(
             stanza.Message.type_.type_.enum_class,
@@ -325,7 +328,7 @@ class TestMessage(unittest.TestCase):
 
     def test_make_error(self):
         e = stanza.Error(
-            condition=(namespaces.stanzas, "feature-not-implemented")
+            condition=errors.ErrorCondition.FEATURE_NOT_IMPLEMENTED
         )
         s = stanza.Message(
             from_=TEST_FROM,
@@ -380,6 +383,16 @@ class TestMessage(unittest.TestCase):
             "id=<incomplete> type=<incomplete>>"
         )
 
+    def test_random_type_is_equal_to_normal(self):
+        buf = io.BytesIO(b"<message xmlns='jabber:client' type='fnord'/>")
+        s = aioxmpp.xml.read_single_xso(buf, stanza.Message)
+        self.assertIs(s.type_, structs.MessageType.NORMAL)
+
+    def test_absent_type_is_normal(self):
+        buf = io.BytesIO(b"<message xmlns='jabber:client'/>")
+        s = aioxmpp.xml.read_single_xso(buf, stanza.Message)
+        self.assertIs(s.type_, structs.MessageType.NORMAL)
+
 
 class TestStatus(unittest.TestCase):
     def test_tag(self):
@@ -429,7 +442,7 @@ class TestPresence(unittest.TestCase):
         )
         self.assertIsInstance(
             stanza.Presence.type_.type_,
-            xso.EnumType,
+            xso.EnumCDataType,
         )
         self.assertIs(
             stanza.Presence.type_.type_.enum_class,
@@ -451,7 +464,7 @@ class TestPresence(unittest.TestCase):
         )
         self.assertIsInstance(
             stanza.Presence.show.type_,
-            xso.EnumType,
+            xso.EnumCDataType,
         )
         self.assertIs(
             stanza.Presence.show.type_.enum_class,
@@ -546,7 +559,7 @@ class TestPresence(unittest.TestCase):
 
     def test_make_error(self):
         e = stanza.Error(
-            condition=(namespaces.stanzas, "gone")
+            condition=errors.ErrorCondition.GONE
         )
         s = stanza.Presence(
             from_=TEST_FROM,
@@ -624,6 +637,16 @@ class TestPresence(unittest.TestCase):
             "id=<incomplete> type=<incomplete>>"
         )
 
+    def test_empty_show_is_equivalent_to_no_show(self):
+        buf = io.BytesIO(b"<presence xmlns='jabber:client'><show/></presence>")
+        s = aioxmpp.xml.read_single_xso(buf, stanza.Presence)
+        self.assertIs(s.show, structs.PresenceShow.NONE)
+
+    def test_absent_show(self):
+        buf = io.BytesIO(b"<presence xmlns='jabber:client'/>")
+        s = aioxmpp.xml.read_single_xso(buf, stanza.Presence)
+        self.assertIs(s.show, structs.PresenceShow.NONE)
+
 
 class TestError(unittest.TestCase):
     def test_declare_ns(self):
@@ -660,12 +683,126 @@ class TestError(unittest.TestCase):
         )
         self.assertIsInstance(
             stanza.Error.type_.type_,
-            xso.EnumType,
+            xso.EnumCDataType,
         )
         self.assertIs(
             stanza.Error.type_.type_.enum_class,
             structs.ErrorType,
         )
+
+    def test_condition_obj_attr(self):
+        self.assertIsInstance(
+            stanza.Error.condition_obj,
+            xso.Child,
+        )
+        self.assertCountEqual(
+            [
+                member.xso_class
+                for member in errors.ErrorCondition
+            ],
+            stanza.Error.condition_obj._classes,
+        )
+        self.assertTrue(stanza.Error.condition_obj.required)
+
+    def test_initialises_with_undefined_condition(self):
+        e = stanza.Error()
+        self.assertIsInstance(
+            e.condition_obj,
+            errors.ErrorCondition.UNDEFINED_CONDITION.xso_class,
+        )
+
+    @unittest.skipIf(aioxmpp.version_info >= (1, 0, 0),
+                     "does not apply to this version of aioxmpp")
+    def test_init_works_with_tuple(self):
+        with self.assertWarnsRegex(
+                DeprecationWarning,
+                r"as of aioxmpp 1\.0, error conditions must be members of the "
+                r"aioxmpp\.ErrorCondition enumeration") as ctx:
+            e = stanza.Error(
+                errors.ErrorCondition.REMOTE_SERVER_NOT_FOUND.value
+            )
+
+        self.assertEqual(
+            e.condition,
+            errors.ErrorCondition.REMOTE_SERVER_NOT_FOUND,
+        )
+
+        self.assertTrue(ctx.filename.endswith("test_stanza.py"))
+
+    def test_init_works_with_xso(self):
+        condition_obj = errors.ErrorCondition.GONE.to_xso()
+        condition_obj.new_address = "foo"
+
+        e = stanza.Error(
+            condition_obj
+        )
+
+        self.assertIs(e.condition_obj, condition_obj)
+
+    def test_condition_reflects_enum_member_of_object_after_init(self):
+        e = stanza.Error()
+
+        self.assertEqual(
+            errors.ErrorCondition.UNDEFINED_CONDITION,
+            e.condition,
+        )
+
+    def test_condition_reflects_enum_member_of_object_after_change(self):
+        e = stanza.Error()
+        e.condition_obj = errors.ErrorCondition.BAD_REQUEST.xso_class()
+
+        self.assertEqual(
+            errors.ErrorCondition.BAD_REQUEST,
+            e.condition,
+        )
+
+    def test_setting_condition_replaces_object(self):
+        e = stanza.Error()
+        e.condition = errors.ErrorCondition.UNDEFINED_CONDITION
+
+        self.assertEqual(
+            e.condition,
+            errors.ErrorCondition.UNDEFINED_CONDITION
+        )
+
+        self.assertIsInstance(
+            e.condition_obj,
+            errors.ErrorCondition.UNDEFINED_CONDITION.xso_class,
+        )
+
+    def test_setting_condition_keeps_object_if_condition_matches(self):
+        e = stanza.Error()
+        old = e.condition_obj
+        e.condition = errors.ErrorCondition.UNDEFINED_CONDITION
+        self.assertIs(e.condition_obj, old)
+
+    @unittest.skipIf(aioxmpp.version_info >= (1, 0, 0),
+                     "does not apply to this version of aioxmpp")
+    def test_accepts_tuple_instead_of_enum_for_condition_and_warns(self):
+        e = stanza.Error()
+        with self.assertWarnsRegex(
+                DeprecationWarning,
+                r"as of aioxmpp 1\.0, error conditions must be members of the "
+                r"aioxmpp\.ErrorCondition enumeration") as ctx:
+            e.condition = errors.ErrorCondition.BAD_REQUEST.value
+
+        self.assertEqual(
+            errors.ErrorCondition.BAD_REQUEST,
+            e.condition,
+        )
+
+        self.assertIsInstance(
+            e.condition_obj,
+            errors.ErrorCondition.BAD_REQUEST.xso_class,
+        )
+
+        self.assertTrue(ctx.filename.endswith("test_stanza.py"))
+
+    def test_rejects_xso_for_condition(self):
+        e = stanza.Error()
+
+        with self.assertRaises(ValueError):
+            e.condition = errors.ErrorCondition.BAD_REQUEST.to_xso()
 
     def test_application_condition_attr(self):
         self.assertIsInstance(
@@ -675,7 +812,7 @@ class TestError(unittest.TestCase):
 
     def test_from_exception(self):
         exc = errors.XMPPWaitError(
-            condition=(namespaces.stanzas, "item-not-found"),
+            condition=errors.ErrorCondition.ITEM_NOT_FOUND,
             text="foobar"
         )
         obj = stanza.Error.from_exception(exc)
@@ -684,7 +821,7 @@ class TestError(unittest.TestCase):
             obj.type_
         )
         self.assertEqual(
-            (namespaces.stanzas, "item-not-found"),
+            errors.ErrorCondition.ITEM_NOT_FOUND,
             obj.condition
         )
         self.assertEqual(
@@ -701,8 +838,8 @@ class TestError(unittest.TestCase):
             structs.ErrorType.CONTINUE: errors.XMPPContinueError,
         }
         conditions = [
-            (namespaces.stanzas, "bad-request"),
-            (namespaces.stanzas, "undefined-condition"),
+            errors.ErrorCondition.BAD_REQUEST,
+            errors.ErrorCondition.UNDEFINED_CONDITION,
         ]
         texts = [
             "foo",
@@ -728,6 +865,10 @@ class TestError(unittest.TestCase):
                 condition,
                 exc.condition
             )
+            self.assertIs(
+                exc.condition_obj,
+                obj.condition_obj,
+            )
             self.assertEqual(
                 text,
                 exc.text
@@ -738,7 +879,7 @@ class TestError(unittest.TestCase):
 
         obj = stanza.Error(
             type_=structs.ErrorType.CONTINUE,
-            condition=(namespaces.stanzas, "undefined-condition")
+            condition=errors.ErrorCondition.UNDEFINED_CONDITION
         )
         obj.application_condition = cond
         cond.to_exception.return_value = Exception()
@@ -760,7 +901,7 @@ class TestError(unittest.TestCase):
 
         obj = stanza.Error(
             type_=structs.ErrorType.CONTINUE,
-            condition=(namespaces.stanzas, "undefined-condition")
+            condition=errors.ErrorCondition.UNDEFINED_CONDITION
         )
         obj.application_condition = cond
 
@@ -788,7 +929,7 @@ class TestError(unittest.TestCase):
 
         obj = stanza.Error(
             type_=structs.ErrorType.CONTINUE,
-            condition=(namespaces.stanzas, "undefined-condition")
+            condition=errors.ErrorCondition.UNDEFINED_CONDITION
         )
         obj.application_condition = cond
         cond.to_exception.return_value = object()
@@ -807,6 +948,25 @@ class TestError(unittest.TestCase):
             ]
         )
 
+    def test_from_exception_with_application_condition(self):
+        @stanza.Error.as_application_condition
+        class Foo(xso.XSO):
+            TAG = ("uri:foo", "test_from_exception_with_application_condition")
+
+        obj = Foo()
+
+        exc = errors.XMPPAuthError(
+            errors.ErrorCondition.NOT_AUTHORIZED,
+            application_defined_condition=obj
+        )
+
+        err = stanza.Error.from_exception(exc)
+
+        self.assertIs(
+            err.application_condition,
+            obj,
+        )
+
     def test_repr(self):
         obj = stanza.Error()
         self.assertEqual(
@@ -815,8 +975,7 @@ class TestError(unittest.TestCase):
         )
         obj = stanza.Error(
             type_=structs.ErrorType.MODIFY,
-            condition=(namespaces.stanzas,
-                       "bad-request"),
+            condition=errors.ErrorCondition.BAD_REQUEST,
             text="foobar"
         )
         self.assertEqual(
@@ -872,7 +1031,7 @@ class TestIQ(unittest.TestCase):
         )
         self.assertIsInstance(
             stanza.IQ.type_.type_,
-            xso.EnumType
+            xso.EnumCDataType
         )
         self.assertIs(
             stanza.IQ.type_.type_.enum_class,
@@ -964,7 +1123,7 @@ class TestIQ(unittest.TestCase):
 
     def test_make_error(self):
         e = stanza.Error(
-            condition=(namespaces.stanzas, "bad-request")
+            condition=errors.ErrorCondition.BAD_REQUEST
         )
         s = stanza.IQ(from_=TEST_FROM,
                       to=TEST_TO,
@@ -1045,12 +1204,12 @@ class TestIQ(unittest.TestCase):
             "error=None data=None>"
         )
 
-    def test_validate_requires_id(self):
+    def test__validate_requires_id(self):
         iq = stanza.IQ(structs.IQType.GET)
         with self.assertRaisesRegex(
                 ValueError,
                 "IQ requires ID"):
-            iq.validate()
+            iq._validate()
 
     def test_as_payload_class(self):
         @stanza.IQ.as_payload_class
@@ -1062,6 +1221,26 @@ class TestIQ(unittest.TestCase):
             stanza.IQ.CHILD_MAP[Foo.TAG],
             stanza.IQ.payload.xq_descriptor
         )
+
+    def test__validate_rejects_error_without_error(self):
+        iq = stanza.IQ(structs.IQType.ERROR)
+        iq.autoset_id()
+
+        with self.assertRaisesRegex(
+                ValueError,
+                r"IQ with type='error' requires error payload"):
+            iq._validate()
+
+    def test_validate_wraps_exceptions_from__validate(self):
+        class FooException(Exception):
+            pass
+
+        iq = stanza.IQ(structs.IQType.GET)
+
+        with self.assertRaisesRegex(
+                stanza.StanzaError,
+                r"invalid IQ stanza"):
+            iq.validate()
 
 
 class Testmake_application_error(unittest.TestCase):

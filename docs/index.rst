@@ -106,22 +106,31 @@ From XMPP Extension Proposals (XEPs)
   commands to other entities)
 * :xep:`59` (Result Set Management), see :mod:`aioxmpp.rsm`
 * :xep:`60` (Publish-Subscribe), see :mod:`aioxmpp.pubsub`
+* :xep:`66` (Out-of-Band Data), schema-only, see :mod:`aioxmpp.misc`
 * :xep:`68` (Field Standardisation for Data Forms), see :mod:`aioxmpp.forms`
+* :xep:`77` (In-Band Registration), see :mod:`aioxmpp.ibr`
 * :xep:`82` (XMPP Date and Time Profiles), via :class:`aioxmpp.xso.DateTime` and others
 * :xep:`84` (User Avatar), see :mod:`aioxmpp.avatar`
+* :xep:`92` (Software Version), see :mod:`aioxmpp.version`
 * :xep:`115` (Entity Capabilities), see :mod:`aioxmpp.entitycaps`, including
   read/write support for the capsdb
 * :xep:`163` (Personal Eventing Protocol), see :mod:`aioxmpp.pep`
+* :xep:`184` (Message Delivery Receipts), see :mod:`aioxmpp.mdr`
 * :xep:`191` (Blocking Command), see :mod:`aioxmpp.blocking`
 * :xep:`198` (Stream Management), always enabled if supported by the server
 * :xep:`199` (XMPP Ping), used for aliveness-checks if Stream Management is not
   avaliable and :mod:`aioxmpp.ping`
 * :xep:`203` (Delayed Delivery), see :mod:`aioxmpp.misc`
+* :xep:`249` (Direct MUC Invitations), see :mod:`aioxmpp.muc`
 * :xep:`297` (Stanza Forwarding), see :mod:`aioxmpp.misc`
 * :xep:`280` (Message Carbons), see :mod:`aioxmpp.carbons`
 * :xep:`300` (Use of Cryptographic Hash Functions in XMPP),
   see :mod:`aioxmpp.hashes`
+* :xep:`333` (Chat Markers), schema-only, see :mod:`aioxmpp.misc`
+* :xep:`363` (HTTP Upload), see :mod:`aioxmpp.httpupload`
 * :xep:`368` (SRV records for XMPP over TLS)
+* :xep:`379` (Pre-Authenticared Roster Subscription), schema-only, see
+  :mod:`aioxmpp.misc`
 * :xep:`390` (Entity Capabilities 2.0), see :mod:`aioxmpp.entitycaps`
 
 
@@ -133,11 +142,9 @@ Dependencies
 * Python ≥ 3.4 (or Python = 3.3 with tulip and enum34)
 * DNSPython
 * lxml
-* `orderedset`__
+* `sortedcollections`__
 
-  (Note that ``ordered_set`` does not work!)
-
-  __ https://pypi.python.org/pypi/orderedset
+  __ https://pypi.python.org/pypi/sortedcollections
 
 * `tzlocal`__ (for i18n support)
 
@@ -160,7 +167,7 @@ Dependencies
 
   __ https://pypi.python.org/pypi/multidict
 
-* `aioopenssl`__ (optional, for now)
+* `aioopenssl`__
 
   __ https://github.com/horazont/aioopenssl
 

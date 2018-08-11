@@ -71,7 +71,7 @@ class TestNote(unittest.TestCase):
         )
         self.assertIsInstance(
             adhoc_xso.Note.type_.type_,
-            xso.EnumType,
+            xso.EnumCDataType,
         )
         self.assertEqual(
             adhoc_xso.Note.type_.type_.enum_class,
@@ -146,7 +146,7 @@ class TestActions(unittest.TestCase):
         )
         self.assertIsInstance(
             adhoc_xso.Actions.execute.type_,
-            xso.EnumType,
+            xso.EnumCDataType,
         )
         self.assertEqual(
             adhoc_xso.Actions.execute.type_.enum_class,
@@ -349,7 +349,7 @@ class TestCommand(unittest.TestCase):
         )
         self.assertIsInstance(
             adhoc_xso.Command.action.type_,
-            xso.EnumType,
+            xso.EnumCDataType,
         )
         self.assertEqual(
             adhoc_xso.Command.action.type_.enum_class,
@@ -371,7 +371,7 @@ class TestCommand(unittest.TestCase):
         )
         self.assertIsInstance(
             adhoc_xso.Command.status.type_,
-            xso.EnumType,
+            xso.EnumCDataType,
         )
         self.assertEqual(
             adhoc_xso.Command.status.type_.enum_class,

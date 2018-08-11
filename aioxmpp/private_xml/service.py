@@ -57,7 +57,7 @@ class PrivateXMLService(service.Service):
             type_=aioxmpp.IQType.GET,
             payload=private_xml_xso.Query(query_xso)
         )
-        return (yield from self.client.stream.send(iq))
+        return (yield from self.client.send(iq))
 
     @asyncio.coroutine
     def set_private_xml(self, xso):
@@ -71,4 +71,4 @@ class PrivateXMLService(service.Service):
             type_=aioxmpp.IQType.SET,
             payload=private_xml_xso.Query(xso)
         )
-        yield from self.client.stream.send(iq)
+        yield from self.client.send(iq)

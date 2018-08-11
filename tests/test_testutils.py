@@ -32,7 +32,8 @@ from aioxmpp.testutils import (
     XMLStreamMock,
     run_coroutine_with_peer,
     make_connected_client,
-    CoroutineMock
+    CoroutineMock,
+    make_listener,
 )
 from aioxmpp.xmltestutils import XMLTestCase
 
@@ -572,7 +573,6 @@ class TestTransportMock(unittest.TestCase):
             )
         )
 
-
     def test_exception_from_stimulus_bubbles_up(self):
         exc = ConnectionError("foobar")
 
@@ -675,7 +675,7 @@ class TestXMLStreamMock(XMLTestCase):
         with self.assertRaisesRegex(
                 AssertionError,
                 r"unexpected send_xso\(<tests.test_testutils.TestXMLStreamMock"
-                r".setUp.<locals>.Cls object at 0x[a-f0-9]+>\)"):
+                r".setUp.<locals>.Cls object at 0x[a-fA-F0-9]+>\)"):
             run_coroutine(self.xmlstream.run_test(
                 [
                 ],
@@ -744,6 +744,41 @@ class TestXMLStreamMock(XMLTestCase):
                                     "unexpected close"):
             run_coroutine(self.xmlstream.run_test(
                 [
+                ],
+            ))
+
+    def test_mute_unmute_cycle(self):
+        with self.xmlstream.mute():
+            run_coroutine(self.xmlstream.run_test(
+                [
+                    XMLStreamMock.Mute(),
+                ],
+            ))
+
+        run_coroutine(self.xmlstream.run_test(
+            [
+                XMLStreamMock.Unmute(),
+            ],
+        ))
+
+    def test_catch_surplus_mute(self):
+        with self.xmlstream.mute():
+            with self.assertRaisesRegex(AssertionError,
+                                        "unexpected mute"):
+                run_coroutine(self.xmlstream.run_test(
+                    [
+                    ],
+                ))
+
+    def test_catch_surplus_unmute(self):
+        with self.xmlstream.mute():
+            pass
+
+        with self.assertRaisesRegex(AssertionError,
+                                    "unexpected unmute"):
+            run_coroutine(self.xmlstream.run_test(
+                [
+                    XMLStreamMock.Mute(),
                 ],
             ))
 
@@ -852,7 +887,7 @@ class TestXMLStreamMock(XMLTestCase):
         fun = unittest.mock.MagicMock()
         fun.return_value = None
 
-        ec_future = asyncio.async(self.xmlstream.error_future())
+        ec_future = asyncio.ensure_future(self.xmlstream.error_future())
 
         self.xmlstream.on_closing.connect(fun)
 
@@ -886,7 +921,7 @@ class TestXMLStreamMock(XMLTestCase):
             ))
 
     def test_close_and_wait(self):
-        task = asyncio.async(self.xmlstream.close_and_wait())
+        task = asyncio.ensure_future(self.xmlstream.close_and_wait())
 
         run_coroutine(self.xmlstream.run_test(
             [
@@ -940,6 +975,8 @@ class Testmake_connected_client(unittest.TestCase):
         self.assertTrue(hasattr(cc, "start"))
         self.assertTrue(hasattr(cc, "stop"))
         self.assertTrue(hasattr(cc, "established"))
+        self.assertTrue(hasattr(cc, "send"))
+        self.assertTrue(hasattr(cc, "enqueue"))
 
         self.assertIs(cc.established, True)
 
@@ -957,13 +994,11 @@ class Testmake_connected_client(unittest.TestCase):
         )
 
         self.assertTrue(hasattr(cc.stream, "register_iq_response_future"))
-        self.assertTrue(hasattr(cc.stream, "register_iq_request_coro"))
+        self.assertTrue(hasattr(cc.stream, "register_iq_request_handler"))
         self.assertTrue(hasattr(cc.stream, "register_message_callback"))
         self.assertTrue(hasattr(cc.stream, "register_iq_response_callback"))
         self.assertTrue(hasattr(cc.stream, "register_presence_callback"))
-        self.assertIsInstance(cc.stream.send_iq_and_wait_for_reply,
-                              CoroutineMock)
-        self.assertIsInstance(cc.stream.send, CoroutineMock)
+        self.assertIsInstance(cc.send, CoroutineMock)
 
         self.assertIsInstance(cc.stream_features, nonza.StreamFeatures)
 
@@ -1061,3 +1096,71 @@ class TestMockMonkeyPatches(unittest.TestCase):
         m()
         with self.assertRaises(AssertionError):
             m.assert_not_called()
+
+
+class Testmake_listener(unittest.TestCase):
+    def test_connects_to_signals(self):
+        class Foo:
+            on_a = callbacks.Signal()
+
+        f = Foo()
+        listener = make_listener(f)
+
+        f.on_a("foo")
+        listener.on_a.assert_called_once_with("foo")
+
+        listener.reset_mock()
+        f.on_a("bar")
+        listener.on_a.assert_called_once_with("bar")
+
+        listener.reset_mock()
+        f.on_a("baz")
+        listener.on_a.assert_called_once_with("baz")
+
+    def test_connects_to_signals_of_base_class(self):
+        class Foo:
+            on_a = callbacks.Signal()
+
+        class Bar(Foo):
+            on_b = callbacks.Signal()
+
+        b = Bar()
+        listener = make_listener(b)
+
+        b.on_a("foo")
+        listener.on_a.assert_called_once_with("foo")
+
+        listener.reset_mock()
+        b.on_a("bar")
+        listener.on_a.assert_called_once_with("bar")
+
+        listener.reset_mock()
+        b.on_a("baz")
+        listener.on_a.assert_called_once_with("baz")
+
+    def test_handles_overridden_attributes(self):
+        class Foo:
+            on_a = callbacks.Signal()
+            on_b = callbacks.Signal()
+
+        class Bar(Foo):
+            on_a = None
+            on_b = callbacks.Signal()
+            on_c = callbacks.Signal()
+
+        b = Bar()
+        listener = make_listener(b)
+
+        b.on_b("foo")
+        listener.on_b.assert_called_once_with("foo")
+
+    def test_has_no_non_listener_attributes(self):
+        class Foo:
+            on_a = callbacks.Signal()
+
+        f = Foo()
+        listener = make_listener(f)
+
+        self.assertFalse(hasattr(listener, "foobar"))
+        with self.assertRaises(AttributeError):
+            listener.foobar

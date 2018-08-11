@@ -23,9 +23,20 @@ import aioxmpp.disco
 import aioxmpp.service
 import aioxmpp.tracking
 
+from . import xso
+
 
 class DeliveryReceiptsService(aioxmpp.service.Service):
-    ORDER_AFTER = [aioxmpp.DiscoServer]
+    """
+    :term:`Tracking Service` which tracks :xep:`184` replies.
+
+    To send a tracked message, use the :meth:`attach_tracker` method before
+    sending.
+
+    .. automethod:: attach_tracker
+    """
+
+    ORDER_AFTER = [aioxmpp.disco.DiscoServer]
 
     disco_feature = aioxmpp.disco.register_feature("urn:xmpp:receipts")
 
@@ -46,14 +57,20 @@ class DeliveryReceiptsService(aioxmpp.service.Service):
                     "received unexpected/late/dup <receipt/>. dropping."
                 )
             else:
-                tracker._set_state(
-                    aioxmpp.tracking.MessageState.DELIVERED_TO_RECIPIENT
-                )
+                try:
+                    tracker._set_state(
+                        aioxmpp.tracking.MessageState.DELIVERED_TO_RECIPIENT
+                    )
+                except ValueError as exc:
+                    self.logger.debug(
+                        "failed to update tracker after receipt: %s",
+                        exc,
+                    )
             return None
 
         return stanza
 
-    def attach_tracker(self, stanza, tracker):
+    def attach_tracker(self, stanza, tracker=None):
         """
         Return a new tracker or modify one to track the stanza.
 
@@ -61,6 +78,9 @@ class DeliveryReceiptsService(aioxmpp.service.Service):
         :type stanza: :class:`aioxmpp.Message`
         :param tracker: Existing tracker to attach to.
         :type tracker: :class:`.tracking.MessageTracker`
+        :raises ValueError: if the stanza is of type
+            :attr:`~aioxmpp.MessageType.ERROR`
+        :raises ValueError: if the stanza contains a delivery receipt
         :return: The message tracker for the stanza.
         :rtype: :class:`.tracking.MessageTracker`
 
@@ -73,7 +93,46 @@ class DeliveryReceiptsService(aioxmpp.service.Service):
            See the :ref:`api-tracking-memory`.
 
         """
+        if stanza.xep0184_received is not None:
+            raise ValueError(
+                "requesting delivery receipts for delivery receipts is not "
+                "allowed"
+            )
+        if stanza.type_ == aioxmpp.MessageType.ERROR:
+            raise ValueError(
+                "requesting delivery receipts for errors is not supported"
+            )
+
+        if tracker is None:
+            tracker = aioxmpp.tracking.MessageTracker()
+
         stanza.xep0184_request_receipt = True
         stanza.autoset_id()
         self._bare_jid_maps[stanza.to, stanza.id_] = tracker
         return tracker
+
+
+def compose_receipt(message):
+    """
+    Compose a :xep:`184` delivery receipt for a :class:`~aioxmpp.Message`.
+
+    :param message: The message to compose the receipt for.
+    :type message: :class:`~aioxmpp.Message`
+    :raises ValueError: if the input message is of type
+        :attr:`~aioxmpp.MessageType.ERROR`
+    :raises ValueError: if the input message is a message receipt itself
+    :return: A message which serves as a receipt for the input message.
+    :rtype: :class:`~aioxmpp.Message`
+    """
+
+    if message.type_ == aioxmpp.MessageType.ERROR:
+        raise ValueError("receipts cannot be generated for error messages")
+    if message.xep0184_received:
+        raise ValueError("receipts cannot be generated for receipts")
+    if message.id_ is None:
+        raise ValueError("receipts cannot be generated for id-less messages")
+
+    reply = message.make_reply()
+    reply.to = reply.to.bare()
+    reply.xep0184_received = xso.Received(message.id_)
+    return reply

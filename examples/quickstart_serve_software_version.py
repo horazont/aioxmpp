@@ -30,27 +30,7 @@ except ImportError:
 import aioxmpp
 import aioxmpp.xso as xso
 
-namespace = "jabber:iq:version"
-
-
-@aioxmpp.IQ.as_payload_class
-class Query(xso.XSO):
-    TAG = (namespace, "query")
-
-    name = xso.ChildText(
-        (namespace, "name"),
-        default=None,
-    )
-
-    version = xso.ChildText(
-        (namespace, "version"),
-        default=None,
-    )
-
-    os = xso.ChildText(
-        (namespace, "os"),
-        default=None,
-    )
+from aioxmpp.version.xso import Query
 
 
 async def handler(iq):
@@ -81,6 +61,9 @@ async def main(local_jid, password):
 if __name__ == "__main__":
     local_jid = aioxmpp.JID.fromstr(input("local JID> "))
     password = getpass.getpass()
+
+    import logging
+    logging.basicConfig(level=logging.DEBUG)
 
     loop = asyncio.get_event_loop()
     loop.run_until_complete(main(local_jid, password))

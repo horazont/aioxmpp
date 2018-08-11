@@ -24,6 +24,7 @@ import collections
 import collections.abc
 import contextlib
 import copy
+import enum
 import functools
 import unittest
 import unittest.mock
@@ -202,7 +203,7 @@ class TestXMLStreamClass(unittest.TestCase):
 
         self.assertSetEqual(
             {ClsA.body.xq_descriptor},
-            ClsA.CHILD_PROPS
+            set(ClsA.CHILD_PROPS)
         )
 
     def test_collect_child_property(self):
@@ -229,7 +230,7 @@ class TestXMLStreamClass(unittest.TestCase):
         )
         self.assertSetEqual(
             {Cls.c1.xq_descriptor, Cls.c2.xq_descriptor},
-            Cls.CHILD_PROPS
+            set(Cls.CHILD_PROPS)
         )
 
     def test_collect_child_flag_property(self):
@@ -244,7 +245,7 @@ class TestXMLStreamClass(unittest.TestCase):
         )
         self.assertSetEqual(
             {Cls.c1.xq_descriptor},
-            Cls.CHILD_PROPS
+            set(Cls.CHILD_PROPS)
         )
 
     def test_forbid_ambiguous_children(self):
@@ -280,7 +281,7 @@ class TestXMLStreamClass(unittest.TestCase):
             ClsB.CHILD_MAP)
         self.assertSetEqual(
             {ClsA.c1.xq_descriptor, ClsB.c2.xq_descriptor},
-            ClsB.CHILD_PROPS
+            set(ClsB.CHILD_PROPS)
         )
 
     def test_inheritance_child_ambiguous(self):
@@ -322,7 +323,7 @@ class TestXMLStreamClass(unittest.TestCase):
         )
         self.assertSetEqual(
             {ClsA.c1.xq_descriptor, ClsB.c2.xq_descriptor},
-            ClsC.CHILD_PROPS
+            set(ClsC.CHILD_PROPS)
         )
 
     def test_multi_inheritance_child_ambiguous(self):
@@ -362,7 +363,7 @@ class TestXMLStreamClass(unittest.TestCase):
             ClsD.CHILD_MAP)
         self.assertSetEqual(
             {ClsA.c1.xq_descriptor},
-            ClsD.CHILD_PROPS
+            set(ClsD.CHILD_PROPS)
         )
 
     def test_collect_attr_property(self):
@@ -550,7 +551,7 @@ class TestXMLStreamClass(unittest.TestCase):
         )
         self.assertSetEqual(
             {Cls.cl1.xq_descriptor, Cls.cl2.xq_descriptor},
-            Cls.CHILD_PROPS
+            set(Cls.CHILD_PROPS)
         )
 
     def test_forbid_ambiguous_children_with_lists(self):
@@ -583,7 +584,7 @@ class TestXMLStreamClass(unittest.TestCase):
         )
         self.assertSetEqual(
             {Cls.ct.xq_descriptor},
-            Cls.CHILD_PROPS
+            set(Cls.CHILD_PROPS)
         )
 
     def test_ordered_child_props(self):
@@ -838,6 +839,35 @@ class TestXMLStreamClass(unittest.TestCase):
             Cls.xso_error_handler.mock_calls
         )
 
+    def test_ignore_parse_error_with_erroneous_as_absent_text(self):
+        class Cls(xso.XSO):
+            TAG = "foo"
+
+            text = xso.Text(
+                type_=xso.Integer(),
+                erroneous_as_absent=True,
+                default=-1,
+            )
+
+        Cls.xso_error_handler = unittest.mock.MagicMock()
+        Cls.xso_error_handler.return_value = False
+
+        gen = Cls.parse_events((None, "foo", {}), self.ctx)
+        next(gen)
+        gen.send(("text", "foo"))
+        gen.send(("text", "bar"))
+        with self.assertRaises(StopIteration) as ctx:
+            gen.send(("end",))
+
+        obj = ctx.exception.value
+
+        self.assertSequenceEqual(
+            [],
+            Cls.xso_error_handler.mock_calls
+        )
+
+        self.assertEqual(obj.text, -1)
+
     def test_error_handler_on_broken_text_can_suppress(self):
         class Cls(xso.XSO):
             TAG = "foo"
@@ -1070,6 +1100,42 @@ class TestXMLStreamClass(unittest.TestCase):
             (
                 None,
                 "foo", {
+                }
+            ),
+            ctx)
+        next(gen)
+        with self.assertRaises(StopIteration) as exc:
+            gen.send(("end", ))
+        obj = exc.exception.value
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call(obj, ctx.__enter__())
+            ],
+            missing.mock_calls
+        )
+
+    def test_call_missing_on_erroneous_attr_with_erroneous_as_absent(self):
+        missing = unittest.mock.MagicMock()
+        missing.return_value = 123
+
+        ctx = unittest.mock.MagicMock()
+
+        class Cls(xso.XSO):
+            TAG = "foo"
+
+            attr = xso.Attr(
+                tag=(None, "attr"),
+                type_=xso.Integer(),
+                erroneous_as_absent=True,
+                missing=missing,
+            )
+
+        gen = Cls.parse_events(
+            (
+                None,
+                "foo", {
+                    (None, "attr"): "xyz",
                 }
             ),
             ctx)
@@ -1683,6 +1749,38 @@ class TestXMLStreamClass(unittest.TestCase):
             Foo,
             "method"
         ))
+
+    def test_setattr_ChildFlag(self):
+        class Foo(metaclass=xso_model.XMLStreamClass):
+            pass
+
+        Foo.child = xso.ChildFlag(("urn:test", "test"))
+
+        self.assertIn(
+            Foo.child.xq_descriptor,
+            Foo.CHILD_PROPS
+        )
+        self.assertIn(
+            ("urn:test", "test"),
+            Foo.CHILD_MAP
+        )
+        self.assertIs(
+            Foo.child.xq_descriptor,
+            Foo.CHILD_MAP["urn:test", "test"]
+        )
+
+    def test_setattr_ChildFlag_rejects_ambiguous(self):
+        class Bar(metaclass=xso_model.XMLStreamClass):
+            TAG = (None, "bar")
+
+        class Foo(metaclass=xso_model.XMLStreamClass):
+            child = xso.Child([Bar])
+
+        with self.assertRaisesRegex(TypeError,
+                                    "ambiguous Child properties"):
+            Foo.tag = xso.ChildFlag(
+                (None, "bar")
+            )
 
     def test_parse_events_does_not_call_init_but_validate_and_new(self):
         class Cls(metaclass=xso_model.XMLStreamClass):
@@ -3176,21 +3274,18 @@ class TestCollector(XMLTestCase):
                 subtree,
                 result)
 
-    def test_assign_enforces_list(self):
+    def test_assign_raises(self):
         class Cls(xso.XSO):
+            TAG = ("foo", "bar")
             children = xso.Collector()
 
         obj = Cls()
-        with self.assertRaises(TypeError):
+        with self.assertRaises(AttributeError):
             obj.children = 123
-        with self.assertRaises(TypeError):
+        with self.assertRaises(AttributeError):
             obj.children = "foo"
-        l = []
-        obj.children = l
-        self.assertIs(
-            l,
-            obj.children
-        )
+        with self.assertRaises(AttributeError):
+            obj.children = []
 
     def test_to_node(self):
         prop = xso.Collector()
@@ -3280,7 +3375,7 @@ class TestAttr(XMLTestCase):
         instance = make_instance_mock()
 
         prop = xso.Attr("foo", type_=xso.Integer())
-        prop.from_value(instance, "123")
+        self.assertTrue(prop.from_value(instance, "123"))
 
         self.assertDictEqual(
             {
@@ -3308,6 +3403,18 @@ class TestAttr(XMLTestCase):
         prop = xso.Attr("foo")
         with self.assertRaisesRegex(ValueError, "missing attribute foo"):
             prop.handle_missing(instance, ctx)
+
+    def test_erroneous_as_absent_returns_False_from_from_value(self):
+        ctx = xso_model.Context()
+
+        instance = make_instance_mock()
+
+        prop = xso.Attr(
+            "foo",
+            erroneous_as_absent=True,
+            type_=xso.Integer(),
+        )
+        self.assertFalse(prop.from_value(instance, "xyz"))
 
     def test_to_dict(self):
         d = {}
@@ -3508,6 +3615,51 @@ class TestChildText(XMLTestCase):
 
         with self.assertRaises(ValueError):
             drive_from_events(prop.from_events, instance, subtree, self.ctx)
+
+    def test_from_events_with_erroneous_as_absent(self):
+        type_mock = unittest.mock.Mock()
+
+        instance = make_instance_mock()
+
+        prop = xso.ChildText(
+            "body",
+            type_=type_mock,
+            erroneous_as_absent=True,
+            default=unittest.mock.sentinel.default,
+        )
+
+        type_mock.parse.side_effect = ValueError()
+
+        subtree = etree.fromstring("<body>foo</body>")
+        drive_from_events(prop.from_events, instance, subtree, self.ctx)
+
+        type_mock.parse.assert_called_once_with("foo")
+
+        self.assertEqual(
+            prop.__get__(instance, type(instance)),
+            unittest.mock.sentinel.default,
+        )
+
+    def test_from_events_reraises_parse_errors_by_default(self):
+        type_mock = unittest.mock.Mock()
+
+        instance = make_instance_mock()
+
+        prop = xso.ChildText(
+            "body",
+            type_=type_mock,
+        )
+
+        exc = ValueError()
+        type_mock.parse.side_effect = exc
+
+        subtree = etree.fromstring("<body>foo</body>")
+        with self.assertRaises(ValueError) as ctx:
+            drive_from_events(prop.from_events, instance, subtree, self.ctx)
+
+        self.assertIs(ctx.exception, exc)
+
+        type_mock.parse.assert_called_once_with("foo")
 
     def test_child_policy_default(self):
         prop = xso.ChildText("body")
@@ -4307,6 +4459,43 @@ class TestChildTag(unittest.TestCase):
         with self.assertRaises(ValueError):
             prop.validate_contents(instance)
 
+    def test_tag_enum_parse(self):
+        instance = make_instance_mock()
+        prop = xso.ChildTag(Tags)
+
+        drive_from_events(
+            prop.from_events,
+            instance,
+            etree.fromstring("<bar xmlns='urn:example:tags'/>"),
+            self.ctx
+        )
+
+        self.assertDictEqual(
+            {
+                prop: Tags.BAR,
+            },
+            instance._xso_contents
+        )
+
+    def test_tag_enum_to_sax(self):
+        prop = xso.ChildTag(Tags)
+        instance = make_instance_mock({
+            prop: Tags.FOO
+        })
+        dest = unittest.mock.MagicMock()
+        prop.to_sax(instance, dest)
+        self.assertSequenceEqual(
+            dest.mock_calls,
+            [
+                unittest.mock.call.startElementNS(
+                    ("urn:example:tags", "foo"),
+                    None, {}),
+                unittest.mock.call.endElementNS(
+                    ("urn:example:tags", "foo"),
+                    None),
+            ]
+        )
+
 
 class TestChildFlag(unittest.TestCase):
     def setUp(self):
@@ -4545,6 +4734,41 @@ class TestChildFlag(unittest.TestCase):
                     None),
             ],
             dest.mock_calls)
+
+
+class Tags(enum.Enum):
+    FOO = ("urn:example:tags", "foo")
+    BAR = ("urn:example:tags", "bar")
+    BAZ = ("urn:example:tags", "baz")
+
+
+class FooWithNone(xso.XSO):
+    tag_allows_none = xso.ChildTag(Tags, allow_none=True)
+
+
+class Foo(xso.XSO):
+    tag = xso.ChildTag(Tags)
+
+
+class TestChildTagEnum(unittest.TestCase):
+    def test_tag_enum_usage_normal(self):
+        foo = Foo()
+        foo.tag = Tags.FOO
+        self.assertEqual(foo.tag, Tags.FOO)
+
+        foo.tag = Tags.BAR
+        self.assertEqual(foo.tag, Tags.BAR)
+
+    def test_tag_enum_assign_none_allowed(self):
+        foo = FooWithNone()
+        foo.tag_allows_none = None
+        self.assertIsNone(foo.tag_allows_none)
+
+    def test_tag_enum_assign_none_raises(self):
+        foo = Foo()
+        with self.assertRaises(ValueError):
+            foo.tag = None
+
 
 
 class Testdrop_handler(unittest.TestCase):
@@ -4858,6 +5082,9 @@ class ChildTag(XMLTestCase):
                 "baz"
             ],
             default_ns="uri:bar")
+        self.enum_prop = xso.ChildTag(
+            Tags
+        )
         self.ctx = xso_model.Context()
 
     def test_init(self):
@@ -4874,14 +5101,23 @@ class ChildTag(XMLTestCase):
         self.assertTrue(self.prop.validator.validate(("uri:bar", "foo")))
         self.assertFalse(self.prop.validator.validate(("uri:foo", "foo")))
 
-    def test_type(self):
+    def test_converter(self):
         self.assertEqual(
             (None, "foo"),
-            self.prop.type_.parse("foo")
+            self.prop._converter.parse("foo")
         )
         self.assertEqual(
             "{uri:bar}foo",
-            self.prop.type_.format(("uri:bar", "foo"))
+            self.prop._converter.format(("uri:bar", "foo"))
+        )
+
+        self.assertEqual(
+            Tags.FOO,
+            self.enum_prop._converter.parse("{urn:example:tags}foo")
+        )
+        self.assertEqual(
+            "{urn:example:tags}foo",
+            self.enum_prop._converter.format(Tags.FOO)
         )
 
     def test_from_events(self):
@@ -5046,20 +5282,17 @@ class TestChildValueList(unittest.TestCase):
 
         attr = xso.Attr("a", type_=xso.Integer())
 
-    class ChildValueType(xso.AbstractType):
+    class ChildValueType(xso.AbstractElementType):
         @classmethod
-        def get_formatted_type(cls):
-            return TestChildValueList.ChildXSO
+        def get_xso_types(cls):
+            return [TestChildValueList.ChildXSO]
 
-        def coerce(self, value):
-            return TestChildValueList.ChildXSO.attr.type_.coerce(value)
-
-        def format(self, value):
+        def pack(self, value):
             item = TestChildValueList.ChildXSO()
             item.attr = value
             return item
 
-        def parse(self, value):
+        def unpack(self, value):
             return value.attr
 
     def setUp(self):
@@ -5189,8 +5422,8 @@ class TestChildValueList(unittest.TestCase):
         with contextlib.ExitStack() as stack:
             stack.enter_context(unittest.mock.patch.object(
                 self.ChildValueType,
-                "format",
-                new=base.format
+                "pack",
+                new=base.pack
             ))
 
             self.Cls.values.to_sax(obj, base.dest)
@@ -5198,8 +5431,8 @@ class TestChildValueList(unittest.TestCase):
         self.assertSequenceEqual(
             base.mock_calls,
             [
-                unittest.mock.call.format(10),
-                unittest.mock.call.format().unparse_to_sax(base.dest)
+                unittest.mock.call.pack(10),
+                unittest.mock.call.pack().unparse_to_sax(base.dest)
             ]
         )
 
@@ -5217,8 +5450,8 @@ class TestChildValueList(unittest.TestCase):
         with contextlib.ExitStack() as stack:
             stack.enter_context(unittest.mock.patch.object(
                 self.ChildValueType,
-                "parse",
-                new=base.parse
+                "unpack",
+                new=base.unpack
             ))
 
             stack.enter_context(unittest.mock.patch.object(
@@ -5248,17 +5481,17 @@ class TestChildValueList(unittest.TestCase):
             calls,
             [
                 unittest.mock.call.process(obj, base.ev_args, base.ctx),
-                unittest.mock.call.parse(process_mock()),
+                unittest.mock.call.unpack(process_mock()),
                 unittest.mock.call.process(obj, base.ev_args, base.ctx),
-                unittest.mock.call.parse(process_mock()),
+                unittest.mock.call.unpack(process_mock()),
             ]
         )
 
         self.assertSequenceEqual(
             obj.values,
             [
-                base.parse(),
-                base.parse(),
+                base.unpack(),
+                base.unpack(),
             ]
         )
 
@@ -5284,8 +5517,8 @@ class TestChildValueList(unittest.TestCase):
         with contextlib.ExitStack() as stack:
             stack.enter_context(unittest.mock.patch.object(
                 self.ChildValueType,
-                "parse",
-                new=base.parse
+                "unpack",
+                new=base.unpack
             ))
 
             stack.enter_context(unittest.mock.patch.object(
@@ -5294,7 +5527,7 @@ class TestChildValueList(unittest.TestCase):
                 new=base.process
             ))
 
-            base.parse.return_value = 1
+            base.unpack.return_value = 1
             with self.assertRaises(StopIteration):
                 gen = Cls.values.from_events(
                     obj,
@@ -5303,7 +5536,7 @@ class TestChildValueList(unittest.TestCase):
                 )
                 next(gen)
 
-            base.parse.return_value = 2
+            base.unpack.return_value = 2
             with self.assertRaises(StopIteration):
                 gen = Cls.values.from_events(
                     obj,
@@ -5317,9 +5550,9 @@ class TestChildValueList(unittest.TestCase):
             calls,
             [
                 unittest.mock.call.process(obj, base.ev_args, base.ctx),
-                unittest.mock.call.parse(process_mock()),
+                unittest.mock.call.unpack(process_mock()),
                 unittest.mock.call.process(obj, base.ev_args, base.ctx),
-                unittest.mock.call.parse(process_mock()),
+                unittest.mock.call.unpack(process_mock()),
             ]
         )
 
@@ -5341,19 +5574,19 @@ class TestChildValueMap(unittest.TestCase):
         key = xso.Attr("k", type_=xso.Integer())
         value = xso.Attr("v", type_=xso.Integer())
 
-    class ChildValueType(xso.AbstractType):
+    class ChildValueType(xso.AbstractElementType):
         @classmethod
-        def get_formatted_type(cls):
-            return TestChildValueMap.ChildXSO
+        def get_xso_types(cls):
+            return [TestChildValueMap.ChildXSO]
 
-        def format(self, item):
+        def pack(self, item):
             key, value = item
             item = TestChildValueMap.ChildXSO()
             item.key = key
             item.value = value
             return item
 
-        def parse(self, item):
+        def unpack(self, item):
             return item.key, item.value
 
     def setUp(self):
@@ -5488,8 +5721,8 @@ class TestChildValueMap(unittest.TestCase):
         with contextlib.ExitStack() as stack:
             stack.enter_context(unittest.mock.patch.object(
                 self.ChildValueType,
-                "format",
-                new=base.format
+                "pack",
+                new=base.pack
             ))
 
             self.Cls.values.to_sax(obj, base.dest)
@@ -5497,8 +5730,8 @@ class TestChildValueMap(unittest.TestCase):
         self.assertSequenceEqual(
             base.mock_calls,
             [
-                unittest.mock.call.format((10, 20)),
-                unittest.mock.call.format().unparse_to_sax(base.dest)
+                unittest.mock.call.pack((10, 20)),
+                unittest.mock.call.pack().unparse_to_sax(base.dest)
             ]
         )
 
@@ -5516,8 +5749,8 @@ class TestChildValueMap(unittest.TestCase):
         with contextlib.ExitStack() as stack:
             stack.enter_context(unittest.mock.patch.object(
                 self.ChildValueType,
-                "parse",
-                new=base.parse
+                "unpack",
+                new=base.unpack
             ))
 
             stack.enter_context(unittest.mock.patch.object(
@@ -5526,7 +5759,7 @@ class TestChildValueMap(unittest.TestCase):
                 new=base.process
             ))
 
-            base.parse.return_value = (1, "a")
+            base.unpack.return_value = (1, "a")
             with self.assertRaises(StopIteration):
                 gen = self.Cls.values.from_events(
                     obj,
@@ -5535,7 +5768,7 @@ class TestChildValueMap(unittest.TestCase):
                 )
                 next(gen)
 
-            base.parse.return_value = (2, "b")
+            base.unpack.return_value = (2, "b")
             with self.assertRaises(StopIteration):
                 gen = self.Cls.values.from_events(
                     obj,
@@ -5549,9 +5782,9 @@ class TestChildValueMap(unittest.TestCase):
             calls,
             [
                 unittest.mock.call.process(obj, base.ev_args, base.ctx),
-                unittest.mock.call.parse(process_mock()),
+                unittest.mock.call.unpack(process_mock()),
                 unittest.mock.call.process(obj, base.ev_args, base.ctx),
-                unittest.mock.call.parse(process_mock()),
+                unittest.mock.call.unpack(process_mock()),
             ]
         )
 
@@ -5574,19 +5807,19 @@ class TestChildValueMultiMap(unittest.TestCase):
         key = xso.Attr("k", type_=xso.Integer())
         value = xso.Attr("v", type_=xso.Integer())
 
-    class ChildValueType(xso.AbstractType):
+    class ChildValueType(xso.AbstractElementType):
         @classmethod
-        def get_formatted_type(cls):
-            return TestChildValueMultiMap.ChildXSO
+        def get_xso_types(self):
+            return [TestChildValueMultiMap.ChildXSO]
 
-        def format(self, item):
+        def pack(self, item):
             key, value = item
             item = TestChildValueMultiMap.ChildXSO()
             item.key = key
             item.value = value
             return item
 
-        def parse(self, item):
+        def unpack(self, item):
             return item.key, item.value
 
     def setUp(self):
@@ -5698,8 +5931,8 @@ class TestChildValueMultiMap(unittest.TestCase):
         with contextlib.ExitStack() as stack:
             stack.enter_context(unittest.mock.patch.object(
                 self.ChildValueType,
-                "parse",
-                new=base.parse
+                "unpack",
+                new=base.unpack
             ))
 
             stack.enter_context(unittest.mock.patch.object(
@@ -5708,7 +5941,7 @@ class TestChildValueMultiMap(unittest.TestCase):
                 new=base.process
             ))
 
-            base.parse.return_value = ("x", "a")
+            base.unpack.return_value = ("x", "a")
             with self.assertRaises(StopIteration):
                 gen = self.Cls.values.from_events(
                     obj,
@@ -5717,7 +5950,7 @@ class TestChildValueMultiMap(unittest.TestCase):
                 )
                 next(gen)
 
-            base.parse.return_value = ("x", "b")
+            base.unpack.return_value = ("x", "b")
             with self.assertRaises(StopIteration):
                 gen = self.Cls.values.from_events(
                     obj,
@@ -5726,7 +5959,7 @@ class TestChildValueMultiMap(unittest.TestCase):
                 )
                 next(gen)
 
-            base.parse.return_value = ("z", "c")
+            base.unpack.return_value = ("z", "c")
             with self.assertRaises(StopIteration):
                 gen = self.Cls.values.from_events(
                     obj,
@@ -5740,11 +5973,11 @@ class TestChildValueMultiMap(unittest.TestCase):
             calls,
             [
                 unittest.mock.call.process(obj, base.ev_args, base.ctx),
-                unittest.mock.call.parse(process_mock()),
+                unittest.mock.call.unpack(process_mock()),
                 unittest.mock.call.process(obj, base.ev_args, base.ctx),
-                unittest.mock.call.parse(process_mock()),
+                unittest.mock.call.unpack(process_mock()),
                 unittest.mock.call.process(obj, base.ev_args, base.ctx),
-                unittest.mock.call.parse(process_mock()),
+                unittest.mock.call.unpack(process_mock()),
             ]
         )
 
@@ -5768,8 +6001,8 @@ class TestChildValueMultiMap(unittest.TestCase):
         with contextlib.ExitStack() as stack:
             stack.enter_context(unittest.mock.patch.object(
                 self.ChildValueType,
-                "format",
-                new=base.format
+                "pack",
+                new=base.pack
             ))
 
             self.Cls.values.to_sax(obj, base.dest)
@@ -5777,12 +6010,12 @@ class TestChildValueMultiMap(unittest.TestCase):
         self.assertSequenceEqual(
             base.mock_calls,
             [
-                unittest.mock.call.format(("x", "foo")),
-                unittest.mock.call.format().unparse_to_sax(base.dest),
-                unittest.mock.call.format(("x", "bar")),
-                unittest.mock.call.format().unparse_to_sax(base.dest),
-                unittest.mock.call.format(("z", "baz")),
-                unittest.mock.call.format().unparse_to_sax(base.dest),
+                unittest.mock.call.pack(("x", "foo")),
+                unittest.mock.call.pack().unparse_to_sax(base.dest),
+                unittest.mock.call.pack(("x", "bar")),
+                unittest.mock.call.pack().unparse_to_sax(base.dest),
+                unittest.mock.call.pack(("z", "baz")),
+                unittest.mock.call.pack().unparse_to_sax(base.dest),
             ]
         )
 
@@ -6211,6 +6444,120 @@ class TestXSOParser(XMLTestCase):
             cb.mock_calls
         )
 
+    def test_lang_propagation_into_context(self):
+        class Foo(xso.XSO):
+            TAG = "foo"
+
+            attr = xso.LangAttr()
+
+        results = []
+
+        def catch_result(value):
+            nonlocal results
+            results.append(value)
+
+        def fail_hard(*args):
+            raise AssertionError("this should not be reached")
+
+        parser = xso.XSOParser()
+        parser.add_class(Foo, catch_result)
+        parser.lang = structs.LanguageTag.fromstr("de")
+
+        tree = etree.fromstring("<foo/>")
+        sd = xso.SAXDriver(
+            parser,
+            on_emit=fail_hard
+        )
+        lxml.sax.saxify(tree, sd)
+
+        result, = results
+        self.assertEqual(
+            structs.LanguageTag.fromstr("de"),
+            result.attr
+        )
+
+    def test_lang_propagation_if_changed_later(self):
+        class Foo(xso.XSO):
+            TAG = "foo"
+
+            attr = xso.LangAttr()
+
+        results = []
+
+        def catch_result(value):
+            nonlocal results
+            results.append(value)
+
+        def fail_hard(*args):
+            raise AssertionError("this should not be reached")
+
+        parser = xso.XSOParser()
+        parser.add_class(Foo, catch_result)
+        parser.lang = structs.LanguageTag.fromstr("de")
+
+        tree = etree.fromstring("<foo/>")
+        sd = xso.SAXDriver(
+            parser,
+            on_emit=fail_hard
+        )
+        lxml.sax.saxify(tree, sd)
+
+        result, = results
+        results.clear()
+        self.assertEqual(
+            structs.LanguageTag.fromstr("de"),
+            result.attr
+        )
+
+        parser.lang = structs.LanguageTag.fromstr("en")
+
+        tree = etree.fromstring("<foo/>")
+        sd = xso.SAXDriver(
+            parser,
+            on_emit=fail_hard
+        )
+        lxml.sax.saxify(tree, sd)
+
+        result, = results
+        results.clear()
+        self.assertEqual(
+            structs.LanguageTag.fromstr("en"),
+            result.attr
+        )
+
+    def test_local_lang_still_wins(self):
+        class Foo(xso.XSO):
+            TAG = "foo"
+
+            attr = xso.LangAttr()
+
+        results = []
+
+        def catch_result(value):
+            nonlocal results
+            results.append(value)
+
+        def fail_hard(*args):
+            raise AssertionError("this should not be reached")
+
+        parser = xso.XSOParser()
+        parser.add_class(Foo, catch_result)
+        parser.lang = structs.LanguageTag.fromstr("de")
+
+        tree = etree.fromstring("<foo xml:lang='en'/>")
+        sd = xso.SAXDriver(
+            parser,
+            on_emit=fail_hard
+        )
+        lxml.sax.saxify(tree, sd)
+
+        result, = results
+        results.clear()
+        self.assertEqual(
+            structs.LanguageTag.fromstr("en"),
+            result.attr
+        )
+
 
 class TestContext(unittest.TestCase):
     def setUp(self):
@@ -6589,4 +6936,197 @@ class Test_CollectorContentHandlerFilter(unittest.TestCase):
         self.f.skippedEntity(unittest.mock.sentinel.name)
         self.r.skippedEntity.assert_called_once_with(
             unittest.mock.sentinel.name
+        )
+
+
+class TestXSOEnumMixin(unittest.TestCase):
+    def test_is_not_an_enum(self):
+        self.assertFalse(issubclass(xso_model.XSOEnumMixin,
+                                    enum.Enum))
+
+    def setUp(self):
+        tag = namespaces.stanzas, "bad-request"
+
+        class FakeEnum:
+            def __init__(self):
+                super().__init__()
+                self.name = "BAD_REQUEST"
+                self.value = tag
+
+        class Mixed(xso_model.XSOEnumMixin, FakeEnum):
+            pass
+
+        self.Mixed = Mixed
+        self.m = self.Mixed(*tag)
+
+    def test_create_name(self):
+        self.assertEqual(
+            self.m._create_name(),
+            "BadRequest",
+        )
+
+    def test_create_class(self):
+        with contextlib.ExitStack() as stack:
+            XMLStreamClass = stack.enter_context(unittest.mock.patch(
+                "aioxmpp.xso.model.XMLStreamClass"
+            ))
+
+            _create_name = stack.enter_context(unittest.mock.patch.object(
+                self.m, "_create_name",
+            ))
+            _create_name.return_value = unittest.mock.sentinel.name
+
+            stack.enter_context(unittest.mock.patch.object(
+                self.m,
+                "value",
+                new=unittest.mock.sentinel.value,
+            ))
+
+            c = self.m._create_class()
+
+        _create_name.assert_called_once_with()
+
+        XMLStreamClass.assert_called_once_with(
+            unittest.mock.sentinel.name,
+            (xso_model.XSO,),
+            unittest.mock.ANY,
+        )
+
+        _, (_, _, namespace), _ = XMLStreamClass.mock_calls[-1]
+
+        self.assertEqual(
+            namespace["__qualname__"],
+            "{}.BAD_REQUEST.xso_class".format(
+                type(self.m).__qualname__,
+            )
+        )
+
+        self.assertEqual(
+            namespace["TAG"],
+            unittest.mock.sentinel.value,
+        )
+
+        self.assertIs(
+            namespace["enum_member"],
+            self.m,
+        )
+
+    def test_creates_and_assigns_class(self):
+        with unittest.mock.patch.object(
+                xso_model.XSOEnumMixin,
+                "_create_class") as _create_class:
+            _create_class.return_value = unittest.mock.sentinel.xso_class
+
+            m = self.Mixed(namespaces.stanzas, "bad-request")
+
+        _create_class.assert_called_once_with()
+
+        self.assertEqual(
+            m.xso_class,
+            unittest.mock.sentinel.xso_class,
+        )
+
+    def test_to_xso_creates_instance(self):
+        with unittest.mock.patch.object(self.m, "xso_class") as class_:
+            class_.return_value = unittest.mock.sentinel.instance
+
+            result = self.m.to_xso()
+
+        class_.assert_called_once_with()
+
+        self.assertEqual(
+            result,
+            unittest.mock.sentinel.instance,
+        )
+
+    def test_to_xso_creates_new_instance_each_time(self):
+        with unittest.mock.patch.object(self.m, "xso_class") as class_:
+            class_.return_value = unittest.mock.sentinel.instance1
+
+            result = self.m.to_xso()
+
+            class_.assert_called_once_with()
+            class_.reset_mock()
+
+            class_.return_value = unittest.mock.sentinel.instance2
+
+            result = self.m.to_xso()
+
+        class_.assert_called_once_with()
+
+        self.assertEqual(
+            result,
+            unittest.mock.sentinel.instance2,
+        )
+
+    def test_enum_member_refers_to_itself(self):
+        self.assertIs(self.m, self.m.enum_member)
+
+    def test_xso_to_xso_returns_object(self):
+        x = self.m.to_xso()
+        self.assertIs(x, x.to_xso())
+
+    def test_mixes_well_with_enum(self):
+        class Mixed(xso_model.XSOEnumMixin, enum.Enum):
+            BAD_REQUEST = (namespaces.stanzas, "bad-request")
+            UNDEFINED_CONDITION = (namespaces.stanzas, "undefined-condition")
+
+        self.assertTrue(issubclass(Mixed.BAD_REQUEST.xso_class,
+                                   xso_model.XSO))
+
+        self.assertEqual(
+            Mixed.BAD_REQUEST.xso_class.__name__,
+            "BadRequest",
+        )
+
+        self.assertEqual(
+            Mixed.BAD_REQUEST.xso_class.__qualname__,
+            "{}.BAD_REQUEST.xso_class".format(Mixed.__qualname__),
+        )
+
+        self.assertIs(
+            Mixed.BAD_REQUEST.xso_class().enum_member,
+            Mixed.BAD_REQUEST,
+        )
+
+        instance = Mixed.BAD_REQUEST.xso_class()
+
+        self.assertIs(
+            instance,
+            instance.to_xso()
+        )
+
+        self.assertTrue(issubclass(Mixed.UNDEFINED_CONDITION.xso_class,
+                                   xso_model.XSO))
+
+        self.assertEqual(
+            Mixed.UNDEFINED_CONDITION.xso_class.__name__,
+            "UndefinedCondition",
+        )
+
+        self.assertEqual(
+            Mixed.UNDEFINED_CONDITION.xso_class.__qualname__,
+            "{}.UNDEFINED_CONDITION.xso_class".format(Mixed.__qualname__),
+        )
+
+        self.assertIs(
+            Mixed.UNDEFINED_CONDITION.xso_class().enum_member,
+            Mixed.UNDEFINED_CONDITION,
+        )
+
+        instance = Mixed.UNDEFINED_CONDITION.xso_class()
+
+        self.assertIs(
+            instance,
+            instance.to_xso()
+        )
+
+    def test_mixes_well_with_the_compatibility_mixin(self):
+        class Mixed(xso_model.XSOEnumMixin, structs.CompatibilityMixin,
+                    enum.Enum):
+            BAD_REQUEST = (namespaces.stanzas, "bad-request")
+
+        self.assertEqual(
+            Mixed.BAD_REQUEST,
+            Mixed.BAD_REQUEST.value,
         )

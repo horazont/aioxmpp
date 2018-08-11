@@ -54,6 +54,8 @@ class Node(object):
 
     .. automethod:: register_identity
 
+    .. automethod:: set_identity_names
+
     .. automethod:: unregister_identity
 
     To access the declared features and identities, use:
@@ -214,6 +216,26 @@ class Node(object):
         key = category, type_
         if key in self._identities:
             raise ValueError("identity already claimed: {!r}".format(key))
+        self._identities[key] = names
+        self.on_info_changed()
+
+    def set_identity_names(self, category, type_, names={}):
+        """
+        Update the names of an identity.
+
+        :param category: The category of the identity to update.
+        :type category: :class:`str`
+        :param type_: The type of the identity to update.
+        :type type_: :class:`str`
+        :param names: The new internationalised names to set for the identity.
+        :type names: :class:`~.abc.Mapping` from
+            :class:`.structs.LanguageTag` to :class:`str`
+        :raises ValueError: if no identity with the given category and type
+            is currently registered.
+        """
+        key = category, type_
+        if key not in self._identities:
+            raise ValueError("identity not registered: {!r}".format(key))
         self._identities[key] = names
         self.on_info_changed()
 
@@ -383,7 +405,7 @@ class DiscoServer(service.Service, Node):
 
        Upon construction, the :class:`DiscoServer` adds a default identity with
        category ``"client"`` and type ``"bot"`` to the root
-       :class:`.disco.Node`. This is to comply with :xep:`30`, which specifies
+       :class:`~.disco.Node`. This is to comply with :xep:`30`, which specifies
        that at least one identity must always be returned. Otherwise, the
        service would be forced to send a malformed response or reply with
        ``<feature-not-implemented/>``.
@@ -427,7 +449,7 @@ class DiscoServer(service.Service, Node):
             node = self._node_mounts[request.node]
         except KeyError:
             raise errors.XMPPModifyError(
-                condition=(namespaces.stanzas, "item-not-found")
+                condition=errors.ErrorCondition.ITEM_NOT_FOUND
             )
 
         response = node.as_info_xso(iq)
@@ -435,7 +457,7 @@ class DiscoServer(service.Service, Node):
 
         if not response.identities:
             raise errors.XMPPModifyError(
-                condition=(namespaces.stanzas, "item-not-found"),
+                condition=errors.ErrorCondition.ITEM_NOT_FOUND,
             )
 
         return response
@@ -451,7 +473,7 @@ class DiscoServer(service.Service, Node):
             node = self._node_mounts[request.node]
         except KeyError:
             raise errors.XMPPModifyError(
-                condition=(namespaces.stanzas, "item-not-found")
+                condition=errors.ErrorCondition.ITEM_NOT_FOUND
             )
 
         response = disco_xso.ItemsQuery()
@@ -473,7 +495,7 @@ class DiscoServer(service.Service, Node):
         .. seealso::
 
            :meth:`mount_node`
-              for a way for mounting :class:`Node` instances.
+              for a way for mounting :class:`~.disco.Node` instances.
 
         """
         del self._node_mounts[mountpoint]
@@ -514,6 +536,8 @@ class DiscoClient(service.Service):
 
     .. autoattribute:: items_cache_size
        :annotation: = 100
+
+    .. automethod:: flush_cache
 
     Usage example, assuming that you have a :class:`.node.Client` `client`::
 
@@ -594,12 +618,23 @@ class DiscoClient(service.Service):
             return
         self.on_info_result(jid, node, result)
 
+    def flush_cache(self):
+        """
+        Clear the cache.
+
+        This clears the internal cache in a way which lets existing queries
+        continue, but the next query for each target will behave as if
+        `require_fresh` had been set to true.
+        """
+        self._info_pending.clear()
+        self._items_pending.clear()
+
     @asyncio.coroutine
     def send_and_decode_info_query(self, jid, node):
         request_iq = stanza.IQ(to=jid, type_=structs.IQType.GET)
         request_iq.payload = disco_xso.InfoQuery(node=node)
 
-        response = yield from self.client.stream.send(
+        response = yield from self.client.send(
             request_iq
         )
 
@@ -651,7 +686,7 @@ class DiscoClient(service.Service):
         The `timeout` can be used to restrict the time to wait for a
         response. If the timeout triggers, :class:`TimeoutError` is raised.
 
-        If :meth:`~.StanzaStream.send` raises an
+        If :meth:`~.Client.send` raises an
         exception, all queries which were running simultanously for the same
         target re-raise that exception. The result is not cached though. If a
         new query is sent at a later point for the same target, a new query is
@@ -674,7 +709,7 @@ class DiscoClient(service.Service):
                 except asyncio.CancelledError:
                     pass
 
-        request = asyncio.async(
+        request = asyncio.ensure_future(
             self.send_and_decode_info_query(jid, node)
         )
         request.add_done_callback(
@@ -697,7 +732,7 @@ class DiscoClient(service.Service):
                     raise TimeoutError()
             else:
                 result = yield from request
-        except:
+        except:  # NOQA
             if request.done():
                 try:
                     pending = self._info_pending[key]
@@ -746,8 +781,8 @@ class DiscoClient(service.Service):
         request_iq = stanza.IQ(to=jid, type_=structs.IQType.GET)
         request_iq.payload = disco_xso.ItemsQuery(node=node)
 
-        request = asyncio.async(
-            self.client.stream.send(request_iq)
+        request = asyncio.ensure_future(
+            self.client.send(request_iq)
         )
 
         self._items_pending[key] = request
@@ -761,7 +796,7 @@ class DiscoClient(service.Service):
                     raise TimeoutError()
             else:
                 result = yield from request
-        except:
+        except:  # NOQA
             if request.done():
                 try:
                     pending = self._items_pending[key]

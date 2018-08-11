@@ -96,6 +96,7 @@ class IMDispatcher(aioxmpp.service.Service):
             self.logger.info(
                 "message carbons enabled successfully"
             )
+        return True
 
     @aioxmpp.service.depsignal(
         aioxmpp.stream.StanzaStream,

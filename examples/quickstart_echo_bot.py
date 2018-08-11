@@ -50,7 +50,7 @@ async def main(local_jid, password):
         # make_reply() would not set the body though
         reply.body.update(msg.body)
 
-        client.stream.enqueue(reply)
+        client.enqueue(reply)
 
     message_dispatcher = client.summon(
         aioxmpp.dispatcher.SimpleMessageDispatcher

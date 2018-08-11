@@ -187,7 +187,7 @@ class Cache:
         copied_entry = copy.copy(entry)
         self._memory_overlay[key] = copied_entry
         if self._user_db_path is not None:
-            asyncio.async(asyncio.get_event_loop().run_in_executor(
+            asyncio.ensure_future(asyncio.get_event_loop().run_in_executor(
                 None,
                 writeback,
                 self._user_db_path / key.path,
@@ -494,7 +494,6 @@ class EntityCapsService(aioxmpp.service.Service):
         if self._push_hashset(node, new_hashset):
             self.on_ver_changed()
 
-
     # declare those at the bottom so that on_ver_changed gets emitted when the
     # service is instantiated
     _xep115_feature = disco.register_feature(namespaces.xep0115_caps)
@@ -512,7 +511,7 @@ def writeback(path, captured_events):
             generator.startDocument()
             aioxmpp.xso.events_to_sax(captured_events, generator)
             generator.endDocument()
-        except:
+        except:  # NOQA
             os.unlink(tmpf.name)
             raise
-        os.replace(tmpf.name, str(path))
+    os.replace(tmpf.name, str(path))

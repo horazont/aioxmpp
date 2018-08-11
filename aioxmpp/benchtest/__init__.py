@@ -19,8 +19,10 @@
 # <http://www.gnu.org/licenses/>.
 #
 ########################################################################
+import asyncio
 import collections
 import contextlib
+import importlib
 import math
 import functools
 import time
@@ -233,10 +235,23 @@ class BenchmarkPlugin(Plugin):
             metavar="FILE",
             help="File to save the report to",
         )
+        options.add_option(
+            "--benchmark-eventloop",
+            dest="aioxmpp_eventloop",
+            default=None,
+            metavar="CLASS",
+            help="Event loop policy class to use",
+        )
 
     def configure(self, options, conf):
         self.enabled = True
         self.report_filename = options.aioxmpp_bench_report
+        if options.aioxmpp_eventloop is not None:
+            module_name, cls_name = options.aioxmpp_eventloop.rsplit(".", 1)
+            module = importlib.import_module(module_name)
+            cls = getattr(module, cls_name)()
+            asyncio.set_event_loop_policy(cls)
+            asyncio.set_event_loop(asyncio.new_event_loop())
 
     def report(self, stream):
         data = {}
