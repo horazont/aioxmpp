@@ -34,10 +34,15 @@ GET, PUT and sending custom headers.
 Example use::
 
     client = <your aioxmpp.Client>
-    slot = await client.send(aioxmpp.httpupload.Request(
-        filename,
-        size,
-        content_type,
+    http_upload_service = <JID of the HTTP Upload service>
+    slot = await client.send(aioxmpp.IQ(
+        type_=aioxmpp.IQType.GET,
+        to=http_upload_service,
+        payload=aioxmpp.httpupload.Request(
+            filename,
+            size,
+            content_type,
+        )
     ))
     # http_put_file is provided by you via an HTTP library
     await http_put_file(
