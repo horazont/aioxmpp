@@ -547,7 +547,50 @@ class Provisioner(metaclass=abc.ABCMeta):
         )
 
 
-class AnonymousProvisioner(Provisioner):
+class _AutoConfiguredProvisioner(Provisioner):
+    def configure(self, section):
+        super().configure(section)
+        self._blockmap = configure_blockmap(section)
+
+    @asyncio.coroutine
+    def initialise(self):
+        self._logger.debug("auto-configuring provisioner %s", self)
+
+        client = yield from self.get_connected_client()
+        disco = client.summon(aioxmpp.DiscoClient)
+
+        self._featuremap.update(
+            (yield from discover_server_features(
+                disco,
+                self._domain,
+                blockmap=self._blockmap,
+            ))
+        )
+
+        self._identitymap.update(
+            (yield from discover_server_identities(
+                disco,
+                self._domain,
+            ))
+        )
+
+        self._logger.debug("found %d features", len(self._featuremap))
+        if self._logger.isEnabledFor(logging.DEBUG):
+            for feature, providers in self._featuremap.items():
+                self._logger.debug(
+                    "%s provided by %s",
+                    feature,
+                    ", ".join(sorted(map(str, providers)))
+                )
+
+        self._account_info = yield from disco.query_info(None)
+
+        # clean up state
+        del client
+        yield from self.teardown()
+
+
+class AnonymousProvisioner(_AutoConfiguredProvisioner):
     """
     This provisioner uses SASL ANONYMOUS to obtain accounts.
 
@@ -583,7 +626,7 @@ class AnonymousProvisioner(Provisioner):
     def configure(self, section):
         super().configure(section)
         self.__host = section.get("host")
-        self.__domain = aioxmpp.JID.fromstr(section.get(
+        self._domain = aioxmpp.JID.fromstr(section.get(
             "domain",
             self.__host
         ))
@@ -595,7 +638,6 @@ class AnonymousProvisioner(Provisioner):
                 section
             )
         )
-        self.__blockmap = configure_blockmap(section)
         self._quirks = configure_quirks(section)
 
     @asyncio.coroutine
@@ -608,45 +650,8 @@ class AnonymousProvisioner(Provisioner):
             )
 
         return aioxmpp.PresenceManagedClient(
-            self.__domain,
+            self._domain,
             self.__security_layer,
             override_peer=override_peer,
             logger=logger,
         )
-
-    @asyncio.coroutine
-    def initialise(self):
-        self._logger.debug("initialising anonymous provisioner")
-
-        client = yield from self.get_connected_client()
-        disco = client.summon(aioxmpp.DiscoClient)
-
-        self._featuremap.update(
-            (yield from discover_server_features(
-                disco,
-                self.__domain,
-                blockmap=self.__blockmap,
-            ))
-        )
-
-        self._identitymap.update(
-            (yield from discover_server_identities(
-                disco,
-                self.__domain,
-            ))
-        )
-
-        self._logger.debug("found %d features", len(self._featuremap))
-        if self._logger.isEnabledFor(logging.DEBUG):
-            for feature, providers in self._featuremap.items():
-                self._logger.debug(
-                    "%s provided by %s",
-                    feature,
-                    ", ".join(sorted(map(str, providers)))
-                )
-
-        self._account_info = yield from disco.query_info(None)
-
-        # clean up state
-        del client
-        yield from self.teardown()
