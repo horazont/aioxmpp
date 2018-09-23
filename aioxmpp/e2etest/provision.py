@@ -612,15 +612,6 @@ class AnonymousProvisioner(_AutoConfiguredProvisioner):
     allow communication between the clients connected that way. It may provide
     PubSub and/or MUC services, which will be auto-discovered if they are
     provided in the :xep:`30` items of the server.
-
-    .. note::
-
-       Make sure to disable PEP (:xep:`163`) support on the server, to avoid
-       the ``…pubsub#publish`` feature to be bound to the server instead of the
-       pubsub component.
-
-       This is unfortunate because it prohibits testing PEP properly. This may
-       be fixed in a future release when anything PEP-specific is implemented.
     """
 
     def configure(self, section):
