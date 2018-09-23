@@ -22,10 +22,12 @@
 import abc
 import ast
 import asyncio
+import base64
 import enum
 import fnmatch
 import json
 import logging
+import random
 
 import aioxmpp
 import aioxmpp.disco
@@ -34,6 +36,7 @@ import aioxmpp.connector
 
 
 _logger = logging.getLogger(__name__)
+_rng = random.SystemRandom()
 
 
 class Quirk(enum.Enum):
@@ -642,6 +645,74 @@ class AnonymousProvisioner(_AutoConfiguredProvisioner):
 
         return aioxmpp.PresenceManagedClient(
             self._domain,
+            self.__security_layer,
+            override_peer=override_peer,
+            logger=logger,
+        )
+
+
+class AnyProvisioner(_AutoConfiguredProvisioner):
+    """
+    This provisioner randomly generates usernames and uses a hardcoded password
+    to authenticate with the XMPP server.
+
+    This is for use with ``mod_auth_any`` of prosody.
+
+    It is dead-simple to configure: it needs a host to connect to, and
+    optionally some TLS and quirks configuration. The host is specified as
+    configuration key ``host``, TLS can be configured as documented in
+    :func:`configure_tls_config` and quirks are set as described in
+    :func:`configure_quirks`. A configuration for a locally running Prosody
+    instance might look like this:
+
+    .. code-block:: ini
+
+       [aioxmpp.e2etest.provision.AnyProvisioner]
+       host=localhost
+       no_verify=true
+       quirks=[]
+
+    The server configured in ``host`` must allow authentication with any
+    username/password pair and allow communication between the clients
+    connected that way. It may provide PubSub and/or MUC services, which will
+    be auto-discovered if they are provided in the :xep:`30` items of the
+    server.
+    """
+
+    def configure(self, section):
+        super().configure(section)
+        self.__host = section.get("host")
+        self._domain = aioxmpp.JID.fromstr(section.get(
+            "domain",
+            self.__host
+        ))
+        self.__port = section.getint("port")
+        self.__security_layer = aioxmpp.make_security_layer(
+            "foobar2342",  # password is irrelevant, but must be given.
+            **configure_tls_config(
+                section
+            )
+        )
+        self._quirks = configure_quirks(section)
+        self.__username_rng = random.Random()
+        self.__username_rng.seed(_rng.getrandbits(256))
+
+    @asyncio.coroutine
+    def _make_client(self, logger):
+        override_peer = []
+        if self.__port is not None:
+            override_peer.append(
+                (self.__host, self.__port,
+                 aioxmpp.connector.STARTTLSConnector())
+            )
+
+        user = base64.b32encode(
+            self.__username_rng.getrandbits(128).to_bytes(128//8, 'little')
+        ).decode("ascii").rstrip("=")
+        user_jid = self._domain.replace(localpart=user)
+
+        return aioxmpp.PresenceManagedClient(
+            user_jid,
             self.__security_layer,
             override_peer=override_peer,
             logger=logger,

@@ -107,6 +107,8 @@ Provisioners
 
 .. autoclass:: AnonymousProvisioner
 
+.. autoclass:: AnyProvisioner
+
 .. currentmodule:: aioxmpp.e2etest
 
 .. autoclass:: Quirk
