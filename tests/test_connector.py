@@ -140,6 +140,12 @@ class TestSTARTTLSConnector(unittest.TestCase):
                 )
             )
 
+            to_ascii = stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.connector.to_ascii",
+                )
+            )
+
             result = run_coroutine(self.c.connect(
                 unittest.mock.sentinel.loop,
                 base.metadata,
@@ -149,6 +155,8 @@ class TestSTARTTLSConnector(unittest.TestCase):
                 unittest.mock.sentinel.timeout,
                 base_logger=base_logger,
             ))
+
+        to_ascii.assert_called_once_with(unittest.mock.sentinel.domain)
 
         self.assertSequenceEqual(
             base.mock_calls,
@@ -167,7 +175,7 @@ class TestSTARTTLSConnector(unittest.TestCase):
                     host=unittest.mock.sentinel.host,
                     port=unittest.mock.sentinel.port,
                     peer_hostname=unittest.mock.sentinel.host,
-                    server_hostname=unittest.mock.sentinel.domain,
+                    server_hostname=to_ascii(),
                     use_starttls=True,
                 ),
                 unittest.mock.call.send_and_wait_for(
@@ -287,6 +295,12 @@ class TestSTARTTLSConnector(unittest.TestCase):
                 )
             )
 
+            to_ascii = stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.connector.to_ascii",
+                )
+            )
+
             with self.assertRaises(Exception):
                 run_coroutine(self.c.connect(
                     unittest.mock.sentinel.loop,
@@ -316,7 +330,7 @@ class TestSTARTTLSConnector(unittest.TestCase):
                     host=unittest.mock.sentinel.host,
                     port=unittest.mock.sentinel.port,
                     peer_hostname=unittest.mock.sentinel.host,
-                    server_hostname=unittest.mock.sentinel.domain,
+                    server_hostname=to_ascii(),
                     use_starttls=True,
                 ),
                 unittest.mock.call.protocol.abort(),
@@ -411,6 +425,12 @@ class TestSTARTTLSConnector(unittest.TestCase):
                 )
             )
 
+            to_ascii = stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.connector.to_ascii",
+                )
+            )
+
             result = run_coroutine(self.c.connect(
                 unittest.mock.sentinel.loop,
                 base.metadata,
@@ -437,7 +457,7 @@ class TestSTARTTLSConnector(unittest.TestCase):
                     host=unittest.mock.sentinel.host,
                     port=unittest.mock.sentinel.port,
                     peer_hostname=unittest.mock.sentinel.host,
-                    server_hostname=unittest.mock.sentinel.domain,
+                    server_hostname=to_ascii(),
                     use_starttls=True,
                 ),
                 unittest.mock.call.send_and_wait_for(
@@ -573,6 +593,12 @@ class TestSTARTTLSConnector(unittest.TestCase):
                 )
             )
 
+            to_ascii = stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.connector.to_ascii",
+                )
+            )
+
             with self.assertRaisesRegex(errors.TLSUnavailable, error_message):
                 run_coroutine(self.c.connect(
                     unittest.mock.sentinel.loop,
@@ -600,7 +626,7 @@ class TestSTARTTLSConnector(unittest.TestCase):
                     host=unittest.mock.sentinel.host,
                     port=unittest.mock.sentinel.port,
                     peer_hostname=unittest.mock.sentinel.host,
-                    server_hostname=unittest.mock.sentinel.domain,
+                    server_hostname=to_ascii(),
                     use_starttls=True,
                 ),
                 unittest.mock.call.send_and_wait_for(
@@ -711,6 +737,12 @@ class TestSTARTTLSConnector(unittest.TestCase):
                 )
             )
 
+            to_ascii = stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.connector.to_ascii",
+                )
+            )
+
             with self.assertRaisesRegex(errors.TLSUnavailable, error_message):
                 run_coroutine(self.c.connect(
                     unittest.mock.sentinel.loop,
@@ -738,7 +770,7 @@ class TestSTARTTLSConnector(unittest.TestCase):
                     host=unittest.mock.sentinel.host,
                     port=unittest.mock.sentinel.port,
                     peer_hostname=unittest.mock.sentinel.host,
-                    server_hostname=unittest.mock.sentinel.domain,
+                    server_hostname=to_ascii(),
                     use_starttls=True,
                 ),
                 unittest.mock.call.send_and_wait_for(
@@ -816,6 +848,12 @@ class TestSTARTTLSConnector(unittest.TestCase):
                 )
             )
 
+            to_ascii = stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.connector.to_ascii",
+                )
+            )
+
             result = run_coroutine(self.c.connect(
                 unittest.mock.sentinel.loop,
                 base.metadata,
@@ -842,7 +880,7 @@ class TestSTARTTLSConnector(unittest.TestCase):
                     host=unittest.mock.sentinel.host,
                     port=unittest.mock.sentinel.port,
                     peer_hostname=unittest.mock.sentinel.host,
-                    server_hostname=unittest.mock.sentinel.domain,
+                    server_hostname=to_ascii(),
                     use_starttls=True,
                 ),
             ]
@@ -948,6 +986,12 @@ class TestSTARTTLSConnector(unittest.TestCase):
                 )
             )
 
+            to_ascii = stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.connector.to_ascii",
+                )
+            )
+
             with self.assertRaisesRegex(errors.TLSUnavailable, error_message):
                 run_coroutine(self.c.connect(
                     unittest.mock.sentinel.loop,
@@ -975,7 +1019,7 @@ class TestSTARTTLSConnector(unittest.TestCase):
                     host=unittest.mock.sentinel.host,
                     port=unittest.mock.sentinel.port,
                     peer_hostname=unittest.mock.sentinel.host,
-                    server_hostname=unittest.mock.sentinel.domain,
+                    server_hostname=to_ascii(),
                     use_starttls=True,
                 ),
                 unittest.mock.call.send_and_wait_for(
@@ -1083,6 +1127,12 @@ class TestSTARTTLSConnector(unittest.TestCase):
                 )
             )
 
+            to_ascii = stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.connector.to_ascii",
+                )
+            )
+
             result = run_coroutine(self.c.connect(
                 unittest.mock.sentinel.loop,
                 base.metadata,
@@ -1109,7 +1159,7 @@ class TestSTARTTLSConnector(unittest.TestCase):
                     host=unittest.mock.sentinel.host,
                     port=unittest.mock.sentinel.port,
                     peer_hostname=unittest.mock.sentinel.host,
-                    server_hostname=unittest.mock.sentinel.domain,
+                    server_hostname=to_ascii(),
                     use_starttls=True,
                 ),
                 unittest.mock.call.send_and_wait_for(
@@ -1216,6 +1266,12 @@ class TestXMPPOverTLSConnector(unittest.TestCase):
                 )
             )
 
+            to_ascii = stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.connector.to_ascii",
+                )
+            )
+
             result = run_coroutine(self.c.connect(
                 unittest.mock.sentinel.loop,
                 base.metadata,
@@ -1260,7 +1316,7 @@ class TestXMPPOverTLSConnector(unittest.TestCase):
                     host=unittest.mock.sentinel.host,
                     port=unittest.mock.sentinel.port,
                     peer_hostname=unittest.mock.sentinel.host,
-                    server_hostname=unittest.mock.sentinel.domain,
+                    server_hostname=to_ascii(),
                     post_handshake_callback=
                         base.certificate_verifier.post_handshake,
                     ssl_context_factory=unittest.mock.ANY,
@@ -1442,6 +1498,12 @@ class TestXMPPOverTLSConnector(unittest.TestCase):
                 )
             )
 
+            to_ascii = stack.enter_context(
+                unittest.mock.patch(
+                    "aioxmpp.connector.to_ascii",
+                )
+            )
+
             with self.assertRaises(Exception):
                 run_coroutine(self.c.connect(
                     unittest.mock.sentinel.loop,
@@ -1476,7 +1538,7 @@ class TestXMPPOverTLSConnector(unittest.TestCase):
                     host=unittest.mock.sentinel.host,
                     port=unittest.mock.sentinel.port,
                     peer_hostname=unittest.mock.sentinel.host,
-                    server_hostname=unittest.mock.sentinel.domain,
+                    server_hostname=to_ascii(unittest.mock.sentinel.domain),
                     post_handshake_callback=
                         base.certificate_verifier.post_handshake,
                     ssl_context_factory=unittest.mock.ANY,
