@@ -189,6 +189,13 @@ class PresenceClient(aioxmpp.service.Service):
         aioxmpp.structs.PresenceType.ERROR,
         None)
     def handle_presence(self, st):
+        if st.from_ is None:
+            if st.type_ != aioxmpp.structs.PresenceType.ERROR:
+                self.logger.debug(
+                    "dropping unhandled presence from account"
+                )
+            return
+
         bare = st.from_.bare()
         resource = st.from_.resource
 
