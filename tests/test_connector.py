@@ -1387,7 +1387,7 @@ class TestXMPPOverTLSConnector(unittest.TestCase):
             ]
         )
 
-    def test_abort_XMLStream_whin_connect_raises(self):
+    def test_abort_XMLStream_when_connect_raises(self):
         captured_features_future = None
 
         def capture_future(*args, features_future=None, **kwargs):
