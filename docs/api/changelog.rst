@@ -50,6 +50,8 @@ Version 0.11
 * *Possibly breaking change` :mod:`aioxmpp.stringprep` now uses the
   Unicode database in version 3.2.0 as specified in :rfc:`3454`.
 
+* :mod:`aioxmpp.ibb` (:xep:`47`) Support for In-Band Bytestreams.
+
 .. _api-changelog-0.10:
 
 Version 0.10

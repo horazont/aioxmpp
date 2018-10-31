@@ -103,6 +103,7 @@ From XMPP Extension Proposals (XEPs)
 * :xep:`45` (Multi-User Chat), see :mod:`aioxmpp.muc`
 * :xep:`48` (Bookmarks), see :mod:`aioxmpp.bookmarks`
 * :xep:`49` (Private XML Storage), see :mod:`aioxmpp.private_xml`
+* :xep:`47` (In-Band Bytestreams), see :mod:`aioxmpp.ibb`
 * :xep:`50` (Ad-Hoc Commands), see :mod:`aioxmpp.adhoc` (no support for offering
   commands to other entities)
 * :xep:`59` (Result Set Management), see :mod:`aioxmpp.rsm`
