@@ -721,7 +721,6 @@ class Message(StanzaBase):
     body = xso.ChildTextMap(Body)
     subject = xso.ChildTextMap(Subject)
     thread = xso.Child([Thread])
-    ext = xso.ChildMap([])
 
     def __init__(self, type_, **kwargs):
         super().__init__(**kwargs)
@@ -873,7 +872,6 @@ class Presence(StanzaBase):
         default=0
     )
 
-    ext = xso.ChildMap([])
     unhandled_children = xso.Collector()
 
     def __init__(self, *,
