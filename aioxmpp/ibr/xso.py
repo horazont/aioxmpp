@@ -26,18 +26,13 @@ from aioxmpp.utils import namespaces
 
 namespaces.xep0077_in_band = "jabber:iq:register"
 
-"""
-XSO Definitions
-===============
-
-.. autoclass:: Query
-"""
-
 
 @aioxmpp.IQ.as_payload_class
 class Query(xso.XSO):
     """
     :xep:`077` In-Band Registraion query :class:`~aioxmpp.xso.XSO`.
+
+    It has the following fields described in the XEP document:
 
     .. attribute:: username
 

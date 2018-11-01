@@ -23,6 +23,7 @@ Contents:
    user-guide/index.rst
    api/index.rst
    dev-guide/index.rst
+   glossary.rst
 
 .. _features:
 

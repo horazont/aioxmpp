@@ -38,6 +38,7 @@ functionality or provide backwards compatibility.
    hashes
    httpupload
    im
+   ibr
    mdr
    muc
    ping

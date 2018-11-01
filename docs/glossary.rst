@@ -11,10 +11,36 @@ This section defines terms used throughout the :mod:`aioxmpp` documentation.
      set of members along with their addresses and possibly additional features
      such as archive access method.
 
+   Conversation Implementation
+     A module consisting of service that implements
+     :class:`aioxmpp.im.conversation.AbstractConversationService`
+     together with implementations of
+     :class:`aioxmpp.im.conversation.AbstractConversation` and
+     :class:`aioxmpp.im.conversation.AbstractConversationMember`.
+     This adds support for one concrete type of conversation to
+     aioxmpp.  Currently, the following conversation implementations
+     exist: :class:`aioxmpp.im.p2p` and :class:`aioxmpp.muc`.
+
    Conversation Member
-     Representation of an entity which takes part in a :term:`Conversation`. The
-     actual definition of "taking part in a conversation" depends on the
-     specific medium used.
+     Representation of an :term:`entity <Entity>` which takes part in a
+     :term:`conversation <Conversation>`. The actual definition of
+     "taking part in a conversation" depends on the specific medium
+     used. Conversation members are represented in aioxmpp as
+     instances of
+     :class:`aioxmpp.im.conversation.AbstractConversationMember`.
+
+   Conversation Service
+     A service implementing
+     :class:`aioxmpp.im.conversation.AbstractConversationService`.
+     This allows to create and manage :term:`conversations <Conversation>`.
+
+   Entity
+     An endpoint in the Jabber network, anything that can be addressed by
+     a :term:`JID`. (Compare :rfc:`6122` section 2.1)
+
+   JID
+     Jabber Identifier. The unique address of an :term:`entity
+     <Entity>` in the Jabber network. (Compare :rfc:`6122` section 2).
 
    Tracking Service
      A :term:`Service` which provides functionality for updating
