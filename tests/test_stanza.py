@@ -255,11 +255,6 @@ class TestMessage(unittest.TestCase):
             structs.MessageType.NORMAL,
         )
 
-    def test_ext_attr(self):
-        self.assertIsInstance(
-            stanza.Message.ext,
-            xso.ChildMap)
-
     def test_body_attr(self):
         self.assertIsInstance(
             stanza.Message.body,
@@ -500,11 +495,6 @@ class TestPresence(unittest.TestCase):
             0,
             stanza.Presence.priority.default
         )
-
-    def test_ext_attr(self):
-        self.assertIsInstance(
-            stanza.Presence.ext,
-            xso.ChildMap)
 
     def test_error_attr(self):
         self.assertIsInstance(

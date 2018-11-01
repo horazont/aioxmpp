@@ -26,6 +26,11 @@ Version 0.11
 * :meth:`aioxmpp.PEPClient.publish` now supports setting the `access_model` via
   a `publish_options` precondition.
 
+* *Breaking change* Remove the undocumented and unused descriptors
+  :attr:`aioxmpp.Message.ext` and :attr:`aioxmpp.Presence.ext`. If your code
+  relies on them you can instead patch a descriptor to the class (with
+  a prefix that uniquely identifies your extension).
+
 .. _api-changelog-0.10:
 
 Version 0.10
