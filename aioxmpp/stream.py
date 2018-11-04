@@ -2361,7 +2361,7 @@ class StanzaStream:
 
                 if response.counter is not None:
                     self.sm_ack(response.counter)
-                    self._clear_unacked(StanzaState.DISCONNECTED, exc)
+                    self._clear_unacked(StanzaState.DISCONNECTED)
 
                 xmlstream.stanza_parser.remove_class(
                     nonza.SMRequest)
