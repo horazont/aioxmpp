@@ -761,11 +761,19 @@ class SMFailed(SMXSO):
         required=True,
     )
 
+    counter = xso.Attr(
+        "h",
+        default=None,
+        type_=xso.Integer(),
+    )
+
     def __init__(self,
                  condition=errors.ErrorCondition.UNDEFINED_CONDITION,
+                 counter=None,
                  **kwargs):
         super().__init__(**kwargs)
         self.condition = condition.to_xso()
+        self.counter = counter
 
     def __repr__(self):
         return "<{}.{} condition={!r} at 0x{:x}>".format(

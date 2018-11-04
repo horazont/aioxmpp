@@ -4608,6 +4608,71 @@ class TestStanzaStreamSM(StanzaStreamTestBase):
         self.assertFalse(self.stream.running)
         self.assertFalse(self.stream.sm_enabled)
 
+    def test_sm_resumption_failure_with_server_counter(self):
+        iqs = [make_test_iq() for i in range(4)]
+
+        additional_iq = iqs.pop()
+
+        self.stream.start(self.xmlstream)
+        run_coroutine_with_peer(
+            self.stream.start_sm(),
+            self.xmlstream.run_test(self.successful_sm)
+        )
+
+        tokens = []
+
+        for iq in iqs:
+            tokens.append(self.stream._enqueue(iq))
+
+        run_coroutine(asyncio.sleep(0))
+
+        self.established_rec.assert_called_once_with()
+        self.established_rec.reset_mock()
+
+        run_coroutine(self.xmlstream.run_test([
+            XMLStreamMock.Send(iqs[0]),
+            XMLStreamMock.Send(iqs[1]),
+            XMLStreamMock.Send(iqs[2]),
+            XMLStreamMock.Send(
+                nonza.SMRequest(),
+                response=XMLStreamMock.Receive(
+                    nonza.SMAcknowledgement(counter=1)
+                )
+            )
+        ]))
+
+        self.stream.stop()
+
+        run_coroutine(asyncio.sleep(0))
+
+        self.assertFalse(self.destroyed_rec.mock_calls)
+
+        # enqueue a stanza before resumption and check that the sequence is
+        # correct (resumption-generated stanzas before new stanzas)
+        tokens.append(self.stream._enqueue(additional_iq))
+
+        with self.assertRaises(errors.StreamNegotiationFailure):
+            run_coroutine_with_peer(
+                self.stream.resume_sm(self.xmlstream),
+                self.xmlstream.run_test([
+                    XMLStreamMock.Send(
+                        nonza.SMResume(previd="foobar",
+                                       counter=0),
+                        response=XMLStreamMock.Receive(
+                            nonza.SMFailed(counter=2)
+                        )
+                    )
+                ])
+            )
+
+        self.assertFalse(self.stream.running)
+        self.assertFalse(self.stream.sm_enabled)
+
+        self.assertEqual(tokens[0].state, stream.StanzaState.ACKED)
+        self.assertEqual(tokens[1].state, stream.StanzaState.ACKED)
+        self.assertEqual(tokens[2].state, stream.StanzaState.DISCONNECTED)
+        self.assertEqual(tokens[3].state, stream.StanzaState.DISCONNECTED)
+
     def test_sm_resume_requires_stopped_stream(self):
         self.stream.start(self.xmlstream)
         run_coroutine_with_peer(

@@ -31,6 +31,22 @@ Version 0.11
   relies on them you can instead patch a descriptor to the class (with
   a prefix that uniquely identifies your extension).
 
+* Support for servers which send a :xep:`198` Stream Management counter in
+  resumption errors. This allows us to know precisely which stanzas were (not)
+  received by the server and thus improves accuracy of the stanza token state.
+
+  Stanzas which are acknowledged in this way by a server enter the
+  :attr:`~aioxmpp.stream.StanzaState.ACKED` state as normal. Stanzas which are
+  not covered by the counter enter
+  :attr:`~aioxmpp.stream.StanzaState.DISCONNECTED` state instead of
+  :attr:`~aioxmpp.stream.StanzaState.SENT_WITHOUT_SM`, since the stream knows
+  for sure that the stanza has not been received by the server.
+
+  This only works if the server provides a counter value on failure; if the
+  counter value is not provided, sent stanzas which were not acked during the
+  previous connection will enter
+  :attr:`~aioxmpp.stream.StanzaState.SENT_WITHOUT_SM` state as previously.
+
 .. _api-changelog-0.10:
 
 Version 0.10

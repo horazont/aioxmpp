@@ -2293,6 +2293,11 @@ class StanzaStream:
             self._active_queue.putleft_nowait(token)
         self._sm_unacked_list.clear()
 
+    def _clear_unacked(self, new_state, *args):
+        for token in self._sm_unacked_list:
+            token._set_state(new_state, *args)
+        self._sm_unacked_list.clear()
+
     @asyncio.coroutine
     def resume_sm(self, xmlstream):
         """
@@ -2318,6 +2323,17 @@ class StanzaStream:
         If negotiation succeeds, this coroutine resumes the stream management
         session and initiates the retransmission of any unacked stanzas. The
         stream is then in running state.
+
+        .. versionchanged:: 0.11
+
+            Support for using the counter value provided some servers on a
+            failed resumption was added. Stanzas which are covered by the
+            counter will be marked as :attr:`~StanzaState.ACKED`; other stanzas
+            will be marked as :attr:`~StanzaState.DISCONNECTED`.
+
+            This is in contrast to the behaviour when resumption fails *without*
+            a counter given. In that case, stanzas which have not been acked
+            are marked as :attr:`~StanzaState.SENT_WITHOUT_SM`.
         """
 
         if self.running:
@@ -2339,13 +2355,20 @@ class StanzaStream:
             )
 
             if isinstance(response, nonza.SMFailed):
+                exc = errors.StreamNegotiationFailure(
+                    "Server rejected SM resumption"
+                )
+
+                if response.counter is not None:
+                    self.sm_ack(response.counter)
+                    self._clear_unacked(StanzaState.DISCONNECTED, exc)
+
                 xmlstream.stanza_parser.remove_class(
                     nonza.SMRequest)
                 xmlstream.stanza_parser.remove_class(
                     nonza.SMAcknowledgement)
                 self.stop_sm()
-                raise errors.StreamNegotiationFailure(
-                    "Server rejected SM resumption")
+                raise exc
 
             self._resume_sm(response.counter)
         except:  # NOQA
@@ -2364,8 +2387,7 @@ class StanzaStream:
         self._sm_enabled = False
         del self._sm_outbound_base
         del self._sm_inbound_ctr
-        for token in self._sm_unacked_list:
-            token._set_state(StanzaState.SENT_WITHOUT_SM)
+        self._clear_unacked(StanzaState.SENT_WITHOUT_SM)
         del self._sm_unacked_list
 
         self._destroy_stream_state(ConnectionError(
