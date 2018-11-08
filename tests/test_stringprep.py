@@ -23,8 +23,14 @@ import unittest
 
 from aioxmpp.stringprep import (
     nodeprep, resourceprep, nameprep,
-    check_bidi
+    check_bidi, unicodedata
 )
+
+
+class TestUnicodeVersion(unittest.TestCase):
+
+    def test_version(self):
+        self.assertEqual(unicodedata.unidata_version, "3.2.0")
 
 
 class Testcheck_bidi(unittest.TestCase):

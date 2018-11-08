@@ -37,7 +37,8 @@ This module implements the Nodeprep (`RFC 6122`_) and Resourceprep (`RFC 6122`_)
 """
 
 import stringprep
-import unicodedata
+
+from unicodedata import ucd_3_2_0 as unicodedata
 
 _nodeprep_prohibited = frozenset("\"&'/:<>@")
 

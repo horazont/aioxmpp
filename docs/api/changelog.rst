@@ -47,6 +47,9 @@ Version 0.11
   previous connection will enter
   :attr:`~aioxmpp.stream.StanzaState.SENT_WITHOUT_SM` state as previously.
 
+* *Possibly breaking change` :mod:`aioxmpp.stringprep` now uses the
+  Unicode database in version 3.2.0 as specified in :rfc:`3454`.
+
 .. _api-changelog-0.10:
 
 Version 0.10
