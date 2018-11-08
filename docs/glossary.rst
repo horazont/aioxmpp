@@ -38,9 +38,12 @@ This section defines terms used throughout the :mod:`aioxmpp` documentation.
      An endpoint in the Jabber network, anything that can be addressed by
      a :term:`JID`. (Compare :rfc:`6122` section 2.1)
 
+   Jabber ID
    JID
      Jabber Identifier. The unique address of an :term:`entity
      <Entity>` in the Jabber network. (Compare :rfc:`6122` section 2).
+
+     Jabber IDs are represented as :class:`aioxmpp.JID` objects in aioxmpp.
 
    Tracking Service
      A :term:`Service` which provides functionality for updating

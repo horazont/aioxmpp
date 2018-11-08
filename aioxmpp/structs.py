@@ -591,8 +591,27 @@ class IQType(CompatibilityMixin, enum.Enum):
 
 class JID(collections.namedtuple("JID", ["localpart", "domain", "resource"])):
     """
-    A Jabber ID (JID). To construct a JID, either use the actual constructor,
-    or use the :meth:`fromstr` class method.
+    Represent a :term:`Jabber ID (JID) <Jabber ID>`.
+
+    To construct a :class:`JID`, either use the actual constructor, or use the
+    :meth:`fromstr` class method.
+
+    :param localpart: The part in front of the ``@`` of the JID, or
+        :data:`None` if the localpart shall be omitted (which is different from
+        it being empty, which would be invalid).
+    :type localpart: :class:`str` or :data:`None`
+    :param domain: The domain of the JID. This is the only mandatory part of
+        a JID.
+    :type domain: :class:`str`
+    :param resource: The resource part of the JID or :data:`None` to omit the
+        resource part.
+    :type resource: :class:`str` or :data:`None`
+    :param strict: Enable strict validation
+    :type strict: :class:`bool`
+    :raises ValueError: if the JID composed of the given parts is invalid
+
+    Construct a JID out of its parts. It validates the parts individually, as
+    well as the JID as a whole.
 
     If `strict` is false, unassigned codepoints are allowed in any of the parts
     of the JID. In the future, other deviations from the respective stringprep
@@ -672,6 +691,19 @@ class JID(collections.namedtuple("JID", ["localpart", "domain", "resource"])):
         Construct a new :class:`JID` object, using the values of the current
         JID. Use the arguments to override specific attributes on the new
         object.
+
+        All arguments are keyword arguments.
+
+        :param localpart: Set the local part of the resulting JID.
+        :param domain: Set the domain of the resulting JID.
+        :param resource: Set the resource part of the resulting JID.
+        :raises: See :class:`JID`
+        :return: A new :class:`JID` object with the corresponding
+            substitutions performed.
+        :rtype: :class:`JID`
+
+        The attributes of parameters which are omitted are not modified and
+        copied down to the result.
         """
 
         new_kwargs = {}
@@ -731,6 +763,11 @@ class JID(collections.namedtuple("JID", ["localpart", "domain", "resource"])):
 
     def bare(self):
         """
+        Create a copy of the :class:`JID` which is bare.
+
+        :return: This JID with the :attr:`resource` set to :data:`None`.
+        :rtype: :class:`JID`
+
         Return the bare version of this JID as new :class:`JID` object.
         """
         return self.replace(resource=None)
@@ -754,8 +791,18 @@ class JID(collections.namedtuple("JID", ["localpart", "domain", "resource"])):
     @classmethod
     def fromstr(cls, s, *, strict=True):
         """
-        Obtain a :class:`JID` object by parsing a JID from the given string
-        `s`.
+        Construct a JID out of a string containing it.
+
+        :param s: The string to parse.
+        :type s: :class:`str`
+        :param strict: Whether to enable strict parsing.
+        :type strict: :class:`bool`
+        :raises: See :class:`JID`
+        :return: The parsed JID
+        :rtype: :class:`JID`
+
+        See the :class:`JID` class level documentation for the semantics of
+        `strict`.
         """
         nodedomain, sep, resource = s.partition("/")
         if not sep:
