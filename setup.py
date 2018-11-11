@@ -61,7 +61,7 @@ setup(
     description="Pure-python XMPP library for asyncio",
     long_description=long_description,
     url="https://github.com/horazont/aioxmpp",
-    author="Jonas Wielicki",
+    author="Jonas Schäfer",
     author_email="jonas@wielicki.name",
     license="LGPLv3+",
     classifiers=[
