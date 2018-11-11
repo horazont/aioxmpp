@@ -20,6 +20,7 @@
 #
 ########################################################################
 import asyncio
+import base64
 import contextlib
 import types
 
@@ -204,3 +205,32 @@ def gather_reraise_multi(*fut_or_coros, message="gather_reraise_multi"):
     if exceptions:
         raise errors.GatherError(message, exceptions)
     return results
+
+
+def to_nmtoken(rand_token):
+    """
+    Convert a (random) token given as raw :class:`bytes` or
+    :class:`int` to a valid NMTOKEN
+    <https://www.w3.org/TR/xml/#NT-Nmtoken>.
+
+    The encoding as a valid nmtoken is injective, ensuring that two
+    different inputs cannot yield the same token. Nevertheless, it is
+    recommended to only use one kind of inputs (integers or bytes of a
+    consistent length) in one context.
+    """
+
+    if isinstance(rand_token, int):
+        rand_token = rand_token.to_bytes(
+            (rand_token.bit_length() + 7) // 8,
+            "little"
+        )
+        e = base64.urlsafe_b64encode(rand_token).rstrip(b"=").decode("ascii")
+        return ":" + e
+
+    if isinstance(rand_token, bytes):
+        e = base64.urlsafe_b64encode(rand_token).rstrip(b"=").decode("ascii")
+        if not e:
+            e = "."
+        return  e
+
+    raise TypeError("rand_token musst be a bytes or int instance")

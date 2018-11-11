@@ -79,14 +79,13 @@ Exceptions
 .. autoclass:: UnknownIQPayload
 
 """
-import base64
 import enum
 import random
 import warnings
 
 from . import xso, errors, structs
 
-from .utils import namespaces
+from .utils import namespaces, to_nmtoken
 
 RANDOM_ID_BYTES = 120 // 8
 
@@ -501,7 +500,7 @@ class StanzaBase(xso.XSO):
         string!) value, this method is a no-op.
 
         Otherwise, the :attr:`id_` attribute is filled with eight bytes of
-        random data, encoded as base64.
+        random data, encoded by :func:`to_nmtoken`.
 
         .. note::
 
@@ -517,11 +516,7 @@ class StanzaBase(xso.XSO):
             if self.id_:
                 return
 
-        self.id_ = "x"+base64.b64encode(random.getrandbits(
-            RANDOM_ID_BYTES * 8
-        ).to_bytes(
-            RANDOM_ID_BYTES, "little"
-        )).decode("ascii")
+        self.id_ = to_nmtoken(random.getrandbits(8*RANDOM_ID_BYTES))
 
     def _make_reply(self, type_):
         obj = type(self)(type_)

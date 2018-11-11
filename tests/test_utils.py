@@ -424,3 +424,26 @@ class Testgather_reraise_multi(unittest.TestCase):
         except errors.GatherError as e:
             self.assertIs(type(e.exceptions[0]), RuntimeError)
             self.assertIs(type(e.exceptions[1]), Exception)
+
+
+class Test_to_nmtoken(unittest.TestCase):
+
+    def test_unique_integers(self):
+        results = set()
+        for i in range(2048):
+            res = utils.to_nmtoken(i)
+            if res in results:
+                self.fail("generated tokens not unique")
+            results.add(res)
+
+    def test_integers_and_bytes_do_not_collide(self):
+        a = utils.to_nmtoken(255)
+        b = utils.to_nmtoken(b"\xff")
+        self.assertNotEqual(a, b)
+        self.assertTrue(a.startswith(":"))
+        self.assertFalse(b.startswith(":"))
+
+    def test_zero_extension(self):
+        a = utils.to_nmtoken(b"\xff\x00")
+        b = utils.to_nmtoken(b"\xff")
+        self.assertNotEqual(a, b)
