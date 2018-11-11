@@ -77,3 +77,11 @@ This section defines terms used throughout the :mod:`aioxmpp` documentation.
      RFCs of the XMPP protocol with additional functionality. Many important
      instant messaging features are specified in XEPs. The index of XEPs is
      located on `xmpp.org <https://xmpp.org/extensions/>`_.
+
+   XSO
+   XML stream object
+     A XML stream object (or XSO) is a python representation of an XML subtree.
+     Its name originates from the fact that it is mostly used with XMPP XML
+     streams.
+
+     The definition and use of XSOs is documented in :mod:`aioxmpp.xso`.
