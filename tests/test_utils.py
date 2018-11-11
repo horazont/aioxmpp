@@ -380,6 +380,8 @@ class Testgather_reraise_multi(unittest.TestCase):
             run_coroutine(utils.gather_reraise_multi(foo()))
         except errors.GatherError as e:
             self.assertIs(type(e.exceptions[0]), RuntimeError)
+        else:
+            self.fail()
 
 
     def test_with_two_successful_tasks(self):
@@ -409,6 +411,8 @@ class Testgather_reraise_multi(unittest.TestCase):
             run_coroutine(utils.gather_reraise_multi(foo(), bar()))
         except errors.GatherError as e:
             self.assertIs(type(e.exceptions[0]), RuntimeError)
+        else:
+            self.fail()
 
     def test_with_two_tasks_both_failing(self):
         @asyncio.coroutine
@@ -424,6 +428,8 @@ class Testgather_reraise_multi(unittest.TestCase):
         except errors.GatherError as e:
             self.assertIs(type(e.exceptions[0]), RuntimeError)
             self.assertIs(type(e.exceptions[1]), Exception)
+        else:
+            self.fail()
 
 
 class Test_to_nmtoken(unittest.TestCase):

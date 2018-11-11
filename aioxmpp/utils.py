@@ -24,6 +24,8 @@ import base64
 import contextlib
 import types
 
+import aioxmpp.errors
+
 import lxml.etree as etree
 
 __all__ = [
@@ -203,7 +205,7 @@ def gather_reraise_multi(*fut_or_coros, message="gather_reraise_multi"):
         else:
             results.append(fut.result())
     if exceptions:
-        raise errors.GatherError(message, exceptions)
+        raise aioxmpp.errors.GatherError(message, exceptions)
     return results
 
 
