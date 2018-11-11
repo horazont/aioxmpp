@@ -235,7 +235,7 @@ class IBBTransport(asyncio.Transport):
         Send `data` over the IBB. If `data` is larger than the block size
         is is chunked and sent in chunks.
 
-        Chunks from one call of :method:`send` will always be sent in
+        Chunks from one call of :meth:`write` will always be sent in
         series.
         """
 

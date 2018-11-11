@@ -19,6 +19,29 @@
 # <http://www.gnu.org/licenses/>.
 #
 ########################################################################
+"""
+:mod:`~aioxmpp.utils` --- Internal utils
+========================================
+
+Miscellaneous utilities used throughout the aioxmpp codebase.
+
+.. data:: namespaces
+
+   Collects all the namespaces from the various standards. Each namespace
+   is given a shortname and its value is the namespace string.
+
+.. autofunction:: gather_reraise_multi
+
+.. autofunction:: mkdir_exist_ok
+
+.. autofunction:: to_nmtoken
+
+.. autoclass:: LazyTask
+
+.. autodecorator:: magicmethod
+
+"""
+
 import asyncio
 import base64
 import contextlib
@@ -75,6 +98,12 @@ def background_task(coro, logger):
 
 
 class magicmethod:
+    """
+    Decorator for methods that makes them work as instance *and* class
+    method.  The first argument will be the class if called on the
+    class and the instance when called on the instance.
+    """
+
     __slots__ = ("_f",)
 
     def __init__(self, f):

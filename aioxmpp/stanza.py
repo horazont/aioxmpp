@@ -78,6 +78,10 @@ Exceptions
 
 .. autoclass:: UnknownIQPayload
 
+Module Level Constants
+======================
+
+.. autodata:: RANDOM_ID_BYTES
 """
 import enum
 import random
@@ -87,6 +91,7 @@ from . import xso, errors, structs
 
 from .utils import namespaces, to_nmtoken
 
+#: The number of bytes of randomness used when generating stanza IDs.
 RANDOM_ID_BYTES = 120 // 8
 
 
@@ -499,14 +504,14 @@ class StanzaBase(xso.XSO):
         If the :attr:`id_` already has a non-false (false is also the empty
         string!) value, this method is a no-op.
 
-        Otherwise, the :attr:`id_` attribute is filled with eight bytes of
-        random data, encoded by :func:`to_nmtoken`.
+        Otherwise, the :attr:`id_` attribute is filled with
+        :data:`RANDOM_ID_BYTES` of random data, encoded by
+        :func:`aioxmpp.utils.to_nmtoken`.
 
         .. note::
 
            This method only works on subclasses of :class:`StanzaBase` which
            define the :attr:`id_` attribute.
-
         """
         try:
             self.id_
