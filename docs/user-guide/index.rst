@@ -9,3 +9,4 @@ library.
    installation
    quickstart
    pitfalls
+   faq
