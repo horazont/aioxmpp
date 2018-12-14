@@ -757,3 +757,375 @@ class TestPresenceServer(unittest.TestCase):
             result,
             self.cc.enqueue(),
         )
+
+    def test_subscribe_peer_directed_creates_handle(self):
+        h = self.s.subscribe_peer_directed(
+            TEST_PEER_JID1
+        )
+
+        self.assertIsInstance(h, presence_service.DirectedPresenceHandle)
+        self.assertEqual(h.address, TEST_PEER_JID1)
+        self.assertFalse(h.muted)
+        self.assertIsNone(h.presence_filter)
+
+    def test_subscribe_peer_directed_different_handles_for_different_peers(self):  # NOQA
+        h1 = self.s.subscribe_peer_directed(
+            TEST_PEER_JID1
+        )
+
+        h2 = self.s.subscribe_peer_directed(
+            TEST_PEER_JID2
+        )
+
+        self.assertEqual(h1.address, TEST_PEER_JID1)
+        self.assertEqual(h2.address, TEST_PEER_JID2)
+
+    def test_subscribe_peer_directed_rejects_duplicate_peer(self):
+        h1 = self.s.subscribe_peer_directed(
+            TEST_PEER_JID1
+        )
+
+        with self.assertRaisesRegex(
+                ValueError,
+                r"cannot create multiple directed presence sessions for "
+                r"the same peer"):
+            self.s.subscribe_peer_directed(
+                TEST_PEER_JID1
+            )
+
+    def test_subscribe_peer_directed_allows_multiple_sessions_for_distinct_resources(self):  # NOQA
+        h1 = self.s.subscribe_peer_directed(
+            TEST_PEER_JID1.replace(resource="x")
+        )
+
+        h2 = self.s.subscribe_peer_directed(
+            TEST_PEER_JID1.replace(resource="y")
+        )
+
+        self.assertIsNot(h1, h2)
+        self.assertEqual(h1.address, TEST_PEER_JID1.replace(resource="x"))
+        self.assertEqual(h2.address, TEST_PEER_JID1.replace(resource="y"))
+
+    def test_subscribe_peer_directed_does_not_allow_resource_and_bare(self):  # NOQA
+        h1 = self.s.subscribe_peer_directed(
+            TEST_PEER_JID1
+        )
+
+        h2 = self.s.subscribe_peer_directed(
+            TEST_PEER_JID2.replace(resource="y")
+        )
+
+        with self.assertRaisesRegex(
+                ValueError,
+                r"cannot create multiple directed presence sessions for the "
+                r"same peer"):
+            self.s.subscribe_peer_directed(
+                TEST_PEER_JID1.replace(resource="y")
+            )
+
+        with self.assertRaisesRegex(
+                ValueError,
+                r"cannot create multiple directed presence sessions for the "
+                r"same peer"):
+            self.s.subscribe_peer_directed(
+                TEST_PEER_JID2
+            )
+
+    def test_unsubscribing_DirectedPresenceHandle_frees_the_slot(self):
+        h1 = self.s.subscribe_peer_directed(
+            TEST_PEER_JID1
+        )
+
+        h1.unsubscribe()
+
+        h2 = self.s.subscribe_peer_directed(
+            TEST_PEER_JID1
+        )
+
+        self.assertIsNot(h1, h2)
+        self.assertEqual(h1.address, TEST_PEER_JID1)
+        self.assertEqual(h2.address, TEST_PEER_JID1)
+
+    def test_unsubscribing_bare_DirectedPresenceHandle_frees_the_slot_for_full(self):  # NOQA
+        h1 = self.s.subscribe_peer_directed(
+            TEST_PEER_JID1
+        )
+
+        h1.unsubscribe()
+
+        h2 = self.s.subscribe_peer_directed(
+            TEST_PEER_JID1.replace(resource="x")
+        )
+
+        self.assertIsNot(h1, h2)
+        self.assertEqual(h1.address, TEST_PEER_JID1)
+        self.assertEqual(h2.address, TEST_PEER_JID1.replace(resource="x"))
+
+    def test_unsubscribing_full_DirectedPresenceHandle_frees_the_slot_for_bare(self):  # NOQA
+        h1 = self.s.subscribe_peer_directed(
+            TEST_PEER_JID1.replace(resource="x")
+        )
+
+        h1.unsubscribe()
+
+        h2 = self.s.subscribe_peer_directed(
+            TEST_PEER_JID1
+        )
+
+        self.assertIsNot(h1, h2)
+        self.assertEqual(h1.address, TEST_PEER_JID1.replace(resource="x"))
+        self.assertEqual(h2.address, TEST_PEER_JID1)
+
+    def test_unsubscribing_single_full_DirectedPresenceHandle_does_not_free_the_slot_for_bare(self):  # NOQA
+        h1 = self.s.subscribe_peer_directed(
+            TEST_PEER_JID1.replace(resource="x")
+        )
+
+        h2 = self.s.subscribe_peer_directed(
+            TEST_PEER_JID1.replace(resource="y")
+        )
+
+        h1.unsubscribe()
+
+        with self.assertRaises(ValueError):
+            h3 = self.s.subscribe_peer_directed(
+                TEST_PEER_JID1
+            )
+
+        h2.unsubscribe()
+
+        h3 = self.s.subscribe_peer_directed(
+            TEST_PEER_JID1
+        )
+
+        self.assertIsNot(h1, h3)
+        self.assertIsNot(h2, h3)
+        self.assertEqual(h1.address, TEST_PEER_JID1.replace(resource="x"))
+        self.assertEqual(h2.address, TEST_PEER_JID1.replace(resource="y"))
+        self.assertEqual(h3.address, TEST_PEER_JID1)
+
+    def test_rebind_directed_presence_to_other_jid(self):
+        h1 = self.s.subscribe_peer_directed(
+            TEST_PEER_JID1
+        )
+
+        self.s.rebind_directed_presence(
+            h1,
+            TEST_PEER_JID2
+        )
+
+        self.assertEqual(h1.address, TEST_PEER_JID2)
+
+    def test_rebind_directed_presence_to_other_jid_releases_old_slot(self):
+        h1 = self.s.subscribe_peer_directed(
+            TEST_PEER_JID1
+        )
+
+        self.s.rebind_directed_presence(
+            h1,
+            TEST_PEER_JID2
+        )
+
+        h2 = self.s.subscribe_peer_directed(
+            TEST_PEER_JID1
+        )
+
+        self.assertIsNot(h1, h2)
+        self.assertEqual(h1.address, TEST_PEER_JID2)
+        self.assertEqual(h2.address, TEST_PEER_JID1)
+
+    def test_rebind_directed_presence_to_other_jid_holds_new_slot(self):
+        h1 = self.s.subscribe_peer_directed(
+            TEST_PEER_JID1
+        )
+
+        self.s.rebind_directed_presence(
+            h1,
+            TEST_PEER_JID2
+        )
+
+        with self.assertRaisesRegex(
+                ValueError,
+                r"cannot create multiple directed presence sessions for the "
+                r"same peer"):
+            self.s.subscribe_peer_directed(
+                TEST_PEER_JID2
+            )
+
+    def test_rebind_directed_presence_to_existing_jid_fails(self):
+        h1 = self.s.subscribe_peer_directed(
+            TEST_PEER_JID1
+        )
+
+        h2 = self.s.subscribe_peer_directed(
+            TEST_PEER_JID2
+        )
+
+        with self.assertRaisesRegex(
+                ValueError,
+                r"cannot create multiple directed presence sessions for the "
+                r"same peer"):
+            self.s.rebind_directed_presence(
+                h1,
+                TEST_PEER_JID2
+            )
+
+    def test_rebind_directed_presence_noop(self):
+        h1 = self.s.subscribe_peer_directed(
+            TEST_PEER_JID1
+        )
+
+        self.s.rebind_directed_presence(
+            h1,
+            TEST_PEER_JID1
+        )
+
+        self.assertEqual(h1.address, TEST_PEER_JID1)
+
+    def test_rebind_directed_presence_bare_to_full(self):
+        h1 = self.s.subscribe_peer_directed(
+            TEST_PEER_JID1
+        )
+
+        self.s.rebind_directed_presence(
+            h1,
+            TEST_PEER_JID1.replace(resource="x")
+        )
+
+        self.assertEqual(h1.address, TEST_PEER_JID1.replace(resource="x"))
+
+    def test_rebind_directed_presence_bare_to_full_holds_new_slot(self):
+        h1 = self.s.subscribe_peer_directed(
+            TEST_PEER_JID1
+        )
+
+        self.s.rebind_directed_presence(
+            h1,
+            TEST_PEER_JID1.replace(resource="x")
+        )
+
+        with self.assertRaisesRegex(
+                ValueError,
+                r"cannot create multiple directed presence sessions for the "
+                r"same peer"):
+            self.s.subscribe_peer_directed(
+                TEST_PEER_JID1.replace(resource="x")
+            )
+
+    def test_rebind_directed_presence_bare_to_full_blocks_bare_alloc(self):
+        h1 = self.s.subscribe_peer_directed(
+            TEST_PEER_JID1
+        )
+
+        self.s.rebind_directed_presence(
+            h1,
+            TEST_PEER_JID1.replace(resource="x")
+        )
+
+        with self.assertRaisesRegex(
+                ValueError,
+                r"cannot create multiple directed presence sessions for the "
+                r"same peer"):
+            self.s.subscribe_peer_directed(
+                TEST_PEER_JID1
+            )
+
+    def test_rebind_directed_presence_full_to_bare(self):
+        h1 = self.s.subscribe_peer_directed(
+            TEST_PEER_JID1.replace(resource="x")
+        )
+
+        self.s.rebind_directed_presence(
+            h1,
+            TEST_PEER_JID1
+        )
+
+        self.assertEqual(h1.address, TEST_PEER_JID1)
+
+    def test_rebind_directed_presence_full_to_bare_holds_new_slot(self):
+        h1 = self.s.subscribe_peer_directed(
+            TEST_PEER_JID1.replace(resource="x")
+        )
+
+        self.s.rebind_directed_presence(
+            h1,
+            TEST_PEER_JID1
+        )
+
+        with self.assertRaisesRegex(
+                ValueError,
+                r"cannot create multiple directed presence sessions for the "
+                r"same peer"):
+            self.s.subscribe_peer_directed(
+                TEST_PEER_JID1
+            )
+
+    def test_rebind_directed_presence_full_to_bare_blocks_full_alloc(self):
+        h1 = self.s.subscribe_peer_directed(
+            TEST_PEER_JID1.replace(resource="x")
+        )
+
+        self.s.rebind_directed_presence(
+            h1,
+            TEST_PEER_JID1
+        )
+
+        with self.assertRaisesRegex(
+                ValueError,
+                r"cannot create multiple directed presence sessions for the "
+                r"same peer"):
+            self.s.subscribe_peer_directed(
+                TEST_PEER_JID1.replace(resource="x")
+            )
+
+    def test_rebind_directed_presence_change_resource(self):
+        h1 = self.s.subscribe_peer_directed(
+            TEST_PEER_JID1.replace(resource="x")
+        )
+
+        self.s.rebind_directed_presence(
+            h1,
+            TEST_PEER_JID1.replace(resource="y")
+        )
+
+        self.assertEqual(h1.address, TEST_PEER_JID1.replace(resource="y"))
+
+    def test_rebind_directed_presence_change_resource_releases_old_slot(self):
+        h1 = self.s.subscribe_peer_directed(
+            TEST_PEER_JID1.replace(resource="x")
+        )
+
+        self.s.rebind_directed_presence(
+            h1,
+            TEST_PEER_JID1.replace(resource="y")
+        )
+
+        self.assertEqual(h1.address, TEST_PEER_JID1.replace(resource="y"))
+
+        h2 = self.s.subscribe_peer_directed(
+            TEST_PEER_JID1.replace(resource="x")
+        )
+
+        self.assertIsNot(h1, h2)
+        self.assertEqual(h1.address, TEST_PEER_JID1.replace(resource="y"))
+        self.assertEqual(h2.address, TEST_PEER_JID1.replace(resource="x"))
+
+    def test_rebind_directed_presence_change_resource_holds_new_slot(self):
+        h1 = self.s.subscribe_peer_directed(
+            TEST_PEER_JID1.replace(resource="x")
+        )
+
+        self.s.rebind_directed_presence(
+            h1,
+            TEST_PEER_JID1.replace(resource="y")
+        )
+
+        self.assertEqual(h1.address, TEST_PEER_JID1.replace(resource="y"))
+
+        with self.assertRaisesRegex(
+                ValueError,
+                r"cannot create multiple directed presence sessions for the "
+                r"same peer"):
+            self.s.subscribe_peer_directed(
+                TEST_PEER_JID1.replace(resource="y")
+            )

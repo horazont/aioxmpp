@@ -269,6 +269,11 @@ class DirectedPresenceHandle:
     .. automethod:: send_presence
     """
 
+    def __init__(self, service: "PresenceServer", peer: aioxmpp.JID):
+        super().__init__()
+        self._address = peer
+        self._service = service
+
     @property
     def address(self) -> aioxmpp.JID:
         """
@@ -277,6 +282,7 @@ class DirectedPresenceHandle:
         To change the address of a peer,
         :meth:`aioxmpp.PresenceServer.rebind_directed_presence` can be used.
         """
+        return self._address
 
     @property
     def muted(self) -> bool:
@@ -369,6 +375,7 @@ class DirectedPresenceHandle:
 
         This operation is idempotent.
         """
+        self._service._unsubscribe_peer_directed(self)
 
     def send_presence(self, stanza: aioxmpp.Presence):
         """
@@ -446,6 +453,7 @@ class PresenceServer(aioxmpp.service.Service):
         self._state = aioxmpp.PresenceState(False)
         self._status = {}
         self._priority = 0
+        self._directed_sessions = {}
 
         client.before_stream_established.connect(
             self._before_stream_established
@@ -583,6 +591,8 @@ class PresenceServer(aioxmpp.service.Service):
                  stream is not established.
         :rtype: :class:`~.stream.StanzaToken`
 
+        This will also emit all non-muted directed presences.
+
         .. note::
 
            :meth:`set_presence` automatically broadcasts the new presence if
@@ -628,6 +638,38 @@ class PresenceServer(aioxmpp.service.Service):
 
         The newly created handle is returned.
         """
+        bare_peer = peer.bare()
+        try:
+            sessions = self._directed_sessions[bare_peer]
+        except KeyError:
+            sessions = self._directed_sessions[bare_peer] = {}
+        else:
+            if (
+                    # bare JID registration with any existing registration is
+                    # always a conflict
+                    (peer.resource is None and sessions) or
+                    # full JID registration with None or the resource in the
+                    # sessions is a conflict, too
+                    (peer.resource in sessions or None in sessions)):
+                raise ValueError(
+                    "cannot create multiple directed presence sessions for the "
+                    "same peer")
+
+        result = sessions[peer.resource] = DirectedPresenceHandle(
+            self,
+            peer,
+        )
+
+        return result
+
+    def _unsubscribe_peer_directed(self, handle: DirectedPresenceHandle):
+        bare_peer = handle.address.bare()
+        resource = handle.address.resource
+        sessions = self._directed_sessions[bare_peer]
+        assert sessions[resource] is handle
+        del sessions[resource]
+        if not sessions:
+            del self._directed_sessions[bare_peer]
 
     def rebind_directed_presence(self,
                                  relationship: DirectedPresenceHandle,
@@ -654,3 +696,45 @@ class PresenceServer(aioxmpp.service.Service):
         :meth:`~DirectedPresenceHandle.unsubscribe`, :class:`RuntimeError` is
         raised.
         """
+        if new_peer == relationship.address:
+            return
+
+        previous_bare = relationship.address.bare()
+
+        prev_sessions = self._directed_sessions[previous_bare]
+
+        bare_peer = new_peer.bare()
+        try:
+            new_sessions = self._directed_sessions[bare_peer]
+        except KeyError:
+            new_sessions = self._directed_sessions[bare_peer] = {}
+        else:
+            # bare_peer already has sessions, we need to do checks
+            check_sessions = new_sessions
+            if check_sessions is prev_sessions:
+                # we take a copy and remove the current resource from it,
+                # because it doesn’t play a role in the check (it will be
+                # removed anyways)
+                check_sessions = dict(check_sessions)
+                del check_sessions[relationship.address.resource]
+
+            if (
+                    # bare JID registration with any existing registration is
+                    # always a conflict
+                    (new_peer.resource is None and check_sessions) or
+                    # full JID registration with None or the resource in the
+                    # sessions is a conflict, too
+                    (new_peer.resource in new_sessions or
+                     None in check_sessions)
+                    ):
+                raise ValueError(
+                    "cannot create multiple directed presence sessions for the "
+                    "same peer")
+
+        if prev_sessions is new_sessions:
+            del prev_sessions[relationship.address.resource]
+        else:
+            self._unsubscribe_peer_directed(relationship)
+
+        new_sessions[new_peer.resource] = relationship
+        relationship._address = new_peer
