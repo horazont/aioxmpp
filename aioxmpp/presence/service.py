@@ -269,10 +269,18 @@ class DirectedPresenceHandle:
     .. automethod:: send_presence
     """
 
-    def __init__(self, service: "PresenceServer", peer: aioxmpp.JID):
+    def __init__(self, service: "PresenceServer", peer: aioxmpp.JID,
+                 muted: bool = False):
         super().__init__()
         self._address = peer
         self._service = service
+        self._muted = muted
+        self._presence_filter = None
+        self._unsubscribed = False
+
+    def _require_subscribed(self):
+        if self._unsubscribed:
+            raise RuntimeError("directed presence relationship is unsubscribed")
 
     @property
     def address(self) -> aioxmpp.JID:
@@ -302,6 +310,7 @@ class DirectedPresenceHandle:
         This attribute is read-only. It must be modified through
         :meth:`set_muted`.
         """
+        return self._muted
 
     @property
     def presence_filter(self):
@@ -322,12 +331,13 @@ class DirectedPresenceHandle:
         modifications from leaking into other presence relationships; making a
         copy inside the callback is not required or recommended.
         """
+        return self._presence_filter
 
     @presence_filter.setter
     def presence_filter(self, new_callback):
-        pass
+        self._presence_filter = new_callback
 
-    def set_muted(self, muted, *, send_update_now=True):
+    def set_muted(self, muted: bool, *, send_update_now: bool = True):
         """
         Change the :attr:`muted` state of the relationship.
 
@@ -351,6 +361,14 @@ class DirectedPresenceHandle:
         If `send_update_now` is :data:`True`, the current presence is sent to
         the peer immediately.
         """
+        self._require_subscribed()
+
+        muted = bool(muted)
+        if muted == self._muted:
+            return
+
+        self._muted = muted
+        self._service._emit_presence_directed(self)
 
     def unsubscribe(self):
         """
@@ -375,25 +393,24 @@ class DirectedPresenceHandle:
 
         This operation is idempotent.
         """
+        if self._unsubscribed:
+            return
+
         self._service._unsubscribe_peer_directed(self)
+        self._unsubscribed = True
 
-    def send_presence(self, stanza: aioxmpp.Presence):
+    def resend_presence(self):
         """
-        Send a presence stanza to the peer.
+        Resend the current presence to the directed peer.
 
-        :param stanza: The stanza to send.
-        :type stanza: :class:`aioxmpp.Presence`
         :raises RuntimeError: if the presence relationship has been destroyed
             with :meth:`unsubscribe`
 
-        The type of the presence `stanza` must be either
-        :attr:`aioxmpp.PresenceType.AVAILABLE` or
-        :attr:`aioxmpp.PresenceType.UNAVAILABLE`.
-
-        The :meth:`presence_filter` is not invoked on this `stanza`; it is
-        assumed that the owner of the relationship takes care of setting the
-        `stanza` up in the way it is needed.
+        This forces a presence send, even if the relationship is muted. The
+        :attr:`presence_filter` is invoked as normal.
         """
+        self._require_subscribed()
+        self._service._emit_presence_directed(self)
 
 
 class PresenceServer(aioxmpp.service.Service):
@@ -583,6 +600,15 @@ class PresenceServer(aioxmpp.service.Service):
             self.on_presence_changed()
             return self.resend_presence()
 
+    def _emit_presence_directed(self, session):
+        st = self.make_stanza()
+        st.to = session.address
+        if session.presence_filter is not None:
+            st = session.presence_filter(st)
+        if st is None:
+            return
+        self.client.enqueue(st)
+
     def resend_presence(self):
         """
         Re-send the currently configured presence.
@@ -599,8 +625,18 @@ class PresenceServer(aioxmpp.service.Service):
            any of the parameters changed.
         """
 
-        if self.client.established:
-            return self.client.enqueue(self.make_stanza())
+        if not self.client.established:
+            return
+
+        main_token = self.client.enqueue(self.make_stanza())
+
+        for sessions in self._directed_sessions.values():
+            for session in sessions.values():
+                if session.muted:
+                    continue
+                self._emit_presence_directed(session)
+
+        return main_token
 
     def subscribe_peer_directed(self,
                                 peer: aioxmpp.JID,
@@ -658,7 +694,11 @@ class PresenceServer(aioxmpp.service.Service):
         result = sessions[peer.resource] = DirectedPresenceHandle(
             self,
             peer,
+            muted=muted,
         )
+
+        if not muted:
+            self._emit_presence_directed(result)
 
         return result
 
