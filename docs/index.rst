@@ -186,7 +186,7 @@ Security Issues
 ###############
 
 If you believe that a bug you found in aioxmpp has security implications,
-you are welcome to notify me privately. To do so, send a mail to `Jonas Wielicki
+you are welcome to notify me privately. To do so, send a mail to `Jonas Schäfer
 <mailto:jonas@wielicki.name>`_, encrypted using the GPG public key::
 
   0xE5EDE5AC679E300F
