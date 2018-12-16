@@ -1,7 +1,11 @@
 #!/bin/bash -x
 set -euo pipefail
+lua_version=${LUA_VERSION:-5.1}
+if [ "x${WITH_BUILD_DEP:-no}" = 'xyes' ]; then
+    sudo apt build-dep prosody
+fi
 pip install hererocks
-hererocks lua_install -r^ --lua=5.1
+hererocks lua_install -r^ --lua=$lua_version
 luarocks install luaexpat
 luarocks install luafilesystem
 luarocks install luasocket
