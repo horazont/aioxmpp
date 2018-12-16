@@ -39,7 +39,7 @@ install_requires = [
     'aioopenssl>=0.1',
     'babel~=2.3',
     'dnspython~=1.0',
-    'lxml~=3.6',
+    'lxml~=4.0',
     'multidict<5,>=2.0',
     'sortedcollections>=0.5',
     'pyOpenSSL',
