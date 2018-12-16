@@ -23,9 +23,9 @@ matrix:
     services:
     - docker
   - python: "3.6"
-    env: TEST_MODE=e2e-prosody PROSODY_BRANCH=0.9
+    env: TEST_MODE=e2e-prosody PROSODY_BRANCH=0.9 LUA_VERSION=5.1
   - python: "3.6"
-    env: TEST_MODE=e2e-prosody PROSODY_BRANCH=0.10
+    env: TEST_MODE=e2e-prosody PROSODY_BRANCH=0.10 LUA_VERSION=5.1
   - python: "3.6"
     env: TEST_MODE=e2e-prosody PROSODY_BRANCH=trunk
   - python: "3.6"
