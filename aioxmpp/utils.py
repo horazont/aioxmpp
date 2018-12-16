@@ -142,7 +142,7 @@ class LazyTask(asyncio.Future):
 
     def __iter__(self):
         self.__start_task()
-        return super().__iter__()
+        return iter(self.__task)
 
     if hasattr(asyncio.Future, "__await__"):
         def __await__(self):
