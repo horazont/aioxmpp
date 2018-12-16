@@ -63,7 +63,7 @@ from enum import Enum
 import xml.sax as sax
 import xml.parsers.expat as pyexpat
 
-from . import xml, errors, xso, nonza, stanza, callbacks, statemachine
+from . import xml, errors, xso, nonza, stanza, callbacks, statemachine, utils
 from .utils import namespaces
 
 logger = logging.getLogger(__name__)
@@ -185,146 +185,6 @@ class DebugWrapper:
             yield
         finally:
             self._muted = False
-
-
-class AlivenessMonitor:
-    """
-    Monitors aliveness of a data stream.
-
-    .. versionadded:: 0.10
-
-    :param loop: The event loop to operate the checks in.
-    :type loop: :class:`asyncio.BaseEventLoop`
-
-    This is generic in the stream with which it is used. Currently, it is only
-    used with :class:`~.XMLStream`.
-
-    .. signal:: on_deadtime_soft_limit_tripped()
-
-        Emits when the :attr:`deadtime_soft_limit` expires.
-
-    .. signal:: on_deadtime_hard_limit_tripped()
-
-        Emits when the :attr:`deadtime_hard_limit` expires.
-
-    .. automethod:: notify_received
-
-    .. autoattribute:: deadtime_soft_limit
-        :annotation: = None
-
-    .. autoattribute:: deadtime_hard_limit
-        :annotation: = None
-
-    """
-
-    on_deadtime_soft_limit_tripped = callbacks.Signal()
-    on_deadtime_hard_limit_tripped = callbacks.Signal()
-
-    def __init__(self, loop):
-        super().__init__()
-        self._loop = loop
-        self._soft_limit = None
-        self._soft_limit_timer = None
-        self._soft_limit_tripped = False
-        self._hard_limit = None
-        self._hard_limit_timer = None
-        self._hard_limit_tripped = False
-        self._reset_trips()
-
-    def _trip_soft_limit(self):
-        if self._soft_limit_tripped:
-            return
-        self._soft_limit_tripped = True
-        self.on_deadtime_soft_limit_tripped()
-
-    def _trip_hard_limit(self):
-        if self._hard_limit_tripped:
-            return
-        self._hard_limit_tripped = True
-        self.on_deadtime_hard_limit_tripped()
-
-    def _retrigger_timers(self):
-        now = time.monotonic()
-
-        if self._soft_limit_timer is not None:
-            self._soft_limit_timer.cancel()
-            self._soft_limit_timer = None
-
-        if self._soft_limit is not None:
-            self._soft_limit_timer = self._loop.call_later(
-                self._soft_limit.total_seconds() - (now - self._last_rx),
-                self._trip_soft_limit
-            )
-
-        if self._hard_limit_timer is not None:
-            self._hard_limit_timer.cancel()
-            self._hard_limit_timer = None
-
-        if self._hard_limit is not None:
-            self._hard_limit_timer = self._loop.call_later(
-                self._hard_limit.total_seconds() - (now - self._last_rx),
-                self._trip_hard_limit
-            )
-
-    def _reset_trips(self):
-        self._soft_limit_tripped = False
-        self._hard_limit_tripped = False
-        self._last_rx = time.monotonic()
-
-    def notify_received(self):
-        """
-        Inform the aliveness check that something was received.
-
-        Resets the internal soft/hard limit timers.
-        """
-        self._reset_trips()
-        self._retrigger_timers()
-
-    @property
-    def deadtime_soft_limit(self):
-        """
-        Soft limit for the timespan in which no data is received in the stream.
-
-        When the last data reception was longer than this limit ago,
-        :meth:`on_deadtime_soft_limit_tripped` emits once.
-
-        Changing this makes the monitor re-check its limits immidately. Setting
-        this to :data:`None` disables the soft limit check.
-
-        Note that setting this to a value greater than
-        :attr:`deadtime_hard_limit` means that the hard limit will fire first.
-        """
-        return self._soft_limit
-
-    @deadtime_soft_limit.setter
-    def deadtime_soft_limit(self, value):
-        if self._soft_limit_timer is not None:
-            self._soft_limit_timer.cancel()
-        self._soft_limit = value
-        self._retrigger_timers()
-
-    @property
-    def deadtime_hard_limit(self):
-        """
-        Hard limit for the timespan in which no data is received in the stream.
-
-        When the last data reception was longer than this limit ago,
-        :meth:`on_deadtime_hard_limit_tripped` emits once.
-
-        Changing this makes the monitor re-check its limits immidately. Setting
-        this to :data:`None` disables the hard limit check.
-
-        Note that setting this to a value less than
-        :attr:`deadtime_soft_limit` means that the hard limit will fire first.
-        """
-        return self._hard_limit
-
-    @deadtime_hard_limit.setter
-    def deadtime_hard_limit(self, value):
-        if self._hard_limit_timer is not None:
-            self._hard_limit_timer.cancel()
-        self._hard_limit = value
-        self._retrigger_timers()
 
 
 class XMLStream(asyncio.Protocol):
@@ -458,7 +318,7 @@ class XMLStream(asyncio.Protocol):
         self._error_futures = []
         self._smachine = statemachine.OrderedStateMachine(State.READY)
         self._transport_closing = False
-        self._monitor = AlivenessMonitor(self._loop)
+        self._monitor = utils.AlivenessMonitor(self._loop)
         self._monitor.on_deadtime_hard_limit_tripped.connect(
             self._deadtime_hard_limit_triggered
         )

@@ -108,6 +108,9 @@ Version 0.11
   Tests should always prefer to test the declared attributes when
   checking for correct dependencies.
 
+* Moved :class:`aioxmpp.protocol.AlivenessMonitor` to
+  :class:`aioxmpp.utils.AlivenessMonitor`.
+
 .. _api-changelog-0.10:
 
 Version 0.10

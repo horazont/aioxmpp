@@ -25,12 +25,16 @@ import sys
 import unittest
 import unittest.mock
 
+from datetime import timedelta
+
 import aioxmpp.errors as errors
 import aioxmpp.utils as utils
 
 from aioxmpp.testutils import (
     CoroutineMock,
+    get_timeout,
     run_coroutine,
+    make_listener,
 )
 
 
@@ -497,3 +501,251 @@ class Test_to_nmtoken(unittest.TestCase):
         a = utils.to_nmtoken(b"\xff\x00")
         b = utils.to_nmtoken(b"\xff")
         self.assertNotEqual(a, b)
+
+
+class TestAlivenessMonitor(unittest.TestCase):
+    def setUp(self):
+        self.loop = asyncio.get_event_loop()
+        self.am = utils.AlivenessMonitor(self.loop)
+        self.listener = make_listener(self.am)
+
+    def tearDown(self):
+        del self.am
+        del self.loop
+
+    def test_defaults(self):
+        self.assertIsNone(self.am.deadtime_soft_limit)
+        self.assertIsNone(self.am.deadtime_hard_limit)
+
+    def test_soft_limit_settable(self):
+        self.am.deadtime_soft_limit = timedelta(seconds=1)
+
+        self.assertEqual(self.am.deadtime_soft_limit, timedelta(seconds=1))
+
+    def test_hard_limit_is_settable(self):
+        self.am.deadtime_hard_limit = timedelta(seconds=1)
+
+        self.assertEqual(self.am.deadtime_hard_limit, timedelta(seconds=1))
+
+    def test_soft_limit_trips(self):
+        dt = get_timeout(timedelta(seconds=0.1))
+
+        self.am.deadtime_soft_limit = dt
+        self.am.notify_received()
+
+        run_coroutine(asyncio.sleep((dt * 0.9).total_seconds()))
+
+        self.listener.on_deadtime_soft_limit_tripped.assert_not_called()
+
+        run_coroutine(asyncio.sleep((dt * 0.2).total_seconds()))
+
+        self.listener.on_deadtime_soft_limit_tripped.assert_called_once_with()
+
+    def test_notify_received_resets_soft_limit_timer(self):
+        dt = get_timeout(timedelta(seconds=0.1))
+
+        self.am.deadtime_soft_limit = dt
+        self.am.notify_received()
+
+        run_coroutine(asyncio.sleep((dt * 0.9).total_seconds()))
+
+        self.listener.on_deadtime_soft_limit_tripped.assert_not_called()
+        self.am.notify_received()
+
+        run_coroutine(asyncio.sleep((dt * 0.9).total_seconds()))
+
+        self.listener.on_deadtime_soft_limit_tripped.assert_not_called()
+
+    def test_changing_soft_limit_recaluclates_timer(self):
+        dt = get_timeout(timedelta(seconds=0.1))
+
+        self.am.deadtime_soft_limit = dt
+        self.am.notify_received()
+
+        run_coroutine(asyncio.sleep((dt * 0.9).total_seconds()))
+
+        self.listener.on_deadtime_soft_limit_tripped.assert_not_called()
+
+        self.am.deadtime_soft_limit = dt*1.5
+
+        run_coroutine(asyncio.sleep((dt * 0.5).total_seconds()))
+
+        self.listener.on_deadtime_soft_limit_tripped.assert_not_called()
+
+        run_coroutine(asyncio.sleep((dt * 0.2).total_seconds()))
+
+        self.listener.on_deadtime_soft_limit_tripped.assert_called_once_with()
+
+    def test_soft_timer_fires_even_without_any_reception(self):
+        dt = get_timeout(timedelta(seconds=0.1))
+
+        self.am.deadtime_soft_limit = dt
+
+        run_coroutine(asyncio.sleep((dt * 0.9).total_seconds()))
+
+        self.listener.on_deadtime_soft_limit_tripped.assert_not_called()
+
+        run_coroutine(asyncio.sleep((dt * 0.2).total_seconds()))
+
+        self.listener.on_deadtime_soft_limit_tripped.assert_called_once_with()
+
+    def test_hard_limit_trips(self):
+        dt = get_timeout(timedelta(seconds=0.1))
+
+        self.am.deadtime_hard_limit = dt
+        self.am.notify_received()
+
+        run_coroutine(asyncio.sleep((dt * 0.9).total_seconds()))
+
+        self.listener.on_deadtime_hard_limit_tripped.assert_not_called()
+
+        run_coroutine(asyncio.sleep((dt * 0.2).total_seconds()))
+
+        self.listener.on_deadtime_hard_limit_tripped.assert_called_once_with()
+
+    def test_notify_received_resets_hard_limit_timer(self):
+        dt = get_timeout(timedelta(seconds=0.1))
+
+        self.am.deadtime_hard_limit = dt
+        self.am.notify_received()
+
+        run_coroutine(asyncio.sleep((dt * 0.9).total_seconds()))
+
+        self.listener.on_deadtime_hard_limit_tripped.assert_not_called()
+        self.am.notify_received()
+
+        run_coroutine(asyncio.sleep((dt * 0.9).total_seconds()))
+
+        self.listener.on_deadtime_hard_limit_tripped.assert_not_called()
+
+    def test_changing_hard_limit_recaluclates_timer(self):
+        dt = get_timeout(timedelta(seconds=0.1))
+
+        self.am.deadtime_hard_limit = dt
+        self.am.notify_received()
+
+        run_coroutine(asyncio.sleep((dt * 0.9).total_seconds()))
+
+        self.listener.on_deadtime_hard_limit_tripped.assert_not_called()
+
+        self.am.deadtime_hard_limit = dt*1.5
+
+        run_coroutine(asyncio.sleep((dt * 0.5).total_seconds()))
+
+        self.listener.on_deadtime_hard_limit_tripped.assert_not_called()
+
+        run_coroutine(asyncio.sleep((dt * 0.2).total_seconds()))
+
+        self.listener.on_deadtime_hard_limit_tripped.assert_called_once_with()
+
+    def test_hard_timer_fires_even_without_any_reception(self):
+        dt = get_timeout(timedelta(seconds=0.1))
+
+        self.am.deadtime_hard_limit = dt
+
+        run_coroutine(asyncio.sleep((dt * 0.9).total_seconds()))
+
+        self.listener.on_deadtime_hard_limit_tripped.assert_not_called()
+
+        run_coroutine(asyncio.sleep((dt * 0.2).total_seconds()))
+
+        self.listener.on_deadtime_hard_limit_tripped.assert_called_once_with()
+
+    def test_both_trip(self):
+        dt = get_timeout(timedelta(seconds=0.1))
+
+        self.am.deadtime_soft_limit = dt
+        self.am.deadtime_hard_limit = dt * 1.5
+        self.am.notify_received()
+
+        run_coroutine(asyncio.sleep((dt * 0.9).total_seconds()))
+
+        self.listener.on_deadtime_soft_limit_tripped.assert_not_called()
+        self.listener.on_deadtime_hard_limit_tripped.assert_not_called()
+
+        run_coroutine(asyncio.sleep((dt * 0.2).total_seconds()))
+
+        self.listener.on_deadtime_soft_limit_tripped.assert_called_once_with()
+        self.listener.on_deadtime_hard_limit_tripped.assert_not_called()
+
+        run_coroutine(asyncio.sleep((dt * 0.4).total_seconds()))
+
+        self.listener.on_deadtime_soft_limit_tripped.assert_called_once_with()
+        self.listener.on_deadtime_hard_limit_tripped.assert_called_once_with()
+
+    def test_changing_soft_limit_may_emit_limit_immediately(self):
+        dt = get_timeout(timedelta(seconds=0.1))
+
+        self.am.notify_received()
+
+        run_coroutine(asyncio.sleep((dt*1.1).total_seconds()))
+
+        self.listener.on_deadtime_soft_limit_tripped.assert_not_called()
+        self.am.deadtime_soft_limit = dt
+
+        run_coroutine(asyncio.sleep(0))
+        self.listener.on_deadtime_soft_limit_tripped.assert_called_once_with()
+
+    def test_changing_soft_limit_does_not_reemit_hard_limit(self):
+        dt = get_timeout(timedelta(seconds=0.1))
+
+        self.am.deadtime_hard_limit = dt
+        self.am.notify_received()
+
+        run_coroutine(asyncio.sleep((dt*1.1).total_seconds()))
+
+        self.listener.on_deadtime_soft_limit_tripped.assert_not_called()
+        self.listener.on_deadtime_hard_limit_tripped.assert_called_once_with()
+
+        self.am.deadtime_soft_limit = dt * 1.5
+
+        run_coroutine(asyncio.sleep(0))
+        self.listener.on_deadtime_soft_limit_tripped.assert_not_called()
+        self.listener.on_deadtime_hard_limit_tripped.assert_called_once_with()
+
+    def test_changing_hard_limit_does_not_reemit_soft_limit(self):
+        dt = get_timeout(timedelta(seconds=0.1))
+
+        self.am.deadtime_soft_limit = dt
+        self.am.notify_received()
+
+        run_coroutine(asyncio.sleep((dt*1.1).total_seconds()))
+
+        self.listener.on_deadtime_hard_limit_tripped.assert_not_called()
+        self.listener.on_deadtime_soft_limit_tripped.assert_called_once_with()
+
+        self.am.deadtime_hard_limit = dt * 1.5
+
+        run_coroutine(asyncio.sleep(0))
+        self.listener.on_deadtime_hard_limit_tripped.assert_not_called()
+        self.listener.on_deadtime_soft_limit_tripped.assert_called_once_with()
+
+    def test_soft_limit_can_reemit_after_reception(self):
+        dt = get_timeout(timedelta(seconds=0.1))
+
+        self.am.deadtime_soft_limit = dt
+        self.am.notify_received()
+
+        run_coroutine(asyncio.sleep((dt*1.1).total_seconds()))
+
+        self.listener.on_deadtime_soft_limit_tripped.assert_called_once_with()
+        self.am.notify_received()
+        self.listener.on_deadtime_soft_limit_tripped.reset_mock()
+
+        run_coroutine(asyncio.sleep((dt*1.1).total_seconds()))
+        self.listener.on_deadtime_soft_limit_tripped.assert_called_once_with()
+
+    def test_hard_limit_can_reemit_after_reception(self):
+        dt = get_timeout(timedelta(seconds=0.1))
+
+        self.am.deadtime_hard_limit = dt
+        self.am.notify_received()
+
+        run_coroutine(asyncio.sleep((dt*1.1).total_seconds()))
+
+        self.listener.on_deadtime_hard_limit_tripped.assert_called_once_with()
+        self.am.notify_received()
+        self.listener.on_deadtime_hard_limit_tripped.reset_mock()
+
+        run_coroutine(asyncio.sleep((dt*1.1).total_seconds()))
+        self.listener.on_deadtime_hard_limit_tripped.assert_called_once_with()

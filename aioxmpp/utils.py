@@ -45,6 +45,8 @@ Miscellaneous utilities used throughout the aioxmpp codebase.
 
 .. autoclass:: LazyTask
 
+.. autoclass:: AlivenessMonitor
+
 .. autodecorator:: magicmethod
 
 """
@@ -52,8 +54,10 @@ Miscellaneous utilities used throughout the aioxmpp codebase.
 import asyncio
 import base64
 import contextlib
+import time
 import types
 
+import aioxmpp.callbacks
 import aioxmpp.errors
 
 import lxml.etree as etree
@@ -344,3 +348,190 @@ def to_nmtoken(rand_token):
         return  e
 
     raise TypeError("rand_token musst be a bytes or int instance")
+
+
+class AlivenessMonitor:
+    """
+    Monitors aliveness of a data stream.
+
+    .. versionadded:: 0.10
+
+    :param loop: The event loop to operate the checks in.
+    :type loop: :class:`asyncio.BaseEventLoop`
+
+    This class is a utility class to implement a traffic-efficient timeout
+    mechanism.
+
+    This class can be used to monitor a stream if it is possible to ask the
+    remote party send some data (classic ping mechanism). It works particularly
+    well if the remote party will send data even without being specifically
+    asked for it (saves traffic).
+
+    It is notabily not a mean to enforce a maximum acceptable round-trip time.
+    Quite on the contrary, this class was designed specifically to provide a
+    reliable experience even *without* an upper bound on the round-trip time.
+
+    To use this class, the using code has to configure the
+    :attr:`deadtime_soft_limit`, :attr:`deadtime_hard_limit`, subscribe to the
+    signals below and call :meth:`notify_received` whenever *any* data is
+    received from the peer.
+
+    There exist two timers, the *soft limit timer* and the *hard limit timer*
+    (configured by the respective limit attributes). When the class is
+    instantiated, the timers are reset to zero (*but* they start running
+    immediately!).
+
+    When a timer exceeds its respective limit, its corresponding signal is
+    emitted. The signal is not re-emitted until the next call of
+    :meth:`notfiy_received`.
+
+    When :meth:`notify_received` is called, the timers are reset to zero.
+
+    This allows for the following features:
+
+    - Keep a stream alive on a high-latency link as long as data is pouring in.
+
+      This is very useful on saturated (mobile) links. Imagine firing a MAM
+      query and a bunch of avatar requests after connecting. With naive ping
+      logic, this would easily cause the stream to be considered dead because
+      the round-trip time is extremely high.
+
+      However, with this logic, as long as data is pouring in, the stream is
+      considered alive.
+
+    - When using the soft limit to trigger a ping and a reasonable difference
+      between the soft and the hard limit timeout, this logic gracefully reverts
+      to classic pinging when no traffic is seen on the stream.
+
+    - If the peer is pinging us in an interval which works for us (i.e. is less
+      than the soft limit), we don’t need to ping the peer; no extra logic
+      required.
+
+    This mechanism is used by :class:`aioxmpp.protocol.XMLStream`.
+
+    .. signal:: on_deadtime_soft_limit_tripped()
+
+        Emits when the :attr:`deadtime_soft_limit` expires.
+
+    .. signal:: on_deadtime_hard_limit_tripped()
+
+        Emits when the :attr:`deadtime_hard_limit` expires.
+
+    .. automethod:: notify_received
+
+    .. autoattribute:: deadtime_soft_limit
+        :annotation: = None
+
+    .. autoattribute:: deadtime_hard_limit
+        :annotation: = None
+
+    """
+
+    on_deadtime_soft_limit_tripped = aioxmpp.callbacks.Signal()
+    on_deadtime_hard_limit_tripped = aioxmpp.callbacks.Signal()
+
+    def __init__(self, loop):
+        super().__init__()
+        self._loop = loop
+        self._soft_limit = None
+        self._soft_limit_timer = None
+        self._soft_limit_tripped = False
+        self._hard_limit = None
+        self._hard_limit_timer = None
+        self._hard_limit_tripped = False
+        self._reset_trips()
+
+    def _trip_soft_limit(self):
+        if self._soft_limit_tripped:
+            return
+        self._soft_limit_tripped = True
+        self.on_deadtime_soft_limit_tripped()
+
+    def _trip_hard_limit(self):
+        if self._hard_limit_tripped:
+            return
+        self._hard_limit_tripped = True
+        self.on_deadtime_hard_limit_tripped()
+
+    def _retrigger_timers(self):
+        now = time.monotonic()
+
+        if self._soft_limit_timer is not None:
+            self._soft_limit_timer.cancel()
+            self._soft_limit_timer = None
+
+        if self._soft_limit is not None:
+            self._soft_limit_timer = self._loop.call_later(
+                self._soft_limit.total_seconds() - (now - self._last_rx),
+                self._trip_soft_limit
+            )
+
+        if self._hard_limit_timer is not None:
+            self._hard_limit_timer.cancel()
+            self._hard_limit_timer = None
+
+        if self._hard_limit is not None:
+            self._hard_limit_timer = self._loop.call_later(
+                self._hard_limit.total_seconds() - (now - self._last_rx),
+                self._trip_hard_limit
+            )
+
+    def _reset_trips(self):
+        self._soft_limit_tripped = False
+        self._hard_limit_tripped = False
+        self._last_rx = time.monotonic()
+
+    def notify_received(self):
+        """
+        Inform the aliveness check that something was received.
+
+        Resets the internal soft/hard limit timers.
+        """
+        self._reset_trips()
+        self._retrigger_timers()
+
+    @property
+    def deadtime_soft_limit(self):
+        """
+        Soft limit for the timespan in which no data is received in the stream.
+
+        When the last data reception was longer than this limit ago,
+        :meth:`on_deadtime_soft_limit_tripped` emits once.
+
+        Changing this makes the monitor re-check its limits immidately. Setting
+        this to :data:`None` disables the soft limit check.
+
+        Note that setting this to a value greater than
+        :attr:`deadtime_hard_limit` means that the hard limit will fire first.
+        """
+        return self._soft_limit
+
+    @deadtime_soft_limit.setter
+    def deadtime_soft_limit(self, value):
+        if self._soft_limit_timer is not None:
+            self._soft_limit_timer.cancel()
+        self._soft_limit = value
+        self._retrigger_timers()
+
+    @property
+    def deadtime_hard_limit(self):
+        """
+        Hard limit for the timespan in which no data is received in the stream.
+
+        When the last data reception was longer than this limit ago,
+        :meth:`on_deadtime_hard_limit_tripped` emits once.
+
+        Changing this makes the monitor re-check its limits immidately. Setting
+        this to :data:`None` disables the hard limit check.
+
+        Note that setting this to a value less than
+        :attr:`deadtime_soft_limit` means that the hard limit will fire first.
+        """
+        return self._hard_limit
+
+    @deadtime_hard_limit.setter
+    def deadtime_hard_limit(self, value):
+        if self._hard_limit_timer is not None:
+            self._hard_limit_timer.cancel()
+        self._hard_limit = value
+        self._retrigger_timers()

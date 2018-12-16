@@ -3523,6 +3523,48 @@ class TestStanzaStream(StanzaStreamTestBase):
 
             listener.error(exc)
 
+    def test_send_unregisters_iq_response_handler_on_cancel(self):
+        iq = make_test_iq()
+        exc = Exception()
+
+        stanza_fut = asyncio.Future()
+        stanza_fut.set_result(None)
+
+        base = unittest.mock.Mock()
+        base._enqueue.return_value = stanza_fut
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(unittest.mock.patch.object(
+                self.stream,
+                "_enqueue",
+                new=base._enqueue
+            ))
+
+            stack.enter_context(unittest.mock.patch.object(
+                self.stream,
+                "_iq_response_map",
+                new=base.iq_response_map,
+            ))
+
+            task = asyncio.ensure_future(self.stream._send_immediately(iq))
+            run_coroutine(asyncio.sleep(0.01))
+
+            self.assertFalse(task.done())
+            base._enqueue.assert_called_with(unittest.mock.ANY)
+            base.iq_response_map.add_listener.assert_called_once_with(
+                (iq.to, iq.id_),
+                unittest.mock.ANY,
+            )
+
+            _, (_, listener), _ = \
+                base.iq_response_map.add_listener.mock_calls[0]
+
+            task.cancel()
+
+            with self.assertRaises(asyncio.CancelledError):
+                run_coroutine(task)
+
+            listener.error(exc)
+
     @unittest.skipUnless(CAN_AWAIT_STANZA_TOKEN,
                          "requires Python 3.5+")
     def test_handle_non_connection_exception_from_send_xso(self):
