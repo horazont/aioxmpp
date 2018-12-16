@@ -158,19 +158,6 @@ listen:
   ## -
   ##   port: 4560
   ##   module: ejabberd_xmlrpc
-  -
-    port: 5280
-    module: ejabberd_http
-    ## request_handlers:
-    ##   "/pub/archive": mod_http_fileserver
-    web_admin: true
-    http_poll: true
-    http_bind: true
-    ## register: true
-    captcha: true
-    request_handlers:
-      "/oauth": ejabberd_oauth
-      "/api": mod_http_api
 
 # We can use API from local machine to pass ejabberd commands
 api_permissions:
@@ -570,9 +557,6 @@ modules:
   mod_blocking: {} # requires mod_privacy
   mod_caps: {}
   mod_carboncopy: {}
-  mod_client_state:
-    drop_chat_states: true
-    queue_presence: false
   mod_configure: {} # requires mod_adhoc
   mod_disco: {}
   ## mod_echo: {}
