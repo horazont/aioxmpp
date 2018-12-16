@@ -2189,11 +2189,11 @@ class TestXSO(XMLTestCase):
     def test_init_takes_no_arguments(self):
         with self.assertRaisesRegex(
                 TypeError,
-                "takes no parameters"):
+                r"takes no (parameters|arguments)"):
             xso.XSO("foo")
         with self.assertRaisesRegex(
                 TypeError,
-                "takes no parameters"):
+                r"takes no (parameters|arguments)"):
             xso.XSO(bar="foo")
 
     def test_init_forwards_to_base_class(self):
