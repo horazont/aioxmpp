@@ -1,7 +1,8 @@
 #!/bin/bash -x
 set -euo pipefail
+sudo apt build-dep prosody
 pip install hererocks
-hererocks lua_install -r^ --lua=5.1
+hererocks lua_install -r^ --lua=5.2
 luarocks install luaexpat
 luarocks install luafilesystem
 luarocks install luasocket
