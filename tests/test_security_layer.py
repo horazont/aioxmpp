@@ -819,24 +819,44 @@ class TestHookablePKIXCertificateVerifier(unittest.TestCase):
         for i in range(800//2):
             errno = random.randint(1, 100)
             depth = 0
-            self._test_hardwired(errno, depth)
+
+            with contextlib.ExitStack() as stack:
+                check_x509_hostname = stack.enter_context(unittest.mock.patch(
+                    "aioxmpp.security_layer.check_x509_hostname"
+                ))
+                check_x509_hostname.return_value = True
+
+                self._test_hardwired(errno, depth)
 
         for i in range(200//2):
             errno = random.randint(1, 100)
             depth = random.randint(1, 10)
-            self._test_hardwired(errno, depth)
+
+            with contextlib.ExitStack() as stack:
+                check_x509_hostname = stack.enter_context(unittest.mock.patch(
+                    "aioxmpp.security_layer.check_x509_hostname"
+                ))
+                check_x509_hostname.return_value = True
+
+                self._test_hardwired(errno, depth)
 
     def test_verify_recorded_calls_quick_check_for_deferrable_error(self):
         for errno, errdepth in self.deferrable_errors:
             errdepth = errdepth if errdepth is not None else 1
             self.quick_check.return_value = True
 
-            result = self.verifier.verify_recorded(
-                self.x509,
-                {
-                    (self.x509_root, errno, errdepth)
-                }
-            )
+            with contextlib.ExitStack() as stack:
+                check_x509_hostname = stack.enter_context(unittest.mock.patch(
+                    "aioxmpp.security_layer.check_x509_hostname"
+                ))
+                check_x509_hostname.return_value = True
+
+                result = self.verifier.verify_recorded(
+                    self.x509,
+                    {
+                        (self.x509_root, errno, errdepth)
+                    }
+                )
 
             self.assertSequenceEqual(
                 [
@@ -855,12 +875,18 @@ class TestHookablePKIXCertificateVerifier(unittest.TestCase):
             errdepth = errdepth if errdepth is not None else 1
             self.quick_check.return_value = None
 
-            result = self.verifier.verify_recorded(
-                self.x509,
-                {
-                    (self.x509_root, errno, errdepth)
-                }
-            )
+            with contextlib.ExitStack() as stack:
+                check_x509_hostname = stack.enter_context(unittest.mock.patch(
+                    "aioxmpp.security_layer.check_x509_hostname"
+                ))
+                check_x509_hostname.return_value = True
+
+                result = self.verifier.verify_recorded(
+                    self.x509,
+                    {
+                        (self.x509_root, errno, errdepth)
+                    }
+                )
 
             self.assertSequenceEqual(
                 [
@@ -882,12 +908,18 @@ class TestHookablePKIXCertificateVerifier(unittest.TestCase):
         for errno, errdepth in self.deferrable_errors:
             errdepth = errdepth if errdepth is not None else 1
 
-            result = verifier.verify_recorded(
-                self.x509,
-                {
-                    (self.x509_root, errno, errdepth)
-                }
-            )
+            with contextlib.ExitStack() as stack:
+                check_x509_hostname = stack.enter_context(unittest.mock.patch(
+                    "aioxmpp.security_layer.check_x509_hostname"
+                ))
+                check_x509_hostname.return_value = True
+
+                result = verifier.verify_recorded(
+                    self.x509,
+                    {
+                        (self.x509_root, errno, errdepth)
+                    }
+                )
 
             self.assertSequenceEqual(
                 [],
@@ -904,12 +936,18 @@ class TestHookablePKIXCertificateVerifier(unittest.TestCase):
             errdepth = errdepth if errdepth is not None else 1
             self.quick_check.return_value = False
 
-            result = self.verifier.verify_recorded(
-                self.x509,
-                {
-                    (self.x509_root, errno, errdepth)
-                }
-            )
+            with contextlib.ExitStack() as stack:
+                check_x509_hostname = stack.enter_context(unittest.mock.patch(
+                    "aioxmpp.security_layer.check_x509_hostname"
+                ))
+                check_x509_hostname.return_value = True
+
+                result = self.verifier.verify_recorded(
+                    self.x509,
+                    {
+                        (self.x509_root, errno, errdepth)
+                    }
+                )
 
             self.assertSequenceEqual(
                 [
