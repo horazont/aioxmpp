@@ -944,6 +944,7 @@ class StanzaStream:
                 response = request.make_reply(type_=structs.IQType.RESULT)
                 response.payload = result
         except Exception:
+            self._logger.exception("invalid payload for an IQ response")
             response = self._compose_undefined_condition(
                 request
             )
