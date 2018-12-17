@@ -566,6 +566,46 @@ class TestStanzaStream(StanzaStreamTestBase):
                         unittest.mock.sentinel.coro,
                     )
 
+    def test_run_iq_request_coro_with_invalid_result(self):
+        iq = make_test_iq()
+        iq.autoset_id()
+
+        response_payload, response_iq = None, None
+
+        @asyncio.coroutine
+        def handle_request(stanza):
+            nonlocal response_payload
+            response_payload = unittest.mock.sentinel.payload
+            return response_payload
+
+        self.stream.register_iq_request_handler(
+            structs.IQType.GET,
+            FancyTestIQ,
+            handle_request)
+        self.stream.start(self.xmlstream)
+
+        with unittest.mock.patch.object(self.stream._logger, "exception") as e:
+            self.stream.recv_stanza(iq)
+
+            response_iq = run_coroutine(self.sent_stanzas.get())
+        self.assertEqual(iq.to, response_iq.from_)
+        self.assertEqual(iq.from_, response_iq.to)
+        self.assertEqual(iq.id_, response_iq.id_)
+        self.assertEqual(structs.IQType.ERROR, response_iq.type_)
+        self.assertEqual(
+            errors.ErrorCondition.UNDEFINED_CONDITION,
+            response_iq.error.condition
+        )
+        self.assertEqual(
+            structs.ErrorType.CANCEL,
+            response_iq.error.type_
+        )
+
+        self.assertEqual(len(e.mock_calls), 1)
+        # self.assertIs(response_payload, response_iq.error.)
+
+        self.stream.stop()
+
     def test_run_iq_request_coro_with_result(self):
         iq = make_test_iq()
         iq.autoset_id()
@@ -630,6 +670,63 @@ class TestStanzaStream(StanzaStreamTestBase):
         self.assertEqual(iq.id_, response_iq.id_)
         self.assertEqual(structs.IQType.RESULT, response_iq.type_)
         self.assertIs(response_payload, response_iq.payload)
+
+        self.assertEqual(len(done_send_reply.mock_calls), 0)
+        self.assertEqual(len(self.stream._iq_request_tasks), 0)
+        self.stream.stop()
+
+    def test_run_iq_request_coro_with_send_reply_invalid(self):
+        iq = make_test_iq()
+        iq.autoset_id()
+
+        response_payload, response_iq = None, None
+
+        @asyncio.coroutine
+        def handle_request(stanza, send_result):
+            nonlocal response_payload
+            response_payload = unittest.mock.sentinel.fnord
+            send_result(response_payload)
+
+        self.stream.register_iq_request_handler(
+            structs.IQType.GET,
+            FancyTestIQ,
+            handle_request,
+            with_send_reply=True,
+        )
+
+        with contextlib.ExitStack() as stack:
+            done_send_reply = stack.enter_context(
+                unittest.mock.patch.object(
+                    self.stream,
+                    "_iq_request_coro_done_send_reply",
+                )
+            )
+            logger_exc = stack.enter_context(
+                unittest.mock.patch.object(
+                    self.stream._logger,
+                    "exception"
+                )
+            )
+
+            self.stream.start(self.xmlstream)
+            self.stream.recv_stanza(iq)
+
+            response_iq = run_coroutine(self.sent_stanzas.get())
+        self.assertEqual(iq.to, response_iq.from_)
+        self.assertEqual(iq.from_, response_iq.to)
+        self.assertEqual(iq.id_, response_iq.id_)
+
+        self.assertEqual(structs.IQType.ERROR, response_iq.type_)
+        self.assertEqual(
+            errors.ErrorCondition.UNDEFINED_CONDITION,
+            response_iq.error.condition
+        )
+        self.assertEqual(
+            structs.ErrorType.CANCEL,
+            response_iq.error.type_
+        )
+
+        self.assertEqual(len(logger_exc.mock_calls), 1)
 
         self.assertEqual(len(done_send_reply.mock_calls), 0)
         self.assertEqual(len(self.stream._iq_request_tasks), 0)
