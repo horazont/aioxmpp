@@ -704,7 +704,7 @@ class Testmessage_handler(unittest.TestCase):
         def cb():
             pass
 
-        cb._aioxmpp_service_handlers = {"foo"}
+        cb._aioxmpp_service_handlers = {"foo": {}}
 
         self.decorator(cb)
 
@@ -813,7 +813,7 @@ class Testpresence_handler(unittest.TestCase):
         def cb():
             pass
 
-        cb._aioxmpp_service_handlers = {"foo"}
+        cb._aioxmpp_service_handlers = {"foo": {}}
 
         self.decorator(cb)
 

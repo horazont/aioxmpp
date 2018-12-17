@@ -671,12 +671,14 @@ class TestDiscoServer(unittest.TestCase):
                 unittest.mock.call.stream.register_iq_request_handler(
                     structs.IQType.GET,
                     disco_xso.InfoQuery,
-                    s.handle_info_request
+                    s.handle_info_request,
+                    with_send_reply=False,
                 ),
                 unittest.mock.call.stream.register_iq_request_handler(
                     structs.IQType.GET,
                     disco_xso.ItemsQuery,
-                    s.handle_items_request
+                    s.handle_items_request,
+                    with_send_reply=False,
                 )
             ],
             cc.mock_calls
