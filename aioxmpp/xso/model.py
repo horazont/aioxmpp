@@ -1479,10 +1479,23 @@ class ChildTextMap(ChildValueMap):
     convert the :class:`AbstractTextChild` subclass `xso_type` to and from
     a language-text mapping.
 
+    If instead of an :class:`XSO` a tag is passed (that is, a valid
+    argument to :func:`normalize_tag`) an :class:`AbstractTextChild`
+    instance is created on demand.
+
     For an example, see :class:`.Message`.
     """
 
     def __init__(self, xso_type):
+        if not isinstance(xso_type, XMLStreamClass):
+            tag = normalize_tag(xso_type)
+
+            xso_type = type(
+                "TextChild" + tag[1],
+                (AbstractTextChild,),
+                {"TAG": tag},
+            )
+
         super().__init__(
             xso_types.TextChildMap(xso_type),
             mapping_type=structs.LanguageMap
@@ -2807,3 +2820,48 @@ class XSOEnumMixin:
         instances of their XSO classes) into XSOs.
         """
         return self.xso_class()
+
+
+class AbstractTextChild(XSO):
+    """
+    One of the recurring patterns when using :mod:`xso` is the use of a XSO
+    subclass to represent an XML node which has only character data and an
+    ``xml:lang`` attribute.
+
+    The `text` and `lang` arguments to the constructor can be used to
+    initialize the attributes.
+
+    This class provides exactly that. It inherits from :class:`XSO`.
+
+    .. attribute:: lang
+
+       The ``xml:lang`` of the node, as :class:`~.structs.LanguageTag`.
+
+    .. attribute:: text
+
+       The textual content of the node (XML character data).
+
+    Example use as base class::
+
+      class Subject(xso.AbstractTextChild):
+          TAG = (namespaces.client, "subject")
+
+    The full example can also be found in the source code of
+    :class:`.stanza.Subject`.
+
+    """
+
+    lang = LangAttr()
+    text = Text(default=None)
+
+    def __init__(self, text=None, lang=None):
+        super().__init__()
+        self.text = text
+        self.lang = lang
+
+    def __eq__(self, other):
+        try:
+            other_key = (other.lang, other.text)
+        except AttributeError:
+            return NotImplemented
+        return (self.lang, self.text) == other_key

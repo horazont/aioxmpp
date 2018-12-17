@@ -22,6 +22,7 @@
 import unittest
 
 import aioxmpp.structs as structs
+import aioxmpp.xso.model as xso_model
 import aioxmpp.xso as xso
 
 
@@ -81,72 +82,6 @@ class Testnormalize_tag(unittest.TestCase):
             xso.normalize_tag((1, 2))
 
 
-class TestAbstractTextChild(unittest.TestCase):
-    def test_is_xso(self):
-        self.assertTrue(issubclass(
-            xso.AbstractTextChild,
-            xso.XSO
-        ))
-
-    def test_has_no_tag(self):
-        self.assertFalse(hasattr(xso.AbstractTextChild, "TAG"))
-
-    def test_lang_attr(self):
-        self.assertIsInstance(
-            xso.AbstractTextChild.lang.xq_descriptor,
-            xso.LangAttr
-        )
-
-    def test_text_attr(self):
-        self.assertIsInstance(
-            xso.AbstractTextChild.text.xq_descriptor,
-            xso.Text
-        )
-        self.assertIsNone(
-            xso.AbstractTextChild.text.default
-        )
-
-    def test_init_default(self):
-        atc = xso.AbstractTextChild()
-        self.assertIsNone(atc.lang)
-        self.assertFalse(atc.text)
-
-    def test_init_args(self):
-        atc = xso.AbstractTextChild(
-            "foo",
-            lang=structs.LanguageTag.fromstr("de-DE"))
-        self.assertEqual(atc.text, "foo")
-        self.assertEqual(atc.lang, structs.LanguageTag.fromstr("de-DE"))
-
-    def test_equality(self):
-        atc1 = xso.AbstractTextChild()
-        atc2 = xso.AbstractTextChild()
-
-        self.assertTrue(atc1 == atc2)
-        self.assertFalse(atc1 != atc2)
-
-        atc1.text = "foo"
-
-        self.assertFalse(atc1 == atc2)
-        self.assertTrue(atc1 != atc2)
-
-        atc2.text = "foo"
-        atc2.lang = structs.LanguageTag.fromstr("de-DE")
-
-        self.assertFalse(atc1 == atc2)
-        self.assertTrue(atc1 != atc2)
-
-        atc1.lang = atc2.lang
-
-        self.assertTrue(atc1 == atc2)
-        self.assertFalse(atc1 != atc2)
-
-    def test_equality_handles_incorrect_peer_type_gracefully(self):
-        atc = xso.AbstractTextChild()
-        self.assertFalse(atc is None)
-        self.assertFalse(atc == "foo")
-
-
 class TestNO_DEFAULT(unittest.TestCase):
     def test_unequal_to_things(self):
         NO_DEFAULT = xso.NO_DEFAULT
@@ -183,3 +118,9 @@ class TestNO_DEFAULT(unittest.TestCase):
     def test___gt__raises(self):
         with self.assertRaises(TypeError):
             xso.NO_DEFAULT > xso.NO_DEFAULT
+
+
+class TestAbstractTextChild(unittest.TestCase):
+    def test_moved(self):
+        self.assertTrue(xso.AbstractTextChild,
+                        xso_model.AbstractTextChild)

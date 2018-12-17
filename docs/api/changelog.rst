@@ -52,6 +52,9 @@ Version 0.11
 
 * :mod:`aioxmpp.ibb` (:xep:`47`) Support for In-Band Bytestreams.
 
+* :class:`aioxmpp.xso.ChildTextMap` can now also be constructed from a
+  tag, an appropriate XSO is then constructed on the fly.
+
 .. _api-changelog-0.10:
 
 Version 0.10
