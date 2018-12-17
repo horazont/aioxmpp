@@ -829,6 +829,7 @@ class Test_apply_iq_handler(unittest.TestCase):
                 unittest.mock.sentinel.func,
                 unittest.mock.sentinel.type_,
                 unittest.mock.sentinel.payload_cls,
+                with_send_reply=unittest.mock.sentinel.with_send_reply,
             )
 
         iq_handler.assert_called_with(
@@ -836,6 +837,7 @@ class Test_apply_iq_handler(unittest.TestCase):
             unittest.mock.sentinel.type_,
             unittest.mock.sentinel.payload_cls,
             unittest.mock.sentinel.func,
+            with_send_reply=unittest.mock.sentinel.with_send_reply,
         )
 
 

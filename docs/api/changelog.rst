@@ -52,6 +52,13 @@ Version 0.11
 
 * :mod:`aioxmpp.ibb` (:xep:`47`) Support for In-Band Bytestreams.
 
+* :meth:`aioxmpp.stream.StanzaStream.register_iq_request_handler`
+  and :func:`aioxmpp.service.iq_handler` now
+  support a keyword argument `with_send_reply` which makes them pass
+  an additional argument to the handler, which is a function that can be
+  used to enqueue the reply to the IQ before the handler has returned.
+  This allows sequencing other actions after the reply has been sent.
+
 .. _api-changelog-0.10:
 
 Version 0.10

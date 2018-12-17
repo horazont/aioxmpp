@@ -919,8 +919,10 @@ def add_handler_spec(f, handler_spec, *, kwargs=None):
             "The additional keyword arguments to the handler are incompatible")
 
 
-def _apply_iq_handler(instance, stream, func, type_, payload_cls):
-    return aioxmpp.stream.iq_handler(stream, type_, payload_cls, func)
+def _apply_iq_handler(instance, stream, func, type_, payload_cls, *,
+                      with_send_reply=False):
+    return aioxmpp.stream.iq_handler(stream, type_, payload_cls, func,
+                                     with_send_reply=with_send_reply)
 
 
 def _apply_presence_handler(instance, stream, func, type_, from_):
@@ -1005,7 +1007,7 @@ def _apply_connect_attrsignal(instance, stream, func, descriptor, signal_name,
         return signal.context_connect(func, mode)
 
 
-def iq_handler(type_, payload_cls):
+def iq_handler(type_, payload_cls, *, with_send_reply=False):
     """
     Register the decorated function or coroutine function as IQ request
     handler.
@@ -1014,6 +1016,10 @@ def iq_handler(type_, payload_cls):
     :type type_: :class:`~.IQType`
     :param payload_cls: Payload XSO class to listen for
     :type payload_cls: :class:`~.XSO` subclass
+    :param with_send_reply: Whether to pass a function to send a reply
+       to the decorated callable as second argument.
+    :type with_send_reply: :class:`bool`
+
     :raises ValueError: if `payload_cls` is not a registered IQ payload
 
     If the decorated function is not a coroutine function, it must return an
@@ -1021,17 +1027,22 @@ def iq_handler(type_, payload_cls):
 
     .. seealso::
 
-        :meth:`~.StanzaStream.register_iq_request_handler`
-            for more details on the `type_` and `payload_cls` arguments, as well
-            as behaviour expected from the decorated function.
+        :meth:`~.StanzaStream.register_iq_request_handler` for more
+            details on the `type_`, `payload_cls` and
+            `with_send_reply` arguments, as well as behaviour expected
+            from the decorated function.
+
         :meth:`aioxmpp.IQ.as_payload_class`
             for a way to register a XSO as IQ payload
+
+    .. versionadded:: 0.11
+
+       The `with_send_reply` argument.
 
     .. versionchanged:: 0.10
 
         The decorator now checks if `payload_cls` is a valid, registered IQ
         payload and raises :class:`ValueError` if not.
-
     """
 
     if (not hasattr(payload_cls, "TAG") or
@@ -1050,8 +1061,9 @@ def iq_handler(type_, payload_cls):
             f,
             HandlerSpec(
                 (_apply_iq_handler, (type_, payload_cls)),
-                require_deps=()
-            )
+                require_deps=(),
+            ),
+            kwargs=dict(with_send_reply=with_send_reply),
         )
         return f
     return decorator
@@ -1402,10 +1414,13 @@ def depfilter(class_, filter_name):
     return decorator
 
 
-def is_iq_handler(type_, payload_cls, coro):
+def is_iq_handler(type_, payload_cls, coro, kwargs=None):
     """
     Return true if `coro` has been decorated with :func:`iq_handler` for the
     given `type_` and `payload_cls`.
+
+    If `kwargs` is not :data:`None` check whether the additional
+    keyword args are compatible.
     """
 
     try:
@@ -1413,9 +1428,18 @@ def is_iq_handler(type_, payload_cls, coro):
     except AttributeError:
         return False
 
-    return HandlerSpec(
+    hs = HandlerSpec(
         (_apply_iq_handler, (type_, payload_cls)),
-    ) in handlers
+    )
+
+    if kwargs is not None:
+        kwargs = _reduce_handler_kwargs(hs, kwargs)
+        try:
+            return handlers[hs] == kwargs
+        except KeyError:
+            return False
+    else:
+        return hs in handlers
 
 
 def is_message_handler(type_, from_, cb):
@@ -1448,9 +1472,11 @@ def is_inbound_message_filter(cb):
     except AttributeError:
         return False
 
-    return HandlerSpec(
+    hs = HandlerSpec(
         (_apply_inbound_message_filter, ())
-    ) in handlers
+    )
+
+    return hs in handlers
 
 
 def is_inbound_presence_filter(cb):

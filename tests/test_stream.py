@@ -594,6 +594,238 @@ class TestStanzaStream(StanzaStreamTestBase):
 
         self.stream.stop()
 
+    def test_run_iq_request_coro_with_send_reply(self):
+        iq = make_test_iq()
+        iq.autoset_id()
+
+        response_payload, response_iq = None, None
+
+        @asyncio.coroutine
+        def handle_request(stanza, send_result):
+            nonlocal response_payload
+            response_payload = FancyTestIQ()
+            send_result(response_payload)
+
+        self.stream.register_iq_request_handler(
+            structs.IQType.GET,
+            FancyTestIQ,
+            handle_request,
+            with_send_reply=True,
+        )
+
+        with contextlib.ExitStack() as stack:
+            done_send_reply = stack.enter_context(
+                unittest.mock.patch.object(
+                    self.stream,
+                    "_iq_request_coro_done_send_reply",
+                )
+            )
+
+            self.stream.start(self.xmlstream)
+            self.stream.recv_stanza(iq)
+
+            response_iq = run_coroutine(self.sent_stanzas.get())
+        self.assertEqual(iq.to, response_iq.from_)
+        self.assertEqual(iq.from_, response_iq.to)
+        self.assertEqual(iq.id_, response_iq.id_)
+        self.assertEqual(structs.IQType.RESULT, response_iq.type_)
+        self.assertIs(response_payload, response_iq.payload)
+
+        self.assertEqual(len(done_send_reply.mock_calls), 0)
+        self.assertEqual(len(self.stream._iq_request_tasks), 0)
+        self.stream.stop()
+
+    def test_run_iq_request_coro_with_send_reply_error(self):
+        iq = make_test_iq()
+        iq.autoset_id()
+
+        response_got = None
+
+        @asyncio.coroutine
+        def handle_request(stanza, send_reply):
+            send_reply(
+                errors.XMPPWaitError(
+                    errors.ErrorCondition.GONE,
+                    text="foobarbaz",
+                )
+            )
+
+        self.stream.register_iq_request_handler(
+            structs.IQType.GET,
+            FancyTestIQ,
+            handle_request,
+            with_send_reply=True)
+        self.stream.start(self.xmlstream)
+        self.stream.recv_stanza(iq)
+
+        with contextlib.ExitStack() as stack:
+            done_send_reply = stack.enter_context(
+                unittest.mock.patch.object(
+                    self.stream,
+                    "_iq_request_coro_done_send_reply",
+                )
+            )
+            log_exception = stack.enter_context(
+                unittest.mock.patch.object(
+                    self.stream._logger,
+                    "exception",
+                )
+            )
+
+
+            response_got = run_coroutine(self.sent_stanzas.get())
+        self.assertEqual(
+            structs.IQType.ERROR,
+            response_got.type_
+        )
+        self.assertEqual(
+            errors.ErrorCondition.GONE,
+            response_got.error.condition
+        )
+        self.assertEqual(
+            "foobarbaz",
+            response_got.error.text
+        )
+        self.assertEqual(len(done_send_reply.mock_calls), 0)
+        self.assertEqual(len(log_exception.mock_calls), 0)
+        self.assertEqual(len(self.stream._iq_request_tasks), 0)
+        self.stream.stop()
+
+        self.stream.stop()
+
+    def test_run_iq_request_coro_with_send_reply_call_after_done(self):
+        iq = make_test_iq()
+        iq.autoset_id()
+
+        extracted_send_result = None
+
+        @asyncio.coroutine
+        def handle_request(stanza, send_result):
+            nonlocal extracted_send_result
+            extracted_send_result = send_result
+
+
+        self.stream.register_iq_request_handler(
+            structs.IQType.GET,
+            FancyTestIQ,
+            handle_request,
+            with_send_reply=True,
+        )
+
+        self.stream.start(self.xmlstream)
+        self.stream.recv_stanza(iq)
+
+        response_iq = run_coroutine(self.sent_stanzas.get())
+        self.assertEqual(iq.to, response_iq.from_)
+        self.assertEqual(iq.from_, response_iq.to)
+        self.assertEqual(iq.id_, response_iq.id_)
+        self.assertEqual(structs.IQType.RESULT, response_iq.type_)
+        self.assertIs(response_iq.payload, None)
+
+        with self.assertRaisesRegex(RuntimeError,
+                "^send_reply called after the handler is done$"):
+            extracted_send_result()
+
+        self.stream.stop()
+
+
+    def test_run_iq_request_coro_with_send_reply_twice(self):
+        iq = make_test_iq()
+        iq.autoset_id()
+
+        ok = 0
+
+        @asyncio.coroutine
+        def handle_request(stanza, send_result):
+            nonlocal ok
+            send_result()
+            try:
+                send_result()
+            except RuntimeError:
+                ok += 1
+
+
+        self.stream.register_iq_request_handler(
+            structs.IQType.GET,
+            FancyTestIQ,
+            handle_request,
+            with_send_reply=True,
+        )
+
+        self.stream.start(self.xmlstream)
+        self.stream.recv_stanza(iq)
+
+        response_iq = run_coroutine(self.sent_stanzas.get())
+        self.assertEqual(iq.to, response_iq.from_)
+        self.assertEqual(iq.from_, response_iq.to)
+        self.assertEqual(iq.id_, response_iq.id_)
+        self.assertEqual(structs.IQType.RESULT, response_iq.type_)
+        self.assertIs(response_iq.payload, None)
+
+        self.assertEqual(ok, 1)
+
+        self.stream.stop()
+
+
+    def test_run_iq_request_coro_with_send_reply_done_check(self):
+        iq = make_test_iq()
+        iq.autoset_id()
+
+        response_got = None
+
+        @asyncio.coroutine
+        def handle_request(stanza, send_reply):
+            send_reply(
+                errors.XMPPWaitError(
+                    errors.ErrorCondition.GONE,
+                    text="foobarbaz",
+                )
+            )
+            raise Exception
+
+        self.stream.register_iq_request_handler(
+            structs.IQType.GET,
+            FancyTestIQ,
+            handle_request,
+            with_send_reply=True)
+        self.stream.start(self.xmlstream)
+        self.stream.recv_stanza(iq)
+
+        with contextlib.ExitStack() as stack:
+            done_send_reply = stack.enter_context(
+                unittest.mock.patch.object(
+                    self.stream,
+                    "_iq_request_coro_done_send_reply",
+                )
+            )
+            log_exception = stack.enter_context(
+                unittest.mock.patch.object(
+                    self.stream._logger,
+                    "exception",
+                )
+            )
+
+            response_got = run_coroutine(self.sent_stanzas.get())
+        self.assertEqual(
+            structs.IQType.ERROR,
+            response_got.type_
+        )
+        self.assertEqual(
+            errors.ErrorCondition.GONE,
+            response_got.error.condition
+        )
+        self.assertEqual(
+            "foobarbaz",
+            response_got.error.text
+        )
+        self.assertEqual(len(done_send_reply.mock_calls), 0)
+        self.assertEqual(len(log_exception.mock_calls), 1)
+        self.assertEqual(len(self.stream._iq_request_tasks), 0)
+        self.stream.stop()
+
+        self.stream.stop()
+
+
     def test_run_iq_request_func_with_awaitable_result(self):
         iq = make_test_iq()
         iq.autoset_id()
@@ -5725,6 +5957,7 @@ class Testiq_handler(unittest.TestCase):
             unittest.mock.sentinel.iqtype,
             unittest.mock.sentinel.payload,
             unittest.mock.sentinel.coro,
+            with_send_reply=unittest.mock.sentinel.with_send_reply,
         )
 
     def tearDown(self):
@@ -5746,6 +5979,7 @@ class Testiq_handler(unittest.TestCase):
             unittest.mock.sentinel.iqtype,
             unittest.mock.sentinel.payload,
             unittest.mock.sentinel.coro,
+            with_send_reply=unittest.mock.sentinel.with_send_reply
         )
 
     def test_exit_unregisters_coroutine(self):
