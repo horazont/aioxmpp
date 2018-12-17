@@ -1453,7 +1453,8 @@ class StanzaStream:
 
             Using a non-coroutine function for `cb` will generally lead to
             less readable code. For the sake of readability, it is recommended
-            prefer coroutine functions.
+            to prefer coroutine functions when strong ordering guarantees are
+            not needed.
 
         .. versionadded:: 0.11
 
@@ -1463,6 +1464,10 @@ class StanzaStream:
             response to the IQ request and prevents that an automatic
             response is sent. If `result` is an instance of
             :class:`~aioxmpp.XMPPError` an error result is generated.
+
+            This is useful when the handler function needs to execute
+            actions which happen after the IQ result has been sent,
+            for example, sending other stanzas.
 
         .. versionchanged:: 0.10
 

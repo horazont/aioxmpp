@@ -886,7 +886,7 @@ def add_handler_spec(f, handler_spec, *, kwargs=None):
     :type kwargs: :class:`dict`
 
     :raises ValueError: if the handler was registered with
-       different `kwarg`s before
+       different `kwargs` before
 
     This uses a private attribute, whose exact name is an implementation
     detail. The `handler_spec` is stored in a :class:`dict` bound to the
