@@ -729,7 +729,7 @@ class Service(metaclass=Meta):
                         self.__client.stream,
                         obj.__get__(self, type(self)),
                         *additional_args,
-                        **kwargs,
+                        **kwargs
                     )
                 )
 
