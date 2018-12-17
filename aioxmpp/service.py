@@ -210,7 +210,7 @@ import aioxmpp.stream
 
 def automake_magic_attr(obj):
     obj._aioxmpp_service_handlers = getattr(
-        obj, "_aioxmpp_service_handlers", set()
+        obj, "_aioxmpp_service_handlers", dict()
     )
     return obj._aioxmpp_service_handlers
 
@@ -587,7 +587,7 @@ class Meta(abc.ABCMeta):
                     key = next(iter(conflicting))
                     obj = next(iter(
                         obj
-                        for obj_key, obj in SERVICE_HANDLERS
+                        for obj_key, obj, _ in SERVICE_HANDLERS
                         if obj_key == key
                     ))
 
@@ -602,7 +602,7 @@ class Meta(abc.ABCMeta):
 
                 existing_handlers |= unique_handlers
 
-                for spec in new_handlers:
+                for spec, kwargs in new_handlers.items():
                     missing = spec.require_deps - namespace["ORDER_AFTER"]
                     if missing:
                         raise TypeError(
@@ -613,7 +613,7 @@ class Meta(abc.ABCMeta):
                         )
 
                     SERVICE_HANDLERS.append(
-                        (spec.key, attr_value)
+                        (spec.key, attr_value, kwargs)
                     )
 
             elif isinstance(attr_value, Descriptor):
@@ -722,13 +722,14 @@ class Service(metaclass=Meta):
             if isinstance(item, Descriptor):
                 item.add_to_stack(self, self.__context)
             else:
-                (handler_cm, additional_args), obj = item
+                (handler_cm, additional_args), obj, kwargs = item
                 self.__context.enter_context(
                     handler_cm(
                         self,
                         self.__client.stream,
                         obj.__get__(self, type(self)),
-                        *additional_args
+                        *additional_args,
+                        **kwargs,
                     )
                 )
 
@@ -854,25 +855,68 @@ class HandlerSpec(collections.namedtuple(
     If at class definition time any of the dependent classes in `require_deps`
     are not declared using the order attributes (see :class:`Meta`), a
     :class:`TypeError` is raised.
+
+    There is a property to extract the function directly:
+
+    .. autoproperty:: func
     """
 
     def __new__(cls, key, is_unique=True, require_deps=()):
         return super().__new__(cls, is_unique, key, frozenset(require_deps))
 
+    @property
+    def func(self):
+        """
+        The factory of the context manager for this handler.
 
-def add_handler_spec(f, handler_spec):
+        .. versionadded:: 0.11
+        """
+        return self.key[0]
+
+
+def _reduce_handler_kwargs(handler_spec, kwargs):
+    if kwargs is None:
+        kwargs = {}
+    else:
+        kwdefaults = handler_spec.func.__kwdefaults__ or {}
+        for key, value in list(kwargs.items()):
+            if key not in kwdefaults:
+                raise ValueError("invalid keyword argument")
+            if value == kwdefaults[key]:
+                del kwargs[key]
+    return kwargs
+
+
+def add_handler_spec(f, handler_spec, *, kwargs=None):
     """
     Attach a handler specification (see :class:`HandlerSpec`) to a function.
 
     :param f: Function to attach the handler specification to.
     :param handler_spec: Handler specification to attach to the function.
     :type handler_spec: :class:`HandlerSpec`
+    :param kwargs: additional keyword arguments for the apply function
+       carried in the handler spec.
+    :type kwargs: :class:`dict`
+
+    :raises ValueError: if the handler was registered with
+       incompatible keyword arguments before
+    :raises ValueError: if the handler function does not take the
+       specified keyword arguments
 
     This uses a private attribute, whose exact name is an implementation
-    detail. The `handler_spec` is stored in a :class:`set` bound to the
+    detail. The `handler_spec` is stored in a :class:`dict` bound to the
     attribute.
+
+    The additional `kwargs` arguments must be keyword-only arguments of
+    the function. These args are reduced: only non-default arguments are
+    passed on, this allows robust comparison of additional arguements for
+    the comptaibility checking.
     """
-    automake_magic_attr(f).add(handler_spec)
+    handler_dict = automake_magic_attr(f)
+    kwargs = _reduce_handler_kwargs(handler_spec, kwargs)
+    if kwargs != handler_dict.setdefault(handler_spec, kwargs):
+        raise ValueError(
+            "The additional keyword arguments to the handler are incompatible")
 
 
 def _apply_iq_handler(instance, stream, func, type_, payload_cls):
@@ -1420,9 +1464,11 @@ def is_inbound_presence_filter(cb):
     except AttributeError:
         return False
 
-    return HandlerSpec(
+    hs = HandlerSpec(
         (_apply_inbound_presence_filter, ())
-    ) in handlers
+    )
+
+    return hs in handlers
 
 
 def is_outbound_message_filter(cb):
@@ -1436,9 +1482,11 @@ def is_outbound_message_filter(cb):
     except AttributeError:
         return False
 
-    return HandlerSpec(
+    hs = HandlerSpec(
         (_apply_outbound_message_filter, ())
-    ) in handlers
+    )
+
+    return hs in handlers
 
 
 def is_outbound_presence_filter(cb):
@@ -1452,9 +1500,11 @@ def is_outbound_presence_filter(cb):
     except AttributeError:
         return False
 
-    return HandlerSpec(
+    hs = HandlerSpec(
         (_apply_outbound_presence_filter, ())
-    ) in handlers
+    )
+
+    return hs in handlers
 
 
 def is_depsignal_handler(class_, signal_name, cb, *, defer=False):
