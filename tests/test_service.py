@@ -2106,7 +2106,6 @@ class Testattrsignal(unittest.TestCase):
         signal = callbacks.Signal()
         sync = callbacks.SyncSignal()
 
-
     class Descriptor(service.Descriptor):
         def init_cm(self, instance):
             raise NotImplementedError
@@ -2348,7 +2347,7 @@ class Testis_iq_handler(unittest.TestCase):
                 (service._apply_iq_handler,
                  (unittest.mock.sentinel.type_,
                   unittest.mock.sentinel.payload_cls)),
-            ): {}
+            ): {"with_send_reply": False}
         }
 
         self.assertTrue(
@@ -2356,6 +2355,44 @@ class Testis_iq_handler(unittest.TestCase):
                 unittest.mock.sentinel.type_,
                 unittest.mock.sentinel.payload_cls,
                 m
+            )
+        )
+
+    def test_return_true_if_token_in_magic_attr_non_standard_args(self):
+        m = unittest.mock.Mock()
+        m._aioxmpp_service_handlers = {
+            service.HandlerSpec(
+                (service._apply_iq_handler,
+                 (unittest.mock.sentinel.type_,
+                  unittest.mock.sentinel.payload_cls)),
+            ): {"with_send_reply": True}
+        }
+
+        self.assertTrue(
+            service.is_iq_handler(
+                unittest.mock.sentinel.type_,
+                unittest.mock.sentinel.payload_cls,
+                m,
+                with_send_reply=True,
+            )
+        )
+
+    def test_return_false_if_token_in_magic_attr_wrong_args(self):
+        m = unittest.mock.Mock()
+        m._aioxmpp_service_handlers = {
+            service.HandlerSpec(
+                (service._apply_iq_handler,
+                 (unittest.mock.sentinel.type_,
+                  unittest.mock.sentinel.payload_cls)),
+            ): {"with_send_reply": False}
+        }
+
+        self.assertFalse(
+            service.is_iq_handler(
+                unittest.mock.sentinel.type_,
+                unittest.mock.sentinel.payload_cls,
+                m,
+                with_send_reply=True,
             )
         )
 
@@ -2670,7 +2707,6 @@ class Testis_depsignal_handler(unittest.TestCase):
                         new=unittest.mock.sentinel.async_with_loop)
                 )
 
-
                 obj._aioxmpp_service_handlers = {
                     spec: {},
                 }
@@ -2804,7 +2840,6 @@ class Testis_attrsignal_handler(unittest.TestCase):
     class DescriptorValue:
         signal = callbacks.Signal()
         sync = callbacks.SyncSignal()
-
 
     class Descriptor(service.Descriptor):
         def init_cm(self, instance):

@@ -927,13 +927,26 @@ class StanzaStream:
             self.on_stream_destroyed(exc)
             self._established = False
 
+    def _compose_undefined_condition(self, request):
+        response = request.make_reply(type_=structs.IQType.ERROR)
+        response.error = stanza.Error(
+            condition=errors.ErrorCondition.UNDEFINED_CONDITION,
+            type_=structs.ErrorType.CANCEL,
+        )
+        return response
+
     def _send_iq_reply(self, request, result):
-        if isinstance(result, errors.XMPPError):
-            response = request.make_reply(type_=structs.IQType.ERROR)
-            response.error = stanza.Error.from_exception(result)
-        else:
-            response = request.make_reply(type_=structs.IQType.RESULT)
-            response.payload = result
+        try:
+            if isinstance(result, errors.XMPPError):
+                response = request.make_reply(type_=structs.IQType.ERROR)
+                response.error = stanza.Error.from_exception(result)
+            else:
+                response = request.make_reply(type_=structs.IQType.RESULT)
+                response.payload = result
+        except Exception:
+            response = self._compose_undefined_condition(
+                request
+            )
         self._enqueue(response)
 
     def _iq_request_coro_done_remove_task(self, task):
@@ -952,11 +965,7 @@ class StanzaStream:
         except errors.XMPPError as err:
             self._send_iq_reply(request, err)
         except Exception:
-            response = request.make_reply(type_=structs.IQType.ERROR)
-            response.error = stanza.Error(
-                condition=errors.ErrorCondition.UNDEFINED_CONDITION,
-                type_=structs.ErrorType.CANCEL,
-            )
+            response = self._compose_undefined_condition(request)
             self._enqueue(response)
             self._logger.exception("IQ request coroutine failed")
         else:
@@ -2688,7 +2697,9 @@ def iq_handler(stream, type_, payload_cls, coro, *, with_send_reply=False):
 
     .. versionadded:: 0.11
 
-       The `with_send_reply` argument.
+       The `with_send_reply` argument. See
+       :meth:`aioxmpp.stream.StanzaStream.register_iq_request_handler` for
+       more detail.
 
     .. versionadded:: 0.8
     """

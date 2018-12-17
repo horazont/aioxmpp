@@ -672,7 +672,6 @@ class TestStanzaStream(StanzaStreamTestBase):
                 )
             )
 
-
             response_got = run_coroutine(self.sent_stanzas.get())
         self.assertEqual(
             structs.IQType.ERROR,
@@ -704,7 +703,6 @@ class TestStanzaStream(StanzaStreamTestBase):
             nonlocal extracted_send_result
             extracted_send_result = send_result
 
-
         self.stream.register_iq_request_handler(
             structs.IQType.GET,
             FancyTestIQ,
@@ -728,7 +726,6 @@ class TestStanzaStream(StanzaStreamTestBase):
 
         self.stream.stop()
 
-
     def test_run_iq_request_coro_with_send_reply_twice(self):
         iq = make_test_iq()
         iq.autoset_id()
@@ -743,7 +740,6 @@ class TestStanzaStream(StanzaStreamTestBase):
                 send_result()
             except RuntimeError:
                 ok += 1
-
 
         self.stream.register_iq_request_handler(
             structs.IQType.GET,
@@ -765,7 +761,6 @@ class TestStanzaStream(StanzaStreamTestBase):
         self.assertEqual(ok, 1)
 
         self.stream.stop()
-
 
     def test_run_iq_request_coro_with_send_reply_done_check(self):
         iq = make_test_iq()
@@ -824,7 +819,6 @@ class TestStanzaStream(StanzaStreamTestBase):
         self.stream.stop()
 
         self.stream.stop()
-
 
     def test_run_iq_request_func_with_awaitable_result(self):
         iq = make_test_iq()

@@ -210,7 +210,7 @@ import aioxmpp.stream
 
 def automake_magic_attr(obj):
     obj._aioxmpp_service_handlers = getattr(
-        obj, "_aioxmpp_service_handlers", dict()
+        obj, "_aioxmpp_service_handlers", {}
     )
     return obj._aioxmpp_service_handlers
 
@@ -874,19 +874,6 @@ class HandlerSpec(collections.namedtuple(
         return self.key[0]
 
 
-def _reduce_handler_kwargs(handler_spec, kwargs):
-    if kwargs is None:
-        kwargs = {}
-    else:
-        kwdefaults = handler_spec.func.__kwdefaults__ or {}
-        for key, value in list(kwargs.items()):
-            if key not in kwdefaults:
-                raise ValueError("invalid keyword argument")
-            if value == kwdefaults[key]:
-                del kwargs[key]
-    return kwargs
-
-
 def add_handler_spec(f, handler_spec, *, kwargs=None):
     """
     Attach a handler specification (see :class:`HandlerSpec`) to a function.
@@ -894,26 +881,27 @@ def add_handler_spec(f, handler_spec, *, kwargs=None):
     :param f: Function to attach the handler specification to.
     :param handler_spec: Handler specification to attach to the function.
     :type handler_spec: :class:`HandlerSpec`
-    :param kwargs: additional keyword arguments for the apply function
+    :param kwargs: additional keyword arguments passed to the function
        carried in the handler spec.
     :type kwargs: :class:`dict`
 
     :raises ValueError: if the handler was registered with
-       incompatible keyword arguments before
-    :raises ValueError: if the handler function does not take the
-       specified keyword arguments
+       different `kwarg`s before
 
     This uses a private attribute, whose exact name is an implementation
     detail. The `handler_spec` is stored in a :class:`dict` bound to the
     attribute.
 
-    The additional `kwargs` arguments must be keyword-only arguments of
-    the function. These args are reduced: only non-default arguments are
-    passed on, this allows robust comparison of additional arguements for
-    the comptaibility checking.
+    .. versionadded:: 0.11
+
+       The `kwargs` argument. If two handlers with the same spec, but
+       different arguments are registered for one function, an error
+       will be raised. So you should always include all possible
+       arguments, this is the responsibility of the calling decorator.
     """
     handler_dict = automake_magic_attr(f)
-    kwargs = _reduce_handler_kwargs(handler_spec, kwargs)
+    if kwargs is None:
+        kwargs = {}
     if kwargs != handler_dict.setdefault(handler_spec, kwargs):
         raise ValueError(
             "The additional keyword arguments to the handler are incompatible")
@@ -1414,13 +1402,10 @@ def depfilter(class_, filter_name):
     return decorator
 
 
-def is_iq_handler(type_, payload_cls, coro, kwargs=None):
+def is_iq_handler(type_, payload_cls, coro, *, with_send_reply=False):
     """
     Return true if `coro` has been decorated with :func:`iq_handler` for the
-    given `type_` and `payload_cls`.
-
-    If `kwargs` is not :data:`None` check whether the additional
-    keyword args are compatible.
+    given `type_` and `payload_cls` and the specified keyword arguments.
     """
 
     try:
@@ -1432,14 +1417,10 @@ def is_iq_handler(type_, payload_cls, coro, kwargs=None):
         (_apply_iq_handler, (type_, payload_cls)),
     )
 
-    if kwargs is not None:
-        kwargs = _reduce_handler_kwargs(hs, kwargs)
-        try:
-            return handlers[hs] == kwargs
-        except KeyError:
-            return False
-    else:
-        return hs in handlers
+    try:
+        return handlers[hs] == dict(with_send_reply=with_send_reply)
+    except KeyError:
+        return False
 
 
 def is_message_handler(type_, from_, cb):
