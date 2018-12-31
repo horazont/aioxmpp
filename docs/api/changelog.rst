@@ -608,6 +608,11 @@ Version 0.10.1
 
   Both are now treated like any other unparseable stanza.
 
+Version 0.10.2
+--------------
+
+* Make compatible with Python 3.7.
+
 .. _api-changelog-0.9:
 
 Version 0.9
