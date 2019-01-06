@@ -112,7 +112,13 @@ class MainWindow(Qt.QMainWindow):
         self.ui.disco_items.activated.connect(self.disco_item_activated)
 
         self.commands_model = DiscoItemsModel()
-        self.ui.commands.setModel(self.commands_model)
+        self.sorted_commands_model = Qt.QSortFilterProxyModel()
+        self.sorted_commands_model.setSourceModel(self.commands_model)
+        self.sorted_commands_model.setDynamicSortFilter(True)
+        self.sorted_commands_model.setSortRole(Qt.Qt.DisplayRole)
+        self.sorted_commands_model.setSortCaseSensitivity(Qt.Qt.CaseInsensitive)
+        self.sorted_commands_model.sort(0, Qt.Qt.AscendingOrder)
+        self.ui.commands.setModel(self.sorted_commands_model)
         self.ui.commands.activated.connect(self.command_activated)
 
         self._close_fut = close_fut
