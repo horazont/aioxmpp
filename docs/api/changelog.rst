@@ -52,6 +52,20 @@ Version 0.11
 
 * :mod:`aioxmpp.ibb` (:xep:`47`) Support for In-Band Bytestreams.
 
+* Fix incorrect error handling in :mod:`aioxmpp.xso` when a supressing
+  :meth:`aioxmpp.xso.XSO.xso_error_handler` is in use.
+
+  Under certain circumstances, it is possible that the handling of supressed
+  error causes another error later on because the parsing stack mis-counts the
+  depth in which it is inside the XML tree. This makes elements appear in the
+  wrong place, typically leading to further errors.
+
+  In the worst case, using a supressing
+  :meth:`~aioxmpp.xso.XSO.xso_error_handler` in specific circumstances can be
+  vulnerable to denial of service and data injection into the XML stream.
+
+  (A CVE will be allocated for this.)
+
 .. _api-changelog-0.10:
 
 Version 0.10
