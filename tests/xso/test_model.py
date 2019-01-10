@@ -4933,6 +4933,97 @@ class Testguard(unittest.TestCase):
             ctx.exception
         )
 
+    def test_eat_end_after_exception_on_start(self):
+        class FooException(Exception):
+            pass
+
+        def processor():
+            raise FooException()
+            yield
+
+        cmd_sequence = [
+            ("start", None, "foo", {}),
+            ("end",),
+        ]
+
+        dest = processor()
+        guard = xso_model.guard(dest, cmd_sequence[0][1:])
+        next(guard)
+
+        with self.assertRaises(FooException):
+            guard.send(cmd_sequence[1])
+
+    def test_handles_increasing_nesting_while_dropping(self):
+        cmd_sequence = [
+            ("start", None, "foo", {}),
+            ("start", None, "bar", {}),
+            ("text", "fnord"),
+            ("end",),
+            ("start", None, "bar", {}),
+            ("text", "fnord"),
+            ("end",),
+            ("end",),
+        ]
+
+        dest = unittest.mock.MagicMock()
+        guard = xso_model.guard(dest, cmd_sequence[0][1:])
+        next(guard)
+
+        for cmd in cmd_sequence[1:2]:
+            guard.send(cmd)
+
+        exc = ValueError()
+        dest.send.side_effect = exc
+
+        for cmd in cmd_sequence[2:-1]:
+            guard.send(cmd)
+
+        with self.assertRaises(ValueError) as ctx:
+            guard.send(cmd_sequence[-1])
+
+        self.assertSequenceEqual(
+            [
+                unittest.mock.call.__next__(),
+            ]+[
+                unittest.mock.call.send(cmd)
+                for cmd in cmd_sequence[1:3]
+            ],
+            dest.mock_calls
+        )
+
+        self.assertIs(
+            exc,
+            ctx.exception
+        )
+    def test_handles_increasing_nesting_while_after_error_during_start(self):
+        class FooException(Exception):
+            pass
+
+        def processor():
+            raise FooException()
+            yield
+
+        cmd_sequence = [
+            ("start", None, "foo", {}),
+            ("start", None, "bar", {}),
+            ("text", "fnord"),
+            ("end",),
+            ("start", None, "bar", {}),
+            ("text", "fnord"),
+            ("end",),
+            ("end",),
+        ]
+
+        dest = processor()
+        guard = xso_model.guard(dest, cmd_sequence[0][1:])
+        next(guard)
+
+        for cmd in cmd_sequence[1:-1]:
+            guard.send(cmd)
+
+        with self.assertRaises(FooException):
+            guard.send(cmd_sequence[-1])
+
 
 class TestSAXDriver(unittest.TestCase):
     def setUp(self):
