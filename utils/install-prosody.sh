@@ -11,12 +11,26 @@ luarocks install luafilesystem
 luarocks install luasocket
 luarocks install luasec
 luarocks install luabitop
-HG_FLAGS=
+subbranch=tip
 if [ "x$PROSODY_BRANCH" = 'x0.11' ]; then
-    HG_FLAGS="$HG_FLAGS -u 0.11"
+    subbranch="0.11"
 fi
-hg clone $HG_FLAGS https://hg.prosody.im/$PROSODY_BRANCH/ prosody
-hg clone https://hg.prosody.im/prosody-modules/ prosody-modules
+
+function fake_clone() {
+    url="$1"
+    branch="$2"
+    directory="$3"
+
+    mkdir "$directory"
+    pushd "$directory"
+    wget -Oball.tar.gz "$url/archive/$branch.tar.gz"
+    tar --strip-components=1 -xzf ball.tar.gz
+    rm ball.tar.gz
+    popd
+}
+
+fake_clone https://hg.prosody.im/$PROSODY_BRANCH/ "$subbranch" prosody
+fake_clone https://hg.prosody.im/prosody-modules/ tip prosody-modules
 cp -r utils/prosody-cfg/$PROSODY_BRANCH/* prosody/
 cd prosody
 ./configure "--with-lua=$(pwd)/../lua_install"
