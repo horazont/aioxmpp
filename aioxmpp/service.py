@@ -210,7 +210,7 @@ import aioxmpp.stream
 
 def automake_magic_attr(obj):
     obj._aioxmpp_service_handlers = getattr(
-        obj, "_aioxmpp_service_handlers", set()
+        obj, "_aioxmpp_service_handlers", {}
     )
     return obj._aioxmpp_service_handlers
 
@@ -587,7 +587,7 @@ class Meta(abc.ABCMeta):
                     key = next(iter(conflicting))
                     obj = next(iter(
                         obj
-                        for obj_key, obj in SERVICE_HANDLERS
+                        for obj_key, obj, _ in SERVICE_HANDLERS
                         if obj_key == key
                     ))
 
@@ -602,7 +602,7 @@ class Meta(abc.ABCMeta):
 
                 existing_handlers |= unique_handlers
 
-                for spec in new_handlers:
+                for spec, kwargs in new_handlers.items():
                     missing = spec.require_deps - namespace["ORDER_AFTER"]
                     if missing:
                         raise TypeError(
@@ -613,7 +613,7 @@ class Meta(abc.ABCMeta):
                         )
 
                     SERVICE_HANDLERS.append(
-                        (spec.key, attr_value)
+                        (spec.key, attr_value, kwargs)
                     )
 
             elif isinstance(attr_value, Descriptor):
@@ -722,13 +722,14 @@ class Service(metaclass=Meta):
             if isinstance(item, Descriptor):
                 item.add_to_stack(self, self.__context)
             else:
-                (handler_cm, additional_args), obj = item
+                (handler_cm, additional_args), obj, kwargs = item
                 self.__context.enter_context(
                     handler_cm(
                         self,
                         self.__client.stream,
                         obj.__get__(self, type(self)),
-                        *additional_args
+                        *additional_args,
+                        **kwargs
                     )
                 )
 
@@ -854,29 +855,62 @@ class HandlerSpec(collections.namedtuple(
     If at class definition time any of the dependent classes in `require_deps`
     are not declared using the order attributes (see :class:`Meta`), a
     :class:`TypeError` is raised.
+
+    There is a property to extract the function directly:
+
+    .. autoproperty:: func
     """
 
     def __new__(cls, key, is_unique=True, require_deps=()):
         return super().__new__(cls, is_unique, key, frozenset(require_deps))
 
+    @property
+    def func(self):
+        """
+        The factory of the context manager for this handler.
 
-def add_handler_spec(f, handler_spec):
+        .. versionadded:: 0.11
+        """
+        return self.key[0]
+
+
+def add_handler_spec(f, handler_spec, *, kwargs=None):
     """
     Attach a handler specification (see :class:`HandlerSpec`) to a function.
 
     :param f: Function to attach the handler specification to.
     :param handler_spec: Handler specification to attach to the function.
     :type handler_spec: :class:`HandlerSpec`
+    :param kwargs: additional keyword arguments passed to the function
+       carried in the handler spec.
+    :type kwargs: :class:`dict`
+
+    :raises ValueError: if the handler was registered with
+       different `kwargs` before
 
     This uses a private attribute, whose exact name is an implementation
-    detail. The `handler_spec` is stored in a :class:`set` bound to the
+    detail. The `handler_spec` is stored in a :class:`dict` bound to the
     attribute.
+
+    .. versionadded:: 0.11
+
+       The `kwargs` argument. If two handlers with the same spec, but
+       different arguments are registered for one function, an error
+       will be raised. So you should always include all possible
+       arguments, this is the responsibility of the calling decorator.
     """
-    automake_magic_attr(f).add(handler_spec)
+    handler_dict = automake_magic_attr(f)
+    if kwargs is None:
+        kwargs = {}
+    if kwargs != handler_dict.setdefault(handler_spec, kwargs):
+        raise ValueError(
+            "The additional keyword arguments to the handler are incompatible")
 
 
-def _apply_iq_handler(instance, stream, func, type_, payload_cls):
-    return aioxmpp.stream.iq_handler(stream, type_, payload_cls, func)
+def _apply_iq_handler(instance, stream, func, type_, payload_cls, *,
+                      with_send_reply=False):
+    return aioxmpp.stream.iq_handler(stream, type_, payload_cls, func,
+                                     with_send_reply=with_send_reply)
 
 
 def _apply_presence_handler(instance, stream, func, type_, from_):
@@ -961,7 +995,7 @@ def _apply_connect_attrsignal(instance, stream, func, descriptor, signal_name,
         return signal.context_connect(func, mode)
 
 
-def iq_handler(type_, payload_cls):
+def iq_handler(type_, payload_cls, *, with_send_reply=False):
     """
     Register the decorated function or coroutine function as IQ request
     handler.
@@ -970,6 +1004,10 @@ def iq_handler(type_, payload_cls):
     :type type_: :class:`~.IQType`
     :param payload_cls: Payload XSO class to listen for
     :type payload_cls: :class:`~.XSO` subclass
+    :param with_send_reply: Whether to pass a function to send a reply
+       to the decorated callable as second argument.
+    :type with_send_reply: :class:`bool`
+
     :raises ValueError: if `payload_cls` is not a registered IQ payload
 
     If the decorated function is not a coroutine function, it must return an
@@ -977,17 +1015,22 @@ def iq_handler(type_, payload_cls):
 
     .. seealso::
 
-        :meth:`~.StanzaStream.register_iq_request_handler`
-            for more details on the `type_` and `payload_cls` arguments, as well
-            as behaviour expected from the decorated function.
+        :meth:`~.StanzaStream.register_iq_request_handler` for more
+            details on the `type_`, `payload_cls` and
+            `with_send_reply` arguments, as well as behaviour expected
+            from the decorated function.
+
         :meth:`aioxmpp.IQ.as_payload_class`
             for a way to register a XSO as IQ payload
+
+    .. versionadded:: 0.11
+
+       The `with_send_reply` argument.
 
     .. versionchanged:: 0.10
 
         The decorator now checks if `payload_cls` is a valid, registered IQ
         payload and raises :class:`ValueError` if not.
-
     """
 
     if (not hasattr(payload_cls, "TAG") or
@@ -1006,8 +1049,9 @@ def iq_handler(type_, payload_cls):
             f,
             HandlerSpec(
                 (_apply_iq_handler, (type_, payload_cls)),
-                require_deps=()
-            )
+                require_deps=(),
+            ),
+            kwargs=dict(with_send_reply=with_send_reply),
         )
         return f
     return decorator
@@ -1358,10 +1402,10 @@ def depfilter(class_, filter_name):
     return decorator
 
 
-def is_iq_handler(type_, payload_cls, coro):
+def is_iq_handler(type_, payload_cls, coro, *, with_send_reply=False):
     """
     Return true if `coro` has been decorated with :func:`iq_handler` for the
-    given `type_` and `payload_cls`.
+    given `type_` and `payload_cls` and the specified keyword arguments.
     """
 
     try:
@@ -1369,9 +1413,14 @@ def is_iq_handler(type_, payload_cls, coro):
     except AttributeError:
         return False
 
-    return HandlerSpec(
+    hs = HandlerSpec(
         (_apply_iq_handler, (type_, payload_cls)),
-    ) in handlers
+    )
+
+    try:
+        return handlers[hs] == dict(with_send_reply=with_send_reply)
+    except KeyError:
+        return False
 
 
 def is_message_handler(type_, from_, cb):
@@ -1404,9 +1453,11 @@ def is_inbound_message_filter(cb):
     except AttributeError:
         return False
 
-    return HandlerSpec(
+    hs = HandlerSpec(
         (_apply_inbound_message_filter, ())
-    ) in handlers
+    )
+
+    return hs in handlers
 
 
 def is_inbound_presence_filter(cb):
@@ -1420,9 +1471,11 @@ def is_inbound_presence_filter(cb):
     except AttributeError:
         return False
 
-    return HandlerSpec(
+    hs = HandlerSpec(
         (_apply_inbound_presence_filter, ())
-    ) in handlers
+    )
+
+    return hs in handlers
 
 
 def is_outbound_message_filter(cb):
@@ -1436,9 +1489,11 @@ def is_outbound_message_filter(cb):
     except AttributeError:
         return False
 
-    return HandlerSpec(
+    hs = HandlerSpec(
         (_apply_outbound_message_filter, ())
-    ) in handlers
+    )
+
+    return hs in handlers
 
 
 def is_outbound_presence_filter(cb):
@@ -1452,9 +1507,11 @@ def is_outbound_presence_filter(cb):
     except AttributeError:
         return False
 
-    return HandlerSpec(
+    hs = HandlerSpec(
         (_apply_outbound_presence_filter, ())
-    ) in handlers
+    )
+
+    return hs in handlers
 
 
 def is_depsignal_handler(class_, signal_name, cb, *, defer=False):
