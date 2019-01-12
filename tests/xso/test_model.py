@@ -6115,31 +6115,77 @@ class TestChildValueMultiMap(unittest.TestCase):
 
 
 class TestChildTextMap(unittest.TestCase):
-    def test_init(self):
-        base = unittest.mock.Mock()
+    def test_init_cls(self):
         with contextlib.ExitStack() as stack:
-            stack.enter_context(unittest.mock.patch.object(
+            cvm = stack.enter_context(unittest.mock.patch.object(
                 xso_model.ChildValueMap,
                 "__init__",
-                new=base.ChildValueMap
             ))
 
-            stack.enter_context(unittest.mock.patch(
+            tcm = stack.enter_context(unittest.mock.patch(
                 "aioxmpp.xso.types.TextChildMap",
-                new=base.TextChildMap
             ))
 
-            obj = xso_model.ChildTextMap(base.xso)
+            xso_ = unittest.mock.Mock(spec=xso_model.XMLStreamClass)
 
-        calls = list(base.mock_calls)
+            obj = xso_model.ChildTextMap(xso_)
+
         self.assertSequenceEqual(
-            calls,
+            list(tcm.mock_calls),
             [
-                unittest.mock.call.TextChildMap(base.xso),
-                unittest.mock.call.ChildValueMap(
-                    base.TextChildMap(),
-                    mapping_type=structs.LanguageMap,
-                ),
+                unittest.mock.call(xso_),
+            ]
+        )
+
+        self.assertSequenceEqual(
+            list(cvm.mock_calls),
+            [unittest.mock.call(
+                tcm(),
+                mapping_type=structs.LanguageMap,
+            ),
+            ]
+        )
+
+        self.assertIsInstance(
+            obj,
+            xso_model.ChildTextMap
+        )
+
+    def test_init_tag(self):
+        with contextlib.ExitStack() as stack:
+            cvm = stack.enter_context(unittest.mock.patch.object(
+                xso_model.ChildValueMap,
+                "__init__",
+            ))
+
+            tcm = stack.enter_context(unittest.mock.patch(
+                "aioxmpp.xso.types.TextChildMap",
+            ))
+
+            obj = xso_model.ChildTextMap(("foo", "bar"))
+
+        self.assertSequenceEqual(
+            tcm.mock_calls,
+            [
+                unittest.mock.call(unittest.mock.ANY),
+            ]
+        )
+
+        (_, (xso_,), _), = tcm.mock_calls
+
+        self.assertTrue(
+            issubclass(xso_,
+                       xso_model.AbstractTextChild)
+        )
+
+        self.assertEqual(xso_.TAG, ("foo", "bar"))
+
+        self.assertSequenceEqual(
+            list(cvm.mock_calls),
+            [unittest.mock.call(
+                tcm(),
+                mapping_type=structs.LanguageMap,
+            ),
             ]
         )
 
@@ -7221,3 +7267,69 @@ class TestXSOEnumMixin(unittest.TestCase):
             Mixed.BAD_REQUEST,
             Mixed.BAD_REQUEST.value,
         )
+
+
+class TestAbstractTextChild(unittest.TestCase):
+    def test_is_xso(self):
+        self.assertTrue(issubclass(
+            xso.AbstractTextChild,
+            xso.XSO
+        ))
+
+    def test_has_no_tag(self):
+        self.assertFalse(hasattr(xso.AbstractTextChild, "TAG"))
+
+    def test_lang_attr(self):
+        self.assertIsInstance(
+            xso.AbstractTextChild.lang.xq_descriptor,
+            xso.LangAttr
+        )
+
+    def test_text_attr(self):
+        self.assertIsInstance(
+            xso.AbstractTextChild.text.xq_descriptor,
+            xso.Text
+        )
+        self.assertIsNone(
+            xso.AbstractTextChild.text.default
+        )
+
+    def test_init_default(self):
+        atc = xso.AbstractTextChild()
+        self.assertIsNone(atc.lang)
+        self.assertFalse(atc.text)
+
+    def test_init_args(self):
+        atc = xso.AbstractTextChild(
+            "foo",
+            lang=structs.LanguageTag.fromstr("de-DE"))
+        self.assertEqual(atc.text, "foo")
+        self.assertEqual(atc.lang, structs.LanguageTag.fromstr("de-DE"))
+
+    def test_equality(self):
+        atc1 = xso.AbstractTextChild()
+        atc2 = xso.AbstractTextChild()
+
+        self.assertTrue(atc1 == atc2)
+        self.assertFalse(atc1 != atc2)
+
+        atc1.text = "foo"
+
+        self.assertFalse(atc1 == atc2)
+        self.assertTrue(atc1 != atc2)
+
+        atc2.text = "foo"
+        atc2.lang = structs.LanguageTag.fromstr("de-DE")
+
+        self.assertFalse(atc1 == atc2)
+        self.assertTrue(atc1 != atc2)
+
+        atc1.lang = atc2.lang
+
+        self.assertTrue(atc1 == atc2)
+        self.assertFalse(atc1 != atc2)
+
+    def test_equality_handles_incorrect_peer_type_gracefully(self):
+        atc = xso.AbstractTextChild()
+        self.assertFalse(atc is None)
+        self.assertFalse(atc == "foo")

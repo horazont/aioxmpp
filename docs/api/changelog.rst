@@ -66,6 +66,9 @@ Version 0.11
 
   (A CVE will be allocated for this.)
 
+* :class:`aioxmpp.xso.ChildTextMap` can now also be constructed from a
+  tag, an appropriate XSO is then constructed on the fly.
+
 .. _api-changelog-0.10:
 
 Version 0.10

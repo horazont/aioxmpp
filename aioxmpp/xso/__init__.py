@@ -547,52 +547,9 @@ from .model import (  # NOQA
     lang_attr,
     capture_events,
     events_to_sax,
+    AbstractTextChild,
 )
 
-
-class AbstractTextChild(XSO):
-    """
-    One of the recurring patterns when using :mod:`xso` is the use of a XSO
-    subclass to represent an XML node which has only character data and an
-    ``xml:lang`` attribute.
-
-    The `text` and `lang` arguments to the constructor can be used to
-    initialize the attributes.
-
-    This class provides exactly that. It inherits from :class:`XSO`.
-
-    .. attribute:: lang
-
-       The ``xml:lang`` of the node, as :class:`~.structs.LanguageTag`.
-
-    .. attribute:: text
-
-       The textual content of the node (XML character data).
-
-    Example use as base class::
-
-      class Subject(xso.AbstractTextChild):
-          TAG = (namespaces.client, "subject")
-
-    The full example can also be found in the source code of
-    :class:`.stanza.Subject`.
-
-    """
-
-    lang = LangAttr()
-    text = Text(default=None)
-
-    def __init__(self, text=None, lang=None):
-        super().__init__()
-        self.text = text
-        self.lang = lang
-
-    def __eq__(self, other):
-        try:
-            other_key = (other.lang, other.text)
-        except AttributeError:
-            return NotImplemented
-        return (self.lang, self.text) == other_key
 
 from .model import _PropBase
 NO_DEFAULT = _PropBase.NO_DEFAULT
