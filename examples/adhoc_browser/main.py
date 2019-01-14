@@ -145,8 +145,8 @@ class MainWindow(Qt.QMainWindow):
             return
 
         jid = aioxmpp.JID.fromstr(
-            self.commands_model.data(
-                self.commands_model.index(
+            self.sorted_commands_model.data(
+                self.sorted_commands_model.index(
                     index.row(),
                     self.disco_model.COLUMN_JID,
                     index.parent(),
@@ -154,8 +154,8 @@ class MainWindow(Qt.QMainWindow):
                 Qt.Qt.DisplayRole)
         )
 
-        node = self.commands_model.data(
-            self.commands_model.index(
+        node = self.sorted_commands_model.data(
+            self.sorted_commands_model.index(
                 index.row(),
                 self.disco_model.COLUMN_NODE,
                 index.parent(),
