@@ -1875,7 +1875,9 @@ class XMLStreamClass(xso_query.Class, abc.ABCMeta):
                 except:
                     prop.mark_incomplete(obj)
                     _mark_attributes_incomplete(attr_map.values(), obj)
-                    logger.debug("while parsing XSO", exc_info=True)
+                    logger.debug("while parsing XSO %s (%r)", cls,
+                                 value,
+                                 exc_info=True)
                     # true means suppress
                     if not obj.xso_error_handler(
                             prop,
@@ -1887,7 +1889,8 @@ class XMLStreamClass(xso_query.Class, abc.ABCMeta):
                 try:
                     prop.handle_missing(obj, ctx)
                 except:
-                    logger.debug("while parsing XSO", exc_info=True)
+                    logger.debug("while parsing XSO %s", cls,
+                                 exc_info=True)
                     # true means suppress
                     if not obj.xso_error_handler(
                             prop,
@@ -1938,7 +1941,8 @@ class XMLStreamClass(xso_query.Class, abc.ABCMeta):
                             ev_args
                         )
                     except:
-                        logger.debug("while parsing XSO", exc_info=True)
+                        logger.debug("while parsing XSO %s", type(obj),
+                                     exc_info=True)
                         # true means suppress
                         if not obj.xso_error_handler(
                                 handler,
