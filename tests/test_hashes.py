@@ -26,7 +26,18 @@ import unittest.mock
 import aioxmpp.hashes as hashes
 import aioxmpp.xso
 
+import aioxmpp.disco.xso as disco_xso
+
 from aioxmpp.utils import namespaces
+
+from aioxmpp.testutils import (
+    make_connected_client,
+    CoroutineMock,
+    run_coroutine,
+)
+
+
+TEST_FROM = aioxmpp.structs.JID.fromstr("foo@bar.example/baz")
 
 
 class TestNamespaces(unittest.TestCase):
@@ -34,6 +45,12 @@ class TestNamespaces(unittest.TestCase):
         self.assertEqual(
             namespaces.xep0300_hashes2,
             "urn:xmpp:hashes:2",
+        )
+
+    def test_namespace_prefix(self):
+        self.assertEqual(
+            namespaces.xep0300_hash_name_prefix,
+            "urn:xmpp:hash-function-text-names:"
         )
 
 
@@ -123,6 +140,90 @@ class TestHashesParent(unittest.TestCase):
         self.assertIsInstance(
             hashes.HashesParent.digests.type_,
             hashes.HashType,
+        )
+
+
+class TestHashUsed(unittest.TestCase):
+    def test_is_xso(self):
+        self.assertTrue(issubclass(
+            hashes.HashUsed,
+            aioxmpp.xso.XSO
+        ))
+
+    def test_tag(self):
+        self.assertEqual(
+            hashes.HashUsed.TAG,
+            (namespaces.xep0300_hashes2, "hash-used"),
+        )
+
+    def test_init_default(self):
+        with self.assertRaises(TypeError):
+            hashes.HashUsed()
+
+    def test_init(self):
+        h = hashes.HashUsed("algo")
+        self.assertEqual(h.algo, "algo")
+
+    def test_get_impl_uses_hash_from_algo(self):
+        h = hashes.HashUsed("some algo")
+        with unittest.mock.patch(
+                "aioxmpp.hashes.hash_from_algo") as hash_from_algo:
+            impl = h.get_impl()
+            hash_from_algo.assert_called_once_with(
+                h.algo,
+            )
+            self.assertEqual(impl, hash_from_algo())
+
+
+class TestHashUsedType(unittest.TestCase):
+    def test_is_element_type(self):
+        self.assertTrue(issubclass(
+            hashes.HashUsedType,
+            aioxmpp.xso.AbstractElementType,
+        ))
+
+    def test_get_xso_types(self):
+        self.assertCountEqual(
+            hashes.HashUsedType.get_xso_types(),
+            [hashes.HashUsed],
+        )
+
+    def test_pack(self):
+        t = hashes.HashUsedType()
+        h = t.pack("sha-1")
+        self.assertIsInstance(h, hashes.HashUsed)
+        self.assertEqual(h.algo, "sha-1")
+
+    def test_unpack(self):
+        t = hashes.HashUsedType()
+        h = hashes.HashUsed("fnord")
+        algo = t.unpack(h)
+        self.assertEqual(
+            algo,
+            "fnord"
+        )
+
+
+class TestHashesUsedParent(unittest.TestCase):
+    def test_is_xso(self):
+        self.assertTrue(issubclass(
+            hashes.HashesUsedParent,
+            aioxmpp.xso.XSO,
+        ))
+
+    def test_has_no_tag(self):
+        self.assertFalse(
+            hasattr(hashes.HashesUsedParent, "TAG")
+        )
+
+    def test_digests(self):
+        self.assertIsInstance(
+            hashes.HashesUsedParent.algos,
+            aioxmpp.xso.ChildValueList
+        )
+        self.assertIsInstance(
+            hashes.HashesUsedParent.algos.type_,
+            hashes.HashUsedType,
         )
 
 
@@ -331,3 +432,137 @@ class Testdefault_hash_algorithms(unittest.TestCase):
     def test_all_selected_can_be_instantiated(self):
         for algo in hashes.default_hash_algorithms:
             hashes.hash_from_algo(algo)
+
+
+class TestHashService(unittest.TestCase):
+    def setUp(self):
+        self.cc = make_connected_client()
+        self.cc.local_jid = TEST_FROM
+
+        self.disco_client = aioxmpp.DiscoClient(self.cc)
+        self.disco_server = aioxmpp.DiscoServer(self.cc)
+
+        self.s = hashes.HashService(
+            self.cc,
+            dependencies={
+                aioxmpp.DiscoClient: self.disco_client,
+                aioxmpp.DiscoServer: self.disco_server,
+            }
+        )
+        self.cc.mock_calls.clear()
+
+    def tearDown(self):
+        del self.cc
+        del self.disco_client
+        del self.disco_server
+        del self.s
+
+    def test_is_service(self):
+        self.assertTrue(issubclass(
+            hashes.HashService,
+            aioxmpp.service.Service
+        ))
+
+    def test_service_order(self):
+        self.assertCountEqual(
+            hashes.HashService.ORDER_AFTER,
+            [aioxmpp.DiscoClient, aioxmpp.DiscoServer]
+        )
+
+        self.assertCountEqual(
+            hashes.HashService.ORDER_BEFORE,
+            []
+        )
+
+    def test_select_common_hashes(self):
+        with unittest.mock.patch.object(self.disco_client, "query_info",
+                                        new=CoroutineMock()) as query_info:
+            query_info.return_value = disco_xso.InfoQuery(
+                features=(
+                    'urn:xmpp:hashes:2',
+                    'urn:xmpp:hash-function-text-names:sha-256',
+                )
+            )
+            res = run_coroutine(
+                self.s.select_common_hashes(
+                    unittest.mock.sentinel.other_jid))
+
+        self.assertSequenceEqual(
+            query_info.mock_calls,
+            [
+                unittest.mock.call(unittest.mock.sentinel.other_jid),
+            ]
+        )
+        self.assertEqual(
+            res,
+            {'urn:xmpp:hash-function-text-names:sha-256'},
+        )
+
+    def test_select_common_hashes_empty_intersection(self):
+        with unittest.mock.patch.object(self.disco_client, "query_info",
+                                        new=CoroutineMock()) as query_info:
+            query_info.return_value = disco_xso.InfoQuery(
+                features=(
+                    'urn:xmpp:hashes:2',
+                    'urn:xmpp:hash-function-text-names:md5',
+                )
+            )
+            res = run_coroutine(
+                self.s.select_common_hashes(
+                    unittest.mock.sentinel.other_jid))
+
+        self.assertSequenceEqual(
+            query_info.mock_calls,
+            [
+                unittest.mock.call(unittest.mock.sentinel.other_jid),
+            ]
+        )
+        self.assertEqual(
+            res,
+            set(),
+        )
+
+    def test_select_common_hashes_not_supported(self):
+        with unittest.mock.patch.object(self.disco_client, "query_info",
+                                        new=CoroutineMock()) as query_info:
+            query_info.return_value = disco_xso.InfoQuery(
+                features=(
+                    'urn:xmpp:hash-function-text-names:md5',
+                )
+            )
+
+            with self.assertRaisesRegex(
+                    RuntimeError,
+                    "Remote does not support the urn:xmpp:hashes:2 feature."
+                ):
+                res = run_coroutine(
+                    self.s.select_common_hashes(
+                        unittest.mock.sentinel.other_jid))
+
+        self.assertSequenceEqual(
+            query_info.mock_calls,
+            [
+                unittest.mock.call(unittest.mock.sentinel.other_jid),
+            ]
+        )
+
+    def test_features_are_registered(self):
+        with self.assertRaisesRegex(ValueError, "feature already claimed"):
+            self.disco_server.register_feature(namespaces.xep0300_hashes2)
+
+        for feature in hashes.SUPPORTED_HASH_FEATURES:
+            with self.assertRaisesRegex(ValueError, "feature already claimed"):
+                self.disco_server.register_feature(feature)
+
+    def test_shutdown_unregisters_features(self):
+        with unittest.mock.patch.object(self.disco_server,
+                                        "unregister_feature") as unreg:
+            run_coroutine(self.s.shutdown())
+
+        self.assertCountEqual(
+            unreg.mock_calls,
+            [unittest.mock.call(item)
+             for item in
+                 {namespaces.xep0300_hashes2} |
+                   hashes.SUPPORTED_HASH_FEATURES],
+        )
